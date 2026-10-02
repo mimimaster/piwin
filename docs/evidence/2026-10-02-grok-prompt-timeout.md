@@ -100,3 +100,38 @@ The source fix exists in both repositories. The running port-1420 Host and
 its selected immutable extension revision have not been replaced; applying
 the corrected Host/plugin requires their normal reload/update. Active user
 tasks were not interrupted for deployment.
+
+## Live test-environment follow-up at 22:34 Shanghai
+
+The owner's screenshot was correct: the test Host already ran the new source,
+but the selected Grok extension still shipped the old 147936-byte adapter
+(`283c9520…`) without `requestUsage` support. A query to the actual test Host
+at `ws://127.0.0.1:8787` reproduced exactly one recent entry with turn timing,
+43 output tokens and 3.147-second first-content latency. No assumptions about
+frontend code freshness were needed.
+
+Native subagents were a second missing case. Their inference records have
+independent native session ids. The adapter now recursively reads only the
+bound session's `subagents/<id>/meta.json` relationships, verifies the parent
+id and maps child requests to that bound product session. Explicitly bound
+children keep their own attribution. A shared process id never establishes
+ownership. Arbitrary prompts and credential fields are not projected.
+Regression fixtures failed with one row instead of three before this change,
+and pass with parent, child and grandchild records afterward.
+
+The updated plugin was installed through this live Host's `extensions/install`
+command, as immutable revision `61ab2e95363eac21f9405e9c9d1a40817aec62df832dbff37ff19df1ac26b3eb`.
+The shipped artifact is 156537 bytes with digest `56e565f8a2f2…`. Reviewed
+compatible test bindings were migrated through `agents/confirm-binding-migration`.
+The active native session ids and history were preserved.
+
+At `2026-10-02T14:34:04.394Z`, the same running Host instance
+`8e660b8f-d442-4891-9af0-874c036de3e3` returned **33 completed requests** in the
+last 60 minutes, all with `timingScope: request`, and zero turn aggregate rows.
+Fifteen belong to `session-mur1s4rf-ygau97ji`, including its native subagents;
+eighteen belong to another bound imported session. The current binding reports
+`ready`, and the verification query produced no new warning pushes. The Host
+was not restarted and no model prompt was sent for validation.
+
+All 35 Grok plugin tests across 9 files and its TypeScript check passed.
+This live deployment supersedes the preceding source-only deployment note.

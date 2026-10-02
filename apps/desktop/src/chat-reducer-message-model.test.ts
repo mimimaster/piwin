@@ -175,3 +175,40 @@ describe('chatUiReducer message model snapshot', () => {
     expect(state.messages.find((message) => message.id === 'a1')?.model).toEqual(turnModel);
   });
 });
+
+
+describe('external backend assistant identity', () => {
+  it('clears a stale Pi turn model and never stamps it on a Grok slash response', () => {
+    let state = createInitialChatUiState();
+    state.activeSessionId = 'grok-session';
+    state.sessionEntitiesById['grok-session'] = {
+      id: 'grok-session', name: '/deep-research', backend: { agentId: 'grok' },
+    };
+    const opus = { providerId: 'anthropic', modelId: 'claude-opus-4-6' };
+    state.pendingTurnModel = opus;
+    state = chatUiReducer(state, { type: 'user/send', text: '/deep-research', model: opus });
+    expect(state.pendingTurnModel).toBeNull();
+    state = chatUiReducer(state, { type: 'event', sessionId: 'grok-session', event: {
+      type: 'message/start', messageId: 'grok-help', role: 'assistant',
+    } });
+    expect(state.messages.find((row) => row.id === 'grok-help')?.model).toBeUndefined();
+  });
+
+  it('ignores stale Pi fallback on external starts while preserving an explicit backend model', () => {
+    let state = createInitialChatUiState();
+    state.activeSessionId = 'grok-session';
+    state.sessionEntitiesById['grok-session'] = {
+      id: 'grok-session', name: '/deep-research', backend: { agentId: 'grok' },
+    };
+    state.pendingTurnModel = { providerId: 'anthropic', modelId: 'claude-opus-4-6' };
+    state = chatUiReducer(state, { type: 'event', sessionId: 'grok-session', event: {
+      type: 'message/start', messageId: 'grok-help', role: 'assistant',
+    } });
+    expect(state.messages[0]?.model).toBeUndefined();
+    const model = { providerId: 'grok', modelId: 'grok-4.7-build-fast' };
+    state = chatUiReducer(state, { type: 'event', sessionId: 'grok-session', event: {
+      type: 'message/start', messageId: 'grok-answer', role: 'assistant', model,
+    } });
+    expect(state.messages.find((row) => row.id === 'grok-answer')?.model).toEqual(model);
+  });
+});

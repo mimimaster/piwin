@@ -108,3 +108,25 @@ describe('useComposerPromptInput permissionPreset', () => {
     expect(input.model).toEqual(fallbackModel);
   });
 });
+
+
+describe('external backend prompt identity', () => {
+  it.each(['bound', 'draft'] as const)('omits Pi model and thinking fields on a %s Grok prompt', (kind) => {
+    const state = createInitialChatUiState();
+    if (kind === 'bound') {
+      state.activeSessionId = 'grok-session';
+      state.sessionEntitiesById['grok-session'] = {
+        id: 'grok-session', name: '/deep-research', backend: { agentId: 'grok' },
+      };
+    } else {
+      state.draftAgentId = 'grok';
+    }
+    const input = readPromptInput({
+      state, selectedModelKey: 'anthropic::claude-opus-4-6', thinkingLevel: 'high',
+      promptModel: { providerId: 'anthropic', modelId: 'claude-opus-4-6' },
+      modelOptions: [{ providerId: 'anthropic', modelId: 'claude-opus-4-6', reasoning: true }],
+    });
+    expect(input.model).toBeUndefined();
+    expect(input.thinkingLevel).toBeUndefined();
+  });
+});

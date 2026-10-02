@@ -1,222 +1,107 @@
 import { useState, type ReactElement } from 'react';
 import { isBackendWorkflowActive, type BackendWorkflowSnapshot } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
-import { IconChevronDown } from './shell-icons.js';
+import { ToolBatchCapsule } from './tool-batch-capsule.js';
+import { formatToolDuration } from './tool-call-head.js';
+import { InkLineNode } from './ink-line-node.js';
 import { CollapsibleContentBlock } from './collapsible-content-block.js';
 import { MarkdownView } from './MarkdownView.js';
 import type { BackendWorkflowRequest } from './backend-workflows.js';
+import type { SessionNodeStatusKind } from './session-node-status.js';
+
+const PHASE_ZH: Record<string, string> = { Plan: '规划', Research: '研究', Verify: '核验', Report: '报告' };
 
 const STATUS_ZH: Record<string, string> = {
-  running: '运行中',
-  pending: '等待中',
-  starting: '启动中',
-  waiting: '等待中',
-  resuming: '恢复中',
-  completed: '已完成',
-  failed: '失败',
-  interrupted: '已中断',
-  paused: '已暂停',
-  cancelled: '已取消',
-  done: '已完成',
+  active: '运行中', running: '运行中', pending: '等待中', starting: '启动中', waiting: '等待中',
+  resuming: '恢复中', completed: '已完成', failed: '失败', interrupted: '已中断', paused: '已暂停',
+  cancelled: '已取消', done: '已完成',
 };
 
-function formatElapsed(ms?: number): string | null {
-  if (typeof ms !== 'number' || ms <= 0) return null;
-  if (ms < 1000) return `${ms}ms`;
-  const sec = Math.round(ms / 1000);
-  if (sec < 60) return `${sec}s`;
-  const min = Math.floor(sec / 60);
-  const remSec = sec % 60;
-  return `${min}m ${remSec}s`;
+function nodeKind(status: string): SessionNodeStatusKind {
+  if (status === 'done' || status === 'completed') return 'success';
+  if (status === 'failed' || status === 'interrupted' || status === 'cancelled') return 'failed';
+  return isBackendWorkflowActive(status) && status !== 'pending' ? 'running' : 'pending';
 }
 
-/** Backend workflow row on the same ink-spine as tool calls. */
+/** Native workflow stages use the existing batch disclosure and ink-line nodes. */
 export function BackendWorkflowCard(props: {
-  workflow: BackendWorkflowSnapshot;
-  request: BackendWorkflowRequest;
-  locale: 'zh-CN' | 'en';
+  workflow: BackendWorkflowSnapshot; request: BackendWorkflowRequest; locale: 'zh-CN' | 'en';
 }): ReactElement {
-  const [expanded, setExpanded] = useState(false);
   const [report, setReport] = useState<string | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
   const workflow = props.workflow;
   const chinese = props.locale === 'zh-CN';
   const running = isBackendWorkflowActive(workflow.status);
-  const isCompleted = workflow.status === 'completed' || workflow.status === 'done';
-  const isFailed = workflow.status === 'failed' || workflow.status === 'interrupted' || workflow.status === 'cancelled';
-  const nodeClass = running ? 'run' : isCompleted ? 'done' : isFailed ? 'fail' : 'wait';
-  const badgeClass = nodeClass === 'run' ? 'run' : nodeClass === 'done' ? 'done' : nodeClass === 'fail' ? 'fail' : 'wait';
+  const failed = nodeKind(workflow.status) === 'failed';
   const doneCount = workflow.phases.filter((phase) => phase.status === 'done').length;
-  const statusLabel = chinese ? STATUS_ZH[workflow.status] ?? workflow.status : workflow.status;
-  const progressLabel = workflow.phases.length > 0 ? `${doneCount}/${workflow.phases.length}` : null;
+  const label = (status: string): string => chinese ? STATUS_ZH[status] ?? status : status;
+  const phaseLabel = (title: string): string => chinese ? PHASE_ZH[title] ?? title : title;
+  const activePhase = workflow.phases.find((phase) => phase.status === 'active');
+  const activeAgent = workflow.agents.find((agent) => nodeKind(agent.status) === 'running');
+  const activeLabel = [activePhase ? phaseLabel(activePhase.title) : workflow.currentPhase ? phaseLabel(workflow.currentPhase) : undefined, activeAgent?.label].filter(Boolean).join(' · ')
+    || workflow.message || workflow.objective;
 
   async function openReport(): Promise<void> {
-    setLoading(true);
-    setReportError(null);
+    setLoading(true); setReportError(null);
     try {
-      const result = await props.request({
-        type: 'agents/workflow-report',
-        sessionId: workflow.sessionId,
-        workflowId: workflow.workflowId,
-      });
+      const result = await props.request({ type: 'agents/workflow-report', sessionId: workflow.sessionId, workflowId: workflow.workflowId });
       if (!result.success) throw new Error(result.error);
       const data = result.data;
-      if (typeof data !== 'object' || data === null || !('text' in data) || typeof data.text !== 'string') {
-        throw new Error('Invalid workflow report');
-      }
+      if (typeof data !== 'object' || data === null || !('text' in data) || typeof data.text !== 'string') throw new Error('Invalid workflow report');
       setReport(data.text);
-    } catch (error) {
-      setReportError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { setReportError(error instanceof Error ? error.message : String(error)); }
+    finally { setLoading(false); }
   }
 
-  return (
-    <div
-      className={`tr backend-workflow-chain-item${expanded ? ' is-expanded' : ' is-collapsed'}${
-        running ? ' is-running' : ''
-      }`}
-      data-state={workflow.status}
-      data-testid="backend-workflow-card"
-    >
-      <span className={`node ${nodeClass}`} aria-hidden="true" />
-      <button
-        type="button"
-        className="backend-workflow-trigger"
-        data-testid="backend-workflow-trigger"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((prev) => !prev)}
-      >
-        <b className="backend-workflow-name">{workflow.name}</b>
-        {workflow.objective ? (
-          <span className="backend-workflow-objective" title={workflow.objective}>
-            {workflow.objective}
-          </span>
-        ) : null}
-        <div className="backend-workflow-meta meta">
-          <span className={`backend-workflow-badge ${badgeClass}`}>
-            {progressLabel ? `${progressLabel} · ${statusLabel}` : statusLabel}
-          </span>
-          {formatElapsed(workflow.elapsedMs) ? (
-            <span className="backend-workflow-timing">
-              {formatElapsed(workflow.elapsedMs)}
-            </span>
-          ) : null}
-          <IconChevronDown
-            className={`backend-workflow-chevron${expanded ? ' is-open' : ''}`}
-            aria-hidden="true"
-          />
-        </div>
-      </button>
+  const renderAgent = (agent: BackendWorkflowSnapshot['agents'][number]): ReactElement => (
+    <div key={agent.id} className="backend-workflow-agent-row">
+      <InkLineNode kind={nodeKind(agent.status)} label={label(agent.status)} size="compact" />
+      <span>{agent.label}</span>
+      <span className="backend-workflow-row-meta">{label(agent.status)}{agent.tokensUsed === undefined ? '' : ` · ${agent.tokensUsed.toLocaleString()} tokens`}</span>
+    </div>
+  );
 
-      {expanded ? (
-        <div className="backend-workflow-details" data-testid="backend-workflow-details">
-          {workflow.objective ? (
-            <p className="backend-workflow-objective-expanded">{workflow.objective}</p>
-          ) : null}
-          {workflow.message ? (
-            <p className={isFailed ? 'backend-workflow-error' : 'backend-workflow-note'} role="status">
-              {workflow.message}
-            </p>
-          ) : null}
-          {workflow.phases.length > 0 ? (
-            <div className="backend-workflow-phases">
-              {workflow.phases.map((phase, index) => (
-                <div
-                  key={`${index}-${phase.title}`}
-                  className={`backend-workflow-phase-row phase-${phase.status}`}
-                >
-                  <span
-                    className={`phase-mark ${
-                      phase.status === 'done'
-                        ? 'done'
-                        : phase.status === 'active'
-                          ? 'run'
-                          : 'pending'
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <span className="phase-title">{phase.title}</span>
-                  {phase.detail ? (
-                    <span className="phase-detail">{phase.detail}</span>
-                  ) : null}
-                </div>
-              ))}
+  return (
+    <div className={`backend-workflow-chain-item${running ? ' is-running' : ''}`} data-state={workflow.status} data-testid="backend-workflow-card">
+      <ToolBatchCapsule
+        clusterKind="other" tools={[]} title={workflow.name} activeLabel={activeLabel}
+        defaultOpenWhileRunning locale={props.locale}
+        summary={{ totalCount: workflow.phases.length, hasRunning: running, hasError: failed, errorCount: failed ? 1 : 0, keyTargets: [] }}
+        meta={<span className="backend-workflow-row-meta">{workflow.phases.length > 0 ? `${doneCount}/${workflow.phases.length} · ` : ''}{label(workflow.status)}{workflow.elapsedMs === undefined ? '' : ` · ${formatToolDuration(workflow.elapsedMs)}`}</span>}
+      >
+        <div className="backend-workflow-steps" data-testid="backend-workflow-details">
+          {workflow.phases.map((phase, index) => (
+            <div key={`${index}-${phase.title}`} className="backend-workflow-stage" data-phase-state={phase.status}>
+              <div className="backend-workflow-stage-row">
+                <InkLineNode kind={phase.status === 'active' ? (failed ? 'failed' : running ? 'running' : 'pending') : phase.status === 'done' ? 'success' : 'pending'}
+                  label={phase.status === 'active' ? label(workflow.status) : phase.status === 'done' ? label('done') : label('pending')} size="compact" />
+                <b>{phaseLabel(phase.title)}</b>
+                {phase.detail ? <span className="backend-workflow-row-detail" title={phase.detail}>{phase.detail}</span> : null}
+              </div>
+              {workflow.agents.filter((agent) => agent.phase === phase.title).map(renderAgent)}
             </div>
-          ) : null}
-          {workflow.agents.length > 0 ? (
-            <div className="backend-workflow-agents">
-              {workflow.agents.map((agent) => (
-                <div key={agent.id} className="backend-workflow-agent-row">
-                  <span>
-                    {agent.label} · {agent.phase} ·{' '}
-                    {chinese ? STATUS_ZH[agent.status] ?? agent.status : agent.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          ))}
+          {workflow.agents.filter((agent) => !workflow.phases.some((phase) => phase.title === agent.phase)).map(renderAgent)}
+          {workflow.message ? <p className={failed ? 'backend-workflow-error' : 'backend-workflow-note'} role="status">{workflow.message}</p> : null}
           {workflow.history.length > 0 ? (
-            <div className="backend-workflow-telemetry">
-              <div className="telemetry-header">
-                <span>{chinese ? '执行记录' : 'Telemetry'}</span>
-                <span className="telemetry-count">{workflow.history.length}</span>
+            <details className="backend-workflow-history">
+              <summary>{chinese ? '执行记录' : 'Execution history'} · {workflow.history.length}</summary>
+              <div className="backend-workflow-history-list">
+                {workflow.history.map((event, index) => <div key={index}>
+                  {event.at ? <time>{new Date(event.at).toLocaleTimeString()}</time> : null}
+                  <span>{event.detail ?? event.event}</span>
+                </div>)}
               </div>
-              <div className="telemetry-list">
-                {workflow.history.map((event, index) => (
-                  <div key={index} className="telemetry-item">
-                    {event.at ? (
-                      <span className="telemetry-time">
-                        {new Date(event.at).toLocaleTimeString()}
-                      </span>
-                    ) : null}
-                    <span className="telemetry-text">{event.detail ?? event.event}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            </details>
           ) : null}
-          {workflow.reportAvailable ? (
-            <div className="backend-workflow-report-box">
-              <span className="report-box-title">
-                {chinese ? '报告已生成' : 'Report ready'}
-              </span>
-              <Button
-                size="compact"
-                onClick={() => void openReport()}
-                disabled={loading}
-              >
-                {loading
-                  ? chinese
-                    ? '加载中…'
-                    : 'Loading…'
-                  : report !== null
-                    ? chinese
-                      ? '刷新报告'
-                      : 'Refresh report'
-                    : chinese
-                      ? '查看报告'
-                      : 'View report'}
-              </Button>
-            </div>
-          ) : null}
-          {reportError ? (
-            <p className="backend-workflow-error" role="alert">
-              {reportError}
-            </p>
-          ) : null}
-          {report !== null ? (
-            <div className="backend-workflow-report-view">
-              <CollapsibleContentBlock maxCollapsedHeight={400}>
-                <MarkdownView text={report} artifactInlineEnabled={false} />
-              </CollapsibleContentBlock>
-            </div>
-          ) : null}
+          {workflow.reportAvailable ? <Button size="compact" onClick={() => void openReport()} disabled={loading}>
+            {loading ? (chinese ? '加载中…' : 'Loading…') : report !== null ? (chinese ? '刷新报告' : 'Refresh report') : (chinese ? '查看报告' : 'View report')}
+          </Button> : null}
+          {reportError ? <p className="backend-workflow-error" role="alert">{reportError}</p> : null}
+          {report !== null ? <CollapsibleContentBlock maxCollapsedHeight={400}><MarkdownView text={report} artifactInlineEnabled={false} /></CollapsibleContentBlock> : null}
         </div>
-      ) : null}
+      </ToolBatchCapsule>
     </div>
   );
 }

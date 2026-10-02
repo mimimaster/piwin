@@ -1,40 +1,31 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import type { BackendWorkflowsData, HostCommand, HostResponse } from '@piwin/contracts';
 import { BackendWorkflowCard } from './backend-workflow-card.js';
 import './styles/backend-workflows.css';
 
 export type BackendWorkflowRequest = (command: Extract<HostCommand, { type: 'agents/workflows' | 'agents/workflow-report' }>) => Promise<HostResponse>;
 
-/** Poll independently of foreground streaming; native workflow lifetimes can span many turns. */
-export function BackendWorkflows(props: { sessionId: string; request: BackendWorkflowRequest; locale: 'zh-CN' | 'en' }): ReactElement | null {
-  const [data, setData] = useState<BackendWorkflowsData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let disposed = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    setData(null); setError(null);
-    async function refresh(): Promise<void> {
-      try {
-        const result = await props.request({ type: 'agents/workflows', sessionId: props.sessionId });
-        if (!result.success) throw new Error(result.error);
-        const value = result.data as BackendWorkflowsData | undefined;
-        if (value?.sessionId !== props.sessionId || !Array.isArray(value.workflows)) throw new Error('Invalid workflow response');
-        if (!disposed) { setData(value); setError(null); }
-      } catch (failure) {
-        const message = failure instanceof Error ? failure.message : String(failure);
-        // A live handle without the workflow method is "no tasks", not a chat error.
-        if (!disposed) setError(message.includes('is not a function') ? null : message);
-      } finally { if (!disposed) timer = setTimeout(() => void refresh(), 3000); }
-    }
-    void refresh();
-    return () => { disposed = true; if (timer !== undefined) clearTimeout(timer); };
-  }, [props.sessionId, props.request]);
+import { useBackendWorkflows } from './use-backend-workflows.js';
+
+type Props = { sessionId: string; request: BackendWorkflowRequest; locale: 'zh-CN' | 'en' };
+
+export function BackendWorkflows(props: Props): ReactElement | null {
+  const observation = useBackendWorkflows(props.sessionId, props.request);
+  return <BackendWorkflowSequence {...props} workflows={observation.data?.workflows ?? []} error={observation.error} />;
+}
+
+/** Rendered inside the initiating assistant article, never as a transcript-tail tray. */
+export function BackendWorkflowSequence(props: Props & {
+  workflows: BackendWorkflowsData['workflows']; error?: string | null;
+}): ReactElement | null {
+  const data = { workflows: props.workflows };
+  const error = props.error;
   if (!data?.workflows.length && !error) return null;
   return (
     <div
       className="thread turn-tool-sequence backend-workflows-sequence"
       data-testid="backend-workflows-sequence"
-      aria-label={props.locale === 'zh-CN' ? '后台工作流' : 'Background workflows'}
+      aria-label={props.locale === 'zh-CN' ? '工作流调用链' : 'Workflow call chain'}
     >
       {error ? (
         <p role="alert" className="backend-workflows-error">

@@ -72,6 +72,8 @@ function createThinkingOnlyMessage(message: ChatMessageUi): ChatMessageUi {
 
 export type ChatTurnRenderInput = {
   turn: TranscriptTurn;
+  workflowActivity?: ReactElement | null;
+  workflowActive?: boolean;
   props: ChatThreadProps;
   conversationSession: boolean;
   currentResponseTurnId: string | null;
@@ -588,11 +590,16 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
         );
       }
 
+      if (input.workflowActivity) renderedAssistantItems.push(
+        <Fragment key={`workflow-${turn.id}`}>{input.workflowActivity}</Fragment>,
+      );
+
       // One live line at the foot of the running turn. A permission gate
       // owns the foot while it is up, and so does a compaction that is
       // still running; a settled one must not keep the footer hidden.
       const showRunStatusFooter =
         currentTurnStreaming &&
+        !input.workflowActive &&
         !props.permissionPrompt &&
         !(turnCompaction !== null && isCompactionRunning(turnCompaction));
       if (showRunStatusFooter) {
@@ -624,7 +631,7 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
           assistantItems={renderedAssistantItems}
           assistantPending={currentTurnStreaming && props.activeRunId !== null}
           liveState={
-            currentTurnStreaming ? (props.permissionPrompt ? 'waiting' : 'running') : null
+            currentTurnStreaming ? (props.permissionPrompt ? 'waiting' : 'running') : input.workflowActive ? 'running' : null
           }
           editingMessageId={props.editingMessageId}
           locale={props.locale}

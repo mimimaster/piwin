@@ -1,6 +1,9 @@
 mod artifact_bridge;
 mod artifact_protocol;
 mod attention_notifications;
+#[cfg(target_os = "windows")]
+mod attention_notifications_windows;
+mod attention_toast;
 mod host_bridge;
 mod memory_pressure;
 mod pet_overlay;

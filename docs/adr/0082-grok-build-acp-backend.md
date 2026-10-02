@@ -127,7 +127,11 @@ The Host is the authority; clients mirror it and never invent capability.
   from the durable session binding (including retained rows after sidebar paging),
   independently of the optional backend catalog. Until that catalog arrives,
   it shows the agent name and a disabled model-loading state; it never presents
-  the global Pi model selection for an externally bound session.
+  the global Pi model selection for an externally bound session. Host publishes
+  `session/backend-updated` after the first activation and every adapter option
+  change, even if the client's earlier query found no catalog. External prompts
+  omit Pi model/thinking fields, and a reply without a backend model snapshot
+  stays unlabeled instead of inheriting the global Pi picker or a stale Pi turn.
 - **Capability gating.** Unsupported operations are absent from the UI
   (compact, fork, duplicate, continue-in-project) or shown as the action that
   does exist (Stop instead of Pause). The composer toolbar always passes the
@@ -428,3 +432,25 @@ deduplication and paging remain pure logic in the session package.
   text turn, one file write and a catalog list (see §9). A permission prompt
   was not observed because the local CLI is set to always-approve. Install is
   still unprobed.
+
+### Amendment: Backend research belongs to its initiating transcript turn (2026-10-02)
+
+Desktop polls workflow snapshots once per active session, independently of the
+foreground prompt lifetime. Native `active` is an ongoing status. The main
+transcript places each workflow inside the assistant article of its initiating
+turn, using the start time and slash objective to distinguish repeated prompts.
+If vendor replay replaces native message times with reconnect times, explicit
+matching prompts are paired in transcript order; a later completion reminder
+never steals the original research chain.
+Later user turns do not move an earlier workflow to the transcript tail. A
+workflow whose prompt is outside the loaded history retains a separate
+assistant article until its owner is resident.
+
+Research reuses `ToolBatchCapsule`, `ActionMarquee`, `InkLineNode`, local fold
+measurement, and the existing Markdown report viewer. Running workflows show
+stages and native worker status immediately; successful workflows fold and
+failures remain expanded for inspection. An
+explicit fold choice stays respected while running. Execution history is
+secondary expandable detail. These are backend observations, not fabricated
+Pi tool events, and no workflow state is written back by this UI. Pauses and
+failures preserve completed stages and do not animate as running.

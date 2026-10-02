@@ -1,3 +1,4 @@
+import { resolveActiveComposerAgentId } from './composer-dock-assembly.js';
 import type { ExecutionRunRecord, SessionTranscriptMessage } from '@piwin/contracts';
 import { ensureFailedRunAssistant } from './run-failure-message';
 import { isAssistantContentEmpty } from './assistant-message-content';
@@ -327,7 +328,10 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
         runTerminal: { kind: 'none' },
         error: null,
         activeSkill: action.skill ?? null,
-        pendingTurnModel: action.model ?? state.pendingTurnModel,
+        pendingTurnModel:
+          (resolveActiveComposerAgentId(state) ?? state.draftAgentId ?? 'pi') === 'pi'
+            ? action.model ?? state.pendingTurnModel
+            : null,
         workingSessionIds: state.activeSessionId
           ? { ...state.workingSessionIds, [state.activeSessionId]: true }
           : state.workingSessionIds,

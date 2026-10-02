@@ -217,7 +217,7 @@ export class ExternalAgentBackend {
           sessionId: input.productSessionId,
           prompt,
         }),
-        onOptionsChanged: (options) => this.sessionOptions.set(input.productSessionId, options),
+        onOptionsChanged: (options) => this.publishSessionOptions(input.productSessionId, options),
         onTitle: (title) => this.deps.onSessionTitle(input.productSessionId, title),
         onMcpStatus: (servers, observed) => {
           this.mcpStatuses.set(input.productSessionId, { agentId: input.agentId, servers: [...servers], observed });
@@ -230,8 +230,8 @@ export class ExternalAgentBackend {
     });
     session = opened.session;
     this.handles.set(input.productSessionId, session);
-    this.sessionOptions.set(input.productSessionId, opened.opened.options);
     this.sessionCapabilities.set(input.productSessionId, opened.opened.capabilities);
+    this.publishSessionOptions(input.productSessionId, opened.opened.options);
     const replayEvents: AgentEvent[] = [];
     for (const emission of opened.opened.replayEvents) {
       // Replay must arrive with its media already in the vault, in order.
@@ -254,6 +254,12 @@ export class ExternalAgentBackend {
     this.sessionCapabilities.clear();
     this.mcpStatuses.clear();
     await Promise.allSettled(controls.map(async (control) => await control.dispose()));
+  }
+
+  private publishSessionOptions(sessionId: string, options: SessionBackendOptions): void {
+    this.sessionOptions.set(sessionId, options);
+    // A client may have queried before activation, when no catalog existed.
+    this.deps.push({ type: 'session/backend-updated', sessionId, options });
   }
 
   private async control(agentId: string): Promise<AgentPluginControlClient> {

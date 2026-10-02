@@ -69,19 +69,21 @@ describe('BackendWorkflowCard', () => {
     expect(item?.className).toContain('backend-workflow-chain-item');
     expect(item?.className).toContain('is-running');
 
-    const node = item?.querySelector('.node');
+    const node = item?.querySelector('.tool-batch-capsule > .node');
     expect(node).not.toBeNull();
     expect(node?.className).toContain('run');
     expect(item?.querySelector('[data-testid="breath-matrix"]')).toBeNull();
 
     expect(container.textContent).toContain('deep-research');
-    expect(container.textContent).toContain('调研量子计算在金融高频交易领域的应用可行性');
+    expect(container.textContent).toContain('制定检索规划');
     expect(container.textContent).toContain('1/4 · 运行中');
-    expect(container.textContent).not.toContain('调研中');
     expect(container.textContent).toContain('48s');
+    expect(container.textContent).not.toContain('调研中');
+    expect(container.textContent).toContain('全网多源检索');
 
-    // Details drawer closed by default
-    expect(container.querySelector('[data-testid="backend-workflow-details"]')).toBeNull();
+    // The main page exposes running stages without a click.
+    expect(container.querySelector('[data-testid="backend-workflow-details"]')).not.toBeNull();
+    expect(item?.querySelector('[data-testid="tool-batch-capsule"]')).not.toBeNull();
   });
 
   it('expands details drawer on click and shows sub-phases and telemetry', async () => {
@@ -96,10 +98,12 @@ describe('BackendWorkflowCard', () => {
       );
     });
 
-    const trigger = container.querySelector('[data-testid="backend-workflow-trigger"]') as HTMLButtonElement;
+    const trigger = container.querySelector('[data-testid="tool-batch-header"]') as HTMLButtonElement;
     expect(trigger).not.toBeNull();
 
-    // Click to expand
+    // The caller can collapse and reopen the shared disclosure.
+    act(() => trigger.click());
+    expect(container.querySelector('[data-testid="backend-workflow-details"]')).toBeNull();
     act(() => {
       trigger.click();
     });
@@ -111,7 +115,7 @@ describe('BackendWorkflowCard', () => {
     expect(details?.textContent).toContain('全网多源检索');
     expect(details?.textContent).toContain('已抓取 12 篇学术文献');
     expect(details?.textContent).toContain('深度交叉比对');
-    expect(details?.querySelector('.phase-mark.done')).not.toBeNull();
+    expect(details?.querySelector('[data-kind="success"]')).not.toBeNull();
     expect(details?.textContent).not.toContain('✓');
 
     // Telemetry / query logs
@@ -145,17 +149,17 @@ describe('BackendWorkflowCard', () => {
     });
 
     const item = container.querySelector('[data-testid="backend-workflow-card"]');
-    const node = item?.querySelector('.node');
+    const node = item?.querySelector('.tool-batch-capsule > .node');
     expect(node?.className).toContain('done');
     expect(container.textContent).toContain('已完成');
 
     // Expand
-    const trigger = container.querySelector('[data-testid="backend-workflow-trigger"]') as HTMLButtonElement;
+    const trigger = container.querySelector('[data-testid="tool-batch-header"]') as HTMLButtonElement;
     act(() => {
       trigger.click();
     });
 
-    expect(container.textContent).toContain('报告已生成');
+    expect(container.textContent).toContain('查看报告');
     const reportBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('查看报告'));
     expect(reportBtn).toBeDefined();
 
@@ -173,4 +177,20 @@ describe('BackendWorkflowCard', () => {
     expect(container.textContent).toContain('量子计算在HFT中的综合研报');
     expect(container.textContent).toContain('结论：当前阶段存在技术瓶颈。');
   });
+  it('recognizes native active status and folds when the workflow finishes', () => {
+    const render = (workflow: BackendWorkflowSnapshot) => act(() => root.render(
+      <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+        <BackendWorkflowCard workflow={workflow} request={vi.fn()} locale="zh-CN" />
+      </PiwinUiProvider>,
+    ));
+    render(makeWorkflow({ status: 'active', agents: [{ id: 'planner', label: 'research-planner', phase: '全网多源检索', status: 'running' }] }));
+    expect(container.querySelector('[data-testid="tool-batch-header"]')?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.textContent).toContain('research-planner');
+    expect(container.textContent).toContain('运行中');
+    expect(container.textContent).not.toContain(' · active');
+    render(makeWorkflow({ status: 'completed', reportAvailable: true }));
+    expect(container.querySelector('[data-testid="tool-batch-header"]')?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.textContent).toContain('已完成');
+  });
+
 });

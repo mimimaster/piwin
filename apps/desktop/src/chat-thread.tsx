@@ -26,7 +26,10 @@ import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
 import { RunStatusFooter } from './run-status-footer.js';
 import { TranscriptSelectionToolbar } from './transcript-selection-toolbar.js';
 import { renderChatTurn } from './chat-turn-renderer.js';
-import { BackendWorkflows } from './backend-workflows.js';
+import { BackendWorkflowSequence } from './backend-workflows.js';
+import { useBackendWorkflows } from './use-backend-workflows.js';
+import { groupBackendWorkflowsByTurn } from './backend-workflow-turns.js';
+import { isBackendWorkflowActive } from '@piwin/contracts';
 
 export type { ChatThreadProps } from './chat-thread-types.js';
 import type { ChatThreadProps } from './chat-thread-types.js';
@@ -103,6 +106,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   );
 
   const turnGroups = useStableTranscriptTurns(chatMessages);
+  const workflowObservation = useBackendWorkflows(props.sessionId, props.workflowRequest);
+  const workflowTurns = useMemo(() => groupBackendWorkflowsByTurn(
+    turnGroups, workflowObservation.data?.workflows ?? [],
+  ), [turnGroups, workflowObservation.data]);
   const [workDisclosureOpenByTurnId, setWorkDisclosureOpenByTurnId] = useState<
     Record<string, WorkDisclosureOverride>
   >({});
@@ -228,6 +235,17 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           renderChatTurn({
             turn,
             props,
+            workflowActivity: props.sessionId && props.workflowRequest && (
+              (workflowTurns.byTurn.get(turn.id)?.length ?? 0) > 0 ||
+              (turn.id === currentResponseTurnId && workflowObservation.error !== null)
+            ) ? (
+              <BackendWorkflowSequence
+                sessionId={props.sessionId} request={props.workflowRequest} locale={props.locale ?? 'zh-CN'}
+                workflows={workflowTurns.byTurn.get(turn.id) ?? []}
+                error={turn.id === currentResponseTurnId ? workflowObservation.error : null}
+              />
+            ) : null,
+            workflowActive: (workflowTurns.byTurn.get(turn.id) ?? []).some((workflow) => isBackendWorkflowActive(workflow.status)),
             conversationSession,
             currentResponseTurnId,
             compactionActivityTurnId,
@@ -270,7 +288,14 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           ) : null}
         </section>
       ) : null}
-      {props.sessionId && props.workflowRequest ? <BackendWorkflows sessionId={props.sessionId} request={props.workflowRequest} locale={props.locale ?? 'zh-CN'} /> : null}
+      {props.sessionId && props.workflowRequest && workflowTurns.unanchored.length > 0 ? (
+        <article className="turn chat-turn chat-turn-assistant">
+          <div className="chat-turn-body">
+            <BackendWorkflowSequence sessionId={props.sessionId} request={props.workflowRequest}
+              locale={props.locale ?? 'zh-CN'} workflows={workflowTurns.unanchored} />
+          </div>
+        </article>
+      ) : null}
       <TranscriptSelectionToolbar
         containerRef={threadRef}
         projectPath={props.projectPath}

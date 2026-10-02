@@ -2283,6 +2283,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-shell",
  "tauri-plugin-websocket",
+ "windows",
 ]
 
 [[package]]

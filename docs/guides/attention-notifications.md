@@ -16,8 +16,12 @@ Settings → **Notifications** (`settings/notifications`).
   toasts, and Dock bounce. The Dock **badge** has its own switch and still
   works when the master switch is off.
 - **Needs approval** cannot be turned off without a confirm dialog.
-- Authorization is macOS notification permission. If the OS denies it, open
-  System Settings from the same row. Badge still works.
+- On macOS, authorization is the notification permission. If the OS denies
+  it, open System Settings from the same row. Badge still works.
+- On Windows, authorization is the Windows notification setting for this
+  app. There is no permission prompt. If Windows has notifications off,
+  open Settings from the same row. Taskbar flash still uses the window
+  attention API.
 
 ## Two apps, two permissions
 
@@ -31,14 +35,27 @@ macOS treats them as separate apps:
 
 Granting notifications for one does not grant the other. If banners work in
 one build and not the other, check System Settings → Notifications for that
-exact app name.
+exact app name. Windows uses the same split: each build registers its own
+notification identity.
 
-## `tauri dev` does not show system banners
+## `tauri dev` on macOS does not show system banners
 
 The naked `tauri dev` binary is not a `.app`. Native
 `UNUserNotificationCenter` is **unsupported** in that runtime (no crash, no
 authorization dialog). Dock badge and in-app toasts still work. Packaged
 `.app` builds are the path that can show Notification Center banners.
+
+## Windows
+
+Windows uses a system toast, not the macOS Notification Center. The app
+registers its own notification identity, so the toast is labeled piwin
+rather than PowerShell. A development build uses a separate identity and
+does not replace the installed Start Menu shortcut.
+
+A toast is sent only when the window is not focused, same as macOS. Clicking
+it while piwin is still running focuses the window and opens that session.
+Clicking a leftover toast after piwin has quit only starts the app; it does
+not open the session. Linux still has no system toast.
 
 ## What you will see
 

@@ -8,6 +8,7 @@ import { isRunTerminal } from '@piwin/contracts';
 import { isAssistantContentEmpty } from './assistant-message-content';
 import type { ChatMessageUi, ChatUiState } from './chat-ui-types';
 import { shouldMarkTurnAttention } from './chat-reducer-attention';
+import { resolveActiveComposerAgentId } from './composer-dock-assembly.js';
 import { removeSessionIdMarker, removeWorkingSessionId } from './chat-reducer-session-helpers';
 
 /** C1: maximum event ids retained for replay detection per session. */
@@ -166,6 +167,8 @@ export function isUserControlInFlight(state: ChatUiState): boolean {
  * list / composer picker — those follow the next prompt, not this reply.
  */
 export function resolveAssistantModelFallback(state: ChatUiState): ModelRef | undefined {
+  const agentId = resolveActiveComposerAgentId(state);
+  if (agentId !== undefined && agentId !== 'pi') return undefined;
   return state.pendingTurnModel ?? undefined;
 }
 

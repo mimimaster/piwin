@@ -4,7 +4,7 @@
 |-------|-------|
 | Status | **Accepted** (product-locked 2026-09-17; Desktop P0 implementation in flight) |
 | Date | 2026-09-17 |
-| Scope | Desktop macOS P0 · Mobile iOS M1 (local) · Remote Push APNs later. Apple shells only |
+| Scope | Desktop macOS P0 · Desktop Windows toasts · Mobile iOS M1 (local) · Remote Push APNs later. Linux / Android still deferred |
 | Related | ADR 0023, ADR 0036, ADR 0037, ADR 0063, ADR 0071 |
 | Specification | [Attention notifications product](../specs/2026-09-17-attention-notifications-product.md) (`AN-D01`–`AN-D12`, `AN-F04`/`AN-F07`/`AN-F15`/`AN-F19`, `AN-R03`–`AN-R06`) |
 | Numbering | Filename required by spec work package AN-D1. Does **not** supersede [`0064-turn-repair-vs-branch-exploration.md`](./0064-turn-repair-vs-branch-exploration.md) |
@@ -114,8 +114,21 @@ later APNs epic, not a keepalive trick.
     away” summary. It must **not** add `UIBackgroundModes`, must not claim
     WebSocket keepalive, and must not pretend iOS background delivery is
     reliable. Remote Push is a separate epic: **APNs only** (no ntfy, no
-    FCM). Windows / Linux / Android remain deferred (AN-D10). Duplicate
+    FCM). Linux / Android remain deferred. Duplicate
     banners from two Desktops on one Host are accepted in P0 (AN-D11).
+
+11. **Windows Desktop toasts are a WinRT bridge, not the plugin (owner
+    2026-10-02; revises AN-D10 for Windows only).** The shell keeps the
+    existing `attention_*` commands. Windows shows a toast through
+    `ToastNotificationManager` after registering a per-user AppUserModelID
+    and a Start Menu shortcut, so the toast is attributed to piwin rather
+    than PowerShell. `ToastNotifier.Setting` is the authorization source
+    (`granted` / `denied`); there is no macOS-style permission prompt.
+    A click while the process is alive emits `attention://activate` and
+    raises the main window. A click after the process has exited only
+    launches the shortcut and does not deep-link. Dev binaries use a
+    `.dev` AUMID and a separate shortcut so they do not retarget the
+    installed Start Menu entry. Linux stays `unsupported`.
 
 ## Consequences
 
@@ -147,7 +160,9 @@ later APNs epic, not a keepalive trick.
   instead of an accepted P0 client quirk (AN-D11).
 - **Plugin-only, skip the native bridge.** Rejected as the default
   because AN-F15 has no desktop click callback and lies about
-  authorization. Retained only as the AN-D04 no-go P0 bar.
+  authorization. The same plugin on Windows only works well for an
+  installed app and shows a PowerShell identity in development. Retained
+  only as the AN-D04 no-go P0 bar on macOS.
 - **New AttentionStore / Host-side seen ledger.** Rejected (AN-D02).
   Seen-ness is a shell presentation fact (presence + visible views). A
   second store would desync from sidebar marks and permission queue.

@@ -20,5 +20,5 @@ export type BackendWorkflowsData = { sessionId: string; workflows: BackendWorkfl
 export type BackendWorkflowReportData = { sessionId: string; workflowId: string; text: string };
 
 export function isBackendWorkflowActive(status: string): boolean {
-  return ['running', 'pending', 'starting', 'waiting', 'resuming'].includes(status);
+  return ['active', 'running', 'pending', 'starting', 'waiting', 'resuming'].includes(status);
 }

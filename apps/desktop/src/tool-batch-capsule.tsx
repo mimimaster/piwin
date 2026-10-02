@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { useTranscriptLocalFoldMeasure } from './use-transcript-local-fold-measure.js';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
@@ -10,10 +10,11 @@ import {
 } from './tool-call-card';
 import { inkLineNodeClass, toolStatusToNodeStatus } from './session-node-status.js';
 import {
-  resolveToolClusterKind,
   type ToolClusterKind,
   type BatchClusterSummary,
 } from './tool-group-clustering';
+export { formatActiveToolLabel, formatExploreCapsuleTitle, exploreFlowTitleParts } from './tool-batch-labels.js';
+import { formatActiveToolLabel, exploreFlowTitleParts, getBatchTitle, getRunningBatchTitle } from './tool-batch-labels.js';
 import { ActionMarquee } from './action-marquee';
 import {
   IconAlertCircle,
@@ -28,6 +29,12 @@ import {
 } from './inkstone-chain-icons.js';
 
 export type ToolBatchCapsuleProps = {
+  /** Backend workflows reuse the same disclosure, timeline and activity header. */
+  title?: string;
+  activeLabel?: string;
+  meta?: ReactNode;
+  children?: ReactNode;
+  defaultOpenWhileRunning?: boolean;
   clusterKind: ToolClusterKind;
   tools: ToolCardUi[];
   summary: BatchClusterSummary;
@@ -64,195 +71,6 @@ function getClusterIcon(kind: ToolClusterKind): ReactElement {
   }
 }
 
-function isArgsDumpText(text: string | undefined): boolean {
-  const trimmed = text?.trim() ?? '';
-  return trimmed.startsWith('{') || trimmed.startsWith('[');
-}
-
-export function formatActiveToolLabel(tool: ToolCardUi, isChinese: boolean): string {
-  const presentation = tool.presentation;
-  // Streaming summaries can still be a half-parsed args dump (`{"pattern":…`).
-  const summary = isArgsDumpText(presentation?.summary) ? undefined : presentation?.summary?.trim();
-  const target =
-    presentation?.targetPaths?.[0] ||
-    summary ||
-    presentation?.command?.trim() ||
-    presentation?.title ||
-    tool.toolName;
-  const clusterKind = resolveToolClusterKind(tool);
-
-  if (clusterKind === 'read') {
-    return isChinese ? `正在读取: ${target}` : `Reading ${target}`;
-  }
-  if (clusterKind === 'search') {
-    return isChinese ? `正在检索: ${target}` : `Searching ${target}`;
-  }
-  if (clusterKind === 'web') {
-    return isChinese ? `正在抓取: ${target}` : `Fetching ${target}`;
-  }
-  if (clusterKind === 'command') {
-    return isChinese ? `正在执行: ${target}` : `Running ${target}`;
-  }
-  return isChinese ? `正在执行: ${target}` : `Executing ${target}`;
-}
-
-/**
- * One collapsed-title wording shared by both capsule variants (within-message
- * batch + cross-message explore flow) so the transcript never shows two
- * different phrasings for the same idea.
- */
-export function formatExploreCapsuleTitle(input: {
-  fileCount: number;
-  searchCount: number;
-  totalCount: number;
-  live: boolean;
-  isChinese: boolean;
-}): string {
-  if (input.live) {
-    return input.isChinese ? '正在探索代码库' : 'Exploring codebase';
-  }
-  const files = input.fileCount;
-  const searches = input.searchCount;
-  if (input.isChinese) {
-    if (files > 0 && searches > 0) return `探索了 ${files} 个文件 · ${searches} 次搜索`;
-    if (files > 0) return `探索了 ${files} 个文件`;
-    if (searches > 0) return `搜索了 ${searches} 处代码`;
-    return `探索了 ${input.totalCount} 项`;
-  }
-  if (files > 0 && searches > 0) {
-    return `Explored ${files} file${files === 1 ? '' : 's'} · ${searches} search${
-      searches === 1 ? '' : 'es'
-    }`;
-  }
-  if (files > 0) return `Explored ${files} file${files === 1 ? '' : 's'}`;
-  if (searches > 0) return `Searched ${searches} location${searches === 1 ? '' : 's'}`;
-  return `Explored ${input.totalCount} items`;
-}
-
-/** Proto: `<b>探索了 N 个文件</b><span>· M 次搜索</span>` — bold lead, quiet rest. */
-export function exploreFlowTitleParts(
-  group: {
-    fileCount: number;
-    searchCount: number;
-    totalCount?: number;
-    toolCount?: number;
-    isLive?: boolean;
-    cancelledCount?: number;
-    errorCount?: number;
-  },
-  isChinese: boolean,
-): { lead: string; rest: string | null } {
-  const isLive = Boolean(group.isLive);
-  const totalCount = group.totalCount ?? group.toolCount ?? 0;
-  if (!isLive && (group.cancelledCount ?? 0) > 0 && (group.errorCount ?? 0) === 0) {
-    return { lead: isChinese ? '已停止' : 'Stopped', rest: null };
-  }
-  if (isLive) {
-    return {
-      lead: formatExploreCapsuleTitle({
-        fileCount: group.fileCount,
-        searchCount: group.searchCount,
-        totalCount,
-        live: true,
-        isChinese,
-      }),
-      rest: null,
-    };
-  }
-  const files = group.fileCount;
-  const searches = group.searchCount;
-  if (isChinese) {
-    if (files > 0 && searches > 0) {
-      return { lead: `探索了 ${files} 个文件`, rest: ` · ${searches} 次搜索` };
-    }
-    return {
-      lead: formatExploreCapsuleTitle({
-        fileCount: files,
-        searchCount: searches,
-        totalCount,
-        live: false,
-        isChinese,
-      }),
-      rest: null,
-    };
-  }
-  if (files > 0 && searches > 0) {
-    return {
-      lead: `Explored ${files} file${files === 1 ? '' : 's'}`,
-      rest: ` · ${searches} search${searches === 1 ? '' : 'es'}`,
-    };
-  }
-  return {
-    lead: formatExploreCapsuleTitle({
-      fileCount: files,
-      searchCount: searches,
-      totalCount,
-      live: false,
-      isChinese,
-    }),
-    rest: null,
-  };
-}
-
-function getBatchTitle(
-  kind: ToolClusterKind,
-  summary: BatchClusterSummary,
-  isChinese: boolean,
-): string {
-  const count = summary.totalCount;
-
-  if (kind === 'explore' || kind === 'read' || kind === 'search') {
-    return formatExploreCapsuleTitle({
-      fileCount: summary.fileCount ?? 0,
-      searchCount: summary.searchCount ?? 0,
-      totalCount: count,
-      live: false,
-      isChinese,
-    });
-  }
-
-  if (isChinese) {
-    switch (kind) {
-      case 'command':
-        return `执行了 ${count} 条排查命令`;
-      case 'web':
-        return `进行了 ${count} 次网络检索与抓取`;
-      default:
-        return `执行了 ${count} 项操作`;
-    }
-  }
-
-  switch (kind) {
-    case 'command':
-      return `Executed ${count} diagnostic commands`;
-    case 'web':
-      return `Fetched ${count} web resources`;
-    default:
-      return `Executed ${count} actions`;
-  }
-}
-
-function getRunningBatchTitle(
-  kind: ToolClusterKind,
-  summary: BatchClusterSummary,
-  isChinese: boolean,
-): string {
-  if (kind === 'explore' || kind === 'read' || kind === 'search') {
-    return formatExploreCapsuleTitle({
-      fileCount: summary.fileCount ?? 0,
-      searchCount: summary.searchCount ?? 0,
-      totalCount: summary.totalCount,
-      live: true,
-      isChinese,
-    });
-  }
-
-  if (isChinese) {
-    return `正在执行 ${summary.totalCount} 项操作…`;
-  }
-  return `Executing ${summary.totalCount} actions…`;
-}
-
 export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
   const isChinese = (props.locale ?? 'zh-CN') === 'zh-CN';
   const summary = props.summary;
@@ -262,7 +80,9 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
     disclosure === 'closed'
       ? false
       : summary.hasError ||
-        (summary.hasRunning ? disclosure === 'live-open' : disclosure === 'settled-open');
+        (summary.hasRunning
+          ? disclosure === 'live-open' || (disclosure === 'automatic' && props.defaultOpenWhileRunning === true)
+          : disclosure === 'settled-open');
   const foldMeasure = useTranscriptLocalFoldMeasure(expanded);
 
   function toggleExpanded(): void {
@@ -279,7 +99,7 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
     props.clusterKind === 'read' ||
     props.clusterKind === 'search';
 
-  const parts = isExploreLike
+  const parts = props.title ? { lead: props.title, rest: null } : isExploreLike
     ? exploreFlowTitleParts(
         {
           fileCount: summary.fileCount ?? 0,
@@ -296,9 +116,9 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
         rest: null,
       };
 
-  const activeLabel = summary.activeTool
+  const activeLabel = props.activeLabel ?? (summary.activeTool
     ? formatActiveToolLabel(summary.activeTool, isChinese)
-    : undefined;
+    : undefined);
 
   const headerStatus = summary.hasError ? 'error' : summary.hasRunning ? 'running' : 'done';
   const headerNodeKind = toolStatusToNodeStatus(headerStatus);
@@ -362,7 +182,7 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
             </span>
           ) : null}
 
-          {!summary.hasRunning ? (
+          {props.meta ?? (!summary.hasRunning ? (
             <span className="tool-call-duration" data-testid="tool-batch-duration">
               {isExploreLike
                 ? isChinese
@@ -375,7 +195,7 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
             </span>
           ) : (
             <span className="tool-call-duration tool-call-duration-live">…</span>
-          )}
+          ))}
 
           <IconChevronDown
             className={`i s12 chev tool-batch-chevron${expanded ? ' open' : ''}`}
@@ -388,7 +208,7 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
         <div className="tool-batch-body" data-testid="tool-batch-body">
           <div className="tool-batch-timeline-track" aria-hidden="true" />
           <div className="tool-batch-items">
-            {props.tools.map((tool) => (
+            {props.children ?? props.tools.map((tool) => (
               <ToolCallCard
                 key={tool.toolCallId}
                 tool={tool}

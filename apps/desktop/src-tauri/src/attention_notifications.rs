@@ -1,8 +1,10 @@
-//! macOS `UNUserNotificationCenter` bridge (AN-N1 / AN-I08).
+//! Desktop attention bridge (AN-N1 / AN-I08).
 //!
-//! Commands are registered on every platform and never panic. The native
-//! center is supported only for a packaged `.app` with a real bundle id
-//! (AN-G13: a naked `tauri dev` binary reports `unsupported`).
+//! Commands are registered on every platform and never panic.
+//! macOS uses `UNUserNotificationCenter` and only a packaged `.app` is
+//! supported (AN-G13: a naked `tauri dev` binary reports `unsupported`).
+//! Windows uses a WinRT toast with a per-user AppUserModelID. Linux stays
+//! `unsupported`.
 
 use std::sync::Mutex;
 
@@ -11,9 +13,9 @@ use tauri::State;
 
 const USER_INFO_SESSION_ID: &str = "piwin.sessionId";
 const USER_INFO_ATTENTION_KEY: &str = "piwin.attentionKey";
-const TITLE_BODY_MAX_BYTES: usize = 256;
+pub(crate) const TITLE_BODY_MAX_BYTES: usize = 256;
 const ATTENTION_TOKEN_MAX_BYTES: usize = 128;
-const ACTIVATE_EVENT: &str = "attention://activate";
+pub(crate) const ACTIVATE_EVENT: &str = "attention://activate";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -61,8 +63,8 @@ pub enum AttentionDeliverResult {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AttentionActivation {
-    session_id: String,
-    attention_key: String,
+    pub(crate) session_id: String,
+    pub(crate) attention_key: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -85,7 +87,9 @@ pub struct AttentionNotificationState {
 pub fn install(app_handle: &tauri::AppHandle) {
     #[cfg(target_os = "macos")]
     macos::install(app_handle);
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    crate::attention_notifications_windows::install(app_handle);
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = app_handle;
     }
@@ -101,51 +105,76 @@ pub fn attention_capabilities() -> AttentionOsCapabilities {
 }
 
 #[tauri::command]
-pub fn attention_authorization_status() -> AttentionAuthorization {
+pub fn attention_authorization_status(app: tauri::AppHandle) -> AttentionAuthorization {
     #[cfg(target_os = "macos")]
     {
+        let _ = app;
         macos::authorization_status()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
+        crate::attention_notifications_windows::authorization_status(&app)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = app;
         AttentionAuthorization::Unsupported
     }
 }
 
 #[tauri::command]
-pub fn attention_request_authorization() -> AttentionAuthorization {
+pub fn attention_request_authorization(app: tauri::AppHandle) -> AttentionAuthorization {
     #[cfg(target_os = "macos")]
     {
+        let _ = app;
         macos::request_authorization()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
+        crate::attention_notifications_windows::request_authorization(&app)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = app;
         AttentionAuthorization::Unsupported
     }
 }
 
 #[tauri::command]
-pub fn attention_deliver(input: AttentionDeliverInput) -> AttentionDeliverResult {
+pub fn attention_deliver(
+    app: tauri::AppHandle,
+    input: AttentionDeliverInput,
+) -> AttentionDeliverResult {
     #[cfg(target_os = "macos")]
     {
+        let _ = app;
         macos::deliver(input)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
-        let _ = input;
+        crate::attention_notifications_windows::deliver(&app, input)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = (app, input);
         AttentionDeliverResult::Unsupported
     }
 }
 
 #[tauri::command]
-pub fn attention_remove_delivered(identifiers: Vec<String>) {
+pub fn attention_remove_delivered(app: tauri::AppHandle, identifiers: Vec<String>) {
     #[cfg(target_os = "macos")]
     {
+        let _ = app;
         macos::remove_delivered(&identifiers);
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
-        let _ = identifiers;
+        crate::attention_notifications_windows::remove_delivered(&app, &identifiers);
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = (app, identifiers);
     }
 }
 
@@ -165,6 +194,10 @@ pub fn attention_open_system_settings() {
     {
         macos::open_system_settings();
     }
+    #[cfg(target_os = "windows")]
+    {
+        crate::attention_notifications_windows::open_system_settings();
+    }
 }
 
 fn runtime_supported() -> bool {
@@ -172,7 +205,11 @@ fn runtime_supported() -> bool {
     {
         macos::runtime_supported()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        crate::attention_notifications_windows::runtime_supported()
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         false
     }
@@ -185,7 +222,7 @@ fn is_supported_bundle(bundle_identifier: Option<&str>, bundle_path: &str) -> bo
     }
 }
 
-fn is_valid_attention_token(value: &str) -> bool {
+pub(crate) fn is_valid_attention_token(value: &str) -> bool {
     let bytes = value.as_bytes();
     if bytes.is_empty() || bytes.len() > ATTENTION_TOKEN_MAX_BYTES {
         return false;
@@ -198,7 +235,7 @@ fn is_valid_attention_token(value: &str) -> bool {
     })
 }
 
-fn parse_attention_user_info(
+pub(crate) fn parse_attention_user_info(
     session_id: Option<&str>,
     attention_key: Option<&str>,
 ) -> Option<AttentionActivation> {
@@ -213,7 +250,7 @@ fn parse_attention_user_info(
     })
 }
 
-fn truncate_utf8_bytes(value: &str, max_bytes: usize) -> &str {
+pub(crate) fn truncate_utf8_bytes(value: &str, max_bytes: usize) -> &str {
     if value.len() <= max_bytes {
         return value;
     }
@@ -224,7 +261,7 @@ fn truncate_utf8_bytes(value: &str, max_bytes: usize) -> &str {
     &value[..end]
 }
 
-fn store_pending_activation(app_handle: &tauri::AppHandle, activation: AttentionActivation) {
+pub(crate) fn store_pending_activation(app_handle: &tauri::AppHandle, activation: AttentionActivation) {
     use tauri::Manager;
     let Some(state) = app_handle.try_state::<AttentionNotificationState>() else {
         return;

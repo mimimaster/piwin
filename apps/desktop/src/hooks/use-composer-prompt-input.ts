@@ -15,6 +15,7 @@ import type {
   ThinkingLevel,
 } from '@piwin/contracts';
 import { canUseThinkingLevel } from '../model-thinking-policy';
+import { resolveActiveComposerAgentId } from '../composer-dock-assembly.js';
 import { readArtifactHostTheme, readInlineArtifactWidth } from '../inline-artifact-width.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 
@@ -44,7 +45,10 @@ export function isImagePromptAttachment(attachment: PromptAttachment): boolean {
 }
 
 export function useComposerPromptInput(args: UseComposerMediaArgs) {
+  const agentId = resolveActiveComposerAgentId(args.state) ?? args.state.draftAgentId ?? 'pi';
   const resolveTurnModel = useCallback((): ModelRef | undefined => {
+    // External models belong to the backend catalog and are set separately.
+    if (agentId !== 'pi') return undefined;
     const key = args.selectedModelKey?.trim();
     if (key && args.modelOptions?.length) {
       const option = args.modelOptions.find(
@@ -63,7 +67,7 @@ export function useComposerPromptInput(args: UseComposerMediaArgs) {
       return args.promptModel;
     }
     return undefined;
-  }, [args.modelOptions, args.promptModel, args.selectedModelKey]);
+  }, [agentId, args.modelOptions, args.promptModel, args.selectedModelKey]);
 
   const buildPromptRequestInput = useCallback(
     (params: {
@@ -116,6 +120,7 @@ export function useComposerPromptInput(args: UseComposerMediaArgs) {
         (option) => `${option.providerId}::${option.modelId}` === args.selectedModelKey,
       );
       if (
+        agentId === 'pi' &&
         selectedOption &&
         args.thinkingLevel &&
         canUseThinkingLevel(selectedOption, args.thinkingLevel, true)
@@ -125,6 +130,7 @@ export function useComposerPromptInput(args: UseComposerMediaArgs) {
       return input;
     },
     [
+      agentId,
       args.modelOptions,
       args.state.activeSessionId,
       args.orchestrationSchemeId,
