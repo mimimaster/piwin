@@ -1,4 +1,4 @@
-import type { SubagentExecutionStatus, ToolKind } from '@piwin/contracts';
+import { parseGoalDisplayPayload, readSubagentControlDisplay, readSubagentLoopControlDisplay, type SubagentExecutionStatus, type ToolKind } from '@piwin/contracts';
 import type { InkstoneIconName } from '../icons.js';
 import type { MobileToolCall } from '../../mobile-transcript.js';
 
@@ -29,6 +29,15 @@ export interface ToolRowView {
   isWrite: boolean;
   /** Subagent control tools (start / wait / cancel) render as azure delegation rows. */
   subagent: SubagentRowView | undefined;
+  /** Readonly public Goal/review-loop facts, never raw receipts. */
+  structured: StructuredToolView | undefined;
+}
+
+export interface StructuredToolView {
+  label: string;
+  summary: string;
+  fields: { label: string; value: string }[];
+  failure?: string;
 }
 
 export interface SubagentRunView {
@@ -37,10 +46,14 @@ export interface SubagentRunView {
   status: SubagentExecutionStatus;
   statusLabel: string;
   activity: string | undefined;
+  summary: string | undefined;
+  lifecycle: string[];
   childSessionId: string | undefined;
 }
 
 export interface SubagentRowView {
+  phase?: string;
+  aggregate?: string;
   task: string | undefined;
   childSessionId: string | undefined;
   runs: SubagentRunView[];
@@ -49,6 +62,7 @@ export interface SubagentRowView {
 const SUBAGENT_VERBS: Record<string, string> = {
   piwin_subagent_start: '委派子代理',
   piwin_subagent_run: '委派子代理',
+  piwin_subagent_continue: '继续子代理',
   piwin_subagent_wait: '等待子代理',
   piwin_subagent_cancel: '取消子代理',
 };
@@ -66,8 +80,9 @@ const MAX_PATH_CHIP = 38;
 export function projectToolRow(tool: MobileToolCall): ToolRowView {
   const presentation = tool.presentation;
   const rawVerb = presentation?.routedToolName ?? tool.name;
-  const subagent = projectSubagent(tool);
-  const verb = subagent !== undefined ? SUBAGENT_VERBS[rawVerb] ?? '子代理' : rawVerb;
+  const structured = projectStructured(tool);
+  const subagent = structured === undefined ? projectSubagent(tool) : undefined;
+  const verb = structured?.label ?? (subagent !== undefined ? SUBAGENT_VERBS[rawVerb] ?? '子代理' : rawVerb);
   const command = presentation?.command ?? tool.command;
   const targetPaths = presentation?.targetPaths ?? tool.targetPaths ?? [];
   const changedPaths = presentation?.changedPaths ?? [];
@@ -78,13 +93,13 @@ export function projectToolRow(tool: MobileToolCall): ToolRowView {
       ? presentation?.error?.message ?? tool.error ?? '执行失败'
       : typeof exitCode === 'number' && exitCode !== 0
         ? `退出码 ${exitCode}`
-        : undefined;
+        : structured?.failure;
   return {
     id: tool.id,
     status: tool.status === 'running' ? 'run' : tool.status === 'error' || failure !== undefined ? 'fail' : 'done',
     verb,
     icon: subagent !== undefined ? 'branch' : toolRowIcon(presentation?.kind, rawVerb, changedPaths.length > 0),
-    arg: question ?? resolveArgChip(command, targetPaths, presentation?.summary ?? tool.summary),
+    arg: structured !== undefined ? firstLine(structured.summary) : question ?? resolveArgChip(command, targetPaths, presentation?.summary ?? tool.summary),
     meta: buildMeta(tool),
     failure,
     changedPaths,
@@ -93,6 +108,7 @@ export function projectToolRow(tool: MobileToolCall): ToolRowView {
     question,
     isWrite: changedPaths.length > 0,
     subagent,
+    structured,
   };
 }
 
@@ -137,7 +153,11 @@ export function toolRowIcon(kind: ToolKind | undefined, toolName: string, wroteF
 function projectSubagent(tool: MobileToolCall): SubagentRowView | undefined {
   const presentation = tool.presentation;
   const name = presentation?.routedToolName ?? tool.name;
-  const control = presentation?.subagentControl;
+  const rawControl = presentation?.subagentControl;
+  const control = readSubagentControlDisplay(rawControl);
+  if (rawControl !== undefined && (control === undefined || Array.isArray(rawControl))) return undefined;
+  if (control !== undefined && control.phase !== 'accepted'
+    && Object.values(control).some((value) => typeof value === 'number' && (!Number.isSafeInteger(value) || value < 0 || value > 1_000_000))) return undefined;
   if (presentation?.kind !== 'subagent' && SUBAGENT_VERBS[name] === undefined && control === undefined) {
     return undefined;
   }
@@ -149,9 +169,13 @@ function projectSubagent(tool: MobileToolCall): SubagentRowView | undefined {
     };
   }
   if (control.phase === 'accepted') {
-    return { task: control.task, childSessionId: control.childSessionId, runs: [] };
+    return { phase: '已接受', task: control.task, childSessionId: control.childSessionId, runs: [] };
   }
   return {
+    phase: { waiting: '等待中', waited: '已等待', cancelling: '取消中', cancelled: '已取消' }[control.phase],
+    aggregate: 'completed' in control
+      ? `总计 ${control.total} · 已完成 ${control.completed} · 失败 ${control.failed} · 已取消 ${control.cancelled} · 待集成 ${control.needsIntegration}`
+      : `总计 ${control.total} · 已取消 ${control.cancelled} · 已结束 ${control.alreadyTerminal}`,
     task: undefined,
     childSessionId: undefined,
     runs: control.runs.map((run) => ({
@@ -159,10 +183,70 @@ function projectSubagent(tool: MobileToolCall): SubagentRowView | undefined {
       title: run.title ?? run.runId.slice(0, 8),
       status: run.executionStatus,
       statusLabel: SUBAGENT_STATUS[run.executionStatus],
-      activity: run.summaryPreview ?? run.activity,
+      activity: run.activity,
+      summary: run.summaryPreview,
+      lifecycle: [run.summaryStatus !== undefined ? `汇总: ${run.summaryStatus}` : undefined,
+        run.integrationStatus !== undefined ? `集成: ${run.integrationStatus}` : undefined].filter((item): item is string => item !== undefined),
       childSessionId: run.childSessionId,
     })),
   };
+}
+
+function projectStructured(tool: MobileToolCall): StructuredToolView | undefined {
+  const source = tool.presentation?.goal;
+  const goal = source === undefined || source === null || typeof source !== 'object' || Array.isArray(source) ? null : parseGoalDisplayPayload({
+    status: source.phase,
+    summary: 'summary' in source ? source.summary : undefined,
+    verification: 'verification' in source ? source.verification : undefined,
+    artifacts: 'artifacts' in source ? source.artifacts : undefined,
+    reason: 'reason' in source ? source.reason : undefined,
+    unblockAction: 'unblockAction' in source ? source.unblockAction : undefined,
+    durationSeconds: 'durationSeconds' in source ? source.durationSeconds : undefined,
+  });
+  const fields: StructuredToolView['fields'] = [];
+  const add = (label: string, value: string | undefined): void => {
+    if (value !== undefined) fields.push({ label, value: value.slice(0, 2_048) });
+  };
+  if (goal !== null) {
+    if (goal.phase === 'completed') {
+      add('验证证据', goal.verification);
+      goal.artifacts?.slice(0, 24).forEach((artifact) => add('产物', artifact));
+      return { label: '目标完成', summary: goal.summary.slice(0, 2_048), fields };
+    }
+    if (goal.phase === 'blocked') add('解除阻碍', goal.unblockAction);
+    if (goal.phase === 'waited' && goal.durationSeconds !== undefined) add('等待时长', `${goal.durationSeconds} 秒`);
+    return { label: goal.phase === 'blocked' ? '目标受阻' : '等待结束', summary: goal.reason.slice(0, 2_048), fields };
+  }
+  const rawLoop = tool.presentation?.subagentLoop;
+  if (rawLoop?.kind === 'result-discard' && typeof rawLoop.alreadySettled !== 'boolean') return undefined;
+  if (rawLoop?.kind === 'result-read' && (typeof rawLoop.summary !== 'string' || !rawLoop.summary.trim())) return undefined;
+  const loop = readSubagentLoopControlDisplay(rawLoop);
+  if (loop === undefined) return undefined;
+  const result = loop.kind === 'review-submit' ? loop.target : loop.result;
+  if (!Number.isSafeInteger(result.revision) || result.resultId.length > 256) return undefined;
+  if (loop.kind === 'review-submit' && (!Number.isSafeInteger(loop.reviewRef.revision) || loop.reviewRef.reviewId.length > 256)) return undefined;
+  if (loop.kind === 'verification-submit' && (!Number.isSafeInteger(loop.verificationRef.revision) || loop.verificationRef.verificationId.length > 256)) return undefined;
+  if (loop.kind === 'result-apply' && loop.operationId.length > 256) return undefined;
+  add('结果', `${result.resultId} · r${result.revision}`);
+  switch (loop.kind) {
+    case 'result-read':
+      add('读取模式', loop.mode);
+      return { label: '读取结果', summary: loop.summary, fields };
+    case 'review-submit':
+      add('审查', `${loop.reviewRef.reviewId} · r${loop.reviewRef.revision}`);
+      return { label: '提交审查', summary: loop.decision, fields };
+    case 'result-apply':
+      add('操作', loop.operationId);
+      return { label: '应用结果', summary: loop.integrationStatus, fields,
+        ...(loop.integrationStatus === 'failed' || loop.integrationStatus === 'conflict' ? { failure: `集成: ${loop.integrationStatus}` } : {}) };
+    case 'result-discard':
+      add('已结算', loop.alreadySettled ? '是（此次未更改）' : '否');
+      return { label: '丢弃结果', summary: loop.integrationStatus, fields };
+    case 'verification-submit':
+      add('验证', `${loop.verificationRef.verificationId} · r${loop.verificationRef.revision}`);
+      return { label: '提交验证', summary: loop.status, fields,
+        ...(loop.status === 'failed' ? { failure: '验证失败（不代表已交付）' } : {}) };
+  }
 }
 
 function buildMeta(tool: MobileToolCall): string[] {

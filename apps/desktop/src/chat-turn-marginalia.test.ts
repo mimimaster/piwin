@@ -16,6 +16,23 @@ import {
 import type { ChatMessageUi } from './chat-reducer';
 
 describe('chat-turn-marginalia', () => {
+  it('uses the durable external agent byline without inventing a model snapshot', () => {
+    const data = resolveTurnMarginalia([], { forceRole: 'assistant', backendAgentId: 'grok' });
+    expect(data.who).toBe('grok');
+    expect(data.avatar).toBe('G');
+    expect(data.model).toBeUndefined();
+    expect(data.fullModelId).toBeUndefined();
+    expect(resolveTurnMarginalia([], { forceRole: 'assistant', backendAgentId: 'future-agent' }).who).toBe('future-agent');
+    expect(resolveTurnMarginalia([], { forceRole: 'assistant', backendAgentId: 'pi' }).who).toBe('piwin');
+  });
+
+  it('prefers an actual generation model over the backend identity fallback', () => {
+    const data = resolveTurnMarginalia([], { forceRole: 'assistant', backendAgentId: 'grok',
+      model: { providerId: 'xai', modelId: 'grok-4.6' } });
+    expect(data.who).toBe('Grok 4.6');
+    expect(data.fullModelId).toBe('grok-4.6');
+  });
+
   it('formats short model labels cleanly', () => {
     expect(shortModelLabel('claude-sonnet-4-6')).toBe('Sonnet 4.6');
     expect(shortModelLabel('claude-3-7-sonnet-20250219')).toBe('Sonnet 3.7');

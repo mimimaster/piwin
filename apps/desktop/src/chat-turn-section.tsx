@@ -30,6 +30,7 @@ export type ChatTurnSectionProps = {
   locale: 'zh-CN' | 'en' | undefined;
   isConversationSession: boolean;
   model: ResolveTurnMarginaliaOptions['model'];
+  backendAgentId?: string | undefined;
   contextUsage: ResolveTurnMarginaliaOptions['contextUsage'];
 };
 
@@ -65,6 +66,7 @@ export function ChatTurnSection(props: ChatTurnSectionProps): ReactElement {
           locale: props.locale,
           forceRole: 'assistant',
           model: props.model,
+          backendAgentId: props.backendAgentId,
           contextUsage: props.contextUsage,
           status: liveStatusLabel(props.liveState, props.locale),
           statusTone: props.liveState,

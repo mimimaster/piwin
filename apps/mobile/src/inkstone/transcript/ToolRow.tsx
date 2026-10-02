@@ -109,6 +109,18 @@ export function ToolRow({
       </button>
       {open ? (
         <div className="tr-body">
+          {row.structured !== undefined ? (
+            <section aria-label={row.structured.label}>
+              <div className="tr-label">{row.structured.label} · Host</div>
+              <p className="tr-task">{row.structured.summary}</p>
+              {row.structured.fields.map((field, index) => (
+                <div key={`${field.label}-${index}`}>
+                  <div className="tr-label">{field.label}</div>
+                  <p className="tr-task">{field.value}</p>
+                </div>
+              ))}
+            </section>
+          ) : null}
           {subagent !== undefined ? (
             <SubagentDetail view={subagent} onOpenSession={onOpenSession} />
           ) : null}
@@ -156,6 +168,8 @@ function SubagentDetail({
 }): ReactElement {
   return (
     <>
+      {view.phase !== undefined ? <div className="tr-label">{view.phase} · Host</div> : null}
+      {view.aggregate !== undefined ? <p className="tr-task">{view.aggregate}</p> : null}
       {view.task !== undefined ? (
         <>
           <div className="tr-label">任务</div>
@@ -169,7 +183,9 @@ function SubagentDetail({
               <span className={`node-inline ${run.status}`} aria-hidden="true" />
               <span className="grow">
                 <strong>{run.title}</strong>
-                {run.activity !== undefined ? <small>{run.activity}</small> : null}
+                {run.activity !== undefined ? <p className="tr-task">{run.activity}</p> : null}
+                {run.summary !== undefined ? <p className="tr-task">{run.summary}</p> : null}
+                {run.lifecycle.map((label) => <p className="tr-task" key={label}>{label}</p>)}
               </span>
               <em>{run.statusLabel}</em>
               {run.childSessionId !== undefined ? (

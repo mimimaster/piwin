@@ -345,6 +345,8 @@ export type RemoteSessionScopeKind = 'general' | 'project' | 'unknown';
 
 export type RemoteSessionSummary = {
   sessionId: string;
+  /** Durable agent identity only; native bindings and adapter options stay on the Host. */
+  backend?: Pick<import('./agent-backend.js').SessionBackendBinding, 'agentId'>;
   name?: string;
   scope: RemoteSessionScopeKind;
   /** Opaque id from `project/list`. Present when `scope` is `project`. */

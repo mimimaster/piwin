@@ -131,7 +131,12 @@ The Host is the authority; clients mirror it and never invent capability.
   `session/backend-updated` after the first activation and every adapter option
   change, even if the client's earlier query found no catalog. External prompts
   omit Pi model/thinking fields, and a reply without a backend model snapshot
-  stays unlabeled instead of inheriting the global Pi picker or a stale Pi turn.
+  retains the agent byline without inventing a model snapshot or inheriting the
+  global Pi picker or a stale Pi turn. Remote session lists, paged lists, and
+  index pushes carry the durable `backend.agentId` so the sidebar keeps its
+  agent prefix after reload and renaming; native binding ids and adapter options
+  remain on the Host. Named draft activation preserves an earlier creation
+  push's binding and seeds the selected external agent immediately.
 - **Capability gating.** Unsupported operations are absent from the UI
   (compact, fork, duplicate, continue-in-project) or shown as the action that
   does exist (Stop instead of Pause). The composer toolbar always passes the

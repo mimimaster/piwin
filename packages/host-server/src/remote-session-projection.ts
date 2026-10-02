@@ -68,6 +68,7 @@ export function projectHostSessionForRemoteClient(
     sessionId: projected.sessionId,
     scope: projected.scope,
   };
+  if (projected.backend !== undefined) mapped.backend = projected.backend;
   if (projected.name !== undefined) mapped.name = projected.name;
   if (projected.kind !== undefined) mapped.kind = projected.kind;
   if (projected.updatedAt !== undefined) mapped.updatedAt = projected.updatedAt;
@@ -299,6 +300,15 @@ function projectSessions(data: unknown): RemoteSessionSummary[] {
       sessionId: record.id,
       scope: projectSessionScope(record.scope),
     };
+    const backend = asRecord(record.backend);
+    if (
+      typeof backend?.agentId === 'string' &&
+      backend.agentId.length > 0 &&
+      backend.agentId.length <= 256 &&
+      backend.agentId !== 'pi'
+    ) {
+      summary.backend = { agentId: backend.agentId };
+    }
     copyString(record, 'name', summary, 'name');
     copyString(record, 'kind', summary, 'kind');
     copyString(record, 'updatedAt', summary, 'updatedAt');

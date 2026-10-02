@@ -4,6 +4,7 @@ import type { ChatMessageUi } from './chat-reducer';
 import { formatTimestamp } from './format-timestamp.js';
 import { ProviderIcon } from '@piwin/ui-kit';
 import { formatTurnModelTrail, resolveTurnModelTrail } from './turn-model-trail.js';
+import { agentDisplayName } from './agent-backend-state.js';
 
 /**
  * Inkstone turn marginalia (proto-01 §1 block 06).
@@ -197,6 +198,8 @@ export type ResolveTurnMarginaliaOptions = {
   status?: string | null | undefined;
   statusTone?: TurnStatusTone | null | undefined;
   model?: ModelRef | null | undefined;
+  /** Identity fallback when the native agent did not report a generation model. */
+  backendAgentId?: string | undefined;
   forceRole?: 'user' | 'assistant' | undefined;
   themeId?: string | undefined;
   isConversationSession?: boolean | undefined;
@@ -257,19 +260,20 @@ export function resolveTurnMarginalia(
   const trail = resolveTurnModelTrail(messages);
   const model = trail.latest ?? options?.model ?? null;
   const modelId = model?.modelId ?? '';
+  const backendId = options?.backendAgentId !== 'pi' ? options?.backendAgentId : undefined;
   const label =
     trail.models.length > 1
       ? formatTurnModelTrail(trail, shortModelLabel)
       : modelId.length > 0
         ? shortModelLabel(modelId)
-        : 'piwin';
+        : backendId ? agentDisplayName(backendId) : 'piwin';
   const fullModelLabel =
     trail.models.length > 1
       ? trail.models.map((entry) => entry.modelId).join(' → ')
       : modelId.length > 0
         ? modelId
-        : label;
-  const avatar = resolveModelAvatarInitial(modelId, model?.providerId, options?.themeId);
+        : backendId ? undefined : label;
+  const avatar = resolveModelAvatarInitial(modelId || backendId || '', model?.providerId, options?.themeId);
 
   // Conversation byline is who + age. Cost/duration stay off the rail.
   if (options?.isConversationSession === true) {

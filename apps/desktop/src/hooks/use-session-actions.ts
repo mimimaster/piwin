@@ -307,6 +307,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         const createScope: SessionScope = useGeneral
           ? { kind: 'general' }
           : { kind: 'project', projectPath: requestedProjectPath ?? '' };
+        const backend = options?.agentId && options.agentId !== 'pi'
+          ? { agentId: options.agentId } : undefined;
         const explicitName = options?.sessionName?.trim();
         const shouldActivate = options?.activate !== false;
         if (explicitName && shouldActivate) {
@@ -315,6 +317,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             sessionId,
             name: explicitName,
             scope: createScope,
+            ...(backend ? { backend } : {}),
           });
         } else {
           if (shouldActivate) {
@@ -326,6 +329,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
               id: sessionId,
               name: explicitName ?? '',
               scope: createScope,
+              ...(backend ? { backend } : {}),
             },
           });
         }

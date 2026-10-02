@@ -13,6 +13,7 @@ function noop(): void {
 
 const composerCard: ComposerDockProps = {
   layoutMode: 'docked',
+  activeAgentId: 'grok',
   projectPath: null,
   projectTrusted: true,
   activeSessionId: null,
@@ -82,6 +83,7 @@ it('renders a native background workflow inside the initiating assistant turn af
     expect(owner?.querySelector('#msg-u2')).toBeNull();
     expect(workflow?.textContent).toContain('规划');
     expect(owner?.textContent).toContain('运行中');
+    expect(owner?.querySelector('.chat-turn-head .who')?.textContent).toBe('grok');
     expect(container.querySelector('[data-testid="run-status-footer"]')).toBeNull();
     expect(request).toHaveBeenCalledTimes(1);
   } finally { act(() => root.unmount()); container.remove(); }

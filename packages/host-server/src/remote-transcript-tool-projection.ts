@@ -9,6 +9,7 @@ import {
   projectBoundedHealthToolCardSummary,
 } from '@piwin/contracts';
 import { redactRemoteHostPaths } from './remote-redact.js';
+import { projectRemoteGoal, projectRemoteSubagentControl, projectRemoteSubagentLoop } from './remote-transcript-structured-heads.js';
 
 const MAX_REMOTE_TRANSCRIPT_TOOLS = 24;
 const MAX_REMOTE_TOOL_OUTPUT_BYTES = 16_384;
@@ -109,6 +110,12 @@ function projectRemoteToolPresentation(value: unknown): ToolPresentation | undef
   if (plan !== null) {
     presentation.plan = plan;
   }
+  const goal = projectRemoteGoal(record.goal);
+  if (goal !== undefined) presentation.goal = goal;
+  const control = projectRemoteSubagentControl(record.subagentControl);
+  if (control !== undefined) presentation.subagentControl = control;
+  const loop = projectRemoteSubagentLoop(record.subagentLoop);
+  if (loop !== undefined) presentation.subagentLoop = loop;
   return presentation;
 }
 

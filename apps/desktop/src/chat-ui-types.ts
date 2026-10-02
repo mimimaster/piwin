@@ -557,7 +557,7 @@ export type ChatUiAction =
   | { type: 'project/trust-dialog'; open: boolean }
   | { type: 'project/trusted' }
   | { type: 'session/set'; sessionId: string; awaitTranscript?: boolean; ifIdle?: boolean }
-  | { type: 'session/add'; sessionId: string; name: string; scope?: SessionScope }
+  | { type: 'session/add'; sessionId: string; name: string; scope?: SessionScope; backend?: SessionListItemUi['backend'] }
   | { type: 'session/hydrate'; sessions: SessionListItemUi[] }
   | { type: 'session/hydrate-general'; sessions: SessionListItemUi[] }
   | {

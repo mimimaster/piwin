@@ -637,6 +637,7 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
           locale={props.locale}
           isConversationSession={conversationSession}
           model={turnModel}
+          backendAgentId={props.composerCard.activeAgentId}
           contextUsage={props.contextUsage}
         />
       );

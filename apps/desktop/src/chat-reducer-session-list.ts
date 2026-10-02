@@ -99,12 +99,15 @@ export function reduceChatSessionList(
       const createdAt = new Date().toISOString();
       const owningScope: SessionScope = action.scope ?? state.activeScope;
       const projectPath = owningScope.kind === 'project' ? owningScope.projectPath : null;
-      const newSession: SessionListItemUi = {
+      // Creation pushes can arrive before the named draft is inserted. Keep
+      // their durable identity when activation replaces the sidebar row.
+      const newSession = mergeSessionListItem(state.sessionEntitiesById[action.sessionId], {
         id: action.sessionId,
         name: action.name,
         updatedAt: createdAt,
         scope: owningScope,
-      };
+        ...(action.backend ? { backend: action.backend } : {}),
+      });
       // Sidebar policy: placeholder / empty names never enter the list. The
       // session can still be active (composer) until the first text title lands.
       const listable = !isPlaceholderSessionName(action.name);
