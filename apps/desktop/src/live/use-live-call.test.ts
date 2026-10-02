@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { adoptLiveStatus, preferFresherLiveCall } from './live-capabilities.js';
 import {
   canStartLive,
+  liveAuthBlockError,
   liveMissingLabel,
   liveProviderAuthError,
   liveStartErrorLabel,
@@ -50,6 +51,34 @@ describe('canStartLive', () => {
         missing: ['call-busy'],
       }),
     ).toBe(true);
+  });
+});
+
+describe('liveAuthBlockError', () => {
+  it('turns a missing channel login into the start error the toast already knows', () => {
+    expect(
+      liveAuthBlockError({
+        ready: false,
+        selectedProviderId: 'openai-codex',
+        settingsRevision: 1,
+        missing: ['provider-auth', 'session'],
+        call: null,
+      }),
+    ).toBe(liveProviderAuthError('openai-codex'));
+    expect(liveStartErrorLabel(liveProviderAuthError('openai-codex'), true)).toBe('请先登录 Codex');
+  });
+
+  it('stays quiet when auth is present', () => {
+    expect(
+      liveAuthBlockError({
+        ready: true,
+        selectedProviderId: 'openai-realtime',
+        settingsRevision: 2,
+        missing: [],
+        call: null,
+      }),
+    ).toBeNull();
+    expect(liveAuthBlockError(null)).toBeNull();
   });
 });
 

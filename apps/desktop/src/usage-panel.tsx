@@ -488,8 +488,18 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                           >
                             {formatUsageDuration(entry.firstTokenMs)}
                           </td>
-                          <td className="usage-tps-cell" data-testid="usage-call-tps">
+                          <td
+                            className="usage-tps-cell"
+                            data-testid="usage-call-tps"
+                            title={entry.timingScope === 'turn'
+                              ? isZh
+                                ? '整轮平均 TPS，扣除首字等待，包含工具执行和审批等待'
+                                : 'Turn average TPS, excluding first-token wait, including tools and approvals'
+                              : undefined}
+                          >
                             {formatTokensPerSecond(tokensPerSecond)}
+                            {entry.timingScope === 'turn' && tokensPerSecond !== null
+                              ? (isZh ? '（整轮）' : ' (turn)') : ''}
                           </td>
                           <td className="usage-token-pair">
                             <span>

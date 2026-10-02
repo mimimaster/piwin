@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { UsageRecord } from '@piwin/contracts';
+import { computeUsageCallLog } from './usage-call-log.js';
 import {
   appendUsageRecord,
-  computeUsageCallLog,
   computeUsageRollup,
   loadUsageRecords,
   readUsageCallLog,
@@ -50,6 +50,42 @@ describe('usage-ledger-store', () => {
     const records = await loadUsageRecords(filePath);
     expect(records).toHaveLength(1);
     expect(records[0]?.sessionId).toBe('s1');
+  });
+
+  it('preserves turn timing and its scope through the ledger and recent usage log', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-usage-turn-'));
+    const filePath = join(dir, 'ledger.jsonl');
+    const now = new Date();
+    await appendUsageRecord(filePath, record({
+      recordedAt: now.toISOString(), durationMs: 2300, firstTokenMs: 300, timingScope: 'turn',
+    }));
+    const log = await readUsageCallLog(filePath, { now });
+    expect(log.entries[0]).toMatchObject({ durationMs: 2300, firstTokenMs: 300, timingScope: 'turn' });
+  });
+
+  it('shows each backend request without double-counting its aggregate turn in recent calls', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-request-calls-'));
+    const filePath = join(dir, 'ledger.jsonl');
+    const now = new Date('2026-10-02T05:10:00Z');
+    await appendUsageRecord(filePath, record({ sessionId: 'grok', recordedAt: now.toISOString(), measurementId: 'turn-total' }));
+    await appendUsageRecord(filePath, record({ sessionId: 'pi', recordedAt: now.toISOString(), measurementId: 'pi-request' }));
+    const details = [record({ sessionId: 'grok', recordedAt: now.toISOString(), measurementId: 'grok-request-1' }),
+      record({ sessionId: 'grok', recordedAt: now.toISOString(), measurementId: 'grok-request-2' })];
+    const log = await readUsageCallLog(filePath, { now, requestRecords: details, limit: 2 });
+    expect(log.totalInWindow).toBe(3);
+    expect(log.entries).toHaveLength(2);
+    const page = await readUsageCallLog(filePath, { now, requestRecords: details, limit: 10 });
+    expect(page.entries.map((entry) => entry.id)).toEqual(['pi-request', 'grok-request-1', 'grok-request-2']);
+    expect(await loadUsageRecords(filePath)).toHaveLength(2);
+  });
+
+  it('keeps the turn fallback when backend detail is stale or outside the current window', () => {
+    const now = new Date('2026-10-02T05:10:00Z');
+    const log = computeUsageCallLog([record({ recordedAt: now.toISOString(), measurementId: 'turn' })], {
+      now, requestRecords: [record({ measurementId: 'stale' }),
+        record({ recordedAt: '2026-10-03T05:10:00Z', measurementId: 'future' })],
+    });
+    expect(log.entries.map((entry) => entry.id)).toEqual(['turn']);
   });
 
   it('buckets byDay in the viewer time zone, falling back to UTC for an unknown zone', () => {

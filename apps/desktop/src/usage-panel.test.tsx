@@ -352,6 +352,20 @@ describe('UsagePanel', () => {
     expect(container?.textContent).not.toContain('看清 Token 去向');
   });
 
+  it('labels aggregate turn TPS so it is not mistaken for model decode speed', async () => {
+    ({ root, container } = renderPanel({ request: async (command) => {
+      if (command.type !== 'usage/list-recent') return defaultRequest(command);
+      return okResponse({ log: {
+        ...SAMPLE_CALL_LOG,
+        entries: SAMPLE_CALL_LOG.entries.map((entry) => ({ ...entry, timingScope: 'turn' })),
+      } });
+    } }));
+    await flushLoad();
+    const cell = container?.querySelector('[data-testid="usage-call-tps"]');
+    expect(cell?.textContent).toBe('116 tok/s（整轮）');
+    expect(cell?.getAttribute('title')).toContain('包含工具执行和审批等待');
+  });
+
   it('lists the rolling one-hour call log with a per-call cache verdict', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();

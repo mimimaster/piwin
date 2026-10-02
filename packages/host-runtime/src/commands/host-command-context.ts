@@ -6,6 +6,7 @@ import type {
   AgentModeId,
   ExtensionUiSurfaceSnapshot,
   SessionUsageTotals,
+  UsageRecord,
   HostPush,
   PermissionDecision,
   PermissionMode,
@@ -119,6 +120,7 @@ export type HostCommandContext = {
   getExtensionUiSurface?: (sessionId: string) => ExtensionUiSurfaceSnapshot;
   /** Per-session transcript store (composer usage stats). */
   getSessionUsageTotals?: (sessionId: string) => Promise<SessionUsageTotals>;
+  getBackendRequestUsage?: (from: string) => Promise<UsageRecord[]>;
   rememberProjectPermission: (
     sessionId: string,
     action: string,

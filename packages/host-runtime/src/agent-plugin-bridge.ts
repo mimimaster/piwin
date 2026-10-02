@@ -62,6 +62,7 @@ export type AgentPluginBridgeOptions = {
   onClosed: (reason: string) => void;
   env?: NodeJS.ProcessEnv;
   nodePath?: string;
+  /** Control request deadline; prompts wait for their terminal outcome or process closure. */
   requestTimeoutMs?: number;
   maxFrameBytes?: number;
 };
@@ -73,7 +74,7 @@ const CALLBACK_TIMEOUT_MS = 5_000;
 type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
-  timer: NodeJS.Timeout;
+  timer: NodeJS.Timeout | undefined;
   /** Diagnostics only: which method a rejected-in-flight call was waiting on. */
   method: AgentPluginMethod;
 };
@@ -86,6 +87,7 @@ export class AgentPluginBridge {
   private closeReason: string | undefined;
   /** Set after dispose so a late plugin notification cannot reach the Host. */
   private disposed = false;
+  private requestUsageSupported = false;
 
   private constructor(options: AgentPluginBridgeOptions, child: ChildProcessWithoutNullStreams) {
     this.options = options;
@@ -111,6 +113,10 @@ export class AgentPluginBridge {
     return this.closeReason !== undefined;
   }
 
+  get supportsRequestUsage(): boolean {
+    return this.requestUsageSupported;
+  }
+
   async initialize(): Promise<void> {
     const result = await this.request('plugin/initialize', {
       agentId: this.options.agentId,
@@ -121,6 +127,7 @@ export class AgentPluginBridge {
     if (result.agentId !== this.options.agentId) {
       throw new AgentPluginBridgeError('invalid-request', `plugin initialized as ${result.agentId}`);
     }
+    this.requestUsageSupported = result.requestUsage === true;
   }
 
   /** Typed request. Scope is derived from the method so a caller cannot mis-scope one. */
@@ -136,7 +143,9 @@ export class AgentPluginBridge {
     const requestId = randomUUID();
     const timeoutMs = this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      // Prompt responses carry the whole turn's outcome, unlike short control ACKs.
+      // Thinking, tools and approval waits can legitimately exceed this deadline.
+      const timer = method === 'session/prompt' ? undefined : setTimeout(() => {
         this.pending.delete(requestId);
         reject(new AgentPluginBridgeError('plugin-timeout', `${method} timed out after ${timeoutMs}ms`));
       }, timeoutMs);
@@ -196,7 +205,7 @@ export class AgentPluginBridge {
       const waiter = this.pending.get(frame.requestId);
       if (waiter === undefined) return;
       this.pending.delete(frame.requestId);
-      clearTimeout(waiter.timer);
+      if (waiter.timer !== undefined) clearTimeout(waiter.timer);
       if (frame.ok) waiter.resolve(frame.result);
       else waiter.reject(new AgentPluginBridgeError(frame.error.code, frame.error.message));
       return;
@@ -261,7 +270,7 @@ export class AgentPluginBridge {
     if (this.closeReason !== undefined) return;
     this.closeReason = reason;
     for (const [requestId, waiter] of this.pending) {
-      clearTimeout(waiter.timer);
+      if (waiter.timer !== undefined) clearTimeout(waiter.timer);
       waiter.reject(new AgentPluginBridgeError('plugin-exited', `${reason} (in flight: ${waiter.method})`));
       this.pending.delete(requestId);
     }

@@ -12,6 +12,7 @@ import type {
   AgentPluginOutputDirectory,
   AgentPluginPermissionDecision,
   AgentPluginPermissionPrompt,
+  AgentPluginRequestUsageQuery,
   BackendPermissionOption,
   ExternalAgentMcpServerStatus,
   ExternalAgentStatus,
@@ -163,6 +164,10 @@ export class ExternalAgentBackend {
     return await (await this.control(agentId)).listCatalog();
   }
 
+  async listRequestUsage(agentId: string, query: AgentPluginRequestUsageQuery): Promise<unknown> {
+    return await (await this.control(agentId)).listRequestUsage(query);
+  }
+
   async renameCatalogSession(agentId: string, backendSessionId: string, title: string): Promise<void> {
     await (await this.control(agentId)).renameCatalogSession(backendSessionId, title);
   }
@@ -252,9 +257,9 @@ export class ExternalAgentBackend {
   }
 
   private async control(agentId: string): Promise<AgentPluginControlClient> {
-    const existing = this.controls.get(agentId);
-    if (existing !== undefined) return existing;
     const install = await this.deps.requireInstall(agentId);
+    const existing = this.controls.get(agentId);
+    if (existing !== undefined && existing.revision === install.revision) return existing;
     const create = this.deps.startControl ?? AgentPluginControlClient.create;
     const control = create({
       entrypoint: install.entrypoint,
@@ -267,6 +272,8 @@ export class ExternalAgentBackend {
       ...(this.deps.env !== undefined ? { env: this.deps.env } : {}),
     });
     this.controls.set(agentId, control);
+    // Publish before awaiting disposal so concurrent catalog/status reads reuse it.
+    if (existing !== undefined) await existing.dispose();
     return control;
   }
 

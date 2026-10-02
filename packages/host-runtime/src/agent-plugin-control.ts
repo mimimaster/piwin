@@ -11,6 +11,7 @@
 import {
   formatError,
   type AgentPluginCatalogEntry,
+  type AgentPluginRequestUsageQuery,
   type ExternalAgentStatus,
   type ExternalAgentSupportStatus,
 } from '@piwin/contracts';
@@ -52,6 +53,10 @@ export class AgentPluginControlClient {
 
   peekStatus(): ExternalAgentStatus | undefined {
     return this.status;
+  }
+
+  get revision(): string {
+    return this.options.pluginRevision;
   }
 
   /** Forces the next `getStatus` to hand-shake again (enable/disable, runtime path change). */
@@ -102,6 +107,20 @@ export class AgentPluginControlClient {
     await this.call('catalog/rename', { backendSessionId, title });
   }
 
+  /** Optional data-only query; old adapters retain their finalized-turn fallback. */
+  async listRequestUsage(query: AgentPluginRequestUsageQuery): Promise<unknown> {
+    // Older frame parsers reject unknown methods before they can return "unsupported".
+    if (!(await this.ensureBridge()).supportsRequestUsage) return [];
+    try {
+      return await this.call('catalog/usage', query);
+    } catch (error) {
+      if (error instanceof AgentPluginBridgeError && (error.code === 'unsupported' || error.code === 'unavailable')) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
   async deleteCatalogSession(backendSessionId: string): Promise<void> {
     await this.call('catalog/delete', { backendSessionId });
   }
@@ -135,7 +154,7 @@ export class AgentPluginControlClient {
     };
   }
 
-  private async call<Method extends 'check' | 'catalog/list' | 'catalog/rename' | 'catalog/delete'>(
+  private async call<Method extends 'check' | 'catalog/list' | 'catalog/usage' | 'catalog/rename' | 'catalog/delete'>(
     method: Method,
     params: unknown,
   ): Promise<unknown> {

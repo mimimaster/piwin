@@ -29,6 +29,8 @@ describe('assistant usage measurement contracts', () => {
         cacheReadTokens: 4,
         cacheWriteTokens: 2,
         durationMs: 80,
+        firstTokenMs: 20,
+        timingScope: 'turn',
         thinkingLevel: 'high',
         stopReason: 'stop',
       }),
@@ -40,6 +42,8 @@ describe('assistant usage measurement contracts', () => {
       totalTokens: 42,
       promptTokens: 10,
       thinkingLevel: 'high',
+      firstTokenMs: 20,
+      timingScope: 'turn',
     });
     const roundTrip: AssistantUsageMeasurement | null = parseAssistantUsageMeasurement(parsed);
     expect(roundTrip).toEqual(parsed);
@@ -55,5 +59,6 @@ describe('assistant usage measurement contracts', () => {
     expect(parseAssistantUsageMeasurement(validMeasurement({ measurementId: '' }))).toBeNull();
     expect(parseAssistantUsageMeasurement(validMeasurement({ messageId: 1 }))).toBeNull();
     expect(parseAssistantUsageMeasurement(null)).toBeNull();
+    expect(parseAssistantUsageMeasurement(validMeasurement({ timingScope: 'decode' }))).toBeNull();
   });
 });

@@ -50,8 +50,21 @@ lines.on('line', (line) => {
   if (method === 'session/prompt') {
     if (mode === 'exit-on-prompt') process.exit(7);
     promptFrame = frame;
+    if (mode === 'long-prompt') {
+      write({ protocolVersion: 1, kind: 'event', scope: frame.scope, emission: { type: 'agent', event: { kind: 'text', text: 'still working' } } });
+      return;
+    }
+    if (mode === 'silent-prompt') return;
     write({ protocolVersion: 1, kind: 'request', scope: frame.scope, requestId: 'perm-1', method: 'permission/request', params: { action: 'file-write', detail: 'write a file', context: {}, options: [{ id: 'allow' }, { id: 'deny' }], runId: frame.params.runId } });
     return;
+  }
+  if (method === 'session/options') {
+    if (promptFrame) { ok(promptFrame, { status: 'completed', stopReason: 'stop' }); promptFrame = undefined; }
+    return ok(frame, { models: [], efforts: [], modes: [], commands: [] });
+  }
+  if (method === 'session/cancel') {
+    if (promptFrame) { ok(promptFrame, { status: 'aborted', stopReason: 'aborted' }); promptFrame = undefined; }
+    return ok(frame, null);
   }
   if (method === 'session/callback-result') return ok(frame, callbackResult ?? null);
   if (method === 'session/mcp-status') {
@@ -67,6 +80,7 @@ const SCOPE: AgentPluginSessionScope = { sessionId: 's1', runtimeGenerationId: '
 const cleanups: Array<() => Promise<void>> = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   for (const cleanup of cleanups.splice(0)) await cleanup();
   vi.restoreAllMocks();
 });
@@ -165,5 +179,38 @@ describe('Host-side Agent plugin bridge', () => {
     const { bridge } = await harness('hang', { requestTimeoutMs: 50 });
     await bridge.initialize();
     await expect(bridge.request('session/mcp-status', {}, { kind: 'session', ...SCOPE })).rejects.toThrow('timed out');
+  });
+
+  it('keeps a streaming prompt pending past the control request deadline until its outcome', async () => {
+    const { bridge, emissions } = await harness('long-prompt');
+    await bridge.initialize();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const settled = vi.fn();
+    const prompt = bridge.prompt(SCOPE, { input: { text: 'long turn' }, runId: 'run-long' });
+    const observed = prompt.then(settled, settled);
+    await vi.waitFor(() => expect(emissions).toHaveLength(1));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(settled).not.toHaveBeenCalled();
+    await bridge.request('session/options', {}, { kind: 'session', ...SCOPE });
+    await expect(prompt).resolves.toEqual({ status: 'completed', stopReason: 'stop' });
+    await observed;
+    expect(settled).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows cancelling a silent prompt after the control request deadline', async () => {
+    const { bridge } = await harness('silent-prompt');
+    await bridge.initialize();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const settled = vi.fn();
+    const prompt = bridge.request('session/prompt', {
+      input: { text: 'thinking' }, runId: 'run-silent',
+    }, { kind: 'session', ...SCOPE });
+    const observed = prompt.then(settled, settled);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(settled).not.toHaveBeenCalled();
+    await bridge.request('session/cancel', {}, { kind: 'session', ...SCOPE });
+    await expect(prompt).resolves.toEqual({ status: 'aborted', stopReason: 'aborted' });
+    await observed;
+    expect(settled).toHaveBeenCalledTimes(1);
   });
 });

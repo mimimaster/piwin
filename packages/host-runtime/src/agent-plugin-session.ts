@@ -31,6 +31,7 @@ import {
 } from '@piwin/contracts';
 import { AgentPluginBridge } from './agent-plugin-bridge.js';
 import { importAgentPluginEventMedia } from './agent-plugin-media.js';
+import { AgentPluginTurnTiming } from './agent-plugin-turn-timing.js';
 
 const CANCEL_GRACE_MS = 3_000;
 
@@ -86,6 +87,7 @@ export class AgentPluginSession implements SessionHandle {
   private released = false;
   private userCancelled = false;
   private promptActive = false;
+  private readonly turnTiming = new AgentPluginTurnTiming();
   private mcpServers: ExternalAgentMcpServerStatus[] = [];
   private mcpObserved = false;
   private readonly capabilities: SessionBackendCapabilities | undefined;
@@ -195,10 +197,12 @@ export class AgentPluginSession implements SessionHandle {
     if (this.released) throw new Error('agent-plugin-session-released');
     this.userCancelled = false;
     this.promptActive = true;
+    const runId = this.ports.getCurrentRunId?.() ?? 'run-unknown';
+    this.turnTiming.begin(runId);
     try {
       return await this.bridge.prompt(this.openScope, {
         input,
-        runId: this.ports.getCurrentRunId?.() ?? 'run-unknown',
+        runId,
       });
     } catch (error) {
       // A cancel or release that killed the turn is an abort, not a failure.
@@ -206,6 +210,7 @@ export class AgentPluginSession implements SessionHandle {
       throw error;
     } finally {
       await this.flush();
+      this.turnTiming.end();
       this.promptActive = false;
     }
   }
@@ -312,11 +317,12 @@ export class AgentPluginSession implements SessionHandle {
       this.ports.onTransportClosed?.(emission.reason);
       return;
     }
+    const timedEvent = this.turnTiming.observe(emission.event);
     this.deliveryChain = this.deliveryChain.then(async () => {
       if (this.released) return;
       const importedEvent = this.ports.importMedia === undefined
-        ? emission.event
-        : await importAgentPluginEventMedia(emission.event, emission.media ?? [], this.ports.importMedia);
+        ? timedEvent
+        : await importAgentPluginEventMedia(timedEvent, emission.media ?? [], this.ports.importMedia);
       try {
         const event = this.ports.prepareEvent !== undefined
           ? await this.ports.prepareEvent(importedEvent)

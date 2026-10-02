@@ -50,6 +50,23 @@ describe('usage commands', () => {
     expect(isUsageCommand({ type: 'host/ping' })).toBe(false);
   });
 
+  it('queries request detail on each refresh while a backend turn is still running', async () => {
+    const rootDir = await seedLedger([]);
+    let requestCount = 2;
+    const commandContext = { ...context(rootDir), getBackendRequestUsage: async () =>
+      Array.from({ length: requestCount }, (_, index) => usageRecord({
+        sessionId: 'grok-running', measurementId: `request-${index}`, timingScope: 'request',
+      })),
+    };
+    const first = okData<{ log: UsageCallLog }>(await handleUsageCommand(
+      { type: 'usage/list-recent' }, 'first', commandContext)).log;
+    expect(first.totalInWindow).toBe(2);
+    requestCount = 3;
+    const refreshed = okData<{ log: UsageCallLog }>(await handleUsageCommand(
+      { type: 'usage/list-recent' }, 'next', commandContext)).log;
+    expect(refreshed.totalInWindow).toBe(3);
+  });
+
   it('returns recent calls newest first and leaves the all-time rollup intact', async () => {
     const hourAgo = new Date(Date.now() - 90 * 60_000).toISOString();
     const rootDir = await seedLedger([

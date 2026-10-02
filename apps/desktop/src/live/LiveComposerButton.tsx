@@ -40,7 +40,6 @@ function liveComposerButtonCopy(props: LiveComposerButtonProps): { label: string
 
 export function LiveComposerButton(props: LiveComposerButtonProps): ReactElement {
   const active = Boolean(props.call) || props.starting;
-  const canRetry = props.error !== null;
   const copy = liveComposerButtonCopy(props);
 
   return (
@@ -60,7 +59,8 @@ export function LiveComposerButton(props: LiveComposerButtonProps): ReactElement
           document.getElementById('piwin-live-panel')?.focus();
           return;
         }
-        if (props.canStart || canRetry) props.onStart();
+        // canStart false still enters start(), which toasts the channel-login failure.
+        props.onStart();
       }}
     >
       <IconMic />

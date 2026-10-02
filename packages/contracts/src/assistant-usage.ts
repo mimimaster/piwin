@@ -1,4 +1,5 @@
 import { isThinkingLevel, type ThinkingLevel } from './host.js';
+import type { UsageTimingScope } from './usage.js';
 
 export type AssistantUsageMeasurement = {
   measurementId: string; // stable; suggested key sessionId + runtimeGenerationId + messageId
@@ -15,6 +16,7 @@ export type AssistantUsageMeasurement = {
   totalTokens: number;
   durationMs?: number;
   firstTokenMs?: number;
+  timingScope?: UsageTimingScope;
   stopReason?: string;
   recordedAt: string;
 };
@@ -61,6 +63,10 @@ export function parseAssistantUsageMeasurement(value: unknown): AssistantUsageMe
   if (!copyOptionalFiniteNonNegative(value, measurement, 'cacheWriteTokens')) return null;
   if (!copyOptionalFiniteNonNegative(value, measurement, 'durationMs')) return null;
   if (!copyOptionalFiniteNonNegative(value, measurement, 'firstTokenMs')) return null;
+  if (value.timingScope !== undefined) {
+    if (value.timingScope !== 'request' && value.timingScope !== 'turn') return null;
+    measurement.timingScope = value.timingScope;
+  }
   return measurement;
 }
 

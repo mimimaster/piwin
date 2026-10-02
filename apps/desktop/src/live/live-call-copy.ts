@@ -64,6 +64,13 @@ export function liveProviderAuthError(providerId: string): string {
   return `live-provider-auth:${providerId}`;
 }
 
+/** Auth is the one unreadiness that swallows the composer click. Report it before the mic opens. */
+export function liveAuthBlockError(status: LiveStatusData | null): string | null {
+  if (!status?.missing.includes('provider-auth')) return null;
+  const providerId = status.selectedProviderId.trim();
+  return providerId.length > 0 ? liveProviderAuthError(providerId) : 'live-provider-auth';
+}
+
 export type LiveErrorLabelKind = 'start' | 'rebind';
 
 export function liveStartErrorLabel(

@@ -3,7 +3,7 @@
  * Reads the append-only ledger and returns token rollups for the panel.
  */
 import type { HostCommand, HostResponse } from '@piwin/contracts';
-import { readUsageCallLog, readUsageRollup } from '@piwin/session';
+import { computeUsageCallLog, readUsageCallLog, readUsageRollup } from '@piwin/session';
 import { getPiwinRoot, getPiwinUsageLedgerPath } from '../paths.js';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
@@ -52,7 +52,15 @@ export async function handleUsageCommand(
     case 'usage/list-recent': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       const ledgerPath = getPiwinUsageLedgerPath(rootDir);
+      const now = new Date();
+      const window = computeUsageCallLog([], {
+        now, ...(command.windowMinutes !== undefined ? { windowMinutes: command.windowMinutes } : {}),
+      });
+      const { from } = window;
+      const requestRecords = await context.getBackendRequestUsage?.(from);
       const log = await readUsageCallLog(ledgerPath, {
+        now,
+        ...(requestRecords !== undefined ? { requestRecords } : {}),
         ...(command.scope ? { scope: command.scope } : {}),
         ...(command.projectPath ? { projectPath: command.projectPath } : {}),
         ...(command.windowMinutes !== undefined ? { windowMinutes: command.windowMinutes } : {}),

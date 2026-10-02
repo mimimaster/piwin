@@ -67,10 +67,14 @@ export type AgentPluginPermissionDecision = { optionId: string } | { cancelled: 
 export type AgentPluginRequestMap = {
   'plugin/initialize': {
     params: { agentId: string; pluginRevision: string; hostProtocolVersion: number; runtime: { binaryPath?: string } };
-    result: { agentId: string; protocolVersion: 1 };
+    result: { agentId: string; protocolVersion: 1; requestUsage?: boolean };
   };
   'check': { params: { refresh: boolean }; result: ExternalAgentStatus };
   'catalog/list': { params: Record<string, never>; result: AgentPluginCatalogEntry[] };
+  'catalog/usage': {
+    params: import('./agent-plugin-request-usage.js').AgentPluginRequestUsageQuery;
+    result: import('./agent-plugin-request-usage.js').AgentPluginRequestUsage[];
+  };
   'catalog/rename': { params: { backendSessionId: string; title: string }; result: null };
   'catalog/delete': { params: { backendSessionId: string }; result: null };
   'session/new': { params: AgentPluginOpenInput; result: AgentPluginOpenedSession };
@@ -102,7 +106,7 @@ export type AgentPluginMethodMap = AgentPluginRequestMap & AgentPluginCallbackMa
 export type AgentPluginMethod = keyof AgentPluginMethodMap;
 
 export const AGENT_PLUGIN_METHODS = [
-  'plugin/initialize', 'check', 'catalog/list', 'catalog/rename', 'catalog/delete',
+  'plugin/initialize', 'check', 'catalog/list', 'catalog/usage', 'catalog/rename', 'catalog/delete',
   'session/new', 'session/load', 'session/resume', 'session/prompt', 'session/cancel',
   'session/options', 'session/model', 'session/effort', 'session/mode', 'session/commands',
   'session/interject', 'session/interject-cancel', 'session/mcp-status',

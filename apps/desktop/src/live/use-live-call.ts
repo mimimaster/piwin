@@ -8,7 +8,12 @@ import {
   type LiveStatusData,
 } from '@piwin/contracts';
 import type { HostClient } from '../host-client.js';
-import { canStartLive, liveProviderAuthError, resolveLiveStartChannel } from './live-call-copy.js';
+import {
+  canStartLive,
+  liveAuthBlockError,
+  liveProviderAuthError,
+  resolveLiveStartChannel,
+} from './live-call-copy.js';
 import {
   adoptLiveStatus,
   desktopLiveCapabilities,
@@ -23,6 +28,7 @@ import type { LiveSessionAssistant } from './live-session-result.js';
 
 export {
   canStartLive,
+  liveAuthBlockError,
   liveMissingLabel,
   liveProviderAuthError,
   liveStartErrorLabel,
@@ -251,6 +257,11 @@ export function useLiveCall(input: {
     await endChainRef.current.catch(() => undefined);
     if (startingRef.current) return;
     userEndedRef.current = false;
+    const authBlock = liveAuthBlockError(statusRef.current);
+    if (authBlock && callRef.current === null) {
+      void failAndCloseRef.current(authBlock);
+      return;
+    }
     const epoch = ++startEpochRef.current;
     startingRef.current = true;
     setStarting(true);

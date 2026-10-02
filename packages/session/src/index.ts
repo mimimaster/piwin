@@ -135,10 +135,10 @@ export {
   readUsageRollup,
   computeUsageRollup,
   readUsageCallLog,
-  computeUsageCallLog,
   resetUsageLedgerCaches,
 } from './usage-ledger-store.js';
-export type { UsageCallLogOptions, UsageRollupOptions } from './usage-ledger-store.js';
+export type { UsageRollupOptions } from './usage-ledger-store.js';
+export { computeUsageCallLog, type UsageCallLogOptions } from './usage-call-log.js';
 
 export {
   exportTranscript,

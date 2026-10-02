@@ -6,6 +6,8 @@
 import type { SessionScope, ThinkingLevel } from './host.js';
 
 export type UsageSource = 'pi-contextUsage' | 'assistant-usage' | 'host-estimate';
+/** Turn timing includes tool/approval waits; request timing describes one model call. */
+export type UsageTimingScope = 'request' | 'turn';
 
 /**
  * Optional category breakdown for context ring popover.
@@ -44,6 +46,7 @@ export type ContextUsageSnapshot = {
   durationMs?: number;
   /** First token latency in milliseconds when reported. */
   firstTokenMs?: number;
+  timingScope?: UsageTimingScope;
   /** 0–1 fraction of context used when computable. */
   contextRatio?: number;
   updatedAt: string;
@@ -102,6 +105,7 @@ export type UsageRecord = {
   durationMs?: number;
   /** First token latency in milliseconds when known. */
   firstTokenMs?: number;
+  timingScope?: UsageTimingScope;
   /** Turn outcome status. */
   success?: boolean;
   measurementId?: string;
@@ -249,10 +253,11 @@ export type UsageCallLogEntry = {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   totalTokens: number;
-  /** Generation duration in ms when the provider reported it. */
+  /** Duration in ms; timingScope distinguishes a model call from an entire turn. */
   durationMs?: number;
-  /** First token latency in ms when the provider reported it. */
+  /** First observable model content latency in ms when measured. */
   firstTokenMs?: number;
+  timingScope?: UsageTimingScope;
   /** Turn outcome when the ledger recorded one. */
   success?: boolean;
   source: 'assistant-usage' | 'host-estimate';

@@ -72,6 +72,11 @@ async function harness(mode = 'normal') {
 }
 
 describe('Agent plugin control plane', () => {
+  it('falls back to finalized turns when an older adapter does not support request usage', async () => {
+    const { client } = await harness();
+    await expect(client.listRequestUsage({ from: new Date().toISOString(), sessions: [] })).resolves.toEqual([]);
+    await expect(client.listCatalog()).resolves.toHaveLength(1);
+  });
   it('reports readiness and serves the vendor catalog', async () => {
     const { client } = await harness();
     await expect(client.getStatus()).resolves.toMatchObject({ agentId: 'grok', state: 'ready', version: '1.0.44' });

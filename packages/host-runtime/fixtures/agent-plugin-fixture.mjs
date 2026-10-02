@@ -64,7 +64,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
 async function handle(frame) {
   switch (frame.method) {
     case 'plugin/initialize':
-      return respond(frame, { agentId, protocolVersion: 1 });
+      return respond(frame, { agentId, protocolVersion: 1, requestUsage: true });
     case 'plugin/dispose':
       process.exit(0);
       return undefined;
@@ -78,6 +78,8 @@ async function handle(frame) {
       });
     case 'catalog/list':
       return respond(frame, script.catalog ?? []);
+    case 'catalog/usage':
+      return respond(frame, script.requestUsage ?? []);
     case 'catalog/rename':
     case 'catalog/delete':
       return respond(frame, null);
@@ -160,6 +162,10 @@ async function prompt(frame) {
   if (script.title !== undefined) emit(frame.scope, { type: 'title', title: script.title });
   for (const step of steps) {
     if (slot.cancelled) return undefined;
+    if (step.kind === 'delay') {
+      await new Promise((resolve) => setTimeout(resolve, step.ms));
+      continue;
+    }
     if (step.kind === 'text') {
       emit(frame.scope, { type: 'agent', event: { type: 'message/text_delta', messageId, delta: step.text } });
       continue;
@@ -232,6 +238,13 @@ async function prompt(frame) {
   }
   if (slot.cancelled) return undefined;
   slot.promptFrame = undefined;
+  if (script.usage !== undefined) {
+    emit(frame.scope, { type: 'agent', event: { type: 'usage/finalized', measurement: {
+      measurementId: `${frame.scope.sessionId}:${messageId}`,
+      sessionId: frame.scope.sessionId, messageId, runId: frame.params.runId,
+      recordedAt: new Date().toISOString(), ...script.usage,
+    } } });
+  }
   return respond(frame, {
     status: stepFailed(steps) ? 'failed' : 'completed',
     stopReason: stepFailed(steps) ? 'error' : 'stop',

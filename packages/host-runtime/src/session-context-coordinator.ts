@@ -333,6 +333,8 @@ export function createSessionContextCoordinator(
           usage.cacheWriteTokens = input.measurement.cacheWriteTokens;
         }
         if (input.measurement.durationMs !== undefined) usage.durationMs = input.measurement.durationMs;
+        if (input.measurement.firstTokenMs !== undefined) usage.firstTokenMs = input.measurement.firstTokenMs;
+        if (input.measurement.timingScope !== undefined) usage.timingScope = input.measurement.timingScope;
         deps.push({
           type: 'event',
           sessionId: input.sessionId,

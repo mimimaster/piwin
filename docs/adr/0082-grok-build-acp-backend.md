@@ -348,6 +348,69 @@ overwrite a newer refresh. Missing CLI and unauthenticated statuses remain
 unusable; readiness checking sends no model prompt and does not install or log
 into the vendor CLI.
 
+### Amendment: Prompt completion is a Run lifetime (2026-10-02, accepted)
+
+The Host-to-plugin `session/prompt` response returns the terminal outcome of
+the entire turn. It is not the immediate `session/prompt` acknowledgement
+returned by the product Host to a shell. The generic 30-second bridge request
+deadline therefore applies only to control and query requests. Prompt waits
+remain pending through streaming, thinking, tool execution and approval waits
+until the plugin returns an outcome or the process closes. Stop still uses the
+bounded cancel request and the existing session cancellation grace/release
+path. This matches the Pi worker's default completion lifetime.
+
+The old deadline incorrectly failed an active Grok turn at 30 seconds even
+while events were arriving. See
+[the regression evidence](../evidence/2026-10-02-grok-prompt-timeout.md).
+
+### Amendment: Host-observed backend turn timing (2026-10-02, accepted)
+
+Backend usage that has no first-token measurement is enriched at the Host
+plugin-session boundary. A monotonic clock measures prompt dispatch to the
+first nonempty text/thinking delta, text snapshot or tool call. Message start
+and empty deltas do not count. Observation happens before asynchronous media
+imports and transcript projection. Replay and explicitly foreign Runs do not
+receive live timing; each prompt resets the observer.
+
+Grok's prompt usage is aggregate turn accounting. Host timing therefore uses
+the same entire turn for `durationMs` and `firstTokenMs`, with
+`timingScope: turn`. A vendor API duration is not mixed with Host-observed
+TTFT. Adapters that already supply first-token timing retain their values.
+The existing usage ledger, recent log and Desktop table consume these fields;
+Desktop labels the rate as a turn average and explains that tools and approval
+waits are included. TPS remains the reported completion tokens divided by the
+turn duration minus first-token wait, using the shared plausibility fallback.
+Missing token counts or first-content evidence are never invented. This turn
+measurement remains a fallback for adapters without request accounting.
+
+### Amendment: Recent calls include requests inside an active turn (2026-10-02, accepted)
+
+One Grok prompt can contain many model requests. A single finalized turn row
+must not be interpreted as a single request. An adapter may advertise
+`requestUsage: true` in `plugin/initialize` and implement the optional
+plugin-scope `catalog/usage` query. Older adapters are never sent an unknown
+method; their finalized-turn view remains available.
+
+The query returns normalized request ids, backend session ids, token counts,
+duration and optional first-token timing since a requested instant. Host
+queries only durable session bindings, validates these records and maps them
+to product session ids. Vendor files and vendor token semantics belong to the
+external adapter. Changing the selected extension refreshes the independent
+control process while existing session processes continue running.
+
+The Grok adapter reads `shell.turn.inference_done` accounting from the native
+unified log and matches native `first_token` events when `ttft_ms` is absent.
+Cached prompt tokens are split from uncached input. Reasoning is already in
+completion tokens and is not added again. Context occupancy metadata is not
+billable request accounting. Missing log files or timing stay unavailable;
+file reads are bounded and arbitrary log context is never returned.
+
+`usage/list-recent` reads these completed requests on every refresh, including
+during an unfinished Run. Request details replace that session's aggregate
+turn rows in this view so one call is shown once. The append-only billing
+ledger and existing rollups are unchanged. Recent-window filtering,
+deduplication and paging remain pure logic in the session package.
+
 ## Consequences
 
 - Contracts gain backend identity, per-session capabilities, backend-provided

@@ -136,4 +136,25 @@ describe('LiveComposerButton', () => {
     expect(button?.getAttribute('title')).toContain('登录或密钥');
     expect(container?.querySelector('[data-testid="composer-live-hint"]')).toBeNull();
   });
+
+  it('reports a blocked start instead of dropping the click', () => {
+    const onStart = vi.fn();
+    render(
+      <LiveComposerButton
+        enabled={true}
+        canStart={false}
+        starting={false}
+        call={null}
+        error={null}
+        missing={['provider-auth']}
+        isChinese={true}
+        onStart={onStart}
+        onEnd={vi.fn()}
+      />,
+    );
+    act(() => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="composer-live-btn"]')?.click();
+    });
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
 });
