@@ -9,6 +9,21 @@ Accepted (2026-07-29) · Implemented (Tasks 1–10 of the execution plan)
 > permission rule engine; the material below is retained as historical context
 > for the original implementation and migration.
 
+### 2026-10-02 amendment
+
+Ordinary modes keep deny → ask → allow. Explicit `unrestricted` (True YOLO)
+opts out of Host tool rules and permission prompts; see [ADR 0024](./0024-run-modes-and-sandbox.md).
+The default stays ordinary YOLO, not unrestricted.
+
+The built-in product-root file-write deny now protects the active PIWIN_ROOT
+as well as the default root. A current writable subagent lease inside the
+Host worktree storage root is excluded from that built-in rule only. The
+exception is carried by Host-only object provenance, never by a user rule's
+reason string, and canonical targets are still checked against all remaining
+rules. Host session/generation validation and lease teardown fence its lifetime.
+User denies, secret-path denies, real config/auth/session state and other
+worktrees remain protected in ordinary modes.
+
 ### Implementation notes
 
 **Built (Tasks 1–10):**

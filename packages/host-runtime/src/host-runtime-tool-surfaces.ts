@@ -13,11 +13,12 @@ import type {
 import { randomUUID } from 'node:crypto';
 import { formatError, normalizeExecutionConfig } from '@piwin/contracts';
 import { healthProviderDisclosure } from './health-turn-display.js';
-import { effectivePermissionMode } from './effective-permission-mode.js';
+import { effectivePermissionMode, getInheritedPermissionOverride } from './effective-permission-mode.js';
 import { evaluateBashPermission } from './permission-policy.js';
 import { isWorktreeConfinedRecursiveRemove } from './subagent-worktree-rm-approval.js';
 import { loadMcpConfig, createMcpGenerationSnapshot } from '@piwin/mcp';
 import { listProjects } from '@piwin/project';
+import { canonicalFsPath } from '@piwin/process';
 import { getSessionRecord } from '@piwin/session';
 import { isGeneralWorkspacePath } from './general-workspace.js';
 import {
@@ -164,7 +165,16 @@ export async function composeSessionHostToolsForSession(
     `${sessionId}\u0000${runtimeGenerationId}`,
     sessionMcpOverrideKey(sessionDisabledMcpServerIds),
   );
-  let rules = createBundledRuleSet();
+  const writableWorktreeRoot = childContext?.runtimeGenerationId === runtimeGenerationId &&
+    childContext.worktreePath !== undefined &&
+    canonicalFsPath(childContext.worktreePath) === canonicalFsPath(childContext.workingDirectory)
+    ? canonicalFsPath(childContext.worktreePath)
+    : undefined;
+  const permissionScope = {
+    piwinRoot: canonicalFsPath(rootDir),
+    ...(writableWorktreeRoot ? { writableWorktreeRoot } : {}),
+  };
+  let rules = createBundledRuleSet(permissionScope);
   let mcpCapabilityBrief: McpCapabilityBrief | undefined;
   let projectTrusted = false;
   // A subagent runs in a Host-owned worktree under ~/.piwin that is never in
@@ -184,6 +194,7 @@ export async function composeSessionHostToolsForSession(
     }
     rules = await loadMergedPermissionRules({
       piwinRoot: rootDir,
+      ...(writableWorktreeRoot ? { writableWorktreeRoot } : {}),
       ...(projectPath ? { projectPath, projectTrusted } : {}),
     });
   } catch (error) {
@@ -334,11 +345,9 @@ export async function composeSessionHostToolsForSession(
     // inside that copy, so parent ask-all must not prompt for each one.
     // Leave-workspace asks and deny rules still apply, because the mode stays
     // auto rather than bypass.
-    const sessionOverride =
-      deps.sessionPermissionOverrides.get(sessionId) ??
-      (childContext
-        ? deps.sessionPermissionOverrides.get(childContext.parentSessionId)
-        : undefined);
+    const sessionOverride = getInheritedPermissionOverride(
+      deps.sessionPermissionOverrides, sessionId, childContext?.parentSessionId,
+    );
     const mode = effectivePermissionMode({
       ...(sessionOverride !== undefined ? { sessionOverride } : {}),
       ...(deps.options.permissionModeOverride !== undefined

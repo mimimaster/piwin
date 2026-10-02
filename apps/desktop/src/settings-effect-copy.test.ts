@@ -44,10 +44,10 @@ describe('composed effect messages', () => {
     expect(skillInstalledEffectMessage('en', 'demo-skill')).toContain('immediately');
   });
 
-  it('states MCP save is immediate and permission save is next-session', () => {
+  it('states MCP and permission mode saves reach live admission immediately', () => {
     expect(mcpConfigSavedEffectMessage('zh-CN', '~/.piwin/mcp.json')).toContain('可立即使用');
-    expect(permissionModeSavedEffectMessage('zh-CN')).toContain('新会话');
-    expect(permissionModeSavedEffectMessage('en')).toContain('new sessions');
+    expect(permissionModeSavedEffectMessage('zh-CN')).toContain('可立即使用');
+    expect(permissionModeSavedEffectMessage('en')).toContain('available immediately');
   });
 
   it('states extension apply after the current task when requested', () => {

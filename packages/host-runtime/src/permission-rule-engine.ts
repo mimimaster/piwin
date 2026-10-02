@@ -6,6 +6,7 @@
  */
 
 import type { PermissionRule, PermissionRuleSet, PermissionSubject } from '@piwin/contracts';
+import { isManagedWorktreeRuleException } from './managed-worktree-permission.js';
 
 /**
  * Match a bash command against a glob pattern.
@@ -253,7 +254,9 @@ function ruleMatchesSubject(rule: PermissionRule, subject: PermissionSubject): b
     case 'bash':
       return subject.kind === 'bash' && matchBashGlob(rule.target.pattern, subject.command);
     case 'file-write':
-      return subject.kind === 'file-write' && matchPathGlob(rule.target.pathGlob, subject.path);
+      return subject.kind === 'file-write' &&
+        matchPathGlob(rule.target.pathGlob, subject.path) &&
+        !isManagedWorktreeRuleException(rule, subject.path);
     case 'web-fetch':
       return subject.kind === 'web-fetch' && matchHostGlob(rule.target.hostGlob, subject.host);
     case 'web-search':

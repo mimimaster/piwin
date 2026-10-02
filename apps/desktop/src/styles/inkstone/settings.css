@@ -407,11 +407,6 @@ html:is(
     color: var(--t3);
   }
 
-  .mode-card-feature-pill {
-    background: var(--l1);
-    color: var(--t3);
-  }
-
   .badge-pine {
     background: var(--pine-wash);
     color: var(--pine);

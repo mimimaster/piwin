@@ -123,7 +123,11 @@ The Host is the authority; clients mirror it and never invent capability.
 - **Per-session picker.** Pi's provider-backed model/thinking pill is replaced
   for an agent session by the agent's own `SessionBackendOptions` list. Pi model
   refs are never sent to another runtime, and `modeConfirmed: false` renders as
-  pending rather than as the current mode.
+  pending rather than as the current mode. The composer resolves agent identity
+  from the durable session binding (including retained rows after sidebar paging),
+  independently of the optional backend catalog. Until that catalog arrives,
+  it shows the agent name and a disabled model-loading state; it never presents
+  the global Pi model selection for an externally bound session.
 - **Capability gating.** Unsupported operations are absent from the UI
   (compact, fork, duplicate, continue-in-project) or shown as the action that
   does exist (Stop instead of Pause). The composer toolbar always passes the

@@ -159,7 +159,7 @@ export async function commandChat(argv: string[]): Promise<void> {
   const imagePath = readOption(argv, '--image');
   if (!message && !imagePath) {
     console.error(
-      'Usage: piwin chat <text> [--project <path>] [--agent pi|grok] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>] [--ref <path>…]',
+      'Usage: piwin chat <text> [--project <path>] [--agent pi|grok] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass|unrestricted] [--scheme <id>] [--ref <path>…]',
     );
     process.exitCode = 1;
     return;

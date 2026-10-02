@@ -10,6 +10,9 @@ function fakeKernel(options: { childSessionId: string; invocationId: string }) {
   const recorded: SubagentInvocationActivity[] = [];
   const pushes: HostPush[] = [];
   const deps = {
+    options: {},
+    permissionModeFromConfig: 'auto',
+    sessionPermissionOverrides: new Map(),
     runRegistry: new RunRegistry(),
     runExecutionContext: new AsyncLocalStorage<string>(),
     pendingPermissions: new Map(),
@@ -41,6 +44,35 @@ function resolvePending(deps: HostRuntimeKernel, decision: 'allow' | 'deny'): vo
 }
 
 describe('requestPermission for a subagent child', () => {
+  it('skips direct Host consent prompts in true YOLO, including inherited child YOLO', async () => {
+    const fake = fakeKernel({ childSessionId: 'child', invocationId: 'inv-1' });
+    fake.deps.permissionModeFromConfig = 'unrestricted';
+    fake.deps.sessionPermissionOverrides.set('parent', 'bypass');
+    await expect(requestPermission(fake.deps, {
+      sessionId: 'child', action: 'subagent:dirty-base', detail: 'dirty repository', defaultDecision: 'deny',
+    })).resolves.toBe('allow');
+    expect(fake.pushes).toEqual([]);
+    expect(fake.deps.pendingPermissions.size).toBe(0);
+  });
+
+  it('keeps direct prompts for an Ask override and never auto-approves cancellation', async () => {
+    const fake = fakeKernel({ childSessionId: 'child', invocationId: 'inv-1' });
+    fake.deps.permissionModeFromConfig = 'unrestricted';
+    fake.deps.sessionPermissionOverrides.set('parent', 'ask-all');
+    const pending = requestPermission(fake.deps, {
+      sessionId: 'child', action: 'subagent:dirty-base', detail: 'dirty repository', defaultDecision: 'deny',
+    });
+    expect(fake.deps.pendingPermissions.size).toBe(1);
+    resolvePending(fake.deps, 'deny');
+    await expect(pending).resolves.toBe('deny');
+    fake.deps.sessionPermissionOverrides.clear();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(requestPermission(fake.deps, {
+      sessionId: 'child', action: 'bash', detail: 'probe', defaultDecision: 'deny', signal: controller.signal,
+    })).resolves.toBe('deny');
+  });
+
   it('marks the invocation as waiting for approval and restores the tool activity after', async () => {
     const fake = fakeKernel({ childSessionId: 'child', invocationId: 'inv-1' });
     const decision = requestPermission(fake.deps, {

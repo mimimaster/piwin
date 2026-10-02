@@ -122,7 +122,7 @@ export function extensionSyncedAndApplyRequestedMessage(locale: DesktopLocale): 
 export function permissionModeSavedEffectMessage(locale: DesktopLocale): string {
   return settingsSavedWithEffect(
     locale,
-    'next-session',
+    'immediate',
     isChinese(locale) ? '运行模式' : 'Run mode',
   );
 }

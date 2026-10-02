@@ -253,6 +253,54 @@ describe('PermissionsPage', () => {
     expect(collapse?.getAttribute('aria-hidden')).toBe('true');
   });
 
+  it('removes the feature-pill small print from all mode cards', async () => {
+    await renderPage(createContextValue());
+    expect(host?.querySelector('.mode-card-features')).toBeNull();
+    expect(host?.textContent).not.toContain('硬性熔断兜底');
+  });
+
+  it('enables true YOLO with one checkbox save, without triggering the radio button', async () => {
+    const saveConfig = vi.fn(async () => true);
+    await renderPage(createContextValue({ config: createConfig('auto'), saveConfig }));
+    const checkbox = host?.querySelector<HTMLInputElement>('[data-testid="settings-permission-true-yolo"]');
+    expect(checkbox).toBeTruthy();
+    expect(checkbox?.closest('button')).toBeNull();
+    await act(async () => { checkbox?.click(); });
+    expect(saveConfig).toHaveBeenCalledTimes(1);
+    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      permissions: { mode: 'unrestricted', preset: 'yolo' },
+    }));
+  });
+
+  it('shows true YOLO as checked and unrestricted on an untrusted project; unchecking restores ordinary YOLO', async () => {
+    const config = createConfig('yolo');
+    config.permissions = { mode: 'unrestricted', preset: 'yolo' };
+    const saveConfig = vi.fn(async () => true);
+    await renderPage(createContextValue({ config, saveConfig, projectPath: '/repo', projectTrusted: false }));
+    const checkbox = host?.querySelector<HTMLInputElement>('[data-testid="settings-permission-true-yolo"]');
+    expect(checkbox?.checked).toBe(true);
+    expect(host?.querySelector('[data-testid="settings-permission-mode-yolo"]')?.classList.contains('is-restricted')).toBe(false);
+    expect(host?.querySelector('[data-testid="settings-permission-bypass-refused"]')).toBeNull();
+    await act(async () => { checkbox?.click(); });
+    expect(saveConfig).toHaveBeenCalledWith(expect.objectContaining({ permissions: { mode: 'bypass', preset: 'yolo' } }));
+  });
+
+  it('keeps true YOLO when selecting the already active YOLO card, and clears it for Auto', async () => {
+    const config = createConfig('yolo');
+    config.permissions = { mode: 'unrestricted', preset: 'yolo' };
+    const saveConfig = vi.fn(async () => true);
+    await renderPage(createContextValue({ config, saveConfig }));
+    await act(async () => { host?.querySelector<HTMLButtonElement>('[data-testid="settings-permission-mode-yolo"]')?.click(); });
+    expect(saveConfig).toHaveBeenLastCalledWith(expect.objectContaining({ permissions: { mode: 'unrestricted', preset: 'yolo' } }));
+    await act(async () => { host?.querySelector<HTMLButtonElement>('[data-testid="settings-permission-mode-auto"]')?.click(); });
+    expect(saveConfig).toHaveBeenLastCalledWith(expect.objectContaining({ permissions: { mode: 'auto', preset: 'auto' } }));
+  });
+
+  it('disables the true YOLO checkbox while saving', async () => {
+    await renderPage(createContextValue({ saving: true }));
+    expect(host?.querySelector<HTMLInputElement>('[data-testid="settings-permission-true-yolo"]')?.disabled).toBe(true);
+  });
+
   it('supports English locale labels and descriptions', async () => {
     const ctx = createContextValue({ config: createConfig('ask') });
     await renderPage(ctx, 'en');

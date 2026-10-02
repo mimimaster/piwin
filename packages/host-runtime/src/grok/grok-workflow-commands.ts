@@ -3,8 +3,9 @@
  *
  * The adapter owns its workflow files, so the Host asks the session bridge
  * instead of parsing vendor state on disk. A session that is not resident is
- * activated the same way a prompt would activate it; when that is not possible
- * the read degrades to "no workflows" rather than inventing data.
+ * activated the same way a prompt would activate it. A handle that is absent or
+ * cannot list workflows degrades to "no workflows" rather than inventing data
+ * or surfacing a raw TypeError in the chat.
  */
 
 import { formatError } from '@piwin/contracts';
@@ -52,16 +53,26 @@ export async function handleExternalWorkflowCommand(
   }
 }
 
+function workflowSession(session: unknown): AgentPluginSession | undefined {
+  if (typeof session !== 'object' || session === null) return undefined;
+  const candidate = session as { listWorkflows?: unknown; readWorkflowReport?: unknown };
+  return typeof candidate.listWorkflows === 'function' && typeof candidate.readWorkflowReport === 'function'
+    ? session as AgentPluginSession
+    : undefined;
+}
+
 async function residentExternalSession(
   deps: HostRuntimeKernel,
   sessionId: string,
 ): Promise<AgentPluginSession | undefined> {
-  const existing = deps.sessions.get(sessionId) as AgentPluginSession | undefined;
-  if (existing?.listWorkflows !== undefined) return existing;
+  const existing = workflowSession(deps.sessions.get(sessionId));
+  if (existing !== undefined) return existing;
   try {
     await deps.ensureLiveSession(sessionId);
   } catch {
     return undefined;
   }
-  return deps.sessions.get(sessionId) as AgentPluginSession | undefined;
+  // ensureLiveSession returns whatever is already resident. A Pi handle, or any
+  // other object without these methods, must not be called.
+  return workflowSession(deps.sessions.get(sessionId));
 }

@@ -9,7 +9,8 @@
  *   concrete subject value.
  */
 
-export type PermissionMode = 'auto' | 'ask-all' | 'bypass';
+/** `unrestricted` is explicit true YOLO: no tool permission rules or prompts. */
+export type PermissionMode = 'auto' | 'ask-all' | 'bypass' | 'unrestricted';
 
 /**
  * User-facing Run Mode (ADR 0024). The primary permission knob in the composer.
@@ -173,7 +174,8 @@ export type PermissionConfig = {
   mode: PermissionMode;
   /**
    * User-facing Run Mode preset (ADR 0024). Preferred over `mode` for new
-   * config. When set, `mode` is derived via {@link resolvePreset}. When
+   * config. When set, `mode` is derived via {@link resolvePreset}, except
+   * `yolo` + `unrestricted` preserves the explicit true-YOLO opt-in. When
    * absent, `mode` is used directly (backward compat with ADR 0019).
    */
   preset?: PermissionPreset;
@@ -239,6 +241,7 @@ export function modeToPreset(mode: PermissionMode): PermissionPreset {
     case 'ask-all':
       return 'ask';
     case 'bypass':
+    case 'unrestricted':
       return 'yolo';
   }
 }
@@ -252,7 +255,7 @@ export function resolvePermissionPreset(
     return preset;
   }
   const mode = permissions?.mode;
-  if (mode === 'auto' || mode === 'ask-all' || mode === 'bypass') {
+  if (mode === 'auto' || mode === 'ask-all' || mode === 'bypass' || mode === 'unrestricted') {
     return modeToPreset(mode);
   }
   return DEFAULT_PERMISSION_PRESET;

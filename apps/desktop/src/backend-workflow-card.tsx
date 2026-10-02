@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import { isBackendWorkflowActive, type BackendWorkflowSnapshot } from '@piwin/contracts';
-import { Button, BreathMatrix } from '@piwin/ui-kit';
+import { Button } from '@piwin/ui-kit';
 import { IconChevronDown } from './shell-icons.js';
 import { CollapsibleContentBlock } from './collapsible-content-block.js';
 import { MarkdownView } from './MarkdownView.js';
@@ -30,10 +30,7 @@ function formatElapsed(ms?: number): string | null {
   return `${min}m ${remSec}s`;
 }
 
-/**
- * Backend workflow row on the ink-spine tool call chain.
- * Reusable dynamic UI (BreathMatrix) + workflow name + live progress dropdown.
- */
+/** Backend workflow row on the same ink-spine as tool calls. */
 export function BackendWorkflowCard(props: {
   workflow: BackendWorkflowSnapshot;
   request: BackendWorkflowRequest;
@@ -50,7 +47,10 @@ export function BackendWorkflowCard(props: {
   const isCompleted = workflow.status === 'completed' || workflow.status === 'done';
   const isFailed = workflow.status === 'failed' || workflow.status === 'interrupted' || workflow.status === 'cancelled';
   const nodeClass = running ? 'run' : isCompleted ? 'done' : isFailed ? 'fail' : 'wait';
+  const badgeClass = nodeClass === 'run' ? 'run' : nodeClass === 'done' ? 'done' : nodeClass === 'fail' ? 'fail' : 'wait';
   const doneCount = workflow.phases.filter((phase) => phase.status === 'done').length;
+  const statusLabel = chinese ? STATUS_ZH[workflow.status] ?? workflow.status : workflow.status;
+  const progressLabel = workflow.phases.length > 0 ? `${doneCount}/${workflow.phases.length}` : null;
 
   async function openReport(): Promise<void> {
     setLoading(true);
@@ -90,9 +90,6 @@ export function BackendWorkflowCard(props: {
         aria-expanded={expanded}
         onClick={() => setExpanded((prev) => !prev)}
       >
-        <span className="backend-workflow-matrix-wrapper" aria-hidden="true">
-          <BreathMatrix size="sm" />
-        </span>
         <b className="backend-workflow-name">{workflow.name}</b>
         {workflow.objective ? (
           <span className="backend-workflow-objective" title={workflow.objective}>
@@ -100,23 +97,9 @@ export function BackendWorkflowCard(props: {
           </span>
         ) : null}
         <div className="backend-workflow-meta meta">
-          {running ? (
-            <span className="backend-workflow-badge run">
-              {chinese
-                ? doneCount > 0
-                  ? `${doneCount}/${workflow.phases.length} 进度`
-                  : '调研中'
-                : `${doneCount}/${workflow.phases.length} phases`}
-            </span>
-          ) : isCompleted ? (
-            <span className="backend-workflow-badge done">
-              {chinese ? '已完成' : 'Done'}
-            </span>
-          ) : (
-            <span className="backend-workflow-badge error">
-              {chinese ? STATUS_ZH[workflow.status] ?? workflow.status : workflow.status}
-            </span>
-          )}
+          <span className={`backend-workflow-badge ${badgeClass}`}>
+            {progressLabel ? `${progressLabel} · ${statusLabel}` : statusLabel}
+          </span>
           {formatElapsed(workflow.elapsedMs) ? (
             <span className="backend-workflow-timing">
               {formatElapsed(workflow.elapsedMs)}
@@ -135,7 +118,7 @@ export function BackendWorkflowCard(props: {
             <p className="backend-workflow-objective-expanded">{workflow.objective}</p>
           ) : null}
           {workflow.message ? (
-            <p className="backend-workflow-error" role="status">
+            <p className={isFailed ? 'backend-workflow-error' : 'backend-workflow-note'} role="status">
               {workflow.message}
             </p>
           ) : null}
@@ -155,9 +138,7 @@ export function BackendWorkflowCard(props: {
                           : 'pending'
                     }`}
                     aria-hidden="true"
-                  >
-                    {phase.status === 'done' ? '✓' : ''}
-                  </span>
+                  />
                   <span className="phase-title">{phase.title}</span>
                   {phase.detail ? (
                     <span className="phase-detail">{phase.detail}</span>
@@ -201,7 +182,7 @@ export function BackendWorkflowCard(props: {
           {workflow.reportAvailable ? (
             <div className="backend-workflow-report-box">
               <span className="report-box-title">
-                {chinese ? '研报已生成' : 'Research report ready'}
+                {chinese ? '报告已生成' : 'Report ready'}
               </span>
               <Button
                 size="compact"
@@ -217,8 +198,8 @@ export function BackendWorkflowCard(props: {
                       ? '刷新报告'
                       : 'Refresh report'
                     : chinese
-                      ? '查看完整研报 ↗'
-                      : 'View report ↗'}
+                      ? '查看报告'
+                      : 'View report'}
               </Button>
             </div>
           ) : null}

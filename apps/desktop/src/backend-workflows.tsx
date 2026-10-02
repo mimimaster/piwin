@@ -21,7 +21,9 @@ export function BackendWorkflows(props: { sessionId: string; request: BackendWor
         if (value?.sessionId !== props.sessionId || !Array.isArray(value.workflows)) throw new Error('Invalid workflow response');
         if (!disposed) { setData(value); setError(null); }
       } catch (failure) {
-        if (!disposed) setError(failure instanceof Error ? failure.message : String(failure));
+        const message = failure instanceof Error ? failure.message : String(failure);
+        // A live handle without the workflow method is "no tasks", not a chat error.
+        if (!disposed) setError(message.includes('is not a function') ? null : message);
       } finally { if (!disposed) timer = setTimeout(() => void refresh(), 3000); }
     }
     void refresh();
@@ -36,8 +38,7 @@ export function BackendWorkflows(props: { sessionId: string; request: BackendWor
     >
       {error ? (
         <p role="alert" className="backend-workflows-error">
-          {props.locale === 'zh-CN' ? '后台任务状态读取失败：' : 'Workflow status unavailable: '}
-          {error}
+          {props.locale === 'zh-CN' ? '后台任务暂时读不到' : 'Background tasks are temporarily unavailable'}
         </p>
       ) : null}
       {data?.workflows.map((workflow) => (

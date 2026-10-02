@@ -440,11 +440,14 @@ function normalizePermissionConfig(value: unknown): PermissionConfig {
   const preset = record.preset;
   if (preset === 'ask' || preset === 'auto' || preset === 'yolo') {
     const resolved = resolvePreset(preset as PermissionPreset);
-    return { mode: resolved.mode, preset: preset as PermissionPreset };
+    return {
+      mode: preset === 'yolo' && record.mode === 'unrestricted' ? 'unrestricted' : resolved.mode,
+      preset: preset as PermissionPreset,
+    };
   }
   // Backward compat: accept legacy `mode` (auto/ask-all/bypass).
   const mode = record.mode;
-  if (mode === 'auto' || mode === 'ask-all' || mode === 'bypass') {
+  if (mode === 'auto' || mode === 'ask-all' || mode === 'bypass' || mode === 'unrestricted') {
     const presetFromMode = modeToPreset(mode as PermissionMode);
     return { mode: mode as PermissionMode, preset: presetFromMode };
   }

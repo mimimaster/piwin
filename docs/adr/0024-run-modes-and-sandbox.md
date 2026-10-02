@@ -4,6 +4,38 @@
 
 Accepted (2026-07-30) · Phase 1 implementation in progress.
 
+### Amendment: explicit True YOLO (2026-10-02)
+
+The owner requested a checkbox inside Settings → Permissions → YOLO, with
+feature-pill small print removed from all three cards. Unchecked remains
+ordinary YOLO (`mode: 'bypass'`); checked saves `{ preset: 'yolo', mode:
+'unrestricted' }`. Missing/old configuration never opts into True YOLO.
+
+True YOLO skips Host tool approval rules (deny/ask, secret-path and workspace
+approval guards) and direct Host permission prompts such as dirty-base consent.
+It is not trust-downgraded. Explicit Auto/Ask session overrides and CLI overrides
+remain authoritative; composer/child YOLO follows the live configured toggle.
+Unchecking restores ordinary YOLO for subsequent tool admissions. The CLI can
+select it explicitly with `--permission-mode unrestricted`; old YOLO aliases
+retain ordinary YOLO behavior.
+
+This is an approval-layer opt-out, not removal of authentication, tool argument
+validation, generation/capability identity, cancellation, resource admission,
+workspace coordination, undo integrity, executor validation, or OS limits.
+Those non-permission contracts remain real. Ordinary modes retain their prior
+protections. Modes reach live admission on settings save; rule files remain
+bound to the generation snapshot.
+
+Host-managed writable worktrees under the product root are code workspaces,
+not product configuration. Their current session/generation-bound lease gets
+an exception from the built-in product-root deny only, using canonical paths
+and Host-only rule-object provenance. Other denies/asks, secrets, sibling
+worktrees and real product state remain protected outside True YOLO. Default
+and custom product roots are both covered. No model/client authorization field
+is added, and expired/unregistered generations cannot reuse the lease.
+
+The sections below describe ordinary modes unless explicitly noted otherwise.
+
 ## Context
 
 ADR 0019 built a solid **approval layer**: deny→ask→allow rule engine, layered

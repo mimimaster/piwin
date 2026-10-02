@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PermissionRule } from '@piwin/contracts';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { loadMergedPermissionRules } from './permission-rule-loader.js';
+import { canonicalFsPath } from '@piwin/process';
 
 /**
  * Helper: write a permissions.json-shaped file at `filePath`.
@@ -45,7 +46,7 @@ describe('loadMergedPermissionRules', () => {
     const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-loader-empty-'));
     const projectPath = await mkdtemp(join(tmpdir(), 'piwin-loader-empty-proj-'));
     const merged = await loadMergedPermissionRules({ piwinRoot, projectPath });
-    const bundled = createBundledRuleSet();
+    const bundled = createBundledRuleSet({ piwinRoot: canonicalFsPath(piwinRoot) });
     expect(merged.deny).toEqual(bundled.deny);
     expect(merged.ask).toEqual(bundled.ask);
     expect(merged.allow).toEqual(bundled.allow);
@@ -74,7 +75,7 @@ describe('loadMergedPermissionRules', () => {
     await writeFile(filePath, '{ not valid json ,,, }', 'utf8');
     const merged = await loadMergedPermissionRules({ piwinRoot });
     // Bundled only — no user contribution.
-    expect(merged.deny).toEqual(createBundledRuleSet().deny);
+    expect(merged.deny).toEqual(createBundledRuleSet({ piwinRoot: canonicalFsPath(piwinRoot) }).deny);
     expect(warnSpy).toHaveBeenCalled();
   });
 
@@ -142,7 +143,7 @@ describe('loadMergedPermissionRules', () => {
       projectTrusted: true,
     });
     const denyReasons = merged.deny.map((r) => r.reason);
-    const bundledReasons = createBundledRuleSet().deny.map((r) => r.reason);
+    const bundledReasons = createBundledRuleSet({ piwinRoot: canonicalFsPath(piwinRoot) }).deny.map((r) => r.reason);
     const bundledEnd = bundledReasons.length;
     // Bundled first.
     expect(denyReasons.slice(0, bundledEnd)).toEqual(bundledReasons);

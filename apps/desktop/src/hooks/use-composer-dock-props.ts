@@ -643,7 +643,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onRunModeChange,
       onRunModeSetDefault,
       onOpenPermissionsSettings: handleOpenPermissionsSettings,
-      runModeYoloDisabled: state.projectPath !== null && !state.projectTrusted,
+      runModeYoloDisabled: state.projectPath !== null && !state.projectTrusted &&
+        config?.permissions?.mode !== 'unrestricted',
       orchestrationSchemeId,
       orchestrationSchemeOptions,
       delegationDisabled,

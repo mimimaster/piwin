@@ -5,7 +5,7 @@
  * Delivery is Host-owned on the parent turn — no standing apply/retain/discard bar.
  */
 import { type ReactElement } from 'react';
-import { Button, IconButton } from '@piwin/ui-kit';
+import { IconButton } from '@piwin/ui-kit';
 import { SubagentSessionTranscript } from './subagent-session-transcript';
 import { useDesktopLocale } from './desktop-locale-context';
 import {
@@ -69,14 +69,6 @@ export function SubagentInlineSession(): ReactElement | null {
           {...(panel.modelOptions ? { modelOptions: panel.modelOptions } : {})}
         />
         <span className="subagent-inline-header-spacer" aria-hidden="true" />
-        <Button
-          variant="ghost"
-          size="compact"
-          data-testid="subagent-open-full-session"
-          onClick={panel.onOpenFullSession}
-        >
-          {isChinese ? '打开完整会话' : 'Open full session'} ↗
-        </Button>
         <IconButton
           label={isChinese ? '收起' : 'Collapse'}
           data-testid="subagent-inline-collapse"

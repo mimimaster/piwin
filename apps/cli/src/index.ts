@@ -67,10 +67,10 @@ Usage:
   piwin session cold reconcile [--mock]
   piwin session lifecycle apply --plan <plan-id> [--mock]
   piwin status [--project <path>] [--session <id>] [--mock]
-  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--agent pi|grok] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>] [--ref <path>…]
+  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--agent pi|grok] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass|unrestricted] [--scheme <id>] [--ref <path>…]
   piwin scheme list [--mock]
   piwin scheme show <id> [--mock]
-  piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass]
+  piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass|unrestricted]
   piwin skill list [--project <path>]
   piwin skill install --local <dir> | --git <url> [--name <id>]
   piwin skill uninstall <skill-id>

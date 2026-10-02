@@ -11,9 +11,12 @@ import { HostToolExecutionRouter } from '../tools/host-tool-execution-router.js'
 import { openTurnChangeRuntime } from './runtime-wiring.js';
 
 it('P4 isolated Host: staged refusal, model notice, backup export and repair guard', async () => {
-  const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-p4-host-'));
-  const projectPath = join(piwinRoot, 'project');
-  const destination = join(piwinRoot, 'export');
+  const testRoot = await mkdtemp(join(tmpdir(), 'piwin-p4-host-'));
+  // Match deployment: user code/export live outside the protected product root.
+  const piwinRoot = join(testRoot, 'host');
+  const projectPath = join(testRoot, 'project');
+  const destination = join(testRoot, 'export');
+  await mkdir(piwinRoot);
   await mkdir(projectPath);
   await mkdir(destination);
   const git = (...args: string[]): string => execFileSync('git', args, { cwd: projectPath, encoding: 'utf8' });
@@ -133,7 +136,7 @@ it('P4 isolated Host: staged refusal, model notice, backup export and repair gua
     expect(await readFile(join(exported.destination, 'a.txt'), 'utf8')).toBe('after\n');
   } finally {
     await host.dispose();
-    await rm(piwinRoot, { recursive: true, force: true });
+    await rm(testRoot, { recursive: true, force: true });
     vi.restoreAllMocks();
   }
 }, 30_000);

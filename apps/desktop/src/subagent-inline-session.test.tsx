@@ -95,7 +95,7 @@ describe('SubagentInlineSession', () => {
     // must never offer a user-facing continuation input.
     expect(document.querySelector('[data-testid="subagent-follow-up-input"]')).toBeNull();
     expect(document.querySelector('[data-testid="subagent-session-composer"]')).toBeNull();
-    expect(document.querySelector('[data-testid="subagent-open-full-session"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="subagent-open-full-session"]')).toBeNull();
   });
 
   it('collapses through the header button without destroying the child', () => {
@@ -109,19 +109,6 @@ describe('SubagentInlineSession', () => {
     });
 
     expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('promotes the preview to the full session view', () => {
-    const onOpenFullSession = vi.fn();
-    renderPanel({ onOpenFullSession });
-
-    act(() => {
-      document
-        .querySelector<HTMLElement>('[data-testid="subagent-open-full-session"]')
-        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(onOpenFullSession).toHaveBeenCalledTimes(1);
   });
 
   it('does not show the apply/retain/discard bar for a completed worktree child', () => {

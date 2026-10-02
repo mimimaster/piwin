@@ -112,6 +112,59 @@ describe('ComposerDock host status', () => {
     container = null;
   });
 
+  it('keeps Grok identity while its catalog loads, then shows the backend model', () => {
+    const props: ComposerDockProps = {
+      ...baseProps,
+      activeAgentId: 'grok',
+      draftAgentOptions: [{ agentId: 'grok', label: 'Grok', ready: true }],
+      modelOptions: [{ providerId: 'openai-codex', modelId: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' }],
+      selectedModelKey: 'openai-codex::gpt-6.1-sol',
+      backendOptions: null,
+    };
+    const rendered = renderDock(<ComposerDock {...props} />, 'zh-CN');
+    root = rendered.root;
+    container = rendered.container;
+    const loading = container.querySelector<HTMLButtonElement>('[data-testid="backend-controls-draft-trigger"]');
+    expect(loading?.textContent).toContain('Grok · 模型加载中');
+    expect(loading?.disabled).toBe(true);
+    expect(container.querySelector('.composer-v2-toolbar-left')?.textContent).not.toContain('GPT-6.1');
+
+    act(() => root?.render(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ComposerDock {...props} backendOptions={{
+            agentId: 'grok', models: [{ id: 'grok-4.7-build-fast', label: 'Grok 4.7 Build Fast' }],
+            currentModelId: 'grok-4.7-build-fast', modes: [], commands: [], modeConfirmed: true,
+          }} />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    ));
+    expect(container.querySelector('[data-testid="backend-controls-trigger"]')?.textContent)
+      .toContain('Grok 4.7 Build Fast');
+    expect(container.querySelector('[data-testid="backend-controls-draft-trigger"]')).toBeNull();
+    expect(container.querySelector('.composer-v2-toolbar-left')?.textContent).not.toContain('GPT-6.1');
+  });
+
+  it('keeps the Pi model picker for a native session', () => {
+    const rendered = renderDock(<ComposerDock {...baseProps} activeAgentId="pi"
+      modelOptions={[{ providerId: 'openai-codex', modelId: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' }]}
+      selectedModelKey="openai-codex::gpt-6.1-sol" />);
+    root = rendered.root;
+    container = rendered.container;
+    expect(container.querySelector('.composer-v2-toolbar-left')?.textContent).toContain('GPT-6.1');
+    expect(container.querySelector('[data-testid="backend-controls-draft-trigger"]')).toBeNull();
+  });
+
+  it('keeps a Grok draft on its selected agent before a catalog exists', () => {
+    const rendered = renderDock(<ComposerDock {...baseProps} activeSessionId={null}
+      draftAgentId="grok" selectedModelLabel="GPT-6.1 Sol" />);
+    root = rendered.root;
+    container = rendered.container;
+    expect(container.querySelector('[data-testid="backend-controls-draft-trigger"]')?.textContent)
+      .toContain('grok · Loading model');
+    expect(container.querySelector('.composer-v2-toolbar-left')?.textContent).not.toContain('GPT-6.1');
+  });
+
   it('does not render the bottom host status footer row in ComposerDock', () => {
     const rendered = renderDock(<ComposerDock {...baseProps} />);
     root = rendered.root;

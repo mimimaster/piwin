@@ -322,18 +322,19 @@ effect on the next session (no hot-reload).
 #### Permission modes
 
 `config.permissions.mode` in `~/.piwin/config.json` (`PermissionMode =
-'auto' | 'ask-all' | 'bypass'`):
+'auto' | 'ask-all' | 'bypass' | 'unrestricted'`):
 
 | Mode | bash unmatched | file-write in-project | file-write out-of-project | public network | deny rules |
 |------|----------------|----------------------|--------------------------|----------------|------------|
 | `ask-all` | ask | ask | ask | ask | always enforced |
 | `auto` | allow¹ | allow | ask | ask | always enforced |
-| `bypass` | allow¹ | allow | allow | allow | **still enforced** |
+| `bypass` | allow¹ | allow | ask | allow | **still enforced** |
+| `unrestricted` (explicit True YOLO) | allow | allow | allow | allow | skipped |
 
 ¹ Bash unmatched → allow **only after** bundled deny **and** bundled ask
 tiers. YOLO still **asks** for `rm -rf` (`rm-recursive-force`) and still
-**denies** circuit breakers. Leave-workspace writers (`tee /tmp`, out-of-project
-`write`) ask in `auto` / `ask-all` only. A built-in safe-prefix allowlist
+**denies** circuit breakers. The bash outside-path heuristic asks in `auto` /
+`ask-all`; direct out-of-workspace writes still ask under ordinary YOLO. A built-in safe-prefix allowlist
 (`ls *`, `git status`, `pnpm test`, …) is bundled as `allow` rules so they
 are visible/editable (useful mainly under `ask-all`).
 
@@ -343,6 +344,14 @@ editing its own `permissions.json`. **General scope** (no project) may use
 bypass — the user is the trust authority there. Deny rules and leave-workspace
 asks still apply in bypass. Non-interactive CLI: `ask` resolves to `deny`
 (`resolveNonInteractiveDecision`).
+
+**True YOLO:** the checkbox inside the YOLO settings card explicitly persists
+`{ preset: 'yolo', mode: 'unrestricted' }`. It skips Host tool rules and
+permission prompts, including deny rules and direct dirty-base consent, and
+is not trust-downgraded. Auto/Ask session overrides and explicit CLI modes
+still win. Authentication, generation/capability identity, cancellation,
+resource admission and executor/undo integrity are separate and unchanged.
+The mode is read dynamically; rules remain generation-scoped.
 
 #### File-write gate
 
@@ -357,6 +366,12 @@ write). Bundled deny covers secret paths (`~/.ssh/**`, `~/.piwin/**`,
 (sensitive but sometimes legitimate). The legacy `path-guard` Pi extension
 remains as a defense-in-depth second layer; the primary gate is the host rule
 engine so it is configurable, testable, and rememberable.
+
+A valid writable subagent lease under `<piwinRoot>/worktrees` excludes its
+canonical code paths from the built-in product-root deny only. Host-only rule
+object provenance keeps user-authored deny/ask rules intact. Default/custom
+product roots, secret files, sibling worktrees, symlink escapes and expired
+session generations stay protected in ordinary modes.
 
 #### MCP execution boundary (ADR 0033)
 

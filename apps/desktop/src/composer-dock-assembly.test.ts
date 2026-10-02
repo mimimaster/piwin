@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { createInitialChatUiState } from './chat-reducer.js';
+import { createPiSessionCapabilities } from '@piwin/contracts';
 import {
   isGoalExtensionEnabled,
   listSessionUserPrompts,
   resolveComposerLayoutMode,
+  resolveActiveComposerAgentId,
 } from './composer-dock-assembly.js';
 
 describe('listSessionUserPrompts', () => {
@@ -39,5 +42,46 @@ describe('isGoalExtensionEnabled', () => {
     expect(isGoalExtensionEnabled([])).toBe(true);
     expect(isGoalExtensionEnabled(['Goal'])).toBe(false);
     expect(isGoalExtensionEnabled(['browser'])).toBe(true);
+  });
+});
+
+
+describe('resolveActiveComposerAgentId', () => {
+  it('uses a durable binding before capabilities or a model catalog arrive', () => {
+    const state = createInitialChatUiState();
+    state.activeSessionId = 'external';
+    state.sessions = [{ id: 'external', name: 'Build DMG', backend: { agentId: 'grok' } }];
+    expect(resolveActiveComposerAgentId(state)).toBe('grok');
+  });
+
+  it('keeps the external binding after the active row leaves the sidebar page', () => {
+    const state = createInitialChatUiState();
+    state.activeSessionId = 'external';
+    state.sessionEntitiesById['external'] = {
+      id: 'external', name: 'Build DMG', backend: { agentId: 'grok' },
+    };
+    expect(resolveActiveComposerAgentId(state)).toBe('grok');
+    state.activeSessionId = 'native';
+    expect(resolveActiveComposerAgentId(state)).toBe('pi');
+  });
+
+  it('resolves an external row retained only in another project list', () => {
+    const state = createInitialChatUiState();
+    state.activeSessionId = 'external';
+    state.projectSessionsByPath['/project'] = [
+      { id: 'external', name: 'Build DMG', backend: { agentId: 'grok' } },
+    ];
+    expect(resolveActiveComposerAgentId(state)).toBe('grok');
+  });
+
+  it('uses Host capabilities when the session row has not arrived', () => {
+    const state = createInitialChatUiState();
+    state.activeSessionId = 'external';
+    state.backendCapabilitiesBySession['external'] = { ...createPiSessionCapabilities(), agentId: 'grok' };
+    expect(resolveActiveComposerAgentId(state)).toBe('grok');
+  });
+
+  it('leaves a new draft to its own agent selection', () => {
+    expect(resolveActiveComposerAgentId(createInitialChatUiState())).toBeUndefined();
   });
 });

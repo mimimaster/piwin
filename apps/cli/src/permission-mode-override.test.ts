@@ -30,6 +30,12 @@ describe('parsePermissionModeOverride', () => {
     });
   });
 
+  it('accepts explicit true YOLO without changing legacy aliases', () => {
+    expect(parsePermissionModeOverride(['chat', '--permission-mode', 'unrestricted'])).toEqual({
+      mode: 'unrestricted', fromDangerousAlias: true,
+    });
+  });
+
   it('treats --dangerously-bypass-permissions as an alias for bypass', () => {
     expect(
       parsePermissionModeOverride(['chat', '--dangerously-bypass-permissions', 'hello']),

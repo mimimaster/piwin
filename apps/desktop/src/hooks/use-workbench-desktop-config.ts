@@ -57,7 +57,12 @@ export function useWorkbenchDesktopConfig(args: UseWorkbenchDesktopConfigArgs): 
       const resolved = resolvePreset(nextPreset);
       const nextConfig: PiwinConfig = {
         ...config,
-        permissions: { mode: resolved.mode, preset: nextPreset },
+        permissions: {
+          mode: nextPreset === 'yolo' && config.permissions?.mode === 'unrestricted'
+            ? 'unrestricted'
+            : resolved.mode,
+          preset: nextPreset,
+        },
       };
       setConfig(nextConfig);
       void saveSettingsInOrder(() => [

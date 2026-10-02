@@ -83,4 +83,23 @@ describe('BackendWorkflows', () => {
     const sequence = container.querySelector('[data-testid="backend-workflows-sequence"]');
     expect(sequence).toBeNull();
   });
+
+  it('does not paint a missing workflow method as a chat error', async () => {
+    const mockRequest = vi.fn().mockResolvedValue({
+      success: false,
+      error: 'session2.listWorkflows is not a function',
+    });
+
+    await act(async () => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <BackendWorkflows sessionId="session-1" request={mockRequest} locale="zh-CN" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(mockRequest).toHaveBeenCalled();
+    expect(container.textContent).not.toContain('is not a function');
+    expect(container.querySelector('[data-testid="backend-workflows-sequence"]')).toBeNull();
+  });
 });

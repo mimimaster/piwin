@@ -10,6 +10,8 @@ import { SUBAGENT_RESULT_DISCARD_TOOL_NAME } from './subagent-result-discard-too
 import { SUBAGENT_RESULT_READ_TOOL_NAME } from './subagent-result-read-tool.js';
 import { SUBAGENT_REVIEW_SUBMIT_TOOL_NAME } from './subagent-review-submit-tool.js';
 import { SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME } from './subagent-verification-submit-tool.js';
+import { evaluateFileWritePermission } from './permission-policy.js';
+import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
 describe('HostRuntime tool surfaces', () => {
   it('uses the explicit project path before session binding completes', async () => {
@@ -96,6 +98,39 @@ describe('HostRuntime tool surfaces', () => {
         await runtime.dispose();
         await rm(piwinRoot, { recursive: true, force: true });
       }
+    }
+  });
+
+  it('scopes file writes to the live writable child lease and removes the exception for stale/readonly contexts', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-child-file-scope-'));
+    const worktreePath = join(piwinRoot, 'worktrees', 'repo', 'slot-0');
+    const projectPath = join(piwinRoot, 'project');
+    await mkdir(worktreePath, { recursive: true });
+    await mkdir(projectPath);
+    const runtime = new HostRuntime({ mode: 'sdk', mock: false, piwinRoot });
+    try {
+      runtime.subagentSessionContexts.set('child', {
+        parentSessionId: 'parent', runtimeGenerationId: 'g1', workingDirectory: worktreePath,
+        parentRepoPath: projectPath, worktreePath,
+      });
+      const composed = await runtime.composeSessionHostToolsForSession('child', 'g1');
+      const router = new HostToolExecutionRouter({ tools: composed.tools, admission: composed.permissionGate });
+      const context = { sessionId: 'child', runtimeGenerationId: 'g1', runId: 'r1', toolName: 'write_file' };
+      const signal = new AbortController().signal;
+      expect(await router.execute('write_file', { path: 'probe.ts', content: 'export const probe = 1;\n' }, signal, context)).toMatchObject({ ok: true });
+      expect(await router.execute('edit', { path: 'probe.ts', edits: [{ oldText: 'probe = 1', newText: 'probe = 2' }] }, signal, { ...context, toolName: 'edit' })).toMatchObject({ ok: true });
+      expect(await router.execute('delete_file', { path: 'probe.ts' }, signal, { ...context, toolName: 'delete_file' })).toMatchObject({ ok: true });
+      expect(await router.execute('write_file', { path: join(piwinRoot, 'config.json'), content: '{}' }, signal, context)).toMatchObject({ ok: false, code: 'permission-denied' });
+      expect(await router.execute('write_file', { path: 'in.ts', content: 'test' }, signal, context)).toMatchObject({ ok: true });
+      expect(await router.execute('move_file', { from: 'in.ts', to: join(piwinRoot, 'config.json') }, signal, { ...context, toolName: 'move_file' })).toMatchObject({ ok: false, code: 'permission-denied' });
+      const stale = await runtime.composeSessionHostToolsForSession('child', 'g2');
+      expect(evaluateFileWritePermission({ absPath: stale.permissionGate.projectRoot + '/src.ts', projectRoot: stale.permissionGate.projectRoot, mode: 'auto', rules: stale.permissionGate.rules })).toEqual({ decision: 'deny', reason: 'piwin-config' });
+      runtime.subagentSessionContexts.delete('child');
+      const dropped = await runtime.composeSessionHostToolsForSession('child', 'g1', undefined, worktreePath);
+      expect(evaluateFileWritePermission({ absPath: dropped.permissionGate.projectRoot + '/src.ts', projectRoot: dropped.permissionGate.projectRoot, mode: 'auto', rules: dropped.permissionGate.rules })).toEqual({ decision: 'deny', reason: 'piwin-config' });
+    } finally {
+      await runtime.dispose();
+      await rm(piwinRoot, { recursive: true, force: true });
     }
   });
 

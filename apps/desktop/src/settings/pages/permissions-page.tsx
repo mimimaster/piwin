@@ -4,12 +4,12 @@
  * Preset switcher bound to {@link resolvePermissionPreset}, saved via
  * `saveConfig`. Trust-aware notices explain what each Run Mode does and how the
  * open project's trust state interacts with YOLO + project allow rules.
- * Rule files and preset both take effect on the next session (no hot-reload).
+ * Mode changes reach live admission; rule files are generation-scoped.
  */
 import { useState, type ReactElement } from 'react';
 import type { PermissionPreset } from '@piwin/contracts';
 import { resolvePermissionPreset, resolvePreset } from '@piwin/contracts';
-import { Notice, Select } from '@piwin/ui-kit';
+import { FieldCheckbox, Notice, Select } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { RememberedPermissionsSection } from '../../RememberedPermissionsSection';
 import { permissionModeSavedEffectMessage } from '../../settings-effect-copy.js';
@@ -25,7 +25,6 @@ type ModeMeta = {
   badgeTone: 'pine' | 'lamp' | 'zhu';
   tagline: string;
   description: string;
-  features: readonly string[];
 };
 
 function getModeMeta(preset: PermissionPreset, isChinese: boolean): ModeMeta {
@@ -39,9 +38,6 @@ function getModeMeta(preset: PermissionPreset, isChinese: boolean): ModeMeta {
         description: isChinese
           ? '沙箱内自动执行常用工具与文件读写；涉及网络请求、关键系统命令或工作区外修改时主动提示确认。'
           : 'Auto-runs workspace operations; prompts before network calls, critical shell commands, or writing outside the workspace.',
-        features: isChinese
-          ? ['沙箱自主执行', '敏感操作确认', '日常开发首选']
-          : ['Workspace auto', 'Prompt sensitive', 'Daily driver'],
       };
     case 'ask':
       return {
@@ -52,9 +48,6 @@ function getModeMeta(preset: PermissionPreset, isChinese: boolean): ModeMeta {
         description: isChinese
           ? '几乎每个工具调用与命令执行均需手动批准，智能体在你的严密监督下谨慎推进。适合代码审计与敏感仓库。'
           : 'Confirms almost every tool invocation and command. Maximum oversight and safety for sensitive codebases.',
-        features: isChinese
-          ? ['逐次手动批准', '最高透明度', '杜绝非预期变更']
-          : ['Per-call approval', 'Max visibility', 'Zero surprise'],
       };
     case 'yolo':
       return {
@@ -65,9 +58,6 @@ function getModeMeta(preset: PermissionPreset, isChinese: boolean): ModeMeta {
         description: isChinese
           ? '跳过常规确认，全速执行；仅高危删除仍询问，拒绝规则仍强制生效。'
           : 'Skips routine confirmations. Only rm -rf still asks. Deny circuit breakers still apply.',
-        features: isChinese
-          ? ['常规免确认', '仅拦高危删除', '硬性熔断兜底']
-          : ['No routine prompts', 'rm -rf still asks', 'Hard breakers active'],
       };
   }
 }
@@ -82,16 +72,20 @@ export function PermissionsPage(): ReactElement {
   const currentPreset: PermissionPreset = resolvePermissionPreset(config?.permissions);
   const canEditPreset = !saving && config !== null;
   const hasProject = projectPath !== null;
-  const yoloRefused = currentPreset === 'yolo' && hasProject && !projectTrusted;
+  const trueYolo = currentPreset === 'yolo' && config?.permissions?.mode === 'unrestricted';
+  const yoloRefused = currentPreset === 'yolo' && !trueYolo && hasProject && !projectTrusted;
 
-  async function handlePresetChange(next: PermissionPreset): Promise<void> {
+  async function handlePresetChange(
+    next: PermissionPreset,
+    unrestricted = next === 'yolo' && trueYolo,
+  ): Promise<void> {
     if (!config) return;
     setSaveError(null);
     setSaveInfo(null);
     const resolved = resolvePreset(next);
     const ok = await saveConfig({
       ...config,
-      permissions: { mode: resolved.mode, preset: next },
+      permissions: { mode: next === 'yolo' && unrestricted ? 'unrestricted' : resolved.mode, preset: next },
     });
     if (!ok) {
       setSaveError(isChinese ? '保存运行模式失败。' : 'Failed to save Run Mode.');
@@ -107,8 +101,8 @@ export function PermissionsPage(): ReactElement {
           title={isChinese ? '运行模式' : 'Run mode'}
           description={
             isChinese
-              ? '设定智能体执行工具与命令时的自主程度。规则与模式在下一次会话生效。'
-              : 'Configure autonomy tier for agent actions. Rules and mode apply on the next session.'
+              ? '设定工具与命令的执行权限。模式保存后生效；规则在新会话生效。'
+              : 'Configure tool and command permissions. Mode changes apply on save; rules apply in new sessions.'
           }
         />
 
@@ -137,17 +131,21 @@ export function PermissionsPage(): ReactElement {
           <div className="permission-mode-cards">
             {PRESET_ORDER.map((preset) => {
               const isActive = currentPreset === preset;
-              const isYoloRestrictedHere = preset === 'yolo' && hasProject && !projectTrusted;
+              const isYoloRestrictedHere = preset === 'yolo' && !trueYolo && hasProject && !projectTrusted;
               const meta = getModeMeta(preset, isChinese);
 
               return (
-                <button
+                <div
                   key={preset}
+                  className={`permission-mode-card mode-${preset} ${isActive ? 'is-active' : ''} ${isYoloRestrictedHere ? 'is-restricted' : ''}`}
+                  data-disabled={!canEditPreset}
+                >
+                <button
                   type="button"
                   role="radio"
                   aria-checked={isActive}
                   data-testid={`settings-permission-mode-${preset}`}
-                  className={`permission-mode-card mode-${preset} ${isActive ? 'is-active' : ''} ${isYoloRestrictedHere ? 'is-restricted' : ''}`}
+                  className={`permission-mode-choice ${isActive ? 'is-active' : ''} ${isYoloRestrictedHere ? 'is-restricted' : ''}`}
                   onClick={() => void handlePresetChange(preset)}
                   disabled={!canEditPreset}
                 >
@@ -186,15 +184,9 @@ export function PermissionsPage(): ReactElement {
                   </div>
 
                   <div className="mode-card-tagline">{meta.tagline}</div>
-                  <div className="mode-card-desc">{meta.description}</div>
-
-                  <div className="mode-card-features">
-                    {meta.features.map((feature) => (
-                      <span key={feature} className="mode-card-feature-pill">
-                        {feature}
-                      </span>
-                    ))}
-                  </div>
+                  <div className="mode-card-desc">{preset === 'yolo' && trueYolo
+                    ? (isChinese ? '跳过所有工具权限规则与确认。' : 'Skips all tool permission rules and confirmations.')
+                    : meta.description}</div>
 
                   {isYoloRestrictedHere ? (
                     <div className="mode-card-restricted-hint">
@@ -205,6 +197,17 @@ export function PermissionsPage(): ReactElement {
                     </div>
                   ) : null}
                 </button>
+                {preset === 'yolo' ? (
+                  <FieldCheckbox
+                    label={isChinese ? '真 YOLO（不拦截、不询问）' : 'True YOLO (no blocks or prompts)'}
+                    checked={trueYolo}
+                    onCheckedChange={(checked) => { void handlePresetChange('yolo', checked); }}
+                    disabled={!canEditPreset}
+                    testId="settings-permission-true-yolo"
+                    className="permission-true-yolo"
+                  />
+                ) : null}
+                </div>
               );
             })}
           </div>
@@ -272,8 +275,8 @@ export function PermissionsPage(): ReactElement {
                   {' '}
                   —{' '}
                   {isChinese
-                    ? '全局拒绝规则、高危破坏性命令拦截及路径越界防护在所有模式下强制生效。'
-                    : 'Global deny rules, dangerous command blocks, and path traversal protection remain active in all modes.'}
+                    ? '普通 YOLO 保留拒绝规则与工作区边界确认；勾选真 YOLO 后跳过所有工具权限规则与确认。'
+                    : 'Ordinary YOLO keeps deny rules and workspace-boundary approvals. True YOLO skips all tool permission rules and prompts.'}
                 </span>
               </span>
             </li>
@@ -294,7 +297,11 @@ export function PermissionsPage(): ReactElement {
                 : 'Active workspace trust tier and rule overrides.'
             }
           />
-          {projectTrusted ? (
+          {trueYolo ? (
+            <Notice tone="warning" testId="settings-permission-trust-unrestricted">
+              {isChinese ? '真 YOLO 已启用：工具权限规则与确认均已关闭。' : 'True YOLO enabled: tool permission rules and prompts are off.'}
+            </Notice>
+          ) : projectTrusted ? (
             <Notice tone="success" testId="settings-permission-trust-trusted">
               {isChinese
                 ? '当前项目已信任：项目允许规则生效，可使用 YOLO 模式。'

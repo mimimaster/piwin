@@ -7,7 +7,7 @@
  * Covers:
  * - .permission-mode-deck: the 3-card Run Mode selector (Auto / Ask / YOLO)
  * - .permission-mode-cards, .permission-mode-card: rich interactive mode cards
- * - .mode-card-*: header, jewel dot, title, badge, check indicator, tagline, desc, feature pills
+ * - .mode-card-*: header, dot, title, badge, check indicator, tagline, description
  * - .permission-mode-mechanics: clean disclosure for system-level rules
  * - .permission-mode-pills: legacy segmented pill group fallback
  */
@@ -66,14 +66,38 @@
   transform: translateY(-1px);
 }
 
-.permission-mode-card:focus-visible {
+.permission-mode-card:focus-within {
   outline: 2px solid var(--iris, #8468b8);
   outline-offset: 1px;
 }
 
-.permission-mode-card:disabled {
+.permission-mode-card[data-disabled="true"] {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.permission-mode-choice {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.permission-mode-choice:disabled {
+  cursor: not-allowed;
+}
+
+.permission-true-yolo {
+  margin-top: auto;
+  padding-top: 8px;
+  min-height: 36px;
 }
 
 /* Card Header */
@@ -182,25 +206,6 @@
   color: var(--text-3, #726b61);
   margin-bottom: 10px;
   flex: 1 1 auto;
-}
-
-/* Feature Pills */
-.mode-card-features {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: auto;
-  padding-top: 6px;
-}
-
-.mode-card-feature-pill {
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--line-1, rgba(0, 0, 0, 0.06)) 60%, transparent);
-  color: var(--text-3, #726b61);
-  font-weight: 500;
-  line-height: 1.4;
 }
 
 /* Active State Overrides */

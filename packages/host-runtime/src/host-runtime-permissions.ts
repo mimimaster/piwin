@@ -28,6 +28,7 @@ import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { extractBashCommandFromDetail } from './permission-bash-detail.js';
 import { createCancelledExtensionUiResponse } from './extension-ui-cancel.js';
 import { invocationActivityKey } from './subagent-orchestrator-batch.js';
+import { effectivePermissionMode, getInheritedPermissionOverride } from './effective-permission-mode.js';
 
 /**
  * A child's approval is a Host push, not a worker event, so the invocation
@@ -87,6 +88,21 @@ export function requestPermission(
     signal?: AbortSignal;
   },
 ): Promise<PermissionDecision> {
+  if (input.signal?.aborted) return Promise.resolve('deny');
+  const sessionOverride = getInheritedPermissionOverride(
+    deps.sessionPermissionOverrides, input.sessionId,
+    deps.subagentSessionContexts.get(input.sessionId)?.parentSessionId,
+  );
+  // Some Host-owned approvals (e.g. dirty-base consent) are requested outside
+  // the tool rule evaluator. True YOLO must skip those prompts as well.
+  if (effectivePermissionMode({
+    ...(sessionOverride !== undefined ? { sessionOverride } : {}),
+    ...(deps.options.permissionModeOverride !== undefined
+      ? { cliOverride: deps.options.permissionModeOverride }
+      : {}),
+    configMode: deps.permissionModeFromConfig,
+    projectTrusted: false,
+  }) === 'unrestricted') return Promise.resolve('allow');
   const requestId = randomUUID();
   const context = buildPermissionRequestContext(input.action, input.detail, {
     ...(input.policyReason ? { policyReason: input.policyReason } : {}),

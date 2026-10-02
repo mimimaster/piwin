@@ -60,7 +60,7 @@ function isSafeRemotePermissionsValue(value: unknown): boolean {
   }
   const mode = record.mode;
   const preset = record.preset;
-  if (mode !== undefined && mode !== 'auto' && mode !== 'ask-all' && mode !== 'bypass') {
+  if (mode !== undefined && mode !== 'auto' && mode !== 'ask-all' && mode !== 'bypass' && mode !== 'unrestricted') {
     return false;
   }
   if (preset !== undefined && preset !== 'ask' && preset !== 'auto' && preset !== 'yolo') {

@@ -16,10 +16,9 @@ two orthogonal axes:
 
 This guide explains both.
 
-> **Sandbox note (ADR 0024):** `auto` and `ask` modes run the agent inside an
-> OS-level sandbox (Seatbelt on macOS, Landlock on Linux). `yolo` disables the
-> sandbox. The rule engine still applies in all modes — it is the approval
-> layer on top of the sandbox boundary.
+> **Sandbox note (ADR 0024):** OS sandbox enforcement is a later phase.
+> Current modes are Host-owned approval policies, not OS isolation. Ordinary
+> modes keep the rule engine; explicit True YOLO opts out of tool permissions.
 
 ---
 
@@ -35,7 +34,26 @@ Permissions, or via CLI flags.
 | `ask` | On | Prompts on almost every tool call (still sandboxed). Use when you want to watch every step. |
 | `yolo` (default) | Off | No sandbox or routine prompts. Recursive force-delete and operations that leave the session workspace still ask. Deny circuit breakers still fire. Refused for untrusted projects (downgraded to `auto`). |
 
-### Circuit breakers (apply in all modes, including `yolo`)
+### True YOLO
+
+In Settings → Permissions, check **True YOLO (no blocks or prompts)** inside
+the YOLO card to save `{ "preset": "yolo", "mode": "unrestricted" }`. This
+skips all Host tool permission rules and prompts, including deny rules,
+secret-path approval guards, workspace-boundary approvals and dirty-base
+consent. It is explicit opt-in; existing/default YOLO is unchanged. Unchecking
+restores ordinary YOLO. Auto/Ask session selections and explicit CLI modes still
+win; YOLO sessions and children follow the live configured toggle.
+
+Authentication, valid tool arguments, session/generation identity, disabled
+capabilities, cancellation, resource admission, executor validation and OS
+limits remain separate. This checkbox is not an OS/root-privilege switch.
+
+Host-created writable worktree leases can edit their code under the product
+root even without True YOLO. This exception only affects the built-in product
+configuration deny, not secret files or user/project deny rules. Real config,
+other worktrees and symlink escapes stay protected in ordinary modes.
+
+### Circuit breakers (ordinary modes, including unchecked `yolo`)
 
 Even in `yolo`, these actions always prompt (or are denied non-interactively):
 
@@ -70,10 +88,14 @@ piwin host serve --permission-mode auto
 
 # Dangerous alias for yolo (prints a stderr warning)
 piwin chat "go wild" --dangerously-bypass-permissions
+
+# Explicit True YOLO: no Host permission rules or prompts
+piwin chat "work in this disposable environment" --permission-mode unrestricted
 ```
 
 `--permission-mode` accepts both new preset values (`ask`/`auto`/`yolo`) and
-legacy mode values (`auto`/`ask-all`/`bypass`). `--yolo` is a shorthand for
+legacy mode values (`auto`/`ask-all`/`bypass`) and explicit True YOLO
+(`unrestricted`). `--yolo` is a shorthand for
 `--permission-mode yolo`. The flag takes precedence over
 `config.permissions.preset`. When no flag is present, the configured preset
 from `~/.piwin/config.json` applies.
@@ -95,9 +117,9 @@ match wins).
 > **Add `permissions.local.json` to your `.gitignore`.** It is meant for
 > personal overrides that should not be shared.
 
-Bundled safety defaults (deny for pipe-to-shell, secret file writes, etc.; ask
-for `sudo`, `rm -rf`, force-push) always apply and cannot be allowed away by
-lower layers.
+In ordinary modes, bundled safety defaults (deny for pipe-to-shell, secret
+file writes, etc.; ask for `sudo`, `rm -rf`, force-push) cannot be allowed away
+by lower layers. True YOLO explicitly skips the approval layer.
 
 ## Browser navigation
 

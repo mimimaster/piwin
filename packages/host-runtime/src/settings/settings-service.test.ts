@@ -566,6 +566,14 @@ describe('SettingsService', () => {
     expect(cleared.desktop?.defaultOrchestrationSchemeId).toBeUndefined();
   });
 
+  it('classifies turning off true YOLO as an immediate permission tightening', async () => {
+    const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
+    const previous = { ...snapshot.config, permissions: { mode: 'unrestricted' as const, preset: 'yolo' as const } };
+    const next = { ...snapshot.config, permissions: { mode: 'bypass' as const, preset: 'yolo' as const } };
+    expect(classifySettingsImpact('permissions', previous, next).immediateRestrictions).toContain('permission-policy');
+    expect(classifySettingsImpact('permissions', next, previous).immediateRestrictions).toEqual([]);
+  });
+
   it('marks an equal-length blocked URL prefix replacement as a Web fetch tightening', async () => {
     const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
     const web = snapshot.config.web;

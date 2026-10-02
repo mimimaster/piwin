@@ -18,6 +18,16 @@ describe('isSafeRemoteSettingsApply', () => {
     expect(isSafeRemoteSettingsApply(permissionsApply)).toBe(true);
   });
 
+  it('admits explicit true YOLO through the same authenticated settings contract', () => {
+    expect(isSafeRemoteSettingsApply({
+      ...permissionsApply,
+      input: {
+        ...permissionsApply.input,
+        mutations: [{ kind: 'replace-domain', domain: 'permissions', value: { mode: 'unrestricted', preset: 'yolo' } }],
+      },
+    })).toBe(true);
+  });
+
   it('rejects extra keys on permissions', () => {
     expect(
       isSafeRemoteSettingsApply({

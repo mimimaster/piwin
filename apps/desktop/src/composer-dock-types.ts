@@ -61,6 +61,8 @@ export type ComposerDockProps = {
   projectPath: string | null;
   projectTrusted: boolean;
   activeSessionId: string | null;
+  /** Durable backend identity, available before its model catalog hydrates. */
+  activeAgentId?: string;
   streaming: boolean;
   runPhase: 'idle' | 'streaming' | 'pausing' | 'aborting';
   compacting: boolean;

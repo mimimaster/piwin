@@ -75,6 +75,12 @@ describe('modeToPreset', () => {
     expect(modeToPreset('bypass')).toBe('yolo');
   });
 
+  it('keeps explicit true YOLO in the same user-facing preset', () => {
+    expect(modeToPreset('unrestricted')).toBe('yolo');
+    expect(resolvePermissionPreset({ mode: 'unrestricted', preset: 'yolo' })).toBe('yolo');
+    expect(resolvePermissionPreset({ mode: 'unrestricted' })).toBe('yolo');
+  });
+
   it('is the inverse of resolvePreset for all presets (agent mode)', () => {
     const presets: PermissionPreset[] = ['ask', 'auto', 'yolo'];
     for (const preset of presets) {

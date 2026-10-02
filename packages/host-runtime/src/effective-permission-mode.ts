@@ -1,5 +1,13 @@
 import type { PermissionMode } from '@piwin/contracts';
 
+export function getInheritedPermissionOverride(
+  overrides: ReadonlyMap<string, PermissionMode>,
+  sessionId: string,
+  parentSessionId?: string,
+): PermissionMode | undefined {
+  return overrides.get(sessionId) ?? (parentSessionId ? overrides.get(parentSessionId) : undefined);
+}
+
 /**
  * Resolve the admission-gate PermissionMode for a generation.
  *
@@ -13,7 +21,13 @@ export function effectivePermissionMode(input: {
   projectPath?: string;
   projectTrusted: boolean;
 }): PermissionMode {
-  const mode = input.sessionOverride ?? input.cliOverride ?? input.configMode;
+  const selectedMode = input.sessionOverride ?? input.cliOverride ?? input.configMode;
+  // Composer and children still speak the three presets. A YOLO session follows
+  // the operator's live true-YOLO toggle; explicit Auto/Ask/CLI modes stay intact.
+  const mode = selectedMode === 'bypass' && input.configMode === 'unrestricted' &&
+    input.cliOverride === undefined
+    ? 'unrestricted'
+    : selectedMode;
   const untrustedProject = Boolean(input.projectPath) && input.projectTrusted !== true;
   if (mode === 'bypass' && untrustedProject) {
     return 'auto';

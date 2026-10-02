@@ -20,11 +20,14 @@ import type {
 } from '@piwin/contracts';
 import { createEmptyRuleSet, mergeRuleSets } from '@piwin/contracts';
 import { createBundledRuleSet } from './permission-defaults.js';
+import { canonicalFsPath } from '@piwin/process';
 
 /** Input for {@link loadMergedPermissionRules}. */
 export type LoadMergedPermissionRulesInput = {
   /** Root directory of the piwin config (`~/.piwin`); overrides `os.homedir()`. */
   piwinRoot: string;
+  /** Host-owned writable lease, never read from a permissions.json layer. */
+  writableWorktreeRoot?: string;
   /** Optional project root (`<project>`); when omitted, only user-global loads. */
   projectPath?: string;
   /**
@@ -84,7 +87,12 @@ export async function writeUserPermissionRulesFile(
 export async function loadMergedPermissionRules(
   input: LoadMergedPermissionRulesInput,
 ): Promise<PermissionRuleSet> {
-  const bundled = createBundledRuleSet();
+  const bundled = createBundledRuleSet({
+    piwinRoot: canonicalFsPath(input.piwinRoot),
+    ...(input.writableWorktreeRoot
+      ? { writableWorktreeRoot: canonicalFsPath(input.writableWorktreeRoot) }
+      : {}),
+  });
   const userGlobal = await loadLayer(join(input.piwinRoot, 'permissions.json'));
 
   let projectShared = createEmptyRuleSet();

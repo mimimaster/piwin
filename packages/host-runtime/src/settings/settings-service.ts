@@ -5,6 +5,7 @@ import type {
   ApplySettingsInput,
   ImmediateCapabilityRestriction,
   PiwinConfig,
+  PermissionMode,
   SettingsApplyResult,
   SettingsDomain,
   SettingsDomainImpact,
@@ -493,8 +494,10 @@ function hasUsableWebSearch(config: PiwinConfig): boolean {
   return true;
 }
 
-function permissionModeRank(mode: 'auto' | 'ask-all' | 'bypass' | undefined): number {
+function permissionModeRank(mode: PermissionMode | undefined): number {
   switch (mode) {
+    case 'unrestricted':
+      return -1;
     case 'bypass':
       return 0;
     case 'auto':

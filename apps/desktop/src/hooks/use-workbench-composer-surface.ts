@@ -6,6 +6,7 @@ import type { ExtensionUiResolvePayload } from '../extension-ui-prompt';
 import type { HostClient } from '../host-client';
 import type { ShellSettingsSection } from '../shell-navigation';
 import { useMemo } from 'react';
+import { resolveActiveComposerAgentId } from '../composer-dock-assembly.js';
 import { useComposerDockProps } from './use-composer-dock-props';
 import { useExtensionSlashCommands } from './use-extension-slash-commands';
 import { useExtensionUiSurface } from './use-extension-ui-surface';
@@ -177,9 +178,11 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
   });
   // Extension surface and commands are merged here so the large dock-props
   // assembly does not grow another dependency list.
+  const activeAgentId = resolveActiveComposerAgentId(state);
   const composerCard = useMemo(
     () => ({
       ...dock.composerCard,
+      ...(activeAgentId !== undefined ? { activeAgentId } : {}),
       extensionSurface,
       menuExtensionCommands,
       sessionUsageTotals,
@@ -189,6 +192,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     }),
     [
       dock.composerCard,
+      activeAgentId,
       extensionSurface,
       menuExtensionCommands,
       sessionUsageTotals,

@@ -9,7 +9,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { HostPush, HostResponse } from '@piwin/contracts';
+import type { HostPush, HostResponse, SessionHandle } from '@piwin/contracts';
 import { HostRuntime } from '../host-runtime.js';
 import { getPiwinMediaDir, getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import { FIXTURE_AGENT_ID, installFixtureAgentAdapter, type FixtureManifestOverrides } from '../testing/agent-plugin-fixture.js';
@@ -195,6 +195,18 @@ describe('External agent adapter integration (fixture artifact)', () => {
       servers: Array<{ name: string }>;
     };
     expect(mcp.servers.map((server) => server.name)).toContain('fixture-mcp');
+  });
+
+  it('treats a resident handle without workflow methods as no workflows', async () => {
+    const harness = await createHarness();
+    const sessionId = await createAgentSession(harness);
+    harness.runtime.sessions.set(sessionId, { id: sessionId } as unknown as SessionHandle);
+    const listed = await harness.runtime.handleCommand({ type: 'agents/workflows', sessionId });
+    expect(listed.success).toBe(true);
+    expect(data(listed)).toEqual({ sessionId, workflows: [] });
+    expect(failure(await harness.runtime.handleCommand({
+      type: 'agents/workflow-report', sessionId, workflowId: 'wf_1',
+    }))).toBe('workflow-not-found');
   });
 
   it('syncs the adapter catalog and writes rename/delete through to it', async () => {

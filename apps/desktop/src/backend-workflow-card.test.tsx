@@ -52,7 +52,7 @@ describe('BackendWorkflowCard', () => {
     container.remove();
   });
 
-  it('renders on tool chain with spine node, BreathMatrix, name, and progress badge', () => {
+  it('renders on the tool chain with a spine node, name, and status badge', () => {
     const workflow = makeWorkflow();
     const mockRequest = vi.fn();
 
@@ -69,21 +69,15 @@ describe('BackendWorkflowCard', () => {
     expect(item?.className).toContain('backend-workflow-chain-item');
     expect(item?.className).toContain('is-running');
 
-    // Spine node with 'run' class on the timeline
     const node = item?.querySelector('.node');
     expect(node).not.toBeNull();
     expect(node?.className).toContain('run');
+    expect(item?.querySelector('[data-testid="breath-matrix"]')).toBeNull();
 
-    // BreathMatrix dynamic animation present before workflow name
-    const matrix = item?.querySelector('[data-testid="breath-matrix"]');
-    expect(matrix).not.toBeNull();
-
-    // Workflow name and objective
     expect(container.textContent).toContain('deep-research');
     expect(container.textContent).toContain('调研量子计算在金融高频交易领域的应用可行性');
-
-    // Progress badge showing 1/4 phases
-    expect(container.textContent).toContain('1/4 进度');
+    expect(container.textContent).toContain('1/4 · 运行中');
+    expect(container.textContent).not.toContain('调研中');
     expect(container.textContent).toContain('48s');
 
     // Details drawer closed by default
@@ -113,12 +107,12 @@ describe('BackendWorkflowCard', () => {
     const details = container.querySelector('[data-testid="backend-workflow-details"]');
     expect(details).not.toBeNull();
 
-    // Sub-phases rendered with checkmark and active/pending indicators
     expect(details?.textContent).toContain('制定检索规划');
     expect(details?.textContent).toContain('全网多源检索');
     expect(details?.textContent).toContain('已抓取 12 篇学术文献');
     expect(details?.textContent).toContain('深度交叉比对');
-    expect(details?.textContent).toContain('✓');
+    expect(details?.querySelector('.phase-mark.done')).not.toBeNull();
+    expect(details?.textContent).not.toContain('✓');
 
     // Telemetry / query logs
     expect(details?.textContent).toContain('执行记录');
@@ -161,9 +155,8 @@ describe('BackendWorkflowCard', () => {
       trigger.click();
     });
 
-    // Report action box visible
-    expect(container.textContent).toContain('研报已生成');
-    const reportBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('查看完整研报'));
+    expect(container.textContent).toContain('报告已生成');
+    const reportBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('查看报告'));
     expect(reportBtn).toBeDefined();
 
     // Click to load report

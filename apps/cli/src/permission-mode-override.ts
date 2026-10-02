@@ -43,6 +43,10 @@ export function parsePermissionModeOverride(argv: string[]): ParsePermissionMode
   if (value === undefined) {
     return { mode: undefined, fromDangerousAlias: false };
   }
+  // True YOLO is a separate explicit mode; legacy aliases keep their guardrails.
+  if (value === 'unrestricted') {
+    return { mode: value, fromDangerousAlias: true };
+  }
   // Legacy mode values (backward compat).
   if (value === 'auto' || value === 'ask-all' || value === 'bypass') {
     return { mode: value, fromDangerousAlias: false };
@@ -53,6 +57,6 @@ export function parsePermissionModeOverride(argv: string[]): ParsePermissionMode
     return { mode: resolvePreset(preset).mode, fromDangerousAlias: value === 'yolo' };
   }
   throw new Error(
-    `Invalid --permission-mode value: ${value} (expected auto|ask-all|bypass|ask|yolo)`,
+    `Invalid --permission-mode value: ${value} (expected auto|ask-all|bypass|unrestricted|ask|yolo)`,
   );
 }

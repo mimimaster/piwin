@@ -82,12 +82,10 @@ export function ComposerCardToolbar({
   // A Pi-only Host keeps today's composer. The switcher appears only after
   // the Host reports a second agent; it is not a hardcoded Grok stub.
   const agentOptions = props.draftAgentOptions ?? [];
-  const currentAgentId =
-    backendOptions?.agentId !== undefined && backendOptions.agentId !== 'pi'
-      ? backendOptions.agentId
-      : props.activeSessionId === null
-        ? (props.draftAgentId ?? 'pi')
-        : 'pi';
+  // Backend identity is durable; its optional catalog may arrive much later.
+  const currentAgentId = props.activeSessionId !== null
+    ? (props.activeAgentId ?? backendOptions?.agentId ?? 'pi')
+    : (props.draftAgentId ?? backendOptions?.agentId ?? 'pi');
   const isExternalActive = currentAgentId !== 'pi';
   const externalLabel =
     agentOptions.find((option) => option.agentId === currentAgentId)?.label ??
@@ -155,8 +153,8 @@ export function ComposerCardToolbar({
               className="thinking-effort-control backend-composer-control"
               title={
                 locale === 'zh-CN'
-                  ? `${externalLabel} 会话（模型目录到达前使用 CLI 默认模型）`
-                  : `${externalLabel} session (CLI default model until the catalog arrives)`
+                  ? `${externalLabel} 会话（正在加载模型信息）`
+                  : `${externalLabel} session (loading model information)`
               }
             >
               <button
@@ -166,7 +164,7 @@ export function ComposerCardToolbar({
                 data-testid="backend-controls-draft-trigger"
               >
                 <span className="thinking-effort-model">
-                  {locale === 'zh-CN' ? 'CLI 默认模型' : 'Default model'}
+                  {externalLabel} · {locale === 'zh-CN' ? '模型加载中' : 'Loading model'}
                 </span>
               </button>
             </div>

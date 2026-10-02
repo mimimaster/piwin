@@ -116,12 +116,16 @@ export async function resolveHostToolAdmission(input: {
         },
       };
     }
+    // Explicit operator opt-in skips this approval layer, including deny rules.
+    // Router identity/schema/cancellation and resource integrity remain separate.
+    const mode = input.admission.getPermissionMode();
+    if (mode === 'unrestricted') return { allowed: true };
     const outcome = input.admission.policyEvaluator.evaluate({
       registration: input.registration,
       arguments: input.args,
       context: input.context,
       rules: input.admission.rules,
-      mode: input.admission.getPermissionMode(),
+      mode,
       projectRoot: input.admission.projectRoot,
       ...(input.admission.canonicalizePath
         ? { canonicalizePath: input.admission.canonicalizePath }

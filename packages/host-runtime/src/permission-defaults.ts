@@ -10,6 +10,13 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { PermissionRule, PermissionRuleSet } from '@piwin/contracts';
 import { createEmptyRuleSet } from '@piwin/contracts';
+import { createProductRootDenyRule, type BundledWorkspacePermissionScope } from './managed-worktree-permission.js';
+
+const PRODUCT_ROOT_DENY: PermissionRule = {
+  target: { kind: 'file-write', pathGlob: '~/.piwin/**' },
+  decision: 'deny',
+  reason: 'piwin-config',
+};
 
 /**
  * Bundled deny rules for bash commands.
@@ -68,11 +75,7 @@ export const BUNDLED_DENY: PermissionRule[] = [
   },
   // File-write deny rules for secret paths (ADR 0019 §3.1).
   // The `~` in pathGlobs is expanded by createBundledRuleSet() before matching.
-  {
-    target: { kind: 'file-write', pathGlob: '~/.piwin/**' },
-    decision: 'deny',
-    reason: 'piwin-config',
-  },
+  PRODUCT_ROOT_DENY,
   {
     target: { kind: 'file-write', pathGlob: '~/.ssh/**' },
     decision: 'deny',
@@ -292,11 +295,15 @@ function expandHomeDir(pattern: string): string {
  *
  * @returns The bundled rule set with ~ expanded
  */
-export function createBundledRuleSet(): PermissionRuleSet {
+export function createBundledRuleSet(scope: BundledWorkspacePermissionScope = {}): PermissionRuleSet {
   const rules = createEmptyRuleSet();
 
   // Expand ~ in file-write pathGlob patterns for deny rules, then add them.
+  const defaultRoot = join(homedir(), '.piwin');
   const expandedDenyRules: PermissionRule[] = BUNDLED_DENY.map((rule) => {
+    if (rule === PRODUCT_ROOT_DENY) {
+      return createProductRootDenyRule(defaultRoot, scope);
+    }
     if (rule.target.kind !== 'file-write') {
       return rule;
     }
@@ -309,6 +316,9 @@ export function createBundledRuleSet(): PermissionRuleSet {
     };
   });
   rules.deny.push(...expandedDenyRules);
+  if (scope.piwinRoot && scope.piwinRoot !== defaultRoot) {
+    rules.deny.push(createProductRootDenyRule(scope.piwinRoot, scope));
+  }
 
   rules.ask.push(...BUNDLED_ASK_BASH);
 
