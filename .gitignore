@@ -77,7 +77,8 @@ packages/pet/generated/
 .cursorignore
 AGENTS.md
 docs/plans/
-docs/specs/
+docs/specs/*
+!docs/specs/ios-shell-display-mapping.md
 docs/notes/
 cropped-portraits/
 cropped-portraits-16.zip

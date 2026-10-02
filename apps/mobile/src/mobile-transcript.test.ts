@@ -196,6 +196,74 @@ describe('mobile transcript health presentation', () => {
   });
 });
 
+describe('mobile display-only presentation passthrough', () => {
+  const result = { resultId: 'result-1', revision: 2 };
+  const presentations: ToolPresentation[] = [
+    { kind: 'other', title: 'goal_complete', goal: {
+      phase: 'completed', summary: 'Verified', verification: 'tests passed', artifacts: ['src/app.ts'],
+    } },
+    { kind: 'other', title: 'goal_blocked', goal: {
+      phase: 'blocked', reason: 'Needs decision', unblockAction: 'Choose preview scope',
+    } },
+    { kind: 'other', title: 'goal_wait', goal: {
+      phase: 'waited', reason: 'External job', durationSeconds: 10,
+    } },
+    { kind: 'other', title: 'result-read', subagentLoop: {
+      kind: 'result-read', result, mode: 'summary', summary: 'Candidate ready',
+    } },
+    { kind: 'other', title: 'review-submit', subagentLoop: {
+      kind: 'review-submit', reviewRef: { reviewId: 'review-1', revision: 1 },
+      decision: 'changes-requested', target: result,
+    } },
+    { kind: 'other', title: 'result-apply', subagentLoop: {
+      kind: 'result-apply', result, operationId: 'op-1', integrationStatus: 'applied',
+    } },
+    { kind: 'other', title: 'result-discard', subagentLoop: {
+      kind: 'result-discard', result, integrationStatus: 'discarded', alreadySettled: true,
+    } },
+    { kind: 'other', title: 'verification-submit', subagentLoop: {
+      kind: 'verification-submit', result,
+      verificationRef: { verificationId: 'verification-1', revision: 1 }, status: 'passed',
+    } },
+  ];
+
+  // Public Host-authored shapes only; no Pi details or new Goal push contract.
+  it.each(presentations)('preserves $title through start/update/end', (presentation) => {
+    const harness = collectMessages();
+    const push = (event: Extract<HostPush, { type: 'event' }>['event']) => handleRemotePush(
+      pushEvent(event), harness.activeSessionRef, harness.setMessages,
+      harness.setPausedCheckpointId, harness.setPermissionRequest,
+    );
+    push({ type: 'tool/start', toolCallId: 'tool-1', toolName: presentation.title,
+      responseMessageId: 'msg-1', presentation });
+    expect(harness.messages()[0]?.toolCalls?.[0]?.presentation).toEqual(presentation);
+    const updated = { ...presentation, summary: 'Host update' };
+    push({ type: 'tool/update', toolCallId: 'tool-1', delta: '',
+      responseMessageId: 'msg-1', presentation: updated });
+    expect(harness.messages()[0]?.toolCalls?.[0]?.presentation).toEqual(updated);
+    push({ type: 'tool/end', toolCallId: 'tool-1', isError: false,
+      responseMessageId: 'msg-1', presentation });
+    expect(harness.messages()[0]?.toolCalls?.[0]?.presentation).toEqual(presentation);
+    expect(harness.messages()[0]?.toolCalls?.[0]?.status).toBe('done');
+  });
+
+  it.each(presentations)('preserves $title on hydrate and transcript/append', (presentation) => {
+    const message = {
+      id: 'msg-1', role: 'assistant' as const, text: 'Host summary',
+      createdAt: '2026-10-02T00:00:00.000Z', status: 'done' as const,
+      tools: [{ toolCallId: 'tool-1', toolName: presentation.title,
+        status: 'done' as const, output: '', presentation }],
+    };
+    const messages = readSessionMessages({ success: true, data: { messages: [message] } });
+    expect(messages[0]?.toolCalls?.[0]?.presentation).toEqual(presentation);
+    const harness = collectMessages();
+    handleRemotePush({ type: 'transcript/append', sessionId: 'session-1', message },
+      harness.activeSessionRef, harness.setMessages,
+      harness.setPausedCheckpointId, harness.setPermissionRequest);
+    expect(harness.messages()[0]?.toolCalls?.[0]?.presentation).toEqual(presentation);
+  });
+});
+
 describe('session/context-updated', () => {
   it('ignores occupancy pushes and does not invent transcript usage', () => {
     const harness = collectMessages();
