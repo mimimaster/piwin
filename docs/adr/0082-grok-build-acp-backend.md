@@ -330,6 +330,24 @@ The product owner directed that Settings → Agent Backends must offer a single,
 3. **Clear error when missing**: if the CLI is not found in system PATH, the page directly renders an error notice: "本机未安装 Grok Build" (or "当前 Host 未安装 Grok Build"), with actionable guidance to install the official CLI and a "Check again" button.
 4. **Clean layout**: git commit revisions and debug notices are removed from the main flow; advanced path overrides and read-only MCP status are neatly consolidated into an expandable "Advanced options" panel.
 
+### Amendment: Automatic backend readiness after extension installation (2026-10-02, accepted)
+
+Installing and enabling a session-backend extension must make it usable from
+the workbench without a separate visit to Settings or a manual Check action.
+The Host's ordinary `agents/status` query performs a bounded adapter check on
+first use or cache expiry. Explicit refresh bypasses the existing 60-second
+cache; disabled extensions are never launched. This supersedes the earlier
+requirement that only explicit Check or session activation may probe readiness.
+Extension staging and inventory listing remain data-only.
+
+Desktop reacts to `marketplace/inventory-updated` for extensions as well as
+legacy agents, refreshes readiness and re-reads enabled backend declarations.
+Installing, enabling, disabling or uninstalling an extension therefore updates
+the already-mounted composer and command palette. Older list responses cannot
+overwrite a newer refresh. Missing CLI and unauthenticated statuses remain
+unusable; readiness checking sends no model prompt and does not install or log
+into the vendor CLI.
+
 ## Consequences
 
 - Contracts gain backend identity, per-session capabilities, backend-provided

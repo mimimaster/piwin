@@ -25,7 +25,7 @@ export const EXTENSION_SESSION_BACKEND_SCHEMA_VERSION = 1;
 /** `pi` is the built-in Pi backend; an extension may never claim it. */
 export const RESERVED_EXTENSION_BACKEND_IDS = ['pi'] as const;
 
-const DECLARATION_KEYS = ['schemaVersion', 'id', 'name', 'version', 'minHostVersion', 'protocol', 'protocolVersion',
+const DECLARATION_KEYS = ['schemaVersion', 'id', 'name', 'description', 'version', 'minHostVersion', 'protocol', 'protocolVersion',
   'minHostProtocolVersion', 'platforms', 'verifiedCliVersions', 'helpUrl', 'artifact', 'compatibleRevisions',
   'unversionedBindingCompatible', 'outputDirectories'];
 const ARTIFACT_KEYS = ['format', 'entrypoint', 'sha256', 'byteSize'];
@@ -49,6 +49,7 @@ export type ExtensionSessionBackendDeclaration = {
   /** Backend identity; persisted verbatim in `SessionBackendBinding.agentId`. */
   id: string;
   name: string;
+  description?: string;
   version: string;
   minHostVersion: string;
   protocol: 'piwin-agent-stdio';
@@ -202,6 +203,9 @@ export function parseExtensionSessionBackend(
   if (!isNonEmptyText(value.name) || value.name.length > NAME_MAX_LENGTH) {
     return failure('invalid-name', 'name must be a non-empty string of at most 120 characters');
   }
+  if (value.description !== undefined && (typeof value.description !== 'string' || value.description.length > 500)) {
+    return failure('invalid-name', 'description must be a string of at most 500 characters');
+  }
   if (!isNonEmptyText(value.helpUrl)) {
     return failure('invalid-name', 'helpUrl must be a non-empty string');
   }
@@ -266,6 +270,7 @@ export function parseExtensionSessionBackend(
       schemaVersion: EXTENSION_SESSION_BACKEND_SCHEMA_VERSION,
       id: id.id,
       name: value.name,
+      ...(isNonEmptyText(value.description) ? { description: value.description.trim() } : {}),
       version: value.version,
       minHostVersion: value.minHostVersion,
       protocol: 'piwin-agent-stdio',
@@ -287,6 +292,7 @@ export type EnabledExtensionSessionBackend = {
   extensionId: string;
   agentId: string;
   name: string;
+  description?: string;
 };
 
 /**
@@ -298,7 +304,8 @@ export function enabledExtensionSessionBackends(
   extensions: readonly {
     id: string;
     enabled: boolean;
-    sessionBackend?: { id: string; name: string };
+    description?: string;
+    sessionBackend?: { id: string; name: string; description?: string };
   }[],
 ): EnabledExtensionSessionBackend[] {
   const seen = new Set<string>();
@@ -307,7 +314,15 @@ export function enabledExtensionSessionBackends(
     const backend = extension.sessionBackend;
     if (!extension.enabled || backend === undefined || seen.has(backend.id)) continue;
     seen.add(backend.id);
-    entries.push({ extensionId: extension.id, agentId: backend.id, name: backend.name });
+    const description =
+      (backend.description && backend.description.trim()) ||
+      (extension.description && extension.description !== '(session backend)' ? extension.description.trim() : undefined);
+    entries.push({
+      extensionId: extension.id,
+      agentId: backend.id,
+      name: backend.name,
+      ...(description ? { description } : {}),
+    });
   }
   return entries;
 }

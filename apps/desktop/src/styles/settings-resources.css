@@ -763,11 +763,17 @@
 
 /* ADR 0082: Agent Backends rows. One row per Host-reported agent; the state
    chip is the only tinted element so a mixed list stays calm. */
+.agent-backends-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--s-3);
+}
+
 .agent-backends-list {
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin: var(--s-3) 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }

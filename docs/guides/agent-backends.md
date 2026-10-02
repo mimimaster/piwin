@@ -1,31 +1,34 @@
 # Optional Agent backends
 
-Pi remains built in. Grok Build is an optional declarative ACP adapter installed
-on the attached Host, not on a separate Desktop authority. The adapter contains
-no JS module, shell installer or install hook. CLI binaries are not bundled.
+Pi remains built in. Grok Build is an optional ACP adapter extension installed
+on the attached Host, not on a separate Desktop authority. Its adapter artifact
+is verified before launch; extension installation runs no shell installer or
+install hook. CLI binaries are not bundled.
 
 ## Install and configure
 
-In Desktop: Marketplace → Agent → Grok Build → Install, then
-Settings → Agent Backends. Installing an adapter does not mean its CLI or
-account is ready. Existing Grok CLI installations are user-owned dependencies.
+In Desktop: install and enable the Grok Build ACP extension in Marketplace.
+The workbench automatically detects its Host CLI and refreshes the session
+picker; opening Settings → Agent Backends or clicking Check again is optional.
+Installing an adapter does not mean its CLI or account is ready. Existing Grok
+CLI installations are user-owned dependencies.
 
 ```sh
-piwin agents install --agent grok
+# Install the backend extension in Marketplace first.
 piwin agents list
 # Install the official Grok CLI on the Host if missing, then run its own login.
 grok login
 piwin agents check --agent grok
-# Optional explicit Host-local runtime path; never falls back to another binary.
-piwin agents check --agent grok --path /absolute/path/to/grok
 piwin chat --agent grok "your task"
 ```
 
 `PIWIN_HOST_URL` makes CLI attach to the same Host used by Desktop. Dependency
 installation and login happen on that Host, including when it is remote. The
 Grok account is separate from xAI model-provider OAuth. Reading the market or
-installed inventory does not launch Grok; explicit Check and session activation
-perform bounded ACP handshakes. No paid prompt is sent as a hidden readiness test.
+installed inventory does not launch Grok. Readiness queries automatically perform
+a bounded adapter check when no fresh status is cached; the workbench requests
+a fresh check after extension changes and when connecting to the Host. Disabled
+extensions are not probed. No paid prompt is sent as a hidden readiness test.
 
 Only macOS Host has a reviewed adapter recipe today. Unverified Windows/Linux
 installations are refused rather than presented as verified. Official CLI
@@ -48,9 +51,8 @@ After reinstalling the same adapter revision, histories remain usable.
 Different adapter revisions require explicit migration; no live revision is
 silently replaced.
 
-Host records are under `~/.piwin/agents/inventory.json`, serialized with the
-existing file lock and atomically replaced. Corrupt inventory fails closed;
-it is not overwritten with a fake empty installation list.
+Host enablement and installation records use the ordinary extension revision
+store under `~/.piwin/extensions/`; there is no separate agent inventory.
 
 ## Real-CLI probes
 
@@ -93,4 +95,4 @@ python3 -m http.server 8877 --bind 127.0.0.1 --directory dist
 ```
 
 Open `http://127.0.0.1:8877` and connect to `ws://127.0.0.1:8876`. Test market
-install, explicit detection, disable/enable and uninstall confirmation.
+install with automatic detection, disable/enable and uninstall confirmation.

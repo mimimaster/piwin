@@ -39,6 +39,7 @@ import {
   type SubagentStopController,
 } from '../subagent-stop-controller';
 import {
+  estimateTranscriptTokens,
   isChatCompactPendingOccupancy,
   selectContextRingView,
 } from '../context-telemetry-selector.js';
@@ -468,6 +469,21 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     projectTrusted: state.projectTrusted,
   });
 
+  const isExternalBackend =
+    capabilities.isExternalBackend || backendControls.options !== undefined;
+  const selectedBackendModel = backendControls.options?.models.find(
+    (model) => model.id === backendControls.options?.currentModelId,
+  );
+  const effectiveModelContextWindow =
+    selectedBackendModel?.contextTokens ??
+    (isExternalBackend ? 256_000 : undefined) ??
+    selectedModelContextWindow;
+
+  const fallbackTokensUsed = useMemo(
+    () => estimateTranscriptTokens(state.messages),
+    [state.messages],
+  );
+
   const composerCard: ComposerDockProps = useMemo(
     () => ({
       layoutMode: composerLayoutMode,
@@ -566,7 +582,9 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       contextRingView: selectContextRingView({
         telemetry: state.contextTelemetry,
         locale: locale === 'en' ? 'en' : 'zh-CN',
-        ...(typeof selectedModelContextWindow === 'number' ? { selectedModelContextWindow } : {}),
+        ...(typeof effectiveModelContextWindow === 'number'
+          ? { selectedModelContextWindow: effectiveModelContextWindow }
+          : {}),
         ...(selectedModelKey.includes('::')
           ? {
               selectedModel: {
@@ -580,9 +598,21 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
             .length > 0,
         ...(state.compacting ? { compacting: true } : {}),
         ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
+        ...(isExternalBackend && (fallbackTokensUsed > 0 || (state.contextUsage?.tokensUsed ?? 0) > 0)
+          ? {
+              fallbackUsage: {
+                tokensUsed: state.contextUsage?.tokensUsed ?? fallbackTokensUsed,
+                ...(typeof effectiveModelContextWindow === 'number'
+                  ? { tokensLimit: effectiveModelContextWindow }
+                  : {}),
+                quality: 'estimated' as const,
+                ...(state.streaming ? { phase: 'streaming' as const } : {}),
+              },
+            }
+          : {}),
       }),
-      ...(typeof selectedModelContextWindow === 'number'
-        ? { modelContextWindow: selectedModelContextWindow }
+      ...(typeof effectiveModelContextWindow === 'number'
+        ? { modelContextWindow: effectiveModelContextWindow }
         : {}),
       onOpenModelSettings: handleOpenModelSettings,
       speechConfigured,
@@ -749,6 +779,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       subagentStop.isStopping,
       thinkingLevel,
       activeJobs,
+      effectiveModelContextWindow,
+      fallbackTokensUsed,
     ],
   );
 

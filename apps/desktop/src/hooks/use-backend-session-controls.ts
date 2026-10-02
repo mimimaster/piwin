@@ -49,6 +49,9 @@ export function draftAgentOptionsFrom(
   }
   for (const agent of agents) {
     if (seen.has(agent.agentId)) continue;
+    if ('reason' in agent && typeof agent.reason === 'string' && agent.reason.toLowerCase().includes('disabled')) {
+      continue;
+    }
     seen.add(agent.agentId);
     options.push({
       agentId: agent.agentId,
@@ -59,37 +62,6 @@ export function draftAgentOptionsFrom(
   }
   return options;
 }
-
-export const DEFAULT_GROK_BACKEND_OPTIONS: SessionBackendOptions = {
-  agentId: 'grok',
-  models: [
-    {
-      id: 'grok-4.7',
-      label: 'Grok 4.7',
-      efforts: ['xhigh', 'high', 'medium', 'low'],
-    },
-    {
-      id: 'grok-4.7-fast',
-      label: 'Grok 4.7 Fast',
-      efforts: ['xhigh', 'high', 'medium', 'low'],
-    },
-    {
-      id: 'grok-4.6',
-      label: 'Grok 4.6',
-      efforts: ['xhigh', 'high', 'medium', 'low'],
-    },
-    {
-      id: 'grok-4.5',
-      label: 'Grok 4.5',
-      efforts: ['xhigh', 'high', 'medium', 'low'],
-    },
-  ],
-  currentModelId: 'grok-4.7-fast',
-  currentEffortId: 'high',
-  modes: [],
-  modeConfirmed: true,
-  commands: [],
-};
 
 export function resolveDraftBackendOptions(
   agentId: string | null | undefined,
@@ -112,9 +84,6 @@ export function resolveDraftBackendOptions(
     agentStatus.options.models.length > 0
   ) {
     return agentStatus.options;
-  }
-  if (agentId === 'grok') {
-    return DEFAULT_GROK_BACKEND_OPTIONS;
   }
   return null;
 }

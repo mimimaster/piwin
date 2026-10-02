@@ -88,7 +88,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         prompts: isChinese ? 'Prompt 模板' : 'Prompt templates',
         automation: isChinese ? '自动化' : 'Automation',
         agents: isChinese ? '子代理' : 'Sub-agents',
-        agentBackends: isChinese ? 'Agent 后端' : 'Agent Backends',
+        agentBackends: isChinese ? '外部智能体' : 'External Agents',
         subagents: isChinese ? '子代理编排' : 'Orchestration',
         pets: isChinese ? '桌宠' : 'Companion',
         usage: isChinese ? '用量统计' : 'Usage',

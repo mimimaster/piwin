@@ -6,7 +6,7 @@
  * helpers live in ../agent-backend-state.ts.
  */
 import type { Dispatch } from 'react';
-import type { ExternalAgentStatus } from '@piwin/contracts';
+import type { ExternalAgentStatus, HostServerMessage } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction } from '../chat-reducer';
 import { isAgentReady } from '../agent-backend-state';
@@ -59,4 +59,24 @@ export function syncReadyAgentCatalogs(
       syncAgentCatalog(hostClient, agent.agentId);
     }
   }
+}
+
+/** Extension mutations own backend availability, including ordinary market installs. */
+export function handleExternalAgentPush(
+  hostClient: HostClient,
+  dispatch: Dispatch<ChatUiAction>,
+  message: HostServerMessage,
+): boolean {
+  if (message.type === 'marketplace/inventory-updated' &&
+      message.changedKinds.some((kind) => kind === 'extension' || kind === 'agent')) {
+    void bootstrapExternalAgents(hostClient, dispatch, { refresh: true });
+    return true;
+  }
+  if (message.type === 'agents/status-updated') {
+    dispatch({ type: 'agents/status-updated', status: message.status });
+    // The first ready status imports sessions created outside piwin as well.
+    if (isAgentReady(message.status)) syncAgentCatalog(hostClient, message.status.agentId);
+    return true;
+  }
+  return false;
 }

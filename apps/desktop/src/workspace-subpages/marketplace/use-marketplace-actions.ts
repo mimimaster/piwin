@@ -109,7 +109,7 @@ export function useMarketplaceActions(options: {
       switch (descriptor.kind) {
         case 'agent':
           await installAgentArtifact(request, descriptor.source, name, optionsRef.current.confirmMigration);
-          return { type: 'success', title: zh ? `[${name}] 适配插件已安装` : `[${name}] adapter installed`, text: zh ? '在 Agent 后端设置中检测 Host CLI 并登录。安装插件不表示 CLI 已就绪。已有会话不会自动换修订。' : 'Check the Host CLI and sign in in Agent Backends. Adapter installation does not mean the CLI is ready. Existing sessions are not moved to another revision.' };
+          return { type: 'success', title: zh ? `[${name}] 适配插件已安装` : `[${name}] adapter installed`, text: zh ? '在 外部智能体 设置中检测 Host CLI 并登录。安装插件不表示 CLI 已就绪。已有会话不会自动换修订。' : 'Check the Host CLI and sign in in External Agents. Adapter installation does not mean the CLI is ready. Existing sessions are not moved to another revision.' };
         case 'pi-package': {
           await send(request, { type: 'marketplace/package-install', source: descriptor.source });
           phase('applying');

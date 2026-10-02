@@ -11,6 +11,7 @@ import { getPiwinRoot } from './paths.js';
 import { formatFilesTouchedBlock, normalizeCompactionFileOps } from './compaction-file-ops.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { failRunForToolLoopStall } from './tools/tool-loop-breaker.js';
+import { maybeEstimateExternalSessionContext } from './session-external-context.js';
 
 export function readEventRunId(event: AgentEvent): string | undefined {
   return 'runId' in event && typeof event.runId === 'string' ? event.runId : undefined;
@@ -217,6 +218,7 @@ export function routeSessionAgentEvent(
         deps.runIdleLoopMonitor?.noteMessageEnd(replyRunId, correlatedEvent.messageId);
       }
     }
+    void maybeEstimateExternalSessionContext(deps, session.id);
   }
   // CE-HOOK: arm matching hooks on normalized AgentEvent (best-effort, never fails turn).
   void deps.dispatchHooksForAgentEvent(session.id, eventForClients).catch((error: unknown) => {

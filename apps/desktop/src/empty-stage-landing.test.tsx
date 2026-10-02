@@ -243,7 +243,7 @@ describe('EmptyStageLanding', () => {
           draftAgentId="pi"
           draftAgentOptions={[
             { agentId: 'pi', label: 'Pi', ready: true },
-            { agentId: 'grok', label: 'Grok Build', ready: true },
+            { agentId: 'grok', label: 'Grok Build', ready: true, description: '自主编码与构建' },
           ]}
           onSelectDraftAgent={onSelectDraftAgent}
         />,
@@ -258,13 +258,40 @@ describe('EmptyStageLanding', () => {
     expect(grokCard?.classList.contains('is-selected')).toBe(false);
 
     expect(container.querySelector('.empty-stage-engine-icon')).toBeNull();
-    expect(piCard?.querySelector('.empty-stage-engine-desc')?.textContent).toBe('通用智能体');
-    expect(grokCard?.querySelector('.empty-stage-engine-desc')?.textContent).toBe('自主编码与构建');
+    expect(piCard?.querySelector('.empty-stage-engine-name')?.textContent).toBe('piwin 会话');
+    expect(grokCard?.querySelector('.empty-stage-engine-name')?.textContent).toBe('grok 会话');
+    expect(piCard?.querySelector('.empty-stage-engine-badge')?.textContent).toBe('内置');
+    expect(grokCard?.querySelector('.empty-stage-engine-badge')?.textContent).toBe('已就绪');
+    expect(grokCard?.getAttribute('title')).toBe('自主编码与构建');
 
     act(() => {
       grokCard?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onSelectDraftAgent).toHaveBeenCalledWith('grok');
+  });
+
+  it('renders clean session labels and badge when backend extension provides no custom description', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+    act(() => {
+      root.render(
+        <EmptyStageLanding
+          locale="zh-CN"
+          sessions={[]}
+          onResumeSession={() => {}}
+          draftAgentOptions={[
+            { agentId: 'pi', label: 'Pi', ready: true },
+            { agentId: 'custom-agent', label: 'Custom Agent', ready: true },
+          ]}
+        />,
+      );
+    });
+    const customCard = container.querySelector<HTMLButtonElement>('[data-testid="empty-stage-engine-custom-agent"]');
+    expect(customCard?.querySelector('.empty-stage-engine-name')?.textContent).toBe('Custom Agent 会话');
+    expect(customCard?.querySelector('.empty-stage-engine-badge')?.textContent).toBe('已就绪');
+    expect(customCard?.getAttribute('title')).toBe('Custom Agent 会话');
   });
 
   it('renders warning badge and settings link when engine is not ready', () => {

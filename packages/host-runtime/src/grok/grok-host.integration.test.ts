@@ -84,9 +84,9 @@ async function waitForRunTerminal(harness: Harness, sessionId: string): Promise<
 describe('External agent adapter integration (fixture artifact)', () => {
   it('reports readiness from the installed adapter without the CLI being pre-checked', async () => {
     const harness = await createHarness();
-    // Never checked yet: the Host reports why instead of guessing readiness.
+    // The first ordinary query performs the adapter's bounded readiness check.
     expect(data(await harness.runtime.handleCommand({ type: 'agents/status' }))).toMatchObject({
-      agents: [{ agentId: harness.agentId, state: 'unavailable' }],
+      agents: [{ agentId: harness.agentId, state: 'ready' }],
       installed: [harness.agentId],
     });
     const refreshed = await harness.runtime.handleCommand({ type: 'agents/status', refresh: true });

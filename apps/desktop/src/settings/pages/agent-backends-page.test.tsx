@@ -3,39 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type { ExtensionSummary, HostResponse } from '@piwin/contracts';
+import type { HostResponse } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens';
 import { SettingsProvider } from '../settings-context';
 import { createContextValue } from '../settings-shell-test-harness';
 import { AgentBackendsPage } from './agent-backends-page';
-
-function backendExtension(enabled: boolean): ExtensionSummary {
-  return {
-    id: 'example-build',
-    name: 'Example Build',
-    description: 'A session backend extension.',
-    source: 'user',
-    path: '/tmp/example-build',
-    enabled,
-    sessionBackend: {
-      schemaVersion: 1,
-      id: 'example-build',
-      name: 'Example Build',
-      version: '1.0.0',
-      minHostVersion: '0.0.0',
-      protocol: 'piwin-agent-stdio',
-      protocolVersion: 1,
-      minHostProtocolVersion: 1,
-      platforms: ['darwin'],
-      verifiedCliVersions: ['1.0.0'],
-      helpUrl: 'https://example.test',
-      artifact: { format: 'node-esm', entrypoint: 'dist/agent.mjs', sha256: 'a'.repeat(64), byteSize: 12 },
-      compatibleRevisions: [],
-      unversionedBindingCompatible: false,
-      outputDirectories: [],
-    },
-  };
-}
+import { backendExtension } from '../../test/fixtures/extension-backend.fixtures';
 
 describe('AgentBackendsPage', () => {
   let container: HTMLElement;
@@ -128,5 +101,42 @@ describe('AgentBackendsPage', () => {
     await settle();
     expect(container.querySelector('[data-testid="agent-backends-empty"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="agent-backend-grok"]')).toBeNull();
+  });
+
+  it('mounts recheck button into settings header actions slot when present, and card does not duplicate page title', async () => {
+    const headerSlot = document.createElement('div');
+    headerSlot.id = 'settings-main-header-actions';
+    document.body.appendChild(headerSlot);
+
+    try {
+      const request = vi.fn(async (command: { type: string }): Promise<HostResponse> => ({
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: command.type === 'extensions/list'
+          ? { extensions: [backendExtension(true)] }
+          : { agents: [] },
+      }));
+      render(request);
+      await settle();
+
+      expect(container.querySelector('h4')).toBeNull();
+      expect(container.textContent).not.toContain('Agent 后端');
+      expect(container.textContent).not.toContain('外部智能体');
+      const recheck = headerSlot.querySelector<HTMLButtonElement>('[data-testid="agent-backends-recheck"]');
+      expect(recheck).not.toBeNull();
+
+      await act(async () => {
+        recheck?.click();
+      });
+      await settle();
+
+      expect(request).toHaveBeenCalledWith({
+        type: 'agents/status',
+        refresh: true,
+      });
+    } finally {
+      headerSlot.remove();
+    }
   });
 });

@@ -23,6 +23,7 @@ import {
 import type { PendingContextRefItem } from './hooks/use-composer-context-refs.js';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer.js';
 import {
+  estimateTranscriptTokens,
   isChatCompactPendingOccupancy,
   selectContextRingView,
 } from './context-telemetry-selector.js';
@@ -550,11 +551,43 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     }
   }, [dispatch, props.hostClient, props.sessionId, state.compacting]);
 
+  const sessionItem =
+    state.sessionEntitiesById[props.sessionId] ??
+    state.sessions.find((item) => item.id === props.sessionId) ??
+    state.generalSessions.find((item) => item.id === props.sessionId);
+  const activeBackend = sessionItem?.backend;
+  const backendOptions = state.backendOptionsBySession[props.sessionId];
+  const isExternalBackend =
+    (activeBackend !== undefined && activeBackend.agentId !== 'pi') ||
+    backendOptions !== undefined;
+  const selectedBackendModel = backendOptions?.models.find(
+    (model) => model.id === backendOptions?.currentModelId,
+  );
+  const effectiveModelContextWindow =
+    selectedBackendModel?.contextTokens ??
+    (isExternalBackend ? 256_000 : undefined);
+  const fallbackTokensUsed = estimateTranscriptTokens(state.messages);
+
   const contextRingView = selectContextRingView({
     telemetry: state.contextTelemetry,
     locale: props.locale,
+    ...(typeof effectiveModelContextWindow === 'number'
+      ? { selectedModelContextWindow: effectiveModelContextWindow }
+      : {}),
     ...(state.compacting ? { compacting: true } : {}),
     ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
+    ...(isExternalBackend && (fallbackTokensUsed > 0 || (state.contextUsage?.tokensUsed ?? 0) > 0)
+      ? {
+          fallbackUsage: {
+            tokensUsed: state.contextUsage?.tokensUsed ?? fallbackTokensUsed,
+            ...(typeof effectiveModelContextWindow === 'number'
+              ? { tokensLimit: effectiveModelContextWindow }
+              : {}),
+            quality: 'estimated' as const,
+            ...(state.streaming ? { phase: 'streaming' as const } : {}),
+          },
+        }
+      : {}),
   });
   return (
     <MediaPreviewReadProvider sessionId={props.sessionId} readMedia={props.readMedia}>

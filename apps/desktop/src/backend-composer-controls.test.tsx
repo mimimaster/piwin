@@ -106,10 +106,10 @@ describe('BackendComposerControls', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = undefined;
   });
 
-  it('shows the current model and mode on the trigger', () => {
+  it('shows the current model and mode on the trigger without agent prefix', () => {
     render(createBaseProps(), root);
     const trigger = queryTrigger();
-    expect(trigger?.textContent).toContain('Grok');
+    expect(trigger?.querySelector('.backend-composer-agent')).toBeNull();
     expect(trigger?.textContent).toContain('Grok 4');
     expect(trigger?.textContent).toContain('Default');
   });
@@ -193,7 +193,7 @@ describe('BackendComposerControls', () => {
   it('hides mode, plan mode and auto-approve badge when hideModes is true', () => {
     render(createBaseProps({ hideModes: true, options: options({ autoApprove: true }) }), root);
     const trigger = queryTrigger();
-    expect(trigger?.textContent).toContain('Grok');
+    expect(trigger?.querySelector('.backend-composer-agent')).toBeNull();
     expect(trigger?.textContent).toContain('Grok 4');
     expect(trigger?.textContent).not.toContain('Default');
     expect(trigger?.textContent).not.toContain('Plan');

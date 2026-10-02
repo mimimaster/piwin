@@ -28,7 +28,7 @@ import { isRemoteCommandGapError } from '../remote-command-gap.js';
 import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
 import {
   bootstrapExternalAgents,
-  syncAgentCatalog,
+  handleExternalAgentPush,
   syncReadyAgentCatalogs,
 } from './external-agent-bootstrap.js';
 import type { ChatUiAction, PermissionPromptUi } from '../chat-reducer';
@@ -469,18 +469,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         });
         return;
       }
-      if (message.type === 'marketplace/inventory-updated' && message.changedKinds.includes('agent')) {
-        void bootstrapExternalAgents(hostClient, dispatch, { refresh: true });
-      }
-      if (message.type === 'agents/status-updated') {
-        dispatch({ type: 'agents/status-updated', status: message.status });
-        // A first `ready` carries the previously unknown agent-side catalog;
-        // import it so the sidebar shows the agent's existing sessions.
-        if (message.status.state === 'ready') {
-          syncAgentCatalog(hostClient, message.status.agentId);
-        }
-        return;
-      }
+      if (handleExternalAgentPush(hostClient, dispatch, message)) return;
       if (message.type === 'session/index-updated') {
         if (message.op === 'deleted') {
           dispatch({ type: 'session/remove', sessionId: message.sessionId });

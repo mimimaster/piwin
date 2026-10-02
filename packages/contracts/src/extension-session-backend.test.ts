@@ -255,4 +255,14 @@ describe('enabledExtensionSessionBackends', () => {
       { id: 'ext-dup', enabled: true, sessionBackend: backend },
     ])).toEqual([{ extensionId: 'ext-a', agentId: 'example-build', name: 'Example Build' }]);
   });
+
+  it('preserves description from backend declaration or extension metadata', () => {
+    expect(enabledExtensionSessionBackends([
+      { id: 'ext-a', enabled: true, description: 'Extension desc', sessionBackend: { id: 'b-1', name: 'B1' } },
+      { id: 'ext-b', enabled: true, description: 'Extension desc', sessionBackend: { id: 'b-2', name: 'B2', description: 'Backend desc' } },
+    ])).toEqual([
+      { extensionId: 'ext-a', agentId: 'b-1', name: 'B1', description: 'Extension desc' },
+      { extensionId: 'ext-b', agentId: 'b-2', name: 'B2', description: 'Backend desc' },
+    ]);
+  });
 });

@@ -11,6 +11,7 @@ import type {
   PermissionRememberScope,
 } from '@piwin/contracts';
 import { decisionForBackendOption } from './backend-permission-options';
+import { agentDisplayName } from './agent-backend-state';
 import { useDesktopLocale } from './desktop-locale-context';
 
 export type BackendPermissionActionsProps = {
@@ -63,5 +64,5 @@ export function BackendPermissionActions(props: BackendPermissionActionsProps): 
 }
 
 export function backendAgentLabel(agentId: string | undefined): string {
-  return agentId === 'grok' ? 'Grok' : (agentId ?? 'Agent');
+  return agentDisplayName(agentId);
 }

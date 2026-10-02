@@ -43,8 +43,8 @@ async function harness(script: unknown = {}) {
 }
 
 describe('Session backend extension lifecycle', () => {
-  it('lists the backend from the extension registry and does not launch it for an unchecked status', async () => {
-    const { runtime, agentId, extensionId } = await harness();
+  it('detects an enabled backend on the first status query without a manual refresh', async () => {
+    const { runtime, pushes, agentId, extensionId } = await harness();
     const listed = data(await runtime.handleCommand({ type: 'extensions/list' })) as {
       extensions: ExtensionSummary[];
     };
@@ -58,9 +58,30 @@ describe('Session backend extension lifecycle', () => {
       ]),
     );
     expect(data(await runtime.handleCommand({ type: 'agents/status' }))).toMatchObject({
+      agents: [{ agentId, state: 'ready' }],
+    });
+    expect(pushes).toContainEqual(expect.objectContaining({
+      type: 'agents/status-updated', status: expect.objectContaining({ agentId, state: 'ready' }),
+    }));
+  });
+
+  it('reports a missing CLI automatically without presenting the backend as ready', async () => {
+    const { runtime, agentId } = await harness({ notInstalled: true });
+    expect(data(await runtime.handleCommand({ type: 'agents/status' }))).toMatchObject({
+      agents: [{ agentId, state: 'not-installed' }],
+    });
+  });
+
+  it('detects a newly enabled extension without visiting backend settings', async () => {
+    const { runtime, agentId, extensionId } = await harness();
+    await runtime.handleCommand({ type: 'extensions/set_enabled', extensionId, enabled: false });
+    expect(data(await runtime.handleCommand({ type: 'agents/status' }))).toMatchObject({
       agents: [{ agentId, state: 'unavailable' }],
     });
-    expect((await runtime.handleCommand({ type: 'agents/status', refresh: true })).success).toBe(true);
+    await runtime.handleCommand({ type: 'extensions/set_enabled', extensionId, enabled: true });
+    expect(data(await runtime.handleCommand({ type: 'agents/status' }))).toMatchObject({
+      agents: [{ agentId, state: 'ready' }],
+    });
   });
 
   it('answers retired inventory commands with migration guidance', async () => {

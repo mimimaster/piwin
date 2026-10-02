@@ -71,19 +71,13 @@ export async function handleExternalAgentCommand(
           agents.push({ agentId, state: 'unavailable', binaryPath: '', reason: formatError(error), checkedAt });
           continue;
         }
-        const status = command.refresh === true
-          ? await deps.externalAgents.getStatus(agentId, true)
-          : deps.externalAgents.peekStatus(agentId);
-        if (command.refresh === true && status !== undefined) {
+        // First use detects readiness; subsequent reads share the control client's
+        // bounded cache instead of requiring a Settings-only manual check.
+        const status = await deps.externalAgents.getStatus(agentId, command.refresh === true);
+        if (command.refresh === true) {
           deps.push({ type: 'agents/status-updated', status });
         }
-        agents.push(status ?? {
-          agentId,
-          state: 'unavailable',
-          binaryPath: '',
-          reason: 'CLI not checked. Choose Check again on the Host.',
-          checkedAt,
-        });
+        agents.push(status);
       }
       return ok(requestId, command.type, { agents, installed: wanted.map((backend) => backend.declaration.id) });
     }

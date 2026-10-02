@@ -3,6 +3,7 @@ import type { ExternalAgentStatus } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import {
   bootstrapExternalAgents,
+  handleExternalAgentPush,
   syncReadyAgentCatalogs,
 } from './external-agent-bootstrap';
 import { notInstalledAgent, readyAgent } from '../test/fixtures/agent-backend-state.fixtures';
@@ -58,6 +59,50 @@ describe('bootstrapExternalAgents', () => {
     await expect(bootstrapExternalAgents(throwing, dispatch)).resolves.toEqual([]);
     expect(dispatch).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+});
+
+describe('handleExternalAgentPush', () => {
+  it('automatically checks backends after an ordinary extension install or toggle', async () => {
+    const agents = [readyAgent()];
+    const dispatch = vi.fn();
+    const request = vi.fn().mockResolvedValue({ success: true, data: { agents } });
+    const hostClient = { request } as unknown as HostClient;
+    expect(handleExternalAgentPush(hostClient, dispatch, {
+      type: 'marketplace/inventory-updated', revision: 'enabled', changedKinds: ['extension'],
+    })).toBe(true);
+    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith({ type: 'agents/set-all', agents }));
+    expect(request).toHaveBeenCalledWith({ type: 'agents/status', refresh: true });
+  });
+
+  it('clears the backend statuses after the last backend is uninstalled', async () => {
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: vi.fn().mockResolvedValue({ success: true, data: { agents: [] } }),
+    } as unknown as HostClient;
+    handleExternalAgentPush(hostClient, dispatch, {
+      type: 'marketplace/inventory-updated', revision: 'removed', changedKinds: ['extension'],
+    });
+    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith({ type: 'agents/set-all', agents: [] }));
+  });
+
+  it('syncs the native catalog on a ready status push', () => {
+    const status = readyAgent();
+    const dispatch = vi.fn();
+    const request = vi.fn().mockResolvedValue({ success: true });
+    const hostClient = { request } as unknown as HostClient;
+    expect(handleExternalAgentPush(hostClient, dispatch, { type: 'agents/status-updated', status })).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'agents/status-updated', status });
+    expect(request).toHaveBeenCalledWith({ type: 'agents/sessions-sync', agentId: status.agentId });
+  });
+
+  it('does not launch backend checks for unrelated inventory updates', () => {
+    const request = vi.fn();
+    const hostClient = { request } as unknown as HostClient;
+    expect(handleExternalAgentPush(hostClient, vi.fn(), {
+      type: 'marketplace/inventory-updated', revision: 'skill', changedKinds: ['skill'],
+    })).toBe(false);
+    expect(request).not.toHaveBeenCalled();
   });
 });
 

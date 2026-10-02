@@ -18,16 +18,32 @@ export function useEnabledSessionBackends(
       setBackends([]);
       return;
     }
+    const client = hostClient;
     let cancelled = false;
-    void hostClient.request({ type: 'extensions/list' }).then((response) => {
-      if (cancelled || !response.success) return;
-      const extensions = (response.data as { extensions?: ExtensionSummary[] } | undefined)?.extensions;
-      setBackends(enabledExtensionSessionBackends(Array.isArray(extensions) ? extensions : []));
-    }).catch(() => {
-      if (!cancelled) setBackends([]);
+    let requestVersion = 0;
+    async function refresh(): Promise<void> {
+      const version = ++requestVersion;
+      try {
+        const response = await client.request({ type: 'extensions/list' });
+        if (cancelled || version !== requestVersion) return;
+        if (!response.success) throw new Error(response.error);
+        const extensions = (response.data as { extensions?: ExtensionSummary[] } | undefined)?.extensions;
+        setBackends(enabledExtensionSessionBackends(Array.isArray(extensions) ? extensions : []));
+      } catch (error) {
+        if (cancelled || version !== requestVersion) return;
+        console.error('[session-backends] extensions/list failed', error);
+        setBackends([]);
+      }
+    }
+    const unsubscribe = client.subscribe((message) => {
+      if (message.type === 'marketplace/inventory-updated' && message.changedKinds.includes('extension')) {
+        void refresh();
+      }
     });
+    void refresh();
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [hostClient]);
   return backends;

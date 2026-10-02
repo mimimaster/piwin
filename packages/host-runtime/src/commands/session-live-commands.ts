@@ -98,6 +98,7 @@ import { persistAndPushAssembly } from '../model-context-record.js';
 import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
 import { fail, ok } from '../response-helpers.js';
 import { sessionBusyResponse } from '../session-body-gate.js';
+import { estimateTranscriptMessagesTokens } from '../session-external-context.js';
 import { sessionIndexUpdatedPush } from '../session-index-push.js';
 import { rejectUnavailableSessionBody } from '../session-body-guard.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
@@ -483,8 +484,22 @@ export async function handleSessionLiveCommand(
           }
         }
       }
-      if (restoredUsage) {
-        data.contextUsage = restoredUsage;
+      let effectiveUsage = restoredUsage;
+      if (!effectiveUsage && existing.backend !== undefined && existing.backend.agentId !== 'pi') {
+        const tokens = estimateTranscriptMessagesTokens(transcriptPage.messages);
+        if (tokens > 0) {
+          effectiveUsage = {
+            sessionId: command.sessionId,
+            totalTokens: tokens,
+            tokensUsed: tokens,
+            tokensLimit: 256_000,
+            source: 'host-estimate',
+            updatedAt: new Date().toISOString(),
+          };
+        }
+      }
+      if (effectiveUsage) {
+        data.contextUsage = effectiveUsage;
       }
       return ok(requestId, 'session/resume', data);
     }

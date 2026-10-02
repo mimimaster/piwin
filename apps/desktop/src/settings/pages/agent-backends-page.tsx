@@ -6,10 +6,10 @@
  * adapter and does not keep a second agent inventory.
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 import type { ExtensionSummary, ExternalAgentStatus } from '@piwin/contracts';
 import { Button, Notice, Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
-import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 
 type LoadState =
@@ -35,6 +35,11 @@ export function AgentBackendsPage(): ReactElement {
   const [state, setState] = useState<LoadState>({ kind: 'idle' });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setHeaderSlot(document.getElementById('settings-main-header-actions'));
+  }, []);
 
   const load = useCallback(async (refresh: boolean): Promise<void> => {
     const client = settings.hostClient;
@@ -97,27 +102,25 @@ export function AgentBackendsPage(): ReactElement {
     }
   }
 
+  const recheckButton = (
+    <Button
+      variant="secondary"
+      size="compact"
+      data-testid="agent-backends-recheck"
+      disabled={state.kind === 'loading'}
+      onClick={() => void load(true)}
+    >
+      {state.kind === 'loading' ? (isZh ? '检测中…' : 'Checking…') : (isZh ? '重新检测' : 'Check again')}
+    </Button>
+  );
+
   return (
     <div className="settings-card" data-testid="settings-agent-backends">
-      <PageTitle
-        title={isZh ? 'Agent 后端' : 'Agent Backends'}
-        description={
-          isZh
-            ? 'Pi 内置。其它会话后端来自已安装的扩展；在扩展页安装或启用，这里只显示声明和 CLI 状态。'
-            : 'Pi is built in. Other session backends come from installed extensions. Install or enable them on the Extensions page; this page only shows the declaration and CLI status.'
-        }
-        trailing={
-          <Button
-            variant="secondary"
-            size="compact"
-            data-testid="agent-backends-recheck"
-            disabled={state.kind === 'loading'}
-            onClick={() => void load(true)}
-          >
-            {state.kind === 'loading' ? (isZh ? '检测中…' : 'Checking…') : (isZh ? '重新检测' : 'Check again')}
-          </Button>
-        }
-      />
+      {headerSlot ? (
+        createPortal(recheckButton, headerSlot)
+      ) : (
+        <div className="agent-backends-toolbar">{recheckButton}</div>
+      )}
       {state.kind === 'error' ? <Notice tone="error">{state.message}</Notice> : null}
       {error !== '' ? <Notice tone="error">{error}</Notice> : null}
       {state.kind === 'loaded' && backends.length === 0 ? (

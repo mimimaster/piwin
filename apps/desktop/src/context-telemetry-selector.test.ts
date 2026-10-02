@@ -4,6 +4,7 @@ import {
   createInitialContextTelemetryState,
 } from './context-telemetry-reducer.js';
 import {
+  estimateTranscriptTokens,
   isChatCompactPendingOccupancy,
   selectContextRingView,
 } from './context-telemetry-selector.js';
@@ -770,5 +771,77 @@ describe('context ring selector matrix', () => {
     expect(view.tokensUsed).toBe(90_000);
     expect(view.lastRequest?.messageId).toBe('assistant-7');
     expect(view.lastRequest?.totalTokens).toBe(25);
+  });
+
+  it('estimateTranscriptTokens sums text and thinking block tokens', () => {
+    expect(estimateTranscriptTokens([])).toBe(0);
+    expect(
+      estimateTranscriptTokens([
+        { text: 'abcd', thinking: null },
+        { text: '12345678', thinking: 'test' },
+      ]),
+    ).toBe(4);
+  });
+
+  it('renders visible context ring for external backend session with fallbackUsage', () => {
+    // External session (e.g. Grok Build) with unknown Host occupancy but transcript messages
+    const state = selected(
+      'grok-session-1',
+      makeContextSnapshot({
+        sessionId: 'grok-session-1',
+        phase: 'idle',
+        occupancy: { kind: 'unknown', reason: 'external-estimate' },
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      }),
+    );
+
+    const view = selectContextRingView({
+      telemetry: state,
+      locale: 'zh-CN',
+      selectedModelContextWindow: 256_000,
+      fallbackUsage: {
+        tokensUsed: 2_560,
+        tokensLimit: 256_000,
+        quality: 'estimated',
+      },
+    });
+
+    expect(view.visible).toBe(true);
+    expect(view.tokensUsed).toBe(2_560);
+    expect(view.tokensLimit).toBe(256_000);
+    expect(view.percentText).toBe(1);
+    expect(view.quality).toBe('estimated');
+    expect(view.labels.status).toBe('估算');
+    expect(view.labels.hover).toContain('2.6K / 256K');
+  });
+
+  it('hides context ring when external session has 0 fallback tokens and no known occupancy', () => {
+    const state = selected(
+      'grok-session-empty',
+      makeContextSnapshot({
+        sessionId: 'grok-session-empty',
+        phase: 'empty',
+        occupancy: { kind: 'unknown', reason: 'initial' },
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: false,
+        },
+      }),
+    );
+
+    const view = selectContextRingView({
+      telemetry: state,
+      locale: 'zh-CN',
+      selectedModelContextWindow: 256_000,
+      fallbackUsage: {
+        tokensUsed: 0,
+        tokensLimit: 256_000,
+      },
+    });
+
+    expect(view.visible).toBe(false);
   });
 });

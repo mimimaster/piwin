@@ -1,5 +1,6 @@
 import {
   contextBoundaryCompatible,
+  estimateHostTokens,
   promoteLastConfirmed,
   type AssistantUsageMeasurement,
   type ContextBoundary,
@@ -78,7 +79,30 @@ export type SelectContextRingViewInput = {
   compactPendingOccupancy?: boolean;
   /** Client compaction in flight; label compacting, keep a known sample. */
   compacting?: boolean;
+  /** Fallback usage for external agents (e.g. Grok Build) when native telemetry is unknown. */
+  fallbackUsage?: {
+    tokensUsed: number;
+    tokensLimit?: number;
+    quality?: 'estimated' | 'measured';
+    phase?: SessionContextPhase;
+  };
 };
+
+/** Estimate total conversation tokens from transcript text and thinking blocks. */
+export function estimateTranscriptTokens(
+  messages: readonly { text?: string | null; thinking?: string | null }[],
+): number {
+  let total = 0;
+  for (const message of messages) {
+    if (typeof message.text === 'string' && message.text.length > 0) {
+      total += estimateHostTokens(message.text);
+    }
+    if (typeof message.thinking === 'string' && message.thinking.length > 0) {
+      total += estimateHostTokens(message.thinking);
+    }
+  }
+  return total;
+}
 
 /** Compact-success unknown occupancy from chat UI state — not an in-flight compact. */
 export function isChatCompactPendingOccupancy(state: {
@@ -111,7 +135,26 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
   void input.mountedMessageIds;
   void input.queuedTurnPending;
   const capabilityMissing = telemetry.capabilitySupported !== true;
-  const snapshot = telemetry.displayed ? promoteLastConfirmed(telemetry.displayed) : null;
+  const rawSnapshot = telemetry.displayed ? promoteLastConfirmed(telemetry.displayed) : null;
+  const hasFallbackTokens =
+    input.fallbackUsage !== undefined && input.fallbackUsage.tokensUsed > 0;
+  const snapshot =
+    rawSnapshot ??
+    (hasFallbackTokens
+      ? {
+          sessionId: telemetry.selectedSessionId ?? 'session',
+          revision: 1,
+          contextVersion: 1,
+          contextBoundary: { activeLeafMessageId: null },
+          phase: (input.fallbackUsage?.phase ?? 'idle') as SessionContextPhase,
+          occupancy: { kind: 'unknown' as const, reason: 'external-estimate' },
+          responseEvidence: {
+            currentRunHasResponse: false,
+            historyHasDisplayableResponse: true,
+          },
+          updatedAt: new Date().toISOString(),
+        }
+      : null);
   const lastRequest = projectLastRequest(telemetry.lastRequestUsage);
 
   if (capabilityMissing) {
@@ -130,8 +173,24 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
 
   const compactPending = input.compactPendingOccupancy === true;
   const resolved = resolveRingOccupancy(snapshot);
-  const known = resolved.occupancy;
-  const occupancySource = resolved.occupancySource;
+  let known = resolved.occupancy;
+  let occupancySource = resolved.occupancySource;
+
+  if (known === null && hasFallbackTokens && input.fallbackUsage) {
+    known = {
+      kind: 'known',
+      tokensUsed: input.fallbackUsage.tokensUsed,
+      ...(input.fallbackUsage.tokensLimit !== undefined
+        ? { tokensLimit: input.fallbackUsage.tokensLimit }
+        : {}),
+      quality: input.fallbackUsage.quality ?? 'estimated',
+      coverage: 'complete',
+      basis: 'external-estimate',
+      sampledAt: snapshot.updatedAt,
+    };
+    occupancySource = 'current';
+  }
+
   // A derived transcript has valid historical response evidence, but its
   // runtime has not sampled the new active path yet. Keep the affordance
   // visible without presenting a copied or guessed number.
@@ -151,7 +210,8 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
   const hasEvidence =
     snapshot.responseEvidence.currentRunHasResponse ||
     snapshot.responseEvidence.historyHasDisplayableResponse ||
-    (known !== null && snapshot.phase === 'invalidated');
+    (known !== null && snapshot.phase === 'invalidated') ||
+    hasFallbackTokens;
   const offline = telemetry.disconnected === true;
   const compacting = snapshot.phase === 'compacting' || input.compacting === true;
 

@@ -165,10 +165,6 @@ export function ComposerCardToolbar({
                 disabled={true}
                 data-testid="backend-controls-draft-trigger"
               >
-                <span className="backend-composer-agent">{externalLabel}</span>
-                <span className="thinking-effort-sep" aria-hidden>
-                  ·
-                </span>
                 <span className="thinking-effort-model">
                   {locale === 'zh-CN' ? 'CLI 默认模型' : 'Default model'}
                 </span>

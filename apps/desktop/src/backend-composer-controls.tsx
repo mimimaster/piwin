@@ -117,10 +117,6 @@ export function BackendComposerControls({
             data-testid="backend-controls-trigger"
             aria-label={isZh ? `${agentLabel} 模型 ${modelLabel}` : `${agentLabel} model ${modelLabel}`}
           >
-            <span className="backend-composer-agent">{agentLabel}</span>
-            <span className="thinking-effort-sep" aria-hidden>
-              ·
-            </span>
             <span className="thinking-effort-model">{modelLabel}</span>
             {showMode && modeLabel ? (
               <>

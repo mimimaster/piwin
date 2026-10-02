@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import type { JobRecord, SessionPlan } from '@piwin/contracts';
 import type { ChatUiState } from '../chat-reducer';
 import {
+  estimateTranscriptTokens,
   isChatCompactPendingOccupancy,
   selectContextRingView,
 } from '../context-telemetry-selector.js';
@@ -46,22 +47,66 @@ export function useWorkbenchDerivedView(input: {
   const historyViewActive = state.historyView !== null;
   const visibleTranscriptMessages = state.historyView?.messages ?? state.messages;
   const visibleRunRecordsById = state.historyView?.runRecordsById ?? state.runRecordsById;
+
+  const activeSessionItem = state.activeSessionId
+    ? (state.sessionEntitiesById[state.activeSessionId] ??
+       state.sessions.find((item) => item.id === state.activeSessionId) ??
+       state.generalSessions.find((item) => item.id === state.activeSessionId))
+    : undefined;
+  const activeBackend = activeSessionItem?.backend;
+  const backendOptions = state.activeSessionId
+    ? state.backendOptionsBySession[state.activeSessionId]
+    : undefined;
+  const isExternalBackend =
+    (activeBackend !== undefined && activeBackend.agentId !== 'pi') ||
+    backendOptions !== undefined;
+  const selectedBackendModel = backendOptions?.models.find(
+    (model) => model.id === backendOptions?.currentModelId,
+  );
+  const effectiveModelContextWindow =
+    selectedBackendModel?.contextTokens ??
+    (typeof selectedModelContextWindow === 'number'
+      ? selectedModelContextWindow
+      : isExternalBackend
+        ? 256_000
+        : undefined);
+
+  const fallbackTokensUsed = useMemo(() => {
+    if (!isExternalBackend || state.messages.length === 0) return 0;
+    return estimateTranscriptTokens(state.messages);
+  }, [isExternalBackend, state.messages]);
+
   const contextUsagePercent = useMemo(
     () =>
       selectContextRingView({
         telemetry: state.contextTelemetry,
         locale: desktopLocale === 'en' ? 'en' : 'zh-CN',
-        ...(typeof selectedModelContextWindow === 'number'
-          ? { selectedModelContextWindow }
+        ...(typeof effectiveModelContextWindow === 'number'
+          ? { selectedModelContextWindow: effectiveModelContextWindow }
           : {}),
         ...(state.compacting ? { compacting: true } : {}),
         ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
+        ...(isExternalBackend && (fallbackTokensUsed > 0 || (state.contextUsage?.tokensUsed ?? 0) > 0)
+          ? {
+              fallbackUsage: {
+                tokensUsed: state.contextUsage?.tokensUsed ?? fallbackTokensUsed,
+                ...(typeof effectiveModelContextWindow === 'number'
+                  ? { tokensLimit: effectiveModelContextWindow }
+                  : {}),
+                quality: 'estimated' as const,
+              },
+            }
+          : {}),
       }).percentText,
     [
       state.contextTelemetry,
       state.compacting,
       state.lastCompactionMessage,
+      state.contextUsage,
       selectedModelContextWindow,
+      effectiveModelContextWindow,
+      fallbackTokensUsed,
+      isExternalBackend,
       desktopLocale,
     ],
   );

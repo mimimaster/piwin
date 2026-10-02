@@ -4,7 +4,7 @@
  */
 
 import { join } from 'node:path';
-import type { CreateSessionOptions, SessionHandle } from '@piwin/contracts';
+import type { CreateSessionOptions, SessionHandle, SessionIndexRecord } from '@piwin/contracts';
 import { formatCompactionBoundary, formatError } from '@piwin/contracts';
 
 import { getSessionRecord } from '@piwin/session';
@@ -206,6 +206,7 @@ export async function doActivateSessionRuntime(
         excludeSeedMessageId,
       );
       deps.residencyController.commitActivation(sessionId, runtimeGenerationId);
+      await revalidateSessionContextAfterBind(deps, sessionId, runtimeGenerationId, record);
       if (runId !== undefined) {
         deps.residencyController.markBusy(sessionId, runtimeGenerationId);
       }
@@ -315,7 +316,7 @@ export async function doActivateSessionRuntime(
     throw error;
   }
   deps.residencyController.commitActivation(sessionId, runtimeGenerationId);
-  await revalidateSessionContextAfterBind(deps, sessionId, runtimeGenerationId);
+  await revalidateSessionContextAfterBind(deps, sessionId, runtimeGenerationId, record);
   deps.sessionRuntimeDelegationModes.set(
     sessionId,
     runId ? (deps.runDelegationModes.get(runId) ?? 'auto') : 'auto',
@@ -337,6 +338,7 @@ async function revalidateSessionContextAfterBind(
   deps: HostRuntimeKernel,
   sessionId: string,
   runtimeGenerationId: string,
+  record?: SessionIndexRecord,
 ): Promise<void> {
   try {
     const store = await deps.getTranscriptStore(sessionId);
@@ -347,7 +349,12 @@ async function revalidateSessionContextAfterBind(
     if (latestCompaction !== undefined) {
       contextBoundary.compactionBoundary = formatCompactionBoundary(latestCompaction);
     }
-    const model = deps.sessionModels.get(sessionId);
+    const model =
+      deps.sessionModels.get(sessionId) ??
+      record?.model ??
+      (record?.backend?.modelId
+        ? { providerId: record.backend.agentId, modelId: record.backend.modelId }
+        : undefined);
     if (model !== undefined) {
       contextBoundary.model = model;
     }

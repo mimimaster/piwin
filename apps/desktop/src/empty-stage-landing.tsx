@@ -84,18 +84,22 @@ export function selectResumableSessions(
     .slice(0, limit);
 }
 
-function resolveAgentDescription(
+export function resolveEngineLabel(
   agentId: string,
   label: string,
   isChinese: boolean,
 ): string {
   if (agentId === 'pi') {
-    return isChinese ? '通用智能体' : 'General Agent';
+    return isChinese ? 'piwin 会话' : 'piwin session';
   }
   if (agentId === 'grok') {
-    return isChinese ? '自主编码与构建' : 'Autonomous Code & Build';
+    return isChinese ? 'grok 会话' : 'grok session';
   }
-  return isChinese ? `${label} 会话后端` : `${label} Session Backend`;
+  const cleanLabel = (label || agentId).trim();
+  if (isChinese) {
+    return cleanLabel.endsWith('会话') ? cleanLabel : `${cleanLabel} 会话`;
+  }
+  return cleanLabel.toLowerCase().endsWith('session') ? cleanLabel : `${cleanLabel} session`;
 }
 
 export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
@@ -122,9 +126,7 @@ export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
           >
             {props.draftAgentOptions!.map((option) => {
               const isSelected = (props.draftAgentId ?? 'pi') === option.agentId;
-              const description =
-                option.description ||
-                resolveAgentDescription(option.agentId, option.label, isChinese);
+              const engineLabel = resolveEngineLabel(option.agentId, option.label, isChinese);
               return (
                 <button
                   key={option.agentId}
@@ -133,10 +135,11 @@ export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
                   aria-checked={isSelected}
                   className={`empty-stage-engine-card${isSelected ? ' is-selected' : ''}${!option.ready ? ' is-not-ready' : ''}`}
                   data-testid={`empty-stage-engine-${option.agentId}`}
+                  title={option.description || engineLabel}
                   onClick={() => props.onSelectDraftAgent?.(option.agentId)}
                 >
                   <div className="empty-stage-engine-card-header">
-                    <span className="empty-stage-engine-name">{option.label}</span>
+                    <span className="empty-stage-engine-name">{engineLabel}</span>
                     <span
                       className={`empty-stage-engine-badge${option.ready ? ' is-ready' : ' is-warning'}`}
                     >
@@ -161,9 +164,6 @@ export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
                                 : 'CLI Missing'}
                     </span>
                   </div>
-                  {description ? (
-                    <div className="empty-stage-engine-desc">{description}</div>
-                  ) : null}
                   {!option.ready && props.onOpenAgentSettings ? (
                     <div className="empty-stage-engine-footer">
                       <span
