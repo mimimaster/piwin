@@ -19,6 +19,9 @@ import {
 import { resolveToolPolicyDetails } from './capabilities/tool-policy-resolver.js';
 import { isHostToolboxTargetFamily } from './host-toolbox.js';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
+import type { SubagentReviewCapabilityScope } from './subagent-review-context.js';
+import { SUBAGENT_RESULT_READ_TOOL_NAME } from './subagent-result-read-tool.js';
+import { SUBAGENT_REVIEW_SUBMIT_TOOL_NAME } from './subagent-review-submit-tool.js';
 /**
  * Build tool policy from config + scope.
  * Maps product capability exposure to exact tool families + custom tool names.
@@ -32,6 +35,7 @@ export function compileToolPolicy(
   mcpEnabledServerIds: readonly string[] = [],
   hostToolFamilyIndex?: ReadonlyMap<SessionToolFamily, readonly string[]>,
   mcpBrief?: McpCapabilityBrief,
+  reviewScope?: SubagentReviewCapabilityScope,
 ): {
   tools: SessionToolPolicy;
   searchRoute: import('@piwin/contracts').ResolvedSearchRoute;
@@ -139,7 +143,15 @@ export function compileToolPolicy(
   // executor (invariant 5). When not provided (test/legacy path), the
   // descriptor filter in buildHostToolsForPolicy still removes names without
   // a matching descriptor.
-  const familyDerivedToolNames = customToolNames;
+  // Review receipts are Host-bound authority, not filesystem mutation or
+  // child delegation. Preserve only the two concrete scoped executors; do
+  // not enable the delegate family for ordinary readonly children.
+  const reviewerToolNames = reviewScope && input.subagent?.mode === 'readonly'
+    ? (hostToolFamilyIndex?.get('delegate') ?? []).filter((name) =>
+        name === SUBAGENT_RESULT_READ_TOOL_NAME || name === SUBAGENT_REVIEW_SUBMIT_TOOL_NAME,
+      )
+    : [];
+  const familyDerivedToolNames = [...customToolNames, ...reviewerToolNames];
   const effectiveToolNames = toolNamesFromComposed
     ? familyDerivedToolNames.filter((name) => toolNamesFromComposed.includes(name))
     : familyDerivedToolNames;

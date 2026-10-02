@@ -73,6 +73,7 @@ import { computePermissionRulesRevision } from './permission-rule-revision.js';
 import { resolveDefaultModelRef } from './provider-helpers.js';
 import { resolveChatModel } from './resolve-chat-model.js';
 import type { SecretResolver } from './secret-resolver.js';
+import type { SubagentReviewCapabilityScope } from './subagent-review-context.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
 import {
   isConversationChatSession,
@@ -152,6 +153,8 @@ export type CompileBlueprintOptions = {
   mcpCapabilityBrief?: McpCapabilityBrief;
   /** Host-local family index derived from the concrete registrations. */
   hostToolFamilyIndex?: ReadonlyMap<SessionToolFamily, readonly string[]>;
+  /** Host-bound current child scope, never accepted from CreateSessionInput. */
+  reviewScope?: SubagentReviewCapabilityScope;
   /** Revision of the exact permission rules frozen for this generation. */
   rulesRevision?: string;
   /**
@@ -277,6 +280,7 @@ async function compileAgentCapabilityPlan(
     mcpEnabledServerIds,
     options.hostToolFamilyIndex,
     options.mcpCapabilityBrief,
+    options.reviewScope,
   );
   const tools = compiledTools.tools;
   const searchRoute = compiledTools.searchRoute;

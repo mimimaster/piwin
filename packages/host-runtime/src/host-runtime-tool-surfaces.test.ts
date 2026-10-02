@@ -12,6 +12,12 @@ import { SUBAGENT_REVIEW_SUBMIT_TOOL_NAME } from './subagent-review-submit-tool.
 import { SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME } from './subagent-verification-submit-tool.js';
 import { evaluateFileWritePermission } from './permission-policy.js';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
+import { compileBlueprintForWorker } from './blueprint-compiler.js';
+import { createDefaultPiwinConfig } from './config-store.js';
+import { descriptorsFromTools } from './tools/build-session-host-tools.js';
+import { toolFamilyIndex } from './tools/tool-family-index.js';
+import { SessionHostToolExecutionPort } from './tools/session-host-tool-port.js';
+import { createPermissiveToolAdmission } from './tools/tool-admission.js';
 
 describe('HostRuntime tool surfaces', () => {
   it('uses the explicit project path before session binding completes', async () => {
@@ -322,16 +328,69 @@ describe('HostRuntime tool surfaces', () => {
           parentRepoPath: projectPath,
           reviewScope,
         });
-        const tools = await runtime.buildSessionHostToolsForSession(
-          `reviewer-${mode}`,
-          `generation-reviewer-${mode}`,
-          undefined,
-          'active',
-          projectPath,
+        const sessionId = `reviewer-${mode}`;
+        const generationId = `generation-reviewer-${mode}`;
+        const composed = await runtime.composeSessionHostToolsForSession(
+          sessionId, generationId, undefined, projectPath,
         );
-        namesByMode[mode] = tools
-          .filter((tool) => tool.family === 'delegate')
-          .map((tool) => tool.descriptor.name);
+        const compile = (scoped: boolean) => compileBlueprintForWorker({
+          scope: { kind: 'project', projectPath },
+          subagent: { mode: 'readonly' },
+        }, {
+          config: createDefaultPiwinConfig(),
+          piwinRoot, sessionId, runtimeGenerationId: generationId,
+          mcpConfig: { mcpServers: {} },
+          discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+          hostToolDescriptors: descriptorsFromTools(composed.tools),
+          hostToolFamilyIndex: toolFamilyIndex(composed.tools),
+          ...(scoped ? { reviewScope } : {}),
+        });
+        const compiled = await compile(true);
+        const toolNames = compiled.sessionBlueprint.capabilitySnapshot.tools.hostTools.map((tool) => tool.name);
+        namesByMode[mode] = toolNames.filter((name) =>
+          name === SUBAGENT_RESULT_READ_TOOL_NAME || name === SUBAGENT_REVIEW_SUBMIT_TOOL_NAME,
+        );
+        const forbidden = ['piwin_subagent_start', SUBAGENT_RESULT_APPLY_TOOL_NAME,
+          SUBAGENT_RESULT_DISCARD_TOOL_NAME, SUBAGENT_VERIFICATION_SUBMIT_TOOL_NAME,
+          'write_file', 'edit', 'delete_file', 'bash'];
+        for (const name of forbidden) expect(toolNames).not.toContain(name);
+        expect(compiled.sessionBlueprint.capabilitySnapshot.tools.enabledFamilies).not.toContain('delegate');
+        const ordinary = await compile(false);
+        const ordinaryNames = ordinary.sessionBlueprint.capabilitySnapshot.tools.hostTools.map((tool) => tool.name);
+        expect(ordinaryNames).not.toContain(SUBAGENT_RESULT_READ_TOOL_NAME);
+        expect(ordinaryNames).not.toContain(SUBAGENT_REVIEW_SUBMIT_TOOL_NAME);
+
+        const port = new SessionHostToolExecutionPort({
+          isSessionKnown: (requested) => requested === sessionId,
+          getRuntimeGenerationId: () => generationId,
+        });
+        // Keep this registry test independent of interactive permission prompts;
+        // exact candidate authorization still runs inside the real executors.
+        port.registerActiveGeneration(sessionId, generationId, composed.tools, createPermissiveToolAdmission());
+        expect(port.restrictGeneration(sessionId, generationId, toolNames,
+          compiled.sessionBlueprint.hostToolboxTargetNames)).toBe(true);
+        let toolCallSequence = 0;
+        const execute = (toolName: string, argumentsValue: Record<string, unknown>) => port.execute({
+          sessionId, runtimeGenerationId: generationId, runId: 'review-run',
+          toolCallId: `review-call-${++toolCallSequence}`, toolName,
+          arguments: argumentsValue,
+        }, new AbortController().signal);
+        expect(await execute(SUBAGENT_RESULT_READ_TOOL_NAME, {
+          mode: 'summary', result: reviewScope.result,
+        })).toMatchObject({ ok: false, code: 'review-target-not-found' });
+        expect(await execute(SUBAGENT_RESULT_READ_TOOL_NAME, {
+          mode: 'summary', result: { resultId: 'another-result', revision: 1 },
+        })).toMatchObject({ ok: false, code: 'review-target-forbidden' });
+        expect(await execute(SUBAGENT_REVIEW_SUBMIT_TOOL_NAME, {
+          target: { resultId: 'another-result', revision: 1 }, decision: 'approved',
+          findings: [], verification: [],
+        })).toMatchObject({ ok: false, code: 'review-target-forbidden' });
+        expect(await execute('write_file', { path: 'probe.txt', content: 'not allowed' }))
+          .toMatchObject({ ok: false, code: 'tool-not-available' });
+        expect(await port.execute({ sessionId, runtimeGenerationId: 'stale-generation',
+          runId: 'review-run', toolName: SUBAGENT_RESULT_READ_TOOL_NAME,
+          arguments: { mode: 'summary', result: reviewScope.result },
+        }, new AbortController().signal)).toMatchObject({ ok: false, code: 'tool-not-available' });
       } finally {
         await runtime.dispose();
         await rm(piwinRoot, { recursive: true, force: true });

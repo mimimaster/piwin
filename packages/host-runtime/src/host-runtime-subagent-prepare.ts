@@ -100,6 +100,10 @@ export async function prepareSubagentTask(
     input.runtimeGenerationId,
     effectiveModel,
   );
+  const childContext = deps.subagentSessionContexts.get(input.childSessionId);
+  const reviewScope = childContext?.runtimeGenerationId === input.runtimeGenerationId
+    ? childContext.reviewScope
+    : undefined;
   const rulesRevision = deps.generationPermissionRuleRevisions.get(
     `${input.childSessionId}\u0000${input.runtimeGenerationId}`,
   );
@@ -153,6 +157,7 @@ export async function prepareSubagentTask(
     mcpCapabilityBrief,
     hostToolDescriptors: descriptorsFromTools(hostTools),
     hostToolFamilyIndex: toolFamilyIndex(hostTools),
+    ...(reviewScope ? { reviewScope } : {}),
     ...(rulesRevision !== undefined ? { rulesRevision } : {}),
     // Resolve trust from the project store so untrusted projects
     // cannot compile write/process/bash/delegate capabilities.

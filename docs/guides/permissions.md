@@ -53,6 +53,13 @@ root even without True YOLO. This exception only affects the built-in product
 configuration deny, not secret files or user/project deny rules. Real config,
 other worktrees and symlink escapes stay protected in ordinary modes.
 
+Independent reviewer children stay readonly. When Host binds an exact frozen
+candidate through `reviewOf`, that generation retains only the scoped candidate
+reader and review-receipt submitter, not the general delegation family. The
+compiler receives this scope from the current Host-owned child context, never
+from client/model session input. Ordinary readonly children and Side Chat do not
+gain these tools; candidate revision, Run identity and approval policy still apply.
+
 ### Circuit breakers (ordinary modes, including unchecked `yolo`)
 
 Even in `yolo`, these actions always prompt (or are denied non-interactively):

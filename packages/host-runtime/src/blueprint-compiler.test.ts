@@ -24,6 +24,8 @@ import type { McpCapabilityBrief } from './mcp-capability-brief.js';
 import { buildHostToolboxDescriptor } from './tool-catalog/catalog-tool.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
 import { createExternalSearchWebConfig } from './blueprint-compiler-test-fixtures.js';
+import { SUBAGENT_RESULT_READ_TOOL_NAME } from './subagent-result-read-tool.js';
+import { SUBAGENT_REVIEW_SUBMIT_TOOL_NAME } from './subagent-review-submit-tool.js';
 
 function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
   return {
@@ -105,6 +107,31 @@ function familyAssignments(
 }
 
 describe('compileBlueprintForWorker', () => {
+  it.each(['side-chat', 'unregistered'] as const)(
+    'does not widen %s tool authority from a Host review scope', async (scenario) => {
+      const reviewerNames = [SUBAGENT_RESULT_READ_TOOL_NAME, SUBAGENT_REVIEW_SUBMIT_TOOL_NAME];
+      const descriptors = reviewerNames.map((name) => ({
+        name, description: 'Host-scoped review', parameters: { type: 'object' as const, properties: {} },
+      }));
+      const result = await compileBlueprintForWorker({
+        scope: agentProjectScope, subagent: { mode: 'readonly' },
+        ...(scenario === 'side-chat' ? { sessionKind: 'side-chat' as const } : {}),
+      }, {
+        config: createConfig(), mcpConfig: { mcpServers: {} },
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        reviewScope: {
+          result: { resultId: 'bound', revision: 1 }, changes: { changeSetId: 'frozen', revision: 1 },
+        },
+        hostToolDescriptors: scenario === 'side-chat' ? descriptors : [],
+        hostToolFamilyIndex: createFamilyIndex(descriptors,
+          familyAssignments([['delegate', reviewerNames]])),
+      });
+      const names = result.sessionBlueprint.capabilitySnapshot.tools.hostTools.map((tool) => tool.name);
+      for (const name of reviewerNames) expect(names).not.toContain(name);
+      expect(result.sessionBlueprint.capabilitySnapshot.tools.enabledFamilies).not.toContain('delegate');
+    },
+  );
+
   it('appends Agent, Artifact, and MCP capability guidance', async () => {
     const toolboxDescriptor: HostToolDescriptor = {
       name: 'piwin_toolbox',
