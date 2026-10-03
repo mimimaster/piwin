@@ -272,7 +272,9 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
 
   rows.push({ kind: 'section-header', sectionId: 'projects', key: 'section:projects' });
 
-  const unpinnedGeneralSessions = input.generalSessions.filter((s) => s.isPinned !== true);
+  const unpinnedGeneralSessions = input.generalSessions.filter(
+    (session) => session.isPinned !== true && !isExternalAgentSession(session),
+  );
   const generalMerged = mergeScopeRows(
     { kind: 'general' },
     drafts,
@@ -383,6 +385,11 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
 }
 
 
+function isExternalAgentSession(session: SessionListItemUi): boolean {
+  const agentId = session.backend?.agentId;
+  return agentId !== undefined && agentId !== '' && agentId !== 'pi';
+}
+
 function appendNoRepoFolderRows(
   rows: SidebarTreeRow[],
   input: SidebarTreeRowsInput,
@@ -407,11 +414,19 @@ function appendNoRepoFolderRows(
         searching,
       }).filter((session) => session.isPinned !== true)
     : [];
+  // Grok stays an agent session. A general-scoped import still belongs under
+  // No Repo, not in the piwin conversation list.
+  const folderSessions = [
+    ...hostSessions,
+    ...input.generalSessions.filter(
+      (session) => session.isPinned !== true && isExternalAgentSession(session),
+    ),
+  ];
   const merged = scope
     ? mergeScopeRows(
         scope,
         drafts,
-        hostSessions,
+        folderSessions,
         input.sessionSearch,
         input.sessionListOrder,
         false,

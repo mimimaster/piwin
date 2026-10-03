@@ -218,6 +218,7 @@ export const AUTH_PROBLEM_CODES = [
   'collision',
   'credential-sync-failed',
   'oauth-callback-port-busy',
+  'oauth-network',
   'auth-store-unreadable',
   'provider-authentication',
 ] as const;

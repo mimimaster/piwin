@@ -80,7 +80,7 @@ import {
 import { createMobileRemoteReadModelRefresher } from './mobile-host-read-model.js';
 import { useMobileProjectList } from './mobile-project-list.js';
 import { uploadMobileImage } from './mobile-media-upload.js';
-import { abortMobileRun, resolveMobilePermission } from './mobile-run-controls.js';
+import { abortMobileRun, useMobilePermission } from './mobile-run-controls.js';
 import {
   createMobileSession,
   createSessionListSync,
@@ -120,11 +120,9 @@ export function useMobileHost() {
   const activeRunId = knownForegroundRunId(foreground);
   const mutationsEnabled = foregroundMutationsEnabled(foreground);
   const [pausedCheckpointId, setPausedCheckpointId] = useState<string | undefined>();
-  const [permissionRequest, setPermissionRequest] = useState<RemotePermissionRequest | undefined>();
   const [attachments, setAttachments] = useState<MobileMediaAttachment[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-  const [isResolvingPermission, setIsResolvingPermission] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [pendingReplaceRunId, setPendingReplaceRunId] = useState<string | undefined>();
   const [credentialPersistError, setCredentialPersistError] = useState(false);
@@ -227,6 +225,9 @@ export function useMobileHost() {
     }
     setActivityItems(summary.items);
   };
+
+  const { permissionRequest, setPermissionRequest, isResolvingPermission, handleResolvePermission } =
+    useMobilePermission({ clientRef, activeSessionRef, setErrorMessage, onResolved: refreshActivitySummary });
 
   const beginSessionForeground = async (
     client: HostClient,
@@ -400,6 +401,8 @@ export function useMobileHost() {
     initialConnectInFlightRef.current = true;
     unsubscribeRef.current.push(
       client.subscribeState((state) => {
+        if (clientRef.current !== client) return;
+        if (state.kind !== 'ready') setPermissionRequest(undefined);
         setConnectionState(state);
         if (state.kind === 'ready' && !initialConnectInFlightRef.current) {
           void refreshRemoteReadModel(client);
@@ -409,6 +412,7 @@ export function useMobileHost() {
     );
     unsubscribeRef.current.push(
       client.subscribePush((push) => {
+        if (clientRef.current !== client) return;
         handleRemotePush(
           push,
           activeSessionRef,
@@ -866,34 +870,6 @@ export function useMobileHost() {
       }
     } finally {
       setIsUploadingMedia(false);
-    }
-  };
-
-  const handleResolvePermission = async (
-    decision: 'allow' | 'deny',
-    requestId?: string,
-    rememberScope: 'once' | 'session' | 'project' = 'once',
-  ): Promise<boolean> => {
-    const client = clientRef.current;
-    const resolvedRequestId = requestId ?? permissionRequest?.requestId;
-    if (client === undefined || resolvedRequestId === undefined || isResolvingPermission) {
-      return false;
-    }
-    setIsResolvingPermission(true);
-    setErrorMessage(undefined);
-    try {
-      const error = await resolveMobilePermission(client, resolvedRequestId, decision, rememberScope);
-      if (error !== undefined) {
-        setErrorMessage(error);
-        return false;
-      }
-      setPermissionRequest((current) =>
-        current?.requestId === resolvedRequestId ? undefined : current,
-      );
-      void refreshActivitySummary(client);
-      return true;
-    } finally {
-      setIsResolvingPermission(false);
     }
   };
 

@@ -672,7 +672,7 @@ describe('SubscriptionAuthService', () => {
       expect(
         pushes.find((message) => message.type === 'auth/login-finished'),
       ).toMatchObject({
-        result: { providerId: 'xai', ok: false, errorCode: 'provider-authentication' },
+        result: { providerId: 'xai', ok: false, errorCode: 'login-failed' },
       });
       // The gate must be open again, otherwise every later attempt is auth-busy.
       await expect(

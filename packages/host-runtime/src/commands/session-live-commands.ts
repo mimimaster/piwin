@@ -215,6 +215,15 @@ export async function handleSessionLiveCommand(
         const message = formatError(error);
         return fail(requestId, 'session/create', message);
       }
+      const requestedAgentId = command.input.agentId?.trim();
+      if (
+        requestedAgentId !== undefined &&
+        requestedAgentId !== '' &&
+        requestedAgentId !== 'pi' &&
+        createInput.scope?.kind === 'general'
+      ) {
+        return fail(requestId, 'session/create', 'chat-mode-pi-only');
+      }
       const sessionId = createProductSessionId();
       const lineage: {
         parentSessionId?: string;
@@ -290,7 +299,6 @@ export async function handleSessionLiveCommand(
       }
       // ADR 0082: bind an external agent before the first prompt. A failure
       // here removes the half-created record so no ghost Pi session remains.
-      const requestedAgentId = command.input.agentId?.trim();
       if (requestedAgentId !== undefined && requestedAgentId !== '' && requestedAgentId !== 'pi') {
         const installedAgentIds = context.resolveInstalledAgentIds !== undefined
           ? await context.resolveInstalledAgentIds()

@@ -63,6 +63,7 @@ import {
   resolveComposerLayoutMode,
 } from '../composer-dock-assembly';
 import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
+import { resolveActiveComposerAgentId } from '../composer-dock-assembly';
 import { isConversationSessionChrome } from '../is-conversation-session';
 import type { SidebarMode } from '../sidebar-mode';
 import { useAtWorkspaceFiles } from './use-at-workspace-files';
@@ -651,7 +652,11 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onDelegationDisabledChange: setDelegationDisabled,
       onOrchestrationSchemeChange: setOrchestrationSchemeId,
       onOpenOrchestrationSchemeSettings: handleOpenOrchestrationSchemeSettings,
-      isConversationSession: isConversationSessionChrome(state.activeScope, sidebarMode),
+      isConversationSession: isConversationSessionChrome(
+        state.activeScope,
+        sidebarMode,
+        resolveActiveComposerAgentId(state),
+      ),
       ...(hostClient.supportsCommand('git/status')
         ? { branchRequest: requestGit as ComposerDockProps['branchRequest'] }
         : {}),

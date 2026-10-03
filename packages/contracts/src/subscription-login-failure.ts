@@ -22,6 +22,11 @@ const FAILURE_MESSAGE: Record<string, Record<SubscriptionLoginFailureLocale, str
       '登录未完成：浏览器已授权，但凭据交换被平台拒绝。可重试一次，仍失败请把错误码发给开发者。',
     en: 'Sign-in did not finish: the browser authorized, but the credential exchange was rejected. Retry once; if it keeps failing, send the error code to your developer.',
   },
+  'oauth-network': {
+    'zh-CN':
+      '登录未完成：浏览器已授权，但凭据交换时网络失败。可重试，或粘贴回调 URL 后再提交。',
+    en: 'Sign-in did not finish: the browser authorized, but the credential exchange failed on the network. Retry, or paste the callback URL and submit again.',
+  },
   'oauth-callback-port-busy': {
     'zh-CN':
       '登录未完成：本机回调端口 1455 已被占用（CPA / Codex CLI / 其他工具正在登录）。请先结束它再重试。',
@@ -60,6 +65,44 @@ const FAILURE_MESSAGE: Record<string, Record<SubscriptionLoginFailureLocale, str
     en: 'Sign-in did not finish. Try again.',
   },
 };
+
+const PORT_BUSY = /EADDRINUSE|address already in use|listen EADDRINUSE/i;
+const NETWORK_HINT =
+  /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|EPIPE|EHOSTUNREACH|ECONNABORTED|fetch failed|network\s*error|socket hang up|timed? ?out|deadline exceeded|UND_ERR_|getaddrinfo|\b5\d{2}\b/i;
+const NETWORK_NAME =
+  /^(?:FetchError|APIConnectionError|APIConnectionTimeoutError|ConnectTimeoutError)$/;
+const AUTH_REJECTION = /invalid_grant|invalid_client|invalid authentication|unauthorized|\b401\b|\b403\b/i;
+
+function errorText(error: unknown): { name: string; text: string } {
+  const parts: string[] = [];
+  let name = '';
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current !== undefined && current !== null && !seen.has(current) && parts.length < 8) {
+    seen.add(current);
+    if (current instanceof Error) {
+      if (!name) name = current.name;
+      parts.push(current.name, current.message);
+      current = 'cause' in current ? current.cause : undefined;
+      continue;
+    }
+    parts.push(typeof current === 'string' ? current : String(current));
+    break;
+  }
+  return { name, text: parts.join(' ') };
+}
+
+/**
+ * Login failures without a code used to be reported as a platform rejection.
+ * A later successful sign-in proved those were often just transport failures.
+ */
+export function classifySubscriptionLoginFailure(error: unknown): string {
+  const { name, text } = errorText(error);
+  if (PORT_BUSY.test(text)) return 'oauth-callback-port-busy';
+  if (NETWORK_NAME.test(name) || NETWORK_HINT.test(text)) return 'oauth-network';
+  if (AUTH_REJECTION.test(text)) return 'provider-authentication';
+  return 'login-failed';
+}
 
 export function describeSubscriptionLoginFailure(
   errorCode: string | undefined,

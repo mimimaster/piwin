@@ -60,6 +60,14 @@ export function useSessionLiveState(
   const requestedRunsRef = useRef(new Set<string>());
   const sessionRef = useRef(sessionId);
   sessionRef.current = sessionId;
+  const ownerRef = useRef({ client, sessionId, active: false, connected: false,
+    connection: 0, prompt: undefined as ExtensionUiPrompt | undefined,
+    pending: undefined as object | undefined });
+  if (ownerRef.current.client !== client || ownerRef.current.sessionId !== sessionId) {
+    ownerRef.current = { client, sessionId, active: false, connected: false,
+      connection: 0, prompt: undefined, pending: undefined };
+  }
+  const owner = ownerRef.current;
 
   // A summary for an older revision never replaces a newer one.
   const mergeChanges = useCallback((summaries: readonly TurnChangeSummary[]) => {
@@ -82,19 +90,31 @@ export function useSessionLiveState(
     setChangesByRunId(new Map());
     requestedRunsRef.current.clear();
     outputCacheRef.current.clear();
-    setExtensionUi((current) => (current?.sessionId === sessionId ? current : undefined));
-  }, [sessionId]);
+    setExtensionUi(undefined);
+  }, [client, sessionId]);
 
   useEffect(() => {
-    if (client === undefined) {
-      return undefined;
-    }
-    return client.subscribePush((push: HostPush) => {
-      const active = sessionRef.current;
+    if (client === undefined) return undefined;
+    owner.active = true;
+    const unsubscribeState = client.subscribeState((state) => {
+      if (ownerRef.current !== owner || !owner.active) return;
+      const connected = state.kind === 'ready';
+      if (owner.connected !== connected) owner.connection += 1;
+      owner.connected = connected;
+      if (!connected) {
+        owner.prompt = undefined;
+        owner.pending = undefined;
+        setExtensionUi(undefined);
+      }
+    });
+    const unsubscribePush = client.subscribePush((push: HostPush) => {
+      if (ownerRef.current !== owner || !owner.active || !owner.connected) return;
+      const active = owner.sessionId;
       switch (push.type) {
         case 'extension/ui_request':
           if (push.sessionId === active) {
-            setExtensionUi({
+            if (owner.prompt?.requestId === push.requestId && owner.prompt.sessionId === push.sessionId) return;
+            owner.prompt = {
               sessionId: push.sessionId,
               requestId: push.requestId,
               kind: push.kind,
@@ -102,12 +122,18 @@ export function useSessionLiveState(
               message: push.message,
               options: push.options ?? [],
               placeholder: push.placeholder,
-            });
+            };
+            owner.pending = undefined;
+            setExtensionUi(owner.prompt);
           }
           return;
         case 'run/terminal':
           // A finished run can never answer its question; drop the stale card.
-          setExtensionUi((current) => (current?.sessionId === push.run.sessionId ? undefined : current));
+          if (push.run.sessionId === active) {
+            owner.prompt = undefined;
+            owner.pending = undefined;
+            setExtensionUi(undefined);
+          }
           return;
         case 'session/context-updated':
           if (push.sessionId === active) {
@@ -123,7 +149,14 @@ export function useSessionLiveState(
           return;
       }
     });
-  }, [client, mergeChanges]);
+    return () => {
+      owner.active = false;
+      owner.prompt = undefined;
+      owner.pending = undefined;
+      unsubscribePush();
+      unsubscribeState();
+    };
+  }, [client, sessionId, owner, mergeChanges]);
 
   useEffect(() => {
     if (client === undefined || sessionId === undefined || !client.supportsCommand('session/context-get')) {
@@ -148,22 +181,38 @@ export function useSessionLiveState(
   const resolveExtensionUi = useCallback(
     async (answer: ExtensionUiAnswer): Promise<boolean> => {
       const prompt = extensionUi;
-      if (client === undefined || prompt === undefined) {
-        return false;
+      if (client === undefined || prompt === undefined || ownerRef.current !== owner ||
+          !owner.active || !owner.connected || owner.prompt !== prompt ||
+          prompt.sessionId !== sessionId || owner.pending !== undefined ||
+          !client.supportsCommand('extension/ui_resolve')) return false;
+      const token = {};
+      const connection = owner.connection;
+      owner.pending = token;
+      const ownsPrompt = () => ownerRef.current === owner && owner.active && owner.connected &&
+        owner.connection === connection && owner.prompt === prompt && owner.pending === token;
+      try {
+        const response = await client.request({
+          type: 'extension/ui_resolve',
+          requestId: prompt.requestId,
+          ...(answer.kind === 'confirm' ? { confirmed: answer.confirmed } : {}),
+          ...(answer.kind === 'value' ? { value: answer.value } : {}),
+          ...(answer.kind === 'cancel' ? { cancelled: true } : {}),
+        });
+        if (!ownsPrompt()) return true; // Suppressed stale completion is not a card error.
+        if (response.success) {
+          owner.prompt = undefined;
+          setExtensionUi(undefined);
+        }
+        return response.success;
+      } catch (error: unknown) {
+        console.warn('[mobile] extension/ui_resolve failed', error);
+        if (!ownsPrompt()) return true;
+        throw error;
+      } finally {
+        if (owner.pending === token) owner.pending = undefined;
       }
-      const response = await client.request({
-        type: 'extension/ui_resolve',
-        requestId: prompt.requestId,
-        ...(answer.kind === 'confirm' ? { confirmed: answer.confirmed } : {}),
-        ...(answer.kind === 'value' ? { value: answer.value } : {}),
-        ...(answer.kind === 'cancel' ? { cancelled: true } : {}),
-      });
-      if (response.success) {
-        setExtensionUi((current) => (current?.requestId === prompt.requestId ? undefined : current));
-      }
-      return response.success;
     },
-    [client, extensionUi],
+    [client, extensionUi, sessionId, owner],
   );
 
   const readToolOutput = useCallback(
@@ -219,7 +268,8 @@ export function useSessionLiveState(
     [client, mergeChanges, sessionId],
   );
 
-  return { extensionUi, resolveExtensionUi, context, changesByRunId, ensureTurnChanges, readToolOutput };
+  return { extensionUi: owner.prompt === extensionUi ? extensionUi : undefined,
+    resolveExtensionUi, context, changesByRunId, ensureTurnChanges, readToolOutput };
 }
 
 /** Percent of the model window the Host measured; undefined when unknown. */

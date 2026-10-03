@@ -352,12 +352,11 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     });
 
     // Pi shows the browser success page before exchanging the code, so the panel
-    // must say why the account stayed logged-out.
+    // must say why sign-in failed — and keep the callback field open.
     const shown = setError.mock.calls.map((call) => String(call[0])).join('\n');
     expect(shown).toContain('登录未完成');
     expect(shown).not.toContain('provider-authentication');
-    const state = container!.querySelector('[data-testid="subscription-account-state-openai-codex"]');
-    expect(state?.textContent).toContain('未连接');
+    expect(container!.textContent).toContain('回调 URL');
   });
 
   it('sends auth/login with a caller-owned idempotency key', async () => {

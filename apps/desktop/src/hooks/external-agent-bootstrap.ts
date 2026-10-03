@@ -12,10 +12,22 @@ import type { ChatUiAction } from '../chat-reducer';
 import { isAgentReady } from '../agent-backend-state';
 
 /** Fire the agent's session-catalog sync; failures are logged, never user-facing. */
-export function syncAgentCatalog(hostClient: HostClient, agentId: string): void {
-  void hostClient.request({ type: 'agents/sessions-sync', agentId }).catch((error: unknown) => {
-    console.error('[agent-bootstrap] agents/sessions-sync failed', error);
-  });
+export function syncAgentCatalog(
+  hostClient: HostClient,
+  agentId: string,
+  syncedReadyAgents?: Set<string>,
+): void {
+  if (syncedReadyAgents?.has(agentId)) return;
+  syncedReadyAgents?.add(agentId);
+  void hostClient
+    .request({ type: 'agents/sessions-sync', agentId })
+    .then((response) => {
+      if (!response.success) throw new Error(response.error);
+    })
+    .catch((error: unknown) => {
+      syncedReadyAgents?.delete(agentId);
+      console.error('[agent-bootstrap] agents/sessions-sync failed', error);
+    });
 }
 
 /**
@@ -53,10 +65,15 @@ export async function bootstrapExternalAgents(
 export function syncReadyAgentCatalogs(
   hostClient: HostClient,
   agents: readonly ExternalAgentStatus[],
+  syncedReadyAgents?: Set<string>,
 ): void {
+  for (const agentId of syncedReadyAgents ?? []) {
+    if (!agents.some((agent) => agent.agentId === agentId && isAgentReady(agent)))
+      syncedReadyAgents?.delete(agentId);
+  }
   for (const agent of agents) {
     if (isAgentReady(agent)) {
-      syncAgentCatalog(hostClient, agent.agentId);
+      syncAgentCatalog(hostClient, agent.agentId, syncedReadyAgents);
     }
   }
 }
@@ -66,16 +83,23 @@ export function handleExternalAgentPush(
   hostClient: HostClient,
   dispatch: Dispatch<ChatUiAction>,
   message: HostServerMessage,
+  syncedReadyAgents?: Set<string>,
 ): boolean {
-  if (message.type === 'marketplace/inventory-updated' &&
-      message.changedKinds.some((kind) => kind === 'extension' || kind === 'agent')) {
-    void bootstrapExternalAgents(hostClient, dispatch, { refresh: true });
+  if (
+    message.type === 'marketplace/inventory-updated' &&
+    message.changedKinds.some((kind) => kind === 'extension' || kind === 'agent')
+  ) {
+    void bootstrapExternalAgents(hostClient, dispatch, { refresh: true }).then((agents) => {
+      syncReadyAgentCatalogs(hostClient, agents, syncedReadyAgents);
+    });
     return true;
   }
   if (message.type === 'agents/status-updated') {
     dispatch({ type: 'agents/status-updated', status: message.status });
-    // The first ready status imports sessions created outside piwin as well.
-    if (isAgentReady(message.status)) syncAgentCatalog(hostClient, message.status.agentId);
+    // Model/default updates do not change which native sessions exist.
+    if (isAgentReady(message.status))
+      syncAgentCatalog(hostClient, message.status.agentId, syncedReadyAgents);
+    else syncedReadyAgents?.delete(message.status.agentId);
     return true;
   }
   return false;

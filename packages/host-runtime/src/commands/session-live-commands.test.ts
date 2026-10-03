@@ -6,7 +6,7 @@ import type {
   SessionHandle,
 } from '@piwin/contracts';
 import { COMPLETED_STOP_OUTCOME, failedAgentPromptOutcome } from '@piwin/contracts';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -2577,6 +2577,47 @@ describe('session/create projectId binding', () => {
     });
     expect(disposed).toEqual([]);
     await rm(blockerDir, { recursive: true, force: true });
+  });
+});
+
+describe('session/create chat mode', () => {
+  it('rejects an external agent in general scope before persisting', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-create-chat-pi-only-'));
+    try {
+      const session = createDelayedSessionHandle();
+      const { context } = createControlContext(session);
+      context.piwinRoot = rootDir;
+      let createSessionCalls = 0;
+      context.createSession = async () => {
+        createSessionCalls += 1;
+        return session;
+      };
+
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'session/create',
+          input: {
+            scope: { kind: 'general' },
+            agentId: 'grok',
+            sessionName: 'Grok chat',
+          },
+        },
+        undefined,
+        context,
+      );
+
+      expect(response).toMatchObject({
+        success: false,
+        command: 'session/create',
+        error: 'chat-mode-pi-only',
+      });
+      expect(createSessionCalls).toBe(0);
+      await expect(
+        access(getPiwinSessionIndexPath(getPiwinRoot(rootDir))),
+      ).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
   });
 });
 

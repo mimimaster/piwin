@@ -56,6 +56,15 @@ export function handleRemotePush(
     }
     return;
   }
+  if (push.type === 'permission/resolved') {
+    if (activeSessionId === undefined || push.sessionId === activeSessionId) {
+      setPermissionRequest((current) =>
+        current?.requestId === push.requestId && current.sessionId === push.sessionId
+          ? undefined : current,
+      );
+    }
+    return;
+  }
   if (activeSessionId === undefined) {
     return;
   }
@@ -94,7 +103,8 @@ export function handleRemotePush(
   }
   if (event.type === 'permission/resolved') {
     setPermissionRequest((current) =>
-      current?.requestId === event.requestId ? undefined : current,
+      current?.requestId === event.requestId && current.sessionId === push.sessionId
+        ? undefined : current,
     );
   }
   if (event.type === 'message/start') {

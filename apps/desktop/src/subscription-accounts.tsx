@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import type {
   ActiveLoginStatus,
   AuthStatusData,
@@ -128,6 +128,32 @@ function isClaudeFamilyId(providerId: string): boolean {
   return providerId === 'anthropic' || providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID;
 }
 
+const LOCAL_CALLBACK_PROMPT_ID = 'local-callback-retry';
+
+function heldCallbackLogin(
+  current: ActiveLoginStatus | undefined,
+  result: { loginId: string; providerId: string },
+  ownerDeviceId: string,
+): ActiveLoginStatus {
+  return {
+    loginId: result.loginId,
+    providerId: result.providerId,
+    ownerDeviceId: current?.ownerDeviceId ?? ownerDeviceId,
+    ownerConnected: true,
+    startedAt: current?.startedAt ?? new Date().toISOString(),
+    currentPrompt: {
+      loginId: result.loginId,
+      promptId: LOCAL_CALLBACK_PROMPT_ID,
+      providerId: result.providerId,
+      kind: 'text',
+      expectsResponse: true,
+      message: 'Callback URL',
+      placeholder: 'http://localhost:1455/auth/callback?code=...&state=...',
+    },
+    ...(current?.authUrl ? { authUrl: current.authUrl } : {}),
+  };
+}
+
 const STATE_LABEL: Record<SubscriptionAccount['state'], { zh: string; en: string }> = {
   'logged-out': { zh: '未连接', en: 'Not connected' },
   'logging-in': { zh: '连接中…', en: 'Connecting...' },
@@ -143,6 +169,9 @@ export function SubscriptionAccountsPanel(): ReactElement {
   const [accounts, setAccounts] = useState<SubscriptionAccount[]>([]);
   const [activeLogin, setActiveLogin] = useState<ActiveLoginStatus | undefined>();
   const [respondValue, setRespondValue] = useState('');
+  // Host ends the login ticket on failure. Hold the callback field locally until success.
+  const callbackHoldRef = useRef<string | null>(null);
+  const queuedCallbackRef = useRef<string | null>(null);
   const [quotas, setQuotas] = useState<Map<string, SubscriptionAccountQuota>>(new Map());
   const [expandedQuotaIds, setExpandedQuotaIds] = useState<Set<string>>(new Set());
   const [loadingQuotaIds, setLoadingQuotaIds] = useState<Set<string>>(new Set());
@@ -265,7 +294,16 @@ export function SubscriptionAccountsPanel(): ReactElement {
     }
     const data = response.data as AuthStatusData;
     setAccounts(data.accounts.filter((account) => account.surface === 'v1'));
-    setActiveLogin(data.activeLogin);
+    setActiveLogin((current) => {
+      if (data.activeLogin) {
+        callbackHoldRef.current = null;
+        return data.activeLogin;
+      }
+      if (callbackHoldRef.current && current?.providerId === callbackHoldRef.current) {
+        return current;
+      }
+      return undefined;
+    });
   }, [hostClient]);
 
   useEffect(() => {
@@ -279,7 +317,15 @@ export function SubscriptionAccountsPanel(): ReactElement {
       }
       if (message.type === 'auth/prompt') {
         setActiveLogin((current) => {
-          if (current && current.loginId !== message.prompt.loginId) {
+          const replacingHeldRetry =
+            queuedCallbackRef.current !== null ||
+            callbackHoldRef.current === message.prompt.providerId;
+          if (
+            current &&
+            current.loginId !== message.prompt.loginId &&
+            current.loginId !== '' &&
+            !replacingHeldRetry
+          ) {
             return current;
           }
           const preservedAuthUrl = message.prompt.kind === 'auth_url' ? message.prompt : current?.authUrl;
@@ -299,9 +345,11 @@ export function SubscriptionAccountsPanel(): ReactElement {
         if (message.result.ok && message.result.providerId === 'devin' && message.result.followUp) {
           setDevinFollowUp(message.result.followUp);
         }
-        setActiveLogin(undefined);
-        setRespondValue('');
         if (message.result.ok) {
+          callbackHoldRef.current = null;
+          queuedCallbackRef.current = null;
+          setActiveLogin(undefined);
+          setRespondValue('');
           if (message.result.providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID) {
             setInfo?.(
               isChinese
@@ -329,9 +377,13 @@ export function SubscriptionAccountsPanel(): ReactElement {
             }
           }
         } else {
-          // Pi renders the browser success page before it exchanges the code, so
-          // a failure here is the only place the user can learn the sign-in did
-          // not finish.
+          // Pi renders the browser success page before it exchanges the code.
+          // The Host ticket is already dead, but the callback field stays so a
+          // network failure can be retried by pasting the URL. Only success dismisses it.
+          callbackHoldRef.current = message.result.providerId;
+          setActiveLogin((current) =>
+            heldCallbackLogin(current, message.result, ownerDeviceId),
+          );
           setError?.(
             describeSubscriptionLoginFailure(message.result.errorCode, isChinese ? 'zh-CN' : 'en')
               .message,
@@ -363,7 +415,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
     [hostClient, setError],
   );
 
-  async function startLogin(providerId: string, collidingChannelId?: string): Promise<void> {
+  async function startLogin(providerId: string, collidingChannelId?: string): Promise<boolean> {
     setError?.(null);
     if (collidingChannelId) {
       const ok = await confirmDialog.confirm({
@@ -374,7 +426,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
         confirmLabel: isChinese ? '继续登录' : 'Continue',
         cancelLabel: isChinese ? '取消' : 'Cancel',
       });
-      if (!ok) return;
+      if (!ok) return false;
     }
     // Two Claude cards are mutually exclusive — warn before Host kicks the sibling.
     if (isClaudeFamilyId(providerId)) {
@@ -391,7 +443,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
           cancelLabel: isChinese ? '取消' : 'Cancel',
           tone: 'danger',
         });
-        if (!ok) return;
+        if (!ok) return false;
       }
     }
     if (providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID && hostClient?.request) {
@@ -422,6 +474,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
       });
       await refresh();
     }
+    return ok;
   }
 
   async function startLogout(providerId: string): Promise<void> {
@@ -478,12 +531,29 @@ export function SubscriptionAccountsPanel(): ReactElement {
   // Auto-open external auth URL only when an auth_url or device_code prompt first arrives.
   // Do NOT re-open on subsequent prompts (e.g. callback URL input) that inherit the stored authUrl.
   useEffect(() => {
+    if (queuedCallbackRef.current) return;
     if (prompt?.kind !== 'auth_url' && prompt?.kind !== 'device_code') return;
     const targetUrl = readAuthPromptOpenUrl(prompt);
     if (targetUrl) {
       void openExternalUrl(targetUrl);
     }
   }, [prompt?.promptId]);
+
+  useEffect(() => {
+    const queued = queuedCallbackRef.current;
+    if (!queued || !prompt?.expectsResponse || prompt.kind === 'select') return;
+    if (prompt.promptId === LOCAL_CALLBACK_PROMPT_ID || !prompt.loginId || !prompt.promptId) return;
+    queuedCallbackRef.current = null;
+    void send({
+      type: 'auth/respond',
+      input: {
+        loginId: prompt.loginId,
+        promptId: prompt.promptId,
+        value: queued,
+        ownerDeviceId,
+      },
+    });
+  }, [ownerDeviceId, prompt?.expectsResponse, prompt?.kind, prompt?.loginId, prompt?.promptId, send]);
 
   // Extension cards exist only while the Host lists them (extension enabled).
   const displayProviderIds: string[] = [
@@ -614,15 +684,21 @@ export function SubscriptionAccountsPanel(): ReactElement {
                         <Button
                           variant="secondary"
                           size="compact"
-                          onClick={() =>
-                            activeLogin
-                              ? void send({
-                                  type: 'auth/cancel',
-                                  loginId: activeLogin.loginId,
-                                  ownerDeviceId,
-                                })
-                              : undefined
-                          }
+                          onClick={() => {
+                            if (!activeLogin) return;
+                            if (activeLogin.currentPrompt?.promptId === LOCAL_CALLBACK_PROMPT_ID) {
+                              callbackHoldRef.current = null;
+                              queuedCallbackRef.current = null;
+                              setActiveLogin(undefined);
+                              setRespondValue('');
+                              return;
+                            }
+                            void send({
+                              type: 'auth/cancel',
+                              loginId: activeLogin.loginId,
+                              ownerDeviceId,
+                            });
+                          }}
                         >
                           {isChinese ? '取消连接' : 'Cancel'}
                         </Button>
@@ -713,6 +789,13 @@ export function SubscriptionAccountsPanel(): ReactElement {
                       onChange={setRespondValue}
                       isChinese={isChinese}
                       onSubmit={(value) => {
+                        if (prompt.promptId === LOCAL_CALLBACK_PROMPT_ID) {
+                          queuedCallbackRef.current = value;
+                          void startLogin(providerId, account?.collidingChannelId).then((started) => {
+                            if (!started) queuedCallbackRef.current = null;
+                          });
+                          return;
+                        }
                         void send({
                           type: 'auth/respond',
                           input: {
@@ -725,6 +808,13 @@ export function SubscriptionAccountsPanel(): ReactElement {
                         setRespondValue('');
                       }}
                       onCancel={() => {
+                        if (prompt.promptId === LOCAL_CALLBACK_PROMPT_ID) {
+                          callbackHoldRef.current = null;
+                          queuedCallbackRef.current = null;
+                          setActiveLogin(undefined);
+                          setRespondValue('');
+                          return;
+                        }
                         if (activeLogin) {
                           void send({
                             type: 'auth/cancel',

@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { ExtensionUiAnswer, ExtensionUiPrompt } from '../host/use-session-live-state.js';
 
 /**
@@ -13,22 +13,39 @@ export function QuestionCard({
   prompt: ExtensionUiPrompt;
   onAnswer: (answer: ExtensionUiAnswer) => Promise<boolean>;
 }): ReactElement {
-  const [busy, setBusy] = useState(false);
+  const ownerRef = useRef({ prompt, onAnswer, active: true, pending: false });
+  if (ownerRef.current.prompt !== prompt || ownerRef.current.onAnswer !== onAnswer) {
+    ownerRef.current = { prompt, onAnswer, active: true, pending: false };
+  }
+  const owner = ownerRef.current;
+  const [busyOwner, setBusyOwner] = useState<object | undefined>();
   const [draft, setDraft] = useState('');
-  const [error, setError] = useState<string | undefined>();
+  const [failure, setFailure] = useState<{ owner: object; message: string } | undefined>();
+  const busy = busyOwner === owner;
+  const error = failure?.owner === owner ? failure.message : undefined;
+  useEffect(() => {
+    owner.active = true;
+    setDraft('');
+    return () => { owner.active = false; };
+  }, [owner]);
 
   const answer = (value: ExtensionUiAnswer): void => {
-    if (busy) return;
-    setBusy(true);
-    setError(undefined);
-    onAnswer(value)
+    if (!owner.active || owner.pending) return;
+    owner.pending = true;
+    setBusyOwner(owner);
+    setFailure(undefined);
+    const current = () => ownerRef.current === owner && owner.active;
+    void onAnswer(value)
       .then((ok) => {
-        if (!ok) setError('Host 没有接受这个回答，请重试。');
+        if (current() && !ok) setFailure({ owner, message: 'Host 没有接受这个回答，请重试。' });
       })
       .catch((reason: unknown) => {
-        setError(reason instanceof Error ? reason.message : '发送回答失败。');
+        if (current()) setFailure({ owner, message: reason instanceof Error ? reason.message : '发送回答失败。' });
       })
-      .finally(() => setBusy(false));
+      .finally(() => {
+        owner.pending = false;
+        if (current()) setBusyOwner(undefined);
+      });
   };
 
   return (
@@ -56,6 +73,7 @@ export function QuestionCard({
         {prompt.kind === 'input' ? (
           <textarea
             aria-label={prompt.title}
+            disabled={busy}
             placeholder={prompt.placeholder ?? '写下你的回答'}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}

@@ -22,6 +22,7 @@ import {
   resolveWorkbenchScopeLabel,
   resolveWorkbenchSessionTitle,
 } from './workbench-chrome-assembly';
+import { resolveActiveComposerAgentId } from './composer-dock-assembly';
 import { isConversationSessionChrome } from './is-conversation-session';
 import type { SidebarMode } from './sidebar-mode';
 
@@ -149,14 +150,24 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
                 onSwitch={onSwitchBranch}
                 locale={locale}
                 isConversationSession={
-                  !subPageTitle && isConversationSessionChrome(state.activeScope, sidebarMode)
+                  !subPageTitle &&
+                  isConversationSessionChrome(
+                    state.activeScope,
+                    sidebarMode,
+                    resolveActiveComposerAgentId(state),
+                  )
                 }
               />
             ),
           }
         : {})}
       isConversationSession={
-        !subPageTitle && isConversationSessionChrome(state.activeScope, sidebarMode)
+        !subPageTitle &&
+        isConversationSessionChrome(
+          state.activeScope,
+          sidebarMode,
+          resolveActiveComposerAgentId(state),
+        )
       }
       runState={runStatus}
       onStop={() => void onStop()}

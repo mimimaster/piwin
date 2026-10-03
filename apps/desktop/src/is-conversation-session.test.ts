@@ -10,6 +10,11 @@ describe('isConversationSessionChrome', () => {
     expect(isConversationSessionChrome({ kind: 'general' }, 'code')).toBe(false);
   });
 
+  it('refuses conversation chrome for an external agent even in the chat pane', () => {
+    expect(isConversationSessionChrome({ kind: 'general' }, 'chat', 'grok')).toBe(false);
+    expect(isConversationSessionChrome({ kind: 'general' }, 'chat', 'pi')).toBe(true);
+  });
+
   it('treats project folders as agent in both panes', () => {
     const project = { kind: 'project' as const, projectPath: '/tmp/repo' };
     expect(isConversationSessionChrome(project, 'chat')).toBe(false);

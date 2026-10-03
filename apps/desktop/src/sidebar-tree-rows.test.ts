@@ -176,6 +176,31 @@ describe('buildSidebarTreeRows', () => {
     ]);
   });
 
+  it('puts a general-scoped Grok session under No Repo, not Conversations', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [],
+      noRepoProjectPath: '/Users/me/.piwin/workspace',
+      projectSessionsByPath: {},
+      generalSessions: [
+        session('g1', 'General chat'),
+        session('grok-1', 'Grok chat', { backend: { agentId: 'grok' } }),
+      ],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: {},
+      sessionListScopes: createSessionListScopeState(),
+      activeProjectPath: '/Users/me/.piwin/workspace',
+    });
+    expect(kinds(rows)).toEqual([
+      'header:projects',
+      'session:grok-1',
+      'header:conversations',
+      'session:g1',
+    ]);
+  });
+
   it('lets an explicit section fold win even when the active session is inside it', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [{ path: '/p' }],

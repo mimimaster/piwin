@@ -13,11 +13,16 @@ function header(sectionId: 'pinned' | 'projects' | 'conversations'): SidebarTree
   return { kind: 'section-header', sectionId, key: `section:${sectionId}` };
 }
 
-function session(id: string, scope: 'general' | string): SidebarTreeRow {
+function session(id: string, scope: 'general' | string, agentId?: string): SidebarTreeRow {
   return {
     kind: 'session',
     scope: scope === 'general' ? { kind: 'general' } : { kind: 'project', projectPath: scope },
-    session: { id, name: id, updatedAt: '2026-01-01T00:00:00.000Z' } as never,
+    session: {
+      id,
+      name: id,
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      ...(agentId !== undefined ? { backend: { agentId } } : {}),
+    } as never,
     key: `session:${id}`,
   };
 }
@@ -54,6 +59,26 @@ describe('filterSidebarRowsByMode', () => {
       'section:projects',
       'folder:/w/piwin',
       'session:proj-a',
+    ]);
+  });
+
+  it('keeps a pinned Grok session out of the chat pane', () => {
+    const rows: SidebarTreeRow[] = [
+      header('pinned'),
+      session('pinned-grok', 'general', 'grok'),
+      session('pinned-chat', 'general'),
+      header('conversations'),
+      session('chat-a', 'general'),
+    ];
+    expect(keys(filterSidebarRowsByMode(rows, 'chat'))).toEqual([
+      'section:pinned',
+      'session:pinned-chat',
+      'section:conversations',
+      'session:chat-a',
+    ]);
+    expect(keys(filterSidebarRowsByMode(rows, 'code'))).toEqual([
+      'section:pinned',
+      'session:pinned-grok',
     ]);
   });
 

@@ -3,7 +3,7 @@ import { NeedsHost } from '../needs-host.js';
 import type { SessionPlan } from '@piwin/contracts';
 import { useInkstone } from '../inkstone-context.js';
 import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
-import { readSessionPlan } from '../../mobile-host-readers.js';
+import { useSessionPlanTodo } from '../host/use-session-plan-todo.js';
 import {
   IconButton,
   Dot,
@@ -66,51 +66,13 @@ function ConnectedPlanPage({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
   const { host } = hostCtx;
   const client = host.client;
   const sessionId = host.activeSessionId;
-  const [plan, setPlan] = useState<SessionPlan | null | undefined>(undefined);
-  const [error, setError] = useState<string | undefined>();
+  const live = useSessionPlanTodo(client, sessionId);
+  const plan = live.planLoaded ? live.plan : undefined;
+  const [operationError, setError] = useState<string | undefined>();
+  const error = operationError ?? live.planError;
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setPlan(undefined);
-    setError(undefined);
-    if (client === undefined || sessionId === undefined) {
-      return () => {
-        cancelled = true;
-      };
-    }
-    if (!client.supportsCommand('plan/get')) {
-      setPlan(null);
-      setError('当前 Host 未开放计划读取。');
-      return () => {
-        cancelled = true;
-      };
-    }
-    void client.request({ type: 'plan/get', sessionId }).then((response) => {
-      if (cancelled) return;
-      if (!response.success) {
-        setPlan(null);
-        setError(response.error);
-        return;
-      }
-      setPlan(readSessionPlan(response));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [client, sessionId]);
-
-  const reload = async (): Promise<void> => {
-    if (client === undefined || sessionId === undefined || !client.supportsCommand('plan/get')) {
-      return;
-    }
-    const response = await client.request({ type: 'plan/get', sessionId });
-    if (!response.success) {
-      setError(response.error);
-      return;
-    }
-    setPlan(readSessionPlan(response));
-  };
+  useEffect(() => { setError(undefined); }, [client, sessionId]);
 
   const abort = async (): Promise<void> => {
     if (
@@ -133,7 +95,7 @@ function ConnectedPlanPage({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
         return;
       }
       dispatch({ type: 'toast', message: '已请求中止计划。' });
-      await reload();
+      await live.refreshPlan();
     } finally {
       setBusy(false);
     }
@@ -155,9 +117,9 @@ function ConnectedPlanPage({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
         }
       />
       <div className="screen-scroll">
-        {client === undefined ? (
+        {client === undefined || host.connectionState.kind !== 'ready' ? (
           <>
-            <ScreenHeading title="正在连接 Host" subtitle="计划数据会在连接后自动读取" />
+            <ScreenHeading title="等待 Host 连接" subtitle="计划数据会在连接后自动读取" />
             <p className="muted">当前没有本地演示计划。</p>
           </>
         ) : sessionId === undefined ? (
@@ -215,7 +177,7 @@ function ConnectedPlanPage({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
                 执行状态：{planExecutionLabel(plan.execution.status)}
                 {plan.execution.error ? ` · ${plan.execution.error}` : ''}
               </div>
-            ) : null}
+            ) : <p className="muted">执行状态：Host 未公开</p>}
             <div className="section-label">Host 操作</div>
             {plan.status === 'draft' || plan.status === 'approved' ? (
               <FullButton variant="secondary" onClick={openExecute} disabled={busy}>

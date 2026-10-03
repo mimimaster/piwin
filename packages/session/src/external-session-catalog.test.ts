@@ -62,6 +62,31 @@ describe('syncExternalSessionCatalog', () => {
     expect(ids).toEqual(['p-1', 'pi-1']);
   });
 
+  it('rehomes a general external session when resolve returns a project path', async () => {
+    const existing = createSessionRecord({
+      id: 'p-1',
+      projectPath: '',
+      scope: { kind: 'general' },
+      workingDirectory: '/proj/sub',
+    });
+    existing.backend = { agentId: 'grok', backendSessionId: 'g-1' };
+    await upsertSessionRecord(indexPath, existing);
+
+    const result = await syncExternalSessionCatalog({
+      indexPath,
+      agentId: 'grok',
+      entries: [{ backendSessionId: 'g-1', cwd: '/proj/sub' }],
+      createProductSessionId: () => 'unused',
+      resolveProjectPath: (cwd) => (cwd === '/proj/sub' ? '/proj' : ''),
+    });
+
+    expect(result.updated.map((record) => record.id)).toEqual(['p-1']);
+    expect(await getSessionRecord(indexPath, 'p-1')).toMatchObject({
+      projectPath: '/proj',
+      scope: { kind: 'project', projectPath: '/proj' },
+    });
+  });
+
   it('keeps external sessions out of cold storage', () => {
     const record = { ...createSessionRecord({ id: 'g', projectPath: '/p' }), isArchived: true, backend: { agentId: 'grok' } };
     expect(

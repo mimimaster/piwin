@@ -8,6 +8,7 @@
  * A dying control process must never wedge the Host, so a failed call drops
  * the bridge and the next call respawns it.
  */
+import { isDeepStrictEqual } from 'node:util';
 import {
   formatError,
   type AgentPluginCatalogEntry,
@@ -25,7 +26,7 @@ export type AgentPluginControlOptions = {
   agentId: string;
   pluginRevision: string;
   runtime: { binaryPath?: string };
-  /** Fired when the readiness state changes, for `agents/status-updated`. */
+  /** Fired when readiness or Agent defaults change, for `agents/status-updated`. */
   onStatusChanged?: (status: ExternalAgentStatus) => void;
   env?: NodeJS.ProcessEnv;
   nodePath?: string;
@@ -87,7 +88,7 @@ export class AgentPluginControlClient {
       const previous = this.status;
       this.status = next;
       this.statusAt = Date.now();
-      if (previous === undefined || previous.state !== next.state) {
+      if (previous === undefined || !sameAgentStatusContent(previous, next)) {
         this.options.onStatusChanged?.(next);
       }
       return next;
@@ -256,4 +257,9 @@ export function parseExternalAgentStatus(value: unknown, agentId: string): Exter
     return { agentId, state: 'unavailable', binaryPath: status.binaryPath, reason: status.reason, checkedAt };
   }
   return undefined;
+}
+
+/** Detection timestamps do not change readiness or the new-session defaults. */
+function sameAgentStatusContent(left: ExternalAgentStatus, right: ExternalAgentStatus): boolean {
+  return isDeepStrictEqual({ ...left, checkedAt: undefined }, { ...right, checkedAt: undefined });
 }

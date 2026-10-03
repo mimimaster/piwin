@@ -65,6 +65,13 @@ describe('Session backend extension lifecycle', () => {
     }));
   });
 
+  it('publishes one status change rather than duplicate pushes on an explicit refresh', async () => {
+    const { runtime, pushes, agentId } = await harness();
+    await runtime.handleCommand({ type: 'agents/status', agentId, refresh: true });
+    await runtime.handleCommand({ type: 'agents/status', agentId, refresh: true });
+    expect(pushes.filter((push) => push.type === 'agents/status-updated' && push.status.agentId === agentId)).toHaveLength(1);
+  });
+
   it('reports a missing CLI automatically without presenting the backend as ready', async () => {
     const { runtime, agentId } = await harness({ notInstalled: true });
     expect(data(await runtime.handleCommand({ type: 'agents/status' }))).toMatchObject({

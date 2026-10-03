@@ -53,6 +53,7 @@ import { ToolOutputReaderContext, createHostToolOutputReader } from './tool-outp
 import { RunIdleLoopProvider } from './run-idle-loop-context.js';
 import type { DesktopPreferences } from './ui-preferences';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
+import { resolveActiveComposerAgentId } from './composer-dock-assembly';
 import { isConversationSessionChrome } from './is-conversation-session';
 import type { SidebarMode } from './sidebar-mode';
 
@@ -202,7 +203,11 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
   } = props;
   const activeSessionId = state.activeSessionId;
   const transcriptComposerCard = useTranscriptComposerCard(composerCard);
-  const isConversationSession = isConversationSessionChrome(state.activeScope, sidebarMode);
+  const isConversationSession = isConversationSessionChrome(
+    state.activeScope,
+    sidebarMode,
+    resolveActiveComposerAgentId(state),
+  );
   const canReadToolOutput = hostClient.supportsCommand('session/tool-output');
   // Historical tool rows fetch their slimmed output on expand (session-scoped cache).
   const toolOutputReader = useMemo(
@@ -429,7 +434,11 @@ export function WorkbenchPermissionBar(
     onPermission,
     onExtensionUiResolve,
   } = props;
-  const isConversationSession = isConversationSessionChrome(state.activeScope, sidebarMode);
+  const isConversationSession = isConversationSessionChrome(
+    state.activeScope,
+    sidebarMode,
+    resolveActiveComposerAgentId(state),
+  );
   const visiblePermissionQueue = activeSessionPermissionQueue(state);
   const visiblePermissionPrompt = visiblePermissionQueue[0] ?? null;
   const tray =

@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import type { Dispatch, SetStateAction } from 'react';
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, createElement, type Dispatch, type SetStateAction } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import type { HostClient } from '@piwin/host-client';
+import type { HostCommand, HostResponse } from '@piwin/contracts';
+import { useMobilePermission } from './hooks/mobile-run-controls.js';
+import { PermissionGateCard } from './inkstone/transcript/PermissionGateCard.js';
+import { applyHostPushToForeground, initialForegroundRunState, reduceForegroundRun } from '@piwin/host-client';
 import type { HostPush, ToolPresentation } from '@piwin/contracts';
 import {
   handleRemotePush,
@@ -261,6 +268,182 @@ describe('mobile display-only presentation passthrough', () => {
       harness.activeSessionRef, harness.setMessages,
       harness.setPausedCheckpointId, harness.setPermissionRequest);
     expect(harness.messages()[0]?.toolCalls?.[0]?.presentation).toEqual(presentation);
+  });
+});
+
+function permission(requestId = 'p1', sessionId = 'session-1'): RemotePermissionRequest {
+  return { type: 'permission/request', sessionId, requestId, action: 'bash', detail: 'mock only', defaultDecision: 'ask' };
+}
+
+function deferredResponse() {
+  let resolve: (response: HostResponse) => void = () => undefined;
+  let reject: (error: Error) => void = () => undefined;
+  const promise = new Promise<HostResponse>((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+const permissionOk: HostResponse = { type: 'response', command: 'permission/resolve', success: true, data: {} };
+let permissionRoot: Root | undefined;
+let permissionContainer: HTMLDivElement | undefined;
+afterEach(() => {
+  if (permissionRoot !== undefined) act(() => permissionRoot?.unmount());
+  permissionContainer?.remove();
+  permissionRoot = undefined;
+});
+
+function permissionHarness() {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const first = deferredResponse();
+  const second = deferredResponse();
+  const request = vi.fn<(command: HostCommand) => Promise<HostResponse>>()
+    .mockImplementationOnce(() => first.promise).mockImplementationOnce(() => second.promise);
+  const client = { request, getState: () => ({ kind: 'ready' }) } as unknown as HostClient;
+  const clientRef = { current: client as HostClient | undefined };
+  const activeSessionRef = { current: 'session-1' as string | undefined };
+  const error = vi.fn();
+  const refresh = vi.fn(async () => undefined);
+  let latest: ReturnType<typeof useMobilePermission> | undefined;
+  function Probe() {
+    latest = useMobilePermission({ clientRef, activeSessionRef, setErrorMessage: error, onResolved: refresh });
+    return latest.permissionRequest === undefined ? null : createElement(PermissionGateCard, {
+      request: latest.permissionRequest, resolving: latest.isResolvingPermission,
+      onResolve: () => undefined, onOpenDetail: () => undefined,
+    });
+  }
+  permissionContainer = document.createElement('div');
+  document.body.append(permissionContainer);
+  permissionRoot = createRoot(permissionContainer);
+  act(() => permissionRoot?.render(createElement(Probe)));
+  const state = () => {
+    if (latest === undefined) throw new Error('probe missing');
+    return latest;
+  };
+  const push = (value: HostPush) => handleRemotePush(value, activeSessionRef, () => undefined, () => undefined, state().setPermissionRequest);
+  act(() => push(permission()));
+  return { first, second, clientRef, activeSessionRef, request, error, refresh, state, push };
+}
+
+describe('permission live ownership', () => {
+  it.each(['standalone', 'nested'] as const)('clears only exact session/request through %s resolution', (kind) => {
+    const h = permissionHarness();
+    const resolved = (sessionId: string, requestId: string): HostPush => kind === 'standalone'
+      ? { type: 'permission/resolved', sessionId, requestId, decision: 'allow' }
+      : { type: 'event', sessionId, event: { type: 'permission/resolved', requestId, decision: 'allow' } };
+    act(() => { h.push(permission('foreign', 'other')); h.push(resolved('other', 'p1')); h.push(resolved('session-1', 'old')); });
+    expect(h.state().permissionRequest?.requestId).toBe('p1');
+    act(() => h.push(permission('p2')));
+    act(() => h.push(resolved('session-1', 'p1')));
+    expect(h.state().permissionRequest?.requestId).toBe('p2');
+    act(() => h.push(resolved('session-1', 'p2')));
+    expect(h.state().permissionRequest).toBeUndefined();
+  });
+
+  it('matches the stored session even without an active selection', () => {
+    const h = permissionHarness();
+    h.activeSessionRef.current = undefined;
+    act(() => h.push({ type: 'permission/resolved', sessionId: 'other', requestId: 'p1', decision: 'deny' }));
+    expect(h.state().permissionRequest?.requestId).toBe('p1');
+    act(() => h.push({ type: 'permission/resolved', sessionId: 'session-1', requestId: 'p1', decision: 'deny' }));
+    expect(h.state().permissionRequest).toBeUndefined();
+  });
+
+  it('latches duplicate immediate calls, rejects stale IDs and disables the existing buttons', async () => {
+    const h = permissionHarness();
+    await expect(h.state().handleResolvePermission('allow', 'old')).resolves.toBe(false);
+    let first: Promise<boolean> = Promise.resolve(false);
+    let duplicate: Promise<boolean> = Promise.resolve(true);
+    act(() => {
+      first = h.state().handleResolvePermission('allow');
+      h.push(permission()); // Replayed same request cannot release the latch.
+      duplicate = h.state().handleResolvePermission('deny');
+    });
+    await expect(duplicate).resolves.toBe(false);
+    expect(h.request).toHaveBeenCalledTimes(1);
+    expect(h.request.mock.calls[0]?.[0]).toMatchObject({ type: 'permission/resolve', requestId: 'p1', decision: 'allow', rememberScope: 'once' });
+    expect(permissionContainer?.querySelector<HTMLButtonElement>('button[aria-label="拒绝"]')?.disabled).toBe(true);
+    expect(permissionContainer?.querySelector<HTMLButtonElement>('button[aria-label="允许"]')?.disabled).toBe(true);
+    await act(async () => { h.first.resolve(permissionOk); expect(await first).toBe(true); });
+    expect(h.state().permissionRequest).toBeUndefined();
+    expect(h.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['success', 'failure'] as const)('old %s/finally cannot clear, error or unlock a new resolving request', async (outcome) => {
+    const h = permissionHarness();
+    let old: Promise<boolean> = Promise.resolve(false);
+    let next: Promise<boolean> = Promise.resolve(false);
+    act(() => { old = h.state().handleResolvePermission('allow', 'p1', 'session'); });
+    act(() => { h.push(permission('p2')); next = h.state().handleResolvePermission('deny', 'p2', 'project'); });
+    expect(h.request).toHaveBeenCalledTimes(2);
+    h.error.mockClear();
+    await act(async () => {
+      if (outcome === 'success') h.first.resolve(permissionOk); else h.first.reject(new Error('old failure'));
+      expect(await old).toBe(false);
+    });
+    expect(h.state().permissionRequest?.requestId).toBe('p2');
+    expect(h.state().isResolvingPermission).toBe(true);
+    expect(h.error).not.toHaveBeenCalled();
+    expect(h.request.mock.calls.map(([command]) => command)).toMatchObject([
+      { rememberScope: 'session' }, { rememberScope: 'project' },
+    ]);
+    await act(async () => { h.second.resolve(permissionOk); await next; });
+  });
+
+  it('other-device resolution does not become a zombie after a late failure', async () => {
+    const h = permissionHarness();
+    let old: Promise<boolean> = Promise.resolve(false);
+    act(() => { old = h.state().handleResolvePermission('allow'); });
+    act(() => h.push({ type: 'permission/resolved', sessionId: 'session-1', requestId: 'p1', decision: 'allow' }));
+    h.error.mockClear();
+    await act(async () => { h.first.reject(new Error('already resolved')); expect(await old).toBe(false); });
+    expect(h.state().permissionRequest).toBeUndefined();
+    expect(h.state().isResolvingPermission).toBe(false);
+    expect(h.error).not.toHaveBeenCalled();
+  });
+
+  it('legitimate failure permits retry of the matching request', async () => {
+    const h = permissionHarness();
+    let attempt: Promise<boolean> = Promise.resolve(false);
+    act(() => { attempt = h.state().handleResolvePermission('allow'); });
+    await act(async () => { h.first.reject(new Error('retry me')); expect(await attempt).toBe(false); });
+    expect(h.error).toHaveBeenLastCalledWith('retry me');
+    expect(h.state().isResolvingPermission).toBe(false);
+    act(() => { attempt = h.state().handleResolvePermission('deny'); });
+    await act(async () => { h.second.resolve(permissionOk); expect(await attempt).toBe(true); });
+  });
+
+  it.each(['client', 'session', 'unmount'] as const)('late result cannot mutate replaced %s ownership', async (change) => {
+    const h = permissionHarness();
+    let attempt: Promise<boolean> = Promise.resolve(false);
+    act(() => { attempt = h.state().handleResolvePermission('allow'); });
+    h.error.mockClear();
+    if (change === 'client') h.clientRef.current = { getState: () => ({ kind: 'ready' }) } as unknown as HostClient;
+    if (change === 'session') h.activeSessionRef.current = 'other';
+    if (change === 'unmount') { act(() => permissionRoot?.unmount()); permissionRoot = undefined; }
+    await act(async () => { h.first.reject(new Error('old')); expect(await attempt).toBe(false); });
+    expect(h.error).not.toHaveBeenCalled();
+    expect(h.refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe('authoritative run outcome independent of Goal heads', () => {
+  it('keeps failed transcript outcomes independent of Goal heads and follows current-session run lifecycle', () => {
+    const h = collectMessages();
+    const push = (value: HostPush) => handleRemotePush(value, h.activeSessionRef, h.setMessages, h.setPausedCheckpointId, h.setPermissionRequest);
+    push(pushEvent({ type: 'message/start', messageId: 'm1', role: 'assistant', runId: 'r1' }));
+    const run = { runId: 'r1', kind: 'session-turn' as const, sessionId: 'session-1', rootRunId: 'r1', revision: 2, status: 'failed' as const, error: 'Host failure' };
+    push({ type: 'run/terminal', run: { ...run, sessionId: 'foreign' } });
+    expect(h.messages()[0]?.status).toBe('streaming');
+    push({ type: 'run/terminal', run });
+    push(pushEvent({ type: 'tool/start', toolCallId: 'g1', toolName: 'goal_complete', responseMessageId: 'm1', presentation: { kind: 'other', title: 'goal', goal: { phase: 'completed', summary: 'not authority' } } }));
+    expect(h.messages()[0]?.outcome).toBe('failed');
+    let foreground = reduceForegroundRun(initialForegroundRunState(), { type: 'begin-reconcile', generation: 1 }, 'session-1');
+    foreground = reduceForegroundRun(foreground, { type: 'run-updated', run: { ...run, status: 'running' } }, 'session-1');
+    expect(foreground).toMatchObject({ kind: 'active', runId: 'r1' });
+    foreground = applyHostPushToForeground(foreground, { type: 'run/terminal', run }, 'session-1');
+    expect(foreground).toMatchObject({ kind: 'idle' });
+    expect(applyHostPushToForeground(foreground, { type: 'run/updated', run: { ...run, sessionId: 'foreign', status: 'running' } }, 'session-1')).toEqual(foreground);
+    expect(applyHostPushToForeground(foreground, { type: 'run/terminal', run: { ...run, sessionId: 'foreign' } }, 'session-1')).toEqual(foreground);
+    expect(applyHostPushToForeground(foreground, pushEvent({ type: 'tool/start', toolCallId: 'g2', toolName: 'goal_complete', responseMessageId: 'm1', presentation: { kind: 'other', title: 'goal', goal: { phase: 'completed', summary: 'not authority' } } }), 'session-1')).toEqual(foreground);
+    expect(applyHostPushToForeground(foreground, { type: 'run/updated', run: { ...run, runId: 'r2', rootRunId: 'r2', status: 'running' } }, 'session-1')).toMatchObject({ kind: 'active', runId: 'r2' });
   });
 });
 

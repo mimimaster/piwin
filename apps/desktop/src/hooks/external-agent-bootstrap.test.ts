@@ -68,10 +68,16 @@ describe('handleExternalAgentPush', () => {
     const dispatch = vi.fn();
     const request = vi.fn().mockResolvedValue({ success: true, data: { agents } });
     const hostClient = { request } as unknown as HostClient;
-    expect(handleExternalAgentPush(hostClient, dispatch, {
-      type: 'marketplace/inventory-updated', revision: 'enabled', changedKinds: ['extension'],
-    })).toBe(true);
-    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith({ type: 'agents/set-all', agents }));
+    expect(
+      handleExternalAgentPush(hostClient, dispatch, {
+        type: 'marketplace/inventory-updated',
+        revision: 'enabled',
+        changedKinds: ['extension'],
+      }),
+    ).toBe(true);
+    await vi.waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith({ type: 'agents/set-all', agents }),
+    );
     expect(request).toHaveBeenCalledWith({ type: 'agents/status', refresh: true });
   });
 
@@ -81,9 +87,13 @@ describe('handleExternalAgentPush', () => {
       request: vi.fn().mockResolvedValue({ success: true, data: { agents: [] } }),
     } as unknown as HostClient;
     handleExternalAgentPush(hostClient, dispatch, {
-      type: 'marketplace/inventory-updated', revision: 'removed', changedKinds: ['extension'],
+      type: 'marketplace/inventory-updated',
+      revision: 'removed',
+      changedKinds: ['extension'],
     });
-    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith({ type: 'agents/set-all', agents: [] }));
+    await vi.waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith({ type: 'agents/set-all', agents: [] }),
+    );
   });
 
   it('syncs the native catalog on a ready status push', () => {
@@ -91,17 +101,75 @@ describe('handleExternalAgentPush', () => {
     const dispatch = vi.fn();
     const request = vi.fn().mockResolvedValue({ success: true });
     const hostClient = { request } as unknown as HostClient;
-    expect(handleExternalAgentPush(hostClient, dispatch, { type: 'agents/status-updated', status })).toBe(true);
+    expect(
+      handleExternalAgentPush(hostClient, dispatch, { type: 'agents/status-updated', status }),
+    ).toBe(true);
     expect(dispatch).toHaveBeenCalledWith({ type: 'agents/status-updated', status });
     expect(request).toHaveBeenCalledWith({ type: 'agents/sessions-sync', agentId: status.agentId });
+  });
+
+  it('updates ready-agent configuration without reimporting the native catalog', () => {
+    const syncedReadyAgents = new Set<string>();
+    const dispatch = vi.fn();
+    const request = vi.fn().mockResolvedValue({ success: true });
+    const hostClient = { request } as unknown as HostClient;
+    const status = readyAgent();
+    handleExternalAgentPush(
+      hostClient,
+      dispatch,
+      { type: 'agents/status-updated', status },
+      syncedReadyAgents,
+    );
+    const refreshed = { ...status, permissionMode: 'default' };
+    handleExternalAgentPush(
+      hostClient,
+      dispatch,
+      { type: 'agents/status-updated', status: refreshed },
+      syncedReadyAgents,
+    );
+    syncReadyAgentCatalogs(hostClient, [refreshed], syncedReadyAgents);
+    expect(dispatch).toHaveBeenLastCalledWith({ type: 'agents/status-updated', status: refreshed });
+    expect(request).toHaveBeenCalledTimes(1);
+    handleExternalAgentPush(
+      hostClient,
+      dispatch,
+      { type: 'agents/status-updated', status: notInstalledAgent() },
+      syncedReadyAgents,
+    );
+    handleExternalAgentPush(
+      hostClient,
+      dispatch,
+      { type: 'agents/status-updated', status },
+      syncedReadyAgents,
+    );
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows catalog retry after a failed initial sync', async () => {
+    const syncedReadyAgents = new Set<string>();
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ success: false, error: 'offline' })
+      .mockResolvedValue({ success: true });
+    const hostClient = { request } as unknown as HostClient;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    syncReadyAgentCatalogs(hostClient, [readyAgent()], syncedReadyAgents);
+    await vi.waitFor(() => expect(syncedReadyAgents.has('grok')).toBe(false));
+    syncReadyAgentCatalogs(hostClient, [readyAgent()], syncedReadyAgents);
+    expect(request).toHaveBeenCalledTimes(2);
+    consoleError.mockRestore();
   });
 
   it('does not launch backend checks for unrelated inventory updates', () => {
     const request = vi.fn();
     const hostClient = { request } as unknown as HostClient;
-    expect(handleExternalAgentPush(hostClient, vi.fn(), {
-      type: 'marketplace/inventory-updated', revision: 'skill', changedKinds: ['skill'],
-    })).toBe(false);
+    expect(
+      handleExternalAgentPush(hostClient, vi.fn(), {
+        type: 'marketplace/inventory-updated',
+        revision: 'skill',
+        changedKinds: ['skill'],
+      }),
+    ).toBe(false);
     expect(request).not.toHaveBeenCalled();
   });
 });
@@ -117,12 +185,13 @@ describe('syncReadyAgentCatalogs', () => {
     expect(request).toHaveBeenCalledWith({ type: 'agents/sessions-sync', agentId: 'other' });
   });
 
-  it('does not throw when the catalog sync fails', () => {
+  it('does not throw when the catalog sync fails', async () => {
     const request = vi.fn().mockRejectedValue(new Error('offline'));
     const hostClient = { request } as unknown as HostClient;
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     expect(() => syncReadyAgentCatalogs(hostClient, [readyAgent()])).not.toThrow();
+    await vi.waitFor(() => expect(consoleError).toHaveBeenCalled());
     consoleError.mockRestore();
   });
 });

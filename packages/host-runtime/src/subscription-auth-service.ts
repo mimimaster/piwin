@@ -13,6 +13,7 @@ import type {
 import {
   AUTH_LOGIN_IDLE_MS,
   allocateRelocateChannelId,
+  classifySubscriptionLoginFailure,
   isV1SubscriptionProviderId,
   isSubscriptionOauthProviderId,
   isClaudeCodeOauthProviderId,
@@ -530,7 +531,8 @@ export class SubscriptionAuthService {
 
       credentialStored = outcome.kind === 'ok';
       if (outcome.kind === 'failed') {
-        failureCode = ('code' in outcome && outcome.code) || 'provider-authentication';
+        failureCode =
+          ('code' in outcome && outcome.code) || classifySubscriptionLoginFailure(outcome.message);
       }
       if (outcome.kind === 'sync-error') {
         this.syncErrorProviderIds.add(providerId);
@@ -562,7 +564,7 @@ export class SubscriptionAuthService {
         // The credential is on disk; only the Host-side follow-up failed.
         this.syncErrorProviderIds.add(providerId);
       } else {
-        failureCode = 'provider-authentication';
+        failureCode = classifySubscriptionLoginFailure(error);
       }
     } finally {
       this.active = undefined;

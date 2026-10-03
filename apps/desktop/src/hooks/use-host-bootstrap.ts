@@ -293,6 +293,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   useEffect(() => {
     const { hostClient, dispatch } = args;
     const streamEventBuffer = createStreamEventBuffer({ dispatch });
+    const syncedReadyAgents = new Set<string>();
     const unsubscribe = hostClient.subscribe((message: HostServerMessage) => {
       if (message.type === 'hydration') {
         streamEventBuffer.reset();
@@ -469,7 +470,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         });
         return;
       }
-      if (handleExternalAgentPush(hostClient, dispatch, message)) return;
+      if (handleExternalAgentPush(hostClient, dispatch, message, syncedReadyAgents)) return;
       if (message.type === 'session/index-updated') {
         if (message.op === 'deleted') {
           dispatch({ type: 'session/remove', sessionId: message.sessionId });
@@ -703,7 +704,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
             supported: hasContextTelemetryCapability(statusResponse.data),
           });
           void bootstrapExternalAgents(hostClient, dispatch, { refresh: true }).then((agents) => {
-            syncReadyAgentCatalogs(hostClient, agents);
+            syncReadyAgentCatalogs(hostClient, agents, syncedReadyAgents);
           });
         }
         // Request path must update the shell pill; push-only left UI stuck offline after HMR.

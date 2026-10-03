@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { AUTH_PROBLEM_CODES } from './subscription-oauth.js';
-import { describeSubscriptionLoginFailure } from './subscription-login-failure.js';
+import {
+  classifySubscriptionLoginFailure,
+  describeSubscriptionLoginFailure,
+} from './subscription-login-failure.js';
 
 describe('describeSubscriptionLoginFailure', () => {
   it('maps every host problem code to bilingual copy', () => {
@@ -29,6 +32,21 @@ describe('describeSubscriptionLoginFailure', () => {
   it('falls back to provider-authentication when the code is missing', () => {
     expect(describeSubscriptionLoginFailure(undefined, 'en').code).toBe('provider-authentication');
     expect(describeSubscriptionLoginFailure('   ', 'en').code).toBe('provider-authentication');
+  });
+
+  it('classifies transport failures as network, not a platform rejection', () => {
+    const error = new TypeError('fetch failed', { cause: new Error('connect ECONNRESET') });
+    expect(classifySubscriptionLoginFailure(error)).toBe('oauth-network');
+    expect(classifySubscriptionLoginFailure('token exchange timed out')).toBe('oauth-network');
+    expect(classifySubscriptionLoginFailure('HTTP 502 bad gateway')).toBe('oauth-network');
+    const copy = describeSubscriptionLoginFailure('oauth-network', 'zh-CN');
+    expect(copy.message).toContain('网络');
+    expect(copy.message).not.toContain('拒绝');
+  });
+
+  it('keeps an explicit auth rejection distinct from an unknown login failure', () => {
+    expect(classifySubscriptionLoginFailure('invalid_grant')).toBe('provider-authentication');
+    expect(classifySubscriptionLoginFailure('pi runtime unavailable')).toBe('login-failed');
   });
 
   it('reports unknown codes verbatim instead of guessing', () => {

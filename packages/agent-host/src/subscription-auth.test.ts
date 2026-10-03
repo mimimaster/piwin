@@ -112,6 +112,30 @@ describe('subscription auth port', () => {
     ).resolves.toEqual({ kind: 'sync-error', message: 'snapshot failed' });
   });
 
+  it('maps a transport failure to oauth-network instead of a platform rejection', async () => {
+    const port = await createSubscriptionAuthPort({
+      authPath: '/tmp/auth.json',
+      createRuntime: async () =>
+        ({
+          listCredentials: async () => [],
+          isUsingSubscription: () => false,
+          getModels: () => [],
+          login: async () => {
+            throw new TypeError('fetch failed');
+          },
+          logout: async () => undefined,
+          refresh: async () => undefined,
+        }) as never,
+    });
+    await expect(
+      port.login('xai', { prompt: async () => '', notify: () => undefined }),
+    ).resolves.toEqual({
+      kind: 'failed',
+      message: 'fetch failed',
+      code: 'oauth-network',
+    });
+  });
+
   it('prefers getAvailableModels and applies Copilot entitlements', async () => {
     const port = await createSubscriptionAuthPort({
       authPath: '/tmp/auth.json',

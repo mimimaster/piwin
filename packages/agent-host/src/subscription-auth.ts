@@ -4,6 +4,7 @@
  */
 import { dirname, join } from 'node:path';
 import {
+  classifySubscriptionLoginFailure,
   isClaudeCodeOauthProviderId,
   isV1SubscriptionProviderId,
   type AuthPromptOption,
@@ -259,7 +260,7 @@ export async function createSubscriptionAuthPort(
         });
         return { kind: 'ok' };
       } catch (error) {
-        return mapCredentialError(error, 'login');
+        return mapCredentialError(error);
       }
     },
     async logout(providerId) {
@@ -515,15 +516,12 @@ function mapEvent(event: PiAuthEvent): HostAuthEvent {
   }
 }
 
-function mapCredentialError(error: unknown, operation: 'login'): SubscriptionLoginOutcome {
+function mapCredentialError(error: unknown): SubscriptionLoginOutcome {
   if (isCredentialSynchronizationError(error)) {
     return { kind: 'sync-error', message: error.message };
   }
   const message = error instanceof Error ? error.message : String(error);
-  if (/EADDRINUSE|address already in use|listen EADDRINUSE/i.test(message)) {
-    return { kind: 'failed', message, code: 'oauth-callback-port-busy' };
-  }
-  return { kind: 'failed', message, ...(operation === 'login' ? {} : {}) };
+  return { kind: 'failed', message, code: classifySubscriptionLoginFailure(error) };
 }
 
 function mapLogoutError(error: unknown): SubscriptionLogoutOutcome {

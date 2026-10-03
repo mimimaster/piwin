@@ -41,6 +41,11 @@ export function saveSidebarMode(mode: SidebarMode, storage?: Pick<Storage, 'setI
 function rowMode(row: Extract<SidebarTreeRow, { kind: 'session' }>): SidebarMode {
   // Pinned only. Section membership already splits the two lists:
   // No Repo children sit in projects (code); Conversations stay in chat.
+  // Grok is never a chat-pane session, even when its scope is still general.
+  const agentId = 'backend' in row.session ? row.session.backend?.agentId : undefined;
+  if (agentId !== undefined && agentId !== '' && agentId !== 'pi') {
+    return 'code';
+  }
   return row.scope.kind === 'project' ? 'code' : 'chat';
 }
 

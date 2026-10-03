@@ -82,6 +82,14 @@ export async function syncExternalSessionCatalog(
         existing.updatedAt = updatedAt;
         changed = true;
       }
+      if (existing.scope?.kind === 'general') {
+        const projectPath = input.resolveProjectPath(entry.cwd ?? existing.workingDirectory);
+        if (projectPath !== '') {
+          existing.projectPath = projectPath;
+          existing.scope = { kind: 'project', projectPath };
+          changed = true;
+        }
+      }
       if (changed) {
         result.updated.push(existing);
       }

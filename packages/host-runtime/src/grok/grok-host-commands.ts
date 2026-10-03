@@ -74,9 +74,6 @@ export async function handleExternalAgentCommand(
         // First use detects readiness; subsequent reads share the control client's
         // bounded cache instead of requiring a Settings-only manual check.
         const status = await deps.externalAgents.getStatus(agentId, command.refresh === true);
-        if (command.refresh === true) {
-          deps.push({ type: 'agents/status-updated', status });
-        }
         agents.push(status);
       }
       return ok(requestId, command.type, { agents, installed: wanted.map((backend) => backend.declaration.id) });

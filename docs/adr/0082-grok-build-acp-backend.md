@@ -120,6 +120,21 @@ The Host is the authority; clients mirror it and never invent capability.
   starting a session that cannot run. In the Desktop workbench, clicking its
   setup label opens Agent Backends settings so the Host can be rechecked or
   configured. A Pi-only install keeps today's composer.
+- **New-session defaults (2026-10-03).** The draft model/effort/mode catalog
+  comes only from the Host's current `ExternalAgentStatus.options`; cached
+  options from any existing session are never a fallback. Entering or resetting
+  an external draft queries that agent's status using the Host's bounded cache
+  and in-flight check deduplication. Missing options stay in the model-loading
+  state. Valid manual draft choices survive a catalog refresh; removed choices
+  are discarded and the next conversation uses Agent defaults. First-send and
+  explicit New Agent reset clear those choices. Existing sessions keep their
+  own `SessionBackendOptions`. Detection publishes changes to readiness and
+  configuration, even when the state remains `ready`, while ignoring a changed
+  `checkedAt` alone. The control client owns change pushes; explicit refresh
+  returns its status without publishing a second copy. Clients sync native
+  sessions on first readiness/recovery, rather than on every model change;
+  failed syncs remain retryable. No Grok model ids or context limits are inferred
+  or hardcoded by the client.
 - **Per-session picker.** Pi's provider-backed model/thinking pill is replaced
   for an agent session by the agent's own `SessionBackendOptions` list. Pi model
   refs are never sent to another runtime, and `modeConfirmed: false` renders as

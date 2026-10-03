@@ -273,7 +273,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
         ...(draftMcpDisabled && draftMcpDisabled.length > 0
           ? { disabledMcpServerIds: draftMcpDisabled }
           : {}),
-        ...(draftAgentId && draftAgentId !== 'pi'
+        ...(!isGeneral && draftAgentId && draftAgentId !== 'pi'
           ? {
               agentId: draftAgentId,
               ...(args.draftBackendModelId ? { backendModelId: args.draftBackendModelId } : {}),

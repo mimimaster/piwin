@@ -11,6 +11,7 @@ import type { ExternalAgentStatus, SessionBackendOptions } from '@piwin/contract
 import type { HostClient } from '../host-client';
 import type { ChatUiAction } from '../chat-reducer';
 import { agentDisplayName, backendOptionsFor } from '../agent-backend-state';
+import { resolveDraftBackendOptions, type DraftBackendSelections } from '../backend-draft-options';
 import type { ComposerDraftAgentOption } from '../composer-dock-types';
 
 export type BackendSessionControls = {
@@ -20,6 +21,7 @@ export type BackendSessionControls = {
   selectModel: (modelId: string) => void;
   selectEffort: (effortId: string) => void;
   selectMode: (modeId: string) => void;
+  clearDraftSelections: () => void;
   draftBackendModelId?: string | undefined;
   draftBackendEffortId?: string | undefined;
 };
@@ -63,31 +65,6 @@ export function draftAgentOptionsFrom(
   return options;
 }
 
-export function resolveDraftBackendOptions(
-  agentId: string | null | undefined,
-  optionsBySession: Readonly<Record<string, SessionBackendOptions>>,
-  externalAgents?: readonly ExternalAgentStatus[],
-): SessionBackendOptions | null {
-  if (!agentId || agentId === 'pi') {
-    return null;
-  }
-  for (const sessionOptions of Object.values(optionsBySession)) {
-    if (sessionOptions.agentId === agentId && sessionOptions.models.length > 0) {
-      return sessionOptions;
-    }
-  }
-  const agentStatus = externalAgents?.find((agent) => agent.agentId === agentId);
-  if (
-    agentStatus &&
-    'options' in agentStatus &&
-    agentStatus.options &&
-    agentStatus.options.models.length > 0
-  ) {
-    return agentStatus.options;
-  }
-  return null;
-}
-
 export function useBackendSessionControls(args: {
   hostClient: HostClient;
   dispatch: Dispatch<ChatUiAction>;
@@ -99,41 +76,67 @@ export function useBackendSessionControls(args: {
   const { hostClient, dispatch, sessionId, optionsBySession, draftAgentId, externalAgents } = args;
 
   const [draftOverridesByAgent, setDraftOverridesByAgent] = useState<
-    Record<string, { modelId?: string; effortId?: string; modeId?: string }>
+    Record<string, DraftBackendSelections>
   >({});
-
+  const [draftResetEpoch, setDraftResetEpoch] = useState(0);
+  const clearDraftSelections = useCallback(() => {
+    setDraftOverridesByAgent({});
+    setDraftResetEpoch((epoch) => epoch + 1);
+  }, []);
   const isDraftExternal = sessionId === null && Boolean(draftAgentId && draftAgentId !== 'pi');
-  const baseDraftOptions = useMemo(
-    () => (isDraftExternal ? resolveDraftBackendOptions(draftAgentId, optionsBySession, externalAgents) : null),
-    [isDraftExternal, draftAgentId, optionsBySession, externalAgents],
+  const draftResolution = useMemo(
+    () =>
+      isDraftExternal && draftAgentId
+        ? resolveDraftBackendOptions(
+            draftAgentId,
+            externalAgents,
+            draftOverridesByAgent[draftAgentId],
+          )
+        : null,
+    [isDraftExternal, draftAgentId, externalAgents, draftOverridesByAgent],
   );
+  const options =
+    sessionId !== null
+      ? (backendOptionsFor(optionsBySession, sessionId) ?? null)
+      : (draftResolution?.options ?? null);
 
-  const options = useMemo(() => {
-    if (sessionId !== null) {
-      return backendOptionsFor(optionsBySession, sessionId) ?? null;
-    }
-    if (!baseDraftOptions || !draftAgentId) {
-      return null;
-    }
-    const override = draftOverridesByAgent[draftAgentId];
-    const currentModelId =
-      override?.modelId ?? baseDraftOptions.currentModelId ?? baseDraftOptions.models[0]?.id;
-    const activeModel = baseDraftOptions.models.find((model) => model.id === currentModelId);
-    const efforts = activeModel?.efforts ?? [];
-    const currentEffortId =
-      override?.effortId && efforts.includes(override.effortId)
-        ? override.effortId
-        : baseDraftOptions.currentEffortId && efforts.includes(baseDraftOptions.currentEffortId)
-          ? baseDraftOptions.currentEffortId
-          : efforts[0];
-    const currentModeId = override?.modeId ?? baseDraftOptions.currentModeId;
-    return {
-      ...baseDraftOptions,
-      ...(currentModelId !== undefined ? { currentModelId } : {}),
-      ...(currentEffortId !== undefined ? { currentEffortId } : {}),
-      ...(currentModeId !== undefined ? { currentModeId } : {}),
+  useEffect(() => {
+    if (!draftResolution || !draftAgentId) return;
+    const valid = draftResolution.selections;
+    setDraftOverridesByAgent((previous) => {
+      const saved = previous[draftAgentId];
+      if (
+        !saved ||
+        (saved.modelId === valid.modelId &&
+          saved.effortId === valid.effortId &&
+          saved.modeId === valid.modeId)
+      ) {
+        return previous;
+      }
+      return { ...previous, [draftAgentId]: valid };
+    });
+  }, [draftResolution, draftAgentId]);
+
+  // One targeted read on draft entry; the Host owns TTL and concurrent checks.
+  useEffect(() => {
+    if (!isDraftExternal || !draftAgentId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await hostClient.request({ type: 'agents/status', agentId: draftAgentId });
+        if (cancelled || !response.success) return;
+        const data = response.data as { agents?: ExternalAgentStatus[] } | undefined;
+        const status = Array.isArray(data?.agents)
+          ? data.agents.find((agent) => agent.agentId === draftAgentId) : undefined;
+        if (status) dispatch({ type: 'agents/status-updated', status });
+      } catch (error) {
+        if (!cancelled) console.error('[backend-controls] agents/status failed', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
-  }, [sessionId, optionsBySession, baseDraftOptions, draftAgentId, draftOverridesByAgent]);
+  }, [hostClient, dispatch, isDraftExternal, draftAgentId, draftResetEpoch]);
 
   // A session restored from a saved layout mounts before the Host answered its
   // snapshot; ask once when the backend catalog is still unknown.
@@ -277,6 +280,7 @@ export function useBackendSessionControls(args: {
     selectModel,
     selectEffort,
     selectMode,
+    clearDraftSelections,
     draftBackendModelId: sessionId === null ? options?.currentModelId : undefined,
     draftBackendEffortId: sessionId === null ? options?.currentEffortId : undefined,
   };

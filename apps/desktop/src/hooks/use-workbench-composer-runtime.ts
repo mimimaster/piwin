@@ -14,6 +14,7 @@ import {
   type ComposerAgentModeSessionChange,
 } from '../composer-agent-mode-session';
 import type { HostClient } from '../host-client';
+import { resolveActiveComposerAgentId } from '../composer-dock-assembly';
 import { isConversationSessionChrome } from '../is-conversation-session';
 import { useComposerContextRefs } from './use-composer-context-refs';
 import { useComposerMedia } from './use-composer-media';
@@ -69,6 +70,16 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     confirmForegroundReplace,
   } = chrome;
   const { menuSkills } = plusMenu;
+  const backendControls = useBackendSessionControls({
+    hostClient,
+    dispatch,
+    sessionId: state.activeSessionId,
+    optionsBySession: state.backendOptionsBySession,
+    draftAgentId: state.draftAgentId,
+    externalAgents: state.externalAgents,
+  });
+
+
   const agentModeRef = useRef(agentMode);
   agentModeRef.current = agentMode;
   const agentModeBySessionRef = useRef(new Map<string, AgentModeId>());
@@ -125,6 +136,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
   const resetComposerTurnControls = useCallback(
     (change?: ComposerAgentModeSessionChange) => {
       if (!change) {
+        backendControls.clearDraftSelections();
         // Another New Agent from a draft: drop the unsent draft's choice.
         draftSchemeTouchedRef.current = false;
         setOrchestrationSchemeId(newSessionSchemeIdRef.current);
@@ -158,6 +170,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
         newSessionSchemeId: newSessionSchemeIdRef.current,
       });
       if (change.nextSessionId === null) {
+        backendControls.clearDraftSelections();
         draftSchemeTouchedRef.current = false;
       }
       orchestrationBySessionRef.current = resolvedScheme.parked;
@@ -165,7 +178,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
       setDelegationDisabled(resolvedScheme.controls.delegationDisabled);
       boundOrchestrationSessionRef.current = change.nextSessionId;
     },
-    [setAgentMode, setDelegationDisabled, setOrchestrationSchemeId],
+    [backendControls.clearDraftSelections, setAgentMode, setDelegationDisabled, setOrchestrationSchemeId],
   );
 
   const {
@@ -203,15 +216,6 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     consumeContextRefSnapshot,
     replaceContextRefs,
   } = useComposerContextRefs();
-
-  const backendControls = useBackendSessionControls({
-    hostClient,
-    dispatch,
-    sessionId: state.activeSessionId,
-    optionsBySession: state.backendOptionsBySession,
-    draftAgentId: state.draftAgentId,
-    externalAgents: state.externalAgents,
-  });
 
   const {
     composer,
@@ -254,12 +258,17 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     orchestrationSchemeId,
     onOrchestrationSchemeChange: selectOrchestrationScheme,
     onComposerSessionBound: (sessionId) => {
+      backendControls.clearDraftSelections();
       boundOrchestrationSessionRef.current = sessionId;
     },
     onResetComposerTurnControls: resetComposerTurnControls,
     onAgentModeChange: setAgentMode,
     menuSkills,
-    conversationChat: isConversationSessionChrome(state.activeScope, chrome.sidebarMode),
+    conversationChat: isConversationSessionChrome(
+      state.activeScope,
+      chrome.sidebarMode,
+      resolveActiveComposerAgentId(state),
+    ),
     onOpenKnowledge: handleOpenKnowledge,
     onOpenCardsPanel: handleOpenCardsPanel,
     onCompact: session.handleCompact,
@@ -323,12 +332,27 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
   composerSetterRef.current = setComposer;
 
   const enabledBackends = useEnabledSessionBackends(hostClient);
-  const draftAgentOptions = draftAgentOptionsFrom(state.externalAgents, enabledBackends);
+  const enabledDraftAgents = draftAgentOptionsFrom(state.externalAgents, enabledBackends);
+  const draftAgentOptions =
+    chrome.sidebarMode === 'chat'
+      ? enabledDraftAgents.filter((option) => option.agentId === 'pi')
+      : enabledDraftAgents;
   const capabilities = useSessionCapabilities({
     sessionId: state.activeSessionId,
     capabilitiesBySession: state.backendCapabilitiesBySession,
   });
   const draftAgentId = state.draftAgentId ?? 'pi';
+  const activeAgentId = resolveActiveComposerAgentId(state);
+  useEffect(() => {
+    if (chrome.sidebarMode === 'chat' && activeAgentId !== undefined && activeAgentId !== 'pi') {
+      chrome.setSidebarMode('code');
+    }
+  }, [activeAgentId, chrome.sidebarMode, chrome.setSidebarMode]);
+  useEffect(() => {
+    if (chrome.sidebarMode === 'chat' && draftAgentId !== 'pi') {
+      dispatch({ type: 'draft/set-agent', agentId: 'pi' });
+    }
+  }, [chrome.sidebarMode, draftAgentId, dispatch]);
   const onDraftAgentChange = useCallback(
     (agentId: string) => dispatch({ type: 'draft/set-agent', agentId }),
     [dispatch],

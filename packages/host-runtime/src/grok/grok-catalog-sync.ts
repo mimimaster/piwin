@@ -14,7 +14,12 @@ import {
   upsertSessionRecord,
 } from '@piwin/session';
 import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
-import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
+import {
+  getPiwinGeneralWorkspacePath,
+  getPiwinProjectsPath,
+  getPiwinRoot,
+  getPiwinSessionIndexPath,
+} from '../paths.js';
 import { createProductSessionId } from '../product-agent-host.js';
 import { fail, ok } from '../response-helpers.js';
 import { sessionIndexUpdatedPush } from '../session-index-push.js';
@@ -41,8 +46,10 @@ export async function syncExternalAgentCatalog(
         deps.externalCatalogChanges.set(entry.backendSessionId, entry.lastChangeUnixMs);
       }
     }
-    const projects = await listProjects(getPiwinProjectsPath(getPiwinRoot(deps.options.piwinRoot)));
+    const rootDir = getPiwinRoot(deps.options.piwinRoot);
+    const projects = await listProjects(getPiwinProjectsPath(rootDir));
     const roots = projects.map((project) => project.path).sort((left, right) => right.length - left.length);
+    const generalWorkspace = getPiwinGeneralWorkspacePath(rootDir);
     // Subagent / internal sessions belong to the agent; only user sessions map.
     const visible = catalog.filter((entry) => entry.originKind !== 'subagent');
     const result = await syncExternalSessionCatalog({
@@ -55,10 +62,14 @@ export async function syncExternalAgentCatalog(
         ...(entry.lastChangeUnixMs !== undefined ? { lastChangeUnixMs: entry.lastChangeUnixMs } : {}),
       })),
       createProductSessionId,
-      resolveProjectPath: (cwd) =>
-        cwd === undefined
-          ? ''
-          : (roots.find((root) => cwd === root || cwd.startsWith(`${root}/`)) ?? ''),
+      resolveProjectPath: (cwd) => {
+        if (cwd !== undefined) {
+          const matched = roots.find((root) => cwd === root || cwd.startsWith(`${root}/`));
+          if (matched !== undefined) return matched;
+        }
+        // Unmatched Grok sessions are agent chats under No Repo, never Chat.
+        return generalWorkspace;
+      },
     });
     for (const record of result.created) {
       deps.push(sessionIndexUpdatedPush({ op: 'created', sessionId: record.id, session: indexRecordToSummary(record) }));
