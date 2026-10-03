@@ -14,15 +14,12 @@ import {
   pickContinueSession,
 } from '../host/host-bridge.js';
 import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
-import { blockedByOfflineSnapshot, formatSnapshotAge } from '../host/offline-guard.js';
+import { formatSnapshotAge } from '../host/offline-guard.js';
 import {
   buildSessionSections,
   isSessionListFilter,
-  type SessionSection,
-  type SessionSectionRow,
 } from './session-sections.js';
-import { SwipeRow, type SwipeAction } from '../swipe-row.js';
-import type { InkstoneAction } from '../inkstone-state.js';
+import { SessionSectionView, useSessionNavigation, type SwipeState } from './session-list-view.js';
 import {
   SESSION_MODE_LABELS,
   filterSessionsByMode,
@@ -69,141 +66,15 @@ export interface PrototypeSession {
   snippet?: string;
 }
 
-/** Which row is slid open; opening one closes the rest, as in iOS lists. */
-interface SwipeState {
-  openId: string | undefined;
-  setOpenId: (sessionId: string | undefined) => void;
-}
-
-function sessionSwipeActions(
-  row: SessionSectionRow,
-  hostCtx: InkstoneHostContextValue,
-  dispatch: (action: InkstoneAction) => void,
-): SwipeAction[] {
-  const { host } = hostCtx;
-  const guarded = (run: () => void) => () => {
-    if (blockedByOfflineSnapshot(hostCtx, dispatch)) return;
-    run();
-  };
-  const actions: SwipeAction[] = [
-    {
-      key: 'more',
-      label: '更多',
-      tone: 'neutral',
-      onPress: guarded(() => {
-        void host.handleSelectSession(row.sessionId).then(() => {
-          dispatch({ type: 'open-sheet', key: 'session-menu' });
-        });
-      }),
-    },
-    {
-      key: 'pin',
-      label: row.pinned ? '取消置顶' : '置顶',
-      tone: 'lamp',
-      onPress: guarded(() => {
-        void host.handlePinSession(row.sessionId, row.pinned).then((ok) => {
-          if (ok) dispatch({ type: 'toast', message: row.pinned ? '已取消置顶' : '已置顶' });
-        });
-      }),
-    },
-  ];
-  if (host.client?.supportsCommand('session/archive') === true) {
-    // Archive is recoverable from the Host's archive, so like Mail it needs no confirm.
-    actions.push({
-      key: 'archive',
-      label: '归档',
-      tone: 'danger',
-      onPress: guarded(() => {
-        void host.handleDeleteSession(row.sessionId).then((ok) => {
-          if (ok) dispatch({ type: 'toast', message: `已归档「${row.title}」` });
-        });
-      }),
-    });
-  }
-  return actions;
-}
-
-function SessionRows({
-  rows,
-  hostCtx,
-  swipe,
-}: {
-  rows: SessionSectionRow[];
-  hostCtx: InkstoneHostContextValue;
-  swipe: SwipeState;
-}): ReactElement {
-  const { dispatch } = useInkstone();
-  const openSession = async (sessionId: string): Promise<void> => {
-    if (blockedByOfflineSnapshot(hostCtx, dispatch)) return;
-    await hostCtx.host.handleSelectSession(sessionId);
-    dispatch({ type: 'navigate', route: 'chat' });
-  };
-  return (
-    <>
-      {rows.map((row) => (
-        <div
-          className={`session-item ${row.sessionId === hostCtx.host.activeSessionId ? 'active' : ''}`.trim()}
-          key={row.sessionId}
-          aria-current={row.sessionId === hostCtx.host.activeSessionId ? 'true' : undefined}
-        >
-          {/* Only live work earns a mark; a dot on every finished row is noise. */}
-          {row.status !== 'done' ? <Dot status={row.status} /> : null}
-          <SwipeRow
-            actions={sessionSwipeActions(row, hostCtx, dispatch)}
-            open={swipe.openId === row.sessionId}
-            onOpenChange={(open) => {
-              if (open) swipe.setOpenId(row.sessionId);
-              else if (swipe.openId === row.sessionId) swipe.setOpenId(undefined);
-            }}
-          >
-            <button
-              className="session-open"
-              onClick={() => void openSession(row.sessionId)}
-              type="button"
-            >
-              <span className="session-line">
-                <strong>{row.title}</strong>
-                {row.time !== '' ? <time>{row.time}</time> : null}
-              </span>
-              {row.subtitle !== '' ? <small>{row.subtitle}</small> : null}
-              {row.scope !== undefined ? (
-                <span className="session-scope">
-                  <Icon name="folder" />
-                  {row.scope}
-                </span>
-              ) : null}
-            </button>
-          </SwipeRow>
-        </div>
-      ))}
-    </>
-  );
-}
-
-function SessionSectionView({
-  section,
-  hostCtx,
-  swipe,
-}: {
-  section: SessionSection;
-  hostCtx: InkstoneHostContextValue;
-  swipe: SwipeState;
-}): ReactElement {
-  const flat = section.kind !== 'project';
-  return (
-    <div className={`session-section ${section.kind}`}>
-      {section.kind === 'flat' ? null : (
-        <div className="project-heading">
-          <Icon name={section.kind === 'pinned' ? 'pin' : 'folder'} />
-          <b>{section.title}</b>
-          <small>{section.rows.length}</small>
-        </div>
-      )}
-      <div className={flat ? 'session-tree flat' : 'session-tree'}>
-        <SessionRows rows={section.rows} hostCtx={hostCtx} swipe={swipe} />
-      </div>
-    </div>
-  );
+function ProjectListNotice({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement | null {
+  const snapshot = hostCtx.host.projectList;
+  let message: string | undefined;
+  if (snapshot.status === 'loading') message = '正在读取 Host 项目列表…';
+  else if (snapshot.status === 'not-exposed') message = 'Host 未开放项目列表；仅显示会话引用的项目 ID。';
+  else if (snapshot.status === 'error') message = snapshot.error ?? '读取 Host 项目列表失败。';
+  else if (snapshot.gitWorkspacePending) message = 'Host 检出信息尚未完整 · 下次连接刷新更新';
+  else if (snapshot.worktrees === undefined) message = 'Host 未提供已发现检出信息。';
+  return message === undefined ? null : <p className="notice-strip" role="status">{message}</p>;
 }
 
 function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
@@ -211,6 +82,9 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
   const wide = useWideLayout();
   const { state, dispatch } = useInkstone();
   const { host } = hostCtx;
+  const openSession = useSessionNavigation(hostCtx);
+  const liveProjectList = host.connectionState.kind === 'ready' && hostCtx.offlineSnapshot === undefined;
+  const freshProjects = liveProjectList && host.projectList.status === 'ready';
   const mode = state.sessionMode;
   const [openSwipeId, setOpenSwipeId] = useState<string | undefined>();
   const swipe: SwipeState = { openId: openSwipeId, setOpenId: setOpenSwipeId };
@@ -220,7 +94,9 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
   const modeSessions = filterSessionsByMode(host.sessions, mode);
   const groups = mapSessionGroups({
     sessions: modeSessions,
-    projects: host.projects,
+    // Disconnected/device snapshots are names/IDs only, never fresh Git facts.
+    projects: freshProjects ? host.projects : host.projects.map(({ projectId, displayName }) => ({ projectId, displayName })),
+    worktrees: freshProjects && mode === 'agent' ? host.projectList.worktrees : undefined,
     runningSessionIds: running,
     pendingPermissionSessionIds: pending,
     now,
@@ -258,11 +134,6 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
   const continueProject = host.projects.find(
     (project) => project.projectId === continueSession?.projectId,
   );
-  const openSession = async (sessionId: string): Promise<void> => {
-    if (blockedByOfflineSnapshot(hostCtx, dispatch)) return;
-    await host.handleSelectSession(sessionId);
-    dispatch({ type: 'navigate', route: 'chat' });
-  };
   return (
     <>
       <TopBar
@@ -321,7 +192,8 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
           <button
             className="continue-card"
             type="button"
-            onClick={() => void openSession(continueSession.sessionId)}
+            onClick={() => void openSession(continueSession.sessionId,
+              freshProjects && continueProject?.workspaceAvailability === 'missing')}
           >
             <span className="spread">
               <span className="eyebrow">
@@ -356,8 +228,11 @@ function ConnectedSessions({ hostCtx }: { hostCtx: InkstoneHostContextValue }): 
             onSelect={(value) => dispatch({ type: 'session-filter', value })}
           />
         ) : null}
+        {mode === 'agent' && liveProjectList ? (
+          <ProjectListNotice hostCtx={hostCtx} />
+        ) : null}
         {listView.sections.map((section) => (
-          <SessionSectionView key={section.key} section={section} hostCtx={hostCtx} swipe={swipe} />
+          <SessionSectionView key={section.key} section={section} hostCtx={hostCtx} swipe={swipe} openSession={openSession} />
         ))}
         {listView.emptyMessage !== undefined && host.connectionState.kind === 'ready' ? (
           <p className="session-empty">{listView.emptyMessage}</p>

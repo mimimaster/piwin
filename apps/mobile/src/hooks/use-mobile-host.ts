@@ -4,7 +4,6 @@ import type {
   ConfiguredChatModel,
   ModelRef,
   RemoteHostStatusData,
-  RemoteProjectSummary,
   RemoteSessionSummary,
   ThinkingLevel,
   TrustedDeviceCredential,
@@ -79,6 +78,7 @@ import {
   shouldRefreshActivitySummary,
 } from '../mobile-activity-summary.js';
 import { createMobileRemoteReadModelRefresher } from './mobile-host-read-model.js';
+import { useMobileProjectList } from './mobile-project-list.js';
 import { uploadMobileImage } from './mobile-media-upload.js';
 import { abortMobileRun, resolveMobilePermission } from './mobile-run-controls.js';
 import {
@@ -109,7 +109,7 @@ export function useMobileHost() {
   const [expectedHostInstanceId, setExpectedHostInstanceId] = useState<string | undefined>();
   const [connectionState, setConnectionState] = useState<HostClientState>({ kind: 'idle' });
   const [hostStatus, setHostStatus] = useState<RemoteHostStatusData | undefined>();
-  const [projects, setProjects] = useState<RemoteProjectSummary[]>([]);
+  const { projects, projectList, setProjectList, resetProjectList } = useMobileProjectList();
   const [sessions, setSessions] = useState<RemoteSessionSummary[]>([]);
   // Stable across renders: debounces Host-driven list refreshes.
   const [sessionListSync] = useState(() => createSessionListSync(setSessions));
@@ -272,7 +272,7 @@ export function useMobileHost() {
     selectionGenerationRef,
     setHostStatus,
     setErrorMessage,
-    setProjects,
+    setProjectList,
     setSessions,
     setConfiguredModels,
     setDefaultProviderId,
@@ -325,7 +325,7 @@ export function useMobileHost() {
     setPendingReplaceRunId(undefined);
     setHostStatus(undefined);
     setArtifactEnabled(true);
-    setProjects([]);
+    resetProjectList();
     setSessions([]);
     setActivityItems([]);
     setKnowledgeBases([]);
@@ -519,7 +519,7 @@ export function useMobileHost() {
     setConnectionState({ kind: 'disconnected' });
     setHostStatus(undefined);
     setArtifactEnabled(true);
-    setProjects([]);
+    resetProjectList();
     setSessions([]);
     setActivityItems([]);
     setKnowledgeBases([]);
@@ -918,6 +918,7 @@ export function useMobileHost() {
     hostStatus,
     artifactEnabled,
     projects,
+    projectList,
     sessions,
     activityItems,
     knowledgeBases,

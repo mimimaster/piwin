@@ -2,7 +2,6 @@ import type {
   ActivitySummaryItem,
   ConfiguredChatModel,
   RemoteHostStatusData,
-  RemoteProjectSummary,
   RemoteSessionSummary,
 } from '@piwin/contracts';
 import { HostClient } from '@piwin/host-client';
@@ -12,11 +11,12 @@ import {
   applyHostStatus,
   readArtifactEnabled,
   readPauseCheckpointId,
-  readProjects,
+  readProjectList,
 } from '../mobile-host-readers.js';
 import { toError } from '../mobile-host-helpers.js';
 import { readSessionMessages } from '../mobile-transcript.js';
 import { mobileSessionListCommand, readSessionListPage } from './mobile-session-list.js';
+import type { MobileProjectList } from './mobile-project-list.js';
 
 export type MobileRemoteReadModelContext = {
   clientRef: { current: HostClient | undefined };
@@ -25,7 +25,7 @@ export type MobileRemoteReadModelContext = {
   selectionGenerationRef: { current: number };
   setHostStatus: (status: RemoteHostStatusData | undefined) => void;
   setErrorMessage: (message: string | undefined) => void;
-  setProjects: (projects: RemoteProjectSummary[]) => void;
+  setProjectList: (snapshot: MobileProjectList) => void;
   setSessions: (sessions: RemoteSessionSummary[]) => void;
   setConfiguredModels: (models: ConfiguredChatModel[]) => void;
   setDefaultProviderId: (providerId: string | undefined) => void;
@@ -46,11 +46,21 @@ export function createMobileRemoteReadModelRefresher(
   context: MobileRemoteReadModelContext,
 ): (client: HostClient) => Promise<void> {
   return async (client: HostClient): Promise<void> => {
+    if (context.clientRef.current !== client) return;
+    context.setProjectList({ status: 'loading', projects: [] });
+    let projectsApplied = false;
     try {
       const [statusResponse, projectsResponse, sessionsResponse, modelsResponse, activitySummary] =
         await Promise.all([
           client.request({ type: 'host/status' }),
-          client.request({ type: 'project/list' }),
+          client.supportsCommand('project/list')
+            ? client.request({ type: 'project/list' }).catch((error: unknown) => ({
+                type: 'response' as const,
+                command: 'project/list' as const,
+                success: false as const,
+                error: toError(error, '读取 Host 项目列表失败。').message,
+              }))
+            : Promise.resolve(undefined),
           client.request(mobileSessionListCommand()),
           client.request({ type: 'models/configured' }),
           requestActivitySummary(client),
@@ -59,7 +69,8 @@ export function createMobileRemoteReadModelRefresher(
         return;
       }
       applyHostStatus(statusResponse, context.setHostStatus, context.setErrorMessage);
-      context.setProjects(readProjects(projectsResponse));
+      context.setProjectList(readProjectList(projectsResponse));
+      projectsApplied = true;
       const sessionList = readSessionListPage(sessionsResponse);
       context.setSessions(sessionList);
       applyConfiguredModels(
@@ -109,7 +120,9 @@ export function createMobileRemoteReadModelRefresher(
       }
     } catch (error) {
       if (context.clientRef.current === client) {
-        context.setErrorMessage(toError(error, '刷新 Host 状态失败。').message);
+        const message = toError(error, '刷新 Host 状态失败。').message;
+        if (!projectsApplied) context.setProjectList({ status: 'error', projects: [], error: message });
+        context.setErrorMessage(message);
       }
     }
   };

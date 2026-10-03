@@ -8,13 +8,13 @@ import {
   type SessionPlan,
   type RemoteHostStatusData,
   type RemoteMediaAsset,
-  type RemoteProjectSummary,
   type RemoteSessionSummary,
   type WalkthroughArtifact,
   type WikiConceptDetail,
   type WikiOverviewResult,
 } from '@piwin/contracts';
 import { isRemoteHostStatusData } from './mobile-host-connection.js';
+export { readProjects, readProjectList } from './hooks/mobile-project-list.js';
 
 export function applyHostStatus(
   response: HostResponse,
@@ -49,13 +49,6 @@ export function readConfiguredChatModels(response: HostResponse): ConfiguredChat
     return { models: [] };
   }
   return readConfiguredChatModelsData(response.data);
-}
-
-export function readProjects(response: HostResponse): RemoteProjectSummary[] {
-  if (!response.success || !isRecord(response.data) || !Array.isArray(response.data.projects)) {
-    return [];
-  }
-  return response.data.projects.filter(isRemoteProjectSummary);
 }
 
 export function readSessions(response: HostResponse): RemoteSessionSummary[] {
@@ -243,12 +236,6 @@ export function readRemoteMediaAsset(value: unknown): RemoteMediaAsset | undefin
     projected.height = asset.height;
   }
   return projected;
-}
-
-function isRemoteProjectSummary(value: unknown): value is RemoteProjectSummary {
-  return (
-    isRecord(value) && typeof value.projectId === 'string' && typeof value.displayName === 'string'
-  );
 }
 
 function isRemoteSessionSummary(value: unknown): value is RemoteSessionSummary {

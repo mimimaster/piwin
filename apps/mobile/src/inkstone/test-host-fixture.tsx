@@ -27,6 +27,7 @@ export function fakeHost(overrides: Partial<InkstoneHost> = {}): InkstoneHost {
     connectionState: { kind: 'ready' },
     sessions: FIXTURE_SESSIONS,
     projects: [{ projectId: 'p1', displayName: 'piwin' }],
+    projectList: { status: 'ready', projects: [{ projectId: 'p1', displayName: 'piwin' }], worktrees: [] },
     activityItems: [],
     knowledgeBases: [],
     activeSessionId: undefined,

@@ -13,6 +13,7 @@ export interface SessionSection {
   kind: 'pinned' | 'project' | 'flat';
   title: string;
   rows: SessionSectionRow[];
+  checkoutHints?: InkstoneProjectGroup['checkoutHints'];
 }
 
 export interface SessionSectionsView {
@@ -61,12 +62,13 @@ export function buildSessionSections(
     const rows = group.rows
       .filter((row) => !row.pinned)
       .map((row): SessionSectionRow => ({ ...row, scope: undefined }));
-    if (rows.length === 0) continue;
+    if (rows.length === 0 && (group.checkoutHints?.length ?? 0) === 0) continue;
     sections.push({
-      key: `project:${group.projectId ?? '__general__'}`,
+      key: group.key ?? `project:${group.projectId ?? '__general__'}`,
       kind: 'project',
       title: group.project,
       rows,
+      ...(group.checkoutHints === undefined ? {} : { checkoutHints: group.checkoutHints }),
     });
   }
   return sections.length === 0

@@ -1,6 +1,7 @@
 import { extractUserFacingBody } from '@piwin/contracts';
 import type {
   ActivitySummaryItem,
+  ProjectWorktreeListing,
   RemoteProjectSummary,
   RemoteSessionSummary,
 } from '@piwin/contracts';
@@ -16,12 +17,21 @@ export interface InkstoneSessionRow {
   status: InkstoneDotStatus;
   time: string;
   pinned: boolean;
+  checkoutLabel?: string;
+  branch?: string;
+  checkoutKind?: 'primary' | 'worktree';
+  checkoutMissing?: true;
+  projectMetadataMissing?: true;
 }
 
 export interface InkstoneProjectGroup {
   projectId: string | undefined;
+  /** Repository IDs, never paths or display names, join registered checkouts. */
+  key?: string;
   project: string;
   rows: InkstoneSessionRow[];
+  /** Public discovered checkouts only; no session/project identity or action. */
+  checkoutHints?: ProjectWorktreeListing[];
 }
 
 /** HH:MM clock label for message heads. */
@@ -87,7 +97,7 @@ function projectDisplayName(
   if (projectId === undefined) {
     return '一般会话';
   }
-  return projects.find((project) => project.projectId === projectId)?.displayName ?? '一般会话';
+  return projects.find((project) => project.projectId === projectId)?.displayName || projectId;
 }
 
 function sessionSubtitle(
@@ -112,21 +122,35 @@ function sessionSubtitle(
 export function mapSessionGroups(args: {
   sessions: RemoteSessionSummary[];
   projects: RemoteProjectSummary[];
+  worktrees?: readonly ProjectWorktreeListing[] | undefined;
   runningSessionIds: ReadonlySet<string>;
   pendingPermissionSessionIds: ReadonlySet<string>;
   now: number;
 }): InkstoneProjectGroup[] {
   const groups = new Map<string, InkstoneProjectGroup>();
+  const projectsById = new Map(args.projects.map((project) => [project.projectId, project]));
+  const repositoryName = (repositoryId: string): string => {
+    const projects = args.projects.filter((project) => project.gitRepositoryId === repositoryId);
+    return (projects.find((project) => project.isPrimaryWorktree === true) ?? projects[0])
+      ?.displayName || repositoryId;
+  };
   for (const session of args.sessions) {
     if (session.archived === true) {
       continue;
     }
-    const key = session.projectId ?? '__general__';
+    const project = session.projectId === undefined ? undefined : projectsById.get(session.projectId);
+    const repositoryId = project?.gitRepositoryId;
+    const key = repositoryId !== undefined
+      ? `repository:${repositoryId}`
+      : `project:${session.projectId ?? '__general__'}`;
     let group = groups.get(key);
     if (group === undefined) {
       group = {
+        key,
         projectId: session.projectId,
-        project: projectDisplayName(args.projects, session.projectId),
+        project: repositoryId === undefined
+          ? projectDisplayName(args.projects, session.projectId)
+          : repositoryName(repositoryId),
         rows: [],
       };
       groups.set(key, group);
@@ -140,7 +164,32 @@ export function mapSessionGroups(args: {
       status: pendingPermission ? 'waiting' : running ? 'running' : 'done',
       time: relativeTime(session.updatedAt, args.now),
       pinned: session.pinned === true,
+      ...(project === undefined ? {} : {
+        checkoutLabel: project.displayName,
+        ...(project.currentBranch === undefined ? {} : { branch: project.currentBranch }),
+        ...(project.isPrimaryWorktree === undefined ? {} : {
+          checkoutKind: project.isPrimaryWorktree ? 'primary' as const : 'worktree' as const,
+        }),
+        ...(project.workspaceAvailability === 'missing' ? { checkoutMissing: true as const } : {}),
+      }),
+      ...(session.projectId !== undefined && project === undefined
+        ? { projectMetadataMissing: true as const } : {}),
     });
+  }
+  // Match public paths only to avoid repeating registered checkouts as hints.
+  // This is not path-based repository identity, filesystem probing or activation.
+  for (const worktree of args.worktrees ?? []) {
+    if (args.projects.some((project) => project.gitRepositoryId === worktree.gitRepositoryId &&
+        (project.path === worktree.path || project.gitRootPath === worktree.path))) continue;
+    const key = `repository:${worktree.gitRepositoryId}`;
+    let group = groups.get(key);
+    if (group === undefined) {
+      group = { key, projectId: undefined, project: repositoryName(worktree.gitRepositoryId), rows: [] };
+      groups.set(key, group);
+    }
+    const hints = group.checkoutHints ?? [];
+    if (!hints.some((hint) => hint.path === worktree.path)) hints.push(worktree);
+    group.checkoutHints = hints;
   }
   const list = [...groups.values()];
   for (const group of list) {
