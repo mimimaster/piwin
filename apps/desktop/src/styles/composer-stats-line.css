@@ -16,6 +16,12 @@
   min-width: 0;
 }
 
+/* Empty status is decoration, not an empty live region. Docking opts into
+   reserving a row only for bottom-docked composers in a split workspace. */
+.composer-stats-line.is-empty {
+  display: none;
+}
+
 .composer-stats-extensions,
 .composer-stats-metrics {
   display: inline-flex;

@@ -42,6 +42,14 @@ stop run".
    stay within the existing 8-stream budget; no new Host pause protocol.
 7. Implementation lives under `apps/desktop/src/workbench/docking/` as pure
    policy + a Desktop surface. Apps still must not import Pi packages.
+8. Sidebar session drags use a source-aware intent surface rather than the
+   narrow precision bands used when rearranging an existing view. Mouse and
+   trackpad input activate after a short movement threshold; touch input uses
+   press-and-hold. The available left/right/up/down targets are derived from
+   the candidate topology and the 420×320 session minimum, with center retaining
+   the existing replace/focus semantics and edges creating a split. This remains
+   an in-window Tauri workspace interaction; native OS window detachment is not
+   part of v1.
 
 ## Consequences
 
@@ -50,6 +58,19 @@ stop run".
 - Slice A still requires a Tauri WebView anti-reparent soak (20 cross-dock
   moves) before treating browser/canvas hosts as done.
 - Terminal move and right-panel dual groups stay out of v1 (slices F/G).
+- Drop feedback is stage-local: a pointer ghost identifies the dragged session,
+  the legal candidate paints its final geometry, and invalid candidates explain
+  why they cannot be committed. Focus changes never rewrite panel visibility or
+  the persisted topology.
+- Split-pane focus uses neutral header contrast and active-tab weight, not an
+  accent-colored underline that can read as a warning. Bottom-docked composers
+  reserve one stats row even before usage is available, preserving sibling input
+  baselines. Retained session panes reuse the same usage hook and stats component
+  as the main composer, with a matching bottom gutter in split mode. Long stats
+  remain single-line with complete values in tooltips;
+  empty slots are not live regions. Single-pane and centered empty-state layouts
+  keep their existing spacing. Different drafts, attachments and active-run
+  banners may still legitimately change individual input heights.
 
 ## Rejected alternatives
 

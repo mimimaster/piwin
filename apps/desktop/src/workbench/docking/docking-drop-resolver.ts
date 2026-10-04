@@ -1,10 +1,10 @@
 import type { HitTestInput, Point, Rect, TabHitArea } from './drag-hit-test.js';
-import { resolveDropZone } from './drag-hit-test.js';
+import { isInsideRect, resolveDropZone } from './drag-hit-test.js';
 import { resolveDropHighlight } from './drag-preview.js';
 import { proposeDrop } from './drop.js';
 import type { WorkspaceIdFactory } from './ids.js';
 import type { DockDragResolution } from './use-docking-drag.js';
-import type { DropSource, GroupRect, Size, WorkspaceState } from './types.js';
+import type { DropEdge, DropSource, GroupRect, Size, WorkspaceState } from './types.js';
 
 export const DOCK_BAND_PX = 72;
 
@@ -114,6 +114,42 @@ function isSessionSource(state: WorkspaceState, source: DropSource): boolean {
   return state.views[source.viewId]?.kind === 'session';
 }
 
+const DROP_EDGES: readonly DropEdge[] = ['left', 'right', 'up', 'down'];
+
+function sidebarSessionIntent(args: {
+  state: WorkspaceState;
+  source: DropSource;
+  input: HitTestInput;
+  stageSize: Size;
+  activeProjectScopeKey?: string;
+  previousEdge?: DropEdge | null;
+}): HitTestInput['sidebarSessionIntent'] {
+  if (args.source.kind !== 'unopened-session') return undefined;
+  const group = args.input.groupRects.find((rect) => isInsideRect(rect, args.input.point));
+  if (!group) return undefined;
+  let previewId = 0;
+  const createPreviewId: WorkspaceIdFactory = (kind) => `preview-${kind}-${String(++previewId)}`;
+  const allowedEdges = DROP_EDGES.filter((edge) =>
+    proposeDrop(
+      args.state,
+      args.source,
+      { kind: 'group-edge', groupId: group.groupId, edge },
+      {
+        createId: createPreviewId,
+        stageSize: args.stageSize,
+        ...(args.activeProjectScopeKey !== undefined
+          ? { activeProjectScopeKey: args.activeProjectScopeKey }
+          : {}),
+      },
+    ).ok,
+  );
+  return {
+    groupId: group.groupId,
+    allowedEdges,
+    ...(args.previousEdge !== undefined ? { previousEdge: args.previousEdge } : {}),
+  };
+}
+
 export function resolveDockDrag(args: {
   state: WorkspaceState;
   source: DropSource;
@@ -126,9 +162,10 @@ export function resolveDockDrag(args: {
   createId: WorkspaceIdFactory;
   /** Active sidebar scope; sidebar drags from another project are rejected. */
   activeProjectScopeKey?: string;
+  previousSessionEdge?: DropEdge | null;
   apply: (state: WorkspaceState) => void;
 }): DockDragResolution | null {
-  const input = buildHitTestInput({
+  const baseInput = buildHitTestInput({
     point: args.point,
     root: args.root,
     stageSize: args.stageSize,
@@ -138,8 +175,25 @@ export function resolveDockDrag(args: {
     // Sessions never live in the right panel; near the right edge they split.
     allowDockBand: !isSessionSource(args.state, args.source),
   });
+  const intent = sidebarSessionIntent({
+    state: args.state,
+    source: args.source,
+    input: baseInput,
+    stageSize: args.stageSize,
+    ...(args.activeProjectScopeKey !== undefined
+      ? { activeProjectScopeKey: args.activeProjectScopeKey }
+      : {}),
+    ...(args.previousSessionEdge !== undefined
+      ? { previousEdge: args.previousSessionEdge }
+      : {}),
+  });
+  const input: HitTestInput = {
+    ...baseInput,
+    ...(intent ? { sidebarSessionIntent: intent } : {}),
+  };
   const zone = resolveDropZone(input);
   if (!zone) return null;
+  const intentEdge = zone.kind === 'group-edge' && args.source.kind === 'unopened-session' ? zone.edge : null;
 
   const decision = proposeDrop(args.state, args.source, zone, {
     createId: args.createId,
@@ -151,6 +205,7 @@ export function resolveDockDrag(args: {
   if (!decision.ok) {
     return {
       preview: { ok: false, label: null, message: decision.message, highlight: [] },
+      intentEdge,
       commit: () => undefined,
     };
   }
@@ -163,6 +218,7 @@ export function resolveDockDrag(args: {
   });
   return {
     preview: { ok: true, label: decision.label, message: null, highlight },
+    intentEdge,
     commit: () => args.apply(nextState),
   };
 }

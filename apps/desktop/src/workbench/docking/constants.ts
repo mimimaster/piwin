@@ -10,7 +10,9 @@ export const SPLIT_WEIGHT_MAX = 0.99;
 export const FOCUSED_RESTORE_HYSTERESIS_PX = 32;
 export const DROP_EDGE_BAND_RATIO = 0.2;
 export const DROP_EDGE_BAND_MAX_PX = 72;
-export const DRAG_ACTIVATION_THRESHOLD_PX = 4;
+export const SIDEBAR_SESSION_INTENT_THRESHOLD = 0.28;
+export const SIDEBAR_SESSION_EDGE_HYSTERESIS = 0.12;
+export const DRAG_ACTIVATION_THRESHOLD_PX = 6;
 export const PERSIST_DEBOUNCE_MS = 500;
 
 export const STAGE_SESSION_MIN = { width: 420, height: 320 } as const;

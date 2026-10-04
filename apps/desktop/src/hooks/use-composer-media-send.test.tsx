@@ -63,6 +63,57 @@ describe('useComposerMedia session transitions', () => {
     container = null;
   });
 
+  it.each(['project', 'general', 'unhydrated'] as const)(
+    'keeps a resumed %s session in its own scope after sending from another project draft',
+    async (destination) => {
+      container = document.createElement('div');
+      document.body.append(container);
+      root = createRoot(container);
+      const hostClient = {
+        request: vi.fn().mockResolvedValue({
+          type: 'response', command: 'session/prompt', success: true,
+          data: { runId: 'run-1' },
+        }),
+      } as unknown as HostClient;
+      const dispatch = vi.fn();
+      let captured: ComposerMediaResult | undefined;
+      function Harness(props: { state: ChatUiState }): null {
+        captured = useComposerMedia({
+          hostClient, state: props.state, dispatch, agentMode: 'agent',
+        });
+        return null;
+      }
+
+      const sourceScope = { kind: 'project' as const, projectPath: '/repo/dsh-plugin-devin' };
+      const targetScope = destination === 'general'
+        ? { kind: 'general' as const }
+        : { kind: 'project' as const, projectPath: '/repo/piwin' };
+      const sourceState = {
+        ...createInitialTestChatUiState(),
+        activeScope: sourceScope,
+        projectPath: sourceScope.projectPath,
+        projectTrusted: true,
+        activeSessionId: 'source-session',
+      };
+      act(() => root?.render(<Harness state={sourceState} />));
+      const target = { id: 'target-session', name: 'Existing conversation', scope: targetScope };
+      act(() => root?.render(<Harness state={{
+        ...sourceState,
+        activeSessionId: target.id,
+        activeScope: targetScope,
+        projectPath: targetScope.kind === 'project' ? targetScope.projectPath : null,
+        sessionEntitiesById: destination === 'unhydrated' ? {} : { [target.id]: target },
+      }} />));
+      act(() => captured?.setComposer('开始实现'));
+      await act(async () => captured?.handleSend());
+
+      expect(dispatch).toHaveBeenCalledWith({
+        type: 'session/update',
+        session: expect.objectContaining({ id: target.id, scope: targetScope }),
+      });
+    },
+  );
+
   it('uses the clicked project scope for the first Host session request', async () => {
     container = document.createElement('div');
     document.body.append(container);

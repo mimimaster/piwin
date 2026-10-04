@@ -25,9 +25,9 @@ import {
   normalizeCompactCustomInstructions,
   parseComposerSlashSubmit,
 } from '../slash';
-import { deriveDefaultNameFromMessage } from '@piwin/session/derive-default-name';
 import { composerSessionListName } from '../composer-session-list-name';
-import { isPlaceholderSessionName } from '../title-display';
+import { buildComposerSendSessionUpdate } from '../composer-send-session-update.js';
+import { resolveEntityScope } from '../session-entities.js';
 import {
   foregroundMismatchNotice,
   readForegroundProblem,
@@ -322,7 +322,11 @@ export function useComposerSend(params: UseComposerSendArgs) {
       const text = (overrideText ?? composer).trim();
       const ownerSessionIdAtEntry = args.state.activeSessionId;
       const ownerDraftIdAtEntry = currentDraftIdRef.current;
-      const ownerScopeAtEntry = currentDraftScopeRef.current;
+      // The parked draft scope survives navigation between live sessions.
+      // Only new conversations inherit it; resumed sessions own their scope.
+      const ownerScopeAtEntry = ownerSessionIdAtEntry === null
+        ? currentDraftScopeRef.current
+        : resolveEntityScope(args.state, ownerSessionIdAtEntry) ?? args.state.activeScope;
       const ownerLockKey = sendOwnerLockKey(ownerSessionIdAtEntry, ownerDraftIdAtEntry);
       if (sendOwnerLocksRef.current.has(ownerLockKey) || promptSubmissionInProgress.current) {
         return;
@@ -848,29 +852,9 @@ export function useComposerSend(params: UseComposerSendArgs) {
             args.clearPendingContextRefs?.();
           }
 
-          // Optimistic recency + text title on send. Bumping updatedAt here
-          // moves an already-named session to the top of the project list
-          // before the host index-updated push arrives. Placeholder names
-          // still get the interim title; LLM may upgrade later.
-          const currentName =
-            args.state.sessions.find((session) => session.id === sessionId)?.name ??
-            args.state.generalSessions.find((session) => session.id === sessionId)?.name ??
-            Object.values(args.state.projectSessionsByPath)
-              .flat()
-              .find((session) => session.id === sessionId)?.name;
-          const interim = isPlaceholderSessionName(currentName)
-            ? deriveDefaultNameFromMessage(displayText)
-            : undefined;
-          const preview = displayText.trim().slice(0, 160);
           args.dispatch({
             type: 'session/update',
-            session: {
-              id: sessionId,
-              name: interim ?? currentName ?? '',
-              updatedAt: new Date().toISOString(),
-              scope: ownerScopeAtEntry,
-              ...(preview ? { lastPreview: preview } : {}),
-            },
+            session: buildComposerSendSessionUpdate(args.state, sessionId, ownerScopeAtEntry, displayText),
           });
         } catch (error) {
           if (clientMessageId) {

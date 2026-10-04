@@ -100,6 +100,51 @@ describe('docking drag resolution', () => {
     expect(resolution?.preview.label).toBe(DOCKING_COPY.splitRight);
   });
 
+  it('uses a broad right-side intent area for a sidebar session', () => {
+    const { state, createId, groupRects } = seed();
+    const resolution = resolveDockDrag({
+      state,
+      source: { kind: 'unopened-session', sessionId: 'c' },
+      point: { x: 700, y: 450 },
+      root: document.createElement('div'),
+      stageSize: STAGE,
+      groupRects,
+      panelElement: null,
+      rightPanelVisible: false,
+      createId,
+      apply: () => undefined,
+    });
+    expect(resolution?.preview.ok).toBe(true);
+    expect(resolution?.preview.label).toBe(DOCKING_COPY.splitRight);
+    expect(resolution?.preview.highlight).toEqual([
+      { kind: 'split', edge: 'right', left: 450, top: 0, width: 450, height: 900 },
+    ]);
+  });
+
+  it('explains when no sidebar split direction fits the stage', () => {
+    const createId = createSequentialIdFactory();
+    let state = createWorkspaceState(createId);
+    const groupId = listStageGroupIds(state.stage)[0];
+    if (!groupId) throw new Error('missing stage group');
+    const opened = openSessionView(state, 'a', createId, groupId);
+    if (!opened.ok) throw new Error('open a failed');
+    state = opened.state;
+    const resolution = resolveDockDrag({
+      state,
+      source: { kind: 'unopened-session', sessionId: 'b' },
+      point: { x: 700, y: 300 },
+      root: document.createElement('div'),
+      stageSize: { width: 800, height: 600 },
+      groupRects: [{ groupId, left: 0, top: 0, width: 800, height: 600 }],
+      panelElement: null,
+      rightPanelVisible: false,
+      createId,
+      apply: () => undefined,
+    });
+    expect(resolution?.preview.ok).toBe(false);
+    expect(resolution?.preview.message).toBe(DOCKING_COPY.noSpace);
+  });
+
   it('docks a tool dropped on the right band while the right panel is hidden', () => {
     const seeded = seed();
     const stageGroupId = listStageGroupIds(seeded.state.stage)[0];

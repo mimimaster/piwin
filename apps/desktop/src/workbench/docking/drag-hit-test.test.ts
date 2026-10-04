@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { edgeBand, resolveDropZone, resolveGroupEdge } from './drag-hit-test.js';
+import {
+  edgeBand,
+  resolveDropZone,
+  resolveGroupEdge,
+  resolveSidebarSessionEdge,
+} from './drag-hit-test.js';
 import type { GroupRect } from './types.js';
 
 const left: GroupRect = { groupId: 'g1', left: 0, top: 0, width: 600, height: 800 };
@@ -42,6 +47,23 @@ describe('docking drag hit test', () => {
     expect(resolveGroupEdge(left, { x: 10, y: 20 })).toBe('left');
     expect(resolveGroupEdge(left, { x: 20, y: 10 })).toBe('up');
     expect(resolveGroupEdge(left, { x: 300, y: 400 })).toBeNull();
+  });
+
+  it('uses broad directional intent areas for sidebar sessions', () => {
+    expect(resolveSidebarSessionEdge(left, { x: 500, y: 400 }, ['left', 'right', 'up', 'down'])).toBe(
+      'right',
+    );
+    expect(resolveSidebarSessionEdge(left, { x: 300, y: 400 }, ['left', 'right', 'up', 'down'])).toBeNull();
+    expect(resolveSidebarSessionEdge(left, { x: 550, y: 100 }, ['up', 'down'])).toBe('up');
+  });
+
+  it('keeps the previous sidebar direction near a diagonal boundary', () => {
+    const square = { left: 0, top: 0, width: 600, height: 600 };
+    const point = { x: 480, y: 108 };
+    expect(resolveSidebarSessionEdge(square, point, ['left', 'right', 'up', 'down'])).toBe('up');
+    expect(resolveSidebarSessionEdge(square, point, ['left', 'right', 'up', 'down'], 'right')).toBe(
+      'right',
+    );
   });
 
   it('resolves the right panel, its tabs and the dock band', () => {

@@ -3,10 +3,13 @@ import type { Point } from './drag-hit-test.js';
 
 export type SessionDragRequest = {
   sessionId: string;
+  label: string;
   /** Pointer position at drag start; the docking engine applies its own threshold. */
   origin: Point;
   /** Scope key of the session's project, for cross-project drop rejection. */
   projectScopeKey?: string;
+  /** Touch press-and-hold has already satisfied activation. */
+  activateImmediately?: boolean;
 };
 
 export type SessionDragStarter = (request: SessionDragRequest) => void;

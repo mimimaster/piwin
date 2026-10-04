@@ -141,8 +141,30 @@ describe('ComposerStatsLine', () => {
     expect(view.querySelector('.composer-stats-separator')?.textContent).toBe('·');
   });
 
-  it('renders nothing when there is nothing to show', () => {
-    expect(render(<ComposerStatsLine totals={null} locale="en" />).innerHTML).toBe('');
+  it('keeps an inert empty slot for multi-pane alignment without announcing empty status', () => {
+    const view = render(<ComposerStatsLine totals={null} locale="en" />);
+    const slot = view.querySelector('.composer-stats-line.is-empty');
+    expect(slot?.getAttribute('aria-hidden')).toBe('true');
+    expect(slot?.textContent).toBe('');
+    expect(view.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it('preserves complete values in tooltips when narrow panes truncate the row', () => {
+    const view = render(
+      <ComposerStatsLine
+        totals={totals}
+        extensionSurface={{
+          sessionId: 's1',
+          statuses: [{ key: 'extension', text: 'Long extension status value' }],
+          widgets: [],
+        }}
+        locale="en"
+      />,
+    );
+    expect(view.querySelector('[data-status-key="extension"]')?.getAttribute('title'))
+      .toBe('Long extension status value');
+    expect(view.querySelector('[data-testid="composer-stats-tokens"]')?.getAttribute('title'))
+      .toContain('12K tok · cache 75%');
   });
 });
 

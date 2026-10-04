@@ -28,6 +28,8 @@ import {
   selectContextRingView,
 } from './context-telemetry-selector.js';
 import { ComposerCard } from './composer-card.js';
+import { ComposerStatsLine } from './composer-stats-line.js';
+import { useSessionUsageTotals } from './hooks/use-session-usage-totals.js';
 import type { ComposerPlusSubmenu } from './composer-plus-menu.js';
 import { buildPaneComposerProps } from './pane-composer-props.js';
 import type { HostClient } from './host-client.js';
@@ -118,6 +120,7 @@ function messageBelongsToSession(message: HostServerMessage, sessionId: string):
 }
 
 export function ConversationPaneSession(props: ConversationPaneSessionProps): ReactElement {
+  const sessionUsageTotals = useSessionUsageTotals(props.hostClient, props.sessionId);
   const [state, dispatch] = useReducer(chatUiReducer, props.sessionId, (sessionId) =>
     chatUiReducer(createInitialChatUiState(), {
       type: 'session/set',
@@ -672,6 +675,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
                 : {}),
             })}
           />
+          <ComposerStatsLine totals={sessionUsageTotals} locale={props.locale} />
         </div>
         {!state.hostReady ? (
           <div className="conversation-pane-connection" role="status">

@@ -121,6 +121,12 @@ its own sessions; it does not move sessions from another checkout. Repository
 groups and the unavailable-workspace group can be collapsed independently;
 search expands them to show matches.
 
+**Sidebar ownership on send (2026-10-04):** Sending in a resumed conversation
+keeps that session's project/general scope when updating its sidebar title and
+recency. A previously visited project's parked draft cannot change a live
+session's sidebar ownership. Explicit draft scope still determines where a
+new conversation is created.
+
 **Sidebar cleanup (2026-10-02):** Removed workspaces live only in the separate,
 initially collapsed unavailable group; they never count as active repository
 worktrees. Host-owned subagent copies and reusable writer slots are omitted

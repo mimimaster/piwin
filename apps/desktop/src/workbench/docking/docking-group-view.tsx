@@ -15,13 +15,18 @@ import {
   IconClose,
   IconCompress,
   IconExpand,
-  IconPanelRight,
 } from '../../shell-icons.js';
 import { DOCKING_COPY } from './copy.js';
 import type { DockViewRenderContext } from './docking-surface-content.js';
 import { resolveViewTitle } from './docking-surface-content.js';
 import { useDockToolHosts } from './dock-tool-hosts.js';
-import type { DropEdge, DropSource, WorkspaceGroup, WorkspaceState } from './types.js';
+import type {
+  DropEdge,
+  DropSource,
+  WorkspaceGroup,
+  WorkspaceState,
+  WorkspaceTemplate,
+} from './types.js';
 
 const ICON_PX = 14;
 
@@ -43,7 +48,7 @@ export type DockingGroupViewProps = {
   /** Non-drag path for the split actions (spec §4.4): move this view out to an edge. */
   onMoveViewToEdge: (viewId: string, edge: DropEdge) => void;
   onToggleMaximize: () => void;
-  onSplit: (edge: DropEdge) => void;
+  onApplyTemplate: (template: WorkspaceTemplate) => void;
   onStartDrag: (origin: { x: number; y: number }, source: DropSource) => void;
   onCreateSession: () => void;
 };
@@ -135,6 +140,32 @@ export function DockingGroupView(props: DockingGroupViewProps): ReactElement {
                           {isChinese ? '向下移动分屏' : 'Move to bottom split'}
                         </ContextMenuItem>
                         <ContextMenuSeparator />
+                        <ContextMenuLabel>{isChinese ? '布局' : 'Layout'}</ContextMenuLabel>
+                        <ContextMenuItem
+                          testId="docking-layout-single"
+                          onSelect={() => props.onApplyTemplate('single')}
+                        >
+                          {isChinese ? '单窗' : 'Single pane'}
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          testId="docking-layout-columns"
+                          onSelect={() => props.onApplyTemplate('columns')}
+                        >
+                          {isChinese ? '左右双窗' : 'Two columns'}
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          testId="docking-layout-rows"
+                          onSelect={() => props.onApplyTemplate('rows')}
+                        >
+                          {isChinese ? '上下双窗' : 'Two rows'}
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          testId="docking-layout-quad"
+                          onSelect={() => props.onApplyTemplate('quad')}
+                        >
+                          {isChinese ? '四宫格' : 'Quad'}
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
                         <ContextMenuItem testId="docking-tab-maximize" onSelect={props.onToggleMaximize}>
                           {props.maximized ? (
                             <IconCompress width={ICON_PX} height={ICON_PX} />
@@ -171,40 +202,26 @@ export function DockingGroupView(props: DockingGroupViewProps): ReactElement {
                 );
               })}
             </div>
-            <IconButton
-              label={isChinese ? '向右分屏' : 'Split right'}
-              className="is-split-action"
-              disabled={props.splitDisabled}
-              onClick={() => props.onSplit('right')}
-            >
-              <IconPanelRight width={ICON_PX} height={ICON_PX} />
-            </IconButton>
-            <IconButton
-              label={isChinese ? '向下分屏' : 'Split down'}
-              className="is-split-action"
-              disabled={props.splitDisabled}
-              onClick={() => props.onSplit('down')}
-            >
-              <IconArrowDown width={ICON_PX} height={ICON_PX} />
-            </IconButton>
-            <IconButton label={maximizeLabel} onClick={props.onToggleMaximize}>
-              {props.maximized ? (
-                <IconCompress width={ICON_PX} height={ICON_PX} />
-              ) : (
-                <IconExpand width={ICON_PX} height={ICON_PX} />
-              )}
-            </IconButton>
-            {group.activeViewId ? (
-              <IconButton
-                label={isChinese ? '关闭视图' : 'Close view'}
-                onClick={() => {
-                  const viewId = group.activeViewId;
-                  if (viewId) props.onCloseView(viewId);
-                }}
-              >
-                <IconClose width={ICON_PX} height={ICON_PX} />
+            <div className="conversation-pane-actions">
+              <IconButton label={maximizeLabel} onClick={props.onToggleMaximize}>
+                {props.maximized ? (
+                  <IconCompress width={ICON_PX} height={ICON_PX} />
+                ) : (
+                  <IconExpand width={ICON_PX} height={ICON_PX} />
+                )}
               </IconButton>
-            ) : null}
+              {group.activeViewId ? (
+                <IconButton
+                  label={isChinese ? '关闭视图' : 'Close view'}
+                  onClick={() => {
+                    const viewId = group.activeViewId;
+                    if (viewId) props.onCloseView(viewId);
+                  }}
+                >
+                  <IconClose width={ICON_PX} height={ICON_PX} />
+                </IconButton>
+              ) : null}
+            </div>
           </header>
         ) : null}
         <div className="conversation-pane-body" ref={props.slotRef}>

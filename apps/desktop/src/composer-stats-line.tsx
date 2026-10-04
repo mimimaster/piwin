@@ -1,7 +1,8 @@
 /**
  * One muted row under the composer card: Pi extension status on the left,
  * session stats (turns · steps · tok/s · tokens · cache) on the right (ADR 0080).
- * Renders nothing when there is nothing to say, so an empty session keeps the composer flush.
+ * An inert empty slot stays hidden in single-pane mode; split panes reserve its
+ * height so usage loading or extension updates cannot shift the input baseline.
  */
 import { Fragment, type ReactElement } from 'react';
 import {
@@ -10,9 +11,11 @@ import {
   type ComposerStatsSegment,
 } from './composer-stats-line-model';
 
-export function ComposerStatsLine(props: ComposerStatsLineInput): ReactElement | null {
+export function ComposerStatsLine(props: ComposerStatsLineInput): ReactElement {
   const segments = buildComposerStatsSegments(props);
-  if (segments.length === 0) return null;
+  if (segments.length === 0) {
+    return <div className="composer-stats-line is-empty" aria-hidden="true" />;
+  }
 
   const extensionSegments = segments.filter(
     (segment): segment is Extract<ComposerStatsSegment, { kind: 'extension' }> =>
@@ -32,6 +35,7 @@ export function ComposerStatsLine(props: ComposerStatsLineInput): ReactElement |
               key={segment.key}
               className="composer-stats-item is-extension"
               data-status-key={segment.key}
+              title={segment.text}
             >
               {segment.working ? (
                 <span className="composer-stats-pulse-dot" aria-hidden />
@@ -53,7 +57,7 @@ export function ComposerStatsLine(props: ComposerStatsLineInput): ReactElement |
               ) : null}
               <span
                 className="composer-stats-item"
-                title={segment.title}
+                title={`${segment.text}\n${segment.title}`}
                 data-testid={`composer-stats-${segment.kind}`}
               >
                 {segment.text}

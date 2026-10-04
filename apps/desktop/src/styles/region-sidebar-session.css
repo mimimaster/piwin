@@ -159,6 +159,11 @@
   white-space: nowrap;
 }
 
+.session-item-name[data-session-drag-handle='true'] {
+  cursor: grab;
+  touch-action: pan-y;
+}
+
 .session-item-time {
   position: absolute;
   right: var(--s-2);

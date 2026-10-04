@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { DRAG_ACTIVATION_THRESHOLD_PX } from './constants.js';
 import type { DropHighlight } from './drag-preview.js';
 import type { Point } from './drag-hit-test.js';
-import type { DropSource } from './types.js';
+import type { DropEdge, DropSource } from './types.js';
 
 export type DragPreview = {
   ok: boolean;
@@ -14,18 +14,27 @@ export type DragPreview = {
 export type DockDragState = {
   source: DropSource;
   point: Point;
+  label: string | null;
   preview: DragPreview | null;
 };
 
-export type DockDragResolution = { preview: DragPreview; commit: () => void };
+export type DockDragResolution = {
+  preview: DragPreview;
+  intentEdge?: DropEdge | null;
+  commit: () => void;
+};
 
 export type DockDragController = {
   drag: DockDragState | null;
-  startDrag: (origin: Point, source: DropSource) => void;
+  startDrag: (
+    origin: Point,
+    source: DropSource,
+    options?: { activated?: boolean; label?: string },
+  ) => void;
   cancelDrag: () => void;
 };
 
-type Pending = { source: DropSource; origin: Point };
+type Pending = { source: DropSource; origin: Point; label: string | null };
 
 /**
  * Pointer-driven docking drag.
@@ -52,31 +61,30 @@ export function useDockingDrag(args: {
     setDrag(null);
   }, []);
 
-  useEffect(() => {
-    if (!drag) return;
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      clear();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [clear, drag]);
-
-  const startDrag = useCallback((origin: Point, source: DropSource) => {
-    if (!latest.current.enabled) return;
-    pending.current = { source, origin };
-  }, []);
+  const startDrag = useCallback(
+    (origin: Point, source: DropSource, options?: { activated?: boolean; label?: string }) => {
+      if (!latest.current.enabled) return;
+      if (options?.activated) {
+        pending.current = null;
+        const next: DockDragState = { source, point: origin, label: options.label ?? null, preview: null };
+        active.current = next;
+        setDrag(next);
+        return;
+      }
+      pending.current = { source, origin, label: options?.label ?? null };
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!args.enabled) return;
 
-    const resolveAt = (point: Point, source: DropSource): DockDragState => {
+    const resolveAt = (point: Point, source: DropSource, label: string | null): DockDragState => {
       const resolution = latest.current.resolve(point, source);
       const preview: DragPreview | null = resolution
         ? resolution.preview
         : { ok: false, label: null, message: null, highlight: [] };
-      const next: DockDragState = { source, point, preview };
+      const next: DockDragState = { source, point, label, preview };
       active.current = next;
       return next;
     };
@@ -85,7 +93,7 @@ export function useDockingDrag(args: {
       const point: Point = { x: event.clientX, y: event.clientY };
       const current = active.current;
       if (current) {
-        setDrag(resolveAt(point, current.source));
+        setDrag(resolveAt(point, current.source, current.label));
         return;
       }
       const started = pending.current;
@@ -93,7 +101,7 @@ export function useDockingDrag(args: {
       const travelled =
         Math.abs(point.x - started.origin.x) + Math.abs(point.y - started.origin.y);
       if (travelled < DRAG_ACTIVATION_THRESHOLD_PX) return;
-      setDrag(resolveAt(point, started.source));
+      setDrag(resolveAt(point, started.source, started.label));
     };
 
     const onPointerUp = (): void => {
@@ -111,14 +119,29 @@ export function useDockingDrag(args: {
     };
 
     const onPointerCancel = (): void => clear();
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      if (pending.current || active.current) event.preventDefault();
+      clear();
+    };
+    const onWindowBlur = (): void => clear();
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === 'hidden') clear();
+    };
 
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerCancel);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('blur', onWindowBlur);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('blur', onWindowBlur);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [args.enabled, clear]);
 

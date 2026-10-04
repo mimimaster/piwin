@@ -21,7 +21,7 @@ import {
 } from './session-row-working';
 import { sessionScopeKey } from './session-scope-key';
 import { agentDisplayName } from './agent-backend-state';
-import { useSessionDrag } from './workbench/docking/docking-session-drag.js';
+import { useSessionRowDragGesture } from './workbench/docking/use-session-row-drag-gesture.js';
 
 /** proto-03 `.i.s12` inside `.ib.s22` hit targets. */
 const SESSION_ACTION_ICON_PX = 12;
@@ -182,9 +182,14 @@ export function SessionRowItem({
     !isDraft && 'backend' in session ? session.backend?.agentId : undefined;
   const backendBadge = backendAgentId !== undefined ? agentDisplayName(backendAgentId) : null;
   const isActive = isDraft ? session.id === activeDraftId : session.id === activeSessionId;
-  const sessionDrag = useSessionDrag();
   const sessionScope = 'scope' in session ? session.scope : undefined;
   const dragScopeKey = sessionScope ? sessionScopeKey(sessionScope) : undefined;
+  const dragGesture = useSessionRowDragGesture({
+    enabled: !isDraft,
+    sessionId: session.id,
+    label: session.name,
+    ...(dragScopeKey ? { projectScopeKey: dragScopeKey } : {}),
+  });
   const isWorking = sessionRowIsWorking({
     sessionId: session.id,
     isDraft,
@@ -253,16 +258,7 @@ export function SessionRowItem({
         aria-current={isActive ? 'page' : undefined}
         aria-label={isDraft ? `${session.name} (draft)` : session.name}
         data-tauri-drag-region="false"
-        onPointerDown={(event) => {
-          // Threshold + drop resolution live in the docking engine; a plain
-          // click without travel still resumes the session below.
-          if (isDraft || event.button !== 0) return;
-          sessionDrag?.startSessionDrag({
-            sessionId: session.id,
-            origin: { x: event.clientX, y: event.clientY },
-            ...(dragScopeKey ? { projectScopeKey: dragScopeKey } : {}),
-          });
-        }}
+        onClickCapture={dragGesture.onClickCapture}
         className={[
           isActive
             ? isWorking
@@ -300,7 +296,7 @@ export function SessionRowItem({
                 : 'session-item-body'
           }
         >
-          <span className="session-item-name">
+          <span className="session-item-name" {...dragGesture.handleProps}>
             {isDraft ? <span className="session-draft-mark" aria-hidden /> : null}
             {isArchived ? (
               <span className="session-archived-mark" aria-hidden title={copy.archived}>

@@ -9,6 +9,7 @@ import type {
   HostResponse,
   HostServerMessage,
   SessionTranscriptMessage,
+  SessionUsageTotals,
 } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { ConversationPaneSession } from './conversation-pane-session.js';
@@ -24,6 +25,11 @@ class FakeHostClient {
   resumeFail = false;
   advertiseContextTelemetry = false;
   contextSnapshot: unknown = null;
+  usageTotals: SessionUsageTotals | null = null;
+
+  supportsCommand(type: HostCommand['type']): boolean {
+    return type === 'usage/get-session' && this.usageTotals !== null;
+  }
 
   getTransport(): 'remote' {
     return 'remote';
@@ -157,6 +163,14 @@ class FakeHostClient {
             },
           ],
         },
+      });
+    }
+    if (command.type === 'usage/get-session') {
+      return Promise.resolve({
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: { totals: this.usageTotals },
       });
     }
     if (command.type === 'session/set-composer-profile') {
@@ -572,6 +586,39 @@ describe('ConversationPaneSession', () => {
           .contextRing,
       ).toBe('visible'),
     );
+  });
+
+  it('retains an inert stats slot when usage is unavailable', async () => {
+    const host = new FakeHostClient();
+    ({ container, root } = renderSession(host));
+    await vi.waitFor(() =>
+      expect(container?.querySelector('.conversation-pane-composer .composer-stats-line.is-empty'))
+        .not.toBeNull(),
+    );
+    expect(container?.querySelector('.composer-stats-line')?.getAttribute('aria-hidden')).toBe('true');
+    expect(host.requests.some((request) => request.type === 'usage/get-session')).toBe(false);
+  });
+
+  it('reads statistics for the retained pane session, not the main session', async () => {
+    const host = new FakeHostClient();
+    host.usageTotals = {
+      sessionId: 'session-aux',
+      userTurnCount: 2,
+      entryCount: 3,
+      promptTokens: 800,
+      completionTokens: 200,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalTokens: 1000,
+    };
+    ({ container, root } = renderSession(host));
+    await vi.waitFor(() =>
+      expect(container?.querySelector('[data-testid="composer-stats-activity"]')?.textContent)
+        .toContain('2'),
+    );
+    expect(host.requests).toContainEqual({ type: 'usage/get-session', sessionId: 'session-aux' });
+    expect(container?.querySelector('[data-testid="composer-stats-tokens"]')?.textContent)
+      .toContain('1K');
   });
 
   it('reuses the workbench composer card and model picker', async () => {

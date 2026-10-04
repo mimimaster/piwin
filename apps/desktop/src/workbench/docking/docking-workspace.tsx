@@ -31,7 +31,7 @@ import { resolveSidebarDragSource } from './session-drag-source.js';
 import { DockViewContent, type DockViewRenderContext } from './docking-surface-content.js';
 import { placeSurfaceHosts, useDockingSurfaceHosts } from './surface-pool.js';
 import type { DockingWorkspaceController } from './use-docking-workspace.js';
-import type { WorkspaceGroup, WorkspaceTemplate } from './types.js';
+import type { DropEdge, WorkspaceGroup } from './types.js';
 import { SurfaceTitlebarProvider } from '../../surface-titlebar.js';
 
 export type DockingWorkspaceProps = Omit<DockViewRenderContext, 'onCloseView'> & {
@@ -47,8 +47,6 @@ export type DockingWorkspaceProps = Omit<DockViewRenderContext, 'onCloseView'> &
   activeProjectScopeKey?: string;
 };
 
-const TEMPLATES: WorkspaceTemplate[] = ['single', 'columns', 'rows', 'quad'];
-
 function groupRectOf(state: Parameters<typeof listStageRects>[0], groupId: string, size: { width: number; height: number }): Rect | null {
   const found = listStageRects(state, { left: 0, top: 0, width: size.width, height: size.height }).find(
     (item) => item.groupId === groupId,
@@ -61,6 +59,7 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const poolRef = useRef<HTMLDivElement | null>(null);
   const slotRefs = useRef(new Map<string, HTMLDivElement>());
+  const lastSessionIntentEdgeRef = useRef<DropEdge | null>(null);
   const [stagePx, setStagePx] = useState({ width: 1200, height: 800 });
   const phoneSinglePane = props.phoneSinglePane === true;
   const state = controller.state;
@@ -262,7 +261,7 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
     (point: Point, source: Parameters<typeof resolveDockDrag>[0]['source']): DockDragResolution | null => {
       const root = rootRef.current;
       if (!root) return null;
-      return resolveDockDrag({
+      const resolution = resolveDockDrag({
         state: stateRef.current,
         source,
         point,
@@ -272,6 +271,7 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
         panelElement: rightHost.panel,
         rightPanelVisible: rightHost.open && rightHost.panel !== null,
         createId: controller.createId,
+        previousSessionEdge: lastSessionIntentEdgeRef.current,
         ...(props.activeProjectScopeKey !== undefined
           ? { activeProjectScopeKey: props.activeProjectScopeKey }
           : {}),
@@ -280,6 +280,10 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
           controller.requestRightReveal();
         },
       });
+      if (source.kind === 'unopened-session' && resolution) {
+        lastSessionIntentEdgeRef.current = resolution.intentEdge ?? null;
+      }
+      return resolution;
     },
     [controller, props.activeProjectScopeKey, pxRects, rightHost, stagePx.height, stagePx.width],
   );
@@ -297,20 +301,28 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
   useEffect(() => {
     if (!registerSessionDrag) return;
     registerSessionDrag((request: SessionDragRequest) => {
+      lastSessionIntentEdgeRef.current = null;
       startDrag(
         request.origin,
         resolveSidebarDragSource(stateRef.current, request.sessionId, request.projectScopeKey),
+        request.activateImmediately
+          ? { activated: true, label: request.label }
+          : { label: request.label },
       );
     });
     return () => registerSessionDrag(null);
   }, [registerSessionDrag, startDrag]);
 
-  const templateLabel: Record<WorkspaceTemplate, string> = {
-    single: locale === 'zh-CN' ? '单窗' : 'Single',
-    columns: locale === 'zh-CN' ? '左右' : 'Columns',
-    rows: locale === 'zh-CN' ? '上下' : 'Rows',
-    quad: locale === 'zh-CN' ? '四宫格' : 'Quad',
-  };
+  const dragStageBox = drag && rootRef.current ? resolveStageBoxElement(rootRef.current) : null;
+  const dragStageBounds = dragStageBox?.getBoundingClientRect();
+  const dragOverlayRect: Rect | null = dragStageBounds
+    ? {
+        left: dragStageBounds.left,
+        top: dragStageBounds.top,
+        width: dragStageBounds.width,
+        height: dragStageBounds.height,
+      }
+    : null;
 
   return (
     <div
@@ -378,14 +390,11 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
               onToggleMaximize={() => controller.setState((current) => maximizeGroup(current, groupId))}
               maximized={state.displayMode === 'maximized' && state.maximizedGroupId === groupId}
               splitDisabled={stageGroupIds.length >= STAGE_GROUP_HARD_LIMIT}
-              onSplit={(edge) => {
-                const result = splitGroupAtEdge(state, groupId, edge, controller.createId);
-                if (!result.ok) {
-                  controller.pushNotice(result.message);
-                  return;
-                }
-                controller.setState(() => result.state);
-              }}
+              onApplyTemplate={(template) =>
+                controller.setState((current) =>
+                  applyWorkspaceTemplate(current, template, controller.createId),
+                )
+              }
               onCreateSession={() => {
                 void props.onCreateConversation().then((created) => {
                   if (!created) return;
@@ -424,27 +433,23 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
             </button>
           </div>
         ) : null}
-        {drag?.preview ? <DockingDragOverlay preview={drag.preview} /> : null}
+        {drag?.preview && dragOverlayRect
+          ? createPortal(
+              <DockingDragOverlay
+                preview={drag.preview}
+                stageRect={dragOverlayRect}
+                point={{
+                  x: drag.point.x - dragOverlayRect.left,
+                  y: drag.point.y - dragOverlayRect.top,
+                }}
+                sourceLabel={drag.label}
+              />,
+              document.body,
+            )
+          : null}
         <div ref={poolRef} hidden className="docking-surface-pool" />
       </div>
       </div>
-      {multiple ? (
-        <div className="conversation-pane-presets">
-          {TEMPLATES.map((template) => (
-            <button
-              key={template}
-              type="button"
-              onClick={() =>
-                controller.setState((current) =>
-                  applyWorkspaceTemplate(current, template, controller.createId),
-                )
-              }
-            >
-              {templateLabel[template]}
-            </button>
-          ))}
-        </div>
-      ) : null}
       {viewIds.map((viewId) => {
         const host = hosts.get(viewId);
         const view = state.views[viewId];
