@@ -2,6 +2,11 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+
+/** Linux CI can race recursive rmdir against leftover watchers/handles. */
+async function removeTempRoot(root: string): Promise<void> {
+  await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+}
 import { setProjectTrust } from '@piwin/project';
 import { HostRuntime } from './host-runtime.js';
 import { listModelToolSchemaDefects } from './model-tool-descriptor.js';
@@ -40,7 +45,7 @@ describe('HostRuntime tool surfaces', () => {
       ).toEqual(['piwin_plan_create', 'piwin_plan_present', 'piwin_plan_set_step']);
     } finally {
       await runtime.dispose();
-      await rm(piwinRoot, { recursive: true, force: true });
+      await removeTempRoot(piwinRoot);
     }
   });
 
@@ -64,7 +69,7 @@ describe('HostRuntime tool surfaces', () => {
       );
     } finally {
       await runtime.dispose();
-      await rm(piwinRoot, { recursive: true, force: true });
+      await removeTempRoot(piwinRoot);
     }
   });
 
@@ -102,7 +107,7 @@ describe('HostRuntime tool surfaces', () => {
         ).toEqual(expected);
       } finally {
         await runtime.dispose();
-        await rm(piwinRoot, { recursive: true, force: true });
+        await removeTempRoot(piwinRoot);
       }
     }
   });
@@ -136,7 +141,7 @@ describe('HostRuntime tool surfaces', () => {
       expect(evaluateFileWritePermission({ absPath: dropped.permissionGate.projectRoot + '/src.ts', projectRoot: dropped.permissionGate.projectRoot, mode: 'auto', rules: dropped.permissionGate.rules })).toEqual({ decision: 'deny', reason: 'piwin-config' });
     } finally {
       await runtime.dispose();
-      await rm(piwinRoot, { recursive: true, force: true });
+      await removeTempRoot(piwinRoot);
     }
   });
 
@@ -183,7 +188,7 @@ describe('HostRuntime tool surfaces', () => {
       expect(readonlyChild.permissionGate.getPermissionMode()).toBe('ask-all');
     } finally {
       await runtime.dispose();
-      await rm(piwinRoot, { recursive: true, force: true });
+      await removeTempRoot(piwinRoot);
     }
   });
 
@@ -248,7 +253,7 @@ describe('HostRuntime tool surfaces', () => {
       expect(untrustedFinished.status).toBe('exited');
     } finally {
       await runtime.dispose();
-      await rm(piwinRoot, { recursive: true, force: true });
+      await removeTempRoot(piwinRoot);
     }
   });
 
@@ -305,7 +310,7 @@ describe('HostRuntime tool surfaces', () => {
       ).toBe(false);
     } finally {
       await runtime.dispose();
-      await rm(piwinRoot, { recursive: true, force: true });
+      await removeTempRoot(piwinRoot);
     }
   });
 
@@ -393,7 +398,7 @@ describe('HostRuntime tool surfaces', () => {
         }, new AbortController().signal)).toMatchObject({ ok: false, code: 'tool-not-available' });
       } finally {
         await runtime.dispose();
-        await rm(piwinRoot, { recursive: true, force: true });
+        await removeTempRoot(piwinRoot);
       }
     }
     const sdkNames = namesByMode.sdk ?? [];
@@ -427,7 +432,7 @@ describe('HostRuntime tool surfaces', () => {
       expect(defects).toEqual([]);
     } finally {
       await runtime.dispose();
-      await rm(piwinRoot, { recursive: true, force: true });
+      await removeTempRoot(piwinRoot);
     }
   });
 
@@ -444,7 +449,7 @@ describe('HostRuntime tool surfaces', () => {
       expect(tools.some((tool) => tool.descriptor.name.startsWith('browser_'))).toBe(false);
     } finally {
       await runtime.dispose();
-      await rm(piwinRoot, { recursive: true, force: true });
+      await removeTempRoot(piwinRoot);
     }
   });
 });

@@ -53,10 +53,20 @@ describe('usage commands', () => {
   it('queries request detail on each refresh while a backend turn is still running', async () => {
     const rootDir = await seedLedger([]);
     let requestCount = 2;
-    const commandContext = { ...context(rootDir), getBackendRequestUsage: async () =>
-      Array.from({ length: requestCount }, (_, index) => usageRecord({
-        sessionId: 'grok-running', measurementId: `request-${index}`, timingScope: 'request',
-      })),
+    // Stamp request rows in the past so a clock tick between handleUsageCommand's
+    // `now` and the mock cannot push recordedAt past the rolling window end.
+    const stampedAt = new Date(Date.now() - 5_000).toISOString();
+    const commandContext = {
+      ...context(rootDir),
+      getBackendRequestUsage: async () =>
+        Array.from({ length: requestCount }, (_, index) =>
+          usageRecord({
+            sessionId: 'grok-running',
+            measurementId: `request-${index}`,
+            timingScope: 'request',
+            recordedAt: stampedAt,
+          }),
+        ),
     };
     const first = okData<{ log: UsageCallLog }>(await handleUsageCommand(
       { type: 'usage/list-recent' }, 'first', commandContext)).log;
