@@ -25,12 +25,18 @@ export type AgentPluginCatalogEntry = {
 export type AgentPluginSessionScope = { sessionId: string; runtimeGenerationId: string };
 export type AgentPluginScope = { kind: 'plugin' } | ({ kind: 'session' } & AgentPluginSessionScope);
 export type AgentPluginOpenInput = { cwd: string; binding: SessionBackendBinding };
+export type AgentPluginHostCapabilities = {
+  /** Accept ordered agent emissions as history while session/load is pending. */
+  replayStreaming?: boolean;
+};
 export type AgentPluginOpenedSession = {
   backendSessionId: string;
   agentVersion?: string;
   capabilities: SessionBackendCapabilities;
   options: SessionBackendOptions;
   replayEvents: AgentPluginAgentEmission[];
+  /** Negotiated load only: streamed event count; replayEvents must then be empty. */
+  streamedReplayEventCount?: number;
 };
 
 /** A file proposal is not a Host media ref, a grant, or an absolute source path. */
@@ -66,7 +72,11 @@ export type AgentPluginPermissionDecision = { optionId: string } | { cancelled: 
 /** Requests operate a backend, not a second Host tools/Run/queue API. */
 export type AgentPluginRequestMap = {
   'plugin/initialize': {
-    params: { agentId: string; pluginRevision: string; hostProtocolVersion: number; runtime: { binaryPath?: string } };
+    params: {
+      agentId: string; pluginRevision: string; hostProtocolVersion: number;
+      runtime: { binaryPath?: string };
+      hostCapabilities?: AgentPluginHostCapabilities;
+    };
     result: { agentId: string; protocolVersion: 1; requestUsage?: boolean };
   };
   'check': { params: { refresh: boolean }; result: ExternalAgentStatus };

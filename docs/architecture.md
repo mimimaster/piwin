@@ -592,6 +592,17 @@ performed.
 | `@piwin/marketplace` | Unified install sources |
 | `@piwin/ui-kit` | Shared UI primitives, including `FlashcardFace` / `TearDeckSurface` (existing `fcws-tear-off` 200ms; no Host/FS) |
 
+### 4.1 Installed backend historical replay
+
+Host/plugin initialization may negotiate `hostCapabilities.replayStreaming`.
+A loading session then collects ordered, generation-scoped agent emissions and
+validates the final `streamedReplayEventCount` before exposing replay to the
+existing media-import/transcript path. Legacy replay arrays remain supported;
+protocol version 1 and the 2 MiB frame limit are unchanged. Protocol closure
+also disposes the bridge's owned process, even after it is marked closed.
+See [the replay contract](./guides/agent-plugin-streamed-replay.md)
+for producer compatibility and the still-pending independent-adapter gate.
+
 ## 5. Config root `~/.piwin`
 
 ```text

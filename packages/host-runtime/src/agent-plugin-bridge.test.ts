@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,8 +11,15 @@ import { AgentPluginBridge, AgentPluginBridgeError } from './agent-plugin-bridge
  */
 const FIXTURE = `
 import { createInterface } from 'node:readline';
+import { writeFileSync } from 'node:fs';
 const mode = process.env.PLUGIN_FIXTURE_MODE ?? 'normal';
+writeFileSync(process.env.PLUGIN_FIXTURE_PID_FILE, String(process.pid));
 const lines = createInterface({ input: process.stdin });
+if (mode === 'stubborn') { setInterval(() => {}, 10000); process.on('SIGTERM', () => {}); }
+lines.on('close', () => {
+  writeFileSync(process.env.PLUGIN_FIXTURE_PID_FILE + '.eof', 'cleanup');
+  if (mode !== 'stubborn') process.exit(0);
+});
 const write = (frame) => process.stdout.write(JSON.stringify(frame) + '\\n');
 let promptFrame;
 let callbackResult;
@@ -37,6 +44,9 @@ lines.on('line', (line) => {
   if (method === 'session/new') {
     if (mode === 'crash-on-new') process.exit(3);
     if (mode === 'malformed') { process.stdout.write('not json\\n'); return; }
+    if (mode === 'oversized') return ok(frame, { replayEvents: [{ type: 'agent', event: { type: 'message/text_delta', messageId: 'history', delta: 'x'.repeat(2 * 1024 * 1024) } }] });
+    if (mode === 'foreign-response') return ok({ ...frame, scope: { ...frame.scope, runtimeGenerationId: 'other' } }, { backendSessionId: 'foreign', replayEvents: [] });
+    if (mode === 'wrong-method-response') return ok({ ...frame, method: 'session/resume' }, { backendSessionId: 'wrong', replayEvents: [] });
     if (mode === 'foreign-scope') {
       write({ protocolVersion: 1, kind: 'event', scope: { kind: 'session', sessionId: 'other', runtimeGenerationId: 'gen-1' }, emission: { type: 'title', title: 'Foreign' } });
     }
@@ -71,7 +81,10 @@ lines.on('line', (line) => {
     if (mode === 'hang') return;
     return ok(frame, { servers: [], observed: false });
   }
-  if (method === 'plugin/dispose') return ok(frame, null);
+  if (method === 'plugin/dispose') {
+    if (mode === 'ignore-dispose' || mode === 'stubborn') return;
+    return ok(frame, null);
+  }
   return fail(frame, 'unsupported', 'not served by fixture');
 });
 `;
@@ -98,10 +111,20 @@ async function harness(mode = 'normal', overrides: Partial<Parameters<typeof Age
     onSessionEmission: (emission, scope) => emissions.push({ emission, scope }),
     callbacks: { requestPermission: permission, interventionEvent: async () => ({ accepted: false }) },
     onClosed: (reason) => closed.push(reason),
-    env: { ...process.env, PLUGIN_FIXTURE_MODE: mode },
+    env: { ...process.env, PLUGIN_FIXTURE_MODE: mode, PLUGIN_FIXTURE_PID_FILE: join(root, 'pid') },
     ...overrides,
   });
-  cleanups.push(async () => { await bridge.dispose().catch(() => undefined); await rm(root, { recursive: true, force: true }); });
+  cleanups.push(async () => {
+    await bridge.dispose().catch(() => undefined);
+    // The red regression must not itself leak the exact fixture child it created.
+    const pid = Number(await readFile(join(root, 'pid'), 'utf8').catch(() => '0'));
+    if (Number.isSafeInteger(pid) && pid > 0) {
+      try { process.kill(pid, 'SIGTERM'); } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ESRCH')) throw error;
+      }
+    }
+    await rm(root, { recursive: true, force: true });
+  });
   return { bridge, emissions, permission, closed, entrypoint, root };
 }
 
@@ -168,12 +191,50 @@ describe('Host-side Agent plugin bridge', () => {
     await vi.waitFor(() => expect(closed).toHaveLength(1));
   });
 
+  it.each(['malformed', 'oversized'])('disposes its owned process gracefully after protocol close (%s)', async (mode) => {
+    const { bridge, root, closed } = await harness(mode);
+    await bridge.initialize();
+    const pid = Number(await readFile(join(root, 'pid'), 'utf8'));
+    await expect(bridge.request('session/new', { cwd: '/tmp', binding: { agentId: 'grok' } }, { kind: 'session', ...SCOPE })).rejects.toThrow('protocol-error');
+    const firstDispose = bridge.dispose();
+    await Promise.all([firstDispose, bridge.dispose()]);
+    expect(closed).toHaveLength(1);
+    expect(await readFile(join(root, 'pid.eof'), 'utf8')).toBe('cleanup');
+    expect(() => process.kill(pid, 0)).toThrow();
+  });
+
+  it.each(['foreign-response', 'wrong-method-response'])('rejects a correlated response with the wrong scope or method (%s)', async (mode) => {
+    const { bridge } = await harness(mode);
+    await bridge.initialize();
+    await expect(bridge.request('session/new', { cwd: '/tmp', binding: { agentId: 'grok' } }, { kind: 'session', ...SCOPE })).rejects.toThrow('protocol-error');
+  });
+
   it('stops accepting work after dispose', async () => {
     const { bridge } = await harness();
     await bridge.initialize();
     await bridge.dispose();
     await expect(bridge.request('check', { refresh: true })).rejects.toMatchObject({ code: 'plugin-closed' });
   });
+
+  it('bounds an unanswered dispose acknowledgement and still closes stdin', async () => {
+    const { bridge, root } = await harness('ignore-dispose');
+    await bridge.initialize();
+    const pid = Number(await readFile(join(root, 'pid'), 'utf8'));
+    await bridge.dispose();
+    expect(await readFile(join(root, 'pid.eof'), 'utf8')).toBe('cleanup');
+    expect(() => process.kill(pid, 0)).toThrow();
+  });
+
+  it('escalates only its stubborn owned child and leaves another adapter usable', async () => {
+    const unrelated = await harness();
+    await unrelated.bridge.initialize();
+    const { bridge, root } = await harness('stubborn');
+    await bridge.initialize();
+    const pid = Number(await readFile(join(root, 'pid'), 'utf8'));
+    await bridge.dispose();
+    expect(() => process.kill(pid, 0)).toThrow();
+    await expect(unrelated.bridge.request('check', { refresh: true })).resolves.toMatchObject({ state: 'ready' });
+  }, 12000);
 
   it('bounds a request that the plugin never answers', async () => {
     const { bridge } = await harness('hang', { requestTimeoutMs: 50 });

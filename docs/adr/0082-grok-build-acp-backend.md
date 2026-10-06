@@ -138,8 +138,26 @@ The Host is the authority; clients mirror it and never invent capability.
 - **Per-session picker.** Pi's provider-backed model/thinking pill is replaced
   for an agent session by the agent's own `SessionBackendOptions` list. Pi model
   refs are never sent to another runtime, and `modeConfirmed: false` renders as
-  pending rather than as the current mode. The composer resolves agent identity
-  from the durable session binding (including retained rows after sidebar paging),
+  pending rather than as the current mode. A successful `session/backend-set`
+  that omits live options has persisted the choice for the next resume; the
+  client keeps that model/effort pick, and the requested mode once
+  `modeConfirmed` settles, instead of replaying the pre-pick catalog. That
+  settlement confirms only the session's latest options, and only while the
+  requested mode id is still current, so a late empty success cannot restore an
+  older model, effort, or mode, or recreate a session that is gone. Returned
+  live options replace that cache exactly and remain authoritative. When a
+  nonresident session has no live catalog, Desktop may hydrate choices from the
+  matching ready agent's Host-declared catalog and validate the saved binding's
+  choices against it; this does not confirm a runtime mode or invent capabilities.
+  A later live catalog remains authoritative. Transcript composer projections
+  track session/backend identity, backend options and draft engine selection;
+  backend and engine handlers stay late-bound so a loading snapshot or old
+  session callback cannot survive an identity/catalog update. Empty-stage engine
+  cards use that same composer projection; choosing another engine on a bound
+  empty session opens an unsent draft through the existing New Agent path,
+  rather than changing the existing binding or only changing unrelated draft state.
+  The composer resolves agent identity from the durable session binding (including retained
+  rows after sidebar paging),
   independently of the optional backend catalog. Until that catalog arrives,
   it shows the agent name and a disabled model-loading state; it never presents
   the global Pi model selection for an externally bound session. Host publishes

@@ -18,6 +18,7 @@ import {
   parseAgentPluginMediaProposal,
   parseAgentPluginPromptOutcome,
   type AgentPluginAgentEmission,
+  type AgentPluginHostCapabilities,
   type AgentPluginEmission,
   type AgentPluginMethod,
   type AgentPluginMethodMap,
@@ -32,6 +33,7 @@ import {
   type AgentPluginPermissionDecision,
   type AgentPluginPermissionPrompt,
 } from '@piwin/contracts';
+import { disposeAgentPluginProcess } from './agent-plugin-process-disposal.js';
 
 export class AgentPluginBridgeError extends Error {
   override readonly name = 'AgentPluginBridgeError';
@@ -54,6 +56,7 @@ export type AgentPluginBridgeOptions = {
   agentId: string;
   pluginRevision: string;
   runtime: { binaryPath?: string };
+  hostCapabilities?: AgentPluginHostCapabilities;
   /** Session boundary: emissions from another session/generation are dropped. */
   resolveSessionScope: (scope: AgentPluginSessionScope) => boolean;
   onSessionEmission: (emission: AgentPluginEmission, scope: AgentPluginSessionScope) => void;
@@ -70,6 +73,7 @@ export type AgentPluginBridgeOptions = {
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 /** Callback answers are Host-local decisions; they still get a bound. */
 const CALLBACK_TIMEOUT_MS = 5_000;
+const DISPOSE_ACK_GRACE_MS = 1_000;
 
 type PendingRequest = {
   resolve: (value: unknown) => void;
@@ -77,6 +81,7 @@ type PendingRequest = {
   timer: NodeJS.Timeout | undefined;
   /** Diagnostics only: which method a rejected-in-flight call was waiting on. */
   method: AgentPluginMethod;
+  scope: AgentPluginScope;
 };
 
 export class AgentPluginBridge {
@@ -88,14 +93,18 @@ export class AgentPluginBridge {
   /** Set after dispose so a late plugin notification cannot reach the Host. */
   private disposed = false;
   private requestUsageSupported = false;
+  private disposal: Promise<void> | undefined;
 
   private constructor(options: AgentPluginBridgeOptions, child: ChildProcessWithoutNullStreams) {
     this.options = options;
     this.child = child;
     const lines = createInterface({ input: child.stdout });
     lines.on('line', (line) => {
-      void this.handleLine(line).catch(() => undefined);
+      void this.handleLine(line).catch((error: unknown) => {
+        this.close(error instanceof AgentPluginProtocolError ? error.message : `agent-plugin-protocol-error: ${formatError(error)}`);
+      });
     });
+    child.stdin.on('error', (error) => this.close(`plugin-write-failed: ${formatError(error)}`));
     child.on('error', (error) => this.close(`plugin-spawn-failed: ${formatError(error)}`));
     child.on('exit', (code, signal) => this.close(`plugin-exited: code=${code ?? 'null'} signal=${signal ?? 'null'}`));
     child.stderr.resume();
@@ -123,6 +132,7 @@ export class AgentPluginBridge {
       pluginRevision: this.options.pluginRevision,
       hostProtocolVersion: AGENT_PLUGIN_PROTOCOL_VERSION,
       runtime: this.options.runtime,
+      ...(this.options.hostCapabilities !== undefined ? { hostCapabilities: this.options.hostCapabilities } : {}),
     });
     if (result.agentId !== this.options.agentId) {
       throw new AgentPluginBridgeError('invalid-request', `plugin initialized as ${result.agentId}`);
@@ -154,6 +164,7 @@ export class AgentPluginBridge {
         reject,
         timer,
         method,
+        scope: framedScope,
       });
       this.write({
         protocolVersion: AGENT_PLUGIN_PROTOCOL_VERSION,
@@ -173,14 +184,24 @@ export class AgentPluginBridge {
   }
 
   async dispose(): Promise<void> {
-    if (this.closeReason !== undefined) return;
-    try {
-      await this.request('plugin/dispose', {}, { kind: 'plugin' });
-    } catch {
-      // A plugin that died while disposing is already closed by the exit handler.
+    this.disposal ??= this.disposeOwnedChild();
+    await this.disposal;
+  }
+
+  private async disposeOwnedChild(): Promise<void> {
+    this.disposed = true;
+    if (this.closeReason === undefined) {
+      try {
+        await withTimeout(this.request('plugin/dispose', {}, { kind: 'plugin' }), DISPOSE_ACK_GRACE_MS, null);
+      } catch {
+        // The close handler already records a dead peer; cleanup still owns the child.
+      }
     }
-    this.close('plugin-disposed');
-    this.child.kill('SIGTERM');
+    try {
+      this.close('plugin-disposed');
+    } finally {
+      await disposeAgentPluginProcess(this.child);
+    }
   }
 
   private write(frame: unknown): void {
@@ -204,6 +225,7 @@ export class AgentPluginBridge {
     if (frame.kind === 'response') {
       const waiter = this.pending.get(frame.requestId);
       if (waiter === undefined) return;
+      parseAgentPluginFrame(line, { scope: waiter.scope, method: waiter.method, kind: 'response' });
       this.pending.delete(frame.requestId);
       if (waiter.timer !== undefined) clearTimeout(waiter.timer);
       if (frame.ok) waiter.resolve(frame.result);
@@ -274,7 +296,11 @@ export class AgentPluginBridge {
       waiter.reject(new AgentPluginBridgeError('plugin-exited', `${reason} (in flight: ${waiter.method})`));
       this.pending.delete(requestId);
     }
-    this.options.onClosed(reason);
+    try {
+      this.options.onClosed(reason);
+    } finally {
+      void this.dispose().catch((error: unknown) => console.warn('agent plugin cleanup failed:', formatError(error)));
+    }
   }
 
   /** Called by the owner after a session is released; late emissions are then dropped. */

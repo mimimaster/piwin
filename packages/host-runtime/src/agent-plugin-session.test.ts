@@ -14,6 +14,8 @@ const options = { models: [{ id: 'grok-4', label: 'Grok 4' }], efforts: [], mode
 let promptFrame;
 let awaitingInterject;
 let interjectAccepted = false;
+let replayStreaming = false;
+lines.on('close', () => process.exit(0));
 const ok = (frame, result) => write({ protocolVersion: 1, kind: 'response', scope: frame.scope, requestId: frame.requestId, method: frame.method, ok: true, result });
 const fail = (frame, code, message) => write({ protocolVersion: 1, kind: 'response', scope: frame.scope, requestId: frame.requestId, method: frame.method, ok: false, error: { code, message } });
 const emit = (scope, emission) => write({ protocolVersion: 1, kind: 'event', scope, emission });
@@ -33,10 +35,31 @@ lines.on('line', (line) => {
     return;
   }
   const method = frame.method;
-  if (method === 'plugin/initialize') return ok(frame, { agentId: frame.params.agentId, protocolVersion: 1 });
+  if (method === 'plugin/initialize') {
+    replayStreaming = frame.params.hostCapabilities?.replayStreaming === true;
+    return ok(frame, { agentId: frame.params.agentId, protocolVersion: 1 });
+  }
   if (method === 'session/new' || method === 'session/load' || method === 'session/resume') {
     emit(frame.scope, { type: 'options', options });
-    return ok(frame, { backendSessionId: 'backend-1', agentVersion: '1.0.44', capabilities: {}, options, replayEvents: [] });
+    const opened = { backendSessionId: 'backend-1', agentVersion: '1.0.44', capabilities: {}, options, replayEvents: [] };
+    const history = { type: 'agent', event: { type: 'tool/end', toolCallId: 'historical-tool', isError: false }, media: [{ directoryId: 'images', relativePath: 'history.png', kind: 'image', importKey: 'history-image' }] };
+    if (mode === 'legacy-replay') return ok(frame, { ...opened, replayEvents: [history] });
+    if (!mode.startsWith('stream-')) return ok(frame, opened);
+    if (!replayStreaming) return fail(frame, 'unsupported', 'replay streaming capability was not offered');
+    const count = mode === 'stream-large' ? 1826 : mode === 'stream-zero' ? 0 : 2;
+    for (let index = 0; index < count; index++) {
+      if (index === 1 && mode === 'stream-missing-event') continue;
+      const scope = index === 1 && mode === 'stream-foreign-session' ? { ...frame.scope, sessionId: 'foreign' }
+        : index === 1 && mode === 'stream-foreign-generation' ? { ...frame.scope, runtimeGenerationId: 'foreign' } : frame.scope;
+      emit(scope, index === 0 ? history : { type: 'agent', event: { type: 'message/text_delta', messageId: 'historical-message', delta: index + ':' + '界'.repeat(450) } });
+    }
+    if (mode === 'stream-exit') return process.exit(3);
+    if (mode === 'stream-error') return fail(frame, 'backend-error', 'replay interrupted');
+    if (mode === 'stream-closed') emit(frame.scope, { type: 'closed', reason: 'native transport closed during replay' });
+    if (mode === 'stream-missing-count') return ok(frame, opened);
+    const declaredCount = mode === 'stream-negative-count' ? -1 : mode === 'stream-fractional-count' ? 1.5
+      : mode === 'stream-string-count' ? '2' : mode === 'stream-unsafe-count' ? Number.MAX_SAFE_INTEGER + 1 : count;
+    return ok(frame, { ...opened, ...(mode === 'stream-mixed' ? { replayEvents: [history] } : {}), streamedReplayEventCount: declaredCount });
   }
   if (method === 'session/prompt') {
     emit(frame.scope, { type: 'agent', event: { kind: 'text', text: 'a' }, media: [{ directoryId: 'images', relativePath: 'shot.png', kind: 'image', importKey: 'k1' }] });
@@ -68,7 +91,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-async function harness(mode = 'normal', overrides: Record<string, unknown> = {}) {
+async function harness(mode = 'normal', overrides: Record<string, unknown> = {}, openMode: 'new' | 'load' | 'resume' = 'new') {
   const root = await mkdtemp(join(tmpdir(), 'piwin-plugin-session-'));
   const entrypoint = join(root, 'agent.mjs');
   await writeFile(entrypoint, FIXTURE);
@@ -76,9 +99,11 @@ async function harness(mode = 'normal', overrides: Record<string, unknown> = {})
   const events: AgentEvent[] = [];
   const titles: string[] = [];
   const importMedia = vi.fn(async () => { order.push('import'); return undefined; });
-  const session = await AgentPluginSession.open({
+  let session: Awaited<ReturnType<typeof AgentPluginSession.open>> | undefined;
+  cleanups.push(async () => { await session?.session.release(); await rm(root, { recursive: true, force: true }); });
+  session = await AgentPluginSession.open({
     entrypoint, agentId: 'grok', pluginRevision: 'rev-1', runtime: {},
-    cwd: '/tmp', binding: { agentId: 'grok' } as never, mode: 'new', scope: SCOPE,
+    cwd: '/tmp', binding: { agentId: 'grok' }, mode: openMode, scope: SCOPE,
     ports: {
       requestPermission: async () => ({ optionId: 'allow' }),
       importMedia,
@@ -89,7 +114,6 @@ async function harness(mode = 'normal', overrides: Record<string, unknown> = {})
     env: { ...process.env, PLUGIN_FIXTURE_MODE: mode },
   });
   session.session.subscribe((event) => { order.push('event'); events.push(event); });
-  cleanups.push(async () => { await session.session.release().catch(() => undefined); await rm(root, { recursive: true, force: true }); });
   return { session: session.session, opened: session.opened, order, events, titles, importMedia };
 }
 
@@ -101,6 +125,51 @@ describe('Bridge-backed Agent plugin session handle', () => {
     expect(opened.backendSessionId).toBe('backend-1');
     expect(opened.agentVersion).toBe('1.0.44');
     expect(session.getBackendOptions()).toMatchObject({ models: [{ id: 'grok-4' }] });
+  });
+
+  it('retains legacy replay arrays and their media proposals', async () => {
+    const { session, opened, events, importMedia } = await harness('legacy-replay', {}, 'load');
+    expect(opened.replayEvents).toHaveLength(1);
+    expect(opened.replayEvents[0]?.media?.[0]?.importKey).toBe('history-image');
+    expect(events).toEqual([]);
+    expect(importMedia).not.toHaveBeenCalled();
+    await session.release();
+  });
+
+  it('collects more than 2 MiB of ordered replay before constructing the session', async () => {
+    const prepareEvent = vi.fn(async (event: AgentEvent) => event);
+    const { opened, events, importMedia } = await harness('stream-large', { prepareEvent }, 'load');
+    expect(opened.replayEvents).toHaveLength(1826);
+    expect(Buffer.byteLength(JSON.stringify(opened.replayEvents))).toBeGreaterThan(2 * 1024 * 1024);
+    expect(opened.replayEvents[0]?.media?.[0]?.importKey).toBe('history-image');
+    for (let index = 1; index < opened.replayEvents.length; index += 1) {
+      expect(opened.replayEvents[index]?.event).toMatchObject({ delta: `${index}:${'界'.repeat(450)}` });
+    }
+    // The existing external backend imports and projects completed replay, not the live Run stream.
+    expect(events).toEqual([]);
+    expect(importMedia).not.toHaveBeenCalled();
+    expect(prepareEvent).not.toHaveBeenCalled();
+  });
+
+  it('accepts an explicitly completed empty replay', async () => {
+    const { opened } = await harness('stream-zero', {}, 'load');
+    expect(opened.replayEvents).toEqual([]);
+    expect(opened.streamedReplayEventCount).toBe(0);
+  });
+
+  it.each([
+    'stream-missing-event', 'stream-foreign-session', 'stream-foreign-generation', 'stream-missing-count',
+    'stream-negative-count', 'stream-fractional-count', 'stream-string-count', 'stream-unsafe-count', 'stream-mixed',
+  ])('rejects incomplete or ambiguous replay (%s)', async (mode) => {
+    await expect(harness(mode, {}, 'load')).rejects.toMatchObject({ name: 'AgentPluginProtocolError', message: expect.stringContaining('replay') });
+  });
+
+  it.each(['stream-error', 'stream-exit', 'stream-closed'])('never returns partial replay on an interrupted open (%s)', async (mode) => {
+    await expect(harness(mode, {}, 'load')).rejects.toThrow();
+  });
+
+  it('rejects streamed replay on a non-load open', async () => {
+    await expect(harness('stream-large', {}, 'resume')).rejects.toThrow('replay');
   });
 
   it('imports declared media before delivering the event, in arrival order', async () => {

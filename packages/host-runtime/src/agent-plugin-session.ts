@@ -32,6 +32,7 @@ import {
 import { AgentPluginBridge } from './agent-plugin-bridge.js';
 import { importAgentPluginEventMedia } from './agent-plugin-media.js';
 import { AgentPluginTurnTiming } from './agent-plugin-turn-timing.js';
+import { AgentPluginReplayCollector } from './agent-plugin-replay.js';
 
 const CANCEL_GRACE_MS = 3_000;
 
@@ -141,15 +142,21 @@ export class AgentPluginSession implements SessionHandle {
   static async open(options: AgentPluginSessionOpenOptions): Promise<{ session: AgentPluginSession; opened: AgentPluginOpenedSession }> {
     const start = options.ports.startBridge ?? AgentPluginBridge.start;
     let session: AgentPluginSession | undefined;
+    const replay = new AgentPluginReplayCollector();
+    let loadingReplay = false;
     const bridge = start({
       entrypoint: options.entrypoint,
       agentId: options.agentId,
       pluginRevision: options.pluginRevision,
       runtime: options.runtime,
+      hostCapabilities: { replayStreaming: true },
       resolveSessionScope: (scope) =>
         scope.sessionId === options.scope.sessionId &&
         scope.runtimeGenerationId === options.scope.runtimeGenerationId,
-      onSessionEmission: (emission) => session?.enqueue(emission),
+      onSessionEmission: (emission) => {
+        if (session !== undefined) session.enqueue(emission);
+        else if (loadingReplay) replay.observe(emission);
+      },
       callbacks: {
         requestPermission: (prompt) => options.ports.requestPermission(prompt),
         interventionEvent: (event) => session?.emitIntervention(event) ?? Promise.resolve({ accepted: false }),
@@ -163,7 +170,10 @@ export class AgentPluginSession implements SessionHandle {
     try {
       await bridge.initialize();
       const method = options.mode === 'new' ? 'session/new' : options.mode === 'load' ? 'session/load' : 'session/resume';
-      const opened = await bridge.request(method, { cwd: options.cwd, binding: options.binding }, scope);
+      loadingReplay = options.mode === 'load';
+      const result = await bridge.request(method, { cwd: options.cwd, binding: options.binding }, scope);
+      loadingReplay = false;
+      const opened = replay.finish(result, options.mode);
       const created = new AgentPluginSession(options, bridge, opened);
       session = created;
       return { session: created, opened };

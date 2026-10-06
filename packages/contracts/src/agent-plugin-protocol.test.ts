@@ -14,6 +14,7 @@ import {
   parseAgentPluginPromptOutcome,
 } from './agent-plugin-frame.js';
 import type { AgentPluginInstallation, ExecutableAgentPluginManifest } from './agent-plugin.js';
+import { AGENT_PLUGIN_MAX_FRAME_BYTES, type AgentPluginRequestMap } from './agent-plugin-protocol.js';
 
 const SHA = 'a'.repeat(64);
 const OLD = 'b'.repeat(64);
@@ -120,6 +121,29 @@ describe('agent plugin frames', () => {
     expect(() => parseAgentPluginFrame(line, { scope: { kind: 'session', sessionId: 'session-1', runtimeGenerationId: 'generation-2' } })).toThrow('foreign generation');
     expect(() => parseAgentPluginFrame(`${line}\n${line}`)).toThrow('framing');
     expect(() => parseAgentPluginFrame(' '.repeat(2 * 1024 * 1024 + 1))).toThrow('frame size');
+  });
+
+  it('keeps capability negotiation additive and the 2 MiB frame limit unchanged', () => {
+    const legacy = { agentId: 'grok', pluginRevision: SHA, hostProtocolVersion: 1, runtime: {} } satisfies AgentPluginRequestMap['plugin/initialize']['params'];
+    const streaming = { ...legacy, hostCapabilities: { replayStreaming: true } } satisfies AgentPluginRequestMap['plugin/initialize']['params'];
+    for (const params of [legacy, streaming]) {
+      expect(parseAgentPluginFrame(JSON.stringify({
+        protocolVersion: 1, kind: 'request', scope: { kind: 'plugin' }, requestId: 'init', method: 'plugin/initialize', params,
+      })).kind).toBe('request');
+    }
+    expect(AGENT_PLUGIN_MAX_FRAME_BYTES).toBe(2097152);
+    expect(() => parseAgentPluginFrame(JSON.stringify({
+      protocolVersion: 1, kind: 'event', scope,
+      emission: { type: 'agent', event: { type: 'message/text_delta', messageId: 'history', delta: '界'.repeat(700000) } },
+    }))).toThrow('frame size');
+  });
+
+  it('carries streamed replay completion in a small load response', () => {
+    const frame = parseAgentPluginFrame(JSON.stringify({
+      protocolVersion: 1, kind: 'response', scope, requestId: 'load', method: 'session/load', ok: true,
+      result: { backendSessionId: 'native', replayEvents: [], streamedReplayEventCount: 1826 },
+    }), { scope, method: 'session/load' });
+    expect(frame.kind === 'response' && frame.ok ? frame.result : undefined).toMatchObject({ replayEvents: [], streamedReplayEventCount: 1826 });
   });
 
   it('rejects a plugin method on a session scope and an unknown failure code', () => {
