@@ -38,7 +38,11 @@ async function harness(script: unknown = {}) {
   });
   const pushes: HostPush[] = [];
   runtime.attachPushSink({ id: 'inventory-test', push: (message) => pushes.push(message) });
-  cleanups.push(async () => { await runtime.dispose(); await rm(rootDir, { recursive: true, force: true }); });
+  cleanups.push(async () => {
+    await runtime.dispose();
+    // Plugin child teardown can briefly hold package files open on Linux CI.
+    await rm(rootDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+  });
   return { rootDir, runtime, pushes, agentId: installed.agentId, extensionId: installed.extensionId };
 }
 
@@ -174,7 +178,9 @@ describe('Session backend extension lifecycle', () => {
 
   it('refuses a directory that declares neither a Pi module nor a valid session backend', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-agent-invalid-'));
-    cleanups.push(async () => { await rm(rootDir, { recursive: true, force: true }); });
+    cleanups.push(async () => {
+      await rm(rootDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+    });
     const source = join(rootDir, 'empty-extension');
     await mkdir(source, { recursive: true });
     await writeFile(join(source, 'readme.txt'), 'not an extension');

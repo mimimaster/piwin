@@ -23,7 +23,10 @@ async function harness(script: unknown) {
   const runtime = new HostRuntime({
     mode: 'sdk', mock: true, piwinRoot: rootDir, externalAgents: { env: installed.env },
   });
-  cleanups.push(async () => { await runtime.dispose(); await rm(rootDir, { recursive: true, force: true }); });
+  cleanups.push(async () => {
+    await runtime.dispose();
+    await rm(rootDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+  });
   const pushes: HostPush[] = [];
   runtime.attachPushSink({ id: 'usage-test', push: (push) => pushes.push(push) });
   const { sessionId } = data(await runtime.handleCommand({
