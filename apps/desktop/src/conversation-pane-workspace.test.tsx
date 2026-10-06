@@ -18,6 +18,7 @@ const hostClient = {
   isReady: () => true,
   subscribe: () => () => undefined,
   supportsForegroundAdmission: () => true,
+  supportsCommand: () => false,
   request: vi.fn(),
 } as unknown as HostClient;
 
