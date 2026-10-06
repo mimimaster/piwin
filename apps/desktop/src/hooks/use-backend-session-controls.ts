@@ -6,8 +6,8 @@
  * `session/backend-set`; the Host is the authority and answers with the
  * resulting `SessionBackendOptions`, which is what keeps `modeConfirmed` honest.
  */
-import { useCallback, useEffect, useMemo, useState, type Dispatch } from 'react';
-import type { ExternalAgentStatus, SessionBackendOptions } from '@piwin/contracts';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch } from 'react';
+import type { ExternalAgentStatus, SessionBackendBinding, SessionBackendOptions } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction } from '../chat-reducer';
 import { agentDisplayName, backendOptionsFor } from '../agent-backend-state';
@@ -72,8 +72,9 @@ export function useBackendSessionControls(args: {
   optionsBySession: Readonly<Record<string, SessionBackendOptions>>;
   draftAgentId?: string | null | undefined;
   externalAgents?: readonly ExternalAgentStatus[] | undefined;
+  sessionBackend?: SessionBackendBinding | undefined;
 }): BackendSessionControls {
-  const { hostClient, dispatch, sessionId, optionsBySession, draftAgentId, externalAgents } = args;
+  const { hostClient, dispatch, sessionId, optionsBySession, draftAgentId, externalAgents, sessionBackend } = args;
 
   const [draftOverridesByAgent, setDraftOverridesByAgent] = useState<
     Record<string, DraftBackendSelections>
@@ -99,6 +100,23 @@ export function useBackendSessionControls(args: {
     sessionId !== null
       ? (backendOptionsFor(optionsBySession, sessionId) ?? null)
       : (draftResolution?.options ?? null);
+
+  // Latest options per session, including optimistic patches the reducer has
+  // not committed yet. Sync from the committed map without letting another
+  // session's update wipe an uncommitted patch, and drop sessions that are gone.
+  const optionsCacheRef = useRef<Readonly<Record<string, SessionBackendOptions>>>({});
+  const committedOptionsRef = useRef(optionsBySession);
+  useLayoutEffect(() => {
+    const previous = committedOptionsRef.current;
+    const cache = optionsCacheRef.current;
+    const next: Record<string, SessionBackendOptions> = {};
+    for (const [cachedSessionId, committed] of Object.entries(optionsBySession)) {
+      const cached = cache[cachedSessionId];
+      next[cachedSessionId] = committed === previous[cachedSessionId] && cached !== undefined ? cached : committed;
+    }
+    optionsCacheRef.current = next;
+    committedOptionsRef.current = optionsBySession;
+  }, [optionsBySession]);
 
   useEffect(() => {
     if (!draftResolution || !draftAgentId) return;
@@ -153,16 +171,31 @@ export function useBackendSessionControls(args: {
         }
         const data = response.data as
           | {
+              agentId?: string;
               capabilities?: import('@piwin/contracts').SessionBackendCapabilities;
               options?: SessionBackendOptions;
             }
           | undefined;
-        if (data?.options !== undefined || data?.capabilities !== undefined) {
+        // A nonresident session has no live catalog. Reuse only the matching
+        // Host-declared agent catalog; saved choices are validated by the same
+        // policy as drafts. This supplies choices, not a runtime confirmation.
+        const readyAgent = externalAgents?.find((agent) =>
+          agent.agentId === sessionBackend?.agentId && agent.state === 'ready',
+        );
+        const fallback = data?.options === undefined &&
+          sessionBackend !== undefined && sessionBackend.agentId !== 'pi' &&
+          data?.agentId === sessionBackend.agentId && readyAgent !== undefined
+          ? resolveDraftBackendOptions(sessionBackend.agentId, [readyAgent], sessionBackend)
+          : null;
+        const hydratedOptions = data?.options ??
+          (fallback && fallback.options.agentId === sessionBackend?.agentId
+            ? { ...fallback.options, modeConfirmed: false } : undefined);
+        if (hydratedOptions !== undefined || data?.capabilities !== undefined) {
           dispatch({
             type: 'session/backend-hydrated',
             sessionId,
-            ...(data.capabilities !== undefined ? { capabilities: data.capabilities } : {}),
-            ...(data.options !== undefined ? { options: data.options } : {}),
+            ...(data?.capabilities !== undefined ? { capabilities: data.capabilities } : {}),
+            ...(hydratedOptions !== undefined ? { options: hydratedOptions } : {}),
           });
         }
       } catch {
@@ -172,20 +205,23 @@ export function useBackendSessionControls(args: {
     return () => {
       cancelled = true;
     };
-  }, [hostClient, dispatch, sessionId, options]);
+  }, [hostClient, dispatch, sessionId, options, sessionBackend, externalAgents]);
+
+  const publishOptions = useCallback(
+    (targetSessionId: string, next: SessionBackendOptions) => {
+      optionsCacheRef.current = { ...optionsCacheRef.current, [targetSessionId]: next };
+      dispatch({ type: 'session/backend-updated', sessionId: targetSessionId, options: next });
+    },
+    [dispatch],
+  );
 
   const applyLocal = useCallback(
-    (patch: Partial<SessionBackendOptions>) => {
-      if (sessionId === null || options === null) {
-        return;
-      }
-      dispatch({
-        type: 'session/backend-updated',
-        sessionId,
-        options: { ...options, ...patch },
-      });
+    (targetSessionId: string, patch: Partial<SessionBackendOptions>) => {
+      const current = optionsCacheRef.current[targetSessionId];
+      if (current === undefined) return;
+      publishOptions(targetSessionId, { ...current, ...patch });
     },
-    [dispatch, options, sessionId],
+    [publishOptions],
   );
 
   const send = useCallback(
@@ -193,33 +229,36 @@ export function useBackendSessionControls(args: {
       if (sessionId === null) {
         return;
       }
-      applyLocal(optimistic);
+      const capturedSessionId = sessionId;
+      applyLocal(capturedSessionId, optimistic);
       void (async () => {
         try {
           const response = await hostClient.request({
             type: 'session/backend-set',
-            sessionId,
+            sessionId: capturedSessionId,
             [field]: value,
           });
           if (!response.success) {
             return;
           }
-          // The Host answers with the live options when a session process is
-          // running. Without a live process the choice is only persisted for
-          // the next resume, so there is nothing to confirm yet — settle the
-          // pending affordance instead of leaving it spinning forever.
+          // Live options replace the session cache exactly. A no-options success
+          // only confirms a still-current mode on that session's latest options;
+          // it must not replay this request's model, effort, or mode id.
           const data = response.data as { options?: SessionBackendOptions } | undefined;
           if (data?.options !== undefined) {
-            dispatch({ type: 'session/backend-updated', sessionId, options: data.options });
-          } else {
-            applyLocal({ modeConfirmed: true });
+            publishOptions(capturedSessionId, data.options);
+          } else if (optimistic.modeConfirmed === false) {
+            const latest = optionsCacheRef.current[capturedSessionId];
+            if (latest !== undefined && latest.currentModeId === optimistic.currentModeId) {
+              applyLocal(capturedSessionId, { modeConfirmed: true });
+            }
           }
         } catch (error) {
           console.error('[backend-controls] session/backend-set failed', error);
         }
       })();
     },
-    [applyLocal, dispatch, hostClient, sessionId],
+    [applyLocal, hostClient, publishOptions, sessionId],
   );
 
   const selectModel = useCallback(

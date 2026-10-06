@@ -485,12 +485,14 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     [state.messages],
   );
 
+  const activeComposerAgentId = resolveActiveComposerAgentId(state) ?? draftAgentId ?? 'pi';
   const composerCard: ComposerDockProps = useMemo(
     () => ({
       layoutMode: composerLayoutMode,
       projectPath: state.projectPath,
       projectTrusted: state.projectTrusted,
       activeSessionId: state.activeSessionId,
+      activeAgentId: activeComposerAgentId,
       streaming: state.streaming,
       runPhase: state.runPhase,
       compacting: state.compacting,
@@ -655,7 +657,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       isConversationSession: isConversationSessionChrome(
         state.activeScope,
         sidebarMode,
-        resolveActiveComposerAgentId(state),
+        activeComposerAgentId,
       ),
       ...(hostClient.supportsCommand('git/status')
         ? { branchRequest: requestGit as ComposerDockProps['branchRequest'] }
@@ -675,6 +677,16 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     [
       addContextRef,
       agentMode,
+      activeComposerAgentId,
+      backendControls.options,
+      backendControls.selectModel,
+      backendControls.selectEffort,
+      backendControls.selectMode,
+      draftAgentId,
+      draftAgentOptions,
+      onDraftAgentChange,
+      onStartNewSession,
+      capabilities,
       atWorkspaceFiles,
       composer,
       composerLayoutMode,

@@ -30,6 +30,7 @@ import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifac
 import { ChatThread } from './chat-thread';
 import { memoWithLatestCallbacks } from './memo-with-latest-callbacks';
 import { useTranscriptComposerCard } from './transcript-composer-card';
+import { buildEmptyStageAgentControl } from './empty-stage-agent-control.js';
 import type { ChatMessageUi, ChatUiState, SessionListItemUi } from './chat-reducer';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import type { DesktopLocale } from './desktop-locale';
@@ -203,6 +204,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
   } = props;
   const activeSessionId = state.activeSessionId;
   const transcriptComposerCard = useTranscriptComposerCard(composerCard);
+  const landingAgent = buildEmptyStageAgentControl(transcriptComposerCard, props);
   const isConversationSession = isConversationSessionChrome(
     state.activeScope,
     sidebarMode,
@@ -372,10 +374,14 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             locale={locale}
             sessions={scopeSessions}
             onResumeSession={(sessionId) => void onOpenSession(sessionId)}
-            {...(props.draftAgentId !== undefined ? { draftAgentId: props.draftAgentId } : {})}
-            {...(props.draftAgentOptions !== undefined ? { draftAgentOptions: props.draftAgentOptions } : {})}
-            {...(props.onSelectDraftAgent ? { onSelectDraftAgent: props.onSelectDraftAgent } : {})}
-            {...(props.onOpenAgentSettings ? { onOpenAgentSettings: props.onOpenAgentSettings } : {})}
+            draftAgentId={landingAgent.agentId}
+            {...(landingAgent.agentOptions !== undefined ? { draftAgentOptions: landingAgent.agentOptions } : {})}
+            onSelectDraftAgent={(agentId) => {
+              void landingAgent.selectAgent(agentId).catch((error: unknown) => {
+                console.error('[empty-stage] engine selection failed', error);
+              });
+            }}
+            {...(landingAgent.openSettings ? { onOpenAgentSettings: landingAgent.openSettings } : {})}
             {...(props.onOpenAllSessions ? { onOpenAllSessions: props.onOpenAllSessions } : {})}
             {...(props.runningSessionIds ? { runningSessionIds: props.runningSessionIds } : {})}
           />

@@ -6,6 +6,7 @@ import {
   listSessionUserPrompts,
   resolveComposerLayoutMode,
   resolveActiveComposerAgentId,
+  resolveActiveComposerBackendBinding,
 } from './composer-dock-assembly.js';
 
 describe('listSessionUserPrompts', () => {
@@ -47,6 +48,17 @@ describe('isGoalExtensionEnabled', () => {
 
 
 describe('resolveActiveComposerAgentId', () => {
+  it('retains the normalized binding before a stale sidebar row', () => {
+    const state = createInitialChatUiState();
+    state.activeSessionId = 'external';
+    const binding = { agentId: 'grok' };
+    state.sessionEntitiesById['external'] = { id: 'external', name: 'Build', backend: binding };
+    state.sessions = [{ id: 'external', name: 'Stale', backend: { agentId: 'other-agent' } }];
+    expect(resolveActiveComposerBackendBinding(state)).toBe(binding);
+    state.activeSessionId = null;
+    expect(resolveActiveComposerBackendBinding(state)).toBeUndefined();
+  });
+
   it('uses a durable binding before capabilities or a model catalog arrive', () => {
     const state = createInitialChatUiState();
     state.activeSessionId = 'external';

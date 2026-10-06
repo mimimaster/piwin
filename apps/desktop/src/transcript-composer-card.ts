@@ -17,6 +17,15 @@ import { useInsertionEffect, useMemo, useRef } from 'react';
 import type { ComposerDockProps } from './composer-dock-types';
 
 export const TRANSCRIPT_COMPOSER_DATA_FIELDS = [
+  'activeSessionId',
+  'activeAgentId',
+  'backendOptions',
+  'draftAgentId',
+  'draftAgentOptions',
+  'capabilities',
+  'streaming',
+  'runPhase',
+  'mutationsEnabled',
   'delegationDisabled',
   'isConversationSession',
   'modelOptions',
@@ -29,6 +38,12 @@ export const TRANSCRIPT_COMPOSER_DATA_FIELDS = [
 ] as const satisfies readonly (keyof ComposerDockProps)[];
 
 export const TRANSCRIPT_COMPOSER_HANDLER_FIELDS = [
+  'onBackendModelChange',
+  'onBackendEffortChange',
+  'onBackendModeChange',
+  'onDraftAgentChange',
+  'onStartNewSession',
+  'onOpenAgentSettings',
   'onAbort',
   'onAgentModeChange',
   'onDelegationDisabledChange',

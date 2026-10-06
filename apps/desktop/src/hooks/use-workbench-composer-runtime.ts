@@ -14,7 +14,7 @@ import {
   type ComposerAgentModeSessionChange,
 } from '../composer-agent-mode-session';
 import type { HostClient } from '../host-client';
-import { resolveActiveComposerAgentId } from '../composer-dock-assembly';
+import { resolveActiveComposerAgentId, resolveActiveComposerBackendBinding } from '../composer-dock-assembly.js';
 import { isConversationSessionChrome } from '../is-conversation-session';
 import { useComposerContextRefs } from './use-composer-context-refs';
 import { useComposerMedia } from './use-composer-media';
@@ -75,6 +75,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     dispatch,
     sessionId: state.activeSessionId,
     optionsBySession: state.backendOptionsBySession,
+    sessionBackend: resolveActiveComposerBackendBinding(state),
     draftAgentId: state.draftAgentId,
     externalAgents: state.externalAgents,
   });
