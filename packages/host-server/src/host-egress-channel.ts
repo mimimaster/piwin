@@ -60,6 +60,12 @@ const DEFAULT_TARGET_BATCH_BYTES = 128 * 1024;
  * queued deltas in one WebSocket frame; the shell then React-batches them
  * into a single paint. */
 const DEFAULT_MAX_BATCH_ITEMS = 8;
+/**
+ * One display frame. Every data frame is one synchronous shell commit (parse,
+ * layout, stick-to-tail); a shorter cadence only produced commits no screen
+ * could show. Control frames and full batches still leave immediately.
+ */
+const DATA_FLUSH_INTERVAL_MS = 16;
 const DEFAULT_MAX_QUEUE_BYTES = 2 * 1024 * 1024;
 const DEFAULT_MAX_QUEUE_ITEMS = 2_048;
 const DEFAULT_MAX_FRAME_BYTES = 1 * 1024 * 1024;
@@ -364,7 +370,7 @@ export class HostEgressChannel {
     this.flushTimer = this.schedule(() => {
       this.flushTimer = undefined;
       this.flushData();
-    }, 8);
+    }, DATA_FLUSH_INTERVAL_MS);
   }
 
   private scheduleDrainRetry(): void {
