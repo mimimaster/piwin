@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens.js';
 import { DesktopLocaleProvider } from '../desktop-locale-context.js';
-import { HostLogProvider } from '../host-log-context.js';
+import { createHostLogStore, HostLogProvider } from '../host-log-context.js';
 import type { HostLogEntry } from '../HostLogPanel.js';
 import { SettingsHostLogSection } from './settings-host-log.js';
 
@@ -29,16 +29,15 @@ function renderSection(options?: {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
+  const store = createHostLogStore(options?.entries ?? SAMPLE_ENTRIES);
+  if (options?.onClear) {
+    store.clear = options.onClear;
+  }
   act(() => {
     root.render(
       <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
         <DesktopLocaleProvider locale={options?.locale ?? 'en'} onLocaleChange={() => {}}>
-          <HostLogProvider
-            value={{
-              entries: options?.entries ?? SAMPLE_ENTRIES,
-              onClear: options?.onClear ?? (() => undefined),
-            }}
-          >
+          <HostLogProvider store={store}>
             <SettingsHostLogSection />
           </HostLogProvider>
         </DesktopLocaleProvider>

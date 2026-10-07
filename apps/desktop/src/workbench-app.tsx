@@ -2,7 +2,7 @@
  * Workbench composition root: shell chrome + host/session owners + slot tree.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { HostLogProvider } from './host-log-context';
+import { createHostLogStore, HostLogProvider } from './host-log-context';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
 import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifact-surfaces';
 import type { ThemeManifest } from '@piwin/contracts';
@@ -13,7 +13,6 @@ import { resolveNoRepoWorkspaceKey } from './file-browse-root';
 import { useWorkbenchHostClient } from './use-workbench-host-client';
 import { MediaPreviewReadProvider } from './media-preview-read-context';
 import { LocalFileActionsProvider } from './local-file-actions-context';
-import type { HostLogEntry } from './HostLogPanel';
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import { DesktopContextMenuProvider } from './context-menu';
 import { SubagentInspectorProvider } from './subagent-inspector-context';
@@ -94,10 +93,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       }),
     [],
   );
-  const [hostLogEntries, setHostLogEntries] = useState<HostLogEntry[]>([]);
-  const clearHostLog = useCallback(() => {
-    setHostLogEntries([]);
-  }, []);
+  // Outside React state: a `host/log` push must not re-render this root.
+  const [hostLogStore] = useState(createHostLogStore);
+  const setHostLogEntries = hostLogStore.setEntries;
   const chrome = useWorkbenchShellChrome({ hostClient, state });
   const {
     projectInput,
@@ -509,10 +507,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   // Root context values. Each of these was a fresh object (or closure) on every
   // render, i.e. on every streamed token, and a changed context value makes
   // React walk the whole tree below it looking for consumers.
-  const hostLogValue = useMemo(
-    () => ({ entries: hostLogEntries, onClear: clearHostLog }),
-    [hostLogEntries, clearHostLog],
-  );
   const requestLocalFile = useCallback(
     (command: Parameters<typeof hostClient.request>[0]) => hostClient.request(command),
     [hostClient],
@@ -572,7 +566,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
 
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
-      <HostLogProvider value={hostLogValue}>
+      <HostLogProvider store={hostLogStore}>
       <LocalFileActionsProvider request={requestLocalFile}>
         <MediaPreviewReadProvider sessionId={state.activeSessionId} readMedia={readTranscriptMedia}>
           <DesktopContextMenuProvider value={desktopContextMenuValue}>
