@@ -16,4 +16,16 @@ describe('isStructurallyEqual', () => {
     expect(isStructurallyEqual({ onOpen: handler }, { onOpen: handler })).toBe(true);
     expect(isStructurallyEqual({ onOpen: handler }, { onOpen: () => {} })).toBe(false);
   });
+
+  it('never walks class instances or React elements', () => {
+    class Client {
+      public readonly id = 1;
+    }
+    expect(isStructurallyEqual({ client: new Client() }, { client: new Client() })).toBe(false);
+    const client = new Client();
+    expect(isStructurallyEqual({ client }, { client })).toBe(true);
+    const element = { $$typeof: Symbol.for('react.transitional.element'), props: {} };
+    expect(isStructurallyEqual({ node: element }, { node: { ...element } })).toBe(false);
+    expect(isStructurallyEqual(new Map([[1, 2]]), new Map([[1, 2]]))).toBe(false);
+  });
 });

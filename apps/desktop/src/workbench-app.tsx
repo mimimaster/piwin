@@ -30,6 +30,7 @@ import { WorkbenchInspector } from './workbench-inspector';
 import { memoWithLatestCallbacks } from './memo-with-latest-callbacks';
 import { useLatestCallback } from './use-latest-callback.js';
 import { useStructuralValue } from './use-structural-value.js';
+import { useStableHandlers } from './use-stable-handlers.js';
 import { scheduleIdleTask } from './schedule-idle-task';
 import { loadStreamdownMathPlugin } from './streamdown-math-plugin.js';
 import { WorkbenchWorkspaceProviders } from './workbench-workspace-providers';
@@ -505,6 +506,41 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     [ensureSession, state.activeScope],
   );
 
+  // Root context values. Each of these was a fresh object (or closure) on every
+  // render, i.e. on every streamed token, and a changed context value makes
+  // React walk the whole tree below it looking for consumers.
+  const hostLogValue = useMemo(
+    () => ({ entries: hostLogEntries, onClear: clearHostLog }),
+    [hostLogEntries, clearHostLog],
+  );
+  const requestLocalFile = useCallback(
+    (command: Parameters<typeof hostClient.request>[0]) => hostClient.request(command),
+    [hostClient],
+  );
+  const stableInspectorToggle = useStableHandlers(subagentInspectorToggle);
+  const stableInspectorPanel = useStableHandlers(subagentInspectorPanel);
+  const stableKnowledgeMounts = useStableHandlers(knowledgeSupported ? knowledge.mounts : null);
+  const stableCitationActions = useStableHandlers(knowledge.citationActions);
+  const insertCanvasProposal = useCallback(
+    (text: string) => setComposer((current) => appendComposerProposal(current, text)),
+    [setComposer],
+  );
+  const dockToolHosts = useStructuralValue({
+    hostClient,
+    locale: desktopLocale,
+    activeTheme,
+    artifactThemeKey,
+    projectPath: state.projectPath,
+    activeSessionId: state.activeSessionId,
+    requestGit,
+    addWebElement,
+    artifactTarget: artifactCanvas.activeTarget,
+    onInsertCanvasProposal: insertCanvasProposal,
+    activeDocument,
+    inspectorDiff: inspectorFileDiff.diff,
+    ...(activeMedia ? { activeMedia } : {}),
+  });
+
   // Inspector inputs that are rebuilt per render but rarely differ in content.
   const inspectorShell = useStructuralValue(shell);
   const inspectorResize = useStructuralValue(rightPanelResize);
@@ -536,40 +572,23 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
 
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
-      <HostLogProvider value={{ entries: hostLogEntries, onClear: clearHostLog }}>
-      <LocalFileActionsProvider request={(command) => hostClient.request(command)}>
+      <HostLogProvider value={hostLogValue}>
+      <LocalFileActionsProvider request={requestLocalFile}>
         <MediaPreviewReadProvider sessionId={state.activeSessionId} readMedia={readTranscriptMedia}>
           <DesktopContextMenuProvider value={desktopContextMenuValue}>
             <SubagentInspectorProvider
-              toggle={subagentInspectorToggle}
-              panel={subagentInspectorPanel}
+              toggle={stableInspectorToggle}
+              panel={stableInspectorPanel}
             >
               <WorkbenchWorkspaceProviders
                 hostClient={hostClient}
                 subagentStop={subagentStop}
                 reviewLoop={reviewLoop}
-                knowledgeMounts={knowledgeSupported ? knowledge.mounts : null}
-                knowledgeCitationActions={knowledge.citationActions}
+                knowledgeMounts={stableKnowledgeMounts}
+                knowledgeCitationActions={stableCitationActions}
                 onOpenReview={openReviewTab}
               >
-              <DockToolHostsProvider
-                value={{
-                  hostClient,
-                  locale: desktopLocale,
-                  activeTheme,
-                  artifactThemeKey,
-                  projectPath: state.projectPath,
-                  activeSessionId: state.activeSessionId,
-                  requestGit,
-                  addWebElement,
-                  artifactTarget: artifactCanvas.activeTarget,
-                  onInsertCanvasProposal: (text) =>
-                    setComposer((current) => appendComposerProposal(current, text)),
-                  activeDocument,
-                  inspectorDiff: inspectorFileDiff.diff,
-                  ...(activeMedia ? { activeMedia } : {}),
-                }}
-              >
+              <DockToolHostsProvider value={dockToolHosts}>
               <div
                 className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${studioOpen ? ' studio-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}${rightPanelOpen && inspectorPlacement === 'column' && rightPanelResize.isFullWidth ? ' right-panel-full-width' : ''}`}
                 style={appShellStyle}
