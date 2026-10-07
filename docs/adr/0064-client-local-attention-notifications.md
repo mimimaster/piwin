@@ -111,11 +111,13 @@ later APNs epic, not a keepalive trick.
 10. **APNs later; no `UIBackgroundModes` (AN-D08, AN-D09, AN-F19).**
     Mobile M1 reuses `@piwin/host-client` attention modules after Desktop
     P0. It may show foreground cross-session banners and a “while you were
-    away” summary. It must **not** add `UIBackgroundModes`, must not claim
+    away” summary. Notification delivery must **not** add `UIBackgroundModes`, must not claim
     WebSocket keepalive, and must not pretend iOS background delivery is
     reliable. Remote Push is a separate epic: **APNs only** (no ntfy, no
     FCM). Linux / Android remain deferred. Duplicate
     banners from two Desktops on one Host are accepted in P0 (AN-D11).
+    ADR 0085 permits `audio` exclusively for user-started native Live calls;
+    this does not extend notification delivery or Host WebSocket lifetime.
 
 11. **Windows Desktop toasts are a WinRT bridge, not the plugin (owner
     2026-10-02; revises AN-D10 for Windows only).** The shell keeps the

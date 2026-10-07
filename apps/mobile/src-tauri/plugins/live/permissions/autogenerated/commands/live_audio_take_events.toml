@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-live-audio-take-events"
+description = "Enables the live_audio_take_events command without any pre-configured scope."
+commands.allow = ["live_audio_take_events"]
+
+[[permission]]
+identifier = "deny-live-audio-take-events"
+description = "Denies the live_audio_take_events command without any pre-configured scope."
+commands.deny = ["live_audio_take_events"]

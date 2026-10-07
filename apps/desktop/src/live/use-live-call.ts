@@ -350,7 +350,7 @@ export function useLiveCall(input: {
         throw new DOMException('aborted', 'AbortError');
       }
       callRef.current = data.call;
-      await driver.connect(data.bootstrap, startAbort.signal);
+      await driver.connect(data.bootstrap, startAbort.signal, data.call.callId);
       if (epoch !== startEpochRef.current) return;
       await reportEvent({ type: 'media-active' });
       await refreshStatus();
@@ -381,11 +381,24 @@ export function useLiveCall(input: {
     async (muted: boolean) => {
       const call = callRef.current;
       if (!call) return;
-      driverRef.current?.setMuted(muted);
-      await input.hostClient.request({
-        type: 'voice/live/set-muted',
-        input: { callId: call.callId, expectedRevision: call.revision, muted },
-      });
+      const driver = driverRef.current;
+      const previous = driver?.snapshot().muted ?? false;
+      try {
+        await driver?.setMuted(muted);
+        const response = await input.hostClient.request({
+          type: 'voice/live/set-muted',
+          input: { callId: call.callId, expectedRevision: call.revision, muted },
+        });
+        if (!response.success) throw new Error(response.error ?? 'live-protocol-failed');
+      } catch (error: unknown) {
+        if (driverRef.current === driver && callRef.current?.callId === call.callId) {
+          try { await driver?.setMuted(previous); }
+          catch { await failAndCloseRef.current('live-protocol-failed'); return; }
+        }
+        const code = error instanceof Error ? error.message : 'live-protocol-failed';
+        setError(code);
+        onFailRef.current?.(code);
+      }
     },
     [input.hostClient],
   );

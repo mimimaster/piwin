@@ -2928,6 +2928,7 @@ dependencies = [
  "tauri-plugin-keyring-store",
  "tauri-plugin-notification",
  "tauri-plugin-piwin-healthkit",
+ "tauri-plugin-piwin-live",
  "tauri-plugin-shell",
  "tauri-plugin-websocket",
 ]
@@ -4177,6 +4178,15 @@ name = "tauri-plugin-piwin-healthkit"
 version = "0.0.0"
 dependencies = [
  "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+]
+
+[[package]]
+name = "tauri-plugin-piwin-live"
+version = "0.0.0"
+dependencies = [
  "serde_json",
  "tauri",
  "tauri-plugin",

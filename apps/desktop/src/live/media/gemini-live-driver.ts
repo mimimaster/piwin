@@ -15,6 +15,7 @@ import {
   parseGeminiLiveMessage,
 } from './gemini-live-events.js';
 import { floatToPcm16Base64 } from './gemini-live-codec.js';
+import { requestLiveMicrophone } from './live-microphone-request.js';
 
 export const GEMINI_LIVE_FIXED_ENDPOINT =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
@@ -35,6 +36,7 @@ export function createGeminiLiveDriver(deps: GeminiLiveDriverDeps = {}): Desktop
   const pendingTools = new PendingLiveTools(() => emitEvent({ type: 'media-failed', mappedCode: 'live-protocol-failed' }));
   let captureContext: AudioContext | null = null;
   let processor: ScriptProcessorNode | null = null;
+  let microphoneAbort: AbortController | null = null;
 
   function snapshot(): LivePeerSnapshot {
     return { phase, muted, errorCode };
@@ -76,23 +78,18 @@ export function createGeminiLiveDriver(deps: GeminiLiveDriverDeps = {}): Desktop
         throw new Error('live-protocol-failed');
       }
       setPhase('acquiring-mic');
-      const getUserMedia =
-        deps.getUserMedia ??
-        (() => {
-          if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-            throw new Error('mic-unavailable');
-          }
-          return navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        });
+      const abort = new AbortController();
+      microphoneAbort = abort;
       try {
-        localStream = await getUserMedia();
+        localStream = await requestLiveMicrophone({ signal: abort.signal,
+          ...(deps.getUserMedia ? { request: deps.getUserMedia } : {}) });
       } catch (error: unknown) {
-        errorCode = 'mic-denied';
+        if (abort.signal.aborted) throw error;
+        errorCode = error instanceof DOMException && error.name === 'NotAllowedError'
+          ? 'mic-denied' : error instanceof Error && error.message === 'mic-permission-timeout'
+            ? 'mic-permission-timeout' : 'mic-unavailable';
         setPhase('error');
-        if (error instanceof DOMException && error.name === 'NotAllowedError') {
-          throw new Error('mic-denied');
-        }
-        throw new Error('mic-unavailable');
+        throw new Error(errorCode);
       }
       setPhase('negotiating');
       return { mediaDriverId: 'gemini-live-v1beta' };
@@ -215,6 +212,8 @@ export function createGeminiLiveDriver(deps: GeminiLiveDriverDeps = {}): Desktop
       sendJson(geminiContextAppendPayload(input.content, input.channel === 'speakable'));
     },
     async close() {
+      microphoneAbort?.abort();
+      microphoneAbort = null;
       processor?.disconnect();
       processor = null;
       if (captureContext) {

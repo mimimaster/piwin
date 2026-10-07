@@ -2,7 +2,9 @@ name: piwin-mobile
 options:
   bundleIdPrefix: app.piwin.mobile
   deploymentTarget:
-    iOS: 14.0
+    # Native plugins already require iOS 15. Linking below 15 embeds a second
+    # concurrency runtime, which crashes when ActivityKit uses the system one.
+    iOS: '15.0'
 fileGroups: [../../src]
 configs:
   debug: debug
@@ -35,10 +37,12 @@ targets:
         buildPhase: resources
         type: folder
       - path: LaunchScreen.storyboard
+      - path: ../../plugins/live/ios/Sources/PiwinLiveIntents.swift
     info:
       path: piwin-mobile_iOS/Info.plist
       properties:
         LSRequiresIPhoneOS: true
+        UIBackgroundModes: [audio]
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
         UISupportedInterfaceOrientations:
@@ -51,7 +55,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 1.0.0
-        CFBundleVersion: '1.0.0.12'
+        CFBundleVersion: '1.0.0.13'
         NSMicrophoneUsageDescription: '需要访问麦克风以支持语音实时转写输入'
         NSSpeechRecognitionUsageDescription: '需要语音识别权限以使用 iOS 原生语音听写功能'
         NSLocalNetworkUsageDescription: 'Piwin 需要访问局域网中的 Piwin Host，才能在手机上使用应用。'
@@ -66,6 +70,7 @@ targets:
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
+        IPHONEOS_DEPLOYMENT_TARGET: '15.0'
         DEVELOPMENT_TEAM: F47G63A8DM
         ENABLE_BITCODE: false
         ARCHS: [arm64]
@@ -76,6 +81,8 @@ targets:
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
       groups: [app]
     dependencies:
+      - target: PiwinLiveActivityExtension
+        embed: true
       - framework: libapp.a
         embed: false
       - sdk: CoreGraphics.framework
@@ -93,3 +100,27 @@ targets:
         outputFiles:
           - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
           - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+  PiwinLiveActivityExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: '17.0'
+    sources:
+      - path: ../../ios/live-activity
+      - path: ../../plugins/live/ios/Sources/PiwinLiveAttributes.swift
+      - path: ../../plugins/live/ios/Sources/PiwinLiveIntents.swift
+    info:
+      path: PiwinLiveActivityExtension/Info.plist
+      properties:
+        CFBundleDisplayName: piwin Live
+        CFBundleShortVersionString: 1.0.0
+        CFBundleVersion: '1.0.0.13'
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.piwin.mobile.live-activity
+        DEVELOPMENT_TEAM: F47G63A8DM
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: '5.0'
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES

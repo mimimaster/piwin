@@ -182,7 +182,10 @@ class FakePeer {
     this.setPhase('ended');
   }
 
-  setMuted(): void {}
+  setMuted(muted: boolean): void {
+    this.snapshotValue = { ...this.snapshotValue, muted };
+    for (const listener of this.listeners) listener(this.snapshotValue);
+  }
   sendDelegationAck(): void {}
   sendContextAppend(input: { content: string }): void {
     this.appended.push(input.content);
@@ -269,6 +272,22 @@ describe('useLiveCall hangup', () => {
     });
     expect(host.lastStartProviderId).toBe('google-gemini');
     expect(probe.current?.starting).toBe(false);
+  });
+
+  it('rolls back local mute when the Host rejects the card control', async () => {
+    const host = new FakeLiveHost();
+    const peer = new FakePeer();
+    const probe = mount(host, peer);
+    await act(async () => {
+      await Promise.resolve();
+      await probe.current?.start();
+    });
+    expect(peer.snapshot().phase).toBe('connected');
+    await act(async () => {
+      await probe.current?.setMuted(true);
+    });
+    expect(peer.snapshot().muted).toBe(false);
+    expect(probe.current?.error).toBe('unused');
   });
 
   it('does not adopt a late Host call after hangup', async () => {

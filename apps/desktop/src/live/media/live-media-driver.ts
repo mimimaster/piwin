@@ -13,8 +13,8 @@ export type DesktopLiveMediaDriver = {
   snapshot(): LivePeerSnapshot;
   subscribe(listener: (snapshot: LivePeerSnapshot) => void): () => void;
   prepareStart(): Promise<LiveClientBootstrapInput>;
-  connect(bootstrap: LiveOwnerBootstrap, signal: AbortSignal): Promise<void>;
-  setMuted(muted: boolean): void;
+  connect(bootstrap: LiveOwnerBootstrap, signal: AbortSignal, callId?: string): Promise<void>;
+  setMuted(muted: boolean): void | Promise<void>;
   handleOwnerAction(action: LiveOwnerActionPush): Promise<void>;
   subscribeEvents(listener: (event: LiveOwnerEvent) => void): () => void;
   appendContext(input: {

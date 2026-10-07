@@ -17,6 +17,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-barcode-scanner = "2"
 tauri-plugin-keyring-store = "0.2.0"
 tauri-plugin-piwin-healthkit = { path = "plugins/healthkit" }
+tauri-plugin-piwin-live = { path = "plugins/live" }
 tauri-plugin-websocket = "2.4.2"
 tauri-plugin-notification = "2.4.0"
 tauri-plugin-shell = "2.3.5"

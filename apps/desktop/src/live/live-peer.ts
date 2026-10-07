@@ -9,10 +9,11 @@ import {
 } from './normalize-live-channel.js';
 import { waitForLiveMediaReady, type LiveOwnerEvent } from '@piwin/contracts';
 import { sendLiveFrames } from '@piwin/voice/wire';
+import { requestLiveMicrophone } from './media/live-microphone-request.js';
 
 export type LivePeerPhase = 'idle' | 'acquiring-mic' | 'negotiating' | 'connected' | 'ended' | 'error';
 
-export type LivePeerErrorCode = 'mic-denied' | 'mic-unavailable' | 'negotiate-failed' | 'peer-failed';
+export type LivePeerErrorCode = 'mic-denied' | 'mic-unavailable' | 'mic-permission-timeout' | 'negotiate-failed' | 'peer-failed';
 
 export type LivePeerSnapshot = {
   phase: LivePeerPhase;
@@ -68,10 +69,7 @@ export class LivePeer {
 
     try {
       this.setPhase('acquiring-mic');
-      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-        throw new LivePeerStartError('mic-unavailable');
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const stream = await requestLiveMicrophone({ signal });
       if (signal.aborted) {
         for (const track of stream.getTracks()) track.stop();
         throw new DOMException('aborted', 'AbortError');
@@ -312,6 +310,8 @@ function mapStartError(error: unknown): LivePeerErrorCode {
     }
   }
   if (error instanceof Error) {
+    if (error.message === 'mic-permission-timeout') return 'mic-permission-timeout';
+    if (error.message === 'mic-unavailable') return 'mic-unavailable';
     if (/permission|notallowed/i.test(error.message)) return 'mic-denied';
     if (/device|notfound|getUserMedia/i.test(error.message)) return 'mic-unavailable';
     if (/negotiate|sdp|fetch|http/i.test(error.message)) return 'negotiate-failed';

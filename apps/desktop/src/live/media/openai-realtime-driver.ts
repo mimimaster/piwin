@@ -7,6 +7,7 @@ import type {
 import type { LivePeerSnapshot } from '../live-peer.js';
 import type { DesktopLiveMediaDriver } from './live-media-driver.js';
 import { floatToPcm16Base64, pcm16Base64ToFloat } from './gemini-live-codec.js';
+import { requestLiveMicrophone } from './live-microphone-request.js';
 import {
   openaiRealtimeAudioAppendPayload,
   openaiRealtimeContextAppendPayload,
@@ -27,6 +28,12 @@ export type OpenaiRealtimeSocket = {
 };
 
 export type OpenaiRealtimeDriverDeps = {
+  nativeMedia?: {
+    prepare(): Promise<void>;
+    connect(bootstrap: LiveOwnerBootstrap, callId: string): Promise<OpenaiRealtimeSocket>;
+    setMuted(muted: boolean): Promise<void>;
+    close(): Promise<void>;
+  };
   /** Injected in tests. Production prefers Tauri plugin (Authorization headers). */
   connectSocket?: (input: {
     endpoint: string;
@@ -52,6 +59,7 @@ export function createOpenaiRealtimeDriver(
   let outputSampleRateHz = 24_000;
   const pendingTools = new PendingLiveTools(() => emitEvent({ type: 'media-failed', mappedCode: 'live-protocol-failed' }));
   let lastAppendedContent = '';
+  let microphoneAbort: AbortController | null = null;
 
   function snapshot(): LivePeerSnapshot {
     return { phase, muted, errorCode };
@@ -93,34 +101,31 @@ export function createOpenaiRealtimeDriver(
         throw new Error('live-protocol-failed');
       }
       setPhase('acquiring-mic');
-      const getUserMedia =
-        deps.getUserMedia ??
-        (() => {
-          if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-            throw new Error('mic-unavailable');
-          }
-          return navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        });
+      const abort = new AbortController();
+      microphoneAbort = abort;
       try {
-        localStream = await getUserMedia();
+        if (deps.nativeMedia) await deps.nativeMedia.prepare();
+        else localStream = await requestLiveMicrophone({ signal: abort.signal,
+          ...(deps.getUserMedia ? { request: deps.getUserMedia } : {}) });
       } catch (error: unknown) {
-        errorCode = 'mic-denied';
+        if (abort.signal.aborted) throw error;
+        errorCode = error instanceof DOMException && error.name === 'NotAllowedError'
+          ? 'mic-denied' : error instanceof Error && error.message === 'mic-permission-timeout'
+            ? 'mic-permission-timeout' : 'mic-unavailable';
         setPhase('error');
-        if (error instanceof DOMException && error.name === 'NotAllowedError') {
-          throw new Error('mic-denied');
-        }
-        throw new Error('mic-unavailable');
+        throw new Error(errorCode);
       }
       setPhase('negotiating');
       return { mediaDriverId: 'openai-realtime-ws-v1' };
     },
-    async connect(bootstrap: LiveOwnerBootstrap, signal: AbortSignal): Promise<void> {
+    async connect(bootstrap: LiveOwnerBootstrap, signal: AbortSignal, callId?: string): Promise<void> {
       if (bootstrap.mediaDriverId !== 'openai-realtime-ws-v1') {
         throw new Error('live-media-unsupported');
       }
       if (signal.aborted) throw new DOMException('aborted', 'AbortError');
       outputSampleRateHz = bootstrap.outputSampleRateHz;
-      const next = await (deps.connectSocket ?? connectOpenaiRealtimeSocket)({
+      if (deps.nativeMedia && !callId) throw new Error('live-protocol-failed');
+      const next = deps.nativeMedia && callId ? await deps.nativeMedia.connect(bootstrap, callId) : await (deps.connectSocket ?? connectOpenaiRealtimeSocket)({
         endpoint: bootstrap.endpoint,
         bearerToken: bootstrap.bearerToken,
       });
@@ -164,6 +169,8 @@ export function createOpenaiRealtimeDriver(
           if (typeof event.data !== 'string') return;
           const parsed = parseOpenaiRealtimeMessage(event.data);
           if (parsed.kind === 'session-created' || parsed.kind === 'session-updated') {
+            // Native capture starts only after the server accepts our format.
+            if (deps.nativeMedia && parsed.kind === 'session-created') return;
             if (phase !== 'connected') {
               setPhase('connected');
               emitEvent({ type: 'media-active' });
@@ -187,6 +194,7 @@ export function createOpenaiRealtimeDriver(
           }
           if (parsed.kind === 'audio-delta') playPcm16Base64(parsed.base64);
           if (parsed.kind === 'error') {
+            if (phase === 'connected') emitEvent({ type: 'media-failed', mappedCode: 'live-provider-rejected' });
             finish(new Error('live-provider-rejected'));
           }
         };
@@ -207,7 +215,8 @@ export function createOpenaiRealtimeDriver(
         }
       });
     },
-    setMuted(nextMuted) {
+    async setMuted(nextMuted) {
+      await deps.nativeMedia?.setMuted(nextMuted);
       muted = nextMuted;
       if (localStream) {
         for (const track of localStream.getAudioTracks()) track.enabled = !nextMuted;
@@ -255,6 +264,9 @@ export function createOpenaiRealtimeDriver(
       if (input.channel === 'speakable') sendJson(openaiRealtimeResponseCreatePayload());
     },
     async close() {
+      microphoneAbort?.abort();
+      microphoneAbort = null;
+      await deps.nativeMedia?.close();
       processor?.disconnect();
       processor = null;
       if (captureContext) {

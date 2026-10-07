@@ -63,3 +63,7 @@ only execution authority.
 - The bundle grows by the workbench (~50 MB unpacked, 3.9 MB main chunk).
 - Phone-layout defects in the workbench are now phone-app defects; they are
   fixed once for the browser and the app.
+- The phone document is a fixed frame. Conversations and other content scroll
+  within their own regions; edge gestures do not move the outer page. The
+  session drawer scrolls vertically only, with long titles and expanded touch
+  targets constrained to its width (2026-10-07).

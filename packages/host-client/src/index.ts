@@ -19,3 +19,5 @@ export * from './device-tools/apple-health-aggregation.js';
 export * from './device-tools/healthkit-bridge.js';
 export * from './device-tools/health-background-sync.js';
 export * from './host-wake.js';
+export * from './live-activity-bridge.js';
+export * from './native-live-audio.js';

@@ -13,6 +13,7 @@
     "allow-mobile-credential-write",
     "allow-mobile-credential-clear",
     "piwin-healthkit:default",
+    "piwin-live:default",
     "notification:default",
     "allow-mobile-open-external",
     "allow-artifact-document-put"

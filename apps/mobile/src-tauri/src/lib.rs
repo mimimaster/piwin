@@ -11,6 +11,7 @@ pub fn run() {
     {
         builder = builder.plugin(tauri_plugin_barcode_scanner::init());
         builder = builder.plugin(tauri_plugin_piwin_healthkit::init());
+        builder = builder.plugin(tauri_plugin_piwin_live::init());
         builder = builder.plugin(tauri_plugin_websocket::init());
         builder = builder.plugin(tauri_plugin_notification::init());
         // Used from Rust only (external_open.rs); no shell command is exposed

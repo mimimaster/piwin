@@ -303,6 +303,13 @@ function presentLiveState(
     };
   }
   const mediaUp = props.peer.phase === 'connected';
+  if (props.starting && props.peer.phase === 'acquiring-mic') {
+    return {
+      label: isChinese ? '等待麦克风…' : 'Waiting for microphone…',
+      accessibleLabel: isChinese ? '等待麦克风，请确认系统权限提示' : 'Waiting for microphone. Check the system permission prompt.',
+      tone: 'connecting', motion: 'connecting', fxType: 'spinner',
+    };
+  }
   if ((props.starting || props.call?.phase === 'starting') && !mediaUp) {
     return {
       label: isChinese ? '正在连接…' : 'Connecting…',

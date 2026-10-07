@@ -61,6 +61,11 @@ From the repository root:
 
 ## Native setup
 
+The native iOS shell targets iOS 15 or later, matching its Swift plugins.
+Tauri and the Xcode template must use the same minimum version. After building,
+run `pnpm verify:mobile-ios-runtime` from the repository root: it rejects the
+obsolete bundled concurrency runtime that conflicts with ActivityKit.
+
 After Xcode/Android Studio prerequisites are available, generate the Tauri
 platform projects:
 
@@ -70,3 +75,18 @@ platform projects:
 The generated src-tauri/gen/ directory is local build output and is ignored by
 the repository. Do not add desktop sidecar resources or external binaries to
 this app.
+
+## Live voice and Dynamic Island
+
+On iOS 17+, locally owned Live calls expose status, elapsed time, mute, end,
+and return-to-session controls through a Live Activity. Session titles are
+omitted from the lock-screen card. The generated Xcode project embeds the
+`PiwinLiveActivityExtension` widget target; regenerate with `ios:init` after
+updating the native project template.
+
+Grok/OpenAI Realtime PCM runs through native iOS audio and an authenticated
+native socket. The audio background mode applies only while a user-started
+call owns the audio session. Codex WebRTC and Gemini remain foreground media
+paths. Host task admission and permission handling may wait until the shell
+resumes. Lock-screen recording and Bluetooth behavior require true-device
+acceptance. See ADR 0085 for ownership, privacy and verification boundaries.

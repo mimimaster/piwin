@@ -1,0 +1,13 @@
+[package]
+name = "tauri-plugin-piwin-live"
+version = "0.0.0"
+description = "Piwin iOS Live Activity and call controls"
+edition = "2021"
+links = "tauri-plugin-piwin-live"
+
+[dependencies]
+serde_json = "1"
+tauri = { version = "2", default-features = false, features = [] }
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

@@ -29,7 +29,7 @@ export function liveMissingLabel(missing: LiveReadyMissing[], isChinese: boolean
     return isChinese ? '当前渠道不可用，请换一家或更新应用' : 'This Live channel is unavailable. Choose another or update the app.';
   }
   if (missing.includes('media-unsupported')) {
-    return isChinese ? '当前电脑不支持该渠道的媒体能力' : 'This computer does not support this Live channel';
+    return isChinese ? '当前设备不支持该渠道的语音能力' : 'This device does not support this Live channel';
   }
   if (missing.includes('call-busy')) {
     return isChinese ? '已有通话进行中' : 'A Live call is already active';
@@ -129,8 +129,19 @@ export function liveStartErrorLabel(
   }
   if (error === 'mic-unavailable') {
     return isChinese
-      ? '麦克风不可用。完全退出并重新打开 Desktop 后再试。'
-      : 'Microphone unavailable. Quit and reopen Desktop, then try again.';
+      ? '麦克风不可用，请检查设备的麦克风权限后重新打开应用。浏览器访问需要 HTTPS。'
+      : 'Microphone unavailable. Check microphone permissions and reopen the app. Browser access requires HTTPS.';
+  }
+  if (error === 'mic-permission-timeout') {
+    return isChinese
+      ? '等待麦克风超时。请确认系统授权弹窗，或在设置中允许 piwin 使用麦克风，然后重试。'
+      : 'Microphone permission timed out. Check the system prompt or allow microphone access in Settings, then retry.';
+  }
+  if (error === 'live-media-unsupported') {
+    return isChinese ? '当前设备不支持该语音渠道，请更新应用或切换渠道。' : 'This device does not support this Live channel. Update the app or choose another channel.';
+  }
+  if (/Host request timed out: voice\/live\//i.test(error)) {
+    return isChinese ? '语音连接超时，请检查手机与 Host 的网络后重试。' : 'Live connection timed out. Check the connection to your Host and retry.';
   }
   if (error === 'live-disconnected') {
     return isChinese ? 'Live 已断开' : 'Live disconnected';

@@ -33,8 +33,9 @@
   },
   "bundle": {
     "iOS": {
+      "minimumSystemVersion": "15.0",
       "developmentTeam": "F47G63A8DM",
-      "bundleVersion": "1.0.0.12",
+      "bundleVersion": "1.0.0.13",
       "template": "src-tauri/ios-project.yml",
       "infoPlist": "Info.plist"
     }
