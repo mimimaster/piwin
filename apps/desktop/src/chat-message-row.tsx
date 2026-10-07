@@ -52,17 +52,23 @@ import type { ChatMessageRowProps } from './chat-message-row-types.js';
 import { areChatMessageRowPropsEqual } from './chat-message-row-memo.js';
 import { ToolOutputMessageContext } from './tool-output-reader.js';
 
-/** Tool cards below read historical output by (message, tool) id. */
-export function ChatMessageRow(props: ChatMessageRowProps): ReactElement {
+/**
+ * Tool cards below read historical output by (message, tool) id. The memo sits
+ * on this outer component: with it on the content alone, every row of a live
+ * turn still re-rendered its provider shell on each token.
+ */
+export const ChatMessageRow = memo(function ChatMessageRow(
+  props: ChatMessageRowProps,
+): ReactElement {
   return (
     <ToolOutputMessageContext.Provider value={props.message.id}>
       <ChatMessageRowContent {...props} />
     </ToolOutputMessageContext.Provider>
   );
-}
+}, areChatMessageRowPropsEqual);
 
-const ChatMessageRowContent = memo(
-  function ChatMessageRow(props: ChatMessageRowProps): ReactElement | null {
+const ChatMessageRowContent = (
+  function ChatMessageRowContent(props: ChatMessageRowProps): ReactElement | null {
     const { message } = props;
     noteRowRender(message.id);
     const errorMessage = resolveTurnErrorMessage({
@@ -661,6 +667,5 @@ const ChatMessageRowContent = memo(
         {capsule}
       </>
     );
-  },
-  areChatMessageRowPropsEqual,
+  }
 );

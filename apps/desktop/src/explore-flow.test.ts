@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
+import { groupTranscriptTurns } from './transcript-turns';
 import {
   buildExploreFlowRoles,
+  buildExploreFlowRolesByTurn,
   exploreFlowRolesEqual,
   type ExploreFlowRole,
 } from './explore-flow';
@@ -402,5 +404,49 @@ describe('explore flow counts', () => {
     if (anchor?.kind !== 'anchor') return;
     expect(anchor.group.fileCount).toBe(1);
     expect(anchor.group.searchCount).toBe(1);
+  });
+});
+
+describe('buildExploreFlowRolesByTurn', () => {
+  const transcript = (tailToolStatus: ToolCardUi['status']): ChatMessageUi[] => [
+    assistantStep('legacy-1', { tools: [readTool('l1', 'src/z.ts')] }),
+    assistantStep('legacy-2', { tools: [grepTool('l2')] }),
+    userMessage('u1'),
+    assistantStep('a1', { tools: [readTool('t1', 'src/a.ts')] }),
+    // Left running when the next prompt arrived: settled by it, never live.
+    assistantStep('a2', { status: 'streaming', tools: [readTool('t2', 'src/b.ts', 'running')] }),
+    userMessage('u2'),
+    assistantStep('b1', { text: 'Looking around.', tools: [grepTool('t3')] }),
+    assistantStep('b2', { tools: [readTool('t4', 'src/c.ts')] }),
+    assistantStep('b3', { text: 'Done.', tools: [editTool('t5')] }),
+    userMessage('u3'),
+    assistantStep('c1', { tools: [readTool('t6', 'src/d.ts')] }),
+    assistantStep('c2', { status: 'streaming', tools: [readTool('t7', 'src/e.ts', tailToolStatus)] }),
+  ];
+
+  it.each([true, false])('matches the whole-transcript scan (streamActive=%s)', (streamActive) => {
+    const messages = transcript(streamActive ? 'running' : 'done');
+    const whole = buildExploreFlowRoles(messages, { streamActive });
+    const byTurn = buildExploreFlowRolesByTurn(groupTranscriptTurns(messages), { streamActive });
+
+    expect([...byTurn.keys()].sort()).toEqual([...whole.keys()].sort());
+    expect(whole.size).toBeGreaterThan(0);
+    for (const [messageId, role] of whole) {
+      expect(byTurn.get(messageId)).toEqual(role);
+    }
+  });
+
+  it('re-scans only the turn that changed', () => {
+    const messages = transcript('running');
+    const turns = groupTranscriptTurns(messages);
+    const before = buildExploreFlowRolesByTurn(turns, { streamActive: true });
+    const liveTurn = turns[turns.length - 1];
+    if (!liveTurn) throw new Error('expected a live turn');
+    const nextTurns = [...turns.slice(0, -1), { ...liveTurn, items: [...liveTurn.items] }];
+    const after = buildExploreFlowRolesByTurn(nextTurns, { streamActive: true });
+
+    expect(after.get('a1')).toBe(before.get('a1'));
+    expect(after.get('c1')).not.toBe(before.get('c1'));
+    expect(after.get('c1')).toEqual(before.get('c1'));
   });
 });

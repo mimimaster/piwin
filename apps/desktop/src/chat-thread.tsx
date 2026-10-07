@@ -13,7 +13,7 @@ import { focusComposerInput } from './context-menu/desktop-context-menu-value';
 import { TranscriptTurnList } from './transcript-turn-list';
 import { useStableTranscriptTurns } from './use-stable-transcript-turns';
 import type { TranscriptTurn } from './transcript-turns';
-import { buildExploreFlowRoles } from './explore-flow';
+import { buildExploreFlowRolesByTurn } from './explore-flow';
 import { collectMessageChangedFiles } from './collect-message-changed-files';
 import { findStreamingCaretMessageId } from './streaming-caret';
 import { DocCardSequenceView } from './DocCardSequenceView';
@@ -144,8 +144,8 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     () =>
       props.isConversationSession === true
         ? new Map()
-        : buildExploreFlowRoles(chatMessages, { streamActive: props.streaming === true }),
-    [chatMessages, props.isConversationSession, props.streaming],
+        : buildExploreFlowRolesByTurn(turnGroups, { streamActive: props.streaming === true }),
+    [turnGroups, props.isConversationSession, props.streaming],
   );
   // Messages whose tools already render inside an explore capsule. The
   // turn-level fold skips a chain that group has covered on its own.

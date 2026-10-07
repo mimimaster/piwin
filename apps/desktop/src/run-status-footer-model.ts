@@ -25,6 +25,27 @@ export function estimateTextTokens(text: string): number {
  * call started). Host usage only lands per finished request, so the live
  * counter is an estimate.
  */
+/**
+ * Messages are immutable and only the streaming one is replaced per token, so
+ * the estimate of every other message of a long chain is reused instead of
+ * re-scanning all of its reasoning text for each token.
+ */
+const messageOutputTokens = new WeakMap<ChatMessageUi, number>();
+
+function estimateMessageOutputTokens(message: ChatMessageUi): number {
+  const cached = messageOutputTokens.get(message);
+  if (cached !== undefined) return cached;
+  let total = estimateTextTokens(message.text) + estimateTextTokens(message.thinking);
+  if (message.toolArgsProgress) {
+    total += Math.ceil(message.toolArgsProgress.argumentCharCount / LATIN_CHARS_PER_TOKEN);
+  }
+  for (const tool of message.tools) {
+    total += estimateTextTokens(tool.presentation?.inputPreview ?? '');
+  }
+  messageOutputTokens.set(message, total);
+  return total;
+}
+
 export function estimateRunOutputTokens(
   messages: readonly ChatMessageUi[],
   activeRunId: string | null,
@@ -35,13 +56,7 @@ export function estimateRunOutputTokens(
     if (activeRunId !== null && message.runId !== undefined && message.runId !== activeRunId) {
       continue;
     }
-    total += estimateTextTokens(message.text) + estimateTextTokens(message.thinking);
-    if (message.toolArgsProgress) {
-      total += Math.ceil(message.toolArgsProgress.argumentCharCount / LATIN_CHARS_PER_TOKEN);
-    }
-    for (const tool of message.tools) {
-      total += estimateTextTokens(tool.presentation?.inputPreview ?? '');
-    }
+    total += estimateMessageOutputTokens(message);
   }
   return total;
 }

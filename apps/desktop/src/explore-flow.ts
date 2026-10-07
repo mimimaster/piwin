@@ -23,6 +23,7 @@
  *
  * Pure projection: recomputed from message state on every render.
  */
+import type { TranscriptTurn } from './transcript-turns.js';
 import { isAssistantContentEmpty } from './assistant-message-content';
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
 import {
@@ -293,7 +294,15 @@ function finalizeRun(
  */
 export function buildExploreFlowRoles(
   messages: readonly ChatMessageUi[],
-  options?: { streamActive?: boolean },
+  options?: {
+    streamActive?: boolean;
+    /**
+     * These messages are followed by another turn's prompt. A run still open
+     * at the end is then closed the way that prompt would close it, not as the
+     * live tail of the transcript.
+     */
+    followedByPrompt?: boolean;
+  },
 ): Map<string, ExploreFlowRole> {
   const streamActive = options?.streamActive === true;
   const roles = new Map<string, ExploreFlowRole>();
@@ -352,9 +361,58 @@ export function buildExploreFlowRoles(
     }
     closeRun(false, false);
   }
-  closeRun(streamActive);
+  if (options?.followedByPrompt === true) {
+    closeRun(false, false);
+  } else {
+    closeRun(streamActive);
+  }
 
   return roles;
+}
+
+type TurnExploreRoles = {
+  streamActive: boolean;
+  followedByPrompt: boolean;
+  roles: Map<string, ExploreFlowRole>;
+};
+
+const exploreRolesByTurn = new WeakMap<TranscriptTurn, TurnExploreRoles>();
+
+/**
+ * Explore roles for a whole transcript, computed turn by turn.
+ *
+ * A run never crosses a prompt and every turn after the first starts with one,
+ * so each turn's roles depend on that turn alone. Turn objects are stable
+ * while their rows are, which lets a token re-scan only the live turn instead
+ * of every message in the window.
+ */
+export function buildExploreFlowRolesByTurn(
+  turns: readonly TranscriptTurn[],
+  options?: { streamActive?: boolean },
+): Map<string, ExploreFlowRole> {
+  const streamActive = options?.streamActive === true;
+  const merged = new Map<string, ExploreFlowRole>();
+  turns.forEach((turn, turnIndex) => {
+    const followedByPrompt = turnIndex < turns.length - 1;
+    let entry = exploreRolesByTurn.get(turn);
+    if (
+      entry === undefined ||
+      entry.streamActive !== streamActive ||
+      entry.followedByPrompt !== followedByPrompt
+    ) {
+      entry = {
+        streamActive,
+        followedByPrompt,
+        roles: buildExploreFlowRoles(
+          turn.items.map((item) => item.message),
+          { streamActive, followedByPrompt },
+        ),
+      };
+      exploreRolesByTurn.set(turn, entry);
+    }
+    for (const [messageId, role] of entry.roles) merged.set(messageId, role);
+  });
+  return merged;
 }
 
 function exploreFlowItemsEqual(left: ExploreFlowItem[], right: ExploreFlowItem[]): boolean {

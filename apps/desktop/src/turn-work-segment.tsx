@@ -11,7 +11,7 @@
  *           collapse the segment from wherever the reader has scrolled to
  */
 import type { ReactElement, ReactNode } from 'react';
-import { useRef } from 'react';
+import { memo, useCallback, useRef } from 'react';
 import { Button } from '@piwin/ui-kit';
 import { ActionMarquee } from './action-marquee.js';
 import { useTranscriptScrollPort } from './transcript-scroll-port.js';
@@ -54,7 +54,8 @@ export type TurnWorkSegmentBlockProps = {
   segment: TurnWorkSegment;
   open: boolean;
   locale: Locale;
-  onToggle: () => void;
+  /** Shared by every segment of the transcript, so its identity is stable. */
+  onToggle: (segmentId: string, currentlyOpen: boolean) => void;
   /** Narration rows: shown whether or not the segment is open. */
   prose?: ReactNode;
   /** What the running segment's tools are doing right now (collapsed header). */
@@ -64,6 +65,103 @@ export type TurnWorkSegmentBlockProps = {
   /** Set on the last segment: closes the turn fold's region for the rail. */
   turnFoldEndId?: string;
 };
+
+type TurnWorkSegmentHeaderProps = {
+  segmentId: string;
+  title: string;
+  running: boolean;
+  open: boolean;
+  locale: Locale;
+  onToggle: (segmentId: string, currentlyOpen: boolean) => void;
+  toolCount: number;
+  fileCount: number;
+  failureCount: number;
+  elapsedMs: number | undefined;
+  startedAt: number | undefined;
+  liveActions: readonly TurnWorkSegmentLiveAction[];
+};
+
+function areLiveActionsEqual(
+  left: readonly TurnWorkSegmentLiveAction[],
+  right: readonly TurnWorkSegmentLiveAction[],
+): boolean {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  return left.every(
+    (action, index) =>
+      action.toolName === right[index]?.toolName && action.target === right[index]?.target,
+  );
+}
+
+/**
+ * The header takes the segment as plain values. A turn rebuilds its segment
+ * plan on every token, so each of the (up to 40) mounted segments got a new
+ * `segment` object and re-rendered its header, glyph and counts for a token
+ * that only reached the last one.
+ */
+const TurnWorkSegmentHeader = memo(
+  function TurnWorkSegmentHeader(props: TurnWorkSegmentHeaderProps): ReactElement {
+    const { running, open, locale, segmentId } = props;
+    const onToggleSegment = props.onToggle;
+    const onToggle = useCallback(
+      () => onToggleSegment(segmentId, open),
+      [onToggleSegment, segmentId, open],
+    );
+    const zh = locale === 'zh-CN';
+    const meta = [
+      zh ? `${props.toolCount} 个工具` : `${props.toolCount} tool${props.toolCount === 1 ? '' : 's'}`,
+      props.elapsedMs !== undefined ? formatWorkDuration(props.elapsedMs, locale, 'executed') : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    return (
+      <WorkFoldHeader
+        state={running ? 'running' : 'done'}
+        locale={locale}
+        open={open}
+        onToggle={onToggle}
+        className="turn-work-disclosure-trigger turn-work-segment-header"
+        testId="turn-work-segment-header"
+        doneIcon="run"
+        verb="executed"
+        failureCount={props.failureCount}
+        dataAttributes={{
+          'data-fold-header': `segment:${segmentId}`,
+          'data-fold-open': open ? 'true' : 'false',
+          'data-fold-level': 'segment',
+          'data-fold-title': props.title,
+          'data-fold-meta': meta,
+        }}
+        {...(running
+          ? props.startedAt !== undefined
+            ? { runningSince: props.startedAt }
+            : {}
+          : {
+              ...(props.elapsedMs !== undefined ? { elapsedMs: props.elapsedMs } : {}),
+              toolCount: props.toolCount,
+              fileCount: props.fileCount,
+            })}
+      >
+        {running ? <RunningSegmentLabel actions={props.liveActions} locale={locale} /> : undefined}
+      </WorkFoldHeader>
+    );
+  },
+  (previous, next) =>
+    previous.segmentId === next.segmentId &&
+    previous.title === next.title &&
+    previous.running === next.running &&
+    previous.open === next.open &&
+    previous.locale === next.locale &&
+    previous.onToggle === next.onToggle &&
+    previous.toolCount === next.toolCount &&
+    previous.fileCount === next.fileCount &&
+    previous.failureCount === next.failureCount &&
+    previous.elapsedMs === next.elapsedMs &&
+    previous.startedAt === next.startedAt &&
+    areLiveActionsEqual(previous.liveActions, next.liveActions),
+);
+
+const NO_LIVE_ACTIONS: readonly TurnWorkSegmentLiveAction[] = [];
 
 export function TurnWorkSegmentBlock(props: TurnWorkSegmentBlockProps): ReactElement {
   const { segment, open, locale } = props;
@@ -78,20 +176,13 @@ export function TurnWorkSegmentBlock(props: TurnWorkSegmentBlockProps): ReactEle
     const container = port?.scrollElementRef.current;
     const header = rootRef.current?.querySelector<HTMLElement>('[data-fold-header]');
     if (!container || !header) {
-      props.onToggle();
+      props.onToggle(segment.id, open);
       return;
     }
     collapseFoldWithAnchor(container, header, {
       beginProgrammaticScroll: port?.beginProgrammaticScroll ?? (() => {}),
     });
   };
-
-  const meta = [
-    zh ? `${summary.toolCount} 个工具` : `${summary.toolCount} tool${summary.toolCount === 1 ? '' : 's'}`,
-    summary.elapsedMs !== undefined ? formatWorkDuration(summary.elapsedMs, locale, 'executed') : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
 
   return (
     <div
@@ -104,37 +195,20 @@ export function TurnWorkSegmentBlock(props: TurnWorkSegmentBlockProps): ReactEle
       data-open={open ? 'true' : 'false'}
     >
       {props.prose}
-      <WorkFoldHeader
-        state={running ? 'running' : 'done'}
-        locale={locale}
+      <TurnWorkSegmentHeader
+        segmentId={segment.id}
+        title={segment.title ?? ''}
+        running={running}
         open={open}
+        locale={locale}
         onToggle={props.onToggle}
-        className="turn-work-disclosure-trigger turn-work-segment-header"
-        testId="turn-work-segment-header"
-        doneIcon="run"
-        verb="executed"
+        toolCount={summary.toolCount}
+        fileCount={summary.fileCount}
         failureCount={summary.failureCount}
-        dataAttributes={{
-          'data-fold-header': foldId,
-          'data-fold-open': open ? 'true' : 'false',
-          'data-fold-level': 'segment',
-          'data-fold-title': segment.title ?? '',
-          'data-fold-meta': meta,
-        }}
-        {...(running
-          ? summary.startedAt !== undefined
-            ? { runningSince: summary.startedAt }
-            : {}
-          : {
-              ...(summary.elapsedMs !== undefined ? { elapsedMs: summary.elapsedMs } : {}),
-              toolCount: summary.toolCount,
-              fileCount: summary.fileCount,
-            })}
-      >
-        {running ? (
-          <RunningSegmentLabel actions={props.liveActions ?? []} locale={locale} />
-        ) : undefined}
-      </WorkFoldHeader>
+        elapsedMs={summary.elapsedMs}
+        startedAt={summary.startedAt}
+        liveActions={props.liveActions ?? NO_LIVE_ACTIONS}
+      />
       {open ? (
         <div className="turn-work-segment-body">
           <button
@@ -197,9 +271,9 @@ export function mountTurnWorkSegmentBlocks(
         segment={segment}
         open={open}
         locale={options.locale}
-        onToggle={() => options.onToggle(segment.id, open)}
+        onToggle={options.onToggle}
         prose={slot.prose}
-        liveActions={segment.running ? options.liveActionsFor(segment) : []}
+        liveActions={segment.running ? options.liveActionsFor(segment) : NO_LIVE_ACTIONS}
         {...(segment === lastSegment && options.turnFoldEndId !== undefined
           ? { turnFoldEndId: options.turnFoldEndId }
           : {})}
