@@ -2,75 +2,42 @@
  * Workbench composition root: shell chrome + host/session owners + slot tree.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { createHostLogStore, HostLogProvider } from './host-log-context';
-import { artifactFenceSecurityProps } from './artifact-fence-security';
-import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifact-surfaces';
+import { createHostLogStore } from './host-log-context';
 import type { ThemeManifest } from '@piwin/contracts';
 import { focusComposerInput } from './context-menu/desktop-context-menu-value';
 import { useWorkbenchMedia } from './hooks/use-workbench-media.js';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
-import { resolveNoRepoWorkspaceKey } from './file-browse-root';
 import { useWorkbenchHostClient } from './use-workbench-host-client';
-import { MediaPreviewReadProvider } from './media-preview-read-context';
-import { LocalFileActionsProvider } from './local-file-actions-context';
-import { DesktopLocaleProvider } from './desktop-locale-context';
-import { DesktopContextMenuProvider } from './context-menu';
-import { SubagentInspectorProvider } from './subagent-inspector-context';
 import { useSubagentReviewLoopValue } from './subagent-review-loop-context';
 import { useWorkbenchShellChrome } from './hooks/use-workbench-shell-chrome';
+import { useWorkbenchStableValues } from './hooks/use-workbench-stable-values';
 import { useWorkbenchAppModel } from './hooks/use-workbench-app-model';
 import { useShellSessionOpen } from './hooks/use-shell-session-open';
 import { useWindowsShellOffer } from './hooks/use-windows-shell-offer';
-import { DesktopAttentionLayer } from './hooks/use-desktop-attention';
-import { WindowsShellOfferBanner } from './windows-shell-offer-banner';
 import { installRendererSelfHeal } from './renderer-self-heal';
-import { WorkspaceShell } from './workspace-shell';
-import { WorkbenchInspector } from './workbench-inspector';
-import { memoWithLatestCallbacks } from './memo-with-latest-callbacks';
-import { useLatestCallback } from './use-latest-callback.js';
-import { useStructuralValue } from './use-structural-value.js';
-import { useStableHandlers } from './use-stable-handlers.js';
 import { scheduleIdleTask } from './schedule-idle-task';
 import { loadStreamdownMathPlugin } from './streamdown-math-plugin.js';
 import { WorkbenchWorkspaceProviders } from './workbench-workspace-providers';
-import { SubAgentPanel } from './SubAgentPanel';
+import { WorkbenchShellFrame } from './workbench-shell-slots';
+import { WorkbenchShellOverlays, WorkbenchStageMounts } from './workbench-stage-slots';
 import { deriveSubagentOrchestrationView } from './subagent-orchestration-view';
 import { SessionContextRow } from './session-context-row';
-import {
-  WorkbenchComposerColumn,
-  WorkbenchPermissionBar,
-  WorkbenchTranscript,
-} from './workbench-conversation';
-import { WorkbenchContextBar } from './workbench-context-bar';
-import { LiveBar } from './live/LiveBar.js';
-import { WorkbenchOverlays, WorkbenchSettingsOverlay } from './workbench-overlays';
-import { WorkbenchSidebar } from './workbench-sidebar';
-import { WorkbenchConversationStage } from './workbench-conversation-stage';
+import { WorkbenchComposerColumn } from './workbench-conversation';
 import { resolveFocusedConversationSessionId } from './conversation-pane-layout';
 import {
   useConversationPaneLayout,
   useConversationPaneSubscriptions,
 } from './use-conversation-pane-layout';
-import { appendComposerProposal } from './artifact-canvas-model.js';
 import { isDockingWorkspaceEnabled } from './workbench/docking/flag.js';
-import { DockToolHostsProvider } from './workbench/docking/dock-tool-hosts.js';
 import { useDockingWorkspace } from './workbench/docking/use-docking-workspace.js';
-import { inspectorTabToToolKind, toolKindToInspectorTab } from './workbench/docking/docking-tool-bridge.js';
+import {
+  inspectorTabToToolKind,
+  toolKindToInspectorTab,
+} from './workbench/docking/docking-tool-bridge.js';
 import { findViewGroupId, isStageGroupId } from './workbench/docking/topology.js';
 import { sessionScopeKey } from './session-scope-key';
-import { WorkbenchSubpageStage } from './workbench-subpage-stage';
 import { useWorkbenchKnowledge } from './hooks/use-workbench-knowledge';
 import { isInkstoneThemeId } from './appearance-tokens';
-
-/**
- * The inspector shows files, terminal, tasks — nothing a streamed token
- * changes — yet it sits under the component that owns chat state. Handlers are
- * proxied by name; `request*` adapters keep their identity because panels use
- * it to know when to reload.
- */
-const StableWorkbenchInspector = memoWithLatestCallbacks(WorkbenchInspector, {
-  isHandler: (key) => /^(on|handle)[A-Z]/.test(key) || key === 'openSettingsSection',
-});
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -97,84 +64,11 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const [hostLogStore] = useState(createHostLogStore);
   const setHostLogEntries = hostLogStore.setEntries;
   const chrome = useWorkbenchShellChrome({ hostClient, state });
-  const {
-    projectInput,
-    setProjectInput,
-    shell,
-    settingsOpen,
-    settingsSection,
-    commandPaletteOpen,
-    navDrawerOpen,
-    rightPanelOpen,
-    rightPanelTab,
-    showOverlayScrim,
-    layoutMode,
-    inspectorPlacement,
-    isOverlayPresentation,
-    inspectorOverlay,
-    sidebarResize,
-    rightPanelResize,
-    setRightPanelView,
-    activeSubPage,
-    setActiveSubPage,
-    openLibrary,
-    openImages,
-    openVideos,
-    openFlashcards,
-    openMarketplace,
-    closeSubPage,
-    flashcardsEntry,
-    flashcardsFolderPath,
-    openKnowledge,
-    openFlashcardsProduce,
-    sessionListChrome,
-    sessionListQuery,
-    sidebarMode,
-    setSidebarMode,
-    editingMessageId,
-    setEditingMessageId,
-    preferences,
-    terminal,
-    appShellStyle,
-    desktopLocale,
-    foregroundReplaceConfirm,
-  } = chrome;
-  const {
-    sessionSearch,
-    setSessionSearch,
-    sessionSearchOpen,
-    setSessionSearchOpen,
-    openSessionSearch,
-    showArchivedSessions,
-    setShowArchivedSessions,
-    sessionListOrder,
-    sessionMenu,
-    renameDraft,
-    setRenameDraft,
-    projectPickerOpen,
-    setProjectPickerOpen,
-    deleteConfirm,
-    deleteBusy,
-    continueInProject,
-    continueInProjectBusy,
-    openSessionMenu,
-    closeSessionMenu,
-    requestDeleteSession,
-    requestContinueInProject,
-    closeDeleteConfirm,
-    closeContinueInProject,
-    runDeleteConfirm,
-    runContinueInProject,
-  } = sessionListChrome;
-  const { filteredSessions, filteredGeneralSessions, sessionGroups } = sessionListQuery;
-  const {
-    ptyOutput,
-    setPtyOutput,
-    terminalCwd,
-    terminalRecentDirs,
-    handleTerminalCwdChange,
-  } = terminal;
-  const conversationPanesEnabled = state.activeScope.kind === 'general' || state.activeScope.kind === 'project';
+  const { activeSubPage, closeSubPage, desktopLocale, isOverlayPresentation, layoutMode } = chrome;
+  const { openKnowledge, rightPanelOpen, rightPanelResize, rightPanelTab } = chrome;
+  const { sessionListChrome, sessionListQuery, setActiveSubPage, shell, terminal } = chrome;
+  const conversationPanesEnabled =
+    state.activeScope.kind === 'general' || state.activeScope.kind === 'project';
   const dockingEnabled = isDockingWorkspaceEnabled();
   const conversationPaneController = useConversationPaneLayout({
     enabled: conversationPanesEnabled && !dockingEnabled,
@@ -194,7 +88,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   // tool the user moved onto the stage: the docking hook above focuses it
   // there, so drop the inspector tab, and fold the panel away again when it
   // was opened only to show that tool.
-  const requestedDockTool = dockingActive && rightPanelOpen ? inspectorTabToToolKind(rightPanelTab) : null;
+  const requestedDockTool =
+    dockingActive && rightPanelOpen ? inspectorTabToToolKind(rightPanelTab) : null;
   const requestedDockToolOnStage =
     requestedDockTool !== null &&
     Object.values(dockingWorkspace.state.views).some((view) => {
@@ -211,7 +106,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     if (!wasOpen) shell.closeOverlay();
   }, [requestedDockToolOnStage, rightPanelOpen, shell]);
   const liveSessionId = dockingEnabled
-    ? dockingWorkspace.state.sessionTargetId ?? state.activeSessionId
+    ? (dockingWorkspace.state.sessionTargetId ?? state.activeSessionId)
     : conversationPanesEnabled
       ? resolveFocusedConversationSessionId({
           layout: conversationPaneController.layout,
@@ -233,153 +128,15 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     liveSessionId,
     knowledgeMountsRef,
   });
-  const {
-    requestConfig,
-    requestSubAgent,
-    requestSkills,
-    requestExtensions,
-    requestPlugins,
-    requestPrompts,
-    requestMcp,
-    requestGit,
-    requestPet,
-    requestPty,
-    requestAutomation,
-    jobs,
-    terminalJobMonitor,
-    backendServiceSessionIds,
-    hostStatus,
-    config,
-    setActivePet,
-    sessionPlan,
-    extensionUiRequest,
-    assemblySummariesByRunId,
-    inspectorFileDiff,
-    fileBrowseRoot,
-    activeDocument,
-    sessionDocuments,
-    artifactThemeKey,
-    modelOptions,
-    handleArtifactAction,
-    handleGenerateWalkthrough,
-    handleCancelWalkthrough,
-    requestNotesPanel,
-    requestCardsPanel,
-    resolveConversationFlashcards,
-    requestKnowledgeCenter,
-    requestFileTree,
-    hydrateSessions,
-    transcriptHistoryLoading,
-    handleJumpToHistoryAnchor,
-    handleJumpToTranscriptMessage,
-    handleReturnToLiveTranscript,
-    handleOpenWorkspaceClick,
-    handleBrowseProject,
-    handleOpenProject,
-    handleTrustProject,
-    handleResumeSession,
-    ensureSession,
-    coldRestorePrompt,
-    confirmColdRestore,
-    clearColdRestorePrompt,
-    handleLoadOlderTranscript,
-    handleLoadNewerTranscript,
-    handleRenameSession,
-    handleContinueSessionInProject,
-    handleForkSession,
-    handleSessionMenuAction,
-    confirmDeleteSession,
-    handleAbort,
-    handleCompactAbort,
-    handlePermission,
-    branchPoints,
-    switchBranch,
-    branchResend,
-    retryTurn,
-    continueTurn,
-    pendingTruncate,
-    confirmTruncateAfter,
-    cancelTruncateAfter,
-    pendingSwitchConfirm,
-    confirmSwitchBranch,
-    cancelSwitchBranch,
-    stashThenSwitchBranch,
-    pendingRetryDiscard,
-    confirmRetryDiscard,
-    cancelRetryDiscard,
-    pendingBranchLeaves,
-    confirmBranchLeaves,
-    cancelBranchLeaves,
-    handleSessionListOrderChange,
-    handleSettingsOpenSubagentSession,
-    recentProjects,
-    worktrees,
-    handleRemoveProjectFromSidebar,
-    effectiveRunMode,
-    handleSettingsSaved,
-    handleSettingsPreferencesChange,
-    composer,
-    setComposer,
-    pendingAttachments,
-    draftSessions,
-    activeDraftId,
-    addWebElement,
-    enqueueAttachmentFile,
-    addExistingMediaAttachment,
-    handleSend,
-    handleOpenDocument,
-    handleOpenDiff,
-    handleOpenArtifactCanvas,
-    handleStartNewSession,
-    handleResumeDraft,
-    handleRetryMessage,
-    handleCommentLine,
-    handleExtensionUiResolve,
-    desktopContextMenuValue,
-    activeComments,
-    handleAddDocComment,
-    handleEditDocComment,
-    handleDeleteDocComment,
-    handleToggleAppearance,
-    openRightTab,
-    openSettingsSection,
-    handleDesktopCommand,
-    startBackendSession,
-    handleLocaleChange,
-    runStatus,
-    activitySignal,
-    historyViewActive,
-    visibleTranscriptMessages,
-    visibleRunRecordsById,
-    lastUserMessage,
-    lastUserMessageId,
-    activeSessionName,
-    activeSessionOrigin,
-    composerCard,
-    composerLayoutMode,
-    live,
-    handleInspectSubagent,
-    subagentInspectorToggle,
-    subagentInspectorPanel,
-    subagentStop,
-    handleCancelMessageEdit,
-    handleInterventionEdit,
-    handleInterventionCancel,
-    handleEditAndResendMessage,
-    handleMessageFeedback,
-    handlePlanExecute,
-    handlePlanAction,
-    activeMedia,
-    readTranscriptMedia,
-    forkCountsByMessageId,
-    sessionLineage,
-    addContextRef,
-    dispatchNotification,
-    artifactCanvas,
-    draftAgentOptions,
-    draftAgentId,
-    onDraftAgentChange,
-  } = model;
+  const { activeComments, activeDocument, activeMedia, activeSessionName } = model;
+  const { addExistingMediaAttachment, addWebElement, artifactCanvas, artifactThemeKey } = model;
+  const { composer, composerCard, config, desktopContextMenuValue, dispatchNotification } = model;
+  const { ensureSession, handleInspectSubagent, handleLocaleChange, handleOpenDocument } = model;
+  const { handleOpenProject, handleResumeSession, handleSessionMenuAction } = model;
+  const { handleStartNewSession, handleTrustProject, hostStatus, inspectorFileDiff } = model;
+  const { openRightTab, pendingAttachments, readTranscriptMedia, recentProjects } = model;
+  const { requestConfig, requestGit, requestSubAgent, sessionDocuments, setComposer } = model;
+  const { subagentInspectorPanel, subagentInspectorToggle, subagentStop } = model;
   const windowsShellOffer = useWindowsShellOffer({ hostClient, config, requestConfig });
   const openSessionFromShell = useShellSessionOpen({
     setActiveSubPage,
@@ -458,7 +215,10 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     ? { mountedIds: knowledge.mounts.mountedIds, clearDraft: knowledge.mounts.clearDraft }
     : null;
   const { mediaLibraryEpoch, handleRemixToComposer } = useWorkbenchMedia({
-    streaming: state.streaming, addExistingMediaAttachment, setComposer, closeSubPage,
+    streaming: state.streaming,
+    addExistingMediaAttachment,
+    setComposer,
+    closeSubPage,
   });
   const composerColumn = (
     <WorkbenchComposerColumn
@@ -507,541 +267,116 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   // Root context values. Each of these was a fresh object (or closure) on every
   // render, i.e. on every streamed token, and a changed context value makes
   // React walk the whole tree below it looking for consumers.
-  const requestLocalFile = useCallback(
-    (command: Parameters<typeof hostClient.request>[0]) => hostClient.request(command),
-    [hostClient],
-  );
-  const stableInspectorToggle = useStableHandlers(subagentInspectorToggle);
-  const stableInspectorPanel = useStableHandlers(subagentInspectorPanel);
-  const stableKnowledgeMounts = useStableHandlers(knowledgeSupported ? knowledge.mounts : null);
-  const stableCitationActions = useStableHandlers(knowledge.citationActions);
-  const insertCanvasProposal = useCallback(
-    (text: string) => setComposer((current) => appendComposerProposal(current, text)),
-    [setComposer],
-  );
-  const dockToolHosts = useStructuralValue({
+  const {
+    requestLocalFile,
+    stableInspectorToggle,
+    stableInspectorPanel,
+    stableKnowledgeMounts,
+    stableCitationActions,
+    dockToolHosts,
+    inspectorShell,
+    inspectorResize,
+    inspectorSessionDocuments,
+    inspectorComments,
+    tasksContent,
+  } = useWorkbenchStableValues({
     hostClient,
-    locale: desktopLocale,
+    subagentInspectorToggle,
+    subagentInspectorPanel,
+    knowledgeSupported,
+    knowledge,
+    setComposer,
+    state,
+    desktopLocale,
     activeTheme,
     artifactThemeKey,
-    projectPath: state.projectPath,
-    activeSessionId: state.activeSessionId,
     requestGit,
     addWebElement,
-    artifactTarget: artifactCanvas.activeTarget,
-    onInsertCanvasProposal: insertCanvasProposal,
+    artifactCanvas,
     activeDocument,
-    inspectorDiff: inspectorFileDiff.diff,
-    ...(activeMedia ? { activeMedia } : {}),
+    inspectorFileDiff,
+    activeMedia,
+    shell,
+    rightPanelResize,
+    sessionDocuments,
+    activeComments,
+    handleResumeSession,
+    parentSessionId,
+    requestSubAgent,
+    tasksChildren,
   });
 
-  // Inspector inputs that are rebuilt per render but rarely differ in content.
-  const inspectorShell = useStructuralValue(shell);
-  const inspectorResize = useStructuralValue(rightPanelResize);
-  const inspectorSessionDocuments = useStructuralValue(sessionDocuments);
-  const inspectorComments = useStructuralValue(activeComments);
-  const openTaskSession = useLatestCallback(handleResumeSession);
-  const tasksContent = useMemo(
-    () => (
-      <SubAgentPanel
-        parentSessionId={parentSessionId}
-        request={requestSubAgent}
-        onOpenSession={openTaskSession}
-        children={tasksChildren}
-        batches={state.subagentBatches}
-        invocations={state.subagentInvocations}
-        streams={state.subagentStreams}
-      />
-    ),
-    [
-      parentSessionId,
-      requestSubAgent,
-      openTaskSession,
-      tasksChildren,
-      state.subagentBatches,
-      state.subagentInvocations,
-      state.subagentStreams,
-    ],
-  );
-
   return (
-    <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
-      <HostLogProvider store={hostLogStore}>
-      <LocalFileActionsProvider request={requestLocalFile}>
-        <MediaPreviewReadProvider sessionId={state.activeSessionId} readMedia={readTranscriptMedia}>
-          <DesktopContextMenuProvider value={desktopContextMenuValue}>
-            <SubagentInspectorProvider
-              toggle={stableInspectorToggle}
-              panel={stableInspectorPanel}
-            >
-              <WorkbenchWorkspaceProviders
-                hostClient={hostClient}
-                subagentStop={subagentStop}
-                reviewLoop={reviewLoop}
-                knowledgeMounts={stableKnowledgeMounts}
-                knowledgeCitationActions={stableCitationActions}
-                onOpenReview={openReviewTab}
-              >
-              <DockToolHostsProvider value={dockToolHosts}>
-              <div
-                className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${studioOpen ? ' studio-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}${rightPanelOpen && inspectorPlacement === 'column' && rightPanelResize.isFullWidth ? ' right-panel-full-width' : ''}`}
-                style={appShellStyle}
-                data-testid="app-shell"
-                data-layout={layoutMode}
-                data-inspector={inspectorPlacement}
-                data-right={rightPanelOpen ? 'expanded' : 'collapsed'}
-                data-right-panel-full-width={
-                  rightPanelOpen && inspectorPlacement === 'column' && rightPanelResize.isFullWidth
-                    ? 'true'
-                    : 'false'
-                }
-                data-settings-open={settingsOpen ? 'true' : 'false'}
-                data-studio-open={studioOpen ? 'true' : 'false'}
-              >
-                <WorkspaceShell
-                  workspaceClassName={
-                    settingsOpen || studioOpen ? 'settings-workspace-suspended' : undefined
-                  }
-                  sidebar={
-                    <WorkbenchSidebar
-                      state={state}
-                      hostClient={hostClient}
-                      hostStatus={hostStatus}
-                      recentProjects={recentProjects}
-                      worktrees={worktrees}
-                      filteredSessions={filteredSessions}
-                      filteredGeneralSessions={filteredGeneralSessions}
-                      sessionGroups={sessionGroups}
-                      sessionListOrder={sessionListOrder}
-                      onSessionListOrderChange={handleSessionListOrderChange}
-                      sessionSearch={sessionSearch}
-                      onOpenSessionSearch={openSessionSearch}
-                      showArchivedSessions={showArchivedSessions}
-                      setShowArchivedSessions={setShowArchivedSessions}
-                      hydrateSessions={hydrateSessions}
-                      settingsOpen={settingsOpen}
-                      activeSubPage={activeSubPage}
-                      onOpenLibrary={openLibrary}
-                      onOpenImages={openImages}
-                      onOpenVideos={openVideos}
-                      onOpenFlashcards={openFlashcards}
-                      onOpenKnowledge={openKnowledge}
-                      onOpenMarketplace={openMarketplace}
-                      onOpenWorkspace={handleOpenWorkspaceClick}
-                      onOpenProject={handleOpenProject}
-                      onOpenWorktreeProject={(path) => handleOpenProject(path, { switchSession: true })}
-                      onRemoveProject={handleRemoveProjectFromSidebar}
-                      onNewSession={(options) => {
-                        setActiveSubPage(null);
-                        if (isOverlayPresentation) shell.closeOverlay();
-                        return handleStartNewSession(options);
-                      }}
-                      onResumeSession={openSessionFromShell}
-                      onResumeDraft={(draftId) => {
-                        setActiveSubPage(null);
-                        if (isOverlayPresentation) shell.closeOverlay();
-                        return handleResumeDraft(draftId);
-                      }}
-                      draftSessions={draftSessions}
-                      activeDraftId={activeDraftId}
-                      sessionMenu={sessionMenu}
-                      onOpenSessionMenu={openSessionMenu}
-                      onSessionMenuAction={handleSessionMenuAction}
-                      onRequestDeleteSession={requestDeleteSession}
-                      openSettingsSection={openSettingsSection}
-                      dispatch={dispatch}
-                      isOverlayPresentation={isOverlayPresentation}
-                      locale={desktopLocale}
-                      sidebarResize={sidebarResize}
-                      backendServiceSessionIds={backendServiceSessionIds}
-                      shell={shell}
-                      sidebarMode={sidebarMode}
-                      onSidebarModeChange={setSidebarMode}
-                    />
-                  }
-                  stageHeader={undefined}
-                  sessionContext={inkstoneStage ? null : sessionContextRow}
-                  titlebar={
-                    <WorkbenchContextBar
-                      state={state}
-                      sidebarMode={sidebarMode}
-                      recentProjects={recentProjects}
-                      activeSessionName={activeSessionName}
-                      activeSessionOrigin={activeSessionOrigin}
-                      branchPoints={branchPoints}
-                      streaming={state.streaming}
-                      onSwitchBranch={(headMessageId) => {
-                        void switchBranch(headMessageId);
-                      }}
-                      runStatus={runStatus}
-                      lastUserMessage={lastUserMessage}
-                      effectiveRunMode={effectiveRunMode}
-                      locale={desktopLocale}
-                      appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
-                      sessionsExpanded={navDrawerOpen}
-                      workPanelOpen={rightPanelOpen}
-                      rightPanelTab={rightPanelTab}
-                      shell={shell}
-                      onStop={handleAbort}
-                      onCancelCompact={handleCompactAbort}
-                      onOpenInspector={openRightTab}
-                      openSettingsSection={openSettingsSection}
-                      onToggleAppearance={handleToggleAppearance}
-                      onResumeSession={handleResumeSession}
-                      onRetryLastUser={(messageId) => void retryTurn(messageId, { keepPrevious: false })}
-                      onOpenSessionSearch={openSessionSearch}
-                      trailing={sessionContextRow}
-                      isInkstone={inkstoneStage}
-                    />
-                  }
-                  chatColumnClassName={[
-                    composerLayoutMode === 'centered' ? 'chat-column-empty' : '',
-                    activeTheme.visualStyle === 'ink-wash' ? 'theme-visual-ink-wash' : '',
-                  ].filter(Boolean).join(' ') || undefined}
-                  renderStage={(primaryPane) => (
-                    <>
-                    <WindowsShellOfferBanner
-                      visible={windowsShellOffer.offer}
-                      locale={desktopLocale}
-                      onUseGitBash={windowsShellOffer.useGitBash}
-                      onDecline={windowsShellOffer.declineGitBash}
-                    />
-                    <DesktopAttentionLayer hostClient={hostClient} state={state} dispatch={dispatch} locale={desktopLocale} hostStatus={hostStatus} extensionUiRequest={extensionUiRequest} isOverlayPresentation={isOverlayPresentation} activeSubPage={activeSubPage} dockingEnabled={dockingEnabled} dockingWorkspace={dockingWorkspace} conversationPanesEnabled={conversationPanesEnabled} conversationPaneController={conversationPaneController} openSessionFromShell={openSessionFromShell} recentProjects={recentProjects}>
-                    <WorkbenchConversationStage
-                      primaryPane={primaryPane}
-                      dockingEnabled={dockingEnabled}
-                      docking={dockingWorkspace}
-                      conversationPanesEnabled={conversationPanesEnabled}
-                      conversationPaneController={conversationPaneController}
-                      phoneSinglePane={layoutMode === 'phone'}
-                      primarySessionId={state.activeSessionId}
-                      onPromoteSession={(sessionId) => void handleResumeSession(sessionId)}
-                      activeProjectScopeKey={sessionScopeKey(state.activeScope)}
-                      primarySessionName={
-                        activeSessionName ||
-                        (desktopLocale === 'zh-CN' ? '素笺' : 'Clean Slate')
-                      }
-                      sessions={
-                        state.activeScope.kind === 'general'
-                          ? state.generalSessions
-                          : state.sessions
-                      }
-                      hostClient={hostClient}
-                      activeTheme={activeTheme}
-                      artifactThemeKey={artifactThemeKey}
-                      {...artifactSurfaceProps(
-                        resolveArtifactSurfacesForScope(config?.artifact, state.activeScope),
-                      )}
-                      readMedia={readTranscriptMedia}
-                      locale={desktopLocale}
-                      keyboardEnabled={!settingsOpen && !activeSubPage}
-                      onCreateConversation={handleCreatePaneConversation}
-                      onOpenDocument={handleOpenDocument}
-                      onOpenArtifactCanvas={handleOpenArtifactCanvas}
-                      fileBrowseRoot={fileBrowseRoot}
-                    />
-                    </DesktopAttentionLayer>
-                    </>
-                  )}
-                  transcript={
-                    <WorkbenchTranscript
-                      locale={desktopLocale}
-                      hostClient={hostClient}
-                      state={state}
-                      sidebarMode={sidebarMode}
-                      visibleMessages={visibleTranscriptMessages}
-                      visibleRunRecordsById={visibleRunRecordsById}
-                      historyViewActive={historyViewActive}
-                      activitySignal={activitySignal}
-                      transcriptHistoryLoading={transcriptHistoryLoading}
-                      lastUserMessageId={lastUserMessageId}
-                      composerCard={composerCard}
-                      config={config}
-                      preferences={preferences}
-                      scopeSessions={
-                        state.activeScope.kind === 'general'
-                          ? state.generalSessions
-                          : state.sessions
-                      }
-                      onOpenAllSessions={openSessionSearch}
-                      runningSessionIds={backendServiceSessionIds}
-                      modelOptions={modelOptions}
-                      requestKnowledgeCenter={requestKnowledgeCenter}
-                      resolveFlashcards={resolveConversationFlashcards}
-                      requestGit={requestGit}
-                      editingMessageId={editingMessageId}
-                      activeTheme={activeTheme}
-                      artifactThemeKey={artifactThemeKey}
-                      assemblySummariesByRunId={assemblySummariesByRunId}
-                      sessionLineage={sessionLineage}
-                      forkCountsByMessageId={forkCountsByMessageId}
-                      branchPoints={branchPoints}
-                      onJumpToHistoryAnchor={handleJumpToHistoryAnchor}
-                      onLoadEarlierWork={handleJumpToTranscriptMessage}
-                      onReturnToLatest={handleReturnToLiveTranscript}
-                      onLoadOlder={handleLoadOlderTranscript}
-                      onLoadNewer={handleLoadNewerTranscript}
-                      onOpenReview={openReviewTab}
-                      onPermission={handlePermission}
-                      onInspectSubagent={handleInspectSubagent}
-                      onEdit={setEditingMessageId}
-                      onCancelEdit={handleCancelMessageEdit}
-                      onEditResend={handleEditAndResendMessage}
-                      onRetry={handleRetryMessage}
-                      onRetryTurn={retryTurn}
-                      onContinueTurn={continueTurn}
-                      onBranchResend={branchResend}
-                      onSwitchBranch={switchBranch}
-                      onInterventionEdit={handleInterventionEdit}
-                      onInterventionCancel={handleInterventionCancel}
-                      onFeedback={handleMessageFeedback}
-                      onArtifactAction={handleArtifactAction}
-                      onOpenArtifactCanvas={handleOpenArtifactCanvas}
-                      onOpenDocument={handleOpenDocument}
-                      onOpenDiff={handleOpenDiff}
-                      fileBrowseRoot={fileBrowseRoot}
-                      onGenerateWalkthrough={handleGenerateWalkthrough}
-                      onCancelWalkthrough={handleCancelWalkthrough}
-                      onForkFromMessage={handleForkSession}
-                      onOpenSession={handleResumeSession}
-                      onCompactAbort={handleCompactAbort}
-                      onPlanExecute={handlePlanExecute}
-                      draftAgentOptions={draftAgentOptions}
-                      draftAgentId={draftAgentId}
-                      onSelectDraftAgent={onDraftAgentChange}
-                      onOpenAgentSettings={() => openSettingsSection('agent')}
-                      {...(sessionPlan ? { sessionPlan } : {})}
-                    />
-                  }
-                  permissionBar={
-                    <WorkbenchPermissionBar
-                      state={state}
-                      sidebarMode={sidebarMode}
-                      extensionUiRequest={extensionUiRequest}
-                      sessionPlan={sessionPlan}
-                      onPlanAction={handlePlanAction}
-                      onOpenDocument={handleOpenDocument}
-                      onPermission={handlePermission}
-                      onExtensionUiResolve={handleExtensionUiResolve}
-                    />
-                  }
-                  composerDock={studioOpen ? null : composerColumn}
-                  rightPanel={
-                    <StableWorkbenchInspector
-                      showOverlayScrim={showOverlayScrim}
-                      shell={inspectorShell}
-                      rightPanelOpen={rightPanelOpen}
-                      rightPanelTab={rightPanelTab}
-                      rightPanelResize={inspectorResize}
-                      isOverlayPresentation={inspectorOverlay}
-                      runningJobCount={jobs.length}
-                      onViewChange={setRightPanelView}
-                      docking={dockingActive ? dockingWorkspace : null}
-                      locale={desktopLocale}
-                      activeTheme={activeTheme}
-                      onToggleAppearance={handleToggleAppearance}
-                      openSettingsSection={openSettingsSection}
-                      hostClient={hostClient}
-                      requestNotesPanel={requestNotesPanel}
-                      requestCardsPanel={requestCardsPanel}
-                      requestFileTree={requestFileTree}
-                      requestGit={requestGit}
-                      requestPty={requestPty}
-                      projectPath={state.projectPath}
-                      fileBrowseRoot={fileBrowseRoot}
-                      onOpenWorkspace={handleOpenWorkspaceClick}
-                      projectTrusted={state.projectTrusted}
-                      activeSessionId={state.activeSessionId}
-                      walkthroughsByMessageId={state.walkthroughsByMessageId}
-                      addContextRef={addContextRef}
-                      dispatchNotification={dispatchNotification}
-                      handleSend={handleSend}
-                      setComposer={setComposer}
-                      artifactTarget={artifactCanvas.activeTarget}
-                      artifactThemeKey={artifactThemeKey}
-                      {...artifactFenceSecurityProps(config?.artifact)}
-                      addWebElement={addWebElement}
-                      onAddImageFile={(file) => enqueueAttachmentFile(file, 'file-picker')}
-                      inspectorDiff={inspectorFileDiff.diff}
-                      activeMedia={activeMedia}
-                      activeDocument={activeDocument}
-                      sessionDocuments={inspectorSessionDocuments}
-                      handleOpenDocument={handleOpenDocument}
-                      handleCommentLine={handleCommentLine}
-                      activeComments={inspectorComments}
-                      handleAddDocComment={handleAddDocComment}
-                      handleEditDocComment={handleEditDocComment}
-                      handleDeleteDocComment={handleDeleteDocComment}
-                      sessionPlan={sessionPlan}
-                      ptyOutput={ptyOutput}
-                      setPtyOutput={setPtyOutput}
-                      terminalCwd={terminalCwd}
-                      handleTerminalCwdChange={handleTerminalCwdChange}
-                      terminalRecentDirs={terminalRecentDirs}
-                      terminalJobMonitor={terminalJobMonitor}
-                      tasksActiveCount={tasksActiveCount}
-                      tasksContent={tasksContent}
-                    />
-                  }
-                />
-                {live.starting || live.call ? (
-                  <div className="live-bar-host">
-                    <LiveBar
-                      call={live.call}
-                      starting={live.starting}
-                      peer={live.peer}
-                      error={live.error}
-                      intendedSessionId={liveSessionId}
-                      onRetry={() => {
-                        // Start-failure chrome only; LiveBar hides Retry while a call is up.
-                        if (live.call) return;
-                        void live.start();
-                      }}
-                      onDismiss={live.dismissError}
-                      onMute={(muted) => {
-                        void live.setMuted(muted);
-                      }}
-                      onEnd={() => {
-                        void live.end();
-                      }}
-                    />
-                  </div>
-                ) : null}
-
-                {foregroundReplaceConfirm.dialog}
-
-                <WorkbenchOverlays
-                  state={state}
-                  hostClient={hostClient}
-                  locale={desktopLocale}
-                  projectInput={projectInput}
-                  setProjectInput={setProjectInput}
-                  projectPickerOpen={projectPickerOpen}
-                  setProjectPickerOpen={setProjectPickerOpen}
-                  onOpenProject={handleOpenProject}
-                  onBrowseProject={handleBrowseProject}
-                  onTrustProject={handleTrustProject}
-                  sessionMenu={sessionMenu}
-                  closeSessionMenu={closeSessionMenu}
-                  onSessionMenuAction={handleSessionMenuAction}
-                  requestDeleteSession={requestDeleteSession}
-                  requestContinueInProject={requestContinueInProject}
-                  renameDraft={renameDraft}
-                  setRenameDraft={setRenameDraft}
-                  onRenameSession={handleRenameSession}
-                  onPermission={handlePermission}
-                  deleteConfirm={deleteConfirm}
-                  deleteBusy={deleteBusy}
-                  closeDeleteConfirm={closeDeleteConfirm}
-                  runDeleteConfirm={runDeleteConfirm}
-                  confirmDeleteSession={confirmDeleteSession}
-                  continueInProject={continueInProject}
-                  continueInProjectBusy={continueInProjectBusy}
-                  closeContinueInProject={closeContinueInProject}
-                  runContinueInProject={runContinueInProject}
-                  onContinueSessionInProject={handleContinueSessionInProject}
-                  recentProjects={recentProjects}
-                  noRepoProjectPath={resolveNoRepoWorkspaceKey({
-                    generalWorkspacePath: hostStatus?.generalWorkspacePath,
-                    generalWorkspaceProjectId: hostStatus?.generalWorkspaceProjectId,
-                  })}
-                  sessionSearchOpen={sessionSearchOpen}
-                  onSessionSearchOpenChange={setSessionSearchOpen}
-                  sessionSearch={sessionSearch}
-                  onSessionSearchChange={setSessionSearch}
-                  filteredSessions={filteredSessions}
-                  filteredGeneralSessions={filteredGeneralSessions}
-                  onOpenSession={handleResumeSession}
-                  commandPaletteOpen={commandPaletteOpen}
-                  setCommandPaletteOpen={shell.setCommandPaletteOpen}
-                  onRunCommand={handleDesktopCommand}
-                  onStartBackendSession={startBackendSession}
-                  coldRestorePrompt={coldRestorePrompt}
-                  clearColdRestorePrompt={clearColdRestorePrompt}
-                  confirmColdRestore={confirmColdRestore}
-                  pendingTruncate={pendingTruncate}
-                  cancelTruncateAfter={cancelTruncateAfter}
-                  confirmTruncateAfter={confirmTruncateAfter}
-                  pendingSwitchConfirm={pendingSwitchConfirm}
-                  cancelSwitchBranch={cancelSwitchBranch}
-                  confirmSwitchBranch={confirmSwitchBranch}
-                  stashThenSwitchBranch={stashThenSwitchBranch}
-                  pendingRetryDiscard={pendingRetryDiscard}
-                  cancelRetryDiscard={cancelRetryDiscard}
-                  confirmRetryDiscard={confirmRetryDiscard}
-                  pendingBranchLeaves={pendingBranchLeaves}
-                  cancelBranchLeaves={cancelBranchLeaves}
-                  confirmBranchLeaves={confirmBranchLeaves}
-                />
-              </div>
-              <WorkbenchSubpageStage
-                activeSubPage={activeSubPage}
-                locale={desktopLocale}
-                onClose={closeSubPage}
-                request={(command) => hostClient.request(command)}
-                requestFlashcards={(command, options) => hostClient.request(command, options)}
-                refreshToken={mediaLibraryEpoch}
-                onRemixToComposer={handleRemixToComposer}
-                subscribeHostMessages={(listener) => hostClient.subscribe(listener)}
-                projectPath={state.projectPath}
-                sessionId={state.activeSessionId}
-                onConfigureEmbedding={() => {
-                  closeSubPage();
-                  openSettingsSection('knowledge');
-                }}
-                subscribePush={(listener) => hostClient.subscribe((message) => {
-                  if (message.type === 'flashcards/study/changed') listener(message);
-                })}
-                subscribeConnected={(listener) => {
-                  listener(hostClient.isReady());
-                  return hostClient.subscribe((message) => {
-                    if (message.type === 'host/status') listener(message.ready);
-                  });
-                }}
-                hasStudyCapability={() => hostStatus?.capabilities.flashcardStudy === true}
-                flashcardsEntry={flashcardsEntry}
-                flashcardsFolderPath={flashcardsFolderPath}
-                onOpenSession={handleResumeSession}
-                subscribeKnowledgePush={knowledge.subscribeKnowledgePush}
-                knowledgeSupported={knowledgeSupported}
-                onOpenIngest={openFlashcardsProduce}
-                onUseKnowledgeInChat={knowledge.useInChat}
-                onOpenKnowledgeCitation={knowledge.citationActions.openCitation}
-              />
-              <WorkbenchSettingsOverlay
-                settingsOpen={settingsOpen}
-                locale={desktopLocale}
-                hostStatus={hostStatus}
-                hostClient={hostClient}
-                requestConfig={requestConfig}
-                preferences={preferences}
-                activeTheme={activeTheme}
-                onPreferencesChange={handleSettingsPreferencesChange}
-                settingsSection={settingsSection}
-                onSettingsSectionChange={shell.setSettingsSection}
-                state={state}
-                requestSkills={requestSkills}
-                requestMcp={requestMcp}
-                requestExtensions={requestExtensions}
-                requestPlugins={requestPlugins}
-                requestPrompts={requestPrompts}
-                requestPet={requestPet}
-                requestAutomation={requestAutomation}
-                requestSubAgent={requestSubAgent}
-                onOpenSubagentSession={handleSettingsOpenSubagentSession}
-                onThemeApplied={onThemeApplied}
-                onPetActiveChanged={setActivePet}
-                onCloseSettings={shell.closeSettings}
-                onSettingsSaved={handleSettingsSaved}
-                config={config}
-              />
-              </DockToolHostsProvider>
-              </WorkbenchWorkspaceProviders>
-            </SubagentInspectorProvider>
-          </DesktopContextMenuProvider>
-        </MediaPreviewReadProvider>
-      </LocalFileActionsProvider>
-      </HostLogProvider>
-    </DesktopLocaleProvider>
+    <WorkbenchWorkspaceProviders
+      locale={desktopLocale}
+      onLocaleChange={handleLocaleChange}
+      hostLogStore={hostLogStore}
+      requestLocalFile={requestLocalFile}
+      mediaPreviewSessionId={state.activeSessionId}
+      readMedia={readTranscriptMedia}
+      desktopContextMenuValue={desktopContextMenuValue}
+      inspectorToggle={stableInspectorToggle}
+      inspectorPanel={stableInspectorPanel}
+      dockToolHosts={dockToolHosts}
+      hostClient={hostClient}
+      subagentStop={subagentStop}
+      reviewLoop={reviewLoop}
+      knowledgeMounts={stableKnowledgeMounts}
+      knowledgeCitationActions={stableCitationActions}
+      onOpenReview={openReviewTab}
+    >
+      <WorkbenchShellFrame
+        state={state}
+        dispatch={dispatch}
+        hostClient={hostClient}
+        activeTheme={activeTheme}
+        chrome={chrome}
+        sessionListChrome={sessionListChrome}
+        sessionListQuery={sessionListQuery}
+        terminal={terminal}
+        model={model}
+        inspectorShell={inspectorShell}
+        inspectorResize={inspectorResize}
+        inspectorSessionDocuments={inspectorSessionDocuments}
+        inspectorComments={inspectorComments}
+        tasksContent={tasksContent}
+        tasksActiveCount={tasksActiveCount}
+        sessionContextRow={sessionContextRow}
+        composerColumn={composerColumn}
+        inkstoneStage={inkstoneStage}
+        studioOpen={studioOpen}
+        dockingActive={dockingActive}
+        dockingEnabled={dockingEnabled}
+        conversationPanesEnabled={conversationPanesEnabled}
+        dockingWorkspace={dockingWorkspace}
+        conversationPaneController={conversationPaneController}
+        windowsShellOffer={windowsShellOffer}
+        openSessionFromShell={openSessionFromShell}
+        openReviewTab={openReviewTab}
+        handleCreatePaneConversation={handleCreatePaneConversation}
+      >
+        <WorkbenchShellOverlays
+          state={state}
+          hostClient={hostClient}
+          chrome={chrome}
+          sessionListChrome={sessionListChrome}
+          sessionListQuery={sessionListQuery}
+          model={model}
+          liveSessionId={liveSessionId}
+        />
+      </WorkbenchShellFrame>
+      <WorkbenchStageMounts
+        state={state}
+        hostClient={hostClient}
+        chrome={chrome}
+        model={model}
+        activeTheme={activeTheme}
+        knowledge={knowledge}
+        knowledgeSupported={knowledgeSupported}
+        mediaLibraryEpoch={mediaLibraryEpoch}
+        handleRemixToComposer={handleRemixToComposer}
+        onThemeApplied={onThemeApplied}
+      />
+    </WorkbenchWorkspaceProviders>
   );
 }
