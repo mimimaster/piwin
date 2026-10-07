@@ -366,6 +366,23 @@
   overscroll-behavior: contain;
 }
 
+/* Canvas document handoff: the replaced document covers the stage, inert,
+   while its successor loads underneath. The successor stays fully laid out
+   (opacity, not visibility) so its scroll offset can be restored before it
+   shows — both documents have transparent pages and would otherwise overlap. */
+.artifact-iframe.artifact-iframe--outgoing {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.artifact-iframe.artifact-iframe--incoming {
+  opacity: 0;
+}
+
 .artifact-overflow-hint {
   margin: 0 0 var(--s-3);
   padding: 0 var(--artifact-flyout-reserve, 0) 0 0;

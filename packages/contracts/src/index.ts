@@ -39,6 +39,7 @@ export * from './reply-writer.js';
 export * from './media.js';
 export * from './attachment.js';
 export * from './artifact.js';
+export * from './artifact-report-kit.js';
 export * from './host-problem.js';
 export * from './prompt-admission.js';
 export * from './session-list-scope.js';

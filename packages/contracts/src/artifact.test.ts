@@ -18,6 +18,7 @@ import {
   resolveArtifactSurfaceHint,
   type ArtifactSurface,
 } from './artifact.js';
+import { ARTIFACT_REPORT_KIT_CLASSES, ARTIFACT_REPORT_KIT_TONES } from './artifact-report-kit.js';
 
 const PARSER_ONLY_ALIASES = ['artifact_html', 'ui-html', 'ui_html', 'html-artifact'] as const;
 
@@ -51,7 +52,7 @@ describe('canonical artifact language', () => {
 describe('default artifact decision prompt', () => {
   it('wraps the proactive decision policy in a metadata block', () => {
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '[piwin-prompt-meta kind="artifact:decision" version="9" applies="artifacts-enabled"]',
+      '[piwin-prompt-meta kind="artifact:decision" version="10" applies="artifacts-enabled"]',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
       '<artifact-decision-policy name="piwin-proactive-surfaces">',
@@ -116,12 +117,19 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toContain('```artifact-html title="Short descriptive title" surface="canvas"');
     expect(protocol).toContain('surface="canvas"');
     expect(protocol).toContain('--piwin-artifact-');
-    expect(protocol).toContain('kind="artifact:runtime" version="12"');
+    expect(protocol).toContain('kind="artifact:runtime" version="13"');
     expect(protocol).toContain('On a light host never produce a dark-mode design');
     expect(protocol).toContain('data-piwin-media');
     expect(protocol).toContain('Never `data:image`');
     expect(protocol).toContain('Canvas Viewport');
     expect(protocol).toContain('Emit complete `<style>` blocks before any visible HTML markup');
+    expect(protocol).toContain('### Report Kit');
+    for (const kitClass of ARTIFACT_REPORT_KIT_CLASSES) {
+      expect(protocol).toContain(kitClass);
+    }
+    for (const tone of ARTIFACT_REPORT_KIT_TONES) {
+      expect(protocol).toContain(`"${tone}"`);
+    }
     expect(protocol).toContain(
       'Close each visual block before starting siblings',
     );

@@ -3,6 +3,7 @@
  * Safe incremental preview while the model is still streaming an unfinished fence.
  * Ported from openwebui_m artifactStreamablePreview — no script tails executed.
  */
+import { ARTIFACT_REPORT_KIT_CLASSES } from '@piwin/contracts';
 import type { StreamablePreviewResult } from './types.js';
 
 const VOID_TAGS = new Set([
@@ -213,18 +214,36 @@ function hasClassName(tag: string): boolean {
   return /\sclass\s*=\s*(?:"[^"]+"|'[^']+')/i.test(tag);
 }
 
+/** Classes the sandbox styles itself; their look does not wait for author CSS. */
+const HOST_STYLED_CLASSES: ReadonlySet<string> = new Set<string>([
+  ...ARTIFACT_REPORT_KIT_CLASSES,
+  'piwin-artifact-surface',
+]);
+
+function hasOnlyHostStyledClasses(tag: string): boolean {
+  const value = /\sclass\s*=\s*(?:"([^"]+)"|'([^']+)')/i.exec(tag);
+  const names = (value?.[1] ?? value?.[2] ?? '').split(/\s+/).filter((name) => name.length > 0);
+  return names.length > 0 && names.every((name) => HOST_STYLED_CLASSES.has(name));
+}
+
 /**
  * Class-driven markup without a completed stylesheet has no stable visual
  * meaning. Models sometimes emit the whole DOM and append CSS afterwards;
  * exposing that prefix paints a raw document flow that later collapses into
- * an unrelated scene. Inline-styled nodes remain independently renderable.
+ * an unrelated scene. Inline-styled nodes remain independently renderable,
+ * and so do report-kit classes: the sandbox ships their stylesheet.
  */
 function findMissingStyleFoundationIndex(source: string): number | null {
   if (COMPLETE_STYLE_PATTERN.test(source)) {
     return null;
   }
   for (const tag of scanTags(source)) {
-    if (!tag.isClosing && hasClassName(tag.tag) && !hasInlineStyle(tag.tag)) {
+    if (
+      !tag.isClosing &&
+      hasClassName(tag.tag) &&
+      !hasInlineStyle(tag.tag) &&
+      !hasOnlyHostStyledClasses(tag.tag)
+    ) {
       return tag.position;
     }
   }

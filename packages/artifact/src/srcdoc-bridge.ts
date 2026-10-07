@@ -14,6 +14,7 @@ import {
   DEFAULT_MAX_ARTIFACT_BYTES,
 } from './constants.js';
 import { buildCanvasStageFitRuntime } from './srcdoc-canvas-fit.js';
+import { buildScrollContinuityRuntime } from './srcdoc-scroll-continuity.js';
 import type { ArtifactFrameMode } from './types.js';
 
 export function buildArtifactBridgeBootstrapScript(
@@ -37,10 +38,14 @@ export function buildArtifactBridgeBootstrapScript(
   var channelId = ${serializedChannelId};
   var currentFrameMode = ${serializedFrameMode};
   var postSeq = 0;
+  // Set once the host keeps this document on screen only as a placeholder for
+  // its successor; a retired document must not speak on the shared channel.
+  var retired = false;
   var warnBridge = function (label, error) {
     if (window.console && window.console.warn) window.console.warn(label, error);
   };
   var post = function (type, payload) {
+    if (retired) return;
     var message = Object.assign(
       { type: type, channelId: channelId, seq: postSeq },
       payload || {},
@@ -281,6 +286,7 @@ export function buildArtifactBridgeBootstrapScript(
     return currentFrameMode;
   };
   ${buildCanvasStageFitRuntime()}
+  ${buildScrollContinuityRuntime()}
   var applyFrameMode = function (mode) {
     var next = acceptFrameMode(mode);
     currentFrameMode = next;

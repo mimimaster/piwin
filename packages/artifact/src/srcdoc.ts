@@ -5,6 +5,7 @@
 import { buildArtifactFrameSrcCsp, createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import { createDefaultArtifactTheme } from './theme.js';
 import { buildArtifactBridgeBootstrapScript } from './srcdoc-bridge.js';
+import { buildArtifactReportKitCss } from './srcdoc-report-kit.js';
 import {
   buildArtifactFrameModePolicyCss,
   buildArtifactMotionPolicyCss,
@@ -160,6 +161,7 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   <meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(csp)}" />
   <meta name="piwin-artifact-channel" content="${channelAttr}" />
   <style data-piwin-artifact-theme>${css}</style>
+  <style data-piwin-artifact-report-kit>${buildArtifactReportKitCss()}</style>
 ${bridge}`;
   const themeGuardStyle = themeGuardCss
     ? `\n  <style data-piwin-artifact-theme-guard>${themeGuardCss}</style>`

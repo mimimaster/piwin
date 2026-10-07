@@ -93,6 +93,11 @@ pre code {
   overflow-x: hidden;
   box-sizing: border-box;
 }
+/* Canvas is a page, not a chat block: no host inset, so a stream shell and
+   the final document it becomes lay out identically. */
+html[data-frame-mode="canvas"] .piwin-artifact-root {
+  padding: 0;
+}
 .piwin-artifact-root > :not(svg) {
   align-self: stretch;
   width: 100%;

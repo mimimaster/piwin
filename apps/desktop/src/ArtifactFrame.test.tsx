@@ -195,7 +195,7 @@ describe('ArtifactFrame chrome', () => {
       await Promise.resolve();
     });
 
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(iframe).not.toBeNull();
     const error = {
       type: 'piwin-artifact:error',
@@ -230,7 +230,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(iframe).not.toBeNull();
     act(() => {
       window.dispatchEvent(
@@ -335,7 +335,7 @@ describe('ArtifactFrame chrome', () => {
       await Promise.resolve();
     });
 
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(iframe?.getAttribute('srcdoc')).toBeNull();
     expect(iframe?.getAttribute('src')).toMatch(/^data:text\/html;charset=utf-8;base64,/);
     expect(iframe?.getAttribute('sandbox')).toBe('allow-scripts');
@@ -376,7 +376,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(iframe).not.toBeNull();
     const emptySrc = iframe?.getAttribute('src');
     expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).not.toBeNull();
@@ -394,7 +394,7 @@ describe('ArtifactFrame chrome', () => {
       );
     });
 
-    const seededIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const seededIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(seededIframe).not.toBeNull();
     expect(seededIframe?.getAttribute('src')).not.toBe(emptySrc);
     expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).not.toBeNull();
@@ -414,7 +414,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(iframe).not.toBeNull();
     const initialDocumentUrl = iframe?.getAttribute('src');
     const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
@@ -435,7 +435,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 320));
     });
 
-    const updatedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const updatedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(updatedIframe).toBe(iframe);
     expect(updatedIframe?.getAttribute('src')).toBe(initialDocumentUrl);
     expect(postMessage).toHaveBeenCalledWith(
@@ -460,7 +460,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(iframe).not.toBeNull();
     const emptySrc = iframe?.getAttribute('src');
     const scene = [
@@ -482,7 +482,7 @@ describe('ArtifactFrame chrome', () => {
       );
     });
 
-    const seededIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const seededIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     const seededSrc = seededIframe?.getAttribute('src') ?? '';
     expect(seededSrc).not.toBe(emptySrc);
     const encoded = seededSrc.slice(seededSrc.indexOf('base64,') + 'base64,'.length);
@@ -504,7 +504,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(iframe).not.toBeNull();
     const initialDocumentUrl = iframe?.getAttribute('src');
     const finalSource =
@@ -539,7 +539,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const completedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const completedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(completedIframe).not.toBeNull();
     expect(completedIframe?.getAttribute('src')).not.toBe(initialDocumentUrl);
     expect(completedIframe?.getAttribute('src')).toMatch(/^data:text\/html;charset=utf-8;base64,/);
@@ -557,7 +557,7 @@ describe('ArtifactFrame chrome', () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 320));
     });
-    expect(container.querySelector('iframe.artifact-iframe')?.getAttribute('src')).toBe(
+    expect(container.querySelector('iframe.artifact-iframe:not(.artifact-iframe--outgoing)')?.getAttribute('src')).toBe(
       completedSrc,
     );
   });
@@ -570,7 +570,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    const completedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const completedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     const completedSrc = completedIframe?.getAttribute('src');
     expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).toBeNull();
 
@@ -586,7 +586,7 @@ describe('ArtifactFrame chrome', () => {
       );
     });
     expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).not.toBeNull();
-    const emptyIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const emptyIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     const emptySrc = emptyIframe?.getAttribute('src');
     expect(emptySrc).not.toBe(completedSrc);
 
@@ -601,7 +601,7 @@ describe('ArtifactFrame chrome', () => {
         </PiwinUiProvider>,
       );
     });
-    const seededIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const seededIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(seededIframe?.getAttribute('src')).not.toBe(emptySrc);
     expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).not.toBeNull();
     act(() => {
@@ -619,7 +619,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     const frame = container.querySelector<HTMLElement>('[data-testid="artifact-frame"]');
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(frame?.getAttribute('data-frame-mode')).toBe('inline-flow');
     expect(iframe?.getAttribute('data-frame-mode')).toBe('inline-flow');
     const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
@@ -642,7 +642,7 @@ describe('ArtifactFrame chrome', () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    const upgraded = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const upgraded = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(upgraded).toBe(iframe);
     expect(
       container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-frame-mode'),
@@ -675,7 +675,7 @@ describe('ArtifactFrame chrome', () => {
     expect(
       container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-frame-mode'),
     ).toBe('inline-viewport');
-    expect(container.querySelector('iframe.artifact-iframe')?.getAttribute('data-frame-mode')).toBe(
+    expect(container.querySelector('iframe.artifact-iframe:not(.artifact-iframe--outgoing)')?.getAttribute('data-frame-mode')).toBe(
       'inline-viewport',
     );
   });
@@ -688,7 +688,7 @@ describe('ArtifactFrame chrome', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     let revision = 0;
     const dispatchHeight = (height: number): void => {
       window.dispatchEvent(
@@ -783,7 +783,7 @@ describe('ArtifactFrame chrome', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     act(() => {
       iframe?.dispatchEvent(new Event('load'));
       vi.advanceTimersByTime(5_000);
@@ -793,7 +793,7 @@ describe('ArtifactFrame chrome', () => {
     const stage = container.querySelector<HTMLElement>('.artifact-iframe-stage');
     expect(stage?.style.display).not.toBe('none');
     expect(stage?.style.height).toBe('360px');
-    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+    expect(container.querySelector('iframe.artifact-iframe:not(.artifact-iframe--outgoing)')).not.toBeNull();
     expect(
       container
         .querySelector('[data-testid="artifact-frame"]')
@@ -847,7 +847,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
@@ -886,7 +886,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
@@ -920,7 +920,7 @@ describe('ArtifactFrame chrome', () => {
     // No waiting overlay between mount and bridge ready — the iframe paints
     // right away (streaming previews draw progressively).
     expect(container.querySelector('[data-testid="artifact-iframe-loading"]')).toBeNull();
-    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+    expect(container.querySelector('iframe.artifact-iframe:not(.artifact-iframe--outgoing)')).not.toBeNull();
   });
 
   it('keeps the painted frame when a parent re-render rebuilds an equivalent decision', async () => {
@@ -936,7 +936,7 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
     expect(iframe).not.toBeNull();
     act(() => {
       window.dispatchEvent(
@@ -969,7 +969,7 @@ describe('ArtifactFrame chrome', () => {
     ) as HTMLElement | null;
     expect(stageAfterRerender?.style.height).toBe('640px');
     expect(container.querySelector('[data-testid="artifact-iframe-loading"]')).toBeNull();
-    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+    expect(container.querySelector('iframe.artifact-iframe:not(.artifact-iframe--outgoing)')).not.toBeNull();
   });
 
   it('offers Load preview when the live budget rejects the frame', async () => {
@@ -995,7 +995,7 @@ describe('ArtifactFrame chrome', () => {
 
     expect(container.querySelector('[data-testid="artifact-iframe-placeholder"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="artifact-load-preview"]')).not.toBeNull();
-    expect(container.querySelector('iframe.artifact-iframe')).toBeNull();
+    expect(container.querySelector('iframe.artifact-iframe:not(.artifact-iframe--outgoing)')).toBeNull();
 
     // Free a slot then click load — should admit and mount iframe path.
     act(() => {

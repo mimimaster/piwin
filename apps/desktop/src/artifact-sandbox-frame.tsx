@@ -12,6 +12,7 @@ import {
 } from '@piwin/artifact';
 import { Button, Spinner } from '@piwin/ui-kit';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
+import { useArtifactDocumentHandoff } from './artifact-document-handoff.js';
 import { useArtifactFrameBridge } from './artifact-frame-bridge.js';
 import { useArtifactFrameLease } from './artifact-frame-lifecycle.js';
 import {
@@ -193,6 +194,12 @@ export function ArtifactSandboxFrame(props: {
     streamLifecycle: document.streamLifecycle,
   });
   const canvas = props.presentation === 'canvas';
+  const handoff = useArtifactDocumentHandoff({
+    channelId,
+    document,
+    iframeRef,
+    enabled: canvas && lease.hostIframe && lease.initGranted,
+  });
   const viewportChrome = hostOwnsViewport(appliedFrameMode, bridge.overflowsInlineFlow);
   const showOverflowHint = !canvas && appliedFrameMode === 'inline-overflow';
   const [paintedDocumentKey, setPaintedDocumentKey] = useState<string | null>(null);
@@ -338,10 +345,27 @@ export function ArtifactSandboxFrame(props: {
                 </div>
               </div>
             ) : null}
+            {handoff.outgoing ? (
+              <iframe
+                key={handoff.outgoing.documentId}
+                ref={handoff.outgoingRef}
+                className="artifact-iframe artifact-iframe--scroll-owner artifact-iframe--outgoing"
+                title=""
+                aria-hidden="true"
+                tabIndex={-1}
+                src={handoff.outgoing.documentUrl}
+                sandbox="allow-scripts"
+                referrerPolicy="no-referrer"
+                data-testid="artifact-iframe-outgoing"
+              />
+            ) : null}
             {lease.initGranted ? (
               <iframe
+                // Canvas swaps documents by mounting the successor beside the
+                // one it replaces; Inline keeps navigating a single element.
+                key={canvas ? document.documentId : 'artifact-iframe'}
                 ref={iframeRef}
-                className={`artifact-iframe${viewportChrome || canvas ? ' artifact-iframe--scroll-owner' : ''}`}
+                className={`artifact-iframe${viewportChrome || canvas ? ' artifact-iframe--scroll-owner' : ''}${handoff.outgoing ? ' artifact-iframe--incoming' : ''}`}
                 title={view.descriptor.title}
                 src={document.documentUrl}
                 sandbox="allow-scripts"
@@ -351,6 +375,7 @@ export function ArtifactSandboxFrame(props: {
                   lease.markIframeLoaded();
                   bridge.onIframeLoad();
                   streamPublisher.onIframeLoad();
+                  handoff.onIncomingLoad();
                   setPaintedDocumentKey(document.documentKey);
                 }}
                 style={

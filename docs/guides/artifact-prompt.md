@@ -60,6 +60,11 @@ SVG:
 - Session vault images: `<img data-piwin-media="<mediaId>" alt="short label">`. Never `data:image`, never local filesystem paths, never markdown images for vault assets.
 - If the user only needs to pick among generated images, the attachment cards are enough — do not wrap them in a second HTML copy.
 
+### Report Kit (reports, reviews, audits, findings)
+The sandbox already styles reports. Wrap one in `<main class="piwin-report">` (`data-width="wide"` for dense tables) and write plain semantic HTML — `h1`–`h3`, `p`, lists, `table`, `blockquote`, `pre`, `details` — with no `<style>` block, so content shows as it is written.
+Classes: `piwin-meta` (line under `h1`), `piwin-lede` (the conclusion), `piwin-callout`, `piwin-badge`, `piwin-grid` of `piwin-card` / `piwin-stat` (`span` label, `strong` value, `small` note), `piwin-kv` on a `dl`, `piwin-scroll` (wide table), `piwin-muted`.
+`data-tone="ok" | "warn" | "risk" | "accent"` on callout, badge or stat; `risk` only for real problems. Add CSS only for what the kit lacks. Custom looks, prototypes and games skip the kit.
+
 ### Streaming & Progressive Enhancement
 - **CSS First**: Emit complete `<style>` blocks before any visible HTML markup.
 - **Incremental Streaming**: Close each visual block before starting siblings so live preview renders cleanly.

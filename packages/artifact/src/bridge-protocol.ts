@@ -6,6 +6,7 @@ import { getUtf8ByteSize } from './security.js';
 import {
   ARTIFACT_BRIDGE_ACTION_TYPE,
   ARTIFACT_BRIDGE_ERROR_TYPE,
+  ARTIFACT_BRIDGE_SCROLL_TYPE,
   ARTIFACT_BRIDGE_SIZE_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   ARTIFACT_ERROR_MESSAGE_MAX_CHARS,
@@ -18,6 +19,7 @@ import type {
   ArtifactErrorMessage,
   ArtifactFrameMode,
   ArtifactRenderSnapshot,
+  ArtifactScrollMessage,
 } from './types.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -230,5 +232,26 @@ export function parseArtifactErrorMessage(data: unknown): ArtifactErrorMessage |
       : {}),
     ...(line !== undefined ? { line } : {}),
     ...(column !== undefined ? { column } : {}),
+  };
+}
+
+/**
+ * Parse a scroll report from the sandbox. The offset is untrusted but only ever
+ * handed back to a successor document on the same channel.
+ */
+export function parseArtifactScrollMessage(data: unknown): ArtifactScrollMessage | null {
+  if (!isRecord(data)) return null;
+  if (data['type'] !== ARTIFACT_BRIDGE_SCROLL_TYPE) return null;
+  const channelId = data['channelId'];
+  if (typeof channelId !== 'string' || channelId.length === 0 || channelId.length > 200) {
+    return null;
+  }
+  const top = data['top'];
+  if (typeof top !== 'number' || !Number.isFinite(top) || top < 0) return null;
+  return {
+    type: ARTIFACT_BRIDGE_SCROLL_TYPE,
+    channelId,
+    top: Math.round(top),
+    restored: data['restored'] === true,
   };
 }

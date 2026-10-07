@@ -1,22 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import {
   ARTIFACT_LIVE_PRIORITY_CANVAS,
   ARTIFACT_LIVE_PRIORITY_STREAM,
   ARTIFACT_LIVE_PRIORITY_VISIBLE,
-  ARTIFACT_READY_TIMEOUT_MS,
 } from '@piwin/artifact';
 import {
-  cancelArtifactInit,
-  releaseArtifactInit,
-  requestArtifactInit,
-} from './artifact-init-queue.js';
-import {
-  claimArtifactLiveHost,
-  releaseArtifactLiveHost,
-  requestArtifactLiveHost,
-} from './artifact-live-host-registry.js';
+  createArtifactFrameLease,
+  type ArtifactFrameLeaseSnapshot,
+} from './artifact-frame-lease.js';
 
-export const ARTIFACT_INIT_LEASE_TIMEOUT_MS = ARTIFACT_READY_TIMEOUT_MS;
+export { ARTIFACT_INIT_LEASE_TIMEOUT_MS } from './artifact-frame-lease.js';
 
 export type ArtifactFrameLifecycleState =
   | 'idle'
@@ -51,32 +44,29 @@ function resolveHostPriority(presentation: 'inline' | 'canvas', streaming: boole
   return streaming ? ARTIFACT_LIVE_PRIORITY_STREAM : ARTIFACT_LIVE_PRIORITY_VISIBLE;
 }
 
-function resolveLifecycleState(input: {
-  claimed: boolean;
-  admitted: boolean;
-  everAdmitted: boolean;
-  initGranted: boolean;
-  loaded: boolean;
-  streaming: boolean;
-}): ArtifactFrameLifecycleState {
-  if (!input.claimed) {
+export function resolveArtifactFrameLifecycleState(
+  snapshot: ArtifactFrameLeaseSnapshot,
+  streaming: boolean,
+): ArtifactFrameLifecycleState {
+  if (!snapshot.claimed) {
     return 'idle';
   }
-  if (!input.admitted) {
-    return input.everAdmitted ? 'recycled' : 'waiting-live-host';
+  if (!snapshot.hostIframe) {
+    return snapshot.everAdmitted ? 'recycled' : 'waiting-live-host';
   }
-  if (!input.initGranted) {
+  if (!snapshot.initGranted) {
     return 'waiting-init-lease';
   }
-  if (!input.loaded) {
+  if (!snapshot.loaded) {
     return 'bootstrapping';
   }
-  return input.streaming ? 'streaming' : 'ready';
+  return streaming ? 'streaming' : 'ready';
 }
 
 /**
- * Explicit iframe admission / init / recycle state machine.
- * Live-iframe budget and init concurrency stay internal to the lease.
+ * Binds one frame to its lease. The admission / init / recycle bookkeeping
+ * lives in `createArtifactFrameLease`; this hook only ranks the claim from
+ * props and releases the lease when the frame goes away.
  */
 export function useArtifactFrameLease(input: {
   channelId: string;
@@ -86,139 +76,28 @@ export function useArtifactFrameLease(input: {
 }): ArtifactFrameLease {
   const forceKeep = shouldForceKeepArtifactHost(input.presentation, input.streaming);
   const priority = resolveHostPriority(input.presentation, input.streaming);
-  const [hostIframe, setHostIframe] = useState(true);
-  const [initGranted, setInitGranted] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [claimed, setClaimed] = useState(false);
-  const everAdmittedRef = useRef(false);
-  const initSlotActiveRef = useRef(false);
-  const initTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initPriorityRef = useRef(input.initPriority);
-  initPriorityRef.current = input.initPriority;
+  const lease = useMemo(() => createArtifactFrameLease(input.channelId), [input.channelId]);
+  const snapshot = useSyncExternalStore(lease.subscribe, lease.getSnapshot, lease.getSnapshot);
 
-  const clearInitTimeout = useCallback((): void => {
-    if (initTimeoutRef.current) {
-      clearTimeout(initTimeoutRef.current);
-      initTimeoutRef.current = null;
-    }
-  }, []);
-
-  const releaseInitSlot = useCallback((): void => {
-    clearInitTimeout();
-    if (!initSlotActiveRef.current) {
-      cancelArtifactInit(input.channelId);
-      releaseArtifactInit(input.channelId);
-      return;
-    }
-    initSlotActiveRef.current = false;
-    cancelArtifactInit(input.channelId);
-    releaseArtifactInit(input.channelId);
-  }, [clearInitTimeout, input.channelId]);
+  // Declared before the claim so the first init request carries the priority.
+  useEffect(() => {
+    lease.setInitPriority(input.initPriority);
+  }, [lease, input.initPriority]);
 
   useEffect(() => {
-    const registration = {
-      id: input.channelId,
-      forceKeep,
-      priority,
-      evict: (): void => {
-        setHostIframe(false);
-        setLoaded(false);
-        setInitGranted(false);
-      },
-      onAdmit: (): void => {
-        everAdmittedRef.current = true;
-        setHostIframe(true);
-      },
-    };
-    const claim = claimArtifactLiveHost(registration);
-    setClaimed(true);
-    if (claim.admitted) {
-      everAdmittedRef.current = true;
-    }
-    setHostIframe(claim.admitted);
-  }, [forceKeep, input.channelId, priority]);
+    lease.claim({ forceKeep, priority });
+  }, [lease, forceKeep, priority]);
 
-  useEffect(() => {
-    return () => {
-      setClaimed(false);
-      everAdmittedRef.current = false;
-      releaseArtifactLiveHost(input.channelId);
-    };
-  }, [input.channelId]);
+  useEffect(() => () => lease.release(), [lease]);
 
-  useEffect(() => {
-    if (!hostIframe) {
-      setInitGranted(false);
-      setLoaded(false);
-      releaseInitSlot();
-      return;
-    }
+  const markIframeLoaded = useCallback((): void => lease.markIframeLoaded(), [lease]);
+  const requestHost = useCallback((): void => lease.requestHost(), [lease]);
 
-    let cancelled = false;
-    setInitGranted(false);
-    setLoaded(false);
-    void requestArtifactInit(input.channelId, { priority: initPriorityRef.current }).then(() => {
-      if (cancelled) {
-        releaseArtifactInit(input.channelId);
-        return;
-      }
-      initSlotActiveRef.current = true;
-      setInitGranted(true);
-      clearInitTimeout();
-      initTimeoutRef.current = setTimeout(() => {
-        initTimeoutRef.current = null;
-        if (initSlotActiveRef.current) {
-          initSlotActiveRef.current = false;
-          releaseArtifactInit(input.channelId);
-        }
-      }, ARTIFACT_INIT_LEASE_TIMEOUT_MS);
-    });
-
-    return () => {
-      cancelled = true;
-      releaseInitSlot();
-    };
-  }, [clearInitTimeout, hostIframe, input.channelId, releaseInitSlot]);
-
-  const markIframeLoaded = useCallback((): void => {
-    setLoaded(true);
-    if (!initSlotActiveRef.current) {
-      return;
-    }
-    initSlotActiveRef.current = false;
-    clearInitTimeout();
-    releaseArtifactInit(input.channelId);
-  }, [clearInitTimeout, input.channelId]);
-
-  const requestHost = useCallback((): void => {
-    const claim = requestArtifactLiveHost({
-      id: input.channelId,
-      forceKeep,
-      priority,
-      evict: (): void => {
-        setHostIframe(false);
-        setLoaded(false);
-        setInitGranted(false);
-      },
-      onAdmit: (): void => {
-        everAdmittedRef.current = true;
-        setHostIframe(true);
-      },
-    });
-    if (claim.admitted) {
-      everAdmittedRef.current = true;
-      setHostIframe(true);
-    }
-  }, [forceKeep, input.channelId, priority]);
-
-  const state = resolveLifecycleState({
-    claimed,
-    admitted: hostIframe,
-    everAdmitted: everAdmittedRef.current,
-    initGranted,
-    loaded,
-    streaming: input.streaming,
-  });
-
-  return { state, hostIframe, initGranted, markIframeLoaded, requestHost };
+  return {
+    state: resolveArtifactFrameLifecycleState(snapshot, input.streaming),
+    hostIframe: snapshot.hostIframe,
+    initGranted: snapshot.initGranted,
+    markIframeLoaded,
+    requestHost,
+  };
 }

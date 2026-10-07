@@ -3,6 +3,8 @@
  * shared across packages. Renderer runtime lives in @piwin/artifact.
  */
 
+import { formatArtifactReportKit } from './artifact-report-kit.js';
+
 // ---------------------------------------------------------------------------
 // Artifact configuration (PiwinConfig.artifact)
 // ---------------------------------------------------------------------------
@@ -237,7 +239,7 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
  * Users can replace this via `decisionPrompt.mode = 'custom'`.
  */
 export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
-  '[piwin-prompt-meta kind="artifact:decision" version="9" applies="artifacts-enabled"]',
+  '[piwin-prompt-meta kind="artifact:decision" version="10" applies="artifacts-enabled"]',
   '<artifact-decision-policy name="piwin-proactive-surfaces">',
   '## Decision Criteria',
   "Choose the presentation that makes the user's information easiest to scan, understand, search, copy, compare, and reuse.",
@@ -266,7 +268,7 @@ export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
   'Canvas is the right-side workspace panel. It auto-opens. Use it for work the user will read or operate as a document/workspace, not as a chat bubble.',
   '- Full app/page prototypes, multi-step flows with local state, interactive tools/calculators, or dashboards requiring a dedicated wide workspace.',
   '- A coordinated workspace or result that should remain beside the conversation, or a layout whose utility requires sustained width.',
-  '- Standalone reports and reviews (MUST): architecture / plan / design / code-base reviews, audits, delivery reports, findings. Design a scannable hierarchy — status, grouped findings, comparisons — not a Markdown document pasted into a single `<pre>` or article. Ordinary in-thread comments on a specific snippet stay Markdown.',
+  '- Standalone reports and reviews (MUST): architecture / plan / design / code-base reviews, audits, delivery reports, findings. Design a scannable hierarchy — status, grouped findings, comparisons — not a Markdown document pasted into a single `<pre>` or article. Use the Report Kit. Ordinary in-thread comments on a specific snippet stay Markdown.',
   '- Already written to a file this turn: do not repeat the file in a Canvas. A Canvas still earns its place when it shows what the text cannot at a glance — conclusions, status, key comparisons — and points to the file for the full text.',
   'Declare Canvas explicitly with `surface="canvas"`. A completed Canvas opens the right workspace automatically; do not ask the user to click a second launcher before using it.',
   '</artifact-decision-policy>',
@@ -301,7 +303,7 @@ export function formatArtifactProtocol(): string {
   const canvasOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" surface="canvas"`;
   const svgOpen = '```svg title="Short descriptive title"';
   return [
-    '[piwin-prompt-meta kind="artifact:runtime" version="12" applies="artifacts-enabled"]',
+    '[piwin-prompt-meta kind="artifact:runtime" version="13" applies="artifacts-enabled"]',
     '## HTML Artifact Runtime Contract',
     '',
     '### Success',
@@ -338,6 +340,8 @@ export function formatArtifactProtocol(): string {
     '- Repeated cards/items are siblings — no card-in-card.',
     '- Session vault images: `<img data-piwin-media="<mediaId>" alt="short label">`. Never `data:image`, never local filesystem paths, never markdown images for vault assets.',
     '- If the user only needs to pick among generated images, the attachment cards are enough — do not wrap them in a second HTML copy.',
+    '',
+    ...formatArtifactReportKit(),
     '',
     '### Streaming & Progressive Enhancement',
     '- **CSS First**: Emit complete `<style>` blocks before any visible HTML markup.',

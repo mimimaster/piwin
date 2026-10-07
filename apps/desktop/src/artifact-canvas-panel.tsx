@@ -26,6 +26,7 @@ import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { artifactDownloadLabel, downloadArtifactSource } from './artifact-source-export.js';
 import { useDesktopLocale } from './desktop-locale-context';
 import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
+import { useStableArtifactTheme } from './artifact-stable-theme.js';
 import { RenderErrorBoundary } from './render-error-boundary.js';
 
 export type ArtifactCanvasProposal = ComposerProposeTextActionPayload;
@@ -77,6 +78,7 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
     ...(activeTarget ? { originSessionId: activeTarget.sessionId } : {}),
   });
 
+  const artifactTheme = useStableArtifactTheme(props.artifactTheme);
   const plan = useMemo(() => {
     if (!activeTarget) return null;
     return materializeArtifact(activeTarget.intent, {
@@ -84,9 +86,9 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
       source: activeTarget.source,
       presentation: 'canvas',
       mediaDataUrls,
-      ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
+      ...(artifactTheme ? { theme: artifactTheme } : {}),
     });
-  }, [activeTarget, props.artifactTheme, mediaDataUrls]);
+  }, [activeTarget, artifactTheme, mediaDataUrls]);
 
   function handleInsert(): void {
     if (pendingProposal && props.onInsertProposal) {

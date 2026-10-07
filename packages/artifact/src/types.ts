@@ -118,6 +118,15 @@ export type StreamablePreviewResult = {
 
 export type ArtifactBridgeMessageType = 'piwin-artifact:size';
 
+/** Scroll offset of the sandboxed document's primary scrollport. */
+export type ArtifactScrollMessage = {
+  type: 'piwin-artifact:scroll';
+  channelId: string;
+  top: number;
+  /** Acknowledges a host scroll-restore request. */
+  restored: boolean;
+};
+
 export type ArtifactBridgeMessage = {
   type: ArtifactBridgeMessageType;
   channelId: string;

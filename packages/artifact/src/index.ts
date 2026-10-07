@@ -15,6 +15,8 @@ export {
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   ARTIFACT_BRIDGE_ACTION_TYPE,
   ARTIFACT_BRIDGE_ERROR_TYPE,
+  ARTIFACT_BRIDGE_SCROLL_RESTORE_TYPE,
+  ARTIFACT_BRIDGE_RETIRE_TYPE,
   COMPOSER_PROPOSE_TEXT_ACTION,
 } from './constants.js';
 
@@ -26,6 +28,7 @@ export type {
   ArtifactThemeVariables,
   ArtifactActionMessage,
   ArtifactErrorMessage,
+  ArtifactScrollMessage,
   ComposerProposeTextActionPayload,
   ArtifactFrameMode,
   ArtifactCapabilityReport,
@@ -48,6 +51,7 @@ export {
   parseArtifactActionMessage,
   parseArtifactErrorMessage,
   parseArtifactRenderSnapshot,
+  parseArtifactScrollMessage,
   readArtifactPostSeq,
 } from './bridge-protocol.js';
 

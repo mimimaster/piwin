@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { listArtifactSessionMediaIds } from '@piwin/artifact';
 import { createLimitedDataUrlFromHref } from './media-preview-bitmap';
 import { useMediaPreviewRead } from './media-preview-read-context';
+import { releaseMediaPreviewUrl } from './media-preview-url-cache';
 import type { MediaPreviewReader } from './transcript-media-preview';
 
 const EMPTY_MEDIA_URLS: ReadonlyMap<string, string> = new Map();
@@ -94,10 +95,15 @@ export async function resolveArtifactSessionMediaDataUrls(input: {
   const entries = await Promise.all(
     mediaIds.map(async (assetId) => {
       const href = await readMedia({ sessionId, assetId });
-      if (typeof href !== 'string' || !href.startsWith('blob:')) {
-        return [assetId, null] as const;
+      try {
+        if (typeof href !== 'string' || !href.startsWith('blob:')) {
+          return [assetId, null] as const;
+        }
+        return [assetId, await decodeMediaDataUrl(`${sessionId}:${assetId}`, href)] as const;
+      } finally {
+        // The artifact keeps the decoded data URL, not the reader's object URL.
+        releaseMediaPreviewUrl(href);
       }
-      return [assetId, await decodeMediaDataUrl(`${sessionId}:${assetId}`, href)] as const;
     }),
   );
   const urls = new Map<string, string>();

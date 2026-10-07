@@ -460,3 +460,57 @@ needs that pane's resumed scope; it is deferred rather than guessed.
   global; they are not duplicated per scope.
 - `docs/guides/artifact-prompt.md` keeps describing the unchanged protocol; the
   surface prefix is the only addition to the model-facing text.
+
+## Amendment (2026-10-07): Canvas document handoff and the Report Kit
+
+Reproduced with fourteen Canvas reports taken from real sessions: a Canvas
+document is replaced up to three times while it is written (empty stream shell
+→ seeded shell → final document), each replacement navigated the one iframe in
+place, and completion dropped the reader back to the top of the report. A
+report also showed only the "preparing" placeholder until its author stylesheet
+closed — often a third of the whole response.
+
+### Document handoff (Canvas only)
+
+- The replaced document stays mounted over the stage, inert, while its
+  successor loads underneath at `opacity: 0`. The successor is revealed once it
+  has loaded and resumed the reader's scroll offset; a successor that never
+  loads or never answers is revealed on a timeout. Inline frames still navigate
+  a single element — their height stream already carries them across a swap.
+- Three bridge messages carry this (`@piwin/artifact`):
+  `piwin-artifact:scroll` (frame → host, offset of the primary scrollport),
+  `piwin-artifact:scroll-restore` (host → new document) and
+  `piwin-artifact:retire` (host → replaced document, which then stops posting so
+  two documents never interleave sequence numbers on one channel).
+- The primary scrollport is found, not assumed: a stream shell scrolls in
+  `body`, a finished document usually scrolls in a stage of its own.
+- A scroll offset is untrusted but only ever handed back to a successor document
+  on the same channel; the messages grant the sandbox no capability.
+
+### Report Kit
+
+- The sandbox ships a stylesheet for written reports. A document opts in with
+  `<main class="piwin-report">` and semantic HTML; the vocabulary
+  (`ARTIFACT_REPORT_KIT_CLASSES`, tones) lives in `@piwin/contracts` and the
+  runtime contract tells the model to use it for reports, reviews and audits.
+- Every kit selector is `:where()`-wrapped (zero specificity) except the page
+  measure and the inline-code radius, so author CSS always wins and a document
+  that never uses the root class is unchanged.
+- Kit classes count as styled in `buildStreamableArtifactPreview`: a kit report
+  has no stylesheet to wait for and paints from its first words. Author classes
+  without a stylesheet are still withheld.
+- The kit text rides in the resident conversation prompt and must stay inside
+  its token budget (CHT-803); it names the vocabulary and nothing else.
+
+### Frame lease
+
+The live-host slot, the init slot and their timer are held by one
+`createArtifactFrameLease` object outside React and returned through a single
+`release()`. `useArtifactFrameLease` only ranks the claim from props.
+
+### Not verified
+
+Handoff and scroll continuity were exercised in Chromium
+(`e2e/artifact-canvas-continuity.spec.ts`). The packaged `tauri://` WebKit path
+loads documents through `piwin-artifact://` and has its own timing; it still
+needs one pass with the isolated-build recipe.

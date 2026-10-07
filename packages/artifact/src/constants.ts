@@ -60,6 +60,19 @@ export const ARTIFACT_BRIDGE_ACTION_TYPE = 'piwin-artifact:action' as const;
  * message is diagnostic only: it grants the sandboxed document no capability.
  */
 export const ARTIFACT_BRIDGE_ERROR_TYPE = 'piwin-artifact:error' as const;
+/**
+ * Scroll position of the document's primary scrollport → parent. Lets the host
+ * carry the reading position across a document swap (stream → final).
+ */
+export const ARTIFACT_BRIDGE_SCROLL_TYPE = 'piwin-artifact:scroll' as const;
+/** Parent → a freshly loaded document: resume at this scroll offset. */
+export const ARTIFACT_BRIDGE_SCROLL_RESTORE_TYPE = 'piwin-artifact:scroll-restore' as const;
+/**
+ * Parent → a document that is being replaced but stays on screen until its
+ * successor has painted. A retired document stops posting, so two documents on
+ * one channel never interleave their sequence numbers.
+ */
+export const ARTIFACT_BRIDGE_RETIRE_TYPE = 'piwin-artifact:retire' as const;
 /** Clipped length for any error string crossing the sandbox boundary. */
 export const ARTIFACT_ERROR_MESSAGE_MAX_CHARS = 400;
 /**
