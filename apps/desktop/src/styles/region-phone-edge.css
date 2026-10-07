@@ -6,6 +6,31 @@
    Geometry that themes pin is set through layout tokens (region-phone.css). */
 
 /* ── One surface, edge to edge ───────────────────────────────────── */
+/* The document is chrome, not a scroll surface. Lock it in both axes so
+   WebKit cannot hand a content-edge gesture to the page underneath. */
+html:has(.app-shell[data-layout='phone']),
+html:has(.app-shell[data-layout='phone']) body,
+html:has(.app-shell[data-layout='phone']) #root,
+.app-shell[data-layout='phone'] {
+  overscroll-behavior: none;
+}
+
+html:has(.app-shell[data-layout='phone']) body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+/* Content still scrolls locally; reaching an edge must not move the shell.
+   Keep code/table horizontal scrolling and pinch zoom available. */
+.app-shell[data-layout='phone'] :is(.sidebar-folder-tree, .chat-stream, .right-panel-body) {
+  overscroll-behavior: none;
+}
+
+.app-shell[data-layout='phone'] .sidebar-folder-tree {
+  touch-action: pan-y pinch-zoom;
+}
+
 html:has(.app-shell[data-layout='phone']),
 html:has(.app-shell[data-layout='phone']) body,
 .app-shell[data-layout='phone'] {

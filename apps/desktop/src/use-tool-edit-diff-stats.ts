@@ -4,7 +4,36 @@ import { diffLineStats, type DiffCardRequest } from './diff-card';
 
 export type ToolEditDiffStats = { added: number; removed: number };
 
-const statsCache = new Map<string, ToolEditDiffStats>();
+/**
+ * Working-tree stats go stale as soon as the file is edited again, so a hit is
+ * only good for a short window: enough to cover the cards of one turn mounting
+ * together without pinning the first answer for the life of the app.
+ */
+const STATS_CACHE_TTL_MS = 15_000;
+export const MAX_TOOL_EDIT_DIFF_STATS_CACHE_ENTRIES = 256;
+const statsCache = new Map<string, { stats: ToolEditDiffStats; expiresAt: number }>();
+
+function readCachedStats(key: string): ToolEditDiffStats | undefined {
+  const cached = statsCache.get(key);
+  if (cached === undefined) {
+    return undefined;
+  }
+  if (cached.expiresAt <= Date.now()) {
+    statsCache.delete(key);
+    return undefined;
+  }
+  return cached.stats;
+}
+
+function writeCachedStats(key: string, stats: ToolEditDiffStats): void {
+  statsCache.delete(key);
+  statsCache.set(key, { stats, expiresAt: Date.now() + STATS_CACHE_TTL_MS });
+  while (statsCache.size > MAX_TOOL_EDIT_DIFF_STATS_CACHE_ENTRIES) {
+    const oldestKey = statsCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    statsCache.delete(oldestKey);
+  }
+}
 
 function cacheKey(projectPath: string, path: string): string {
   return `${projectPath}\0${path}`;
@@ -37,7 +66,7 @@ export function useToolEditDiffStats(input: {
   const projectPath = input.projectPath ?? null;
   const path = input.path;
   const cacheId = input.enabled && projectPath && path ? cacheKey(projectPath, path) : '';
-  const cached = cacheId ? statsCache.get(cacheId) : undefined;
+  const cached = cacheId ? readCachedStats(cacheId) : undefined;
   const [fetched, setFetched] = useState<ToolEditDiffStats | undefined>(cached);
 
   useEffect(() => {
@@ -45,7 +74,7 @@ export function useToolEditDiffStats(input: {
       return;
     }
     const key = cacheKey(projectPath, path);
-    const existing = statsCache.get(key);
+    const existing = readCachedStats(key);
     if (existing) {
       setFetched(existing);
       return;
@@ -70,7 +99,7 @@ export function useToolEditDiffStats(input: {
         if (!next) {
           return;
         }
-        statsCache.set(key, next);
+        writeCachedStats(key, next);
         setFetched(next);
       })
       .catch(() => {
@@ -86,4 +115,8 @@ export function useToolEditDiffStats(input: {
 
 export function clearToolEditDiffStatsCacheForTests(): void {
   statsCache.clear();
+}
+
+export function toolEditDiffStatsCacheSizeForTests(): number {
+  return statsCache.size;
 }

@@ -1,15 +1,29 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import type { ModelProviderConfig } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { ProviderModelList } from './provider-model-list.js';
 
+const mounted: Array<{ container: HTMLElement; root: Root }> = [];
+
 describe('ProviderModelList', () => {
+  let previousActEnvironment: boolean | undefined;
+
   beforeEach(() => {
+    previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  });
+
+  afterEach(() => {
+    // A list left mounted keeps scheduling renders after the DOM is torn down.
+    for (const { container, root } of mounted.splice(0)) {
+      act(() => root.unmount());
+      container.remove();
+    }
+    globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
   const customProvider: ModelProviderConfig = {
@@ -45,6 +59,7 @@ describe('ProviderModelList', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
+    mounted.push({ container, root });
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -105,6 +120,7 @@ describe('ProviderModelList', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
+    mounted.push({ container, root });
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -189,6 +205,7 @@ describe('ProviderModelList', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
+    mounted.push({ container, root });
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -250,6 +267,7 @@ describe('ProviderModelList', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
+    mounted.push({ container, root });
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -311,6 +329,7 @@ describe('ProviderModelList', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
+    mounted.push({ container, root });
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>

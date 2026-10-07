@@ -30,6 +30,12 @@ const SOURCE = [
   '| a | 1 |',
 ].join('\n');
 
+/** A spec may preview its own document through `window.__piwinE2eDocSource`. */
+function readGallerySource(): string {
+  const injected = (window as unknown as { __piwinE2eDocSource?: unknown }).__piwinE2eDocSource;
+  return typeof injected === 'string' && injected.length > 0 ? injected : SOURCE;
+}
+
 type GalleryLog = { copied: string[]; addedToChat: string[] };
 
 declare global {
@@ -57,6 +63,7 @@ function createDispatchers(log: GalleryLog): ContextMenuDispatchers {
 /** Fixture for the doc pane: selection, Markdown copy, and selection comments. */
 export function DocSelectionGallery(): ReactElement {
   const [comments, setComments] = useState<LineCommentItem[]>([]);
+  const [source] = useState(readGallerySource);
   const [log] = useState<GalleryLog>(() => {
     const value: GalleryLog = { copied: [], addedToChat: [] };
     window.__docSelectionGallery = value;
@@ -81,7 +88,7 @@ export function DocSelectionGallery(): ReactElement {
           title="notes.md"
           filePath="/repo/docs/notes.md"
           projectPath="/repo"
-          content={SOURCE}
+          content={source}
           comments={comments}
           onAddComment={(comment) =>
             setComments((current) => [...current, { id: `c-${current.length}`, ...comment }])

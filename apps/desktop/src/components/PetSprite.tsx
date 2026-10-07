@@ -45,7 +45,11 @@ const ACTION_DURATION_MS = PET_ACTION_DURATION_MS;
 
 type TempAction = PetAnimationState | null;
 
-/** Synchronous image cache so re-renders or state changes do not lose image ref. */
+/**
+ * Synchronous image cache so re-renders or state changes do not lose image ref.
+ * Holds the current pet's sheet only: a decoded spritesheet is ~11MB and the
+ * overlay shows one pet at a time.
+ */
 const imageCacheMap = new Map<string, HTMLImageElement>();
 
 function resolvePetFrameCount(pet: PetRuntimeSnapshot, state: PetAnimationState): number {
@@ -129,6 +133,7 @@ export function PetSprite(props: PetSpriteProps) {
     const finish = (): void => {
       if (settled) return;
       settled = true;
+      imageCacheMap.clear();
       imageCacheMap.set(src, img);
       imageRef.current = img;
       const detected = detectPetContentBounds(

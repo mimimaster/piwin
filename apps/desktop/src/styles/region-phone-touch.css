@@ -136,6 +136,8 @@
    measured, so the 20px box stays and only the hit area grows. */
 .app-shell[data-layout='phone'] > .sidebar .sidebar-section-label-actions {
   gap: 24px;
+  /* Keep the expanded last hit target inside the scrollport. */
+  padding-right: 12px;
 }
 
 .app-shell[data-layout='phone'] > .sidebar .sidebar-section-label-actions .sidebar-icon-btn {

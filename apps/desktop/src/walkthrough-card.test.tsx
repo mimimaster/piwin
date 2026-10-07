@@ -14,10 +14,13 @@ declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
+const mounted: Array<{ container: HTMLElement; root: Root }> = [];
+
 function renderCard(node: ReactElement): { container: HTMLElement; root: Root } {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
+  mounted.push({ container, root });
   act(() => {
     root.render(<PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>{node}</PiwinUiProvider>);
   });
@@ -87,6 +90,11 @@ describe('WalkthroughCard', () => {
   });
 
   afterEach(() => {
+    // A card left mounted keeps scheduling renders after the DOM is torn down.
+    for (const { container, root } of mounted.splice(0)) {
+      act(() => root.unmount());
+      container.remove();
+    }
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 

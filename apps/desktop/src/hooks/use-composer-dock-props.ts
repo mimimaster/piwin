@@ -475,7 +475,9 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   });
 
   const isExternalBackend =
-    capabilities.isExternalBackend || backendControls.options !== undefined;
+    // `options` is null (not undefined) for a Pi session; treating that as
+    // external pinned every Pi model to the 256K external fallback window.
+    capabilities.isExternalBackend || backendControls.options !== null;
   const selectedBackendModel = backendControls.options?.models.find(
     (model) => model.id === backendControls.options?.currentModelId,
   );

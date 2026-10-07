@@ -28,6 +28,7 @@ const HOST_REQUEST_QUERY_TIMEOUT_MS = 15_000;
 const HOST_REQUEST_OPERATION_TIMEOUT_MS = 120_000;
 const HOST_REQUEST_IMAGE_GENERATION_TIMEOUT_MS = 360_000;
 const HOST_REQUEST_NETWORK_QUERY_TIMEOUT_MS = 30_000;
+const HOST_REQUEST_LIVE_START_TIMEOUT_MS = 30_000;
 
 export function getHostRequestTimeoutMs(
   command: HostCommand | LocalMobileAccessCommand,
@@ -64,13 +65,17 @@ export function getHostRequestTimeoutMs(
     case 'host/ping':
     case 'host/status':
       return remote ? REMOTE_HOST_REQUEST_STATUS_TIMEOUT_MS : HOST_REQUEST_STATUS_TIMEOUT_MS;
+    case 'voice/live/status':
+    case 'voice/live/end':
+      return HOST_REQUEST_ACK_TIMEOUT_MS;
+    case 'voice/live/start':
+      return HOST_REQUEST_LIVE_START_TIMEOUT_MS;
     case 'models/discover':
     case 'models/test':
     case 'models/test-connection':
     // A knowledge probe is one live round trip to a user-typed endpoint.
     case 'knowledge/test-connection':
     case 'knowledge/embedding-models/discover':
-    case 'voice/live/start':
     case 'speech/transcribe':
     case 'mcp/start':
     case 'mcp/stop':

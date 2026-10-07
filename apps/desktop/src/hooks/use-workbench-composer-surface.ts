@@ -8,6 +8,7 @@ import type { ShellSettingsSection } from '../shell-navigation';
 import { useMemo } from 'react';
 import { resolveActiveComposerAgentId } from '../composer-dock-assembly.js';
 import { useComposerDockProps } from './use-composer-dock-props';
+import { useIosLiveActivity } from '../live/use-ios-live-activity.js';
 import { useExtensionSlashCommands } from './use-extension-slash-commands';
 import { useExtensionUiSurface } from './use-extension-ui-surface';
 import { useSessionUsageTotals } from './use-session-usage-totals';
@@ -176,6 +177,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     liveSessionId,
     sidebarMode,
   });
+  useIosLiveActivity(dock.live, session.handleResumeSession);
   // Extension surface and commands are merged here so the large dock-props
   // assembly does not grow another dependency list.
   const activeAgentId = resolveActiveComposerAgentId(state);

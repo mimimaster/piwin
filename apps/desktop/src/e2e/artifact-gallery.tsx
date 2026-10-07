@@ -394,7 +394,13 @@ const MARKDOWN_STREAM_FALLBACK = [
  * the transcript renderer, token by token, then completes it. A spec may
  * supply its own reply through `window.__piwinE2eMarkdownSource`.
  */
-function MarkdownStreamCase(props: { tps: number; chunk: number; paper: boolean }): ReactElement {
+function MarkdownStreamCase(props: {
+  tps: number;
+  chunk: number;
+  paper: boolean;
+  /** Start the replay at this offset; `chunk=0` then holds it there, still streaming. */
+  from: number;
+}): ReactElement {
   const source = useMemo(() => {
     const injected = (window as unknown as { __piwinE2eMarkdownSource?: unknown })
       .__piwinE2eMarkdownSource;
@@ -405,10 +411,10 @@ function MarkdownStreamCase(props: { tps: number; chunk: number; paper: boolean 
     document.documentElement.setAttribute('data-theme-id', 'piwin-inkstone-paper');
     document.documentElement.setAttribute('data-theme-mode', 'light');
   }, [props.paper]);
-  const [chars, setChars] = useState(0);
+  const [chars, setChars] = useState(() => Math.min(props.from, source.length));
   const done = chars >= source.length;
   useEffect(() => {
-    if (done) return;
+    if (done || props.chunk <= 0) return;
     const timer = window.setTimeout(
       () => setChars((current) => Math.min(source.length, current + props.chunk)),
       1000 / props.tps,
@@ -461,6 +467,7 @@ export function ArtifactGallery(): ReactElement {
           tps={Number(params.get('tps') ?? 60)}
           chunk={Number(params.get('chunk') ?? 6)}
           paper={params.get('theme') === 'paper'}
+          from={Number(params.get('from') ?? 0)}
         />
       </div>
     );

@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { SessionBackendOptions } from '@piwin/contracts';
 import { createInitialChatUiState } from '../chat-reducer.js';
+import { applyContextTelemetry } from '../context-telemetry-reducer.js';
+import { makeContextSnapshot, makeKnownOccupancy } from '../context-telemetry-test-fixtures.js';
 import { useComposerDockProps } from './use-composer-dock-props.js';
 
 const stable = vi.hoisted(() => ({ live: {}, stop: { isStopping: false }, files: [] }));
@@ -80,4 +82,23 @@ it('updates backend setter closures without an unrelated dock change', () => {
   latest?.onBackendModelChange?.('fast');
   expect(currentModelHandler).toHaveBeenCalledWith('fast');
   expect(args.backendControls.selectModel).not.toHaveBeenCalled();
+});
+
+it('measures a Pi session against the selected model window, not the external fallback', () => {
+  const args = baseArgs();
+  let telemetry = applyContextTelemetry(args.state.contextTelemetry, { type: 'capability', supported: true });
+  telemetry = applyContextTelemetry(telemetry, { type: 'select', sessionId: 'session-a', hostInstanceId: 'host-1' });
+  telemetry = applyContextTelemetry(telemetry, {
+    type: 'snapshot',
+    source: 'live',
+    snapshot: makeContextSnapshot({
+      sessionId: 'session-a',
+      occupancy: makeKnownOccupancy({ tokensUsed: 236_000, tokensLimit: 1_000_000 }),
+      responseEvidence: { currentRunHasResponse: true, historyHasDisplayableResponse: true },
+    }),
+  });
+  const state = { ...args.state, activeSessionId: 'session-a', contextTelemetry: telemetry };
+  act(() => root.render(<Probe args={{ ...args, state, selectedModelContextWindow: 1_000_000 }} />));
+  expect(latest?.contextRingView?.tokensUsed).toBe(236_000);
+  expect(latest?.contextRingView?.tokensLimit).toBe(1_000_000);
 });
