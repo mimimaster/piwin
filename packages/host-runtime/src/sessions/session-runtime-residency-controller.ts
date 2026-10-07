@@ -332,7 +332,11 @@ export function createSessionRuntimeResidencyController(
     return queueCapacityWaiter(waiters, sessionId, runtimeGenerationId, signal, ephemeral);
   }
 
-  function commitActivation(sessionId: string, runtimeGenerationId: string): void {
+  function commitActivation(
+    sessionId: string,
+    runtimeGenerationId: string,
+    options?: { admittedForRun?: boolean },
+  ): void {
     const entry = entries.get(sessionId);
     if (
       !entry ||
@@ -342,7 +346,7 @@ export function createSessionRuntimeResidencyController(
       return;
     }
     entry.lastUsedAtMs = nowMs();
-    if (entry.ephemeral === true) {
+    if (entry.ephemeral === true || options?.admittedForRun === true) {
       entry.state = 'resident-busy';
       delete entry.idleDeadlineMs;
     } else {

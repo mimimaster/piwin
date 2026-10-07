@@ -6,7 +6,8 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
-import { formatError } from '@piwin/contracts';
+import { APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID, formatError } from '@piwin/contracts';
+import { deviceToolsGainedSinceBuild } from './device-tool-surface-staleness.js';
 import { getSessionRecord } from '@piwin/session';
 import { loadPiwinConfig } from './config-store.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
@@ -336,6 +337,15 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
       if (generationId === undefined) return false;
       const applied = deps.generationSessionMcpOverrideKeys.get(`${sessionId}\u0000${generationId}`);
       return applied !== undefined && applied !== sessionMcpOverrideKey(disabledServerIds);
+    },
+    sessionDeviceToolsGained: (sessionId) => {
+      const port = deps.options.clientToolExecution;
+      const generationId = deps.runtimeController.getStatus(sessionId).generationId;
+      if (port === undefined || generationId === undefined) return false;
+      return deviceToolsGainedSinceBuild(
+        deps.generationDeviceHealthOffered.get(`${sessionId}\u0000${generationId}`),
+        port.hasCapableDevice(APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID),
+      );
     },
     beginTurnChangeRun: (input) => {
       const runtime = deps.turnChangeRuntime;

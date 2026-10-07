@@ -20,6 +20,7 @@ import {
   type SettingsMutation,
   type WebConfig,
   buildSettingsDomainMutations,
+  normalizeHealthConfig,
 } from '@piwin/contracts';
 
 const PROVIDER_SYNC_DOMAINS = new Set<SettingsDomain>([
@@ -196,6 +197,7 @@ export function mergeSettingsViewConfig(partial: unknown): PiwinConfig {
   if (record.walkthrough && typeof record.walkthrough === 'object') {
     result.walkthrough = record.walkthrough as NonNullable<PiwinConfig['walkthrough']>;
   }
+  result.health = normalizeHealthConfig(record.health);
   if (record.subagents && typeof record.subagents === 'object') {
     result.subagents = {
       ...fallback.subagents,

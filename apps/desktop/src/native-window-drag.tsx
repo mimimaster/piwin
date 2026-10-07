@@ -10,10 +10,7 @@
  */
 import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
+import { isDesktopTauriRuntime as isTauriRuntime } from './shell-runtime.js';
 
 /** Begin an OS-level window move via Tauri (no-op outside the desktop shell). */
 export function startNativeWindowDrag(): void {

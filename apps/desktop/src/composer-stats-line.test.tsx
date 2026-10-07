@@ -51,7 +51,7 @@ describe('buildComposerStatsSegments', () => {
   it('shows turns, steps, speed, tokens and cache hit rate', () => {
     const segments = buildComposerStatsSegments({
       totals,
-      lastRequest: { messageId: 'm1', completionTokens: 200, durationMs: 1500, firstTokenMs: 500 },
+      lastRequest: { messageId: 'm1', completionTokens: 200, durationMs: 1500, firstTokenMs: 500, firstTokenKind: 'reasoning' },
       locale: 'zh-CN',
     });
     expect(segments.map((segment) => segment.text)).toEqual([
@@ -62,7 +62,7 @@ describe('buildComposerStatsSegments', () => {
 
   it('prefers the session read timing over the hydrated context ring copy', () => {
     const segments = buildComposerStatsSegments({
-      totals: { ...totals, latestRequest: { messageId: 'm2', completionTokens: 30, durationMs: 897, firstTokenMs: 718 } },
+      totals: { ...totals, latestRequest: { messageId: 'm2', completionTokens: 30, durationMs: 897, firstTokenMs: 718, firstTokenKind: 'reasoning' } },
       lastRequest: { messageId: 'm1', completionTokens: 30, durationMs: 827, firstTokenMs: 814 },
       locale: 'en',
     });
@@ -102,7 +102,15 @@ describe('buildComposerStatsSegments', () => {
 
 describe('generationTokensPerSecond', () => {
   it('excludes time to first token and rejects unusable samples', () => {
-    expect(generationTokensPerSecond({ completionTokens: 100, durationMs: 2000, firstTokenMs: 1000 })).toBe(100);
+    expect(generationTokensPerSecond({
+      completionTokens: 100, durationMs: 2000, firstTokenMs: 1000, firstTokenKind: 'reasoning',
+    })).toBe(100);
+    // Hidden reasoning ran during the first-token wait: only visible tokens are rated.
+    expect(generationTokensPerSecond({
+      completionTokens: 100, durationMs: 2000, firstTokenMs: 1000, firstTokenKind: 'content', reasoningTokens: 60,
+    })).toBe(40);
+    // Unknown split: end-to-end, never the whole output over the tail.
+    expect(generationTokensPerSecond({ completionTokens: 100, durationMs: 2000, firstTokenMs: 1000 })).toBe(50);
     expect(generationTokensPerSecond({ completionTokens: 100, durationMs: 2000 })).toBe(50);
     expect(generationTokensPerSecond({ completionTokens: 0, durationMs: 1000 })).toBeNull();
     expect(generationTokensPerSecond({ completionTokens: 100 })).toBeNull();

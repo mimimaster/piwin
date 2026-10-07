@@ -354,3 +354,19 @@ only. `word-break: break-word|break-all` and `overflow-wrap: anywhere` are
 forbidden. Label cells may nowrap / max-content. Canvas tables keep label
 min-content; table `overflow-x: auto` is allowed. Inline still has no
 page-level horizontal scroll.
+
+## Amendment (2026-10-06): iOS shell uses the same document scheme
+
+The iOS shell's default interface is the Desktop workbench build (ADR 0084),
+served from `tauri://`. The front end chose the `piwin-artifact` scheme only
+for the Desktop runtime, so on iOS it fell back to a `data:` iframe. That frame
+inherits the packaged page CSP — the 2026-09-16 failure again: inline style and
+script are both disabled, the Artifact paints as unstyled white HTML, and no
+size message ever arrives, leaving the 360px recovery viewport.
+
+Decision: every Tauri shell loads Artifact documents through `piwin-artifact`.
+The scheme handler, document store, main-frame guard and the WKWebView
+`piwinArtifact` message handler move to the shared `crates/artifact-webview`
+crate, linked by both `apps/desktop/src-tauri` and `apps/mobile/src-tauri`. The
+mobile shell allows `piwin-artifact:` in `frame-src`/`child-src` and grants
+only `artifact_document_put`. Browser tabs and e2e keep `data:` URLs.

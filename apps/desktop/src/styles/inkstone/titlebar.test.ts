@@ -12,8 +12,14 @@ describe('Inkstone titleband / sidebar seam', () => {
     // .app-shell already pads 0 8px 8px; another 8px on .context-bar indents
     // the lights/toggle cluster twice.
     // .proto-nav past the sidebar panel's right edge.
-    expect(shell).toMatch(/\.app-shell[\s\S]{0,400}?padding:\s*0 8px 8px\s*!important/);
-    expect(titlebar).toMatch(/\.context-bar[\s\S]{0,300}?padding:\s*0\s*!important/);
+    // Both are layout tokens whose desktop default is the value below; the
+    // phone layout retargets them (phone-layout-contract.test.ts).
+    expect(shell).toMatch(
+      /\.app-shell[\s\S]{0,400}?padding:\s*var\(--shell-frame-padding, 0 8px 8px\)\s*!important/,
+    );
+    expect(titlebar).toMatch(
+      /\.context-bar[\s\S]{0,300}?padding:\s*var\(--titleband-padding, 0\)\s*!important/,
+    );
     expect(titlebar).not.toMatch(/\.context-bar[\s\S]{0,300}?padding:\s*0 8px\s*!important/);
   });
 

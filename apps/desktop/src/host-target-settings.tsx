@@ -37,7 +37,7 @@ export function HostTargetSettings(): ReactElement {
     setBusy(false);
     if (!result.ok) {
       setHostInstanceId(undefined);
-      setError(result.error);
+      setError(result.reason === undefined ? result.error : copy.rejectReasons[result.reason]);
       return;
     }
     saveDesktopHostLaunchMode('attach');

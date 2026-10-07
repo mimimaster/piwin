@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import type { ClientToolRequestFrame } from '@piwin/contracts';
-import type { MobileClientToolConsentDecision } from '../client-tools/mobile-client-tool-runtime.js';
+import type { MobileClientToolConsentDecision } from '@piwin/host-client';
 
 export type HealthConsentSheetProps = {
   request: ClientToolRequestFrame;

@@ -91,6 +91,8 @@ export type HostCommandContext = {
   ensureBrowserSession?: () => Promise<BrowserSession>;
   todoStore: SessionTodoStore;
   petStateStore: import('../pet-state-store.js').PetStateStore;
+  /** Stored health summaries and digest (ADR 0062 M2). */
+  healthSummaries?: import('../health-summary-service.js').HealthSummaryService;
   runCronJob: (
     job: import('@piwin/contracts').CronJob,
   ) => Promise<{ ok: boolean; message?: string }>;

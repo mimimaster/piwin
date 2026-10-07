@@ -580,11 +580,38 @@ export type HostWireErrorCode =
   | 'request-failed'
   | 'replay-failed';
 
+/**
+ * Why the Host turned a hello away. `message` stays Host-authored English for
+ * logs; shells localize from this so the wording is not part of the protocol.
+ */
+export const HOST_HELLO_REJECT_REASONS = [
+  'protocol-mismatch',
+  'client-version-too-old',
+  'multiple-admission-keys',
+  'access-token-required',
+  'pairing-required',
+  'pairing-disabled',
+  'pairing-token-invalid',
+  'device-capacity-full',
+  'device-credential-revoked',
+  'authentication-failed',
+] as const;
+
+export type HostHelloRejectReason = (typeof HOST_HELLO_REJECT_REASONS)[number];
+
+export function isHostHelloRejectReason(value: unknown): value is HostHelloRejectReason {
+  return (
+    typeof value === 'string' && (HOST_HELLO_REJECT_REASONS as readonly string[]).includes(value)
+  );
+}
+
 export type HostErrorFrame = {
   type: 'error';
   requestId?: string;
   code: HostWireErrorCode;
   message: string;
+  /** Present on hello rejections from Hosts that classify them. */
+  reason?: HostHelloRejectReason;
 };
 
 export type HostWireMessage =

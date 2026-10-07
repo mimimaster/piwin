@@ -89,7 +89,8 @@ describe('Plugin turn timing in Host usage statistics', () => {
     expect(log.entries[0]).toMatchObject({ timingScope: 'request', firstTokenMs: 500, durationMs: 2500 });
     const entry = log.entries[0];
     if (!entry) throw new Error('missing request usage');
-    expect(computeTokensPerSecond(entry)).toBe(100);
+    // The plugin reports no reasoning breakdown, so the rate is end-to-end.
+    expect(computeTokensPerSecond(entry)).toBe(80);
     expect(pushes.some((push) => push.type === 'run/terminal')).toBe(false);
 
     // Updating the selected extension refreshes only the independent control process.

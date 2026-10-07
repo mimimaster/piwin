@@ -1,6 +1,6 @@
 {
   "name": "pi-deepseek-cache",
-  "version": "1.0.4",
+  "version": "0.5.1",
   "description": "DeepSeek cache optimization: prefix cache alignment to reduce repeated token cost and first-token latency.",
   "type": "module",
   "private": true,
@@ -11,8 +11,8 @@
   },
   "piwin": {
     "bundledFrom": "npm:@rohaquinlop/pi-deepseek-cache",
-    "npmVersion": "1.0.4",
-    "patch": 2,
-    "patchNotes": "1: drop the composer hit-rate status chip; 2: split persistence/overlays modules"
+    "npmVersion": "0.5.1",
+    "patch": 6,
+    "patchNotes": "1: drop the composer hit-rate status chip; 2: split persistence/overlays modules; 3: recognize vendor-prefixed DeepSeek ids and summarize with the active model when flash is absent; 4: replace the removed modelRegistry.listProviders() lookup; 5: pick the first signed-in summarizer and include split-turn prefix messages; 6: record the real summarizer model id; npmVersion corrected to 0.5.1 (the vendored source matches that release, 1.0.4 was never published)"
   }
 }

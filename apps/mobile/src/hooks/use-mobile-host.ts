@@ -22,14 +22,14 @@ import {
 import {
   healthConsentScopeKey,
   type ClientToolPreferenceStore,
-} from '../client-tools/client-tool-preferences.js';
-import type { MobileClientToolConsentDecision } from '../client-tools/mobile-client-tool-runtime.js';
+} from '@piwin/host-client';
+import type { MobileClientToolConsentDecision } from '@piwin/host-client';
 import { useHostWake } from './use-host-wake.js';
 import {
   clearLastMobileHostEndpoint,
   writeLastMobileHostEndpoint,
 } from '../mobile-last-host-endpoint.js';
-import { MobileClientToolRuntime } from '../client-tools/mobile-client-tool-runtime.js';
+import { MobileClientToolRuntime } from '@piwin/host-client';
 import {
   advertiseMobileHealthRuntime,
   attachMobileClientToolRuntime,
@@ -40,9 +40,10 @@ import {
   resolveMobileHealthDeviceId,
   shouldAdvertiseHealthOnHello,
   shouldIncludeAppleHealthOnSend,
-} from '../client-tools/mobile-health-session.js';
+} from '@piwin/host-client';
 import {
   healthkitIsAvailable,
+  mobileHealthKit,
 } from '../health/native-healthkit.js';
 import { useMobileAppleHealth } from './use-mobile-apple-health.js';
 import {
@@ -474,6 +475,7 @@ export function useMobileHost() {
         preferences: healthPreferencesRef.current,
         healthEnabled: advertiseHealth && grant?.mode !== 'off',
         nativeHealthAvailable: nativeAvailable,
+        healthKit: mobileHealthKit,
         production,
         allowFakeHealth,
         requestConsent: (request) => {

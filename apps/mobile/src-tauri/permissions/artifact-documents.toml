@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-artifact-document-put"
+description = "Publish an Artifact document for the isolated piwin-artifact scheme."
+commands.allow = ["artifact_document_put"]

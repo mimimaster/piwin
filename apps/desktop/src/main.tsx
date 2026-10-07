@@ -12,7 +12,9 @@ import { installPetOverlayStateRelay } from './pet-overlay-state-bridge';
 import { installPetOverlayRestore } from './pet-overlay-visibility';
 import { installExternalLinkGuard } from './external-link-guard';
 import { isTauriRuntime } from './tauri-pty';
-import 'katex/dist/katex.min.css';
+import { primeDeviceCredential } from './device-admission';
+import { loadDesktopRemoteHostTarget } from './remote-host-session';
+import { isMobileTauriRuntime } from './shell-runtime';
 import './styles.css';
 
 // Pre-paint: use last known built-in theme (or Appearance prefs) so the first
@@ -34,7 +36,7 @@ void installPetOverlayStateRelay();
 installPetOverlayRestore();
 // Before first render: an external link click must never navigate the Tauri
 // webview itself (blank window, app state lost).
-if (isTauriRuntime()) {
+if (isTauriRuntime() || isMobileTauriRuntime()) {
   installExternalLinkGuard(document);
 }
 
@@ -55,4 +57,16 @@ if (!rootElement) {
 
 // No StrictMode: it remounts the workbench and dispose() kills the Host socket
 // mid-hello (`Host transport closed`). Sidecar / remote Host are process-owned.
-createRoot(rootElement).render(<DesktopThemeRoot />);
+const root = createRoot(rootElement);
+if (isMobileTauriRuntime()) {
+  // The workbench builds its Host client synchronously; a paired phone needs
+  // its Keychain credential in memory before that first hello.
+  const savedEndpoint = loadDesktopRemoteHostTarget()?.endpoint;
+  void (savedEndpoint === undefined ? Promise.resolve() : primeDeviceCredential(savedEndpoint)).finally(
+    () => {
+      root.render(<DesktopThemeRoot />);
+    },
+  );
+} else {
+  root.render(<DesktopThemeRoot />);
+}

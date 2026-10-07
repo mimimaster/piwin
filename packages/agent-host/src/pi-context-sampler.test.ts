@@ -548,8 +548,35 @@ describe('pi-context-sampler', () => {
       recordedAt: sampledAt,
     };
     expect(
-      applyAssistantRequestTiming(measurement, { startedAtMs: 1000, firstTokenAtMs: 1350 }, 3000),
-    ).toMatchObject({ firstTokenMs: 350, durationMs: 2000 });
+      applyAssistantRequestTiming(
+        measurement,
+        { startedAtMs: 1000, firstTokenAtMs: 1350, firstTokenKind: 'reasoning' },
+        3000,
+      ),
+    ).toMatchObject({ firstTokenMs: 350, durationMs: 2000, firstTokenKind: 'reasoning' });
+  });
+
+  it('drops a stamped first-token kind when its latency is replaced or implausible', () => {
+    const measurement: AssistantUsageMeasurement = {
+      measurementId: 'm',
+      sessionId: 's',
+      messageId: 'm-1',
+      totalTokens: 10,
+      recordedAt: sampledAt,
+      firstTokenMs: 9000,
+      firstTokenKind: 'content',
+      reasoningTokens: 4,
+    };
+    const fromState = applyAssistantRequestTiming(
+      measurement,
+      { startedAtMs: 1000, firstTokenAtMs: 1350, firstTokenKind: 'reasoning' },
+      3000,
+    );
+    expect(fromState).toMatchObject({ firstTokenMs: 350, firstTokenKind: 'reasoning', reasoningTokens: 4 });
+    const withoutFirstToken = applyAssistantRequestTiming(measurement, { startedAtMs: 1000 }, 3000);
+    expect(withoutFirstToken.firstTokenMs).toBeUndefined();
+    expect(withoutFirstToken.firstTokenKind).toBeUndefined();
+    expect(withoutFirstToken.reasoningTokens).toBe(4);
   });
 
   it('prefers the stream clock over provider-reported timing', () => {
@@ -574,6 +601,7 @@ describe('pi-context-sampler', () => {
       totalTokens: 10,
       recordedAt: sampledAt,
       firstTokenMs: 400,
+      firstTokenKind: 'content',
     };
     expect(
       applyAssistantRequestTiming(
@@ -582,7 +610,7 @@ describe('pi-context-sampler', () => {
         3000,
         1000,
       ),
-    ).toMatchObject({ firstTokenMs: 400, durationMs: 2000 });
+    ).toMatchObject({ firstTokenMs: 400, durationMs: 2000, firstTokenKind: 'content' });
   });
 
   it('omits firstTokenMs when the first increment arrives at finalize', () => {

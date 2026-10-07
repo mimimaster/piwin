@@ -932,6 +932,21 @@ mobile OS integration such as secure credential storage, camera/file pickers,
 and notifications. It never imports Pi packages or receives Host absolute
 paths.
 
+### 9.2. Shared Rust shell crates
+
+    crates/
+      artifact-webview/    # piwin-artifact document scheme + WKWebView return channel
+
+`crates/` holds Rust code that more than one Tauri shell links. A crate lands
+here only when both `apps/desktop/src-tauri` and `apps/mobile/src-tauri` need
+the same native behavior; shell-specific code stays in the owning app. These
+crates depend on `tauri`/OS APIs only — never on Host, Pi, or Node.
+
+`artifact-webview` exists because the iOS shell's default interface is the
+Desktop workbench build served from `tauri://`: Artifact iframes need the same
+isolated document scheme and size/action return channel there as on Desktop
+(ADR 0005, 2026-10-06 amendment).
+
 Flashcard catalog and study pages are first-class Mobile routes (`#flashcards`,
 `#flashcards/study/<roundId>`), not chat-only Q/A. v1 Mobile study is
 **online-only** against the same Host. Source preview is title + excerpt;

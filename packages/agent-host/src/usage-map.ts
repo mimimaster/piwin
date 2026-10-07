@@ -75,6 +75,18 @@ export function mapUsageSnapshot(
   // TTFT is stamped on the assistant message by the LLM stream wrapper,
   // not by Pi Usage. Ignore usage.firstTokenMs / ttftMs (unknown origin).
   const firstTokenMs = readNumber(record.firstTokenMs);
+  const firstTokenKind =
+    record.firstTokenKind === 'reasoning' || record.firstTokenKind === 'content'
+      ? record.firstTokenKind
+      : undefined;
+  // Pi `usage.reasoning` is a subset of output; left undefined (not 0) when
+  // the provider exposes no reasoning breakdown.
+  const reasoningTokens =
+    readNumber(nested.reasoningTokens) ??
+    readNumber(nested.reasoning) ??
+    readNumber(nested.reasoning_tokens) ??
+    readNumber(asRecord(nested.output_tokens_details)?.reasoning_tokens) ??
+    readNumber(asRecord(nested.completion_tokens_details)?.reasoning_tokens);
   const totalTokens =
     readNumber(nested.totalTokens) ??
     readNumber(nested.total) ??
@@ -124,6 +136,10 @@ export function mapUsageSnapshot(
   if (totalTokens !== undefined) snapshot.totalTokens = totalTokens;
   if (durationMs !== undefined) snapshot.durationMs = durationMs;
   if (firstTokenMs !== undefined) snapshot.firstTokenMs = firstTokenMs;
+  if (firstTokenKind !== undefined) snapshot.firstTokenKind = firstTokenKind;
+  if (reasoningTokens !== undefined && reasoningTokens >= 0) {
+    snapshot.reasoningTokens = reasoningTokens;
+  }
 
   const usedForRatio = resolvedTokensUsed ?? totalTokens;
   if (usedForRatio !== undefined && tokensLimit !== undefined && tokensLimit > 0) {

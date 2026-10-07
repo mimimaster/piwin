@@ -13,11 +13,11 @@
   align-items: center;
   gap: var(--s-1);
   width: 100%;
-  min-height: var(--titleband-height);
-  height: var(--titleband-height);
+  min-height: var(--titleband-box-height, var(--titleband-height));
+  height: var(--titleband-box-height, var(--titleband-height));
   /* Deck-inset titleband: --titleband-leading is 0-floored so Web/Windows
      do not pull left when Overlay clearance is 0. */
-  padding: 0 var(--s-3) 0 var(--titleband-leading);
+  padding: var(--titleband-padding, 0 var(--s-3) 0 var(--titleband-leading));
   box-sizing: border-box;
   margin: 0;
   background: transparent;
@@ -63,16 +63,16 @@
    stage. With the sidebar open, hold the cluster to the sidebar's width so the
    title starts at the seam instead of straddling it. Collapsed, there is no
    seam and the title simply follows the arrows. */
-.app-shell.nav-open > .context-bar > .context-bar-leading {
+.app-shell[data-layout='desktop'].nav-open > .context-bar > .context-bar-leading {
   min-width: calc(var(--sidebar-width) + var(--deck-gap) - var(--titleband-leading));
 }
 
 /* Chrome icon buttons: recessive at rest, a real surface on hover. A hover
    that only changes glyph color reads as unresponsive at this size. */
 .context-bar .piwin-icon-button {
-  width: var(--h-sm);
-  height: var(--h-sm);
-  min-width: var(--h-sm);
+  width: var(--titleband-btn-size, var(--h-sm));
+  height: var(--titleband-btn-size, var(--h-sm));
+  min-width: var(--titleband-btn-size, var(--h-sm));
   border-radius: var(--r-control);
   color: var(--text-3);
   flex-shrink: 0;

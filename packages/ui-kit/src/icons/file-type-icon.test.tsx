@@ -1,13 +1,21 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
-import { FileTypeIcon, resolveFileTypeInfo, type FileTypeInfo } from './file-type-icon.js';
+import { beforeAll, describe, expect, it } from 'vitest';
+import {
+  FileTypeIcon,
+  loadMaterialFileIcons,
+  resolveFileTypeInfo,
+  type FileTypeInfo,
+} from './file-type-icon.js';
 
 function markupFor(filePathOrExt: string): string {
   return renderToStaticMarkup(createElement(FileTypeIcon, { filePathOrExt }));
 }
 
 describe('FileTypeIcon', () => {
+  beforeAll(async () => {
+    await loadMaterialFileIcons();
+  });
   it('resolves common source file groups', () => {
     expect(resolveFileTypeInfo('component.tsx').kind).toBe('react');
     expect(resolveFileTypeInfo('worker.mts').kind).toBe('typescript');

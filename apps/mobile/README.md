@@ -8,7 +8,25 @@ remote Host slice: it connects through HostClient, reads the safe project and
 session model, streams chat, resolves permissions, and uploads small images as
 opaque Host assets. Pairing and secure credential storage are follow-up slices.
 
-## Inkstone shell
+## Two interfaces
+
+The shell bundles two front ends (ADR 0084):
+
+- **Default** — the responsive workbench from `apps/desktop` (shell-only
+  build), served at `/`.
+- **Classic** — the Inkstone interface in this package, served at `/classic/`.
+  Frozen: crash fixes only.
+
+`pnpm --dir apps/mobile build:shell` assembles both into `dist/`; it is the
+Tauri `beforeBuildCommand`. Switch in Settings → General → 界面模式 (default) or
+案头 → 界面模式 (classic). `pnpm dev` / `ios:dev` still serve classic alone.
+
+Device capabilities are shared by both interfaces and live in
+`@piwin/host-client`: pairing-code parsing, the Keychain credential vault, the
+client-tool runtime and the HealthKit bridge (`device-tools/`). This package
+only binds them to the shell's Tauri `invoke`.
+
+## Inkstone shell (classic)
 
 The rendered shell is the Inkstone mobile UI (visual source:
 `docs/design/inkstone/mobile/`). It is a thin Host client: every screen reads

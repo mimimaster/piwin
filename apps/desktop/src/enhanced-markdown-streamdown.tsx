@@ -2,29 +2,33 @@ import {
   Children,
   cloneElement,
   isValidElement,
+  useEffect,
   useMemo,
+  useState,
   type ComponentProps,
   type JSX,
   type ReactElement,
   type ReactNode,
 } from 'react';
 import { cjk } from '@streamdown/cjk';
-import { createMathPlugin } from '@streamdown/math';
 import { Streamdown, type Components, type ExtraProps } from 'streamdown';
 import { PathChip } from './path-chip';
 import { MermaidBlock } from './MermaidBlock';
 import { escapeRawHtmlInMarkdown } from './markdown-html-escape';
-import { renderKatex, isMermaidFenceLanguage, isMathFenceLanguage } from './markdown-math';
+import { isMermaidFenceLanguage, isMathFenceLanguage } from './markdown-math';
+import { MathView } from './markdown-math-view.js';
 import { commentsRenderKey } from './doc-comments';
 import { LineCommentWrapper } from './enhanced-markdown-comments';
 import { HeadingElement } from './enhanced-markdown-legacy';
 import { CodeBlockView } from './enhanced-markdown-code-block';
 import type { EnhancedMarkdownViewProps, LineCommentItem } from './enhanced-markdown-types.js';
+import {
+  getStreamdownMathPlugin,
+  loadStreamdownMathPlugin,
+  type StreamdownMathPlugin,
+} from './streamdown-math-plugin.js';
 
-const ENHANCED_STREAMDOWN_PLUGINS = {
-  cjk,
-  math: createMathPlugin({ singleDollarTextMath: false }),
-};
+const ENHANCED_STREAMDOWN_BASE_PLUGINS = { cjk } as const;
 const ENHANCED_LINK_SAFETY = { enabled: false };
 
 type EnhancedStreamdownContentProps = Omit<EnhancedMarkdownViewProps, 'text'> & {
@@ -162,6 +166,23 @@ export function EnhancedStreamdownContent({
       onCommentLine,
     ],
   );
+  const [mathPlugin, setMathPlugin] = useState<StreamdownMathPlugin | null>(() =>
+    getStreamdownMathPlugin(),
+  );
+  useEffect(() => {
+    if (mathPlugin) return undefined;
+    let cancelled = false;
+    void loadStreamdownMathPlugin().then((plugin) => {
+      if (!cancelled) setMathPlugin(plugin);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mathPlugin]);
+  const plugins = useMemo(
+    () => (mathPlugin ? { cjk, math: mathPlugin } : ENHANCED_STREAMDOWN_BASE_PLUGINS),
+    [mathPlugin],
+  );
 
   return (
     <Streamdown
@@ -169,7 +190,7 @@ export function EnhancedStreamdownContent({
       className="enhanced-markdown-streamdown"
       mode="static"
       parseIncompleteMarkdown={false}
-      plugins={ENHANCED_STREAMDOWN_PLUGINS}
+      plugins={plugins}
       components={components}
       controls={false}
       lineNumbers={false}
@@ -357,16 +378,11 @@ function createEnhancedStreamdownComponents(
       );
     }
     if (isMathFenceLanguage(language)) {
-      const katexResult = renderKatex(source, true);
       return wrapReviewLine(
         'code',
         node,
         lineText,
-        katexResult.ok ? (
-          <div className="enhanced-math-display" dangerouslySetInnerHTML={{ __html: katexResult.html }} />
-        ) : (
-          <pre className="enhanced-code"><code>{source}</code></pre>
-        ),
+        <MathView tex={source} display className="enhanced-math-display" />,
       );
     }
     return (

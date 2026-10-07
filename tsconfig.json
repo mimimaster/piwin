@@ -6,6 +6,7 @@
     { "path": "packages/doc-rag" },
     { "path": "packages/flashcards" },
     { "path": "packages/automation" },
+    { "path": "packages/health" },
     { "path": "packages/agent-host" },
     { "path": "packages/session" },
     { "path": "packages/project" },

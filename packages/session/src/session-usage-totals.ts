@@ -42,6 +42,12 @@ export function readSessionUsageTotals(db: DatabaseSync, sessionId: string): Ses
           : {}),
         ...(measurement.durationMs !== undefined ? { durationMs: measurement.durationMs } : {}),
         ...(measurement.firstTokenMs !== undefined ? { firstTokenMs: measurement.firstTokenMs } : {}),
+        ...(measurement.reasoningTokens !== undefined
+          ? { reasoningTokens: measurement.reasoningTokens }
+          : {}),
+        ...(measurement.firstTokenKind !== undefined
+          ? { firstTokenKind: measurement.firstTokenKind }
+          : {}),
       };
     }
   }

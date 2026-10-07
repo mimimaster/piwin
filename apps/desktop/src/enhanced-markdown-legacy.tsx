@@ -1,7 +1,8 @@
 import { type ReactElement, type ReactNode } from 'react';
 import { PathChip } from './path-chip';
 import { MermaidBlock } from './MermaidBlock';
-import { renderKatex, isMermaidFenceLanguage, isMathFenceLanguage } from './markdown-math';
+import { isMermaidFenceLanguage, isMathFenceLanguage } from './markdown-math';
+import { MathView } from './markdown-math-view.js';
 import { LineCommentWrapper } from './enhanced-markdown-comments';
 import { CodeBlockView } from './enhanced-markdown-code-block';
 import { DiffBadge, renderFormattedText } from './enhanced-markdown-format';
@@ -185,15 +186,7 @@ export function EnhancedBlockView({
       return <MermaidBlock source={block.source} />;
     }
     if (isMathFenceLanguage(block.language)) {
-      const katexResult = renderKatex(block.source, true);
-      if (katexResult.ok) {
-        return (
-          <div
-            className="enhanced-math-display"
-            dangerouslySetInnerHTML={{ __html: katexResult.html }}
-          />
-        );
-      }
+      return <MathView tex={block.source} display className="enhanced-math-display" />;
     }
     return (
       <CodeBlockView

@@ -7,6 +7,7 @@ import {
   type ContextOccupancy,
   type SessionContextPhase,
   type SessionContextSnapshot,
+  type UsageReasoningTiming,
 } from '@piwin/contracts';
 import type { ContextTelemetryState } from './context-telemetry-reducer.js';
 import {
@@ -43,7 +44,7 @@ export type ContextRingLastRequest = {
   durationMs?: number;
   /** Time to first token; generation speed excludes it. */
   firstTokenMs?: number;
-};
+} & UsageReasoningTiming;
 
 export type ContextRingViewModel = {
   visible: boolean;
@@ -565,5 +566,7 @@ function projectLastRequest(
     ...(typeof usage.totalTokens === 'number' ? { totalTokens: usage.totalTokens } : {}),
     ...(typeof usage.durationMs === 'number' ? { durationMs: usage.durationMs } : {}),
     ...(typeof usage.firstTokenMs === 'number' ? { firstTokenMs: usage.firstTokenMs } : {}),
+    ...(typeof usage.reasoningTokens === 'number' ? { reasoningTokens: usage.reasoningTokens } : {}),
+    ...(usage.firstTokenKind !== undefined ? { firstTokenKind: usage.firstTokenKind } : {}),
   };
 }

@@ -1,4 +1,5 @@
 import type { DesktopRemoteHostTarget } from './remote-host-session';
+import { isDesktopTauriRuntime } from './shell-runtime.js';
 
 /**
  * Transport identity for the desktop host client. `detectTransport` resolves
@@ -35,6 +36,7 @@ export function detectTransport(options: HostClientOptions): TransportMode {
   return isTauriRuntime() ? 'live' : 'mock';
 }
 
+/** Desktop app only; the mobile shell has no sidecar and always attaches remotely. */
 export function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  return isDesktopTauriRuntime();
 }

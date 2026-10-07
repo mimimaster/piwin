@@ -442,6 +442,11 @@ export type SessionLiveContext = {
     sessionId: string,
     disabledServerIds: readonly string[] | undefined,
   ) => boolean;
+  /**
+   * True when a paired device has offered a device tool (Apple Health) since
+   * the active generation froze its tool surface without it.
+   */
+  sessionDeviceToolsGained?: (sessionId: string) => boolean;
   /** Bind this run to a turn-change attempt after userMessageId is known. */
   beginTurnChangeRun?: (input: {
     sessionId: string;

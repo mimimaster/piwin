@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   MIN_ARTIFACT_IFRAME_HEIGHT,
   resolveArtifactViewportFrameHeight,
@@ -121,8 +121,18 @@ export function ArtifactStatic({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [overflows, setOverflows] = useState(false);
   const [localViewportHeight, setLocalViewportHeight] = useState<number | null>(null);
-  const sanitizedSource = useMemo(() => sanitizeStaticArtifactSource(source), [source]);
+  const [sanitizedSource, setSanitizedSource] = useState('');
   const themeCss = useMemo(() => buildThemeCss(theme), [theme]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void sanitizeStaticArtifactSource(source).then((next) => {
+      if (!cancelled) setSanitizedSource(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [source]);
 
   useLayoutEffect(() => {
     const host = hostRef.current;

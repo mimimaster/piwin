@@ -50,6 +50,7 @@ describe('wrapLlmStreamWithRequestTiming', () => {
     now = 3_000;
     expect((await iterator.next()).value).toMatchObject({ type: 'done' });
     expect(message.firstTokenMs).toBe(350);
+    expect(message.firstTokenKind).toBe('content');
     const timed = wrapped as { result: () => Promise<Record<string, unknown>> };
     await expect(timed.result()).resolves.toMatchObject({ firstTokenMs: 350 });
   });
@@ -70,6 +71,7 @@ describe('wrapLlmStreamWithRequestTiming', () => {
     now = 5_080;
     await collect(wrapped);
     expect(message.firstTokenMs).toBe(80);
+    expect(message.firstTokenKind).toBe('reasoning');
   });
 
   it('counts toolcall_delta but not toolcall_start, matching oh-my-tps', async () => {

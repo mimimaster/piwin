@@ -99,6 +99,8 @@ export function mapFinalizedAssistantUsage(input: {
   }
   if (snapshot.durationMs !== undefined) measurement.durationMs = snapshot.durationMs;
   if (snapshot.firstTokenMs !== undefined) measurement.firstTokenMs = snapshot.firstTokenMs;
+  if (snapshot.firstTokenKind !== undefined) measurement.firstTokenKind = snapshot.firstTokenKind;
+  if (snapshot.reasoningTokens !== undefined) measurement.reasoningTokens = snapshot.reasoningTokens;
   if (stopReason !== undefined && stopReason.length > 0) measurement.stopReason = stopReason;
   return measurement;
 }

@@ -5,6 +5,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import { resolveArtifactViewportFrameHeight } from '@piwin/artifact';
 import { ArtifactStatic } from './ArtifactStatic.js';
 import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
+import { sanitizeStaticArtifactSource } from './artifact-static-sanitizer.js';
+
+async function flushArtifactEffects(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -15,12 +23,13 @@ describe('ArtifactStatic', () => {
   let root: Root;
   let previousActEnvironment: boolean | undefined;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    await sanitizeStaticArtifactSource('<p>warm</p>');
   });
 
   afterEach(() => {
@@ -29,7 +38,7 @@ describe('ArtifactStatic', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
-  it('renders sanitized static markup in a naturally-sized Shadow DOM without an iframe', () => {
+  it('renders sanitized static markup in a naturally-sized Shadow DOM without an iframe', async () => {
     act(() => {
       root.render(
         <ArtifactStatic
@@ -38,6 +47,7 @@ describe('ArtifactStatic', () => {
         />,
       );
     });
+    await flushArtifactEffects();
 
     const host = container.querySelector<HTMLElement>('[data-testid="artifact-static"]');
     expect(host?.shadowRoot?.querySelector('h1')?.textContent).toBe('Hello');
@@ -48,7 +58,7 @@ describe('ArtifactStatic', () => {
     expect(host?.style.height).toBe('');
   });
 
-  it('removes executable markup as defense in depth', () => {
+  it('removes executable markup as defense in depth', async () => {
     act(() => {
       root.render(
         <ArtifactStatic
@@ -57,6 +67,7 @@ describe('ArtifactStatic', () => {
         />,
       );
     });
+    await flushArtifactEffects();
 
     const shadow = container.querySelector<HTMLElement>(
       '[data-testid="artifact-static"]',
@@ -65,7 +76,7 @@ describe('ArtifactStatic', () => {
     expect(shadow?.querySelector('[onerror]')).toBeNull();
   });
 
-  it('materializes defs wheel groups referenced by local use, matching the pelican SVG', () => {
+  it('materializes defs wheel groups referenced by local use, matching the pelican SVG', async () => {
     act(() => {
       root.render(
         <ArtifactStatic
@@ -83,6 +94,7 @@ describe('ArtifactStatic', () => {
         />,
       );
     });
+    await flushArtifactEffects();
 
     const shadow = container.querySelector<HTMLElement>(
       '[data-testid="artifact-static"]',
@@ -93,7 +105,7 @@ describe('ArtifactStatic', () => {
     expect(shadow?.querySelectorAll('.rear-wheel circle, .front-wheel circle').length).toBe(4);
   });
 
-  it('expands safe local SVG use instances for WebKit Shadow DOM rendering', () => {
+  it('expands safe local SVG use instances for WebKit Shadow DOM rendering', async () => {
     act(() => {
       root.render(
         <ArtifactStatic
@@ -108,6 +120,7 @@ describe('ArtifactStatic', () => {
         />,
       );
     });
+    await flushArtifactEffects();
 
     const shadow = container.querySelector<HTMLElement>(
       '[data-testid="artifact-static"]',
@@ -120,7 +133,7 @@ describe('ArtifactStatic', () => {
     );
   });
 
-  it('does not expand an external SVG use reference', () => {
+  it('does not expand an external SVG use reference', async () => {
     act(() => {
       root.render(
         <ArtifactStatic
@@ -129,6 +142,7 @@ describe('ArtifactStatic', () => {
         />,
       );
     });
+    await flushArtifactEffects();
 
     const shadow = container.querySelector<HTMLElement>(
       '[data-testid="artifact-static"]',
@@ -136,7 +150,7 @@ describe('ArtifactStatic', () => {
     expect(shadow?.querySelectorAll('circle')).toHaveLength(1);
   });
 
-  it('drops percentage height on viewBox SVGs so transcript cards keep aspect ratio', () => {
+  it('drops percentage height on viewBox SVGs so transcript cards keep aspect ratio', async () => {
     act(() => {
       root.render(
         <ArtifactStatic
@@ -145,6 +159,7 @@ describe('ArtifactStatic', () => {
         />,
       );
     });
+    await flushArtifactEffects();
 
     const shadow = container.querySelector<HTMLElement>(
       '[data-testid="artifact-static"]',
@@ -155,7 +170,7 @@ describe('ArtifactStatic', () => {
     expect(svg?.getAttribute('viewBox')).toBe('0 0 900 650');
   });
 
-  it('expands pelican-style wheels nested under transformed groups', () => {
+  it('expands pelican-style wheels nested under transformed groups', async () => {
     act(() => {
       root.render(
         <ArtifactStatic
@@ -170,6 +185,7 @@ describe('ArtifactStatic', () => {
         />,
       );
     });
+    await flushArtifactEffects();
 
     const shadow = container.querySelector<HTMLElement>(
       '[data-testid="artifact-static"]',
@@ -180,10 +196,11 @@ describe('ArtifactStatic', () => {
     expect(shadow?.querySelector('svg')?.getAttribute('height') ?? null).toBeNull();
   });
 
-  it('does not wrap ordinary static content in an overflow shell', () => {
+  it('does not wrap ordinary static content in an overflow shell', async () => {
     act(() => {
       root.render(<ArtifactStatic type="html" source="<section>Short</section>" />);
     });
+    await flushArtifactEffects();
     expect(container.querySelector('[data-testid="artifact-static-overflow-shell"]')).toBeNull();
     expect(container.querySelector('[data-testid="artifact-overflow-hint"]')).toBeNull();
     const base = container
@@ -192,7 +209,7 @@ describe('ArtifactStatic', () => {
     expect(base?.textContent).not.toContain('contain: paint');
   });
 
-  it('puts super-tall static content in a visible overflow shell instead of paint-clipping', () => {
+  it('puts super-tall static content in a visible overflow shell instead of paint-clipping', async () => {
     const proto = HTMLElement.prototype.getBoundingClientRect;
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
       this: HTMLElement,
@@ -216,6 +233,7 @@ describe('ArtifactStatic', () => {
     act(() => {
       root.render(<ArtifactStatic type="html" source="<section>Tall</section>" />);
     });
+    await flushArtifactEffects();
 
     const shell = container.querySelector<HTMLElement>(
       '[data-testid="artifact-static-overflow-shell"]',

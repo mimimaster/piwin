@@ -75,7 +75,6 @@
 @import './styles/region-marketplace-layout.css';
 @import './styles/region-marketplace-seals.css';
 @import './styles/region-marketplace-entry-dialog.css';
-
 @import './styles/region-notes.css';
 @import './styles/region-knowledge.css';
 @import './styles/region-knowledge-stage.css';
@@ -132,6 +131,8 @@
 @import './styles/inkstone/subpages.css';
 @import './styles/inkstone/motion.css';
 @import './styles/region-phone.css';
+@import './styles/region-phone-edge.css';
+@import './styles/region-phone-touch.css';
 /* Memory-governor degradation overlay. Cross-cutting override layer, not a
    region: keyed off html[data-memory-pressure] and must import last so its
    !important strips beat every region sheet above. */

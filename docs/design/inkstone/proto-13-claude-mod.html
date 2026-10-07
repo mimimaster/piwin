@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN" data-face="ink">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>proto-13 · 墨台 mod for Claude desktop</title>
+<style>
+/* --h* = Claude 桌面端 Code 标签自己的界面（示意，mod 不碰）。其余是 Inkstone 令牌，只用在 mod 画的那几块里。 */
+:root[data-face=ink]{color-scheme:dark;--page:#0b0a09;--h0:#1a1918;--h1:#1f1e1d;--h2:#262624;--h3:#30302e;--ht1:#f0eee6;--ht2:#b4b1a7;--ht3:#7d7b74;--hl:rgba(240,238,230,.1);--clay:#d97757;
+--s1:#141210;--s2:#191714;--s3:#201d19;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--on-zhu:#1c0b07;--lamp:#e7b352;--pine:#5fad85;--crimson:#d95f6e;--azure:#6ba4c3;--ink:#ebe5da;--well:#0b0a09}
+:root[data-face=paper]{color-scheme:light;--page:#e6e1d7;--h0:#ebe9e1;--h1:#f3f1ea;--h2:#faf9f5;--h3:#fff;--ht1:#1f1e1d;--ht2:#5e5d59;--ht3:#91908a;--hl:rgba(31,30,29,.12);--clay:#c96442;
+--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--on-zhu:#fff7f0;--lamp:#b8801f;--pine:#3d7c5e;--crimson:#9c2e3d;--azure:#3a7797;--ink:#1d1b17;--well:#e6e1d7}
+*{box-sizing:border-box;margin:0;padding:0}
+body{--sans:Inter,'PingFang SC','Noto Sans SC',-apple-system,system-ui,sans-serif;--serif:'Noto Serif SC','Songti SC','STSong',Georgia,serif;--mono:'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  background:var(--page);color:var(--t1);font:13px/1.6 var(--sans);padding:28px 24px 56px;min-height:100vh}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.wrap{max-width:1400px;margin:0 auto}
+.doc-h{display:flex;align-items:flex-end;gap:20px;margin-bottom:18px;flex-wrap:wrap}
+.doc-h h1{font:600 22px/1.3 var(--serif);letter-spacing:.02em}
+.doc-h p{color:var(--t3);font-size:12px;max-width:680px}
+.eyebrow{font:10px var(--mono);letter-spacing:.1em;color:var(--t4);text-transform:uppercase}
+.seg{margin-left:auto;display:flex;gap:10px}
+.seg>div{display:flex;padding:2px;border-radius:7px;background:var(--s2);box-shadow:0 0 0 1px var(--l2)}
+.seg button{font:11px var(--sans);padding:3px 11px;border-radius:5px;color:var(--t3)}
+.seg button.on{background:var(--s3);color:var(--t1);box-shadow:0 0 0 1px var(--l2)}
+
+/* ---------- Claude 桌面端（示意） ---------- */
+.win{display:grid;grid-template-columns:220px minmax(0,1fr) 330px;height:780px;border-radius:12px;overflow:hidden;background:var(--h2);color:var(--ht1);box-shadow:0 0 0 1px var(--hl),0 18px 40px -16px rgba(0,0,0,.5)}
+.side{background:var(--h1);border-right:1px solid var(--hl);padding:12px 10px;display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+.lights{display:flex;gap:7px;padding:2px 4px 14px}.lights i{width:11px;height:11px;border-radius:50%;background:var(--hl)}
+.side .new{padding:7px 9px;border-radius:8px;color:var(--ht1);margin-bottom:8px}
+.side .grp{font-size:11px;color:var(--ht3);padding:10px 9px 4px}
+.side .row{padding:6px 9px;border-radius:7px;color:var(--ht2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side .row.on{background:var(--h3);color:var(--ht1)}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.main-h{height:44px;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid var(--hl);font-size:12.5px;color:var(--ht2)}
+.main-h b{color:var(--ht1);font-weight:500}
+.scroll{flex:1;min-height:0;overflow:hidden;padding:64px 0 0}
+.col{max-width:700px;margin:0 auto;padding:0 28px}
+.u{margin:0 0 20px auto;max-width:78%;width:fit-content;background:var(--h3);border-radius:14px;padding:9px 14px;font-size:13.5px}
+.a{font-size:13.5px;margin-bottom:12px}
+.tool{color:var(--ht3);font-size:12.5px;margin-bottom:10px;display:flex;gap:6px;align-items:center}
+.tool::after{content:"›";color:var(--ht3)}
+.dock{padding:0 28px 14px}
+.dock-in{max-width:700px;margin:0 auto}
+.composer{background:var(--h3);border:1px solid var(--hl);border-radius:16px;padding:13px 14px 10px;color:var(--ht3)}
+.composer .bar{display:flex;align-items:center;gap:12px;margin-top:20px;font-size:12px;color:var(--ht2)}
+.composer .send{margin-left:auto;width:28px;height:28px;border-radius:9px;background:var(--clay)}
+.foot{display:flex;gap:14px;padding:7px 6px 0;font-size:11px;color:var(--ht3)}
+
+/* ---------- mod 画的块 ---------- */
+.mod{position:relative}
+.pin{position:absolute;z-index:3;width:18px;height:18px;border-radius:50%;background:var(--zhu);color:var(--on-zhu);font:600 10px/18px var(--mono);text-align:center}
+body.plain .pin{display:none}
+body:not(.plain) .mod{outline:1px dashed color-mix(in srgb,var(--zhu) 50%,transparent);outline-offset:3px;border-radius:4px}
+.hbtn{font-size:11.5px;padding:2px 9px;border-radius:7px;border:1px solid var(--hl);color:var(--ht1);background:var(--h3);white-space:nowrap}
+.hbtn kbd{font:10px var(--mono);color:var(--ht3);margin-left:5px}
+.hbtn.pri{background:var(--ht1);color:var(--h2);border-color:transparent}
+.dim{color:var(--ht3)}
+
+/* ① Spinner */
+.spin{display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0 0;width:fit-content}
+.spin .star{color:var(--clay);display:inline-block;animation:pulse 1.4s ease-in-out infinite}
+.shim{background:linear-gradient(90deg,var(--ht2) 0 38%,var(--ht1) 50%,var(--ht2) 62% 100%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shim 2.2s linear infinite}
+@keyframes pulse{50%{opacity:.35}}
+@keyframes shim{from{background-position:120% 0}to{background-position:-100% 0}}
+@media (prefers-reduced-motion:reduce){.star,.shim{animation:none}.shim{color:var(--ht2);background:none}}
+/* ② 收笔行 */
+.done{font-size:12px;color:var(--ht3);margin:0 0 22px;width:fit-content}
+/* ③ 墨量带 */
+.band{display:flex;align-items:center;gap:10px;padding:5px 2px 9px;font-size:12px;color:var(--ht2);flex-wrap:wrap}
+.band b{color:var(--ht1);font-weight:500}
+.band .sp{margin-left:auto;display:flex;gap:6px}
+.band svg{flex:none;display:block}
+/* ④ 侧窗 */
+.pane{background:var(--h1);border-left:1px solid var(--hl);display:flex;flex-direction:column;min-height:0;font-size:12.5px;color:var(--ht2)}
+.pane-h{height:44px;display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid var(--hl);color:var(--ht1);font-weight:500}
+.pane-h .x{margin-left:auto;color:var(--ht3);font-weight:400}
+.pane-b{flex:1;min-height:0;overflow:hidden;padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+.tabs{display:flex;gap:6px}
+.pane h4{font:500 11px var(--sans);color:var(--ht3);margin-bottom:5px}
+.turn{display:grid;grid-template-columns:16px 1fr;column-gap:8px}
+.turn>svg{grid-row:1/3}
+.turn b{color:var(--ht1);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.turn span{font-size:11.5px;color:var(--ht3);padding-bottom:9px}
+.fr{display:flex;gap:8px;font:11.5px var(--mono);padding:2px 0}
+.fr span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ht2)}
+.fr i{font-style:normal;margin-left:auto;color:var(--pine)}.fr u{text-decoration:none;color:var(--crimson)}
+/* ⑤ toast */
+.toast{position:absolute;right:16px;top:56px;background:var(--h3);border:1px solid var(--hl);border-radius:10px;padding:7px 12px;font-size:12px;box-shadow:0 8px 22px -10px rgba(0,0,0,.5)}
+
+/* ---------- 下方细节 ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:14px;margin-top:22px}
+.panel{background:var(--s1);border-radius:10px;box-shadow:0 0 0 1px var(--l2);padding:14px 16px}
+.panel h2{font:600 14px var(--serif);margin-bottom:2px}
+.panel>p{font-size:12px;color:var(--t3);margin-bottom:12px}
+.demo{background:var(--h2);color:var(--ht2);border-radius:8px;padding:9px 12px;margin-bottom:7px;font-size:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.demo b{color:var(--ht1);font-weight:500}
+.demo .k{font:10px var(--mono);color:var(--ht3);margin-left:auto}
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-top:14px}
+.lg{background:var(--s1);border-radius:9px;box-shadow:0 0 0 1px var(--l2);padding:11px 12px 12px 40px;position:relative;font-size:12px;color:var(--t2)}
+.lg .pin{left:12px;top:12px;display:block!important}
+.lg b{display:block;color:var(--t1);font-weight:500;font-size:12.5px}
+code{font:10.5px var(--mono);background:var(--s3);box-shadow:0 0 0 1px var(--l2);border-radius:4px;padding:1px 5px}
+.note{margin-top:14px;font-size:12px;color:var(--t3);max-width:920px}
+@media (max-width:1100px){.win{grid-template-columns:minmax(0,1fr) 310px}.side{display:none}}
+@media (max-width:760px){.win{grid-template-columns:1fr;height:auto}.pane{border-left:0;border-top:1px solid var(--hl)}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<!-- 可复用的 Svg 片段：朱印、墨量条。实装时就是 Svg 元素的 source 字符串。 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="seal" viewBox="0 0 18 18"><rect x=".5" y=".5" width="17" height="17" rx="4" fill="var(--zhu)"/><text x="9" y="13.2" text-anchor="middle" font-family="'Songti SC','Noto Serif SC',serif" font-weight="700" font-size="11.5" fill="var(--on-zhu)">墨</text></symbol>
+</svg>
+
+<div class="wrap">
+  <header class="doc-h">
+    <div>
+      <span class="eyebrow">proto-13 · claude desktop mod</span>
+      <h1>墨台 — 一个带 Inkstone 气质的 Claude 桌面端 mod</h1>
+      <p>mod 不是换肤：它只能在会话里的固定位置加小块界面。底下这扇窗是 Claude 桌面端 Code 标签本来的样子，虚线框 + 朱色编号才是「墨台」画的。</p>
+    </div>
+    <div class="seg">
+      <div id="face"><button data-v="ink" class="on">深色</button><button data-v="paper">浅色</button></div>
+      <div id="anno"><button data-v="on" class="on">标注</button><button data-v="off">净图</button></div>
+    </div>
+  </header>
+
+  <div class="win">
+    <aside class="side">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <div class="new">＋ 新会话</div>
+      <div class="grp">piwin</div>
+      <div class="row on">修 artifact 沙箱的 CSP 断言</div>
+      <div class="row">手机布局验证</div>
+      <div class="grp">更早</div>
+      <div class="row">知识库合并方案</div>
+    </aside>
+
+    <section class="main">
+      <div class="main-h"><b>修 artifact 沙箱的 CSP 断言</b><span>piwin</span><span>main</span></div>
+      <div class="mod toast"><span class="pin" style="left:-9px;top:-9px">5</span>收笔 · 1m 23s · 9 工具</div>
+
+      <div class="scroll"><div class="col">
+        <div class="u">给 artifact 的 srcdoc 补上 CSP 断言，跑一遍包内测试。</div>
+        <div class="tool">读了 3 个文件，搜索 1 次</div>
+        <div class="a">断言补好了：<b>default-src 'none'</b> 和不带 allow-same-origin 两条都覆盖到，包内 22 个测试全过。</div>
+        <div class="tool">改了 srcdoc.test.ts</div>
+        <div class="mod done"><span class="pin" style="left:-26px;top:1px">2</span>收笔 · 1m 23s · 9 工具 · 3 文件 +123 −11 · 墨量 +4%</div>
+
+        <div class="u">再把 wiki 那页的引用也对上。</div>
+        <div class="tool">读了 concepts/artifact-sandbox-csp.md</div>
+        <div class="mod spin"><span class="pin" style="left:-26px;top:1px">1</span><span class="star">✳</span><span class="shim">运笔… · 2 工具 · 18s</span></div>
+      </div></div>
+
+      <div class="dock"><div class="dock-in">
+        <div class="mod band">
+          <span class="pin" style="left:-26px;top:5px">3</span>
+          <svg width="18" height="18"><use href="#seal"/></svg>
+          <b>墨量 38%</b>
+          <svg width="150" height="12" viewBox="0 0 150 12" role="img" aria-label="上下文已用 38%，压缩线在 83%"><rect x=".5" y="2.5" width="149" height="7" rx="3.5" fill="var(--well)" stroke="var(--l3)"/><rect x="1" y="3" width="57" height="6" rx="3" fill="var(--ink)"/><rect x="124" y="0" width="1.5" height="12" fill="var(--zhu)"/></svg>
+          <span>76k / 200k</span>
+          <svg width="62" height="14" viewBox="0 0 62 14" role="img" aria-label="近 12 轮每轮增量"><g fill="var(--t3)"><rect x="0" y="10" width="3" height="4"/><rect x="5" y="8" width="3" height="6"/><rect x="10" y="11" width="3" height="3"/><rect x="15" y="5" width="3" height="9"/><rect x="20" y="9" width="3" height="5"/><rect x="25" y="10" width="3" height="4"/><rect x="30" y="2" width="3" height="12"/><rect x="35" y="8" width="3" height="6"/><rect x="40" y="11" width="3" height="3"/><rect x="45" y="7" width="3" height="7"/><rect x="50" y="9" width="3" height="5"/></g><rect x="55" y="6" width="3" height="8" fill="var(--zhu)"/></svg>
+          <span class="dim">5h 额度 41%</span>
+          <span class="sp"><button class="hbtn">墨案<kbd>1</kbd></button><button class="hbtn">收起<kbd>2</kbd></button></span>
+        </div>
+        <div class="composer">回复…<div class="bar"><span>＋</span><span>Opus 5.5</span><span>自动</span><span class="send"></span></div></div>
+        <div class="foot"><span>piwin · main</span><span class="mod" style="padding:0 3px"><span class="pin" style="right:-24px;top:-1px">5</span>墨 38%</span></div>
+      </div></div>
+    </section>
+
+    <aside class="mod pane" style="border-radius:0">
+      <span class="pin" style="left:-9px;top:52px">4</span>
+      <div class="pane-h"><svg width="18" height="18"><use href="#seal"/></svg>墨案<span class="x">✕</span></div>
+      <div class="pane-b">
+        <div class="tabs"><button class="hbtn pri">卷<kbd style="color:inherit;opacity:.6">1</kbd></button><button class="hbtn">变更<kbd>2</kbd></button><button class="hbtn">墨量<kbd>3</kbd></button></div>
+        <div>
+          <h4>本次会话 · 3 轮</h4>
+          <div class="turn"><svg width="16" height="46" viewBox="0 0 16 46"><path d="M8 10v36" stroke="var(--l3)"/><circle cx="8" cy="8" r="3.5" fill="var(--pine)"/></svg><b>先看 srcdoc 现在怎么拼 CSP</b><span>42s · 4 工具 · 只读</span></div>
+          <div class="turn"><svg width="16" height="46" viewBox="0 0 16 46"><path d="M8 0v46" stroke="var(--l3)"/><circle cx="8" cy="8" r="3.5" fill="var(--pine)"/></svg><b>给 artifact 的 srcdoc 补上 CSP 断言…</b><span>1m 23s · 9 工具 · 3 文件 +123 −11</span></div>
+          <div class="turn"><svg width="16" height="30" viewBox="0 0 16 30"><path d="M8 0v6" stroke="var(--l3)"/><circle cx="8" cy="8" r="3.5" fill="var(--lamp)"/></svg><b>再把 wiki 那页的引用也对上。</b><span>进行中 · 2 工具 · 18s</span></div>
+        </div>
+        <div>
+          <h4>第 2 轮的变更</h4>
+          <div class="fr"><span>packages/artifact/src/srcdoc.test.ts</span><i>+18</i><u>−2</u></div>
+          <div class="fr"><span>packages/artifact/src/srcdoc.ts</span><i>+64</i><u>−0</u></div>
+          <div class="fr"><span>concepts/artifact-sandbox-csp.md</span><i>+41</i><u>−9</u></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:auto"><button class="hbtn">看这一轮的 diff<kbd>d</kbd></button><button class="hbtn">复制小结<kbd>c</kbd></button></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="legend">
+    <div class="lg"><span class="pin">1</span><b>Spinner 换词</b>按阶段换成 研墨 / 蘸墨 / 运笔 / 落笔，后面跟本轮工具数和用时。宿主的动画原样保留，只改文字。</div>
+    <div class="lg"><span class="pin">2</span><b>收笔行</b>每轮结束在回答下面留一行：用时、工具数、改了几个文件、上下文涨了多少。纯文字。</div>
+    <div class="lg"><span class="pin">3</span><b>墨量带</b>输入框上方常驻一行。墨条 = 上下文已用，朱线 = 自动压缩的位置，小柱 = 近 12 轮每轮增量，末尾是套餐额度。可收起。</div>
+    <div class="lg"><span class="pin">4</span><b>侧窗「墨案」</b><code>/inkstone</code> 或带上的按钮打开。三个页签：卷（每轮一个墨点）、变更（按轮看文件）、墨量（明细）。</div>
+    <div class="lg"><span class="pin">5</span><b>提示与状态</b>超过一分钟的轮次结束时弹一条「收笔」；输入框下方状态行常驻「墨 38%」，带收起后靠它看余量。</div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Spinner 的四个词</h2>
+      <p>对应宿主给的四种阶段，一词一态。</p>
+      <div class="demo"><span style="color:var(--clay)">✳</span><b>研墨…</b><span class="k">thinking · 思考</span></div>
+      <div class="demo"><span style="color:var(--clay)">✳</span><b>蘸墨…</b><span class="k">requesting · 等模型</span></div>
+      <div class="demo"><span style="color:var(--clay)">✳</span><b>运笔… · 2 工具 · 18s</b><span class="k">tool-use · 跑工具</span></div>
+      <div class="demo"><span style="color:var(--clay)">✳</span><b>落笔… · 9 工具 · 1m 21s</b><span class="k">responding · 写回答</span></div>
+    </div>
+    <div class="panel">
+      <h2>墨量带的三种状态</h2>
+      <p>墨条颜色随用量变：墨色 → 灯黄 → 朱。过朱线后加一个「压缩」按钮。</p>
+      <div class="demo"><svg width="18" height="18"><use href="#seal"/></svg><b>墨量 38%</b><svg width="150" height="12" viewBox="0 0 150 12"><rect x=".5" y="2.5" width="149" height="7" rx="3.5" fill="var(--well)" stroke="var(--l3)"/><rect x="1" y="3" width="57" height="6" rx="3" fill="var(--ink)"/><rect x="124" y="0" width="1.5" height="12" fill="var(--zhu)"/></svg><span>76k / 200k</span><span class="k">墨足</span></div>
+      <div class="demo"><svg width="18" height="18"><use href="#seal"/></svg><b>墨量 67%</b><svg width="150" height="12" viewBox="0 0 150 12"><rect x=".5" y="2.5" width="149" height="7" rx="3.5" fill="var(--well)" stroke="var(--l3)"/><rect x="1" y="3" width="100" height="6" rx="3" fill="var(--lamp)"/><rect x="124" y="0" width="1.5" height="12" fill="var(--zhu)"/></svg><span>134k / 200k</span><span class="k">墨浓</span></div>
+      <div class="demo"><svg width="18" height="18"><use href="#seal"/></svg><b>墨量 86%</b><svg width="150" height="12" viewBox="0 0 150 12"><rect x=".5" y="2.5" width="149" height="7" rx="3.5" fill="var(--well)" stroke="var(--l3)"/><rect x="1" y="3" width="128" height="6" rx="3" fill="var(--zhu)"/><rect x="124" y="0" width="1.5" height="12" fill="var(--on-zhu)"/></svg><span>172k / 200k</span><button class="hbtn pri">现在压缩<kbd style="color:inherit;opacity:.6">3</kbd></button><span class="k">将满</span></div>
+    </div>
+  </div>
+
+  <p class="note">哪些是确定的、哪些是估的：五个落点、能拿到的数据（上下文、额度、工具调用、每轮用时）都查过官方文档和本机类型定义，是真的。按钮、侧窗外框、页签由桌面端自己画，样子我按常见形态估的；文字行的字体和间距也以宿主为准。Inkstone 的颜色和朱印只能落在 Svg 小图里（朱印、墨条、墨点），所以这版把「墨」放在词和小图上，而不是整片底色。</p>
+</div>
+<script>
+for (const [id, apply] of [
+  ['face', v => (document.documentElement.dataset.face = v)],
+  ['anno', v => document.body.classList.toggle('plain', v === 'off')],
+]) {
+  const group = document.getElementById(id)
+  group.addEventListener('click', e => {
+    const button = e.target.closest('button')
+    if (!button) return
+    for (const other of group.children) other.classList.toggle('on', other === button)
+    apply(button.dataset.v)
+  })
+}
+</script>
+</body>
+</html>

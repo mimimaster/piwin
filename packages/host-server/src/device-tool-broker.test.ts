@@ -55,6 +55,41 @@ async function createBroker(): Promise<{
 }
 
 describe('DeviceToolBroker', () => {
+  it('reports a capable device only while some device offers the capability', async () => {
+    const { broker, cleanup } = await createBroker();
+    try {
+      expect(broker.hasCapableDevice(APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID)).toBe(false);
+
+      broker.attach({
+        deviceId: 'device-a',
+        connectionEpoch: 'epoch-1',
+        clientType: 'desktop',
+        capabilities: [{ id: APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID, version: 1 }],
+        send: () => undefined,
+      });
+      await broker.flush();
+      expect(broker.hasCapableDevice(APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID)).toBe(true);
+
+      // Going offline does not withdraw the offer; the read reports that.
+      broker.detach('epoch-1');
+      await broker.flush();
+      expect(broker.hasCapableDevice(APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID)).toBe(true);
+
+      // Disconnecting Apple Health on the phone re-advertises without it.
+      broker.attach({
+        deviceId: 'device-a',
+        connectionEpoch: 'epoch-2',
+        clientType: 'desktop',
+        capabilities: [],
+        send: () => undefined,
+      });
+      await broker.flush();
+      expect(broker.hasCapableDevice(APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID)).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('sends one targeted request and accepts exactly one matching result', async () => {
     const { broker, logs, cleanup } = await createBroker();
     const sent: Array<ClientToolRequestFrame | ClientToolCancelFrame> = [];

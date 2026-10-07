@@ -129,8 +129,17 @@ export type SessionRuntimeResidencyController = {
   /**
    * Commit a successfully created generation. Foreground entries become
    * `resident-idle`; ephemeral entries become `resident-busy`.
+   *
+   * `admittedForRun`: the activation was started by an admitted Run, so the
+   * entry commits straight to `resident-busy`. Committing idle first and
+   * marking busy after the caller's remaining async bind work published a
+   * running session as idle — and suspendable — for as long as that work took.
    */
-  commitActivation: (sessionId: string, runtimeGenerationId: string) => void;
+  commitActivation: (
+    sessionId: string,
+    runtimeGenerationId: string,
+    options?: { admittedForRun?: boolean },
+  ) => void;
   /** Abort a failed activation and release its reservation. */
   abortActivation: (sessionId: string, runtimeGenerationId: string) => void;
   /** Mark a runtime busy (protected operation in flight). */

@@ -367,6 +367,19 @@ export async function handleMockOpsCommands(
           data: { plan: updated },
         };
       }
+      case 'health/status':
+      case 'health/delete-summaries':
+        return {
+          id,
+          type: 'response',
+          command: command.type,
+          success: true,
+          data: {
+            storageEnabled: host.mockConfig.health?.summaryStore.enabled === true,
+            devices: [],
+            digest: { enabled: host.mockConfig.health?.digest.enabled === true },
+          },
+        };
       case 'cron/list':
         return {
           id,

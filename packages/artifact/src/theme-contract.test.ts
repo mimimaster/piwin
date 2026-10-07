@@ -12,6 +12,29 @@ describe('applyArtifactThemeContract', () => {
     expect(result.repairs.length).toBeGreaterThan(0);
   });
 
+  it('keeps out-of-flow light circles such as snow particles', () => {
+    const source =
+      '<style>#snow i { position:absolute; top:-24px; border-radius:50%; background:#fff; animation:fall linear infinite; }</style><i style="position:absolute; border-radius:50%; background:#fff"></i>';
+    expect(applyArtifactThemeContract(source).changed).toBe(false);
+  });
+
+  it('still rewrites an in-flow light circle that can hold text', () => {
+    const result = applyArtifactThemeContract(
+      '<style>.badge { border-radius:50%; background:#fff; }</style>',
+    );
+    expect(result.source).toContain('background: var(--piwin-artifact-surface)');
+  });
+
+  it('keeps see-through light glows and still rewrites frosted light cards', () => {
+    const glow =
+      '<style>.glow { background: radial-gradient(circle, rgba(255,255,255,.4), transparent 70%); }\n.shine { background: rgba(255, 255, 255, 0.12); }</style>';
+    expect(applyArtifactThemeContract(glow).changed).toBe(false);
+    const frosted = applyArtifactThemeContract(
+      '<style>.card { background: rgba(255, 255, 255, 0.8); }</style>',
+    );
+    expect(frosted.source).toContain('background: var(--piwin-artifact-surface)');
+  });
+
   it('rewrites bg-white class', () => {
     const result = applyArtifactThemeContract('<div class="card bg-white p-4">x</div>');
     expect(result.changed).toBe(true);
@@ -59,6 +82,21 @@ describe('applyArtifactThemeContract', () => {
     expect(result.source).toContain('background: var(--piwin-artifact-surface)');
     expect(result.source).toContain('border: 1px solid #334155');
     expect(result.issues[0]?.kind).toBe('fixed-dark-surface');
+  });
+
+  it('keeps see-through dark overlays so they do not cover the artwork', () => {
+    const source = `<style>
+.vignette { position:absolute; inset:0; z-index:3; background:radial-gradient(ellipse at center, transparent 52%, rgba(8,10,24,.55) 100%); }
+.scrim { background: rgba(0, 0, 0, 0.6); }
+</style>`;
+    expect(applyArtifactThemeContract(source).changed).toBe(false);
+  });
+
+  it('still rewrites a nearly opaque dark surface', () => {
+    const result = applyArtifactThemeContract(
+      '<style>.card { background: rgba(15, 17, 23, 0.96); }</style>',
+    );
+    expect(result.source).toContain('background: var(--piwin-artifact-surface)');
   });
 
   it('keeps a self-consistent dark code block', () => {

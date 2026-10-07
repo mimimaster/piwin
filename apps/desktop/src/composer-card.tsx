@@ -49,6 +49,7 @@ import {
 import type { ComposerDockProps } from './composer-dock-types';
 import { ComposerCardToolbar } from './composer-card-toolbar';
 import { decideComposerEnterKey } from './composer-enter-ime';
+import { usesOnScreenKeyboard } from './shell-runtime';
 import { toThinkingEffortModels } from './ThinkingEffortControl';
 
 function getAgentPlaceholder(
@@ -194,6 +195,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
   // Cold start / empty workspace: caret lands in the box.
   useEffect(() => {
+    if (usesOnScreenKeyboard()) {
+      return;
+    }
     textareaRef.current?.focus();
   }, [props.activeSessionId, props.projectPath]);
 

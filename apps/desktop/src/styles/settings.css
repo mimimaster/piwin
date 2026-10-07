@@ -28,6 +28,9 @@
 @import './settings-permissions.css';
 @import './inkstone/settings.css';
 @import './inkstone/appearance.css';
+/* Phone presentation of the settings page. Last, so it refines the sheets
+   above by order instead of by weight. */
+@import './region-phone-settings.css';
 
 .settings-section-card[hidden] {
   display: none !important;

@@ -95,6 +95,51 @@ async fn healthkit_cancel_read<R: Runtime>(
     Ok(json!({ "cancelled": true }))
 }
 
+#[tauri::command]
+async fn healthkit_background_sync_configure<R: Runtime>(
+    app: AppHandle<R>,
+    config: Option<Value>,
+) -> Result<Value, String> {
+    #[cfg(target_os = "ios")]
+    {
+        return ios_handle(&app)?
+            .run_mobile_plugin_async(
+                "healthkit_background_sync_configure",
+                json!({ "config": config }),
+            )
+            .await
+            .map_err(map_invoke_error);
+    }
+    let _ = (app, config);
+    Err(UNAVAILABLE.to_string())
+}
+
+#[tauri::command]
+async fn healthkit_background_sync_status<R: Runtime>(app: AppHandle<R>) -> Result<Value, String> {
+    #[cfg(target_os = "ios")]
+    {
+        return ios_handle(&app)?
+            .run_mobile_plugin_async("healthkit_background_sync_status", ())
+            .await
+            .map_err(map_invoke_error);
+    }
+    let _ = app;
+    Ok(json!({ "enabled": false }))
+}
+
+#[tauri::command]
+async fn healthkit_background_sync_now<R: Runtime>(app: AppHandle<R>) -> Result<Value, String> {
+    #[cfg(target_os = "ios")]
+    {
+        return ios_handle(&app)?
+            .run_mobile_plugin_async("healthkit_background_sync_now", ())
+            .await
+            .map_err(map_invoke_error);
+    }
+    let _ = app;
+    Err(UNAVAILABLE.to_string())
+}
+
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("piwin-healthkit")
         .invoke_handler(tauri::generate_handler![
@@ -103,6 +148,9 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             healthkit_request_read_authorization,
             healthkit_read_context,
             healthkit_cancel_read,
+            healthkit_background_sync_configure,
+            healthkit_background_sync_status,
+            healthkit_background_sync_now,
         ])
         .setup(|app, api| {
             #[cfg(target_os = "ios")]

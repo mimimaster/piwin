@@ -1,5 +1,5 @@
 import { isThinkingLevel, type ThinkingLevel } from './host.js';
-import type { UsageTimingScope } from './usage.js';
+import type { UsageFirstTokenKind, UsageTimingScope } from './usage.js';
 
 export type AssistantUsageMeasurement = {
   measurementId: string; // stable; suggested key sessionId + runtimeGenerationId + messageId
@@ -17,6 +17,9 @@ export type AssistantUsageMeasurement = {
   durationMs?: number;
   firstTokenMs?: number;
   timingScope?: UsageTimingScope;
+  /** Reasoning tokens when the provider reports them; a subset of completionTokens. */
+  reasoningTokens?: number;
+  firstTokenKind?: UsageFirstTokenKind;
   stopReason?: string;
   recordedAt: string;
 };
@@ -67,6 +70,11 @@ export function parseAssistantUsageMeasurement(value: unknown): AssistantUsageMe
     if (value.timingScope !== 'request' && value.timingScope !== 'turn') return null;
     measurement.timingScope = value.timingScope;
   }
+  if (!copyOptionalFiniteNonNegative(value, measurement, 'reasoningTokens')) return null;
+  if (value.firstTokenKind !== undefined) {
+    if (value.firstTokenKind !== 'reasoning' && value.firstTokenKind !== 'content') return null;
+    measurement.firstTokenKind = value.firstTokenKind;
+  }
   return measurement;
 }
 
@@ -79,7 +87,8 @@ function copyOptionalFiniteNonNegative(
     | 'cacheReadTokens'
     | 'cacheWriteTokens'
     | 'durationMs'
-    | 'firstTokenMs',
+    | 'firstTokenMs'
+    | 'reasoningTokens',
 ): boolean {
   const value = source[key];
   if (value === undefined) {

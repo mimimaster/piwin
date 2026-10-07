@@ -19,7 +19,10 @@ tauri-plugin-keyring-store = "0.2.0"
 tauri-plugin-piwin-healthkit = { path = "plugins/healthkit" }
 tauri-plugin-websocket = "2.4.2"
 tauri-plugin-notification = "2.4.0"
+tauri-plugin-shell = "2.3.5"
 sha2 = "0.10"
+# Artifact document scheme + WKWebView return channel, shared with Desktop.
+piwin-artifact-webview = { path = "../../../crates/artifact-webview" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2 = "0.6"

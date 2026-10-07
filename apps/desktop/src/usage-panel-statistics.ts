@@ -234,11 +234,13 @@ export function formatUsageDuration(durationMs: number | undefined): string {
     return `${Math.round(durationMs)}ms`;
   }
   const seconds = durationMs / 1_000;
-  if (seconds < 60) {
+  // 59.96s would print as "60.0s"; hand it to the minute branch instead.
+  if (seconds < 59.95) {
     return `${seconds.toFixed(seconds >= 10 ? 1 : 2)}s`;
   }
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}m${Math.round(seconds - minutes * 60)}s`;
+  // Round first, then split: 119.7s is 2m0s, never 1m60s.
+  const wholeSeconds = Math.round(seconds);
+  return `${Math.floor(wholeSeconds / 60)}m${wholeSeconds % 60}s`;
 }
 
 export function formatThinkingLabel(

@@ -31,6 +31,8 @@ describe('assistant usage measurement contracts', () => {
         durationMs: 80,
         firstTokenMs: 20,
         timingScope: 'turn',
+        reasoningTokens: 12,
+        firstTokenKind: 'content',
         thinkingLevel: 'high',
         stopReason: 'stop',
       }),
@@ -44,7 +46,11 @@ describe('assistant usage measurement contracts', () => {
       thinkingLevel: 'high',
       firstTokenMs: 20,
       timingScope: 'turn',
+      reasoningTokens: 12,
+      firstTokenKind: 'content',
     });
+    expect(parseAssistantUsageMeasurement(validMeasurement({ firstTokenKind: 'tool' }))).toBeNull();
+    expect(parseAssistantUsageMeasurement(validMeasurement({ reasoningTokens: -1 }))).toBeNull();
     const roundTrip: AssistantUsageMeasurement | null = parseAssistantUsageMeasurement(parsed);
     expect(roundTrip).toEqual(parsed);
   });

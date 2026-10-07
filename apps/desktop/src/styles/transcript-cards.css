@@ -895,3 +895,17 @@
     animation: none;
   }
 }
+
+/* Host unreachable: the message plus its two ways out. */
+.host-unreachable-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+}
+
+.host-unreachable-actions {
+  display: inline-flex;
+  gap: var(--s-2);
+}

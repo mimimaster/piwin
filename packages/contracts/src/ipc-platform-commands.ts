@@ -527,6 +527,10 @@ export type PlatformHostCommand =
       serverId: string;
       draft: McpServerConfig;
     }
+  | { id?: string; type: 'health/status' }
+  /** Without `deviceId`, every stored summary is deleted. */
+  | { id?: string; type: 'health/delete-summaries'; deviceId?: string }
+  | { id?: string; type: 'health/run-digest' }
   | { id?: string; type: 'cron/list' }
   | { id?: string; type: 'cron/upsert'; job: CronJob }
   | { id?: string; type: 'cron/delete'; jobId: string }

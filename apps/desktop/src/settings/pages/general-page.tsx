@@ -16,7 +16,11 @@ import { buildCapabilityMatrix } from '@piwin/contracts';
 import { getDesktopCopy, type DesktopLocale } from '../../desktop-locale';
 import { AgentLocator } from '../../agent-locator.js';
 import type { AgentLocatorAnimation } from '../../ui-preferences.js';
+import { DeviceHealthSettings } from '../../device-health-settings';
+import { HostHealthSettings } from '../host-health-settings';
 import { HostTargetSettings } from '../../host-target-settings';
+import { ShellInterfaceSettings } from '../../shell-interface-settings';
+import { isMobileTauriRuntime } from '../../shell-runtime';
 import { MobileAccessSettings } from '../../mobile-access-settings';
 import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 
@@ -115,9 +119,16 @@ function GeneralPreferencesSection(): ReactElement {
         </FieldRow>
       </div>
 
+      <ShellInterfaceSettings />
+
+      <DeviceHealthSettings />
+
+      <HostHealthSettings />
+
       <HostTargetSettings />
 
-      <MobileAccessSettings />
+      {/* Pairing a phone is an operator task done at the computer. */}
+      {isMobileTauriRuntime() ? null : <MobileAccessSettings />}
 
       {hostStatus ? (
         <div className="settings-section settings-section-card host-capabilities-card" data-testid="capability-matrix">

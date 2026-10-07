@@ -652,3 +652,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     justify-content: flex-end;
   }
 }
+
+/* The phone layout stacks the gate at every width it covers. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell[data-layout='phone'] .gate {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell[data-layout='phone'] .gate .seals {
+  justify-content: flex-end;
+}

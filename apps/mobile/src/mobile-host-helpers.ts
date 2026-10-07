@@ -1,5 +1,5 @@
 import type { HostClient } from '@piwin/host-client';
-import type { MobileClientToolRuntime } from './client-tools/mobile-client-tool-runtime.js';
+import type { MobileClientToolRuntime } from '@piwin/host-client';
 import {
   createMemoryMobileDeviceCredentialVault,
   createTauriMobileDeviceCredentialVault,

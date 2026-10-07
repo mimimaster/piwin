@@ -6,7 +6,13 @@ import {
   type HostClientLastSeqStore,
 } from '@piwin/host-client';
 import { WebSocketHostTransport } from '@piwin/host-transport';
-import { isTauriRuntime } from './tauri-pty.js';
+import {
+  describeThisDevice,
+  peekDeviceCredential,
+  rememberDeviceCredential,
+  selectAdmissionKey,
+} from './device-admission.js';
+import { hasTauriBridge } from './shell-runtime.js';
 import { createTauriHostWebSocket } from './tauri-host-websocket.js';
 
 /** Keep in sync with apps/desktop/package.json version for Host minClient checks. */
@@ -85,6 +91,8 @@ export function subscribeDesktopRemoteHostTargetChange(listener: () => void): ()
 export type DesktopRemoteHostClientOptions = {
   autoReconnect?: boolean;
   clientId?: string;
+  /** One-time enrolment token from a pairing QR; traded for a device credential. */
+  pairingToken?: string;
 };
 
 export type LiveDesktopRemoteHostStatus =
@@ -140,16 +148,27 @@ export function createDesktopRemoteHostClient(
     endpoint,
     autoReconnect: resolved.autoReconnect,
     heartbeatIntervalMs: 30_000,
-    ...(isTauriRuntime() ? { webSocketFactory: createTauriHostWebSocket } : {}),
+    ...(hasTauriBridge() ? { webSocketFactory: createTauriHostWebSocket } : {}),
   });
-  const authToken = target.authToken?.trim();
+  const admissionKey = selectAdmissionKey({
+    pairingToken: options?.pairingToken,
+    deviceCredential: peekDeviceCredential(endpoint),
+    authToken: target.authToken,
+  });
   return new HostClient({
     transport,
     clientId: resolved.clientId ?? getOrCreateClientId(),
     clientType: 'desktop',
     clientVersion: DESKTOP_HOST_CLIENT_VERSION,
     capabilities: DESKTOP_REMOTE_HOST_CLIENT_CAPABILITIES,
-    ...(authToken === undefined || authToken.length === 0 ? {} : { authToken }),
+    ...(admissionKey?.kind === 'pairing-token'
+      ? { pairingToken: admissionKey.pairingToken, deviceName: describeThisDevice() }
+      : {}),
+    ...(admissionKey?.kind === 'device-credential'
+      ? { deviceCredential: admissionKey.deviceCredential }
+      : {}),
+    ...(admissionKey?.kind === 'auth-token' ? { authToken: admissionKey.authToken } : {}),
+    onIssuedDeviceCredential: (credential) => rememberDeviceCredential(endpoint, credential),
     lastSeqStore: createLocalStorageLastSeqStore(`${LAST_SEQ_KEY}.${storageSuffix}`),
     cursorStore: createLocalStorageCursorStore(`${CURSOR_KEY}.${storageSuffix}`),
   });

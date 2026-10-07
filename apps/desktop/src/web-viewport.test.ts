@@ -6,6 +6,7 @@ import {
   applyWebViewportCssVars,
   clearWebViewportCssVars,
   readWebViewportMetrics,
+  shouldResetDocumentScroll,
 } from './web-viewport';
 
 describe('readWebViewportMetrics', () => {
@@ -39,6 +40,24 @@ describe('readWebViewportMetrics', () => {
       offsetTop: 0,
       keyboardInset: 364,
     });
+  });
+
+  it('resets a keyboard pan but leaves a pinch-zoomed page alone', () => {
+    const panned = {
+      scrollY: 0,
+      visualViewport: { width: 390, height: 480, offsetTop: 120, scale: 1 },
+    } as unknown as Window;
+    const zoomed = {
+      scrollY: 40,
+      visualViewport: { width: 195, height: 422, offsetTop: 120, scale: 2 },
+    } as unknown as Window;
+    const still = {
+      scrollY: 0,
+      visualViewport: { width: 390, height: 844, offsetTop: 0, scale: 1 },
+    } as unknown as Window;
+    expect(shouldResetDocumentScroll(panned)).toBe(true);
+    expect(shouldResetDocumentScroll(zoomed)).toBe(false);
+    expect(shouldResetDocumentScroll(still)).toBe(false);
   });
 
   it('writes and clears CSS variables without leaving residue', () => {

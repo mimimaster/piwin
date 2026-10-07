@@ -437,6 +437,12 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                          ...(entry.firstTokenMs !== undefined
                            ? { firstTokenMs: entry.firstTokenMs }
                            : {}),
+                         ...(entry.reasoningTokens !== undefined
+                           ? { reasoningTokens: entry.reasoningTokens }
+                           : {}),
+                         ...(entry.firstTokenKind !== undefined
+                           ? { firstTokenKind: entry.firstTokenKind }
+                           : {}),
                       });
                       return (
                         <tr
@@ -493,8 +499,8 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                             data-testid="usage-call-tps"
                             title={entry.timingScope === 'turn'
                               ? isZh
-                                ? '整轮平均 TPS，扣除首字等待，包含工具执行和审批等待'
-                                : 'Turn average TPS, excluding first-token wait, including tools and approvals'
+                                ? '整轮平均 TPS，包含工具执行和审批等待'
+                                : 'Turn average TPS, including tools and approvals'
                               : undefined}
                           >
                             {formatTokensPerSecond(tokensPerSecond)}

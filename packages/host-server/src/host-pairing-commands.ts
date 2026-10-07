@@ -33,6 +33,11 @@ export type HostPairingCommandContext = {
   hostInstanceId: string;
   /** Address phones dial; the bound URL when the operator configured none. */
   advertisedEndpoint: string | undefined;
+  /**
+   * Every address the listener is reachable on right now; read on each status
+   * request so a network change shows up without a restart.
+   */
+  listEndpointCandidates?: () => string[];
   /** Set when the caller authenticated as a paired device. */
   callerDeviceId: string | undefined;
   onRevoked: (deviceId: string) => void;
@@ -73,6 +78,10 @@ export async function handleHostPairingCommand(
     };
     if (isEnabled && context.advertisedEndpoint !== undefined) {
       status.advertisedEndpoint = context.advertisedEndpoint;
+    }
+    const candidates = isEnabled ? (context.listEndpointCandidates?.() ?? []) : [];
+    if (candidates.length > 0) {
+      status.endpointCandidates = candidates;
     }
     return respond({ data: status });
   }

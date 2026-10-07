@@ -29,11 +29,13 @@ import {
   createDefaultSessionConfig,
   createDefaultSkillsConfig,
   createDefaultSubagentConfig,
+  createDefaultHealthConfig,
   createDefaultWalkthroughConfig,
   createDefaultWebConfig,
   createSafeFallbackPermissionConfig,
   modeToPreset,
   normalizeExecutionConfig,
+  normalizeHealthConfig,
   normalizeWalkthroughConfig,
   resolvePreset,
 } from '@piwin/contracts';
@@ -89,6 +91,7 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     automation: createDefaultAutomationConfig(),
     marketplace: createDefaultMarketplaceConfig(),
     walkthrough: createDefaultWalkthroughConfig(),
+    health: createDefaultHealthConfig(),
     subagents: createDefaultSubagentConfig(),
     execution: createDefaultExecutionConfig(),
     permissions: createDefaultPermissionConfig(),
@@ -270,6 +273,7 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   );
   normalized.permissions = normalizePermissionConfig(record.permissions);
   normalized.walkthrough = normalizeWalkthroughConfig(record.walkthrough);
+  normalized.health = normalizeHealthConfig(record.health);
   normalized.subagents = normalizeSubagentConfig(record.subagents);
   normalized.execution = normalizeExecutionConfig(
     asRecord(record.execution) as Partial<ExecutionConfig> | undefined,

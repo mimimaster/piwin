@@ -1,6 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { loadProviderBrandIcons } from '@piwin/ui-kit';
 import {
   ChatTurnHead,
   ChatTurnMarginalia,
@@ -16,6 +17,9 @@ import {
 import type { ChatMessageUi } from './chat-reducer';
 
 describe('chat-turn-marginalia', () => {
+  beforeAll(async () => {
+    await loadProviderBrandIcons();
+  });
   it('uses the durable external agent byline without inventing a model snapshot', () => {
     const data = resolveTurnMarginalia([], { forceRole: 'assistant', backendAgentId: 'grok' });
     expect(data.who).toBe('grok');

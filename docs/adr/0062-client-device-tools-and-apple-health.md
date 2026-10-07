@@ -114,6 +114,73 @@ the two deletion scopes.
 ambient-noise measurement is not part of the HealthKit tool; it may become a
 separate device capability under its own permission and disclosure later.
 
+## Amendment (2026-10-06): no Host gate, tool exposure follows the device
+
+Owner direction: a feature that needs an environment variable on the Host is
+not usable. Three defects were fixed together:
+
+1. The `PIWIN_EXPERIMENTAL_APPLE_HEALTH=1` gate is removed. Device tools are
+   always composed (`createDeviceToolBrokerForHost`).
+2. `health_read_context` was never registered: the options carrying the broker
+   were spread into `buildSessionHostTools`, whose type had no such fields, and
+   no caller set `ToolExposureInput.deviceHealth`. It is now registered through
+   `deviceTools`, and exposed when — and only when — a paired device has
+   offered Apple Health (`ClientToolExecutionPort.hasCapableDevice`).
+3. The registration lacked a permission `subjectBuilder` and would have been
+   rejected by the tool-family index.
+
+A session whose runtime generation was built before the first device offered
+Apple Health gains the tool on its next turn: the Host records, per generation,
+whether a device offered it at build time, and a turn that finds a gain since
+then rebuilds the generation first (the same detached replacement a session MCP
+switch uses). Only a gain rebuilds; a withdrawn offer leaves the tool to report
+that the device is unavailable.
+Only paired devices can offer tools; an anonymous loopback connection cannot.
+
+## Amendment (2026-10-07): more metrics, on-device baseline, charts, M2 terms
+
+Owner direction after M1 connected end to end:
+
+1. **Metrics.** The allowlist grows from 8 to 17: sleep schedule (bedtime and
+   wake time), body mass, body fat, VO2 max, respiratory rate, blood oxygen,
+   wrist temperature, mindful minutes, time in daylight. `granularity: 'hour'`
+   adds hourly buckets for cumulative metrics, for today only.
+2. **Baseline.** `includeBaseline` returns each metric's trailing 30-day mean,
+   spread and the latest day's deviation. The statistics are computed on the
+   phone; the baseline days never leave it. This keeps decision 5 intact while
+   sparing the model arithmetic over hundreds of records.
+3. **Charts.** A multi-day result asks the model for an inline Artifact chart
+   when the session can render Artifacts. The health card stays series-free.
+4. **M2 is to be provided, opt-in, with a user-chosen model.** Background
+   summary sync and the scheduled digest are separate switches, both off by
+   default. The digest runs on a model the user selects for it and cannot be
+   enabled without one.
+
+Details: [normative spec](../specs/ios-apple-health-client-capability.md)
+§8.2.1, §10.4, §12.
+
+## Amendment (2026-10-07, later): M2 shipped as stateless recompute
+
+Decision 3 described the second lane as observer queries, anchored incremental
+queries and an encrypted local outbox. It shipped simpler:
+
+- The phone keeps **no outbox and no anchors**. An observer wake recomputes
+  whole local days from HealthKit and uploads a batch that replaces that
+  window. A failed upload is recomputed on the next wake, so there is nothing
+  durable to encrypt on the device beyond the Host address and credential in
+  the Keychain.
+- The Host HTTP server is now created by `HostServer` itself and handed to the
+  WebSocket server, so plain HTTP routes and the upgrade share the port. (The
+  earlier Web shell route read a server handle `ws` does not expose.)
+- `@piwin/health` is a new application package holding the encrypted snapshot
+  store and digest scheduling; `host-runtime` composes it.
+- The digest is delivered as a general session on the user-chosen model rather
+  than a separate non-streaming completion, so reading it and asking follow-up
+  questions need no new surface.
+
+Still open: real-device acceptance of background delivery, remote push, and
+marking digest text as health-sensitive in the transcript.
+
 ## Consequences
 
 ### Positive

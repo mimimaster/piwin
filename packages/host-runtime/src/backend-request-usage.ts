@@ -37,7 +37,8 @@ export async function readBackendRequestUsage(deps: HostRuntimeKernel, from: str
         });
         if (!usage || !Number.isFinite(Date.parse(usage.recordedAt))) continue;
         const { sessionId, modelId, promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens,
-          totalTokens, durationMs, firstTokenMs, recordedAt, measurementId, thinkingLevel } = usage;
+          totalTokens, durationMs, firstTokenMs, recordedAt, measurementId, thinkingLevel,
+          reasoningTokens, firstTokenKind } = usage;
         records.push({ sessionId, projectPath: session.projectPath || null, totalTokens,
           recordedAt: new Date(recordedAt).toISOString(), measurementId, source: 'assistant-usage', timingScope: 'request',
           ...(modelId !== undefined ? { modelId } : {}),
@@ -48,6 +49,8 @@ export async function readBackendRequestUsage(deps: HostRuntimeKernel, from: str
           ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
           ...(durationMs !== undefined ? { durationMs } : {}),
           ...(firstTokenMs !== undefined ? { firstTokenMs } : {}),
+          ...(reasoningTokens !== undefined ? { reasoningTokens } : {}),
+          ...(firstTokenKind !== undefined ? { firstTokenKind } : {}),
         });
       }
     } catch (error) {

@@ -116,6 +116,10 @@ function toCallLogEntry(record: UsageRecord): UsageCallLogEntry {
     entry.success = record.success;
   }
   if (record.timingScope !== undefined) entry.timingScope = record.timingScope;
+  if (typeof record.reasoningTokens === 'number' && Number.isFinite(record.reasoningTokens)) {
+    entry.reasoningTokens = record.reasoningTokens;
+  }
+  if (record.firstTokenKind !== undefined) entry.firstTokenKind = record.firstTokenKind;
   return entry;
 }
 

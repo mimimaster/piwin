@@ -31,13 +31,20 @@ export type ComposerStatsLineInput = {
  * end-to-end duration instead of showing thousands of tok/s.
  */
 export function generationTokensPerSecond(
-  request: Pick<ContextRingLastRequest, 'completionTokens' | 'durationMs' | 'firstTokenMs'> | undefined,
+  request:
+    | Pick<
+        ContextRingLastRequest,
+        'completionTokens' | 'durationMs' | 'firstTokenMs' | 'reasoningTokens' | 'firstTokenKind'
+      >
+    | undefined,
 ): number | null {
   if (!request || typeof request.completionTokens !== 'number') return null;
   return computeTokensPerSecond({
     completionTokens: request.completionTokens,
     ...(request.durationMs !== undefined ? { durationMs: request.durationMs } : {}),
     ...(request.firstTokenMs !== undefined ? { firstTokenMs: request.firstTokenMs } : {}),
+    ...(request.reasoningTokens !== undefined ? { reasoningTokens: request.reasoningTokens } : {}),
+    ...(request.firstTokenKind !== undefined ? { firstTokenKind: request.firstTokenKind } : {}),
   });
 }
 

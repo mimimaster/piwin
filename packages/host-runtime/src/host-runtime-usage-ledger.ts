@@ -50,6 +50,8 @@ export async function recordFinalizedUsageToLedger(
   if (measurement.durationMs !== undefined) record.durationMs = measurement.durationMs;
   if (measurement.firstTokenMs !== undefined) record.firstTokenMs = measurement.firstTokenMs;
   if (measurement.timingScope !== undefined) record.timingScope = measurement.timingScope;
+  if (measurement.reasoningTokens !== undefined) record.reasoningTokens = measurement.reasoningTokens;
+  if (measurement.firstTokenKind !== undefined) record.firstTokenKind = measurement.firstTokenKind;
   try {
     const result = await appendUsageRecord(ledgerPath, record);
     if (result === 'inserted') {
@@ -84,6 +86,8 @@ export function projectFinalizedUsage(measurement: AssistantUsageMeasurement): C
   if (measurement.durationMs !== undefined) usage.durationMs = measurement.durationMs;
   if (measurement.firstTokenMs !== undefined) usage.firstTokenMs = measurement.firstTokenMs;
   if (measurement.timingScope !== undefined) usage.timingScope = measurement.timingScope;
+  if (measurement.reasoningTokens !== undefined) usage.reasoningTokens = measurement.reasoningTokens;
+  if (measurement.firstTokenKind !== undefined) usage.firstTokenKind = measurement.firstTokenKind;
   return usage;
 }
 
@@ -115,6 +119,8 @@ export async function recordUsageToLedger(
     ...(usage.durationMs !== undefined ? { durationMs: usage.durationMs } : {}),
     ...(usage.firstTokenMs !== undefined ? { firstTokenMs: usage.firstTokenMs } : {}),
     ...(usage.timingScope !== undefined ? { timingScope: usage.timingScope } : {}),
+    ...(usage.reasoningTokens !== undefined ? { reasoningTokens: usage.reasoningTokens } : {}),
+    ...(usage.firstTokenKind !== undefined ? { firstTokenKind: usage.firstTokenKind } : {}),
     totalTokens,
     source: usage.source === 'host-estimate' ? 'host-estimate' : 'assistant-usage',
     recordedAt: new Date().toISOString(),

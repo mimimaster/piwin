@@ -1965,6 +1965,45 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
+  it('never publishes a prompt-activated runtime as idle before its run ends', async () => {
+    // Regression: activation committed resident-idle, awaited disk, then marked
+    // busy. A poller (or the idle sweep) that looked inside that await saw an
+    // idle runtime with a running Run; under load the window was wide enough
+    // to fail the suspension test below.
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-activation-residency-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const controller = (
+      runtime as unknown as {
+        runtimeController: import('./sessions/session-runtime-controller.js').SessionRuntimeController;
+      }
+    ).runtimeController;
+    const published: string[] = [];
+    const originalSetResidency = controller.setResidency.bind(controller);
+    controller.setResidency = (...args: Parameters<typeof controller.setResidency>) => {
+      published.push(args[1]);
+      return originalSetResidency(...args);
+    };
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/activation-residency' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'activate through a run' },
+    });
+    expect(prompted.success).toBe(true);
+    await waitForGeneration(runtime, sessionId);
+    await waitForResidency(runtime, sessionId, 'resident-idle');
+
+    const firstIdle = published.indexOf('resident-idle');
+    expect(published.slice(0, firstIdle)).toContain('resident-busy');
+    await runtime.dispose();
+  });
+
   it('finishes cold cleanup after an unsubscribe throws post-detach', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-suspend-unsubscribe-'));
     const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });

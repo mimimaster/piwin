@@ -50,7 +50,7 @@ const runtime = new HostRuntime({
   mock,
   piwinRoot,
   ...(agentWorkerScript === undefined ? {} : { agentWorkerScript }),
-  ...(clientToolBroker === undefined ? {} : { clientToolExecution: clientToolBroker }),
+  clientToolExecution: clientToolBroker,
 });
 const hostInstanceId = runtime.getHostInstanceId();
 
@@ -97,7 +97,7 @@ const server = new HostServer({
     ? { pairingAdvertisedEndpoint: process.env.PIWIN_HOST_ADVERTISED_URL.trim() }
     : {}),
   allowRemoteExtensionActivation,
-  ...(clientToolBroker === undefined ? {} : { clientToolBroker }),
+  clientToolBroker,
   onError: (error) => console.error(`[piwin-host] ${error.message}`),
   onConnectionEvent: (event) => {
     logConnectionEvent(event);

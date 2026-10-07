@@ -4,16 +4,16 @@ import type { HostClient } from '@piwin/host-client';
 import {
   type ClientToolPreferenceStore,
   type HealthForegroundUseMode,
-} from '../client-tools/client-tool-preferences.js';
-import type { MobileClientToolConsentDecision } from '../client-tools/mobile-client-tool-runtime.js';
-import type { MobileClientToolRuntime } from '../client-tools/mobile-client-tool-runtime.js';
+} from '@piwin/host-client';
+import type { MobileClientToolConsentDecision } from '@piwin/host-client';
+import type { MobileClientToolRuntime } from '@piwin/host-client';
 import {
   advertiseMobileHealthRuntime,
   healthExecutorUsable,
   readHealthConnectedSetting,
   writeForegroundUseMode,
   writeHealthConnectedSetting,
-} from '../client-tools/mobile-health-session.js';
+} from '@piwin/host-client';
 import {
   healthkitRequestReadAuthorization,
 } from '../health/native-healthkit.js';

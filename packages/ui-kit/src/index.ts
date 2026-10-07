@@ -181,6 +181,9 @@ export type {
 /** Model vendor brand marks (shared by Desktop and Mobile bylines). */
 export { ProviderIcon } from './provider-icon.js';
 export type { ProviderIconProps } from './provider-icon.js';
-export { resolveModelBrandKey } from './provider-brands.js';
+export {
+  loadProviderBrandIcons,
+  resolveModelBrandKey,
+} from './provider-brands.js';
 export { ModelFallbackIcon } from './model-fallback-icon.js';
 export type { ModelFallbackIconProps } from './model-fallback-icon.js';

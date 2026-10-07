@@ -1,7 +1,7 @@
 import Foundation
 
 /// On-device sleep aggregation. Mirrors
-/// `apps/mobile/src/health/apple-health-aggregation.ts`.
+/// `packages/host-client/src/device-tools/apple-health-aggregation.ts`.
 public struct SleepInterval: Equatable {
   public var startMs: Double
   public var endMs: Double
@@ -83,4 +83,61 @@ public func sleepMinutesByLocalDate(
     totals[localDate, default: 0] += minutes
   }
   return totals
+}
+
+public struct SleepSchedule: Equatable {
+  /// Minutes from noon of the local day before the wake date (23:30 -> 690, 01:00 -> 780).
+  public var bedtimeMinutesAfterNoon: Int
+  public var wakeMinuteOfDay: Int
+  /// Bedtime to wake, including time awake in between.
+  public var spanMinutes: Int
+
+  public init(bedtimeMinutesAfterNoon: Int, wakeMinuteOfDay: Int, spanMinutes: Int) {
+    self.bedtimeMinutesAfterNoon = bedtimeMinutesAfterNoon
+    self.wakeMinuteOfDay = wakeMinuteOfDay
+    self.spanMinutes = spanMinutes
+  }
+}
+
+/// Bedtime and wake time of each night's main (longest) sleep episode, keyed by
+/// the local date it ends on. Naps never override the main episode.
+public func sleepScheduleByLocalDate(
+  intervals: [SleepInterval],
+  timeZone: String
+) -> [String: SleepSchedule] {
+  var longest: [String: SleepInterval] = [:]
+  for episode in groupSleepEpisodes(intervals) {
+    let localDate = attributeSleepEpisodeToLocalDate(episode: episode, timeZone: timeZone)
+    if let current = longest[localDate],
+      current.endMs - current.startMs >= episode.endMs - episode.startMs
+    {
+      continue
+    }
+    longest[localDate] = episode
+  }
+  var calendar = Calendar(identifier: .gregorian)
+  calendar.timeZone = TimeZone(identifier: timeZone) ?? TimeZone.current
+  var schedules: [String: SleepSchedule] = [:]
+  for (localDate, episode) in longest {
+    let bed = Date(timeIntervalSince1970: episode.startMs / 1000)
+    let wake = Date(timeIntervalSince1970: episode.endMs / 1000)
+    let bedDay = calendar.startOfDay(for: bed)
+    let wakeDay = calendar.startOfDay(for: wake)
+    let daysBeforeWake = calendar.dateComponents([.day], from: bedDay, to: wakeDay).day ?? 0
+    let bedtimeMinutesAfterNoon =
+      minuteOfDay(bed, calendar: calendar) - 720 + (1 - daysBeforeWake) * 1440
+    // An "episode" that began before noon of the previous day is not one night.
+    guard bedtimeMinutesAfterNoon >= 0 else { continue }
+    schedules[localDate] = SleepSchedule(
+      bedtimeMinutesAfterNoon: bedtimeMinutesAfterNoon,
+      wakeMinuteOfDay: minuteOfDay(wake, calendar: calendar),
+      spanMinutes: Int(((episode.endMs - episode.startMs) / 60_000).rounded())
+    )
+  }
+  return schedules
+}
+
+private func minuteOfDay(_ date: Date, calendar: Calendar) -> Int {
+  let components = calendar.dateComponents([.hour, .minute], from: date)
+  return (components.hour ?? 0) * 60 + (components.minute ?? 0)
 }

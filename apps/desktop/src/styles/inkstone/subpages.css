@@ -246,18 +246,19 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .vault-stage .vault-bar {
-  height: var(--titleband-height, 36px);
-  min-height: var(--titleband-height, 36px);
-  /* Flush-to-window vault bar: Overlay pays the light hole, Web/Windows do not. */
-  padding: 0 var(--s-3) 0 var(--titleband-flush-leading);
+  height: var(--subpage-titleband-box-height, var(--titleband-height, 36px));
+  min-height: var(--subpage-titleband-box-height, var(--titleband-height, 36px));
+  /* Flush-to-window vault bar: Overlay pays the light hole, Web/Windows do not.
+     --subpage-titleband-padding: a phone swaps the light hole for the status bar. */
+  padding: var(--subpage-titleband-padding, 0 var(--s-3) 0 var(--titleband-flush-leading));
   background: var(--s1);
   border-bottom: 1px solid var(--l1);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-page .vault-bar.is-page {
-  height: var(--titleband-height, 36px);
-  min-height: var(--titleband-height, 36px);
-  padding: 0 var(--s-3) 0 var(--titleband-flush-leading);
+  height: var(--subpage-titleband-box-height, var(--titleband-height, 36px));
+  min-height: var(--subpage-titleband-box-height, var(--titleband-height, 36px));
+  padding: var(--subpage-titleband-padding, 0 var(--s-3) 0 var(--titleband-flush-leading));
   background: var(--s1);
   border-bottom: 1px solid var(--l1);
 }

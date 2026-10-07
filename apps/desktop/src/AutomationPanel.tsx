@@ -23,10 +23,14 @@ export type AutomationPanelProps = {
       | 'cron/delete'
       | 'cron/run'
       | 'hooks/list'
-      | 'hooks/set';
+      | 'hooks/set'
+      | 'health/status'
+      | 'health/delete-summaries'
+      | 'health/run-digest';
     config?: PiwinConfig;
     job?: CronJob;
     jobId?: string;
+    deviceId?: string;
     hooks?: HookDefinition[];
   }) => Promise<HostResponse>;
   variant?: 'inline' | 'modal';

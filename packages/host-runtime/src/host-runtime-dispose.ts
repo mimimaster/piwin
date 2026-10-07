@@ -230,6 +230,7 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
   deps.generationMcpConfigs.clear();
   deps.generationMcpSnapshots.clear();
   deps.generationSessionMcpOverrideKeys.clear();
+  deps.generationDeviceHealthOffered.clear();
   deps.generationPermissionRuleRevisions.clear();
   deps.preparedRuntimeGenerations.clear();
   deps.retiredRuntimeSessions.clear();
@@ -247,6 +248,7 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
   deps.sessionModels.clear();
   deps.sessionThinkingLevels.clear();
   deps.healthTurnBySession.clear();
+  deps.healthSummaries?.stop();
   deps.runAssistantReply.clear();
   deps.assistantTextBuffers.clear();
   deps.sessionAutoCompactionOverrides.clear();

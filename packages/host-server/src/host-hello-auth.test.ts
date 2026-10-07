@@ -84,7 +84,11 @@ describe('authenticateHostHello', () => {
         tokensEqual,
       },
     );
-    expect(result).toEqual({ ok: false, message: 'Hello must present exactly one admission key' });
+    expect(result).toEqual({
+      ok: false,
+      reason: 'multiple-admission-keys',
+      message: 'Hello must present exactly one admission key',
+    });
   });
 
   it('authenticates a previously issued device credential', async () => {
@@ -159,6 +163,7 @@ describe('authenticateHostHello', () => {
     });
     expect(await authenticateHostHello(hello, { ...base, allowAnonymousHello: false })).toEqual({
       ok: false,
+      reason: 'authentication-failed',
       message: 'Host authentication failed',
     });
   });
@@ -182,7 +187,11 @@ describe('authenticateHostHello', () => {
     const ok = await authenticateHostHello({ ...hello, authToken: 'door' }, context);
     const rejected = await authenticateHostHello({ ...hello, authToken: 'wrong' }, context);
     expect(ok).toEqual({ ok: true });
-    expect(rejected).toEqual({ ok: false, message: 'Host authentication failed' });
+    expect(rejected).toEqual({
+      ok: false,
+      reason: 'authentication-failed',
+      message: 'Host authentication failed',
+    });
   });
 });
 

@@ -274,13 +274,15 @@ html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-textarea,
 html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-textarea {
   display: block;
   width: 100%;
-  min-height: 52px;
+  /* Touch layouts shorten the resting field and raise the type size: below
+     16px iOS zooms the page when the field takes focus. */
+  min-height: var(--composer-input-min-height, 52px);
   padding: 0;
   background: transparent;
   border: 0;
   border-radius: 0;
   color: var(--slab-t);
-  font: 13.5px / 1.6 var(--sans);
+  font: var(--composer-input-font-size, 13.5px) / 1.6 var(--sans);
   resize: none;
   outline: 0;
   box-shadow: none;

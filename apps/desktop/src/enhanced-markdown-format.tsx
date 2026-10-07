@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
 import { PathChip } from './path-chip';
-import { renderKatex } from './markdown-math';
+import { MathView } from './markdown-math-view.js';
 import type { DiffActionType } from './enhanced-markdown-types.js';
 
 export function DiffBadge({ action }: { action: DiffActionType }): ReactElement {
@@ -97,18 +97,9 @@ export function renderFormattedText(
       parts.push(<em key={key++}>{matchedStr.slice(1, -1)}</em>);
     } else if (matchedStr.startsWith('$') && matchedStr.endsWith('$')) {
       const tex = matchedStr.slice(1, -1);
-      const katexRes = renderKatex(tex, false);
-      if (katexRes.ok) {
-        parts.push(
-          <span
-            key={key++}
-            className="enhanced-math-inline"
-            dangerouslySetInnerHTML={{ __html: katexRes.html }}
-          />,
-        );
-      } else {
-        parts.push(matchedStr);
-      }
+      parts.push(
+        <MathView key={key++} tex={tex} display={false} className="enhanced-math-inline" />,
+      );
     } else if (matchedStr.startsWith('[') && matchedStr.includes('](')) {
       const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(matchedStr);
       if (linkMatch && linkMatch[1] && linkMatch[2]) {

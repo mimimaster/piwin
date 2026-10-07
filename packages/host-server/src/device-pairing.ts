@@ -1,5 +1,11 @@
 import { createHash, randomBytes as nodeRandomBytes, timingSafeEqual } from 'node:crypto';
-import type { PairingCompletion, PairingToken, TrustedDeviceCredential, TrustedDevicePublic } from '@piwin/contracts';
+import type {
+  HostHelloRejectReason,
+  PairingCompletion,
+  PairingToken,
+  TrustedDeviceCredential,
+  TrustedDevicePublic,
+} from '@piwin/contracts';
 
 type PendingPairing = {
   expiresAt: number;
@@ -37,6 +43,20 @@ const DEVICE_SECRET_BYTES = 32;
 const PAIRING_TOKEN_BYTES = 24;
 const MAX_DEVICE_NAME_LENGTH = 128;
 const MAX_CLIENT_ID_LENGTH = 128;
+
+/** Enrollment refusal the hello path reports to the client as a reject reason. */
+export class DevicePairingError extends Error {
+  public readonly name = 'DevicePairingError';
+  public readonly reason: Extract<
+    HostHelloRejectReason,
+    'pairing-token-invalid' | 'device-capacity-full'
+  >;
+
+  public constructor(reason: DevicePairingError['reason'], message: string) {
+    super(message);
+    this.reason = reason;
+  }
+}
 
 /**
  * Host-owned, bounded enrollment store. Raw device secrets only exist in the
@@ -88,7 +108,7 @@ export class HostDevicePairing {
     const pending = this.pending.get(tokenHash);
     if (pending === undefined || pending.expiresAt <= this.now()) {
       this.pending.delete(tokenHash);
-      throw new Error('Pairing token is invalid or expired');
+      throw new DevicePairingError('pairing-token-invalid', 'Pairing token is invalid or expired');
     }
     const normalizedClientId = normalizeClientId(clientId);
     if (normalizedClientId !== undefined) {
@@ -187,7 +207,7 @@ export class HostDevicePairing {
       if (device.revokedAt !== undefined) this.devices.delete(deviceId);
     }
     if (this.devices.size >= this.maxDevices) {
-      throw new Error('Paired-device capacity is full');
+      throw new DevicePairingError('device-capacity-full', 'Paired-device capacity is full');
     }
   }
 

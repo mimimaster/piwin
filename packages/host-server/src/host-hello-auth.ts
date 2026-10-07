@@ -1,6 +1,10 @@
-import type { HostClientHello, TrustedDeviceCredential } from '@piwin/contracts';
+import type {
+  HostClientHello,
+  HostHelloRejectReason,
+  TrustedDeviceCredential,
+} from '@piwin/contracts';
 import { isTrustedDeviceCredential } from '@piwin/contracts';
-import type { HostDevicePairing } from './device-pairing.js';
+import { DevicePairingError, type HostDevicePairing } from './device-pairing.js';
 
 export type HostHelloAuthSuccess = {
   ok: true;
@@ -10,6 +14,7 @@ export type HostHelloAuthSuccess = {
 
 export type HostHelloAuthFailure = {
   ok: false;
+  reason: HostHelloRejectReason;
   message: string;
 };
 
@@ -38,7 +43,11 @@ export async function authenticateHostHello(
   const hasAuthToken = message.authToken !== undefined && message.authToken.length > 0;
   const keyCount = Number(hasDeviceCredential) + Number(hasPairingToken) + Number(hasAuthToken);
   if (keyCount > 1) {
-    return { ok: false, message: 'Hello must present exactly one admission key' };
+    return {
+      ok: false,
+      reason: 'multiple-admission-keys',
+      message: 'Hello must present exactly one admission key',
+    };
   }
 
   if (!hasPairingToken && !hasDeviceCredential && !hasAuthToken) {
@@ -48,20 +57,22 @@ export async function authenticateHostHello(
     // Never fall through to success without a key: with no token configured
     // (e.g. pairing switched off at runtime) that would admit anyone.
     if (context.authToken === undefined) {
-      return {
-        ok: false,
-        message:
-          context.devicePairing === undefined
-            ? 'This Host needs an access token (PIWIN_HOST_TOKEN) for connections from other machines'
-            : 'A paired device is required',
-      };
+      return context.devicePairing === undefined
+        ? {
+            ok: false,
+            reason: 'access-token-required',
+            message:
+              'This Host needs an access token (PIWIN_HOST_TOKEN) for connections from other machines',
+          }
+        : { ok: false, reason: 'pairing-required', message: 'A paired device is required' };
     }
-    return { ok: false, message: 'Host authentication failed' };
+    // Nothing was presented, so this is a missing token rather than a wrong one.
+    return { ok: false, reason: 'access-token-required', message: 'Host authentication failed' };
   }
 
   if (hasPairingToken || hasDeviceCredential) {
     if (context.devicePairing === undefined) {
-      return { ok: false, message: 'Device pairing is not enabled' };
+      return { ok: false, reason: 'pairing-disabled', message: 'Device pairing is not enabled' };
     }
     if (hasPairingToken) {
       const snapshot = context.devicePairing.exportState();
@@ -81,20 +92,29 @@ export async function authenticateHostHello(
         context.devicePairing.restoreState(snapshot);
         return {
           ok: false,
+          reason: error instanceof DevicePairingError ? error.reason : 'authentication-failed',
           message: error instanceof Error ? error.message : 'Device authentication failed',
         };
       }
     }
 
     if (!isTrustedDeviceCredential(message.deviceCredential)) {
-      return { ok: false, message: 'Device credential is invalid or revoked' };
+      return {
+        ok: false,
+        reason: 'device-credential-revoked',
+        message: 'Device credential is invalid or revoked',
+      };
     }
     const device = context.devicePairing.authenticate(
       message.deviceCredential as TrustedDeviceCredential,
       message.clientId,
     );
     if (device === undefined) {
-      return { ok: false, message: 'Device credential is invalid or revoked' };
+      return {
+        ok: false,
+        reason: 'device-credential-revoked',
+        message: 'Device credential is invalid or revoked',
+      };
     }
     return { ok: true, pairedDeviceId: device.id };
   }
@@ -107,10 +127,10 @@ export async function authenticateHostHello(
   if (context.authToken === undefined) {
     return context.allowAnonymousHello
       ? { ok: true }
-      : { ok: false, message: 'Host authentication failed' };
+      : { ok: false, reason: 'authentication-failed', message: 'Host authentication failed' };
   }
   if (!context.tokensEqual(context.authToken, message.authToken)) {
-    return { ok: false, message: 'Host authentication failed' };
+    return { ok: false, reason: 'authentication-failed', message: 'Host authentication failed' };
   }
 
   return { ok: true };

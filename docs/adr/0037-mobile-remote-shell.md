@@ -46,6 +46,11 @@ protocol.
 
 ### 3. Do not copy Desktop UI
 
+> Superseded for the default interface by
+> [ADR 0084](./0084-mobile-shell-default-web-interface.md) (2026-10-06): the
+> shell now bundles the responsive workbench as its default front end and
+> keeps the interface described here as the frozen `classic` mode.
+
 Desktop and Mobile share public packages and portable state/rendering logic.
 Mobile has its own small layout for Inbox, Sessions, Conversation, Pairing, and
 Settings. No deep imports from apps/desktop/src are allowed.

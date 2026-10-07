@@ -206,15 +206,18 @@ export async function handleSessionPromptCommand(
       const { previousModel, desiredModel, desiredThinkingLevel } = turnProfile;
       // A session MCP switch changes the frozen tool surface, which only a
       // rebuilt generation can pick up — same detached replacement path as a
-      // cross-Provider model switch.
+      // cross-Provider model switch. A device that started offering Apple
+      // Health after this generation was built is the same kind of change:
+      // without the rebuild an already open session could never read it.
       const requiresModelRuntimeReplacement =
         !externalAgent &&
         (turnProfile.requiresModelRuntimeReplacement ||
           (context.sessions.has(command.sessionId) &&
-            context.sessionMcpOverrideChanged?.(
+            (context.sessionMcpOverrideChanged?.(
               command.sessionId,
               promptRecord?.disabledMcpServerIds,
-            ) === true));
+            ) === true ||
+              context.sessionDeviceToolsGained?.(command.sessionId) === true)));
       const explicitForeground = command.foreground;
       let reservedAdmission = false;
       if (explicitForeground !== undefined) {

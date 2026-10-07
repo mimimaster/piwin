@@ -1,13 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
   extractStandaloneDisplayMath,
   isMathFenceLanguage,
   isMermaidFenceLanguage,
+  loadKatex,
   renderKatex,
   tokenizeInlineWithMath,
 } from './markdown-math';
 
 describe('markdown-math', () => {
+  beforeAll(async () => {
+    await loadKatex();
+  });
   it('classifies math and mermaid fence languages', () => {
     expect(isMathFenceLanguage('math')).toBe(true);
     expect(isMathFenceLanguage('LaTeX')).toBe(true);

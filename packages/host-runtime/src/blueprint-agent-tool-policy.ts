@@ -111,6 +111,9 @@ export function compileToolPolicy(
     readonly: input.subagent?.mode === 'readonly',
     ...(capabilityCeiling ? { capabilities: capabilityCeiling } : {}),
     ...(trusted !== undefined ? { trusted } : {}),
+    // Registered only for a root session with a device that offers Apple Health;
+    // the resolver still withholds it from any capability-ceilinged child.
+    deviceHealth: hostToolFamilyIndex?.has('device-health') === true,
     ...(hostToolFamilyIndex ? { availableFamilies: new Set(hostToolFamilyIndex.keys()) } : {}),
     filesystemRead: capabilityCeiling === undefined || capabilityCeiling.includes('read'),
     filesystemWrite: capabilityCeiling === undefined || capabilityCeiling.includes('write'),

@@ -3,21 +3,27 @@
  * normalized on-device summary that may leave the phone.
  */
 
+export * from './apple-health-metrics.js';
+export * from './apple-health-baseline.js';
+export * from './apple-health-baseline-compute.js';
+
 import type { ClientToolParseResult } from './client-tool.js';
+import {
+  APPLE_HEALTH_CUMULATIVE_METRIC_IDS,
+  APPLE_HEALTH_METRIC_IDS,
+  SLEEP_SCHEDULE_BEDTIME_COMPONENT,
+  SLEEP_SCHEDULE_WAKE_COMPONENT,
+  appleHealthMetricUnit,
+  isAppleHealthLocalDate as isLocalDate,
+  isAppleHealthMetricId,
+  type AppleHealthMetricId,
+  type AppleHealthUnit,
+} from './apple-health-metrics.js';
+import { parseAppleHealthBaselines, type AppleHealthBaseline } from './apple-health-baseline.js';
 
-export const APPLE_HEALTH_METRIC_IDS = [
-  'steps',
-  'active-energy',
-  'exercise-minutes',
-  'workouts',
-  'sleep-duration',
-  'sleep-stages',
-  'resting-heart-rate',
-  'heart-rate-variability',
-] as const;
 
-export type AppleHealthMetricId = (typeof APPLE_HEALTH_METRIC_IDS)[number];
-
+/** One call still asks for at most this many metrics, whatever the allowlist size. */
+export const APPLE_HEALTH_MAX_METRICS_PER_CALL = 8;
 export const APPLE_HEALTH_MAX_TOTAL_WINDOW_DAYS = 90;
 export const APPLE_HEALTH_MAX_RECORDS = 720;
 export const APPLE_HEALTH_MAX_UNAVAILABLE_METRICS = 8;
@@ -28,19 +34,21 @@ export const APPLE_HEALTH_CONNECTED_SOURCE = 'apple-health' as const;
 export const HEALTH_MODEL_OUTPUT_PREAMBLE =
   'These values are user-authorized Apple Health summaries. Missing metrics are unknown, not zero.';
 
-export type AppleHealthUnit = 'count' | 'kcal' | 'minute' | 'bpm' | 'ms';
 
 export type HealthReadRange =
   | { preset: 'today' | 'last-7-days' | 'last-30-days' }
   | { preset: 'custom'; startDate: string; endDateExclusive: string };
 
-export type HealthReadGranularity = 'summary' | 'day';
+/** `hour` is valid for the `today` preset only and adds hourly buckets for cumulative metrics. */
+export type HealthReadGranularity = 'summary' | 'day' | 'hour';
 
 export type HealthReadContextArguments = {
   metrics: AppleHealthMetricId[];
   range: HealthReadRange;
   granularity?: HealthReadGranularity;
   includePreviousPeriod?: boolean;
+  /** Ask the device for each metric's personal 30-day baseline (computed on device). */
+  includeBaseline?: boolean;
 };
 
 export type AppleHealthUnavailableReason =
@@ -52,11 +60,15 @@ export type AppleHealthWarning =
   | 'partial-result'
   | 'sleep-source-overlap-normalized'
   | 'timezone-changed-within-range'
-  | 'comparison-unavailable';
+  | 'comparison-unavailable'
+  /** Served from summaries stored on the Host because the phone could not be reached. */
+  | 'host-cache';
 
 export type AppleHealthRecord = {
   metric: AppleHealthMetricId;
   localDate: string;
+  /** Local hour 0–23 of an hourly bucket; absent on a daily record. */
+  localHour?: number;
   unit: AppleHealthUnit;
   value?: number;
   components?: Record<string, number>;
@@ -77,6 +89,8 @@ export type AppleHealthReadResultV1 = {
     reason: AppleHealthUnavailableReason;
   }>;
   warnings: AppleHealthWarning[];
+  /** Present only when the request set `includeBaseline`. */
+  baselines?: AppleHealthBaseline[];
 };
 
 export type ConnectedSourceContextRef = {
@@ -213,18 +227,12 @@ function boundHealthLabel(value: string, maxChars: number): string {
   return trimmed.length <= maxChars ? trimmed : `${trimmed.slice(0, maxChars)}…`;
 }
 
-const METRIC_SET: ReadonlySet<string> = new Set(APPLE_HEALTH_METRIC_IDS);
 
-const METRIC_UNITS: Record<AppleHealthMetricId, AppleHealthUnit> = {
-  steps: 'count',
-  'active-energy': 'kcal',
-  'exercise-minutes': 'minute',
-  workouts: 'minute',
-  'sleep-duration': 'minute',
-  'sleep-stages': 'minute',
-  'resting-heart-rate': 'bpm',
-  'heart-rate-variability': 'ms',
-};
+
+const SLEEP_SCHEDULE_COMPONENT_KEYS = new Set([
+  SLEEP_SCHEDULE_BEDTIME_COMPONENT,
+  SLEEP_SCHEDULE_WAKE_COMPONENT,
+]);
 
 const WORKOUT_COMPONENT_KEYS = new Set([
   'walking',
@@ -254,11 +262,13 @@ const WARNINGS = new Set<AppleHealthWarning>([
   'sleep-source-overlap-normalized',
   'timezone-changed-within-range',
   'comparison-unavailable',
+  'host-cache',
 ]);
 
 const RECORD_KEYS = new Set([
   'metric',
   'localDate',
+  'localHour',
   'unit',
   'value',
   'components',
@@ -276,6 +286,7 @@ const RESULT_KEYS = new Set([
   'records',
   'unavailableMetrics',
   'warnings',
+  'baselines',
 ]);
 
 const LOCAL_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -283,13 +294,6 @@ const IANA_TIMEZONE_PATTERN = /^[A-Za-z0-9_+\-/]+$/;
 const RFC3339_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
 
-export function isAppleHealthMetricId(value: string): value is AppleHealthMetricId {
-  return METRIC_SET.has(value);
-}
-
-export function appleHealthMetricUnit(metric: AppleHealthMetricId): AppleHealthUnit {
-  return METRIC_UNITS[metric];
-}
 
 export function isAppleHealthConnectedSourceRef(
   value: unknown,
@@ -311,10 +315,22 @@ export function parseHealthReadContextArguments(
   if (!isPlainRecord(value)) {
     return fail('health arguments must be a plain object');
   }
-  if (hasUnknownKeys(value, ['metrics', 'range', 'granularity', 'includePreviousPeriod'])) {
+  if (
+    hasUnknownKeys(value, [
+      'metrics',
+      'range',
+      'granularity',
+      'includePreviousPeriod',
+      'includeBaseline',
+    ])
+  ) {
     return fail('health arguments have unknown fields');
   }
-  if (!Array.isArray(value.metrics) || value.metrics.length < 1 || value.metrics.length > 8) {
+  if (
+    !Array.isArray(value.metrics) ||
+    value.metrics.length < 1 ||
+    value.metrics.length > APPLE_HEALTH_MAX_METRICS_PER_CALL
+  ) {
     return fail('health metrics must contain 1..8 values');
   }
   const metrics: AppleHealthMetricId[] = [];
@@ -339,8 +355,18 @@ export function parseHealthReadContextArguments(
     range: range.value,
   };
   if (value.granularity !== undefined) {
-    if (value.granularity !== 'summary' && value.granularity !== 'day') {
+    if (
+      value.granularity !== 'summary' &&
+      value.granularity !== 'day' &&
+      value.granularity !== 'hour'
+    ) {
       return fail('health granularity is invalid');
+    }
+    if (
+      value.granularity === 'hour' &&
+      (range.value.preset !== 'today' || value.includePreviousPeriod === true)
+    ) {
+      return fail('health hour granularity is limited to today without a comparison period');
     }
     parsed.granularity = value.granularity;
   }
@@ -349,6 +375,12 @@ export function parseHealthReadContextArguments(
       return fail('includePreviousPeriod must be boolean');
     }
     parsed.includePreviousPeriod = value.includePreviousPeriod;
+  }
+  if (value.includeBaseline !== undefined) {
+    if (typeof value.includeBaseline !== 'boolean') {
+      return fail('includeBaseline must be boolean');
+    }
+    parsed.includeBaseline = value.includeBaseline;
   }
   return { ok: true, value: parsed };
 }
@@ -393,25 +425,12 @@ export function parseAppleHealthReadResultV1(
   if (!isRfc3339(value.startAt) || !isRfc3339(value.endAt) || !isRfc3339(value.generatedAt)) {
     return fail('health result timestamps must be RFC 3339');
   }
-  if (!Array.isArray(value.records) || value.records.length > APPLE_HEALTH_MAX_RECORDS) {
-    return fail('health result records exceed bounds');
-  }
   const requested = options.requestedMetrics ? new Set(options.requestedMetrics) : undefined;
-  const allowedDates = options.localDates ? new Set(options.localDates) : undefined;
-  const seenPairs = new Set<string>();
-  const records: AppleHealthRecord[] = [];
-  for (const item of value.records) {
-    const record = parseRecord(item, requested, allowedDates);
-    if (!record.ok) {
-      return record;
-    }
-    const key = `${record.value.metric}:${record.value.localDate}`;
-    if (seenPairs.has(key)) {
-      return fail('health result records must be unique per metric and local date');
-    }
-    seenPairs.add(key);
-    records.push(record.value);
+  const parsedRecords = parseAppleHealthRecords(value.records, options);
+  if (!parsedRecords.ok) {
+    return parsedRecords;
   }
+  const records = parsedRecords.value;
   const unavailable = parseUnavailable(value.unavailableMetrics, requested);
   if (!unavailable.ok) {
     return unavailable;
@@ -420,20 +439,52 @@ export function parseAppleHealthReadResultV1(
   if (!warnings.ok) {
     return warnings;
   }
-  return {
-    ok: true,
-    value: {
-      schemaVersion: 1,
-      source: 'apple-health',
-      timeZone: value.timeZone,
-      startAt: value.startAt,
-      endAt: value.endAt,
-      generatedAt: value.generatedAt,
-      records,
-      unavailableMetrics: unavailable.value,
-      warnings: warnings.value,
-    },
+  const result: AppleHealthReadResultV1 = {
+    schemaVersion: 1,
+    source: 'apple-health',
+    timeZone: value.timeZone,
+    startAt: value.startAt,
+    endAt: value.endAt,
+    generatedAt: value.generatedAt,
+    records,
+    unavailableMetrics: unavailable.value,
+    warnings: warnings.value,
   };
+  if (value.baselines !== undefined) {
+    const baselines = parseAppleHealthBaselines(value.baselines, requested);
+    if (!baselines.ok) {
+      return baselines;
+    }
+    result.baselines = baselines.value;
+  }
+  return { ok: true, value: result };
+}
+
+/** Validate a bounded list of normalized records, unique per metric, local date and hour. */
+export function parseAppleHealthRecords(
+  value: unknown,
+  options: AppleHealthResultParseOptions = {},
+): ClientToolParseResult<AppleHealthRecord[]> {
+  if (!Array.isArray(value) || value.length > APPLE_HEALTH_MAX_RECORDS) {
+    return fail('health result records exceed bounds');
+  }
+  const requested = options.requestedMetrics ? new Set(options.requestedMetrics) : undefined;
+  const allowedDates = options.localDates ? new Set(options.localDates) : undefined;
+  const seenPairs = new Set<string>();
+  const records: AppleHealthRecord[] = [];
+  for (const item of value) {
+    const record = parseRecord(item, requested, allowedDates);
+    if (!record.ok) {
+      return record;
+    }
+    const key = `${record.value.metric}:${record.value.localDate}:${record.value.localHour ?? ''}`;
+    if (seenPairs.has(key)) {
+      return fail('health result records must be unique per metric, local date, and hour');
+    }
+    seenPairs.add(key);
+    records.push(record.value);
+  }
+  return { ok: true, value: records };
 }
 
 function parseRecord(
@@ -459,7 +510,7 @@ function parseRecord(
   if (allowedDates && !allowedDates.has(value.localDate)) {
     return fail('health record localDate is outside the requested range');
   }
-  const expectedUnit = METRIC_UNITS[value.metric];
+  const expectedUnit = appleHealthMetricUnit(value.metric);
   if (value.unit !== expectedUnit) {
     return fail('health record unit does not match metric');
   }
@@ -472,6 +523,20 @@ function parseRecord(
     unit: expectedUnit,
     freshAsOf: value.freshAsOf,
   };
+  if (value.localHour !== undefined) {
+    if (
+      typeof value.localHour !== 'number' ||
+      !Number.isInteger(value.localHour) ||
+      value.localHour < 0 ||
+      value.localHour > 23
+    ) {
+      return fail('health record localHour must be an integer hour');
+    }
+    if (!APPLE_HEALTH_CUMULATIVE_METRIC_IDS.includes(value.metric)) {
+      return fail('health record localHour is only valid for cumulative metrics');
+    }
+    record.localHour = value.localHour;
+  }
   if (value.value !== undefined) {
     if (typeof value.value !== 'number' || !Number.isFinite(value.value) || value.value < 0) {
       return fail('health record value must be a finite non-negative number');
@@ -510,7 +575,9 @@ function parseComponents(
       ? WORKOUT_COMPONENT_KEYS
       : metric === 'sleep-stages'
         ? SLEEP_STAGE_COMPONENT_KEYS
-        : undefined;
+        : metric === 'sleep-schedule'
+          ? SLEEP_SCHEDULE_COMPONENT_KEYS
+          : undefined;
   if (allowlist === undefined) {
     return fail('health record components are not allowed for this metric');
   }
@@ -642,21 +709,10 @@ function rangeDayCount(range: HealthReadRange): number {
   }
 }
 
-function isLocalDate(value: string): boolean {
-  const match = LOCAL_DATE_PATTERN.exec(value);
-  if (!match || match[1] === undefined || match[2] === undefined || match[3] === undefined) {
-    return false;
-  }
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
+export function isAppleHealthLocalDate(value: string): boolean {
+  return isLocalDate(value);
 }
+
 
 function localDateIndex(value: string): number {
   const match = LOCAL_DATE_PATTERN.exec(value);

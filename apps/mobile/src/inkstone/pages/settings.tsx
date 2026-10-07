@@ -6,6 +6,7 @@ import { useInkstone } from '../inkstone-context.js';
 import { Dot, IconButton, ListRow, ScreenHeading, TopBar } from '../inkstone-ui.js';
 import { useInkstoneHost } from '../host/inkstone-host-context.js';
 import { SETTINGS_CATALOG } from '../settings/settings-catalog.js';
+import { ShellInterfaceRow } from '../shell-interface-row.js';
 
 function healthSummary(host: import('../host/inkstone-host-context.js').InkstoneHost): string {
   if (!host.healthAvailable) return '此设备或 Host 不支持';
@@ -186,6 +187,7 @@ function ConnectedSettingsPage({
         <div className="section-label">设备与连接</div>
         <ListRow name="globe" title="私有 Host" subtitle={connectedStateLabel(host.connectionState.kind)} onClick={onOpenConnection} />
         <ListRow name="bell" title="移动端通知" subtitle="通知偏好保留在本设备" onClick={() => dispatch({ type: 'open-sheet', key: 'notifications' })} />
+        <ShellInterfaceRow />
       </div>
     </>
   );

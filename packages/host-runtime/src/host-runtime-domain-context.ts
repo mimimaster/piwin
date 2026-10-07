@@ -88,6 +88,7 @@ export async function buildDomainContext(
     todoStore: deps.todoStore,
     petStateStore: await deps.ensurePetStateStore(),
     runCronJob: (job) => deps.runCronJob(job),
+    ...(deps.healthSummaries === undefined ? {} : { healthSummaries: deps.healthSummaries }),
     pendingPermissions: deps.pendingPermissions,
     pendingExtensionUi: deps.pendingExtensionUi,
     getExtensionUiSurface: (sessionId) => deps.extensionUiSurfaces.snapshot(sessionId),

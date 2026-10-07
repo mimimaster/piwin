@@ -9,6 +9,7 @@ import type {
   ContextBoundary,
   ContextMeasurement,
   ContextOccupancy,
+  UsageFirstTokenKind,
 } from '@piwin/contracts';
 import { formatCompactionBoundary } from '@piwin/contracts';
 import { mapFinalizedAssistantUsage, occupancyUsageFromRawMessage } from './agent-usage-map.js';
@@ -76,6 +77,7 @@ export function enrichPiCompactionDuration(
 export type AssistantRequestTimingState = {
   startedAtMs?: number;
   firstTokenAtMs?: number;
+  firstTokenKind?: UsageFirstTokenKind;
 };
 
 /** Drop buffered/mapping-time clocks: too short for the output, or longer than one hour. */
@@ -83,16 +85,16 @@ const MIN_DURATION_MS_WHEN_OUTPUT_LARGE = 50;
 const LARGE_OUTPUT_TOKEN_THRESHOLD = 10;
 const MAX_ASSISTANT_DURATION_MS = 60 * 60 * 1000;
 
-function isAssistantFirstTokenEvent(event: AgentEvent): boolean {
+function readAssistantFirstTokenKind(event: AgentEvent): UsageFirstTokenKind | undefined {
   // Fallback when the LLM-stream wrapper did not stamp firstTokenMs.
   // Same observable set as oh-my-tps; tool/start is metadata, not a token.
   switch (event.type) {
     case 'message/text_delta':
-      return event.delta.length > 0;
+      return event.delta.length > 0 ? 'content' : undefined;
     case 'message/thinking_delta':
-      return event.delta.length > 0;
+      return event.delta.length > 0 ? 'reasoning' : undefined;
     default:
-      return false;
+      return undefined;
   }
 }
 
@@ -118,12 +120,18 @@ function readAssistantMessageTimestamp(rawMessage: unknown): number | undefined 
 }
 
 function withoutTiming(measurement: AssistantUsageMeasurement): AssistantUsageMeasurement {
-  if (measurement.durationMs === undefined && measurement.firstTokenMs === undefined) {
+  if (
+    measurement.durationMs === undefined &&
+    measurement.firstTokenMs === undefined &&
+    measurement.firstTokenKind === undefined
+  ) {
     return measurement;
   }
   const next: AssistantUsageMeasurement = { ...measurement };
   delete next.durationMs;
   delete next.firstTokenMs;
+  // The kind describes the first token; without its latency it means nothing.
+  delete next.firstTokenKind;
   return next;
 }
 
@@ -147,13 +155,16 @@ export function noteAssistantRequestTiming(
       state.startedAtMs = nowMs;
     }
     delete state.firstTokenAtMs;
+    delete state.firstTokenKind;
     return;
   }
   if (state.startedAtMs === undefined || state.firstTokenAtMs !== undefined) {
     return;
   }
-  if (isAssistantFirstTokenEvent(event)) {
+  const firstTokenKind = readAssistantFirstTokenKind(event);
+  if (firstTokenKind !== undefined) {
     state.firstTokenAtMs = nowMs;
+    state.firstTokenKind = firstTokenKind;
   }
 }
 
@@ -204,10 +215,16 @@ export function applyAssistantRequestTiming(
   next.durationMs = elapsed;
   if (isPlausibleFirstTokenMs(measurement.firstTokenMs, elapsed)) {
     next.firstTokenMs = measurement.firstTokenMs;
+    if (measurement.firstTokenKind !== undefined) {
+      next.firstTokenKind = measurement.firstTokenKind;
+    }
   } else if (state.firstTokenAtMs !== undefined && state.firstTokenAtMs < nowMs) {
     const firstTokenMs = state.firstTokenAtMs - startedAtMs;
     if (isPlausibleFirstTokenMs(firstTokenMs, elapsed)) {
       next.firstTokenMs = firstTokenMs;
+      if (state.firstTokenKind !== undefined) {
+        next.firstTokenKind = state.firstTokenKind;
+      }
     }
   }
   return next;

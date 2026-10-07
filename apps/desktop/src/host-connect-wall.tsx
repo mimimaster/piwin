@@ -1,8 +1,10 @@
-import { useState, type ReactElement } from 'react';
-import { Button, Field, Notice, PasswordInput, TextInput } from '@piwin/ui-kit';
+import { useId, useState, type ReactElement } from 'react';
+import { Button, Collapse, Field, PasswordInput, TextInput, showErrorNotification } from '@piwin/ui-kit';
 import { getDesktopCopy } from './desktop-locale.js';
 import { useDesktopLocale } from './desktop-locale-context.js';
 import { desktopShellDefaultEndpoint } from './desktop-shell-build.js';
+import { formatError } from '@piwin/contracts';
+import { canScanPairingCode, scanPairingCode } from './pairing-code-scanner.js';
 import { probeDesktopRemoteHost } from './probe-desktop-remote-host.js';
 import {
   loadDesktopRemoteHostTarget,
@@ -29,80 +31,154 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
   );
   const [authToken, setAuthToken] = useState(saved?.authToken ?? '');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | undefined>();
+
+  const [scanning, setScanning] = useState(false);
+  const scannerAvailable = canScanPairingCode();
+  // Where a camera can pair, scanning is the path and the address form folds.
+  const [manualOpen, setManualOpen] = useState(!scannerAvailable);
+  const manualId = useId();
+
+  async function connectWith(input: {
+    endpoint: string;
+    authToken: string;
+    pairingToken?: string;
+  }): Promise<void> {
+    setBusy(true);
+    try {
+      const result = await probeDesktopRemoteHost({
+        endpoint: input.endpoint,
+        authToken: input.authToken,
+        ...(input.pairingToken === undefined ? {} : { pairingToken: input.pairingToken }),
+        invalidEndpointMessage: copy.invalidEndpoint,
+      });
+      if (!result.ok) {
+        showErrorNotification(
+          result.reason === undefined
+            ? copy.connectFailed(result.error)
+            : copy.rejectReasons[result.reason],
+        );
+        return;
+      }
+      props.onConnected(result.target, result.hostInstanceId);
+    } catch (connectError) {
+      showErrorNotification(copy.connectFailed(formatError(connectError)));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleConnect(): Promise<void> {
-    setBusy(true);
-    setError(undefined);
-    const result = await probeDesktopRemoteHost({
-      endpoint,
-      authToken,
-      invalidEndpointMessage: copy.invalidEndpoint,
-    });
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    await connectWith({ endpoint, authToken });
+  }
+
+  // A pairing token is single use, so a scan connects straight away instead of
+  // parking the token in a field the user then has to submit.
+  async function handleScan(): Promise<void> {
+    setScanning(true);
+    try {
+      const pairing = await scanPairingCode();
+      if (pairing === undefined) {
+        showErrorNotification(copy.scanEmpty);
+        return;
+      }
+      setEndpoint(pairing.endpoint);
+      setAuthToken(pairing.authToken ?? '');
+      await connectWith({
+        endpoint: pairing.endpoint,
+        authToken: pairing.authToken ?? '',
+        ...(pairing.pairingToken === undefined ? {} : { pairingToken: pairing.pairingToken }),
+      });
+    } catch (scanError) {
+      showErrorNotification(formatError(scanError));
+    } finally {
+      setScanning(false);
     }
-    props.onConnected(result.target, result.hostInstanceId);
   }
 
   return (
     <div className="host-gate" data-testid="host-connect-wall">
       <div className="host-gate-card">
         <h1 className="host-gate-title">{gate.connectTitle}</h1>
-        <p className="host-gate-description">{gate.connectDescription}</p>
-        <p className="host-gate-description muted">{gate.rootLockNote}</p>
-        <Field label={copy.endpointLabel}>
-          <TextInput
-            value={endpoint}
-            onChange={(event) => setEndpoint(event.currentTarget.value)}
-            placeholder={copy.endpointPlaceholder}
-            autoComplete="off"
-            spellCheck={false}
-            disabled={busy}
-            testId="host-gate-endpoint"
-          />
-        </Field>
-        <Field label={copy.tokenLabel}>
-          <PasswordInput
-            value={authToken}
-            onChange={(event) => setAuthToken(event.currentTarget.value)}
-            placeholder={copy.tokenPlaceholder}
-            autoComplete="off"
-            disabled={busy}
-            testId="host-gate-token"
-          />
-        </Field>
-        <div className="ui-field-row host-gate-actions">
-          <Button
-            variant="primary"
-            disabled={busy}
-            onClick={() => {
-              void handleConnect();
-            }}
-            data-testid="host-gate-connect"
-          >
-            {busy ? copy.connecting : copy.connect}
-          </Button>
-          {allowLocal ? (
-            <Button
-              variant="secondary"
-              disabled={busy}
-              onClick={() => {
-                props.onUseLocal?.();
-              }}
-              data-testid="host-gate-use-local"
-            >
-              {copy.useThisMac}
-            </Button>
-          ) : null}
-        </div>
-        {error !== undefined ? (
-          <Notice tone="error" testId="host-gate-error">
-            {error}
-          </Notice>
-        ) : null}
+        {scannerAvailable ? (
+          <>
+            <p className="host-gate-description">{copy.scanHint}</p>
+            <div className="host-gate-actions host-gate-actions-stack">
+              <Button
+                variant="primary"
+                disabled={busy || scanning}
+                onClick={() => {
+                  void handleScan();
+                }}
+                data-testid="host-gate-scan"
+              >
+                {scanning ? copy.scanning : copy.scanPairingCode}
+              </Button>
+              <Button
+                variant="ghost"
+                aria-expanded={manualOpen}
+                aria-controls={manualId}
+                onClick={() => setManualOpen((open) => !open)}
+                data-testid="host-gate-manual-toggle"
+              >
+                {copy.manualEntry}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="host-gate-description">{gate.connectDescription}</p>
+            <p className="host-gate-description muted">{gate.rootLockNote}</p>
+          </>
+        )}
+        <Collapse expanded={manualOpen} testId="host-gate-manual">
+          <div id={manualId} className="host-gate-manual">
+            <Field label={copy.endpointLabel}>
+              <TextInput
+                value={endpoint}
+                onChange={(event) => setEndpoint(event.currentTarget.value)}
+                placeholder={copy.endpointPlaceholder}
+                autoComplete="off"
+                spellCheck={false}
+                disabled={busy}
+                testId="host-gate-endpoint"
+              />
+            </Field>
+            <Field label={copy.tokenLabel}>
+              <PasswordInput
+                value={authToken}
+                onChange={(event) => setAuthToken(event.currentTarget.value)}
+                placeholder={copy.tokenPlaceholder}
+                autoComplete="off"
+                disabled={busy}
+                testId="host-gate-token"
+              />
+            </Field>
+            <div className="ui-field-row host-gate-actions">
+              <Button
+                variant={scannerAvailable ? 'secondary' : 'primary'}
+                disabled={busy || scanning}
+                onClick={() => {
+                  void handleConnect();
+                }}
+                data-testid="host-gate-connect"
+              >
+                {busy && !scanning ? copy.connecting : copy.connect}
+              </Button>
+              {allowLocal ? (
+                <Button
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    props.onUseLocal?.();
+                  }}
+                  data-testid="host-gate-use-local"
+                >
+                  {copy.useThisMac}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </Collapse>
       </div>
     </div>
   );

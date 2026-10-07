@@ -87,6 +87,7 @@ export function compileConversationToolPolicy(
     imageGenerationEnabled: true,
     videoGenerationEnabled: true,
     extensionInstall: config.extensions?.agentInstall !== false,
+    deviceHealth: options.hostToolFamilyIndex?.has('device-health') === true,
     ...(options.hostToolFamilyIndex
       ? { availableFamilies: new Set(options.hostToolFamilyIndex.keys()) }
       : {}),

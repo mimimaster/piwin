@@ -4,6 +4,7 @@
  * the transcript's turn cards and the right panel's 本轮变更 view read one
  * index and one focused turn).
  */
+import { DeviceHealthConsentDialog } from './device-health-consent-dialog';
 import type { ReactElement, ReactNode } from 'react';
 import type { HostClient } from './host-client';
 import { KnowledgeCitationActionsProvider } from './knowledge/knowledge-citation-actions';
@@ -31,6 +32,7 @@ export function WorkbenchWorkspaceProviders(props: {
   return (
     <SubagentStopProvider value={props.subagentStop}>
       {props.subagentStop?.dialog}
+      <DeviceHealthConsentDialog />
       <SubagentReviewLoopProvider value={props.reviewLoop}>
         <TurnChangesHostProvider hostClient={props.hostClient} onOpenReview={props.onOpenReview}>
           <KnowledgeMountsProvider value={props.knowledgeMounts}>

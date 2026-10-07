@@ -1,0 +1,95 @@
+/* Phone layout: spend the whole screen.
+   A phone has no window around the app, so the deck look — a dark gutter with
+   a rounded card floating in it — only turns the status-bar strip and the
+   home-indicator strip into dead black bands. Here the stage surface runs to
+   the physical edges and the composer shrinks to what a thumb needs.
+   Geometry that themes pin is set through layout tokens (region-phone.css). */
+
+/* ── One surface, edge to edge ───────────────────────────────────── */
+html:has(.app-shell[data-layout='phone']),
+html:has(.app-shell[data-layout='phone']) body,
+.app-shell[data-layout='phone'] {
+  background: var(--bg);
+}
+
+.app-shell[data-layout='phone'] > .workspace {
+  --shell-panel-radius: 0px;
+  --shell-panel-shadow: none;
+  border-radius: var(--shell-panel-radius);
+  border: 0;
+  box-shadow: var(--shell-panel-shadow);
+}
+
+/* ── Composer: a short slab that sits on the bottom edge ─────────── */
+.app-shell[data-layout='phone'] .composer-dock.layout-docked {
+  /* One line until there is text; it still grows with what is typed. */
+  --composer-input-min-height: 24px;
+  padding: 4px 10px 6px;
+}
+
+/* Turn/step/token counters are an operator read-out; on a phone that line
+   costs a row of transcript. The context ring in the toolbar stays. */
+.app-shell[data-layout='phone'] .composer-dock.layout-docked > .composer-stats-line {
+  display: none;
+}
+
+.app-shell[data-layout='phone'] .composer-dock.layout-docked .composer-v2-input-area {
+  padding: 8px 12px 0;
+}
+
+.app-shell[data-layout='phone'] .composer-dock.layout-docked .composer-v2-toolbar {
+  /* The buttons are full 44px targets; they are the row. */
+  padding: 0 4px 2px;
+}
+
+.app-shell[data-layout='phone'] .composer-v2-toolbar,
+.app-shell[data-layout='phone'] .composer-v2-toolbar-left,
+.app-shell[data-layout='phone'] .composer-v2-toolbar-right {
+  flex-wrap: nowrap;
+}
+
+.app-shell[data-layout='phone'] .composer-v2-toolbar-left {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-shell[data-layout='phone'] .composer-v2-toolbar-right {
+  flex: none;
+  margin-left: auto;
+}
+
+.app-shell[data-layout='phone'] .composer-v2-textarea {
+  font-size: var(--composer-input-font-size);
+  max-height: 36vh;
+  overflow-y: auto;
+}
+
+/* ── Drawer footer ───────────────────────────────────────────────
+   Settings is the only way to the settings page on a phone, and it was a
+   12px label in a strip above a band of empty inset. It becomes one
+   thumb-sized row sitting on the bottom edge; Host status stays at its end. */
+.app-shell[data-layout='phone'] > .sidebar .sidebar-shelf {
+  min-height: 48px;
+  padding: 0 10px;
+  gap: 4px;
+  align-items: center;
+}
+
+.app-shell[data-layout='phone'] > .sidebar .sidebar-shelf .shelf-btn {
+  min-height: 44px;
+  padding: 0 12px;
+  gap: 8px;
+  border-radius: 10px;
+  font-size: 15px;
+}
+
+.app-shell[data-layout='phone'] > .sidebar .sidebar-shelf .shelf-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.app-shell[data-layout='phone'] > .sidebar .sidebar-shelf .sidebar-host {
+  margin-left: auto;
+  padding-right: 6px;
+  font-size: 13px;
+}

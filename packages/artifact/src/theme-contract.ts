@@ -48,18 +48,74 @@ function createIssue(
   return { kind, match, message, repaired };
 }
 
+export type ArtifactThemeContractOptions = {
+  /**
+   * `own`: the artifact paints its own scene, so fixed colors stay as drawn.
+   * Invented theme variable names are still mapped. Default `host`.
+   */
+  palette?: 'host' | 'own';
+};
+
 /**
  * Soft-repair hard-coded surfaces in model HTML for preview.
  * Does not hard-block; always returns a source that can still render.
  */
-export function applyArtifactThemeContract(source: string): ArtifactThemeContractResult {
+export function applyArtifactThemeContract(
+  source: string,
+  options: ArtifactThemeContractOptions = {},
+): ArtifactThemeContractResult {
   const issues: ArtifactThemeContractIssue[] = [];
   const repairs: ArtifactThemeContractRepair[] = [];
+  const repairColors = options.palette !== 'own';
 
+  let output = repairColors ? repairLightSurfaces(source, issues, repairs) : source;
+
+  output = output.replace(
+    THEME_VARIABLE_REFERENCE_PATTERN,
+    (fullMatch, prefix: string, name: string) => {
+      const lower = name.toLowerCase();
+      if (KNOWN_THEME_VARIABLES.has(lower)) {
+        return fullMatch;
+      }
+      const replacement = `${prefix}--piwin-artifact-${nearestThemeVariable(lower)}`;
+      issues.push(
+        createIssue(
+          'unknown-theme-variable',
+          fullMatch,
+          'Artifact referenced a theme variable the host does not define; mapped to the nearest one.',
+          true,
+        ),
+      );
+      repairs.push({ kind: 'unknown-theme-variable', from: fullMatch, to: replacement });
+      return replacement;
+    },
+  );
+
+  if (repairColors) {
+    output = repairRuleColorPairs(output, issues, repairs);
+  }
+
+  return {
+    source: output,
+    issues,
+    repairs,
+    changed: repairs.length > 0,
+  };
+}
+
+function repairLightSurfaces(
+  source: string,
+  issues: ArtifactThemeContractIssue[],
+  repairs: ArtifactThemeContractRepair[],
+): string {
   let output = source.replace(
     SURFACE_DECLARATION_PATTERN,
-    (fullMatch, property: string, value: string, terminator: string) => {
-      if (!isLightSurfaceValue(value)) {
+    (fullMatch, property: string, value: string, terminator: string, offset: number) => {
+      if (
+        !isLightSurfaceValue(value) ||
+        isSeeThroughFill(value, LIGHT_SURFACE_OPAQUE_ALPHA) ||
+        isParticleShapeBlock(enclosingDeclarationBlock(source, offset))
+      ) {
         return fullMatch;
       }
       const kind: ArtifactThemeContractIssueKind = isLightGradientValue(value)
@@ -120,27 +176,15 @@ export function applyArtifactThemeContract(source: string): ArtifactThemeContrac
     return SURFACE_CLASS_REPLACEMENT;
   });
 
-  output = output.replace(
-    THEME_VARIABLE_REFERENCE_PATTERN,
-    (fullMatch, prefix: string, name: string) => {
-      const lower = name.toLowerCase();
-      if (KNOWN_THEME_VARIABLES.has(lower)) {
-        return fullMatch;
-      }
-      const replacement = `${prefix}--piwin-artifact-${nearestThemeVariable(lower)}`;
-      issues.push(
-        createIssue(
-          'unknown-theme-variable',
-          fullMatch,
-          'Artifact referenced a theme variable the host does not define; mapped to the nearest one.',
-          true,
-        ),
-      );
-      repairs.push({ kind: 'unknown-theme-variable', from: fullMatch, to: replacement });
-      return replacement;
-    },
-  );
+  return output;
+}
 
+function repairRuleColorPairs(
+  source: string,
+  issues: ArtifactThemeContractIssue[],
+  repairs: ArtifactThemeContractRepair[],
+): string {
+  let output = source;
   output = output.replace(
     STYLE_ELEMENT_PATTERN,
     (_fullMatch, open: string, css: string, close: string) =>
@@ -156,12 +200,7 @@ export function applyArtifactThemeContract(source: string): ArtifactThemeContrac
       `${open}${quote}${repairDeclarationBlock(body, issues, repairs, tagName)}${quote}`,
   );
 
-  return {
-    source: output,
-    issues,
-    repairs,
-    changed: repairs.length > 0,
-  };
+  return output;
 }
 
 // ---------------------------------------------------------------------------
@@ -262,7 +301,52 @@ function hardcodedColors(value: string): Rgba[] {
     .filter((color): color is Rgba => color !== undefined && color.a >= 0.5);
 }
 
+/**
+ * Below this alpha a fill is read as an overlay rather than a surface. Dark
+ * scrims run up to ~0.8, so only a nearly solid dark fill counts as a surface.
+ * Frosted light cards sit at 0.6+ and still need the repair for theme text.
+ */
+const DARK_SURFACE_OPAQUE_ALPHA = 0.9;
+const LIGHT_SURFACE_OPAQUE_ALPHA = 0.5;
+
+/**
+ * A scrim, vignette, or glow shows the content under it. Swapping it for the
+ * opaque theme surface turns it into a sheet that hides the artwork it sat on.
+ */
+function isSeeThroughFill(value: string, opaqueAlpha: number): boolean {
+  if (/\btransparent\b/i.test(value)) return true;
+  return (value.match(COLOR_TOKEN_PATTERN) ?? [])
+    .map(parseColorToken)
+    .some((color) => color !== undefined && color.a < opaqueAlpha);
+}
+
+/** The declarations sharing a rule or `style` attribute with `offset`. */
+function enclosingDeclarationBlock(source: string, offset: number): string {
+  const start = Math.max(
+    source.lastIndexOf('{', offset),
+    source.lastIndexOf('"', offset),
+    source.lastIndexOf("'", offset),
+  );
+  const ends = ['}', '"', "'"]
+    .map((mark) => source.indexOf(mark, offset))
+    .filter((index) => index >= 0);
+  return source.slice(start + 1, ends.length > 0 ? Math.min(...ends) : source.length);
+}
+
+const CIRCLE_SHAPE_PATTERN = /(?:^|[;\s])border-radius\s*:\s*50%/i;
+const OUT_OF_FLOW_PATTERN = /(?:^|[;\s])position\s*:\s*(?:absolute|fixed)\b/i;
+
+/**
+ * An out-of-flow circle is a drawn mark (snowflake, star, spark), not a
+ * surface holding text. Recoloring it to the theme surface erases it against
+ * the scene it decorates.
+ */
+function isParticleShapeBlock(block: string): boolean {
+  return CIRCLE_SHAPE_PATTERN.test(block) && OUT_OF_FLOW_PATTERN.test(block);
+}
+
 function isDarkSurface(value: string): boolean {
+  if (isSeeThroughFill(value, DARK_SURFACE_OPAQUE_ALPHA)) return false;
   const colors = hardcodedColors(value);
   return colors.length > 0 && colors.every((color) => relativeLuminance(color) < 0.1);
 }

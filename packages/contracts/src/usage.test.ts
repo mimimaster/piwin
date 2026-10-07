@@ -38,10 +38,72 @@ describe('computePromptCacheHitRate', () => {
 });
 
 describe('computeTokensPerSecond', () => {
-  it('divides output tokens by time after the first token', () => {
+  it('rates the whole output over the decode window when reasoning was streamed first', () => {
     expect(
-      computeTokensPerSecond({ completionTokens: 200, durationMs: 3_500, firstTokenMs: 500 }),
+      computeTokensPerSecond({
+        completionTokens: 200,
+        durationMs: 3_500,
+        firstTokenMs: 500,
+        firstTokenKind: 'reasoning',
+        reasoningTokens: 120,
+      }),
     ).toBeCloseTo(200 / 3);
+  });
+
+  it('rates only visible tokens when reasoning ran unseen before the first token', () => {
+    // Real openai-codex row: 3132 output tokens once showed as 40154 tok/s.
+    expect(
+      computeTokensPerSecond({
+        completionTokens: 3_132,
+        durationMs: 119_813,
+        firstTokenMs: 117_813,
+        firstTokenKind: 'content',
+        reasoningTokens: 3_000,
+      }),
+    ).toBeCloseTo(132 / 2);
+    expect(
+      computeTokensPerSecond({
+        completionTokens: 200,
+        durationMs: 3_500,
+        firstTokenMs: 500,
+        firstTokenKind: 'content',
+        reasoningTokens: 0,
+      }),
+    ).toBeCloseTo(200 / 3);
+  });
+
+  it('uses end-to-end duration when it is unknown where the tokens fell', () => {
+    expect(
+      computeTokensPerSecond({ completionTokens: 3_132, durationMs: 119_813, firstTokenMs: 119_735 }),
+    ).toBeCloseTo(3_132 / 119.813);
+    expect(
+      computeTokensPerSecond({
+        completionTokens: 200,
+        durationMs: 3_500,
+        firstTokenMs: 500,
+        firstTokenKind: 'content',
+      }),
+    ).toBeCloseTo(200 / 3.5);
+    expect(
+      computeTokensPerSecond({
+        completionTokens: 200,
+        durationMs: 3_500,
+        firstTokenMs: 500,
+        reasoningTokens: 50,
+      }),
+    ).toBeCloseTo(200 / 3.5);
+  });
+
+  it('uses end-to-end duration when the output was all reasoning', () => {
+    expect(
+      computeTokensPerSecond({
+        completionTokens: 200,
+        durationMs: 3_500,
+        firstTokenMs: 500,
+        firstTokenKind: 'content',
+        reasoningTokens: 200,
+      }),
+    ).toBeCloseTo(200 / 3.5);
   });
 
   it('prefers duration-scoped completion tokens over the full bucket', () => {
@@ -51,6 +113,7 @@ describe('computeTokensPerSecond', () => {
         durationMs: 3_500,
         firstTokenMs: 500,
         durationMsCompletionTokens: 150,
+        firstTokenKind: 'reasoning',
       }),
     ).toBeCloseTo(150 / 3);
   });
@@ -59,7 +122,7 @@ describe('computeTokensPerSecond', () => {
     expect(computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000 })).toBeCloseTo(100);
   });
 
-  it('returns null without a usable decode window', () => {
+  it('returns null without a usable duration or output', () => {
     expect(
       computeTokensPerSecond({ completionTokens: 0, durationMs: 3_500, firstTokenMs: 500 }),
     ).toBeNull();
@@ -71,22 +134,43 @@ describe('computeTokensPerSecond', () => {
       computeTokensPerSecond({ completionTokens: 200, durationMs: Number.NaN, firstTokenMs: 10 }),
     ).toBeNull();
     expect(
-      computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000, firstTokenMs: 2_000 }),
+      computeTokensPerSecond({
+        completionTokens: 200,
+        durationMs: 2_000,
+        firstTokenMs: 2_000,
+        firstTokenKind: 'reasoning',
+      }),
     ).toBeCloseTo(100);
   });
 
   it('falls back to end-to-end duration when decode is a buffered flush', () => {
     expect(
-      computeTokensPerSecond({ completionTokens: 108, durationMs: 7_511, firstTokenMs: 7_500 }),
+      computeTokensPerSecond({
+        completionTokens: 108,
+        durationMs: 7_511,
+        firstTokenMs: 7_500,
+        firstTokenKind: 'reasoning',
+      }),
     ).toBeCloseTo(108 / 7.511);
   });
 
   it('keeps short but real decode windows (flash completions)', () => {
     expect(
-      computeTokensPerSecond({ completionTokens: 57, durationMs: 1_200, firstTokenMs: 640 }),
+      computeTokensPerSecond({
+        completionTokens: 57,
+        durationMs: 1_200,
+        firstTokenMs: 640,
+        firstTokenKind: 'reasoning',
+      }),
     ).toBeCloseTo(57 / 0.56);
     expect(
-      computeTokensPerSecond({ completionTokens: 200, durationMs: 1_999, firstTokenMs: 500 }),
+      computeTokensPerSecond({
+        completionTokens: 200,
+        durationMs: 1_999,
+        firstTokenMs: 500,
+        firstTokenKind: 'content',
+        reasoningTokens: 0,
+      }),
     ).toBeCloseTo(200 / 1.499);
   });
 });

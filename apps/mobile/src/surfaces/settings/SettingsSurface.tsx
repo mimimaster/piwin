@@ -77,7 +77,7 @@ export function SettingsSurface({
 }: SettingsSurfaceProps): ReactElement {
   const isConnected = connectionState.kind === 'ready';
   const [healthUseMode, setHealthUseMode] = useState<
-    import('../../client-tools/client-tool-preferences.js').HealthForegroundUseMode
+    import('@piwin/host-client').HealthForegroundUseMode
   >('ask-every-time');
 
   return (

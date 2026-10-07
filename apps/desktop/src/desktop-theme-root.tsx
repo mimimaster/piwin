@@ -3,17 +3,21 @@
  * Document CSS tokens, the Mantine provider, and artifact mapping are all
  * projections of the manifest held here (plan: quiet-workbench P0 convergence).
  */
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  type ComponentType,
+  type ReactElement,
+} from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { App } from './App';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { SessionDragProvider } from './workbench/docking/docking-session-drag.js';
-import { ArtifactGallery } from './e2e/artifact-gallery';
-import { InkstoneChainGallery } from './e2e/inkstone-chain-gallery';
-import { PrimitiveGallery } from './e2e/primitive-gallery';
-import { TranscriptScrollGallery } from './e2e/transcript-scroll-gallery';
-import { LiveSpikePanel } from './live-spike/LiveSpikePanel';
 import {
   buildAppearanceTheme,
   applyAppearanceToDocument,
@@ -36,6 +40,48 @@ const E2E_PRIMITIVE_GALLERY_HASH = '#/e2e/primitives';
 const E2E_ARTIFACT_GALLERY_HASH = '#/e2e/artifacts';
 const E2E_INKSTONE_CHAIN_HASH = '#/e2e/inkstone-chain';
 const LIVE_SPIKE_HASH = '#/live-spike';
+
+/** Production builds constant-fold the env flags and drop these import() edges. */
+const E2E_FIXTURES_ENABLED = import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true';
+const LIVE_SPIKE_ENABLED = import.meta.env.VITE_PIWIN_LIVE_SPIKE === '1';
+
+type FixtureComponent = ComponentType<{ onApplyTheme?: (theme: ThemeManifest) => void }>;
+
+const DeferredPrimitiveGallery = E2E_FIXTURES_ENABLED
+  ? lazy(async () => {
+      const module = await import('./e2e/primitive-gallery');
+      return { default: module.PrimitiveGallery as FixtureComponent };
+    })
+  : null;
+const DeferredArtifactGallery = E2E_FIXTURES_ENABLED
+  ? lazy(async () => {
+      const module = await import('./e2e/artifact-gallery');
+      return { default: module.ArtifactGallery };
+    })
+  : null;
+const DeferredInkstoneChainGallery = E2E_FIXTURES_ENABLED
+  ? lazy(async () => {
+      const module = await import('./e2e/inkstone-chain-gallery');
+      return { default: module.InkstoneChainGallery };
+    })
+  : null;
+const DeferredTranscriptScrollGallery = E2E_FIXTURES_ENABLED
+  ? lazy(async () => {
+      const module = await import('./e2e/transcript-scroll-gallery');
+      return { default: module.TranscriptScrollGallery };
+    })
+  : null;
+const DeferredLiveSpikePanel = LIVE_SPIKE_ENABLED
+  ? lazy(async () => {
+      const module = await import('./live-spike/LiveSpikePanel');
+      return { default: module.LiveSpikePanel };
+    })
+  : null;
+
+function FixtureSuspense(props: { children: ReactElement }): ReactElement {
+  return <Suspense fallback={null}>{props.children}</Suspense>;
+}
+
 
 function isE2eFixtureRoute(prefix: string): boolean {
   if (import.meta.env.VITE_PIWIN_E2E_FIXTURES !== 'true' || typeof window === 'undefined') {
@@ -132,25 +178,52 @@ export function DesktopThemeRoot() {
     return () => mediaQuery.removeEventListener?.('change', applySystemTheme);
   }, [applyResolvedTheme]);
 
+  let body: ReactElement;
+  if (LIVE_SPIKE_ENABLED && DeferredLiveSpikePanel && isLiveSpikeRoute()) {
+    body = (
+      <FixtureSuspense>
+        <DeferredLiveSpikePanel />
+      </FixtureSuspense>
+    );
+  } else if (E2E_FIXTURES_ENABLED && DeferredPrimitiveGallery && isPrimitiveGalleryRoute()) {
+    body = (
+      <FixtureSuspense>
+        <DeferredPrimitiveGallery onApplyTheme={applyResolvedTheme} />
+      </FixtureSuspense>
+    );
+  } else if (E2E_FIXTURES_ENABLED && DeferredArtifactGallery && isArtifactGalleryRoute()) {
+    body = (
+      <FixtureSuspense>
+        <DeferredArtifactGallery />
+      </FixtureSuspense>
+    );
+  } else if (E2E_FIXTURES_ENABLED && DeferredInkstoneChainGallery && isInkstoneChainGalleryRoute()) {
+    body = (
+      <FixtureSuspense>
+        <DeferredInkstoneChainGallery />
+      </FixtureSuspense>
+    );
+  } else if (
+    E2E_FIXTURES_ENABLED &&
+    DeferredTranscriptScrollGallery &&
+    isE2eFixtureRoute('#/e2e/transcript-scroll')
+  ) {
+    body = (
+      <FixtureSuspense>
+        <DeferredTranscriptScrollGallery />
+      </FixtureSuspense>
+    );
+  } else {
+    body = (
+      <SessionDragProvider>
+        <App activeTheme={activeTheme} onThemeApplied={applyResolvedTheme} />
+      </SessionDragProvider>
+    );
+  }
+
   return (
     <PiwinUiProvider manifest={activeTheme}>
-      <AppErrorBoundary>
-        {isLiveSpikeRoute() ? (
-          <LiveSpikePanel />
-        ) : isPrimitiveGalleryRoute() ? (
-          <PrimitiveGallery onApplyTheme={applyResolvedTheme} />
-        ) : isArtifactGalleryRoute() ? (
-          <ArtifactGallery />
-        ) : isInkstoneChainGalleryRoute() ? (
-          <InkstoneChainGallery />
-        ) : isE2eFixtureRoute('#/e2e/transcript-scroll') ? (
-          <TranscriptScrollGallery />
-        ) : (
-          <SessionDragProvider>
-            <App activeTheme={activeTheme} onThemeApplied={applyResolvedTheme} />
-          </SessionDragProvider>
-        )}
-      </AppErrorBoundary>
+      <AppErrorBoundary>{body}</AppErrorBoundary>
     </PiwinUiProvider>
   );
 }

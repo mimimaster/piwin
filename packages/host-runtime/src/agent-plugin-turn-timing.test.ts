@@ -28,11 +28,14 @@ describe('Agent plugin turn timing', () => {
     clockMs = 2400;
     const event = timing.observe(usage({ durationMs: 50 }));
     if (event.type !== 'usage/finalized') throw new Error('usage expected');
-    expect(event.measurement).toMatchObject({ durationMs: 2300, firstTokenMs: 300, timingScope: 'turn' });
+    expect(event.measurement).toMatchObject({
+      durationMs: 2300, firstTokenMs: 300, firstTokenKind: 'reasoning', timingScope: 'turn',
+    });
     expect(computeTokensPerSecond({
       completionTokens: event.measurement.completionTokens ?? 0,
       ...(event.measurement.durationMs !== undefined ? { durationMs: event.measurement.durationMs } : {}),
       ...(event.measurement.firstTokenMs !== undefined ? { firstTokenMs: event.measurement.firstTokenMs } : {}),
+      ...(event.measurement.firstTokenKind !== undefined ? { firstTokenKind: event.measurement.firstTokenKind } : {}),
     })).toBe(100);
   });
 

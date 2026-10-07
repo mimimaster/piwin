@@ -86,6 +86,10 @@ export class DeviceToolBroker implements ClientToolExecutionPort {
     this.logger = options.logger ?? (() => undefined);
   }
 
+  public hasCapableDevice(capabilityId: string): boolean {
+    return this.registry.mostRecentlyAdvertised(capabilityId) !== undefined;
+  }
+
   public attach(attachment: DeviceToolConnectionAttachment): void {
     if (this.disposed) {
       return;

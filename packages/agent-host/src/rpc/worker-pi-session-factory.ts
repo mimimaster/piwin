@@ -58,6 +58,7 @@ import {
   setPiAutoCompactionEnabled,
   type PiCompactionSettingsManager,
 } from '../pi-compaction-settings.js';
+import { prioritizeCompactionHooks } from '../compaction-hook-priority.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import {
   activatePiBuiltinTools,
@@ -174,6 +175,12 @@ export async function createBlueprintResourceLoader(
 
   const loader = new LoaderCtor(loaderOptions);
   await loader.reload();
+  prioritizeCompactionHooks(
+    loader,
+    blueprint.resourceManifest.extensions
+      .filter((instance) => instance.source === 'bundled')
+      .map((instance) => instance.path),
+  );
   return loader;
 }
 

@@ -23,6 +23,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 portable-pty = "0.8"
 base64 = "0.22"
+# Artifact document scheme + WKWebView return channel, shared with the iOS shell.
+piwin-artifact-webview = { path = "../../../crates/artifact-webview" }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 # WinRT toasts for the attention bridge. Not the Tauri notification plugin:
@@ -41,8 +43,6 @@ windows = { version = "0.61.3", features = [
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# WKWebView drops sandbox child→parent DOM messages in release builds. A
-# frame-scoped script message handler is the narrow native return channel.
 # NSSet/NSDate + the WKWebsiteDataStore features power the memory-governor
 # purge command (removeDataOfTypes:[MemoryCache]).
 objc2 = "0.6"

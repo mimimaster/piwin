@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { HealthForegroundUseMode } from '../../client-tools/client-tool-preferences.js';
+import type { HealthForegroundUseMode } from '@piwin/host-client';
 import type { InkstoneHost } from '../host/inkstone-host-context.js';
 import { FullButton, RadioOptions, SectionLabel } from '../inkstone-ui.js';
 
@@ -21,7 +21,7 @@ export function HealthSection({ host }: { host: InkstoneHost }): ReactElement {
       <p className="quote-note">
         {host.connectionState.kind !== 'ready'
           ? '连上 Host 后才能判断是否可用。'
-          : '暂不可用：需要 iPhone 真机，且 Host 以 PIWIN_EXPERIMENTAL_APPLE_HEALTH=1 启动（实验功能，默认关闭）。'}
+          : '暂不可用：需要 iPhone 真机，且 Host 为支持设备工具的版本。'}
       </p>
     );
   }

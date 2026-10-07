@@ -8,6 +8,19 @@ import type { SessionScope, ThinkingLevel } from './host.js';
 export type UsageSource = 'pi-contextUsage' | 'assistant-usage' | 'host-estimate';
 /** Turn timing includes tool/approval waits; request timing describes one model call. */
 export type UsageTimingScope = 'request' | 'turn';
+/**
+ * What the first observed stream increment carried. `reasoning` means the
+ * model's thinking was streamed, so the whole output falls after the first
+ * token; `content` means any reasoning happened unseen before it.
+ */
+export type UsageFirstTokenKind = 'reasoning' | 'content';
+
+/** Reasoning accounting that decides which tokens the decode window covers. */
+export type UsageReasoningTiming = {
+  /** Reasoning tokens when the provider reports them; a subset of completionTokens. */
+  reasoningTokens?: number;
+  firstTokenKind?: UsageFirstTokenKind;
+};
 
 /**
  * Optional category breakdown for context ring popover.
@@ -47,6 +60,9 @@ export type ContextUsageSnapshot = {
   /** First token latency in milliseconds when reported. */
   firstTokenMs?: number;
   timingScope?: UsageTimingScope;
+  /** Reasoning tokens when the provider reports them; a subset of completionTokens. */
+  reasoningTokens?: number;
+  firstTokenKind?: UsageFirstTokenKind;
   /** 0–1 fraction of context used when computable. */
   contextRatio?: number;
   updatedAt: string;
@@ -106,6 +122,9 @@ export type UsageRecord = {
   /** First token latency in milliseconds when known. */
   firstTokenMs?: number;
   timingScope?: UsageTimingScope;
+  /** Reasoning tokens when the provider reports them; a subset of completionTokens. */
+  reasoningTokens?: number;
+  firstTokenKind?: UsageFirstTokenKind;
   /** Turn outcome status. */
   success?: boolean;
   measurementId?: string;
@@ -147,7 +166,7 @@ export type SessionUsageTotals = UsageBucket & {
   latestRequest?: SessionLatestRequestTiming;
 };
 
-export type SessionLatestRequestTiming = {
+export type SessionLatestRequestTiming = UsageReasoningTiming & {
   messageId: string;
   completionTokens?: number;
   durationMs?: number;
@@ -199,15 +218,23 @@ const LARGE_OUTPUT_TOKEN_THRESHOLD = 10;
 
 /**
  * Output speed in tokens per second.
- * Decode Δ: completion / (duration − firstToken). Missing or empty decode
- * window uses end-to-end duration. No minimum wall-clock — a 1s flash
- * completion is a real rate; oh-my-tps' 2s rule is for live overlay only.
+ *
+ * The decode window (duration − firstToken) only rates the tokens that were
+ * produced inside it. `completionTokens` includes reasoning, so:
+ * - reasoning streamed first: the whole output is inside the window;
+ * - content first with a reported reasoning count: only the visible tokens are
+ *   (hidden reasoning ran during the first-token wait — dividing all output by
+ *   the tail is the 40000 tok/s bug);
+ * - otherwise it is unknown where the tokens fell, so the rate is end-to-end.
+ * No minimum wall-clock — a 1s flash completion is a real rate; oh-my-tps' 2s
+ * rule is for live overlay only.
  */
 export function computeTokensPerSecond(
   usage: Pick<
     UsageBucket,
     'completionTokens' | 'durationMs' | 'durationMsCompletionTokens' | 'firstTokenMs'
-  >,
+  > &
+    UsageReasoningTiming,
 ): number | null {
   const durationMs = usage.durationMs;
   if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs <= 0) {
@@ -217,20 +244,39 @@ export function computeTokensPerSecond(
   if (completionTokens === 0) {
     return null;
   }
+  const endToEnd = completionTokens / (durationMs / 1000);
   const firstTokenMs = usage.firstTokenMs;
-  const decodeMs =
-    typeof firstTokenMs === 'number' && Number.isFinite(firstTokenMs) && firstTokenMs >= 0
-      ? durationMs - firstTokenMs
-      : undefined;
-  const decodeIsUsable =
-    decodeMs !== undefined &&
-    decodeMs > 0 &&
-    !(decodeMs < MIN_PLAUSIBLE_DECODE_MS && completionTokens > LARGE_OUTPUT_TOKEN_THRESHOLD);
-  const generationMs = decodeIsUsable ? decodeMs : durationMs;
-  if (generationMs <= 0) {
-    return null;
+  if (typeof firstTokenMs !== 'number' || !Number.isFinite(firstTokenMs) || firstTokenMs < 0) {
+    return endToEnd;
   }
-  return completionTokens / (generationMs / 1000);
+  const decodeTokens = resolveDecodeWindowTokens(completionTokens, usage);
+  const decodeMs = durationMs - firstTokenMs;
+  const decodeIsUsable =
+    decodeTokens !== undefined &&
+    decodeTokens > 0 &&
+    decodeMs > 0 &&
+    !(decodeMs < MIN_PLAUSIBLE_DECODE_MS && decodeTokens > LARGE_OUTPUT_TOKEN_THRESHOLD);
+  return decodeIsUsable ? decodeTokens / (decodeMs / 1000) : endToEnd;
+}
+
+/** Tokens produced after the first token, or undefined when that is unknown. */
+function resolveDecodeWindowTokens(
+  completionTokens: number,
+  usage: UsageReasoningTiming,
+): number | undefined {
+  if (usage.firstTokenKind === 'reasoning') {
+    return completionTokens;
+  }
+  const reasoningTokens = usage.reasoningTokens;
+  if (
+    usage.firstTokenKind !== 'content' ||
+    typeof reasoningTokens !== 'number' ||
+    !Number.isFinite(reasoningTokens) ||
+    reasoningTokens < 0
+  ) {
+    return undefined;
+  }
+  return completionTokens - reasoningTokens;
 }
 
 /**
@@ -258,6 +304,9 @@ export type UsageCallLogEntry = {
   /** First observable model content latency in ms when measured. */
   firstTokenMs?: number;
   timingScope?: UsageTimingScope;
+  /** Reasoning tokens when the provider reports them; a subset of completionTokens. */
+  reasoningTokens?: number;
+  firstTokenKind?: UsageFirstTokenKind;
   /** Turn outcome when the ledger recorded one. */
   success?: boolean;
   source: 'assistant-usage' | 'host-estimate';

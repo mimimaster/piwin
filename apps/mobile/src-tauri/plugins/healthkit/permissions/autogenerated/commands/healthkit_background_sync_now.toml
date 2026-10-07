@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-healthkit-background-sync-now"
+description = "Enables the healthkit_background_sync_now command without any pre-configured scope."
+commands.allow = ["healthkit_background_sync_now"]
+
+[[permission]]
+identifier = "deny-healthkit-background-sync-now"
+description = "Denies the healthkit_background_sync_now command without any pre-configured scope."
+commands.deny = ["healthkit_background_sync_now"]

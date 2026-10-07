@@ -34,6 +34,13 @@ export type HostPairingStatusData = {
   hostInstanceId: string;
   /** WebSocket address a pairing code points phones at. */
   advertisedEndpoint?: string;
+  /**
+   * Every address this Host can currently be dialled on (LAN interfaces, then
+   * Tailscale), best first. A paired device remembers them so it can find the
+   * Host again after the computer changes network or its address is reassigned.
+   * Empty unless the Host listens on all interfaces.
+   */
+  endpointCandidates?: string[];
 };
 
 export type HostPairingCodeData = MobileAccessPairingCodeData;
@@ -41,6 +48,8 @@ export type HostPairingDeviceListData = MobileAccessDeviceListData;
 
 const HOST_PAIRING_COMMAND_TYPE_SET = new Set<string>(HOST_PAIRING_COMMAND_TYPES);
 const MAX_DEVICE_ID_LENGTH = 256;
+/** A Host has a handful of interfaces; anything longer is not a real answer. */
+const MAX_ENDPOINT_CANDIDATES = 8;
 
 export function isHostPairingCommandType(value: unknown): value is HostPairingCommandType {
   return typeof value === 'string' && HOST_PAIRING_COMMAND_TYPE_SET.has(value);
@@ -95,6 +104,14 @@ export function readHostPairingStatusData(value: unknown): HostPairingStatusData
   };
   if (typeof record.advertisedEndpoint === 'string' && record.advertisedEndpoint.length > 0) {
     status.advertisedEndpoint = record.advertisedEndpoint;
+  }
+  if (Array.isArray(record.endpointCandidates)) {
+    const candidates = record.endpointCandidates.filter(
+      (item): item is string => typeof item === 'string' && item.length > 0,
+    );
+    if (candidates.length > 0) {
+      status.endpointCandidates = candidates.slice(0, MAX_ENDPOINT_CANDIDATES);
+    }
   }
   return status;
 }

@@ -9,9 +9,74 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <!-- Fonts are self-hosted: see src/styles/fonts.css + public/fonts/. -->
     <meta name="cache-bust" content="composer-revert-paper-cover-v12" />
+    <!-- Boot splash: the workbench bundle takes seconds to parse on a phone, and
+         until it runs there is no stylesheet and no theme. This paints the stage
+         surface of the last face with a spinner; React replaces #root's children
+         on its first commit. Contract: src/boot-splash.test.ts. -->
+    <style id="boot-splash-style">
+      .boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #191714;
+        color: #8b8378;
+        font: 500 13px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        letter-spacing: 0.08em;
+      }
+      html[data-boot-face='paper'] .boot-splash {
+        background: #f8f6f0;
+        color: #726b61;
+      }
+      .boot-splash-spinner {
+        width: 18px;
+        height: 18px;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        opacity: 0.7;
+        animation: boot-splash-spin 0.8s linear infinite;
+      }
+      @keyframes boot-splash-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-splash-spinner {
+          animation: none;
+        }
+      }
+    </style>
+    <script id="boot-splash-face">
+      (function () {
+        var face = 'ink';
+        try {
+          var mode = window.localStorage.getItem('piwin.desktop.appearanceMode');
+          var last = window.localStorage.getItem('piwin.desktop.lastThemeId') || '';
+          var systemLight =
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(prefers-color-scheme: light)').matches;
+          if (mode === 'light' || (mode === 'system' && systemLight)) {
+            face = 'paper';
+          } else if (mode === null && /paper|light|bone|white/.test(last)) {
+            face = 'paper';
+          }
+        } catch (e) {}
+        document.documentElement.setAttribute('data-boot-face', face);
+      })();
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-splash" role="status" aria-label="piwin">
+        <span class="boot-splash-spinner" aria-hidden="true"></span>
+        <span aria-hidden="true">piwin</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

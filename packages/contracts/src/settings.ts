@@ -22,6 +22,7 @@ import type {
 import type { ReplyWriterConfig } from './reply-writer.js';
 import type { SkillsConfig } from './skills.js';
 import type { WalkthroughConfig } from './walkthrough.js';
+import type { HealthConfig } from './health-summary.js';
 import type { WebConfig } from './web.js';
 import type { McpConfigDocument } from './mcp.js';
 
@@ -59,6 +60,7 @@ export type SettingsDomain =
   | 'replyWriter'
   | 'permissions'
   | 'walkthrough'
+  | 'health'
   | 'subagents'
   | 'execution'
   | 'remote'
@@ -96,6 +98,7 @@ export type SettingsDomainValueMap = {
   replyWriter: ReplyWriterConfig | undefined;
   permissions: PermissionConfig | undefined;
   walkthrough: WalkthroughConfig | undefined;
+  health: HealthConfig | undefined;
   subagents: SubagentConfig | undefined;
   execution: ExecutionConfig | undefined;
   remote: RemoteConfig | undefined;
@@ -162,6 +165,7 @@ export const REMOTE_SETTINGS_APPLY_DOMAINS = [
   'replyWriter',
   'permissions',
   'walkthrough',
+  'health',
   'subagents',
   'execution',
   'remote',
@@ -309,6 +313,7 @@ export const SETTINGS_DOMAINS = [
   'replyWriter',
   'permissions',
   'walkthrough',
+  'health',
   'subagents',
   'execution',
   'remote',
@@ -346,6 +351,7 @@ const settingsDomainValueMap: Record<SettingsDomain, true> = {
   replyWriter: true,
   permissions: true,
   walkthrough: true,
+  health: true,
   subagents: true,
   execution: true,
   remote: true,

@@ -136,6 +136,7 @@ const SAMPLE_CALL_LOG: UsageCallLog = {
       totalTokens: 1_850,
       durationMs: 2_500,
       firstTokenMs: 350,
+      firstTokenKind: 'reasoning',
       source: 'assistant-usage',
     },
     {

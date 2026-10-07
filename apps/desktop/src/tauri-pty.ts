@@ -2,6 +2,7 @@
  * Desktop-owned interactive PTY (ADR 0013).
  * Uses Tauri invoke/events — never routes bytes through Node host JSONL.
  */
+import { isDesktopTauriRuntime } from './shell-runtime.js';
 
 export type TauriPtyOpenResult = {
   pty_id: string;
@@ -17,8 +18,12 @@ export type TauriPtyExitEvent = {
   exit_code?: number | null;
 };
 
+/**
+ * True inside the Desktop app only. The iOS/Android shell also has a Tauri
+ * bridge but none of the Desktop native commands — see shell-runtime.ts.
+ */
 export function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  return isDesktopTauriRuntime();
 }
 
 /** True when we should prefer Tauri PTY + xterm over host shell preview. */

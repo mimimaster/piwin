@@ -281,7 +281,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html[data-theme-id='piwin-inkstone-paper'] .sb-top .search,
 html[data-theme-id='piwin-inkstone-ink'] .sb-top .search {
-  height: 28px !important;
+  /* --sb-top-control-size: touch layouts raise the row to a thumb-sized target. */
+  height: var(--sb-top-control-size, 28px) !important;
   background: var(--s2) !important;
   box-shadow: var(--sh1) !important;
   border-radius: 6px !important;
@@ -324,17 +325,17 @@ html[data-theme-id='piwin-inkstone-ink'] .sb-top .search kbd {
 
 html[data-theme-id='piwin-inkstone-paper'] .sb-top .new,
 html[data-theme-id='piwin-inkstone-ink'] .sb-top .new {
-  width: 28px !important;
-  min-width: 28px !important;
-  max-width: 28px !important;
-  height: 28px !important;
-  min-height: 28px !important;
+  width: var(--sb-top-control-size, 28px) !important;
+  min-width: var(--sb-top-control-size, 28px) !important;
+  max-width: var(--sb-top-control-size, 28px) !important;
+  height: var(--sb-top-control-size, 28px) !important;
+  min-height: var(--sb-top-control-size, 28px) !important;
   border-radius: 6px;
   background: var(--zhu);
   color: var(--on-zhu);
   display: grid;
   place-items: center;
-  flex: 0 0 28px;
+  flex: 0 0 var(--sb-top-control-size, 28px);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
   border: 0;
   cursor: pointer;

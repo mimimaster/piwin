@@ -38,11 +38,13 @@ html[data-theme-id='piwin-inkstone-paper'] .app-shell,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell {
   --sidebar-width: 240px;
   --right-panel-width: 360px;
-  padding: 0 8px 8px !important;
-  gap: 8px !important;
+  /* Layout tokens (tokens.css "Shell layout tokens"): a layout that has no
+     window frame retargets these instead of out-weighing this rule. */
+  padding: var(--shell-frame-padding, 0 8px 8px) !important;
+  gap: var(--shell-frame-gap, 8px) !important;
   row-gap: 0 !important;
-  column-gap: 8px !important;
-  grid-template-rows: var(--titleband-height) minmax(0, 1fr) !important;
+  column-gap: var(--shell-frame-gap, 8px) !important;
+  grid-template-rows: var(--shell-titleband-row, var(--titleband-height)) minmax(0, 1fr) !important;
   grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr) !important;
   grid-template-areas:
     'tb tb'
@@ -128,13 +130,6 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='phone'].has-rig
     'stage' !important;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .app-shell[data-layout='phone'] {
-  padding: 0 !important;
-  gap: 0 !important;
-  column-gap: 0 !important;
-}
-
 html[data-theme-id='piwin-inkstone-paper'] .app-shell > .context-bar,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell > .context-bar {
   grid-area: tb;
@@ -145,8 +140,9 @@ html[data-theme-id='piwin-inkstone-paper'] .app-shell > .sidebar,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell > .sidebar {
   grid-area: nav;
   grid-row: 2;
-  /* Kill Deck overlay clearance — titleband is its own grid row under Inkstone. */
-  padding: 0 !important;
+  /* Kill Deck overlay clearance — titleband is its own grid row under Inkstone.
+     A drawer that covers the whole screen brings its own device insets. */
+  padding: var(--drawer-inset-top, 0) 0 var(--drawer-inset-bottom, 0) !important;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .app-shell > .workspace,
@@ -160,7 +156,7 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell > .right-panel {
   grid-area: signal;
   grid-row: 2;
   margin-top: 0;
-  padding-top: 0;
+  padding-top: var(--inspector-inset-top, 0);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell .conversation-pane-body > .chat-column,
@@ -188,8 +184,8 @@ html[data-theme-id='piwin-inkstone-paper'] .app-shell > .workspace,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell > .workspace,
 html[data-theme-id='piwin-inkstone-paper'] .app-shell > .right-panel,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell > .right-panel {
-  border-radius: 8px !important;
-  box-shadow: var(--sh2) !important;
+  border-radius: var(--shell-panel-radius, 8px) !important;
+  box-shadow: var(--shell-panel-shadow, var(--sh2)) !important;
   overflow: hidden;
   border: 0 !important;
 }

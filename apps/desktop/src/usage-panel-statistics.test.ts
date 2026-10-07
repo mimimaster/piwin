@@ -3,6 +3,7 @@ import type { UsageRollup } from '@piwin/contracts';
 import {
   formatThinkingLabel,
   formatTokensPerSecond,
+  formatUsageDuration,
   normalizeUsageRollup,
   resolveUsageWindow,
   tokenComponents,
@@ -69,6 +70,16 @@ describe('usage-panel-statistics', () => {
     expect(formatTokensPerSecond(75.4)).toBe('75.4 tok/s');
     expect(formatTokensPerSecond(123.456)).toBe('123 tok/s');
     expect(formatTokensPerSecond(null)).toBe('—');
+  });
+
+  it('carries rounded seconds into the minute instead of printing 60s', () => {
+    expect(formatUsageDuration(850)).toBe('850ms');
+    expect(formatUsageDuration(5_140)).toBe('5.14s');
+    expect(formatUsageDuration(43_400)).toBe('43.4s');
+    expect(formatUsageDuration(59_960)).toBe('1m0s');
+    expect(formatUsageDuration(70_000)).toBe('1m10s');
+    expect(formatUsageDuration(119_735)).toBe('2m0s');
+    expect(formatUsageDuration(undefined)).toBe('—');
   });
 
   it('formats thinking labels for Chinese, English, and unknown states', () => {

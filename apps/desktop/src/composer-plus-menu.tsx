@@ -6,7 +6,8 @@
  */
 
 import { type ReactElement, type ReactNode } from 'react';
-import type { McpServerRuntimeStatus, SkillSource } from '@piwin/contracts';
+import type { McpServerRuntimeStatus, PromptContextRef, SkillSource } from '@piwin/contracts';
+import { APPLE_HEALTH_CONTEXT_REF } from '@piwin/host-client';
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -17,7 +18,17 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSwitchItem,
 } from '@piwin/ui-kit';
-import { IconExtension, IconFile, IconImage, IconMcp, IconPlug, IconSkill } from './shell-icons';
+import {
+  IconExtension,
+  IconFile,
+  IconHeart,
+  IconImage,
+  IconMcp,
+  IconPlug,
+  IconSkill,
+} from './shell-icons';
+import { DEVICE_HEALTH_COPY } from './device-health-copy';
+import { useDeviceHealth } from './use-device-health';
 import { useDesktopLocale } from './desktop-locale-context';
 import type { SessionMcpSwitches } from './hooks/use-session-mcp-switches';
 import type { SlashExtensionCommandInput } from './slash';
@@ -72,6 +83,8 @@ export type ComposerPlusMenuProps = {
   attachImageDisabledReason?: string;
   /** Conversation chat keeps attachments and hides Skills / Connectors. */
   hideAgentExtras?: boolean;
+  /** Adds a context chip to the pending turn (device sources such as Apple Health). */
+  onAddContextRef?: ((ref: PromptContextRef) => void) | undefined;
 };
 
 function connectorMeta(server: ComposerMcpOption, isZh: boolean): string | null {
@@ -88,8 +101,16 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const imageDisabledReason = props.attachImageDisabledReason?.trim() || undefined;
+  // Only the mobile shell with Apple Health connected offers this; the chip it
+  // adds is what tells the Host this turn may read health data.
+  const health = useDeviceHealth();
+  const onAddContextRef = props.onAddContextRef;
+  const attachAppleHealth =
+    health.enabled && onAddContextRef !== undefined
+      ? () => onAddContextRef(APPLE_HEALTH_CONTEXT_REF)
+      : undefined;
   const hasAttachments = Boolean(
-    props.onAttachFile || props.onAttachImage || imageDisabledReason,
+    props.onAttachFile || props.onAttachImage || imageDisabledReason || attachAppleHealth,
   );
   const showAgentExtras = props.hideAgentExtras !== true;
   const switches = props.mcpSwitches?.supported === true ? props.mcpSwitches : null;
@@ -142,6 +163,15 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
             <IconImage width={16} height={16} />
           </span>
           <span className="plus-menu-label">{isZh ? '添加图片' : 'Attach image'}</span>
+        </DropdownMenuItem>
+      ) : null}
+
+      {attachAppleHealth ? (
+        <DropdownMenuItem onSelect={attachAppleHealth} testId="plus-menu-apple-health">
+          <span className="plus-menu-icon">
+            <IconHeart width={16} height={16} />
+          </span>
+          <span className="plus-menu-label">{DEVICE_HEALTH_COPY[locale].attachToTurn}</span>
         </DropdownMenuItem>
       ) : null}
 

@@ -105,6 +105,27 @@ describe('usage-map', () => {
     expect(snapshot?.durationMs).toBe(2_500);
   });
 
+  it('maps reasoning tokens from usage and the first-token kind from the message', () => {
+    const snapshot = mapUsageSnapshot(
+      's1',
+      {
+        model: 'gpt-4o',
+        firstTokenMs: 350,
+        firstTokenKind: 'content',
+        usage: { input: 700, output: 200, reasoning: 150, firstTokenKind: 'reasoning' },
+      },
+      'assistant-usage',
+    );
+    expect(snapshot).toMatchObject({ reasoningTokens: 150, firstTokenKind: 'content' });
+    const unreported = mapUsageSnapshot(
+      's1',
+      { model: 'gpt-4o', usage: { input: 700, output: 200 } },
+      'assistant-usage',
+    );
+    expect(unreported?.reasoningTokens).toBeUndefined();
+    expect(unreported?.firstTokenKind).toBeUndefined();
+  });
+
   it('estimates mock usage', () => {
     const snapshot = estimateMockUsage('s1', 'hello world', 'reply text');
     expect(snapshot.source).toBe('host-estimate');

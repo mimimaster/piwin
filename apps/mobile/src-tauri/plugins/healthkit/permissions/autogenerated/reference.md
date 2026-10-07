@@ -36,6 +36,84 @@ Denies the healthkit_authorization_request_status command without any pre-config
 <tr>
 <td>
 
+`piwin-healthkit:allow-healthkit-background-sync-configure`
+
+</td>
+<td>
+
+Enables the healthkit_background_sync_configure command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`piwin-healthkit:deny-healthkit-background-sync-configure`
+
+</td>
+<td>
+
+Denies the healthkit_background_sync_configure command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`piwin-healthkit:allow-healthkit-background-sync-now`
+
+</td>
+<td>
+
+Enables the healthkit_background_sync_now command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`piwin-healthkit:deny-healthkit-background-sync-now`
+
+</td>
+<td>
+
+Denies the healthkit_background_sync_now command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`piwin-healthkit:allow-healthkit-background-sync-status`
+
+</td>
+<td>
+
+Enables the healthkit_background_sync_status command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`piwin-healthkit:deny-healthkit-background-sync-status`
+
+</td>
+<td>
+
+Denies the healthkit_background_sync_status command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `piwin-healthkit:allow-healthkit-cancel-read`
 
 </td>
@@ -145,7 +223,7 @@ Denies the healthkit_request_read_authorization command without any pre-configur
 </td>
 <td>
 
-Allow the Mobile app to call the read-only HealthKit plugin commands.
+Allow the Mobile app to call the read-only HealthKit plugin commands, including background summary sync.
 
 </td>
 </tr>

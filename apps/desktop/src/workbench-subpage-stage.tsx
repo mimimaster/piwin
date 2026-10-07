@@ -10,10 +10,11 @@ import type {
 import type { HostRequestOptions } from '@piwin/host-client';
 import type { DesktopLocale } from './desktop-locale';
 import {
-  KnowledgeWorkspaceView,
-  LibraryWorkspaceView,
-  MarketplaceWorkspaceView,
-} from './workspace-subpages/index.js';
+  DeferredKnowledgeWorkspaceView,
+  DeferredLibraryWorkspaceView,
+  DeferredMarketplaceWorkspaceView,
+  DeferredSurfaceBoundary,
+} from './deferred-desktop-surfaces.js';
 
 export type WorkbenchSubpageStageProps = {
   activeSubPage:
@@ -64,19 +65,21 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
     props.activeSubPage === 'videos'
   ) {
     return (
-      <LibraryWorkspaceView
-        onClose={props.onClose}
-        request={props.request}
-        locale={props.locale}
-        initialKind={props.activeSubPage === 'videos' ? 'video' : 'image'}
-        {...(props.subscribeConnected !== undefined
-          ? { subscribeConnected: props.subscribeConnected }
-          : {})}
-        {...(props.refreshToken !== undefined ? { refreshToken: props.refreshToken } : {})}
-        {...(props.onRemixToComposer !== undefined
-          ? { onRemixToComposer: props.onRemixToComposer }
-          : {})}
-      />
+      <DeferredSurfaceBoundary label={props.locale === 'en' ? 'Library' : '资料库'}>
+        <DeferredLibraryWorkspaceView
+          onClose={props.onClose}
+          request={props.request}
+          locale={props.locale}
+          initialKind={props.activeSubPage === 'videos' ? 'video' : 'image'}
+          {...(props.subscribeConnected !== undefined
+            ? { subscribeConnected: props.subscribeConnected }
+            : {})}
+          {...(props.refreshToken !== undefined ? { refreshToken: props.refreshToken } : {})}
+          {...(props.onRemixToComposer !== undefined
+            ? { onRemixToComposer: props.onRemixToComposer }
+            : {})}
+        />
+      </DeferredSurfaceBoundary>
     );
   }
 
@@ -88,40 +91,44 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
           ? 'documents'
           : 'wiki';
     return (
-      <KnowledgeWorkspaceView
-        key={props.flashcardsFolderPath ?? props.activeSubPage}
-        locale={props.locale === 'en' ? 'en' : 'zh-CN'}
-        onClose={props.onClose}
-        request={props.request}
-        studyRequest={props.requestFlashcards}
-        initialTab={initialTab}
-        initialFolderPath={props.flashcardsFolderPath}
-        projectPath={props.projectPath}
-        subscribePush={props.subscribePush}
-        subscribeKnowledgePush={props.subscribeKnowledgePush}
-        subscribeConnected={props.subscribeConnected}
-        hasStudyCapability={props.hasStudyCapability}
-        knowledgeSupported={props.knowledgeSupported === true}
-        onOpenIngest={(folderPath) => props.onOpenIngest?.(folderPath)}
-        onUseInChat={(baseId) => props.onUseKnowledgeInChat?.(baseId)}
-        onSendToChat={(text) => props.onRemixToComposer?.({ text })}
-        onOpenCitation={(citation) => props.onOpenKnowledgeCitation?.(citation)}
-        onConfigureEmbedding={props.onConfigureEmbedding}
-        onOpenSession={props.onOpenSession}
-      />
+      <DeferredSurfaceBoundary label={props.locale === 'en' ? 'Knowledge' : '知识中心'}>
+        <DeferredKnowledgeWorkspaceView
+          key={props.flashcardsFolderPath ?? props.activeSubPage}
+          locale={props.locale === 'en' ? 'en' : 'zh-CN'}
+          onClose={props.onClose}
+          request={props.request}
+          studyRequest={props.requestFlashcards}
+          initialTab={initialTab}
+          initialFolderPath={props.flashcardsFolderPath}
+          projectPath={props.projectPath}
+          subscribePush={props.subscribePush}
+          subscribeKnowledgePush={props.subscribeKnowledgePush}
+          subscribeConnected={props.subscribeConnected}
+          hasStudyCapability={props.hasStudyCapability}
+          knowledgeSupported={props.knowledgeSupported === true}
+          onOpenIngest={(folderPath) => props.onOpenIngest?.(folderPath)}
+          onUseInChat={(baseId) => props.onUseKnowledgeInChat?.(baseId)}
+          onSendToChat={(text) => props.onRemixToComposer?.({ text })}
+          onOpenCitation={(citation) => props.onOpenKnowledgeCitation?.(citation)}
+          onConfigureEmbedding={props.onConfigureEmbedding}
+          onOpenSession={props.onOpenSession}
+        />
+      </DeferredSurfaceBoundary>
     );
   }
 
   if (props.activeSubPage === 'marketplace') {
     return (
-      <MarketplaceWorkspaceView
-        locale={props.locale}
-        onClose={props.onClose}
-        request={props.request}
-        sessionId={props.sessionId}
-        subscribeHostMessages={props.subscribeHostMessages}
-        onUseExample={(text) => props.onRemixToComposer?.({ text })}
-      />
+      <DeferredSurfaceBoundary label={props.locale === 'en' ? 'Marketplace' : '扩展市场'}>
+        <DeferredMarketplaceWorkspaceView
+          locale={props.locale}
+          onClose={props.onClose}
+          request={props.request}
+          sessionId={props.sessionId}
+          subscribeHostMessages={props.subscribeHostMessages}
+          onUseExample={(text) => props.onRemixToComposer?.({ text })}
+        />
+      </DeferredSurfaceBoundary>
     );
   }
 

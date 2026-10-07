@@ -39,4 +39,19 @@ describe('session row status seal vs hover actions', () => {
       /right:\s*calc\(6px\s*\+\s*var\(--session-status-seal-clearance/,
     );
   });
+
+  it('reveals row actions on hover only for a hovering pointer', () => {
+    // iOS spends the first tap on a :hover that changes visibility, so an
+    // ungated reveal made every session row need two taps to open.
+    const withoutHoverMedia = session
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/@media \(hover: hover\) \{[\s\S]*?\n\}\n/g, '');
+    const ungatedHoverReveals = [...withoutHoverMedia.matchAll(/([^{}]*:hover[^{}]*)\{([^}]*)\}/g)].filter(
+      (rule) => /visibility|pointer-events/.test(rule[2] ?? ''),
+    );
+    expect(ungatedHoverReveals.map((rule) => rule[1]?.trim())).toEqual([]);
+    expect(session).toMatch(
+      /@media \(hover: none\) \{[\s\S]*?\.session-row--active[^{]*\.session-action-btn\s*\{[^}]*visibility:\s*visible/,
+    );
+  });
 });

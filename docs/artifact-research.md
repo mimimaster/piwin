@@ -153,6 +153,7 @@ packages/artifact/src/
   srcdoc.ts
   iframe-policy.ts
   theme-contract.ts
+  scene-palette.ts
   streaming.ts
   height-policy.ts
   index.ts
@@ -282,7 +283,14 @@ Historical. Current module map (2026-08-24):
 | `height-policy.ts` | Pure normalization + 16 384 px defensive clamp |
 | `streamable-preview.ts` | Script-stripped partial HTML preview |
 | `theme-contract.ts` | Soft-repair hard-coded light surfaces and non-code dark shells for **preview source only** |
+| `scene-palette.ts` | Detect a self-painted Canvas scene (cover-fill SVG stage: `viewBox` + `preserveAspectRatio="… slice"`). On Canvas such a document keeps its own palette: color repair and the transparent-page theme guard are skipped, invented theme variable names are still mapped. Inline always repairs |
 | `srcdoc.ts` / `srcdoc-css.ts` / `srcdoc-bridge.ts` | CSP + theme CSS + frame-mode CSS + bridge bootstrap |
+
+**Theme contract exemptions** (repair targets surfaces that hold theme text; drawn marks stay as authored):
+
+- See-through fills are overlays, not surfaces: any `transparent` stop, dark fills below alpha 0.9 (scrims, vignettes), light fills below alpha 0.5 (glows, shines). Replacing one with the opaque theme surface hides the artwork under it.
+- Out-of-flow circles (`position: absolute|fixed` + `border-radius: 50%`) are particles (snow, stars) and keep a fixed light fill.
+
 
 Desktop schedulers (`artifact-init-queue.ts`, `artifact-live-host-registry.ts`)
 are not `@piwin/artifact` exports. MarkdownView uses `renderingPhase` only.

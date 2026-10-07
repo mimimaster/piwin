@@ -1,5 +1,7 @@
+import { createMobileDesktopAttentionOs } from './desktop-attention-os-mobile.js';
 import { createNoopDesktopAttentionOs } from './desktop-attention-os-noop.js';
 import { createTauriDesktopAttentionOs } from './desktop-attention-os-tauri.js';
+import { isMobileTauriRuntime } from './shell-runtime.js';
 import { isTauriRuntime } from './tauri-pty.js';
 
 export type AttentionAuthorization = 'granted' | 'denied' | 'not-determined' | 'unsupported';
@@ -43,5 +45,8 @@ export type DesktopAttentionOs = {
 };
 
 export function createDesktopAttentionOs(): DesktopAttentionOs {
+  if (isMobileTauriRuntime()) {
+    return createMobileDesktopAttentionOs();
+  }
   return isTauriRuntime() ? createTauriDesktopAttentionOs() : createNoopDesktopAttentionOs();
 }

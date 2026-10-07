@@ -19,6 +19,7 @@ import type { AutomationConfig } from './automation.js';
 import type { MarketplaceConfig } from './marketplace-registry.js';
 import type { PermissionConfig } from './permission.js';
 import type { WalkthroughConfig } from './walkthrough.js';
+import type { HealthConfig } from './health-summary.js';
 import type { CodeSearchConfig } from './code-search.js';
 import type { ArtifactConfig } from './artifact.js';
 import { THINKING_LEVEL_OPTIONS } from './host.js';
@@ -897,6 +898,8 @@ export type PiwinConfig = {
   permissions?: PermissionConfig;
   /** Walkthrough generation settings (spec §6.1). */
   walkthrough?: WalkthroughConfig;
+  /** Stored Apple Health summaries and the scheduled digest (ADR 0062 M2). */
+  health?: HealthConfig;
   /** Settings-backed subagent profiles and parallel execution limits. */
   subagents?: SubagentConfig;
   /** Leaf-run execution admission. Omitted config normalizes to 8. */

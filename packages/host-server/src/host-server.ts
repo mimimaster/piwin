@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { IncomingMessage } from 'node:http';
+import { createServer as createHttpServer, type IncomingMessage, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -11,6 +11,7 @@ import type {
 } from '@piwin/contracts';
 import { isHostPairingCommandType } from '@piwin/contracts';
 import { handleHostPairingCommand } from './host-pairing-commands.js';
+import { listMobileAccessEndpointCandidates } from './mobile-access-endpoints.js';
 import type { HostRuntime } from '@piwin/host-runtime';
 import { WebSocket, WebSocketServer } from 'ws';
 import {
@@ -70,6 +71,7 @@ import {
   rememberRemoteMediaRefsFromPush,
   resolveRemoteCommand,
   toError,
+  isWildcardHost,
 } from './host-server-support.js';
 import { stampSubscriptionAuthCommand } from './stamp-subscription-auth.js';
 import { serveWebShell } from './web-shell.js';
@@ -79,12 +81,15 @@ import {
   type DisconnectedMirrorLeaseReaper,
 } from './browser-mirror-leases.js';
 import { isLiveOwnerConnection } from './live-remote-gate.js';
+import { handleDeviceHealthRequest, isDeviceHealthRequest } from './device-health-http.js';
 
 export type HostRuntimePort = Pick<
   HostRuntime,
   'handleCommand' | 'attachPushSink' | 'attachBrowserFrameSink'
 > & {
   runWithDevicePrincipal?: HostRuntime['runWithDevicePrincipal'];
+  /** Present when the runtime keeps background health summaries (ADR 0062 M2). */
+  healthSummarySync?: HostRuntime['healthSummarySync'];
 };
 
 export type HostServerOptions = {
@@ -141,6 +146,17 @@ const DEFAULT_PORT = 8787;
 // (size caps, path traversal), not a role.
 
 export class HostServer {
+  private httpServer: HttpServer | undefined;
+  /** A revoked phone's stored health summaries go with its credential. */
+  private forgetDeviceHealthSummaries(deviceId: string): void {
+    void this.runtime
+      .healthSummarySync?.()
+      ?.deleteDevice(deviceId)
+      .catch((error: unknown) =>
+        this.onError(toError(error, 'Failed to delete health summaries of a revoked device')),
+      );
+  }
+
   private readonly runtime: HostRuntimePort;
   private readonly piwinRoot: string | undefined;
   private readonly host: string;
@@ -173,6 +189,7 @@ export class HostServer {
   private readonly mirrorLeaseReaper: DisconnectedMirrorLeaseReaper;
   private pairingAdvertisedEndpoint: string | undefined;
   private boundUrl: string | undefined;
+  private boundPort: number | undefined;
 
   public constructor(options: HostServerOptions) {
     if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 0)) {
@@ -277,28 +294,35 @@ export class HostServer {
     }
 
     const webRoot = this.webRoot;
+    // Host owns the HTTP server so plain requests (Web shell, device health
+    // ingress) and the WebSocket upgrade share one port. `ws` only exposes a
+    // request hook on a server it was handed, not on one it created itself.
+    const httpServer = createHttpServer();
     const server = new WebSocketServer({
-      host: this.host,
-      port: this.port,
+      server: httpServer,
       maxPayload: HOST_WIRE_HARD_FRAME_BYTES,
     });
-    if (webRoot !== undefined) {
-      const httpServer = server.options.server;
-      if (httpServer === undefined || httpServer === null) {
-        throw new Error('Host Web shell requires the WebSocket HTTP server');
-      }
-      httpServer.on('request', (request, response) => {
-        if (request.headers.upgrade?.toLowerCase() === 'websocket') {
-          return;
+    this.httpServer = httpServer;
+    httpServer.on('request', (request, response) => {
+      const handled = isDeviceHealthRequest(request)
+        ? handleDeviceHealthRequest(request, response, {
+            authenticate:
+              this.devicePairing === undefined
+                ? undefined
+                : (credential) => this.devicePairing?.authenticate(credential),
+            sync: this.runtime.healthSummarySync?.(),
+          })
+        : webRoot === undefined
+          ? Promise.resolve(void response.writeHead(404).end())
+          : serveWebShell(webRoot, request, response);
+      void handled.catch((error: unknown) => {
+        this.onError(toError(error, 'Host HTTP request failed'));
+        if (!response.headersSent) {
+          response.writeHead(500).end();
         }
-        void serveWebShell(webRoot, request, response).catch((error: unknown) => {
-          this.onError(toError(error, 'Host Web shell failed'));
-          if (!response.headersSent) {
-            response.writeHead(500).end();
-          }
-        });
       });
-    }
+    });
+    httpServer.listen(this.port, this.host);
     this.server = server;
     server.on('connection', (socket, request) => this.handleConnection(socket, request));
     this.livenessTimer = setInterval(() => this.sweepIdleConnections(), HOST_LIVENESS_SWEEP_MS);
@@ -323,6 +347,7 @@ export class HostServer {
         }
         const info = address as AddressInfo;
         this.boundUrl = formatWebSocketUrl(this.host, info.port);
+        this.boundPort = info.port;
         resolve({ host: this.host, port: info.port, url: this.boundUrl });
       });
     });
@@ -410,6 +435,15 @@ export class HostServer {
         resolve();
       });
     });
+    // `ws` leaves a server it was handed open; the port is ours to release.
+    const httpServer = this.httpServer;
+    this.httpServer = undefined;
+    if (httpServer !== undefined) {
+      await new Promise<void>((resolve) => {
+        httpServer.close(() => resolve());
+        httpServer.closeAllConnections();
+      });
+    }
   }
 
   public disconnectDevice(deviceId: string, reason: string): void {
@@ -609,6 +643,17 @@ export class HostServer {
     return { pairing, store };
   }
 
+  /**
+   * Addresses a paired device can find this Host on. Only a listener on all
+   * interfaces has more than the one address it was started with.
+   */
+  private listEndpointCandidates(): string[] {
+    if (this.boundPort === undefined || !isWildcardHost(this.host)) {
+      return [];
+    }
+    return listMobileAccessEndpointCandidates(this.boundPort).map((candidate) => candidate.url);
+  }
+
   private async handleCommand(
     connection: HostClientConnection,
     frame: Extract<HostWireMessage, { type: 'command' }>,
@@ -620,6 +665,7 @@ export class HostServer {
         store: this.devicePairingStore,
         hostInstanceId: this.instanceId,
         advertisedEndpoint: this.pairingAdvertisedEndpoint ?? this.boundUrl,
+        listEndpointCandidates: () => this.listEndpointCandidates(),
         callerDeviceId: connection.deviceId,
         pairingEnabled: this.pairingEnabled,
         setEnabled: async (enabled, advertisedEndpoint) => {
@@ -628,6 +674,7 @@ export class HostServer {
         onRevoked: (deviceId) => {
           this.clientToolBroker?.forgetDevice(deviceId);
           this.disconnectDevice(deviceId, 'device revoked');
+          this.forgetDeviceHealthSummaries(deviceId);
         },
       });
       await this.sendResponse(connection, { type: 'response', requestId: frame.requestId, response });

@@ -424,8 +424,14 @@ the same entire turn for `durationMs` and `firstTokenMs`, with
 TTFT. Adapters that already supply first-token timing retain their values.
 The existing usage ledger, recent log and Desktop table consume these fields;
 Desktop labels the rate as a turn average and explains that tools and approval
-waits are included. TPS remains the reported completion tokens divided by the
-turn duration minus first-token wait, using the shared plausibility fallback.
+waits are included. TPS follows the shared rule (amended 2026-10-06): the
+first-token wait is only deducted when it is known which tokens fell after it.
+Host records `firstTokenKind` (`reasoning` when a thinking delta came first,
+otherwise `content`) and, where the provider reports it, `reasoningTokens`.
+Reasoning-first rates the whole output over duration minus first-token wait;
+content-first with a reasoning count rates only the visible tokens over that
+window; anything else divides completion tokens by the full duration, because
+hidden reasoning otherwise inflates the rate by orders of magnitude.
 Missing token counts or first-content evidence are never invented. This turn
 measurement remains a fallback for adapters without request accounting.
 

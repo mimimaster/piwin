@@ -1,4 +1,20 @@
-import DOMPurify, { type Config } from 'dompurify';
+import type { Config } from 'dompurify';
+
+type DomPurifyApi = typeof import('dompurify').default;
+
+let domPurify: DomPurifyApi | null = null;
+let domPurifyLoad: Promise<DomPurifyApi> | null = null;
+
+async function loadDomPurify(): Promise<DomPurifyApi> {
+  if (domPurify) return domPurify;
+  if (!domPurifyLoad) {
+    domPurifyLoad = import('dompurify').then((module) => {
+      domPurify = module.default;
+      return domPurify;
+    });
+  }
+  return domPurifyLoad;
+}
 
 const FORBIDDEN_STATIC_TAGS = [
   'script',
@@ -167,7 +183,7 @@ function unwrapProtectedSvgRoot(root: DocumentFragment): void {
  * The explicit DOM pass keeps behavior deterministic in WebKit and test DOMs;
  * DOMPurify then provides a second independent HTML/SVG sanitizer.
  */
-export function sanitizeStaticArtifactSource(source: string): string {
+export async function sanitizeStaticArtifactSource(source: string): Promise<string> {
   const template = document.createElement('template');
   template.innerHTML = source;
   template.content.querySelectorAll(FORBIDDEN_STATIC_TAGS.join(',')).forEach((element) => {
@@ -205,7 +221,8 @@ export function sanitizeStaticArtifactSource(source: string): string {
   // ordinary SVG geometry. The cloned geometry is still purified below.
   expandLocalSvgUseReferences(template.content);
 
-  const purified = DOMPurify.sanitize(protectSoleSvgRoot(template.innerHTML), PURIFY_OPTIONS);
+  const purify = await loadDomPurify();
+  const purified = purify.sanitize(protectSoleSvgRoot(template.innerHTML), PURIFY_OPTIONS);
   const purifiedTemplate = document.createElement('template');
   purifiedTemplate.innerHTML = purified;
   unwrapProtectedSvgRoot(purifiedTemplate.content);

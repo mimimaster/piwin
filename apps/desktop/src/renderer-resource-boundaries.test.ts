@@ -169,6 +169,9 @@ describe('Desktop renderer resource boundaries', () => {
     const settingsPanel = readSource('./SettingsPanel.tsx');
     const app = readSource('./App.tsx');
     const deferredSurfaces = readSource('./deferred-desktop-surfaces.tsx');
+    const themeRoot = readSource('./desktop-theme-root.tsx');
+    const mainEntry = readSource('./main.tsx');
+    const markdownMath = readSource('./markdown-math.ts');
     const composerMedia = readComposerHookSources();
     const hostClient = readSource('./host-client.ts');
     const mockHostClient = [
@@ -191,11 +194,37 @@ describe('Desktop renderer resource boundaries', () => {
       expect(mainStyles).not.toContain(settingsSheet);
       expect(settingsStyles).toContain(settingsSheet);
     }
+    // Region sheets stay in the main stylesheet. They share classes across
+    // surfaces (the studio titleband serves library, knowledge and
+    // marketplace) and sit before the theme sheets; loading them with a
+    // surface made the cascade depend on which page was opened first.
+    for (const sharedSheet of [
+      'region-live.css',
+      'artifact.css',
+      'region-studio-shell.css',
+      'region-library-workspace.css',
+      'region-marketplace.css',
+      'region-notes.css',
+      'region-knowledge.css',
+      'browser-session.css',
+      'subagent-session-inspector.css',
+    ]) {
+      expect(mainStyles).toContain(sharedSheet);
+    }
     expect(settingsPanel).toContain("import './styles/settings.css'");
     expect(app).not.toContain("from './SettingsPanel'");
     expect(app).not.toContain("from './KnowledgeCenterPanel'");
     expect(deferredSurfaces).toContain("import('./SettingsPanel')");
     expect(deferredSurfaces).toContain('prefetchSettingsPanel');
+    expect(deferredSurfaces).toContain("import('./workspace-subpages/LibraryWorkspaceView.js')");
+    expect(deferredSurfaces).toContain("import('./workspace-subpages/KnowledgeWorkspaceView.js')");
+    expect(deferredSurfaces).toContain("import('./workspace-subpages/MarketplaceWorkspaceView.js')");
+    expect(themeRoot).not.toMatch(/import \{[^}]*PrimitiveGallery/);
+    expect(themeRoot).toContain("import('./e2e/primitive-gallery')");
+    expect(themeRoot).toContain("import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true'");
+    expect(mainEntry).not.toContain('katex/dist/katex.min.css');
+    expect(markdownMath).toContain("import('katex')");
+    expect(markdownMath).not.toMatch(/^import katex from 'katex'/m);
 
     const settingsShell = readSource('./settings/settings-shell.tsx');
     const settingsBasic = readSource('./settings/pages/basic.ts');

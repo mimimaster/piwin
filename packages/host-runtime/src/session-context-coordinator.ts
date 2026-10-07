@@ -335,6 +335,12 @@ export function createSessionContextCoordinator(
         if (input.measurement.durationMs !== undefined) usage.durationMs = input.measurement.durationMs;
         if (input.measurement.firstTokenMs !== undefined) usage.firstTokenMs = input.measurement.firstTokenMs;
         if (input.measurement.timingScope !== undefined) usage.timingScope = input.measurement.timingScope;
+        if (input.measurement.reasoningTokens !== undefined) {
+          usage.reasoningTokens = input.measurement.reasoningTokens;
+        }
+        if (input.measurement.firstTokenKind !== undefined) {
+          usage.firstTokenKind = input.measurement.firstTokenKind;
+        }
         deps.push({
           type: 'event',
           sessionId: input.sessionId,

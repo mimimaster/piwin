@@ -5,6 +5,7 @@
  * Does not re-classify security or layout.
  */
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
+import { paintsOwnScene } from './scene-palette.js';
 import { buildHtmlArtifactSrcdoc } from './srcdoc.js';
 import {
   buildStreamableArtifactPreview,
@@ -80,7 +81,12 @@ export function materializeArtifact(
     bodySource = projectHtmlSourceForStreamRoot(bodySource);
   }
 
-  const contract = applyArtifactThemeContract(bodySource);
+  // Canvas is the one surface an artifact can fill edge to edge; a scene
+  // painted there keeps its own palette instead of the host's.
+  const ownPalette = presentation === 'canvas' && paintsOwnScene(bodySource);
+  const contract = applyArtifactThemeContract(bodySource, {
+    palette: ownPalette ? 'own' : 'host',
+  });
   if (contract.changed) {
     bodySource = contract.source;
   }
@@ -112,6 +118,7 @@ export function materializeArtifact(
     includeBridge: true,
     enableStreamUpdates: true,
     freezeSource: mode !== 'stream-preview',
+    ownPalette,
     documentKind: streamFragmentShell ? 'fragment' : intent.descriptor.documentKind,
   });
 

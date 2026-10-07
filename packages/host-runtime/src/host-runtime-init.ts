@@ -69,6 +69,7 @@ import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
 import { composeHostLive } from './voice/compose-host-live.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+import { HealthSummaryService } from './health-summary-service.js';
 import type { HostRuntimeOptions } from './host-runtime-types.js';
 import { createSessionContextCoordinator } from './session-context-coordinator.js';
 import { recordFinalizedUsageToLedger } from './host-runtime-usage-ledger.js';
@@ -100,6 +101,22 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
   }
 
   try {
+    const healthSummaries = new HealthSummaryService({
+      piwinRoot: getPiwinRoot(options.piwinRoot),
+      loadConfig: () => loadPiwinConfig(options.piwinRoot),
+      runCommand: (command) => deps.handleCommand(command),
+      onError: (error) =>
+        deps.push({ type: 'host/log', level: 'warn', message: `health summaries: ${error.message}` }),
+    });
+    deps.healthSummaries = healthSummaries;
+    // With summaries stored, the health tool can answer while no phone is connected.
+    if (options.clientToolExecution !== undefined) {
+      options = {
+        ...options,
+        clientToolExecution: healthSummaries.wrapExecutionPort(options.clientToolExecution),
+      };
+    }
+    healthSummaries.start();
     deps.options = options;
     applyPiwinPlaywrightBrowsersPath(getPiwinRoot(options.piwinRoot));
     // A packaged Host is launched by the OS, not by a login shell, so the

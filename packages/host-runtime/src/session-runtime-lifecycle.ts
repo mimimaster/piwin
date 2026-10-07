@@ -205,11 +205,12 @@ export async function doActivateSessionRuntime(
         runId,
         excludeSeedMessageId,
       );
-      deps.residencyController.commitActivation(sessionId, runtimeGenerationId);
+      // Busy from the commit when a Run owns this activation: the revalidation
+      // below awaits disk, and an idle entry is a suspension candidate.
+      deps.residencyController.commitActivation(sessionId, runtimeGenerationId, {
+        admittedForRun: runId !== undefined,
+      });
       await revalidateSessionContextAfterBind(deps, sessionId, runtimeGenerationId, record);
-      if (runId !== undefined) {
-        deps.residencyController.markBusy(sessionId, runtimeGenerationId);
-      }
       return grokHandle;
     } catch (error) {
       deps.residencyController.abortActivation(sessionId, runtimeGenerationId);
@@ -315,15 +316,16 @@ export async function doActivateSessionRuntime(
     });
     throw error;
   }
-  deps.residencyController.commitActivation(sessionId, runtimeGenerationId);
+  // Busy from the commit when a Run owns this activation: the revalidation
+  // below awaits disk, and an idle entry is a suspension candidate.
+  deps.residencyController.commitActivation(sessionId, runtimeGenerationId, {
+    admittedForRun: runId !== undefined,
+  });
   await revalidateSessionContextAfterBind(deps, sessionId, runtimeGenerationId, record);
   deps.sessionRuntimeDelegationModes.set(
     sessionId,
     runId ? (deps.runDelegationModes.get(runId) ?? 'auto') : 'auto',
   );
-  if (runId !== undefined) {
-    deps.residencyController.markBusy(sessionId, runtimeGenerationId);
-  }
   if (replaySeedOptions === undefined) {
     // A reconstructed backend owns no native Pi context: the first prompt
     // must inject bounded product history exactly once for this generation.

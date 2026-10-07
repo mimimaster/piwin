@@ -58,9 +58,11 @@ describe('usage-ledger-store', () => {
     const now = new Date();
     await appendUsageRecord(filePath, record({
       recordedAt: now.toISOString(), durationMs: 2300, firstTokenMs: 300, timingScope: 'turn',
+      reasoningTokens: 40, firstTokenKind: 'content',
     }));
     const log = await readUsageCallLog(filePath, { now });
-    expect(log.entries[0]).toMatchObject({ durationMs: 2300, firstTokenMs: 300, timingScope: 'turn' });
+    expect(log.entries[0]).toMatchObject({ durationMs: 2300, firstTokenMs: 300, timingScope: 'turn',
+      reasoningTokens: 40, firstTokenKind: 'content' });
   });
 
   it('shows each backend request without double-counting its aggregate turn in recent calls', async () => {

@@ -18,7 +18,7 @@
   --stage-min: 420px;
   height: 100%;
   display: grid;
-  padding: 0 var(--deck-inset) var(--deck-inset);
+  padding: var(--shell-frame-padding, 0 var(--deck-inset) var(--deck-inset));
   gap: var(--deck-gap);
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
@@ -93,9 +93,9 @@
   --chat-inline-pad: 14px;
   --chat-font-size: 16px;
   --traffic-light-clearance: var(--s-3);
+  /* --app-vv-height already stops at the keyboard; adding the keyboard inset
+     again left a keyboard-sized gap under the composer. */
   height: var(--app-vv-height, 100dvh);
-  padding: 0;
-  padding-bottom: var(--app-keyboard-inset, 0px);
 }
 
 /* ── Panel treatment ───────────────────────────────────────────────
@@ -378,6 +378,12 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-4);
+}
+
+.host-gate-manual {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
 }
 
 .host-gate-actions-stack {

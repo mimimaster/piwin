@@ -36,14 +36,41 @@ async function openSettingsFromCompactShell(page: Page): Promise<void> {
 }
 
 async function openTrustedSession(page: Page, projectPath: string): Promise<void> {
-  await page.getByTestId('open-workspace-btn').click();
+  // Inkstone's initial empty tree hides open-workspace-btn. Open Workspace
+  // stays available from the command palette.
+  const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+  await page.keyboard.press(`${modifier}+KeyK`);
+  await expect(page.getByTestId('command-palette')).toBeVisible();
+  await page.getByTestId('command-open-workspace').click();
   await page.getByTestId('project-path-input').fill(projectPath);
   await page.getByTestId('open-project-btn').click();
-  // Explicit open auto-trusts and creates/resumes a session (Cursor-like).
+  // Project open enters draft mode. The first prompt lazily creates and names
+  // the Host session; waiting for the reply keeps later lifecycle actions out
+  // of the in-flight run window.
   await expect(page.getByTestId('workspace-path-dialog')).toHaveCount(0);
   await expect(page.getByTestId('trust-dialog')).toHaveCount(0);
-  await expect(page.getByTestId('session-item')).toHaveCount(1);
   await expect(page.getByTestId('composer-input')).toBeEnabled();
+  await page.getByTestId('composer-input').fill(`initialize ${projectPath}`);
+  await page.getByTestId('send-btn').click();
+  await expect(
+    page.locator('[data-testid="message-bubble"][data-role="assistant"]', {
+      hasText: 'piwin desktop mock reply',
+    }),
+  ).toBeVisible();
+  // Project sessions live in the Projects pane, not the default general Chats pane.
+  await page.getByTestId('sidebar-mode-code').click();
+  await expect(page.getByTestId('session-item')).toHaveCount(1);
+}
+
+/** page.goto can restore persisted tool tabs. Close those tabs, not the panel overlay. */
+async function closeOpenRightPanelToolTabs(page: Page): Promise<void> {
+  const closeTabs = page.locator('[data-testid^="right-panel-close-tab-"]');
+  for (let guard = 0; guard < 12 && (await closeTabs.count()) > 0; guard += 1) {
+    // Inkstone keeps the close control at opacity 0 until the chip is hovered.
+    await page.locator('[data-testid^="right-panel-open-tab-"]').first().hover();
+    await closeTabs.first().click();
+  }
+  await expect(closeTabs).toHaveCount(0);
 }
 
 type BoundaryRecord = {
@@ -84,25 +111,34 @@ test.describe('responsive viewport smoke', () => {
     await expect(page.getByTestId('right-panel')).toBeHidden();
     await page.getByTestId('right-panel-open-btn').click();
     await expect(page.getByTestId('right-panel')).toHaveAttribute('data-content-expanded', 'true');
-    await page.getByTestId('right-panel-files-btn').click();
+    await page.getByTestId('right-panel-home-files').click();
     await expect(page.getByTestId('composer-input')).toBeVisible();
   });
 
-  test('desktop inspector uses directory → drill (quiet workbench)', async ({ page }) => {
+  test('desktop inspector uses home → files tool tab → close → terminal', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 840 });
     await page.goto('/');
     await waitForHostReady(page);
     await page.getByTestId('right-panel-open-btn').click();
-    await expect(page.getByTestId('right-panel-directory')).toBeVisible();
-    await expect(page.locator('.right-panel-rail')).toHaveCount(0);
-    // Directory home first; drill hides the list and shows detail + back.
-    await page.getByTestId('right-panel-files-btn').click();
-    await expect(page.getByTestId('right-panel')).toHaveAttribute('data-view', 'detail');
-    await expect(page.getByTestId('right-panel-back-btn')).toBeVisible();
-    await expect(page.getByTestId('file-tree-panel')).toBeVisible();
-    await page.getByTestId('right-panel-back-btn').click();
+    await expect(page.getByTestId('right-panel-home')).toBeVisible();
     await expect(page.getByTestId('right-panel')).toHaveAttribute('data-view', 'home');
-    await page.getByTestId('right-panel-tab-activity').click();
+    await expect(page.locator('.right-panel-rail')).toHaveCount(0);
+    // Home first. Opening Files selects that tab and hides home.
+    await page.getByTestId('right-panel-home-files').click();
+    await expect(page.getByTestId('right-panel-open-tab-files')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('right-panel-home')).toBeHidden();
+    await expect(page.getByTestId('right-panel')).toHaveAttribute('data-view', 'detail');
+    await expect(page.getByTestId('file-tree-panel')).toBeVisible();
+    // Close control is opacity 0 until the chip is hovered. Last tab returns home.
+    await page.getByTestId('right-panel-open-tab-files').hover();
+    await page.getByTestId('right-panel-close-tab-files').click();
+    await expect(page.getByTestId('right-panel')).toHaveAttribute('data-view', 'home');
+    await expect(page.getByTestId('right-panel-home')).toBeVisible();
+    await page.getByTestId('right-panel-home-terminal').click();
+    await expect(
+      page.locator('[data-right-panel-kind="terminal"] [role="tab"]'),
+    ).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('right-panel-home')).toBeHidden();
     await expect(page.getByTestId('right-panel')).toHaveAttribute('data-view', 'detail');
     await expect(page.getByTestId('terminal-dock')).toBeVisible();
   });
@@ -112,9 +148,9 @@ test.describe('responsive viewport smoke', () => {
     await page.goto('/');
     await waitForHostReady(page);
     await openTrustedSession(page, '/tmp/piwin-e2e-viewport-1024');
-    await expect(page.getByTestId('new-session-btn')).toBeVisible();
-    await expect(page.getByTestId('session-search-btn')).toBeVisible();
-    await page.getByTestId('session-search-btn').click();
+    await expect(page.getByTestId('new-session-btn-sb-top')).toBeVisible();
+    await expect(page.getByTestId('session-search-btn-sb-top')).toBeVisible();
+    await page.getByTestId('session-search-btn-sb-top').click();
     await expect(page.getByTestId('session-search-dialog')).toBeVisible();
     await expect(page.getByTestId('session-search-input')).toBeVisible();
     await page.keyboard.press('Escape');
@@ -145,26 +181,25 @@ test.describe('responsive viewport smoke', () => {
         await page.getByTestId('rail-chats-btn').click();
       }
       await expect(shell).toHaveClass(/nav-open/);
-      await expect(page.getByTestId('new-session-btn')).toBeVisible();
-      await expect(page.getByTestId('session-search-btn')).toBeVisible();
-      await page.getByTestId('session-search-btn').click();
+      await expect(page.getByTestId('new-session-btn-sb-top')).toBeVisible();
+      await expect(page.getByTestId('session-search-btn-sb-top')).toBeVisible();
+      await page.getByTestId('session-search-btn-sb-top').click();
       await expect(page.getByTestId('session-search-input')).toBeVisible();
 
       // Escape should close compact overlays when open (document-level owner).
       await page.keyboard.press('Escape');
 
-      // Open inspector via titleband toggle, then Files section.
-      // Last-view memory may restore detail — return home first if needed.
+      // Open inspector via titleband toggle, then Files.
+      // page.goto can restore persisted tool tabs — close them (not the panel
+      // overlay) so home is showing before opening Files.
       const openBtn = page.getByTestId('right-panel-open-btn');
       await expect(openBtn).toBeVisible();
       await openBtn.click();
       await expect(page.getByTestId('right-panel')).toBeVisible();
-      const backBtn = page.getByTestId('right-panel-back-btn');
-      if (await backBtn.isVisible().catch(() => false)) {
-        await backBtn.click();
-      }
-      await expect(page.getByTestId('right-panel-directory')).toBeVisible();
-      await page.getByTestId('right-panel-files-btn').click();
+      await closeOpenRightPanelToolTabs(page);
+      await expect(page.getByTestId('right-panel')).toHaveAttribute('data-view', 'home');
+      await expect(page.getByTestId('right-panel-home')).toBeVisible();
+      await page.getByTestId('right-panel-home-files').click();
       state = await recordBoundaryState(page);
       records.push(state);
 
@@ -297,7 +332,7 @@ test.describe('responsive viewport smoke', () => {
     // Inspector open path still works; composer remains in the page.
     await page.getByTestId('right-panel-open-btn').click();
     await expect(page.getByTestId('right-panel')).toBeVisible();
-    await page.getByTestId('right-panel-files-btn').click();
+    await page.getByTestId('right-panel-home-files').click();
     await expect(page.getByTestId('composer-input')).toBeVisible();
 
     // Scrim / close path when narrow overlay presentation is active.

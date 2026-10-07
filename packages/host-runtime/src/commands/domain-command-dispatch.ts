@@ -12,6 +12,7 @@ import { handleGitCommand } from './git-commands.js';
 import { handlePlanCommand } from './plan-commands.js';
 import { handleJobCommand } from './job-commands.js';
 import { handleAutomationCommand } from './automation-commands.js';
+import { handleHealthCommand } from './health-commands.js';
 import { handleResolveCommand } from './resolve-commands.js';
 import { handleProjectCommand } from './project-commands.js';
 import { handlePermissionRulesCommand } from './permission-rules-commands.js';
@@ -157,6 +158,7 @@ export async function dispatchDomainCommands(
     handlePlanCommand,
     handleJobCommand,
     handleAutomationCommand,
+    handleHealthCommand,
     handleResolveCommand,
     handleBrowserCommand,
     handlePluginCommand,

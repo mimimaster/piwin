@@ -141,6 +141,12 @@ export interface ClientToolExecutionPort {
     request: ClientToolExecutionRequest,
     signal: AbortSignal,
   ): Promise<ClientToolExecutionOutcome>;
+  /**
+   * Whether any paired device has offered `capabilityId`. The Host only puts a
+   * device tool in front of a model when some device can serve it; whether
+   * that device is reachable right now is reported by `execute`.
+   */
+  hasCapableDevice(capabilityId: string): boolean;
 }
 
 const CAPABILITY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;

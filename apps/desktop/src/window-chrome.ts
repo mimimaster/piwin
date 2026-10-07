@@ -6,6 +6,7 @@
  * shell embeds native caption controls into the trailing cluster; every other
  * surface starts at normal padding.
  */
+import { readShellRuntime } from './shell-runtime.js';
 import { isTauriRuntime } from './tauri-pty.js';
 
 export const WINDOW_CHROME_VALUES = [
@@ -63,4 +64,7 @@ export function applyWindowChromeToDocument(
 ): void {
   root.dataset.windowChrome = chrome;
   root.dataset.runtime = chrome === 'web' ? 'web' : 'tauri';
+  // The mobile shell paints as `web` chrome; CSS that must tell an installed
+  // phone app from a browser tab (no ⌘ hints, no browser UI) reads this.
+  root.dataset.shellRuntime = readShellRuntime();
 }

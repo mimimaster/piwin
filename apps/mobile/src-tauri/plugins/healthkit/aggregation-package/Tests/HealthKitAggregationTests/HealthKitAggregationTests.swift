@@ -39,6 +39,41 @@ final class HealthKitAggregationTests: XCTestCase {
     XCTAssertEqual(Array(totals.keys), ["2026-03-08"])
   }
 
+  func testReportsBedtimeAndWakeOfTheMainEpisodeAcrossMidnight() {
+    let schedules = sleepScheduleByLocalDate(
+      intervals: [
+        SleepInterval(
+          startMs: isoMillis("2026-03-02T23:30:00+08:00"),
+          endMs: isoMillis("2026-03-03T07:15:00+08:00")
+        ),
+        // An afternoon nap ends on the same local date and must not win.
+        SleepInterval(
+          startMs: isoMillis("2026-03-03T13:00:00+08:00"),
+          endMs: isoMillis("2026-03-03T13:40:00+08:00")
+        ),
+      ],
+      timeZone: "Asia/Shanghai"
+    )
+    XCTAssertEqual(
+      schedules["2026-03-03"],
+      SleepSchedule(bedtimeMinutesAfterNoon: 690, wakeMinuteOfDay: 435, spanMinutes: 465)
+    )
+  }
+
+  func testKeepsBedtimeOrderedWhenSleepStartsAfterMidnight() {
+    let schedules = sleepScheduleByLocalDate(
+      intervals: [
+        SleepInterval(
+          startMs: isoMillis("2026-03-03T01:00:00+08:00"),
+          endMs: isoMillis("2026-03-03T08:00:00+08:00")
+        )
+      ],
+      timeZone: "Asia/Shanghai"
+    )
+    XCTAssertEqual(schedules["2026-03-03"]?.bedtimeMinutesAfterNoon, 780)
+    XCTAssertEqual(schedules["2026-03-03"]?.wakeMinuteOfDay, 480)
+  }
+
   private func isoMillis(_ value: String) -> Double {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime]

@@ -14,7 +14,10 @@ export function isDeepSeekModel(model: { id: string; provider: string } | undefi
   if (!model) return false;
   // Match by model ID prefix — the most reliable, provider-agnostic signal.
   // Works for NaN Builders, OpenRouter, direct DeepSeek API, and custom providers.
-  if (model.id.toLowerCase().startsWith("deepseek-")) return true;
+  // Aggregators prefix a vendor segment ("deepseek/deepseek-v4.1-flash"), so
+  // match on the last path segment.
+  const modelName = model.id.toLowerCase().split("/").pop() ?? "";
+  if (modelName.startsWith("deepseek-")) return true;
   // Match by provider name — direct DeepSeek API, covers edge cases where
   // model IDs don't use the deepseek- prefix.
   if (model.provider === "deepseek") return true;

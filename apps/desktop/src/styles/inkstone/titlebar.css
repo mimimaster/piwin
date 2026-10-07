@@ -11,13 +11,15 @@ html[data-theme-id='piwin-inkstone-ink'] .context-bar {
   gap: 4px;
   /* Shell already insets the grid by 8px (deck padding). Extra bar padding
      would push .proto-nav past the sidebar's right edge below. */
-  padding: 0 !important;
+  padding: var(--titleband-padding, 0) !important;
   color: var(--t2);
   font-size: 12px;
   font-family: var(--sans);
-  height: var(--titleband-height, 30px) !important;
-  min-height: var(--titleband-height, 30px) !important;
-  max-height: var(--titleband-height, 30px) !important;
+  /* --titleband-box-height: the band plus whatever inset it carries (a phone
+     adds the status bar). Unset, the box is the band. */
+  height: var(--titleband-box-height, var(--titleband-height, 30px)) !important;
+  min-height: var(--titleband-box-height, var(--titleband-height, 30px)) !important;
+  max-height: var(--titleband-box-height, var(--titleband-height, 30px)) !important;
   box-sizing: border-box !important;
   -webkit-app-region: drag;
   app-region: drag;
@@ -82,8 +84,10 @@ html[data-theme-id='piwin-inkstone-ink'] .context-bar .traffic-dot.maximize {
   pointer-events: none;
 }
 
+/* A phone has no window lights to clear. */
 html:not([data-theme-id='piwin-inkstone-paper']):not([data-theme-id='piwin-inkstone-ink']) .traffic,
-html:not([data-window-chrome='macos-overlay']) .context-bar .traffic {
+html:not([data-window-chrome='macos-overlay']) .context-bar .traffic,
+.app-shell[data-layout='phone'] .traffic {
   display: none !important;
 }
 
@@ -107,8 +111,13 @@ html[data-theme-id='piwin-inkstone-ink'] .context-bar .context-bar-leading {
   padding: 0 !important;
 }
 
+/* The cluster only matches the sidebar where the sidebar is a column: with it
+   collapsed, or in the overlay layouts where it is a drawer, it hugs its
+   controls. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell:not(.nav-open) > .context-bar .proto-nav,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell:not(.nav-open) > .context-bar .context-bar-leading {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell:not(.nav-open) > .context-bar .context-bar-leading,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell:not([data-layout='desktop']) > .context-bar .proto-nav,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell:not([data-layout='desktop']) > .context-bar .context-bar-leading {
   width: auto !important;
   min-width: auto !important;
   max-width: none !important;
@@ -376,10 +385,11 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 /* ── Buttons and icons (proto `.ib` + `.i.s14`) ─────────────────────── */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .ib,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .piwin-icon-button {
-  width: 22px !important;
-  height: 22px !important;
-  min-width: 22px !important;
-  min-height: 22px !important;
+  /* --titleband-btn-size: touch layouts raise it to a thumb-sized target. */
+  width: var(--titleband-btn-size, 22px) !important;
+  height: var(--titleband-btn-size, 22px) !important;
+  min-width: var(--titleband-btn-size, 22px) !important;
+  min-height: var(--titleband-btn-size, 22px) !important;
   border-radius: 5px;
   display: inline-grid;
   place-items: center;
@@ -594,9 +604,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 20px !important;
-  height: 20px !important;
-  min-width: 20px !important;
+  width: var(--session-tree-trigger-size, 20px) !important;
+  height: var(--session-tree-trigger-size, 20px) !important;
+  min-width: var(--session-tree-trigger-size, 20px) !important;
   border-radius: 4px !important;
   padding: 0 !important;
   border: 0 !important;

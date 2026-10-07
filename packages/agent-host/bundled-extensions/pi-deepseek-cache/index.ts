@@ -269,21 +269,30 @@ export default function (pi: ExtensionAPI) {
 
     const { preparation, signal } = event;
     if (!preparation) return; // fall back to default compaction
-    const { messagesToSummarize, previousSummary, firstKeptEntryId, tokensBefore } = preparation;
+    const { messagesToSummarize, turnPrefixMessages, previousSummary, firstKeptEntryId, tokensBefore } =
+      preparation;
+    // A split turn puts its dropped half in turnPrefixMessages; leaving it out
+    // would summarize nothing and lose that half.
+    const droppedMessages = [...messagesToSummarize, ...turnPrefixMessages];
+    if (droppedMessages.length === 0) return; // fall back to default compaction
 
     flushPendingWrites(sessionId);
 
-    const history = serializeConversation(convertToLlm(messagesToSummarize));
+    const history = serializeConversation(convertToLlm(droppedMessages));
     const text = previousSummary
       ? `[Previous summary]\n${previousSummary}\n\n[New history]\n${history}`
       : history;
 
     const key = createHash("sha256").update(text).digest("hex");
     let summary = summaryCache.get(key);
+    // The cache stores summary text only, so a hit cannot name its model.
+    let summarizer = "summary-cache";
 
     if (!summary) {
-      summary = await summarizeWithFlash(text, ctx, signal);
-      if (!summary) return; // fall back to default compaction
+      const generated = await summarizeWithFlash(text, ctx, signal);
+      if (!generated) return; // fall back to default compaction
+      summary = generated.summary;
+      summarizer = generated.modelId;
       summaryCache.set(key, summary);
       evictSummaryCacheIfNeeded(summaryCache);
       saveSummaryCacheSync(summaryCache);
@@ -294,7 +303,7 @@ export default function (pi: ExtensionAPI) {
         summary,
         firstKeptEntryId,
         tokensBefore,
-        details: { summarizer: "deepseek-v4-flash" },
+        details: { summarizer },
       },
     };
   });
@@ -392,35 +401,33 @@ async function summarizeWithFlash(
   text: string,
   ctx: ExtensionContext,
   signal: AbortSignal,
-): Promise<string | undefined> {
-  // Use the active model's provider — it already serves DeepSeek models.
-  // No hardcoded provider names. Works for NaN Builders, OpenRouter,
-  // direct DeepSeek API, and custom providers.
+): Promise<{ summary: string; modelId: string } | undefined> {
+  // Prefer flash on the active provider, then the active model itself (it is
+  // DeepSeek here), then flash on any other provider. Take the first one the
+  // user is actually signed in to — a same-named model on a logged-out
+  // provider must not veto the compaction.
   const currentProvider = ctx.model?.provider;
-  let model = currentProvider
-    ? ctx.modelRegistry.find(currentProvider, "deepseek-v4-flash")
-    : undefined;
+  const candidates = [
+    currentProvider ? ctx.modelRegistry.find(currentProvider, "deepseek-v4-flash") : undefined,
+    ctx.model,
+    ctx.modelRegistry.getAvailable().find((candidate) => candidate.id === "deepseek-v4-flash"),
+  ];
 
-  // Last resort: search any provider
-  if (!model) {
-    for (const prov of ctx.modelRegistry.listProviders()) {
-      model = ctx.modelRegistry.find(prov, "deepseek-v4-flash");
-      if (model) break;
+  let model: (typeof candidates)[number];
+  let auth: Awaited<ReturnType<typeof ctx.modelRegistry.getApiKeyAndHeaders>> | undefined;
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const candidateAuth = await ctx.modelRegistry.getApiKeyAndHeaders(candidate);
+    if (candidateAuth.ok && candidateAuth.apiKey) {
+      model = candidate;
+      auth = candidateAuth;
+      break;
     }
   }
 
-  if (!model) {
+  if (!model || !auth?.ok) {
     ctx.ui.notify(
-      "deepseek-cache: flash model not found, skipping cache-friendly compaction",
-      "warning",
-    );
-    return;
-  }
-
-  const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-  if (!auth.ok || !auth.apiKey) {
-    ctx.ui.notify(
-      "deepseek-cache: flash auth failed, falling back to default compaction",
+      "deepseek-cache: no signed-in summarizer model, falling back to default compaction",
       "warning",
     );
     return;
@@ -462,7 +469,8 @@ async function summarizeWithFlash(
       .map((c) => c.text)
       .join("\n");
 
-    return summary.trim() || undefined;
+    const trimmed = summary.trim();
+    return trimmed ? { summary: trimmed, modelId: model.id } : undefined;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     ctx.ui.notify(

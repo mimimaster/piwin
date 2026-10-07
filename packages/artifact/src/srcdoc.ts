@@ -107,6 +107,11 @@ export type BuildHtmlArtifactSrcdocInput = {
   frameMode?: ArtifactFrameMode;
   /** Preserve full HTML documents instead of nesting them inside a fragment root. */
   documentKind?: ArtifactDocumentKind;
+  /**
+   * The document paints its own scene: skip the theme guard so its page fill
+   * and text colors stand instead of being forced onto the host surface.
+   */
+  ownPalette?: boolean;
   /** When false, omit the parent bridge entirely. Default true. */
   includeBridge?: boolean;
   /** Accept sanitized parent snapshots without replacing the iframe document. */
@@ -134,7 +139,7 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   const enableRenderCommand = input.enableStreamUpdates !== false && includeBridge;
   const csp = buildStrictArtifactCsp(iframePolicy);
   const css = buildArtifactThemeCss(theme);
-  const themeGuardCss = buildArtifactThemeGuardCss();
+  const themeGuardCss = input.ownPalette === true ? '' : buildArtifactThemeGuardCss();
   const frameModePolicyCss = buildArtifactFrameModePolicyCss();
   const motionPolicyCss = buildArtifactMotionPolicyCss();
   const channelId = input.channelId;
@@ -156,8 +161,10 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   <meta name="piwin-artifact-channel" content="${channelAttr}" />
   <style data-piwin-artifact-theme>${css}</style>
 ${bridge}`;
-  const hostHeadSuffix = `
-  <style data-piwin-artifact-theme-guard>${themeGuardCss}</style>
+  const themeGuardStyle = themeGuardCss
+    ? `\n  <style data-piwin-artifact-theme-guard>${themeGuardCss}</style>`
+    : '';
+  const hostHeadSuffix = `${themeGuardStyle}
   <style data-piwin-artifact-frame-mode-policy>${frameModePolicyCss}</style>
   <style data-piwin-artifact-motion-policy>${motionPolicyCss}</style>`;
 

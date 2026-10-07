@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ProviderIcon } from './provider-icon';
-import { resolveModelBrandKey } from './provider-brands';
+import { loadProviderBrandIcons, resolveModelBrandKey } from './provider-brands';
 
 describe('ProviderIcon', () => {
+  beforeAll(async () => {
+    await loadProviderBrandIcons();
+  });
   it('renders a real brand mark for known preset ids', () => {
     const html = renderToStaticMarkup(createElement(ProviderIcon, { id: 'openai', size: 24 }));
     expect(html).toContain('data-provider-icon="openai"');

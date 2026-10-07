@@ -78,6 +78,7 @@ const RUNTIME_REVISION_DOMAINS = [
   'speech',
   'permissions',
   'walkthrough',
+  'health',
   'subagents',
   'remote',
 ] as const satisfies readonly (keyof PiwinConfig)[];
@@ -243,6 +244,7 @@ export function createSettingsDomainRevisions(
     'replyWriter',
     'permissions',
     'walkthrough',
+    'health',
     'subagents',
     'execution',
     'remote',

@@ -1,4 +1,5 @@
 import type {
+  HealthSummarySyncPort,
   HostCommand,
   HostPush,
   HostResponse,
@@ -60,6 +61,12 @@ export class HostRuntime extends HostRuntimeSessionSurface {
 
   async disposeInternal(): Promise<void> {
     return disposeHostRuntime(this.asKernel());
+  }
+
+
+  /** Sync target for the Host HTTP ingress (ADR 0062 M2). */
+  healthSummarySync(): HealthSummarySyncPort | undefined {
+    return this.healthSummaries;
   }
 
 

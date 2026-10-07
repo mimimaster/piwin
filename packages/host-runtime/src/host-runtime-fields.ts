@@ -28,6 +28,7 @@ import {
   type SessionRuntimeRetentionConfig,
 } from '@piwin/contracts';
 import { HealthToolRunBudget } from './health-tool-run-budget.js';
+import type { HealthSummaryService } from './health-summary-service.js';
 import { createExtensionRevisionStore } from '@piwin/extensions';
 import { type McpGenerationSnapshot, type McpLifecycleManager } from '@piwin/mcp';
 import { SessionTodoStore } from '@piwin/automation';
@@ -203,6 +204,8 @@ export class HostRuntimeFields {
     | ((sessionId: string, runId: string, message: string) => void)
     | undefined;
   healthToolRunBudget = new HealthToolRunBudget();
+  /** Stored health summaries and the scheduled digest; set during init. */
+  healthSummaries: HealthSummaryService | undefined = undefined;
   /** Host-owned normal next-turn and Replace Run authority. */
   queuedTurnController = undefined as unknown as QueuedTurnController;
   /** Preserves the run identity across asynchronous SDK event callbacks. */
@@ -327,6 +330,11 @@ export class HostRuntimeFields {
   generationMcpSnapshots = new Map<string, McpGenerationSnapshot>();
   /** Session MCP opt-out set folded into each generation's snapshot. */
   generationSessionMcpOverrideKeys = new Map<string, string>();
+  /**
+   * Whether a paired device offered Apple Health when each root generation
+   * froze its tool surface. Absent for generations that never get device tools.
+   */
+  generationDeviceHealthOffered = new Map<string, boolean>();
   /** Permission-rule revision paired with each frozen tool surface. */
   generationPermissionRuleRevisions = new Map<string, string>();
   /** Candidate backend resources prepared before runtime commit. */

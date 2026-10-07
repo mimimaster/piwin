@@ -3,13 +3,15 @@
  * MarkdownView artifact preview policy coverage (design §7, §12).
  * Uses the same happy-dom + createRoot + act pattern as settings-shell.test.tsx.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import * as artifact from '@piwin/artifact';
 import { createDefaultArtifactTheme } from '@piwin/artifact';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
+import { loadKatex } from './markdown-math.js';
+import { loadStreamdownMathPlugin } from './streamdown-math-plugin.js';
 import { MarkdownView, STREAMDOWN_IMMEDIATE_STREAMING } from './MarkdownView';
 
 declare global {
@@ -85,6 +87,10 @@ async function flushMarkdownEffects(): Promise<void> {
 }
 
 describe('MarkdownView artifact preview policy', () => {
+  beforeAll(async () => {
+    await Promise.all([loadKatex(), loadStreamdownMathPlugin()]);
+  });
+
   let previousActEnvironment: boolean | undefined;
 
   beforeEach(() => {
@@ -929,6 +935,10 @@ describe('MarkdownView artifact preview policy', () => {
 });
 
 describe('MarkdownView file references', () => {
+  beforeAll(async () => {
+    await Promise.all([loadKatex(), loadStreamdownMathPlugin()]);
+  });
+
   afterEach(() => {
     cleanupMountedMarkdownRenders();
   });
@@ -1277,10 +1287,14 @@ describe('MarkdownView file references', () => {
     expect(markdown?.textContent).toContain('$50');
   });
 
-  it('still renders display math with $$ delimiters', () => {
+  it('still renders display math with $$ delimiters', async () => {
     const { container } = renderMarkdown(
       <MarkdownView text={'公式 $$E=mc^2$$ 结束'} renderingPhase="completed" />,
     );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(container.querySelector('.katex')).not.toBeNull();
     expect(container.querySelector('annotation')?.textContent).toContain('E=mc^2');
   });

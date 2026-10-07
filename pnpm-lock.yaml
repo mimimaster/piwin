@@ -141,9 +141,15 @@ importers:
       '@tauri-apps/api':
         specifier: ^2.11.1
         version: 2.11.1
+      '@tauri-apps/plugin-barcode-scanner':
+        specifier: ^2.4.5
+        version: 2.4.5
       '@tauri-apps/plugin-dialog':
         specifier: ^2.7.2
         version: 2.7.2
+      '@tauri-apps/plugin-notification':
+        specifier: 2.4.0
+        version: 2.4.0
       '@tauri-apps/plugin-shell':
         specifier: ^2.3.5
         version: 2.3.5
@@ -315,6 +321,9 @@ importers:
       happy-dom:
         specifier: ^20.11.1
         version: 20.11.1
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.1
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -520,6 +529,22 @@ importers:
         specifier: ^3.0.5
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(happy-dom@20.11.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
 
+  packages/health:
+    dependencies:
+      '@piwin/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.20.1
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(happy-dom@20.11.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
+
   packages/host-client:
     dependencies:
       '@piwin/contracts':
@@ -568,6 +593,9 @@ importers:
       '@piwin/git':
         specifier: workspace:*
         version: link:../git
+      '@piwin/health':
+        specifier: workspace:*
+        version: link:../health
       '@piwin/marketplace':
         specifier: workspace:*
         version: link:../marketplace

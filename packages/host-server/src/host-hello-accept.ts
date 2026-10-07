@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { HostHello, HostWireMessage, RemoteCapabilitySummary } from '@piwin/contracts';
+import type {
+  HostErrorFrame,
+  HostHello,
+  HostHelloRejectReason,
+  HostWireMessage,
+  RemoteCapabilitySummary,
+} from '@piwin/contracts';
 import { HOST_PROTOCOL_VERSION, LIVE_SUBSCRIPTION_MAX_SESSION_IDS } from '@piwin/contracts';
 import type { LiveSessionFilter } from '@piwin/host-transport';
 import type { DeviceToolBroker } from './device-tool-broker.js';
@@ -80,6 +86,15 @@ export function createHostHelloPayload(
   };
 }
 
+/** Hello rejections carry a machine-readable reason next to the English message. */
+function sendHelloReject(
+  host: HostHelloAcceptHost,
+  connection: HostClientConnection,
+  rejection: Pick<HostErrorFrame, 'code' | 'message'> & { reason: HostHelloRejectReason },
+): void {
+  host.send(connection, { type: 'error', ...rejection });
+}
+
 /**
  * Authenticates an unauthenticated connection and promotes it to a live client:
  * hello gates, credential check, egress subscription, client-tool attach, then
@@ -97,7 +112,11 @@ export async function acceptHostHello(
       code: 4002,
       reason: 'protocol-mismatch',
     });
-    host.sendError(connection, 'protocol-mismatch', 'Unsupported Host protocol version');
+    sendHelloReject(host, connection, {
+      code: 'protocol-mismatch',
+      reason: 'protocol-mismatch',
+      message: 'Unsupported Host protocol version',
+    });
     connection.socket.close(4002, 'Protocol mismatch');
     return;
   }
@@ -111,11 +130,11 @@ export async function acceptHostHello(
       code: 4002,
       reason: 'client-version-too-old',
     });
-    host.sendError(
-      connection,
-      'protocol-mismatch',
-      `Client version ${message.clientVersion} is older than required ${host.minClientVersion}`,
-    );
+    sendHelloReject(host, connection, {
+      code: 'protocol-mismatch',
+      reason: 'client-version-too-old',
+      message: `Client version ${message.clientVersion} is older than required ${host.minClientVersion}`,
+    });
     connection.socket.close(4002, 'Client version too old');
     return;
   }
@@ -152,7 +171,11 @@ export async function acceptHostHello(
       code: 4004,
       reason: 'authentication-failed',
     });
-    host.sendError(connection, 'authentication-required', admission.message);
+    sendHelloReject(host, connection, {
+      code: 'authentication-required',
+      reason: admission.reason,
+      message: admission.message,
+    });
     connection.socket.close(4004, 'Authentication failed');
     return;
   }

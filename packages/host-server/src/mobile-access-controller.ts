@@ -293,6 +293,12 @@ export class MobileAccessController {
     return revokePairedDevice(this.registry(), deviceId, (revokedId) => {
       this.options.clientToolBroker?.forgetDevice(revokedId);
       this.server?.disconnectDevice(revokedId, DEVICE_REVOKED_REASON);
+      void this.options.runtime
+        .healthSummarySync?.()
+        ?.deleteDevice(revokedId)
+        .catch((error: unknown) =>
+          this.options.onError?.(error instanceof Error ? error : new Error(String(error))),
+        );
     });
   }
 

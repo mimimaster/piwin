@@ -307,6 +307,42 @@
           "markdownDescription": "Denies the healthkit_authorization_request_status command without any pre-configured scope."
         },
         {
+          "description": "Enables the healthkit_background_sync_configure command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-healthkit-background-sync-configure",
+          "markdownDescription": "Enables the healthkit_background_sync_configure command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the healthkit_background_sync_configure command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-healthkit-background-sync-configure",
+          "markdownDescription": "Denies the healthkit_background_sync_configure command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the healthkit_background_sync_now command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-healthkit-background-sync-now",
+          "markdownDescription": "Enables the healthkit_background_sync_now command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the healthkit_background_sync_now command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-healthkit-background-sync-now",
+          "markdownDescription": "Denies the healthkit_background_sync_now command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the healthkit_background_sync_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-healthkit-background-sync-status",
+          "markdownDescription": "Enables the healthkit_background_sync_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the healthkit_background_sync_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-healthkit-background-sync-status",
+          "markdownDescription": "Denies the healthkit_background_sync_status command without any pre-configured scope."
+        },
+        {
           "description": "Enables the healthkit_cancel_read command without any pre-configured scope.",
           "type": "string",
           "const": "allow-healthkit-cancel-read",
@@ -355,10 +391,10 @@
           "markdownDescription": "Denies the healthkit_request_read_authorization command without any pre-configured scope."
         },
         {
-          "description": "Allow the Mobile app to call the read-only HealthKit plugin commands.",
+          "description": "Allow the Mobile app to call the read-only HealthKit plugin commands, including background summary sync.",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Allow the Mobile app to call the read-only HealthKit plugin commands."
+          "markdownDescription": "Allow the Mobile app to call the read-only HealthKit plugin commands, including background summary sync."
         }
       ]
     }

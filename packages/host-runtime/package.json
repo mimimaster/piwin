@@ -28,6 +28,7 @@
     "@piwin/agent-host": "workspace:*",
     "@piwin/artifact": "workspace:*",
     "@piwin/automation": "workspace:*",
+    "@piwin/health": "workspace:*",
     "@piwin/browser": "workspace:*",
     "@piwin/contracts": "workspace:*",
     "@piwin/doc-rag": "workspace:*",

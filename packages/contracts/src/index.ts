@@ -131,6 +131,7 @@ export * from './plugin.js';
 export * from './remote.js';
 export * from './client-tool.js';
 export * from './apple-health.js';
+export * from './health-summary.js';
 export * from './remote-protocol.js';
 export * from './host-platform.js';
 export * from './child-process-env.js';

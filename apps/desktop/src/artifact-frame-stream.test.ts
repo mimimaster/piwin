@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   advanceArtifactDocumentPhase,
   artifactDocumentKey,
@@ -80,6 +80,24 @@ describe('Artifact document transport in Tauri', () => {
     expect(invokeCalls).toHaveLength(1);
     expect(invokeCalls[0]?.command).toBe('artifact_document_put');
     expect(invokeCalls[0]?.args).toEqual({ id: documentId, html: srcdoc });
+  });
+  it('uses the isolated scheme in the iOS shell too, not an inherited-CSP data: frame', () => {
+    const userAgent = vi
+      .spyOn(window.navigator, 'userAgent', 'get')
+      .mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 26_4 like Mac OS X) AppleWebKit/605.1.15');
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {
+        convertFileSrc: (filePath: string, protocol?: string) =>
+          `${protocol}://localhost/${filePath}`,
+      },
+    });
+    const documentId = createArtifactDocumentId();
+
+    expect(buildArtifactDocumentUrl(documentId, '<!doctype html><p>phone</p>')).toBe(
+      `piwin-artifact://localhost/${documentId}`,
+    );
+    userAgent.mockRestore();
   });
 });
 

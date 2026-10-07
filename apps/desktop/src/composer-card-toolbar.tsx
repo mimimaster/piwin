@@ -132,6 +132,7 @@ export function ComposerCardToolbar({
               {...(imagesSupported ? { onAttachImage: props.onAttachImage } : {})}
               {...(imageDisabledReason ? { attachImageDisabledReason: imageDisabledReason } : {})}
               hideAgentExtras={props.isConversationSession === true}
+              {...(props.onAddContextRef ? { onAddContextRef: props.onAddContextRef } : {})}
             />
           </div>
         )}

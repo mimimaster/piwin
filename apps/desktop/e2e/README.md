@@ -34,6 +34,19 @@ pnpm --dir apps/desktop e2e:ui
 
 Playwright starts Vite on port `1420` unless already running (`reuseExistingServer` outside CI).
 
+### Phone layout
+
+```bash
+pnpm --dir apps/desktop exec playwright test -c playwright.mobile.config.ts phone-layout
+```
+
+`phone-layout.spec.ts` measures the phone shell under both Inkstone faces with
+simulated device insets: titleband height, edge-to-edge stage, composer height
+and bottom edge, no horizontal overflow, 44pt touch targets, one-column
+settings. Phone geometry is set through layout tokens the theme sheets read
+(`src/styles/region-phone*.css`); this spec is what fails when a theme stops
+reading one.
+
 ## Env
 
 | Var | Default | Meaning |

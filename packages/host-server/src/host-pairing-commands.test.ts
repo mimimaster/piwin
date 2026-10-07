@@ -70,6 +70,34 @@ describe('handleHostPairingCommand', () => {
     expect(onRevoked).toHaveBeenCalledWith(deviceId);
   });
 
+  it('tells a paired device every address it can find the Host on', async () => {
+    const pairing = new HostDevicePairing();
+    const deviceId = enroll(pairing, 'Phone');
+    const response = await handleHostPairingCommand(
+      { type: 'host/pairing-status' },
+      context({
+        pairing,
+        callerDeviceId: deviceId,
+        listEndpointCandidates: () => ['ws://192.168.1.20:8790', 'ws://100.101.102.103:8790'],
+      }),
+    );
+    expect(response.success).toBe(true);
+    expect(readHostPairingStatusData(response.success ? response.data : undefined)).toMatchObject({
+      canManage: false,
+      endpointCandidates: ['ws://192.168.1.20:8790', 'ws://100.101.102.103:8790'],
+    });
+  });
+
+  it('lists no addresses while pairing is off', async () => {
+    const response = await handleHostPairingCommand(
+      { type: 'host/pairing-status' },
+      context({ pairingEnabled: false, listEndpointCandidates: () => ['ws://192.168.1.20:8790'] }),
+    );
+    expect(
+      readHostPairingStatusData(response.success ? response.data : undefined)?.endpointCandidates,
+    ).toBeUndefined();
+  });
+
   it('never lets a paired device mint codes or revoke devices', async () => {
     const pairing = new HostDevicePairing();
     const deviceId = enroll(pairing, 'iPhone');

@@ -1,98 +1,113 @@
-/* Phone presentation refinements. Overlay ownership stays in shell-layout;
-   this file only consumes data-layout="phone". Compact is Tauri-only now;
-   Web/Safari at 768+ uses the desktop page.
+/* Phone layout: shell frame and chrome.
+   Overlay ownership stays in shell-layout; this file only consumes
+   data-layout="phone" (767px and below, every runtime).
 
-   Settings / studio / knowledge / library titlebars sit outside .app-shell, so
-   they inherit :root --traffic-light-clearance (0 unless macos-overlay).
-   html:has retargets that token for the whole document while phone layout is
-   active — phone never reserves the Overlay hole. */
+   How it wins the cascade: theme and region sheets read layout tokens for the
+   geometry a phone changes, and this file sets those tokens. It carries no
+   weight of its own — an override that has to out-shout a theme rule belongs
+   in that rule as a token (see phone-layout-contract.test.ts).
 
+   Companions: region-phone-edge.css (edge-to-edge surface, composer, drawer
+   footer), region-phone-touch.css (thumb-sized targets),
+   region-phone-settings.css (settings page, loaded with it). */
+
+/* ── Layout tokens ─────────────────────────────────────────────────
+   Settings / studio / knowledge / library render as siblings of .app-shell,
+   so the tokens they read are retargeted on the document while the phone
+   layout is active. */
 html:has(.app-shell[data-layout='phone']) {
+  /* A phone has no window lights: never reserve the Overlay hole. */
   --traffic-light-clearance: var(--s-3);
   --deck-inset: 0px;
   --titleband-height: 44px;
+  /* The inset reported for a Dynamic Island ends well below the island and
+     the clock; a row can start a little inside it. */
+  --phone-top-inset: max(0px, calc(var(--app-safe-top, 0px) - 8px));
+  /* Sub-page titlebands carry the whole status-bar inset as padding, and
+     their box grows by it. */
+  --subpage-titleband-box-height: calc(var(--titleband-height) + var(--app-safe-top, 0px));
+  --subpage-titleband-padding: var(--app-safe-top, 0px) var(--s-3) 0 var(--s-3);
 }
 
 .app-shell[data-layout='phone'] {
   --traffic-light-clearance: var(--s-3);
   --titleband-height: 44px;
+  --phone-top-inset: max(0px, calc(var(--app-safe-top, 0px) - 8px));
+
+  /* No window frame: the stage runs to the physical edges. The home indicator
+     only occupies the lowest few points of the inset the system reports, so
+     most of it goes to content; the keyboard covers the indicator, so the
+     rest is given back while it is open. */
+  --shell-frame-padding: 0 0
+    max(0px, calc(var(--app-safe-bottom, 0px) - 18px - var(--app-keyboard-inset, 0px)));
+  --shell-frame-gap: 0px;
+
+  /* The titleband carries the status-bar inset, so its box — and the grid row
+     that holds it — is the band plus that inset. */
+  --titleband-box-height: calc(var(--titleband-height) + var(--phone-top-inset));
+  --titleband-padding: var(--phone-top-inset) var(--s-2) 0 var(--s-2);
+  --shell-titleband-row: auto;
+
+  /* Drawers cover the whole screen, so they own both device insets. The
+     session drawer keeps the same economy as the workbench. */
+  --drawer-inset-top: var(--phone-top-inset);
+  --drawer-inset-bottom: max(6px, calc(var(--app-safe-bottom, 0px) - 18px));
+  --inspector-inset-top: var(--app-safe-top, 0px);
+
+  /* Below 16px iOS zooms the page when the field takes focus. */
+  --composer-input-font-size: 16px;
 }
 
-.app-shell[data-layout='phone'] > .sidebar {
-  width: min(100%, 100vw);
-  padding-top: calc(var(--titleband-height) + var(--app-safe-top, 0px));
-  padding-bottom: var(--app-safe-bottom, 0px);
-}
-
-.app-shell[data-layout='phone'] > .context-bar,
-.app-shell[data-layout='phone'] > .context-bar.context-titlebar-box {
-  height: auto;
-  min-height: calc(var(--titleband-height) + var(--app-safe-top, 0px));
-  padding: var(--app-safe-top, 0px) var(--s-3) 0 var(--s-3);
-}
-
-.app-shell[data-layout='phone'].nav-open > .context-bar > .context-bar-leading,
-.app-shell[data-layout='phone'] > .context-bar > .context-bar-leading,
-.app-shell[data-layout='compact'] > .context-bar > .context-bar-leading {
-  width: auto;
-  min-width: 0;
-  max-width: none;
-}
-
-.app-shell[data-layout='phone'] .traffic {
+/* ── Titleband ─────────────────────────────────────────────────────
+   One compact row under the status bar. The drag strip moves an OS window and
+   the turn ticks are a pointer-hover affordance; back/forward and the two
+   appearance switches are desktop chrome (history is the drawer on a phone,
+   appearance lives in Settings). Their width goes to the session title. */
+.app-shell[data-layout='phone'] > .context-bar > .context-bar-drag,
+.app-shell[data-layout='phone'] > .context-bar .context-bar-history,
+.app-shell[data-layout='phone'] > .context-bar .context-bar-controls > .seg,
+.app-shell[data-layout='phone'] .history-ticks-border-strip {
   display: none;
 }
 
-.app-shell[data-layout='phone'] .context-bar .piwin-icon-button {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-}
-
-.app-shell[data-layout='phone'] .composer-v2-toolbar,
-.app-shell[data-layout='phone'] .composer-v2-toolbar-left,
-.app-shell[data-layout='phone'] .composer-v2-toolbar-right {
-  flex-wrap: nowrap;
-}
-
-.app-shell[data-layout='phone'] .composer-v2-toolbar-left {
+.app-shell[data-layout='phone'] > .context-bar > .context-bar-identity {
+  flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
+  /* The desktop cap reserves room for window controls a phone does not have. */
+  max-width: none;
 }
 
-.app-shell[data-layout='phone'] .composer-v2-toolbar-right {
-  flex: none;
-  margin-left: auto;
+.app-shell[data-layout='phone'] > .context-bar .context-bar-title {
+  max-width: none;
+  font-size: 15px;
 }
 
-.app-shell[data-layout='phone'] .composer-v2-textarea {
-  font-size: 16px;
-  max-height: 36vh;
-  overflow-y: auto;
+/* ── Session drawer ────────────────────────────────────────────────── */
+.app-shell[data-layout='phone'] > .sidebar {
+  width: min(100%, 100vw);
+  padding-top: var(--drawer-inset-top);
+  padding-bottom: var(--drawer-inset-bottom);
 }
 
-.app-shell[data-layout='phone'] .slab .composer-v2-icon-btn {
-  width: 28px;
-  height: 26px;
-  min-width: 28px;
-  min-height: 26px;
-  --ai-size: 26px;
+.app-shell[data-layout='phone'] > .sidebar .sidebar-overlay-header {
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  align-items: center;
 }
 
-.app-shell[data-layout='phone'] .slab .composer-v2-send-btn {
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
+/* ── Workspace panel ───────────────────────────────────────────────
+   Its width is the screen; the resize handle has nothing to resize. */
+.app-shell[data-layout='phone'] > .right-panel {
+  padding-top: var(--inspector-inset-top);
+  padding-bottom: var(--app-safe-bottom, 0px);
+  box-sizing: border-box;
 }
 
-.app-shell[data-layout='phone'] .context-usage-ring {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
+.app-shell[data-layout='phone'] > .right-panel > .right-panel-resize-handle {
+  display: none;
 }
 
+/* ── Transcript ────────────────────────────────────────────────────── */
 .app-shell[data-layout='phone'] .conversation-message-model-name {
   max-width: min(180px, 40vw);
 }
@@ -102,76 +117,35 @@ html:has(.app-shell[data-layout='phone']) {
   max-width: 100%;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .app-shell[data-layout='phone']
-  .gate {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .app-shell[data-layout='phone']
-  .gate
-  .seals {
-  justify-content: flex-end;
-}
-
-/* Inkstone titleband uses !important geometry; phone must reclaim the strip. */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .app-shell[data-layout='phone']
-  > .context-bar {
-  height: auto !important;
-  min-height: calc(var(--titleband-height) + var(--app-safe-top, 0px)) !important;
-  max-height: none !important;
-  padding: var(--app-safe-top, 0px) var(--s-3) 0 var(--s-3) !important;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .app-shell[data-layout='phone']
-  > .context-bar
-  > .context-bar-leading,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .app-shell[data-layout='phone']
-  .proto-nav {
-  width: auto !important;
-  min-width: 0 !important;
-  max-width: none !important;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .app-shell[data-layout='phone']
-  .traffic {
-  display: none !important;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .app-shell[data-layout='phone']
-  .slab
-  .ta,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .app-shell[data-layout='phone']
-  .slab
-  .composer-v2-textarea {
-  font-size: 16px;
-}
-
+/* ── Sub-page titlebands ───────────────────────────────────────────
+   Their sheets pin a fixed height, which left a padded bar one pixel of
+   content box and let its controls spill onto the page; the box follows the
+   inset instead. */
 html:has(.app-shell[data-layout='phone']) .vault-bar,
 html:has(.app-shell[data-layout='phone']) .knowledge-titlebar,
 html:has(.app-shell[data-layout='phone']) .knowledge-titlebar-box,
 html:has(.app-shell[data-layout='phone']) .settings-titlebar,
 html:has(.app-shell[data-layout='phone']) .settings-titlebar-box {
+  height: auto;
+  min-height: var(--subpage-titleband-box-height);
   padding-top: var(--app-safe-top, 0px);
-  min-height: calc(var(--titleband-height) + var(--app-safe-top, 0px));
+  box-sizing: border-box;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']):has(
-    .app-shell[data-layout='phone']
-  )
-  .vault-stage
-  .vault-bar,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']):has(
-    .app-shell[data-layout='phone']
-  )
-  .lib-page
-  .vault-bar.is-page {
-  padding: var(--app-safe-top, 0px) var(--s-3) 0 var(--s-3);
+/* Keyboard-shortcut hints mean nothing on a touch-first device. */
+@media (pointer: coarse) {
+  .app-shell[data-layout='phone'] kbd,
+  html:has(.app-shell[data-layout='phone']) .vault-search-kbd,
+  html:has(.app-shell[data-layout='phone']) .kbd-chip {
+    display: none;
+  }
+}
+
+/* Apple Health consent: stacked full-width answers are easier to hit than a
+   wrapped button row. */
+.device-health-consent-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
 }

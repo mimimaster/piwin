@@ -82,3 +82,26 @@ Reviewing public deployment exposed two admission holes, both fixed:
   configured — reachable once `host/pairing-set-enabled` turned pairing off on
   an exposed bind. A keyless hello is now always rejected unless anonymous
   admission applies.
+
+## Amendment (2026-10-06): a paired device follows the Host across addresses
+
+The QR names one address, and that address stops working when the computer
+changes network or lease, or when the phone leaves the Wi-Fi but both are on
+Tailscale. Re-pairing for that is unnecessary: the device credential is not
+bound to an address.
+
+- `host/pairing-status` gains `endpointCandidates`: every address the listener
+  is reachable on right now (the same list the QR default is chosen from),
+  best first, only for a listener on all interfaces. A paired device may read
+  it; it is recomputed per request.
+- The shell stores that list while connected. When the saved address stays
+  unreachable for 6 s it dials the others in parallel with the device
+  credential and saves the best one that admits it
+  (`apps/desktop/src/host-endpoint-roaming.ts`). Admission by the credential is
+  the proof that it is the same Host. An unpaired shell never roams.
+- The same cleartext caveat as the original pairing applies: the credential is
+  presented to an address learned from the Host over `ws://`.
+
+Also in the default interface: returning to the foreground or regaining the
+network wakes the link at once (shared `host-wake` in `@piwin/host-client`),
+and an outage longer than 6 s names the Host and offers retry / change Host.

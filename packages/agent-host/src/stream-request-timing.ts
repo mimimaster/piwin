@@ -5,8 +5,12 @@
  * first non-empty `text_delta` / `thinking_delta` / `toolcall_delta`.
  * `*_start` events and empty deltas do not count. Providers do not return
  * TTFT in usage. This wrapper does not parse HTTP.
+ *
+ * The kind of that first delta is stamped too: output speed needs to know
+ * whether reasoning was streamed or ran unseen during the first-token wait.
  */
 
+import type { UsageFirstTokenKind } from '@piwin/contracts';
 import type { NativeSearchStreamSimple } from './native-web-search.js';
 import { asRecord, readString } from './pi-event-read.js';
 
@@ -34,49 +38,56 @@ function isPushStream(value: unknown): value is PushStream {
   );
 }
 
-function isLlmFirstTokenEvent(event: unknown): boolean {
+type FirstToken = { firstTokenMs: number; firstTokenKind: UsageFirstTokenKind };
+
+function readLlmFirstTokenKind(event: unknown): UsageFirstTokenKind | undefined {
   const record = asRecord(event);
   if (!record) {
-    return false;
+    return undefined;
   }
   const type = readString(record.type);
   // oh-my-tps getContentDelta: non-empty delta on text / thinking / toolcall.
   if (type !== 'text_delta' && type !== 'thinking_delta' && type !== 'toolcall_delta') {
-    return false;
+    return undefined;
   }
-  return typeof record.delta === 'string' && record.delta.length > 0;
+  if (typeof record.delta !== 'string' || record.delta.length === 0) {
+    return undefined;
+  }
+  return type === 'thinking_delta' ? 'reasoning' : 'content';
 }
 
-function stampFirstTokenMs(message: unknown, firstTokenMs: number): void {
+function stampFirstToken(message: unknown, firstToken: FirstToken): void {
   const record = asRecord(message);
   if (!record) {
     return;
   }
-  record.firstTokenMs = firstTokenMs;
+  record.firstTokenMs = firstToken.firstTokenMs;
+  record.firstTokenKind = firstToken.firstTokenKind;
 }
 
 function createTimingState(nowMs: StreamRequestClock): {
   note: (event: unknown) => void;
   stampDone: (event: unknown) => void;
-  firstTokenMs: () => number | undefined;
+  firstToken: () => FirstToken | undefined;
 } {
   const startedAtMs = nowMs();
-  let firstTokenMs: number | undefined;
+  let firstToken: FirstToken | undefined;
   return {
     note(event: unknown): void {
-      if (firstTokenMs !== undefined) {
+      if (firstToken !== undefined) {
         return;
       }
-      if (!isLlmFirstTokenEvent(event)) {
+      const firstTokenKind = readLlmFirstTokenKind(event);
+      if (firstTokenKind === undefined) {
         return;
       }
       const elapsed = nowMs() - startedAtMs;
       if (elapsed > 0) {
-        firstTokenMs = elapsed;
+        firstToken = { firstTokenMs: elapsed, firstTokenKind };
       }
     },
     stampDone(event: unknown): void {
-      if (firstTokenMs === undefined) {
+      if (firstToken === undefined) {
         return;
       }
       const record = asRecord(event);
@@ -85,14 +96,14 @@ function createTimingState(nowMs: StreamRequestClock): {
       }
       const type = readString(record.type);
       if (type === 'done') {
-        stampFirstTokenMs(record.message, firstTokenMs);
+        stampFirstToken(record.message, firstToken);
         return;
       }
       if (type === 'error') {
-        stampFirstTokenMs(record.error, firstTokenMs);
+        stampFirstToken(record.error, firstToken);
       }
     },
-    firstTokenMs: () => firstTokenMs,
+    firstToken: () => firstToken,
   };
 }
 
@@ -138,9 +149,9 @@ export function wrapLlmStreamWithRequestTiming(
     const result = innerRecord.result.bind(innerRecord);
     timed.result = async () => {
       const message = await result();
-      const firstTokenMs = timing.firstTokenMs();
-      if (firstTokenMs !== undefined) {
-        stampFirstTokenMs(message, firstTokenMs);
+      const firstToken = timing.firstToken();
+      if (firstToken !== undefined) {
+        stampFirstToken(message, firstToken);
       }
       return message;
     };

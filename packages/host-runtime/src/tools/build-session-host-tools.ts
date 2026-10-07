@@ -16,7 +16,13 @@ import type {
   ResolvedArtifactCapability,
   SessionPlan,
 } from '@piwin/contracts';
-import { formatError, modelSupportsCapability } from '@piwin/contracts';
+import {
+  APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID,
+  ARTIFACT_INSTRUCTIONS_TOOL_NAME,
+  formatError,
+  modelSupportsCapability,
+} from '@piwin/contracts';
+import type { ClientToolExecutionPort } from '@piwin/contracts';
 import { buildSessionTools } from '../session-tools.js';
 import { buildProcessTools } from '../process-tools.js';
 import { createBrowserToolDefinitions } from '../browser-tools.js';
@@ -59,6 +65,12 @@ import {
 } from './host-filesystem-tools.js';
 import { buildCodeSearchTool, resolveCodeSearchBackend } from '../code-search/tool.js';
 import type { SecretResolver } from '../secret-resolver.js';
+import {
+  createHealthReadContextTool,
+  type HealthReadContextDisplayResolver,
+  type HealthReadContextToolOptions,
+} from '../health-read-context-tool.js';
+import type { HealthToolRunBudget } from '../health-tool-run-budget.js';
 import {
   createMcpGenerationSnapshot,
   loadMcpConfig,
@@ -180,6 +192,19 @@ export type BuildSessionHostToolsOptions = {
    * stages + enables a revision. Absent → the extension tools are omitted.
    */
   applyExtensions?: (when: 'after-current-run') => Promise<ExtensionApplyOutcome>;
+
+  /**
+   * Device tools (ADR 0062). The caller passes this for user-owned root
+   * sessions only; `health_read_context` is then registered when a paired
+   * device has offered Apple Health.
+   */
+  deviceTools?: {
+    execution: ClientToolExecutionPort;
+    healthBudget: HealthToolRunBudget;
+    /** Stored summaries to answer from when the phone cannot be reached. */
+    readHealthCache?: HealthReadContextToolOptions['readCache'];
+    resolveHealthDisplay?: HealthReadContextDisplayResolver;
+  };
 };
 
 /**
@@ -612,6 +637,26 @@ export async function buildSessionHostTools(
       buildHostToolboxRegistration(toolboxTargets, {
         ...(catalog ? { catalog } : {}),
         mcpBrief: mcpCapabilityBrief,
+      }),
+    );
+  }
+
+  const deviceTools = options.deviceTools;
+  if (
+    deviceTools !== undefined &&
+    deviceTools.execution.hasCapableDevice(APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID)
+  ) {
+    tools.push(
+      createHealthReadContextTool({
+        execution: deviceTools.execution,
+        budget: deviceTools.healthBudget,
+        chartHint: tools.some((tool) => tool.descriptor.name === ARTIFACT_INSTRUCTIONS_TOOL_NAME),
+        ...(deviceTools.readHealthCache === undefined
+          ? {}
+          : { readCache: deviceTools.readHealthCache }),
+        ...(deviceTools.resolveHealthDisplay === undefined
+          ? {}
+          : { resolveDisplay: deviceTools.resolveHealthDisplay }),
       }),
     );
   }

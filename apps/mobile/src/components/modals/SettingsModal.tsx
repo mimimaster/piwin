@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import type { HostClientState } from '@piwin/host-client';
 import type { RemoteHostStatusData } from '@piwin/contracts';
 import { Button, IconClose, IconCheck, IconSettings } from '@piwin/ui-kit';
-import type { HealthForegroundUseMode } from '../../client-tools/client-tool-preferences.js';
+import type { HealthForegroundUseMode } from '@piwin/host-client';
 import { HealthSettingsPanel } from '../../health/HealthSettingsPanel.js';
 import type { MobileThemeMode } from '../../hooks/use-theme.js';
 import { MobileLayer } from '../../mobile-portal.js';

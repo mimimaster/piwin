@@ -54,3 +54,16 @@ In `apps/desktop`:
     - If the Host currently has pairing disabled, allow operators to flip the switch to enable it immediately without restarting or editing environment variables.
     - If the Host advertises a loopback address, warn that a phone cannot reach it.
     - If connected to an older Host that rejects or does not support `host/pairing-*`, gracefully display that the Host does not support remote pairing management.
+
+### 5. Hello admission keys and reject reasons (2026-10-06)
+
+A hello carries exactly one admission key. A shell may hold several (a freshly
+scanned pairing token, a stored device credential, a saved door token), so the
+client picks one before the hello: pairing token, then device credential, then
+door token (`selectAdmissionKey` in `apps/desktop/src/device-admission.ts`).
+
+A rejected hello's `error` frame carries an optional `reason`
+(`HostHelloRejectReason` in `@piwin/contracts`) next to the English `message`.
+The transport surfaces it as `HostHandshakeError.reason`; shells localize from
+the reason and fall back to the message for Hosts that predate it. The field is
+additive, so old clients and old Hosts keep working unchanged.

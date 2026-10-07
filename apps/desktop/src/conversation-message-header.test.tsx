@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, beforeAll, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ContextUsageSnapshot, ModelRef } from '@piwin/contracts';
+import { loadProviderBrandIcons } from '@piwin/ui-kit';
 import type { ChatMessageUi } from './chat-reducer';
 import {
   buildConversationTurnUsageChip,
@@ -16,6 +17,10 @@ declare global {
 describe('ConversationMessageHeader', () => {
   let container: HTMLDivElement;
   let root: Root;
+
+  beforeAll(async () => {
+    await loadProviderBrandIcons();
+  });
 
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;

@@ -2,11 +2,17 @@
  * Provider brand icons via `modelicons` (official AI brand SVGs).
  * Known vendors → Avatar chip; unknown/custom → monogram from display name,
  * or a neutral model mark when the icon stands for a model (`fallback="model"`).
+ *
+ * Brand SVGs load once on first mount so the cold main chunk stays smaller.
  */
 
-import type { CSSProperties, ReactElement } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactElement } from 'react';
 import { ModelFallbackIcon } from './model-fallback-icon.js';
-import { resolveBrand } from './provider-brands.js';
+import {
+  areProviderBrandIconsReady,
+  loadProviderBrandIcons,
+  resolveBrand,
+} from './provider-brands.js';
 
 export type ProviderIconProps = {
   /** Preset id or provider config id. */
@@ -63,6 +69,18 @@ function monogramFromName(
 
 /** Soft pastel tile with real brand SVG (or monogram / model-mark fallback). */
 export function ProviderIcon(props: ProviderIconProps): ReactElement {
+  const [, setIconsReady] = useState(() => areProviderBrandIconsReady());
+  useEffect(() => {
+    if (areProviderBrandIconsReady()) return undefined;
+    let cancelled = false;
+    void loadProviderBrandIcons().then(() => {
+      if (!cancelled) setIconsReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const size = props.size ?? 28;
   const brand = resolveBrand(props.id, props.modelId);
   const radius = props.radius ?? Math.max(8, Math.round(size * 0.29));

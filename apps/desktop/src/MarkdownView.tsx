@@ -1,6 +1,5 @@
-import { useMemo, useRef, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { cjk } from '@streamdown/cjk';
-import { createMathPlugin } from '@streamdown/math';
 import {
   projectArtifactMarkdownForRender,
   type ArtifactActionMessage,
@@ -22,6 +21,11 @@ import {
 } from './knowledge/knowledge-citations.js';
 import { MarkdownRenderingPhaseProvider } from './markdown-rendering-phase.js';
 import { RenderErrorBoundary } from './render-error-boundary.js';
+import {
+  getStreamdownMathPlugin,
+  loadStreamdownMathPlugin,
+  type StreamdownMathPlugin,
+} from './streamdown-math-plugin.js';
 
 export type { MarkdownRenderingPhase } from './markdown-code-fence.js';
 
@@ -88,12 +92,7 @@ type MarkdownViewProps = {
   knowledgeCitations?: KnowledgeCitationIndex | undefined;
 };
 
-const STREAMDOWN_PLUGINS = {
-  cjk,
-  // Single-dollar `$...$` collides with env vars (`$HOME`) and prices (`$100`).
-  // Keep `$$...$$` / `\(...\)` for real math.
-  math: createMathPlugin({ singleDollarTextMath: false }),
-};
+const STREAMDOWN_BASE_PLUGINS = { cjk } as const;
 const MARKDOWN_LINK_SAFETY = { enabled: false };
 /**
  * Streamdown 2.5: `mode="streaming"` + `animated={false}` defers block
@@ -287,6 +286,25 @@ export function MarkdownView({
     () => createStreamdownComponents(streamdownRendererOptionsRef),
     [],
   );
+  // KaTeX / remark-math stay off the cold main chunk; first markdown mount
+  // loads them once. Until then Streamdown still paints text without math.
+  const [mathPlugin, setMathPlugin] = useState<StreamdownMathPlugin | null>(() =>
+    getStreamdownMathPlugin(),
+  );
+  useEffect(() => {
+    if (mathPlugin) return undefined;
+    let cancelled = false;
+    void loadStreamdownMathPlugin().then((plugin) => {
+      if (!cancelled) setMathPlugin(plugin);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mathPlugin]);
+  const streamdownPlugins = useMemo(
+    () => (mathPlugin ? { cjk, math: mathPlugin } : STREAMDOWN_BASE_PLUGINS),
+    [mathPlugin],
+  );
 
   return (
     <MarkdownRenderingPhaseProvider phase={phase}>
@@ -306,7 +324,7 @@ export function MarkdownView({
           parseIncompleteMarkdown={streamMode}
           isAnimating={false}
           animated={STREAMDOWN_IMMEDIATE_STREAMING}
-          plugins={STREAMDOWN_PLUGINS}
+          plugins={streamdownPlugins}
           components={streamdownComponents}
           controls={false}
           lineNumbers={false}

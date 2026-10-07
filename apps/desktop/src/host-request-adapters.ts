@@ -221,10 +221,14 @@ export type HostRequestAdapters = {
       | 'cron/delete'
       | 'cron/run'
       | 'hooks/list'
-      | 'hooks/set';
+      | 'hooks/set'
+      | 'health/status'
+      | 'health/delete-summaries'
+      | 'health/run-digest';
     config?: PiwinConfig;
     job?: import('@piwin/contracts').CronJob;
     jobId?: string;
+    deviceId?: string;
     hooks?: import('@piwin/contracts').HookDefinition[];
   }) => Promise<HostResponse>;
 };
@@ -913,6 +917,15 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         return hostClient.request({ type: 'cron/run', jobId: command.jobId ?? '' });
       }
       if (command.type === 'hooks/list') return hostClient.request({ type: 'hooks/list' });
+      if (command.type === 'health/status' || command.type === 'health/run-digest') {
+        return hostClient.request({ type: command.type });
+      }
+      if (command.type === 'health/delete-summaries') {
+        return hostClient.request({
+          type: 'health/delete-summaries',
+          ...(command.deviceId === undefined ? {} : { deviceId: command.deviceId }),
+        });
+      }
       return hostClient.request({ type: 'hooks/set', hooks: command.hooks ?? [] });
     },
   };

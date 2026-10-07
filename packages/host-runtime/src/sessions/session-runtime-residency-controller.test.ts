@@ -82,6 +82,20 @@ describe('session-runtime-residency-controller', () => {
     expect(controller.hasResident()).toBe(true);
   });
 
+  it('commits a run-owned activation straight to resident-busy', async () => {
+    // Idle-then-busy published a running session as idle (and suspendable)
+    // for as long as the caller's remaining bind work awaited.
+    const { controller } = createController();
+    const result = await controller.beginActivation('s1', 'gen-1', new AbortController().signal);
+    expect(result.ok).toBe(true);
+    controller.commitActivation('s1', 'gen-1', { admittedForRun: true });
+    expect(controller.getResidency('s1')).toBe('resident-busy');
+    expect(await controller.requestSuspend('s1', 'gen-1', 'manual')).toBe(false);
+    controller.markIdle('s1', 'gen-1');
+    expect(controller.getResidency('s1')).toBe('resident-idle');
+    controller.dispose();
+  });
+
   it('expires idle runtimes after the TTL on sweep', async () => {
     const { controller, clock } = createController();
     await activateAndCommit(controller, 's1', 'gen-1');

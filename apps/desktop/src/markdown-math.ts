@@ -2,22 +2,53 @@
  * KaTeX helpers for chat markdown (CE-MD-01).
  * Soft-fail: never throw into the chat shell; return source on error.
  * trust:false — no untrusted HTML from TeX.
+ *
+ * Katex stays off the cold main chunk: first math paint loads the library
+ * once, then every later call is synchronous against the cached module.
  */
 
-import katex from 'katex';
 import { formatError } from '@piwin/contracts';
 
 export type KatexRenderResult =
-  | { ok: true; html: string }
-  | { ok: false; error: string; source: string };
+  | { ok: true, html: string }
+  | { ok: false, error: string, source: string, pending?: boolean };
+
+type KatexModule = typeof import('katex').default;
+
+let katexModule: KatexModule | null = null;
+let katexLoad: Promise<KatexModule> | null = null;
+
+/** Load KaTeX JS + CSS once. Safe to call from multiple surfaces. */
+export function loadKatex(): Promise<KatexModule> {
+  if (katexModule) {
+    return Promise.resolve(katexModule);
+  }
+  if (!katexLoad) {
+    katexLoad = Promise.all([import('katex'), import('katex/dist/katex.min.css')]).then(
+      ([module]) => {
+        katexModule = module.default;
+        return katexModule;
+      },
+    );
+  }
+  return katexLoad;
+}
+
+export function isKatexReady(): boolean {
+  return katexModule !== null;
+}
 
 export function renderKatex(tex: string, displayMode: boolean): KatexRenderResult {
   const source = tex.trim();
   if (!source) {
     return { ok: false, error: 'Empty math expression', source: tex };
   }
+  if (!katexModule) {
+    void loadKatex();
+    return { ok: false, error: 'KaTeX loading', source, pending: true };
+  }
   try {
-    const html = katex.renderToString(source, {
+    const html = katexModule.renderToString(source, {
       displayMode,
       throwOnError: true,
       strict: 'ignore',
@@ -43,11 +74,11 @@ export function isMermaidFenceLanguage(language: string): boolean {
 }
 
 export type InlineMathSegment =
-  | { kind: 'text'; value: string }
-  | { kind: 'code'; value: string }
-  | { kind: 'strong'; value: string }
-  | { kind: 'em'; value: string }
-  | { kind: 'math'; value: string; display: boolean };
+  | { kind: 'text', value: string }
+  | { kind: 'code', value: string }
+  | { kind: 'strong', value: string }
+  | { kind: 'em', value: string }
+  | { kind: 'math', value: string, display: boolean };
 
 /**
  * Tokenize inline markdown with math priority over emphasis.

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { HealthForegroundUseMode } from '../client-tools/client-tool-preferences.js';
+import type { HealthForegroundUseMode } from '@piwin/host-client';
 
 export type HealthSettingsPanelProps = {
   available: boolean;

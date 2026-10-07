@@ -1,3 +1,4 @@
+import type { HostHelloRejectReason } from '@piwin/contracts';
 import type { MobileAccessCopy } from './desktop-locale-mobile-access.js';
 
 export type DesktopCopy = {
@@ -19,6 +20,13 @@ export type DesktopCopy = {
     connect: string;
     connecting: string;
     useThisMac: string;
+    scanPairingCode: string;
+    scanning: string;
+    scanHint: string;
+    scanEmpty: string;
+    manualEntry: string;
+    connectFailed: (detail: string) => string;
+    rejectReasons: Record<HostHelloRejectReason, string>;
     instanceId: (id: string) => string;
     invalidEndpoint: string;
     statusLive: string;
@@ -195,6 +203,9 @@ export type DesktopCopy = {
     stopJob: string;
     viewJobLogsTitle: (label: string) => string;
     hostConnecting: string;
+    hostUnreachable: (host: string) => string;
+    hostRetry: string;
+    hostSwitch: string;
     hostStatus: (mode: string, isMock: boolean) => string;
     hostTooltip: (mode: string, isMock: boolean, ready: boolean, transport?: string) => string;
     shortcutHint: string;

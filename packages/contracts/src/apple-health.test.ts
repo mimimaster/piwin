@@ -19,7 +19,7 @@ import { TOOL_KINDS, isToolKind, type ToolKind } from './host.js';
 import { isHealthSensitiveToolResult, type ToolResultDetails } from './tool-result.js';
 
 describe('apple health v1 contracts', () => {
-  it('freezes the eight M1 metric IDs and canonical units', () => {
+  it('freezes the metric IDs and canonical units', () => {
     expect([...APPLE_HEALTH_METRIC_IDS]).toEqual([
       'steps',
       'active-energy',
@@ -29,7 +29,23 @@ describe('apple health v1 contracts', () => {
       'sleep-stages',
       'resting-heart-rate',
       'heart-rate-variability',
+      'sleep-schedule',
+      'body-mass',
+      'body-fat-percentage',
+      'vo2-max',
+      'respiratory-rate',
+      'blood-oxygen',
+      'wrist-temperature',
+      'mindful-minutes',
+      'time-in-daylight',
     ]);
+    expect(appleHealthMetricUnit('sleep-schedule')).toBe('minute');
+    expect(appleHealthMetricUnit('body-mass')).toBe('kg');
+    expect(appleHealthMetricUnit('body-fat-percentage')).toBe('percent');
+    expect(appleHealthMetricUnit('vo2-max')).toBe('ml/kg/min');
+    expect(appleHealthMetricUnit('respiratory-rate')).toBe('breaths/min');
+    expect(appleHealthMetricUnit('blood-oxygen')).toBe('percent');
+    expect(appleHealthMetricUnit('wrist-temperature')).toBe('degC');
     expect(APPLE_HEALTH_MAX_TOTAL_WINDOW_DAYS).toBe(90);
     expect(APPLE_HEALTH_MAX_RECORDS).toBe(720);
     expect(isAppleHealthMetricId('steps')).toBe(true);

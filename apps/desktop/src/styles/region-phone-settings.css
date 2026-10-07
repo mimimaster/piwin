@@ -1,0 +1,302 @@
+/* Phone settings.
+   The desktop page is a framed nav card beside a framed content card, each
+   with its own padding, so on a phone a setting was left three quarters of
+   the screen and a description wrapped into a ribbon beside its switch.
+   Here the page is one surface: sections are a strip of pills, cards run
+   nearly edge to edge, a row is "label … control" with its description on a
+   full-width line below, and every control is thumb sized. */
+
+html:has(.app-shell[data-layout='phone']) {
+  /* ── One column ──────────────────────────────────────────────
+     The desktop dialog is a nav column beside a content column, which left
+     the content about 100px wide. The section list becomes a horizontal
+     strip above the page. */
+  .settings-modal-dialog {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: none;
+    padding: 0;
+    gap: 0;
+    background: var(--bg);
+  }
+
+  .settings-modal-dialog > .settings-titlebar,
+  .settings-modal-dialog > .settings-nav,
+  .settings-modal-dialog > .settings-main {
+    grid-area: auto;
+    grid-column: 1;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .settings-modal-dialog > .settings-nav {
+    height: auto;
+    min-height: 0;
+  }
+
+  .settings-modal-dialog > .settings-nav .settings-nav-list {
+    flex: 0 0 auto;
+    height: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .settings-titlebar .settings-titlebar-drag {
+    display: none;
+  }
+
+  /* Form rows are sized for a wide card; let them shrink with the screen. */
+  .settings-main .host-target-form,
+  .settings-main .host-target-fields,
+  .settings-main .host-target-fields > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* ── One surface ─────────────────────────────────────────────── */
+
+  .settings-modal-dialog > .settings-nav,
+  .settings-modal-dialog > .settings-main {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* ── Titleband: same compact row as the workbench ────────────── */
+  .settings-titlebar,
+  .settings-titlebar-box {
+    min-height: calc(var(--titleband-height) + var(--phone-top-inset, var(--app-safe-top, 0px)));
+    padding: var(--phone-top-inset, var(--app-safe-top, 0px)) var(--s-4) 0;
+  }
+
+  /* The only way back out of settings. */
+  .settings-titlebar .settings-back-button {
+    width: 44px;
+    height: 44px;
+    border: 0;
+  }
+
+  .settings-titlebar .settings-titlebar-title {
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  /* ── Search and section pills ────────────────────────────────── */
+  .settings-modal-dialog > .settings-nav {
+    padding: 4px 0 10px;
+    gap: 10px;
+  }
+
+  .settings-nav .settings-search-container {
+    height: 38px;
+    margin: 0 16px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+  }
+
+  .settings-nav .settings-search-input {
+    height: 38px;
+    /* Below 16px iOS zooms the page when the field takes focus. */
+    font-size: 16px;
+  }
+
+  .settings-modal-dialog > .settings-nav .settings-nav-list {
+    gap: 8px;
+    padding: 0 16px;
+    scrollbar-width: none;
+  }
+
+  .settings-modal-dialog > .settings-nav .settings-nav-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Groups only matter as columns on desktop; here it is one strip. */
+  .settings-modal-dialog > .settings-nav .settings-nav-group {
+    display: contents;
+  }
+
+  .settings-modal-dialog > .settings-nav .settings-nav-group-label {
+    display: none;
+  }
+
+  .settings-modal-dialog > .settings-nav .settings-nav-item {
+    flex: 0 0 auto;
+    height: 34px;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+
+  .settings-modal-dialog > .settings-nav .settings-nav-item.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  /* The pill itself marks the selection; the desktop edge bar is redundant. */
+  .settings-modal-dialog > .settings-nav .settings-nav-item::before {
+    display: none;
+  }
+
+  /* ── Page ─────────────────────────────────────────────────────── */
+  .settings-main .settings-main-header {
+    padding: 6px 16px 10px;
+  }
+
+  .settings-main .settings-main-header h1 {
+    font-size: 22px;
+    line-height: 1.25;
+  }
+
+  .settings-main .settings-main-content {
+    padding: 0 12px calc(16px + var(--app-safe-bottom, 0px));
+    /* Full-bleed panels pull themselves out by this much; it must match the
+       padding above or they overflow the screen. */
+    --workspace-gutter: 12px;
+  }
+
+  /* Summary rows are written for one wide line. */
+  .settings-main .settings-workspace-actions,
+  .settings-main .model-catalog-sync {
+    flex-wrap: wrap;
+    max-width: 100%;
+    row-gap: 8px;
+  }
+
+  .settings-main .settings-workspace-tabs {
+    scrollbar-width: none;
+  }
+
+  .settings-main .settings-workspace-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-main .settings-hub-tabs {
+    padding-bottom: 10px;
+    margin-bottom: 4px;
+    background: var(--bg);
+    border: 0;
+  }
+
+  .settings-main .settings-hub-tabs .piwin-segmented-control {
+    width: 100%;
+  }
+
+  .settings-main .settings-hub-tabs .mantine-SegmentedControl-control {
+    flex: 1 1 0;
+  }
+
+  .settings-main .settings-hub-tabs .piwin-segmented-control-label {
+    padding-block: 7px;
+    font-size: 14px;
+  }
+
+  /* ── Cards ────────────────────────────────────────────────────── */
+  .settings-main .settings-section-card {
+    padding: 14px 16px;
+    margin: 0 0 12px;
+    border-radius: 14px;
+  }
+
+  /* A status badge beside the heading squeezed the description into a narrow
+     column. It sits on the title line; the description gets the full width. */
+  .settings-main .settings-card-heading {
+    position: relative;
+    display: block;
+  }
+
+  .settings-main .settings-card-heading-trailing {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+
+  .settings-main .settings-card-heading:has(.settings-card-heading-trailing) h4 {
+    padding-right: 46%;
+  }
+
+  .settings-main .settings-card-heading h4 {
+    font-size: 16px;
+  }
+
+  .settings-main .settings-card-heading p {
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  /* ── Rows: label and control on one line, description below ───── */
+  .settings-main .ui-field-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 4px;
+    align-items: center;
+    padding: 12px 0;
+  }
+
+  .settings-main .ui-field-row > .ui-field-row-content {
+    display: contents;
+  }
+
+  .settings-main .ui-field-row .ui-field-row-label {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 15px;
+  }
+
+  .settings-main .ui-field-row > .ui-field-row-control {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    max-width: 60vw;
+  }
+
+  .settings-main .ui-field-row .ui-field-row-description {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* ── Controls ─────────────────────────────────────────────────── */
+  .settings-main input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  .settings-main select,
+  .settings-main textarea {
+    min-height: 40px;
+    /* Below 16px iOS zooms the page when the field takes focus. */
+    font-size: 16px;
+  }
+
+  /* Mantine sizes the field from this variable; raising only the inner
+     element's min-height clipped the text inside a shorter wrapper. */
+  .settings-main .mantine-Input-wrapper,
+  .settings-main .mantine-PasswordInput-root,
+  .settings-main .mantine-InputWrapper-root {
+    --input-height: 40px;
+    --input-height-sm: 40px;
+  }
+
+  .settings-main .mantine-PasswordInput-innerInput,
+  .settings-main .mantine-Input-input {
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .settings-main .piwin-button,
+  .settings-main button.mantine-Button-root {
+    min-height: 40px;
+    padding-inline: 16px;
+    font-size: 15px;
+  }
+
+  .settings-main .host-target-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

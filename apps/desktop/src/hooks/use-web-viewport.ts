@@ -8,6 +8,7 @@ import {
   clearWebViewportCssVars,
   fallbackWebViewportMetrics,
   readWebViewportMetrics,
+  shouldResetDocumentScroll,
   type WebViewportMetrics,
 } from '../web-viewport';
 
@@ -20,6 +21,9 @@ export function useWebViewport(): WebViewportMetrics {
     const root = document.documentElement;
 
     function sync(): void {
+      if (shouldResetDocumentScroll(window)) {
+        window.scrollTo(0, 0);
+      }
       const next = readWebViewportMetrics(window);
       applyWebViewportCssVars(root, next);
       setMetrics(next);

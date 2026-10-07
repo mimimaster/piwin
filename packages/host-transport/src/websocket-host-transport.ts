@@ -1,4 +1,6 @@
-import type { HostClientHello, HostHello } from '@piwin/contracts';
+import type { HostClientHello, HostHello, HostHelloRejectReason } from '@piwin/contracts';
+import { isHostHelloRejectReason } from '@piwin/contracts';
+import { HostHandshakeError } from './host-handshake-error.js';
 import { decodeHostWireMessage, encodeHostWireMessage } from './protocol-codec.js';
 import type {
   HostClientHelloFactory,
@@ -67,6 +69,7 @@ export class WebSocketHostTransport implements HostTransport {
   private lastSeq = 0;
   private hostHello: HostHello | undefined;
   private handshakeError: string | undefined;
+  private handshakeRejectReason: HostHelloRejectReason | undefined;
   private helloPromise:
     | {
         promise: Promise<HostHello>;
@@ -150,6 +153,7 @@ export class WebSocketHostTransport implements HostTransport {
     this.reconnectAttempt = 0;
     this.hostHello = undefined;
     this.handshakeError = undefined;
+    this.handshakeRejectReason = undefined;
     this.publishState({ kind: 'connecting' });
     return this.openSocket(true);
   }
@@ -221,6 +225,7 @@ export class WebSocketHostTransport implements HostTransport {
   private openSocket(waitForHello: boolean): Promise<HostHello> | undefined {
     if (waitForHello) {
       this.handshakeError = undefined;
+      this.handshakeRejectReason = undefined;
     }
     if (waitForHello) {
       if (this.helloPromise === undefined) {
@@ -330,6 +335,10 @@ export class WebSocketHostTransport implements HostTransport {
       }
       if (message.type === 'error' && this.hostHello === undefined) {
         this.handshakeError = message.message;
+        // An unknown reason from a newer Host degrades to the message.
+        this.handshakeRejectReason = isHostHelloRejectReason(message.reason)
+          ? message.reason
+          : undefined;
       }
       if (message.type === 'host/hello') {
         this.hostHello = message;
@@ -381,11 +390,13 @@ export class WebSocketHostTransport implements HostTransport {
       event.reason.length > 0 ? event.reason : `WebSocket closed (${event.code})`;
     const reason = this.handshakeError ?? closeReason;
     const fatal = FATAL_CLOSE_CODES.has(event.code);
-    const error = new Error(
-      fatal
-        ? `Host rejected the connection (${event.code}): ${reason}`
-        : `Host WebSocket closed before handshake (${event.code}): ${reason}`,
-    );
+    const error = fatal
+      ? new HostHandshakeError(
+          `Host rejected the connection (${event.code}): ${reason}`,
+          event.code,
+          this.handshakeRejectReason,
+        )
+      : new Error(`Host WebSocket closed before handshake (${event.code}): ${reason}`);
     if (this.closing) {
       this.failHello(error);
       return;

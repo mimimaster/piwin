@@ -295,9 +295,20 @@
   transform: none;
 }
 
-/* Time yields to the hover action cluster, and to the close control that
+/* Hover reveals are gated on a hovering pointer. On a touch screen :hover
+   sticks after a tap, and iOS spends the first tap on a hover that changes
+   visibility — a session row then needed two taps to open. Touch reaches the
+   same actions on the selected row instead (end of this section).
+
+   Time yields to the hover action cluster, and to the close control that
    stays up on the shaded (selected) row. */
-.session-row:not(.session-row--working):hover .session-item-time,
+@media (hover: hover) {
+  .session-row:not(.session-row--working):hover .session-item-time {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
 .session-row:not(.session-row--working):focus-within .session-item-time,
 .session-row--active:not(.session-row--working):not(.session-row--completed):not(.session-row--failed)
   .session-item-time {
@@ -461,11 +472,18 @@
 /* Working pulse yields to hover actions. Completed/failed seals stay — they are
    dismissible affordances, and actions clear to their left via
    --session-status-seal-clearance rather than stacking in the same pixels. */
-.session-row--working:hover .session-item-activity,
+@media (hover: hover) {
+  .session-row--working:hover .session-item-activity,
+  .session-row:hover .session-item-completed-mark,
+  .session-row:hover .session-item-failed-mark {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
 .session-row--working:focus-within .session-item-activity,
-.session-row:hover .session-item-completed-mark,
 .session-row:focus-within .session-item-completed-mark,
-.session-row:hover .session-item-failed-mark,
 .session-row:focus-within .session-item-failed-mark {
   opacity: 0;
   visibility: hidden;
@@ -572,7 +590,12 @@
   display: none;
 }
 
-.session-row:hover .session-row-actions,
+@media (hover: hover) {
+  .session-row:hover .session-row-actions {
+    pointer-events: auto;
+  }
+}
+
 .session-row:focus-within .session-row-actions {
   pointer-events: auto;
 }
@@ -600,11 +623,32 @@
     visibility var(--t-1) var(--ease-out);
 }
 
-.session-row:hover .session-action-btn,
+@media (hover: hover) {
+  .session-row:hover .session-action-btn {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+
 .session-row:focus-within .session-action-btn {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
+}
+
+/* Touch: there is no hover to reveal the cluster, so the selected row — whose
+   time label already yields — keeps its actions up. */
+@media (hover: none) {
+  .session-row--active:not(.session-row--working) .session-row-actions {
+    pointer-events: auto;
+  }
+
+  .session-row--active:not(.session-row--working) .session-action-btn {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
 }
 
 .session-action-btn:hover,

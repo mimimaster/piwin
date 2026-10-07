@@ -1,0 +1,17 @@
+[package]
+name = "piwin-artifact-webview"
+version = "0.0.0"
+description = "Isolated Artifact document scheme and WKWebView return channel shared by the piwin Tauri shells"
+authors = ["piwin"]
+edition = "2021"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde_json = "1"
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+# WKWebView drops sandbox child→parent DOM messages in release builds. A
+# frame-scoped script message handler is the narrow native return channel.
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSObject", "NSString"] }
+objc2-web-kit = { version = "0.3", default-features = false, features = ["WKScriptMessage", "WKScriptMessageHandler", "WKUserContentController"] }

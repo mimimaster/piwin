@@ -11,7 +11,11 @@ import type {
   SessionIndexRecord,
 } from '@piwin/contracts';
 import { randomUUID } from 'node:crypto';
-import { formatError, normalizeExecutionConfig } from '@piwin/contracts';
+import {
+  APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID,
+  formatError,
+  normalizeExecutionConfig,
+} from '@piwin/contracts';
 import { healthProviderDisclosure } from './health-turn-display.js';
 import { effectivePermissionMode, getInheritedPermissionOverride } from './effective-permission-mode.js';
 import { evaluateBashPermission } from './permission-policy.js';
@@ -50,6 +54,7 @@ import { createHostToolAdmission } from './tools/tool-admission.js';
 import { createToolResourceGate, getSharedSystemMemoryMonitor } from './system-memory.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+import type { HealthReadContextArguments } from '@piwin/contracts';
 import type { ComposedSessionHostTools } from './host-runtime-types.js';
 import { ensureBrowserSessionBestEffort } from './host-runtime-services.js';
 
@@ -165,6 +170,14 @@ export async function composeSessionHostToolsForSession(
     `${sessionId}\u0000${runtimeGenerationId}`,
     sessionMcpOverrideKey(sessionDisabledMcpServerIds),
   );
+  // Remembered so the next turn can tell that a device has since offered
+  // Apple Health and this generation's frozen tool surface predates it.
+  if (deps.options.clientToolExecution !== undefined && !childContext) {
+    deps.generationDeviceHealthOffered.set(
+      `${sessionId}\u0000${runtimeGenerationId}`,
+      deps.options.clientToolExecution.hasCapableDevice(APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID),
+    );
+  }
   const writableWorktreeRoot = childContext?.runtimeGenerationId === runtimeGenerationId &&
     childContext.worktreePath !== undefined &&
     canonicalFsPath(childContext.worktreePath) === canonicalFsPath(childContext.workingDirectory)
@@ -321,18 +334,26 @@ export async function composeSessionHostToolsForSession(
     ...(deps.options.clientToolExecution === undefined || childContext
       ? {}
       : {
-          clientToolExecution: deps.options.clientToolExecution,
-          healthToolRunBudget: deps.healthToolRunBudget,
-          resolveHealthDisplay: (context: { sessionId: string }) => {
-            const stored = deps.healthTurnBySession.get(context.sessionId);
-            const provider = healthProviderDisclosure(
-              deps.sessionModels.get(context.sessionId),
-              config,
-            );
-            return {
-              explicitTurnIntent: stored?.explicit === true,
-              ...(provider === undefined ? {} : { provider }),
-            };
+          deviceTools: {
+            execution: deps.options.clientToolExecution,
+            healthBudget: deps.healthToolRunBudget,
+            ...(deps.healthSummaries === undefined
+              ? {}
+              : {
+                  readHealthCache: (request: HealthReadContextArguments) =>
+                    deps.healthSummaries?.readCached(request) ?? Promise.resolve(undefined),
+                }),
+            resolveHealthDisplay: (context: { sessionId: string }) => {
+              const stored = deps.healthTurnBySession.get(context.sessionId);
+              const provider = healthProviderDisclosure(
+                deps.sessionModels.get(context.sessionId),
+                config,
+              );
+              return {
+                explicitTurnIntent: stored?.explicit === true,
+                ...(provider === undefined ? {} : { provider }),
+              };
+            },
           },
         }),
   });
@@ -442,6 +463,11 @@ export function clearGenerationToolSurfaces(deps: HostRuntimeKernel, sessionId: 
       deps.generationSessionMcpOverrideKeys.delete(key);
     }
   }
+  for (const key of deps.generationDeviceHealthOffered.keys()) {
+    if (key.startsWith(prefix)) {
+      deps.generationDeviceHealthOffered.delete(key);
+    }
+  }
   for (const key of deps.generationPermissionRuleRevisions.keys()) {
     if (key.startsWith(prefix)) {
       deps.generationPermissionRuleRevisions.delete(key);
@@ -459,6 +485,7 @@ export function clearGenerationToolSurface(
   deps.generationMcpConfigs.delete(key);
   deps.generationMcpSnapshots.delete(key);
   deps.generationSessionMcpOverrideKeys.delete(key);
+  deps.generationDeviceHealthOffered.delete(key);
   deps.generationPermissionRuleRevisions.delete(key);
 }
 

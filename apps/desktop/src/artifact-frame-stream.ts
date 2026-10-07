@@ -8,7 +8,7 @@ import {
   type ArtifactFrameMode,
   type ArtifactRenderMode,
 } from '@piwin/artifact';
-import { isTauriRuntime } from './tauri-pty.js';
+import { hasTauriBridge } from './shell-runtime.js';
 
 export type ArtifactSandboxView = {
   mode: ArtifactRenderMode;
@@ -117,14 +117,15 @@ function convertArtifactDocumentSrc(documentId: string): string | null {
 }
 
 /**
- * Tauri: load through the piwin-artifact scheme so the frame does not inherit
+ * Tauri (Desktop and the iOS shell alike — both serve this page from
+ * `tauri://`): load through the piwin-artifact scheme so the frame does not inherit
  * the app page CSP (Tauri appends script hashes, which disables 'unsafe-inline'
  * in inherited data: documents). The document itself is published over IPC —
  * wry rejects scheme URLs over 65 534 bytes, so it cannot ride in the URL.
  * Browser/e2e: data: URL.
  */
 export function buildArtifactDocumentUrl(documentId: string, srcdoc: string): string {
-  if (!isTauriRuntime()) {
+  if (!hasTauriBridge()) {
     return buildArtifactDocumentDataUrl(srcdoc);
   }
   const converted = convertArtifactDocumentSrc(documentId);
@@ -150,7 +151,7 @@ export async function publishArtifactDocument(documentId: string, srcdoc: string
 export function usePublishedArtifactDocument(document: ArtifactDocument, hosted: boolean): void {
   const { documentId, documentSource } = document;
   useLayoutEffect(() => {
-    if (!hosted || !isTauriRuntime()) {
+    if (!hosted || !hasTauriBridge()) {
       return;
     }
     publishArtifactDocument(documentId, documentSource).catch((error: unknown) => {

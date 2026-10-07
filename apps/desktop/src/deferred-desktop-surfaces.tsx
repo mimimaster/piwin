@@ -73,6 +73,21 @@ export const DeferredGitPanel = lazy(async () => {
   return { default: module.GitPanel };
 });
 
+export const DeferredLibraryWorkspaceView = lazy(async () => {
+  const module = await import('./workspace-subpages/LibraryWorkspaceView.js');
+  return { default: module.LibraryWorkspaceView };
+});
+
+export const DeferredKnowledgeWorkspaceView = lazy(async () => {
+  const module = await import('./workspace-subpages/KnowledgeWorkspaceView.js');
+  return { default: module.KnowledgeWorkspaceView };
+});
+
+export const DeferredMarketplaceWorkspaceView = lazy(async () => {
+  const module = await import('./workspace-subpages/MarketplaceWorkspaceView.js');
+  return { default: module.MarketplaceWorkspaceView };
+});
+
 export type DeferredSurfaceBoundaryProps = {
   children: ReactNode;
   label: string;

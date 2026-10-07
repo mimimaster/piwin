@@ -1,0 +1,168 @@
+/* Phone layout: thumb-sized targets.
+   Desktop chrome is sized for a pointer — 20 to 28px controls. On a phone
+   every control a finger has to hit gets a 44pt target (Apple HIG). Where the
+   box can simply grow it does; in dense rows the visible box stays small and
+   an ::after hit area reaches 44pt, so the row keeps its rhythm.
+
+   Sizes that themes pin are raised through tokens the theme sheets read
+   (--titleband-btn-size, --session-tree-trigger-size, --sb-top-control-size,
+   --card-header-height, --inspector-action-size). e2e/phone-layout.spec.ts measures the result. */
+
+.app-shell[data-layout='phone'] {
+  --touch-target: 44px;
+}
+
+/* ── Titleband ─────────────────────────────────────────────────────
+   The two outer buttons are the only way to the session drawer and the
+   workspace panel; they fill the 44px band (region-phone.css). */
+.app-shell[data-layout='phone'] > .context-bar {
+  --titleband-btn-size: var(--touch-target);
+  --session-tree-trigger-size: var(--touch-target);
+}
+
+.app-shell[data-layout='phone'] > .context-bar .piwin-icon-button {
+  --ai-size: var(--touch-target);
+}
+
+/* ── Composer toolbar ──────────────────────────────────────────────
+   Icon buttons and the model trigger take the full row; the row gives up its
+   own padding (region-phone-edge.css), so the slab grows by a few points
+   rather than a row. */
+.app-shell[data-layout='phone'] .slab .composer-v2-icon-btn {
+  --ai-size: var(--touch-target);
+  width: var(--touch-target);
+  height: var(--touch-target);
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
+.app-shell[data-layout='phone'] .slab :is(.thinking-effort-trigger, .run-mode-trigger, .orchestration-scheme-trigger, .sb-chip) {
+  height: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
+.app-shell[data-layout='phone'] .context-usage-ring {
+  width: var(--touch-target);
+  height: var(--touch-target);
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
+.app-shell[data-layout='phone'] .slab .composer-v2-action-slot {
+  height: var(--touch-target);
+  min-width: var(--touch-target);
+  place-items: center;
+}
+
+/* The send button stays a 32px disc; its hit area is the slot around it. */
+.app-shell[data-layout='phone'] .slab .composer-v2-send-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.app-shell[data-layout='phone'] .slab .composer-v2-send-btn::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+/* ── Message actions ───────────────────────────────────────────────
+   Copy / fork / regenerate under a reply, copy / edit under a prompt. Full
+   width targets; the row is kept to 36px and the hit area reaches past it. */
+.app-shell[data-layout='phone'] .acts-f,
+.app-shell[data-layout='phone'] .user-message-action-buttons {
+  gap: 0;
+}
+
+.app-shell[data-layout='phone'] .acts-f .ib,
+.app-shell[data-layout='phone'] .assistant-response-actions .msg-action-btn,
+.app-shell[data-layout='phone'] .user-msg-btn {
+  position: relative;
+  width: var(--touch-target);
+  height: 36px;
+}
+
+.app-shell[data-layout='phone'] .acts-f .ib::after,
+.app-shell[data-layout='phone'] .assistant-response-actions .msg-action-btn::after,
+.app-shell[data-layout='phone'] .user-msg-btn::after {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
+}
+
+.app-shell[data-layout='phone'] .acts-f .ib svg,
+.app-shell[data-layout='phone'] .user-msg-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Session drawer ────────────────────────────────────────────────── */
+.app-shell[data-layout='phone'] > .sidebar {
+  --sb-top-control-size: var(--touch-target);
+}
+
+.app-shell[data-layout='phone'] > .sidebar .sidebar-overlay-header .piwin-button {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
+/* Chat / project switch: the frame gives up its padding so the pair lines up
+   with the search field beside it. */
+.app-shell[data-layout='phone'] > .sidebar .sidebar-mode {
+  padding: 0;
+}
+
+.app-shell[data-layout='phone'] > .sidebar .sidebar-mode-btn {
+  width: var(--touch-target);
+  height: var(--touch-target);
+}
+
+.app-shell[data-layout='phone'] > .sidebar .sidebar-mode-btn svg,
+.app-shell[data-layout='phone'] > .sidebar .sb-top .new svg {
+  width: 16px;
+  height: 16px;
+}
+
+.app-shell[data-layout='phone'] > .sidebar .sidebar-action-row {
+  height: var(--touch-target);
+  min-height: var(--touch-target);
+  font-size: 15px;
+}
+
+/* Section header buttons sit in a virtualised tree whose row heights are
+   measured, so the 20px box stays and only the hit area grows. */
+.app-shell[data-layout='phone'] > .sidebar .sidebar-section-label-actions {
+  gap: 24px;
+}
+
+.app-shell[data-layout='phone'] > .sidebar .sidebar-section-label-actions .sidebar-icon-btn {
+  overflow: visible;
+}
+
+.app-shell[data-layout='phone'] > .sidebar .sidebar-section-label-actions .sidebar-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset: -12px;
+}
+
+/* ── Workspace panel ───────────────────────────────────────────────── */
+.app-shell[data-layout='phone'] > .right-panel {
+  --card-header-height: var(--touch-target);
+  --inspector-action-size: var(--touch-target);
+}
+
+.app-shell[data-layout='phone'] > .right-panel .right-panel-actions .piwin-icon-button,
+.app-shell[data-layout='phone'] > .right-panel .right-panel-action-btn {
+  --ai-size: var(--inspector-action-size);
+  width: var(--inspector-action-size);
+  height: var(--inspector-action-size);
+  min-width: var(--inspector-action-size);
+  min-height: var(--inspector-action-size);
+}
+
+.app-shell[data-layout='phone'] > .right-panel .right-panel-home-row {
+  min-height: var(--touch-target);
+}

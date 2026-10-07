@@ -433,6 +433,15 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
     }
   }, [activeSection]);
 
+  // On a phone the section list is a horizontal strip; a section opened from
+  // search or a deep link may sit off screen, so bring its item into view.
+  useEffect(() => {
+    const active = document.querySelector<HTMLElement>(
+      `[data-testid="settings-nav-${activeSection}"]`,
+    );
+    active?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
+  }, [activeSection]);
+
   return (
     <div
       className="settings-page"

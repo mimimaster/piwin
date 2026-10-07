@@ -14,6 +14,7 @@ import {
 import { endpointLabel } from './sessions.js';
 import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
 import { collectPendingPermissionSessionIds } from '../host/host-bridge.js';
+import { ShellInterfaceRow } from '../shell-interface-row.js';
 
 export function DeskPage(): ReactElement {
   const hostCtx = useInkstoneHost();
@@ -136,6 +137,7 @@ function ConnectedDesk({ hostCtx }: { hostCtx: InkstoneHostContextValue }): Reac
             ))}
           </div>
         ))}
+        <ShellInterfaceRow />
         <div className="section-label">快捷随手记</div>
         <button
           className="full-button secondary"

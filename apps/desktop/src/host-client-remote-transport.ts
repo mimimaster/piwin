@@ -6,10 +6,14 @@ import type {
   RemoteCapabilitySummary,
 } from '@piwin/contracts';
 import { formatError, remoteHostSupportsCommand } from '@piwin/contracts';
+import { attachDeviceHealth } from './device-health.js';
+import { attachHostEndpointRoaming } from './host-endpoint-roaming.js';
+import { attachHostWakeEvents } from './host-wake-events.js';
 import {
   createDesktopRemoteHostClient,
   readRemoteHostInstanceId,
   registerLiveDesktopRemoteHost,
+  saveDesktopRemoteHostTarget,
 } from './remote-host-session';
 import { getHostRequestTimeoutMs } from './host-client-request-timeouts.js';
 import { HostClientLiveTransport } from './host-client-live-transport.js';
@@ -295,7 +299,24 @@ export abstract class HostClientRemoteTransport extends HostClientLiveTransport 
         return hostInstanceId === undefined ? { ok: true } : { ok: true, hostInstanceId };
       },
     });
+    const detachDeviceHealth = attachDeviceHealth(remote, this.remoteTarget.endpoint.trim());
+    const detachRoaming = attachHostEndpointRoaming({
+      link: remote,
+      target: this.remoteTarget,
+      // Saving the target is what moves the shell: App and the workbench
+      // client both rebuild from the saved target.
+      onRoamed: (target) => saveDesktopRemoteHostTarget(target),
+    });
+    const detachWake = attachHostWakeEvents({
+      getClient: () => remote,
+      redial: () => {
+        void this.connectRemoteTransport();
+      },
+    });
     this.unsubscribeRemote = () => {
+      detachRoaming();
+      detachWake();
+      detachDeviceHealth();
       unsubscribePush();
       unsubscribeHydration();
       unsubscribeSnapshot();

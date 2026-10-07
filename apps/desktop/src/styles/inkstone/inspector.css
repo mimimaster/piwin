@@ -727,12 +727,13 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .right-panel .right-panel-actions .ib,
   .right-panel .insp-actions .piwin-icon-button,
   .right-panel .right-panel-actions .piwin-icon-button {
-    width: 22px !important;
-    height: 22px !important;
-    min-width: 22px !important;
-    min-height: 22px !important;
+    /* --inspector-action-size: touch layouts raise it to a thumb-sized target. */
+    width: var(--inspector-action-size, 22px) !important;
+    height: var(--inspector-action-size, 22px) !important;
+    min-width: var(--inspector-action-size, 22px) !important;
+    min-height: var(--inspector-action-size, 22px) !important;
     padding: 0 !important;
-    --ai-size: 22px;
+    --ai-size: var(--inspector-action-size, 22px);
     --ai-icon-size: 14px;
     border-radius: 5px;
     overflow: visible;

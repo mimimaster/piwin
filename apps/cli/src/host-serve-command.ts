@@ -50,9 +50,7 @@ export async function commandHostServe(argv: string[]): Promise<void> {
     runtimeOptions.permissionModeOverride = permissionModeOverride;
   }
   const clientToolBroker = await createDeviceToolBrokerForHost(hostDataRoot);
-  if (clientToolBroker !== undefined) {
-    runtimeOptions.clientToolExecution = clientToolBroker;
-  }
+  runtimeOptions.clientToolExecution = clientToolBroker;
   const runtime = new HostRuntime(runtimeOptions);
   const authority = createSidecarHostAuthority(runtime);
   authority.start();
@@ -112,7 +110,7 @@ export async function commandHostServe(argv: string[]): Promise<void> {
       piwinRoot: hostDataRoot,
       egressHub,
       idempotencyRegistry: authority.idempotencyRegistry,
-      ...(clientToolBroker === undefined ? {} : { clientToolBroker }),
+      clientToolBroker,
     });
     // Phone access is on by default; reopen the LAN listener without waiting on
     // it. resume() reports its own failures (status.lastError + stderr). Mock

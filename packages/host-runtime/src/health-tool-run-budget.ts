@@ -17,9 +17,3 @@ export class HealthToolRunBudget {
     this.admitted.delete(runId);
   }
 }
-
-export function isAppleHealthExperimentalEnabled(
-  env: NodeJS.ProcessEnv = process.env,
-): boolean {
-  return env.PIWIN_EXPERIMENTAL_APPLE_HEALTH === '1';
-}

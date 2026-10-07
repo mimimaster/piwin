@@ -54,6 +54,21 @@ npm packages that need `npm install` cannot be staged from a Git URL. `pi
 install npm:<name>` may still load an Agent-runtime module after Refresh. A
 package that exists to customize Pi's terminal will still not work here.
 
+## Compaction extensions
+
+An extension that hooks `session_before_compact` replaces Pi's built-in summary
+(the trigger timing stays Pi's). When several enabled extensions hook it, piwin
+runs them as a first-wins chain instead of Pi's "last result wins":
+
+1. Bundled extensions first. `pi-deepseek-cache` only takes the compaction on a
+   DeepSeek model and declines otherwise.
+2. User-installed extensions next, in load order.
+3. Pi's default summary when nobody takes it.
+
+An extension that already took the compaction stops the chain, so the others
+do not spend a summarization request. See
+`packages/agent-host/src/compaction-hook-priority.ts`.
+
 ## Privilege
 
 Enabled extensions run with the Host user's OS privileges. Permission rules

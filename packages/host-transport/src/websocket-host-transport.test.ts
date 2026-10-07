@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { HostHello, HostWireMessage } from '@piwin/contracts';
 import { encodeHostWireMessage } from './protocol-codec.js';
+import { HostHandshakeError } from './host-handshake-error.js';
 import { WebSocketHostTransport, type WebSocketLike } from './websocket-host-transport.js';
 
 class FakeSocket implements WebSocketLike {
@@ -381,6 +382,37 @@ describe('WebSocketHostTransport', () => {
     socket.emitClose(4004, 'Authentication failed');
 
     await expect(connection).rejects.toThrow('Pairing token is invalid or expired');
+    await transport.close();
+  });
+
+  it('carries the Host reject reason on the handshake error', async () => {
+    const socket = new FakeSocket();
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      createHello: () => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'client-reject-reason',
+        lastSeq: 0,
+      }),
+      webSocketFactory: () => socket,
+    });
+
+    const connection = transport.connect();
+    socket.emitOpen();
+    socket.emitMessage({
+      type: 'error',
+      code: 'authentication-required',
+      message: 'Pairing token is invalid or expired',
+      reason: 'pairing-token-invalid',
+    });
+    socket.emitClose(4004, 'Authentication failed');
+
+    const error: unknown = await connection.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(HostHandshakeError);
+    expect(error).toMatchObject({ closeCode: 4004, reason: 'pairing-token-invalid' });
     await transport.close();
   });
 

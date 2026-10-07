@@ -4,7 +4,6 @@ import type {
   HostResponse,
   MediaAttachmentRef,
   ModelRef,
-  PromptContextRef,
   ThinkingLevel,
 } from '@piwin/contracts';
 import {
@@ -15,6 +14,7 @@ import {
   knownForegroundRunId,
   type ForegroundRunState,
   type HostRequestExecutor,
+  APPLE_HEALTH_CONTEXT_REF,
 } from '@piwin/host-client';
 
 export type MobilePromptTurn = {
@@ -27,11 +27,7 @@ export type MobilePromptTurn = {
   includeAppleHealth?: boolean;
 };
 
-export const APPLE_HEALTH_CONTEXT_REF: PromptContextRef = {
-  kind: 'connected-source',
-  source: 'apple-health',
-  label: 'Apple Health',
-};
+export { APPLE_HEALTH_CONTEXT_REF };
 
 export type MobilePromptFailure = {
   message: string;

@@ -16,6 +16,7 @@ const applicationPackageNames = new Set([
   '@piwin/doc-rag',
   '@piwin/flashcards',
   '@piwin/git',
+  '@piwin/health',
   '@piwin/marketplace',
   '@piwin/mcp',
   '@piwin/media',

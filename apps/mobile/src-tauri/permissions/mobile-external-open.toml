@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-mobile-open-external"
+description = "Open a web, mail or phone link, or this app's Settings page, with the OS."
+commands.allow = ["mobile_open_external"]
