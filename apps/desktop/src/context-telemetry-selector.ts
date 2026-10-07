@@ -89,18 +89,30 @@ export type SelectContextRingViewInput = {
   };
 };
 
+type EstimableMessage = { text?: string | null; thinking?: string | null };
+
+/** Messages are immutable; a token replaces only the one that is streaming. */
+const estimatedTokensByMessage = new WeakMap<EstimableMessage, number>();
+
+function estimateMessageTokens(message: EstimableMessage): number {
+  const cached = estimatedTokensByMessage.get(message);
+  if (cached !== undefined) return cached;
+  let total = 0;
+  if (typeof message.text === 'string' && message.text.length > 0) {
+    total += estimateHostTokens(message.text);
+  }
+  if (typeof message.thinking === 'string' && message.thinking.length > 0) {
+    total += estimateHostTokens(message.thinking);
+  }
+  estimatedTokensByMessage.set(message, total);
+  return total;
+}
+
 /** Estimate total conversation tokens from transcript text and thinking blocks. */
-export function estimateTranscriptTokens(
-  messages: readonly { text?: string | null; thinking?: string | null }[],
-): number {
+export function estimateTranscriptTokens(messages: readonly EstimableMessage[]): number {
   let total = 0;
   for (const message of messages) {
-    if (typeof message.text === 'string' && message.text.length > 0) {
-      total += estimateHostTokens(message.text);
-    }
-    if (typeof message.thinking === 'string' && message.thinking.length > 0) {
-      total += estimateHostTokens(message.thinking);
-    }
+    total += estimateMessageTokens(message);
   }
   return total;
 }

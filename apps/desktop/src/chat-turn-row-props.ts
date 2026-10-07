@@ -10,7 +10,7 @@ import type { ChatThreadProps } from './chat-thread-types.js';
 import type { ConversationTurnChrome } from './conversation-turn-chrome.js';
 import type { ExploreFlowRole } from './explore-flow.js';
 import { isWalkthroughEligible } from './walkthrough-action';
-import { turnUserMessageId, type TranscriptTurn } from './transcript-turns';
+import type { TranscriptTurn } from './transcript-turns';
 
 /**
  * Stable defaults. A fresh `[]` per render failed the reference check in
@@ -23,6 +23,8 @@ export type ChatTurnRowPart = 'whole' | 'prose' | 'work';
 export type ChatTurnRowBuildContext = {
   props: ChatThreadProps;
   turn: TranscriptTurn;
+  /** The prompt that opened the turn; resolved once per turn, not per row. */
+  turnUserMessageId: string | null;
   message: ChatMessageUi;
   messageIndex: number;
   conversationSession: boolean;
@@ -59,6 +61,7 @@ export function buildChatTurnRowProps(
   const {
     props,
     turn,
+    turnUserMessageId,
     message,
     messageIndex,
     conversationSession,
@@ -130,9 +133,7 @@ export function buildChatTurnRowProps(
     activeSessionId: props.activeSessionId ?? null,
     editingMessageId: props.editingMessageId,
     lastUserMessageId: props.lastUserMessageId,
-    ...(turnUserMessageId(turn) !== null
-      ? { turnUserMessageId: turnUserMessageId(turn) }
-      : {}),
+    ...(turnUserMessageId !== null ? { turnUserMessageId } : {}),
     activeTheme: props.activeTheme,
     artifactThemeKey: props.artifactThemeKey,
     runRecordsById: props.runRecordsById ?? {},

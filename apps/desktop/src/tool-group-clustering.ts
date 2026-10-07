@@ -49,7 +49,23 @@ function toolNameTokens(toolName: string): string[] {
  * `code_review` (view) and `browser_click` (browser) into read-only explore
  * capsules, hiding side effects inside a collapsed "探索了 N 项".
  */
+/**
+ * Tool cards are immutable and replaced when they change, so the kind is
+ * computed once per object. Without this the explore flow re-classified — and
+ * for shell tools re-parsed the command of — every tool of the live turn on
+ * every streamed token.
+ */
+const clusterKindByTool = new WeakMap<ToolCardUi, ToolClusterKind>();
+
 export function resolveToolClusterKind(tool: ToolCardUi): ToolClusterKind {
+  const cached = clusterKindByTool.get(tool);
+  if (cached !== undefined) return cached;
+  const resolved = classifyToolClusterKind(tool);
+  clusterKindByTool.set(tool, resolved);
+  return resolved;
+}
+
+function classifyToolClusterKind(tool: ToolCardUi): ToolClusterKind {
   const name = (tool.toolName || '').toLowerCase().trim();
   const verb = (tool.presentation?.actionVerb || '').toLowerCase().trim();
   const kind = tool.presentation?.kind;

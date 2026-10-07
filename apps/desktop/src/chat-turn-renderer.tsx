@@ -44,7 +44,7 @@ import { resolveModelWaitTail } from './model-wait-tail.js';
 import { RunStatusFooter } from './run-status-footer.js';
 import { encodeTurnRunIds } from './turn-changes/turn-change-index.js';
 import { resolveTurnModelTrail } from './turn-model-trail';
-import type { TranscriptTurn } from './transcript-turns';
+import { turnUserMessageId, type TranscriptTurn } from './transcript-turns';
 import {
   narrationOnlyMessage,
   withoutNarration,
@@ -224,6 +224,10 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
   const presentOwningRunId = conversationSession
     ? undefined
     : findPlanPresentOwningRunId(assistantMessages);
+
+  // Scanning the turn for its prompt inside every row made a 40-step turn
+  // quadratic on each token.
+  const promptMessageId = turnUserMessageId(turn);
 
   const renderedUserItems: ReactElement[] = [];
   const renderedAssistantItems: ReactElement[] = [];
@@ -478,6 +482,7 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
         const rowContext: ChatTurnRowBuildContext = {
           props,
           turn,
+          turnUserMessageId: promptMessageId,
           message,
           messageIndex,
           conversationSession,
