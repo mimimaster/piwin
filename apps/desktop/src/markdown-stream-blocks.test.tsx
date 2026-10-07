@@ -151,6 +151,35 @@ describe('MarkdownView block-wise streaming', () => {
     );
   });
 
+  it('rebinds fences whose text is unchanged when an edit above moves them', () => {
+    // Two fences of one language: with a stale offset neither can be told
+    // apart by anything but its position in the reply.
+    const container = mount(
+      <MarkdownView text={twoFences} renderingPhase="streaming" artifactOrigin={origin} />,
+    );
+    const bothBound = ['message-blocks-artifact-0', 'message-blocks-artifact-1'];
+    expect(artifactIds(container)).toEqual(bothBound);
+
+    // Same block texts at the same positions in the list, different offsets.
+    update(
+      <MarkdownView
+        text={twoFences.replace('Here is the first card.', 'Here, after a longer lead-in, it is.')}
+        renderingPhase="streaming"
+        artifactOrigin={origin}
+      />,
+    );
+    expect(container.textContent).toContain('after a longer lead-in');
+    expect(artifactIds(container)).toEqual(bothBound);
+  });
+
+  it('closes syntax left open in the block being written', () => {
+    const container = mount(
+      <MarkdownView text={'Settled.\n\nStill **writing'} renderingPhase="streaming" />,
+    );
+    expect(container.querySelector('strong')?.textContent).toBe('writing');
+    expect(container.textContent).not.toContain('**');
+  });
+
   it('applies a changed option to a fence in a block no token touched', () => {
     const text = [
       '```artifact-html title="Card"',

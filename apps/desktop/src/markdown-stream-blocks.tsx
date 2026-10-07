@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactElement } from 'react';
+import { createContext, memo, useContext, type ComponentType, type ReactElement } from 'react';
 import { Block, parseMarkdownIntoBlocks, type BlockProps } from 'streamdown';
 
 /**
@@ -79,26 +79,78 @@ export function createMarkdownBlockIndex(): MarkdownBlockIndex {
   };
 }
 
-const MarkdownBlockIndexContext = createContext<MarkdownBlockIndex | null>(null);
 const MarkdownBlockStartOffsetContext = createContext(0);
-
-export const MarkdownBlockIndexProvider = MarkdownBlockIndexContext.Provider;
 
 /** Start of the enclosing block in the reply; 0 when the reply is one document. */
 export function useMarkdownBlockStartOffset(): number {
   return useContext(MarkdownBlockStartOffsetContext);
 }
 
-/** Streamdown `BlockComponent`: the stock block, plus where it sits in the reply. */
-export function MarkdownStreamBlock(props: BlockProps): ReactElement {
-  const blockIndex = useContext(MarkdownBlockIndexContext);
-  const startOffset =
-    blockIndex === null || typeof props.content !== 'string'
-      ? 0
-      : blockIndex.startOffsetOf(props.index, props.content);
+function sameComponentMap(previous: unknown, next: unknown): boolean {
+  if (previous === next) return true;
+  if (typeof previous !== 'object' || typeof next !== 'object' || !previous || !next) return false;
+  const previousMap = previous as Record<string, unknown>;
+  const nextMap = next as Record<string, unknown>;
+  const keys = Object.keys(previousMap);
   return (
-    <MarkdownBlockStartOffsetContext.Provider value={startOffset}>
-      <Block {...props} />
-    </MarkdownBlockStartOffsetContext.Provider>
+    keys.length === Object.keys(nextMap).length &&
+    keys.every((key) => previousMap[key] === nextMap[key])
+  );
+}
+
+/**
+ * Every prop by identity, `components` by its entries. At least as strict as
+ * the comparator on Streamdown's own `Block`, so a block that would re-parse
+ * there still re-renders here; props a later Streamdown adds count by default.
+ */
+function sameBlockProps(previous: BlockProps, next: BlockProps): boolean {
+  const previousProps = previous as unknown as Record<string, unknown>;
+  const nextProps = next as unknown as Record<string, unknown>;
+  const keys = new Set([...Object.keys(previousProps), ...Object.keys(nextProps)]);
+  for (const key of keys) {
+    if (Object.is(previousProps[key], nextProps[key])) continue;
+    if (key === 'components' && sameComponentMap(previousProps[key], nextProps[key])) continue;
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Streamdown `BlockComponent` for one mounted reply: the stock block, plus
+ * where it sits in the reply.
+ *
+ * Streamdown renders its whole block list twice per token and the stock block
+ * only bails out below this wrapper, so an unmemoized wrapper costs two
+ * renders per block per token — the dominant cost of a long streaming reply.
+ * The memo cannot rely on props alone: a block keeps its text and position
+ * while an edit above it moves its offset, so the comparator also checks the
+ * offset the block last rendered with against the current split.
+ */
+export function createMarkdownStreamBlock(blockIndex: MarkdownBlockIndex): ComponentType<BlockProps> {
+  const renderedStartOffsets = new Map<number, number>();
+
+  function startOffsetFor(props: BlockProps): number {
+    return typeof props.content === 'string'
+      ? blockIndex.startOffsetOf(props.index, props.content)
+      : 0;
+  }
+
+  function MarkdownStreamBlock(props: BlockProps): ReactElement {
+    const startOffset = startOffsetFor(props);
+    // Read back by the comparator; rewriting the same value on a replayed
+    // render is harmless.
+    renderedStartOffsets.set(props.index, startOffset);
+    return (
+      <MarkdownBlockStartOffsetContext.Provider value={startOffset}>
+        <Block {...props} />
+      </MarkdownBlockStartOffsetContext.Provider>
+    );
+  }
+
+  return memo(
+    MarkdownStreamBlock,
+    (previous, next) =>
+      sameBlockProps(previous, next) &&
+      renderedStartOffsets.get(next.index) === startOffsetFor(next),
   );
 }

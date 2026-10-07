@@ -19,7 +19,10 @@ import { isMermaidFenceLanguage, isMathFenceLanguage } from './markdown-math';
 import { MathView } from './markdown-math-view.js';
 import { commentsRenderKey } from './doc-comments';
 import { LineCommentWrapper } from './enhanced-markdown-comments';
-import { HeadingElement } from './enhanced-markdown-legacy';
+import { parseEnhancedDiffHeader, parseEnhancedDiffHeaderLines, type EnhancedDiffHeader } from './enhanced-markdown-diff-header.js';
+import { DiffBadge } from './enhanced-markdown-format';
+import { HeadingElement } from './enhanced-markdown-heading';
+import { stripLeadingCalloutMarker } from './markdown-streamdown-nodes.js';
 import { CodeBlockView } from './enhanced-markdown-code-block';
 import type { EnhancedMarkdownViewProps, LineCommentItem } from './enhanced-markdown-types.js';
 import {
@@ -33,7 +36,15 @@ const ENHANCED_LINK_SAFETY = { enabled: false };
 
 type EnhancedStreamdownContentProps = Omit<EnhancedMarkdownViewProps, 'text'> & {
   text: string;
+  /**
+   * Line of the whole document this Markdown starts on. A document is rendered
+   * in segments around its `<details>` blocks; the offset keeps a line's
+   * comment id tied to its place in the document rather than in its segment.
+   */
+  lineOffset?: number;
 };
+
+const CALLOUT_MARKER_PATTERN = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i;
 
 type EnhancedStreamdownElementProps<Tag extends keyof JSX.IntrinsicElements> = ComponentProps<Tag> &
   ExtraProps;
@@ -53,8 +64,13 @@ function enhancedPlainText(value: ReactNode): string {
   return '';
 }
 
-function enhancedLineId(kind: string, node: ExtraProps['node'], text: string): string {
-  const line = node?.position?.start.line ?? 0;
+function enhancedLineId(
+  kind: string,
+  node: ExtraProps['node'],
+  text: string,
+  lineOffset: number,
+): string {
+  const line = (node?.position?.start.line ?? 0) + lineOffset;
   return `${kind}-${line}-${text.slice(0, 40)}`;
 }
 
@@ -139,6 +155,7 @@ export function EnhancedStreamdownContent({
   onEditComment,
   onDeleteComment,
   onCommentLine,
+  lineOffset = 0,
 }: EnhancedStreamdownContentProps): ReactElement {
   const escapedText = useMemo(() => escapeRawHtmlInMarkdown(text), [text]);
   const components = useMemo(
@@ -153,6 +170,7 @@ export function EnhancedStreamdownContent({
         onEditComment,
         onDeleteComment,
         onCommentLine,
+        lineOffset,
       }),
     [
       docTitle,
@@ -164,6 +182,7 @@ export function EnhancedStreamdownContent({
       onEditComment,
       onDeleteComment,
       onCommentLine,
+      lineOffset,
     ],
   );
   const [mathPlugin, setMathPlugin] = useState<StreamdownMathPlugin | null>(() =>
@@ -214,6 +233,7 @@ type EnhancedStreamdownRendererOptions = {
   onEditComment: ((id: string, commentText: string) => void) | undefined;
   onDeleteComment: ((id: string) => void) | undefined;
   onCommentLine: ((lineContent: string) => void) | undefined;
+  lineOffset: number;
 };
 
 function createEnhancedStreamdownComponents(
@@ -229,7 +249,7 @@ function createEnhancedStreamdownComponents(
   ): ReactElement => (
     <LineCommentWrapper
       as={as}
-      lineId={enhancedLineId(kind, node, lineText)}
+      lineId={enhancedLineId(kind, node, lineText, options.lineOffset)}
       lineText={lineText}
       comments={options.comments}
       onAddComment={options.onAddComment}
@@ -242,11 +262,48 @@ function createEnhancedStreamdownComponents(
     </LineCommentWrapper>
   );
 
+  const renderDiffPath = (header: EnhancedDiffHeader): ReactElement => (
+    <>
+      <DiffBadge action={header.action} />
+      <PathChip
+        fullPath={header.path}
+        className="diff-path"
+        showIcon={true}
+        {...(options.projectPath ? { projectPath: options.projectPath } : {})}
+        onOpen={() => options.onOpenFile?.(header.path)}
+      />
+    </>
+  );
+
   const renderParagraph = ({
     children,
     node,
   }: EnhancedStreamdownElementProps<'p'>): ReactElement => {
     const lineText = enhancedPlainText(children);
+    // A plan lists its file changes one per line; Markdown reads those lines
+    // as a single paragraph, so each becomes its own change row here.
+    const diffHeaders = parseEnhancedDiffHeaderLines(lineText);
+    if (diffHeaders) {
+      return (
+        <>
+          {diffHeaders.map((header, index) => (
+            <LineCommentWrapper
+              key={`${header.action}-${header.path}-${index}`}
+              lineId={`${enhancedLineId('diff', node, header.path, options.lineOffset)}-${index}`}
+              lineText={header.path}
+              comments={options.comments}
+              onAddComment={options.onAddComment}
+              onEditComment={options.onEditComment}
+              onDeleteComment={options.onDeleteComment}
+              onCommentLine={options.onCommentLine}
+              className="enhanced-diff-header"
+            >
+              {renderDiffPath(header)}
+            </LineCommentWrapper>
+          ))}
+        </>
+      );
+    }
     return wrapReviewLine(
       'paragraph',
       node,
@@ -259,6 +316,15 @@ function createEnhancedStreamdownComponents(
   const renderHeading = (level: number) =>
     ({ children, node }: EnhancedStreamdownElementProps<'h1'>): ReactElement => {
       const headingText = enhancedPlainText(children);
+      const diffHeader = parseEnhancedDiffHeader(headingText);
+      if (diffHeader) {
+        return wrapReviewLine(
+          'heading',
+          node,
+          diffHeader.path,
+          <div className={`enhanced-heading-diff level-${level}`}>{renderDiffPath(diffHeader)}</div>,
+        );
+      }
       const scopeMatch = /^(.*?)\s*\(([^)]+)\)$/.exec(headingText);
       const headingContent =
         scopeMatch && typeof children === 'string' ? children.slice(0, scopeMatch[1]?.length) : children;
@@ -306,6 +372,19 @@ function createEnhancedStreamdownComponents(
     node,
   }: EnhancedStreamdownElementProps<'blockquote'>): ReactElement => {
     const lineText = enhancedPlainText(children);
+    const calloutKind = CALLOUT_MARKER_PATTERN.exec(lineText)?.[1]?.toLowerCase();
+    if (calloutKind) {
+      return wrapReviewLine(
+        'callout',
+        node,
+        lineText.replace(CALLOUT_MARKER_PATTERN, '').trim(),
+        <>
+          <div className="callout-title">{calloutKind.toUpperCase()}</div>
+          <div className="callout-content">{stripLeadingCalloutMarker(children)}</div>
+        </>,
+        `enhanced-callout callout-${calloutKind}`,
+      );
+    }
     return wrapReviewLine(
       'quote',
       node,
@@ -368,7 +447,7 @@ function createEnhancedStreamdownComponents(
     const languageMatch = /(?:^|\s)language-(\S+)/.exec(className ?? '');
     const language = languageMatch?.[1] ?? '';
     const lineText = source || language || 'code';
-    const lineId = enhancedLineId('code', node, lineText);
+    const lineId = enhancedLineId('code', node, lineText, options.lineOffset);
     if (isMermaidFenceLanguage(language)) {
       return wrapReviewLine(
         'code',

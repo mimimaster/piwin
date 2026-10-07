@@ -79,6 +79,41 @@ describe('EnhancedMarkdownView', () => {
     expect(elem.querySelector('.enhanced-summary')?.textContent).toBe('Click to see details');
   });
 
+  it('keeps a hard-wrapped document intact when it merely mentions <details>', () => {
+    // The mention used to switch the whole document to a line-based renderer
+    // that printed every source line as its own paragraph.
+    const md = [
+      '- View chrome is removed via `CHROME_SELECTOR`; a new control inside a',
+      '  wrapper needs a `button` or an entry there.',
+      '',
+      'A triple-click ends at offset 0 of the next block; `<details>` copies',
+      'its inner blocks and nothing else.',
+    ].join('\n');
+    const elem = renderView(md);
+    expect(elem.querySelector('.enhanced-details')).toBeNull();
+    expect(elem.querySelectorAll('li.enhanced-list-item')).toHaveLength(1);
+    expect(elem.querySelector('li.enhanced-list-item')?.textContent).toContain('wrapper needs a');
+    expect(elem.querySelectorAll('p.enhanced-paragraph')).toHaveLength(1);
+    expect(elem.querySelector('p.enhanced-paragraph')?.textContent).toContain('its inner blocks');
+  });
+
+  it('renders Markdown inside a disclosure and around it with one renderer', () => {
+    const md = 'Before **bold**\n\n<details>\n<summary>More</summary>\n\n1. one\n2. two\n</details>\n\n## After';
+    const elem = renderView(md);
+    expect(elem.querySelector('.enhanced-strong')?.textContent).toBe('bold');
+    expect(elem.querySelector('.enhanced-details ol.enhanced-ordered-list')).not.toBeNull();
+    expect(elem.querySelector('h2.enhanced-heading')?.textContent).toBe('After');
+  });
+
+  it('renders a [MODIFY] heading as a change row and a GitHub alert as a callout', () => {
+    const elem = renderView('### [MODIFY] src/app.tsx\n\n> [!WARNING]\n> Check the migration first.');
+    expect(elem.querySelector('.enhanced-heading-diff .badge-modify')).not.toBeNull();
+    expect(elem.querySelector('.enhanced-heading-diff')?.textContent).toContain('app.tsx');
+    expect(elem.querySelector('.enhanced-callout.callout-warning .callout-title')?.textContent).toBe('WARNING');
+    expect(elem.querySelector('.callout-content')?.textContent).toContain('Check the migration first.');
+    expect(elem.querySelector('.callout-content')?.textContent).not.toContain('[!WARNING]');
+  });
+
   it('renders task checkboxes for - [x] and - [ ]', () => {
     const md = `- [x] Task 1 completed\n- [ ] Task 2 pending`;
     const elem = renderView(md);

@@ -14,11 +14,8 @@ import {
   StreamdownRendererOptionsProvider,
   type StreamdownRendererOptions,
 } from './markdown-streamdown.js';
-import {
-  createMarkdownBlockIndex,
-  MarkdownBlockIndexProvider,
-  MarkdownStreamBlock,
-} from './markdown-stream-blocks.js';
+import { createMarkdownBlockIndex, createMarkdownStreamBlock } from './markdown-stream-blocks.js';
+import { repairStreamingMarkdownTail } from './markdown-stream-repair.js';
 import { escapeRawHtmlInMarkdown } from './markdown-html-escape.js';
 import { rewriteLocalFileMarkdownLinks } from './markdown-local-links.js';
 import {
@@ -28,6 +25,7 @@ import {
 } from './knowledge/knowledge-citations.js';
 import { MarkdownRenderingPhaseProvider } from './markdown-rendering-phase.js';
 import { RenderErrorBoundary } from './render-error-boundary.js';
+import { useStableArtifactTheme } from './artifact-stable-theme.js';
 import {
   getStreamdownMathPlugin,
   loadStreamdownMathPlugin,
@@ -113,42 +111,6 @@ export const STREAMDOWN_IMMEDIATE_STREAMING = {
   duration: 0,
   stagger: 0,
 } as const;
-const ARTIFACT_THEME_VARIABLES = [
-  '--piwin-artifact-theme',
-  '--piwin-artifact-bg',
-  '--piwin-artifact-surface',
-  '--piwin-artifact-text',
-  '--piwin-artifact-muted',
-  '--piwin-artifact-accent',
-  '--piwin-artifact-border',
-  '--piwin-artifact-radius',
-  '--piwin-artifact-font',
-] as const satisfies readonly (keyof ArtifactThemeVariables)[];
-
-function areArtifactThemesEqual(
-  current: ArtifactThemeVariables | undefined,
-  next: ArtifactThemeVariables | undefined,
-): boolean {
-  if (current === next) return true;
-  if (!current || !next) return false;
-  return ARTIFACT_THEME_VARIABLES.every((variable) => current[variable] === next[variable]);
-}
-
-/**
- * Chat maps the active manifest to a fresh object on every text delta. Keep a
- * value-equivalent theme reference stable so Streamdown's component registry
- * does not change type and remount the Artifact iframe for every token.
- */
-function useStableArtifactTheme(
-  theme: ArtifactThemeVariables | undefined,
-): ArtifactThemeVariables | undefined {
-  const stableThemeRef = useRef<ArtifactThemeVariables | undefined>(theme);
-  if (!areArtifactThemesEqual(stableThemeRef.current, theme)) {
-    stableThemeRef.current = theme;
-  }
-  return stableThemeRef.current;
-}
-
 function projectMarkdownForRender(
   text: string,
   streamMode: boolean,
@@ -220,9 +182,14 @@ export function MarkdownView({
   // That would put the caret on an otherwise empty line, so remove only the
   // transient trailing line break from the live render. The stored message is
   // unchanged and the next real token will restore the intended Markdown.
-  const streamdownTextForRender = shouldShowStreamingCaret
-    ? streamdownText.replace(/(?:\r?\n)+$/u, '')
-    : streamdownText;
+  const streamdownTextForRender = useMemo(() => {
+    const visible = shouldShowStreamingCaret
+      ? streamdownText.replace(/(?:\r?\n)+$/u, '')
+      : streamdownText;
+    // Streamdown's own repair rescans the whole reply per token; see
+    // `repairStreamingMarkdownTail`. A finished reply is rendered as written.
+    return streamMode ? repairStreamingMarkdownTail(visible) : visible;
+  }, [shouldShowStreamingCaret, streamdownText, streamMode]);
   // History can use Streamdown's cheaper static path. Once this mounted
   // message has rendered live tokens, it must retain the keyed block tree
   // through completion or custom code fences (and their iframes) unmount.
@@ -267,6 +234,7 @@ export function MarkdownView({
   // token lands in, and the index maps block-relative fence offsets back onto
   // the projected markdown the fence index is keyed by.
   const blockIndex = useMemo(() => createMarkdownBlockIndex(), []);
+  const StreamBlock = useMemo(() => createMarkdownStreamBlock(blockIndex), [blockIndex]);
   // KaTeX / remark-math stay off the cold main chunk; first markdown mount
   // loads them once. Until then Streamdown still paints text without math.
   const [mathPlugin, setMathPlugin] = useState<StreamdownMathPlugin | null>(() =>
@@ -294,7 +262,6 @@ export function MarkdownView({
         surface="markdown"
         resetKey={`${phase}:${streamdownTextForRender.length}`}
       >
-        <MarkdownBlockIndexProvider value={blockIndex}>
         <StreamdownRendererOptionsProvider value={streamdownRendererOptions}>
         <KnowledgeCitationIndexProvider value={knowledgeCitations}>
         <Streamdown
@@ -305,8 +272,8 @@ export function MarkdownView({
           // are never injected.
           mode={streamdownMode}
           parseMarkdownIntoBlocksFn={blockIndex.parse}
-          BlockComponent={MarkdownStreamBlock}
-          parseIncompleteMarkdown={streamMode}
+          BlockComponent={StreamBlock}
+          parseIncompleteMarkdown={false}
           isAnimating={false}
           animated={STREAMDOWN_IMMEDIATE_STREAMING}
           plugins={streamdownPlugins}
@@ -320,7 +287,6 @@ export function MarkdownView({
         </Streamdown>
         </KnowledgeCitationIndexProvider>
         </StreamdownRendererOptionsProvider>
-        </MarkdownBlockIndexProvider>
       </RenderErrorBoundary>
     </MarkdownRenderingPhaseProvider>
   );
