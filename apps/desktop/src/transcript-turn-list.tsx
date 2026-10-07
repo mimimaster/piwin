@@ -235,12 +235,15 @@ function VirtualizedTranscriptTurns(
     (turnIndex: number) => props.turns[turnIndex]?.id ?? turnIndex,
     [props.turns],
   );
+  // Column width of the mounted turns, for the width-keyed height memory.
+  // Unknown until the first measure; the memory treats that as a match.
+  const columnWidthRef = useRef<number | undefined>(undefined);
   const estimateSize = useCallback(
     (turnIndex: number) => {
       const turn = props.turns[turnIndex];
       const cachedHeight =
         props.scrollPort.sessionId && turn
-          ? readTranscriptTurnHeight(props.scrollPort.sessionId, turn.id)
+          ? readTranscriptTurnHeight(props.scrollPort.sessionId, turn.id, columnWidthRef.current)
           : null;
       return resolveTranscriptTurnEstimate({ turn, cachedHeight });
     },
@@ -263,8 +266,19 @@ function VirtualizedTranscriptTurns(
       const rawHeight = readMountedTranscriptTurnHeight({ element, entry });
       const normalized = normalizeTranscriptTurnHeight(rawHeight);
       const turnId = element.dataset.turnId;
+      // The observer already carries the width; no extra layout read.
+      const observedWidth =
+        entry?.borderBoxSize?.[0]?.inlineSize ?? entry?.contentRect?.width;
+      if (observedWidth !== undefined && observedWidth > 0) {
+        columnWidthRef.current = Math.round(observedWidth);
+      }
       if (normalized !== null && props.scrollPort.sessionId && turnId) {
-        rememberTranscriptTurnHeight(props.scrollPort.sessionId, turnId, normalized);
+        rememberTranscriptTurnHeight(
+          props.scrollPort.sessionId,
+          turnId,
+          normalized,
+          columnWidthRef.current,
+        );
         return normalized;
       }
       if (normalized !== null) {

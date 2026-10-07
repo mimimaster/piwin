@@ -81,4 +81,18 @@ describe('transcript scroll memory', () => {
     expect(readTranscriptTurnHeight('session-0', 'turn-a')).toBe(200);
     expect(readTranscriptScrollPosition('session-20')).not.toBeNull();
   });
+
+  it('drops remembered heights when the column width changes', () => {
+    rememberTranscriptTurnHeight('session-w', 'turn-1', 480, 720);
+    rememberTranscriptTurnHeight('session-w', 'turn-2', 300, 721);
+    expect(readTranscriptTurnHeight('session-w', 'turn-1', 720)).toBe(480);
+    // Width not known yet (before the first measure): trust the memory.
+    expect(readTranscriptTurnHeight('session-w', 'turn-1')).toBe(480);
+    expect(readTranscriptTurnHeight('session-w', 'turn-1', 560)).toBeNull();
+
+    rememberTranscriptTurnHeight('session-w', 'turn-3', 640, 560);
+    expect(readTranscriptTurnHeight('session-w', 'turn-3', 560)).toBe(640);
+    expect(readTranscriptTurnHeight('session-w', 'turn-1', 560)).toBeNull();
+    expect(readTranscriptTurnHeight('session-w', 'turn-2', 560)).toBeNull();
+  });
 });
