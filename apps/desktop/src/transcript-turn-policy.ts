@@ -144,8 +144,18 @@ export function shouldAdjustTranscriptScrollOnItemSizeChange(
   return previousEnd <= scrollOffset;
 }
 
+/**
+ * Keyed on the turn object. Settled turns keep theirs across tokens, so a
+ * token rebuilds one turn's signature rather than every tool of the window.
+ */
+const turnStructureKeys = new WeakMap<TranscriptTurn, string>();
+
 function transcriptTurnItemStructureKey(turn: TranscriptTurn): string {
-  return turn.items
+  const cached = turnStructureKeys.get(turn);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const key = turn.items
     .map((item) => {
       const message = item.message;
       const toolSig =
@@ -156,6 +166,8 @@ function transcriptTurnItemStructureKey(turn: TranscriptTurn): string {
       return [message.id, message.status, toolSig, errorSig, failureCode].join(':');
     })
     .join(';');
+  turnStructureKeys.set(turn, key);
+  return key;
 }
 
 /** Identity of mounted turn bodies so a pause/error/new-query remasures before paint. */

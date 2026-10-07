@@ -4,6 +4,7 @@ import {
   groupTranscriptTurns,
   indexTranscriptTurnsByMessageId,
   registerTranscriptTurnIds,
+  reuseUnchangedTranscriptTurns,
   turnUserMessageId,
 } from './transcript-turns';
 
@@ -129,5 +130,33 @@ describe('stable turn ids across history paging', () => {
     const first = groupTranscriptTurns(messages);
     const second = groupTranscriptTurns(messages, registerTranscriptTurnIds(first));
     expect(ids(second)).toEqual(ids(first));
+  });
+
+  it('keeps the object of every turn a token did not touch', () => {
+    const history = [message('user-1', 'user'), message('assistant-1', 'assistant')];
+    const prompt = message('user-2', 'user');
+    const reply = message('assistant-2', 'assistant');
+    const before = groupTranscriptTurns([...history, prompt, reply]);
+    const after = reuseUnchangedTranscriptTurns(
+      before,
+      groupTranscriptTurns([...history, prompt, { ...reply, text: 'more' }]),
+    );
+
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).not.toBe(before[1]);
+    expect(after[1]?.items[1]?.message.text).toBe('more');
+  });
+
+  it('does not reuse a turn whose rows shifted position', () => {
+    const turnMessages = [message('user-2', 'user'), message('assistant-2', 'assistant')];
+    const before = groupTranscriptTurns(turnMessages);
+    const after = reuseUnchangedTranscriptTurns(
+      before,
+      groupTranscriptTurns([message('user-1', 'user'), ...turnMessages]),
+    );
+
+    expect(after[1]?.id).toBe(before[0]?.id);
+    expect(after[1]).not.toBe(before[0]);
+    expect(after[1]?.items[0]?.messageIndex).toBe(1);
   });
 });

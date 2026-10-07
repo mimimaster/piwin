@@ -82,6 +82,43 @@ export function groupTranscriptTurns(
   });
 }
 
+function isSameTranscriptTurn(previous: TranscriptTurn, next: TranscriptTurn): boolean {
+  if (
+    previous.id !== next.id ||
+    previous.summary !== next.summary ||
+    previous.lastAssistantMessageId !== next.lastAssistantMessageId ||
+    previous.items.length !== next.items.length
+  ) {
+    return false;
+  }
+  return previous.items.every((item, index) => {
+    const nextItem = next.items[index];
+    return (
+      nextItem !== undefined &&
+      item.message === nextItem.message &&
+      item.messageIndex === nextItem.messageIndex
+    );
+  });
+}
+
+/**
+ * Hand back the previous turn object wherever a regrouping produced the same
+ * turn. Grouping runs on every token, and only the live turn's messages
+ * change; without this every settled turn is a new object each time and no
+ * turn-level memo (or per-turn cache keyed on the object) can ever hit.
+ */
+export function reuseUnchangedTranscriptTurns(
+  previous: readonly TranscriptTurn[],
+  next: TranscriptTurn[],
+): TranscriptTurn[] {
+  if (previous.length === 0) return next;
+  const previousById = new Map(previous.map((turn) => [turn.id, turn]));
+  return next.map((turn) => {
+    const candidate = previousById.get(turn.id);
+    return candidate !== undefined && isSameTranscriptTurn(candidate, turn) ? candidate : turn;
+  });
+}
+
 /** Remember the ids of the current turns; pruned to what is resident, so it never grows. */
 export function registerTranscriptTurnIds(
   turns: readonly TranscriptTurn[],

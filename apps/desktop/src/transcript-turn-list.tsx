@@ -47,9 +47,16 @@ export type TranscriptTurnListProps = {
   streaming?: boolean;
 };
 
+/**
+ * The message → turn index is rebuilt on every token. Scroll callbacks read it
+ * through a ref written during render, so they see this render's turns without
+ * re-registering with the scroll port each time.
+ */
+type TurnIndexRef = { readonly current: ReadonlyMap<string, number> };
+
 function useVirtualizedMessageJump(
   scrollPort: TranscriptScrollPort,
-  indexByMessageId: ReadonlyMap<string, number>,
+  indexByMessageIdRef: TurnIndexRef,
   virtualizer: {
     scrollToIndex: (index: number, options: { align: 'start'; behavior: 'auto' }) => void;
   },
@@ -57,7 +64,7 @@ function useVirtualizedMessageJump(
   const jumpFrameRef = useRef<number | null>(null);
   useEffect(() => {
     const unregisterScroller = scrollPort.registerMessageScroller((messageId) => {
-      const itemIndex = indexByMessageId.get(messageId);
+      const itemIndex = indexByMessageIdRef.current.get(messageId);
       if (itemIndex === undefined) {
         return false;
       }
@@ -88,7 +95,7 @@ function useVirtualizedMessageJump(
         jumpFrameRef.current = null;
       }
     };
-  }, [indexByMessageId, scrollPort, virtualizer]);
+  }, [indexByMessageIdRef, scrollPort, virtualizer]);
 }
 
 /**
@@ -97,7 +104,7 @@ function useVirtualizedMessageJump(
  */
 function useVirtualizedReadingAnchor(
   scrollPort: TranscriptScrollPort,
-  indexByMessageId: ReadonlyMap<string, number>,
+  indexByMessageIdRef: TurnIndexRef,
   virtualizer: {
     scrollToIndex: (index: number, options: { align: 'start'; behavior: 'auto' }) => void;
     scrollOffset: number | null;
@@ -135,7 +142,7 @@ function useVirtualizedReadingAnchor(
       }
       // The anchor's row was virtualized away (its old scroll offset now points
       // at freshly prepended rows). Mount it, then settle on the next frames.
-      const turnIndex = indexByMessageId.get(anchor.messageId);
+      const turnIndex = indexByMessageIdRef.current.get(anchor.messageId);
       if (turnIndex === undefined) {
         return false;
       }
@@ -157,7 +164,7 @@ function useVirtualizedReadingAnchor(
       unregister();
       cancelFrame();
     };
-  }, [indexByMessageId, scrollPort, virtualizer]);
+  }, [indexByMessageIdRef, scrollPort, virtualizer]);
 }
 
 export function TranscriptTurnList(props: TranscriptTurnListProps): ReactElement {
@@ -211,6 +218,8 @@ function VirtualizedTranscriptTurns(
     () => indexTranscriptTurnsByMessageId(props.turns),
     [props.turns],
   );
+  const turnIndexByMessageIdRef = useRef(turnIndexByMessageId);
+  turnIndexByMessageIdRef.current = turnIndexByMessageId;
   const pinnedTurnIndex = props.pinnedMessageId
     ? (turnIndexByMessageId.get(props.pinnedMessageId) ?? null)
     : null;
@@ -354,23 +363,31 @@ function VirtualizedTranscriptTurns(
     () => buildTranscriptStreamingMeasureKey(props.turns, props.streaming === true),
     [props.streaming, props.turns],
   );
+  const streamingMeasureFrameRef = useRef<number | null>(null);
+  const measureMountedTurnsRef = useRef(measureMountedTurns);
+  measureMountedTurnsRef.current = measureMountedTurns;
   useLayoutEffect(() => {
-    if (streamingMeasureKey.length === 0) {
+    if (streamingMeasureKey.length === 0 || streamingMeasureFrameRef.current !== null) {
       return;
     }
-    // Coalesce to one remasure per animation frame — token floods must not
-    // sync-layout thrash, but each frame of growth must still lift neighbors.
-    let cancelled = false;
-    const frame = window.requestAnimationFrame(() => {
-      if (!cancelled) {
-        measureMountedTurns();
-      }
+    // One remeasure per animation frame — token floods must not sync-layout
+    // thrash, but each frame of growth must still lift neighbors. A pending
+    // frame is kept, not rescheduled: commits arrive faster than frames, and
+    // cancelling on each one could postpone the measure indefinitely.
+    streamingMeasureFrameRef.current = window.requestAnimationFrame(() => {
+      streamingMeasureFrameRef.current = null;
+      measureMountedTurnsRef.current();
     });
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(frame);
-    };
-  }, [measureMountedTurns, streamingMeasureKey]);
+  }, [streamingMeasureKey]);
+  useEffect(
+    () => () => {
+      if (streamingMeasureFrameRef.current !== null) {
+        window.cancelAnimationFrame(streamingMeasureFrameRef.current);
+        streamingMeasureFrameRef.current = null;
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const onTurnMeasure = (event: Event): void => {
@@ -422,8 +439,8 @@ function VirtualizedTranscriptTurns(
     };
   }, [props.scrollPort.scrollElement, props.scrollPort.scrollElementRef]);
 
-  useVirtualizedMessageJump(props.scrollPort, turnIndexByMessageId, virtualizer);
-  useVirtualizedReadingAnchor(props.scrollPort, turnIndexByMessageId, virtualizer);
+  useVirtualizedMessageJump(props.scrollPort, turnIndexByMessageIdRef, virtualizer);
+  useVirtualizedReadingAnchor(props.scrollPort, turnIndexByMessageIdRef, virtualizer);
 
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();

@@ -12,6 +12,7 @@ import {
 import { focusComposerInput } from './context-menu/desktop-context-menu-value';
 import { TranscriptTurnList } from './transcript-turn-list';
 import { useStableTranscriptTurns } from './use-stable-transcript-turns';
+import type { TranscriptTurn } from './transcript-turns';
 import { buildExploreFlowRoles } from './explore-flow';
 import { collectMessageChangedFiles } from './collect-message-changed-files';
 import { findStreamingCaretMessageId } from './streaming-caret';
@@ -25,11 +26,33 @@ import { isCompactionRunning } from './compaction-seam-model.js';
 import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
 import { RunStatusFooter } from './run-status-footer.js';
 import { TranscriptSelectionToolbar } from './transcript-selection-toolbar.js';
-import { renderChatTurn } from './chat-turn-renderer.js';
+import { ChatTurnView } from './chat-turn-view.js';
 import { BackendWorkflowSequence } from './backend-workflows.js';
 import { useBackendWorkflows } from './use-backend-workflows.js';
 import { groupBackendWorkflowsByTurn } from './backend-workflow-turns.js';
-import { isBackendWorkflowActive } from '@piwin/contracts';
+import type { BackendWorkflowSnapshot } from '@piwin/contracts';
+
+const EMPTY_WORKFLOWS: readonly BackendWorkflowSnapshot[] = [];
+
+/**
+ * Keyed on the turn object: settled turns keep theirs across tokens
+ * (useStableTranscriptTurns), so only the live turn rescans its tools.
+ */
+const changedFilePathsByTurn = new WeakMap<TranscriptTurn, readonly string[]>();
+
+function changedFilePathsForTurn(turn: TranscriptTurn): readonly string[] {
+  const cached = changedFilePathsByTurn.get(turn);
+  if (cached !== undefined) return cached;
+  const paths = new Set<string>();
+  for (const item of turn.items) {
+    for (const file of collectMessageChangedFiles(item.message.tools ?? [])) {
+      paths.add(file.path);
+    }
+  }
+  const result = Array.from(paths);
+  changedFilePathsByTurn.set(turn, result);
+  return result;
+}
 
 export type { ChatThreadProps } from './chat-thread-types.js';
 import type { ChatThreadProps } from './chat-thread-types.js';
@@ -166,15 +189,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     !isCompactionRunning(props.compactionActivity) &&
     chatMessages.length === 0;
   const changedFilePathsByTurnId = useMemo(() => {
-    const pathsByTurnId = new Map<string, string[]>();
+    const pathsByTurnId = new Map<string, readonly string[]>();
     for (const turn of turnGroups) {
-      const paths = new Set<string>();
-      for (const item of turn.items) {
-        for (const file of collectMessageChangedFiles(item.message.tools ?? [])) {
-          paths.add(file.path);
-        }
-      }
-      pathsByTurnId.set(turn.id, Array.from(paths));
+      pathsByTurnId.set(turn.id, changedFilePathsForTurn(turn));
     }
     return pathsByTurnId;
   }, [turnGroups]);
@@ -231,36 +248,27 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         turns={turnGroups}
         pinnedMessageId={props.editingMessageId}
         streaming={props.streaming === true}
-        renderTurn={(turn) =>
-          renderChatTurn({
-            turn,
-            props,
-            workflowActivity: props.sessionId && props.workflowRequest && (
-              (workflowTurns.byTurn.get(turn.id)?.length ?? 0) > 0 ||
-              (turn.id === currentResponseTurnId && workflowObservation.error !== null)
-            ) ? (
-              <BackendWorkflowSequence
-                sessionId={props.sessionId} request={props.workflowRequest} locale={props.locale ?? 'zh-CN'}
-                workflows={workflowTurns.byTurn.get(turn.id) ?? []}
-                error={turn.id === currentResponseTurnId ? workflowObservation.error : null}
-              />
-            ) : null,
-            workflowActive: (workflowTurns.byTurn.get(turn.id) ?? []).some((workflow) => isBackendWorkflowActive(workflow.status)),
-            conversationSession,
-            currentResponseTurnId,
-            compactionActivityTurnId,
-            latestAssistantMessageId,
-            precedingUser,
-            streamingCaretMessageId,
-            exploreRolesByMessageId,
-            exploreFoldedMessageIds,
-            workDisclosureOpenByTurnId,
-            setWorkDisclosureOpenByTurnId,
-            segmentState,
-            enteringIds,
-            changedFilePathsByTurnId,
-          })
-        }
+        renderTurn={(turn) => (
+          <ChatTurnView
+            turn={turn}
+            props={props}
+            workflows={workflowTurns.byTurn.get(turn.id) ?? EMPTY_WORKFLOWS}
+            workflowError={turn.id === currentResponseTurnId ? workflowObservation.error : null}
+            conversationSession={conversationSession}
+            currentResponseTurnId={currentResponseTurnId}
+            compactionActivityTurnId={compactionActivityTurnId}
+            latestAssistantMessageId={latestAssistantMessageId}
+            precedingUser={precedingUser}
+            streamingCaretMessageId={streamingCaretMessageId}
+            exploreRolesByMessageId={exploreRolesByMessageId}
+            exploreFoldedMessageIds={exploreFoldedMessageIds}
+            workDisclosureOpenByTurnId={workDisclosureOpenByTurnId}
+            setWorkDisclosureOpenByTurnId={setWorkDisclosureOpenByTurnId}
+            segmentState={segmentState}
+            enteringIds={enteringIds}
+            changedFilePathsByTurnId={changedFilePathsByTurnId}
+          />
+        )}
       />
       {currentResponseTurnId === null &&
       (pendingRunStatusFooter || props.compactionActivity) ? (

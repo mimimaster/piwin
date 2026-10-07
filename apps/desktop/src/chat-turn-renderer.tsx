@@ -4,7 +4,8 @@ import { TurnWorkEarlier } from './turn-work-earlier.js';
  * Session-level state stays in chat-thread.tsx; this module owns one turn's DOM.
  */
 import { Fragment, type Dispatch, type ReactElement, type SetStateAction } from 'react';
-import type { PlanExecutionMode } from '@piwin/contracts';
+import { isBackendWorkflowActive, type BackendWorkflowSnapshot, type PlanExecutionMode } from '@piwin/contracts';
+import { BackendWorkflowSequence } from './backend-workflows.js';
 
 import type { ChatMessageUi } from './chat-reducer';
 import type { ChatThreadProps } from './chat-thread-types.js';
@@ -72,8 +73,10 @@ function createThinkingOnlyMessage(message: ChatMessageUi): ChatMessageUi {
 
 export type ChatTurnRenderInput = {
   turn: TranscriptTurn;
-  workflowActivity?: ReactElement | null;
-  workflowActive?: boolean;
+  /** Backend workflows this turn started; data, not an element, so the turn memo can compare it. */
+  workflows: readonly BackendWorkflowSnapshot[];
+  /** Workflow observation error, shown on the current response turn only. */
+  workflowError: string | null;
   props: ChatThreadProps;
   conversationSession: boolean;
   currentResponseTurnId: string | null;
@@ -590,8 +593,24 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
         );
       }
 
-      if (input.workflowActivity) renderedAssistantItems.push(
-        <Fragment key={`workflow-${turn.id}`}>{input.workflowActivity}</Fragment>,
+      if (
+        props.sessionId &&
+        props.workflowRequest &&
+        (input.workflows.length > 0 || input.workflowError !== null)
+      ) {
+        renderedAssistantItems.push(
+          <BackendWorkflowSequence
+            key={`workflow-${turn.id}`}
+            sessionId={props.sessionId}
+            request={props.workflowRequest}
+            locale={props.locale ?? 'zh-CN'}
+            workflows={[...input.workflows]}
+            error={input.workflowError}
+          />,
+        );
+      }
+      const workflowActive = input.workflows.some((workflow) =>
+        isBackendWorkflowActive(workflow.status),
       );
 
       // One live line at the foot of the running turn. A permission gate
@@ -599,7 +618,7 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
       // still running; a settled one must not keep the footer hidden.
       const showRunStatusFooter =
         currentTurnStreaming &&
-        !input.workflowActive &&
+        !workflowActive &&
         !props.permissionPrompt &&
         !(turnCompaction !== null && isCompactionRunning(turnCompaction));
       if (showRunStatusFooter) {
@@ -631,7 +650,7 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
           assistantItems={renderedAssistantItems}
           assistantPending={currentTurnStreaming && props.activeRunId !== null}
           liveState={
-            currentTurnStreaming ? (props.permissionPrompt ? 'waiting' : 'running') : input.workflowActive ? 'running' : null
+            currentTurnStreaming ? (props.permissionPrompt ? 'waiting' : 'running') : workflowActive ? 'running' : null
           }
           editingMessageId={props.editingMessageId}
           locale={props.locale}
