@@ -12,25 +12,15 @@ import { AttachmentFailureDialog } from './attachment-failure-dialog';
 import type { AgentModeId } from './agent-mode';
 import { isFailedMediaAttachment } from './media-utils';
 import { ComposerAttachmentShelf } from './composer-attachment-shelf';
+import { isReservedComposerSlashCommand, SlashMenu } from './slash';
+import { AtMenu } from './at';
+import { useComposerSlashMenu } from './hooks/use-composer-slash-menu';
+import { useComposerAtMenu } from './hooks/use-composer-at-menu';
 import {
-  detectActiveSlashToken,
-  filterSlashItems,
-  isReservedComposerSlashCommand,
-  isReservedSlashExecuteName,
-  replaceActiveSlashToken,
-  SlashMenu,
-  type SlashItem,
-} from './slash';
-import { useComposerSlashCatalog } from './slash/use-composer-slash-catalog';
-import {
-  buildAtCatalog,
-  contextRefFromAtItem,
-  detectActiveAtToken,
-  filterAtItems,
-  replaceActiveAtToken,
-  AtMenu,
-  type AtItem,
-} from './at';
+  decideComposerKeyDown,
+  dispatchComposerKeyAction,
+  toComposerKeyEvent,
+} from './composer-key-handling';
 import { ComposerModalEditor } from './ComposerModalEditor';
 import { ComposerQueuedEditBanner } from './composer-queued-edit-banner';
 import { composerSubscriptionBillingNotice } from './subscription-billing-notice.js';
@@ -48,7 +38,6 @@ import {
 } from './prompt-history';
 import type { ComposerDockProps } from './composer-dock-types';
 import { ComposerCardToolbar } from './composer-card-toolbar';
-import { decideComposerEnterKey } from './composer-enter-ime';
 import { usesOnScreenKeyboard } from './shell-runtime';
 import { toThinkingEffortModels } from './ThinkingEffortControl';
 
@@ -58,10 +47,7 @@ function getAgentPlaceholder(
   conversationSession = false,
 ): string {
   if (mode === 'goal') return copy.goalPlaceholder;
-  if (conversationSession) {
-    return copy.chatPlaceholder;
-  }
-  return copy.agentPlaceholder;
+  return conversationSession ? copy.chatPlaceholder : copy.agentPlaceholder;
 }
 
 export function ComposerCard(props: ComposerDockProps): ReactElement {
@@ -70,27 +56,17 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const baseCopy = getDesktopCopy(locale).composer;
   const copy = {
     ...baseCopy,
-    // A queued-turn edit reuses the Send control, so every send-flavoured
-    // label has to say "save" instead of "queue another turn".
-    ...(queuedEdit
-      ? {
-          send: baseCopy.saveQueuedMessage,
-          sendShortcut: baseCopy.queuedEditSaveHint,
-          queueFollowUp: baseCopy.saveQueuedMessage,
-          queueFollowUpHint: baseCopy.queuedEditSaveHint,
-        }
-      : {}),
-    ...(props.sendAriaLabel
-      ? { send: props.sendAriaLabel, sendShortcut: props.sendAriaLabel }
-      : {}),
+    ...(queuedEdit ? {
+      send: baseCopy.saveQueuedMessage,
+      sendShortcut: baseCopy.queuedEditSaveHint,
+      queueFollowUp: baseCopy.saveQueuedMessage,
+      queueFollowUpHint: baseCopy.queuedEditSaveHint,
+    } : {}),
+    ...(props.sendAriaLabel ? { send: props.sendAriaLabel, sendShortcut: props.sendAriaLabel } : {}),
   };
   const interruptionCopy = translator.interruption;
   const isPaused = props.paused === true;
-  const isStreamingRun =
-    props.streaming ||
-    props.runPhase === 'streaming' ||
-    props.runPhase === 'pausing' ||
-    props.runPhase === 'aborting';
+  const isStreamingRun = props.streaming || props.runPhase === 'streaming' || props.runPhase === 'pausing' || props.runPhase === 'aborting';
   const extensionUiRequest = props.extensionUiRequest ?? null;
   const isExtensionUiActive = extensionUiRequest !== null;
   const isExtensionUiInput = extensionUiRequest?.kind === 'input';
@@ -98,78 +74,26 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const canComposeText = !isExtensionUiActive;
   const composerValue = isExtensionUiInput ? extensionUiInput : props.composer;
   const hasContent = isExtensionUiActive
-    ? isExtensionUiInput
-      ? extensionUiInput.trim().length > 0
-      : props.composer.trim().length > 0
-    : props.composer.trim().length > 0 ||
-      props.pendingAttachments.length > 0 ||
-      (props.pendingContextRefs?.length ?? 0) > 0 ||
-      props.hasCarryContent === true;
+    ? (isExtensionUiInput ? extensionUiInput.trim().length > 0 : props.composer.trim().length > 0)
+    : (props.composer.trim().length > 0 || props.pendingAttachments.length > 0 || (props.pendingContextRefs?.length ?? 0) > 0 || props.hasCarryContent === true);
   const failedAttachments = props.pendingAttachments.filter(isFailedMediaAttachment);
-  // Phase 0 (ADR 0045 Decision 4): failed chips never disable Send. Send with
-  // failures present routes through a retry / send-rest / back confirmation;
-  // when failures are the only content the action button becomes Retry.
-  const hasSendableContentBesidesFailures =
-    props.composer.trim().length > 0 ||
-    props.pendingAttachments.some((item) => !isFailedMediaAttachment(item)) ||
-    (props.pendingContextRefs?.length ?? 0) > 0;
+  const hasSendableContentBesidesFailures = props.composer.trim().length > 0 || props.pendingAttachments.some((item) => !isFailedMediaAttachment(item)) || (props.pendingContextRefs?.length ?? 0) > 0;
   const onlyFailedAttachments = failedAttachments.length > 0 && !hasSendableContentBesidesFailures;
-  // Paused + "继续"/"continue" (no attachments/refs) resumes the checkpoint.
-  const isPauseContinueDraft =
-    isPaused &&
-    isPauseContinueUtterance(props.composer) &&
-    props.pendingAttachments.length === 0 &&
-    (props.pendingContextRefs?.length ?? 0) === 0 &&
-    props.hasCarryContent !== true;
-  // A queued turn may legitimately end up image-only, so Enter still saves it
-  // when the text has been cleared but chips remain.
-  const canKeyboardSend =
-    props.composer.trim().length > 0 ||
-    props.hasCarryContent === true ||
-    (queuedEdit !== null && props.pendingAttachments.length > 0);
-  const selectedModel = props.modelOptions.find(
-    (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
-  );
-  const hasImageAttachment = props.pendingAttachments.some(
-    (item) =>
-      item.attachment.kind === 'media' &&
-      (item.attachment.contentKind === 'image' ||
-        (item.attachment.contentKind === undefined &&
-          item.attachment.mimeType.toLowerCase().startsWith('image/'))),
-  );
+  const isPauseContinueDraft = isPaused && isPauseContinueUtterance(props.composer) && props.pendingAttachments.length === 0 && (props.pendingContextRefs?.length ?? 0) === 0 && props.hasCarryContent !== true;
+  const canKeyboardSend = props.composer.trim().length > 0 || props.hasCarryContent === true || (queuedEdit !== null && props.pendingAttachments.length > 0);
+  const selectedModel = props.modelOptions.find((model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey);
+  const hasImageAttachment = props.pendingAttachments.some((item) => item.attachment.kind === 'media' && (item.attachment.contentKind === 'image' || (item.attachment.contentKind === undefined && item.attachment.mimeType.toLowerCase().startsWith('image/'))));
   const selectedModelSupportsImage = selectedModel?.supportsImage === true;
-  const showTextOnlyImageWarning =
-    hasImageAttachment && !selectedModelSupportsImage && props.visionDelegationEnabled !== true;
-  const thinkingModels = useMemo(
-    () => toThinkingEffortModels(props.modelOptions),
-    [props.modelOptions],
-  );
+  const showTextOnlyImageWarning = hasImageAttachment && !selectedModelSupportsImage && props.visionDelegationEnabled !== true;
+  const thinkingModels = useMemo(() => toThinkingEffortModels(props.modelOptions), [props.modelOptions]);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  /**
-   * dragenter/dragleave pair depth for the composer card. Children fire
-   * dragleave when the pointer crosses into a sibling child (toolbar,
-   * attachment row), so the drop-active state must only clear once the
-   * pointer actually leaves the card (depth 0).
-   */
   const dragDepthRef = useRef(0);
   const [caretIndex, setCaretIndex] = useState(0);
 
-  // Slash Menu State
-  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
-  const [slashMenuForcedClosed, setSlashMenuForcedClosed] = useState(false);
-
-  // At-Mention Menu State
-  const [atSelectedIndex, setAtSelectedIndex] = useState(0);
-  const [atMenuForcedClosed, setAtMenuForcedClosed] = useState(false);
-
-  // Modal Editor State
   const [modalEditorOpen, setModalEditorOpen] = useState(false);
-
-  // Phase 0: retry / send-rest / back confirmation for failed attachments.
   const [attachmentFailureDialogOpen, setAttachmentFailureDialogOpen] = useState(false);
 
-  // Prompt History Navigation State (last PROMPT_HISTORY_MAX entries)
   const [historyStack, setHistoryStack] = useState<string[]>(() => loadPromptHistoryFromStorage());
   const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
   const [historySelectedIndex, setHistorySelectedIndex] = useState(0);
@@ -188,131 +112,32 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     });
   }, []);
 
-  // IME Composition Guard Refs
   const isComposingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
   const endedCompositionWithEnterRef = useRef(false);
 
-  // Cold start / empty workspace: caret lands in the box.
   useEffect(() => {
-    if (usesOnScreenKeyboard()) {
-      return;
-    }
-    textareaRef.current?.focus();
+    if (!usesOnScreenKeyboard()) textareaRef.current?.focus();
   }, [props.activeSessionId, props.projectPath]);
 
   useEffect(() => {
-    if (isExtensionUiInput) {
-      textareaRef.current?.focus();
-    }
+    if (isExtensionUiInput) textareaRef.current?.focus();
   }, [extensionUiRequest?.requestId, isExtensionUiInput]);
 
-  // Entering a queued-turn edit hands the caret to the loaded text.
   useEffect(() => {
-    if (props.queuedEdit === null || props.queuedEdit === undefined) {
-      return;
-    }
+    if (props.queuedEdit == null) return;
     const element = textareaRef.current;
-    if (!element) {
-      return;
-    }
+    if (!element) return;
     element.focus();
     element.setSelectionRange(element.value.length, element.value.length);
   }, [props.queuedEdit?.messageId]);
 
-  const slashCatalog = useComposerSlashCatalog(props, isStreamingRun);
-
-  const activeSlashToken = useMemo(
-    () => detectActiveSlashToken(props.composer, caretIndex),
-    [props.composer, caretIndex],
-  );
-
-  const slashItems = useMemo(() => {
-    if (!activeSlashToken || !canComposeText) {
-      return [];
-    }
-    return filterSlashItems(slashCatalog, activeSlashToken.query);
-  }, [activeSlashToken, canComposeText, slashCatalog]);
-
-  const slashMenuOpen =
-    slashItems.length > 0 && activeSlashToken !== null && canComposeText && !slashMenuForcedClosed;
-
-  useEffect(() => {
-    setSlashSelectedIndex(0);
-  }, [activeSlashToken?.query, slashMenuOpen]);
-
-  useEffect(() => {
-    if (slashSelectedIndex >= slashItems.length && slashItems.length > 0) {
-      setSlashSelectedIndex(slashItems.length - 1);
-    }
-  }, [slashItems.length, slashSelectedIndex]);
-
-  // Catalog: At-Mention items
-  const atCatalog = useMemo(
-    () =>
-      buildAtCatalog({
-        projectPath: props.projectPath,
-        mcpServers: props.menuMcp.map((m) => ({ id: m.id, name: m.name })),
-        recentFiles: (props.atWorkspaceFiles ?? [])
-          .filter((entry) => entry.kind === 'file')
-          .map((entry) => entry.relativePath),
-        recentFolders: (props.atWorkspaceFiles ?? [])
-          .filter((entry) => entry.kind === 'directory')
-          .map((entry) => entry.relativePath),
-      }),
-    [props.projectPath, props.menuMcp, props.atWorkspaceFiles],
-  );
-
-  const activeAtToken = useMemo(
-    () => detectActiveAtToken(props.composer, caretIndex),
-    [props.composer, caretIndex],
-  );
-
-  const atItems = useMemo(() => {
-    if (!activeAtToken || !canComposeText) {
-      return [];
-    }
-    return filterAtItems(atCatalog, activeAtToken.query);
-  }, [activeAtToken, canComposeText, atCatalog]);
-
-  const atMenuOpen =
-    activeAtToken !== null && canComposeText && !atMenuForcedClosed && !slashMenuOpen;
-
-  useEffect(() => {
-    setAtSelectedIndex(0);
-  }, [activeAtToken?.query, atMenuOpen]);
-
-  useEffect(() => {
-    if (atSelectedIndex >= atItems.length && atItems.length > 0) {
-      setAtSelectedIndex(atItems.length - 1);
-    }
-  }, [atItems.length, atSelectedIndex]);
-
-  // Reset forced-close only after the token is gone. Resetting on every
-  // composer change reopened the menu after applying `/ultra-code` (the
-  // token is still active), which is the two-Enter layout-break path.
-  const hasActiveSlashToken = activeSlashToken !== null;
-  useEffect(() => {
-    if (!hasActiveSlashToken) {
-      setSlashMenuForcedClosed(false);
-    }
-  }, [hasActiveSlashToken]);
-
-  const hasActiveAtToken = activeAtToken !== null;
-  useEffect(() => {
-    if (!hasActiveAtToken) {
-      setAtMenuForcedClosed(false);
-    }
-  }, [hasActiveAtToken]);
-
   function syncCaretFromTextarea(): void {
     const element = textareaRef.current;
-    if (element) {
-      setCaretIndex(element.selectionStart ?? 0);
-    }
+    if (element) setCaretIndex(element.selectionStart ?? 0);
   }
 
-  function focusCaret(nextCaret: number): void {
+  const focusCaret = useCallback((nextCaret: number): void => {
     setCaretIndex(nextCaret);
     requestAnimationFrame(() => {
       const element = textareaRef.current;
@@ -321,161 +146,27 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         element.setSelectionRange(nextCaret, nextCaret);
       }
     });
-  }
+  }, []);
 
-  const insertSpeechText = useCallback(
-    (text: string): void => {
-      const normalized = text.trim();
-      if (!normalized) return;
-      const targetValue = isExtensionUiInput ? extensionUiInput : props.composer;
-      const targetCaret = Math.max(0, Math.min(caretIndex, targetValue.length));
-      const prefix = targetValue.slice(0, targetCaret);
-      const suffix = targetValue.slice(targetCaret);
-      const beforeSeparator = prefix && !/\s$/.test(prefix) ? ' ' : '';
-      const afterSeparator = suffix && !/^\s/.test(suffix) ? ' ' : '';
-      const inserted = `${beforeSeparator}${normalized}${afterSeparator}`;
-      const nextValue = `${prefix}${inserted}${suffix}`;
-      if (isExtensionUiInput) {
-        props.onExtensionUiInputChange?.(nextValue);
-      } else {
-        props.onComposerChange(nextValue);
-      }
-      focusCaret(targetCaret + inserted.length);
-    },
-    [
-      caretIndex,
-      extensionUiInput,
-      isExtensionUiInput,
-      props.composer,
-      props.onComposerChange,
-      props.onExtensionUiInputChange,
-    ],
-  );
-
-  const speechInput = useSpeechInput({
-    enabled: props.speechConfigured === true && props.speechRequest !== undefined && canComposeText,
-    ...(props.speechRequest ? { request: props.speechRequest } : {}),
-    onTranscript: insertSpeechText,
-  });
-  const showSpeechInput = props.speechConfigured === true && props.speechRequest !== undefined;
-
-  function applySlashItem(item: SlashItem): void {
-    if (!activeSlashToken) {
-      return;
-    }
-    if (isReservedSlashExecuteName(item.name) || item.kind === 'mode') {
-      // Menu click on a reserved command or a mode performs it immediately.
-      executeSlashItem(item);
-      return;
-    }
-    completeSlashItem(item);
-  }
-
-  /** Tab / click-into-box semantics: fill the token, never send. */
-  function completeSlashItem(item: SlashItem): void {
-    if (!activeSlashToken) {
-      return;
-    }
-    if (!item.available) {
-      return;
-    }
-    const insert =
-      item.kind === 'command' && !item.acceptsArgs ? `/${item.name}` : `/${item.name} `;
-    const next = replaceActiveSlashToken(props.composer, activeSlashToken, insert);
-    props.onComposerChange(next);
-    focusCaret(activeSlashToken.startIndex + insert.length);
-    setSlashMenuForcedClosed(true);
-  }
-
-  /**
-   * Enter semantics: perform the selected item now.
-   * - Modes switch in place (or send when args follow the token).
-   * - Skills with no args complete like click/Tab so the user can type a
-   *   real prompt; skills with typed args after the token still send.
-   * - Reserved commands / other execute items send immediately.
-   */
-  function executeSlashItem(item: SlashItem): void {
-    if (!activeSlashToken) {
-      return;
-    }
-    if (item.kind === 'mode') {
-      const suffix = props.composer.slice(activeSlashToken.endIndex);
-      if (suffix.trim().length > 0) {
-        // `/goal fix the bug` — the send layer parses mode + args.
-        executeSlashItemSend(item, suffix);
-        return;
-      }
-      props.onAgentModeChange(item.name as AgentModeId);
-      const next = replaceActiveSlashToken(props.composer, activeSlashToken, '');
-      props.onComposerChange(next);
-      focusCaret(activeSlashToken.startIndex);
-      setSlashMenuForcedClosed(true);
-      return;
-    }
-    if (item.kind === 'skill') {
-      const suffix = props.composer.slice(activeSlashToken.endIndex);
-      if (suffix.trim().length === 0) {
-        completeSlashItem(item);
-        return;
-      }
-      executeSlashItemSend(item, suffix);
-      return;
-    }
-    executeSlashItemSend(item, props.composer.slice(activeSlashToken.endIndex));
-  }
-
-  function executeSlashItemSend(item: SlashItem, suffix: string): void {
-    const next = `/${item.name}${suffix}`.replace(/[ \t]+$/u, '').trimStart();
-    props.onComposerChange(next);
-    setSlashMenuForcedClosed(true);
-    proceedSend(next);
-  }
-
-  function applyAtItem(item: AtItem): void {
-    if (!activeAtToken) {
-      return;
-    }
-    // CM-17: workspace file/folder mentions also land in the structured
-    // pending refs so Host resolves them the same way as right-click refs.
-    const mentionRef = contextRefFromAtItem(item, props.projectPath);
-    if (props.onAddContextRef && mentionRef) {
-      props.onAddContextRef(mentionRef);
-    }
-    // File/folder chips live on the shelf; keep the textarea as plain
-    // prompt text instead of duplicating `@path` next to the capsule.
-    const insertValue = props.onAddContextRef && mentionRef ? '' : item.insertValue;
-    const next = replaceActiveAtToken(props.composer, activeAtToken, insertValue);
-    props.onComposerChange(next);
-    focusCaret(activeAtToken.startIndex + insertValue.length);
-    setAtMenuForcedClosed(true);
-  }
-
-  function proceedSend(overrideText?: string): void {
+  const proceedSend = useCallback((overrideText?: string): void => {
     const trimmed = (overrideText ?? props.composer).trim();
-    if (trimmed) {
-      pushHistoryEntry(trimmed);
-    }
+    if (trimmed) pushHistoryEntry(trimmed);
     setHistoryMenuOpen(false);
     draftBeforeHistoryRef.current = '';
     props.onSend(overrideText);
-  }
+  }, [props, pushHistoryEntry]);
 
   function triggerResumeCheckpoint(): void {
-    if (props.composer.trim().length > 0) {
-      props.onComposerChange('');
-    }
+    if (props.composer.trim().length > 0) props.onComposerChange('');
     void props.onResume?.();
   }
 
   function triggerSend(): void {
     if (isExtensionUiActive) {
-      // Extension UI path is text-only and does not use media attachments.
       const text = isExtensionUiInput ? extensionUiInput.trim() : props.composer.trim();
       if (text.length > 0) {
         props.onExtensionUiResolve?.({ value: text });
-        if (!isExtensionUiInput) {
-          props.onComposerChange('');
-        }
+        if (!isExtensionUiInput) props.onComposerChange('');
       } else if (isExtensionUiInput) {
         props.onExtensionUiResolve?.({ value: '' });
       }
@@ -486,8 +177,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       return;
     }
     if (failedAttachments.length > 0 && !isReservedComposerSlashCommand(props.composer)) {
-      // Failed chips are the only content: the action is a plain retry — the
-      // send path re-runs the deferred saves for the re-queued chips.
       if (onlyFailedAttachments) {
         props.onRetryFailedAttachments?.();
         proceedSend();
@@ -501,285 +190,164 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
   function triggerSteer(): void {
     const trimmed = props.composer.trim();
-    if (trimmed) {
-      pushHistoryEntry(trimmed);
-    }
+    if (trimmed) pushHistoryEntry(trimmed);
     setHistoryMenuOpen(false);
     draftBeforeHistoryRef.current = '';
     props.onSteer?.();
   }
 
-  function applyHistoryItem(text: string): void {
+  const applyHistoryItem = useCallback((text: string): void => {
     props.onComposerChange(text);
     focusCaret(text.length);
     setHistoryMenuOpen(false);
-  }
+  }, [focusCaret, props]);
 
-  function closeHistoryMenu(restoreDraft: boolean): void {
+  const closeHistoryMenu = useCallback((restoreDraft: boolean): void => {
     setHistoryMenuOpen(false);
     if (restoreDraft) {
       props.onComposerChange(draftBeforeHistoryRef.current);
       focusCaret(draftBeforeHistoryRef.current.length);
     }
-  }
+  }, [focusCaret, props]);
+
+  const slashMenu = useComposerSlashMenu({
+    props,
+    composer: props.composer,
+    caretIndex,
+    canComposeText,
+    isStreamingRun,
+    focusCaret,
+    proceedSend,
+  });
+
+  const atMenu = useComposerAtMenu({
+    projectPath: props.projectPath,
+    menuMcp: props.menuMcp,
+    atWorkspaceFiles: props.atWorkspaceFiles,
+    composer: props.composer,
+    caretIndex,
+    canComposeText,
+    slashMenuOpen: slashMenu.isOpen,
+    onAddContextRef: props.onAddContextRef,
+    onComposerChange: props.onComposerChange,
+    focusCaret,
+  });
+
+  const insertSpeechText = useCallback((text: string): void => {
+    const normalized = text.trim();
+    if (!normalized) return;
+    const targetValue = isExtensionUiInput ? extensionUiInput : props.composer;
+    const targetCaret = Math.max(0, Math.min(caretIndex, targetValue.length));
+    const prefix = targetValue.slice(0, targetCaret);
+    const suffix = targetValue.slice(targetCaret);
+    const beforeSep = prefix && !/\s$/.test(prefix) ? ' ' : '';
+    const afterSep = suffix && !/^\s/.test(suffix) ? ' ' : '';
+    const inserted = `${beforeSep}${normalized}${afterSep}`;
+    const nextValue = `${prefix}${inserted}${suffix}`;
+    if (isExtensionUiInput) props.onExtensionUiInputChange?.(nextValue);
+    else props.onComposerChange(nextValue);
+    focusCaret(targetCaret + inserted.length);
+  }, [caretIndex, extensionUiInput, focusCaret, isExtensionUiInput, props]);
+
+  const speechInput = useSpeechInput({
+    enabled: props.speechConfigured === true && props.speechRequest !== undefined && canComposeText,
+    ...(props.speechRequest ? { request: props.speechRequest } : {}),
+    onTranscript: insertSpeechText,
+  });
+  const showSpeechInput = props.speechConfigured === true && props.speechRequest !== undefined;
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
-    if (isComposingRef.current && event.key !== 'Enter') {
-      endedCompositionWithEnterRef.current = false;
+    const decision = decideComposerKeyDown(toComposerKeyEvent(event), {
+      isComposing: isComposingRef.current,
+      lastCompositionEnd: lastCompositionEndRef.current,
+      endedCompositionWithEnter: endedCompositionWithEnterRef.current,
+      isExtensionUiActive,
+      isExtensionUiInput,
+      extensionUiInput,
+      slashMenuOpen: slashMenu.isOpen,
+      slashItems: slashMenu.items,
+      slashSelectedIndex: slashMenu.selectedIndex,
+      atMenuOpen: atMenu.isOpen,
+      atItems: atMenu.items,
+      atSelectedIndex: atMenu.selectedIndex,
+      historyMenuOpen,
+      historyItems,
+      historySelectedIndex,
+      composer: props.composer,
+      caretIndex,
+      queuedEditActive: queuedEdit !== null,
+      isStreamingRun,
+      canKeyboardSend,
+    });
+    if (decision.nextEndedCompositionWithEnter !== undefined) {
+      endedCompositionWithEnterRef.current = decision.nextEndedCompositionWithEnter;
     }
-    if (isExtensionUiActive) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        props.onExtensionUiResolve?.({ cancelled: true, confirmed: false });
-        return;
-      }
-      if (
-        event.key === 'Enter' &&
-        !event.shiftKey &&
-        !event.nativeEvent.isComposing &&
-        !isComposingRef.current
-      ) {
-        const text = isExtensionUiInput ? extensionUiInput.trim() : props.composer.trim();
-        if (text.length > 0) {
-          event.preventDefault();
-          props.onExtensionUiResolve?.({ value: text });
-          if (!isExtensionUiInput) {
-            props.onComposerChange('');
-          }
-          return;
-        } else if (isExtensionUiInput) {
-          event.preventDefault();
-          props.onExtensionUiResolve?.({ value: '' });
-          return;
-        }
-      }
+    if (decision.action.preventDefault) {
+      event.preventDefault();
     }
-
-    // 1. Slash Menu Navigation
-    if (slashMenuOpen) {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        setSlashSelectedIndex((current) =>
-          slashItems.length === 0 ? 0 : (current + 1) % slashItems.length,
-        );
-        return;
-      }
-      if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        setSlashSelectedIndex((current) =>
-          slashItems.length === 0 ? 0 : (current - 1 + slashItems.length) % slashItems.length,
-        );
-        return;
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setSlashMenuForcedClosed(true);
-        return;
-      }
-      if (event.key === 'Tab') {
-        const selected = slashItems[slashSelectedIndex];
-        if (selected && (selected.available || isReservedSlashExecuteName(selected.name))) {
-          // Tab completes the token only; Enter performs it.
-          event.preventDefault();
-          completeSlashItem(selected);
-          return;
-        }
-      }
-      if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-        const selected = slashItems[slashSelectedIndex];
-        if (selected && (selected.available || isReservedSlashExecuteName(selected.name))) {
-          // Skills without args complete only (same as click/Tab). Reserved
-          // commands, modes, and skills-with-args still perform on one Enter.
-          event.preventDefault();
-          executeSlashItem(selected);
-          return;
-        }
-        // Unavailable / nothing selected falls through to the ordinary
-        // Enter send path below (e.g. sends the typed text as-is).
-      }
-    }
-
-    // 2. At-Mention Menu Navigation
-    if (atMenuOpen) {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        setAtSelectedIndex((current) =>
-          atItems.length === 0 ? 0 : (current + 1) % atItems.length,
-        );
-        return;
-      }
-      if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        setAtSelectedIndex((current) =>
-          atItems.length === 0 ? 0 : (current - 1 + atItems.length) % atItems.length,
-        );
-        return;
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setAtMenuForcedClosed(true);
-        return;
-      }
-      if (event.key === 'Tab' || event.key === 'Enter') {
-        const selected = atItems[atSelectedIndex];
-        if (selected) {
-          event.preventDefault();
-          applyAtItem(selected);
-          return;
-        }
-      }
-    }
-
-    // 3. Prompt History list (ArrowUp / ArrowDown when menus are closed)
-    if (!slashMenuOpen && !atMenuOpen) {
-      if (historyMenuOpen) {
-        if (event.key === 'ArrowUp') {
-          event.preventDefault();
-          if (historyItems.length === 0) {
-            return;
-          }
-          const nextIndex = Math.min(historySelectedIndex + 1, historyItems.length - 1);
-          setHistorySelectedIndex(nextIndex);
-          const historyText = historyItems[nextIndex] ?? '';
-          props.onComposerChange(historyText);
-          focusCaret(historyText.length);
-          return;
-        }
-        if (event.key === 'ArrowDown') {
-          event.preventDefault();
-          if (historySelectedIndex <= 0) {
-            closeHistoryMenu(true);
-            return;
-          }
-          const nextIndex = historySelectedIndex - 1;
-          setHistorySelectedIndex(nextIndex);
-          const historyText = historyItems[nextIndex] ?? '';
-          props.onComposerChange(historyText);
-          focusCaret(historyText.length);
-          return;
-        }
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          closeHistoryMenu(true);
-          return;
-        }
-        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-          event.preventDefault();
-          const selected = historyItems[historySelectedIndex];
-          if (selected !== undefined) {
-            applyHistoryItem(selected);
-          } else {
-            closeHistoryMenu(true);
-          }
-          return;
-        }
-      }
-
-      if (
-        event.key === 'ArrowUp' &&
-        (caretIndex === 0 || props.composer === '') &&
-        historyItems.length > 0
-      ) {
-        event.preventDefault();
-        draftBeforeHistoryRef.current = props.composer;
-        setHistorySelectedIndex(0);
+    dispatchComposerKeyAction(decision.action, {
+      onExtensionUiCancel: () => props.onExtensionUiResolve?.({ cancelled: true, confirmed: false }),
+      onExtensionUiSubmit: (text, clear) => {
+        props.onExtensionUiResolve?.({ value: text });
+        if (clear) props.onComposerChange('');
+      },
+      onSlashSelectPrev: () => slashMenu.setSelectedIndex((c) => slashMenu.items.length ? (c - 1 + slashMenu.items.length) % slashMenu.items.length : 0),
+      onSlashSelectNext: () => slashMenu.setSelectedIndex((c) => slashMenu.items.length ? (c + 1) % slashMenu.items.length : 0),
+      onSlashClose: slashMenu.closeMenu,
+      onSlashComplete: slashMenu.completeItem,
+      onSlashExecute: slashMenu.executeItem,
+      onAtSelectPrev: () => atMenu.setSelectedIndex((c) => atMenu.items.length ? (c - 1 + atMenu.items.length) % atMenu.items.length : 0),
+      onAtSelectNext: () => atMenu.setSelectedIndex((c) => atMenu.items.length ? (c + 1) % atMenu.items.length : 0),
+      onAtClose: atMenu.closeMenu,
+      onAtApply: atMenu.applyItem,
+      onHistorySelect: (idx, text) => { setHistorySelectedIndex(idx); props.onComposerChange(text); focusCaret(text.length); },
+      onHistoryClose: closeHistoryMenu,
+      onHistoryApply: applyHistoryItem,
+      onHistoryOpen: (idx, text, draft) => {
+        draftBeforeHistoryRef.current = draft;
+        setHistorySelectedIndex(idx);
         setHistoryMenuOpen(true);
-        const historyText = historyItems[0] ?? '';
-        props.onComposerChange(historyText);
-        focusCaret(historyText.length);
-        return;
-      }
-    }
-
-    // Shift+Tab from the textarea lands on the last shelf card, skipping
-    // failure-row buttons that sit between the chips and the input.
-    if (
-      event.key === 'Tab' &&
-      !slashMenuOpen &&
-      !atMenuOpen &&
-      !historyMenuOpen
-    ) {
-      if (event.shiftKey) {
-        const shelf = event.currentTarget
-          .closest('.composer-card-v2')
-          ?.querySelector('[data-testid="composer-attachment-shelf-chips"]');
-        const chips = shelf?.querySelectorAll<HTMLElement>('[data-shelf-chip]');
-        const last = chips && chips.length > 0 ? chips[chips.length - 1] : null;
-        if (last) {
-          event.preventDefault();
-          last.focus();
-          return;
+        props.onComposerChange(text);
+        focusCaret(text.length);
+      },
+      onTabNavigate: (shiftKey) => {
+        if (shiftKey) {
+          const chips = event.currentTarget.closest('.composer-card-v2')?.querySelector('[data-testid="composer-attachment-shelf-chips"]')?.querySelectorAll<HTMLElement>('[data-shelf-chip]');
+          chips?.[chips.length - 1]?.focus();
         }
-      }
-      // Forward Tab (and Shift+Tab with no chips) stays in the prompt.
-      // The browser's next stop is a toolbar/message button, which then
-      // paints a focus ring on chrome and feels like the input lost Tab.
-      event.preventDefault();
-      return;
-    }
-
-    // 4. Escape leaves a queued-turn edit; the parked draft comes back.
-    if (event.key === 'Escape' && queuedEdit && !slashMenuOpen && !atMenuOpen && !historyMenuOpen) {
-      event.preventDefault();
-      props.onQueuedEditCancel?.();
-      return;
-    }
-
-    // 5. ⌘Enter submits a run intervention (bypasses IME protection). While a
-    // queued turn owns the input box there is nothing to steer with — both
-    // Enter flavours save the edit.
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
-      event.preventDefault();
-      const reserved = isReservedComposerSlashCommand(props.composer);
-      // Paused + empty Continue is a button action. Paused + draft is an
-      // ordinary new message (same as the Send circle); never swallow ⌘Enter.
-      if (isStreamingRun && !queuedEdit && !reserved) {
-        if (props.composer.trim().length > 0) {
-          triggerSteer();
-        }
-      } else if (canKeyboardSend || reserved) {
-        triggerSend();
-      }
-      return;
-    }
-
-    // 6. Enter queues a follow-up while a Run is live; Cmd/Ctrl+Enter above
-    // steers the current Run. Ordinary Send stays non-destructive.
-    if (event.key === 'Enter' && !event.shiftKey) {
-      const enterDecision = decideComposerEnterKey({
-        isComposing: event.nativeEvent.isComposing || isComposingRef.current,
-        keyCode: event.nativeEvent.keyCode,
-        endedCompositionWithEnter: endedCompositionWithEnterRef.current,
-        msSinceCompositionEnd: Date.now() - lastCompositionEndRef.current,
-      });
-      if (enterDecision === 'let-ime') {
-        endedCompositionWithEnterRef.current = true;
-        return;
-      }
-      event.preventDefault();
-      endedCompositionWithEnterRef.current = false;
-      if (enterDecision === 'swallow') {
-        return;
-      }
-      const reserved = isReservedComposerSlashCommand(props.composer);
-      // Paused empty / continue-only → resume via triggerSend; a real draft sends.
-      if (canKeyboardSend || reserved) {
-        triggerSend();
-      }
-    }
+      },
+      onQueuedEditCancel: () => props.onQueuedEditCancel?.(),
+      onSteer: triggerSteer,
+      onSend: triggerSend,
+    });
   }
 
-  // Auto-resize textarea using rAF to avoid sync layout thrashing
+  // Auto-resize textarea using rAF to avoid sync layout thrashing. One frame
+  // at a time: the value effect, onInput and paste can all ask within a single
+  // keystroke, and each run forces a layout to read scrollHeight.
+  const resizeFrameRef = useRef<number | null>(null);
   const autoResize = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    requestAnimationFrame(() => {
+    if (resizeFrameRef.current !== null) {
+      cancelAnimationFrame(resizeFrameRef.current);
+    }
+    resizeFrameRef.current = requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      const el = textareaRef.current;
+      if (!el) return;
       el.style.height = 'auto';
       if (composerValue) {
         el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
       }
     });
   }, [composerValue]);
+  useEffect(
+    () => () => {
+      if (resizeFrameRef.current !== null) {
+        cancelAnimationFrame(resizeFrameRef.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     autoResize();
@@ -789,38 +357,15 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     <div
       className={`slab composer-card-v2${props.dropActive ? ' drop-active' : ''}${isStreamingRun ? ' is-streaming' : ''}${queuedEdit ? ' is-queued-edit' : ''}`}
       data-testid="composer-card"
-      onDragEnter={(event) => {
-        event.preventDefault();
-        dragDepthRef.current += 1;
-        props.onDropActiveChange(true);
-      }}
-      onDragOver={(event) => {
-        event.preventDefault();
-        // dragover repeats continuously while dragging; it is the stable
-        // "still dragging" signal even if a child boundary fired a spurious
-        // dragleave (WebKit can do this when the drop overlay mounts).
-        dragDepthRef.current = Math.max(1, dragDepthRef.current);
-        props.onDropActiveChange(true);
-      }}
-      onDragLeave={() => {
-        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-        if (dragDepthRef.current === 0) {
-          props.onDropActiveChange(false);
-        }
-      }}
-      onDrop={(event) => {
-        dragDepthRef.current = 0;
-        props.onDropActiveChange(false);
-        props.onDrop(event);
-      }}
+      onDragEnter={(e) => { e.preventDefault(); dragDepthRef.current += 1; props.onDropActiveChange(true); }}
+      onDragOver={(e) => { e.preventDefault(); dragDepthRef.current = Math.max(1, dragDepthRef.current); props.onDropActiveChange(true); }}
+      onDragLeave={() => { dragDepthRef.current = Math.max(0, dragDepthRef.current - 1); if (dragDepthRef.current === 0) props.onDropActiveChange(false); }}
+      onDrop={(e) => { dragDepthRef.current = 0; props.onDropActiveChange(false); props.onDrop(e); }}
     >
       <div className="slab-face" aria-hidden />
-      {/* Drop Zone Overlay */}
       {props.dropActive ? (
         <div className="composer-v2-drop-overlay">
-          <div className="composer-v2-drop-content">
-            <span className="composer-v2-drop-text">{copy.dropFiles}</span>
-          </div>
+          <div className="composer-v2-drop-content"><span className="composer-v2-drop-text">{copy.dropFiles}</span></div>
         </div>
       ) : null}
 
@@ -835,7 +380,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       ) : null}
 
       {composerSubscriptionBillingNotice(selectedModel, locale === 'en' ? 'en' : 'zh-CN')}
-
       <KnowledgeMountChips locale={locale === 'en' ? 'en' : 'zh-CN'} />
 
       <ComposerAttachmentShelf
@@ -843,39 +387,34 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         pendingAttachments={props.pendingAttachments}
         showTextOnlyImageWarning={showTextOnlyImageWarning}
         onRemoveAttachment={props.onRemoveAttachment}
-        {...(props.pendingContextRefs ? { pendingContextRefs: props.pendingContextRefs } : {})}
-        {...(props.docCommentsAttachment
-          ? { docCommentsAttachment: props.docCommentsAttachment }
-          : {})}
-        {...(props.onRetryAttachment ? { onRetryAttachment: props.onRetryAttachment } : {})}
-        {...(props.onRemoveContextRef ? { onRemoveContextRef: props.onRemoveContextRef } : {})}
-        {...(props.onRemoveDocComments ? { onRemoveDocComments: props.onRemoveDocComments } : {})}
-        {...(props.onOpenModelSettings ? { onOpenModelSettings: props.onOpenModelSettings } : {})}
-        onRequestComposerFocus={() => {
-          textareaRef.current?.focus();
-        }}
+        {...(props.pendingContextRefs && { pendingContextRefs: props.pendingContextRefs })}
+        {...(props.docCommentsAttachment && { docCommentsAttachment: props.docCommentsAttachment })}
+        {...(props.onRetryAttachment && { onRetryAttachment: props.onRetryAttachment })}
+        {...(props.onRemoveContextRef && { onRemoveContextRef: props.onRemoveContextRef })}
+        {...(props.onRemoveDocComments && { onRemoveDocComments: props.onRemoveDocComments })}
+        {...(props.onOpenModelSettings && { onOpenModelSettings: props.onOpenModelSettings })}
+        onRequestComposerFocus={() => textareaRef.current?.focus()}
       />
 
-      {/* Textarea area */}
       <div className="composer-v2-input-area">
         <SlashMenu
-          open={slashMenuOpen}
-          items={slashItems}
-          selectedIndex={slashSelectedIndex}
-          onSelectIndex={setSlashSelectedIndex}
-          onApply={applySlashItem}
-          onClose={() => setSlashMenuForcedClosed(true)}
+          open={slashMenu.isOpen}
+          items={slashMenu.items}
+          selectedIndex={slashMenu.selectedIndex}
+          onSelectIndex={slashMenu.setSelectedIndex}
+          onApply={slashMenu.applyItem}
+          onClose={slashMenu.closeMenu}
         />
         <AtMenu
-          open={atMenuOpen}
-          items={atItems}
-          selectedIndex={atSelectedIndex}
-          onSelectIndex={setAtSelectedIndex}
-          onApply={applyAtItem}
-          onClose={() => setAtMenuForcedClosed(true)}
+          open={atMenu.isOpen}
+          items={atMenu.items}
+          selectedIndex={atMenu.selectedIndex}
+          onSelectIndex={atMenu.setSelectedIndex}
+          onApply={atMenu.applyItem}
+          onClose={atMenu.closeMenu}
         />
         <PromptHistoryMenu
-          open={historyMenuOpen && !slashMenuOpen && !atMenuOpen}
+          open={historyMenuOpen && !slashMenu.isOpen && !atMenu.isOpen}
           items={historyItems}
           selectedIndex={historySelectedIndex}
           title={copy.promptHistoryTitle}
@@ -901,8 +440,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               props.onComposerChange(event.target.value);
             }
             setCaretIndex(event.target.selectionStart ?? event.target.value.length);
-            setSlashMenuForcedClosed(false);
-            setAtMenuForcedClosed(false);
+            slashMenu.resetForcedClosed();
+            atMenu.resetForcedClosed();
             setHistoryMenuOpen(false);
             autoResize();
           }}
@@ -934,49 +473,26 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       </div>
 
       <ComposerCardToolbar
-        props={props}
-        copy={copy}
-        locale={locale}
-        isStreamingRun={isStreamingRun}
-        isPaused={isPaused}
-        hasContent={hasContent}
-        isPauseContinueDraft={isPauseContinueDraft}
-        onlyFailedAttachments={onlyFailedAttachments}
-        isExtensionUiActive={isExtensionUiActive}
-        canComposeText={canComposeText}
-        showSpeechInput={showSpeechInput}
-        speechInput={speechInput}
-        thinkingModels={thinkingModels}
-        selectedModel={selectedModel}
-        triggerSend={triggerSend}
-        onResumeCheckpoint={triggerResumeCheckpoint}
+        props={props} copy={copy} locale={locale}
+        isStreamingRun={isStreamingRun} isPaused={isPaused} hasContent={hasContent}
+        isPauseContinueDraft={isPauseContinueDraft} onlyFailedAttachments={onlyFailedAttachments}
+        isExtensionUiActive={isExtensionUiActive} canComposeText={canComposeText}
+        showSpeechInput={showSpeechInput} speechInput={speechInput}
+        thinkingModels={thinkingModels} selectedModel={selectedModel}
+        triggerSend={triggerSend} onResumeCheckpoint={triggerResumeCheckpoint}
       />
 
-      {/* Expanded Modal Editor */}
       <ComposerModalEditor
-        open={modalEditorOpen}
-        value={props.composer}
-        onSave={(newValue) => {
-          props.onComposerChange(newValue);
-          autoResize();
-        }}
+        open={modalEditorOpen} value={props.composer}
+        onSave={(newValue) => { props.onComposerChange(newValue); autoResize(); }}
         onClose={() => setModalEditorOpen(false)}
       />
 
-      {/* Phase 0: retry / send-rest / back confirmation for failed saves. */}
       <AttachmentFailureDialog
-        open={attachmentFailureDialogOpen}
-        onOpenChange={setAttachmentFailureDialogOpen}
-        failedCount={failedAttachments.length}
-        copy={copy}
-        onDiscardAndSend={() => {
-          props.onDiscardFailedAttachments?.();
-          proceedSend();
-        }}
-        onRetryAndSend={() => {
-          props.onRetryFailedAttachments?.();
-          proceedSend();
-        }}
+        open={attachmentFailureDialogOpen} onOpenChange={setAttachmentFailureDialogOpen}
+        failedCount={failedAttachments.length} copy={copy}
+        onDiscardAndSend={() => { props.onDiscardFailedAttachments?.(); proceedSend(); }}
+        onRetryAndSend={() => { props.onRetryFailedAttachments?.(); proceedSend(); }}
       />
     </div>
   );
