@@ -11,6 +11,7 @@ import {
 import { createPortal } from 'react-dom';
 import { contentKindForMimeType, type MediaAttachmentRef } from '@piwin/contracts';
 import { useMediaPreviewRead } from './media-preview-read-context';
+import { releaseMediaPreviewUrl } from './media-preview-url-cache';
 import { MediaImageContextMenu } from './media-image-context-menu';
 import { buildMediaImageTarget } from './media-image-target';
 import { saveMediaImageAs } from './media-image-actions';
@@ -213,6 +214,7 @@ export function MediaPreview(props: {
     setMediaLoading(true);
     let cancelled = false;
     let ownedThumb: string | null = null;
+    let leasedHostUrl: string | null = null;
     const assetId = mediaPreviewAssetId(props.attachment.path, props.attachment.id);
     void (async () => {
       const resolved = await resolveTranscriptPreviewUrls({
@@ -227,6 +229,7 @@ export function MediaPreview(props: {
         if (resolved.ownedThumb) {
           URL.revokeObjectURL(resolved.ownedThumb);
         }
+        releaseMediaPreviewUrl(resolved.leasedHostUrl);
         return;
       }
       setFullUrl(resolved.fullUrl);
@@ -234,12 +237,14 @@ export function MediaPreview(props: {
       setLoadFailed(false);
       setMediaLoading(false);
       ownedThumb = resolved.ownedThumb;
+      leasedHostUrl = resolved.leasedHostUrl;
     })();
     return () => {
       cancelled = true;
       if (ownedThumb) {
         URL.revokeObjectURL(ownedThumb);
       }
+      releaseMediaPreviewUrl(leasedHostUrl);
     };
   }, [
     isFileCard,

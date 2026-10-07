@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as mediaUtils from './media-utils';
 import * as previewBitmap from './media-preview-bitmap';
+import { resetMediaPreviewUrlCacheForTests } from './media-preview-url-cache';
 import {
   mediaPreviewAssetId,
   readMediaPreviewViaHost,
@@ -42,6 +43,7 @@ describe('mediaPreviewAssetId', () => {
 describe('readMediaPreviewViaHost', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    resetMediaPreviewUrlCacheForTests();
   });
 
   it('returns a blob URL for a ready media/read payload and reuses the cache', async () => {
@@ -105,6 +107,7 @@ describe('resolveTranscriptPreviewUrls', () => {
       thumbUrl: 'blob:thumb',
       fullUrl: 'asset://photo.png',
       ownedThumb: 'blob:thumb',
+      leasedHostUrl: null,
     });
     expect(readMedia).not.toHaveBeenCalled();
   });
@@ -130,6 +133,7 @@ describe('resolveTranscriptPreviewUrls', () => {
       thumbUrl: 'blob:host-thumb',
       fullUrl: 'blob:host',
       ownedThumb: 'blob:host-thumb',
+      leasedHostUrl: 'blob:host',
     });
   });
 
@@ -177,6 +181,7 @@ describe('resolveTranscriptPreviewUrls', () => {
       thumbUrl: 'blob:host-video',
       fullUrl: 'blob:host-video',
       ownedThumb: null,
+      leasedHostUrl: 'blob:host-video',
     });
     expect(readMedia).toHaveBeenCalledWith({ sessionId: 'sess-1', assetId: 'asset-1' });
     expect(resolveSpy).toHaveBeenCalledWith('/Users/me/.piwin/media/sess-1/asset-1.mp4');
@@ -201,6 +206,7 @@ describe('resolveTranscriptPreviewUrls', () => {
       thumbUrl: 'blob:host',
       fullUrl: 'blob:host',
       ownedThumb: null,
+      leasedHostUrl: 'blob:host',
     });
   });
 
@@ -227,6 +233,7 @@ describe('resolveTranscriptPreviewUrls', () => {
       thumbUrl: 'blob:playable-video',
       fullUrl: 'blob:playable-video',
       ownedThumb: 'blob:playable-video',
+      leasedHostUrl: null,
     });
     vi.unstubAllGlobals();
   });

@@ -4,17 +4,20 @@ import {
 } from './media-preview-bitmap';
 import { isRemoteMediaAssetRef, REMOTE_MEDIA_ASSET_PREFIX } from './media-path';
 import { readMediaObjectUrlViaHost, type MediaHostReadClient } from './media-host-read';
+import { acquireMediaPreviewUrl } from './media-preview-url-cache';
 import { resolveMediaPreviewUrl } from './media-utils';
 import { createPlayableMediaObjectUrl } from './playable-media-url';
 
+/**
+ * Resolves to a leased object URL: hand every non-null result back through
+ * `releaseMediaPreviewUrl` once nothing renders it any more.
+ */
 export type MediaPreviewReader = (input: {
   sessionId: string;
   assetId: string;
 }) => Promise<string | null>;
 
 export type MediaPreviewHost = MediaHostReadClient;
-
-const previewObjectUrls = new Map<string, string>();
 
 /** Skip composer-local chips; they already have a File blob preview. */
 export function mediaPreviewAssetId(path: string, attachmentId: string): string | null {
@@ -38,17 +41,9 @@ export async function readMediaPreviewViaHost(
   host: MediaPreviewHost,
   input: { sessionId: string; assetId: string },
 ): Promise<string | null> {
-  const cacheKey = `${input.sessionId}:${input.assetId}`;
-  const cached = previewObjectUrls.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-  const url = await readMediaObjectUrlViaHost(host, input);
-  if (!url) {
-    return null;
-  }
-  previewObjectUrls.set(cacheKey, url);
-  return url;
+  return acquireMediaPreviewUrl(`${input.sessionId}:${input.assetId}`, () =>
+    readMediaObjectUrlViaHost(host, input),
+  );
 }
 
 export type TranscriptPreviewUrls = {
@@ -56,6 +51,8 @@ export type TranscriptPreviewUrls = {
   fullUrl: string | null;
   /** Limited-decode object URL the caller must revoke. Never the cached host URL. */
   ownedThumb: string | null;
+  /** Leased host URL the caller must hand back via `releaseMediaPreviewUrl`. */
+  leasedHostUrl: string | null;
 };
 
 function isSafeVaultSegment(value: string): boolean {
@@ -148,31 +145,35 @@ export async function resolveTranscriptPreviewUrls(input: {
       }
       const playable = await createPlayableMediaObjectUrl(local, input.mimeType ?? 'video/mp4');
       if (playable) {
-        return { thumbUrl: playable, fullUrl: playable, ownedThumb: playable };
+        return { thumbUrl: playable, fullUrl: playable, ownedThumb: playable, leasedHostUrl: null };
       }
     }
   }
   if (!input.readMedia || !input.sessionId || !input.assetId) {
-    return { thumbUrl: null, fullUrl: null, ownedThumb: null };
+    return { thumbUrl: null, fullUrl: null, ownedThumb: null, leasedHostUrl: null };
   }
   const hostUrl = await input.readMedia({
     sessionId: input.sessionId,
     assetId: input.assetId,
   });
   if (!hostUrl) {
-    return { thumbUrl: null, fullUrl: null, ownedThumb: null };
+    return { thumbUrl: null, fullUrl: null, ownedThumb: null, leasedHostUrl: null };
   }
   if (input.isVideo) {
-    return { thumbUrl: hostUrl, fullUrl: hostUrl, ownedThumb: null };
+    return { thumbUrl: hostUrl, fullUrl: hostUrl, ownedThumb: null, leasedHostUrl: hostUrl };
   }
-  return finishImagePreview(hostUrl);
+  return finishImagePreview(hostUrl, hostUrl);
 }
 
-async function finishImagePreview(fullUrl: string): Promise<TranscriptPreviewUrls> {
+async function finishImagePreview(
+  fullUrl: string,
+  leasedHostUrl: string | null = null,
+): Promise<TranscriptPreviewUrls> {
   const limited = await createLimitedPreviewUrlFromHref(fullUrl, TRANSCRIPT_THUMB_MAX_EDGE_PX);
   return {
     thumbUrl: limited.url,
     fullUrl,
     ownedThumb: limited.owned ? limited.url : null,
+    leasedHostUrl,
   };
 }

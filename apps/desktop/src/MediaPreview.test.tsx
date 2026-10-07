@@ -8,6 +8,7 @@ import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { MediaPreview } from './MediaPreview';
 import * as mediaUtils from './media-utils';
 import * as previewBitmap from './media-preview-bitmap';
+import * as previewUrlCache from './media-preview-url-cache';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -387,6 +388,39 @@ describe('MediaPreview', () => {
     expect(container.textContent).not.toContain('video/mp4 · 1475051B');
 
     resolveSpy.mockRestore();
+  });
+
+  it('hands a leased host URL back when the preview unmounts', async () => {
+    const resolveSpy = vi.spyOn(mediaUtils, 'resolveMediaPreviewUrl').mockResolvedValue(null);
+    const releaseSpy = vi.spyOn(previewUrlCache, 'releaseMediaPreviewUrl');
+    const readMedia = vi.fn(async () => 'blob:host-video');
+    const attachment: MediaAttachmentRef = {
+      id: 'asset-vid',
+      kind: 'media',
+      path: '[host-path]',
+      mimeType: 'video/mp4',
+      byteSize: 1_475_051,
+      source: 'generated',
+    };
+
+    await act(async () => {
+      root.render(
+        <MediaPreview attachment={attachment} sessionId="sess-1" readMedia={readMedia} />,
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(container.querySelector('.media-preview-video')).not.toBeNull();
+      });
+    });
+    expect(releaseSpy).not.toHaveBeenCalledWith('blob:host-video');
+
+    act(() => root.unmount());
+    expect(releaseSpy).toHaveBeenCalledWith('blob:host-video');
+
+    root = createRoot(container);
+    resolveSpy.mockRestore();
+    releaseSpy.mockRestore();
   });
 
   it('loads remote-asset thumbs through media/read when convertFileSrc cannot resolve', async () => {
