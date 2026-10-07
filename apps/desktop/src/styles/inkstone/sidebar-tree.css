@@ -2,7 +2,9 @@
 html[data-theme-id='piwin-inkstone-paper'] .sidebar-folder-tree,
 html[data-theme-id='piwin-inkstone-ink'] .sidebar-folder-tree {
   flex: 1;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-width: 0;
   min-height: 0;
   padding: 0 2px 12px 6px;
   margin-right: 0;

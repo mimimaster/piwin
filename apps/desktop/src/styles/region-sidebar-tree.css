@@ -217,6 +217,13 @@
 .sidebar-folder-tree-virtual-window {
   position: relative;
   width: 100%;
+  min-width: 0;
+  /* The virtualizer owns the full scroll extent, not the visible flex height. */
+  flex-shrink: 0;
+}
+
+.sidebar-tree-flow-item {
+  min-width: 0;
 }
 
 .sidebar-tree-virtual-item {

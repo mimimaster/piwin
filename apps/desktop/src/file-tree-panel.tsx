@@ -11,6 +11,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type DragEvent,
@@ -55,6 +56,7 @@ import {
 import {
   buildGitStatusByPath,
   filterTreeNodes,
+  flattenVisibleNodes,
   flattenVisibleRows,
   keyboardMove,
   type FileTreeNodeState,
@@ -70,7 +72,9 @@ import {
 import { resolveProjectFilesystemRoot } from './remote-session-hydrate.js';
 import { PIWIN_PATH_MIME } from './workspace-path-drag';
 import type { ContextMenuDispatchers } from './context-menu';
-import { FileTreeNodeView } from './file-tree-node-view';
+import { FileTreeNodeList } from './file-tree-node-view';
+import { FileTreeVirtualList, shouldVirtualizeFileTree } from './file-tree-virtual-list';
+import { useLatestCallback } from './use-latest-callback';
 import { markupPreviewKind } from './markup-preview-view';
 import { FileTreePreviewPane } from './file-tree-preview-pane';
 import {
@@ -428,7 +432,6 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       setIsSearchOpen(true);
       return;
     }
-    const displayNodes = filterTreeNodes(rootNodes, filterQuery);
     const visibleRows = flattenVisibleRows(displayNodes);
     const result = keyboardMove(visibleRows, selectedPath, event.key);
     // Unrecognized keys (typing, modifiers) are left to the browser.
@@ -442,31 +445,47 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     }
   }
 
-  function absoluteFor(relativePath: string): string {
-    if (!props.projectPath) return relativePath;
-    if (props.pathStyle === undefined) {
-      return resolveProjectEntryAbsolutePath(props.projectPath, relativePath);
-    }
-    return resolveProjectEntryAbsolutePath(props.projectPath, relativePath, props.pathStyle);
-  }
+  // Rows call this while rendering, so its identity has to follow its inputs.
+  const { projectPath: absoluteRoot, pathStyle } = props;
+  const absoluteFor = useCallback(
+    (relativePath: string): string => {
+      if (!absoluteRoot) return relativePath;
+      if (pathStyle === undefined) {
+        return resolveProjectEntryAbsolutePath(absoluteRoot, relativePath);
+      }
+      return resolveProjectEntryAbsolutePath(absoluteRoot, relativePath, pathStyle);
+    },
+    [absoluteRoot, pathStyle],
+  );
 
-  const contextMenuDispatchers: ContextMenuDispatchers = {
-    addToChat: (ref) => {
+  // Every tree row receives the dispatchers; a per-render object would defeat
+  // the row memo, so the three that read props go through stable callbacks.
+  const addToChat = useLatestCallback<Parameters<ContextMenuDispatchers['addToChat']>, void>(
+    (ref) => {
       props.onAddContextRef?.(ref);
     },
+  );
+  const sendPreset = useLatestCallback<Parameters<ContextMenuDispatchers['sendPreset']>, void>(
+    (text, refs) => {
+      props.onSendPreset?.(text, refs);
+    },
+  );
+  const openPath = useLatestCallback<Parameters<ContextMenuDispatchers['openPath']>, void>(
+    (absolutePath, relativePath) => {
+      void openFilePreview(relativePath);
+      props.onOpenFile?.(absolutePath, relativePath);
+    },
+  );
+  const contextMenuDispatchers = useMemo<ContextMenuDispatchers>(() => ({
+    addToChat,
     focusComposer: () => {
       const textarea = document.querySelector<HTMLTextAreaElement>(
         '[data-testid="composer-input"]',
       );
       textarea?.focus();
     },
-    sendPreset: (text, refs) => {
-      props.onSendPreset?.(text, refs);
-    },
-    openPath: (absolutePath, relativePath) => {
-      void openFilePreview(relativePath);
-      props.onOpenFile?.(absolutePath, relativePath);
-    },
+    sendPreset,
+    openPath,
     revealPath: (absolutePath) => {
       void revealLocalFileInFolder(absolutePath).then((result) => {
         if (result.ok) return;
@@ -482,22 +501,49 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     forkMessage: () => undefined,
     openSideChat: () => undefined,
     notify: () => undefined,
-  };
+  }), [addToChat, sendPreset, openPath]);
 
   const projectRoot = resolveProjectFilesystemRoot(props.projectPath);
   const canRevealInFileManager =
     Boolean(projectRoot) && canRevealInLocalFileManager(projectRoot);
-  const contextMenuCaps = {
-    hasProject: Boolean(props.projectPath),
-    canReveal: canRevealInFileManager,
-    ...(canRevealInFileManager
-      ? {}
-      : { revealDisabledHint: revealDisabledHint(locale === 'zh-CN' ? 'zh-CN' : 'en') }),
-    sideChatAvailable: false,
-    applyAvailable: false,
-    canSendPreset: false,
-    locale,
-  } as const;
+  const hasProject = Boolean(props.projectPath);
+  const contextMenuCaps = useMemo(
+    () =>
+      ({
+        hasProject,
+        canReveal: canRevealInFileManager,
+        ...(canRevealInFileManager
+          ? {}
+          : { revealDisabledHint: revealDisabledHint(locale === 'zh-CN' ? 'zh-CN' : 'en') }),
+        sideChatAvailable: false,
+        applyAvailable: false,
+        canSendPreset: false,
+        locale,
+      }) as const,
+    [hasProject, canRevealInFileManager, locale],
+  );
+  const displayNodes = useMemo(
+    () => filterTreeNodes(rootNodes, filterQuery),
+    [rootNodes, filterQuery],
+  );
+  const visibleNodes = useMemo(() => flattenVisibleNodes(displayNodes), [displayNodes]);
+  const virtualizeTree = shouldVirtualizeFileTree(visibleNodes.length);
+  const [treeListElement, setTreeListElement] = useState<HTMLUListElement | null>(null);
+  const treeRowProps = {
+    selectedPath,
+    gitStatusMap,
+    projectPath: props.projectPath,
+    onSelectFile: (relativePath: string) => {
+      void openFilePreview(relativePath);
+    },
+    onSelectPath: setSelectedPath,
+    onToggle: (path: string) => void handleToggle(path),
+    onDragStart: handleDragStart,
+    absoluteFor,
+    contextMenuCaps,
+    contextMenuDispatchers,
+    enableContextMenu: Boolean(props.onAddContextRef && props.projectPath),
+  };
 
   /** Load file content into the left pane of the right-panel split. */
   async function openFilePreview(relativePath: string): Promise<void> {
@@ -850,33 +896,19 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
             aria-label="Project files"
             tabIndex={0}
             onKeyDown={handleTreeKeyDown}
+            ref={setTreeListElement}
+            data-virtualized={virtualizeTree ? 'true' : undefined}
           >
             {rootNodes.length === 0 ? (
               <li className="muted file-tree-empty">
                 {locale === 'zh-CN' ? '空目录' : 'Empty directory'}
               </li>
             ) : (
-              filterTreeNodes(rootNodes, filterQuery).map((node) => (
-                <FileTreeNodeView
-                  key={node.entry.relativePath}
-                  node={node}
-                  depth={0}
-                  selectedPath={selectedPath}
-                  gitStatusMap={gitStatusMap}
-                  projectPath={props.projectPath}
-                  onSelectFile={(relativePath) => {
-                    void openFilePreview(relativePath);
-                  }}
-                  onSelectPath={setSelectedPath}
-                  onToggle={(path) => void handleToggle(path)}
-                  onDragStart={handleDragStart}
-                  absoluteFor={absoluteFor}
-                  contextMenuCaps={contextMenuCaps}
-                  contextMenuDispatchers={contextMenuDispatchers}
-                  enableContextMenu={Boolean(props.onAddContextRef && props.projectPath)}
-
-                />
-              ))
+              virtualizeTree ? (
+                <FileTreeVirtualList rows={visibleNodes} scrollElement={treeListElement} {...treeRowProps} />
+              ) : (
+                <FileTreeNodeList nodes={displayNodes} {...treeRowProps} />
+              )
             )}
           </ul>
         )}

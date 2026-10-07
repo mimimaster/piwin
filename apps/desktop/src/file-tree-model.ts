@@ -95,6 +95,23 @@ export function filterTreeNodes(nodes: FileTreeNodeState[], query: string): File
   return nodes.map(filterNode).filter((n): n is FileTreeNodeState => n !== null);
 }
 
+export type VisibleTreeNode = { node: FileTreeNodeState; depth: number };
+
+/** Rows the tree currently shows, top to bottom, each with its node and depth. */
+export function flattenVisibleNodes(
+  nodes: readonly FileTreeNodeState[],
+  depth = 0,
+  rows: VisibleTreeNode[] = [],
+): VisibleTreeNode[] {
+  for (const node of nodes) {
+    rows.push({ node, depth });
+    if (node.entry.kind === 'directory' && node.expanded && node.children) {
+      flattenVisibleNodes(node.children, depth + 1, rows);
+    }
+  }
+  return rows;
+}
+
 export function flattenVisibleRows(nodes: FileTreeNodeState[], depth = 0): FlatTreeRow[] {
   const rows: FlatTreeRow[] = [];
   for (const node of nodes) {

@@ -1,4 +1,4 @@
-import type { DragEvent, ReactElement } from 'react';
+import { memo, type DragEvent, type ReactElement } from 'react';
 import type { GitFileStatusCode } from '@piwin/contracts';
 import { FileTypeIcon, Notice } from '@piwin/ui-kit';
 import { IconChevronDown, IconChevronRight } from './shell-icons';
@@ -6,6 +6,7 @@ import { gitStatusForPath, type FileTreeNodeState } from './file-tree-model';
 import type { DesktopLocale } from './desktop-locale';
 import { ContextMenuFromCatalog, type ContextMenuDispatchers } from './context-menu';
 import { prewarmFileHighlight } from './syntax/file-highlight.js';
+import { isEventHandlerPropName, memoWithLatestCallbacks } from './memo-with-latest-callbacks';
 
 /** Single-letter glyph for a git file status code (VS Code SCM style). */
 const GIT_STATUS_LETTER: Record<GitFileStatusCode, string> = {
@@ -50,14 +51,59 @@ export type FileTreeNodeViewProps = {
   };
   contextMenuDispatchers: ContextMenuDispatchers;
   enableContextMenu: boolean;
+  /**
+   * Set by the virtual list: the row is one of a flat, absolutely placed run,
+   * so it draws no children and reports its own height.
+   */
+  virtualIndex?: number | undefined;
+  virtualStart?: number | undefined;
+  measureRef?: ((element: HTMLLIElement | null) => void) | undefined;
 };
 
-export function FileTreeNodeView(props: FileTreeNodeViewProps): ReactElement {
+/** Whether `selectedPath` is this row or a row somewhere beneath it. */
+function selectionTouchesNode(selectedPath: string | null, node: FileTreeNodeState): boolean {
+  if (selectedPath === null) return false;
+  const nodePath = node.entry.relativePath;
+  if (selectedPath === nodePath) return true;
+  if (node.entry.kind !== 'directory' || !selectedPath.startsWith(nodePath)) return false;
+  const separator = selectedPath[nodePath.length];
+  return separator === '/' || separator === '\\';
+}
+
+/**
+ * Every row is handed the tree-wide selection, but only the rows on the path
+ * to the old and new selection draw it; the rest of the tree sits out a
+ * selection change. All other props compare by identity.
+ */
+export function areFileTreeNodePropsEqual(
+  previous: FileTreeNodeViewProps,
+  next: FileTreeNodeViewProps,
+): boolean {
+  const keys = new Set([...Object.keys(previous), ...Object.keys(next)]) as Set<
+    keyof FileTreeNodeViewProps
+  >;
+  for (const key of keys) {
+    if (Object.is(previous[key], next[key])) continue;
+    if (key !== 'selectedPath') return false;
+    if (
+      selectionTouchesNode(previous.selectedPath, previous.node) ||
+      selectionTouchesNode(next.selectedPath, next.node)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export const FileTreeNodeView = memo(function FileTreeNodeView(
+  props: FileTreeNodeViewProps,
+): ReactElement {
   const { node, depth } = props;
   const isDir = node.entry.kind === 'directory';
   const selected = props.selectedPath === node.entry.relativePath;
   const status = gitStatusForPath(props.gitStatusMap, node.entry.relativePath, node.entry.kind);
   const absolutePath = props.absoluteFor(node.entry.relativePath);
+  const isVirtual = props.virtualIndex !== undefined;
   const rowButton = (
     <button
       type="button"
@@ -136,7 +182,12 @@ export function FileTreeNodeView(props: FileTreeNodeViewProps): ReactElement {
     <li
       role="treeitem"
       aria-expanded={isDir ? node.expanded : undefined}
-      className={`file-tree-node${selected ? ' selected' : ''}`}
+      // Nesting carries the level in the recursive tree; a flat run states it.
+      aria-level={isVirtual ? depth + 1 : undefined}
+      className={`file-tree-node${selected ? ' selected' : ''}${isVirtual ? ' is-virtual' : ''}`}
+      data-index={props.virtualIndex}
+      ref={props.measureRef}
+      style={isVirtual ? { transform: `translateY(${props.virtualStart ?? 0}px)` } : undefined}
     >
       {row}
       {node.loading ? (
@@ -149,7 +200,7 @@ export function FileTreeNodeView(props: FileTreeNodeViewProps): ReactElement {
           <Notice tone="error">{node.error}</Notice>
         </div>
       ) : null}
-      {isDir && node.expanded && node.children ? (
+      {!isVirtual && isDir && node.expanded && node.children ? (
         <ul role="group" className="file-tree-children">
           {node.children.map((child) => (
             <FileTreeNodeView
@@ -173,4 +224,27 @@ export function FileTreeNodeView(props: FileTreeNodeViewProps): ReactElement {
       ) : null}
     </li>
   );
-}
+}, areFileTreeNodePropsEqual);
+
+export type FileTreeNodeListProps = Omit<FileTreeNodeViewProps, 'node' | 'depth'> & {
+  nodes: readonly FileTreeNodeState[];
+};
+
+/**
+ * Root rows behind one memo boundary: the panel's `on*` handlers are rebuilt
+ * on every render, so they reach the rows as stable proxies. `absoluteFor`
+ * runs during render and keeps its own identity.
+ */
+export const FileTreeNodeList = memoWithLatestCallbacks(
+  function FileTreeNodeList(props: FileTreeNodeListProps): ReactElement {
+    const { nodes, ...rowProps } = props;
+    return (
+      <>
+        {nodes.map((node) => (
+          <FileTreeNodeView key={node.entry.relativePath} node={node} depth={0} {...rowProps} />
+        ))}
+      </>
+    );
+  },
+  { isHandler: isEventHandlerPropName },
+);
