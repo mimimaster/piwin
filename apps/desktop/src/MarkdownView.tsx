@@ -10,8 +10,15 @@ import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { MarkdownRenderingPhase } from './markdown-code-fence.js';
 import {
   createStreamdownComponents,
+  KnowledgeCitationIndexProvider,
+  StreamdownRendererOptionsProvider,
   type StreamdownRendererOptions,
 } from './markdown-streamdown.js';
+import {
+  createMarkdownBlockIndex,
+  MarkdownBlockIndexProvider,
+  MarkdownStreamBlock,
+} from './markdown-stream-blocks.js';
 import { escapeRawHtmlInMarkdown } from './markdown-html-escape.js';
 import { rewriteLocalFileMarkdownLinks } from './markdown-local-links.js';
 import {
@@ -106,14 +113,6 @@ export const STREAMDOWN_IMMEDIATE_STREAMING = {
   duration: 0,
   stagger: 0,
 } as const;
-/**
- * Streamdown streaming mode parses each marked block separately, so
- * `node.position.start.offset` is block-relative (often 0). One document block
- * keeps offsets on the projected markdown string used by the fence index.
- */
-function parseStreamdownAsSingleDocument(markdown: string): string[] {
-  return [markdown];
-}
 const ARTIFACT_THEME_VARIABLES = [
   '--piwin-artifact-theme',
   '--piwin-artifact-bg',
@@ -232,31 +231,7 @@ export function MarkdownView({
     usedStreamingRendererRef.current = true;
   }
   const streamdownMode = usedStreamingRendererRef.current ? 'streaming' : 'static';
-  const streamdownRendererOptionsRef = useRef<StreamdownRendererOptions>({
-    phase,
-    htmlUiModeEnabled: streamdownHtmlUiMode,
-    artifactTheme: stableArtifactTheme,
-    initPriorityBase,
-    artifactThemeKey,
-    onArtifactAction,
-    artifactOrigin: stableArtifactOrigin,
-    onOpenArtifactCanvas,
-    artifactInlineEnabled,
-    // The renderer options always carry a concrete pair; only the public prop
-    // is optional.
-    artifactCanvasEnabled: artifactCanvasEnabled ?? artifactInlineEnabled,
-    artifactCodeFirst,
-    artifactMaxBytes,
-    artifactBlockExternalScripts,
-    artifactBlockExternalResources,
-    locale,
-    ordinalByProjectedStartOffset: artifactProjection.ordinalByProjectedStartOffset,
-    fences: artifactProjection.fences,
-    onOpenDocument,
-    projectPath,
-    knowledgeCitations,
-  });
-  streamdownRendererOptionsRef.current = {
+  const streamdownRendererOptions: StreamdownRendererOptions = {
     phase,
     htmlUiModeEnabled: streamdownHtmlUiMode,
     artifactTheme: stableArtifactTheme,
@@ -280,12 +255,18 @@ export function MarkdownView({
     projectPath,
     knowledgeCitations,
   };
+  const streamdownRendererOptionsRef = useRef(streamdownRendererOptions);
+  streamdownRendererOptionsRef.current = streamdownRendererOptions;
   // Renderer component function identity must survive token and phase changes.
   // Current options are read from the ref when Streamdown invokes a renderer.
   const streamdownComponents = useMemo<Components>(
     () => createStreamdownComponents(streamdownRendererOptionsRef),
     [],
   );
+  // One splitter per mounted message: Streamdown re-parses only the block a
+  // token lands in, and the index maps block-relative fence offsets back onto
+  // the projected markdown the fence index is keyed by.
+  const blockIndex = useMemo(() => createMarkdownBlockIndex(), []);
   // KaTeX / remark-math stay off the cold main chunk; first markdown mount
   // loads them once. Until then Streamdown still paints text without math.
   const [mathPlugin, setMathPlugin] = useState<StreamdownMathPlugin | null>(() =>
@@ -313,6 +294,9 @@ export function MarkdownView({
         surface="markdown"
         resetKey={`${phase}:${streamdownTextForRender.length}`}
       >
+        <MarkdownBlockIndexProvider value={blockIndex}>
+        <StreamdownRendererOptionsProvider value={streamdownRendererOptions}>
+        <KnowledgeCitationIndexProvider value={knowledgeCitations}>
         <Streamdown
           className={shouldShowStreamingCaret ? 'prose markdown has-stream-caret' : 'prose markdown'}
           // Live tokens stay on Streamdown's streaming tree. `static` skips remend
@@ -320,7 +304,8 @@ export function MarkdownView({
           // only disables startTransition; isAnimating stays false so word spans
           // are never injected.
           mode={streamdownMode}
-          parseMarkdownIntoBlocksFn={parseStreamdownAsSingleDocument}
+          parseMarkdownIntoBlocksFn={blockIndex.parse}
+          BlockComponent={MarkdownStreamBlock}
           parseIncompleteMarkdown={streamMode}
           isAnimating={false}
           animated={STREAMDOWN_IMMEDIATE_STREAMING}
@@ -333,6 +318,9 @@ export function MarkdownView({
         >
           {streamdownTextForRender}
         </Streamdown>
+        </KnowledgeCitationIndexProvider>
+        </StreamdownRendererOptionsProvider>
+        </MarkdownBlockIndexProvider>
       </RenderErrorBoundary>
     </MarkdownRenderingPhaseProvider>
   );

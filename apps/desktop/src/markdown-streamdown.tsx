@@ -1,6 +1,8 @@
 import {
   cloneElement,
+  createContext,
   isValidElement,
+  useContext,
   type ComponentProps,
   type JSX,
   type ReactElement,
@@ -15,6 +17,7 @@ import { type Components, type ExtraProps } from 'streamdown';
 import { fileNameFromPath, PathChip } from './path-chip.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import { lookupIndexedFence } from './markdown-artifact-fence-lookup.js';
+import { useMarkdownBlockStartOffset } from './markdown-stream-blocks.js';
 import {
   MarkdownCodeFence,
   type MarkdownCodeFenceProps,
@@ -66,6 +69,21 @@ export type StreamdownRendererOptions = {
   ordinalByProjectedStartOffset: ReadonlyMap<number, number>;
   fences: readonly ArtifactFenceRecord[];
 };
+
+/**
+ * This render's options, for renderers that must not go stale. Streamdown
+ * skips a block whose text did not change, so a renderer inside it would keep
+ * the phase, fence index and capability switches of the token that last
+ * touched the block — a finished reply would leave its Artifact fences on
+ * their streaming preview. Fences read the options here instead; a context
+ * change reaches them through the block memo.
+ */
+const StreamdownRendererOptionsContext = createContext<StreamdownRendererOptions | null>(null);
+export const StreamdownRendererOptionsProvider = StreamdownRendererOptionsContext.Provider;
+
+/** Citations arrive after the prose that cites them; markers follow the index. */
+const KnowledgeCitationIndexContext = createContext<KnowledgeCitationIndex | undefined>(undefined);
+export const KnowledgeCitationIndexProvider = KnowledgeCitationIndexContext.Provider;
 
 
 
@@ -145,38 +163,44 @@ export function createStreamdownComponents(optionsRef: {
     );
   };
 
-  const renderCode = ({
+  const renderInlineCode = ({
     children,
     className,
-    node,
-    'data-block': dataBlock,
+    node: _node,
+    'data-block': _dataBlock,
     ...props
   }: StreamdownCodeProps): ReactElement => {
     const options = optionsRef.current;
-    if (dataBlock === undefined) {
-      const inlineValue = plainTextFromReactNode(children).trim();
-      if (isLocalPathChipCandidate(inlineValue) && options.onOpenDocument) {
-        return (
-          <PathChip
-            fullPath={inlineValue}
-            {...(options.projectPath ? { projectPath: options.projectPath } : {})}
-            onOpen={() =>
-              options.onOpenDocument?.({
-                title: fileNameFromPath(inlineValue),
-                path: inlineValue,
-              })
-            }
-          />
-        );
-      }
+    const inlineValue = plainTextFromReactNode(children).trim();
+    if (isLocalPathChipCandidate(inlineValue) && options.onOpenDocument) {
       return (
-        <code {...props} className={mergeMarkdownClassNames('md-inline-code', className)}>
-          {children}
-        </code>
+        <PathChip
+          fullPath={inlineValue}
+          {...(options.projectPath ? { projectPath: options.projectPath } : {})}
+          onOpen={() =>
+            options.onOpenDocument?.({
+              title: fileNameFromPath(inlineValue),
+              path: inlineValue,
+            })
+          }
+        />
       );
     }
+    return (
+      <code {...props} className={mergeMarkdownClassNames('md-inline-code', className)}>
+        {children}
+      </code>
+    );
+  };
 
-    const startOffset = node?.position?.start?.offset;
+  // A component, not a render helper: it subscribes to this render's options
+  // and to the offset of the block Streamdown parsed it in.
+  const FenceCode = ({ children, className, node }: StreamdownCodeProps): ReactElement => {
+    const options = useContext(StreamdownRendererOptionsContext) ?? optionsRef.current;
+    const blockStartOffset = useMarkdownBlockStartOffset();
+    const blockRelativeOffset = node?.position?.start?.offset;
+    const startOffset =
+      typeof blockRelativeOffset === 'number' ? blockStartOffset + blockRelativeOffset : undefined;
     // Whole info word: a ```12:40:src/a.ts reference must not be cut to "12".
     const languageMatch = /(?:^|\s)language-(\S+)/.exec(className ?? '');
     const fallbackLanguage = languageMatch?.[1] ?? '';
@@ -228,6 +252,9 @@ export function createStreamdownComponents(optionsRef: {
     return <MarkdownCodeFence key={fenceKey} {...fenceProps} />;
   };
 
+  const renderCode = (props: StreamdownCodeProps): ReactElement =>
+    props['data-block'] === undefined ? renderInlineCode(props) : <FenceCode {...props} />;
+
   const renderAnchor = ({
     children,
     href,
@@ -238,8 +265,9 @@ export function createStreamdownComponents(optionsRef: {
     const options = optionsRef.current;
     const url = href ?? '';
     const citationRef = parseKnowledgeCitationHref(url);
+    const citationIndex = useContext(KnowledgeCitationIndexContext) ?? options.knowledgeCitations;
     if (citationRef !== null) {
-      const citation = options.knowledgeCitations?.get(citationRef);
+      const citation = citationIndex?.get(citationRef);
       return citation ? (
         <KnowledgeCitationMarker citation={citation} locale={options.locale} />
       ) : (

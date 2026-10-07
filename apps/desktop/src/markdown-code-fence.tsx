@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { memo, type ReactElement } from 'react';
 import type { ArtifactActionMessage, ArtifactThemeVariables } from '@piwin/artifact';
 import { ArtifactFenceController } from './artifact-fence-controller.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
@@ -45,13 +45,17 @@ export type MarkdownCodeFenceProps = {
  * Fence dispatcher: Mermaid, math, Artifact controller, or ordinary source.
  * Highlighting lives in markdown-code-block; Streamdown wiring stays in MarkdownView.
  */
-export function MarkdownCodeFence(props: MarkdownCodeFenceProps): ReactElement {
+export const MarkdownCodeFence = memo(function MarkdownCodeFence(
+  props: MarkdownCodeFenceProps,
+): ReactElement {
+  // Memoized: the fence renderer re-runs on every token to keep phase and
+  // fence index current, while a closed fence's props stay value-identical.
   return (
     <CodeBlockContextMenu source={props.source} language={props.language}>
       <FenceBody {...props} />
     </CodeBlockContextMenu>
   );
-}
+});
 
 function FenceBody(props: MarkdownCodeFenceProps): ReactElement {
   // Closed fences are stable even if the rest of the message is still
