@@ -8,7 +8,9 @@
  * decide whether the child re-renders.
  *
  * Invariant: never use it for render props or callbacks the child calls during
- * render — a stable proxy hides identity changes those callers rely on.
+ * render — a stable proxy hides identity changes those callers rely on. A
+ * component that also takes such props passes `isHandler`: only the keys it
+ * accepts are proxied, the rest keep their identity and still drive renders.
  */
 import {
   memo,
@@ -20,9 +22,16 @@ import {
 
 type CallbackProxy = (...args: unknown[]) => unknown;
 
+/** `onSend`, `onOpenProject`, …: the event-handler naming convention. */
+export function isEventHandlerPropName(key: string): boolean {
+  return /^on[A-Z]/.test(key);
+}
+
 export function memoWithLatestCallbacks<Props extends object>(
   Component: ComponentType<Props>,
+  options: { isHandler?: (key: string) => boolean } = {},
 ): ComponentType<Props> {
+  const isHandler = options.isHandler ?? (() => true);
   const MemoizedComponent = memo(Component);
 
   function LatestCallbacksBoundary(props: Props): ReactElement {
@@ -36,7 +45,7 @@ export function memoWithLatestCallbacks<Props extends object>(
 
     const stableProps: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(props)) {
-      if (typeof value !== 'function') {
+      if (typeof value !== 'function' || !isHandler(key)) {
         stableProps[key] = value;
         continue;
       }

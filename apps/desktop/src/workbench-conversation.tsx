@@ -28,7 +28,7 @@ import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
 import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifact-surfaces';
 import { ChatThread } from './chat-thread';
-import { memoWithLatestCallbacks } from './memo-with-latest-callbacks';
+import { isEventHandlerPropName, memoWithLatestCallbacks } from './memo-with-latest-callbacks';
 import { useTranscriptComposerCard } from './transcript-composer-card';
 import { buildEmptyStageAgentControl } from './empty-stage-agent-control.js';
 import type { ChatMessageUi, ChatUiState, SessionListItemUi } from './chat-reducer';
@@ -65,6 +65,16 @@ import type { SidebarMode } from './sidebar-mode';
  * handler; data props (messages, streaming, composerCard) still decide renders.
  */
 const StableChatThread = memoWithLatestCallbacks(ChatThread);
+
+/**
+ * The dock does not show the reply being streamed, yet it re-rendered its
+ * whole card — menus, popovers, model and mode controls — on every token.
+ * Only `on*` props are proxied: the dock also takes predicates it calls while
+ * rendering, and those must keep driving renders by identity.
+ */
+const StableComposerDock = memoWithLatestCallbacks(ComposerDock, {
+  isHandler: isEventHandlerPropName,
+});
 
 export type WorkbenchTranscriptProps = {
   locale: DesktopLocale;
@@ -529,7 +539,12 @@ export function WorkbenchComposerColumn(props: WorkbenchComposerColumnProps): Re
           />
         </div>
       ) : null}
-      <ComposerDock {...composerCard} goalMessages={state.messages} />
+      {/* The transcript feeds only the Goal strip; outside Goal mode the dock
+          must not see a prop that changes with every token. */}
+      <StableComposerDock
+        {...composerCard}
+        {...(composerCard.agentMode === 'goal' ? { goalMessages: state.messages } : {})}
+      />
     </>
   );
 }

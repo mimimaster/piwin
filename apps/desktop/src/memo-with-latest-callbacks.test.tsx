@@ -2,7 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act, useLayoutEffect, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { memoWithLatestCallbacks } from './memo-with-latest-callbacks.js';
+import {
+  isEventHandlerPropName,
+  memoWithLatestCallbacks,
+} from './memo-with-latest-callbacks.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -108,5 +111,29 @@ describe('memoWithLatestCallbacks', () => {
     });
 
     expect(seen).toEqual(['one', 'two']);
+  });
+
+  it('proxies only the keys isHandler accepts; other functions keep driving renders', () => {
+    type GatedProps = {
+      onPick: () => void;
+      isBusy: () => boolean;
+      renders: { count: number };
+    };
+    function Gated(props: GatedProps): ReactElement {
+      props.renders.count += 1;
+      return <span>{props.isBusy() ? 'busy' : 'idle'}</span>;
+    }
+    const MemoGated = memoWithLatestCallbacks(Gated, { isHandler: isEventHandlerPropName });
+    const renders = { count: 0 };
+    const isIdle = (): boolean => false;
+
+    act(() => root.render(<MemoGated onPick={() => {}} isBusy={isIdle} renders={renders} />));
+    act(() => root.render(<MemoGated onPick={() => {}} isBusy={isIdle} renders={renders} />));
+    expect(renders.count).toBe(1);
+
+    // A predicate read during render must reach the child by identity.
+    act(() => root.render(<MemoGated onPick={() => {}} isBusy={() => true} renders={renders} />));
+    expect(renders.count).toBe(2);
+    expect(container.textContent).toBe('busy');
   });
 });

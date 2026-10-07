@@ -23,6 +23,7 @@ import type {
   ThinkingLevel,
 } from '@piwin/contracts';
 import type { AgentModeId } from '../agent-mode';
+import { useStructuralValue } from '../use-structural-value.js';
 import type { ChatUiState } from '../chat-reducer';
 import type { ComposerDockProps, ComposerModelOption } from '../composer-dock';
 import type { ComposerPlusSubmenu } from '../composer-plus-menu';
@@ -237,7 +238,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     thinkingLevel,
     onThinkingLevelChange,
     backendControls,
-    draftAgentOptions,
+    draftAgentOptions: draftAgentOptionsInput,
     draftAgentId,
     onDraftAgentChange,
     onStartNewSession,
@@ -258,7 +259,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     stopJob,
     viewJobLogs,
     openInspector,
-    steerQueueMessages,
+    steerQueueMessages: steerQueueMessagesInput,
     onSteerQueueSendNow,
     onSteerQueueEdit,
     onSteerQueueRemove,
@@ -386,9 +387,12 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     [activeCommentsCount, activeDocumentTitle],
   );
 
-  const sessionUserPrompts = useMemo(
-    () => listSessionUserPrompts(state.messages),
-    [state.messages],
+  // Rebuilt on every reducer commit, identical while a run streams. Each one
+  // alone would rebuild `composerCard` — and re-render the dock — per token.
+  const draftAgentOptions = useStructuralValue(draftAgentOptionsInput);
+  const steerQueueMessages = useStructuralValue(steerQueueMessagesInput);
+  const sessionUserPrompts = useStructuralValue(
+    useMemo(() => listSessionUserPrompts(state.messages), [state.messages]),
   );
 
   const orchestrationView = useMemo(() => {
@@ -480,12 +484,80 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     (isExternalBackend ? 256_000 : undefined) ??
     selectedModelContextWindow;
 
+  // Only an external backend lacks Host telemetry; estimating the whole
+  // transcript on every token for everyone else produced a number nobody read.
   const fallbackTokensUsed = useMemo(
-    () => estimateTranscriptTokens(state.messages),
-    [state.messages],
+    () => (isExternalBackend ? estimateTranscriptTokens(state.messages) : 0),
+    [isExternalBackend, state.messages],
   );
 
   const activeComposerAgentId = resolveActiveComposerAgentId(state) ?? draftAgentId ?? 'pi';
+  // `composerCard` below is rebuilt whenever any handler closure changes, which
+  // is every render. Its nested data objects are built here so they keep their
+  // identity across those rebuilds and the dock's memo can hold.
+  const contextRingView = useStructuralValue(
+    selectContextRingView({
+      telemetry: state.contextTelemetry,
+      locale: locale === 'en' ? 'en' : 'zh-CN',
+      ...(typeof effectiveModelContextWindow === 'number'
+        ? { selectedModelContextWindow: effectiveModelContextWindow }
+        : {}),
+      ...(selectedModelKey.includes('::')
+        ? {
+            selectedModel: {
+              providerId: selectedModelKey.slice(0, selectedModelKey.indexOf('::')),
+              modelId: selectedModelKey.slice(selectedModelKey.indexOf('::') + 2),
+            },
+          }
+        : {}),
+      queuedTurnPending:
+        ((state.activeSessionId && state.queuedTurnsBySession[state.activeSessionId]) ?? [])
+          .length > 0,
+      ...(state.compacting ? { compacting: true } : {}),
+      ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
+      ...(isExternalBackend && (fallbackTokensUsed > 0 || (state.contextUsage?.tokensUsed ?? 0) > 0)
+        ? {
+            fallbackUsage: {
+              tokensUsed: state.contextUsage?.tokensUsed ?? fallbackTokensUsed,
+              ...(typeof effectiveModelContextWindow === 'number'
+                ? { tokensLimit: effectiveModelContextWindow }
+                : {}),
+              quality: 'estimated' as const,
+              ...(state.streaming ? { phase: 'streaming' as const } : {}),
+            },
+          }
+        : {}),
+    }),
+  );
+  const liveControl = useMemo(
+    () => ({
+      enabled: true,
+      canStart: live.canStart,
+      starting: live.starting,
+      call: live.call,
+      error: live.error,
+      missing: live.status?.missing ?? [],
+      onStart: () => {
+        void live.start();
+      },
+      onMute: (muted: boolean) => {
+        void live.setMuted(muted);
+      },
+      onEnd: () => {
+        void live.end();
+      },
+    }),
+    [
+      live.canStart,
+      live.starting,
+      live.call,
+      live.error,
+      live.status,
+      live.start,
+      live.setMuted,
+      live.end,
+    ],
+  );
   const composerCard: ComposerDockProps = useMemo(
     () => ({
       layoutMode: composerLayoutMode,
@@ -582,61 +654,14 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       compactionSupported:
         hostStatus?.capabilities?.compaction !== false && capabilities.supports('compact'),
       contextUsage: state.contextUsage,
-      contextRingView: selectContextRingView({
-        telemetry: state.contextTelemetry,
-        locale: locale === 'en' ? 'en' : 'zh-CN',
-        ...(typeof effectiveModelContextWindow === 'number'
-          ? { selectedModelContextWindow: effectiveModelContextWindow }
-          : {}),
-        ...(selectedModelKey.includes('::')
-          ? {
-              selectedModel: {
-                providerId: selectedModelKey.slice(0, selectedModelKey.indexOf('::')),
-                modelId: selectedModelKey.slice(selectedModelKey.indexOf('::') + 2),
-              },
-            }
-          : {}),
-        queuedTurnPending:
-          ((state.activeSessionId && state.queuedTurnsBySession[state.activeSessionId]) ?? [])
-            .length > 0,
-        ...(state.compacting ? { compacting: true } : {}),
-        ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
-        ...(isExternalBackend && (fallbackTokensUsed > 0 || (state.contextUsage?.tokensUsed ?? 0) > 0)
-          ? {
-              fallbackUsage: {
-                tokensUsed: state.contextUsage?.tokensUsed ?? fallbackTokensUsed,
-                ...(typeof effectiveModelContextWindow === 'number'
-                  ? { tokensLimit: effectiveModelContextWindow }
-                  : {}),
-                quality: 'estimated' as const,
-                ...(state.streaming ? { phase: 'streaming' as const } : {}),
-              },
-            }
-          : {}),
-      }),
+      contextRingView,
       ...(typeof effectiveModelContextWindow === 'number'
         ? { modelContextWindow: effectiveModelContextWindow }
         : {}),
       onOpenModelSettings: handleOpenModelSettings,
       speechConfigured,
       speechRequest,
-      live: {
-        enabled: true,
-        canStart: live.canStart,
-        starting: live.starting,
-        call: live.call,
-        error: live.error,
-        missing: live.status?.missing ?? [],
-        onStart: () => {
-          void live.start();
-        },
-        onMute: (muted) => {
-          void live.setMuted(muted);
-        },
-        onEnd: () => {
-          void live.end();
-        },
-      },
+      live: liveControl,
       ...(hostStatus !== undefined ? { hostStatus } : {}),
       hostReady: state.hostReady,
       hostMock: state.hostMock,
@@ -774,7 +799,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       setPlusSubmenu,
       speechConfigured,
       speechRequest,
-      live,
+      liveControl,
+      contextRingView,
       sidebarMode,
       state.activeScope.kind,
       state.activeSessionId,

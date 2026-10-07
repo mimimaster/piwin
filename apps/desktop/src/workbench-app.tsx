@@ -27,6 +27,11 @@ import { WindowsShellOfferBanner } from './windows-shell-offer-banner';
 import { installRendererSelfHeal } from './renderer-self-heal';
 import { WorkspaceShell } from './workspace-shell';
 import { WorkbenchInspector } from './workbench-inspector';
+import { memoWithLatestCallbacks } from './memo-with-latest-callbacks';
+import { useLatestCallback } from './use-latest-callback.js';
+import { useStructuralValue } from './use-structural-value.js';
+import { scheduleIdleTask } from './schedule-idle-task';
+import { loadStreamdownMathPlugin } from './streamdown-math-plugin.js';
 import { WorkbenchWorkspaceProviders } from './workbench-workspace-providers';
 import { SubAgentPanel } from './SubAgentPanel';
 import { deriveSubagentOrchestrationView } from './subagent-orchestration-view';
@@ -57,6 +62,16 @@ import { WorkbenchSubpageStage } from './workbench-subpage-stage';
 import { useWorkbenchKnowledge } from './hooks/use-workbench-knowledge';
 import { isInkstoneThemeId } from './appearance-tokens';
 
+/**
+ * The inspector shows files, terminal, tasks — nothing a streamed token
+ * changes — yet it sits under the component that owns chat state. Handlers are
+ * proxied by name; `request*` adapters keep their identity because panels use
+ * it to know when to reload.
+ */
+const StableWorkbenchInspector = memoWithLatestCallbacks(WorkbenchInspector, {
+  isHandler: (key) => /^(on|handle)[A-Z]/.test(key) || key === 'openSettingsSection',
+});
+
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
   activeTheme: ThemeManifest;
@@ -69,6 +84,15 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const [state, dispatch] = useReducer(chatUiReducer, undefined, createInitialChatUiState);
   const selfHealBusyRef = useRef(false);
   useEffect(() => installRendererSelfHeal(() => selfHealBusyRef.current), []);
+  // KaTeX stays out of the cold start, but the first reply that mounts before
+  // it loads paints without math and then reflows. Warm it once the shell is idle.
+  useEffect(
+    () =>
+      scheduleIdleTask(() => {
+        void loadStreamdownMathPlugin();
+      }),
+    [],
+  );
   const [hostLogEntries, setHostLogEntries] = useState<HostLogEntry[]>([]);
   const clearHostLog = useCallback(() => {
     setHostLogEntries([]);
@@ -481,6 +505,35 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     [ensureSession, state.activeScope],
   );
 
+  // Inspector inputs that are rebuilt per render but rarely differ in content.
+  const inspectorShell = useStructuralValue(shell);
+  const inspectorResize = useStructuralValue(rightPanelResize);
+  const inspectorSessionDocuments = useStructuralValue(sessionDocuments);
+  const inspectorComments = useStructuralValue(activeComments);
+  const openTaskSession = useLatestCallback(handleResumeSession);
+  const tasksContent = useMemo(
+    () => (
+      <SubAgentPanel
+        parentSessionId={parentSessionId}
+        request={requestSubAgent}
+        onOpenSession={openTaskSession}
+        children={tasksChildren}
+        batches={state.subagentBatches}
+        invocations={state.subagentInvocations}
+        streams={state.subagentStreams}
+      />
+    ),
+    [
+      parentSessionId,
+      requestSubAgent,
+      openTaskSession,
+      tasksChildren,
+      state.subagentBatches,
+      state.subagentInvocations,
+      state.subagentStreams,
+    ],
+  );
+
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
       <HostLogProvider value={{ entries: hostLogEntries, onClear: clearHostLog }}>
@@ -761,12 +814,12 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   }
                   composerDock={studioOpen ? null : composerColumn}
                   rightPanel={
-                    <WorkbenchInspector
+                    <StableWorkbenchInspector
                       showOverlayScrim={showOverlayScrim}
-                      shell={shell}
+                      shell={inspectorShell}
                       rightPanelOpen={rightPanelOpen}
                       rightPanelTab={rightPanelTab}
-                      rightPanelResize={rightPanelResize}
+                      rightPanelResize={inspectorResize}
                       isOverlayPresentation={inspectorOverlay}
                       runningJobCount={jobs.length}
                       onViewChange={setRightPanelView}
@@ -799,10 +852,10 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       inspectorDiff={inspectorFileDiff.diff}
                       activeMedia={activeMedia}
                       activeDocument={activeDocument}
-                      sessionDocuments={sessionDocuments}
+                      sessionDocuments={inspectorSessionDocuments}
                       handleOpenDocument={handleOpenDocument}
                       handleCommentLine={handleCommentLine}
-                      activeComments={activeComments}
+                      activeComments={inspectorComments}
                       handleAddDocComment={handleAddDocComment}
                       handleEditDocComment={handleEditDocComment}
                       handleDeleteDocComment={handleDeleteDocComment}
@@ -814,17 +867,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       terminalRecentDirs={terminalRecentDirs}
                       terminalJobMonitor={terminalJobMonitor}
                       tasksActiveCount={tasksActiveCount}
-                      tasksContent={
-                        <SubAgentPanel
-                          parentSessionId={parentSessionId}
-                          request={requestSubAgent}
-                          onOpenSession={handleResumeSession}
-                          children={tasksChildren}
-                          batches={state.subagentBatches}
-                          invocations={state.subagentInvocations}
-                          streams={state.subagentStreams}
-                        />
-                      }
+                      tasksContent={tasksContent}
                     />
                   }
                 />
