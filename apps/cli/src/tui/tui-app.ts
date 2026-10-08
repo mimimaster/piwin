@@ -393,7 +393,13 @@ export class TuiApp {
     this.foreground = { kind: 'reconciling', generation };
     const response = await this.link.request({ type: 'session/foreground-run', sessionId });
     if (epoch !== this.sessionEpoch) return;
-    this.foreground = applyForegroundRunResponse(this.foreground, response, generation, sessionId);
+    const answered = applyForegroundRunResponse(this.foreground, response, generation, sessionId);
+    // A run push that arrived while the question was in flight is newer than
+    // the answer. An answer of "nothing running", taken before the Host
+    // registered the run, must not put a confirmed running turn back to idle:
+    // the next message would then be sent as a new turn instead of queued.
+    if (answered.kind !== 'active' && this.isRunning()) return;
+    this.foreground = answered;
     if (this.foreground.kind !== 'active') {
       this.foreground = { kind: 'idle', generation };
       this.transcript = settleStreaming(this.transcript);
