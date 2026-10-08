@@ -5,6 +5,8 @@ import {
   describeBlocked,
   describeDispositionChange,
   describeRefusal,
+  needsRepair,
+  renderRepairPreview,
   transcriptRunIds,
   turnChangeActionItems,
   turnChangeItems,
@@ -114,6 +116,51 @@ describe('turn change actions', () => {
     expect(describeBlocked({ allowed: false, reason: 'permission-denied', affectedPaths })).toBe(
       '没有读写这些文件的权限：f0.ts、f1.ts、f2.ts、f3.ts、f4.ts、f5.ts 等 9 个',
     );
+  });
+});
+
+describe('repair', () => {
+  const stuck = summary({
+    changeSetId: 'c',
+    latestOperationId: 'op-1',
+    undo: { allowed: false, reason: 'needs-repair' },
+  });
+
+  it('is offered in place of undo when an operation stopped half way', () => {
+    expect(needsRepair(stuck)).toBe(true);
+    expect(needsRepair(summary({ changeSetId: 'c', undo: { allowed: false, reason: 'needs-repair' } }))).toBe(false);
+    expect(needsRepair(summary({ changeSetId: 'c', latestOperationId: 'op-1' }))).toBe(false);
+    expect(turnChangeActionItems(stuck).map((item) => item.value)).toEqual(['files', 'repair', 'close']);
+  });
+
+  it('says what happens to each file and whether the repair can finish', () => {
+    const clean = renderRepairPreview({
+      operationId: 'op-1',
+      changeSetId: 'c',
+      revision: 1,
+      status: 'needs-repair',
+      confirmationToken: 't',
+      files: [
+        { relativePath: 'a.ts', state: 'restored' },
+        { relativePath: 'b.ts', state: 'operation-content' },
+      ],
+    });
+    expect(clean.split('\n')).toEqual([
+      'a.ts — 已是操作前的样子',
+      'b.ts — 会放回操作前的样子',
+      '',
+      '修复后这一轮可以重新撤销或恢复。',
+    ]);
+    const partial = renderRepairPreview({
+      operationId: 'op-1',
+      changeSetId: 'c',
+      revision: 1,
+      status: 'needs-repair',
+      confirmationToken: 't',
+      files: [{ relativePath: 'c.ts', state: 'foreign' }],
+    });
+    expect(partial).toContain('c.ts — 被别的改动动过，不会覆盖');
+    expect(partial).toContain('有 1 个文件不会被覆盖');
   });
 });
 

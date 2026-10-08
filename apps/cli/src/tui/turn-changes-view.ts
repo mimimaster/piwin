@@ -1,5 +1,5 @@
 import type { SelectItem } from '@earendil-works/pi-tui';
-import type { TurnChangeAvailability, TurnChangeSummary } from '@piwin/contracts';
+import type { TurnChangeAvailability, TurnChangeRepairPreview, TurnChangeSummary } from '@piwin/contracts';
 import type { TranscriptState } from './transcript-model.js';
 
 /**
@@ -7,7 +7,7 @@ import type { TranscriptState } from './transcript-model.js';
  * Host records the changes and performs every undo and redo.
  */
 
-export type TurnChangeAction = 'files' | 'undo' | 'redo' | 'close';
+export type TurnChangeAction = 'files' | 'undo' | 'redo' | 'repair' | 'close';
 
 const PREVIEW_CHARS = 40;
 const MAX_LISTED_PATHS = 6;
@@ -108,13 +108,44 @@ export function turnChangeActionItems(summary: TurnChangeSummary): SelectItem[] 
     ? (['redo', '恢复这一轮的改动', summary.redo] as const)
     : (['undo', '撤销这一轮的改动', summary.undo] as const);
   const blocked = describeBlocked(availability);
-  if (blocked === undefined) {
+  if (needsRepair(summary)) {
+    items.push({
+      value: 'repair',
+      label: '修复上次没完成的操作',
+      description: '一次撤销或恢复写到一半停了，先把文件放回去',
+    });
+  } else if (blocked === undefined) {
     items.push({ value: action, label, description: undone ? '把文件改回这一轮结束时的样子' : '把文件改回这一轮开始前的样子' });
   } else {
     items.push({ value: 'close', label: `${label}（不可用）`, description: blocked });
   }
   items.push({ value: 'close', label: '关闭' });
   return items;
+}
+
+/** An undo or redo of this turn stopped half way and the Host can name the operation. */
+export function needsRepair(summary: TurnChangeSummary): boolean {
+  const stuck = (availability: TurnChangeAvailability): boolean =>
+    !availability.allowed && availability.reason === 'needs-repair';
+  return summary.latestOperationId !== null && (stuck(summary.undo) || stuck(summary.redo));
+}
+
+const REPAIR_STATE: Record<TurnChangeRepairPreview['files'][number]['state'], string> = {
+  restored: '已是操作前的样子',
+  'operation-content': '会放回操作前的样子',
+  foreign: '被别的改动动过，不会覆盖',
+};
+
+/** What a repair would do, file by file, and whether it can finish the job. */
+export function renderRepairPreview(preview: TurnChangeRepairPreview): string {
+  const foreign = preview.files.filter((file) => file.state === 'foreign').length;
+  return [
+    ...preview.files.map((file) => `${file.relativePath} — ${REPAIR_STATE[file.state]}`),
+    '',
+    foreign === 0
+      ? '修复后这一轮可以重新撤销或恢复。'
+      : `有 ${foreign} 个文件不会被覆盖，需要你手动处理后再修复一次。`,
+  ].join('\n');
 }
 
 /** A line for the transcript when a turn's changes are taken back or restored. */

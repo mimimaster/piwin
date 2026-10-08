@@ -3,6 +3,8 @@ import type {
   TurnChangeDirection,
   TurnChangeFileDiff,
   TurnChangeFilePage,
+  TurnChangeOperationEntry,
+  TurnChangeRepairPreview,
   TurnChangeSummary,
 } from '@piwin/contracts';
 import { ChoiceOverlay } from './choice-overlay.js';
@@ -13,6 +15,7 @@ import {
   describeBlocked,
   describeDispositionChange,
   describeRefusal,
+  renderRepairPreview,
   transcriptRunIds,
   turnChangeActionItems,
   turnChangeItems,
@@ -134,6 +137,7 @@ export class TuiTurnChangeController {
           const action = value as TurnChangeAction;
           if (action === 'files') this.showFiles(summary).catch(this.options.onError);
           else if (action === 'undo' || action === 'redo') this.confirm(summary, action);
+          else if (action === 'repair') this.repair(summary).catch(this.options.onError);
         },
         onCancel: () => modals.close(),
       }),
@@ -193,6 +197,68 @@ export class TuiTurnChangeController {
         )
       : undefined;
     this.remember(refreshed ?? { ...summary, disposition: undo ? 'undone' : 'applied' });
+  }
+
+  /**
+   * Finish an undo or redo that stopped half way. The Host previews what it
+   * would write, hands back a token bound to that preview, and refuses the
+   * run if the files moved in between; nothing is overwritten on a guess.
+   */
+  private async repair(summary: TurnChangeSummary): Promise<void> {
+    const { link, modals } = this.options;
+    const operationId = summary.latestOperationId;
+    if (operationId === null) return;
+    if (this.options.isRunning()) {
+      this.options.onHint('运行中不能改动文件，先按 Esc 中断');
+      return;
+    }
+    // Repair commands are addressed by the revision the stuck operation targeted.
+    const operation = hostData<TurnChangeOperationEntry>(
+      await link.request({ type: 'turn-changes/operation', operationId }),
+    );
+    const expectedRevision = operation.revision;
+    const preview = hostData<TurnChangeRepairPreview>(
+      await link.request({ type: 'turn-changes/recovery-preview', operationId, expectedRevision }),
+    );
+    modals.show(
+      new ChoiceOverlay({
+        title: '修复没完成的操作',
+        message: renderRepairPreview(preview),
+        items: [
+          { value: 'cancel', label: '先不修复' },
+          { value: 'go', label: '修复' },
+        ],
+        onSelect: (value) => {
+          modals.close();
+          if (value !== 'go') return;
+          this.runRepair(operationId, expectedRevision, preview.confirmationToken).catch(this.options.onError);
+        },
+        onCancel: () => modals.close(),
+      }),
+    );
+  }
+
+  private async runRepair(operationId: string, expectedRevision: number, confirmationToken: string): Promise<void> {
+    const { link } = this.options;
+    const ran = await link.request({
+      type: 'turn-changes/recovery-run',
+      operationId,
+      expectedRevision,
+      confirmationToken,
+    });
+    if (!ran.success) {
+      this.options.onNotice('error', `修复没有执行 — ${describeRefusal(ran.error)}`);
+      return;
+    }
+    const verified = hostData<{ verified: boolean }>(
+      await link.request({ type: 'turn-changes/recovery-verify', operationId, expectedRevision }),
+    );
+    this.options.onNotice(
+      verified.verified ? 'info' : 'error',
+      verified.verified
+        ? '已修复，这一轮可以重新撤销或恢复'
+        : '还有文件没回到操作前的样子，处理后再用 /changes 修复一次',
+    );
   }
 
   private remember(next: TurnChangeSummary): void {

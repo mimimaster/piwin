@@ -82,6 +82,15 @@ function setup(options: { listed?: TurnChangeSummary[]; undoError?: string; runn
         // The Host flips the turn; the next listing reflects it.
         listed = listed.map((entry) => ({ ...entry, disposition: 'undone', redo: { allowed: true } }));
         return reply(command, {});
+      case 'turn-changes/operation':
+        return reply(command, { operationId: 'op-1', revision: 3, status: 'needs-repair' });
+      case 'turn-changes/recovery-preview':
+        return reply(command, {
+          files: [{ relativePath: 'src/login.ts', state: 'operation-content' }],
+          confirmationToken: 'repair-token',
+        });
+      case 'turn-changes/recovery-verify':
+        return reply(command, { verified: true, files: [] });
       default:
         return reply(command, {});
     }
@@ -172,6 +181,23 @@ describe('TuiTurnChangeController', () => {
     await controller.undoLatest();
     expect(modals.current).toBeUndefined();
     expect(port.onHint).toHaveBeenCalledWith('运行中不能改动文件，先按 Esc 中断');
+  });
+
+  it('repairs a half-finished operation with the token of the preview it showed', async () => {
+    const stuck = summary({ latestOperationId: 'op-1', undo: { allowed: false, reason: 'needs-repair' } });
+    const { controller, modals, sent, port, settle } = setup({ listed: [stuck] });
+    await controller.open();
+    // pick the turn, then: files, repair
+    modals.press(ENTER, DOWN, ENTER);
+    await settle();
+    expect(modals.text()).toContain('src/login.ts — 会放回操作前的样子');
+    expect(sent('turn-changes/recovery-run')).toEqual([]);
+    modals.press(DOWN, ENTER);
+    await settle();
+    expect(sent('turn-changes/recovery-run')).toEqual([
+      { type: 'turn-changes/recovery-run', operationId: 'op-1', expectedRevision: 3, confirmationToken: 'repair-token' },
+    ]);
+    expect(port.onNotice).toHaveBeenCalledWith('info', '已修复，这一轮可以重新撤销或恢复');
   });
 
   it('announces an undo made from another shell', async () => {
