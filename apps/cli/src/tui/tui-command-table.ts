@@ -8,6 +8,7 @@ import type { TuiSessionSwitcher } from './tui-session-switcher.js';
 import type { TuiSubagentController } from './tui-subagent-controller.js';
 import type { TuiTurnActions } from './tui-turn-actions.js';
 import type { TuiTurnChangeController } from './tui-turn-change-controller.js';
+import type { TuiWalkthroughController } from './tui-walkthrough-controller.js';
 
 type CommandHandler = (argument: string) => void | Promise<void>;
 
@@ -21,6 +22,7 @@ export type TuiCommandTableDeps = {
   branches: TuiBranchController;
   subagents: TuiSubagentController;
   turnChanges: TuiTurnChangeController;
+  walkthroughs: TuiWalkthroughController;
   turns: TuiTurnActions;
   sessionSwitcher: TuiSessionSwitcher;
   startDraftSession: () => void;
@@ -64,6 +66,7 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     compact: (argument) => turns.compact(argument),
     retry: (argument) => turns.retry(argument === 'keep'),
     edit: () => turns.beginEditingLastTurn(),
+    walkthrough: (argument) => deps.walkthroughs.open(argument === 'new'),
     changes: () => deps.turnChanges.open(),
     undo: () => deps.turnChanges.undoLatest(),
     branches: () => branches.open(),

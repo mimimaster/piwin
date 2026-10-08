@@ -46,16 +46,12 @@ import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { TuiModalStack, createExtensionModal, createPermissionModal } from './tui-modals.js';
 import { describePromptExtras } from './queued-turns.js';
-import { TuiPlanController } from './tui-plan-controller.js';
-import { TuiQueueController } from './tui-queue-controller.js';
+import { TuiSessionFeatures } from './tui-session-features.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
-import { TuiSubagentController } from './tui-subagent-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
-import { TuiTurnChangeController } from './tui-turn-change-controller.js';
 import { ProjectFiles } from './project-files.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiAutocompleteProvider } from './tui-autocomplete.js';
-import { TuiBranchController } from './tui-branch-controller.js';
 import { editorTheme, style } from './tui-theme.js';
 
 const SESSION_LOOKUP_LIMIT = 500;
@@ -98,12 +94,8 @@ export class TuiApp {
   private sessionProjectId: string | undefined;
   private readonly files: ProjectFiles;
   private readonly attachments: TuiAttachmentController;
-  private readonly plans: TuiPlanController;
-  private readonly queue: TuiQueueController;
-  private readonly branches: TuiBranchController;
+  private readonly features: TuiSessionFeatures;
   private readonly turns: TuiTurnActions;
-  private readonly subagents: TuiSubagentController;
-  private readonly turnChanges: TuiTurnChangeController;
   private readonly runCommand: (name: string, argument: string) => Promise<void>;
   /** `/edit`: the next prompt replaces this user turn as a sibling branch. */
   private editingMessageId: string | undefined;
@@ -160,71 +152,26 @@ export class TuiApp {
       this.transcript = appendNotice(this.transcript, tone, text);
       this.refreshChrome();
     };
-    this.plans = new TuiPlanController({
-      link: this.link,
-      modals: this.modals,
-      getSessionId: () => this.sessionId,
-      onChanged: () => this.refreshChrome(),
-      onHint: (text) => this.flashHint(text),
-      onNotice: notify,
-      onError: (error) => this.reportError(error),
-    });
-    this.queue = new TuiQueueController({
-      link: this.link,
-      modals: this.modals,
-      getSessionId: () => this.sessionId,
-      onChanged: () => this.refreshChrome(),
-      onHint: (text) => this.flashHint(text),
-      getRunId: () => knownForegroundRunId(this.foreground),
-      onSteered: (turn) => {
-        this.transcript = appendLocalUserMessage(this.transcript, turn.userMessageId, turn.input.text, [
-          ...describePromptExtras(turn.input),
-          '插入当前回合',
-        ]);
-      },
-      onStarted: (turn) => {
-        this.transcript = appendLocalUserMessage(
-          this.transcript,
-          turn.userMessageId,
-          turn.input.text,
-          describePromptExtras(turn.input),
-        );
-      },
-      onEdit: (text) => {
-        this.editor.setText(text);
-        this.tui.requestRender();
-      },
-      onError: (error) => this.reportError(error),
-    });
-    this.branches = new TuiBranchController({
-      link: this.link,
-      modals: this.modals,
-      getSessionId: () => this.sessionId,
-      reloadSession: (sessionId) => this.openSession(sessionId),
-      onChanged: () => this.refreshChrome(),
-      onHint: (text) => this.flashHint(text),
-      onError: (error) => this.reportError(error),
-    });
-    this.subagents = new TuiSubagentController({
+    this.features = new TuiSessionFeatures({
       link: this.link,
       modals: this.modals,
       embedded: options.embedded,
       getSessionId: () => this.sessionId,
+      getRunId: () => knownForegroundRunId(this.foreground),
+      getTranscript: () => this.transcript,
+      isRunning: () => this.isRunning(),
       openSession: (sessionId) => this.openSession(sessionId),
       onChanged: () => this.refreshChrome(),
       onHint: (text) => this.flashHint(text),
       onNotice: notify,
       onError: (error) => this.reportError(error),
-    });
-    this.turnChanges = new TuiTurnChangeController({
-      link: this.link,
-      modals: this.modals,
-      getSessionId: () => this.sessionId,
-      getTranscript: () => this.transcript,
-      isRunning: () => this.isRunning(),
-      onHint: (text) => this.flashHint(text),
-      onNotice: notify,
-      onError: (error) => this.reportError(error),
+      echoUser: (messageId, text, annotations) => {
+        this.transcript = appendLocalUserMessage(this.transcript, messageId, text, annotations);
+      },
+      setComposerText: (text) => {
+        this.editor.setText(text);
+        this.tui.requestRender();
+      },
     });
     this.turns = new TuiTurnActions({
       request: (command) => this.link.request(command),
@@ -268,11 +215,12 @@ export class TuiApp {
       embedded: options.embedded,
       composer: this.composer,
       attachments: this.attachments,
-      plans: this.plans,
-      queue: this.queue,
-      branches: this.branches,
-      subagents: this.subagents,
-      turnChanges: this.turnChanges,
+      plans: this.features.plans,
+      queue: this.features.queue,
+      branches: this.features.branches,
+      subagents: this.features.subagents,
+      turnChanges: this.features.turnChanges,
+      walkthroughs: this.features.walkthroughs,
       turns: this.turns,
       sessionSwitcher: this.sessionSwitcher,
       startDraftSession: () => this.startDraftSession(),
@@ -358,12 +306,7 @@ export class TuiApp {
     if (resume.model !== undefined) this.composer.adoptSessionModel(resume.model);
     this.modals.clearQueue();
     await this.reconcileForegroundRun(sessionId, epoch);
-    await Promise.all([
-      this.plans.load(sessionId),
-      this.queue.load(sessionId),
-      this.branches.load(sessionId),
-      this.subagents.load(sessionId),
-    ]);
+    await this.features.load(sessionId);
     this.editingMessageId = undefined;
     await this.loadPendingPermissions(sessionId, epoch);
     // The previous session's lines are still on screen and in scrollback.
@@ -404,11 +347,7 @@ export class TuiApp {
     this.sessionId = undefined;
     this.sessionName = undefined;
     this.sessionProjectId = this.projectId;
-    this.plans.reset();
-    this.queue.reset();
-    this.branches.reset();
-    this.subagents.reset();
-    this.turnChanges.reset();
+    this.features.reset();
     this.editingMessageId = undefined;
     this.transcript = EMPTY_TRANSCRIPT;
     this.olderCursor = undefined;
@@ -544,7 +483,7 @@ export class TuiApp {
       if (this.isRunning() && replacedRunId === undefined) {
         // A turn is running: this one waits its turn on the Host and is
         // echoed when it starts. `/steer` is the way into the running turn.
-        const place = await this.queue.submit(sessionId, input, clientMessageId);
+        const place = await this.features.queue.submit(sessionId, input, clientMessageId);
         this.flashHint(`已排队（第 ${place} 条），/queue 查看`);
         return;
       }
@@ -631,15 +570,7 @@ export class TuiApp {
       }
       this.refreshChrome();
     }
-    if (
-      this.plans.handlePush(push) ||
-      this.queue.handlePush(push) ||
-      this.branches.handlePush(push) ||
-      this.subagents.handlePush(push) ||
-      this.turnChanges.handlePush(push)
-    ) {
-      return;
-    }
+    if (this.features.handlePush(push)) return;
     switch (push.type) {
       case 'event':
         if (push.sessionId !== this.sessionId) return;
@@ -820,10 +751,7 @@ export class TuiApp {
       scope,
       ...this.composer.describe(),
       this.attachments.describe(),
-      this.plans.describe(),
-      this.queue.describe(),
-      this.branches.describe(),
-      this.subagents.describe(),
+      ...this.features.describe(),
       this.editingMessageId === undefined ? undefined : '改写上一条提问 · Ctrl+C 取消',
       usage,
       this.options.mock ? 'mock' : undefined,
