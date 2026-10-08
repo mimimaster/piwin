@@ -21,3 +21,4 @@ export * from './device-tools/health-background-sync.js';
 export * from './host-wake.js';
 export * from './live-activity-bridge.js';
 export * from './native-live-audio.js';
+export * from './media-upload.js';
