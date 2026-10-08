@@ -66,6 +66,23 @@ describe('HostRuntime status capabilities', () => {
     await runtime.dispose();
   });
 
+  it('composes the mock subagent stand-in only on request, without claiming worktrees', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-status-mock-subagents-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, mockSubagents: true, piwinRoot: rootDir });
+    const status = await runtime.handleCommand({ type: 'host/status' });
+    if (!status.success) throw new Error(status.error);
+    expect((status.data as HostStatusData).capabilities.subagentWorktree).toBe(false);
+    const started = await runtime.handleCommand({
+      type: 'subagent/batch-start',
+      request: {
+        parentSessionId: 'session-1',
+        tasks: [{ id: 'task-1', parentSessionId: 'session-1', task: 'mock lifecycle' }],
+      },
+    });
+    expect(started.success).toBe(true);
+    await runtime.dispose();
+  });
+
   it('returns a stable not-ready error for every batch command', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-status-batch-'));
     const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });

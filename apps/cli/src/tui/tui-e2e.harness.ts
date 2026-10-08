@@ -125,6 +125,7 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
   const runtime = new HostRuntime({
     mode: 'sdk',
     mock: true,
+    mockSubagents: true,
     piwinRoot,
     ...(options.hangingRuns === true ? { testFixture: 'hang-until-abort' as const } : {}),
   });

@@ -14,11 +14,27 @@ import { createSessionRecord, getSessionRecord, upsertSessionRecord } from '@piw
 
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { indexRecordToSummary } from './session-summary-map.js';
+import type { SubagentOrchestrator } from './subagent-orchestrator.js';
 import type { SubagentBatchHandle } from './subagent-orchestrator-types.js';
 
 const NOT_IN_MOCK = 'mock Host 不执行子代理的工作副本操作';
 
-export type MockSubagentOrchestrator = {
+/**
+ * Run, plan and permission paths reach the orchestrator too (abort cancels a
+ * run's batches, joins wait on them). Typing these against the real class
+ * keeps the one cast in host-runtime-init honest: every method the Host can
+ * call exists here, as a no-op where the mock has nothing to track.
+ */
+type HostReachedMethods = Pick<
+  SubagentOrchestrator,
+  | 'cancelBatchesForParentRun'
+  | 'joinBatch'
+  | 'lookupBatchOwner'
+  | 'getRunningInvocationActivity'
+  | 'updateInvocationActivity'
+>;
+
+export type MockSubagentOrchestrator = HostReachedMethods & {
   startBatch(request: SubagentBatchRequest, parentRunId?: string): SubagentBatchHandle;
   getBatchProjectionAsync(
     runId: string,
@@ -86,6 +102,8 @@ export function createMockSubagentOrchestrator(host: {
     }
   };
 
+  const batches = new Map<string, Promise<SubagentBatchResult>>();
+
   return {
     startBatch(request) {
       const runId = randomUUID();
@@ -95,6 +113,7 @@ export function createMockSubagentOrchestrator(host: {
         status: 'completed',
         results: [],
       };
+      batches.set(runId, settled.then(() => result));
       return {
         runId,
         accepted: settled.then(() => undefined),
@@ -108,6 +127,13 @@ export function createMockSubagentOrchestrator(host: {
       results: [],
     }),
     cancelBatch: async () => 'cancelled' as const,
+    // Batches settle on their own; there is no running work to cancel.
+    cancelBatchesForParentRun: () => undefined,
+    joinBatch: (runId) =>
+      batches.get(runId) ?? Promise.resolve({ runId, status: 'completed', results: [] }),
+    lookupBatchOwner: async () => undefined,
+    getRunningInvocationActivity: () => undefined,
+    updateInvocationActivity: async () => undefined,
     /**
      * Follow-ups keep the instruction as the child's last preview and flip it
      * through the lifecycle. `subagent/updated` is a projection, so a flush

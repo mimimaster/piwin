@@ -106,6 +106,12 @@ export function extensionApplyDataFromRecord(
 export type HostRuntimeOptions = {
   mode: HostMode;
   mock?: boolean;
+  /**
+   * Mock mode only: compose the subagent lifecycle stand-in so shells can
+   * exercise start, result and follow-up. Off by default, so a plain mock Host
+   * keeps reporting subagent orchestration as not ready.
+   */
+  mockSubagents?: boolean;
   piwinRoot?: string;
   /**
    * Cross-process ownership of the canonical piwin data root. Production

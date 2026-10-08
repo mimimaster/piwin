@@ -593,10 +593,12 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       // Lifecycle stand-in: same commands, no worker processes or worktrees.
       // The field's type is the production class; only the methods the command
       // path calls are implemented, so the cast stays at this one boundary.
-      deps.subagentOrchestrator = createMockSubagentOrchestrator({
-        ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
-        push: (message) => deps.push(message),
-      }) as unknown as SubagentOrchestrator;
+      if (options.mockSubagents === true) {
+        deps.subagentOrchestrator = createMockSubagentOrchestrator({
+          ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+          push: (message) => deps.push(message),
+        }) as unknown as SubagentOrchestrator;
+      }
     } else {
       deps.turnChangeRuntime = openTurnChangeRuntime({
         hostInstanceId: deps.hostInstanceId,
