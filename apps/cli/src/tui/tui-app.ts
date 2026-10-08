@@ -25,6 +25,7 @@ import {
   applyHostPushToForeground,
   initialForegroundRunState,
   knownForegroundRunId,
+  requestPromptWithForeground,
   type ForegroundRunState,
 } from '@piwin/host-client';
 import { TextOverlay } from './choice-overlay.js';
@@ -32,6 +33,7 @@ import { StatusLine, describeRunPhase } from './status-line.js';
 import {
   EMPTY_TRANSCRIPT,
   appendLocalUserMessage,
+  removeLocalUserMessage,
   appendNotice,
   appendNoticeOnce,
   applyAgentEvent,
@@ -530,15 +532,35 @@ export class TuiApp {
       }
       this.transcript = appendLocalUserMessage(this.transcript, clientMessageId, text, describePromptExtras(input));
       this.refreshChrome();
-      hostData(
-        await this.link.request({
-          type: 'session/prompt',
-          sessionId,
-          input,
-          // Naming the run makes the Host refuse if a different turn is running by now.
-          foreground: replacedRunId === undefined ? { kind: 'if-idle' } : { kind: 'replace-run', runId: replacedRunId },
-        }),
-      );
+      const response =
+        replacedRunId === undefined
+          ? // A turn this shell has not heard about yet (its running push is still
+            // on the way) makes the Host refuse an if-idle send; the shared
+            // admission then queues it, exactly as Desktop's composer does.
+            await requestPromptWithForeground({
+              request: (command) => this.link.request(command),
+              sessionId,
+              input,
+              queueWhenBusy: true,
+              onQueue: () => {
+                this.transcript = removeLocalUserMessage(this.transcript, clientMessageId);
+                return this.features.queue.request(sessionId, input, clientMessageId);
+              },
+            })
+          : // Naming the run makes the Host refuse if a different turn is running by now.
+            await this.link.request({
+              type: 'session/prompt',
+              sessionId,
+              input,
+              foreground: { kind: 'replace-run', runId: replacedRunId },
+            });
+      if (response.command === 'session/queued-turn-submit') {
+        const place = this.features.queue.accept(response);
+        this.refreshChrome();
+        this.flashHint(`已排队（第 ${place} 条），/queue 查看`);
+        return;
+      }
+      hostData(response);
       if (branchFromMessageId !== undefined) {
         // The old turn and its answer left the active path; reload rather than patch rows.
         this.editingMessageId = undefined;

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { HostPush, PromptInput, QueuedTurnRecord } from '@piwin/contracts';
+import type { HostPush, HostResponse, PromptInput, QueuedTurnRecord } from '@piwin/contracts';
 import { ChoiceOverlay } from './choice-overlay.js';
 import {
   applyQueuedTurn,
@@ -56,15 +56,23 @@ export class TuiQueueController {
 
   /** Queue a prompt behind the running turn; resolves to its place in line. */
   public async submit(sessionId: string, input: PromptInput, userMessageId: string): Promise<number> {
-    const data = hostData<{ queuedTurn: QueuedTurnRecord }>(
-      await this.options.link.request({
-        type: 'session/queued-turn-submit',
-        sessionId,
-        queuedTurnId: randomUUID(),
-        userMessageId,
-        input,
-      }),
-    );
+    return this.accept(await this.request(sessionId, input, userMessageId));
+  }
+
+  /** Ask the Host to queue a prompt; `accept` reads the answer. */
+  public request(sessionId: string, input: PromptInput, userMessageId: string): Promise<HostResponse> {
+    return this.options.link.request({
+      type: 'session/queued-turn-submit',
+      sessionId,
+      queuedTurnId: randomUUID(),
+      userMessageId,
+      input,
+    });
+  }
+
+  /** Adopt a queued-turn-submit answer; resolves to the turn's place in line. */
+  public accept(response: HostResponse): number {
+    const data = hostData<{ queuedTurn: QueuedTurnRecord }>(response);
     this.apply(data.queuedTurn);
     return Math.max(1, this.pending.findIndex((turn) => turn.queuedTurnId === data.queuedTurn.queuedTurnId) + 1);
   }

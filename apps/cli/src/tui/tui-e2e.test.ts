@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // Each test starts a Host and waits on real pushes; the harness has its own shorter, explaining timeout.
 vi.setConfig({ testTimeout: 20_000 });
 import { KEY, startTuiHarness, type TuiHarness } from './tui-e2e.harness.js';
+import { hostData } from './tui-host-link.js';
 
 /** A real 1x1 PNG: the Host inspects image bytes when it stores an attachment. */
 const PNG_1X1 = Buffer.from(
@@ -156,6 +157,40 @@ describe('TUI end to end against a mock Host', () => {
       tui.mark();
       await tui.submit('/queue');
       await tui.waitFor('1. 排在后面的一条');
+    });
+
+    it('queues a message sent before the running push arrives', async () => {
+      tui = await startTuiHarness({ hangingRuns: true });
+      await tui.submit('先开个会话');
+      await tui.waitFor('Esc 中断');
+      await tui.press(KEY.escape);
+      await tui.waitForIdle();
+      const sessionId = await tui.latestSessionId();
+      // The window from the report: the Host already runs a turn, but the
+      // running push has not reached this shell, so it still looks idle.
+      const release = tui.holdPushes();
+      hostData(
+        await tui.asOtherShell({
+          type: 'session/prompt',
+          sessionId,
+          input: { text: '另一端先发的一轮' },
+          foreground: { kind: 'if-idle' },
+        }),
+      );
+      expect(tui.isRunning()).toBe(false);
+      tui.mark();
+      await tui.submit('紧接着的一条');
+      await tui.waitFor('已排队（第 1 条）');
+      expect(tui.seen()).not.toContain('foreground-run-mismatch');
+      const queued = hostData<{ queuedTurns: Array<{ input: { text: string } }> }>(
+        await tui.asOtherShell({ type: 'session/queued-turn-list', sessionId }),
+      );
+      expect(queued.queuedTurns.map((turn) => turn.input.text)).toContain('紧接着的一条');
+      release();
+      await tui.waitFor('Esc 中断');
+      tui.mark();
+      await tui.submit('/queue');
+      await tui.waitFor('1. 紧接着的一条');
     });
 
     it('interrupts the running turn with Escape', async () => {

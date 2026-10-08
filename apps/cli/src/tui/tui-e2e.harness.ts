@@ -13,7 +13,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { TuiMainScreen, type Terminal } from '@earendil-works/pi-tui';
-import type { HostCommand, HostResponse } from '@piwin/contracts';
+import type { HostCommand, HostPush, HostResponse } from '@piwin/contracts';
 import type { HostClient } from '@piwin/host-client';
 import { HostRuntime } from '@piwin/host-runtime';
 import { HostServer } from '@piwin/host-server';
@@ -105,10 +105,17 @@ export type TuiHarness = {
   waitFor: (text: string) => Promise<void>;
   /** Everything drawn since the last mark, without escape sequences. */
   seen: () => string;
+  /**
+   * Hold the Host's pushes to the TUI, as a slow link would; they arrive in
+   * order when the returned release is called. Opens timing windows exactly.
+   */
+  holdPushes: () => () => void;
   /** Send a command as another shell attached to the same Host would. */
   asOtherShell: (command: HostCommand) => Promise<HostResponse>;
   /** Id of the most recently updated session on the Host. */
   latestSessionId: () => Promise<string>;
+  /** Whether a turn is running in the TUI's view right now. */
+  isRunning: () => boolean;
   /** Resolve once no turn is running in the TUI's view. */
   waitForIdle: () => Promise<void>;
   /** Files the TUI handed to a browser. Nothing is ever really opened in a test. */
@@ -152,8 +159,27 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
 
   const request = (shell: HostClient) => (command: HostCommand) =>
     shell.request(command, { idempotencyKey: randomUUID() });
+  // Pushes reach the TUI through this gate so a test can hold them back.
+  let heldPushes: HostPush[] | undefined;
+  const pushListeners = new Set<(push: HostPush) => void>();
+  client.subscribePush((push) => {
+    if (heldPushes !== undefined) heldPushes.push(push);
+    else for (const listener of pushListeners) listener(push);
+  });
+  const gatedClient = new Proxy(client, {
+    get(target, property, receiver) {
+      if (property === 'subscribePush') {
+        return (listener: (push: HostPush) => void) => {
+          pushListeners.add(listener);
+          return () => pushListeners.delete(listener);
+        };
+      }
+      const value: unknown = Reflect.get(target, property, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
   const link: TuiHostLink = {
-    client,
+    client: gatedClient,
     kind: 'attached',
     endpoint: address.url,
     request: request(client),
@@ -224,6 +250,14 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
       }
     },
     seen: () => terminal.textSince(markAt),
+    holdPushes: () => {
+      heldPushes ??= [];
+      return () => {
+        const pending = heldPushes ?? [];
+        heldPushes = undefined;
+        for (const push of pending) for (const listener of pushListeners) listener(push);
+      };
+    },
     asOtherShell: request(other),
     latestSessionId: async () => {
       const listed = hostData<{ sessions: Array<{ sessionId: string }> }>(
@@ -236,6 +270,7 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
       );
       return listed.sessions[0]?.sessionId ?? '';
     },
+    isRunning: () => app.isRunning(),
     waitForIdle: async () => {
       const deadline = Date.now() + WAIT_TIMEOUT_MS;
       while (app.isRunning()) {

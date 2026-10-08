@@ -86,6 +86,12 @@ export function appendLocalUserMessage(
   return { ...state, entries: [...state.entries, entry] };
 }
 
+/** Take back a local echo whose prompt went to the queue instead; it is echoed again when it starts. */
+export function removeLocalUserMessage(state: TranscriptState, id: string): TranscriptState {
+  const entries = state.entries.filter((entry) => entry.id !== id);
+  return entries.length === state.entries.length ? state : { ...state, entries };
+}
+
 export function appendNotice(
   state: TranscriptState,
   tone: TranscriptNoticeEntry['tone'],
