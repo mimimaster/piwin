@@ -32,6 +32,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@earendil-works/pi-tui':
+        specifier: 0.84.2
+        version: 0.84.2
       '@piwin/browser':
         specifier: workspace:*
         version: link:../../packages/browser
@@ -2164,6 +2167,7 @@ packages:
   '@lancedb/lancedb@0.37.1':
     resolution: {integrity: sha512-l+si3t+bQ1JNxrnEfbbfKt9gWk2HcWYWx0dzoEBTVAs8B0BP79OrAv+mKTJ0EwG5wRDS3MwEChEg0g0Wh8I3tQ==}
     engines: {node: '>= 18'}
+    cpu: [x64, arm64]
     os: [darwin, linux, win32]
     peerDependencies:
       '@types/node': '>=18'

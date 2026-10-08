@@ -7,6 +7,7 @@ import { commandAuth } from './auth-command.js';
 import { commandAgents } from './agents-command.js';
 import { commandCards } from './cards-command.js';
 import { commandChat } from './chat-command.js';
+import { commandTui } from './tui/tui-command.js';
 import { commandConfig } from './config-command.js';
 import { commandContext } from './context-command.js';
 import { commandCron } from './cron-command.js';
@@ -68,6 +69,7 @@ Usage:
   piwin session lifecycle apply --plan <plan-id> [--mock]
   piwin status [--project <path>] [--session <id>] [--mock]
   piwin chat <text> [--project <path>] [--mode sdk|rpc] [--agent pi|grok] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass|unrestricted] [--scheme <id>] [--ref <path>…]
+  piwin tui [--session <id>] [--continue] [--project <projectId>] [--embedded] [--mock]
   piwin scheme list [--mock]
   piwin scheme show <id> [--mock]
   piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass|unrestricted]
@@ -216,6 +218,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'chat') {
     await commandChat(argv);
+    return;
+  }
+  if (command === 'tui') {
+    await commandTui(argv);
     return;
   }
   if (command === 'scheme') {

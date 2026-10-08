@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
@@ -136,7 +136,7 @@ function checkProductionImports() {
     for (const filePath of listProductionSourceFiles(applicationPath)) {
       const sourceText = readFileSync(filePath, 'utf8');
       for (const moduleSpecifier of extractModuleSpecifiers(sourceText)) {
-        if (isPiImport(moduleSpecifier)) {
+        if (isPiImport(moduleSpecifier) && !isTerminalRendererImport(filePath, moduleSpecifier)) {
           violations.push(`${formatPath(filePath)} imports Pi package ${moduleSpecifier}`);
         }
         if (moduleSpecifier === '@piwin/agent-host') {
@@ -328,6 +328,16 @@ function extractModuleSpecifiers(sourceText) {
 
 function isPiImport(moduleSpecifier) {
   return moduleSpecifier.startsWith('@earendil-works/pi-');
+}
+
+/**
+ * ADR 0086: the CLI's TUI renders with Pi's terminal library. It carries no
+ * agent, model or session semantics, so it is the one Pi package allowed
+ * outside agent-host — and only under the CLI's `tui/` directory.
+ */
+function isTerminalRendererImport(filePath, moduleSpecifier) {
+  const cliTuiSourceRoot = join(repositoryRoot, 'apps', 'cli', 'src', 'tui') + sep;
+  return moduleSpecifier === '@earendil-works/pi-tui' && filePath.startsWith(cliTuiSourceRoot);
 }
 
 function isApplicationImport(moduleSpecifier) {

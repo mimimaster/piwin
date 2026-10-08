@@ -350,7 +350,7 @@ ADR [0065](./adr/0065-piwin-live-voice-work-session.md).
 Same host, same config root:
 
 ```bash
-piwin                 # interactive
+piwin tui             # interactive terminal shell (ADR 0086)
 piwin chat "..."      # one-shot
 piwin session list
 piwin skill install <id>

@@ -42,14 +42,25 @@ export async function resolveCliAttachedClientId(
   return readCliClientPrincipalId(piwinRoot ?? getPiwinRoot(), endpoint);
 }
 
+export type CliHostAttachOptions = {
+  /** Long-lived shells (TUI) reconnect; one-shot commands fail fast. */
+  autoReconnect?: boolean;
+  /**
+   * Receive session pushes only for sessions named through
+   * `updateSubscriptions`. One-shot commands leave it off and get every push.
+   */
+  liveSubscriptions?: boolean;
+};
+
 export async function connectCliAttachedHost(
   target: CliHostAttachTarget,
   piwinRoot?: string,
+  options: CliHostAttachOptions = {},
 ): Promise<HostClient> {
   const clientId = await resolveCliAttachedClientId(target.endpoint, piwinRoot);
   const transport = new WebSocketHostTransport({
     endpoint: target.endpoint,
-    autoReconnect: false,
+    autoReconnect: options.autoReconnect ?? false,
     webSocketFactory: createNodeHostWebSocket,
   });
   const client = new HostClient({
@@ -62,6 +73,7 @@ export async function connectCliAttachedHost(
       cursorBatches: true,
       boundedReplay: true,
       hydration: false,
+      ...(options.liveSubscriptions === true ? { liveSubscriptions: true } : {}),
     },
     ...(target.authToken === undefined ? {} : { authToken: target.authToken }),
   });
