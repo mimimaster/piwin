@@ -44,6 +44,7 @@ import { findLastUserMessageId } from './tui-composer-options.js';
 import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { TuiModalStack, createExtensionModal, createPermissionModal } from './tui-modals.js';
+import { TuiPlanController } from './tui-plan-controller.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { ProjectFiles } from './project-files.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
@@ -90,6 +91,7 @@ export class TuiApp {
   private sessionProjectId: string | undefined;
   private readonly files: ProjectFiles;
   private readonly attachments: TuiAttachmentController;
+  private readonly plans: TuiPlanController;
   private projects: RemoteProjectSummary[] = [];
   private readonly composer: TuiComposerProfile;
   private context: SessionContextSnapshot | undefined;
@@ -138,6 +140,19 @@ export class TuiApp {
         this.transcript = appendNotice(this.transcript, tone, text);
         this.refreshChrome();
       },
+    });
+    const notify = (tone: 'info' | 'error', text: string): void => {
+      this.transcript = appendNotice(this.transcript, tone, text);
+      this.refreshChrome();
+    };
+    this.plans = new TuiPlanController({
+      link: this.link,
+      modals: this.modals,
+      getSessionId: () => this.sessionId,
+      onChanged: () => this.refreshChrome(),
+      onHint: (text) => this.flashHint(text),
+      onNotice: notify,
+      onError: (error) => this.reportError(error),
     });
     this.sessionSwitcher = new TuiSessionSwitcher({
       link: this.link,
@@ -227,6 +242,7 @@ export class TuiApp {
     if (resume.model !== undefined) this.composer.adoptSessionModel(resume.model);
     this.modals.clearQueue();
     await this.reconcileForegroundRun(sessionId, epoch);
+    await this.plans.load(sessionId);
     await this.loadPendingPermissions(sessionId, epoch);
     // The previous session's lines are still on screen and in scrollback.
     this.transcriptView.invalidate();
@@ -266,6 +282,7 @@ export class TuiApp {
     this.sessionId = undefined;
     this.sessionName = undefined;
     this.sessionProjectId = this.projectId;
+    this.plans.reset();
     this.transcript = EMPTY_TRANSCRIPT;
     this.olderCursor = undefined;
     this.context = undefined;
@@ -462,6 +479,9 @@ export class TuiApp {
           this.tui.requestRender();
         });
         return;
+      case 'plan':
+        this.plans.open();
+        return;
       case 'compact':
         await this.compactSession(argument);
         return;
@@ -544,6 +564,7 @@ export class TuiApp {
       }
       this.refreshChrome();
     }
+    if (this.plans.handlePush(push)) return;
     switch (push.type) {
       case 'event':
         if (push.sessionId !== this.sessionId) return;
@@ -767,6 +788,7 @@ export class TuiApp {
       scope,
       ...this.composer.describe(),
       this.attachments.describe(),
+      this.plans.describe(),
       usage,
       this.options.mock ? 'mock' : undefined,
     ]
