@@ -5,11 +5,16 @@ import {
   HOST_SERVE_LOCAL_EGRESS_LIMITS,
   createJsonlStdioTransport,
 } from './host-serve-transport.js';
+import { interceptSidecarLocalShellAccess } from './local-shell-access-serve.js';
 import { createSidecarMobileAccess, interceptSidecarMobileAccess } from './mobile-access-serve.js';
 import { LOCAL_JSONL_CLIENT_ID, createSidecarHostAuthority } from './sidecar-host-authority.js';
 import { attachSidecarLocalEgress } from './sidecar-local-egress.js';
 import { HostRuntime, applyPiwinPlaywrightBrowsersPath } from '@piwin/host-runtime';
-import { admitAndExecuteHostCommand, createDeviceToolBrokerForHost } from '@piwin/host-server';
+import {
+  LocalShellAccess,
+  admitAndExecuteHostCommand,
+  createDeviceToolBrokerForHost,
+} from '@piwin/host-server';
 import { resolve } from 'node:path';
 import {
   parseHostServeTestFixture,
@@ -124,6 +129,20 @@ export async function commandHostServe(argv: string[]): Promise<void> {
     );
   }
 
+  // Entrance for shells on this machine (the TUI in a Desktop pane). Nothing
+  // listens until Desktop asks for it.
+  const localShellAccess = new LocalShellAccess({
+    runtime,
+    instanceId: hostInstanceId,
+    piwinRoot: hostDataRoot,
+    egressHub,
+    idempotencyRegistry: authority.idempotencyRegistry,
+    clientToolBroker,
+    onError: (error) => {
+      console.error(`[piwin host serve] local-shell-access error: ${error.message}`);
+    },
+  });
+
   let shutdownPromise: Promise<void> | undefined;
   const shutdown = (): Promise<void> => {
     if (shutdownPromise !== undefined) {
@@ -135,6 +154,7 @@ export async function commandHostServe(argv: string[]): Promise<void> {
       await transport.stop();
       await dispatcher.drain();
       await mobileAccess?.dispose();
+      await localShellAccess.dispose();
       egressHub.flush();
       localEgress.flushNow();
       localEgress.dispose();
@@ -149,13 +169,15 @@ export async function commandHostServe(argv: string[]): Promise<void> {
   });
 
   await transport.start((request) => {
-    void interceptSidecarMobileAccess(mobileAccess, request.command, (message) =>
-      transport.send(message),
-    ).then((handled) => {
+    const send = (message: Parameters<typeof transport.send>[0]): Promise<void> => transport.send(message);
+    void (async (): Promise<void> => {
+      const handled =
+        (await interceptSidecarMobileAccess(mobileAccess, request.command, send)) ||
+        (await interceptSidecarLocalShellAccess(localShellAccess, request.command, send));
       if (!handled) {
         dispatcher.dispatch(request);
       }
-    });
+    })();
   });
 
   await shutdown();

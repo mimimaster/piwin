@@ -46,6 +46,7 @@ export * from './session-list-scope.js';
 export * from './ipc.js';
 export * from './activity-summary.js';
 export * from './mobile-access.js';
+export * from './local-shell-access.js';
 export * from './host-pairing.js';
 export * from './preview.js';
 export * from './project.js';

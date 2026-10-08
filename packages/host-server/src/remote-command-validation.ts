@@ -62,6 +62,10 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
   if (command.type.startsWith('mobile-access/')) {
     return false;
   }
+  // Hands out a door token; only the local sidecar transport may ask (ADR 0086).
+  if (command.type.startsWith('local-shell-access/')) {
+    return false;
+  }
   if (isFlashcardStudyCommandType(command.type)) {
     return parseFlashcardStudyCommand(command).ok;
   }
