@@ -46,6 +46,7 @@ import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { TuiModalStack, createExtensionModal, createPermissionModal } from './tui-modals.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { ProjectFiles } from './project-files.js';
+import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiAutocompleteProvider } from './tui-autocomplete.js';
 import { editorTheme, style } from './tui-theme.js';
 
@@ -88,6 +89,7 @@ export class TuiApp {
   /** Project of the session on screen: what `@` mentions are resolved against. */
   private sessionProjectId: string | undefined;
   private readonly files: ProjectFiles;
+  private readonly attachments: TuiAttachmentController;
   private projects: RemoteProjectSummary[] = [];
   private readonly composer: TuiComposerProfile;
   private context: SessionContextSnapshot | undefined;
@@ -135,6 +137,16 @@ export class TuiApp {
       onChanged: () => this.refreshChrome(),
       onHint: (text) => this.flashHint(text),
       onError: (error) => this.reportError(error),
+    });
+    this.attachments = new TuiAttachmentController({
+      link: this.link,
+      ensureSession: () => this.ensureSession(),
+      onChanged: () => this.refreshChrome(),
+      onHint: (text) => this.flashHint(text),
+      onNotice: (tone, text) => {
+        this.transcript = appendNotice(this.transcript, tone, text);
+        this.refreshChrome();
+      },
     });
     this.sessionSwitcher = new TuiSessionSwitcher({
       link: this.link,
@@ -322,19 +334,27 @@ export class TuiApp {
   // ------------------------------------------------------------------ prompt
 
   private async submit(rawText: string): Promise<void> {
-    const text = rawText.trim();
-    if (text.length === 0) return;
+    const typedText = rawText.trim();
+    if (typedText.length === 0) return;
     this.editor.setText('');
-    const command = parseSlashCommand(text);
+    const command = parseSlashCommand(typedText);
     if (command !== undefined) {
       await this.runSlashCommand(command.name, command.argument);
       return;
     }
-    this.editor.addToHistory(text);
+    this.editor.addToHistory(rawText.trim());
+    if (this.attachments.isUploading) {
+      this.editor.setText(rawText);
+      this.flashHint('附件还在上传，稍后再发');
+      return;
+    }
     const sessionId = await this.ensureSession();
     const clientMessageId = randomUUID();
     const runId = knownForegroundRunId(this.foreground);
-    // A message that joins a running turn travels as plain text.
+    // A message that joins a running turn travels as plain text: attachments
+    // and file refs wait for a turn of their own.
+    const text = runId === undefined ? await this.attachments.adoptDroppedImages(sessionId, typedText) : typedText;
+    const attached = runId === undefined ? this.attachments.take() : [];
     const mentions =
       runId === undefined
         ? await this.files.resolveMentions(text)
@@ -343,7 +363,10 @@ export class TuiApp {
       this.transcript,
       clientMessageId,
       text,
-      mentions.refs.map((ref) => `@${ref.label}${ref.kind === 'folder' ? '/' : ''}`),
+      [
+        ...mentions.refs.map((ref) => `@${ref.label}${ref.kind === 'folder' ? '/' : ''}`),
+        ...attached.map((entry) => `附件 ${entry.label}`),
+      ],
     );
     if (mentions.overLimit.length > 0) {
       this.transcript = appendNotice(
@@ -361,23 +384,26 @@ export class TuiApp {
       hostData(
         await this.link.request({ type: 'session/steer', sessionId, message: text, runId, clientMessageId }),
       );
+      if (this.attachments.describe() !== undefined) this.flashHint('附件会随下一轮消息发送');
       return;
     }
     const skillId = this.composer.takeSkillId();
-    hostData(
-      await this.link.request({
-        type: 'session/prompt',
-        sessionId,
-        input: {
-          text,
-          clientMessageId,
-          ...(skillId === undefined ? {} : { skillId }),
-          ...(mentions.refs.length === 0 ? {} : { contextRefs: mentions.refs }),
-          ...this.composer.promptFields(),
-        },
-        foreground: { kind: 'if-idle' },
-      }),
-    );
+    const response = await this.link.request({
+      type: 'session/prompt',
+      sessionId,
+      input: {
+        text,
+        clientMessageId,
+        ...(attached.length === 0 ? {} : { attachments: attached.map((entry) => entry.attachment) }),
+        ...(skillId === undefined ? {} : { skillId }),
+        ...(mentions.refs.length === 0 ? {} : { contextRefs: mentions.refs }),
+        ...this.composer.promptFields(),
+      },
+      foreground: { kind: 'if-idle' },
+    });
+    // A refused prompt keeps its uploads: the user fixes the cause and resends.
+    if (!response.success) this.attachments.restore(attached);
+    hostData(response);
     if (this.foreground.kind !== 'active') {
       // Show activity immediately; the run/updated push supplies the real run id.
       await this.reconcileForegroundRun(sessionId, this.sessionEpoch);
@@ -428,6 +454,15 @@ export class TuiApp {
       case 'compact':
         await this.compactSession(argument);
         return;
+      case 'attach':
+        await this.attachments.attachPaths(argument);
+        return;
+      case 'paste':
+        await this.attachments.pasteClipboardImage();
+        return;
+      case 'detach':
+        this.attachments.detach();
+        return;
       case 'retry':
         await this.retryLastTurn();
         return;
@@ -462,7 +497,7 @@ export class TuiApp {
           'info',
           [
             ...TUI_SLASH_COMMANDS.map((command) => `/${command.name}  ${command.description}`),
-            'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+O 展开工具输出 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行',
+            'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+V 粘贴图片 · @ 引用文件 · Ctrl+O 展开工具输出 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行',
           ].join('\n'),
         );
         this.refreshChrome();
@@ -648,6 +683,10 @@ export class TuiApp {
       this.sessionSwitcher.open().catch((error: unknown) => this.reportError(error));
       return { consume: true };
     }
+    if (matchesKey(data, Key.ctrl('v'))) {
+      this.attachments.pasteClipboardImage().catch((error: unknown) => this.reportError(error));
+      return { consume: true };
+    }
     if (matchesKey(data, Key.shift('tab'))) {
       this.composer.cyclePermissionPreset();
       return { consume: true };
@@ -716,6 +755,7 @@ export class TuiApp {
       this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),
       scope,
       ...this.composer.describe(),
+      this.attachments.describe(),
       usage,
       this.options.mock ? 'mock' : undefined,
     ]

@@ -69,6 +69,29 @@ Two things in the existing rules stood in the way of the obvious build:
    endpoint and token in the child's environment. `local-shell-access/*` is
    refused on every WebSocket connection, like `mobile-access/*`.
 
+## Composer inputs
+
+- **Run Mode** is sent as `permissionPreset` on each prompt from this shell.
+  Absent means the Host's own configuration, which the status line names.
+- **`@` references** are resolved against the Host, not the TUI's disk: the
+  TUI may be attached to a Host on another machine, and the Host owns which
+  paths are inside a project. Completion reads `project/list-dir`; fragment
+  search runs over a bounded breadth-first walk of those listings (300
+  directories, 5 000 entries, 60 s), because the Host offers exact-name search
+  only. A submitted mention that names a real entry becomes a `file` or
+  `folder` context ref addressed by project id; one that names nothing stays
+  text. Mentions need a project session.
+- **Attachments** are read on the TUI's machine and uploaded to the Host's
+  media vault through the chunked `media/save-*` commands (a single-frame
+  `media/save` is capped near 700 KB on the remote protocol). The upload code
+  is shared with Desktop in `@piwin/host-client`. An absolute image path
+  written in a message — what a terminal inserts when a file is dropped on
+  it — is attached and replaced by a marker; other paths are left as written.
+  The clipboard image comes from the platform tool (`osascript`,
+  `wl-paste`/`xclip`, PowerShell), since a terminal paste carries text only.
+- A message sent while a run is in flight joins that run as plain text:
+  references and attachments wait for a turn of their own.
+
 ## Consequences
 
 - A terminal attached to the Host Desktop uses sees the same sessions, live.
@@ -99,11 +122,12 @@ session and no terminal to take.
 
 ## Not done
 
-- TUI composer parity with Desktop. Done: model, thinking level, a skill for
-  the next turn, compaction, retry of the last turn, permission and extension
-  prompts. Not yet: attachments and image paste, `@` file references, prompt
-  templates, permission mode, plan review and execution, queued turns,
-  branch switching and fork, subagent results, turn-change undo.
+- TUI composer parity with Desktop. Done: model, thinking level, Run Mode,
+  a skill for the next turn, `@` file and folder references, file and image
+  attachments (path, dropped path, clipboard image), compaction, retry of the
+  last turn, permission and extension prompts. Not yet: prompt templates,
+  plan review and execution, queued turns, branch switching and fork,
+  subagent results, turn-change undo.
 - Switching back to the chat surface ends the TUI process. Nothing is lost
   (state is the Host's), but terminal scrollback is.
 - A conversation the TUI starts does not become Desktop's active session by
