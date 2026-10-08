@@ -20,7 +20,7 @@
  * `/usr/bin/node` shadowing the user's version manager is the exact failure
  * this exists to prevent. Existing entries are kept, so nothing is removed.
  */
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
 export const LOGIN_SHELL_PATH_TIMEOUT_MS = 5_000;
 /**
@@ -109,25 +109,59 @@ export function mergePathEntries(
   };
 }
 
+const LOGIN_SHELL_MAX_OUTPUT_BYTES = 256 * 1024;
+
+/**
+ * `spawn`, not `execFile`: `execFile` silently drops `detached`.
+ *
+ * An interactive shell claims the controlling terminal's foreground process
+ * group for as long as it runs. A Host started from a terminal is a background
+ * job meanwhile: raw mode fails with EIO and Ctrl+C goes to the shell. In its
+ * own session the shell has no terminal to take.
+ */
 const runLoginShell: LoginShellPathRunner = (input) =>
   new Promise((resolve, reject) => {
-    execFile(
-      input.shell,
-      input.args,
-      {
-        timeout: input.timeoutMs,
-        maxBuffer: 256 * 1024,
-        windowsHide: true,
-        env: input.env,
-      },
-      (error, stdout) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(String(stdout));
-      },
+    const child = spawn(input.shell, input.args, {
+      env: input.env,
+      detached: true,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const chunks: Buffer[] = [];
+    let outputBytes = 0;
+    let failure: Error | undefined;
+    const stop = (error: Error): void => {
+      failure ??= error;
+      child.kill('SIGKILL');
+    };
+    const timer = setTimeout(
+      () => stop(new Error(`login shell timed out after ${String(input.timeoutMs)}ms`)),
+      input.timeoutMs,
     );
+    child.stdout.on('data', (chunk: Buffer) => {
+      outputBytes += chunk.length;
+      if (outputBytes > LOGIN_SHELL_MAX_OUTPUT_BYTES) {
+        stop(new Error('login shell output exceeded the size limit'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      reject(failure ?? error);
+    });
+    child.once('close', (code, signal) => {
+      clearTimeout(timer);
+      if (failure !== undefined) {
+        reject(failure);
+        return;
+      }
+      if (code !== 0) {
+        reject(new Error(`login shell exited with ${signal ?? `code ${String(code)}`}`));
+        return;
+      }
+      resolve(Buffer.concat(chunks).toString('utf8'));
+    });
   });
 
 /**
