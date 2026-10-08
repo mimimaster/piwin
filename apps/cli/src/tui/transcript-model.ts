@@ -189,7 +189,7 @@ export function applyAgentEvent(state: TranscriptState, event: AgentEvent): Tran
         ...presentationPatch(event.presentation),
       }));
     case 'session/aborted':
-      return appendNotice(settleStreaming(state), 'info', '已中断');
+      return appendNoticeOnce(settleStreaming(state), 'info', '已中断');
     case 'error':
       return appendNoticeOnce(settleStreaming(state), 'error', event.message);
     case 'model/retry':

@@ -52,12 +52,13 @@ import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
 import { ProjectFiles } from './project-files.js';
-import { TuiArtifactController } from './tui-artifact-controller.js';
+import { TuiArtifactController, type FileOpener } from './tui-artifact-controller.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiAutocompleteProvider } from './tui-autocomplete.js';
 import { editorTheme, style } from './tui-theme.js';
 
 const SESSION_LOOKUP_LIMIT = 500;
+const STATUS_HINT_MS = 4_000;
 const TRANSCRIPT_PAGE_ITEMS = 50;
 const TRANSCRIPT_PAGE_BYTES = 256 * 1024;
 const EXIT_CONFIRM_WINDOW_MS = 1_500;
@@ -73,6 +74,8 @@ export type TuiAppOptions = {
   embedded: boolean;
   mock: boolean;
   onExit: () => void;
+  /** How an exported artifact page reaches a browser; the system opener by default. */
+  openFile?: FileOpener;
 };
 
 /**
@@ -111,7 +114,8 @@ export class TuiApp {
   /** Bumped on every session switch so late responses for the old session are dropped. */
   private sessionEpoch = 0;
   private connected = true;
-  private statusHint: string | undefined;
+  /** A transient line in the status bar; kept for a few seconds, not one frame. */
+  private statusHint: { text: string; timer: ReturnType<typeof setTimeout> } | undefined;
   private lastInterruptAt = 0;
 
   private readonly modals: TuiModalStack;
@@ -244,6 +248,7 @@ export class TuiApp {
         onHint: (text) => this.flashHint(text),
         onNotice: notify,
         onError: (error) => this.reportError(error),
+        ...(options.openFile === undefined ? {} : { openFile: options.openFile }),
       }),
       turns: this.turns,
       sessionSwitcher: this.sessionSwitcher,
@@ -295,6 +300,7 @@ export class TuiApp {
   }
 
   public dispose(): void {
+    if (this.statusHint !== undefined) clearTimeout(this.statusHint.timer);
     this.loader.stop();
     for (const dispose of this.disposers.splice(0)) dispose();
   }
@@ -544,8 +550,8 @@ export class TuiApp {
     }
   }
 
-  /** Read fresh each time: pushes change it across every await. */
-  private isRunning(): boolean {
+  /** Whether a turn is in flight. Read fresh each time: pushes change it across every await. */
+  public isRunning(): boolean {
     return this.foreground.kind === 'active';
   }
 
@@ -594,6 +600,11 @@ export class TuiApp {
         this.transcript = settleStreaming(this.transcript);
         if (push.type === 'run/terminal' && push.run.status === 'failed' && push.run.error !== undefined) {
           this.transcript = appendNoticeOnce(this.transcript, 'error', push.run.error);
+        }
+        // The turn's own `session/aborted` event does not always reach this
+        // shell; the run record does, and an interrupt must never end in silence.
+        if (push.type === 'run/terminal' && (push.run.status === 'cancelled' || push.run.status === 'interrupted')) {
+          this.transcript = appendNoticeOnce(this.transcript, 'info', '已中断');
         }
       }
       this.refreshChrome();
@@ -730,7 +741,14 @@ export class TuiApp {
   }
 
   private flashHint(text: string): void {
-    this.statusHint = text;
+    if (this.statusHint !== undefined) clearTimeout(this.statusHint.timer);
+    // Pushes redraw the status bar many times a second; a hint cleared by the
+    // next redraw would never be read.
+    const timer = setTimeout(() => {
+        this.refreshChrome();
+    }, STATUS_HINT_MS);
+    timer.unref();
+    this.statusHint = { text, timer };
     this.refreshChrome();
   }
 
@@ -773,7 +791,7 @@ export class TuiApp {
         ? `上下文 ${Math.round((occupancy.tokensUsed / occupancy.tokensLimit) * 100)}%`
         : undefined;
     return [
-      this.statusHint,
+      this.statusHint?.text,
       this.connected ? undefined : '重连中…',
       this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),
       scope,
