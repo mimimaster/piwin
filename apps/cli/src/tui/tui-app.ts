@@ -40,8 +40,8 @@ import {
   type TranscriptState,
 } from './transcript-model.js';
 import { TranscriptView } from './transcript-view.js';
+import { createTuiCommandTable } from './tui-command-table.js';
 import { TUI_COMMAND_NAMES, TUI_SLASH_COMMANDS, parseSlashCommand } from './tui-commands.js';
-import { findLastUserMessageId } from './tui-composer-options.js';
 import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { TuiModalStack, createExtensionModal, createPermissionModal } from './tui-modals.js';
@@ -49,9 +49,11 @@ import { describePromptExtras } from './queued-turns.js';
 import { TuiPlanController } from './tui-plan-controller.js';
 import { TuiQueueController } from './tui-queue-controller.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
+import { TuiTurnActions } from './tui-turn-actions.js';
 import { ProjectFiles } from './project-files.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiAutocompleteProvider } from './tui-autocomplete.js';
+import { TuiBranchController } from './tui-branch-controller.js';
 import { editorTheme, style } from './tui-theme.js';
 
 const SESSION_LOOKUP_LIMIT = 500;
@@ -96,6 +98,11 @@ export class TuiApp {
   private readonly attachments: TuiAttachmentController;
   private readonly plans: TuiPlanController;
   private readonly queue: TuiQueueController;
+  private readonly branches: TuiBranchController;
+  private readonly turns: TuiTurnActions;
+  private readonly runCommand: (name: string, argument: string) => Promise<void>;
+  /** `/edit`: the next prompt replaces this user turn as a sibling branch. */
+  private editingMessageId: string | undefined;
   private projects: RemoteProjectSummary[] = [];
   private readonly composer: TuiComposerProfile;
   private context: SessionContextSnapshot | undefined;
@@ -178,6 +185,36 @@ export class TuiApp {
       },
       onError: (error) => this.reportError(error),
     });
+    this.branches = new TuiBranchController({
+      link: this.link,
+      modals: this.modals,
+      getSessionId: () => this.sessionId,
+      reloadSession: (sessionId) => this.openSession(sessionId),
+      onChanged: () => this.refreshChrome(),
+      onHint: (text) => this.flashHint(text),
+      onError: (error) => this.reportError(error),
+    });
+    this.turns = new TuiTurnActions({
+      request: (command) => this.link.request(command),
+      embedded: options.embedded,
+      sessionId: () => this.sessionId,
+      runId: () => knownForegroundRunId(this.foreground),
+      isRunning: () => this.isRunning(),
+      transcript: () => this.transcript,
+      promptFields: () => this.composer.promptFields(),
+      hint: (text) => this.flashHint(text),
+      notice: notify,
+      echoUser: (messageId, text, annotations) => {
+        this.transcript = appendLocalUserMessage(this.transcript, messageId, text, annotations);
+        this.refreshChrome();
+      },
+      openSession: (sessionId) => this.openSession(sessionId),
+      beginEdit: (messageId, text) => {
+        this.editingMessageId = messageId;
+        this.editor.setText(text);
+        this.refreshChrome();
+      },
+    });
     this.sessionSwitcher = new TuiSessionSwitcher({
       link: this.link,
       modals: this.modals,
@@ -195,6 +232,26 @@ export class TuiApp {
     this.tui.addChild(this.activitySlot);
     this.tui.addChild(this.editor);
     this.tui.addChild(this.statusLine);
+    this.runCommand = createTuiCommandTable({
+      embedded: options.embedded,
+      composer: this.composer,
+      attachments: this.attachments,
+      plans: this.plans,
+      queue: this.queue,
+      branches: this.branches,
+      turns: this.turns,
+      sessionSwitcher: this.sessionSwitcher,
+      startDraftSession: () => this.startDraftSession(),
+      loadOlderMessages: () => this.loadOlderMessages(),
+      renameSession: (name) => this.renameCurrentSession(name),
+      setComposerText: (text) => {
+        this.editor.setText(text);
+        this.tui.requestRender();
+      },
+      hint: (text) => this.flashHint(text),
+      notice: notify,
+      exit: () => options.onExit(),
+    });
     this.tui.setFocus(this.editor);
     this.rebuildAutocomplete();
   }
@@ -266,7 +323,12 @@ export class TuiApp {
     if (resume.model !== undefined) this.composer.adoptSessionModel(resume.model);
     this.modals.clearQueue();
     await this.reconcileForegroundRun(sessionId, epoch);
-    await Promise.all([this.plans.load(sessionId), this.queue.load(sessionId)]);
+    await Promise.all([
+      this.plans.load(sessionId),
+      this.queue.load(sessionId),
+      this.branches.load(sessionId),
+    ]);
+    this.editingMessageId = undefined;
     await this.loadPendingPermissions(sessionId, epoch);
     // The previous session's lines are still on screen and in scrollback.
     this.transcriptView.invalidate();
@@ -308,6 +370,8 @@ export class TuiApp {
     this.sessionProjectId = this.projectId;
     this.plans.reset();
     this.queue.reset();
+    this.branches.reset();
+    this.editingMessageId = undefined;
     this.transcript = EMPTY_TRANSCRIPT;
     this.olderCursor = undefined;
     this.context = undefined;
@@ -386,7 +450,7 @@ export class TuiApp {
     this.editor.setText('');
     const command = parseSlashCommand(typedText);
     if (command !== undefined) {
-      await this.runSlashCommand(command.name, command.argument);
+      await this.runCommand(command.name, command.argument);
       return;
     }
     this.editor.addToHistory(rawText.trim());
@@ -411,9 +475,17 @@ export class TuiApp {
       this.flashHint(`项目里没有 ${mentions.unresolved.map((path) => `@${path}`).join('、')}，按普通文字发送`);
     }
     const skillId = this.composer.takeSkillId();
+    const branchFromMessageId = this.editingMessageId;
+    if (branchFromMessageId !== undefined && this.isRunning()) {
+      this.editor.setText(rawText);
+      this.attachments.restore(attached);
+      this.flashHint('运行中不能改写提问，先按 Esc 中断');
+      return;
+    }
     const input: PromptInput = {
       text,
       clientMessageId,
+      ...(branchFromMessageId === undefined ? {} : { branchFromMessageId }),
       ...(attached.length === 0 ? {} : { attachments: attached.map((entry) => entry.attachment) }),
       ...(skillId === undefined ? {} : { skillId }),
       ...(mentions.refs.length === 0 ? {} : { contextRefs: mentions.refs }),
@@ -430,6 +502,12 @@ export class TuiApp {
       this.transcript = appendLocalUserMessage(this.transcript, clientMessageId, text, describePromptExtras(input));
       this.refreshChrome();
       hostData(await this.link.request({ type: 'session/prompt', sessionId, input, foreground: { kind: 'if-idle' } }));
+      if (branchFromMessageId !== undefined) {
+        // The old turn and its answer left the active path; reload rather than patch rows.
+        this.editingMessageId = undefined;
+        await this.openSession(sessionId);
+        return;
+      }
     } catch (error) {
       // A refused prompt keeps its uploads: the user fixes the cause and resends.
       this.attachments.restore(attached);
@@ -447,143 +525,30 @@ export class TuiApp {
     return this.foreground.kind === 'active';
   }
 
-  /** Put a sentence into the turn that is running, instead of queueing a new one. */
-  private async steerRun(text: string): Promise<void> {
-    const runId = knownForegroundRunId(this.foreground);
-    if (this.sessionId === undefined || runId === undefined) {
-      this.flashHint('没有正在运行的回合，直接发送即可');
+  /** `/rename name` renames now; bare `/rename` asks for the name. */
+  private async renameCurrentSession(name: string): Promise<void> {
+    const sessionId = this.sessionId;
+    if (sessionId === undefined) {
+      this.flashHint('当前还没有会话');
       return;
     }
-    if (text.length === 0) {
-      this.flashHint('用法：/steer <要插入的话>');
+    if (name.length > 0) {
+      await this.renameSession(sessionId, name);
       return;
     }
-    const clientMessageId = randomUUID();
-    this.transcript = appendLocalUserMessage(this.transcript, clientMessageId, text, ['插入当前回合']);
-    this.refreshChrome();
-    hostData(
-      await this.link.request({
-        type: 'session/steer',
-        sessionId: this.sessionId,
-        message: text,
-        runId,
-        clientMessageId,
+    this.modals.show(
+      new TextOverlay({
+        title: '重命名会话',
+        ...(this.sessionName === undefined ? {} : { initialValue: this.sessionName }),
+        onSubmit: (value) => {
+          this.modals.close();
+          if (value.trim().length > 0) {
+            this.renameSession(sessionId, value.trim()).catch((error: unknown) => this.reportError(error));
+          }
+        },
+        onCancel: () => this.modals.close(),
       }),
     );
-  }
-
-  private async abortRun(): Promise<void> {
-    if (this.sessionId === undefined) return;
-    const runId = knownForegroundRunId(this.foreground);
-    hostData(
-      await this.link.request({
-        type: 'session/abort',
-        sessionId: this.sessionId,
-        ...(runId === undefined ? {} : { runId }),
-      }),
-    );
-  }
-
-  private async runSlashCommand(name: string, argument: string): Promise<void> {
-    const embeddedOnlyBlocked = this.options.embedded && (name === 'sessions' || name === 'new');
-    if (embeddedOnlyBlocked) {
-      this.flashHint('内嵌模式下请用 Desktop 侧栏切换会话');
-      return;
-    }
-    switch (name) {
-      case 'sessions':
-        await this.sessionSwitcher.open();
-        return;
-      case 'new':
-        this.startDraftSession();
-        return;
-      case 'model':
-        this.composer.openModelPicker();
-        return;
-      case 'older':
-        await this.loadOlderMessages();
-        return;
-      case 'thinking':
-        this.composer.openThinkingPicker();
-        return;
-      case 'permission':
-        this.composer.openPermissionPicker();
-        return;
-      case 'skill':
-        await this.composer.openSkillPicker();
-        return;
-      case 'prompts':
-        this.composer.openPromptPicker(TUI_COMMAND_NAMES, (name) => {
-          this.editor.setText(`/${name} `);
-          this.tui.requestRender();
-        });
-        return;
-      case 'plan':
-        this.plans.open();
-        return;
-      case 'queue':
-        this.queue.open();
-        return;
-      case 'steer':
-        await this.steerRun(argument);
-        return;
-      case 'compact':
-        await this.compactSession(argument);
-        return;
-      case 'attach':
-        await this.attachments.attachPaths(argument);
-        return;
-      case 'paste':
-        await this.attachments.pasteClipboardImage();
-        return;
-      case 'detach':
-        this.attachments.detach();
-        return;
-      case 'retry':
-        await this.retryLastTurn();
-        return;
-      case 'rename': {
-        if (this.sessionId === undefined) {
-          this.flashHint('当前还没有会话');
-          return;
-        }
-        if (argument.length > 0) {
-          await this.renameSession(this.sessionId, argument);
-          return;
-        }
-        const sessionId = this.sessionId;
-        this.modals.show(
-          new TextOverlay({
-            title: '重命名会话',
-            ...(this.sessionName === undefined ? {} : { initialValue: this.sessionName }),
-            onSubmit: (value) => {
-              this.modals.close();
-              if (value.trim().length > 0) {
-                this.renameSession(sessionId, value.trim()).catch((error: unknown) => this.reportError(error));
-              }
-            },
-            onCancel: () => this.modals.close(),
-          }),
-        );
-        return;
-      }
-      case 'help':
-        this.transcript = appendNotice(
-          this.transcript,
-          'info',
-          [
-            ...TUI_SLASH_COMMANDS.map((command) => `/${command.name}  ${command.description}`),
-            'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+V 粘贴图片 · @ 引用文件 · 运行中发送即排队 · Ctrl+O 展开工具输出 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行',
-          ].join('\n'),
-        );
-        this.refreshChrome();
-        return;
-      case 'quit':
-        this.options.onExit();
-        return;
-      default:
-        this.flashHint(`未知命令 /${name}，/help 查看可用命令`);
-    }
   }
 
   private async renameSession(sessionId: string, name: string): Promise<void> {
@@ -609,7 +574,7 @@ export class TuiApp {
       }
       this.refreshChrome();
     }
-    if (this.plans.handlePush(push) || this.queue.handlePush(push)) return;
+    if (this.plans.handlePush(push) || this.queue.handlePush(push) || this.branches.handlePush(push)) return;
     switch (push.type) {
       case 'event':
         if (push.sessionId !== this.sessionId) return;
@@ -683,63 +648,20 @@ export class TuiApp {
     this.link.request(command).then(hostData, (error: unknown) => this.reportError(error));
   }
 
-  private async compactSession(customInstructions: string): Promise<void> {
-    if (this.sessionId === undefined) {
-      this.flashHint('当前还没有会话');
-      return;
-    }
-    if (this.foreground.kind === 'active') {
-      this.flashHint('运行中不能压缩，先按 Esc 中断');
-      return;
-    }
-    // Progress and the outcome arrive as compaction/start and compaction/end events.
-    hostData(
-      await this.link.request({
-        type: 'session/compact',
-        sessionId: this.sessionId,
-        ...(customInstructions.length === 0 ? {} : { customInstructions }),
-      }),
-    );
-  }
-
-  /** Re-run the last user turn in place; the Host drops the previous answer. */
-  private async retryLastTurn(): Promise<void> {
-    const retryUserMessageId = findLastUserMessageId(this.transcript);
-    if (this.sessionId === undefined || retryUserMessageId === undefined) {
-      this.flashHint('没有可以重试的消息');
-      return;
-    }
-    if (this.foreground.kind === 'active') {
-      this.flashHint('运行中不能重试，先按 Esc 中断');
-      return;
-    }
-    const sessionId = this.sessionId;
-    hostData(
-      await this.link.request({
-        type: 'session/prompt',
-        sessionId,
-        input: {
-          text: '',
-          retryUserMessageId,
-          ...this.composer.promptFields(),
-        },
-        foreground: { kind: 'if-idle' },
-      }),
-    );
-    // The retried answer replaces the old one; reload rather than patch rows.
-    await this.openSession(sessionId);
-  }
-
   // ------------------------------------------------------------------- input
 
   private handleGlobalInput(data: string): TuiInputListenerResult {
     if (this.modals.isOpen) return undefined;
     const running = this.foreground.kind === 'active';
     if (matchesKey(data, Key.ctrl('c'))) {
-      if (this.editor.getText().length > 0) {
+      if (this.editingMessageId !== undefined) {
+        this.editingMessageId = undefined;
+        this.editor.setText('');
+        this.flashHint('已取消改写');
+      } else if (this.editor.getText().length > 0) {
         this.editor.setText('');
       } else if (running) {
-        this.abortRun().catch((error: unknown) => this.reportError(error));
+        this.turns.abort().catch((error: unknown) => this.reportError(error));
       } else if (Date.now() - this.lastInterruptAt < EXIT_CONFIRM_WINDOW_MS) {
         this.options.onExit();
       } else {
@@ -749,7 +671,7 @@ export class TuiApp {
       return { consume: true };
     }
     if (matchesKey(data, Key.escape) && running && !this.editor.isShowingAutocomplete()) {
-      this.abortRun().catch((error: unknown) => this.reportError(error));
+      this.turns.abort().catch((error: unknown) => this.reportError(error));
       return { consume: true };
     }
     if (matchesKey(data, Key.ctrl('d')) && this.editor.getText().length === 0) {
@@ -835,6 +757,8 @@ export class TuiApp {
       this.attachments.describe(),
       this.plans.describe(),
       this.queue.describe(),
+      this.branches.describe(),
+      this.editingMessageId === undefined ? undefined : '改写上一条提问 · Ctrl+C 取消',
       usage,
       this.options.mock ? 'mock' : undefined,
     ]

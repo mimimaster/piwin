@@ -115,11 +115,15 @@ export function promptTemplateCommands(
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
-/** The latest user turn on screen: the one `/retry` re-runs. */
-export function findLastUserMessageId(transcript: TranscriptState): string | undefined {
+/** The latest user turn on screen: the one `/retry` re-runs and `/edit` rewrites. */
+export function findLastUserMessage(transcript: TranscriptState): { id: string; text: string } | undefined {
   for (let index = transcript.entries.length - 1; index >= 0; index -= 1) {
     const entry = transcript.entries[index];
-    if (entry?.kind === 'message' && entry.role === 'user') return entry.id;
+    if (entry?.kind === 'message' && entry.role === 'user') return { id: entry.id, text: entry.text };
   }
   return undefined;
+}
+
+export function findLastUserMessageId(transcript: TranscriptState): string | undefined {
+  return findLastUserMessage(transcript)?.id;
 }

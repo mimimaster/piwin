@@ -1,0 +1,78 @@
+import type { TuiAttachmentController } from './tui-attachment-controller.js';
+import type { TuiBranchController } from './tui-branch-controller.js';
+import { TUI_COMMAND_NAMES, TUI_SLASH_COMMANDS } from './tui-commands.js';
+import type { TuiComposerProfile } from './tui-composer-profile.js';
+import type { TuiPlanController } from './tui-plan-controller.js';
+import type { TuiQueueController } from './tui-queue-controller.js';
+import type { TuiSessionSwitcher } from './tui-session-switcher.js';
+import type { TuiTurnActions } from './tui-turn-actions.js';
+
+type CommandHandler = (argument: string) => void | Promise<void>;
+
+export type TuiCommandTableDeps = {
+  /** Desktop owns session switching when the TUI is embedded. */
+  embedded: boolean;
+  composer: TuiComposerProfile;
+  attachments: TuiAttachmentController;
+  plans: TuiPlanController;
+  queue: TuiQueueController;
+  branches: TuiBranchController;
+  turns: TuiTurnActions;
+  sessionSwitcher: TuiSessionSwitcher;
+  startDraftSession: () => void;
+  loadOlderMessages: () => Promise<void>;
+  /** With a name: rename now. Without: ask for one. */
+  renameSession: (name: string) => Promise<void>;
+  setComposerText: (text: string) => void;
+  hint: (text: string) => void;
+  notice: (tone: 'info' | 'error', text: string) => void;
+  exit: () => void;
+};
+
+const SHORTCUT_HELP =
+  'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+V 粘贴图片 · @ 引用文件 · 运行中发送即排队 · Ctrl+O 展开工具输出 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行';
+
+/** Slash command name → what it does. One entry per row of TUI_SLASH_COMMANDS. */
+export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string, argument: string) => Promise<void> {
+  const { composer, attachments, plans, queue, branches, turns } = deps;
+  const standaloneOnly = (handler: CommandHandler): CommandHandler =>
+    deps.embedded ? () => deps.hint('内嵌模式下请用 Desktop 侧栏切换会话') : handler;
+
+  const handlers: Record<string, CommandHandler> = {
+    sessions: standaloneOnly(() => deps.sessionSwitcher.open()),
+    new: standaloneOnly(() => deps.startDraftSession()),
+    model: () => composer.openModelPicker(),
+    thinking: () => composer.openThinkingPicker(),
+    permission: () => composer.openPermissionPicker(),
+    prompts: () => composer.openPromptPicker(TUI_COMMAND_NAMES, (name) => deps.setComposerText(`/${name} `)),
+    skill: () => composer.openSkillPicker(),
+    queue: () => queue.open(),
+    steer: (argument) => turns.steer(argument),
+    plan: () => plans.open(),
+    attach: (argument) => attachments.attachPaths(argument),
+    paste: () => attachments.pasteClipboardImage(),
+    detach: () => attachments.detach(),
+    compact: (argument) => turns.compact(argument),
+    retry: (argument) => turns.retry(argument === 'keep'),
+    edit: () => turns.beginEditingLastTurn(),
+    branches: () => branches.open(),
+    fork: (argument) => turns.fork(argument),
+    rename: (argument) => deps.renameSession(argument),
+    older: () => deps.loadOlderMessages(),
+    help: () =>
+      deps.notice(
+        'info',
+        [...TUI_SLASH_COMMANDS.map((command) => `/${command.name}  ${command.description}`), SHORTCUT_HELP].join('\n'),
+      ),
+    quit: () => deps.exit(),
+  };
+
+  return async (name, argument) => {
+    const handler = handlers[name];
+    if (handler === undefined) {
+      deps.hint(`未知命令 /${name}，/help 查看可用命令`);
+      return;
+    }
+    await handler(argument);
+  };
+}
