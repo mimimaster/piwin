@@ -12,6 +12,7 @@ import {
 import type {
   HostCommand,
   HostPush,
+  PromptInput,
   RemotePendingPermission,
   RemoteProjectSummary,
   RemoteSessionListData,
@@ -27,7 +28,7 @@ import {
   type ForegroundRunState,
 } from '@piwin/host-client';
 import { TextOverlay } from './choice-overlay.js';
-import { StatusLine } from './status-line.js';
+import { StatusLine, describeRunPhase } from './status-line.js';
 import {
   EMPTY_TRANSCRIPT,
   appendLocalUserMessage,
@@ -44,7 +45,9 @@ import { findLastUserMessageId } from './tui-composer-options.js';
 import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { TuiModalStack, createExtensionModal, createPermissionModal } from './tui-modals.js';
+import { describePromptExtras } from './queued-turns.js';
 import { TuiPlanController } from './tui-plan-controller.js';
+import { TuiQueueController } from './tui-queue-controller.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { ProjectFiles } from './project-files.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
@@ -92,6 +95,7 @@ export class TuiApp {
   private readonly files: ProjectFiles;
   private readonly attachments: TuiAttachmentController;
   private readonly plans: TuiPlanController;
+  private readonly queue: TuiQueueController;
   private projects: RemoteProjectSummary[] = [];
   private readonly composer: TuiComposerProfile;
   private context: SessionContextSnapshot | undefined;
@@ -152,6 +156,26 @@ export class TuiApp {
       onChanged: () => this.refreshChrome(),
       onHint: (text) => this.flashHint(text),
       onNotice: notify,
+      onError: (error) => this.reportError(error),
+    });
+    this.queue = new TuiQueueController({
+      link: this.link,
+      modals: this.modals,
+      getSessionId: () => this.sessionId,
+      onChanged: () => this.refreshChrome(),
+      onHint: (text) => this.flashHint(text),
+      onStarted: (turn) => {
+        this.transcript = appendLocalUserMessage(
+          this.transcript,
+          turn.userMessageId,
+          turn.input.text,
+          describePromptExtras(turn.input),
+        );
+      },
+      onEdit: (text) => {
+        this.editor.setText(text);
+        this.tui.requestRender();
+      },
       onError: (error) => this.reportError(error),
     });
     this.sessionSwitcher = new TuiSessionSwitcher({
@@ -242,7 +266,7 @@ export class TuiApp {
     if (resume.model !== undefined) this.composer.adoptSessionModel(resume.model);
     this.modals.clearQueue();
     await this.reconcileForegroundRun(sessionId, epoch);
-    await this.plans.load(sessionId);
+    await Promise.all([this.plans.load(sessionId), this.queue.load(sessionId)]);
     await this.loadPendingPermissions(sessionId, epoch);
     // The previous session's lines are still on screen and in scrollback.
     this.transcriptView.invalidate();
@@ -283,6 +307,7 @@ export class TuiApp {
     this.sessionName = undefined;
     this.sessionProjectId = this.projectId;
     this.plans.reset();
+    this.queue.reset();
     this.transcript = EMPTY_TRANSCRIPT;
     this.olderCursor = undefined;
     this.context = undefined;
@@ -372,24 +397,9 @@ export class TuiApp {
     }
     const sessionId = await this.ensureSession();
     const clientMessageId = randomUUID();
-    const runId = knownForegroundRunId(this.foreground);
-    // A message that joins a running turn travels as plain text: attachments
-    // and file refs wait for a turn of their own.
-    const text = runId === undefined ? await this.attachments.adoptDroppedImages(sessionId, typedText) : typedText;
-    const attached = runId === undefined ? this.attachments.take() : [];
-    const mentions =
-      runId === undefined
-        ? await this.files.resolveMentions(text)
-        : { refs: [], unresolved: [], overLimit: [] };
-    this.transcript = appendLocalUserMessage(
-      this.transcript,
-      clientMessageId,
-      text,
-      [
-        ...mentions.refs.map((ref) => `@${ref.label}${ref.kind === 'folder' ? '/' : ''}`),
-        ...attached.map((entry) => `附件 ${entry.label}`),
-      ],
-    );
+    const text = await this.attachments.adoptDroppedImages(sessionId, typedText);
+    const attached = this.attachments.take();
+    const mentions = await this.files.resolveMentions(text);
     if (mentions.overLimit.length > 0) {
       this.transcript = appendNotice(
         this.transcript,
@@ -397,40 +407,69 @@ export class TuiApp {
         `一条消息最多引用 ${mentions.refs.length} 个文件，未带上：${mentions.overLimit.join('、')}`,
       );
     }
-    this.refreshChrome();
     if (mentions.unresolved.length > 0) {
       this.flashHint(`项目里没有 ${mentions.unresolved.map((path) => `@${path}`).join('、')}，按普通文字发送`);
     }
-    if (runId !== undefined) {
-      // A run is in flight: the text joins it at the next step instead of queueing a new turn.
-      hostData(
-        await this.link.request({ type: 'session/steer', sessionId, message: text, runId, clientMessageId }),
-      );
-      if (this.attachments.describe() !== undefined) this.flashHint('附件会随下一轮消息发送');
-      return;
-    }
     const skillId = this.composer.takeSkillId();
-    const response = await this.link.request({
-      type: 'session/prompt',
-      sessionId,
-      input: {
-        text,
-        clientMessageId,
-        ...(attached.length === 0 ? {} : { attachments: attached.map((entry) => entry.attachment) }),
-        ...(skillId === undefined ? {} : { skillId }),
-        ...(mentions.refs.length === 0 ? {} : { contextRefs: mentions.refs }),
-        ...this.composer.promptFields(),
-      },
-      foreground: { kind: 'if-idle' },
-    });
-    // A refused prompt keeps its uploads: the user fixes the cause and resends.
-    if (!response.success) this.attachments.restore(attached);
-    hostData(response);
-    if (this.foreground.kind !== 'active') {
+    const input: PromptInput = {
+      text,
+      clientMessageId,
+      ...(attached.length === 0 ? {} : { attachments: attached.map((entry) => entry.attachment) }),
+      ...(skillId === undefined ? {} : { skillId }),
+      ...(mentions.refs.length === 0 ? {} : { contextRefs: mentions.refs }),
+      ...this.composer.promptFields(),
+    };
+    try {
+      if (this.isRunning()) {
+        // A turn is running: this one waits its turn on the Host and is
+        // echoed when it starts. `/steer` is the way into the running turn.
+        const place = await this.queue.submit(sessionId, input, clientMessageId);
+        this.flashHint(`已排队（第 ${place} 条），/queue 查看`);
+        return;
+      }
+      this.transcript = appendLocalUserMessage(this.transcript, clientMessageId, text, describePromptExtras(input));
+      this.refreshChrome();
+      hostData(await this.link.request({ type: 'session/prompt', sessionId, input, foreground: { kind: 'if-idle' } }));
+    } catch (error) {
+      // A refused prompt keeps its uploads: the user fixes the cause and resends.
+      this.attachments.restore(attached);
+      throw error;
+    }
+    if (!this.isRunning()) {
       // Show activity immediately; the run/updated push supplies the real run id.
       await this.reconcileForegroundRun(sessionId, this.sessionEpoch);
       this.refreshChrome();
     }
+  }
+
+  /** Read fresh each time: pushes change it across every await. */
+  private isRunning(): boolean {
+    return this.foreground.kind === 'active';
+  }
+
+  /** Put a sentence into the turn that is running, instead of queueing a new one. */
+  private async steerRun(text: string): Promise<void> {
+    const runId = knownForegroundRunId(this.foreground);
+    if (this.sessionId === undefined || runId === undefined) {
+      this.flashHint('没有正在运行的回合，直接发送即可');
+      return;
+    }
+    if (text.length === 0) {
+      this.flashHint('用法：/steer <要插入的话>');
+      return;
+    }
+    const clientMessageId = randomUUID();
+    this.transcript = appendLocalUserMessage(this.transcript, clientMessageId, text, ['插入当前回合']);
+    this.refreshChrome();
+    hostData(
+      await this.link.request({
+        type: 'session/steer',
+        sessionId: this.sessionId,
+        message: text,
+        runId,
+        clientMessageId,
+      }),
+    );
   }
 
   private async abortRun(): Promise<void> {
@@ -482,6 +521,12 @@ export class TuiApp {
       case 'plan':
         this.plans.open();
         return;
+      case 'queue':
+        this.queue.open();
+        return;
+      case 'steer':
+        await this.steerRun(argument);
+        return;
       case 'compact':
         await this.compactSession(argument);
         return;
@@ -528,7 +573,7 @@ export class TuiApp {
           'info',
           [
             ...TUI_SLASH_COMMANDS.map((command) => `/${command.name}  ${command.description}`),
-            'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+V 粘贴图片 · @ 引用文件 · Ctrl+O 展开工具输出 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行',
+            'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+V 粘贴图片 · @ 引用文件 · 运行中发送即排队 · Ctrl+O 展开工具输出 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行',
           ].join('\n'),
         );
         this.refreshChrome();
@@ -564,7 +609,7 @@ export class TuiApp {
       }
       this.refreshChrome();
     }
-    if (this.plans.handlePush(push)) return;
+    if (this.plans.handlePush(push) || this.queue.handlePush(push)) return;
     switch (push.type) {
       case 'event':
         if (push.sessionId !== this.sessionId) return;
@@ -756,7 +801,7 @@ export class TuiApp {
     const hasLoader = this.activitySlot.children.length > 0;
     if (running) {
       const phase = this.foreground.kind === 'active' ? this.foreground.phase : undefined;
-      this.loader.setMessage(`${phase ?? '运行中'} · Esc 中断`);
+      this.loader.setMessage(`${describeRunPhase(phase)} · Esc 中断`);
       if (!hasLoader) {
         this.activitySlot.addChild(this.loader);
         this.loader.start();
@@ -789,6 +834,7 @@ export class TuiApp {
       ...this.composer.describe(),
       this.attachments.describe(),
       this.plans.describe(),
+      this.queue.describe(),
       usage,
       this.options.mock ? 'mock' : undefined,
     ]

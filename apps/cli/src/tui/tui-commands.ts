@@ -17,6 +17,8 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'attach', description: '附加文件或图片：/attach <路径…>' },
   { name: 'paste', description: '附加剪贴板里的图片（Ctrl+V）' },
   { name: 'detach', description: '清空待发送的附件' },
+  { name: 'queue', description: '查看排队的消息，取回或取消' },
+  { name: 'steer', description: '把一句话插入正在运行的这一轮：/steer <文字>' },
   { name: 'plan', description: '查看计划，批准、执行或中止' },
   { name: 'compact', description: '压缩上下文（可附加说明）' },
   { name: 'retry', description: '重新生成上一轮回答' },
