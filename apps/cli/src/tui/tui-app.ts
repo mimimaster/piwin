@@ -51,6 +51,7 @@ import { TuiQueueController } from './tui-queue-controller.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSubagentController } from './tui-subagent-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
+import { TuiTurnChangeController } from './tui-turn-change-controller.js';
 import { ProjectFiles } from './project-files.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiAutocompleteProvider } from './tui-autocomplete.js';
@@ -102,6 +103,7 @@ export class TuiApp {
   private readonly branches: TuiBranchController;
   private readonly turns: TuiTurnActions;
   private readonly subagents: TuiSubagentController;
+  private readonly turnChanges: TuiTurnChangeController;
   private readonly runCommand: (name: string, argument: string) => Promise<void>;
   /** `/edit`: the next prompt replaces this user turn as a sibling branch. */
   private editingMessageId: string | undefined;
@@ -207,6 +209,16 @@ export class TuiApp {
       onNotice: notify,
       onError: (error) => this.reportError(error),
     });
+    this.turnChanges = new TuiTurnChangeController({
+      link: this.link,
+      modals: this.modals,
+      getSessionId: () => this.sessionId,
+      getTranscript: () => this.transcript,
+      isRunning: () => this.isRunning(),
+      onHint: (text) => this.flashHint(text),
+      onNotice: notify,
+      onError: (error) => this.reportError(error),
+    });
     this.turns = new TuiTurnActions({
       request: (command) => this.link.request(command),
       embedded: options.embedded,
@@ -253,6 +265,7 @@ export class TuiApp {
       queue: this.queue,
       branches: this.branches,
       subagents: this.subagents,
+      turnChanges: this.turnChanges,
       turns: this.turns,
       sessionSwitcher: this.sessionSwitcher,
       startDraftSession: () => this.startDraftSession(),
@@ -387,6 +400,7 @@ export class TuiApp {
     this.queue.reset();
     this.branches.reset();
     this.subagents.reset();
+    this.turnChanges.reset();
     this.editingMessageId = undefined;
     this.transcript = EMPTY_TRANSCRIPT;
     this.olderCursor = undefined;
@@ -594,7 +608,8 @@ export class TuiApp {
       this.plans.handlePush(push) ||
       this.queue.handlePush(push) ||
       this.branches.handlePush(push) ||
-      this.subagents.handlePush(push)
+      this.subagents.handlePush(push) ||
+      this.turnChanges.handlePush(push)
     ) {
       return;
     }

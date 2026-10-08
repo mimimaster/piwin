@@ -31,6 +31,8 @@ export type TranscriptMessageEntry = {
   thinking: string;
   status: 'streaming' | 'done' | 'error';
   tools: TranscriptTool[];
+  /** Run that produced this row; what a turn's file changes are filed under. */
+  runId?: string;
   /** What a user turn carried besides text: file refs, attachments. */
   annotations?: string[];
   model?: ModelRef;
@@ -125,6 +127,7 @@ export function applyAgentEvent(state: TranscriptState, event: AgentEvent): Tran
       if (state.entries.some((entry) => entry.id === event.messageId)) return state;
       const entry = newMessage(event.messageId, event.role, { status: 'streaming' });
       if (event.model !== undefined) entry.model = event.model;
+      if (event.runId !== undefined) entry.runId = event.runId;
       return { ...state, entries: [...state.entries, entry] };
     }
     case 'message/text_delta':
@@ -204,6 +207,7 @@ function entryFromMessage(message: RemoteTranscriptMessage): TranscriptMessageEn
     tools: (message.tools ?? []).map(toolFromRemote),
   });
   if (message.model !== undefined) entry.model = message.model;
+  if (message.runId !== undefined) entry.runId = message.runId;
   const attachmentCount = message.attachments?.length ?? message.attachmentCount ?? 0;
   // History keeps attachment rows, not the file refs a turn was sent with.
   if (attachmentCount > 0) entry.annotations = [`${attachmentCount} 个附件`];

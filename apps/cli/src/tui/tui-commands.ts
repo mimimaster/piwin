@@ -24,6 +24,8 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'compact', description: '压缩上下文（可附加说明）' },
   { name: 'retry', description: '重新生成上一轮回答（/retry keep 保留旧回答为分支）' },
   { name: 'edit', description: '改写上一条提问并作为新分支发送' },
+  { name: 'changes', description: '查看各轮改了哪些文件，撤销或恢复' },
+  { name: 'undo', description: '撤销最近一轮对文件的改动' },
   { name: 'branches', description: '在会话的分支之间切换' },
   { name: 'fork', description: '从这里分叉出一个新会话：/fork [名称]' },
   { name: 'rename', description: '重命名当前会话' },

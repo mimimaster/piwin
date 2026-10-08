@@ -7,6 +7,7 @@ import type { TuiQueueController } from './tui-queue-controller.js';
 import type { TuiSessionSwitcher } from './tui-session-switcher.js';
 import type { TuiSubagentController } from './tui-subagent-controller.js';
 import type { TuiTurnActions } from './tui-turn-actions.js';
+import type { TuiTurnChangeController } from './tui-turn-change-controller.js';
 
 type CommandHandler = (argument: string) => void | Promise<void>;
 
@@ -19,6 +20,7 @@ export type TuiCommandTableDeps = {
   queue: TuiQueueController;
   branches: TuiBranchController;
   subagents: TuiSubagentController;
+  turnChanges: TuiTurnChangeController;
   turns: TuiTurnActions;
   sessionSwitcher: TuiSessionSwitcher;
   startDraftSession: () => void;
@@ -58,6 +60,8 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     compact: (argument) => turns.compact(argument),
     retry: (argument) => turns.retry(argument === 'keep'),
     edit: () => turns.beginEditingLastTurn(),
+    changes: () => deps.turnChanges.open(),
+    undo: () => deps.turnChanges.undoLatest(),
     branches: () => branches.open(),
     fork: (argument) => turns.fork(argument),
     rename: (argument) => deps.renameSession(argument),

@@ -92,6 +92,22 @@ Two things in the existing rules stood in the way of the obvious build:
 - A message sent while a run is in flight joins that run as plain text:
   references and attachments wait for a turn of their own.
 
+## Conversation features
+
+Each is a thin controller over existing Host commands; the TUI holds no copy
+of the state beyond what it last showed.
+
+| Command | Host commands | Notes |
+|---|---|---|
+| `/model` `/thinking` `/permission` `/skill` `/prompts` | `session/set-composer-profile`, prompt input fields, `skills/list`, `prompts/list` | Templates complete as slash commands; the agent expands them. |
+| `/attach` `/paste` `/detach`, `@` | `media/save-*`, `project/list-dir`, `project/find-file` | See "Composer inputs". |
+| Enter while running, `/queue`, `/steer` | `session/queued-turn-*`, `session/steer` | Enter queues the next turn with its attachments and refs, as Desktop does; `/steer` joins the running turn. A queued turn is echoed when the Host starts it. |
+| `/plan` | `plan/get`, `plan/execute`, `plan/approve`, `plan/abort`, `plan/set-status`, `plan/clear` | Execution sends `expectedRevision`, so a plan that changed under the overlay is refused. |
+| `/retry [keep]`, `/edit`, `/branches`, `/fork` | `session/prompt` (`retryUserMessageId`, `branchFromMessageId`), `session/branch-*`, `session/fork` | A switch that would strand file changes is confirmed first with the Host's list of paths. |
+| `/subagents` | `session/list-children`, `subagent/results`, `subagent/result-files`, `subagent/result-diff`, `subagent/worktree-action`, `subagent/cleanup-plan`, `subagent/request-resolution` | Actions are gated by the result's `availability`; a refusal shows the Host's reason. |
+| `/changes`, `/undo` | `turn-changes/list-by-runs`, `turn-changes/files`, `turn-changes/diff`, `turn-changes/undo`, `turn-changes/redo` | Turns are found by the run ids on screen. After an undo the summary is re-read, because the update push is filed under the workspace, not the session. |
+| `/compact` | `session/compact` | |
+
 ## Consequences
 
 - A terminal attached to the Host Desktop uses sees the same sessions, live.
@@ -122,12 +138,11 @@ session and no terminal to take.
 
 ## Not done
 
-- TUI composer parity with Desktop. Done: model, thinking level, Run Mode,
-  a skill for the next turn, `@` file and folder references, file and image
-  attachments (path, dropped path, clipboard image), compaction, retry of the
-  last turn, permission and extension prompts. Not yet: prompt templates,
-  plan review and execution, queued turns, branch switching and fork,
-  subagent results, turn-change undo.
+- Still Desktop-only: repairing an undo that stopped half way
+  (`turn-changes/recovery-*`), reordering the queue, replacing a running turn
+  with a queued one, continuing a subagent with a follow-up, side chat,
+  walkthroughs, the artifact canvas, and project-scoped prompt templates
+  (the remote protocol lists global ones only).
 - Switching back to the chat surface ends the TUI process. Nothing is lost
   (state is the Host's), but terminal scrollback is.
 - A conversation the TUI starts does not become Desktop's active session by
