@@ -1,0 +1,184 @@
+/* 正文阅读层：长文排版、图片、目录与翻页。 */
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: calc(var(--vp-nav-height) + 16px);
+}
+
+/* 正文图片：圆角描边，可点开灯箱 */
+.vp-doc img {
+  border-radius: 8px;
+}
+
+.vp-doc p > img,
+.vp-doc figure img {
+  border: 1px solid var(--l2);
+  box-shadow: var(--sh1);
+}
+
+.vp-doc img:not(.no-zoom),
+img.zoomable {
+  cursor: zoom-in;
+}
+
+.vp-doc a img,
+.vp-doc button img,
+.vp-doc .no-zoom img {
+  cursor: inherit;
+}
+
+/* 二级标题前的朱砂短线，长文里更容易找到章节起点 */
+.vp-doc h2 {
+  position: relative;
+}
+
+.vp-doc h2::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 44px;
+  height: 2px;
+  background: var(--zhu);
+}
+
+/* 标题锚点 */
+.vp-doc .header-anchor {
+  color: var(--zhu);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.vp-doc h2:hover .header-anchor,
+.vp-doc h3:hover .header-anchor,
+.vp-doc .header-anchor:focus {
+  opacity: 1;
+}
+
+/* 摘要块：论文式的首段 */
+.vp-doc .abstract {
+  margin: 1.5rem 0 2rem;
+  padding: 16px 20px;
+  border-radius: 10px;
+  border: 1px solid var(--l2);
+  border-left: 3px solid var(--zhu);
+  background: var(--s3);
+  box-shadow: var(--sh1);
+}
+
+.vp-doc .abstract-label {
+  display: block;
+  margin-bottom: 6px;
+  font: 600 0.72rem var(--vp-font-family-mono);
+  letter-spacing: 0.14em;
+  color: var(--zhu);
+}
+
+.vp-doc .abstract p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.8;
+  color: var(--t2);
+}
+
+.vp-doc .abstract p + p {
+  margin-top: 8px;
+}
+
+/* 文章元信息行 */
+.vp-doc .article-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: -0.5rem 0 1.25rem;
+  font-size: 0.82rem;
+  color: var(--t3);
+}
+
+.vp-doc .article-meta a {
+  font-weight: 400;
+}
+
+/* 核心命题：居中衬线引文 */
+.vp-doc .thesis {
+  margin: 2rem 0;
+  padding: 18px 24px;
+  text-align: center;
+  font-family: var(--font-serif);
+  font-size: 1.08rem;
+  line-height: 1.85;
+  color: var(--t1);
+  border-top: 1px solid var(--l2);
+  border-bottom: 1px solid var(--l2);
+}
+
+/* 参考文献 */
+.vp-doc .references {
+  font-size: 0.86rem;
+  color: var(--t2);
+}
+
+.vp-doc .references li {
+  line-height: 1.65;
+  margin-top: 6px;
+}
+
+/* 右侧目录：当前章节更醒目 */
+.VPDocAsideOutline .outline-link {
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.VPDocAsideOutline .outline-link:hover {
+  transform: translateX(2px);
+}
+
+.VPDocAsideOutline .outline-link.active {
+  color: var(--zhu);
+  font-weight: 600;
+}
+
+.VPDocAsideOutline .outline-marker {
+  background-color: var(--zhu);
+}
+
+/* 上一篇 / 下一篇 */
+.VPDocFooter .pager-link {
+  border-radius: 10px;
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.VPDocFooter .pager-link:hover {
+  border-color: var(--zhu);
+  transform: translateY(-2px);
+  box-shadow: var(--sh2);
+}
+
+.VPDocFooter .pager-link .title {
+  font-family: var(--font-serif);
+}
+
+/* 代码块复制按钮与语言角标跟随砚台色 */
+.vp-doc [class*='language-'] > button.copy {
+  border-radius: 6px;
+  border-color: var(--l2);
+  background-color: var(--s2);
+}
+
+.vp-doc [class*='language-'] > span.lang {
+  font-family: var(--vp-font-family-mono);
+  color: var(--t4);
+}
+
+/* 宽表格在窄屏横向滚动，不撑破正文 */
+@media (max-width: 640px) {
+  .vp-doc table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .vp-doc th {
+    white-space: normal;
+  }
+}

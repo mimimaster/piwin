@@ -24,6 +24,13 @@ export default defineConfig({
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
     ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Serif+SC:wght@500;600;700&display=swap' }],
+    // 首页开幕动画的待播状态必须在首帧之前就位，否则服务端渲染出的成品画面会先闪一下。
+    // 只在直接打开首页时播放；6 秒兜底，脚本出错也不会把页面一直藏着。
+    [
+      'script',
+      {},
+      `(function(){var r=document.documentElement;if(location.pathname!=='/'||matchMedia('(prefers-reduced-motion: reduce)').matches)return;r.classList.add('hero-intro');setTimeout(function(){if(!r.classList.contains('hero-intro-run'))r.classList.remove('hero-intro')},6000)})()`,
+    ],
     ['meta', { name: 'theme-color', content: '#c6412a' }],
     ['meta', { name: 'og:type', content: 'website' }],
     ['meta', { name: 'og:title', content: 'Piwin · 砚 — 面向个人的智能编程工作台' }],
@@ -35,20 +42,53 @@ export default defineConfig({
     siteTitle: 'Piwin · 砚',
 
     nav: [
-      { text: '首页', link: '/' },
       { text: '下载', link: '/download' },
       { text: '快速起步', link: '/docs/getting-started' },
+      {
+        text: '使用指南',
+        activeMatch: '^/docs/(model-config|vision-models|web-search|oauth-login|token-acquisition|code-search|auto-orchestration|realtime-voice|artifact-rendering|extensions|permissions)',
+        items: [
+          {
+            text: '核心能力',
+            items: [
+              { text: 'Code Search 代码检索', link: '/docs/code-search' },
+              { text: 'Auto 智能编排', link: '/docs/auto-orchestration' },
+              { text: '全双工实时语音', link: '/docs/realtime-voice' },
+              { text: 'Artifact 渲染与画布', link: '/docs/artifact-rendering' },
+            ],
+          },
+          {
+            text: '配置',
+            items: [
+              { text: '模型与通道', link: '/docs/model-config' },
+              { text: '视觉模型与委托', link: '/docs/vision-models' },
+              { text: 'Web 搜索', link: '/docs/web-search' },
+            ],
+          },
+          {
+            text: '系统与生态',
+            items: [
+              { text: '扩展、Skill 与 MCP', link: '/docs/extensions' },
+              { text: '权限与安全', link: '/docs/permissions' },
+            ],
+          },
+        ],
+      },
+      { text: '设计笔记', link: '/docs/workspace-concurrency', activeMatch: '^/docs/(prompt-system|workspace-concurrency)' },
+      {
+        text: '展示',
+        activeMatch: '^/docs/(gallery|prototype)',
+        items: [
+          { text: '视觉画廊', link: '/docs/gallery' },
+          { text: 'Inkstone 设计原型', link: '/docs/prototype' },
+        ],
+      },
       { text: '拓展站', link: 'https://extension.piwinwin.com', target: '_blank' },
-      { text: '配置指南', link: '/docs/model-config' },
-      { text: '系统生态', link: '/docs/extensions' },
-      { text: '视觉画廊', link: '/docs/gallery' },
-      { text: '设计原型', link: '/docs/prototype' },
       {
         text: '更多',
         items: [
           { text: 'GitHub 仓库', link: 'https://github.com/mimimaster/piwin' },
           { text: 'LINUX DO 社区', link: 'https://linux.do' },
-          { text: '提示词体系', link: '/docs/prompt-system' },
           { text: '文档共建指引', link: '/docs/how-to-write-docs' },
         ],
       },
@@ -71,7 +111,7 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: 'Code Search 代码拓扑检索', link: '/docs/code-search' },
-            { text: '子代理协同 (Ultra & Fusion)', link: '/docs/subagent-orchestration' },
+            { text: 'Auto 编排 (含 Ultra & Fusion)', link: '/docs/auto-orchestration' },
             { text: '全双工实时语音 Live', link: '/docs/realtime-voice' },
             { text: 'Artifact 实时渲染与画布', link: '/docs/artifact-rendering' },
           ],
@@ -95,9 +135,16 @@ export default defineConfig({
             { text: 'Pi 扩展开发与 piwin 适配', link: '/docs/extension-development' },
             { text: 'Pi 扩展安装实战 (cc-safety-net)', link: '/docs/install-pi-extension' },
             { text: '权限管控与安全拦截', link: '/docs/permissions' },
-            { text: '多会话并发写入与乐观写锁', link: '/docs/workspace-concurrency' },
             { text: '知识库与多媒体资料库', link: '/docs/knowledge-and-media' },
             { text: '会话管理、归档与用量统计', link: '/docs/session-and-stats' },
+          ],
+        },
+        {
+          text: '设计笔记',
+          collapsed: false,
+          items: [
+            { text: '多会话并发写入与乐观写锁', link: '/docs/workspace-concurrency' },
+            { text: '提示词与上下文设计体系', link: '/docs/prompt-system' },
           ],
         },
         {
@@ -112,7 +159,6 @@ export default defineConfig({
           text: '进阶与共建',
           collapsed: false,
           items: [
-            { text: '提示词与上下文设计体系', link: '/docs/prompt-system' },
             { text: '精选社群与优质资源', link: '/docs/web-community' },
             { text: '如何编写与扩充文档', link: '/docs/how-to-write-docs' },
           ],

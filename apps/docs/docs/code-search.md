@@ -72,6 +72,6 @@ Code Search 派发独立的**轻量级只读子智能体**去深入代码库探�
 ## 5. 关联文档
 
 - [Devin Token 与专属 Key 获取指引](./token-acquisition.md)
-- [子代理编排协同：Ultra Code 与 Fusion](./subagent-orchestration.md)
+- [Auto 智能编排（含 Ultra Code 与 Fusion）](./auto-orchestration.md)
 - [Web 搜索配置与工具](./web-search.md)
 - [快速起步概览](./getting-started.md)

@@ -188,28 +188,46 @@ function selectGroup(id: string): void {
 const activeGroup = computed<FeatureGroup>(
   () => featureGroups.find((g) => g.id === activeGroupId.value) ?? featureGroups[0]!,
 );
+
+/** 缩略轨支持 ←/→ 切换，焦点跟随到新选中的卡片。 */
+function handleRailKeydown(
+  event: KeyboardEvent,
+  ids: readonly string[],
+  activeId: string,
+  select: (id: string) => void,
+): void {
+  if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+  event.preventDefault();
+  const delta = event.key === 'ArrowRight' ? 1 : -1;
+  const nextIndex = (ids.indexOf(activeId) + delta + ids.length) % ids.length;
+  const nextId = ids[nextIndex];
+  if (nextId === undefined) return;
+  select(nextId);
+  const rail = event.currentTarget;
+  if (rail instanceof HTMLElement) {
+    rail.querySelectorAll<HTMLButtonElement>('.promo-chip')[nextIndex]?.focus();
+  }
+}
+
+const sceneIds = scenes.map((scene) => scene.id);
+const groupIds = featureGroups.map((group) => group.id);
 </script>
 
 <template>
   <section class="promo">
     <!-- 顶部封面主视觉 -->
-    <a
-      class="promo-cover"
-      href="/images/promo/cover.jpg"
-      target="_blank"
-      rel="noreferrer"
-      title="点击查看高清封面"
-    >
+    <div v-reveal class="promo-cover">
       <img
-        class="promo-cover-img"
+        class="promo-cover-img zoomable"
         src="/images/promo/cover.jpg"
         alt="Piwin 砚 · 面向个人的本地 Coding Agent 工作台"
+        title="点击放大查看"
       />
       <span class="promo-cover-badge">桌面工作台最新实录 · 东方文人美学</span>
-    </a>
+    </div>
 
     <!-- 模式切换选项条 -->
-    <div class="promo-header-tabs">
+    <div v-reveal class="promo-header-tabs">
       <div class="promo-tab-group" role="tablist">
         <button
           type="button"
@@ -236,7 +254,7 @@ const activeGroup = computed<FeatureGroup>(
       </div>
 
       <div class="promo-hint">
-        <span>同行双图并排展示 · 点击原图可查阅高分原画 ↗</span>
+        <span>点击图片放大 · ←/→ 切换场景</span>
       </div>
     </div>
 
@@ -259,7 +277,7 @@ const activeGroup = computed<FeatureGroup>(
             </div>
             <div class="dual-img-box">
               <img
-                class="dual-img"
+                class="dual-img zoomable"
                 :key="`${activeScene.id}-ink`"
                 :src="sceneSrc(activeScene.id, 'ink')"
                 :alt="`${activeScene.title} · 墨面`"
@@ -282,7 +300,7 @@ const activeGroup = computed<FeatureGroup>(
             </div>
             <div class="dual-img-box">
               <img
-                class="dual-img"
+                class="dual-img zoomable"
                 :key="`${activeScene.id}-light`"
                 :src="sceneSrc(activeScene.id, 'light')"
                 :alt="`${activeScene.title} · 纸面`"
@@ -301,7 +319,7 @@ const activeGroup = computed<FeatureGroup>(
         </button>
       </div>
 
-      <div class="promo-lede">
+      <div :key="activeScene.id" class="promo-lede">
         <div class="promo-lede-title">
           <span class="num-tag">{{ activeScene.num }}</span>
           <b>{{ activeScene.title }}</b>
@@ -310,7 +328,10 @@ const activeGroup = computed<FeatureGroup>(
       </div>
 
       <!-- 场景缩略图导航轨 -->
-      <div class="promo-rail">
+      <div
+        class="promo-rail"
+        @keydown="handleRailKeydown($event, sceneIds, activeSceneId, selectScene)"
+      >
         <button
           v-for="scene in scenes"
           :key="scene.id"
@@ -346,7 +367,7 @@ const activeGroup = computed<FeatureGroup>(
             </div>
             <div class="dual-img-box">
               <img
-                class="dual-img"
+                class="dual-img zoomable"
                 :key="activeGroup.leftSrc"
                 :src="activeGroup.leftSrc"
                 :alt="activeGroup.leftTitle"
@@ -369,7 +390,7 @@ const activeGroup = computed<FeatureGroup>(
             </div>
             <div class="dual-img-box">
               <img
-                class="dual-img"
+                class="dual-img zoomable"
                 :key="activeGroup.rightSrc"
                 :src="activeGroup.rightSrc"
                 :alt="activeGroup.rightTitle"
@@ -388,7 +409,7 @@ const activeGroup = computed<FeatureGroup>(
         </button>
       </div>
 
-      <div class="promo-lede">
+      <div :key="activeGroup.id" class="promo-lede">
         <div class="promo-lede-title">
           <span class="num-tag">{{ activeGroup.num }}</span>
           <b>{{ activeGroup.title }}</b>
@@ -398,7 +419,10 @@ const activeGroup = computed<FeatureGroup>(
       </div>
 
       <!-- 特性双图缩略轨 (7 组卡片) -->
-      <div class="promo-rail">
+      <div
+        class="promo-rail"
+        @keydown="handleRailKeydown($event, groupIds, activeGroupId, selectGroup)"
+      >
         <button
           v-for="grp in featureGroups"
           :key="grp.id"
@@ -445,6 +469,7 @@ const activeGroup = computed<FeatureGroup>(
   display: block;
   width: 100%;
   height: auto;
+  border-radius: 0;
 }
 
 .promo-cover-badge {
@@ -620,6 +645,15 @@ const activeGroup = computed<FeatureGroup>(
   width: 100%;
   height: auto;
   transition: transform 0.2s ease;
+  animation: promo-swap-in 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 切换场景时图与导语重新挂载，借入场动画做交叉过渡 */
+@keyframes promo-swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
 }
 
 .dual-card:hover .dual-img {
@@ -654,6 +688,7 @@ const activeGroup = computed<FeatureGroup>(
 
 /* 文本导语 */
 .promo-lede {
+  animation: promo-swap-in 0.36s cubic-bezier(0.16, 1, 0.3, 1);
   margin: 18px 0 16px;
   padding: 14px 18px;
   border-radius: 10px;
@@ -719,6 +754,7 @@ const activeGroup = computed<FeatureGroup>(
 .promo-chip:hover {
   border-color: var(--l3);
   background: var(--s2);
+  transform: translateY(-2px);
 }
 
 .promo-chip.on {
@@ -766,8 +802,26 @@ const activeGroup = computed<FeatureGroup>(
   .promo-dual-grid {
     grid-template-columns: 1fr;
   }
+  /* 窄屏改成可横滑的单行轨，避免缩略卡挤成三行 */
   .promo-rail {
-    grid-template-columns: repeat(3, 1fr);
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    padding-bottom: 6px;
+  }
+  .promo-chip {
+    flex: 0 0 132px;
+    scroll-snap-align: start;
+  }
+  .promo-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dual-img,
+  .promo-lede {
+    animation: none;
   }
 }
 </style>

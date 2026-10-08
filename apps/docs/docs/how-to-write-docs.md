@@ -23,7 +23,7 @@ apps/docs/docs/
 │
 └── agent/                         # 智能体能力目录 (可选)
     ├── code-search.md             # 代码语义检索
-    ├── subagent-orchestration.md  # 子代理编排
+    ├── auto-orchestration.md      # 子代理编排
     └── extensions.md              # 扩展生态说明
 ```
 
@@ -60,7 +60,7 @@ sidebar: {
       collapsed: false,
       items: [
         { text: 'Code Search 代码语义搜索', link: '/docs/code-search' },
-        { text: '子代理编排: Ultra Code & Fusion', link: '/docs/subagent-orchestration' },
+        { text: 'Auto 智能编排 (含 Ultra & Fusion)', link: '/docs/auto-orchestration' },
         { text: 'Web 搜索与网络检索', link: '/docs/web-search' },
         { text: 'Pi 扩展生态与热加载', link: '/docs/extensions' },
       ],

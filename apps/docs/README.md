@@ -22,7 +22,7 @@ apps/docs/
 │   ├── realtime-voice.md          # 实时语音与 Live 协作模式
 │   ├── token-acquisition.md       # Devin Key 专属获取指引
 │   ├── code-search.md             # Code Search 智能代码搜索
-│   ├── subagent-orchestration.md  # 子代理编排: Ultra Code 与 Fusion
+│   ├── auto-orchestration.md      # 子代理编排: Auto（含 Ultra Code 与 Fusion）
 │   ├── web-search.md              # Web 搜索与网络检索服务
 │   ├── extensions.md              # Pi 扩展生态与热加载
 │   ├── prompt-system.md           # 提示词工程与上下文设计体系

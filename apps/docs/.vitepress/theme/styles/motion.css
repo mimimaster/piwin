@@ -1,0 +1,118 @@
+/* 动效层：主题切换、滚动入场、首页 Hero 的研墨动态。
+   所有动效在 prefers-reduced-motion 下关闭。 */
+
+/* —— 纸面 / 墨面切换：圆形晕开（配合 Layout.vue 的 View Transition） —— */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root),
+.dark::view-transition-new(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root),
+.dark::view-transition-old(root) {
+  z-index: 9999;
+}
+
+/* —— v-reveal 滚动入场 —— */
+.reveal-pending {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal-pending.reveal-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* —— 首页 Hero —— */
+.VPHome .VPHero .image-bg {
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, var(--zhu-wash) 0%, transparent 68%);
+  filter: blur(36px);
+  animation: hero-breathe 7s ease-in-out infinite;
+}
+
+@keyframes hero-breathe {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+}
+
+/* —— 文档页切换时正文轻微淡入 —— */
+.VPDoc .vp-doc > div {
+  animation: doc-fade 0.32s ease both;
+}
+
+@keyframes doc-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* —— 交互反馈 —— */
+.VPNavBarMenuLink,
+.VPNavBarMenuGroup .button {
+  position: relative;
+}
+
+.VPNavBarMenuLink::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 14px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--zhu);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.VPNavBarMenuLink:hover::after,
+.VPNavBarMenuLink.active::after {
+  transform: scaleX(1);
+}
+
+html.lightbox-open {
+  overflow: hidden;
+}
+
+:focus-visible {
+  outline: 2px solid var(--zhu);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .VPHome .VPHero .image-bg,
+  .VPDoc .vp-doc > div {
+    animation: none;
+  }
+
+  .reveal-pending {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  html {
+    scroll-behavior: auto !important;
+  }
+}

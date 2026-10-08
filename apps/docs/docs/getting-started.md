@@ -139,7 +139,7 @@ Piwin 支持多种极低门槛的配置方案：
 | **Web 搜索配置** | 接入 Tavily 每月免费 1000 次搜索或 Devin 专属搜索 | [Web 搜索指引](./web-search.md) |
 | **Devin OAuth 授权** | 一键自动获取凭据，直接搞定 Web 搜索与代码检索 | [Devin 授权与 Token 指引](./token-acquisition.md) |
 | **Code Search 检索** | 仓库再大也不怕，0 上下文污染进行精准架构摸底 | [Code Search 指南](./code-search.md) |
-| **子代理编排** | Ultra Code（侦察兵模式）与 Fusion 双模规划执行 | [子代理编排](./subagent-orchestration.md) |
+| **子代理编排** | Auto 智能编排：按需路由 Scout 取证与 Sidekick 执行（含 Ultra Code、Fusion） | [Auto 智能编排](./auto-orchestration.md) |
 | **多端开箱运行** | macOS 一体包、Windows 包、iPad 远程直连 | [多端使用指南](./deployment.md) |
 
 

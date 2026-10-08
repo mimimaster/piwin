@@ -36,7 +36,7 @@
 ### 4. 多子代理编排协作 (Ultra Code & Fusion)
 - **Ultra Code 模式**：先派发 Scout 侦察兵摸清代码关系，再由主代理实施精准修改；
 - **Fusion 模式**：采用“SOTA 主规划模型（如 Claude 3.5 / DeepSeek V3） + 高性价比执行节点（如 Flash）”的黄金组合，通过独立 Git Worktree 并行写代码，主分支一键原子级合并与审查。  
-查看详细说明：[子代理编排与协同](./subagent-orchestration.md)
+查看详细说明：[Auto 智能编排（含 Ultra Code 与 Fusion）](./auto-orchestration.md)
 
 ### 5. 实时全双工语音 (Live Realtime Voice)
 内置说话面契约（Live Spoken Contract），还原像真人结对编程一样“边聊天、边下发需求、边修改代码”的沉浸式体验。支持 OpenAI Realtime 协议、Codex Live 与 Grok2API 实时语音通道。  

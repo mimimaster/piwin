@@ -19,4 +19,6 @@ hero:
 
 <PromoShowcase />
 
+<HomeOrchestration />
+
 <HomeQuickNav />
