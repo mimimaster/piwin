@@ -99,8 +99,11 @@ session and no terminal to take.
 
 ## Not done
 
-- Attachments, image paste, `@` file references and skill slash commands in
-  the TUI composer.
+- TUI composer parity with Desktop. Done: model, thinking level, a skill for
+  the next turn, compaction, retry of the last turn, permission and extension
+  prompts. Not yet: attachments and image paste, `@` file references, prompt
+  templates, permission mode, plan review and execution, queued turns,
+  branch switching and fork, subagent results, turn-change undo.
 - Switching back to the chat surface ends the TUI process. Nothing is lost
   (state is the Host's), but terminal scrollback is.
 - A conversation the TUI starts does not become Desktop's active session by

@@ -12,13 +12,11 @@ import {
 import type {
   HostCommand,
   HostPush,
-  ModelRef,
   RemotePendingPermission,
   RemoteProjectSummary,
   RemoteSessionResumeData,
   RemoteSessionTranscriptPageData,
   SessionContextSnapshot,
-  ThinkingLevel,
 } from '@piwin/contracts';
 import {
   applyForegroundRunResponse,
@@ -27,7 +25,7 @@ import {
   knownForegroundRunId,
   type ForegroundRunState,
 } from '@piwin/host-client';
-import { ChoiceOverlay, TextOverlay } from './choice-overlay.js';
+import { TextOverlay } from './choice-overlay.js';
 import { StatusLine } from './status-line.js';
 import {
   EMPTY_TRANSCRIPT,
@@ -41,6 +39,8 @@ import {
 } from './transcript-model.js';
 import { TranscriptView } from './transcript-view.js';
 import { TUI_SLASH_COMMANDS, parseSlashCommand } from './tui-commands.js';
+import { findLastUserMessageId } from './tui-composer-options.js';
+import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { TuiModalStack, createExtensionModal, createPermissionModal } from './tui-modals.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
@@ -63,8 +63,6 @@ export type TuiAppOptions = {
   onExit: () => void;
 };
 
-type ConfiguredModel = ModelRef & { label?: string; providerName?: string; thinkingLevel?: ThinkingLevel };
-
 /**
  * TUI controller: owns no session data. Everything shown comes from Host
  * responses and pushes; every change goes back as a HostCommand.
@@ -84,8 +82,7 @@ export class TuiApp {
   private olderCursor: string | undefined;
   private projectId: string | undefined;
   private projects: RemoteProjectSummary[] = [];
-  private models: ConfiguredModel[] = [];
-  private model: ConfiguredModel | undefined;
+  private readonly composer: TuiComposerProfile;
   private context: SessionContextSnapshot | undefined;
   private foreground: ForegroundRunState = initialForegroundRunState();
   private foregroundGeneration = 0;
@@ -116,6 +113,14 @@ export class TuiApp {
     );
     this.loader = new Loader(this.tui, style.cyan, style.gray, '');
     this.modals = new TuiModalStack(this.tui, this.editor, () => this.sessionSwitcher.handleOverlayClosed());
+    this.composer = new TuiComposerProfile({
+      link: this.link,
+      modals: this.modals,
+      getSessionId: () => this.sessionId,
+      onChanged: () => this.refreshChrome(),
+      onHint: (text) => this.flashHint(text),
+      onError: (error) => this.reportError(error),
+    });
     this.sessionSwitcher = new TuiSessionSwitcher({
       link: this.link,
       modals: this.modals,
@@ -153,7 +158,7 @@ export class TuiApp {
     );
     this.tui.start();
     this.refreshChrome();
-    await Promise.all([this.loadProjects(), this.loadModels()]);
+    await Promise.all([this.loadProjects(), this.composer.loadModels()]);
     if (this.options.sessionId !== undefined) {
       await this.openSession(this.options.sessionId);
     } else {
@@ -180,7 +185,7 @@ export class TuiApp {
     this.transcript = transcriptFromMessages(resume.messages);
     this.olderCursor = resume.transcriptPage?.olderCursor;
     this.context = undefined;
-    if (resume.model !== undefined) this.model = this.describeModel(resume.model);
+    if (resume.model !== undefined) this.composer.adoptSessionModel(resume.model);
     this.modals.clearQueue();
     await this.reconcileForegroundRun(sessionId, epoch);
     await this.loadPendingPermissions(sessionId, epoch);
@@ -230,6 +235,7 @@ export class TuiApp {
 
   private async ensureSession(): Promise<string> {
     if (this.sessionId !== undefined) return this.sessionId;
+    const model = this.composer.modelRef();
     const created = hostData<{ sessionId: string }>(
       await this.link.request({
         type: 'session/create',
@@ -237,7 +243,7 @@ export class TuiApp {
           ...(this.projectId === undefined
             ? { scope: { kind: 'general' as const } }
             : { projectId: this.projectId }),
-          ...(this.model === undefined ? {} : { model: toModelRef(this.model) }),
+          ...(model === undefined ? {} : { model }),
         },
       }),
     );
@@ -300,7 +306,7 @@ export class TuiApp {
       );
       return;
     }
-    const model = this.model;
+    const skillId = this.composer.takeSkillId();
     hostData(
       await this.link.request({
         type: 'session/prompt',
@@ -308,8 +314,8 @@ export class TuiApp {
         input: {
           text,
           clientMessageId,
-          ...(model === undefined ? {} : { model: toModelRef(model) }),
-          ...(model?.thinkingLevel === undefined ? {} : { thinkingLevel: model.thinkingLevel }),
+          ...(skillId === undefined ? {} : { skillId }),
+          ...this.composer.promptFields(),
         },
         foreground: { kind: 'if-idle' },
       }),
@@ -347,10 +353,22 @@ export class TuiApp {
         this.startDraftSession();
         return;
       case 'model':
-        this.openModelPicker();
+        this.composer.openModelPicker();
         return;
       case 'older':
         await this.loadOlderMessages();
+        return;
+      case 'thinking':
+        this.composer.openThinkingPicker();
+        return;
+      case 'skill':
+        await this.composer.openSkillPicker();
+        return;
+      case 'compact':
+        await this.compactSession(argument);
+        return;
+      case 'retry':
+        await this.retryLastTurn();
         return;
       case 'rename': {
         if (this.sessionId === undefined) {
@@ -492,35 +510,51 @@ export class TuiApp {
     this.link.request(command).then(hostData, (error: unknown) => this.reportError(error));
   }
 
-  private openModelPicker(): void {
-    if (this.models.length === 0) {
-      this.flashHint('Host 没有已配置的模型');
+  private async compactSession(customInstructions: string): Promise<void> {
+    if (this.sessionId === undefined) {
+      this.flashHint('当前还没有会话');
       return;
     }
-    this.modals.show(
-      new ChoiceOverlay({
-        title: '选择模型',
-        items: this.models.map((model) => ({
-          value: modelKey(model),
-          label: model.label ?? model.modelId,
-          ...(model.providerName === undefined ? {} : { description: model.providerName }),
-        })),
-        ...(this.model === undefined ? {} : { initialValue: modelKey(this.model) }),
-        onSelect: (value) => {
-          this.modals.close();
-          const picked = this.models.find((model) => modelKey(model) === value);
-          if (picked === undefined) return;
-          this.model = picked;
-          this.refreshChrome();
-          if (this.sessionId !== undefined) {
-            this.link
-              .request({ type: 'session/set-composer-profile', sessionId: this.sessionId, model: toModelRef(picked) })
-              .then(hostData, (error: unknown) => this.reportError(error));
-          }
-        },
-        onCancel: () => this.modals.close(),
+    if (this.foreground.kind === 'active') {
+      this.flashHint('运行中不能压缩，先按 Esc 中断');
+      return;
+    }
+    // Progress and the outcome arrive as compaction/start and compaction/end events.
+    hostData(
+      await this.link.request({
+        type: 'session/compact',
+        sessionId: this.sessionId,
+        ...(customInstructions.length === 0 ? {} : { customInstructions }),
       }),
     );
+  }
+
+  /** Re-run the last user turn in place; the Host drops the previous answer. */
+  private async retryLastTurn(): Promise<void> {
+    const retryUserMessageId = findLastUserMessageId(this.transcript);
+    if (this.sessionId === undefined || retryUserMessageId === undefined) {
+      this.flashHint('没有可以重试的消息');
+      return;
+    }
+    if (this.foreground.kind === 'active') {
+      this.flashHint('运行中不能重试，先按 Esc 中断');
+      return;
+    }
+    const sessionId = this.sessionId;
+    hostData(
+      await this.link.request({
+        type: 'session/prompt',
+        sessionId,
+        input: {
+          text: '',
+          retryUserMessageId,
+          ...this.composer.promptFields(),
+        },
+        foreground: { kind: 'if-idle' },
+      }),
+    );
+    // The retried answer replaces the old one; reload rather than patch rows.
+    await this.openSession(sessionId);
   }
 
   // ------------------------------------------------------------------- input
@@ -566,15 +600,6 @@ export class TuiApp {
   private async loadProjects(): Promise<void> {
     const data = hostData<{ projects?: RemoteProjectSummary[] }>(await this.link.request({ type: 'project/list' }));
     this.projects = data.projects ?? [];
-  }
-
-  private async loadModels(): Promise<void> {
-    const data = hostData<{ models?: ConfiguredModel[] }>(await this.link.request({ type: 'models/configured' }));
-    this.models = data.models ?? [];
-  }
-
-  private describeModel(ref: ModelRef): ConfiguredModel {
-    return this.models.find((model) => modelKey(model) === modelKey(ref)) ?? ref;
   }
 
   private flashHint(text: string): void {
@@ -625,24 +650,11 @@ export class TuiApp {
       this.connected ? undefined : '重连中…',
       this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),
       scope,
-      this.model === undefined ? '默认模型' : (this.model.label ?? this.model.modelId),
+      ...this.composer.describe(),
       usage,
       this.options.mock ? 'mock' : undefined,
     ]
       .filter((part): part is string => part !== undefined)
       .join(' · ');
   }
-}
-
-function modelKey(model: ModelRef): string {
-  return `${model.providerId}/${model.modelId}`;
-}
-
-function toModelRef(model: ConfiguredModel): ModelRef {
-  return {
-    providerId: model.providerId,
-    modelId: model.modelId,
-    ...(model.source === undefined ? {} : { source: model.source }),
-    ...(model.protocol === undefined ? {} : { protocol: model.protocol }),
-  };
 }
