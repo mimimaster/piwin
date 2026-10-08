@@ -1,4 +1,4 @@
-import type { SkillSummary, ThinkingLevel } from '@piwin/contracts';
+import type { PermissionPreset, SkillSummary, ThinkingLevel } from '@piwin/contracts';
 import type { SelectItem } from '@earendil-works/pi-tui';
 import type { TranscriptState } from './transcript-model.js';
 
@@ -36,6 +36,51 @@ export function parseThinkingLevel(value: string): ThinkingLevel | undefined {
 export function describeThinkingLevel(level: ThinkingLevel | undefined): string | undefined {
   if (level === undefined) return undefined;
   return `思考 ${THINKING_LEVELS.find((entry) => entry.level === level)?.label ?? level}`;
+}
+
+/** Run Mode (ADR 0024) in the order Shift+Tab walks it: most cautious first. */
+const PERMISSION_PRESETS: ReadonlyArray<{ preset: PermissionPreset; label: string; description: string }> = [
+  { preset: 'ask', label: '询问', description: '几乎每个操作都先问' },
+  { preset: 'auto', label: '自动', description: '沙箱内直接做，越界才问' },
+  { preset: 'yolo', label: '放行', description: '不询问，不设沙箱' },
+];
+
+export const HOST_PERMISSION_VALUE = 'host';
+
+/** "Follow Host" sends no preset, so the Host's own configuration applies. */
+export function permissionPresetItems(hostDefault: PermissionPreset | undefined): SelectItem[] {
+  const hostLabel = PERMISSION_PRESETS.find((entry) => entry.preset === hostDefault)?.label;
+  return [
+    {
+      value: HOST_PERMISSION_VALUE,
+      label: '跟随 Host 设置',
+      ...(hostLabel === undefined ? {} : { description: `当前为「${hostLabel}」` }),
+    },
+    ...PERMISSION_PRESETS.map(({ preset, label, description }) => ({ value: preset, label, description })),
+  ];
+}
+
+export function parsePermissionPreset(value: string): PermissionPreset | undefined {
+  return PERMISSION_PRESETS.find(({ preset }) => preset === value)?.preset;
+}
+
+/** Shift+Tab: Host default → ask → auto → yolo → Host default. */
+export function nextPermissionPreset(current: PermissionPreset | undefined): PermissionPreset | undefined {
+  if (current === undefined) return PERMISSION_PRESETS[0]?.preset;
+  const index = PERMISSION_PRESETS.findIndex(({ preset }) => preset === current);
+  return PERMISSION_PRESETS[index + 1]?.preset;
+}
+
+/** Always shown: which mode the next turn runs in is never left implicit. */
+export function describePermissionPreset(
+  chosen: PermissionPreset | undefined,
+  hostDefault: PermissionPreset | undefined,
+): string | undefined {
+  const label = (preset: PermissionPreset | undefined): string | undefined =>
+    PERMISSION_PRESETS.find((entry) => entry.preset === preset)?.label;
+  if (chosen !== undefined) return `权限 ${label(chosen) ?? chosen}`;
+  const hostLabel = label(hostDefault);
+  return hostLabel === undefined ? undefined : `权限 ${hostLabel}（Host）`;
 }
 
 export const NO_SKILL_VALUE = '';

@@ -3,10 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { EMPTY_TRANSCRIPT, appendLocalUserMessage, applyAgentEvent } from './transcript-model.js';
 import {
   DEFAULT_THINKING_VALUE,
+  HOST_PERMISSION_VALUE,
   NO_SKILL_VALUE,
+  describePermissionPreset,
   describeThinkingLevel,
   findLastUserMessageId,
+  nextPermissionPreset,
+  parsePermissionPreset,
   parseThinkingLevel,
+  permissionPresetItems,
   skillItems,
   thinkingLevelItems,
 } from './tui-composer-options.js';
@@ -26,6 +31,36 @@ describe('thinking level choices', () => {
   it('describes only an explicit level', () => {
     expect(describeThinkingLevel(undefined)).toBeUndefined();
     expect(describeThinkingLevel('high')).toBe('思考 高');
+  });
+});
+
+describe('permission preset choices', () => {
+  it('offers the Host setting first and names what it currently is', () => {
+    const items = permissionPresetItems('auto');
+    expect(items.map((item) => item.value)).toEqual([HOST_PERMISSION_VALUE, 'ask', 'auto', 'yolo']);
+    expect(items[0]?.description).toBe('当前为「自动」');
+    expect(permissionPresetItems(undefined)[0]?.description).toBeUndefined();
+  });
+
+  it('parses presets and treats the Host entry as no override', () => {
+    expect(parsePermissionPreset('ask')).toBe('ask');
+    expect(parsePermissionPreset(HOST_PERMISSION_VALUE)).toBeUndefined();
+  });
+
+  it('cycles from the Host setting through every preset and back', () => {
+    const seen: Array<string | undefined> = [];
+    let current = nextPermissionPreset(undefined);
+    while (current !== undefined) {
+      seen.push(current);
+      current = nextPermissionPreset(current);
+    }
+    expect(seen).toEqual(['ask', 'auto', 'yolo']);
+  });
+
+  it('says which mode applies, marking a value that comes from the Host', () => {
+    expect(describePermissionPreset('ask', 'yolo')).toBe('权限 询问');
+    expect(describePermissionPreset(undefined, 'yolo')).toBe('权限 放行（Host）');
+    expect(describePermissionPreset(undefined, undefined)).toBeUndefined();
   });
 });
 

@@ -158,7 +158,11 @@ export class TuiApp {
     );
     this.tui.start();
     this.refreshChrome();
-    await Promise.all([this.loadProjects(), this.composer.loadModels()]);
+    await Promise.all([
+      this.loadProjects(),
+      this.composer.loadModels(),
+      this.composer.loadHostPermissionPreset(),
+    ]);
     if (this.options.sessionId !== undefined) {
       await this.openSession(this.options.sessionId);
     } else {
@@ -361,6 +365,9 @@ export class TuiApp {
       case 'thinking':
         this.composer.openThinkingPicker();
         return;
+      case 'permission':
+        this.composer.openPermissionPicker();
+        return;
       case 'skill':
         await this.composer.openSkillPicker();
         return;
@@ -401,7 +408,7 @@ export class TuiApp {
           'info',
           [
             ...TUI_SLASH_COMMANDS.map((command) => `/${command.name}  ${command.description}`),
-            'Ctrl+S 会话 · Ctrl+O 展开工具输出 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行',
+            'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+O 展开工具输出 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行',
           ].join('\n'),
         );
         this.refreshChrome();
@@ -585,6 +592,10 @@ export class TuiApp {
     }
     if (matchesKey(data, Key.ctrl('s')) && !this.options.embedded) {
       this.sessionSwitcher.open().catch((error: unknown) => this.reportError(error));
+      return { consume: true };
+    }
+    if (matchesKey(data, Key.shift('tab'))) {
+      this.composer.cyclePermissionPreset();
       return { consume: true };
     }
     if (matchesKey(data, Key.ctrl('o'))) {

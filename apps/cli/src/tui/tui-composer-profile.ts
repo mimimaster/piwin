@@ -1,10 +1,16 @@
-import type { ModelRef, SkillSummary, ThinkingLevel } from '@piwin/contracts';
+import type { ModelRef, PermissionConfig, PermissionPreset, SkillSummary, ThinkingLevel } from '@piwin/contracts';
+import { resolvePermissionPreset } from '@piwin/contracts';
 import { ChoiceOverlay } from './choice-overlay.js';
 import {
   DEFAULT_THINKING_VALUE,
+  HOST_PERMISSION_VALUE,
   NO_SKILL_VALUE,
+  describePermissionPreset,
   describeThinkingLevel,
+  nextPermissionPreset,
+  parsePermissionPreset,
   parseThinkingLevel,
+  permissionPresetItems,
   skillItems,
   thinkingLevelItems,
 } from './tui-composer-options.js';
@@ -24,9 +30,9 @@ export type TuiComposerProfileOptions = {
 };
 
 /**
- * What the next prompt is sent with: model, thinking level and an optional
- * skill. Model and thinking level are also written to the session's composer
- * profile on the Host, so Desktop's composer shows the same choice.
+ * What the next prompt is sent with: model, thinking level, Run Mode and an
+ * optional skill. Model and thinking level are also written to the session's
+ * composer profile on the Host, so Desktop's composer shows the same choice.
  */
 export class TuiComposerProfile {
   private models: ConfiguredModel[] = [];
@@ -35,6 +41,10 @@ export class TuiComposerProfile {
   private thinkingLevel: ThinkingLevel | undefined;
   /** Skill for the next turn only; cleared once that turn is sent. */
   private nextSkill: { id: string; name: string } | undefined;
+  /** Run Mode override for this shell's prompts; absent means the Host's setting. */
+  private permissionPreset: PermissionPreset | undefined;
+  /** What the Host falls back to, for display only. */
+  private hostPermissionPreset: PermissionPreset | undefined;
 
   public constructor(private readonly options: TuiComposerProfileOptions) {}
 
@@ -43,6 +53,15 @@ export class TuiComposerProfile {
       await this.options.link.request({ type: 'models/configured' }),
     );
     this.models = data.models ?? [];
+  }
+
+  /** Best effort: a Host that will not show its config just leaves the default unnamed. */
+  public async loadHostPermissionPreset(): Promise<void> {
+    const response = await this.options.link.request({ type: 'config/get' });
+    if (!response.success) return;
+    const permissions = (response.data as { config?: { permissions?: PermissionConfig } } | undefined)?.config
+      ?.permissions;
+    this.hostPermissionPreset = resolvePermissionPreset(permissions);
   }
 
   /** The session's own model wins over whatever the previous session used. */
@@ -54,13 +73,18 @@ export class TuiComposerProfile {
     return this.model === undefined ? undefined : toModelRef(this.model);
   }
 
-  /** Model and thinking fields for a `session/prompt` input. */
-  public promptFields(): { model?: ModelRef; thinkingLevel?: ThinkingLevel } {
+  /** Model, thinking and Run Mode fields for a `session/prompt` input. */
+  public promptFields(): {
+    model?: ModelRef;
+    thinkingLevel?: ThinkingLevel;
+    permissionPreset?: PermissionPreset;
+  } {
     const model = this.modelRef();
     const thinkingLevel = this.thinkingLevel ?? this.model?.thinkingLevel;
     return {
       ...(model === undefined ? {} : { model }),
       ...(thinkingLevel === undefined ? {} : { thinkingLevel }),
+      ...(this.permissionPreset === undefined ? {} : { permissionPreset: this.permissionPreset }),
     };
   }
 
@@ -76,6 +100,7 @@ export class TuiComposerProfile {
     return [
       this.model === undefined ? '默认模型' : (this.model.label ?? this.model.modelId),
       describeThinkingLevel(this.thinkingLevel),
+      describePermissionPreset(this.permissionPreset, this.hostPermissionPreset),
       this.nextSkill === undefined ? undefined : `技能 ${this.nextSkill.name}`,
     ];
   }
@@ -124,6 +149,29 @@ export class TuiComposerProfile {
         onCancel: () => modals.close(),
       }),
     );
+  }
+
+  public openPermissionPicker(): void {
+    const { modals } = this.options;
+    modals.show(
+      new ChoiceOverlay({
+        title: '权限模式',
+        message: '对接下来发出的消息生效；Shift+Tab 可直接轮换。',
+        items: permissionPresetItems(this.hostPermissionPreset),
+        initialValue: this.permissionPreset ?? HOST_PERMISSION_VALUE,
+        onSelect: (value) => {
+          modals.close();
+          this.permissionPreset = parsePermissionPreset(value);
+          this.options.onChanged();
+        },
+        onCancel: () => modals.close(),
+      }),
+    );
+  }
+
+  public cyclePermissionPreset(): void {
+    this.permissionPreset = nextPermissionPreset(this.permissionPreset);
+    this.options.onChanged();
   }
 
   public async openSkillPicker(): Promise<void> {

@@ -11,6 +11,7 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'new', description: '开始新会话', standaloneOnly: true },
   { name: 'model', description: '选择模型' },
   { name: 'thinking', description: '选择思考强度' },
+  { name: 'permission', description: '选择权限模式（询问 / 自动 / 放行）' },
   { name: 'skill', description: '为下一条消息选择技能' },
   { name: 'compact', description: '压缩上下文（可附加说明）' },
   { name: 'retry', description: '重新生成上一轮回答' },
