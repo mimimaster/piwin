@@ -33,9 +33,10 @@ export function describeQueue(pending: readonly QueuedTurnRecord[]): string | un
 /** What a queued or just-started turn carried besides its text. */
 export function describePromptExtras(input: PromptInput): string[] {
   return [
-    ...(input.contextRefs ?? []).flatMap((ref) =>
-      ref.kind === 'file' || ref.kind === 'folder' ? [`@${ref.label}${ref.kind === 'folder' ? '/' : ''}`] : [],
-    ),
+    ...(input.contextRefs ?? []).flatMap((ref) => {
+      if (ref.kind === 'file' || ref.kind === 'folder') return [`@${ref.label}${ref.kind === 'folder' ? '/' : ''}`];
+      return ref.kind === 'side-chat-message' ? [`侧聊回答：${ref.label}`] : [];
+    }),
     ...(input.attachments ?? []).map((attachment) =>
       attachment.kind === 'media' ? `附件 ${attachment.name ?? attachment.id}` : '附件',
     ),

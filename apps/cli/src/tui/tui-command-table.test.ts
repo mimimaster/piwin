@@ -24,6 +24,7 @@ function createDeps(embedded = false): TuiCommandTableDeps {
     subagents: recorder(),
     turnChanges: recorder(),
     walkthroughs: recorder(),
+    sideChat: recorder(),
     turns: recorder(),
     sessionSwitcher: recorder(),
     startDraftSession: vi.fn(),

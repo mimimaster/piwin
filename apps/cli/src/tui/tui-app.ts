@@ -49,6 +49,7 @@ import { TuiModalStack, createExtensionModal, createPermissionModal } from './tu
 import { describePromptExtras } from './queued-turns.js';
 import { TuiSessionFeatures } from './tui-session-features.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
+import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
 import { ProjectFiles } from './project-files.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
@@ -96,6 +97,7 @@ export class TuiApp {
   private readonly files: ProjectFiles;
   private readonly attachments: TuiAttachmentController;
   private readonly features: TuiSessionFeatures;
+  private readonly sideChat: TuiSideChatController;
   private readonly turns: TuiTurnActions;
   private readonly runCommand: (name: string, argument: string) => Promise<void>;
   /** `/edit`: the next prompt replaces this user turn as a sibling branch. */
@@ -174,6 +176,18 @@ export class TuiApp {
         this.tui.requestRender();
       },
     });
+    this.sideChat = new TuiSideChatController({
+      link: this.link,
+      modals: this.modals,
+      getSessionId: () => this.sessionId,
+      getTranscript: () => this.transcript,
+      isRunning: () => this.isRunning(),
+      openSession: (sessionId) => this.openSession(sessionId),
+      onChanged: () => this.refreshChrome(),
+      onHint: (text) => this.flashHint(text),
+      onNotice: notify,
+      onError: (error) => this.reportError(error),
+    });
     this.turns = new TuiTurnActions({
       request: (command) => this.link.request(command),
       embedded: options.embedded,
@@ -222,6 +236,7 @@ export class TuiApp {
       subagents: this.features.subagents,
       turnChanges: this.features.turnChanges,
       walkthroughs: this.features.walkthroughs,
+      sideChat: this.sideChat,
       turns: this.turns,
       sessionSwitcher: this.sessionSwitcher,
       startDraftSession: () => this.startDraftSession(),
@@ -470,13 +485,16 @@ export class TuiApp {
       this.flashHint('运行中不能改写提问，先按 Esc 中断');
       return;
     }
+    // Answers carried back from a side chat ride on this session's next prompt.
+    const handedOff = this.sideChat.takeRefs();
+    const contextRefs = [...handedOff, ...mentions.refs];
     const input: PromptInput = {
       text,
       clientMessageId,
       ...(branchFromMessageId === undefined ? {} : { branchFromMessageId }),
       ...(attached.length === 0 ? {} : { attachments: attached.map((entry) => entry.attachment) }),
       ...(skillId === undefined ? {} : { skillId }),
-      ...(mentions.refs.length === 0 ? {} : { contextRefs: mentions.refs }),
+      ...(contextRefs.length === 0 ? {} : { contextRefs }),
       ...this.composer.promptFields(),
     };
     try {
@@ -506,8 +524,9 @@ export class TuiApp {
         return;
       }
     } catch (error) {
-      // A refused prompt keeps its uploads: the user fixes the cause and resends.
+      // A refused prompt keeps what it carried: the user fixes the cause and resends.
       this.attachments.restore(attached);
+      this.sideChat.restoreRefs(handedOff);
       throw error;
     }
     if (!this.isRunning()) {
@@ -752,6 +771,7 @@ export class TuiApp {
       scope,
       ...this.composer.describe(),
       this.attachments.describe(),
+      this.sideChat.describe(),
       ...this.features.describe(),
       this.editingMessageId === undefined ? undefined : '改写上一条提问 · Ctrl+C 取消',
       usage,

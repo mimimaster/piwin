@@ -5,6 +5,7 @@ import type { TuiComposerProfile } from './tui-composer-profile.js';
 import type { TuiPlanController } from './tui-plan-controller.js';
 import type { TuiQueueController } from './tui-queue-controller.js';
 import type { TuiSessionSwitcher } from './tui-session-switcher.js';
+import type { TuiSideChatController } from './tui-side-chat-controller.js';
 import type { TuiSubagentController } from './tui-subagent-controller.js';
 import type { TuiTurnActions } from './tui-turn-actions.js';
 import type { TuiTurnChangeController } from './tui-turn-change-controller.js';
@@ -23,6 +24,7 @@ export type TuiCommandTableDeps = {
   subagents: TuiSubagentController;
   turnChanges: TuiTurnChangeController;
   walkthroughs: TuiWalkthroughController;
+  sideChat: TuiSideChatController;
   turns: TuiTurnActions;
   sessionSwitcher: TuiSessionSwitcher;
   startDraftSession: () => void;
@@ -58,6 +60,10 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     steer: (argument) => turns.steer(argument),
     replace: (argument) =>
       argument.length === 0 ? deps.hint('用法：/replace <要改为执行的话>') : deps.sendReplacingRun(argument),
+    side: (argument) => deps.sideChat.open(argument),
+    back: () => deps.sideChat.back(),
+    sync: () => deps.sideChat.sync(),
+    handoff: () => deps.sideChat.handoffLatest(),
     plan: () => plans.open(),
     subagents: () => deps.subagents.open(),
     attach: (argument) => attachments.attachPaths(argument),
