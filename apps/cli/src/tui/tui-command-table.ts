@@ -1,3 +1,4 @@
+import type { TuiArtifactController } from './tui-artifact-controller.js';
 import type { TuiAttachmentController } from './tui-attachment-controller.js';
 import type { TuiBranchController } from './tui-branch-controller.js';
 import { TUI_COMMAND_NAMES, TUI_SLASH_COMMANDS } from './tui-commands.js';
@@ -25,6 +26,7 @@ export type TuiCommandTableDeps = {
   turnChanges: TuiTurnChangeController;
   walkthroughs: TuiWalkthroughController;
   sideChat: TuiSideChatController;
+  artifacts: TuiArtifactController;
   turns: TuiTurnActions;
   sessionSwitcher: TuiSessionSwitcher;
   startDraftSession: () => void;
@@ -73,6 +75,7 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     retry: (argument) => turns.retry(argument === 'keep'),
     edit: () => turns.beginEditingLastTurn(),
     walkthrough: (argument) => deps.walkthroughs.open(argument === 'new'),
+    artifacts: () => deps.artifacts.open(),
     changes: () => deps.turnChanges.open(),
     undo: () => deps.turnChanges.undoLatest(),
     branches: () => branches.open(),

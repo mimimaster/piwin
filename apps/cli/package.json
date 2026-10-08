@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-tui": "0.84.2",
+    "@piwin/artifact": "workspace:*",
     "@piwin/browser": "workspace:*",
     "@piwin/contracts": "workspace:*",
     "@piwin/doc-rag": "workspace:*",

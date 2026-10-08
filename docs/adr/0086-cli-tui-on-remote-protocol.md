@@ -107,6 +107,27 @@ of the state beyond what it last showed.
 | `/subagents` | `session/list-children`, `subagent/results`, `subagent/result-files`, `subagent/result-diff`, `subagent/worktree-action`, `subagent/cleanup-plan`, `subagent/request-resolution` | Actions are gated by the result's `availability`; a refusal shows the Host's reason. |
 | `/changes`, `/undo` | `turn-changes/list-by-runs`, `turn-changes/files`, `turn-changes/diff`, `turn-changes/undo`, `turn-changes/redo` | Turns are found by the run ids on screen. After an undo the summary is re-read, because the update push is filed under the workspace, not the session. |
 | `/compact` | `session/compact` | |
+| `/queue` actions, `/replace` | `session/queued-turn-reorder`, `run/intervention-submit` (`adoptQueuedTurn`), `session/prompt` (`foreground: replace-run`) | Reorder re-reads the queue for its revision first. Replace names the run it saw. |
+| `/changes` repair | `turn-changes/operation`, `turn-changes/recovery-preview`, `-run`, `-verify` | The run spends the preview's token; the Host refuses if files moved since. |
+| `/walkthrough [new]` | `walkthrough/list`, `walkthrough/generate`, `walkthrough/cancel` | About the latest finished answer. |
+| `/side`, `/sync`, `/handoff`, `/back` | `side-chat/open`, `side-chat/list`, `side-chat/sync`, `side-chat-message` context ref | Stepping in and out is a session switch, so this controller outlives the per-session ones. A handed-off answer can only be spent by the session it was carried back to. |
+| `/artifacts` | none | See below. |
+
+### Artifacts
+
+A terminal cannot render HTML. `/artifacts` lists the artifacts in assistant
+messages using `@piwin/artifact`'s own fence index and analysis, shows their
+source, and exports one for the browser on the machine the TUI runs on.
+
+The export follows the rule Desktop renders by (AGENTS.md §3.4): the model's
+document is never a top-level page. It is written as the `srcdoc` of a single
+`sandbox="allow-scripts"` frame — an opaque origin with no access to the outer
+page, sibling files, storage, forms or navigation — inside an outer page that
+runs no script and declares the artifact's own CSP (`default-src 'none'`,
+`connect-src 'none'`, inline script and style only). An artifact the policy
+blocks (external resources, too large, empty) is listed with the reason and
+can only be read as source, as in Desktop. Each export goes to a fresh
+directory under the system temp directory with mode 0600.
 
 ## Consequences
 
@@ -138,11 +159,10 @@ session and no terminal to take.
 
 ## Not done
 
-- Still Desktop-only: repairing an undo that stopped half way
-  (`turn-changes/recovery-*`), reordering the queue, replacing a running turn
-  with a queued one, continuing a subagent with a follow-up, side chat,
-  walkthroughs, the artifact canvas, and project-scoped prompt templates
-  (the remote protocol lists global ones only).
+- Still Desktop-only: rendering an artifact in place (the TUI exports it to a
+  browser instead), exporting an undo backup, subagent worktree garbage
+  collection, and project-scoped prompt templates (the remote protocol lists
+  global ones only).
 - Switching back to the chat surface ends the TUI process. Nothing is lost
   (state is the Host's), but terminal scrollback is.
 - A conversation the TUI starts does not become Desktop's active session by

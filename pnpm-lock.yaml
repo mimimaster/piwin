@@ -35,6 +35,9 @@ importers:
       '@earendil-works/pi-tui':
         specifier: 0.84.2
         version: 0.84.2
+      '@piwin/artifact':
+        specifier: workspace:*
+        version: link:../../packages/artifact
       '@piwin/browser':
         specifier: workspace:*
         version: link:../../packages/browser

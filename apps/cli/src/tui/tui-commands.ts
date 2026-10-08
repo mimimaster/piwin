@@ -29,6 +29,7 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'compact', description: '压缩上下文（可附加说明）' },
   { name: 'retry', description: '重新生成上一轮回答（/retry keep 保留旧回答为分支）' },
   { name: 'edit', description: '改写上一条提问并作为新分支发送' },
+  { name: 'artifacts', description: '列出对话里的 artifact，看源码或在浏览器里打开' },
   { name: 'walkthrough', description: '查看或生成最近一次回答的交付报告（/walkthrough new 重写）' },
   { name: 'changes', description: '查看各轮改了哪些文件，撤销或恢复' },
   { name: 'undo', description: '撤销最近一轮对文件的改动' },

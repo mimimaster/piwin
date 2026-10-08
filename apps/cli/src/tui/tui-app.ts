@@ -52,6 +52,7 @@ import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
 import { ProjectFiles } from './project-files.js';
+import { TuiArtifactController } from './tui-artifact-controller.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiAutocompleteProvider } from './tui-autocomplete.js';
 import { editorTheme, style } from './tui-theme.js';
@@ -237,6 +238,13 @@ export class TuiApp {
       turnChanges: this.features.turnChanges,
       walkthroughs: this.features.walkthroughs,
       sideChat: this.sideChat,
+      artifacts: new TuiArtifactController({
+        modals: this.modals,
+        getTranscript: () => this.transcript,
+        onHint: (text) => this.flashHint(text),
+        onNotice: notify,
+        onError: (error) => this.reportError(error),
+      }),
       turns: this.turns,
       sessionSwitcher: this.sessionSwitcher,
       startDraftSession: () => this.startDraftSession(),
