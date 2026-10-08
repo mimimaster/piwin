@@ -196,7 +196,14 @@ export async function recordUserPrompt(
         createdAt,
       });
       if (appended.ok && appended.startedBranch === true) {
-        await pushBranchUpdated(deps, sessionId, store);
+        // The row is stored either way; a failed notice must not fail the prompt.
+        await pushBranchUpdated(deps, sessionId, store).catch((error: unknown) => {
+          deps.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `[transcript] branch notice failed for ${sessionId}: ${formatError(error)}`,
+          });
+        });
       }
       return appended;
     },

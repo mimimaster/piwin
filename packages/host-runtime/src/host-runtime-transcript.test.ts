@@ -152,4 +152,47 @@ describe('ensureTranscriptRecorder', () => {
       store.close();
     }
   });
+
+  it('keeps a stored user row when the fork notice cannot be built', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-runtime-prompt-branch-notice-'));
+    const sessionId = 'session-branch-notice-fails';
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId,
+      projectPath: '/project',
+    });
+    const push = vi.fn();
+    const deps = {
+      sessionProjects: new Map([[sessionId, '/project']]),
+      withTranscriptStore: async <Result>(
+        _sessionId: string,
+        operation: (transcriptStore: SessionTranscriptStore) => Promise<Result>,
+      ): Promise<Result> => operation(store),
+      healthTurnBySession: new Map(),
+      push,
+      maybeAssignTextNameFromPrompt: vi.fn(async () => undefined),
+    } as unknown as HostRuntimeKernel;
+
+    try {
+      await recordUserPrompt(deps, sessionId, { text: 'first', clientMessageId: 'user-first' });
+      // An edit of the first message: the leaf moves back, the next row is its sibling.
+      await store.rebaseActiveLeaf(null);
+      vi.spyOn(store, 'listBranchPoints').mockRejectedValue(new Error('store is closing'));
+
+      await recordUserPrompt(deps, sessionId, { text: 'rewritten', clientMessageId: 'user-second' });
+
+      expect(await store.getMessage('user-second')).toMatchObject({ text: 'rewritten' });
+      expect(push).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'host/log',
+          message: expect.stringContaining('branch notice failed'),
+        }),
+      );
+      expect(push).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'transcript/append' }),
+      );
+    } finally {
+      store.close();
+    }
+  });
 });
