@@ -823,7 +823,6 @@ export class TuiApp {
   /** Push current state into the components and schedule a frame. */
   private refreshChrome(forceFullRedraw = false): void {
     this.transcriptView.setState(this.transcript);
-    const keepHint = this.statusHint;
     const running = this.foreground.kind === 'active';
     const hasLoader = this.activitySlot.children.length > 0;
     if (running) {
@@ -839,7 +838,6 @@ export class TuiApp {
     }
     this.statusLine.setText(style.gray(this.describeStatus()));
     this.tui.terminal.setTitle(`piwin · ${this.sessionName ?? '新会话'}`);
-    this.statusHint = keepHint;
     this.tui.requestRender(forceFullRedraw);
   }
 
