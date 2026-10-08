@@ -4,6 +4,7 @@ import {
   applyQueuedTurn,
   describePromptExtras,
   describeQueue,
+  moveQueuedTurn,
   pendingQueuedTurns,
   queuedTurnItems,
 } from './queued-turns.js';
@@ -40,6 +41,23 @@ describe('applyQueuedTurn', () => {
     expect(pending[0]?.input.text).toBe('new');
     pending = applyQueuedTurn(pending, turn({ queuedTurnId: 'a', revision: 2, status: 'cancelled' }));
     expect(pending).toEqual([edited]);
+  });
+});
+
+describe('moveQueuedTurn', () => {
+  const pending = ['a', 'b', 'c'].map((queuedTurnId, index) => turn({ queuedTurnId, sequence: index }));
+
+  it('moves a turn one place or to the front', () => {
+    expect(moveQueuedTurn(pending, 'c', 'up')).toEqual(['a', 'c', 'b']);
+    expect(moveQueuedTurn(pending, 'a', 'down')).toEqual(['b', 'a', 'c']);
+    expect(moveQueuedTurn(pending, 'c', 'top')).toEqual(['c', 'a', 'b']);
+  });
+
+  it('has nothing to do at the edges or for an unknown turn', () => {
+    expect(moveQueuedTurn(pending, 'a', 'up')).toBeUndefined();
+    expect(moveQueuedTurn(pending, 'a', 'top')).toBeUndefined();
+    expect(moveQueuedTurn(pending, 'c', 'down')).toBeUndefined();
+    expect(moveQueuedTurn(pending, 'zz', 'up')).toBeUndefined();
   });
 });
 

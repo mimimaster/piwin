@@ -8,7 +8,15 @@ import type { SessionSummary, SubagentResultSummary } from '@piwin/contracts';
 
 export type SubagentChild = Pick<SessionSummary, 'name' | 'subagentStatus' | 'subagentTaskId'> & { sessionId: string };
 
-export type ResultAction = 'files' | 'apply' | 'resolve' | 'retain' | 'discard' | 'open-child' | 'close';
+export type ResultAction =
+  | 'files'
+  | 'apply'
+  | 'resolve'
+  | 'retain'
+  | 'discard'
+  | 'continue'
+  | 'open-child'
+  | 'close';
 
 const CHILD_STATUS: Record<NonNullable<SessionSummary['subagentStatus']>, string> = {
   running: '运行中',
@@ -97,7 +105,11 @@ export function latestResultFor(
  * What can be done with a child now. Actions the Host refuses are listed
  * with its reason rather than hidden, so "why can't I apply this" has an answer.
  */
-export function childActionItems(result: SubagentResultSummary | undefined, canOpenChild: boolean): SelectItem[] {
+export function childActionItems(
+  result: SubagentResultSummary | undefined,
+  canOpenChild: boolean,
+  childStatus?: SubagentChild['subagentStatus'],
+): SelectItem[] {
   const items: SelectItem[] = [];
   const gated = (action: ResultAction, label: string, allowed: boolean, reason: string | undefined, hint?: string): void => {
     if (allowed) items.push({ value: action, label, ...(hint === undefined ? {} : { description: hint }) });
@@ -110,6 +122,10 @@ export function childActionItems(result: SubagentResultSummary | undefined, canO
     gated('resolve', '让主会话处理冲突', availability.resolve.allowed, availability.resolve.reason);
     if (needsDecision(result)) items.push({ value: 'retain', label: '先保留，不应用', description: '改动留在子代理的副本里' });
     gated('discard', '丢弃副本', availability.cleanup.allowed, availability.cleanup.reason, '删除子代理的工作副本');
+  }
+  // A running child takes instructions from its parent turn, not from the side.
+  if (childStatus !== undefined && childStatus !== 'running') {
+    items.push({ value: 'continue', label: '给它追加指令', description: '让这个子代理接着做' });
   }
   if (canOpenChild) items.push({ value: 'open-child', label: '打开子代理的对话' });
   items.push({ value: 'close', label: '关闭' });

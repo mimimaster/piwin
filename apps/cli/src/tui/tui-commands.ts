@@ -18,6 +18,7 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'paste', description: '附加剪贴板里的图片（Ctrl+V）' },
   { name: 'detach', description: '清空待发送的附件' },
   { name: 'queue', description: '查看排队的消息，取回或取消' },
+  { name: 'replace', description: '中断正在运行的这一轮，改为执行：/replace <文字>' },
   { name: 'steer', description: '把一句话插入正在运行的这一轮：/steer <文字>' },
   { name: 'subagents', description: '查看子代理及其结果，应用、保留或丢弃' },
   { name: 'plan', description: '查看计划，批准、执行或中止' },

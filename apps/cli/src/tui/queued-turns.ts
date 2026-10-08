@@ -42,6 +42,24 @@ export function describePromptExtras(input: PromptInput): string[] {
   ];
 }
 
+export type QueueMove = 'up' | 'down' | 'top';
+
+/** The queue's ids with one turn moved; undefined when it is already there. */
+export function moveQueuedTurn(
+  pending: readonly QueuedTurnRecord[],
+  queuedTurnId: string,
+  move: QueueMove,
+): string[] | undefined {
+  const ids = pending.map((turn) => turn.queuedTurnId);
+  const from = ids.indexOf(queuedTurnId);
+  if (from === -1) return undefined;
+  const to = move === 'top' ? 0 : move === 'up' ? from - 1 : from + 1;
+  if (to < 0 || to >= ids.length || to === from) return undefined;
+  ids.splice(from, 1);
+  ids.splice(to, 0, queuedTurnId);
+  return ids;
+}
+
 export function queuedTurnItems(pending: readonly QueuedTurnRecord[]): SelectItem[] {
   return pending.map((turn, index) => {
     const text = turn.input.text.replace(/\s+/g, ' ').trim();

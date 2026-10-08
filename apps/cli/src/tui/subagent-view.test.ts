@@ -92,6 +92,12 @@ describe('childActionItems', () => {
     expect(childActionItems(decided, false).map((item) => item.value)).toEqual(['files', 'discard', 'close']);
   });
 
+  it('lets a finished child be given a follow-up, but not a running one', () => {
+    expect(childActionItems(undefined, false, 'done').map((item) => item.value)).toEqual(['continue', 'close']);
+    expect(childActionItems(undefined, false, 'failed').map((item) => item.value)).toEqual(['continue', 'close']);
+    expect(childActionItems(undefined, false, 'running').map((item) => item.value)).toEqual(['close']);
+  });
+
   it('still lets a child without a result be opened', () => {
     expect(childActionItems(undefined, true).map((item) => item.value)).toEqual(['open-child', 'close']);
     expect(childActionItems(undefined, false).map((item) => item.value)).toEqual(['close']);

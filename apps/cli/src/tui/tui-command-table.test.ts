@@ -28,6 +28,7 @@ function createDeps(embedded = false): TuiCommandTableDeps {
     startDraftSession: vi.fn(),
     loadOlderMessages: vi.fn(async () => undefined),
     renameSession: vi.fn(async () => undefined),
+    sendReplacingRun: vi.fn(async () => undefined),
     setComposerText: vi.fn(),
     hint: vi.fn(),
     notice: vi.fn(),

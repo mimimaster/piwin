@@ -183,6 +183,22 @@ describe('TuiSubagentController', () => {
     ]);
   });
 
+  it('sends a follow-up to a finished child', async () => {
+    const { controller, modals, sent, port, settle } = setup();
+    await controller.load('parent');
+    controller.open();
+    // files, apply, retain, discard, continue
+    modals.press(ENTER, DOWN, DOWN, DOWN, DOWN, ENTER);
+    expect(modals.text()).toContain('给子代理追加指令');
+    for (const character of '补上测试') modals.press(character);
+    modals.press(ENTER);
+    await settle();
+    expect(sent('subagent/continue')).toEqual([
+      { type: 'subagent/continue', childSessionId: 'child-1', text: '补上测试' },
+    ]);
+    expect(port.onHint).toHaveBeenCalledWith('已发给子代理');
+  });
+
   it('does not offer to open a child conversation when embedded', async () => {
     const { controller, modals } = setup({ embedded: true });
     await controller.load('parent');

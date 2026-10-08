@@ -1,5 +1,5 @@
 import type { HostPush, SessionSummary, SubagentResultSummary } from '@piwin/contracts';
-import { ChoiceOverlay } from './choice-overlay.js';
+import { ChoiceOverlay, TextOverlay } from './choice-overlay.js';
 import {
   childActionItems,
   childLabel,
@@ -116,7 +116,7 @@ export class TuiSubagentController {
     modals.show(
       new ChoiceOverlay({
         title: childLabel(child, '子代理'),
-        items: childActionItems(result, !this.options.embedded),
+        items: childActionItems(result, !this.options.embedded, child?.subagentStatus),
         onSelect: (value) => {
           modals.close();
           this.run(value as ResultAction, childSessionId, result).catch(this.options.onError);
@@ -130,6 +130,10 @@ export class TuiSubagentController {
     if (action === 'close') return;
     if (action === 'open-child') {
       await this.options.openSession(childSessionId);
+      return;
+    }
+    if (action === 'continue') {
+      this.askFollowUp(childSessionId);
       return;
     }
     if (result === undefined) return;
@@ -154,7 +158,29 @@ export class TuiSubagentController {
       case 'discard':
         await this.discard(result);
         return;
+      default:
     }
+  }
+
+  private askFollowUp(childSessionId: string): void {
+    const { link, modals } = this.options;
+    modals.show(
+      new TextOverlay({
+        title: '给子代理追加指令',
+        message: '它会在自己的会话和工作副本里接着做，结果仍回到这里。',
+        onSubmit: (value) => {
+          modals.close();
+          const text = value.trim();
+          if (text.length === 0) return;
+          link
+            .request({ type: 'subagent/continue', childSessionId, text })
+            .then(hostData)
+            .then(() => this.options.onHint('已发给子代理'))
+            .catch(this.options.onError);
+        },
+        onCancel: () => modals.close(),
+      }),
+    );
   }
 
   /** Cleanup is two-step on the Host: plan it, then spend the plan's token. */

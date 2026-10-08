@@ -175,6 +175,13 @@ export class TuiApp {
       getSessionId: () => this.sessionId,
       onChanged: () => this.refreshChrome(),
       onHint: (text) => this.flashHint(text),
+      getRunId: () => knownForegroundRunId(this.foreground),
+      onSteered: (turn) => {
+        this.transcript = appendLocalUserMessage(this.transcript, turn.userMessageId, turn.input.text, [
+          ...describePromptExtras(turn.input),
+          '插入当前回合',
+        ]);
+      },
       onStarted: (turn) => {
         this.transcript = appendLocalUserMessage(
           this.transcript,
@@ -271,6 +278,7 @@ export class TuiApp {
       startDraftSession: () => this.startDraftSession(),
       loadOlderMessages: () => this.loadOlderMessages(),
       renameSession: (name) => this.renameCurrentSession(name),
+      sendReplacingRun: (text) => this.sendPrompt(text, true),
       setComposerText: (text) => {
         this.editor.setText(text);
         this.tui.requestRender();
@@ -483,6 +491,16 @@ export class TuiApp {
       await this.runCommand(command.name, command.argument);
       return;
     }
+    await this.sendPrompt(rawText, false);
+  }
+
+  /**
+   * Send what is in the composer as a turn. While another turn runs it is
+   * queued behind it, unless `replaceRunning` asks the Host to stop that turn
+   * and run this one instead.
+   */
+  private async sendPrompt(rawText: string, replaceRunning: boolean): Promise<void> {
+    const typedText = rawText.trim();
     this.editor.addToHistory(rawText.trim());
     if (this.attachments.isUploading) {
       this.editor.setText(rawText);
@@ -522,7 +540,8 @@ export class TuiApp {
       ...this.composer.promptFields(),
     };
     try {
-      if (this.isRunning()) {
+      const replacedRunId = replaceRunning ? knownForegroundRunId(this.foreground) : undefined;
+      if (this.isRunning() && replacedRunId === undefined) {
         // A turn is running: this one waits its turn on the Host and is
         // echoed when it starts. `/steer` is the way into the running turn.
         const place = await this.queue.submit(sessionId, input, clientMessageId);
@@ -531,7 +550,15 @@ export class TuiApp {
       }
       this.transcript = appendLocalUserMessage(this.transcript, clientMessageId, text, describePromptExtras(input));
       this.refreshChrome();
-      hostData(await this.link.request({ type: 'session/prompt', sessionId, input, foreground: { kind: 'if-idle' } }));
+      hostData(
+        await this.link.request({
+          type: 'session/prompt',
+          sessionId,
+          input,
+          // Naming the run makes the Host refuse if a different turn is running by now.
+          foreground: replacedRunId === undefined ? { kind: 'if-idle' } : { kind: 'replace-run', runId: replacedRunId },
+        }),
+      );
       if (branchFromMessageId !== undefined) {
         // The old turn and its answer left the active path; reload rather than patch rows.
         this.editingMessageId = undefined;

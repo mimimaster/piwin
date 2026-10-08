@@ -27,6 +27,8 @@ export type TuiCommandTableDeps = {
   loadOlderMessages: () => Promise<void>;
   /** With a name: rename now. Without: ask for one. */
   renameSession: (name: string) => Promise<void>;
+  /** Stop the running turn and run this text instead. */
+  sendReplacingRun: (text: string) => Promise<void>;
   setComposerText: (text: string) => void;
   hint: (text: string) => void;
   notice: (tone: 'info' | 'error', text: string) => void;
@@ -52,6 +54,8 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     skill: () => composer.openSkillPicker(),
     queue: () => queue.open(),
     steer: (argument) => turns.steer(argument),
+    replace: (argument) =>
+      argument.length === 0 ? deps.hint('用法：/replace <要改为执行的话>') : deps.sendReplacingRun(argument),
     plan: () => plans.open(),
     subagents: () => deps.subagents.open(),
     attach: (argument) => attachments.attachPaths(argument),
