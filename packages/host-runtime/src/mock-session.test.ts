@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent, BackendRunInterventionEvent } from '@piwin/contracts';
+import type { TurnChangeObjectStore } from '@piwin/git';
 import { createMockSessionHandle } from './mock-session.js';
 
 describe('createMockSessionHandle abort', () => {
@@ -42,6 +43,22 @@ describe('createMockSessionHandle abort', () => {
     await session.prompt({ text: 'hello' });
     expect(events.some((event) => event.type === 'message/end')).toBe(true);
     expect(events.some((event) => event.type === 'session/aborted')).toBe(false);
+  });
+
+  it('answers a file-change prompt in a general conversation without writing', async () => {
+    const events: AgentEvent[] = [];
+    const recorded: string[] = [];
+    const session = createMockSessionHandle({
+      scope: { kind: 'general' },
+      recordFileChange: (receipt) => recorded.push(receipt.relativePath),
+      objectStore: {} as TurnChangeObjectStore,
+    });
+    session.subscribe((event) => events.push(event));
+
+    await session.prompt({ text: '改文件：这里没有工作区' });
+
+    expect(events.some((event) => event.type === 'message/end')).toBe(true);
+    expect(recorded).toEqual([]);
   });
 
   it('echoes only the supplied current prompt, not serialized product history', async () => {

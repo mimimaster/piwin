@@ -112,6 +112,13 @@ export type HostRuntimeOptions = {
    * keeps reporting subagent orchestration as not ready.
    */
   mockSubagents?: boolean;
+  /**
+   * Mock mode only: a prompt starting with "改文件" writes a real file into the
+   * session's project and records it as a turn change, so shells can exercise
+   * diff and undo. Off by default: a mock Host a user turned on in settings
+   * must never write into their workspace.
+   */
+  mockFileChanges?: boolean;
   piwinRoot?: string;
   /**
    * Cross-process ownership of the canonical piwin data root. Production

@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { writeTurnChangeFile, type TurnChangeObjectStore } from '@piwin/git';
+import { isAbsolute } from 'node:path';
+import {
+  writeTurnChangeFile,
+  type TurnChangeObjectStore,
+  type TurnChangeWriteReceipt,
+} from '@piwin/git';
 import {
   ABORTED_PROMPT_OUTCOME,
   COMPLETED_STOP_OUTCOME,
@@ -33,7 +38,7 @@ export type CreateMockSessionOptions = CreateSessionInput & {
    * the turn-change object store and reports its receipt, so a mock turn can
    * be diffed and undone exactly like a desktop turn.
    */
-  recordFileChange?: (receipt: import('@piwin/git').TurnChangeWriteReceipt, workspaceRoot: string) => void;
+  recordFileChange?: (receipt: TurnChangeWriteReceipt, workspaceRoot: string) => void;
   objectStore?: TurnChangeObjectStore;
 };
 
@@ -249,7 +254,9 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
         if (
           userText.startsWith('改文件') &&
           input.recordFileChange !== undefined &&
-          input.objectStore !== undefined
+          input.objectStore !== undefined &&
+          // A general conversation has no workspace to write into.
+          isAbsolute(locationLabel)
         ) {
           const receipt = await writeTurnChangeFile({
             workspaceRoot: locationLabel,

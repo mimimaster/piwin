@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -303,6 +304,17 @@ describe('conversation tree over host commands (ADR 0055)', () => {
     });
   });
 
+  it('a plain mock Host never writes into the project', async () => {
+    const projectPath = await mkdtemp(join(tmpdir(), 'piwin-conversation-mock-project-'));
+    const tree = await openTree('mock-no-writes', projectPath);
+    try {
+      await tree.converse('改文件：不该落盘');
+      expect(existsSync(join(projectPath, 'mock-edit.txt'))).toBe(false);
+    } finally {
+      await tree.dispose();
+    }
+  });
+
   it('discards the failed attempt on retry so no fork is left', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-conversation-retry-discard-'));
     const runtime = new HostRuntime({
@@ -364,7 +376,7 @@ describe('conversation tree over host commands (ADR 0055)', () => {
 type BranchUpdated = Extract<HostPush, { type: 'session/branch-updated' }>;
 
 /** A one-session Host that records its pushes. */
-async function openTree(label: string) {
+async function openTree(label: string, projectPath = '/project') {
   const rootDir = await mkdtemp(join(tmpdir(), `piwin-conversation-${label}-`));
   const pushes: HostPush[] = [];
   const runtime = new HostRuntime({
@@ -377,7 +389,7 @@ async function openTree(label: string) {
   });
   const created = await runtime.handleCommand({
     type: 'session/create',
-    input: { projectPath: '/project', sessionName: label },
+    input: { projectPath, sessionName: label },
   });
   if (!created.success) throw new Error(created.error);
   const sessionId = (created.data as { sessionId: string }).sessionId;

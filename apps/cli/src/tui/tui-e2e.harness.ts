@@ -145,6 +145,7 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
     mode: 'sdk',
     mock: true,
     mockSubagents: true,
+    mockFileChanges: true,
     piwinRoot,
     ...(options.hangingRuns === true ? { testFixture: 'hang-until-abort' as const } : {}),
   });
