@@ -12,6 +12,7 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'model', description: '选择模型' },
   { name: 'thinking', description: '选择思考强度' },
   { name: 'permission', description: '选择权限模式（询问 / 自动 / 放行）' },
+  { name: 'prompts', description: '选择提示词模板填入输入框' },
   { name: 'skill', description: '为下一条消息选择技能' },
   { name: 'attach', description: '附加文件或图片：/attach <路径…>' },
   { name: 'paste', description: '附加剪贴板里的图片（Ctrl+V）' },
@@ -24,7 +25,8 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'quit', description: '退出' },
 ];
 
-const KNOWN_NAMES: ReadonlySet<string> = new Set(TUI_SLASH_COMMANDS.map((command) => command.name));
+export const TUI_COMMAND_NAMES: ReadonlySet<string> = new Set(TUI_SLASH_COMMANDS.map((command) => command.name));
+const KNOWN_NAMES = TUI_COMMAND_NAMES;
 
 /**
  * Only known names are commands. `/etc/hosts 是什么` or a skill-style `/review`

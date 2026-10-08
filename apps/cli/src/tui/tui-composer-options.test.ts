@@ -1,4 +1,4 @@
-import type { SkillSummary } from '@piwin/contracts';
+import type { PromptTemplateSummary, SkillSummary } from '@piwin/contracts';
 import { describe, expect, it } from 'vitest';
 import { EMPTY_TRANSCRIPT, appendLocalUserMessage, applyAgentEvent } from './transcript-model.js';
 import {
@@ -12,6 +12,7 @@ import {
   parsePermissionPreset,
   parseThinkingLevel,
   permissionPresetItems,
+  promptTemplateCommands,
   skillItems,
   thinkingLevelItems,
 } from './tui-composer-options.js';
@@ -77,6 +78,28 @@ describe('skill choices', () => {
 
   it('offers nothing when no skill is usable', () => {
     expect(skillItems([skill({ id: 'off', enabled: false })])).toEqual([]);
+  });
+});
+
+describe('prompt template commands', () => {
+  const template = (patch: Partial<PromptTemplateSummary> & { name: string }): PromptTemplateSummary =>
+    ({ id: patch.name, description: '', source: 'user', path: '/p', enabled: true, ...patch }) as PromptTemplateSummary;
+
+  it('offers enabled templates by name, sorted, without the ones the TUI would intercept', () => {
+    const commands = promptTemplateCommands(
+      [
+        template({ name: 'review', description: 'Review\n the diff' }),
+        template({ name: 'model' }),
+        template({ name: 'off', enabled: false }),
+        template({ name: 'bad name' }),
+        template({ name: 'commit' }),
+      ],
+      new Set(['model']),
+    );
+    expect(commands).toEqual([
+      { name: 'commit', description: '模板 · ' },
+      { name: 'review', description: '模板 · Review the diff' },
+    ]);
   });
 });
 

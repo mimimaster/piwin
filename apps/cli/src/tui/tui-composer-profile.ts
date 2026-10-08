@@ -1,4 +1,11 @@
-import type { ModelRef, PermissionConfig, PermissionPreset, SkillSummary, ThinkingLevel } from '@piwin/contracts';
+import type {
+  ModelRef,
+  PermissionConfig,
+  PermissionPreset,
+  PromptTemplateSummary,
+  SkillSummary,
+  ThinkingLevel,
+} from '@piwin/contracts';
 import { resolvePermissionPreset } from '@piwin/contracts';
 import { ChoiceOverlay } from './choice-overlay.js';
 import {
@@ -11,6 +18,7 @@ import {
   parsePermissionPreset,
   parseThinkingLevel,
   permissionPresetItems,
+  promptTemplateCommands,
   skillItems,
   thinkingLevelItems,
 } from './tui-composer-options.js';
@@ -45,6 +53,7 @@ export class TuiComposerProfile {
   private permissionPreset: PermissionPreset | undefined;
   /** What the Host falls back to, for display only. */
   private hostPermissionPreset: PermissionPreset | undefined;
+  private promptTemplates: PromptTemplateSummary[] = [];
 
   public constructor(private readonly options: TuiComposerProfileOptions) {}
 
@@ -53,6 +62,44 @@ export class TuiComposerProfile {
       await this.options.link.request({ type: 'models/configured' }),
     );
     this.models = data.models ?? [];
+  }
+
+  /** Best effort: without the list, a template still works when typed by name. */
+  public async loadPromptTemplates(): Promise<void> {
+    const response = await this.options.link.request({ type: 'prompts/list' });
+    if (!response.success) return;
+    this.promptTemplates = (response.data as { prompts?: PromptTemplateSummary[] } | undefined)?.prompts ?? [];
+  }
+
+  /** Templates as slash commands for completion. */
+  public promptCommands(reservedNames: ReadonlySet<string>): Array<{ name: string; description: string }> {
+    return promptTemplateCommands(this.promptTemplates, reservedNames);
+  }
+
+  /** Pick a template; `onPick` receives its name to place in the composer. */
+  public openPromptPicker(reservedNames: ReadonlySet<string>, onPick: (name: string) => void): void {
+    const { modals } = this.options;
+    const commands = this.promptCommands(reservedNames);
+    if (commands.length === 0) {
+      this.options.onHint('没有可用的提示词模板');
+      return;
+    }
+    modals.show(
+      new ChoiceOverlay({
+        title: '提示词模板',
+        message: '选中后填入输入框，可以接着写参数再发送。',
+        items: commands.map((command) => ({
+          value: command.name,
+          label: `/${command.name}`,
+          description: command.description.replace(/^模板 · /, ''),
+        })),
+        onSelect: (value) => {
+          modals.close();
+          onPick(value);
+        },
+        onCancel: () => modals.close(),
+      }),
+    );
   }
 
   /** Best effort: a Host that will not show its config just leaves the default unnamed. */

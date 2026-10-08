@@ -1,4 +1,4 @@
-import type { PermissionPreset, SkillSummary, ThinkingLevel } from '@piwin/contracts';
+import type { PermissionPreset, PromptTemplateSummary, SkillSummary, ThinkingLevel } from '@piwin/contracts';
 import type { SelectItem } from '@earendil-works/pi-tui';
 import type { TranscriptState } from './transcript-model.js';
 
@@ -95,6 +95,24 @@ export function skillItems(skills: readonly SkillSummary[]): SelectItem[] {
       description: skill.description.replace(/\s+/g, ' ').trim(),
     }));
   return usable.length === 0 ? [] : [{ value: NO_SKILL_VALUE, label: '不使用技能' }, ...usable];
+}
+
+/**
+ * Prompt templates as slash commands. The Host's agent expands `/name args`
+ * itself, so the TUI only has to offer the names; one that collides with a
+ * TUI command is left out, because the TUI would intercept it.
+ */
+export function promptTemplateCommands(
+  templates: readonly PromptTemplateSummary[],
+  reservedNames: ReadonlySet<string>,
+): Array<{ name: string; description: string }> {
+  return templates
+    .filter((template) => template.enabled && /^[\w.-]+$/.test(template.name) && !reservedNames.has(template.name))
+    .map((template) => ({
+      name: template.name,
+      description: `模板 · ${template.description.replace(/\s+/g, ' ').trim()}`,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 /** The latest user turn on screen: the one `/retry` re-runs. */

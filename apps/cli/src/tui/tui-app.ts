@@ -39,7 +39,7 @@ import {
   type TranscriptState,
 } from './transcript-model.js';
 import { TranscriptView } from './transcript-view.js';
-import { TUI_SLASH_COMMANDS, parseSlashCommand } from './tui-commands.js';
+import { TUI_COMMAND_NAMES, TUI_SLASH_COMMANDS, parseSlashCommand } from './tui-commands.js';
 import { findLastUserMessageId } from './tui-composer-options.js';
 import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
@@ -119,15 +119,6 @@ export class TuiApp {
       request: (command) => this.link.request(command),
       getProjectId: () => this.sessionProjectId,
     });
-    this.editor.setAutocompleteProvider(
-      new TuiAutocompleteProvider(
-        new CombinedAutocompleteProvider(
-          TUI_SLASH_COMMANDS.filter((command) => !options.embedded || !command.standaloneOnly),
-          process.cwd(),
-        ),
-        this.files,
-      ),
-    );
     this.loader = new Loader(this.tui, style.cyan, style.gray, '');
     this.modals = new TuiModalStack(this.tui, this.editor, () => this.sessionSwitcher.handleOverlayClosed());
     this.composer = new TuiComposerProfile({
@@ -166,6 +157,7 @@ export class TuiApp {
     this.tui.addChild(this.editor);
     this.tui.addChild(this.statusLine);
     this.tui.setFocus(this.editor);
+    this.rebuildAutocomplete();
   }
 
   public async start(): Promise<void> {
@@ -189,7 +181,9 @@ export class TuiApp {
       this.loadProjects(),
       this.composer.loadModels(),
       this.composer.loadHostPermissionPreset(),
+      this.composer.loadPromptTemplates(),
     ]);
+    this.rebuildAutocomplete();
     if (this.options.sessionId !== undefined) {
       await this.openSession(this.options.sessionId);
     } else {
@@ -203,6 +197,17 @@ export class TuiApp {
   }
 
   // ---------------------------------------------------------------- sessions
+
+  /** TUI commands plus the Host's prompt templates, which arrive after start. */
+  private rebuildAutocomplete(): void {
+    const commands = [
+      ...TUI_SLASH_COMMANDS.filter((command) => !this.options.embedded || !command.standaloneOnly),
+      ...this.composer.promptCommands(TUI_COMMAND_NAMES),
+    ];
+    this.editor.setAutocompleteProvider(
+      new TuiAutocompleteProvider(new CombinedAutocompleteProvider(commands, process.cwd()), this.files),
+    );
+  }
 
   private async openSession(sessionId: string): Promise<void> {
     const epoch = (this.sessionEpoch += 1);
@@ -450,6 +455,12 @@ export class TuiApp {
         return;
       case 'skill':
         await this.composer.openSkillPicker();
+        return;
+      case 'prompts':
+        this.composer.openPromptPicker(TUI_COMMAND_NAMES, (name) => {
+          this.editor.setText(`/${name} `);
+          this.tui.requestRender();
+        });
         return;
       case 'compact':
         await this.compactSession(argument);
