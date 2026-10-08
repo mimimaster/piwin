@@ -13,6 +13,9 @@ import type { HostRuntimeTestFixture } from './host-runtime-types.js';
 
 type Listener = (event: AgentEvent) => void;
 
+/** One prompt() call. An abort marks the turn it was issued for, never a later one. */
+type PromptTurn = { aborted: boolean };
+
 /**
  * Injectable delay function. Tests can replace the default setTimeout-based
  * implementation with a deferred-promise controller for deterministic timing.
@@ -135,7 +138,8 @@ export function createDelayedSessionHandle(options: DelayedSessionOptions = {}):
 
   const listeners = new Set<Listener>();
   const messages: AgentMessageView[] = [];
-  let aborted = false;
+  /** The turn in flight; abort() with nothing running is a no-op, like a real backend. */
+  let activeTurn: PromptTurn | undefined;
   let abortRequested = false;
   let emittedDeltaCount = 0;
   let promptSettleResolve: (() => void) | null = null;
@@ -147,23 +151,23 @@ export function createDelayedSessionHandle(options: DelayedSessionOptions = {}):
     }
   };
 
-  /** Wait for the specified delay, but resolve immediately if aborted. */
-  async function interruptibleDelay(ms: number | undefined): Promise<boolean> {
+  /** Wait for the specified delay, but resolve immediately if the turn is aborted. */
+  async function interruptibleDelay(turn: PromptTurn, ms: number | undefined): Promise<boolean> {
     if (ms === undefined || ms <= 0) {
-      return aborted;
+      return turn.aborted;
     }
     // Poll in small increments so abort can interrupt long waits.
     const pollIntervalMs = 10;
     let elapsed = 0;
     while (elapsed < ms) {
-      if (aborted) {
+      if (turn.aborted) {
         return true;
       }
       const step = Math.min(pollIntervalMs, ms - elapsed);
       await delay(step);
       elapsed += step;
     }
-    return aborted;
+    return turn.aborted;
   }
 
   const handle: SessionHandle & {
@@ -186,7 +190,8 @@ export function createDelayedSessionHandle(options: DelayedSessionOptions = {}):
     },
 
     async prompt(promptInput: PromptInput) {
-      aborted = false;
+      const turn: PromptTurn = { aborted: false };
+      activeTurn = turn;
       abortRequested = false;
       emittedDeltaCount = 0;
       promptSettled = new Promise<void>((resolve) => {
@@ -213,8 +218,8 @@ export function createDelayedSessionHandle(options: DelayedSessionOptions = {}):
       emit({ type: 'message/start', messageId: assistantMessageId, role: 'assistant' });
 
       // Phase: first token delay (simulates model connect + waiting for first token).
-      if (await interruptibleDelay(delays.firstTokenMs)) {
-        finishAborted(assistantMessageId);
+      if (await interruptibleDelay(turn, delays.firstTokenMs)) {
+        finishAborted(turn, assistantMessageId);
         return ABORTED_PROMPT_OUTCOME;
       }
 
@@ -225,14 +230,14 @@ export function createDelayedSessionHandle(options: DelayedSessionOptions = {}):
         toolOutputBytes > 0
       ) {
         const toolCallId = randomUUID();
-        if (await interruptibleDelay(delays.toolStartMs)) {
-          finishAborted(assistantMessageId);
+        if (await interruptibleDelay(turn, delays.toolStartMs)) {
+          finishAborted(turn, assistantMessageId);
           return ABORTED_PROMPT_OUTCOME;
         }
         emit({ type: 'tool/start', toolCallId, toolName: 'delayed_fixture_tool' });
-        if (await interruptibleDelay(delays.toolDurationMs)) {
+        if (await interruptibleDelay(turn, delays.toolDurationMs)) {
           emit({ type: 'tool/end', toolCallId, isError: true });
-          finishAborted(assistantMessageId);
+          finishAborted(turn, assistantMessageId);
           return ABORTED_PROMPT_OUTCOME;
         }
         if (toolOutputBytes === 0) {
@@ -256,8 +261,8 @@ export function createDelayedSessionHandle(options: DelayedSessionOptions = {}):
       // Phase: token streaming.
       let assembled = '';
       for (let index = 0; index < chunkCount; index += 1) {
-        if (aborted) {
-          finishAborted(assistantMessageId, assembled);
+        if (turn.aborted) {
+          finishAborted(turn, assistantMessageId, assembled);
           return ABORTED_PROMPT_OUTCOME;
         }
         const chunk = chunkText(index);
@@ -266,8 +271,8 @@ export function createDelayedSessionHandle(options: DelayedSessionOptions = {}):
         emit({ type: 'message/text_delta', messageId: assistantMessageId, delta: chunk });
 
         if (index < chunkCount - 1) {
-          if (await interruptibleDelay(delays.tokenIntervalMs)) {
-            finishAborted(assistantMessageId, assembled);
+          if (await interruptibleDelay(turn, delays.tokenIntervalMs)) {
+            finishAborted(turn, assistantMessageId, assembled);
             return ABORTED_PROMPT_OUTCOME;
           }
         }
@@ -275,10 +280,10 @@ export function createDelayedSessionHandle(options: DelayedSessionOptions = {}):
 
       // hangUntilAbort: block indefinitely until abort() is called.
       if (delays.hangUntilAbort === true) {
-        while (!aborted) {
+        while (!turn.aborted) {
           await delay(50);
         }
-        finishAborted(assistantMessageId, assembled);
+        finishAborted(turn, assistantMessageId, assembled);
         return ABORTED_PROMPT_OUTCOME;
       }
 
@@ -288,7 +293,7 @@ export function createDelayedSessionHandle(options: DelayedSessionOptions = {}):
         existing.text = assembled;
       }
       emit({ type: 'message/end', messageId: assistantMessageId });
-      settlePrompt();
+      settlePrompt(turn);
       return COMPLETED_STOP_OUTCOME;
     },
 
@@ -306,11 +311,17 @@ export function createDelayedSessionHandle(options: DelayedSessionOptions = {}):
 
     async abort(): Promise<void> {
       abortRequested = true;
+      // Bind the abort to the turn running now. A late acknowledgement must
+      // not stop a turn that started while this abort was in flight.
+      const turn = activeTurn;
+      if (turn === undefined) {
+        return;
+      }
       // Simulate provider cancellation latency.
       if (delays.cancellationAckMs !== undefined && delays.cancellationAckMs > 0) {
         await delay(delays.cancellationAckMs);
       }
-      aborted = true;
+      turn.aborted = true;
     },
 
     async compact(): Promise<SessionCompactResult> {
@@ -333,16 +344,19 @@ export function createDelayedSessionHandle(options: DelayedSessionOptions = {}):
     },
   };
 
-  function finishAborted(messageId: string, partialText?: string): void {
+  function finishAborted(turn: PromptTurn, messageId: string, partialText?: string): void {
     const existing = messages.find((message) => message.id === messageId);
     if (existing && partialText !== undefined) {
       existing.text = partialText;
     }
     emit({ type: 'session/aborted', sessionId, messageId });
-    settlePrompt();
+    settlePrompt(turn);
   }
 
-  function settlePrompt(): void {
+  function settlePrompt(turn: PromptTurn): void {
+    if (activeTurn === turn) {
+      activeTurn = undefined;
+    }
     if (promptSettleResolve) {
       promptSettleResolve();
       promptSettleResolve = null;
