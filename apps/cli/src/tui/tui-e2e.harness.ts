@@ -117,8 +117,8 @@ export type TuiHarness = {
   holdRequests: (type: HostCommand['type']) => RequestGate;
   /** Send a command as another shell attached to the same Host would. */
   asOtherShell: (command: HostCommand) => Promise<HostResponse>;
-  /** Id of the most recently updated session on the Host. */
-  latestSessionId: () => Promise<string>;
+  /** Id of the session the TUI shows; throws while it has none. */
+  sessionId: () => string;
   /** Whether a turn is running in the TUI's view right now. */
   isRunning: () => boolean;
   /** Resolve once no turn is running in the TUI's view. */
@@ -289,16 +289,12 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
       return { release: () => settle(undefined), fail: (error) => settle(error) };
     },
     asOtherShell: request(other),
-    latestSessionId: async () => {
-      const listed = hostData<{ sessions: Array<{ sessionId: string }> }>(
-        await request(other)({
-          type: 'session/list',
-          scopeRef: { kind: 'all-authorized' },
-          order: 'updated',
-          maxItems: 1,
-        }),
-      );
-      return listed.sessions[0]?.sessionId ?? '';
+    sessionId: () => {
+      // Read from the TUI itself: a session stopped before its first message
+      // was stored has no name yet and is not listed by the Host.
+      const sessionId = app.currentSessionId();
+      if (sessionId === undefined) throw new Error('The TUI has no session yet');
+      return sessionId;
     },
     isRunning: () => app.isRunning(),
     waitForIdle: async () => {

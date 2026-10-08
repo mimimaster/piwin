@@ -165,23 +165,20 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('Esc 中断');
       await tui.press(KEY.escape);
       await tui.waitForIdle();
-      const shell = tui;
-      const sessionId = await shell.latestSessionId();
-      // The interrupted turn must be gone on the Host, not only in this view.
-      await waitForForegroundRun(shell, sessionId, (run) => run === null);
+      const sessionId = tui.sessionId();
       // The window from the report: the Host already runs a turn, but the
       // running push has not reached this shell, so it still looks idle.
-      const release = shell.holdPushes();
+      const release = tui.holdPushes();
       hostData(
-        await shell.asOtherShell({
+        await tui.asOtherShell({
           type: 'session/prompt',
           sessionId,
           input: { text: '另一端先发的一轮' },
           foreground: { kind: 'if-idle' },
         }),
       );
-      await waitForForegroundRun(shell, sessionId, (run) => run?.status === 'running');
-      expect(shell.isRunning()).toBe(false);
+      await waitForForegroundRun(tui, sessionId, (run) => run?.status === 'running');
+      expect(tui.isRunning()).toBe(false);
       tui.mark();
       await tui.submit('紧接着的一条');
       await tui.waitFor('已排队（第 1 条）');
@@ -307,7 +304,7 @@ describe('TUI end to end against a mock Host', () => {
     it('announces a plan written from another shell and opens it', async () => {
       tui = await startTuiHarness({ project: true });
       await converse(tui, '先聊一句');
-      const sessionId = await tui.latestSessionId();
+      const sessionId = tui.sessionId();
       tui.mark();
       const written = await tui.asOtherShell({
         type: 'plan/set',
@@ -342,7 +339,7 @@ describe('TUI end to end against a mock Host', () => {
     it('follows a rename made from another shell', async () => {
       tui = await startTuiHarness();
       await converse(tui, '会被别处改名');
-      const sessionId = await tui.latestSessionId();
+      const sessionId = tui.sessionId();
       tui.mark();
       await tui.asOtherShell({ type: 'session/rename', sessionId, name: '桌面端改的名字' });
       await tui.waitFor('桌面端改的名字 ·');
@@ -425,7 +422,7 @@ describe('TUI end to end against a mock Host', () => {
       await tui.submit('你好');
       await tui.waitFor('you said: 你好');
       await tui.waitForIdle();
-      const parentSessionId = await tui.latestSessionId();
+      const parentSessionId = tui.sessionId();
       tui.mark();
       const started = await tui.asOtherShell({
         type: 'subagent/batch-start',

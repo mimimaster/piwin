@@ -605,6 +605,11 @@ export class TuiApp {
     }
   }
 
+  /** The session this shell shows, once it has one. */
+  public currentSessionId(): string | undefined {
+    return this.sessionId;
+  }
+
   /** Whether a turn is in flight. Read fresh each time: pushes change it across every await. */
   public isRunning(): boolean {
     return this.foreground.kind === 'active';
