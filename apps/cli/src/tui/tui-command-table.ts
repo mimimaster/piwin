@@ -5,6 +5,7 @@ import type { TuiComposerProfile } from './tui-composer-profile.js';
 import type { TuiPlanController } from './tui-plan-controller.js';
 import type { TuiQueueController } from './tui-queue-controller.js';
 import type { TuiSessionSwitcher } from './tui-session-switcher.js';
+import type { TuiSubagentController } from './tui-subagent-controller.js';
 import type { TuiTurnActions } from './tui-turn-actions.js';
 
 type CommandHandler = (argument: string) => void | Promise<void>;
@@ -17,6 +18,7 @@ export type TuiCommandTableDeps = {
   plans: TuiPlanController;
   queue: TuiQueueController;
   branches: TuiBranchController;
+  subagents: TuiSubagentController;
   turns: TuiTurnActions;
   sessionSwitcher: TuiSessionSwitcher;
   startDraftSession: () => void;
@@ -49,6 +51,7 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     queue: () => queue.open(),
     steer: (argument) => turns.steer(argument),
     plan: () => plans.open(),
+    subagents: () => deps.subagents.open(),
     attach: (argument) => attachments.attachPaths(argument),
     paste: () => attachments.pasteClipboardImage(),
     detach: () => attachments.detach(),

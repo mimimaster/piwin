@@ -49,6 +49,7 @@ import { describePromptExtras } from './queued-turns.js';
 import { TuiPlanController } from './tui-plan-controller.js';
 import { TuiQueueController } from './tui-queue-controller.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
+import { TuiSubagentController } from './tui-subagent-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
 import { ProjectFiles } from './project-files.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
@@ -100,6 +101,7 @@ export class TuiApp {
   private readonly queue: TuiQueueController;
   private readonly branches: TuiBranchController;
   private readonly turns: TuiTurnActions;
+  private readonly subagents: TuiSubagentController;
   private readonly runCommand: (name: string, argument: string) => Promise<void>;
   /** `/edit`: the next prompt replaces this user turn as a sibling branch. */
   private editingMessageId: string | undefined;
@@ -194,6 +196,17 @@ export class TuiApp {
       onHint: (text) => this.flashHint(text),
       onError: (error) => this.reportError(error),
     });
+    this.subagents = new TuiSubagentController({
+      link: this.link,
+      modals: this.modals,
+      embedded: options.embedded,
+      getSessionId: () => this.sessionId,
+      openSession: (sessionId) => this.openSession(sessionId),
+      onChanged: () => this.refreshChrome(),
+      onHint: (text) => this.flashHint(text),
+      onNotice: notify,
+      onError: (error) => this.reportError(error),
+    });
     this.turns = new TuiTurnActions({
       request: (command) => this.link.request(command),
       embedded: options.embedded,
@@ -239,6 +252,7 @@ export class TuiApp {
       plans: this.plans,
       queue: this.queue,
       branches: this.branches,
+      subagents: this.subagents,
       turns: this.turns,
       sessionSwitcher: this.sessionSwitcher,
       startDraftSession: () => this.startDraftSession(),
@@ -327,6 +341,7 @@ export class TuiApp {
       this.plans.load(sessionId),
       this.queue.load(sessionId),
       this.branches.load(sessionId),
+      this.subagents.load(sessionId),
     ]);
     this.editingMessageId = undefined;
     await this.loadPendingPermissions(sessionId, epoch);
@@ -371,6 +386,7 @@ export class TuiApp {
     this.plans.reset();
     this.queue.reset();
     this.branches.reset();
+    this.subagents.reset();
     this.editingMessageId = undefined;
     this.transcript = EMPTY_TRANSCRIPT;
     this.olderCursor = undefined;
@@ -574,7 +590,14 @@ export class TuiApp {
       }
       this.refreshChrome();
     }
-    if (this.plans.handlePush(push) || this.queue.handlePush(push) || this.branches.handlePush(push)) return;
+    if (
+      this.plans.handlePush(push) ||
+      this.queue.handlePush(push) ||
+      this.branches.handlePush(push) ||
+      this.subagents.handlePush(push)
+    ) {
+      return;
+    }
     switch (push.type) {
       case 'event':
         if (push.sessionId !== this.sessionId) return;
@@ -758,6 +781,7 @@ export class TuiApp {
       this.plans.describe(),
       this.queue.describe(),
       this.branches.describe(),
+      this.subagents.describe(),
       this.editingMessageId === undefined ? undefined : '改写上一条提问 · Ctrl+C 取消',
       usage,
       this.options.mock ? 'mock' : undefined,
