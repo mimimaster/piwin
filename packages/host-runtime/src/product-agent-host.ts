@@ -81,6 +81,12 @@ type ProductAgentHostCommonOptions = {
     usableSubscriptionProviderIds: readonly string[];
     subscriptionAccounts: import('./resolve-chat-model.js').ResolveChatModelAccounts;
   }>;
+  /**
+   * Mock only: record a file the mock session wrote, so the turn-change
+   * runtime can diff and undo it. Production hosts never set this.
+   */
+  recordMockFileChange?: (receipt: import('@piwin/git').TurnChangeWriteReceipt, workspaceRoot: string) => void;
+  mockObjectStore?: import('@piwin/git').TurnChangeObjectStore;
   /** Derive the host-local family index from the same registrations as descriptors. */
   buildToolFamilyIndex?: (
     sessionId: string,
@@ -359,6 +365,12 @@ export class ProductAgentHost implements AgentHost {
               ...input,
               sessionId,
               ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
+              ...(this.options.recordMockFileChange
+                ? { recordFileChange: this.options.recordMockFileChange }
+                : {}),
+              ...(this.options.mockObjectStore
+                ? { objectStore: this.options.mockObjectStore }
+                : {}),
             });
       const settingsRevision = this.options.piwinRoot
         ? createSettingsSnapshot(await loadPiwinConfig(this.options.piwinRoot)).runtimeRevision

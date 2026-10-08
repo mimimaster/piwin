@@ -26,6 +26,7 @@ import { composeExternalAgentBackend } from './grok/grok-compose.js';
 import { ensureLoginShellPath } from './login-shell-path.js';
 import { createSessionTranscriptStoreRegistry } from './session-transcript-store-registry.js';
 import { ProductAgentHost } from './product-agent-host.js';
+import { createMockSubagentOrchestrator } from './mock-subagent.js';
 import { loadPiwinConfig } from './config-store.js';
 import {
   applyPiwinPlaywrightBrowsersPath,
@@ -551,7 +552,51 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
     };
     if (options.mock === true) {
       deps.sessionHostToolPort = null;
-      deps.host = new ProductAgentHost({ ...commonHostOptions, mock: true });
+      // The turn-change runtime is self-contained, so the mock Host runs the
+      // real one (without the retention sweeper): a shell then records, diffs
+      // and undoes turns through the same commands the desktop uses.
+      deps.turnChangeRuntime = openTurnChangeRuntime({
+        hostInstanceId: deps.hostInstanceId,
+        ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+        push: (message) => deps.push(message),
+      });
+      deps.host = new ProductAgentHost({
+        ...commonHostOptions,
+        mock: true,
+        recordMockFileChange: (receipt, workspaceRoot) => {
+          // The mock session runs outside the turn's async context, so the
+          // run id comes from the foreground run instead of the context.
+          const runtime = deps.turnChangeRuntime;
+          const runId = deps.runRegistry
+            .list()
+            .find((run) => run.status === 'running')?.runId;
+          if (!runId || !runtime) return;
+          const capture = runtime.capture.beginCapture({
+            runId,
+            toolCallId: undefined,
+            toolName: 'mock_edit',
+            fileEffect: {
+              kind: 'exact-paths',
+              pathsFromArgs: (args) => [String(args.path)],
+            },
+            canonicalArgs: { path: receipt.relativePath },
+          });
+          if (!capture) return;
+          runtime.capture.recordReceipt({ captureId: capture.captureId, receipt, workspaceRoot });
+          void runtime.capture.finishCapture({
+            captureId: capture.captureId,
+            result: { ok: true, output: receipt.relativePath },
+          });
+        },
+        mockObjectStore: deps.turnChangeRuntime.objectStore,
+      });
+      // Lifecycle stand-in: same commands, no worker processes or worktrees.
+      // The field's type is the production class; only the methods the command
+      // path calls are implemented, so the cast stays at this one boundary.
+      deps.subagentOrchestrator = createMockSubagentOrchestrator({
+        ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+        push: (message) => deps.push(message),
+      }) as unknown as SubagentOrchestrator;
     } else {
       deps.turnChangeRuntime = openTurnChangeRuntime({
         hostInstanceId: deps.hostInstanceId,

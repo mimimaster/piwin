@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { writeTurnChangeFile, type TurnChangeObjectStore } from '@piwin/git';
 import {
   ABORTED_PROMPT_OUTCOME,
   COMPLETED_STOP_OUTCOME,
@@ -27,6 +28,13 @@ export type CreateMockSessionOptions = CreateSessionInput & {
   sessionId?: string;
   /** Seed messages shown after resume (not re-emitted as events). */
   seedMessages?: readonly (SessionTranscriptMessage | SessionSeedMessage)[];
+  /**
+   * When set, a prompt that starts with "改文件" writes one real file through
+   * the turn-change object store and reports its receipt, so a mock turn can
+   * be diffed and undone exactly like a desktop turn.
+   */
+  recordFileChange?: (receipt: import('@piwin/git').TurnChangeWriteReceipt, workspaceRoot: string) => void;
+  objectStore?: TurnChangeObjectStore;
 };
 
 /**
@@ -238,6 +246,19 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
         }
 
         const locationLabel = resolveMockLocationLabel(input);
+        if (
+          userText.startsWith('改文件') &&
+          input.recordFileChange !== undefined &&
+          input.objectStore !== undefined
+        ) {
+          const receipt = await writeTurnChangeFile({
+            workspaceRoot: locationLabel,
+            relativePath: 'mock-edit.txt',
+            bytes: new TextEncoder().encode(`${userText}\n`),
+            store: input.objectStore,
+          });
+          input.recordFileChange(receipt, locationLabel);
+        }
         const reply = buildMockReply(userText, locationLabel);
         messages.push({
           id: assistantMessageId,

@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -341,6 +341,75 @@ describe('TUI end to end against a mock Host', () => {
       const [exported] = tui.openedFiles();
       expect(path.basename(exported ?? '')).toBe('演示页.html');
       expect(readFileSync(exported ?? '', 'utf8')).toContain('<iframe sandbox="allow-scripts"');
+    });
+  });
+
+  describe('mock Host subagents and file changes', () => {
+    it('starts a subagent, shows its result and accepts a follow-up', async () => {
+      tui = await startTuiHarness({ project: true });
+      await tui.submit('你好');
+      await tui.waitFor('you said: 你好');
+      await tui.waitForIdle();
+      const parentSessionId = await tui.latestSessionId();
+      tui.mark();
+      const started = await tui.asOtherShell({
+        type: 'subagent/batch-start',
+        request: {
+          parentSessionId,
+          tasks: [
+            {
+              id: 'task-1',
+              parentSessionId,
+              task: '整理 README 的结构',
+              sessionName: '整理文档',
+            },
+          ],
+        },
+      });
+      expect(started.success, JSON.stringify(started).slice(0, 300)).toBe(true);
+      await tui.waitFor('子代理「整理文档」已完成');
+      tui.mark();
+      await tui.submit('/subagents');
+      await tui.waitFor('整理文档');
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('给它追加指令');
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('给子代理追加指令');
+      await tui.submit('再补一节安装说明');
+      await tui.waitFor('子代理「整理文档」已完成');
+    });
+
+    it('records a file edit, shows the diff and undoes it', async () => {
+      tui = await startTuiHarness({ project: true });
+      const file = path.join(tui.projectPath ?? '', 'mock-edit.txt');
+      await tui.submit('改文件：把说明换成新版');
+      await tui.waitFor('you said: 改文件：把说明换成新版');
+      await tui.waitForIdle();
+      expect(readFileSync(file, 'utf8')).toContain('改文件：把说明换成新版');
+      tui.mark();
+      await tui.submit('/changes');
+      await tui.waitFor('各轮的文件改动');
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('查看改动的文件');
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('mock-edit.txt');
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('改文件：把说明换成新版');
+      tui.mark();
+      await tui.press(KEY.escape);
+      await tui.waitFor('改动的文件');
+      await tui.press(KEY.escape);
+      await tui.submit('/undo');
+      await tui.waitFor('撤销这一轮的改动');
+      tui.mark();
+      await tui.press(KEY.down, KEY.enter);
+      await tui.waitFor('已撤销');
+      expect(existsSync(file)).toBe(false);
     });
   });
 });
