@@ -95,6 +95,10 @@ export class TuiApp {
 
   private transcript: TranscriptState = EMPTY_TRANSCRIPT;
   private sessionId: string | undefined;
+  /** The `session/create` in flight, shared by everything that needs a session. */
+  private creatingSession: Promise<string> | undefined;
+  /** Prompts leave in the order they were typed; see `sendPrompt`. */
+  private promptLane: Promise<unknown> = Promise.resolve();
   private sessionName: string | undefined;
   private olderCursor: string | undefined;
   private projectId: string | undefined;
@@ -410,8 +414,20 @@ export class TuiApp {
     }
   }
 
-  private async ensureSession(): Promise<string> {
-    if (this.sessionId !== undefined) return this.sessionId;
+  /**
+   * One `session/create` at a time: every caller that needs a session while
+   * one is being created shares that creation. A failed creation is dropped,
+   * so the next caller starts a fresh one instead of waiting on the failure.
+   */
+  private ensureSession(): Promise<string> {
+    if (this.sessionId !== undefined) return Promise.resolve(this.sessionId);
+    this.creatingSession ??= this.createSession().finally(() => {
+      this.creatingSession = undefined;
+    });
+    return this.creatingSession;
+  }
+
+  private async createSession(): Promise<string> {
     const model = this.composer.modelRef();
     const created = hostData<{ sessionId: string }>(
       await this.link.request({
@@ -478,7 +494,16 @@ export class TuiApp {
    * queued behind it, unless `replaceRunning` asks the Host to stop that turn
    * and run this one instead.
    */
-  private async sendPrompt(rawText: string, replaceRunning: boolean): Promise<void> {
+  private sendPrompt(rawText: string, replaceRunning: boolean): Promise<void> {
+    // Each prompt waits until the one before it is accepted or queued by the
+    // Host. Two quick sends then land in the same session, in typing order:
+    // the second sees the first one's session and running turn.
+    const sent = this.promptLane.then(() => this.sendPromptNow(rawText, replaceRunning));
+    this.promptLane = sent.catch(() => undefined);
+    return sent;
+  }
+
+  private async sendPromptNow(rawText: string, replaceRunning: boolean): Promise<void> {
     const typedText = rawText.trim();
     this.editor.addToHistory(rawText.trim());
     if (this.attachments.isUploading) {

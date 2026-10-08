@@ -165,19 +165,23 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('Esc 中断');
       await tui.press(KEY.escape);
       await tui.waitForIdle();
-      const sessionId = await tui.latestSessionId();
+      const shell = tui;
+      const sessionId = await shell.latestSessionId();
+      // The interrupted turn must be gone on the Host, not only in this view.
+      await waitForForegroundRun(shell, sessionId, (run) => run === null);
       // The window from the report: the Host already runs a turn, but the
       // running push has not reached this shell, so it still looks idle.
-      const release = tui.holdPushes();
+      const release = shell.holdPushes();
       hostData(
-        await tui.asOtherShell({
+        await shell.asOtherShell({
           type: 'session/prompt',
           sessionId,
           input: { text: '另一端先发的一轮' },
           foreground: { kind: 'if-idle' },
         }),
       );
-      expect(tui.isRunning()).toBe(false);
+      await waitForForegroundRun(shell, sessionId, (run) => run?.status === 'running');
+      expect(shell.isRunning()).toBe(false);
       tui.mark();
       await tui.submit('紧接着的一条');
       await tui.waitFor('已排队（第 1 条）');
@@ -191,6 +195,42 @@ describe('TUI end to end against a mock Host', () => {
       tui.mark();
       await tui.submit('/queue');
       await tui.waitFor('1. 紧接着的一条');
+    });
+
+    it('puts a message sent while the first creates the session into that session, after it', async () => {
+      tui = await startTuiHarness({ hangingRuns: true });
+      const creating = tui.holdRequests('session/create');
+      await tui.submit('首条消息');
+      await tui.submit('紧跟的消息');
+      creating.release();
+      await tui.waitFor('已排队（第 1 条）');
+      const sessions = await listSessions(tui);
+      expect(sessions).toHaveLength(1);
+      const sessionId = sessions[0] ?? '';
+      await waitForForegroundRun(tui, sessionId, (run) => run?.status === 'running');
+      const queued = hostData<{ queuedTurns: Array<{ input: { text: string } }> }>(
+        await tui.asOtherShell({ type: 'session/queued-turn-list', sessionId }),
+      );
+      expect(queued.queuedTurns.map((turn) => turn.input.text)).toEqual(['紧跟的消息']);
+    });
+
+    it('lets the next message create a session after a failed creation', async () => {
+      const shell = await startTuiHarness();
+      tui = shell;
+      const creating = shell.holdRequests('session/create');
+      tui.mark();
+      await tui.submit('建会话会失败的一条');
+      await tui.submit('失败后的下一条');
+      creating.fail('create-failed: injected');
+      await tui.waitFor('create-failed: injected');
+      await tui.waitFor('失败后的下一条');
+      await tui.waitForIdle();
+      await vi.waitFor(async () => expect(await listSessions(shell)).toHaveLength(1));
+      tui.mark();
+      await tui.submit('同一个会话里再发一条');
+      await tui.waitFor('同一个会话里再发一条');
+      await tui.waitForIdle();
+      expect(await listSessions(shell)).toHaveLength(1);
     });
 
     it('interrupts the running turn with Escape', async () => {
@@ -450,3 +490,34 @@ describe('TUI end to end against a mock Host', () => {
     });
   });
 });
+
+async function listSessions(harness: TuiHarness): Promise<string[]> {
+  const listed = hostData<{ sessions: Array<{ sessionId: string }> }>(
+    await harness.asOtherShell({
+      type: 'session/list',
+      scopeRef: { kind: 'all-authorized' },
+      order: 'updated',
+      maxItems: 10,
+    }),
+  );
+  return listed.sessions.map((session) => session.sessionId);
+}
+
+type ForegroundRun = { runId: string; status: string } | null;
+
+/** Wait for the Host's own record of the session's turn, as another shell sees it. */
+async function waitForForegroundRun(
+  harness: TuiHarness,
+  sessionId: string,
+  matches: (run: ForegroundRun) => boolean,
+): Promise<void> {
+  await vi.waitFor(
+    async () => {
+      const { run } = hostData<{ run: ForegroundRun }>(
+        await harness.asOtherShell({ type: 'session/foreground-run', sessionId }),
+      );
+      expect(matches(run)).toBe(true);
+    },
+    { timeout: 4_000, interval: 15 },
+  );
+}

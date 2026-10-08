@@ -110,6 +110,11 @@ export type TuiHarness = {
    * order when the returned release is called. Opens timing windows exactly.
    */
   holdPushes: () => () => void;
+  /**
+   * Hold the TUI's requests of one command type until the returned gate
+   * passes them on or fails them, as a slow or failing Host would.
+   */
+  holdRequests: (type: HostCommand['type']) => RequestGate;
   /** Send a command as another shell attached to the same Host would. */
   asOtherShell: (command: HostCommand) => Promise<HostResponse>;
   /** Id of the most recently updated session on the Host. */
@@ -122,6 +127,13 @@ export type TuiHarness = {
   openedFiles: () => string[];
   exited: () => boolean;
   dispose: () => Promise<void>;
+};
+
+export type RequestGate = {
+  /** Send the held requests to the Host. */
+  release: () => void;
+  /** Answer the held requests with this failure instead. */
+  fail: (error: string) => void;
 };
 
 export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<TuiHarness> {
@@ -178,11 +190,20 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
       return typeof value === 'function' ? value.bind(target) : value;
     },
   });
+  // Requests leave through this gate so a test can hold or fail one type.
+  const heldRequests = new Map<HostCommand['type'], Promise<string | undefined>>();
+  const gatedRequest = async (command: HostCommand): Promise<HostResponse> => {
+    const failure = await heldRequests.get(command.type);
+    if (failure !== undefined) {
+      return { type: 'response', command: command.type, success: false, error: failure };
+    }
+    return request(client)(command);
+  };
   const link: TuiHostLink = {
     client: gatedClient,
     kind: 'attached',
     endpoint: address.url,
-    request: request(client),
+    request: gatedRequest,
     dispose: () => client.close(),
   };
   if (projectPath !== undefined) {
@@ -257,6 +278,15 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
         heldPushes = undefined;
         for (const push of pending) for (const listener of pushListeners) listener(push);
       };
+    },
+    holdRequests: (type) => {
+      let open: (failure: string | undefined) => void = () => undefined;
+      heldRequests.set(type, new Promise((resolve) => (open = resolve)));
+      const settle = (failure: string | undefined): void => {
+        heldRequests.delete(type);
+        open(failure);
+      };
+      return { release: () => settle(undefined), fail: (error) => settle(error) };
     },
     asOtherShell: request(other),
     latestSessionId: async () => {
