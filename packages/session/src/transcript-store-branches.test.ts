@@ -141,6 +141,30 @@ describe('transcript store branches', () => {
     store.close();
   });
 
+  it('reports the append that forks the conversation', async () => {
+    const { store } = await openStore('started-branch');
+    const appendRow = (id: string, role: 'user' | 'assistant') =>
+      store.appendMessage({
+        id,
+        runtimeGenerationId: 'gen-a',
+        backendMessageId: `b-${id}`,
+        role,
+        text: id,
+        status: 'done',
+        createdAt: '2026-08-21T00:00:00.000Z',
+      });
+    expect(await appendRow('u1', 'user')).toEqual({ ok: true });
+    expect(await appendRow('a1', 'assistant')).toEqual({ ok: true });
+    // Kept retry: the leaf moves back to the question; the new answer is a sibling.
+    await store.rebaseActiveLeaf('u1');
+    expect(await appendRow('a1-retry', 'assistant')).toEqual({ ok: true, startedBranch: true });
+    expect(await appendRow('u2', 'user')).toEqual({ ok: true });
+    // Branch prompt at the root.
+    await store.rebaseActiveLeaf(null);
+    expect(await appendRow('u1-alt', 'user')).toEqual({ ok: true, startedBranch: true });
+    store.close();
+  });
+
   it('truncateFrom the active child then rebase leaves the user row for retry', async () => {
     const { store } = await openStore('retry-truncate');
     await seedLinear(store);

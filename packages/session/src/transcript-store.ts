@@ -214,7 +214,17 @@ export type TranscriptStoreMessagePatch = {
 };
 
 export type TranscriptStoreAppendResult =
-  { ok: true; replayed?: true } | { ok: false; reason: 'provenance-collision' };
+  | {
+      ok: true;
+      replayed?: true;
+      /**
+       * The row landed beside a visible sibling, so this append forked the
+       * conversation (a kept retry's answer, a branch prompt's message) and
+       * the branch points of the active path changed.
+       */
+      startedBranch?: true;
+    }
+  | { ok: false; reason: 'provenance-collision' };
 
 export type TranscriptStoreTruncateResult = {
   found: boolean;

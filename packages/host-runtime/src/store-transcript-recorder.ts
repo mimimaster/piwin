@@ -12,7 +12,12 @@ import {
   mergeWorkspaceWrites,
   normalizeAgentFailure,
 } from '@piwin/contracts';
-import type { SessionTranscriptStore, TranscriptStoreMessagePatch } from '@piwin/session';
+import type {
+  SessionTranscriptStore,
+  TranscriptStoreAppendResult,
+  TranscriptStoreMessageInput,
+  TranscriptStoreMessagePatch,
+} from '@piwin/session';
 import { appendToolCard } from '@piwin/session';
 import type { TranscriptRecorder } from './transcript-recorder.js';
 import { appendUserPromptToTranscriptStore } from './transcript-user-prompt.js';
@@ -35,6 +40,8 @@ export function createStoreTranscriptRecorder(options: {
   maxToolOutputBytes?: number;
   onError?: (error: unknown) => void;
   onDiagnostic?: (message: string) => void;
+  /** An appended row started a branch, e.g. the answer of a kept retry. */
+  onBranchStarted?: () => Promise<void>;
   resolveModel?: () => ModelRef | undefined;
 }): TranscriptRecorder {
   const activeMessages = new Map<string, SessionTranscriptMessage>();
@@ -53,6 +60,17 @@ export function createStoreTranscriptRecorder(options: {
   let flushTimer: ReturnType<typeof setTimeout> | undefined;
   let backgroundFlushError: unknown = null;
   let disposed = false;
+
+  async function appendRow(
+    input: TranscriptStoreMessageInput,
+  ): Promise<TranscriptStoreAppendResult> {
+    const result = await options.store.appendMessage(input);
+    if (result.ok && result.startedBranch === true) {
+      // The row is stored either way; a failed notice must not fail the append.
+      await options.onBranchStarted?.().catch((error: unknown) => options.onError?.(error));
+    }
+    return result;
+  }
 
   function enqueue(operation: () => Promise<void>): Promise<void> {
     if (disposed) {
@@ -225,7 +243,7 @@ export function createStoreTranscriptRecorder(options: {
       ...(input.runId !== undefined ? { runId: input.runId } : {}),
       ...(model !== undefined ? { model } : {}),
     };
-    const result = await options.store.appendMessage({
+    const result = await appendRow({
       id: message.id,
       runtimeGenerationId: options.runtimeGenerationId,
       backendMessageId: message.id,
@@ -372,7 +390,7 @@ export function createStoreTranscriptRecorder(options: {
               ...(event.runId !== undefined ? { runId: event.runId } : {}),
               ...(model !== undefined ? { model } : {}),
             };
-            const result = await options.store.appendMessage({
+            const result = await appendRow({
               id: message.id,
               runtimeGenerationId: options.runtimeGenerationId,
               backendMessageId: event.backendMessageId ?? event.messageId,

@@ -271,6 +271,38 @@ describe('conversation tree over host commands (ADR 0055)', () => {
     }
   });
 
+  // Shells read the tree when this push arrives. The fork exists only once the
+  // new sibling is stored, which is after the leaf moved.
+  describe('announces the fork once its new sibling is stored', () => {
+    it('for a kept retry, when the new answer lands', async () => {
+      const tree = await openTree('retry-keep');
+      try {
+        const [user, firstAnswer] = await tree.converse('same question');
+        await tree.prompt({ text: '', retryUserMessageId: user.id, keepPreviousAttempt: true });
+        await tree.settle((messages) =>
+          messages.some((message) => message.role === 'assistant' && message.id !== firstAnswer.id),
+        );
+        expect(tree.lastBranchUpdate()?.branchPointCount).toBe(1);
+      } finally {
+        await tree.dispose();
+      }
+    });
+
+    it('for a branch prompt, when the new message lands', async () => {
+      const tree = await openTree('branch-prompt');
+      try {
+        const [user] = await tree.converse('turn one');
+        await tree.prompt({ text: 'turn one rewritten', branchFromMessageId: user.id });
+        await tree.settle((messages) =>
+          messages.some((message) => message.text === 'turn one rewritten'),
+        );
+        expect(tree.lastBranchUpdate()?.branchPointCount).toBe(1);
+      } finally {
+        await tree.dispose();
+      }
+    });
+  });
+
   it('discards the failed attempt on retry so no fork is left', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-conversation-retry-discard-'));
     const runtime = new HostRuntime({
@@ -328,6 +360,68 @@ describe('conversation tree over host commands (ADR 0055)', () => {
     }
   });
 });
+
+type BranchUpdated = Extract<HostPush, { type: 'session/branch-updated' }>;
+
+/** A one-session Host that records its pushes. */
+async function openTree(label: string) {
+  const rootDir = await mkdtemp(join(tmpdir(), `piwin-conversation-${label}-`));
+  const pushes: HostPush[] = [];
+  const runtime = new HostRuntime({
+    mode: 'sdk',
+    mock: true,
+    piwinRoot: rootDir,
+    onPush: (message) => {
+      pushes.push(message);
+    },
+  });
+  const created = await runtime.handleCommand({
+    type: 'session/create',
+    input: { projectPath: '/project', sessionName: label },
+  });
+  if (!created.success) throw new Error(created.error);
+  const sessionId = (created.data as { sessionId: string }).sessionId;
+  const settle = async (
+    ready: (messages: SessionTranscriptMessage[]) => boolean,
+  ): Promise<SessionTranscriptMessage[]> => {
+    const messages = await waitForMessages(
+      runtime,
+      sessionId,
+      (current) => doneAssistants(current) >= 1 && ready(current),
+    );
+    await waitForNoForegroundRun(runtime, sessionId);
+    return messages;
+  };
+  return {
+    /** First turn; returns its user row and answer. */
+    converse: async (
+      text: string,
+    ): Promise<[SessionTranscriptMessage, SessionTranscriptMessage]> => {
+      await promptAndSettle(runtime, sessionId, text);
+      const [user, answer] = await settle(() => true);
+      if (user?.role !== 'user' || answer?.role !== 'assistant') {
+        throw new Error('first turn missing');
+      }
+      return [user, answer];
+    },
+    prompt: async (input: {
+      text: string;
+      retryUserMessageId?: string;
+      keepPreviousAttempt?: boolean;
+      branchFromMessageId?: string;
+    }) => {
+      const prompted = await runtime.handleCommand({ type: 'session/prompt', sessionId, input });
+      if (!prompted.success) throw new Error(prompted.error);
+    },
+    settle,
+    lastBranchUpdate: (): BranchUpdated | undefined =>
+      pushes
+        .filter((push): push is BranchUpdated => push.type === 'session/branch-updated')
+        .filter((push) => push.sessionId === sessionId)
+        .at(-1),
+    dispose: () => runtime.dispose(),
+  };
+}
 
 async function promptAndSettle(
   runtime: HostRuntime,
