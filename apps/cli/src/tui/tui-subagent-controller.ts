@@ -43,6 +43,8 @@ export type TuiSubagentControllerOptions = {
 export class TuiSubagentController {
   private children: SubagentChild[] = [];
   private results: SubagentResultSummary[] = [];
+  /** Follow-ups this shell sent per child that have not ended yet. */
+  private readonly followUps = new Map<string, number>();
 
   public constructor(private readonly options: TuiSubagentControllerOptions) {}
 
@@ -53,6 +55,7 @@ export class TuiSubagentController {
   public reset(): void {
     this.children = [];
     this.results = [];
+    this.followUps.clear();
   }
 
   /** Best effort: a Host without subagent orchestration simply has none to show. */
@@ -76,7 +79,7 @@ export class TuiSubagentController {
       const next = toSubagentChild(push.child);
       const previous = this.children.find((child) => child.sessionId === next.sessionId);
       this.children = [...this.children.filter((child) => child.sessionId !== next.sessionId), next];
-      const notice = describeChildChange(previous, next);
+      const notice = describeChildChange(previous, next, this.settleFollowUp(next));
       if (notice !== undefined) this.options.onNotice(next.subagentStatus === 'failed' ? 'error' : 'info', notice);
       this.options.onChanged();
       return true;
@@ -172,15 +175,34 @@ export class TuiSubagentController {
           modals.close();
           const text = value.trim();
           if (text.length === 0) return;
+          // Counted before sending: the child can settle before the answer arrives.
+          this.adjustFollowUps(childSessionId, 1);
           link
             .request({ type: 'subagent/continue', childSessionId, text })
             .then(hostData)
             .then(() => this.options.onHint('已发给子代理'))
-            .catch(this.options.onError);
+            .catch((error: unknown) => {
+              this.adjustFollowUps(childSessionId, -1);
+              this.options.onError(error);
+            });
         },
         onCancel: () => modals.close(),
       }),
     );
+  }
+
+  /** True when this update ends a follow-up this shell sent; consumes it. */
+  private settleFollowUp(child: SubagentChild): boolean {
+    const ended = child.subagentStatus !== undefined && child.subagentStatus !== 'running';
+    if (!ended || (this.followUps.get(child.sessionId) ?? 0) === 0) return false;
+    this.adjustFollowUps(child.sessionId, -1);
+    return true;
+  }
+
+  private adjustFollowUps(childSessionId: string, delta: number): void {
+    const count = (this.followUps.get(childSessionId) ?? 0) + delta;
+    if (count > 0) this.followUps.set(childSessionId, count);
+    else this.followUps.delete(childSessionId);
   }
 
   /** Cleanup is two-step on the Host: plan it, then spend the plan's token. */

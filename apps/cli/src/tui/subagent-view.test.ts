@@ -111,9 +111,16 @@ describe('describeChildChange', () => {
     expect(describeChildChange(undefined, running)).toBeUndefined();
     expect(describeChildChange(running, done)).toBe('子代理「重构存储」已完成 · /subagents 查看');
     expect(describeChildChange(done, done)).toBeUndefined();
-    expect(describeChildChange(done, { ...done, lastPreview: '再补一节安装说明' })).toBe(
-      '子代理「重构存储」已完成 · /subagents 查看',
-    );
     expect(describeChildChange(running, { ...running, subagentStatus: 'failed' })).toContain('失败');
+  });
+
+  it('announces a settled follow-up even when no running update showed in between', () => {
+    const done = child({ sessionId: 'c1', name: '重构存储', subagentStatus: 'done' });
+    expect(describeChildChange(done, done, true)).toBe('子代理「重构存储」已完成 · /subagents 查看');
+  });
+
+  it('does not treat other changes to a finished child as another completion', () => {
+    const done = child({ sessionId: 'c1', name: '重构存储', subagentStatus: 'done' });
+    expect(describeChildChange(done, { ...done, name: '重构存储层' })).toBeUndefined();
   });
 });

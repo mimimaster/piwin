@@ -6,7 +6,7 @@ import type { SessionSummary, SubagentResultSummary } from '@piwin/contracts';
  * Host decides what may be done with a result (`availability`).
  */
 
-export type SubagentChild = Pick<SessionSummary, 'name' | 'subagentStatus' | 'subagentTaskId' | 'lastPreview'> & {
+export type SubagentChild = Pick<SessionSummary, 'name' | 'subagentStatus' | 'subagentTaskId'> & {
   sessionId: string;
 };
 
@@ -44,7 +44,6 @@ export function toSubagentChild(summary: SessionSummary & { sessionId?: string }
     ...(summary.name === undefined ? {} : { name: summary.name }),
     ...(summary.subagentStatus === undefined ? {} : { subagentStatus: summary.subagentStatus }),
     ...(summary.subagentTaskId === undefined ? {} : { subagentTaskId: summary.subagentTaskId }),
-    ...(summary.lastPreview === undefined ? {} : { lastPreview: summary.lastPreview }),
   };
 }
 
@@ -135,13 +134,19 @@ export function childActionItems(
   return items;
 }
 
-/** A line for the transcript when a child ends. */
-export function describeChildChange(previous: SubagentChild | undefined, next: SubagentChild): string | undefined {
+/**
+ * A line for the transcript when a child ends. Same-child updates are
+ * projections, so a follow-up this shell sent can settle without a visible
+ * `running` in between; the caller says when one was outstanding.
+ */
+export function describeChildChange(
+  previous: SubagentChild | undefined,
+  next: SubagentChild,
+  followUpSettled = false,
+): string | undefined {
   const before = previous?.subagentStatus;
   const after = next.subagentStatus;
   if (after === undefined || after === 'running') return undefined;
-  // Same-child updates are projections, so a follow-up can arrive still `done`.
-  // A new last preview is that follow-up; an unchanged one is not another completion.
-  if (after === before && previous?.lastPreview === next.lastPreview) return undefined;
+  if (after === before && !followUpSettled) return undefined;
   return `子代理「${childLabel(next, next.sessionId)}」${CHILD_STATUS[after]} · /subagents 查看`;
 }

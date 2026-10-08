@@ -199,6 +199,27 @@ describe('TuiSubagentController', () => {
     expect(port.onHint).toHaveBeenCalledWith('已发给子代理');
   });
 
+  it('announces a follow-up ending once, even if it settles straight to done', async () => {
+    const { controller, modals, port, settle } = setup();
+    await controller.load('parent');
+    const doneAgain = {
+      type: 'subagent/updated',
+      parentSessionId: 'parent',
+      child: { id: 'child-1', name: '重构存储', subagentStatus: 'done' },
+    } as never;
+    controller.handlePush(doneAgain);
+    expect(port.onNotice).not.toHaveBeenCalled();
+    controller.open();
+    modals.press(ENTER, DOWN, DOWN, DOWN, DOWN, ENTER);
+    for (const character of '补上测试') modals.press(character);
+    modals.press(ENTER);
+    await settle();
+    controller.handlePush(doneAgain);
+    expect(port.onNotice).toHaveBeenCalledWith('info', '子代理「重构存储」已完成 · /subagents 查看');
+    controller.handlePush(doneAgain);
+    expect(port.onNotice).toHaveBeenCalledTimes(1);
+  });
+
   it('does not offer to open a child conversation when embedded', async () => {
     const { controller, modals } = setup({ embedded: true });
     await controller.load('parent');
