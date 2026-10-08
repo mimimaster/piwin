@@ -124,6 +124,53 @@ fn default_shell() -> String {
     })
 }
 
+/// Decodes PTY output that arrives in arbitrary byte chunks.
+///
+/// A read can end in the middle of a multi-byte character. Decoding each
+/// chunk on its own turned both halves into U+FFFD, which showed as garbled
+/// CJK text whenever a character straddled a 4096-byte boundary. The
+/// unfinished tail is held back and completed by the next chunk.
+#[derive(Default)]
+struct Utf8StreamDecoder {
+    /// At most 3 bytes: the start of a character whose end has not arrived.
+    pending: Vec<u8>,
+}
+
+impl Utf8StreamDecoder {
+    fn push(&mut self, chunk: &[u8]) -> String {
+        let mut bytes = std::mem::take(&mut self.pending);
+        bytes.extend_from_slice(chunk);
+        let mut text = String::with_capacity(bytes.len());
+        let mut rest: &[u8] = &bytes;
+        loop {
+            match std::str::from_utf8(rest) {
+                Ok(valid) => {
+                    text.push_str(valid);
+                    break;
+                }
+                Err(error) => {
+                    let (valid, after) = rest.split_at(error.valid_up_to());
+                    // `valid` was just checked by from_utf8.
+                    text.push_str(std::str::from_utf8(valid).unwrap_or_default());
+                    match error.error_len() {
+                        // Bytes that can never be valid: one replacement, then go on.
+                        Some(invalid) => {
+                            text.push(char::REPLACEMENT_CHARACTER);
+                            rest = &after[invalid..];
+                        }
+                        // A character cut off by the end of the chunk.
+                        None => {
+                            self.pending = after.to_vec();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        text
+    }
+}
+
 /// What a PTY runs. The interactive shell is the default; Desktop's own CLI
 /// subcommands (the embedded TUI) are the only other program.
 struct PtyLaunch {
@@ -376,6 +423,7 @@ fn pty_open_blocking(
     let pty_id_for_reader = pty_id.clone();
     let reader_thread = thread::spawn(move || {
         let mut buffer = [0u8; 4096];
+        let mut decoder = Utf8StreamDecoder::default();
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => break,
@@ -387,7 +435,11 @@ fn pty_open_blocking(
                     if !reader_control_for_reader.is_open() {
                         break;
                     }
-                    let chunk = String::from_utf8_lossy(&buffer[..n]).to_string();
+                    let chunk = decoder.push(&buffer[..n]);
+                    // Only the first bytes of a character arrived; wait for the rest.
+                    if chunk.is_empty() {
+                        continue;
+                    }
                     let _ = app_for_reader.emit(
                         "pty_data",
                         PtyDataPayload {
@@ -739,6 +791,48 @@ mod tests {
 
         assert_eq!(snapshot.direct_child_pid, None);
         assert_eq!(snapshot.unix_process_group_leader, None);
+    }
+}
+
+#[cfg(test)]
+mod utf8_stream_tests {
+    use super::Utf8StreamDecoder;
+
+    #[test]
+    fn a_character_split_across_chunks_is_decoded_whole() {
+        let text = "终端输出：你好";
+        let bytes = text.as_bytes();
+        for split in 1..bytes.len() {
+            let mut decoder = Utf8StreamDecoder::default();
+            let joined = decoder.push(&bytes[..split]) + &decoder.push(&bytes[split..]);
+            assert_eq!(joined, text, "split at {split}");
+        }
+    }
+
+    #[test]
+    fn a_four_byte_character_fed_one_byte_at_a_time_survives() {
+        let mut decoder = Utf8StreamDecoder::default();
+        let mut out = String::new();
+        for byte in "a😀b".as_bytes() {
+            out.push_str(&decoder.push(&[*byte]));
+        }
+        assert_eq!(out, "a😀b");
+    }
+
+    #[test]
+    fn nothing_is_emitted_until_a_character_is_complete() {
+        let mut decoder = Utf8StreamDecoder::default();
+        let bytes = "中".as_bytes();
+        assert_eq!(decoder.push(&bytes[..2]), "");
+        assert_eq!(decoder.push(&bytes[2..]), "中");
+    }
+
+    #[test]
+    fn invalid_bytes_become_one_replacement_each_and_decoding_goes_on() {
+        let mut decoder = Utf8StreamDecoder::default();
+        assert_eq!(decoder.push(b"ok\xffthen"), "ok\u{fffd}then");
+        // A lead byte followed by a byte that cannot continue it.
+        assert_eq!(decoder.push(b"\xe4A"), "\u{fffd}A");
     }
 }
 
