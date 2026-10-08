@@ -491,6 +491,20 @@
   display: none;
 }
 
+/* Terminal shell pane (piwin tui): the surface fills what the notice leaves. */
+.tui-pane,
+.tui-pane-surface {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tui-pane {
+  gap: var(--s-2);
+  padding: var(--s-2);
+}
+
 /* ── Split content & sessions sidebar ───────────────────────────── */
 
 .terminal-dock-content {

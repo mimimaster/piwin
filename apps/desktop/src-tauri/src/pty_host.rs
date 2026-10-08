@@ -15,7 +15,7 @@ use serde::Serialize;
 use serde_json::json;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::host_bridge::{host_request, HostBridgeState};
+use crate::host_bridge::{host_request, resolve_cli_invocation, HostBridgeState};
 
 static PTY_SEQ: AtomicU64 = AtomicU64::new(1);
 
@@ -124,6 +124,114 @@ fn default_shell() -> String {
     })
 }
 
+/// What a PTY runs. The interactive shell is the default; Desktop's own CLI
+/// subcommands (the embedded TUI) are the only other program.
+struct PtyLaunch {
+    program: String,
+    args: Vec<String>,
+    cwd: std::path::PathBuf,
+    environment: Vec<(String, std::ffi::OsString)>,
+}
+
+impl PtyLaunch {
+    fn login_shell(cwd: String) -> Self {
+        Self {
+            program: default_shell(),
+            args: if cfg!(windows) {
+                Vec::new()
+            } else {
+                vec!["-l".to_string()]
+            },
+            cwd: cwd.into(),
+            environment: Vec::new(),
+        }
+    }
+}
+
+/// Session and project ids travel as CLI arguments. They are Host-minted
+/// opaque ids; anything else is refused rather than passed to a process.
+fn is_safe_cli_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && !value.starts_with('-')
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | ':'))
+}
+
+fn tui_subcommand(session_id: Option<&str>, project_id: Option<&str>) -> Result<Vec<String>, String> {
+    let mut subcommand = vec!["tui".to_string(), "--embedded".to_string()];
+    for (flag, value) in [("--session", session_id), ("--project", project_id)] {
+        let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+            continue;
+        };
+        if !is_safe_cli_id(value) {
+            return Err(format!("invalid {flag} id"));
+        }
+        subcommand.push(flag.to_string());
+        subcommand.push(value.to_string());
+    }
+    Ok(subcommand)
+}
+
+/// Open the terminal shell (`piwin tui --embedded`) in a PTY, attached to the
+/// sidecar Host through its loopback entrance (ADR 0086).
+///
+/// The door token goes from the sidecar to the child's environment inside
+/// this process; it is never returned to the webview.
+#[tauri::command]
+pub async fn pty_open_tui(
+    app: AppHandle,
+    state: State<'_, PtyHostState>,
+    host: State<'_, HostBridgeState>,
+    session_id: Option<String>,
+    project_id: Option<String>,
+    cols: Option<u16>,
+    rows: Option<u16>,
+) -> Result<PtyOpenResult, String> {
+    let subcommand = tui_subcommand(session_id.as_deref(), project_id.as_deref())?;
+    let response = host_request(host, json!({ "type": "local-shell-access/open" }), Some(8_000)).await?;
+    let data = response
+        .get("success")
+        .and_then(|value| value.as_bool())
+        .filter(|success| *success)
+        .and_then(|_| response.get("data"));
+    let read = |key: &str| {
+        data.and_then(|data| data.get(key))
+            .and_then(|value| value.as_str())
+            .map(str::to_string)
+    };
+    let (Some(endpoint), Some(auth_token)) = (read("endpoint"), read("authToken")) else {
+        let error = response
+            .get("error")
+            .and_then(|value| value.as_str())
+            .unwrap_or("local shell entrance unavailable");
+        return Err(error.to_string());
+    };
+
+    let invocation = resolve_cli_invocation(&app, &subcommand)?;
+    let mut environment: Vec<(String, std::ffi::OsString)> = invocation
+        .environment
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value))
+        .collect();
+    environment.push(("PIWIN_HOST_URL".to_string(), endpoint.into()));
+    environment.push(("PIWIN_HOST_TOKEN".to_string(), auth_token.into()));
+    let launch = PtyLaunch {
+        program: invocation.program,
+        args: invocation.args,
+        cwd: invocation.cwd,
+        environment,
+    };
+
+    let cols = cols.unwrap_or(80).max(20);
+    let rows = rows.unwrap_or(24).max(5);
+    let sessions = Arc::clone(&state.sessions);
+    tauri::async_runtime::spawn_blocking(move || pty_open_blocking(app, sessions, launch, cols, rows))
+        .await
+        .map_err(|error| format!("pty_open_tui worker failed: {error}"))?
+}
+
 /// Open an interactive PTY.
 /// Sidecar Host authorizes trusted cwd when present (PSR D3). Attach-only /
 /// remote Host has no sidecar; Desktop still spawns a local shell after a
@@ -155,8 +263,9 @@ pub async fn pty_open(
     let cols = cols.unwrap_or(80).max(20);
     let rows = rows.unwrap_or(24).max(5);
     let sessions = Arc::clone(&state.sessions);
+    let launch = PtyLaunch::login_shell(authorized_cwd);
     tauri::async_runtime::spawn_blocking(move || {
-        pty_open_blocking(app, sessions, authorized_cwd, cols, rows)
+        pty_open_blocking(app, sessions, launch, cols, rows)
     })
     .await
     .map_err(|error| format!("pty_open worker failed: {error}"))?
@@ -210,7 +319,7 @@ fn sidecar_is_absent(error: &str) -> bool {
 fn pty_open_blocking(
     app: AppHandle,
     sessions: Arc<Mutex<HashMap<String, PtySession>>>,
-    authorized_cwd: String,
+    launch: PtyLaunch,
     cols: u16,
     rows: u16,
 ) -> Result<PtyOpenResult, String> {
@@ -224,16 +333,17 @@ fn pty_open_blocking(
         })
         .map_err(|error| format!("openpty: {error}"))?;
 
-    let mut cmd = CommandBuilder::new(default_shell());
-    if !cfg!(windows) {
-        cmd.arg("-l");
+    let mut cmd = CommandBuilder::new(&launch.program);
+    cmd.args(&launch.args);
+    cmd.cwd(&launch.cwd);
+    for (key, value) in &launch.environment {
+        cmd.env(key, value);
     }
-    cmd.cwd(&authorized_cwd);
 
     let child = pair
         .slave
         .spawn_command(cmd)
-        .map_err(|error| format!("spawn shell: {error}"))?;
+        .map_err(|error| format!("spawn {}: {error}", launch.program))?;
     drop(pair.slave);
 
     let direct_child_pid = child.process_id().map(|value| value as i32);
@@ -620,5 +730,27 @@ mod tests {
 
         assert_eq!(snapshot.direct_child_pid, None);
         assert_eq!(snapshot.unix_process_group_leader, None);
+    }
+}
+
+#[cfg(test)]
+mod tui_launch_tests {
+    use super::*;
+
+    #[test]
+    fn tui_subcommand_is_always_embedded_and_carries_ids() {
+        assert_eq!(tui_subcommand(None, None).unwrap(), vec!["tui", "--embedded"]);
+        assert_eq!(
+            tui_subcommand(Some("session-abc_1"), Some(" proj-1 ")).unwrap(),
+            vec!["tui", "--embedded", "--session", "session-abc_1", "--project", "proj-1"]
+        );
+    }
+
+    #[test]
+    fn tui_subcommand_refuses_ids_that_could_be_read_as_options_or_paths() {
+        for hostile in ["--mock", "a b", "../x", "a;b", "a/b"] {
+            assert!(tui_subcommand(Some(hostile), None).is_err(), "{hostile}");
+            assert!(tui_subcommand(None, Some(hostile)).is_err(), "{hostile}");
+        }
     }
 }

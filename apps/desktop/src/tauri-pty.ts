@@ -51,6 +51,23 @@ export async function tauriPtyOpen(input: {
   return invoke<TauriPtyOpenResult>('pty_open', payload);
 }
 
+/**
+ * Open the terminal shell (`piwin tui --embedded`) on a session of the local
+ * Host. Desktop only: the native side asks the sidecar for its loopback
+ * entrance and hands the token straight to the child process.
+ */
+export async function tauriPtyOpenTui(input: {
+  sessionId: string;
+  cols?: number;
+  rows?: number;
+}): Promise<TauriPtyOpenResult> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  const payload: { sessionId: string; cols?: number; rows?: number } = { sessionId: input.sessionId };
+  if (typeof input.cols === 'number') payload.cols = input.cols;
+  if (typeof input.rows === 'number') payload.rows = input.rows;
+  return invoke<TauriPtyOpenResult>('pty_open_tui', payload);
+}
+
 export async function tauriPtyWrite(ptyId: string, data: string): Promise<void> {
   const { invoke } = await import('@tauri-apps/api/core');
   await invoke('pty_write', { ptyId, data });

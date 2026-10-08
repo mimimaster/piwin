@@ -72,7 +72,7 @@ type ConfiguredModel = ModelRef & { label?: string; providerName?: string; think
 export class TuiApp {
   private readonly tui: TUI;
   private readonly link: TuiHostLink;
-  private readonly transcriptView = new TranscriptView();
+  private readonly transcriptView: TranscriptView;
   private readonly activitySlot = new Container();
   private readonly editor: Editor;
   private readonly statusLine = new StatusLine();
@@ -103,6 +103,7 @@ export class TuiApp {
     this.tui = options.tui;
     this.link = options.link;
     this.projectId = options.projectId;
+    this.transcriptView = new TranscriptView(options.embedded);
     this.editor = new Editor(this.tui, editorTheme, { paddingX: 1 });
     this.editor.onSubmit = (text) => {
       this.submit(text).catch((error: unknown) => this.reportError(error));

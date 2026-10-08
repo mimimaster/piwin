@@ -58,6 +58,11 @@ export const DeferredTerminalDock = lazy(async () => {
   return { default: module.TerminalDock };
 });
 
+export const DeferredTuiPane = lazy(async () => {
+  const module = await import('./tui-pane');
+  return { default: module.TuiPane };
+});
+
 export const DeferredReviewPanel = lazy(async () => {
   const module = await import('./review-panel');
   return { default: module.ReviewPanel };

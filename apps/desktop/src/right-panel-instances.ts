@@ -9,6 +9,7 @@
 export const RIGHT_PANEL_TOOL_KINDS = [
   'files',
   'terminal',
+  'tui',
   'review',
   'browser',
   'notes',

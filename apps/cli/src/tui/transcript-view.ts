@@ -14,6 +14,8 @@ import { markdownTheme, style } from './tui-theme.js';
 
 const TOOL_OUTPUT_PREVIEW_LINES = 8;
 const EMPTY_HINT = '输入消息开始对话，/ 查看命令，Ctrl+S 切换会话';
+/** Embedded: the host application switches sessions, so the shortcut is not offered. */
+const EMBEDDED_EMPTY_HINT = '输入消息开始对话，/ 查看命令';
 
 type CachedEntry = { entry: TranscriptEntry; width: number; expanded: boolean; lines: string[] };
 
@@ -27,6 +29,8 @@ export class TranscriptView implements Component {
   private readonly cache = new Map<string, CachedEntry>();
   /** One Markdown renderer per message keeps its own parse cache across deltas. */
   private readonly markdownById = new Map<string, Markdown>();
+
+  public constructor(private readonly embedded = false) {}
 
   public setState(state: TranscriptState): void {
     this.state = state;
@@ -44,7 +48,7 @@ export class TranscriptView implements Component {
 
   public render(width: number): string[] {
     if (this.state.entries.length === 0) {
-      return ['', truncateToWidth(` ${style.gray(EMPTY_HINT)}`, width), ''];
+      return ['', truncateToWidth(` ${style.gray(this.embedded ? EMBEDDED_EMPTY_HINT : EMPTY_HINT)}`, width), ''];
     }
     const lines: string[] = [];
     const liveIds = new Set<string>();

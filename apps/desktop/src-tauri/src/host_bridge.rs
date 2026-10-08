@@ -24,7 +24,7 @@ use pending::{
     assign_host_request_id, fail_all_pending, resolve_host_request_timeout, PendingResponse,
 };
 use process::{process_has_exited, stop_process, StopOutcome};
-use resolve::{resolve_host_command, HostCommandTier};
+use resolve::{resolve_cli_command, resolve_host_command, HostCommandTier};
 use streams::{spawn_stderr_reader, spawn_stdout_reader};
 
 // Re-exported for `lib.rs`, which drives stop-time observability.
@@ -135,40 +135,8 @@ fn host_start_blocking(
 
     let mut command = Command::new(&program);
 
-    // Force packaged builds to own ~/.piwin; in dev mode allow PIWIN_ROOT override.
-    let piwin_root = if tier != HostCommandTier::Packaged && std::env::var("PIWIN_ROOT").is_ok() {
-        std::env::var("PIWIN_ROOT").ok().map(PathBuf::from)
-    } else {
-        app.path().home_dir().ok().map(|home| home.join(".piwin"))
-    };
-    if let Some(root) = piwin_root.as_ref() {
-        command.env("PIWIN_ROOT", root.as_os_str());
-        // Playwright snapshots PLAYWRIGHT_BROWSERS_PATH on first import. Set it
-        // before JS loads so first-use Chromium lands in ~/.piwin/playwright.
-        let browsers_override = if tier == HostCommandTier::Packaged {
-            None
-        } else {
-            std::env::var("PIWIN_PLAYWRIGHT_BROWSERS_PATH")
-                .ok()
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty())
-        };
-        match browsers_override {
-            Some(path) => {
-                command.env("PLAYWRIGHT_BROWSERS_PATH", path);
-            }
-            None => {
-                command.env(
-                    "PLAYWRIGHT_BROWSERS_PATH",
-                    root.join("playwright").as_os_str(),
-                );
-            }
-        }
-    }
-    if tier == HostCommandTier::Packaged {
-        // The bundled Host must ignore a launcher environment such as
-        // PIWIN_ROOT=~/.piwin-test and always own the user's default root.
-        command.env("PIWIN_DESKTOP_BUNDLED", "1");
+    for (key, value) in cli_child_environment(&app, tier, &cwd, assets_root.as_ref()) {
+        command.env(key, value);
     }
 
     command
@@ -184,17 +152,6 @@ fn host_start_blocking(
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
-    if let Some(assets) = assets_root {
-        command.env("PIWIN_BUNDLED_ASSETS_ROOT", assets);
-    }
-    // Packaged host resolves externals from host/node_modules next to host-serve.mjs.
-    if tier == HostCommandTier::Packaged {
-        let nm = cwd.join("node_modules");
-        if nm.is_dir() {
-            command.env("NODE_PATH", nm);
-        }
-    }
-
     let mut child = command.spawn().map_err(|error| {
         format!(
             "failed to spawn host serve via `{program}` (tier={tier:?}): {error}. \
@@ -245,6 +202,88 @@ fn host_start_blocking(
     mock_flag.store(mock, Ordering::Release);
 
     Ok(serde_json::json!({ "started": true, "mock": mock }))
+}
+
+/// Environment every CLI child of Desktop needs: the config root it owns, the
+/// Playwright cache beside it, and where a packaged bundle finds its externals.
+fn cli_child_environment(
+    app: &AppHandle,
+    tier: HostCommandTier,
+    cwd: &std::path::Path,
+    assets_root: Option<&PathBuf>,
+) -> Vec<(&'static str, std::ffi::OsString)> {
+    let mut environment: Vec<(&'static str, std::ffi::OsString)> = Vec::new();
+    // Force packaged builds to own ~/.piwin; in dev mode allow PIWIN_ROOT override.
+    let piwin_root = if tier != HostCommandTier::Packaged && std::env::var("PIWIN_ROOT").is_ok() {
+        std::env::var("PIWIN_ROOT").ok().map(PathBuf::from)
+    } else {
+        app.path().home_dir().ok().map(|home| home.join(".piwin"))
+    };
+    if let Some(root) = piwin_root.as_ref() {
+        environment.push(("PIWIN_ROOT", root.clone().into_os_string()));
+        // Playwright snapshots PLAYWRIGHT_BROWSERS_PATH on first import. Set it
+        // before JS loads so first-use Chromium lands in ~/.piwin/playwright.
+        let browsers_override = if tier == HostCommandTier::Packaged {
+            None
+        } else {
+            std::env::var("PIWIN_PLAYWRIGHT_BROWSERS_PATH")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        };
+        environment.push((
+            "PLAYWRIGHT_BROWSERS_PATH",
+            match browsers_override {
+                Some(path) => path.into(),
+                None => root.join("playwright").into_os_string(),
+            },
+        ));
+    }
+    if tier == HostCommandTier::Packaged {
+        // The bundled Host must ignore a launcher environment such as
+        // PIWIN_ROOT=~/.piwin-test and always own the user's default root.
+        environment.push(("PIWIN_DESKTOP_BUNDLED", "1".into()));
+        // Packaged host resolves externals from host/node_modules next to host-serve.mjs.
+        let node_modules = cwd.join("node_modules");
+        if node_modules.is_dir() {
+            environment.push(("NODE_PATH", node_modules.into_os_string()));
+        }
+    }
+    if let Some(assets) = assets_root {
+        environment.push(("PIWIN_BUNDLED_ASSETS_ROOT", assets.clone().into_os_string()));
+    }
+    environment
+}
+
+/// How to launch a CLI subcommand as a child of Desktop.
+pub(crate) struct CliInvocation {
+    pub program: String,
+    pub args: Vec<String>,
+    pub cwd: PathBuf,
+    pub environment: Vec<(&'static str, std::ffi::OsString)>,
+}
+
+/// Resolve the same program the sidecar Host runs, with another subcommand.
+pub(crate) fn resolve_cli_invocation(
+    app: &AppHandle,
+    subcommand: &[String],
+) -> Result<CliInvocation, String> {
+    if is_shell_only_build() {
+        return Err(SHELL_ONLY_HOST_START_ERROR.to_string());
+    }
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .ok()
+        .and_then(|path| path.canonicalize().ok());
+    let (program, args, tier, assets_root, cwd) = resolve_cli_command(subcommand, resource_dir)?;
+    let environment = cli_child_environment(app, tier, &cwd, assets_root.as_ref());
+    Ok(CliInvocation {
+        program,
+        args,
+        cwd,
+        environment,
+    })
 }
 
 #[tauri::command]

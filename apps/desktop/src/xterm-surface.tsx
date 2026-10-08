@@ -18,6 +18,7 @@ import {
   listenTauriPtyExit,
   tauriPtyClose,
   tauriPtyOpen,
+  tauriPtyOpenTui,
   tauriPtyResize,
   tauriPtyWrite,
 } from './tauri-pty';
@@ -34,6 +35,11 @@ export type XtermSurfaceProps = {
   cwd: string;
   /** Project root for authorization (empty = general-scope terminal). */
   projectPath?: string;
+  /**
+   * Run the terminal shell on this session instead of a login shell. `cwd`
+   * and `projectPath` are unused then: the program is Desktop's own CLI.
+   */
+  tuiSessionId?: string;
   onStatus: (status: PtyStatus, ptyId: string | null, message?: string) => void;
 };
 
@@ -73,7 +79,9 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       fontFamily: readDeckXtermFontFamily(),
       theme: readDeckXtermTheme(),
       allowProposedApi: false,
-      convertEol: true,
+      // A full-screen program positions the cursor itself; rewriting its line
+      // feeds would shift every frame.
+      convertEol: props.tuiSessionId === undefined,
     });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
@@ -163,12 +171,15 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       });
 
       try {
-        const opened = await tauriPtyOpen({
-          cwd: props.cwd,
-          ...(props.projectPath ? { projectPath: props.projectPath } : {}),
-          cols: terminal.cols,
-          rows: terminal.rows,
-        });
+        const size = { cols: terminal.cols, rows: terminal.rows };
+        const opened =
+          props.tuiSessionId === undefined
+            ? await tauriPtyOpen({
+                cwd: props.cwd,
+                ...(props.projectPath ? { projectPath: props.projectPath } : {}),
+                ...size,
+              })
+            : await tauriPtyOpenTui({ sessionId: props.tuiSessionId, ...size });
         if (disposed) {
           await tauriPtyClose(opened.pty_id);
           return;
@@ -239,7 +250,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [props.cwd, props.projectPath]);
+  }, [props.cwd, props.projectPath, props.tuiSessionId]);
 
   // CM-13: read the xterm selection on right-click; only then show the menu.
   function handleContextMenu(): void {

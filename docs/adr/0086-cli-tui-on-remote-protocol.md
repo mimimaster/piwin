@@ -47,6 +47,23 @@ Two things in the existing rules stood in the way of the obvious build:
    reducer, which is bound to React state and Desktop-only concerns.
 6. **`--embedded` pins the TUI to one session** and disables its session
    switching, for a host application that owns navigation.
+7. **Desktop embeds the TUI as a right-panel tool** (`tui`, "终端界面"). The
+   pane is an xterm surface on a Desktop PTY running the same program the
+   sidecar Host runs, with `tui --embedded --session <active session>`. It
+   restarts on the new session when Desktop's active session changes, and
+   starts nothing when there is no session or no local Host.
+8. **The sidecar gets a loopback entrance for local shells.** The sidecar
+   speaks JSONL on stdio, which a second process cannot share. A local-only
+   sidecar command, `local-shell-access/open`, starts a `HostServer` on
+   `127.0.0.1` with an OS-assigned port, a random per-run token and pairing
+   off, sharing the sidecar's egress hub and idempotency registry. Nothing
+   listens until the first request. It is independent of phone access: a
+   different listener, no device pairing, and the phone-access switch does not
+   affect it.
+9. **The token does not pass through the webview on the way to the TUI.**
+   `pty_open_tui` (Rust) asks the sidecar for the entrance and puts the
+   endpoint and token in the child's environment. `local-shell-access/*` is
+   refused on every WebSocket connection, like `mobile-access/*`.
 
 ## Consequences
 
@@ -59,6 +76,9 @@ Two things in the existing rules stood in the way of the obvious build:
   reload of the session, not live.
 - Tool calls render after a message's text, because the remote transcript
   shape carries text and tools as separate fields without interleaving order.
+- Any process running as the same OS user that learns the entrance's port and
+  token has the authority Desktop itself has over the Host. The token lives in
+  the sidecar's memory and in the TUI child's environment only.
 - The in-process Host is a real Host: it takes the `~/.piwin` Host lock paths a
   sidecar would. Running `piwin tui` without `PIWIN_HOST_URL` while Desktop's
   Host is up means two Hosts on one config root, exactly as with other
@@ -75,7 +95,9 @@ session and no terminal to take.
 
 ## Not done
 
-- Desktop embedding (a docked TUI pane: PTY launch of a chosen program, a
-  loopback entrance on the sidecar Host, a `tui` docking view).
 - Attachments, image paste, `@` file references and skill slash commands in
   the TUI composer.
+- The TUI pane is mounted only while its tab is active; switching tabs ends
+  the process. Nothing is lost (state is the Host's), but scrollback is.
+- With a remote (attach-only) Host there is no sidecar, so the pane reports
+  that it is unavailable.
