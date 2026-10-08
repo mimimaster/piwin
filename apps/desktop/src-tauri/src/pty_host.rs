@@ -148,8 +148,8 @@ impl PtyLaunch {
     }
 }
 
-/// Session and project ids travel as CLI arguments. They are Host-minted
-/// opaque ids; anything else is refused rather than passed to a process.
+/// The session id travels as a CLI argument. It is a Host-minted opaque id;
+/// anything else is refused rather than passed to a process.
 fn is_safe_cli_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
@@ -159,17 +159,26 @@ fn is_safe_cli_id(value: &str) -> bool {
             .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | ':'))
 }
 
-fn tui_subcommand(session_id: Option<&str>, project_id: Option<&str>) -> Result<Vec<String>, String> {
+fn tui_subcommand(session_id: Option<&str>, project_path: Option<&str>) -> Result<Vec<String>, String> {
     let mut subcommand = vec!["tui".to_string(), "--embedded".to_string()];
-    for (flag, value) in [("--session", session_id), ("--project", project_id)] {
-        let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
-            continue;
-        };
-        if !is_safe_cli_id(value) {
-            return Err(format!("invalid {flag} id"));
+    let non_empty = |value: Option<&str>| value.map(str::trim).filter(|value| !value.is_empty()).map(str::to_string);
+    if let Some(session_id) = non_empty(session_id) {
+        if !is_safe_cli_id(&session_id) {
+            return Err("invalid session id".to_string());
         }
-        subcommand.push(flag.to_string());
-        subcommand.push(value.to_string());
+        subcommand.push("--session".to_string());
+        subcommand.push(session_id);
+        // A session already has its scope; the project hint is for new ones.
+        return Ok(subcommand);
+    }
+    if let Some(project_path) = non_empty(project_path) {
+        // An absolute path cannot be read as an option. The TUI only matches
+        // it against projects the Host already knows; it opens nothing by path.
+        if !std::path::Path::new(&project_path).is_absolute() {
+            return Err("project path must be absolute".to_string());
+        }
+        subcommand.push("--project-path".to_string());
+        subcommand.push(project_path);
     }
     Ok(subcommand)
 }
@@ -185,11 +194,11 @@ pub async fn pty_open_tui(
     state: State<'_, PtyHostState>,
     host: State<'_, HostBridgeState>,
     session_id: Option<String>,
-    project_id: Option<String>,
+    project_path: Option<String>,
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<PtyOpenResult, String> {
-    let subcommand = tui_subcommand(session_id.as_deref(), project_id.as_deref())?;
+    let subcommand = tui_subcommand(session_id.as_deref(), project_path.as_deref())?;
     let response = host_request(host, json!({ "type": "local-shell-access/open" }), Some(8_000)).await?;
     let data = response
         .get("success")
@@ -738,18 +747,33 @@ mod tui_launch_tests {
     use super::*;
 
     #[test]
-    fn tui_subcommand_is_always_embedded_and_carries_ids() {
+    fn tui_subcommand_is_always_embedded() {
         assert_eq!(tui_subcommand(None, None).unwrap(), vec!["tui", "--embedded"]);
         assert_eq!(
-            tui_subcommand(Some("session-abc_1"), Some(" proj-1 ")).unwrap(),
-            vec!["tui", "--embedded", "--session", "session-abc_1", "--project", "proj-1"]
+            tui_subcommand(Some(" session-abc_1 "), None).unwrap(),
+            vec!["tui", "--embedded", "--session", "session-abc_1"]
         );
     }
 
     #[test]
-    fn tui_subcommand_refuses_ids_that_could_be_read_as_options_or_paths() {
+    fn a_new_conversation_carries_its_project_and_an_existing_session_does_not() {
+        let project = if cfg!(windows) { "C:\\work\\app" } else { "/work/app" };
+        assert_eq!(
+            tui_subcommand(None, Some(project)).unwrap(),
+            vec!["tui", "--embedded", "--project-path", project]
+        );
+        assert_eq!(
+            tui_subcommand(Some("session-1"), Some(project)).unwrap(),
+            vec!["tui", "--embedded", "--session", "session-1"]
+        );
+    }
+
+    #[test]
+    fn tui_subcommand_refuses_values_that_could_be_read_as_options() {
         for hostile in ["--mock", "a b", "../x", "a;b", "a/b"] {
             assert!(tui_subcommand(Some(hostile), None).is_err(), "{hostile}");
+        }
+        for hostile in ["--mock", "relative/dir", "-x"] {
             assert!(tui_subcommand(None, Some(hostile)).is_err(), "{hostile}");
         }
     }

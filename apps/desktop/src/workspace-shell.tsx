@@ -26,6 +26,13 @@ export type WorkspaceShellProps = {
   activityDock?: ReactNode | undefined;
   permissionBar?: ReactNode | undefined;
   composerDock: ReactNode;
+  /** Floats over the conversation stage whatever draws it (surface switch). */
+  conversationOverlay?: ReactNode | undefined;
+  /**
+   * Draws the whole conversation stage in place of transcript, activity,
+   * permission bar and composer — the terminal shell owns all four itself.
+   */
+  conversationOverride?: ReactNode | undefined;
   rightPanel: ReactNode;
   workspaceClassName?: string | undefined;
   chatColumnClassName?: string | undefined;
@@ -41,6 +48,8 @@ type WorkspaceChatColumnProps = Pick<
   | 'activityDock'
   | 'permissionBar'
   | 'composerDock'
+  | 'conversationOverlay'
+  | 'conversationOverride'
   | 'chatColumnClassName'
 >;
 
@@ -52,10 +61,15 @@ function WorkspaceChatColumn(props: WorkspaceChatColumnProps): ReactElement {
       {props.stageHeader}
       {props.sessionContext}
       <div className="chat-stage">
-        {props.transcript}
-        {props.activityDock !== undefined ? props.activityDock : null}
-        {props.permissionBar !== undefined ? props.permissionBar : null}
-        {props.composerDock}
+        {props.conversationOverlay}
+        {props.conversationOverride ?? (
+          <>
+            {props.transcript}
+            {props.activityDock !== undefined ? props.activityDock : null}
+            {props.permissionBar !== undefined ? props.permissionBar : null}
+            {props.composerDock}
+          </>
+        )}
       </div>
     </section>
   );
@@ -70,6 +84,8 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
       activityDock={props.activityDock}
       permissionBar={props.permissionBar}
       composerDock={props.composerDock}
+      conversationOverlay={props.conversationOverlay}
+      conversationOverride={props.conversationOverride}
       chatColumnClassName={props.chatColumnClassName}
     />
   );

@@ -47,11 +47,15 @@ Two things in the existing rules stood in the way of the obvious build:
    reducer, which is bound to React state and Desktop-only concerns.
 6. **`--embedded` pins the TUI to one session** and disables its session
    switching, for a host application that owns navigation.
-7. **Desktop embeds the TUI as a right-panel tool** (`tui`, "终端界面"). The
-   pane is an xterm surface on a Desktop PTY running the same program the
-   sidecar Host runs, with `tui --embedded --session <active session>`. It
-   restarts on the new session when Desktop's active session changes, and
-   starts nothing when there is no session or no local Host.
+7. **Desktop can draw the conversation area with the TUI.** A "对话 / 终端"
+   switch on the conversation stage replaces transcript, permission bar and
+   composer with an xterm surface on a Desktop PTY running the same program
+   the sidecar Host runs, as `tui --embedded`. With an active session it runs
+   `--session <id>` and restarts when the active session changes; with none
+   it starts a new conversation, scoped by `--project-path` to the active
+   project when that project is registered on the Host. The choice is a
+   device preference (`piwin.desktop.conversation-surface`), not session
+   state. The switch is offered only where a local Host exists.
 8. **The sidecar gets a loopback entrance for local shells.** The sidecar
    speaks JSONL on stdio, which a second process cannot share. A local-only
    sidecar command, `local-shell-access/open`, starts a `HostServer` on
@@ -97,7 +101,11 @@ session and no terminal to take.
 
 - Attachments, image paste, `@` file references and skill slash commands in
   the TUI composer.
-- The TUI pane is mounted only while its tab is active; switching tabs ends
-  the process. Nothing is lost (state is the Host's), but scrollback is.
+- Switching back to the chat surface ends the TUI process. Nothing is lost
+  (state is the Host's), but terminal scrollback is.
+- A conversation the TUI starts does not become Desktop's active session by
+  itself; it appears in the sidebar like one started from any other shell.
+- Split conversation panes other than the primary one always use the chat
+  surface.
 - With a remote (attach-only) Host there is no sidecar, so the pane reports
   that it is unavailable.

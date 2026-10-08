@@ -9,7 +9,7 @@ import { TuiApp } from './tui-app.js';
 import { hostData, openTuiHostLink, type TuiHostLink } from './tui-host-link.js';
 
 export const TUI_USAGE =
-  'Usage: piwin tui [--session <id>] [--continue] [--project <projectId>] [--embedded] [--mock]';
+  'Usage: piwin tui [--session <id>] [--continue] [--project <projectId> | --project-path <dir>] [--embedded] [--mock]';
 
 /**
  * `piwin tui`: the interactive terminal shell. Attaches to `PIWIN_HOST_URL`
@@ -34,7 +34,11 @@ export async function commandTui(argv: string[]): Promise<void> {
 
   let app: TuiApp | undefined;
   try {
-    const projectId = await resolveProjectId(link, readOption(argv, '--project'));
+    const projectId = await resolveProjectId(
+      link,
+      readOption(argv, '--project'),
+      readOption(argv, '--project-path') ?? process.cwd(),
+    );
     const sessionId =
       readOption(argv, '--session') ??
       (argv.includes('--continue') ? await findLatestSessionId(link, projectId) : undefined);
@@ -65,16 +69,20 @@ export async function commandTui(argv: string[]): Promise<void> {
 }
 
 /**
- * `--project` wins; otherwise a registered project whose root is the current
- * directory. An unregistered directory means the general workspace — the TUI
- * never registers or trusts a folder on its own.
+ * `--project` wins; otherwise a registered project whose root is
+ * `--project-path`, or the current directory. An unregistered directory means
+ * the general workspace — the TUI never registers or trusts a folder on its own.
  */
-async function resolveProjectId(link: TuiHostLink, explicit: string | undefined): Promise<string | undefined> {
+async function resolveProjectId(
+  link: TuiHostLink,
+  explicit: string | undefined,
+  directory: string,
+): Promise<string | undefined> {
   if (explicit !== undefined) return explicit;
   const { projects = [] } = hostData<{ projects?: RemoteProjectSummary[] }>(
     await link.request({ type: 'project/list' }),
   );
-  const cwd = canonicalPath(process.cwd());
+  const cwd = canonicalPath(directory);
   return projects.find((project) => project.path !== undefined && canonicalPath(project.path) === cwd)
     ?.projectId;
 }

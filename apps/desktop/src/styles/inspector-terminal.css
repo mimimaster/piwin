@@ -491,6 +491,23 @@
   display: none;
 }
 
+/* Conversation area drawn by the terminal shell: it takes the whole stage. */
+.conversation-tui-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Floats over the stage's top-right corner in both surfaces. */
+.conversation-surface-toggle {
+  position: absolute;
+  top: var(--s-2);
+  right: var(--s-3);
+  z-index: 5;
+}
+
 /* Terminal shell pane (piwin tui): the surface fills what the notice leaves. */
 .tui-pane,
 .tui-pane-surface {

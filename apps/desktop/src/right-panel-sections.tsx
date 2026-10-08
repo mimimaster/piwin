@@ -58,8 +58,6 @@ export const SECTION_META: Array<{
   { id: 'files', icon: <IconFile />, labelEn: 'Files', labelZh: '文件', shortcut: '⌘P' },
   { id: 'terminal', icon: <IconTerminal />, labelEn: 'zsh', labelZh: 'zsh', shortcut: '⌘J' },
   { id: 'tasks', icon: <IconActivity />, labelEn: 'Tasks', labelZh: '任务' },
-  // The current session in the terminal shell (`piwin tui`), ADR 0086.
-  { id: 'tui', icon: <IconTerminal />, labelEn: 'Terminal UI', labelZh: '终端界面', plusOnly: true },
   // Changes is one view of the workspace; the + menu does not open another.
   { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更', shortcut: '⌥⌘G', homeOnly: true },
   { id: 'notes', icon: <IconNote />, labelEn: 'Notes', labelZh: '笔记', plusOnly: true },

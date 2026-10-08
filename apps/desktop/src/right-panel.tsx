@@ -90,7 +90,6 @@ export type RightPanelProps = {
   onTabClosed?: (tab: RightPanelTab) => void;
   docPreviewContent?: ReactNode;
   tasksContent?: ReactNode;
-  tuiContent?: ReactNode;
   changesCount?: number;
   runningJobCount?: number;
   cardsDueCount?: number;
@@ -138,8 +137,6 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
       return props.docPreviewContent;
     case 'tasks':
       return props.tasksContent;
-    case 'tui':
-      return props.tuiContent;
     default:
       return undefined;
   }

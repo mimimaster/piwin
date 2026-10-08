@@ -10,8 +10,12 @@ const pty = vi.hoisted(() => ({ available: true }));
 
 vi.mock('./tauri-pty', () => ({ isTauriPtyAvailable: () => pty.available }));
 vi.mock('./xterm-surface', () => ({
-  XtermSurface: (props: { tuiSessionId?: string }) => (
-    <div data-testid="xterm-stub" data-session={props.tuiSessionId} />
+  XtermSurface: (props: { tui?: { sessionId?: string }; projectPath?: string }) => (
+    <div
+      data-testid="xterm-stub"
+      data-session={props.tui?.sessionId ?? 'new'}
+      data-project={props.projectPath ?? ''}
+    />
   ),
 }));
 
@@ -34,11 +38,11 @@ describe('TuiPane', () => {
     pty.available = true;
   });
 
-  function renderPane(sessionId: string | null, locale: DesktopLocale): void {
+  function renderPane(sessionId: string | null, locale: DesktopLocale, projectPath?: string): void {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <TuiPane sessionId={sessionId} locale={locale} />
+          <TuiPane sessionId={sessionId} locale={locale} {...(projectPath ? { projectPath } : {})} />
         </PiwinUiProvider>,
       );
     });
@@ -51,10 +55,10 @@ describe('TuiPane', () => {
     expect(surface()?.dataset.session).toBe('session-1');
   });
 
-  it('starts nothing without a session', () => {
-    renderPane(null, 'zh-CN');
-    expect(surface()).toBeNull();
-    expect(container.textContent).toContain('先打开或开始一个会话');
+  it('starts a new conversation in the active project when there is no session', () => {
+    renderPane(null, 'zh-CN', '/work/app');
+    expect(surface()?.dataset.session).toBe('new');
+    expect(surface()?.dataset.project).toBe('/work/app');
   });
 
   it('starts nothing outside the desktop app', () => {

@@ -52,17 +52,22 @@ export async function tauriPtyOpen(input: {
 }
 
 /**
- * Open the terminal shell (`piwin tui --embedded`) on a session of the local
+ * Open the terminal shell (`piwin tui --embedded`) on a conversation of the local
  * Host. Desktop only: the native side asks the sidecar for its loopback
  * entrance and hands the token straight to the child process.
  */
 export async function tauriPtyOpenTui(input: {
-  sessionId: string;
+  /** Absent: a new conversation, created by the first message. */
+  sessionId?: string;
+  /** Project a new conversation belongs to; ignored once a session exists. */
+  projectPath?: string;
   cols?: number;
   rows?: number;
 }): Promise<TauriPtyOpenResult> {
   const { invoke } = await import('@tauri-apps/api/core');
-  const payload: { sessionId: string; cols?: number; rows?: number } = { sessionId: input.sessionId };
+  const payload: { sessionId?: string; projectPath?: string; cols?: number; rows?: number } = {};
+  if (input.sessionId) payload.sessionId = input.sessionId;
+  if (input.projectPath) payload.projectPath = input.projectPath;
   if (typeof input.cols === 'number') payload.cols = input.cols;
   if (typeof input.rows === 'number') payload.rows = input.rows;
   return invoke<TauriPtyOpenResult>('pty_open_tui', payload);

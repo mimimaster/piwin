@@ -5,7 +5,7 @@
  * orchestration plus thin assembly. The region props and their sources are
  * unchanged — the same hook results the root assembled are passed through.
  */
-import type { Dispatch, ReactNode } from 'react';
+import { Suspense, type Dispatch, type ReactNode } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
 import type { ChatUiAction, ChatUiState } from './chat-ui-types';
@@ -18,6 +18,10 @@ import { memoWithLatestCallbacks } from './memo-with-latest-callbacks';
 import type { useConversationPaneLayout } from './use-conversation-pane-layout';
 import type { useDockingWorkspace } from './workbench/docking/use-docking-workspace';
 import { WorkbenchContextBar } from './workbench-context-bar';
+import { ConversationSurfaceToggle } from './conversation-surface-toggle';
+import { useConversationSurface } from './conversation-surface';
+import { DeferredTuiPane } from './deferred-desktop-surfaces';
+import { isTauriPtyAvailable } from './tauri-pty';
 import { WorkbenchPermissionBar, WorkbenchTranscript } from './workbench-conversation';
 import { WorkbenchInspector } from './workbench-inspector';
 import { WorkbenchSidebar } from './workbench-sidebar';
@@ -114,6 +118,29 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
   const { setComposer, switchBranch, terminalJobMonitor, transcriptHistoryLoading } = model;
   const { visibleRunRecordsById, visibleTranscriptMessages, worktrees } = model;
 
+  // The conversation area can be the terminal shell on the same session
+  // (ADR 0086). Only the desktop app has a local Host to run it against.
+  const [conversationSurface, setConversationSurface] = useConversationSurface();
+  const tuiActive = conversationSurface === 'tui' && isTauriPtyAvailable() && !studioOpen;
+  const surfaceToggle =
+    isTauriPtyAvailable() && !studioOpen ? (
+      <ConversationSurfaceToggle
+        surface={conversationSurface}
+        locale={desktopLocale}
+        onChange={setConversationSurface}
+      />
+    ) : null;
+  const tuiStage = (
+    <div className="conversation-tui-stage" data-testid="conversation-tui-stage">
+      <Suspense fallback={null}>
+        <DeferredTuiPane
+          sessionId={state.activeSessionId}
+          projectPath={state.activeScope.kind === 'project' ? state.activeScope.projectPath : null}
+          locale={desktopLocale}
+        />
+      </Suspense>
+    </div>
+  );
   return (
     <div
       className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${studioOpen ? ' studio-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}${rightPanelOpen && inspectorPlacement === 'column' && rightPanelResize.isFullWidth ? ' right-panel-full-width' : ''}`}
@@ -250,6 +277,8 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             handleCreatePaneConversation={handleCreatePaneConversation}
           />
         )}
+        conversationOverlay={surfaceToggle}
+        conversationOverride={tuiActive ? tuiStage : undefined}
         transcript={
           <WorkbenchTranscript
             locale={desktopLocale}

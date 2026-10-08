@@ -36,10 +36,11 @@ export type XtermSurfaceProps = {
   /** Project root for authorization (empty = general-scope terminal). */
   projectPath?: string;
   /**
-   * Run the terminal shell on this session instead of a login shell. `cwd`
-   * and `projectPath` are unused then: the program is Desktop's own CLI.
+   * Run the terminal shell (`piwin tui`) instead of a login shell, on this
+   * session or on a new conversation. `cwd` is unused then: the program is
+   * Desktop's own CLI; `projectPath` scopes a new conversation.
    */
-  tuiSessionId?: string;
+  tui?: { sessionId?: string };
   onStatus: (status: PtyStatus, ptyId: string | null, message?: string) => void;
 };
 
@@ -81,7 +82,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       allowProposedApi: false,
       // A full-screen program positions the cursor itself; rewriting its line
       // feeds would shift every frame.
-      convertEol: props.tuiSessionId === undefined,
+      convertEol: props.tui === undefined,
     });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
@@ -173,19 +174,25 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       try {
         const size = { cols: terminal.cols, rows: terminal.rows };
         const opened =
-          props.tuiSessionId === undefined
+          props.tui === undefined
             ? await tauriPtyOpen({
                 cwd: props.cwd,
                 ...(props.projectPath ? { projectPath: props.projectPath } : {}),
                 ...size,
               })
-            : await tauriPtyOpenTui({ sessionId: props.tuiSessionId, ...size });
+            : await tauriPtyOpenTui({
+                ...(props.tui.sessionId ? { sessionId: props.tui.sessionId } : {}),
+                ...(props.projectPath ? { projectPath: props.projectPath } : {}),
+                ...size,
+              });
         if (disposed) {
           await tauriPtyClose(opened.pty_id);
           return;
         }
         ptyIdRef.current = opened.pty_id;
         onStatusRef.current('open', opened.pty_id);
+        // The terminal shell is the conversation itself: typing should land in it.
+        if (props.tui !== undefined) terminal.focus();
         applyResize();
       } catch (error) {
         if (disposed) return;
@@ -250,7 +257,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [props.cwd, props.projectPath, props.tuiSessionId]);
+  }, [props.cwd, props.projectPath, props.tui?.sessionId]);
 
   // CM-13: read the xterm selection on right-click; only then show the menu.
   function handleContextMenu(): void {

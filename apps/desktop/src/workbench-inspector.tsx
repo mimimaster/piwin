@@ -62,7 +62,6 @@ import {
   DeferredNotesPanel,
   DeferredSideChatPanel,
   DeferredTerminalDock,
-  DeferredTuiPane,
 } from './deferred-desktop-surfaces';
 import {
   resolveInteractiveTerminalCwd,
@@ -570,7 +569,6 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
             />
           }
           {...(tasksContent !== undefined ? { tasksContent } : {})}
-          tuiContent={<DeferredTuiPane sessionId={activeSessionId} locale={locale} />}
           {...(tasksActiveCount !== undefined ? { tasksActiveCount } : {})}
         />
       </>
