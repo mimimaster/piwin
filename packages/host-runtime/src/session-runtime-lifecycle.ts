@@ -87,10 +87,24 @@ export function activateSessionRuntime(
       });
   }
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
-  const activation = withSessionOperationLock({
+  let activation: Promise<SessionHandle>;
+  // Stopping the Run cancels the activation it started. Callers that arrive
+  // afterwards start their own activation instead of joining the cancelled one.
+  const releaseActivationSlot = (): void => {
+    if (deps.sessionActivationPromises.get(sessionId) === activation) {
+      deps.sessionActivationPromises.delete(sessionId);
+    }
+  };
+  activation = withSessionOperationLock({
     rootDir,
     sessionId,
     operation: async () => {
+      // A cancelled activation still unwinding holds this lock; one that got
+      // past its last cancellation point leaves a resident runtime to reuse.
+      const resident = deps.sessions.get(sessionId);
+      if (resident) {
+        return resident;
+      }
       if (
         await hasForeignLiveSessionRuntime({
           rootDir,
@@ -108,9 +122,11 @@ export function activateSessionRuntime(
       return handle;
     })
     .finally(() => {
-      deps.sessionActivationPromises.delete(sessionId);
+      signal?.removeEventListener('abort', releaseActivationSlot);
+      releaseActivationSlot();
     });
   deps.sessionActivationPromises.set(sessionId, activation);
+  signal?.addEventListener('abort', releaseActivationSlot, { once: true });
   if (runId !== undefined) {
     void deps.publishWaitingResourceWhileQueued(runId);
   }
@@ -119,6 +135,11 @@ export function activateSessionRuntime(
 
 function isActivationAbort(error: unknown): boolean {
   return error instanceof Error && error.message === 'aborted';
+}
+
+/** Same shape as the residency admission abort, so every caller reads one kind of cancellation. */
+function activationCancelled(): Error {
+  return Object.assign(new Error('aborted'), { code: 'aborted' });
 }
 
 function attachRunToResidentGeneration(
@@ -265,6 +286,12 @@ export async function doActivateSessionRuntime(
       runtimeGenerationId,
       replaySeedOptions ?? {},
     );
+    if (signal?.aborted === true) {
+      // The Run was stopped while its runtime was being created. Its terminal
+      // may already be published: release the generation, never attach it.
+      await deps.host.dropSession(sessionId);
+      throw activationCancelled();
+    }
     if (runId !== undefined) {
       const attached = deps.runRegistry.attachRuntimeGeneration(runId, runtimeGenerationId);
       if (!attached.ok) {
