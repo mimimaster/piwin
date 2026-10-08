@@ -336,7 +336,9 @@ export class TuiApp {
     if (resume.model !== undefined) this.composer.adoptSessionModel(resume.model);
     this.modals.clearQueue();
     await this.reconcileForegroundRun(sessionId, epoch);
+    if (epoch !== this.sessionEpoch) return;
     await this.features.load(sessionId);
+    if (epoch !== this.sessionEpoch) return;
     this.editingMessageId = undefined;
     await this.loadPendingPermissions(sessionId, epoch);
     // The previous session's lines are still on screen and in scrollback.
@@ -748,10 +750,12 @@ export class TuiApp {
 
   private flashHint(text: string): void {
     if (this.statusHint !== undefined) clearTimeout(this.statusHint.timer);
-    // Pushes redraw the status bar many times a second; a hint cleared by the
-    // next redraw would never be read.
+    // Pushes redraw the status bar many times a second. A hint cleared inside
+    // the redraw that displays it would never reach the screen, so the redraw
+    // keeps the current hint and only this timer retires it.
     const timer = setTimeout(() => {
-        this.refreshChrome();
+      this.statusHint = undefined;
+      this.refreshChrome();
     }, STATUS_HINT_MS);
     timer.unref();
     this.statusHint = { text, timer };
@@ -767,6 +771,7 @@ export class TuiApp {
   /** Push current state into the components and schedule a frame. */
   private refreshChrome(forceFullRedraw = false): void {
     this.transcriptView.setState(this.transcript);
+    const keepHint = this.statusHint;
     const running = this.foreground.kind === 'active';
     const hasLoader = this.activitySlot.children.length > 0;
     if (running) {
@@ -782,7 +787,7 @@ export class TuiApp {
     }
     this.statusLine.setText(style.gray(this.describeStatus()));
     this.tui.terminal.setTitle(`piwin · ${this.sessionName ?? '新会话'}`);
-    this.statusHint = undefined;
+    this.statusHint = keepHint;
     this.tui.requestRender(forceFullRedraw);
   }
 
