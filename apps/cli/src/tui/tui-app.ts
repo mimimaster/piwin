@@ -14,6 +14,7 @@ import type {
   HostPush,
   RemotePendingPermission,
   RemoteProjectSummary,
+  RemoteSessionListData,
   RemoteSessionResumeData,
   RemoteSessionTranscriptPageData,
   SessionContextSnapshot,
@@ -44,8 +45,11 @@ import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { TuiModalStack, createExtensionModal, createPermissionModal } from './tui-modals.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
+import { ProjectFiles } from './project-files.js';
+import { TuiAutocompleteProvider } from './tui-autocomplete.js';
 import { editorTheme, style } from './tui-theme.js';
 
+const SESSION_LOOKUP_LIMIT = 500;
 const TRANSCRIPT_PAGE_ITEMS = 50;
 const TRANSCRIPT_PAGE_BYTES = 256 * 1024;
 const EXIT_CONFIRM_WINDOW_MS = 1_500;
@@ -81,6 +85,9 @@ export class TuiApp {
   private sessionName: string | undefined;
   private olderCursor: string | undefined;
   private projectId: string | undefined;
+  /** Project of the session on screen: what `@` mentions are resolved against. */
+  private sessionProjectId: string | undefined;
+  private readonly files: ProjectFiles;
   private projects: RemoteProjectSummary[] = [];
   private readonly composer: TuiComposerProfile;
   private context: SessionContextSnapshot | undefined;
@@ -105,10 +112,18 @@ export class TuiApp {
     this.editor.onSubmit = (text) => {
       this.submit(text).catch((error: unknown) => this.reportError(error));
     };
+    this.sessionProjectId = options.projectId;
+    this.files = new ProjectFiles({
+      request: (command) => this.link.request(command),
+      getProjectId: () => this.sessionProjectId,
+    });
     this.editor.setAutocompleteProvider(
-      new CombinedAutocompleteProvider(
-        TUI_SLASH_COMMANDS.filter((command) => !options.embedded || !command.standaloneOnly),
-        process.cwd(),
+      new TuiAutocompleteProvider(
+        new CombinedAutocompleteProvider(
+          TUI_SLASH_COMMANDS.filter((command) => !options.embedded || !command.standaloneOnly),
+          process.cwd(),
+        ),
+        this.files,
       ),
     );
     this.loader = new Loader(this.tui, style.cyan, style.gray, '');
@@ -186,6 +201,9 @@ export class TuiApp {
     if (epoch !== this.sessionEpoch) return;
     this.sessionId = sessionId;
     this.sessionName = resume.name;
+    this.sessionProjectId =
+      resume.scope === 'project' ? await this.lookUpSessionProjectId(sessionId) : undefined;
+    if (epoch !== this.sessionEpoch) return;
     this.transcript = transcriptFromMessages(resume.messages);
     this.olderCursor = resume.transcriptPage?.olderCursor;
     this.context = undefined;
@@ -212,10 +230,25 @@ export class TuiApp {
     }
   }
 
+  /** The resume payload says "project" but not which one; the index does. */
+  private async lookUpSessionProjectId(sessionId: string): Promise<string | undefined> {
+    const response = await this.link.request({
+      type: 'session/list',
+      scopeRef: { kind: 'all-authorized' },
+      order: 'updated',
+      maxItems: SESSION_LOOKUP_LIMIT,
+      includeArchived: true,
+    });
+    if (!response.success) return undefined;
+    return (response.data as RemoteSessionListData).sessions.find((session) => session.sessionId === sessionId)
+      ?.projectId;
+  }
+
   private startDraftSession(): void {
     this.sessionEpoch += 1;
     this.sessionId = undefined;
     this.sessionName = undefined;
+    this.sessionProjectId = this.projectId;
     this.transcript = EMPTY_TRANSCRIPT;
     this.olderCursor = undefined;
     this.context = undefined;
@@ -300,9 +333,29 @@ export class TuiApp {
     this.editor.addToHistory(text);
     const sessionId = await this.ensureSession();
     const clientMessageId = randomUUID();
-    this.transcript = appendLocalUserMessage(this.transcript, clientMessageId, text);
-    this.refreshChrome();
     const runId = knownForegroundRunId(this.foreground);
+    // A message that joins a running turn travels as plain text.
+    const mentions =
+      runId === undefined
+        ? await this.files.resolveMentions(text)
+        : { refs: [], unresolved: [], overLimit: [] };
+    this.transcript = appendLocalUserMessage(
+      this.transcript,
+      clientMessageId,
+      text,
+      mentions.refs.map((ref) => `@${ref.label}${ref.kind === 'folder' ? '/' : ''}`),
+    );
+    if (mentions.overLimit.length > 0) {
+      this.transcript = appendNotice(
+        this.transcript,
+        'error',
+        `一条消息最多引用 ${mentions.refs.length} 个文件，未带上：${mentions.overLimit.join('、')}`,
+      );
+    }
+    this.refreshChrome();
+    if (mentions.unresolved.length > 0) {
+      this.flashHint(`项目里没有 ${mentions.unresolved.map((path) => `@${path}`).join('、')}，按普通文字发送`);
+    }
     if (runId !== undefined) {
       // A run is in flight: the text joins it at the next step instead of queueing a new turn.
       hostData(
@@ -319,6 +372,7 @@ export class TuiApp {
           text,
           clientMessageId,
           ...(skillId === undefined ? {} : { skillId }),
+          ...(mentions.refs.length === 0 ? {} : { contextRefs: mentions.refs }),
           ...this.composer.promptFields(),
         },
         foreground: { kind: 'if-idle' },
@@ -494,7 +548,7 @@ export class TuiApp {
           requestId,
           action,
           detail,
-          inProject: this.projectId !== undefined,
+          inProject: this.sessionProjectId !== undefined,
           resolve: (command) => this.answerModal(command),
         }),
       ),
@@ -648,9 +702,9 @@ export class TuiApp {
 
   private describeStatus(): string {
     const scope =
-      this.projectId === undefined
+      this.sessionProjectId === undefined
         ? '对话'
-        : (this.projects.find((project) => project.projectId === this.projectId)?.displayName ?? '项目');
+        : (this.projects.find((project) => project.projectId === this.sessionProjectId)?.displayName ?? '项目');
     const occupancy = this.context?.occupancy;
     const usage =
       occupancy?.kind === 'known' && occupancy.tokensLimit !== undefined

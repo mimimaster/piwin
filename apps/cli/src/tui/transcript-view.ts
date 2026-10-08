@@ -82,7 +82,7 @@ export class TranscriptView implements Component {
   }
 
   private renderMessage(entry: TranscriptMessageEntry, width: number): string[] {
-    if (entry.role === 'user') return renderUser(entry.text, width);
+    if (entry.role === 'user') return renderUser(entry.text, entry.annotations ?? [], width);
     const lines: string[] = [];
     if (entry.thinking.trim().length > 0) {
       lines.push(...renderPrefixed(style.gray('┊ '), style.gray(style.italic(entry.thinking.trim())), width));
@@ -122,8 +122,12 @@ export class TranscriptView implements Component {
   }
 }
 
-function renderUser(text: string, width: number): string[] {
-  return ['', ...renderPrefixed(style.cyan(style.bold('› ')), style.bold(text), width)];
+function renderUser(text: string, annotations: readonly string[], width: number): string[] {
+  return [
+    '',
+    ...renderPrefixed(style.cyan(style.bold('› ')), style.bold(text), width),
+    ...annotations.flatMap((annotation) => renderPrefixed(style.gray('⎿ '), style.gray(annotation), width)),
+  ];
 }
 
 function renderNotice(tone: 'info' | 'error', text: string, width: number): string[] {

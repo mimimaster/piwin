@@ -31,6 +31,8 @@ export type TranscriptMessageEntry = {
   thinking: string;
   status: 'streaming' | 'done' | 'error';
   tools: TranscriptTool[];
+  /** What a user turn carried besides text: file refs, attachments. */
+  annotations?: string[];
   model?: ModelRef;
   /** Host-authored terminal line for a failed or cancelled response. */
   terminalMessage?: string;
@@ -70,12 +72,16 @@ export function prependOlderMessages(
 }
 
 /** Echo the user's prompt before the Host confirms it; the Host row reuses this id. */
-export function appendLocalUserMessage(state: TranscriptState, id: string, text: string): TranscriptState {
+export function appendLocalUserMessage(
+  state: TranscriptState,
+  id: string,
+  text: string,
+  annotations: readonly string[] = [],
+): TranscriptState {
   if (state.entries.some((entry) => entry.id === id)) return state;
-  return {
-    ...state,
-    entries: [...state.entries, newMessage(id, 'user', { text, status: 'done' })],
-  };
+  const entry = newMessage(id, 'user', { text, status: 'done' });
+  if (annotations.length > 0) entry.annotations = [...annotations];
+  return { ...state, entries: [...state.entries, entry] };
 }
 
 export function appendNotice(
@@ -198,6 +204,9 @@ function entryFromMessage(message: RemoteTranscriptMessage): TranscriptMessageEn
     tools: (message.tools ?? []).map(toolFromRemote),
   });
   if (message.model !== undefined) entry.model = message.model;
+  const attachmentCount = message.attachments?.length ?? message.attachmentCount ?? 0;
+  // History keeps attachment rows, not the file refs a turn was sent with.
+  if (attachmentCount > 0) entry.annotations = [`${attachmentCount} 个附件`];
   if (message.terminalMessage !== undefined) entry.terminalMessage = message.terminalMessage;
   return entry;
 }
