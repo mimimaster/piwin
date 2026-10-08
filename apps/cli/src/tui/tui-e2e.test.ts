@@ -379,6 +379,8 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('给子代理追加指令');
       await tui.submit('再补一节安装说明');
       await tui.waitFor('子代理「整理文档」已完成');
+      const followedUp = await tui.asOtherShell({ type: 'session/list-children', parentSessionId });
+      expect(JSON.stringify(followedUp)).toContain('再补一节安装说明');
     });
 
     it('records a file edit, shows the diff and undoes it', async () => {

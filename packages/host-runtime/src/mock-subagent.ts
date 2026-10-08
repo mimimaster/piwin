@@ -18,21 +18,14 @@ import type { SubagentBatchHandle } from './subagent-orchestrator-types.js';
 
 const NOT_IN_MOCK = 'mock Host 不执行子代理的工作副本操作';
 
-// Same-child `subagent/updated` pushes are projections: the egress hub
-// keeps only the latest one until its flush (24ms). A mock that emits
-// running and done in the same turn would only deliver done, so a
-// follow-up that was already done would never announce again.
-const STATUS_GAP_MS = 40;
-const waitForStatusFlush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, STATUS_GAP_MS));
-
 export type MockSubagentOrchestrator = {
   startBatch(request: SubagentBatchRequest, parentRunId?: string): SubagentBatchHandle;
   getBatchProjectionAsync(
     runId: string,
   ): Promise<{ runId: string; status: 'completed'; results: [] }>;
   cancelBatch(runId: string): Promise<'cancelled'>;
-  /** Follow-ups flip the existing child back through the lifecycle. */
-  continueExisting(childSessionId: string): Promise<{ runId: string }>;
+  /** Follow-ups keep the instruction on the child and flip it back through the lifecycle. */
+  continueExisting(childSessionId: string, text: string): Promise<{ runId: string }>;
 };
 
 export function createMockSubagentOrchestrator(host: {
@@ -81,7 +74,6 @@ export function createMockSubagentOrchestrator(host: {
         parentSessionId: request.parentSessionId,
         child: indexRecordToSummary(record),
       });
-      await waitForStatusFlush();
       record.subagentStatus = 'done';
       record.summaryPreview = `mock 子代理完成：${task.task.slice(0, 80)}`;
       record.updatedAt = new Date().toISOString();
@@ -116,15 +108,26 @@ export function createMockSubagentOrchestrator(host: {
       results: [],
     }),
     cancelBatch: async () => 'cancelled' as const,
-    /** Follow-ups flip the existing child back through the lifecycle. */
-    async continueExisting(childSessionId: string): Promise<{ runId: string }> {
+    /**
+     * Follow-ups keep the instruction as the child's last preview and flip it
+     * through the lifecycle. `subagent/updated` is a projection, so a flush
+     * may deliver only the final `done`. The new preview is what tells a
+     * client this is another completion, not a repeat of the previous one.
+     */
+    async continueExisting(childSessionId: string, text: string): Promise<{ runId: string }> {
+      const instruction = text.trim();
+      if (instruction.length === 0) {
+        throw new Error('subagent follow-up text is empty');
+      }
       const record = await getSessionRecord(indexPath(), childSessionId);
       const parentSessionId = record?.parentSessionId;
-      if (parentSessionId === undefined) {
+      if (record === undefined || parentSessionId === undefined) {
         throw new Error(`subagent child session not found: ${childSessionId}`);
       }
+      record.lastPreview = instruction.slice(0, 160);
+      record.updatedAt = new Date().toISOString();
+      await upsertSessionRecord(indexPath(), record);
       await pushChild(parentSessionId, childSessionId, 'running');
-      await waitForStatusFlush();
       await pushChild(parentSessionId, childSessionId, 'done');
       return { runId: randomUUID() };
     },

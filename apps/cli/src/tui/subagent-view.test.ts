@@ -111,6 +111,9 @@ describe('describeChildChange', () => {
     expect(describeChildChange(undefined, running)).toBeUndefined();
     expect(describeChildChange(running, done)).toBe('子代理「重构存储」已完成 · /subagents 查看');
     expect(describeChildChange(done, done)).toBeUndefined();
+    expect(describeChildChange(done, { ...done, lastPreview: '再补一节安装说明' })).toBe(
+      '子代理「重构存储」已完成 · /subagents 查看',
+    );
     expect(describeChildChange(running, { ...running, subagentStatus: 'failed' })).toContain('失败');
   });
 });

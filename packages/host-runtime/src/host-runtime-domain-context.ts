@@ -240,12 +240,11 @@ export async function buildDomainContext(
             continueChild: (childSessionId: string, text: string) => {
               if (deps.options.mock === true) {
                 // The production follow-up needs a retained runtime snapshot the mock child never has.
-                void text;
                 return (
                   subagentOrchestrator as unknown as {
-                    continueExisting(childSessionId: string): Promise<{ runId: string }>;
+                    continueExisting(childSessionId: string, text: string): Promise<{ runId: string }>;
                   }
-                ).continueExisting(childSessionId);
+                ).continueExisting(childSessionId, text);
               }
               return deps.continueSubagentChild(subagentOrchestrator, childSessionId, text);
             },
