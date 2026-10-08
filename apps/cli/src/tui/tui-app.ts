@@ -33,6 +33,7 @@ import {
   EMPTY_TRANSCRIPT,
   appendLocalUserMessage,
   appendNotice,
+  appendNoticeOnce,
   applyAgentEvent,
   prependOlderMessages,
   settleStreaming,
@@ -565,7 +566,7 @@ export class TuiApp {
       if (wasActive && foreground.kind !== 'active') {
         this.transcript = settleStreaming(this.transcript);
         if (push.type === 'run/terminal' && push.run.status === 'failed' && push.run.error !== undefined) {
-          this.transcript = appendNotice(this.transcript, 'error', push.run.error);
+          this.transcript = appendNoticeOnce(this.transcript, 'error', push.run.error);
         }
       }
       this.refreshChrome();

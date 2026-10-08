@@ -98,6 +98,20 @@ export function appendNotice(
   };
 }
 
+/**
+ * A failure can reach the shell twice: as the turn's `error` event and as the
+ * run's terminal record. The same words right after each other are one failure.
+ */
+export function appendNoticeOnce(
+  state: TranscriptState,
+  tone: TranscriptNoticeEntry['tone'],
+  text: string,
+): TranscriptState {
+  const last = state.entries[state.entries.length - 1];
+  if (last?.kind === 'notice' && last.tone === tone && last.text === text) return state;
+  return appendNotice(state, tone, text);
+}
+
 /** A run ended without a `message/end` (abort, crash): nothing may stay "streaming". */
 export function settleStreaming(state: TranscriptState): TranscriptState {
   if (!state.entries.some(isUnsettled)) return state;
@@ -177,7 +191,7 @@ export function applyAgentEvent(state: TranscriptState, event: AgentEvent): Tran
     case 'session/aborted':
       return appendNotice(settleStreaming(state), 'info', '已中断');
     case 'error':
-      return appendNotice(settleStreaming(state), 'error', event.message);
+      return appendNoticeOnce(settleStreaming(state), 'error', event.message);
     case 'model/retry':
       if (event.phase !== 'waiting') return state;
       return appendNotice(

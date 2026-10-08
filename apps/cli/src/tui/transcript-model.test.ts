@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_TRANSCRIPT,
   appendLocalUserMessage,
+  appendNotice,
+  appendNoticeOnce,
   applyAgentEvent,
   prependOlderMessages,
   settleStreaming,
@@ -132,5 +134,14 @@ describe('user message/start', () => {
     const echoed = appendLocalUserMessage(EMPTY_TRANSCRIPT, 'client-1', 'hello');
     const next = applyAgentEvent(echoed, { type: 'message/start', messageId: 'host-user-1', role: 'user' });
     expect(next).toBe(echoed);
+  });
+});
+
+describe('appendNoticeOnce', () => {
+  it('does not repeat the notice it would follow', () => {
+    const once = appendNotice(EMPTY_TRANSCRIPT, 'error', 'provider timed out');
+    expect(appendNoticeOnce(once, 'error', 'provider timed out')).toBe(once);
+    expect(appendNoticeOnce(once, 'error', 'something else').entries).toHaveLength(2);
+    expect(appendNoticeOnce(once, 'info', 'provider timed out').entries).toHaveLength(2);
   });
 });
