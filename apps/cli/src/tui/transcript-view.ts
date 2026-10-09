@@ -10,9 +10,13 @@ import type {
   TranscriptState,
   TranscriptTool,
 } from './transcript-model.js';
+import { describeToolError } from './tool-error-view.js';
+import { shortenPaths } from './tool-path-display.js';
 import { markdownTheme, style } from './tui-theme.js';
 
 const TOOL_OUTPUT_PREVIEW_LINES = 8;
+/** Reasoning can run to pages; the answer is what the reader came for. */
+const THINKING_PREVIEW_LINES = 4;
 const EMPTY_HINT = '输入消息开始对话，/ 查看命令，Ctrl+S 切换会话';
 /** Embedded: the host application switches sessions, so the shortcut is not offered. */
 const EMBEDDED_EMPTY_HINT = '输入消息开始对话，/ 查看命令';
@@ -29,11 +33,19 @@ export class TranscriptView implements Component {
   private readonly cache = new Map<string, CachedEntry>();
   /** One Markdown renderer per message keeps its own parse cache across deltas. */
   private readonly markdownById = new Map<string, Markdown>();
+  private pathRoots: string[] = [];
 
   public constructor(private readonly embedded = false) {}
 
   public setState(state: TranscriptState): void {
     this.state = state;
+  }
+
+  /** Directories whose prefix tool lines leave out. Changing them redraws the tool lines. */
+  public setPathRoots(roots: readonly string[]): void {
+    if (roots.length === this.pathRoots.length && roots.every((root, index) => root === this.pathRoots[index])) return;
+    this.pathRoots = [...roots];
+    this.invalidate();
   }
 
   public toggleToolOutput(): boolean {
@@ -85,14 +97,14 @@ export class TranscriptView implements Component {
     if (entry.role === 'user') return renderUser(entry.text, entry.annotations ?? [], width);
     const lines: string[] = [];
     if (entry.thinking.trim().length > 0) {
-      lines.push(...renderPrefixed(style.gray('┊ '), style.gray(style.italic(entry.thinking.trim())), width));
+      lines.push(...previewThinking(entry.thinking.trim(), width, this.toolOutputExpanded));
     }
     if (entry.text.trim().length > 0) {
       if (lines.length > 0) lines.push('');
       lines.push(...this.renderMarkdown(entry, width));
     }
     for (const tool of entry.tools) {
-      lines.push(...renderTool(tool, width, this.toolOutputExpanded));
+      lines.push(...renderTool(tool, width, this.toolOutputExpanded, this.pathRoots));
     }
     if (entry.composing !== undefined) {
       const name = entry.composing.toolName ?? '工具';
@@ -122,6 +134,17 @@ export class TranscriptView implements Component {
   }
 }
 
+/** The tail of the reasoning while it streams and after; Ctrl+O shows all of it. */
+function previewThinking(thinking: string, width: number, expanded: boolean): string[] {
+  const wrapped = renderPrefixed(style.gray('┊ '), style.gray(style.italic(thinking)), width);
+  if (expanded || wrapped.length <= THINKING_PREVIEW_LINES) return wrapped;
+  const hidden = wrapped.length - THINKING_PREVIEW_LINES;
+  return [
+    truncateToWidth(` ${style.gray(`┊ … 前 ${hidden} 行思考已折叠 · Ctrl+O 展开`)}`, width),
+    ...wrapped.slice(-THINKING_PREVIEW_LINES),
+  ];
+}
+
 function renderUser(text: string, annotations: readonly string[], width: number): string[] {
   return [
     '',
@@ -135,16 +158,19 @@ function renderNotice(tone: 'info' | 'error', text: string, width: number): stri
   return renderPrefixed(paint(tone === 'error' ? '✗ ' : '· '), paint(text), width);
 }
 
-function renderTool(tool: TranscriptTool, width: number, expanded: boolean): string[] {
+function renderTool(tool: TranscriptTool, width: number, expanded: boolean, pathRoots: readonly string[]): string[] {
   const presentation = tool.presentation;
   const glyph =
     tool.status === 'running' ? style.yellow('◌') : tool.status === 'error' ? style.red('✗') : style.green('●');
   const title = presentation?.actionVerb ?? presentation?.title ?? tool.toolName;
-  const detail = presentation?.command ?? presentation?.summary ?? presentation?.targetPaths?.join(', ') ?? '';
+  const detail = shortenPaths(
+    presentation?.command ?? presentation?.summary ?? presentation?.targetPaths?.join(', ') ?? '',
+    pathRoots,
+  );
   const head = ` ${glyph} ${style.bold(title)}${detail.length > 0 ? ` ${style.gray(singleLine(detail))}` : ''}`;
   const lines = [truncateToWidth(head, width)];
   if (presentation?.error !== undefined) {
-    lines.push(...renderPrefixed('   ', style.red(presentation.error.message), width));
+    lines.push(...renderPrefixed('   ', style.red(describeToolError(presentation.error)), width));
   }
   const output = presentation?.output?.text ?? tool.output;
   if (output.trim().length > 0 && (expanded || tool.status === 'running')) {
