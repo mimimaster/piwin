@@ -40,6 +40,7 @@ import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { StatusHint } from './status-hint.js';
 import { QueryListOverlay } from './query-list-overlay.js';
+import { describeHostFailure } from './host-failure-text.js';
 import { editTextExternally } from './external-editor.js';
 import { PromptHistory } from './prompt-history.js';
 import { DEFAULT_KEYBINDINGS, type Keybindings } from './keybindings.js';
@@ -677,7 +678,7 @@ export class TuiApp {
   }
 
   private reportError(error: unknown): void {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = describeHostFailure(error instanceof Error ? error.message : String(error));
     this.transcript = appendNotice(this.transcript, 'error', message);
     this.refreshChrome();
   }
