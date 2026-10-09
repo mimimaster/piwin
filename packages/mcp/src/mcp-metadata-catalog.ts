@@ -135,6 +135,7 @@ export function createMcpMetadataCatalog(piwinRoot: string): McpMetadataCatalog 
               : { type: 'object', additionalProperties: true },
           metadataFingerprint: fingerprint,
           fetchedAt,
+          ...(tool.readOnlyHint === true ? { readOnlyHint: true } : {}),
         }));
 
       document.servers[serverId] = {

@@ -29,6 +29,7 @@ export function toMcpToolSummary(
   name: string,
   description: string,
   inputSchema?: Record<string, unknown>,
+  readOnlyHint?: boolean,
 ): McpToolSummary {
   const summary: McpToolSummary = {
     serverId,
@@ -38,6 +39,9 @@ export function toMcpToolSummary(
   };
   if (inputSchema) {
     summary.inputSchema = inputSchema;
+  }
+  if (readOnlyHint === true) {
+    summary.readOnlyHint = true;
   }
   return summary;
 }

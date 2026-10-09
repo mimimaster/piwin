@@ -114,6 +114,10 @@ export async function spawnOfficialMcpStdio(
             if (tool.inputSchema && typeof tool.inputSchema === 'object') {
               item.inputSchema = tool.inputSchema as Record<string, unknown>;
             }
+            const hint = readOnlyHintOf(tool);
+            if (hint === true) {
+              item.readOnlyHint = true;
+            }
             return item;
           });
         },
@@ -175,4 +179,15 @@ export async function connectOfficialMcpStdio(
     await owned.close();
     throw error;
   }
+}
+
+function readOnlyHintOf(tool: object): boolean | undefined {
+  if (!('annotations' in tool)) {
+    return undefined;
+  }
+  const annotations = tool.annotations;
+  if (!annotations || typeof annotations !== 'object' || !('readOnlyHint' in annotations)) {
+    return undefined;
+  }
+  return annotations.readOnlyHint === true ? true : undefined;
 }

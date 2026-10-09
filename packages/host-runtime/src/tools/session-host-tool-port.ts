@@ -16,6 +16,7 @@
  */
 
 import type {
+  HostToolExecutionContext,
   HostToolExecutionInput,
   HostToolExecutionPort,
   HostToolExecutionResult,
@@ -29,6 +30,8 @@ import {
 } from './host-tool-execution-router.js';
 import type { ExecutionTracker } from '../turn-changes/execution-tracker.js';
 import type { ToolCapturePort } from '../turn-changes/tool-capture.js';
+import { CODEMODE_TOOL_NAME } from '@piwin/contracts';
+import { scriptReadonlyDenial } from '../codemode/script-readonly-admission.js';
 import { HOST_TOOLBOX_NAME } from '../host-toolbox.js';
 import { getAttachedToolCatalog } from '../tool-catalog/catalog-tool.js';
 import {
@@ -346,19 +349,37 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       };
     }
 
+    const scriptDenied = denyScriptDispatch(input.toolName, input.scriptInvocation);
+    if (scriptDenied) {
+      return scriptDenied;
+    }
+
     if (input.toolName === HOST_TOOLBOX_NAME) {
       return await this.executeCatalog(cached, input, signal);
     }
 
     // 5. Execute through the router. Run identity travels in the Host-only
     // execution context, never through model-visible arguments.
-    return await router.execute(input.toolName, input.arguments, signal, {
-      sessionId: input.sessionId,
-      runtimeGenerationId: input.runtimeGenerationId,
-      runId: input.runId,
-      ...(input.toolCallId ? { toolCallId: input.toolCallId } : {}),
-      toolName: input.toolName,
-    });
+    return await router.execute(input.toolName, input.arguments, signal, executionContext(input));
+  }
+
+  readActiveRegistrations(
+    sessionId: string,
+    runtimeGenerationId: string,
+  ):
+    | {
+        direct: readonly HostToolRegistration[];
+        toolboxTargets: readonly HostToolRegistration[];
+      }
+    | undefined {
+    const cached = this.surfacesBySession.get(sessionId)?.active;
+    if (!cached || cached.generationId !== runtimeGenerationId) {
+      return undefined;
+    }
+    return {
+      direct: cached.tools,
+      toolboxTargets: [...cached.toolboxTargets.values()],
+    };
   }
 
   /** Clear cached tools for a session (call on session drop/dispose). */
@@ -485,7 +506,8 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     const action = String(input.arguments.action ?? '').trim();
     const targetName = String(input.arguments.target ?? '').trim();
     if (action === 'search') {
-      const hostHits = searchHostCatalog([...cached.toolboxTargets.values()], String(input.arguments.query ?? ''));
+      const hostTargets = scriptVisibleHostTargets(cached, input);
+      const hostHits = searchHostCatalog(hostTargets, String(input.arguments.query ?? ''));
       if (!cached.mcpCatalogEnabled || !cached.catalog) {
         const budget = applyCatalogSearchBudget(hostHits);
         return {
@@ -512,10 +534,11 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       return await cached.catalog.search(
         {
           query: String(input.arguments.query ?? ''),
-          hostTargets: [...cached.toolboxTargets.values()],
+          hostTargets: scriptVisibleHostTargets(cached, input),
           limit: input.arguments.limit,
         },
         signal,
+        scriptCatalogScope(input),
       );
     }
     if (action === 'status') {
@@ -542,11 +565,15 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
         if (!cached.mcpCatalogEnabled || !cached.catalog) {
           return mcpCatalogUnavailable(targetName);
         }
-        return await cached.catalog.describeMcp(targetName, signal);
+        return await cached.catalog.describeMcp(targetName, signal, scriptCatalogScope(input));
       }
       const target = cached.toolboxTargets.get(targetName);
       if (!target) {
-        return missingCatalogTarget(targetName, [...cached.toolboxTargets.keys()]);
+        return missingCatalogTarget(targetName, scriptKnownHostIds(cached, input));
+      }
+      const hidden = denyScriptTarget(input, target);
+      if (hidden) {
+        return hidden;
       }
       return { ok: true, output: JSON.stringify(compactModelToolDescriptor(target.descriptor)) };
     }
@@ -580,11 +607,16 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
         targetName,
         targetArguments as Record<string, unknown>,
         signal,
+        scriptCatalogScope(input, true),
       );
     }
     const target = cached.toolboxTargets.get(targetName);
     if (!target) {
-      return missingCatalogTarget(targetName, [...cached.toolboxTargets.keys()]);
+      return missingCatalogTarget(targetName, scriptKnownHostIds(cached, input));
+    }
+    const hidden = denyScriptTarget(input, target);
+    if (hidden) {
+      return hidden;
     }
     const targetArguments = input.arguments.arguments;
     if (
@@ -602,15 +634,91 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       targetName,
       targetArguments as Record<string, unknown>,
       signal,
-      {
-        sessionId: input.sessionId,
-        runtimeGenerationId: input.runtimeGenerationId,
-        runId: input.runId,
-        ...(input.toolCallId ? { toolCallId: input.toolCallId } : {}),
-        toolName: targetName,
-      },
+      executionContext(input, targetName),
     );
   }
+}
+
+function executionContext(
+  input: HostToolExecutionInput,
+  toolName = input.toolName,
+): HostToolExecutionContext {
+  return {
+    sessionId: input.sessionId,
+    runtimeGenerationId: input.runtimeGenerationId,
+    runId: input.runId,
+    ...(input.toolCallId ? { toolCallId: input.toolCallId } : {}),
+    toolName,
+    ...(input.scriptInvocation ? { scriptInvocation: input.scriptInvocation } : {}),
+  };
+}
+
+function scriptCatalogScope(
+  input: HostToolExecutionInput,
+  includePayload = false,
+): { mcpReadOnlyOnly: true; includeScriptPayload?: true } | undefined {
+  if (!input.scriptInvocation) {
+    return undefined;
+  }
+  return includePayload
+    ? { mcpReadOnlyOnly: true, includeScriptPayload: true }
+    : { mcpReadOnlyOnly: true };
+}
+
+function denyScriptDispatch(
+  toolName: string,
+  invocation: HostToolExecutionInput['scriptInvocation'],
+): HostToolExecutionResult | undefined {
+  if (!invocation) {
+    return undefined;
+  }
+  if (toolName === CODEMODE_TOOL_NAME) {
+    return { ok: false, code: 'permission-denied', message: 'codemode cannot call itself' };
+  }
+  if (toolName !== HOST_TOOLBOX_NAME && !invocation.admittedToolNames.includes(toolName)) {
+    return {
+      ok: false,
+      code: 'tool-not-available',
+      message: `script cannot call ${toolName}`,
+    };
+  }
+  return undefined;
+}
+
+function scriptVisibleHostTargets(
+  cached: GenerationToolSurface,
+  input: HostToolExecutionInput,
+): HostToolRegistration[] {
+  const targets = [...cached.toolboxTargets.values()];
+  if (!input.scriptInvocation) {
+    return targets;
+  }
+  return targets.filter((target) => denyScriptTarget(input, target) === undefined);
+}
+
+function scriptKnownHostIds(cached: GenerationToolSurface, input: HostToolExecutionInput): string[] {
+  return scriptVisibleHostTargets(cached, input).map((target) => target.descriptor.name);
+}
+
+function denyScriptTarget(
+  input: HostToolExecutionInput,
+  target: HostToolRegistration,
+): HostToolExecutionResult | undefined {
+  if (!input.scriptInvocation) {
+    return undefined;
+  }
+  if (!input.scriptInvocation.admittedToolNames.includes(target.descriptor.name)) {
+    return {
+      ok: false,
+      code: 'tool-not-available',
+      message: `script cannot call ${target.descriptor.name}`,
+    };
+  }
+  const denied = scriptReadonlyDenial(target);
+  if (!denied) {
+    return undefined;
+  }
+  return { ok: false, code: denied.code, message: denied.message };
 }
 
 function missingCatalogTarget(targetName: string, knownIds: readonly string[]): HostToolExecutionResult {

@@ -78,17 +78,34 @@ export type CatalogSearchOutput = {
   note?: string;
 };
 
+export type CatalogScriptScope = {
+  /** Scripts may see MCP tools only when upstream readOnlyHint is true. */
+  mcpReadOnlyOnly?: boolean;
+  /** Attach the protocol structuredContent/isError without parsing text. */
+  includeScriptPayload?: boolean;
+};
+
 export type ToolCatalogService = {
-  search: (request: CatalogSearchRequest, signal: AbortSignal) => Promise<ToolResult>;
+  search: (
+    request: CatalogSearchRequest,
+    signal: AbortSignal,
+    scope?: CatalogScriptScope,
+  ) => Promise<ToolResult>;
   searchMcp: (
     args: { query: string; limit?: unknown; discover?: boolean; serverId?: string },
     signal: AbortSignal,
+    scope?: CatalogScriptScope,
   ) => Promise<ToolResult>;
-  describeMcp: (selector: string, signal: AbortSignal) => Promise<ToolResult>;
+  describeMcp: (
+    selector: string,
+    signal: AbortSignal,
+    scope?: CatalogScriptScope,
+  ) => Promise<ToolResult>;
   callMcp: (
     selector: string,
     toolArguments: Record<string, unknown>,
     signal: AbortSignal,
+    scope?: CatalogScriptScope,
   ) => Promise<ToolResult>;
   status: (serverId?: string) => Promise<ToolResult>;
 };
@@ -102,7 +119,7 @@ export function createToolCatalogService(options: ToolCatalogServiceOptions): To
   }
 
   return {
-    async search(request, signal) {
+    async search(request, signal, scope) {
       const hostHits = searchHostCatalog(request.hostTargets, request.query);
       const mcpEnabled = true;
       const mcpResult = mcpEnabled
@@ -116,6 +133,7 @@ export function createToolCatalogService(options: ToolCatalogServiceOptions): To
               ...(request.serverId ? { serverId: request.serverId } : {}),
             },
             signal,
+            scope,
           )
         : null;
       if (mcpResult && isFailedCatalogResult(mcpResult)) {
@@ -136,8 +154,8 @@ export function createToolCatalogService(options: ToolCatalogServiceOptions): To
       return { ok: true, output: JSON.stringify(output, null, 2) };
     },
 
-    async searchMcp(args, signal) {
-      const mcpResult = await searchMcpHits(options.lifecycleManager, catalog, args, signal);
+    async searchMcp(args, signal, scope) {
+      const mcpResult = await searchMcpHits(options.lifecycleManager, catalog, args, signal, scope);
       if (isFailedCatalogResult(mcpResult)) {
         return mcpResult;
       }
@@ -158,7 +176,7 @@ export function createToolCatalogService(options: ToolCatalogServiceOptions): To
       };
     },
 
-    async describeMcp(selector, signal) {
+    async describeMcp(selector, signal, scope) {
       const config = await refreshConfig();
       const trimmed = selector.trim();
       if (!trimmed) {
@@ -175,6 +193,10 @@ export function createToolCatalogService(options: ToolCatalogServiceOptions): To
         (await catalog.isServerCacheValid(parsed.serverId, serverConfig));
       const cached = hasValidCache ? await catalog.describeCached(trimmed) : null;
       if (cached) {
+        const hidden = denyUnhintedMcp(scope, cached.readOnlyHint, trimmed);
+        if (hidden) {
+          return hidden;
+        }
         return {
           ok: true,
           output: JSON.stringify(
@@ -193,6 +215,10 @@ export function createToolCatalogService(options: ToolCatalogServiceOptions): To
       if (!match) {
         return invalidCatalogInput(`Unknown MCP tool: ${trimmed}`);
       }
+      const hidden = denyUnhintedMcp(scope, match.readOnlyHint, trimmed);
+      if (hidden) {
+        return hidden;
+      }
       return {
         ok: true,
         output: JSON.stringify(
@@ -207,7 +233,7 @@ export function createToolCatalogService(options: ToolCatalogServiceOptions): To
       };
     },
 
-    async callMcp(selector, toolArguments, signal) {
+    async callMcp(selector, toolArguments, signal, scope) {
       await refreshConfig();
       const trimmed = selector.trim();
       if (!trimmed) {
@@ -226,6 +252,23 @@ export function createToolCatalogService(options: ToolCatalogServiceOptions): To
           cancelled: true,
         };
       }
+      if (scope?.mcpReadOnlyOnly === true) {
+        const discovered = await options.lifecycleManager.discoverTools(parsed.serverId, signal);
+        const match = discovered.find((tool) => tool.name === parsed.toolName);
+        const hidden = denyUnhintedMcp(scope, match?.readOnlyHint, trimmed);
+        if (hidden) {
+          return hidden;
+        }
+      }
+      if (signal.aborted) {
+        return {
+          ok: false,
+          code: 'aborted',
+          message: `MCP tool aborted: ${trimmed}`,
+          details: { selector: trimmed },
+          cancelled: true,
+        };
+      }
       try {
         const result = await options.lifecycleManager.callTool(
           parsed.serverId,
@@ -233,7 +276,13 @@ export function createToolCatalogService(options: ToolCatalogServiceOptions): To
           toolArguments,
           signal,
         );
-        return { ok: true, output: formatMcpCallResult(result), details: { selector: trimmed } };
+        const payload = scope?.includeScriptPayload === true ? readMcpScriptPayload(result) : undefined;
+        return {
+          ok: true,
+          output: formatMcpCallResult(result),
+          details: { selector: trimmed },
+          ...(payload ? { scriptPayload: payload } : {}),
+        };
       } catch (error) {
         return {
           ok: false,
@@ -256,6 +305,36 @@ export function createToolCatalogService(options: ToolCatalogServiceOptions): To
 
 function invalidCatalogInput(message: string): ToolResult {
   return { ok: false, code: 'invalid-input', message };
+}
+
+function denyUnhintedMcp(
+  scope: CatalogScriptScope | undefined,
+  readOnlyHint: boolean | undefined,
+  selector: string,
+): ToolResult | undefined {
+  if (scope?.mcpReadOnlyOnly !== true || readOnlyHint === true) {
+    return undefined;
+  }
+  return {
+    ok: false,
+    code: 'permission-denied',
+    message: `script MCP tool requires annotations.readOnlyHint true: ${selector}`,
+  };
+}
+
+function readMcpScriptPayload(result: unknown): ToolResult['scriptPayload'] | undefined {
+  if (!result || typeof result !== 'object') {
+    return undefined;
+  }
+  const record = result as Record<string, unknown>;
+  const payload: NonNullable<ToolResult['scriptPayload']> = {};
+  if (Object.prototype.hasOwnProperty.call(record, 'structuredContent') && record.structuredContent !== undefined) {
+    payload.structuredContent = record.structuredContent;
+  }
+  if (typeof record.isError === 'boolean') {
+    payload.isError = record.isError;
+  }
+  return payload.structuredContent === undefined && payload.isError === undefined ? undefined : payload;
 }
 
 function cancelledMcpSearch(): Extract<ToolResult, { ok: false }> {
@@ -285,6 +364,7 @@ async function searchMcpHits(
   catalog: McpMetadataCatalog,
   args: { query: string; limit?: unknown; discover?: boolean; serverId?: string },
   signal: AbortSignal,
+  scope?: CatalogScriptScope,
 ): Promise<McpSearchHits | Extract<ToolResult, { ok: false }>> {
   await lifecycleManager.refreshConfig();
   const config = lifecycleManager.getConfig();
@@ -363,7 +443,11 @@ async function searchMcpHits(
     );
   }
 
-  const hits = cachedSearch.hits.map((hit) => mcpMetadataToHit(hit, query));
+  const visibleHits =
+    scope?.mcpReadOnlyOnly === true
+      ? cachedSearch.hits.filter((hit) => hit.readOnlyHint === true)
+      : cachedSearch.hits;
+  const hits = visibleHits.map((hit) => mcpMetadataToHit(hit, query));
   return {
     hits,
     discoveredServers,

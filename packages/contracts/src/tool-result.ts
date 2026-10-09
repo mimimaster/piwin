@@ -141,12 +141,24 @@ export type ToolResultErrorCode =
   | 'browser-operation-interrupted'
   | 'browser-agent-has-control';
 
+/**
+ * Explicit structured facts for a script caller. Absent means the script must
+ * not invent structure by parsing `output`. Chat projection and transcript
+ * details must not copy this field.
+ */
+export type ToolScriptPayload = {
+  structuredContent?: unknown;
+  /** Preserved only when the upstream result actually supplied a boolean. */
+  isError?: boolean;
+};
+
 export type ToolResult =
   | {
       ok: true;
       output: string;
       details?: ToolResultDetails;
       images?: ToolResultImage[];
+      scriptPayload?: ToolScriptPayload;
     }
   | {
       ok: false;
@@ -155,6 +167,7 @@ export type ToolResult =
       details?: ToolResultDetails;
       cancelled?: boolean;
       retryable?: boolean;
+      scriptPayload?: ToolScriptPayload;
     };
 
 /**

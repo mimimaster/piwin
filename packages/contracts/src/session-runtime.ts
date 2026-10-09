@@ -85,6 +85,7 @@ export const RUNTIME_STALE_DOMAINS: ReadonlySet<SettingsDomain> = new Set<Settin
   'knowledge',
   'permissions',
   'subagents',
+  'codemode',
 ]);
 
 /** Domains that tighten safety immediately even before runtime replacement. */

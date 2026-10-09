@@ -331,6 +331,7 @@ export async function composeSessionHostToolsForSession(
             : {}),
         }
       : {}),
+    ...(deps.sessionHostToolPort ? { codemodePort: deps.sessionHostToolPort } : {}),
     ...(deps.options.clientToolExecution === undefined || childContext
       ? {}
       : {
