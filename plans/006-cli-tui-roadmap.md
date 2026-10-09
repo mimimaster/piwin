@@ -68,7 +68,7 @@ M0 的 13 个提交审查后留下的问题。已做的留一行记录，没做�
 | ID | 任务 | 验收 |
 |---|---|---|
 | M3-1 | 快捷键可配置（`~/.piwin/keybindings.json`），冲突检测 | 非法配置启动时报错并回退默认 |
-| M3-2 | 主题跟随 Desktop theme 包，支持亮/暗/高对比，`NO_COLOR` | 快照测试三套 |
+| M3-2 | 主题跟随 Desktop theme 包，支持亮/暗/高对比，`NO_COLOR` | 部分：`NO_COLOR` 去色保留粗体/暗淡层级；`PIWIN_TUI_THEME=high-contrast` 次要文字不用亮黑。亮/暗主题跟随 Desktop theme 包未做（只用 16 色 ANSI，随终端主题） |
 | M3-3 | 回合结束通知：终端 bell / OSC 9 / OSC 777，可关 | 部分：运行 ≥10 秒的一轮结束、或有权限/扩展提问等你时，响铃；iTerm2/Ghostty/WezTerm 另发 OSC 9 桌面通知；`PIWIN_TUI_NOTIFY=off|bell|osc9` 控制。「仅窗口失焦」未做（pi-tui 暂无焦点事件），OSC 777 未做 |
 | M3-4 | 自定义状态栏（模型、分支、git 脏状态、上下文%、费用） | 参考 Claude Code statusline，配置为模板字符串 |
 | M3-5 | 无交互模式对齐：`piwin -p "..." --output-format json|stream-json` | 与 TUI 共用同一 turn 执行路径，CI 可用 |
