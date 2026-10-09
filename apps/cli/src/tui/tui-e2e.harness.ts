@@ -19,6 +19,7 @@ import { HostRuntime } from '@piwin/host-runtime';
 import { HostServer } from '@piwin/host-server';
 import { connectCliAttachedHost } from '../attach-existing-host.js';
 import { TuiApp } from './tui-app.js';
+import type { TuiConfig } from './tui-config.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 
 export const KEY = {
@@ -88,6 +89,8 @@ class FakeTerminal implements Terminal {
 export type TuiHarnessOptions = {
   /** Register a throwaway project and start the TUI inside it. */
   project?: boolean;
+  /** The person's own keys and status line. */
+  config?: Pick<TuiConfig, 'keybindings' | 'statusTemplate'>;
   /** Mock runs that never finish until interrupted. */
   hangingRuns?: boolean;
   embedded?: boolean;
@@ -230,6 +233,7 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
     embedded: options.embedded === true,
     mock: true,
     historyFile: path.join(sandbox, 'prompt-history.jsonl'),
+    ...(options.config === undefined ? {} : { config: options.config }),
     ...(options.openSessionPicker === true ? { openSessionPicker: true } : {}),
     ...(options.startNotice === undefined ? {} : { startNotice: options.startNotice }),
     openFile: async (filePath) => {

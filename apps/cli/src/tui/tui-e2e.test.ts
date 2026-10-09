@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Each test starts a Host and waits on real pushes; the harness has its own shorter, explaining timeout.
 vi.setConfig({ testTimeout: 20_000 });
+import { DEFAULT_KEYBINDINGS } from './keybindings.js';
 import { KEY, startTuiHarness, type TuiHarness } from './tui-e2e.harness.js';
 import { hostData } from './tui-host-link.js';
 
@@ -390,6 +391,23 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('在这段对话里查找');
     });
 
+    it('follows a rebound key and a custom status line', async () => {
+      tui = await startTuiHarness({
+        config: {
+          keybindings: { ...DEFAULT_KEYBINDINGS, history: 'alt+r' },
+          statusTemplate: '范围={project} · {mock}',
+        },
+      });
+      await tui.waitFor('范围=对话 · mock');
+      await converse(tui, '记住这句');
+      tui.mark();
+      await tui.press(KEY.ctrlR);
+      await tui.press('x');
+      expect(tui.seen()).not.toContain('历史提示词');
+      await tui.press('\x1br');
+      await tui.waitFor('历史提示词');
+    });
+
     it('finds a deep file by a fragment of its name', async () => {
       tui = await startTuiHarness({ project: true });
       await tui.waitFor('fixture');
@@ -648,7 +666,8 @@ describe('TUI end to end against a mock Host', () => {
     });
 
     it('keeps the branch count when a reload cannot read the branches', async () => {
-      tui = await startTuiHarness();
+      const shell = await startTuiHarness();
+      tui = shell;
       await converse(tui, '解释一下');
       tui.mark();
       await tui.submit('/retry keep');
@@ -656,9 +675,16 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitForIdle();
       // The reloads that follow the next fork's pushes ask for the branches; that read fails.
       const listing = tui.holdRequests('session/branch-list');
+      const siblingsOnHost = async (): Promise<number> =>
+        hostData<{ branchPoints: Array<{ siblings: unknown[] }> }>(
+          await shell.asOtherShell({ type: 'session/branch-list', sessionId: shell.sessionId() }),
+        ).branchPoints.reduce((total, point) => total + point.siblings.length, 0);
+      const before = await siblingsOnHost();
       tui.mark();
       await tui.submit('/retry keep');
-      await tui.waitFor('you said: 解释一下');
+      // The answer repeats what is already on screen, and only changed lines are
+      // redrawn, so wait for the fork on the Host instead of for text.
+      while ((await siblingsOnHost()) <= before) await new Promise((resolve) => setTimeout(resolve, 15));
       await tui.waitForIdle();
       listing.fail('branch-list-failed: injected');
       tui.mark();

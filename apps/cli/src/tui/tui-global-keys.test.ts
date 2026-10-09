@@ -1,5 +1,6 @@
 import type { Editor } from '@earendil-works/pi-tui';
 import { describe, expect, it, vi } from 'vitest';
+import { DEFAULT_KEYBINDINGS } from './keybindings.js';
 import { TuiGlobalKeys, type TuiGlobalKeysPort } from './tui-global-keys.js';
 
 const CTRL_C = '\x03';
@@ -19,6 +20,7 @@ function setup(overrides: Partial<TuiGlobalKeysPort> = {}, initial: { text?: str
   const port = {
     editor: editor as unknown as Editor,
     embedded: false,
+    keybindings: DEFAULT_KEYBINDINGS,
     isModalOpen: () => false,
     isRunning: () => false,
     isEditingTurn: () => false,
@@ -40,6 +42,16 @@ function setup(overrides: Partial<TuiGlobalKeysPort> = {}, initial: { text?: str
 }
 
 describe('TuiGlobalKeys', () => {
+  it('follows rebound keys and no longer answers the old ones', () => {
+    const { keys, port } = setup({ keybindings: { ...DEFAULT_KEYBINDINGS, history: 'alt+r', sessions: 'f2' } });
+    expect(keys.handle('\x12')).toBeUndefined();
+    expect(port.openHistorySearch).not.toHaveBeenCalled();
+    expect(keys.handle('\x1br')).toEqual({ consume: true });
+    expect(port.openHistorySearch).toHaveBeenCalledOnce();
+    expect(keys.handle('\x1bOQ')).toEqual({ consume: true });
+    expect(port.openSessions).toHaveBeenCalledOnce();
+  });
+
   it('leaves every key to an open modal', () => {
     const { keys, port } = setup({ isModalOpen: () => true });
     expect(keys.handle(CTRL_C)).toBeUndefined();

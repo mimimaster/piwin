@@ -7,6 +7,7 @@ import { getPiwinRoot } from '@piwin/host-runtime';
 import { parseMock, readOption } from '../cli-args.js';
 import { promptHistoryFile } from './prompt-history.js';
 import { TuiApp } from './tui-app.js';
+import { loadTuiConfig } from './tui-config.js';
 import { hostData, openTuiHostLink, type TuiHostLink } from './tui-host-link.js';
 import { resolveTuiLaunchScope } from './tui-launch-scope.js';
 import { resolveTuiLaunchSessionIntent } from './tui-launch-session.js';
@@ -57,6 +58,8 @@ export async function commandTui(argv: string[]): Promise<void> {
     } else if (intent.kind === 'picker') {
       openSessionPicker = !embedded;
     }
+    const config = loadTuiConfig(getPiwinRoot());
+    const startNotice = [notice, ...config.problems].filter((line): line is string => line !== undefined).join('\n');
     const tui = new TuiMainScreen(new ProcessTerminal());
     await new Promise<void>((resolve, reject) => {
       app = new TuiApp({
@@ -68,7 +71,8 @@ export async function commandTui(argv: string[]): Promise<void> {
         mock,
         openSessionPicker,
         historyFile: promptHistoryFile(getPiwinRoot(), projectId),
-        ...(notice === undefined ? {} : { startNotice: notice }),
+        config,
+        ...(startNotice.length === 0 ? {} : { startNotice }),
         onExit: () => {
           tui.stop();
           resolve();

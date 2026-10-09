@@ -12,6 +12,7 @@ import type { TuiSideChatController } from './tui-side-chat-controller.js';
 import type { TuiSubagentController } from './tui-subagent-controller.js';
 import type { TuiTurnActions } from './tui-turn-actions.js';
 import type { TuiTurnChangeController } from './tui-turn-change-controller.js';
+import { shortcutHelp, type Keybindings } from './keybindings.js';
 import type { TuiFindController } from './tui-find-controller.js';
 import type { TuiRewindController } from './tui-rewind-controller.js';
 import type { TuiUsageController } from './tui-usage-controller.js';
@@ -22,6 +23,7 @@ type CommandHandler = (argument: string) => void | Promise<void>;
 export type TuiCommandTableDeps = {
   /** Desktop owns session switching when the TUI is embedded. */
   embedded: boolean;
+  keybindings: Keybindings;
   composer: TuiComposerProfile;
   attachments: TuiAttachmentController;
   plans: TuiPlanController;
@@ -50,9 +52,6 @@ export type TuiCommandTableDeps = {
   notice: (tone: 'info' | 'error', text: string) => void;
   exit: () => void;
 };
-
-const SHORTCUT_HELP =
-  'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+V 粘贴图片 · @ 引用文件 · 运行中发送即排队 · Ctrl+O 展开工具输出和思考 · Ctrl+R 历史提示词 · Ctrl+G 用 $EDITOR 编辑 · Esc Esc 回到更早的提问 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行';
 
 /** Slash command name → what it does. One entry per row of TUI_SLASH_COMMANDS. */
 export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string, argument: string) => Promise<void> {
@@ -105,7 +104,7 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     help: () =>
       deps.notice(
         'info',
-        [...TUI_SLASH_COMMANDS.map((command) => `/${command.name}  ${command.description}`), SHORTCUT_HELP].join('\n'),
+        [...TUI_SLASH_COMMANDS.map((command) => `/${command.name}  ${command.description}`), shortcutHelp(deps.keybindings)].join('\n'),
       ),
     quit: () => deps.exit(),
   };

@@ -1,4 +1,5 @@
 import { Key, matchesKey, type Editor, type TuiInputListenerResult } from '@earendil-works/pi-tui';
+import type { Keybindings } from './keybindings.js';
 
 const EXIT_CONFIRM_WINDOW_MS = 1_500;
 const DOUBLE_ESCAPE_WINDOW_MS = 500;
@@ -6,6 +7,7 @@ const DOUBLE_ESCAPE_WINDOW_MS = 500;
 export type TuiGlobalKeysPort = {
   editor: Editor;
   embedded: boolean;
+  keybindings: Keybindings;
   /** A modal owns the keyboard. */
   isModalOpen: () => boolean;
   isRunning: () => boolean;
@@ -68,27 +70,27 @@ export class TuiGlobalKeys {
       port.exit();
       return { consume: true };
     }
-    if (matchesKey(data, Key.ctrl('s')) && !port.embedded) {
+    if (matchesKey(data, port.keybindings.sessions) && !port.embedded) {
       port.openSessions();
       return { consume: true };
     }
-    if (matchesKey(data, Key.ctrl('v'))) {
+    if (matchesKey(data, port.keybindings.pasteImage)) {
       port.pasteClipboardImage();
       return { consume: true };
     }
-    if (matchesKey(data, Key.ctrl('r'))) {
+    if (matchesKey(data, port.keybindings.history)) {
       port.openHistorySearch();
       return { consume: true };
     }
-    if (matchesKey(data, Key.ctrl('g'))) {
+    if (matchesKey(data, port.keybindings.editor)) {
       port.editInExternalEditor();
       return { consume: true };
     }
-    if (matchesKey(data, Key.shift('tab'))) {
+    if (matchesKey(data, port.keybindings.permission)) {
       port.cyclePermissionPreset();
       return { consume: true };
     }
-    if (matchesKey(data, Key.ctrl('o'))) {
+    if (matchesKey(data, port.keybindings.toolOutput)) {
       port.hint(port.toggleToolOutput() ? '工具输出与思考：完整' : '工具输出与思考：摘要');
       return { consume: true };
     }

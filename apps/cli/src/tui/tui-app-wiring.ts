@@ -6,6 +6,7 @@ import {
   removeLocalUserMessage,
   type TranscriptState,
 } from './transcript-model.js';
+import type { Keybindings } from './keybindings.js';
 import type { ProjectFiles } from './project-files.js';
 import { createTuiCommandTable } from './tui-command-table.js';
 import { TuiArtifactController, type FileOpener } from './tui-artifact-controller.js';
@@ -36,6 +37,7 @@ export type TuiWiringPort = {
   modals: TuiModalStack;
   files: ProjectFiles;
   embedded: boolean;
+  keybindings: Keybindings;
   openFile?: FileOpener;
   getSessionId: () => string | undefined;
   getRunId: () => string | undefined;
@@ -232,6 +234,7 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
   const find = new TuiFindController({ modals: port.modals, getTranscript: port.getTranscript });
   const runCommand = createTuiCommandTable({
     embedded: port.embedded,
+    keybindings: port.keybindings,
     composer,
     attachments,
     plans: features.plans,

@@ -42,6 +42,9 @@ import { StatusHint } from './status-hint.js';
 import { QueryListOverlay } from './query-list-overlay.js';
 import { editTextExternally } from './external-editor.js';
 import { PromptHistory } from './prompt-history.js';
+import { DEFAULT_KEYBINDINGS, type Keybindings } from './keybindings.js';
+import { DEFAULT_STATUS_TEMPLATE, renderStatusTemplate } from './status-template.js';
+import type { TuiConfig } from './tui-config.js';
 import { TurnNotifier } from './turn-notifier.js';
 import { TuiGlobalKeys } from './tui-global-keys.js';
 import { TuiHostPrompts } from './tui-host-prompts.js';
@@ -78,6 +81,8 @@ export type TuiAppOptions = {
   /** Something the launch has to tell the user, shown once above the composer. */
   startNotice?: string;
   onExit: () => void;
+  /** Keys and status line from the person's own settings; defaults when absent. */
+  config?: Pick<TuiConfig, 'keybindings' | 'statusTemplate'>;
   /** Where this project's sent prompts are kept; absent keeps them for this run only. */
   historyFile?: string;
   /** How an exported artifact page reaches a browser; the system opener by default. */
@@ -132,6 +137,7 @@ export class TuiApp {
   private readonly modals: TuiModalStack;
   private readonly prompts: TuiHostPrompts;
   private readonly history: PromptHistory;
+  private readonly keybindings: Keybindings;
   private readonly notifier: TurnNotifier;
   private readonly globalKeys: TuiGlobalKeys;
   private readonly sessionSwitcher: TuiSessionSwitcher;
@@ -139,6 +145,7 @@ export class TuiApp {
 
   public constructor(private readonly options: TuiAppOptions) {
     this.tui = options.tui;
+    this.keybindings = options.config?.keybindings ?? DEFAULT_KEYBINDINGS;
     this.link = options.link;
     this.projectId = options.projectId;
     this.transcriptView = new TranscriptView(options.embedded);
@@ -171,6 +178,7 @@ export class TuiApp {
       modals: this.modals,
       files: this.files,
       embedded: options.embedded,
+      keybindings: this.keybindings,
       ...(options.openFile === undefined ? {} : { openFile: options.openFile }),
       getSessionId: () => this.sessionId,
       getRunId: () => knownForegroundRunId(this.foreground),
@@ -221,6 +229,7 @@ export class TuiApp {
     this.globalKeys = new TuiGlobalKeys({
       editor: this.editor,
       embedded: options.embedded,
+      keybindings: this.keybindings,
       isModalOpen: () => this.modals.isOpen,
       isRunning: () => this.isRunning(),
       isEditingTurn: () => this.editingMessageId !== undefined,
@@ -690,20 +699,29 @@ export class TuiApp {
       occupancy?.kind === 'known' && occupancy.tokensLimit !== undefined
         ? `上下文 ${Math.round((occupancy.tokensUsed / occupancy.tokensLimit) * 100)}%`
         : undefined;
-    return [
+    const [model, thinking, permission, skill] = this.composer.describe();
+    const activity = this.features.describe().filter((part): part is string => part !== undefined);
+    // What needs attention is always shown; the template only arranges the rest.
+    const alerts = [
       this.statusHint.text,
       this.sender.describe(),
       this.connected ? undefined : '重连中…',
-      this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),
-      scope,
-      ...this.composer.describe(),
       this.attachments.describe(),
       this.sideChat.describe(),
-      ...this.features.describe(),
       this.editingMessageId === undefined ? undefined : '改写上一条提问 · Ctrl+C 取消',
-      usage,
-      this.options.mock ? 'mock' : undefined,
-    ]
+    ];
+    const arranged = renderStatusTemplate(this.options.config?.statusTemplate ?? DEFAULT_STATUS_TEMPLATE, {
+      session: this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),
+      project: scope,
+      model,
+      thinking,
+      permission,
+      skill,
+      activity: activity.length === 0 ? undefined : activity.join(' · '),
+      context: usage,
+      mock: this.options.mock ? 'mock' : undefined,
+    });
+    return [...alerts, arranged.length === 0 ? undefined : arranged]
       .filter((part): part is string => part !== undefined)
       .join(' · ');
   }

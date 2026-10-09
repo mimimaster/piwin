@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { DEFAULT_KEYBINDINGS } from './keybindings.js';
 import { createTuiCommandTable, type TuiCommandTableDeps } from './tui-command-table.js';
 import { TUI_SLASH_COMMANDS } from './tui-commands.js';
 
@@ -16,6 +17,7 @@ function recorder<T extends object>(): T {
 function createDeps(embedded = false): TuiCommandTableDeps {
   return {
     embedded,
+    keybindings: DEFAULT_KEYBINDINGS,
     composer: recorder(),
     attachments: recorder(),
     plans: recorder(),
