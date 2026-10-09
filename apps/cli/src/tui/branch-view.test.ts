@@ -45,6 +45,25 @@ describe('branch presentation', () => {
     });
   });
 
+  it('says why a branch has no text instead of calling it empty', () => {
+    const point: TranscriptBranchPoint = {
+      anchorMessageId: 'u9',
+      activeIndex: 0,
+      siblings: [
+        sibling({ headMessageId: 'r1', role: 'assistant', preview: '', responseStatus: 'error' }),
+        sibling({ headMessageId: 'r2', role: 'assistant', preview: '', responseStatus: 'interrupted' }),
+        sibling({ headMessageId: 'r3', role: 'assistant', preview: '', responseStatus: 'streaming' }),
+        sibling({ headMessageId: 'r4', role: 'assistant', preview: '' }),
+      ],
+    };
+    expect(branchSiblingItems(point).map((item) => item.label)).toEqual([
+      '1. （出错，没有内容）',
+      '2. （被中断，没有内容）',
+      '3. （生成中）',
+      '4. （空）',
+    ]);
+  });
+
   it('shows the fork count only when there are forks', () => {
     expect(describeBranches(0)).toBeUndefined();
     expect(describeBranches(3)).toBe('分支 3');

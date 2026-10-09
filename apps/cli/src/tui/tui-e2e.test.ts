@@ -436,6 +436,39 @@ describe('TUI end to end against a mock Host', () => {
     });
   });
 
+  describe('status bar', () => {
+    /** Redraw the status bar and return what it shows now. */
+    async function redrawnStatus(harness: TuiHarness): Promise<string> {
+      harness.mark();
+      await harness.press(KEY.shiftTab);
+      await harness.waitFor('权限 ');
+      return harness.seen();
+    }
+
+    it('keeps the project and the context usage across a side chat and back', async () => {
+      tui = await startTuiHarness({ project: true });
+      await converse(tui, '主会话的问题');
+      await tui.waitFor('上下文 0%');
+      tui.mark();
+      await tui.submit('/side 调研');
+      await tui.waitFor('这是侧聊');
+      const inSideChat = await redrawnStatus(tui);
+      expect(inSideChat).toContain(' · fixture · ');
+      expect(inSideChat).not.toContain(' · 对话 · ');
+      tui.mark();
+      await tui.submit('/back');
+      await tui.waitFor('主会话的问题 · fixture');
+      // No turn ran since reopening: the usage comes from the reopened session itself.
+      expect(await redrawnStatus(tui)).toContain('上下文 0%');
+    });
+
+    it('shows what the launch had to say', async () => {
+      tui = await startTuiHarness({ startNotice: '「/tmp/elsewhere」还不是已信任的项目' });
+      await tui.waitFor('「/tmp/elsewhere」还不是已信任的项目');
+      await converse(tui, '照常对话');
+    });
+  });
+
   describe('artifacts', () => {
     it('lists an artifact from the conversation and shows its source', async () => {
       tui = await startTuiHarness();
@@ -545,6 +578,7 @@ describe('TUI end to end against a mock Host', () => {
       await tui.press(KEY.escape);
       await tui.submit('/undo');
       await tui.waitFor('撤销这一轮的改动');
+      await tui.waitFor('会把 1 个文件改回这一轮开始前的样子');
       tui.mark();
       await tui.press(KEY.down, KEY.enter);
       await tui.waitFor('已撤销');

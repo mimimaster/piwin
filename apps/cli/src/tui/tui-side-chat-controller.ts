@@ -55,6 +55,11 @@ export class TuiSideChatController {
     return this.inside?.sideChatSessionId === this.options.getSessionId() ? this.inside : undefined;
   }
 
+  /** The session a side chat was stepped into from; it shares that session's project. */
+  public sourceSessionOf(sideChatSessionId: string): string | undefined {
+    return this.inside?.sideChatSessionId === sideChatSessionId ? this.inside.sourceSessionId : undefined;
+  }
+
   public describe(): string | undefined {
     if (this.current() !== undefined) return '侧聊 · /back 返回';
     const pending = this.pendingRefs().length;

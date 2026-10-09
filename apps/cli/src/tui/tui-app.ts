@@ -72,6 +72,8 @@ export type TuiAppOptions = {
   /** Desktop-embedded pane: pinned to one session, Desktop's sidebar switches. */
   embedded: boolean;
   mock: boolean;
+  /** Something the launch has to tell the user, shown once above the composer. */
+  startNotice?: string;
   onExit: () => void;
   /** How an exported artifact page reaches a browser; the system opener by default. */
   openFile?: FileOpener;
@@ -340,9 +342,12 @@ export class TuiApp {
     this.rebuildAutocomplete();
     if (this.options.sessionId !== undefined) {
       await this.openSession(this.options.sessionId);
-    } else {
-      this.refreshChrome();
     }
+    if (this.options.startNotice !== undefined) {
+      // After the session opened: opening replaces the transcript.
+      this.transcript = appendNotice(this.transcript, 'info', this.options.startNotice);
+    }
+    this.refreshChrome();
   }
 
   public dispose(): void {
@@ -368,6 +373,7 @@ export class TuiApp {
     const epoch = (this.sessionEpoch += 1);
     // Reloading the session on screen is the same conversation.
     if (sessionId !== this.sessionId) this.conversation = {};
+    const previous = { sessionId: this.sessionId, projectId: this.sessionProjectId };
     await this.link.client.updateSubscriptions([sessionId]);
     const resume = hostData<RemoteSessionResumeData>(
       await this.link.request({ type: 'session/resume', sessionId }),
@@ -376,11 +382,16 @@ export class TuiApp {
     this.sessionId = sessionId;
     this.sessionName = resume.name;
     this.sessionProjectId =
-      resume.scope === 'project' ? await this.lookUpSessionProjectId(sessionId) : undefined;
+      resume.scope === 'project'
+        ? ((await this.lookUpSessionProjectId(sessionId)) ??
+          // A side chat is not in the session index; it lives in its source's project.
+          (this.sideChat.sourceSessionOf(sessionId) === previous.sessionId ? previous.projectId : undefined))
+        : undefined;
     if (epoch !== this.sessionEpoch) return;
     this.transcript = transcriptFromMessages(resume.messages);
     this.olderCursor = resume.transcriptPage?.olderCursor;
-    this.context = undefined;
+    // Pushes only report changes; a reopened idle session would show no usage without this.
+    this.context = resume.contextSnapshot;
     if (resume.model !== undefined) this.composer.adoptSessionModel(resume.model);
     this.modals.clearQueue();
     await this.reconcileForegroundRun(sessionId, epoch);

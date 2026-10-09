@@ -88,6 +88,8 @@ export type TuiHarnessOptions = {
   /** Mock runs that never finish until interrupted. */
   hangingRuns?: boolean;
   embedded?: boolean;
+  /** What the launch tells the user once, e.g. a scope it could not honour. */
+  startNotice?: string;
 };
 
 export type TuiHarness = {
@@ -222,6 +224,7 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
     ...(projectId === undefined ? {} : { projectId }),
     embedded: options.embedded === true,
     mock: true,
+    ...(options.startNotice === undefined ? {} : { startNotice: options.startNotice }),
     openFile: async (filePath) => {
       openedFiles.push(filePath);
     },

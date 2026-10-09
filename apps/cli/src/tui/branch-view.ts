@@ -40,7 +40,7 @@ export function branchPointItems(points: readonly TranscriptBranchPoint[]): Sele
 export function branchSiblingItems(point: TranscriptBranchPoint): SelectItem[] {
   return point.siblings.map((sibling, index) => ({
     value: sibling.headMessageId,
-    label: `${index + 1}. ${oneLine(headline(point, sibling), '（空）')}`,
+    label: `${index + 1}. ${oneLine(headline(point, sibling), emptyBranchLabel(sibling))}`,
     description: describeSibling(sibling, index === point.activeIndex),
   }));
 }
@@ -48,6 +48,20 @@ export function branchSiblingItems(point: TranscriptBranchPoint): SelectItem[] {
 /** An answer version is told apart by its answer; a prompt fork by its prompt. */
 function headline(point: TranscriptBranchPoint, sibling: TranscriptBranchSibling): string {
   return isAnswerVariantPoint(point) ? sibling.preview : sibling.preview || (sibling.responsePreview ?? '');
+}
+
+/** A branch whose turn never produced text says why instead of looking empty. */
+function emptyBranchLabel(sibling: TranscriptBranchSibling): string {
+  switch (sibling.responseStatus) {
+    case 'error':
+      return '（出错，没有内容）';
+    case 'interrupted':
+      return '（被中断，没有内容）';
+    case 'streaming':
+      return '（生成中）';
+    default:
+      return '（空）';
+  }
 }
 
 function describeSibling(sibling: TranscriptBranchSibling, active: boolean): string {

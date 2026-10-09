@@ -7,6 +7,7 @@ import { getPiwinRoot } from '@piwin/host-runtime';
 import { parseMock, readOption } from '../cli-args.js';
 import { TuiApp } from './tui-app.js';
 import { hostData, openTuiHostLink, type TuiHostLink } from './tui-host-link.js';
+import { resolveTuiLaunchScope } from './tui-launch-scope.js';
 
 export const TUI_USAGE =
   'Usage: piwin tui [--session <id>] [--continue] [--project <projectId> | --project-path <dir>] [--embedded] [--mock]';
@@ -34,11 +35,16 @@ export async function commandTui(argv: string[]): Promise<void> {
 
   let app: TuiApp | undefined;
   try {
-    const projectId = await resolveProjectId(
-      link,
-      readOption(argv, '--project'),
-      readOption(argv, '--project-path') ?? process.cwd(),
+    const { projects = [] } = hostData<{ projects?: RemoteProjectSummary[] }>(
+      await link.request({ type: 'project/list' }),
     );
+    const { projectId, notice } = resolveTuiLaunchScope({
+      projects,
+      explicitProjectId: readOption(argv, '--project'),
+      explicitPath: readOption(argv, '--project-path'),
+      cwd: process.cwd(),
+      canonicalPath,
+    });
     const sessionId =
       readOption(argv, '--session') ??
       (argv.includes('--continue') ? await findLatestSessionId(link, projectId) : undefined);
@@ -51,6 +57,7 @@ export async function commandTui(argv: string[]): Promise<void> {
         ...(projectId === undefined ? {} : { projectId }),
         embedded,
         mock,
+        ...(notice === undefined ? {} : { startNotice: notice }),
         onExit: () => {
           tui.stop();
           resolve();
@@ -66,25 +73,6 @@ export async function commandTui(argv: string[]): Promise<void> {
     await link.dispose();
     restoreConsole();
   }
-}
-
-/**
- * `--project` wins; otherwise a registered project whose root is
- * `--project-path`, or the current directory. An unregistered directory means
- * the general workspace — the TUI never registers or trusts a folder on its own.
- */
-async function resolveProjectId(
-  link: TuiHostLink,
-  explicit: string | undefined,
-  directory: string,
-): Promise<string | undefined> {
-  if (explicit !== undefined) return explicit;
-  const { projects = [] } = hostData<{ projects?: RemoteProjectSummary[] }>(
-    await link.request({ type: 'project/list' }),
-  );
-  const cwd = canonicalPath(directory);
-  return projects.find((project) => project.path !== undefined && canonicalPath(project.path) === cwd)
-    ?.projectId;
 }
 
 async function findLatestSessionId(link: TuiHostLink, projectId: string | undefined): Promise<string | undefined> {

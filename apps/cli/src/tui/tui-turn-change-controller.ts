@@ -151,7 +151,7 @@ export class TuiTurnChangeController {
       return;
     }
     const undo = direction === 'undo';
-    const count = summary.fileCount === null ? '这一轮改过的文件' : `${summary.fileCount} 个文件`;
+    const count = summary.fileCount === null ? '这一轮改过的文件' : ` ${summary.fileCount} 个文件`;
     modals.show(
       new ChoiceOverlay({
         title: undo ? '撤销这一轮的改动' : '恢复这一轮的改动',
