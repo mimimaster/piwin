@@ -46,7 +46,7 @@ M0 的 13 个提交审查后留下的问题。已做的留一行记录，没做�
 | ID | 任务 | 验收 |
 |---|---|---|
 | M1-1 | 会话选择器升级：分组（置顶 / 今天 / 更早 / 已归档折叠）、相对时间、项目过滤、模糊搜索标题 | 已做：^P 循环项目、Tab 展开已归档；空态与加载失败在选择器内提示；500 行纯分组过滤 < 200ms |
-| M1-2 | 置顶/取消置顶、重命名 | 选择器内快捷键 + `/pin` `/rename`；Desktop 侧栏同步变化（同一 Host 推送） |
+| M1-2 | 置顶/取消置顶、重命名 | 已做：选择器 `^T` 置顶、`/pin` 切换当前；`/rename` 与 `^R` 沿用；`session/index-updated` 推送刷新选择器 |
 | M1-3 | 归档/删除 | 归档即时可撤销（toast 带 undo）；删除需输入确认；当前运行中的会话禁止删除并给原因；嵌入模式转交 Desktop |
 | M1-4 | 导出 `/export [md|json] [path]` | Markdown 含工具调用折叠摘要、附件引用、分支只导当前叶子（可 `--all-branches`）；JSON 与 Host transcript schema 一致且可被导入/重放测试读取；默认写到项目目录并打印路径 |
 | M1-5 | 跨会话全文搜索 `/search` | Host 侧索引（SQLite FTS，复用 transcript store），结果显示会话名+命中片段+时间，回车跳到对应消息；CLI 子命令 `piwin sessions search` 同一实现 |

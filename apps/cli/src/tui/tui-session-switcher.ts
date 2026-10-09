@@ -15,6 +15,10 @@ export type TuiSessionSwitcherOptions = {
   onNew: () => void;
   onRename: (sessionId: string, name: string) => Promise<void>;
   onError: (error: unknown) => void;
+  /** Short status-line flash (e.g. no session yet). */
+  onHint: (text: string) => void;
+  /** Multi-line notice after pin/unpin from a slash command. */
+  onNotice: (tone: 'info' | 'error', text: string) => void;
   requestRender: () => void;
 };
 
@@ -48,6 +52,11 @@ export class TuiSessionSwitcher {
             .then(() => this.refresh())
             .catch(this.options.onError);
         },
+        onPin: (sessionId, pinned) => {
+          this.setPinned(sessionId, !pinned)
+            .then(() => this.refresh())
+            .catch(this.options.onError);
+        },
         onArchive: (sessionId, archived) => {
           link
             .request({ type: archived ? 'session/unarchive' : 'session/archive', sessionId })
@@ -75,6 +84,44 @@ export class TuiSessionSwitcher {
     const picker = this.picker;
     if (picker === undefined) return;
     this.loadRows(picker).catch(this.options.onError);
+  }
+
+  /**
+   * `/pin` on the session this shell is showing. Looks up the current pin
+   * flag on the Host index so Desktop and TUI stay on one record.
+   */
+  public async toggleCurrentPin(): Promise<void> {
+    const sessionId = this.options.getCurrentSessionId();
+    if (sessionId === undefined) {
+      this.options.onHint('当前还没有会话');
+      return;
+    }
+    const pinned = await this.isPinned(sessionId);
+    await this.setPinned(sessionId, !pinned);
+    this.options.onNotice('info', pinned ? '已取消置顶' : '已置顶');
+    this.refresh();
+  }
+
+  private async setPinned(sessionId: string, pinned: boolean): Promise<void> {
+    hostData(
+      await this.options.link.request({
+        type: pinned ? 'session/pin' : 'session/unpin',
+        sessionId,
+      }),
+    );
+  }
+
+  private async isPinned(sessionId: string): Promise<boolean> {
+    const list = hostData<RemoteSessionListData>(
+      await this.options.link.request({
+        type: 'session/list',
+        scopeRef: { kind: 'all-authorized' },
+        order: 'updated',
+        maxItems: SESSION_LIST_LIMIT,
+        includeArchived: true,
+      }),
+    );
+    return list.sessions.find((session) => session.sessionId === sessionId)?.pinned === true;
   }
 
   private async loadRows(picker: SessionPicker): Promise<void> {

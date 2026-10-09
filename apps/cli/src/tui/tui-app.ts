@@ -270,6 +270,8 @@ export class TuiApp {
       onNew: () => this.startDraftSession(),
       onRename: (sessionId, name) => this.renameSession(sessionId, name),
       onError: (error) => this.reportError(error),
+      onHint: (text) => this.flashHint(text),
+      onNotice: notify,
       requestRender: () => this.tui.requestRender(),
     });
     this.tui.addChild(this.transcriptView);

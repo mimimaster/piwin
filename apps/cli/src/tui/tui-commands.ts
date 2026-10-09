@@ -36,6 +36,7 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'branches', description: '在会话的分支之间切换' },
   { name: 'fork', description: '从这里分叉出一个新会话：/fork [名称]' },
   { name: 'rename', description: '重命名当前会话' },
+  { name: 'pin', description: '置顶或取消置顶当前会话' },
   { name: 'older', description: '加载更早的消息' },
   { name: 'help', description: '查看命令和快捷键' },
   { name: 'quit', description: '退出' },

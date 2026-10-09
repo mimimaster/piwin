@@ -4,6 +4,7 @@ import { parseSlashCommand } from './tui-commands.js';
 describe('parseSlashCommand', () => {
   it('parses a known command and its argument', () => {
     expect(parseSlashCommand('/rename  新名字 ')).toEqual({ name: 'rename', argument: '新名字' });
+    expect(parseSlashCommand('/pin')).toEqual({ name: 'pin', argument: '' });
     expect(parseSlashCommand('/sessions')).toEqual({ name: 'sessions', argument: '' });
   });
 

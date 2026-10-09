@@ -28,6 +28,8 @@ export type SessionPickerActions = {
   onOpen: (sessionId: string) => void;
   onNew: () => void;
   onRename: (sessionId: string, name: string) => void;
+  /** Toggle pin; `pinned` is the row's state before the toggle. */
+  onPin: (sessionId: string, pinned: boolean) => void;
   onArchive: (sessionId: string, archived: boolean) => void;
   onClose: () => void;
 };
@@ -138,6 +140,9 @@ export class SessionPicker implements Component, Focusable {
       } else {
         this.archiveArmedFor = selected.sessionId;
       }
+    } else if (matchesKey(data, Key.ctrl('t'))) {
+      // Ctrl+P is the project filter; Ctrl+T toggles 置顶 (top).
+      if (selected !== undefined) this.actions.onPin(selected.sessionId, selected.pinned);
     } else if (matchesKey(data, Key.ctrl('p'))) {
       this.cycleProject();
     } else if (matchesKey(data, Key.tab)) {
@@ -184,8 +189,9 @@ export class SessionPicker implements Component, Focusable {
       return `再按 Ctrl+X ${selected?.archived === true ? '取消归档' : '归档'}`;
     }
     const archiveKey = selected?.archived === true ? '取消归档' : '归档';
+    const pinKey = selected?.pinned === true ? '取消置顶' : '置顶';
     const archivedKey = this.archivedExpanded ? '折叠' : '展开归档';
-    return `Enter 打开 · ^N 新建 · ^R 重命名 · ^X ${archiveKey} · ^P 项目 · Tab ${archivedKey} · Esc`;
+    return `Enter 打开 · ^N 新建 · ^R 重命名 · ^T ${pinKey} · ^X ${archiveKey} · ^P 项目 · Tab ${archivedKey} · Esc`;
   }
 
   private renderList(inner: number): string[] {

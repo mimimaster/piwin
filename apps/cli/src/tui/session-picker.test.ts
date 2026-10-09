@@ -9,13 +9,15 @@ function plain(lines: string[]): string {
   return lines.join('\n').replace(ANSI, '');
 }
 
-function actions(): SessionPickerActions {
+function actions(overrides: Partial<SessionPickerActions> = {}): SessionPickerActions {
   return {
     onOpen: () => undefined,
     onNew: () => undefined,
     onRename: () => undefined,
+    onPin: () => undefined,
     onArchive: () => undefined,
     onClose: () => undefined,
+    ...overrides,
   };
 }
 
@@ -61,8 +63,22 @@ describe('SessionPicker', () => {
     expect(folded).toContain('已折叠');
     expect(folded).not.toContain('归档会话');
     expect(folded).toContain('^P 项目');
+    expect(folded).toContain('^T 置顶');
     picker.handleInput('\t');
     expect(plain(picker.render(80))).toContain('归档会话');
+  });
+
+  it('toggles pin on Ctrl+T with the row\'s current flag', () => {
+    const pinned: Array<{ sessionId: string; pinned: boolean }> = [];
+    const picker = new SessionPicker(
+      actions({
+        onPin: (sessionId, wasPinned) => pinned.push({ sessionId, pinned: wasPinned }),
+      }),
+      undefined,
+    );
+    picker.setRows([row({ sessionId: 's1', title: '活动会话' })], undefined, []);
+    picker.handleInput('\x14');
+    expect(pinned).toEqual([{ sessionId: 's1', pinned: false }]);
   });
 
   it('cycles the project filter without another list read', () => {

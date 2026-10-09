@@ -80,6 +80,52 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('改过名的会话');
     });
 
+    it('pins and unpins the current session with /pin', async () => {
+      tui = await startTuiHarness();
+      await converse(tui, '要置顶的话');
+      tui.mark();
+      await tui.submit('/rename 置顶会话');
+      await tui.waitFor('置顶会话 ·');
+      tui.mark();
+      await tui.submit('/pin');
+      await tui.waitFor('已置顶');
+      tui.mark();
+      await tui.press(KEY.ctrlS);
+      await tui.waitFor('置顶');
+      await tui.waitFor('置顶会话');
+      tui.mark();
+      await tui.press(KEY.escape);
+      await tui.submit('/pin');
+      await tui.waitFor('已取消置顶');
+    });
+
+    it('pins from the picker and follows a pin made on another shell', async () => {
+      tui = await startTuiHarness();
+      await converse(tui, '别处也会置顶');
+      tui.mark();
+      await tui.submit('/rename 同步名');
+      await tui.waitFor('同步名 ·');
+      const sessionId = tui.sessionId();
+      tui.mark();
+      await tui.asOtherShell({ type: 'session/pin', sessionId });
+      await tui.press(KEY.ctrlS);
+      await tui.waitFor('同步名');
+      // Group header is distinct from the session title.
+      await tui.waitFor('取消置顶');
+      tui.mark();
+      await tui.press(KEY.escape);
+      await converse(tui, '再开一条');
+      tui.mark();
+      await tui.submit('/rename 新开会话');
+      await tui.waitFor('新开会话 ·');
+      tui.mark();
+      await tui.press(KEY.ctrlS);
+      await tui.waitFor('新开会话');
+      await tui.press(KEY.ctrlT);
+      // Current session stays ●; footer flips once the Host pin lands.
+      await tui.waitFor('取消置顶');
+    });
+
     it('says there are no sessions yet', async () => {
       tui = await startTuiHarness();
       tui.mark();
