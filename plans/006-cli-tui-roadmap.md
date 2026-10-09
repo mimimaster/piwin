@@ -34,9 +34,9 @@ M0 的 13 个提交审查后留下的问题。已做的留一行记录，没做�
 | R-2 | 发送队列不能取消 | 已做：状态栏显示「待发送 N 条」，Ctrl+C 取回；已发出的那条仍靠 host-client 的请求超时结束 |
 | R-3 | 等待中的消息会跟着切换发到别的会话；迟到的建会话把用户拉回旧草稿 | 已做：消息绑定输入时所在的对话，切走后放回输入框 |
 | R-4 | 准备阶段点停止仍白跑一次冷启动 | 已做：容量准入之后、建运行时之前各查一次。外部代理会话在停止后由后来的 turn 自己启动（不再挂到已结束的 run 上），只是被停的那次仍会打开一次外部会话再释放 |
-| R-5 | cold activation 取消的测试替换 Host 私有方法、读内部 run 记录，应有正式的测试接入点 | 未做（新加的准备阶段测试沿用了同样的做法） |
-| R-6 | TUI `branches.load()` 失败当成 0 | 已做：同一会话的重载读失败时保留原计数。Desktop 的模拟 Host（`host-client-mock-turn.ts`）只发早的那次分支推送，未做 |
-| R-7 | 不相关的 done 更新可能提前耗掉子代理追问计数 | 未做。追问在 Host 上是一个新 batch，但子会话摘要里没有它的 run id（`subagentParentRunId` 是父 turn 的），TUI 只能计数；要精确匹配需在 `SessionSummary` 加一个追问 run 标识，Desktop 同样受益 |
+| R-5 | cold activation 取消的测试替换 Host 私有方法、读内部 run 记录 | 已做：`HostRuntimeOptions.activationProbe` 是正式的测试接入点，两条测试只用它、Host 命令和推送 |
+| R-6 | TUI `branches.load()` 失败当成 0；Desktop 模拟 Host 只发早的那次分支推送 | 已做：同一会话的重载读失败时保留原计数；模拟 Host 在新分支落库后再推一次 |
+| R-7 | 不相关的 done 更新可能提前耗掉子代理追问计数 | 已做：`SessionSummary.subagentBatchRunId` 标出驱动子会话的 batch，TUI 用 `subagent/continue` 回包里的 run id 精确匹配；Desktop 还没用这个字段 |
 | R-8 | foreground-run 回包盖掉推送来的新一轮 | 已做：提问期间只要有 run 推送改过状态，回包就丢弃 |
 | R-9 | `tui-app.ts`、`session-product-commands.ts` 接近 1000 行上限 | 部分：`tui-app.ts` 870 → 818（发送逻辑已拆出）；M1 加会话管理前继续拆会话生命周期。`session-product-commands.ts` 967 行未动 |
 | R-10 | 未注册的 `--project-path` 静默退回；side chat 状态栏显示「对话」；`/back` 后上下文百分比消失；「会把1 个文件」缺空格；出错分支显示「（空）」 | 已做 |
