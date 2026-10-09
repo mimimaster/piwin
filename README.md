@@ -8,7 +8,7 @@
 
 **基于 Pi 的面向个人的 Coding Agent Desktop**
 
-<sub><i>砚者，研墨沉淀、静水流深。集百家之所长，归于一案之间。</i></sub>
+<sub><i>天寒水不冻，日用心不倦。</i></sub>
 
 <p align="center">
   <a href="https://github.com/mimimaster/piwin/releases"><img src="https://img.shields.io/github/v/release/mimimaster/piwin?color=6366f1&label=Release&logo=github" alt="Release" /></a>
@@ -21,11 +21,11 @@
 </p>
 
 <p align="center">
-  <a href="https://docs.piwinwin.com"><b>📖 文档</b></a> ·
-  <a href="#-快速上手"><b>⚡ 快速上手</b></a> ·
-  <a href="#-核心特色"><b>✨ 核心特色</b></a> ·
-  <a href="#-架构总览"><b>🏛️ 架构</b></a> ·
-  <a href="./docs/adr/"><b>📐 ADR</b></a>
+  <a href="https://docs.piwinwin.com"><b>文档</b></a> ·
+  <a href="#-快速上手"><b>快速上手</b></a> ·
+  <a href="#-核心特色"><b>核心特色</b></a> ·
+  <a href="#-架构总览"><b>架构</b></a> ·
+  <a href="./docs/adr/"><b>ADR</b></a>
 </p>
 
 <p align="center">
@@ -40,27 +40,27 @@
 
 </div>
 
-Piwin 是基于 Pi SDK（v0.84.2）的桌面端 Coding Agent。Pi 的功能、提示词和工具接入都由你自己掌控；Piwin 在它之上补齐图形界面、一键配置和多端访问——客户端与 Host Runtime 分离，支持 Desktop / Web / Mobile 接入，所有数据留在本地。
+Piwin 是基于 Pi SDK（v0.84.2）的桌面端 Coding Agent。Piwin 是由tauri + node运行时构建的，支持前后端分离，也支持一体包安装，天然支持Desktop / Web / Mobile 接入，不会上传你的任何数据，问题是现在也没啥用户。
 
 ---
 
-## ⚡ 快速上手
+## 快速上手
 
-所有命令在仓库根目录执行。一体包和独立 Host **不要在同一台机器同时开**（会抢 `~/.piwin`，可以自己额外指向目录从而达成多host配置）。
+所有命令在仓库根目录执行。默认配置和数据空间在~/.piwin，如有特殊需求，请自行配置。
 
 | 入口 | 场景 | 开发 | 打包 / 使用 |
 | :--- | :--- | :--- | :--- |
 | **Desktop** | 一体包，开箱即用 | `pnpm dev:tauri` | `pnpm package:desktop` → 安装 dmg / exe |
-| **Web** | 浏览器访问，前后端同端口 | `pnpm dev:host` + `pnpm dev:web` | `pnpm package:web` → `./dist/piwin-host/start-host.sh` → `http://127.0.0.1:8787` |
-| **Desktop Shell** | 轻量桌面壳，连远程 Host | `pnpm dev:tauri:shell` | `pnpm package:desktop-shell` → 填 `ws://` 地址 |
-| **Host** | 独立后端，供其他客户端连接 | `pnpm dev:host` | `pnpm package:host` → `./dist/piwin-host/start-host.sh` |
+| **Web** | 浏览器访问，前后端同端口，可以远程访问 | `pnpm dev:host` + `pnpm dev:web` | `pnpm package:web` → `./dist/piwin-host/start-host.sh` → `http://127.0.0.1:8787` |
+| **Desktop Shell** | 轻量桌面壳，连远程 Host，单独启动| `pnpm dev:tauri:shell` | `pnpm package:desktop-shell` → 填 `ws://` 地址 |
+| **Host** | 独立后端，供其他客户端连接，适合部署在你自己的vps| `pnpm dev:host` | `pnpm package:host` → `./dist/piwin-host/start-host.sh` |
 
 ### 下载安装包（零环境门槛）
 
 前往 **[GitHub Releases](https://github.com/mimimaster/piwin/releases)** 下载最新版：
 
 - **macOS**：`piwinwin_<version>_aarch64.dmg` — 拖入 Applications 即可
-- **Windows**：`piwinwin_<version>_x64-setup.exe` — 按指引安装，推荐预装 [Git Bash](https://git-scm.com/downloads/win)
+- **Windows**：`piwinwin_<version>_x64-setup.exe` — 按指引安装，推荐预装 [Git Bash](https://git-scm.com/downloads/win)，避免模型大战powershell
 
 安装包内置 Node 22 LTS + Host Sidecar + LanceDB + Tauri 2，无需额外环境。
 
@@ -82,7 +82,7 @@ pnpm install && pnpm package:web
 ./dist/piwin-host/start-host.sh   # http://127.0.0.1:8787
 ```
 
-对外暴露时，在前面放 TLS 反代（Caddy / nginx / Tailscale Serve）：
+对外暴露时，在前面放 TLS 反代（Caddy / nginx / Tailscale Serve，懂得都懂，建议搞个tailscale，安全又方便）：
 
 ```bash
 export PIWIN_HOST_BIND=127.0.0.1
@@ -94,19 +94,19 @@ export PIWIN_HOST_ALLOWED_ORIGINS='https://ui.example.com'
 
 ---
 
-## ✨ 核心特色
+## 核心特色
 
 Piwin 真正想做好的就这几件事，每一件都封装成了开箱即用的产品体验：
 
 | # | 特色 | 一句话 |
 | :-: | :--- | :--- |
-| 1 | [**Pi 扩展热安装**](#1-pi-扩展热安装) | 市场 / Git / 本地一键装，下一轮对话即生效，不重启、不丢会话 |
-| 2 | [**子代理编排**](#2-子代理编排ultra-code--fusion--reviewed-delivery) | 内置 Ultra Code、Fusion、Reviewed Delivery 三套方案，输入框里一键切换 |
-| 3 | [**全双工语音**](#3-全双工语音) | 一边语音聊，一边让 Agent 在后台干活，随时插话 |
-| 4 | [**按能力类型配模型**](#4-按能力类型配模型) | 推理、视觉、生图、视频、实时语音、Embedding、Reranker 分开配 |
-| 5 | [**Web Search 一键配置**](#5-web-search-一键配置) | 免 Key 起步，搜索源与网页抓取随时切换 |
-| 6 | [**视觉委托**](#6-视觉委托) | 纯文本模型也能看图，截图交给轻量多模态模型提炼 |
-| 7 | [**code_search**](#7-code_search) | Host 内置的代码检索工具，搜索过程不进主上下文 |
+| 1 | [**Pi 扩展热安装**](#1-pi-扩展热安装) | 市场 / Git / 本地一键装，搜索对接git和npm仓库，可以检索到对应仓库并一键安装，提供piwin-extension拓展仓库https://extension.piwinwin.com/，方便您的pi插件改造 |
+| 2 | [**子代理编排**](#2-子代理编排ultra-code--fusion--reviewed-delivery) | 内置多种智能编排方案，具体可看文档，推荐使用内置auto编排方案 |
+| 3 | [**全双工语音**](#3-全双工语音) | 支持你边语音边coding，可以一边跳舞，一边看原子弹爆炸 |
+| 4 | [**灵活的BYOK方案**](#4-按能力类型配模型) | 推理、视觉、生图、视频、实时语音、Embedding、Reranker等类型的模型配置，支持丰富的模型厂商接入|
+| 5 | [**Web Search 一键配置**](#5-web-search-一键配置) | 支持模型原生web_search，也支持各种外部搜索渠道接入，降级路由，十分灵活方便|
+| 6 | [**code_search**](#6-code_search) | Host 内置的代码检索工具，让你的上下文保持干燥，精进模型决策|
+| 7 | [**aritfact**](#7-aritfact) | Host 内置的代码检索工具，让你的上下文保持干燥，精进模型决策|
 
 <table>
   <tr>
