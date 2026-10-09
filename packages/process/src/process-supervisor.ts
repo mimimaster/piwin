@@ -6,6 +6,7 @@
  * JC-09: argv-only spawn; shell command strings are forbidden.
  */
 import { spawn, execFile, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { resolveTrustedCwd } from './cwd-policy.js';
 
 // ---------------------------------------------------------------------------
@@ -418,11 +419,19 @@ export function createProcessSupervisor(
       windowsHide: true,
     });
 
+    // A failed spawn reports on 'error' a tick later. Nothing else listens, and
+    // an 'error' event with no listener is thrown as an uncaught exception that
+    // takes the whole Host down; a command that cannot start must only fail
+    // its own call.
+    let spawnError: Error | undefined;
+    child.on('error', (error) => {
+      spawnError = error;
+    });
+
     const pid = child.pid;
     if (typeof pid !== 'number') {
-      // spawn failed synchronously — the 'error' event will fire, but we
-      // cannot construct a valid SupervisedProcess without a pid.
-      throw new Error('spawn failed: no pid assigned');
+      // Spawn failed: we cannot construct a valid SupervisedProcess without a pid.
+      throw new Error(describeSpawnFailure(input.command, cwdResult.absoluteCwd, spawnError));
     }
 
     // On Unix, detached: true makes the child a process-group leader,
@@ -534,4 +543,11 @@ export function createProcessSupervisor(
     stop: stopProcess,
     dispose,
   };
+}
+
+/** ENOENT from `spawn` means the command or the working directory is missing; say which one is likelier. */
+function describeSpawnFailure(command: string, cwd: string, error: Error | undefined): string {
+  if (!existsSync(cwd)) return `spawn failed: working directory does not exist: ${cwd}`;
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === undefined ? 'spawn failed: no pid assigned' : `spawn failed: ${code} (${command})`;
 }
