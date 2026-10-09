@@ -118,6 +118,7 @@ export function normalizeUsageRollup(rollup: CompatibleUsageRollup | undefined):
 /** Rolling window for the recent-calls log. The ledger keeps everything; this
  * is only how much of it the live table shows. */
 export const RECENT_CALLS_WINDOW_MINUTES = 60;
+export const RECENT_CALLS_POLL_MS = 20_000;
 /** Default page size. Page sizes stay under the Host remote ceiling of 500. */
 export const RECENT_CALLS_PAGE_SIZE = 100;
 export const RECENT_CALLS_PAGE_SIZES = [50, 100, 200, 500] as const;
