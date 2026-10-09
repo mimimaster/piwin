@@ -44,3 +44,11 @@ If a tool result carries `scriptPayload.structuredContent`, the script receives 
 The script stops at `timeoutMs`, the memory cap, the call budget, or the concurrency cap. Output past `maxOutputChars` is truncated. Aborting the host call aborts nested Host and MCP calls. A call still waiting for a concurrency slot does not start after that abort. The QuickJS worker is closed after success and after syntax or runtime errors. Completed nested reads are not rolled back.
 
 SDK and RPC both call the same Host tool. The bundle keeps `@earendil-works/pi-codemode@1.1.0` external so its worker and WASM stay real files. Pi itself stays at 0.84.2.
+
+## Reproduce backend acceptance tests
+
+```sh
+pnpm --filter @piwin/host-runtime exec vitest run src/codemode/codemode-backend.e2e.test.ts
+```
+
+Verified: 12 tests passed with a local scripted HTTP model (no credentials/setup required), real SDK sessions and spawned RPC JSONL workers, the Host execution port and QuickJS sandbox. Covers config-gated model visibility, >120k structured reads reduced to small output, generation/Run provenance, script/tool errors, and cancellation including a queued read. All fixture resources are disposed. Pi 0.84.2 reports mid-tool abort as a failed prompt (“This operation was aborted”); nested Host cancellation is still asserted promptly. See [acceptance evidence](../specs/codemode-readonly.md#dual-backend-acceptance-evidence-gap-001) for commands and scope; this is not a live-provider or packaged-worker test.

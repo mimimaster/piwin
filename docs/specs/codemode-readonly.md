@@ -40,3 +40,15 @@ One `CodemodeSandbox` per invocation. Pass the configured deadline and memory ca
 ## Packaging
 
 `scripts/bundle-host.mjs` externalizes `@earendil-works/pi-codemode@1.1.0`. After prune, the worker file and `quickjs.wasm` must exist and a sandbox execute must return the echoed value. Pi packages in the bundle stay at 0.84.2.
+
+## Dual-backend acceptance evidence (GAP-001)
+
+```sh
+pnpm --filter @piwin/host-runtime exec vitest run src/codemode/codemode-backend.e2e.test.ts
+pnpm --filter @piwin/host-runtime --filter @piwin/agent-host typecheck
+pnpm test:architecture
+```
+
+Verified: 12 tests passed; both package typechecks and package boundaries passed. The test-only loopback OpenAI SSE endpoint scripts a model tool call through the production SDK session factory or an actual spawned RPC worker (default source worker entry, JSONL). Both use the real restricted SessionHostToolExecutionPort and CodemodeSandbox. Config on/off is compiled into the final manifest and checked in actual HTTP model requests. A >120k on-disk read-only structured fixture produces `[1998,1996,1994]`; parent/nested generation-normalized IDs, Run binding, structured-payload non-leakage, script/tool errors, and prompt abort reaching Host without starting a queued read are asserted. Backends, HTTP connections, temporary files and generation surfaces are disposed in `finally`.
+
+The child test reproduced an internal/product session-ID mismatch in RPC abort: parent tool controllers were not cancelled until the sandbox deadline. The minimal fix uses the product session alias for abort, matching parent controllers; the worker already accepts that alias. Cancellation is asserted within 2s, before the 15s deadline. Pi 0.84.2 currently classifies mid-tool abort as a failed prompt with “This operation was aborted”; the test records that behavior, not an `aborted` prompt-outcome claim. This evidence uses fixture reads, not live providers/MCP or a packaged worker. Existing Codemode integration/MCP checks (3 tests) and adjacent backend conformance/worker lifecycle/client checks (30 tests) also passed; no full-suite or bundle rerun is claimed for this slice.
