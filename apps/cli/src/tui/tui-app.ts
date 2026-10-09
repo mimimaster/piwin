@@ -48,6 +48,7 @@ import { TuiModalStack, createExtensionModal, createPermissionModal } from './tu
 import { TuiPromptSender } from './tui-prompt-sender.js';
 import { TuiSessionFeatures } from './tui-session-features.js';
 import { TuiSessionExport } from './tui-session-export.js';
+import { TuiSessionSearch } from './tui-session-search.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
@@ -128,6 +129,7 @@ export class TuiApp {
   private readonly modals: TuiModalStack;
   private readonly sessionSwitcher: TuiSessionSwitcher;
   private readonly sessionExport: TuiSessionExport;
+  private readonly sessionSearch: TuiSessionSearch;
   private readonly disposers: Array<() => void> = [];
 
   public constructor(private readonly options: TuiAppOptions) {
@@ -283,6 +285,15 @@ export class TuiApp {
       onHint: (text) => this.flashHint(text),
       onNotice: notify,
     });
+    this.sessionSearch = new TuiSessionSearch({
+      link: this.link,
+      modals: this.modals,
+      onOpen: (sessionId) => {
+        this.openSession(sessionId).catch((error: unknown) => this.reportError(error));
+      },
+      onError: (error) => this.reportError(error),
+      requestRender: () => this.tui.requestRender(),
+    });
     this.tui.addChild(this.transcriptView);
     this.tui.addChild(this.activitySlot);
     this.tui.addChild(this.editor);
@@ -309,6 +320,7 @@ export class TuiApp {
       turns: this.turns,
       sessionSwitcher: this.sessionSwitcher,
       sessionExport: this.sessionExport,
+      sessionSearch: this.sessionSearch,
       startDraftSession: () => this.startDraftSession(),
       loadOlderMessages: () => this.loadOlderMessages(),
       renameSession: (name) => this.renameCurrentSession(name),

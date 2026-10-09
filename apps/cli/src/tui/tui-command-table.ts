@@ -6,6 +6,7 @@ import type { TuiComposerProfile } from './tui-composer-profile.js';
 import type { TuiPlanController } from './tui-plan-controller.js';
 import type { TuiQueueController } from './tui-queue-controller.js';
 import type { TuiSessionExport } from './tui-session-export.js';
+import type { TuiSessionSearch } from './tui-session-search.js';
 import type { TuiSessionSwitcher } from './tui-session-switcher.js';
 import type { TuiSideChatController } from './tui-side-chat-controller.js';
 import type { TuiSubagentController } from './tui-subagent-controller.js';
@@ -31,6 +32,7 @@ export type TuiCommandTableDeps = {
   turns: TuiTurnActions;
   sessionSwitcher: TuiSessionSwitcher;
   sessionExport: TuiSessionExport;
+  sessionSearch: TuiSessionSearch;
   startDraftSession: () => void;
   loadOlderMessages: () => Promise<void>;
   /** With a name: rename now. Without: ask for one. */
@@ -88,6 +90,7 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     unarchive: () => deps.sessionSwitcher.unarchiveLastOrCurrent(),
     delete: () => deps.sessionSwitcher.deleteCurrent(),
     export: (argument) => deps.sessionExport.run(argument),
+    search: (argument) => deps.sessionSearch.open(argument),
     older: () => deps.loadOlderMessages(),
     help: () =>
       deps.notice(

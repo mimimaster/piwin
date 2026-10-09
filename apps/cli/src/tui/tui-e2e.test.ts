@@ -92,6 +92,25 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('改过名的会话');
     });
 
+    it('searches across sessions and opens a hit', async () => {
+      tui = await startTuiHarness();
+      await converse(tui, '跨会话搜索独有短语 alpha-bridge');
+      tui.mark();
+      await tui.submit('/rename 可搜索会话');
+      await tui.waitFor('可搜索会话 ·');
+      tui.mark();
+      await tui.submit('/new');
+      await tui.waitFor('输入消息开始对话');
+      tui.mark();
+      await tui.submit('/search alpha-bridge');
+      await tui.waitFor('跨会话搜索');
+      await tui.waitFor('可搜索会话');
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('可搜索会话 ·');
+      await tui.waitFor('跨会话搜索独有短语 alpha-bridge');
+    });
+
     it('exports the open session as markdown and json', async () => {
       tui = await startTuiHarness();
       await converse(tui, '导出用的一句话');

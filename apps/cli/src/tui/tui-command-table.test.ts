@@ -29,6 +29,7 @@ function createDeps(embedded = false): TuiCommandTableDeps {
     turns: recorder(),
     sessionSwitcher: recorder(),
     sessionExport: recorder(),
+    sessionSearch: recorder(),
     startDraftSession: vi.fn(),
     loadOlderMessages: vi.fn(async () => undefined),
     renameSession: vi.fn(async () => undefined),

@@ -51,6 +51,7 @@ Usage:
   piwin session queue reorder <sessionId> <queuedTurnId...> [--revision n] [--mock]
   piwin session replace <sessionId> <runId> <text> [--queued-id id] [--user-message-id id] [--mock]
   piwin session search <query> [--project <path>] [--mock]
+  piwin sessions search <query>   (alias of session search)
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
   piwin session branches <sessionId> [--mock]
   piwin session switch <sessionId> <messageId> [--confirm] [--mock]
@@ -208,7 +209,7 @@ async function main(argv: string[]): Promise<void> {
     await commandConfig(argv);
     return;
   }
-  if (command === 'session') {
+  if (command === 'session' || command === 'sessions') {
     await commandSession(argv);
     return;
   }

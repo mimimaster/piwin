@@ -49,7 +49,7 @@ M0 的 13 个提交审查后留下的问题。已做的留一行记录，没做�
 | M1-2 | 置顶/取消置顶、重命名 | 已做：选择器 `^T` 置顶、`/pin` 切换当前；`/rename` 与 `^R` 沿用；`session/index-updated` 推送刷新选择器 |
 | M1-3 | 归档/删除 | 已做：`/archive` 后 `/unarchive` 撤销；删除需输入标题确认；运行中禁删并说明原因；选择器 `^X` 归档、`^D` 删已归档；内嵌模式不开放选择器 |
 | M1-4 | 导出 `/export [md|json] [path]` | 已做：`md`/`json`/`html` 走 `session/export`；JSON schema `piwin.session-transcript.v1`；默认 Host exports 目录并打印路径；`--all-branches` 暂提示未支持（当前叶子） |
-| M1-5 | 跨会话全文搜索 `/search` | Host 侧索引（SQLite FTS，复用 transcript store），结果显示会话名+命中片段+时间，回车跳到对应消息；CLI 子命令 `piwin sessions search` 同一实现 |
+| M1-5 | 跨会话全文搜索 `/search` | 已做：TUI `/search` 与 `piwin session[s] search` 共用 Host `session/search`（index+transcript 扫描）；回车打开会话；SQLite FTS 升级仍属 Host 侧既有 W1 实现 |
 | M1-6 | 嵌入联动：TUI 新建会话即成为 Desktop 当前会话；Desktop 切换会话不结束 TUI、TUI 跟随 | e2e：两端各切一次，状态一致、无重复订阅/泄漏 |
 | M1-7 | `--continue` / `--resume <id>` 启动参数 | 对齐 Claude Code：`-c` 续最近一次，`-r` 无参数打开选择器 |
 

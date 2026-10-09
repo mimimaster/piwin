@@ -41,6 +41,7 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'unarchive', description: '撤销最近一次归档，或取消归档当前会话' },
   { name: 'delete', description: '永久删除当前会话（需输入标题确认）' },
   { name: 'export', description: '导出当前会话：/export [md|json|html] [路径]' },
+  { name: 'search', description: '跨会话全文搜索：/search [关键词]' },
   { name: 'older', description: '加载更早的消息' },
   { name: 'help', description: '查看命令和快捷键' },
   { name: 'quit', description: '退出' },
