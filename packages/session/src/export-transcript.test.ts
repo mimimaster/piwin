@@ -218,6 +218,11 @@ describe('exportTranscript', () => {
 
   it('suggests stable export basenames', () => {
     expect(suggestSessionExportBasename('abcdef01-rest', 'md')).toBe('piwin-export-abcdef01.md');
+    // Two product sessions must not share one export name.
+    expect(suggestSessionExportBasename('session-mv0xryx5-bikrvvqp', 'md')).toBe('piwin-export-bikrvvqp.md');
+    expect(suggestSessionExportBasename('session-mv0xryx5-aaaaaaaa', 'md')).not.toBe(
+      suggestSessionExportBasename('session-mv0xryx5-bikrvvqp', 'md'),
+    );
     expect(suggestSessionExportBasename('abcdef01-rest', 'html')).toBe(
       'piwin-export-abcdef01.html',
     );

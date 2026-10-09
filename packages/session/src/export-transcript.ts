@@ -109,7 +109,12 @@ export function suggestSessionExportBasename(
   sessionId: string,
   format: SessionExportFormat,
 ): string {
-  const shortId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 8) || 'session';
+  // Product ids are `session-<time>-<random>`: the first eight characters of the
+  // whole id are always `session-`, so every export would share one name. Use
+  // the random part.
+  const productId = /^session-[a-z0-9]+-([a-z0-9]+)$/i.exec(sessionId);
+  const source = productId?.[1] ?? sessionId;
+  const shortId = source.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 8) || 'session';
   const extension = format === 'html' ? 'html' : format === 'json' ? 'json' : 'md';
   return `piwin-export-${shortId}.${extension}`;
 }
