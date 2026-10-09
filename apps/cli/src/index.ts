@@ -7,6 +7,7 @@ import { commandAuth } from './auth-command.js';
 import { commandAgents } from './agents-command.js';
 import { commandCards } from './cards-command.js';
 import { commandChat } from './chat-command.js';
+import { isPrintFlag, printModeArgv } from './print-mode.js';
 import { commandTui } from './tui/tui-command.js';
 import { commandConfig } from './config-command.js';
 import { commandContext } from './context-command.js';
@@ -69,7 +70,8 @@ Usage:
   piwin session cold reconcile [--mock]
   piwin session lifecycle apply --plan <plan-id> [--mock]
   piwin status [--project <path>] [--session <id>] [--mock]
-  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--agent pi|grok] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass|unrestricted] [--scheme <id>] [--ref <path>…]
+  piwin -p <text> [chat options]    (same as chat; stdin is appended to the prompt)
+  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--agent pi|grok] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass|unrestricted] [--scheme <id>] [--ref <path>…] [--output-format text|json|stream-json]
   piwin tui [--session <id>] [--continue|-c] [--resume|-r [id]] [--project <projectId> | --project-path <dir>] [--embedded] [--mock]
   piwin scheme list [--mock]
   piwin scheme show <id> [--mock]
@@ -190,7 +192,18 @@ test fixture: harness-only delayed session; rejected outside NODE_ENV=test
  * `onPush` is bridged so `generate` can wait for `walkthrough/updated`.
  */
 
+async function readPipedStdin(): Promise<string | undefined> {
+  if (process.stdin.isTTY) return undefined;
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk as Uint8Array));
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 async function main(argv: string[]): Promise<void> {
+  if (isPrintFlag(argv[0])) {
+    // `piwin -p <text>`: the script-friendly spelling of `piwin chat`.
+    argv = printModeArgv(argv, await readPipedStdin());
+  }
   const command = argv[0] ?? 'help';
 
   if (command === 'help' || command === '--help' || command === '-h') {

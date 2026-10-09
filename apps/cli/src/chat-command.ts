@@ -1,8 +1,8 @@
-import type { AgentEvent, HostPush, PromptAttachment } from '@piwin/contracts';
+import type { HostPush, PromptAttachment } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { connectCliAttachedHost, readCliHostAttachTarget } from './attach-existing-host.js';
+import { createChatOutput, parseOutputFormat } from './chat-output.js';
 import { resolveCliChatPrompt } from './chat-prompt.js';
-import { formatCliAgentErrorEvent } from './cli-agent-error.js';
 import {
   createCliExtensionSurfacePrinter,
   createCliExtensionUiPushResponder,
@@ -10,7 +10,6 @@ import {
 import { saveAttachedCliImageAttachment, saveLocalCliImageAttachment } from './cli-prompt-image.js';
 import { buildCliContextRefs, collectRefArgs } from './context-ref-args.js';
 import { createCliBackendPermissionResponder, parseCliAgent } from './external-agent-cli.js';
-import { formatCliFlashcardToolResult } from './flashcard-tool-result.js';
 import { HostRuntime, getPiwinRoot, loadPiwinConfig } from '@piwin/host-runtime';
 import { randomUUID } from 'node:crypto';
 import {
@@ -24,100 +23,6 @@ import {
 /**
  * `piwin chat` subcommand: argv handling, host lifecycle, and output.
  */
-
-export function createAssistantCliDisplay() {
-  let thinkingBuffer = '';
-  let sawTextDelta = false;
-  let composingAnnounced = false;
-
-  return {
-    /** Process one AgentEvent, return the string to write (or null for no-op). */
-    feed(event: AgentEvent): string | null {
-      switch (event.type) {
-        case 'message/text_delta':
-          // Flush any buffered thinking block before text starts
-          if (thinkingBuffer) {
-            const block = `\n[thinking]\n${thinkingBuffer.trimEnd()}\n[/thinking]\n`;
-            thinkingBuffer = '';
-            sawTextDelta = true;
-            return block + event.delta;
-          }
-          sawTextDelta = true;
-          return event.delta;
-
-        case 'message/text_snapshot':
-          // Snapshot is a full cumulative replacement; only emit if we never
-          // streamed deltas for this message (otherwise it would duplicate).
-          if (sawTextDelta) return null;
-          return event.text;
-
-        case 'message/thinking_delta':
-          thinkingBuffer += event.delta;
-          return null; // buffer until text starts or message ends
-
-        case 'message/start':
-          sawTextDelta = false;
-          composingAnnounced = false;
-          return '\n';
-
-        case 'message/tool_args_progress':
-          if (composingAnnounced) return null;
-          composingAnnounced = true;
-          return event.toolName ? `\n[composing:${event.toolName}]` : '\n[composing]';
-
-        case 'message/end': {
-          // Flush remaining thinking buffer
-          let out = '';
-          if (thinkingBuffer) {
-            out = `\n[thinking]\n${thinkingBuffer.trimEnd()}\n[/thinking]\n`;
-            thinkingBuffer = '';
-          }
-          sawTextDelta = false;
-          return out || null;
-        }
-
-        case 'tool/start':
-          return `\n[tool:${event.toolName}]`;
-
-        case 'tool/update':
-          if (!event.delta) return null;
-          return event.delta;
-
-        case 'tool/end':
-          if (event.isError) {
-            return `\n[tool:error] ${event.toolCallId}\n`;
-          }
-          {
-            const flashcardText = formatCliFlashcardToolResult(event.presentation);
-            if (flashcardText) return `\n${flashcardText}\n`;
-          }
-          return '\n';
-
-        case 'error':
-          return formatCliAgentErrorEvent(event);
-
-        case 'permission/request':
-          return `\n[permission ${event.defaultDecision}] ${event.action}: ${event.detail}\n`;
-
-        case 'usage/update': {
-          const usage = event.usage;
-          const used = usage.tokensUsed ?? usage.totalTokens;
-          const limit = usage.tokensLimit;
-          if (typeof used === 'number' && typeof limit === 'number') {
-            return `\n[usage] ${used}/${limit} tokens\n`;
-          }
-          if (typeof used === 'number') {
-            return `\n[usage] ${used} tokens\n`;
-          }
-          return `\n[usage] unknown\n`;
-        }
-
-        default:
-          return null;
-      }
-    },
-  };
-}
 
 export function printCliWaitingResource(push: HostPush, seen: { printed: boolean }): void {
   if (seen.printed || push.type !== 'run/updated' || push.run.phase !== 'waiting-resource') {
@@ -144,7 +49,8 @@ export async function commandChat(argv: string[]): Promise<void> {
       token === '--permission-mode' ||
       token === '--scheme' ||
       token === '--ref' ||
-      token === '--agent'
+      token === '--agent' ||
+      token === '--output-format'
     ) {
       index += 1;
       continue;
@@ -159,7 +65,7 @@ export async function commandChat(argv: string[]): Promise<void> {
   const imagePath = readOption(argv, '--image');
   if (!message && !imagePath) {
     console.error(
-      'Usage: piwin chat <text> [--project <path>] [--agent pi|grok] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass|unrestricted] [--scheme <id>] [--ref <path>…]',
+      'Usage: piwin chat <text> [--project <path>] [--agent pi|grok] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass|unrestricted] [--scheme <id>] [--ref <path>…] [--output-format text|json|stream-json]',
     );
     process.exitCode = 1;
     return;
@@ -192,6 +98,12 @@ export async function commandChat(argv: string[]): Promise<void> {
   const mock = parseMock(argv);
   const mode = parseMode(argv);
   const permissionModeOverride = resolvePermissionModeOverride(argv);
+  const outputFormat = parseOutputFormat(argv);
+  if (typeof outputFormat === 'object') {
+    console.error(outputFormat.error);
+    process.exitCode = 1;
+    return;
+  }
   const agent = parseCliAgent(argv);
   if (typeof agent === 'object') {
     console.error(agent.error);
@@ -230,7 +142,7 @@ export async function commandChat(argv: string[]): Promise<void> {
         ),
       );
     }, attachedPromptTimeoutMs);
-    const attachedDisplay = createAssistantCliDisplay();
+    const attachedOutput = createChatOutput(outputFormat);
     const attachedWaiting = { printed: false };
     const answerAttachedExtensionUi = createCliExtensionUiPushResponder((command) =>
       client.request(command),
@@ -256,10 +168,7 @@ export async function commandChat(argv: string[]): Promise<void> {
       if (push.type !== 'event') {
         return;
       }
-      const line = attachedDisplay.feed(push.event);
-      if (line !== null) {
-        process.stdout.write(line);
-      }
+      attachedOutput.event(push.event);
     });
     try {
       const createResponse = await client.request(
@@ -320,7 +229,8 @@ export async function commandChat(argv: string[]): Promise<void> {
         console.error(`run ${attachedRunId}`);
       }
       await attachedCompletion;
-      process.stdout.write('\n');
+      attachedOutput.finish({ sessionId, ...(attachedRunId === undefined ? {} : { runId: attachedRunId }) });
+      if (attachedOutput.failed && outputFormat !== 'text') process.exitCode = 1;
     } finally {
       clearTimeout(attachedTimeout);
       unsubscribe();
@@ -343,7 +253,7 @@ export async function commandChat(argv: string[]): Promise<void> {
       ),
     );
   }, localPromptTimeoutMs);
-  const display = createAssistantCliDisplay();
+  const output = createChatOutput(outputFormat);
   const localWaiting = { printed: false };
   // `runtime` is assigned before any session exists, so the first push that can
   // carry an Extension UI request always sees it.
@@ -374,10 +284,7 @@ export async function commandChat(argv: string[]): Promise<void> {
       if (push.type !== 'event') {
         return;
       }
-      const line = display.feed(push.event);
-      if (line !== null) {
-        process.stdout.write(line);
-      }
+      output.event(push.event);
     },
     ...(permissionModeOverride !== undefined ? { permissionModeOverride } : {}),
   });
@@ -427,7 +334,8 @@ export async function commandChat(argv: string[]): Promise<void> {
       console.error(`run ${localRunId}`);
     }
     await promptCompletion;
-    process.stdout.write('\n');
+    output.finish({ sessionId, ...(localRunId === undefined ? {} : { runId: localRunId }) });
+    if (output.failed && outputFormat !== 'text') process.exitCode = 1;
   } finally {
     clearTimeout(localPromptTimeout);
     await runtime.dispose();
