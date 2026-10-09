@@ -32,6 +32,7 @@ export const KEY = {
   ctrlD: '\x04',
   ctrlS: '\x13',
   ctrlR: '\x12',
+  ctrlP: '\x10',
   ctrlX: '\x18',
 } as const;
 

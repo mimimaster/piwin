@@ -76,7 +76,76 @@ describe('TUI end to end against a mock Host', () => {
       tui.mark();
       await tui.press(KEY.ctrlS);
       await tui.waitFor('搜索');
+      await tui.waitFor('今天');
       await tui.waitFor('改过名的会话');
+    });
+
+    it('says there are no sessions yet', async () => {
+      tui = await startTuiHarness();
+      tui.mark();
+      await tui.press(KEY.ctrlS);
+      await tui.waitFor('还没有会话');
+    });
+
+    it('shows a session list failure inside the picker', async () => {
+      tui = await startTuiHarness();
+      const listing = tui.holdRequests('session/list');
+      tui.mark();
+      await tui.press(KEY.ctrlS);
+      await tui.waitFor('加载中');
+      listing.fail('list boom');
+      await tui.waitFor('list boom');
+    });
+
+    it('keeps archived sessions folded until Tab', async () => {
+      tui = await startTuiHarness();
+      await converse(tui, '要归档的话');
+      tui.mark();
+      await tui.submit('/rename 待归档会话');
+      await tui.waitFor('待归档会话 ·');
+      tui.mark();
+      await tui.press(KEY.ctrlS);
+      await tui.waitFor('待归档会话');
+      await tui.press(KEY.ctrlX);
+      await tui.waitFor('再按 Ctrl+X');
+      await tui.press(KEY.ctrlX);
+      await tui.waitFor('已折叠');
+      tui.mark();
+      await tui.press(KEY.tab);
+      await tui.waitFor('待归档会话');
+    });
+
+    it('filters the open list by project from the keyboard', async () => {
+      tui = await startTuiHarness({ project: true });
+      await tui.waitFor('fixture');
+      await converse(tui, '项目里的第一句');
+      tui.mark();
+      await tui.submit('/rename 项目会话');
+      await tui.waitFor('项目会话 ·');
+      const created = hostData<{ sessionId: string }>(
+        await tui.asOtherShell({
+          type: 'session/create',
+          input: { scope: { kind: 'general' }, sessionName: '通用会话' },
+        }),
+      );
+      await tui.asOtherShell({
+        type: 'session/rename',
+        sessionId: created.sessionId,
+        name: '通用会话',
+      });
+      tui.mark();
+      await tui.press(KEY.ctrlS);
+      await tui.waitFor('会话 · 全部');
+      await tui.waitFor('项目会话');
+      await tui.waitFor('通用会话');
+      tui.mark();
+      await tui.press(KEY.ctrlP);
+      await tui.waitFor('会话 · 对话');
+      expect(tui.seen()).not.toContain('项目会话');
+      tui.mark();
+      await tui.press(KEY.ctrlP);
+      await tui.waitFor('会话 · fixture');
+      await tui.waitFor('项目会话');
     });
 
     it('starts a fresh draft and reopens the earlier session from the picker', async () => {
@@ -493,7 +562,9 @@ describe('TUI end to end against a mock Host', () => {
     it('lists an artifact from the conversation and shows its source', async () => {
       tui = await startTuiHarness();
       const fence = '```';
-      await tui.paste(`原样返回：\n${fence}artifact-html title="演示页"\n<h1>你好</h1>\n${fence}\n完`);
+      await tui.paste(
+        `原样返回：\n${fence}artifact-html title="演示页"\n<h1>你好</h1>\n${fence}\n完`,
+      );
       tui.mark();
       await tui.press(KEY.enter);
       await tui.waitFor('mock_echo');
@@ -514,7 +585,9 @@ describe('TUI end to end against a mock Host', () => {
     it('exports an artifact as a sandboxed page for the browser', async () => {
       tui = await startTuiHarness();
       const fence = '```';
-      await tui.paste(`原样返回：\n${fence}artifact-html title="演示页"\n<h1>你好</h1>\n${fence}\n完`);
+      await tui.paste(
+        `原样返回：\n${fence}artifact-html title="演示页"\n<h1>你好</h1>\n${fence}\n完`,
+      );
       tui.mark();
       await tui.press(KEY.enter);
       await tui.waitFor('mock_echo');

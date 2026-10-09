@@ -21,11 +21,12 @@ export type TuiSessionSwitcherOptions = {
 /**
  * Drives the session picker overlay against the Host's session index.
  * Rename and archive go to the Host; the list is re-read rather than patched,
- * so it also reflects changes made from Desktop or the phone.
+ * so it also reflects changes made from Desktop or the phone. Grouping, the
+ * project filter and the archived fold happen on the rows already loaded.
  */
 export class TuiSessionSwitcher {
   private picker: SessionPicker | undefined;
-  private showsArchived = false;
+  private loadToken = 0;
 
   public constructor(private readonly options: TuiSessionSwitcherOptions) {}
 
@@ -47,22 +48,18 @@ export class TuiSessionSwitcher {
             .then(() => this.refresh())
             .catch(this.options.onError);
         },
-        onArchive: (sessionId) => {
+        onArchive: (sessionId, archived) => {
           link
-            .request({ type: this.showsArchived ? 'session/unarchive' : 'session/archive', sessionId })
+            .request({ type: archived ? 'session/unarchive' : 'session/archive', sessionId })
             .then(hostData)
             .then(() => this.refresh())
             .catch(this.options.onError);
-        },
-        onToggleArchived: () => {
-          this.showsArchived = !this.showsArchived;
-          this.refresh();
         },
         onClose: () => modals.close(),
       },
       this.options.getCurrentSessionId(),
     );
-    this.showsArchived = false;
+    picker.setLoading();
     modals.show(picker);
     this.picker = picker;
     await this.loadRows(picker);
@@ -81,23 +78,32 @@ export class TuiSessionSwitcher {
   }
 
   private async loadRows(picker: SessionPicker): Promise<void> {
-    const archived = this.showsArchived;
-    const list = hostData<RemoteSessionListData>(
-      await this.options.link.request({
-        type: 'session/list',
-        scopeRef: { kind: 'all-authorized' },
-        order: 'updated',
-        maxItems: SESSION_LIST_LIMIT,
-        includeArchived: archived,
-      }),
-    );
-    if (this.picker !== picker || archived !== this.showsArchived) return;
-    const sessions = list.sessions.filter((session) => (session.archived === true) === archived);
-    picker.setRows(
-      buildSessionRows(sessions, [...this.options.getProjects()], new Date()),
-      archived,
-      this.options.getCurrentSessionId(),
-    );
-    this.options.requestRender();
+    const token = ++this.loadToken;
+    try {
+      const projects = this.options.getProjects();
+      const now = new Date();
+      const list = hostData<RemoteSessionListData>(
+        await this.options.link.request({
+          type: 'session/list',
+          scopeRef: { kind: 'all-authorized' },
+          order: 'updated',
+          maxItems: SESSION_LIST_LIMIT,
+          includeArchived: true,
+        }),
+      );
+      if (this.picker !== picker || token !== this.loadToken) return;
+      picker.setRows(
+        buildSessionRows(list.sessions, projects, now),
+        this.options.getCurrentSessionId(),
+        projects,
+      );
+      this.options.requestRender();
+    } catch (error) {
+      if (this.picker !== picker || token !== this.loadToken) return;
+      picker.setError(
+        error instanceof Error && error.message.length > 0 ? error.message : '加载失败',
+      );
+      this.options.requestRender();
+    }
   }
 }
