@@ -42,6 +42,7 @@ import { StatusHint } from './status-hint.js';
 import { QueryListOverlay } from './query-list-overlay.js';
 import { editTextExternally } from './external-editor.js';
 import { PromptHistory } from './prompt-history.js';
+import { TurnNotifier } from './turn-notifier.js';
 import { TuiGlobalKeys } from './tui-global-keys.js';
 import { TuiHostPrompts } from './tui-host-prompts.js';
 import { TuiModalStack } from './tui-modals.js';
@@ -131,6 +132,7 @@ export class TuiApp {
   private readonly modals: TuiModalStack;
   private readonly prompts: TuiHostPrompts;
   private readonly history: PromptHistory;
+  private readonly notifier: TurnNotifier;
   private readonly globalKeys: TuiGlobalKeys;
   private readonly sessionSwitcher: TuiSessionSwitcher;
   private readonly disposers: Array<() => void> = [];
@@ -145,6 +147,7 @@ export class TuiApp {
       this.submit(text).catch((error: unknown) => this.reportError(error));
     };
     this.sessionProjectId = options.projectId;
+    this.notifier = new TurnNotifier({ write: (data) => this.tui.terminal.write(data) });
     this.history = new PromptHistory(options.historyFile);
     for (const entry of this.history.all()) this.editor.addToHistory(entry);
     this.files = new ProjectFiles({
@@ -158,6 +161,7 @@ export class TuiApp {
       modals: this.modals,
       getPathRoots: () => this.currentProjectRoots(),
       isInProject: () => this.sessionProjectId !== undefined,
+      onAttention: (message) => this.notifier.attention(message),
       onError: (error) => this.reportError(error),
     });
     const controllers = createTuiControllers({
@@ -652,6 +656,7 @@ export class TuiApp {
     this.transcriptView.setState(this.transcript);
     this.transcriptView.setPathRoots(this.currentProjectRoots());
     const running = this.foreground.kind === 'active';
+    this.notifier.observeRunning(running);
     const hasLoader = this.activitySlot.children.length > 0;
     if (running) {
       const phase = this.foreground.kind === 'active' ? this.foreground.phase : undefined;

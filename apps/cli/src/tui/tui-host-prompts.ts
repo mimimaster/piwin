@@ -10,6 +10,8 @@ export type TuiHostPromptsOptions = {
   getPathRoots: () => string[];
   /** "Always allow in this project" is only offered inside a project. */
   isInProject: () => boolean;
+  /** A question is waiting: the person may have looked away. */
+  onAttention: (message: string) => void;
   onError: (error: unknown) => void;
 };
 
@@ -28,6 +30,7 @@ export class TuiHostPrompts {
     context?: PermissionRequestContext;
   }): void {
     const { requestId } = request;
+    this.options.onAttention('需要你确认');
     const prompt = describePermissionPrompt(request, this.options.getPathRoots());
     this.options.modals.enqueue(`permission:${requestId}`, () =>
       this.options.modals.show(
@@ -45,6 +48,7 @@ export class TuiHostPrompts {
 
   public askExtension(push: Extract<HostPush, { type: 'extension/ui_request' }>): void {
     const { requestId } = push;
+    this.options.onAttention('需要你回答');
     this.options.modals.enqueue(`extension:${requestId}`, () =>
       this.options.modals.show(
         createExtensionModal(push, (fields) => this.answer({ type: 'extension/ui_resolve', requestId, ...fields })),

@@ -33,6 +33,7 @@ class FakeModals {
 function setup() {
   const sent: HostCommand[] = [];
   const modals = new FakeModals();
+  const onAttention = vi.fn();
   const prompts = new TuiHostPrompts({
     link: {
       request: async (command: HostCommand): Promise<HostResponse> => {
@@ -43,9 +44,10 @@ function setup() {
     modals: modals as unknown as TuiModalStack,
     getPathRoots: () => ['/work/proj'],
     isInProject: () => true,
+    onAttention,
     onError: vi.fn(),
   });
-  return { prompts, modals, sent };
+  return { prompts, modals, sent, onAttention };
 }
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -91,6 +93,12 @@ describe('TuiHostPrompts', () => {
     expect(sent).toEqual([
       { type: 'permission/resolve', requestId: 'r2', decision: 'allow', backendOptionId: 'yes' },
     ]);
+  });
+
+  it('calls the person back when a question arrives', () => {
+    const { prompts, onAttention } = setup();
+    prompts.askPermission({ requestId: 'r5', action: 'bash', detail: 'ls' });
+    expect(onAttention).toHaveBeenCalledWith('需要你确认');
   });
 
   it('drops a question another shell answered before it was shown', () => {
