@@ -14,6 +14,7 @@ test('usage statistics integrates reference USD cost into the existing page', as
   await expect(page.locator('.usage-summary-card')).toHaveCount(4);
   await expect(page.locator('.usage-summary-card').first()).toHaveAttribute('data-testid', 'usage-cost-card');
   await expect(page.getByTestId('usage-cost-total')).toHaveText('$0.38');
+  await expect(page.getByTestId('usage-request-count')).toHaveText('66');
   await expect(page.getByTestId('usage-cost-details')).toHaveCount(0);
   await expect(page.getByTestId('usage-panel')).not.toContainText('mock/gpt-5.2-codex');
 

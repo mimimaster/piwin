@@ -284,6 +284,9 @@ describe('UsagePanel', () => {
     expect(container?.querySelector('[data-testid="usage-total"]')?.textContent).toBe('1.2k');
     expect(container?.querySelector('[data-testid="usage-cache-rate"]')?.textContent).toBe('19%');
     expect(container?.querySelectorAll('.usage-summary-card')).toHaveLength(4);
+    const requestCount = container?.querySelector('[data-testid="usage-request-count"]');
+    expect(requestCount?.textContent).toBe('3');
+    expect(requestCount?.previousElementSibling?.textContent).toBe('请求数');
     expect(
       container?.querySelector('[data-testid="usage-panel"]')?.getAttribute('data-scope'),
     ).toBe('project');

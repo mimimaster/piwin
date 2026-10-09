@@ -326,9 +326,9 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
           </section>
 
           <section className="usage-summary-card">
-            <span className="usage-summary-label">{isZh ? '活动' : 'Activity'}</span>
-            <strong className="usage-summary-value">
-              {formatUsageExact(rollup.entryCount)} {isZh ? '次请求' : 'turns'}
+            <span className="usage-summary-label">{isZh ? '请求数' : 'Requests'}</span>
+            <strong className="usage-summary-value" data-testid="usage-request-count">
+              {formatUsageExact(rollup.entryCount)}
             </strong>
             <dl className="usage-summary-pairs">
               <div>
