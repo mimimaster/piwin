@@ -40,11 +40,16 @@ export type TuiSubagentControllerOptions = {
  * Whether a result may be applied, resolved or cleaned up is the Host's call;
  * this shell shows the Host's `availability` and sends the chosen action.
  */
+/** `unanswered`: sent, the Host has not said which batch it became. `runIds`: batches still running. */
+type FollowUps = { unanswered: number; runIds: Set<string> };
+
 export class TuiSubagentController {
   private children: SubagentChild[] = [];
   private results: SubagentResultSummary[] = [];
   /** Follow-ups this shell sent per child that have not ended yet. */
-  private readonly followUps = new Map<string, number>();
+  private readonly followUps = new Map<string, FollowUps>();
+  /** The batch each child last ended in: a follow-up can end before its answer arrives. */
+  private readonly endedBatches = new Map<string, { runId: string; announced: boolean }>();
 
   public constructor(private readonly options: TuiSubagentControllerOptions) {}
 
@@ -56,6 +61,7 @@ export class TuiSubagentController {
     this.children = [];
     this.results = [];
     this.followUps.clear();
+    this.endedBatches.clear();
   }
 
   /** Best effort: a Host without subagent orchestration simply has none to show. */
@@ -80,7 +86,11 @@ export class TuiSubagentController {
       const previous = this.children.find((child) => child.sessionId === next.sessionId);
       this.children = [...this.children.filter((child) => child.sessionId !== next.sessionId), next];
       const notice = describeChildChange(previous, next, this.settleFollowUp(next));
-      if (notice !== undefined) this.options.onNotice(next.subagentStatus === 'failed' ? 'error' : 'info', notice);
+      if (notice !== undefined) {
+        const ended = this.endedBatches.get(next.sessionId);
+        if (ended !== undefined) ended.announced = true;
+        this.options.onNotice(next.subagentStatus === 'failed' ? 'error' : 'info', notice);
+      }
       this.options.onChanged();
       return true;
     }
@@ -176,33 +186,89 @@ export class TuiSubagentController {
           const text = value.trim();
           if (text.length === 0) return;
           // Counted before sending: the child can settle before the answer arrives.
-          this.adjustFollowUps(childSessionId, 1);
+          this.followUpsOf(childSessionId).unanswered += 1;
           link
             .request({ type: 'subagent/continue', childSessionId, text })
-            .then(hostData)
-            .then(() => this.options.onHint('已发给子代理'))
-            .catch((error: unknown) => {
-              this.adjustFollowUps(childSessionId, -1);
-              this.options.onError(error);
-            });
+            .then((response) => hostData<{ runId?: string }>(response))
+            .then(
+              (data) => {
+                this.followUpAccepted(childSessionId, data.runId);
+                this.options.onHint('已发给子代理');
+              },
+              (error: unknown) => {
+                this.followUpRefused(childSessionId);
+                this.options.onError(error);
+              },
+            );
         },
         onCancel: () => modals.close(),
       }),
     );
   }
 
-  /** True when this update ends a follow-up this shell sent; consumes it. */
+  /**
+   * True when this update ends a follow-up this shell sent; consumes it. A
+   * follow-up is its own batch on the Host, so the child's batch id says
+   * which completion this is; other updates of a finished child do not count.
+   */
   private settleFollowUp(child: SubagentChild): boolean {
     const ended = child.subagentStatus !== undefined && child.subagentStatus !== 'running';
-    if (!ended || (this.followUps.get(child.sessionId) ?? 0) === 0) return false;
-    this.adjustFollowUps(child.sessionId, -1);
+    if (!ended) return false;
+    const follow = this.followUps.get(child.sessionId);
+    const batchRunId = child.subagentBatchRunId;
+    if (batchRunId === undefined) {
+      // A Host that does not name the batch: the next ending is taken as ours.
+      if (follow === undefined) return false;
+      const [oldest] = follow.runIds;
+      if (oldest !== undefined) follow.runIds.delete(oldest);
+      else follow.unanswered -= 1;
+      this.forgetIfSettled(child.sessionId, follow);
+      return true;
+    }
+    this.endedBatches.set(child.sessionId, { runId: batchRunId, announced: false });
+    if (follow === undefined || !follow.runIds.delete(batchRunId)) return false;
+    this.forgetIfSettled(child.sessionId, follow);
     return true;
   }
 
-  private adjustFollowUps(childSessionId: string, delta: number): void {
-    const count = (this.followUps.get(childSessionId) ?? 0) + delta;
-    if (count > 0) this.followUps.set(childSessionId, count);
-    else this.followUps.delete(childSessionId);
+  private followUpsOf(childSessionId: string): FollowUps {
+    let follow = this.followUps.get(childSessionId);
+    if (follow === undefined) {
+      follow = { unanswered: 0, runIds: new Set() };
+      this.followUps.set(childSessionId, follow);
+    }
+    return follow;
+  }
+
+  private forgetIfSettled(childSessionId: string, follow: FollowUps): void {
+    if (follow.unanswered <= 0 && follow.runIds.size === 0) this.followUps.delete(childSessionId);
+  }
+
+  /** The Host answered a follow-up with the batch it started. */
+  private followUpAccepted(childSessionId: string, runId: string | undefined): void {
+    const follow = this.followUpsOf(childSessionId);
+    follow.unanswered -= 1;
+    const ended = this.endedBatches.get(childSessionId);
+    if (runId !== undefined && ended?.runId === runId) {
+      // It ended before this answer arrived; say so now unless the push already did.
+      const child = this.children.find((entry) => entry.sessionId === childSessionId);
+      const notice = child === undefined || ended.announced ? undefined : describeChildChange(child, child, true);
+      if (child !== undefined && notice !== undefined) {
+        this.options.onNotice(child.subagentStatus === 'failed' ? 'error' : 'info', notice);
+      }
+    } else if (runId !== undefined) {
+      follow.runIds.add(runId);
+    } else {
+      // No batch id in the answer: fall back to counting it.
+      follow.unanswered += 1;
+    }
+    this.forgetIfSettled(childSessionId, follow);
+  }
+
+  private followUpRefused(childSessionId: string): void {
+    const follow = this.followUpsOf(childSessionId);
+    follow.unanswered -= 1;
+    this.forgetIfSettled(childSessionId, follow);
   }
 
   /** Cleanup is two-step on the Host: plan it, then spend the plan's token. */

@@ -6,7 +6,10 @@ import type { SessionSummary, SubagentResultSummary } from '@piwin/contracts';
  * Host decides what may be done with a result (`availability`).
  */
 
-export type SubagentChild = Pick<SessionSummary, 'name' | 'subagentStatus' | 'subagentTaskId'> & {
+export type SubagentChild = Pick<
+  SessionSummary,
+  'name' | 'subagentStatus' | 'subagentTaskId' | 'subagentBatchRunId'
+> & {
   sessionId: string;
 };
 
@@ -44,6 +47,7 @@ export function toSubagentChild(summary: SessionSummary & { sessionId?: string }
     ...(summary.name === undefined ? {} : { name: summary.name }),
     ...(summary.subagentStatus === undefined ? {} : { subagentStatus: summary.subagentStatus }),
     ...(summary.subagentTaskId === undefined ? {} : { subagentTaskId: summary.subagentTaskId }),
+    ...(summary.subagentBatchRunId === undefined ? {} : { subagentBatchRunId: summary.subagentBatchRunId }),
   };
 }
 

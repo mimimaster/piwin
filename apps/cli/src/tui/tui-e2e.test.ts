@@ -536,7 +536,8 @@ describe('TUI end to end against a mock Host', () => {
 
   describe('mock Host subagents and file changes', () => {
     it('starts a subagent, shows its result and accepts a follow-up', async () => {
-      tui = await startTuiHarness({ project: true });
+      const shell = await startTuiHarness({ project: true });
+      tui = shell;
       await tui.submit('你好');
       await tui.waitFor('you said: 你好');
       await tui.waitForIdle();
@@ -558,6 +559,12 @@ describe('TUI end to end against a mock Host', () => {
       });
       expect(started.success, JSON.stringify(started).slice(0, 300)).toBe(true);
       await tui.waitFor('子代理「整理文档」已完成');
+      const batchOf = async (): Promise<string | undefined> =>
+        hostData<{ sessions: Array<{ subagentBatchRunId?: string }> }>(
+          await shell.asOtherShell({ type: 'session/list-children', parentSessionId }),
+        ).sessions[0]?.subagentBatchRunId;
+      const firstBatch = await batchOf();
+      expect(firstBatch).toBeDefined();
       tui.mark();
       await tui.submit('/subagents');
       await tui.waitFor('整理文档');
@@ -571,6 +578,9 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('子代理「整理文档」已完成');
       const followedUp = await tui.asOtherShell({ type: 'session/list-children', parentSessionId });
       expect(JSON.stringify(followedUp)).toContain('再补一节安装说明');
+      // The follow-up is its own batch; that id is what the announcement was matched on.
+      expect(await batchOf()).not.toBe(firstBatch);
+      expect(tui.seen().split('子代理「整理文档」已完成')).toHaveLength(2);
     });
 
     it('records a file edit, shows the diff and undoes it', async () => {

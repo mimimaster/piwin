@@ -41,7 +41,7 @@ class FakeModals {
   }
 }
 
-function setup(options: { embedded?: boolean } = {}) {
+function setup(options: { embedded?: boolean; continued?: Promise<{ runId: string }> } = {}) {
   const commands: HostCommand[] = [];
   const reply = (command: HostCommand, data: unknown): HostResponse => ({
     type: 'response',
@@ -62,6 +62,8 @@ function setup(options: { embedded?: boolean } = {}) {
         return reply(command, { additions: 1, deletions: 1, binary: false, patch: '@@ -1 +1 @@\n-old\n+new' });
       case 'subagent/cleanup-plan':
         return reply(command, { token: 'cleanup-token', expiresAt: '' });
+      case 'subagent/continue':
+        return reply(command, options.continued === undefined ? {} : await options.continued);
       default:
         return reply(command, {});
     }
@@ -218,6 +220,51 @@ describe('TuiSubagentController', () => {
     expect(port.onNotice).toHaveBeenCalledWith('info', '子代理「重构存储」已完成 · /subagents 查看');
     controller.handlePush(doneAgain);
     expect(port.onNotice).toHaveBeenCalledTimes(1);
+  });
+
+  /** files, apply, retain, discard, continue; then the instruction. */
+  function sendFollowUp(modals: FakeModals): void {
+    modals.press(ENTER, DOWN, DOWN, DOWN, DOWN, ENTER);
+    for (const character of '补上测试') modals.press(character);
+    modals.press(ENTER);
+  }
+
+  const childDone = (subagentBatchRunId: string) =>
+    ({
+      type: 'subagent/updated',
+      parentSessionId: 'parent',
+      child: { id: 'child-1', name: '重构存储', subagentStatus: 'done', subagentBatchRunId },
+    }) as never;
+
+  it('announces a follow-up by its batch, not by an unrelated update of the finished child', async () => {
+    const { controller, modals, port, settle } = setup({ continued: Promise.resolve({ runId: 'batch-2' }) });
+    await controller.load('parent');
+    controller.open();
+    sendFollowUp(modals);
+    await settle();
+    // The first batch's record is pushed again (a rename, a new summary): not our follow-up.
+    controller.handlePush(childDone('batch-1'));
+    expect(port.onNotice).not.toHaveBeenCalled();
+    controller.handlePush(childDone('batch-2'));
+    expect(port.onNotice).toHaveBeenCalledWith('info', '子代理「重构存储」已完成 · /subagents 查看');
+    controller.handlePush(childDone('batch-2'));
+    expect(port.onNotice).toHaveBeenCalledTimes(1);
+  });
+
+  it('announces a follow-up that ended before the Host answered the request', async () => {
+    let answer: (data: { runId: string }) => void = () => undefined;
+    const continued = new Promise<{ runId: string }>((resolve) => (answer = resolve));
+    const { controller, modals, port, settle } = setup({ continued });
+    await controller.load('parent');
+    controller.open();
+    sendFollowUp(modals);
+    await settle();
+    controller.handlePush(childDone('batch-2'));
+    expect(port.onNotice).not.toHaveBeenCalled();
+    answer({ runId: 'batch-2' });
+    await settle();
+    expect(port.onNotice).toHaveBeenCalledTimes(1);
+    expect(port.onNotice).toHaveBeenCalledWith('info', '子代理「重构存储」已完成 · /subagents 查看');
   });
 
   it('does not offer to open a child conversation when embedded', async () => {

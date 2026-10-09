@@ -419,6 +419,7 @@ export async function persistSubagentSessionStart(
   input: {
     childSessionId: string;
     parentSessionId: string;
+    batchRunId: string;
     runtimeGenerationId: string;
     workingDirectory: string;
     task: SubagentTaskSpec;
@@ -465,6 +466,7 @@ export async function persistSubagentSessionStart(
       ...(input.task.invocationId ? { subagentInvocationId: input.task.invocationId } : {}),
       subagentTaskId: input.task.id,
       ...(input.task.parentRunId ? { subagentParentRunId: input.task.parentRunId } : {}),
+      subagentBatchRunId: input.batchRunId,
       ...(input.task.parentToolCallId
         ? { subagentParentToolCallId: input.task.parentToolCallId }
         : {}),
@@ -497,6 +499,7 @@ export async function persistSubagentSessionStart(
     if (input.task.invocationId) current.subagentInvocationId = input.task.invocationId;
     current.subagentTaskId = input.task.id;
     if (input.task.parentRunId) current.subagentParentRunId = input.task.parentRunId;
+    current.subagentBatchRunId = input.batchRunId;
     if (input.task.parentToolCallId) {
       current.subagentParentToolCallId = input.task.parentToolCallId;
     }

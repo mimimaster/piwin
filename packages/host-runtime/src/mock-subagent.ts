@@ -82,6 +82,7 @@ export function createMockSubagentOrchestrator(host: {
         task: task.task,
         subagentTaskId: task.id,
         subagentParentRunId: runId,
+        subagentBatchRunId: runId,
         ...(task.role === undefined ? {} : { subagentRole: task.role }),
       });
       await upsertSessionRecord(indexPath(), record);
@@ -150,12 +151,15 @@ export function createMockSubagentOrchestrator(host: {
       if (record === undefined || parentSessionId === undefined) {
         throw new Error(`subagent child session not found: ${childSessionId}`);
       }
+      // A follow-up is a new batch, as on the real Host.
+      const runId = randomUUID();
       record.lastPreview = instruction.slice(0, 160);
+      record.subagentBatchRunId = runId;
       record.updatedAt = new Date().toISOString();
       await upsertSessionRecord(indexPath(), record);
       await pushChild(parentSessionId, childSessionId, 'running');
       await pushChild(parentSessionId, childSessionId, 'done');
-      return { runId: randomUUID() };
+      return { runId };
     },
   };
 }

@@ -117,6 +117,7 @@ export class HostRuntimeOrchestrationSurface extends HostRuntimeCommandSurface {
   async persistSubagentSessionStart(input: {
     childSessionId: string;
     parentSessionId: string;
+    batchRunId: string;
     runtimeGenerationId: string;
     workingDirectory: string;
     task: SubagentTaskSpec;

@@ -229,6 +229,7 @@ export function createSessionRecord(input: {
   subagentInvocationId?: string;
   subagentTaskId?: string;
   subagentParentRunId?: string;
+  subagentBatchRunId?: string;
   subagentParentToolCallId?: string;
   subagentMode?: SessionIndexRecord['subagentMode'];
   subagentApplyPolicy?: SessionIndexRecord['subagentApplyPolicy'];
@@ -306,6 +307,9 @@ export function createSessionRecord(input: {
   }
   if (input.subagentParentRunId) {
     record.subagentParentRunId = input.subagentParentRunId;
+  }
+  if (input.subagentBatchRunId) {
+    record.subagentBatchRunId = input.subagentBatchRunId;
   }
   if (input.subagentParentToolCallId) {
     record.subagentParentToolCallId = input.subagentParentToolCallId;

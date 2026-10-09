@@ -152,6 +152,8 @@ export type SubagentOrchestratorOptions = {
   registerTaskSession?: (input: {
     childSessionId: string;
     parentSessionId: string;
+    /** The batch this task belongs to. */
+    batchRunId: string;
     runtimeGenerationId: string;
     workingDirectory: string;
     task: SubagentTaskSpec;

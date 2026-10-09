@@ -528,6 +528,27 @@ describe('SubagentOrchestrator', () => {
     expect(cleanupFinished).toBe(true);
   });
 
+  it('tells the child-session registration which batch the task belongs to', async () => {
+    const backend = makeFakeBackend({});
+    const registeredBatchRunIds: string[] = [];
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push: () => undefined,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+      registerTaskSession: async ({ batchRunId }) => {
+        registeredBatchRunIds.push(batchRunId);
+      },
+    });
+
+    const result = await orchestrator.runBatch(makeBatch([makeTask({ id: 'batch-identity' })]));
+
+    expect(registeredBatchRunIds).toEqual([result.runId]);
+  });
+
   it('terminalizes an allocated child when task preparation fails', async () => {
     const backend = makeFakeBackend({});
     const persistedResults: Array<{

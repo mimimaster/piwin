@@ -377,6 +377,12 @@ export type SessionSummary = {
   subagentTaskId?: string;
   /** Parent foreground Run that emitted the delegation. */
   subagentParentRunId?: string;
+  /**
+   * Run of the subagent batch that drives this child now, or drove it last.
+   * A follow-up is a new batch, so a shell tells its completion apart from
+   * the previous one by this id.
+   */
+  subagentBatchRunId?: string;
   /** Generation-normalized parent tool call anchoring the inline block. */
   subagentParentToolCallId?: string;
   /** ISO time when child summary was merged into parent transcript. */
