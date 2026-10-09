@@ -31,6 +31,8 @@ A Host tool is callable only when its registration says `readOnly: true`, its fa
 
 MCP tools are callable from a script only when the server's `tools/list` sets `annotations.readOnlyHint` to true. A missing hint is denied in scripts. Ordinary MCP calls outside a script stay config-trusted and do not open a new permission prompt. Script search and describe hide the same unhinted tools.
 
+Read-only admission relies on Host registration and upstream MCP `readOnlyHint` declarations; these are not OS isolation or a guarantee that third-party implementations cannot mutate.
+
 `piwin_codemode` cannot call itself.
 
 ## Results

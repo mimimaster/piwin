@@ -10,12 +10,13 @@ import {
   WorkerSessionBackend,
   type PiSessionBackend,
 } from '@piwin/agent-host';
-import type {
-  AgentEvent,
-  HostToolExecutionContext,
-  HostToolExecutionInput,
-  HostToolExecutionResult,
-  HostToolRegistration,
+import {
+  createDefaultCodemodeConfig,
+  type AgentEvent,
+  type HostToolExecutionContext,
+  type HostToolExecutionInput,
+  type HostToolExecutionResult,
+  type HostToolRegistration,
 } from '@piwin/contracts';
 import { compileBlueprintForWorker } from '../blueprint-compiler.js';
 import { createDefaultPiwinConfig } from '../config-store.js';
@@ -125,8 +126,8 @@ export async function openCodemodeBackend(mode: Mode, code: string, enabled = tr
   const inputs: HostToolExecutionInput[] = [];
   const results: Array<{ input: HostToolExecutionInput; result: HostToolExecutionResult }> = [];
   const contexts: HostToolExecutionContext[] = [];
-  let resolveStarted!: () => void;
-  let resolveAborted!: () => void;
+  let resolveStarted: (() => void) | undefined;
+  let resolveAborted: (() => void) | undefined;
   const started = new Promise<void>((resolve) => { resolveStarted = resolve; });
   const aborted = new Promise<void>((resolve) => { resolveAborted = resolve; });
   // Transparent observer, never an alternative executor. Nested and backend calls
@@ -168,7 +169,7 @@ export async function openCodemodeBackend(mode: Mode, code: string, enabled = tr
       providers: [{ id: MODEL.providerId, name: 'Local fixture', protocol: MODEL.protocol,
         baseUrl: model.baseUrl, apiKeyRef: 'test-only-key',
         models: [{ id: MODEL.modelId, label: 'Fixture', input: ['text' as const], reasoning: false }] }],
-      codemode: { ...createDefaultPiwinConfig().codemode!, enabled, timeoutMs: 15_000, maxConcurrency: 1 },
+      codemode: { ...createDefaultCodemodeConfig(), enabled, timeoutMs: 15_000, maxConcurrency: 1 },
     };
     const composed = await buildSessionHostTools({
       sessionId: SESSION, runtimeGenerationId: GENERATION, piwinRoot: root, projectPath: project,
@@ -194,11 +195,13 @@ export async function openCodemodeBackend(mode: Mode, code: string, enabled = tr
       }),
       readTool('fixture_wait', async (_args, signal, context) => {
         contexts.push(context);
+        if (!resolveStarted || !resolveAborted) throw new Error('fixture resolvers not initialized');
+        const notifyAborted = resolveAborted;
         resolveStarted();
         return new Promise((resolve) => {
           const onAbort = () => {
             signal.removeEventListener('abort', onAbort);
-            resolveAborted();
+            notifyAborted();
             resolve({ ok: false, code: 'aborted', message: 'fixture read aborted', cancelled: true });
           };
           if (signal.aborted) onAbort();
