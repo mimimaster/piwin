@@ -50,7 +50,7 @@ M0 的 13 个提交审查后留下的问题。已做的留一行记录，没做�
 | M1-3 | 归档/删除 | 已做：`/archive` 后 `/unarchive` 撤销；删除需输入标题确认；运行中禁删并说明原因；选择器 `^X` 归档、`^D` 删已归档；内嵌模式不开放选择器 |
 | M1-4 | 导出 `/export [md|json] [path]` | 已做：`md`/`json`/`html` 走 `session/export`；JSON schema `piwin.session-transcript.v1`；默认 Host exports 目录并打印路径；`--all-branches` 暂提示未支持（当前叶子） |
 | M1-5 | 跨会话全文搜索 `/search` | 已做：TUI `/search` 与 `piwin session[s] search` 共用 Host `session/search`（index+transcript 扫描）；回车打开会话；SQLite FTS 升级仍属 Host 侧既有 W1 实现 |
-| M1-6 | 嵌入联动：TUI 新建会话即成为 Desktop 当前会话；Desktop 切换会话不结束 TUI、TUI 跟随 | e2e：两端各切一次，状态一致、无重复订阅/泄漏 |
+| M1-6 | 嵌入联动：TUI 新建会话即成为 Desktop 当前会话；Desktop 切换会话不结束 TUI、TUI 跟随 | 未做：Desktop→TUI 已有 TuiPane `key=sessionId` 重启跟随；TUI 建会话→Desktop `session/set` 仍缺（需改 Desktop 在 tui surface 下认 `session/index-updated` created，主工作区 Desktop 有无关脏改） |
 | M1-7 | `--continue` / `--resume <id>` 启动参数 | 已做：`-c`/`--continue` 续最近；`-r`/`--resume [id]` 有 id 打开该会话、无参打开选择器 |
 
 ## M2 会话内体验（对标 Claude Code / opencode）
