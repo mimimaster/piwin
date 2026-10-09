@@ -16,6 +16,7 @@ function actions(overrides: Partial<SessionPickerActions> = {}): SessionPickerAc
     onRename: () => undefined,
     onPin: () => undefined,
     onArchive: () => undefined,
+    onDelete: () => undefined,
     onClose: () => undefined,
     ...overrides,
   };

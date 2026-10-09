@@ -82,6 +82,9 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     fork: (argument) => turns.fork(argument),
     rename: (argument) => deps.renameSession(argument),
     pin: () => deps.sessionSwitcher.toggleCurrentPin(),
+    archive: () => deps.sessionSwitcher.archiveCurrent(),
+    unarchive: () => deps.sessionSwitcher.unarchiveLastOrCurrent(),
+    delete: () => deps.sessionSwitcher.deleteCurrent(),
     older: () => deps.loadOlderMessages(),
     help: () =>
       deps.notice(

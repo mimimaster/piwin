@@ -80,6 +80,53 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('改过名的会话');
     });
 
+    it('archives with /archive and undoes with /unarchive', async () => {
+      tui = await startTuiHarness();
+      await converse(tui, '要归档的内容');
+      tui.mark();
+      await tui.submit('/rename 可撤销归档');
+      await tui.waitFor('可撤销归档 ·');
+      tui.mark();
+      await tui.submit('/archive');
+      await tui.waitFor('已归档「可撤销归档」');
+      await tui.waitFor('/unarchive 可撤销');
+      tui.mark();
+      await tui.submit('/unarchive');
+      await tui.waitFor('已取消归档「可撤销归档」');
+    });
+
+    it('deletes only after the title is typed, and refuses while a turn is running', async () => {
+      tui = await startTuiHarness({ hangingRuns: true });
+      await tui.submit('会一直跑');
+      await tui.waitFor('Esc 中断');
+      tui.mark();
+      await tui.submit('/rename 运行中会话');
+      await tui.waitFor('运行中会话 ·');
+      tui.mark();
+      await tui.submit('/delete');
+      await tui.waitFor('会话正在运行，无法删除');
+      tui.mark();
+      await tui.press(KEY.escape);
+      await tui.waitFor('已中断');
+      await tui.waitForIdle();
+      tui.mark();
+      await tui.submit('/archive');
+      await tui.waitFor('已归档「运行中会话」');
+      tui.mark();
+      await tui.submit('/delete');
+      await tui.waitFor('输入会话标题确认删除');
+      tui.mark();
+      await tui.submit('写错了');
+      await tui.waitFor('标题不匹配');
+      tui.mark();
+      await tui.submit('/delete');
+      await tui.waitFor('输入会话标题确认删除');
+      await tui.submit('运行中会话');
+      await tui.waitFor('已永久删除「运行中会话」');
+      // Notice keeps the transcript non-empty; the status line shows a draft.
+      await tui.waitFor('新会话 ·');
+    });
+
     it('pins and unpins the current session with /pin', async () => {
       tui = await startTuiHarness();
       await converse(tui, '要置顶的话');

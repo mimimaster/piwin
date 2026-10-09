@@ -30,7 +30,9 @@ export type SessionPickerActions = {
   onRename: (sessionId: string, name: string) => void;
   /** Toggle pin; `pinned` is the row's state before the toggle. */
   onPin: (sessionId: string, pinned: boolean) => void;
-  onArchive: (sessionId: string, archived: boolean) => void;
+  onArchive: (sessionId: string, archived: boolean, title: string) => void;
+  /** Permanent delete; only offered for archived rows. */
+  onDelete: (sessionId: string, title: string) => void;
   onClose: () => void;
 };
 
@@ -136,10 +138,19 @@ export class SessionPicker implements Component, Focusable {
       if (selected === undefined) return;
       if (this.archiveArmedFor === selected.sessionId) {
         this.archiveArmedFor = undefined;
-        this.actions.onArchive(selected.sessionId, selected.archived);
+        this.actions.onArchive(selected.sessionId, selected.archived, selected.title);
       } else {
         this.archiveArmedFor = selected.sessionId;
       }
+    } else if (matchesKey(data, Key.ctrl('d'))) {
+      // Global Ctrl+D exits only when no overlay is open; here it means delete.
+      if (selected === undefined) return;
+      if (!selected.archived) {
+        // Archive-first: arm the same confirm path as Ctrl+X rather than force-delete.
+        this.archiveArmedFor = selected.sessionId;
+        return;
+      }
+      this.actions.onDelete(selected.sessionId, selected.title);
     } else if (matchesKey(data, Key.ctrl('t'))) {
       // Ctrl+P is the project filter; Ctrl+T toggles 置顶 (top).
       if (selected !== undefined) this.actions.onPin(selected.sessionId, selected.pinned);
@@ -190,8 +201,9 @@ export class SessionPicker implements Component, Focusable {
     }
     const archiveKey = selected?.archived === true ? '取消归档' : '归档';
     const pinKey = selected?.pinned === true ? '取消置顶' : '置顶';
+    const deleteKey = selected?.archived === true ? ' · ^D 删除' : '';
     const archivedKey = this.archivedExpanded ? '折叠' : '展开归档';
-    return `Enter 打开 · ^N 新建 · ^R 重命名 · ^T ${pinKey} · ^X ${archiveKey} · ^P 项目 · Tab ${archivedKey} · Esc`;
+    return `Enter 打开 · ^N 新建 · ^R 重命名 · ^T ${pinKey} · ^X ${archiveKey}${deleteKey} · ^P 项目 · Tab ${archivedKey} · Esc`;
   }
 
   private renderList(inner: number): string[] {
