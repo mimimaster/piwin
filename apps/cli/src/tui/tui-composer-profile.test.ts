@@ -23,7 +23,7 @@ class FakeModals {
   }
 }
 
-async function loadedProfile(config: Record<string, unknown>) {
+async function loadedProfile(config: Record<string, unknown>, agentId?: string) {
   const request = async (command: HostCommand): Promise<HostResponse> => ({
     type: 'response',
     command: command.type,
@@ -31,18 +31,34 @@ async function loadedProfile(config: Record<string, unknown>) {
     data: command.type === 'models/configured' ? { models: MODELS } : { config },
   });
   const modals = new FakeModals();
+  const onHint = vi.fn();
   const profile = new TuiComposerProfile({
     link: { request } as unknown as TuiHostLink,
     modals: modals as unknown as TuiModalStack,
     getSessionId: () => 's1',
+    getAgentId: () => agentId,
     onChanged: vi.fn(),
-    onHint: vi.fn(),
+    onHint,
     onError: vi.fn(),
   });
   await profile.loadModels();
   await profile.loadHostPermissionPreset();
-  return { profile, modals };
+  return { profile, modals, onHint };
 }
+
+describe('TuiComposerProfile on an external agent session', () => {
+  it('leaves model and thinking to the agent and says so', async () => {
+    const { profile, modals, onHint } = await loadedProfile({}, 'grok');
+    profile.openModelPicker();
+    profile.openThinkingPicker();
+    profile.openPermissionPicker();
+    profile.cyclePermissionPreset();
+    expect(modals.current).toBeUndefined();
+    expect(onHint).toHaveBeenCalledWith('「grok」会话的模型由该 agent 自己管理，这里不能改');
+    expect(onHint).toHaveBeenCalledWith('「grok」会话的思考强度由该 agent 自己管理，这里不能改');
+    expect(onHint).toHaveBeenCalledWith('「grok」会话的权限模式由该 agent 自己管理，这里不能改');
+  });
+});
 
 describe('TuiComposerProfile default model', () => {
   it('names the Host default instead of a generic label', async () => {

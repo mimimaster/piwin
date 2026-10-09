@@ -8,7 +8,7 @@ export type TuiSlashCommand = {
 
 export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'sessions', description: '切换、搜索、重命名、归档会话', standaloneOnly: true },
-  { name: 'new', description: '开始新会话', standaloneOnly: true },
+  { name: 'new', description: '开始新会话；/new grok 用外部 agent 开始', standaloneOnly: true },
   { name: 'model', description: '选择模型' },
   { name: 'thinking', description: '选择思考强度' },
   { name: 'permission', description: '选择权限模式（询问 / 自动 / 放行）' },

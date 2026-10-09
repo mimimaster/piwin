@@ -18,6 +18,9 @@ import type { TuiRewindController } from './tui-rewind-controller.js';
 import type { TuiUsageController } from './tui-usage-controller.js';
 import type { TuiWalkthroughController } from './tui-walkthrough-controller.js';
 
+/** Lowercase backend id, as the CLI's `--agent` takes. */
+const AGENT_ID = /^[a-z][a-z0-9-]*$/;
+
 type CommandHandler = (argument: string) => void | Promise<void>;
 
 export type TuiCommandTableDeps = {
@@ -41,7 +44,7 @@ export type TuiCommandTableDeps = {
   sessionSwitcher: TuiSessionSwitcher;
   sessionExport: TuiSessionExport;
   sessionSearch: TuiSessionSearch;
-  startDraftSession: () => void;
+  startDraftSession: (agentId?: string) => void;
   loadOlderMessages: () => Promise<void>;
   /** With a name: rename now. Without: ask for one. */
   renameSession: (name: string) => Promise<void>;
@@ -61,7 +64,14 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
 
   const handlers: Record<string, CommandHandler> = {
     sessions: standaloneOnly(() => deps.sessionSwitcher.open()),
-    new: standaloneOnly(() => deps.startDraftSession()),
+    new: standaloneOnly((argument) => {
+      const agentId = argument.trim().toLowerCase();
+      if (agentId.length > 0 && !AGENT_ID.test(agentId)) {
+        deps.hint('用法：/new [agent]，agent 是小写的后端 id，例如 grok；pi 为默认');
+        return;
+      }
+      deps.startDraftSession(agentId.length === 0 ? undefined : agentId);
+    }),
     model: () => composer.openModelPicker(),
     thinking: () => composer.openThinkingPicker(),
     permission: () => composer.openPermissionPicker(),

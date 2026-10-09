@@ -6,6 +6,7 @@ import type { RemoteProjectSummary, RemoteSessionListData } from '@piwin/contrac
 import { getPiwinRoot } from '@piwin/host-runtime';
 import { parseMock, readOption } from '../cli-args.js';
 import { promptHistoryFile } from './prompt-history.js';
+import { parseCliAgent } from '../external-agent-cli.js';
 import { TuiApp } from './tui-app.js';
 import { loadTuiConfig } from './tui-config.js';
 import { hostData, openTuiHostLink, type TuiHostLink } from './tui-host-link.js';
@@ -13,7 +14,7 @@ import { resolveTuiLaunchScope } from './tui-launch-scope.js';
 import { resolveTuiLaunchSessionIntent } from './tui-launch-session.js';
 
 export const TUI_USAGE =
-  'Usage: piwin tui [--session <id>] [--continue|-c] [--resume|-r [id]] [--project <projectId> | --project-path <dir>] [--embedded] [--mock]';
+  'Usage: piwin tui [--session <id>] [--continue|-c] [--resume|-r [id]] [--project <projectId> | --project-path <dir>] [--embedded] [--agent <id>] [--mock]';
 
 /**
  * `piwin tui`: the interactive terminal shell. Attaches to `PIWIN_HOST_URL`
@@ -26,6 +27,12 @@ export async function commandTui(argv: string[]): Promise<void> {
     return;
   }
   const mock = parseMock(argv);
+  const agent = parseCliAgent(argv);
+  if (typeof agent === 'object') {
+    console.error(agent.error);
+    process.exitCode = 1;
+    return;
+  }
   const embedded = argv.includes('--embedded');
   const restoreConsole = redirectConsoleToLog();
   let link: TuiHostLink;
@@ -70,6 +77,7 @@ export async function commandTui(argv: string[]): Promise<void> {
         embedded,
         mock,
         openSessionPicker,
+        ...(agent === 'pi' ? {} : { agentId: agent }),
         historyFile: promptHistoryFile(getPiwinRoot(), projectId),
         config,
         ...(startNotice.length === 0 ? {} : { startNotice }),

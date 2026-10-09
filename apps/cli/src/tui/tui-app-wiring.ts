@@ -41,6 +41,7 @@ export type TuiWiringPort = {
   openFile?: FileOpener;
   getSessionId: () => string | undefined;
   getRunId: () => string | undefined;
+  getAgentId: () => string | undefined;
   getTranscript: () => TranscriptState;
   /** Replaces the transcript; it does not redraw. */
   updateTranscript: (update: (transcript: TranscriptState) => TranscriptState) => void;
@@ -53,7 +54,7 @@ export type TuiWiringPort = {
   isRunning: () => boolean;
   ensureSession: () => Promise<string>;
   openSession: (sessionId: string) => Promise<void>;
-  startDraftSession: () => void;
+  startDraftSession: (agentId?: string) => void;
   /** A prompt was accepted: show activity before the run push arrives. */
   onTurnAccepted: (sessionId: string) => Promise<void>;
   renameSession: (sessionId: string, name: string) => Promise<void>;
@@ -101,6 +102,7 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     link: port.link,
     modals: port.modals,
     getSessionId: port.getSessionId,
+    getAgentId: port.getAgentId,
     onChanged: port.refresh,
     onHint: port.hint,
     onError: port.error,
@@ -198,7 +200,7 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     getProjects: port.getProjects,
     getCurrentSessionId: port.getSessionId,
     onOpen: openSessionQuietly,
-    onNew: port.startDraftSession,
+    onNew: () => port.startDraftSession(),
     onRename: port.renameSession,
     onError: port.error,
     onHint: port.hint,

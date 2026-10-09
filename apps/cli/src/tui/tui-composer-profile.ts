@@ -31,6 +31,8 @@ export type TuiComposerProfileOptions = {
   link: TuiHostLink;
   modals: TuiModalStack;
   getSessionId: () => string | undefined;
+  /** Backend of the session on screen; absent is Pi. */
+  getAgentId: () => string | undefined;
   /** A choice changed what the status line should say. */
   onChanged: () => void;
   onHint: (text: string) => void;
@@ -161,6 +163,14 @@ export class TuiComposerProfile {
     return { model: this.describeModel(), ...(thinking === undefined ? {} : { thinking }) };
   }
 
+  /** An external agent keeps its own models and effort; piwin's lists would only mislead. */
+  private refuseForBackend(what: string): boolean {
+    const agentId = this.options.getAgentId();
+    if (agentId === undefined) return false;
+    this.options.onHint(`「${agentId}」会话的${what}由该 agent 自己管理，这里不能改`);
+    return true;
+  }
+
   private describeModel(): string {
     if (this.model !== undefined) return this.model.label ?? this.model.modelId;
     const fallback = this.hostDefaultModel();
@@ -179,6 +189,7 @@ export class TuiComposerProfile {
 
   public openModelPicker(): void {
     const { modals } = this.options;
+    if (this.refuseForBackend('模型')) return;
     if (this.models.length === 0) {
       this.options.onHint('Host 没有已配置的模型');
       return;
@@ -208,6 +219,7 @@ export class TuiComposerProfile {
 
   public openThinkingPicker(): void {
     const { modals } = this.options;
+    if (this.refuseForBackend('思考强度')) return;
     modals.show(
       new ChoiceOverlay({
         title: '思考强度',
@@ -226,6 +238,7 @@ export class TuiComposerProfile {
 
   public openPermissionPicker(): void {
     const { modals } = this.options;
+    if (this.refuseForBackend('权限模式')) return;
     modals.show(
       new ChoiceOverlay({
         title: '权限模式',
@@ -243,6 +256,7 @@ export class TuiComposerProfile {
   }
 
   public cyclePermissionPreset(): void {
+    if (this.refuseForBackend('权限模式')) return;
     this.permissionPreset = nextPermissionPreset(this.permissionPreset);
     this.options.onChanged();
   }

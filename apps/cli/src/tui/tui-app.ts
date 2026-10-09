@@ -83,6 +83,8 @@ export type TuiAppOptions = {
   onExit: () => void;
   /** Keys and status line from the person's own settings; defaults when absent. */
   config?: Pick<TuiConfig, 'keybindings' | 'statusTemplate'>;
+  /** External agent for new sessions (`--agent`); Pi when absent. */
+  agentId?: string;
   /** Where this project's sent prompts are kept; absent keeps them for this run only. */
   historyFile?: string;
   /** How an exported artifact page reaches a browser; the system opener by default. */
@@ -137,6 +139,10 @@ export class TuiApp {
   private readonly modals: TuiModalStack;
   private readonly prompts: TuiHostPrompts;
   private readonly history: PromptHistory;
+  /** Backend the next new session gets; absent is Pi. */
+  private draftAgentId: string | undefined;
+  /** Backend of the session on screen; absent is Pi. */
+  private sessionAgentId: string | undefined;
   private readonly keybindings: Keybindings;
   private readonly notifier: TurnNotifier;
   private readonly globalKeys: TuiGlobalKeys;
@@ -155,6 +161,8 @@ export class TuiApp {
     };
     this.sessionProjectId = options.projectId;
     this.notifier = new TurnNotifier({ write: (data) => this.tui.terminal.write(data) });
+    this.draftAgentId = options.agentId === 'pi' ? undefined : options.agentId;
+    this.sessionAgentId = this.draftAgentId;
     this.history = new PromptHistory(options.historyFile);
     for (const entry of this.history.all()) this.editor.addToHistory(entry);
     this.files = new ProjectFiles({
@@ -182,6 +190,7 @@ export class TuiApp {
       ...(options.openFile === undefined ? {} : { openFile: options.openFile }),
       getSessionId: () => this.sessionId,
       getRunId: () => knownForegroundRunId(this.foreground),
+      getAgentId: () => this.sessionAgentId,
       getTranscript: () => this.transcript,
       updateTranscript: (update) => {
         this.transcript = update(this.transcript);
@@ -196,7 +205,7 @@ export class TuiApp {
       isRunning: () => this.isRunning(),
       ensureSession: () => this.ensureSession(),
       openSession: (sessionId) => this.openSession(sessionId),
-      startDraftSession: () => this.startDraftSession(),
+      startDraftSession: (agentId) => this.startDraftSession(agentId),
       onTurnAccepted: async (sessionId) => {
         if (this.isRunning() || sessionId !== this.sessionId) return;
         // Show activity immediately; the run/updated push supplies the real run id.
@@ -325,12 +334,14 @@ export class TuiApp {
     if (epoch !== this.sessionEpoch) return;
     this.sessionId = sessionId;
     this.sessionName = resume.name;
+    const indexed = await this.lookUpIndexedSession(sessionId);
     this.sessionProjectId =
       resume.scope === 'project'
-        ? ((await this.lookUpSessionProjectId(sessionId)) ??
+        ? (indexed?.projectId ??
           // A side chat is not in the session index; it lives in its source's project.
           (this.sideChat.sourceSessionOf(sessionId) === previous.sessionId ? previous.projectId : undefined))
         : undefined;
+    this.sessionAgentId = indexed?.agentId;
     if (epoch !== this.sessionEpoch) return;
     this.transcript = transcriptFromMessages(resume.messages);
     this.olderCursor = resume.transcriptPage?.olderCursor;
@@ -364,8 +375,10 @@ export class TuiApp {
     }
   }
 
-  /** The resume payload says "project" but not which one; the index does. */
-  private async lookUpSessionProjectId(sessionId: string): Promise<string | undefined> {
+  /** The resume payload says "project" but not which one, nor which agent; the index does. */
+  private async lookUpIndexedSession(
+    sessionId: string,
+  ): Promise<{ projectId?: string; agentId?: string } | undefined> {
     const response = await this.link.request({
       type: 'session/list',
       scopeRef: { kind: 'all-authorized' },
@@ -374,11 +387,19 @@ export class TuiApp {
       includeArchived: true,
     });
     if (!response.success) return undefined;
-    return (response.data as RemoteSessionListData).sessions.find((session) => session.sessionId === sessionId)
-      ?.projectId;
+    const session = (response.data as RemoteSessionListData).sessions.find((item) => item.sessionId === sessionId);
+    if (session === undefined) return undefined;
+    const agentId = session.backend?.agentId;
+    return {
+      ...(session.projectId === undefined ? {} : { projectId: session.projectId }),
+      ...(agentId === undefined || agentId === 'pi' ? {} : { agentId }),
+    };
   }
 
-  private startDraftSession(): void {
+  /** `agentId` picks the backend of the session this draft becomes; absent keeps the launch choice. */
+  private startDraftSession(agentId?: string): void {
+    this.draftAgentId = agentId === undefined ? this.options.agentId : agentId === 'pi' ? undefined : agentId;
+    this.sessionAgentId = this.draftAgentId;
     this.sessionEpoch += 1;
     this.conversation = {};
     this.sessionId = undefined;
@@ -437,7 +458,7 @@ export class TuiApp {
           ...(this.projectId === undefined
             ? { scope: { kind: 'general' as const } }
             : { projectId: this.projectId }),
-          ...(model === undefined ? {} : { model }),
+          ...(this.draftAgentId === undefined ? (model === undefined ? {} : { model }) : { agentId: this.draftAgentId }),
         },
       }),
     );
@@ -448,6 +469,7 @@ export class TuiApp {
     }
     this.sessionEpoch += 1;
     this.sessionId = created.sessionId;
+    this.sessionAgentId = this.draftAgentId;
     this.foreground = { kind: 'idle', generation: (this.foregroundGeneration += 1) };
     await this.link.client.updateSubscriptions([created.sessionId]);
     return created.sessionId;
@@ -713,9 +735,10 @@ export class TuiApp {
     const arranged = renderStatusTemplate(this.options.config?.statusTemplate ?? DEFAULT_STATUS_TEMPLATE, {
       session: this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),
       project: scope,
-      model,
-      thinking,
-      permission,
+      agent: this.sessionAgentId,
+      model: this.sessionAgentId === undefined ? model : undefined,
+      thinking: this.sessionAgentId === undefined ? thinking : undefined,
+      permission: this.sessionAgentId === undefined ? permission : undefined,
       skill,
       activity: activity.length === 0 ? undefined : activity.join(' · '),
       context: usage,

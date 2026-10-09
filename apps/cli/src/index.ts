@@ -72,7 +72,7 @@ Usage:
   piwin status [--project <path>] [--session <id>] [--mock]
   piwin -p <text> [chat options]    (same as chat; stdin is appended to the prompt)
   piwin chat <text> [--project <path>] [--mode sdk|rpc] [--agent pi|grok] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass|unrestricted] [--scheme <id>] [--ref <path>…] [--output-format text|json|stream-json]
-  piwin tui [--session <id>] [--continue|-c] [--resume|-r [id]] [--project <projectId> | --project-path <dir>] [--embedded] [--mock]
+  piwin tui [--session <id>] [--continue|-c] [--resume|-r [id]] [--project <projectId> | --project-path <dir>] [--embedded] [--agent <id>] [--mock]
   piwin scheme list [--mock]
   piwin scheme show <id> [--mock]
   piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass|unrestricted]

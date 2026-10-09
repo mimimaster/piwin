@@ -1,4 +1,5 @@
 export const STATUS_FIELDS = [
+  'agent',
   'session',
   'project',
   'model',
@@ -11,7 +12,7 @@ export const STATUS_FIELDS = [
 ] as const;
 export type StatusField = (typeof STATUS_FIELDS)[number];
 
-export const DEFAULT_STATUS_TEMPLATE = '{session} · {project} · {model} · {thinking} · {permission} · {skill} · {activity} · {context} · {mock}';
+export const DEFAULT_STATUS_TEMPLATE = '{agent} · {session} · {project} · {model} · {thinking} · {permission} · {skill} · {activity} · {context} · {mock}';
 
 const SEPARATOR = ' · ';
 const PLACEHOLDER = /\{([a-zA-Z]+)\}/g;

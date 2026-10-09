@@ -182,6 +182,22 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('新会话 ·');
     });
 
+    it('starts a draft for an external agent with /new, and back on Pi with /new pi', async () => {
+      tui = await startTuiHarness();
+      tui.mark();
+      await tui.submit('/new grok');
+      await tui.waitFor('grok · 新会话');
+      await tui.submit('/model');
+      await tui.waitFor('由该 agent 自己管理');
+      tui.mark();
+      await tui.submit('/new pi');
+      await tui.waitFor('新会话 ·');
+      expect(tui.seen()).not.toContain('grok ·');
+      tui.mark();
+      await tui.submit('/new Not An Agent');
+      await tui.waitFor('用法：/new [agent]');
+    });
+
     it('pins and unpins the current session with /pin', async () => {
       tui = await startTuiHarness();
       await converse(tui, '要置顶的话');
