@@ -148,6 +148,7 @@ export class TuiApp {
   private draftAgentId: string | undefined;
   /** Backend of the session on screen; absent is Pi. */
   private sessionAgentId: string | undefined;
+  private sessionArchived = false;
   private readonly keybindings: Keybindings;
   private readonly notifier: TurnNotifier;
   private readonly globalKeys: TuiGlobalKeys;
@@ -347,6 +348,7 @@ export class TuiApp {
           (this.sideChat.sourceSessionOf(sessionId) === previous.sessionId ? previous.projectId : undefined))
         : undefined;
     this.sessionAgentId = indexed?.agentId;
+    this.sessionArchived = indexed?.archived === true;
     if (epoch !== this.sessionEpoch) return;
     this.transcript = transcriptFromMessages(resume.messages);
     this.olderCursor = resume.transcriptPage?.olderCursor;
@@ -384,7 +386,7 @@ export class TuiApp {
   /** The resume payload says "project" but not which one, nor which agent; the index does. */
   private async lookUpIndexedSession(
     sessionId: string,
-  ): Promise<{ projectId?: string; agentId?: string } | undefined> {
+  ): Promise<{ projectId?: string; agentId?: string; archived?: boolean } | undefined> {
     const response = await this.link.request({
       type: 'session/list',
       scopeRef: { kind: 'all-authorized' },
@@ -399,6 +401,7 @@ export class TuiApp {
     return {
       ...(session.projectId === undefined ? {} : { projectId: session.projectId }),
       ...(agentId === undefined || agentId === 'pi' ? {} : { agentId }),
+      ...(session.archived === true ? { archived: true } : {}),
     };
   }
 
@@ -406,6 +409,19 @@ export class TuiApp {
   /** Embedded in Desktop's terminal: say which session is on screen, so Desktop follows it. */
   private announceSession(sessionId: string): void {
     if (this.options.embedded) this.tui.terminal.write(formatTuiSessionAnnouncement(sessionId));
+  }
+
+  /** The open session was archived, restored or deleted from another shell. */
+  private followIndexChange(sessionId: string, op: string): void {
+    if (sessionId !== this.sessionId) return;
+    if (op === 'archived' || op === 'unarchived') {
+      this.sessionArchived = op === 'archived';
+      this.refreshChrome();
+    } else if (op === 'deleted') {
+      this.startDraftSession();
+      this.transcript = appendNotice(this.transcript, 'info', '这个会话在别处被删除了，已回到新会话');
+      this.refreshChrome(true);
+    }
   }
 
   /** An answer began with no prompt before it: another shell sent it, and its text is only in the durable page. */
@@ -430,6 +446,7 @@ export class TuiApp {
   private startDraftSession(agentId?: string): void {
     this.draftAgentId = agentId === undefined ? this.options.agentId : agentId === 'pi' ? undefined : agentId;
     this.sessionAgentId = this.draftAgentId;
+    this.sessionArchived = false;
     this.sessionEpoch += 1;
     this.conversation = {};
     this.sessionId = undefined;
@@ -500,6 +517,7 @@ export class TuiApp {
     this.sessionEpoch += 1;
     this.sessionId = created.sessionId;
     this.sessionAgentId = this.draftAgentId;
+    this.sessionArchived = false;
     this.announceSession(created.sessionId);
     this.foreground = { kind: 'idle', generation: (this.foregroundGeneration += 1) };
     await this.link.client.updateSubscriptions([created.sessionId]);
@@ -685,6 +703,7 @@ export class TuiApp {
         return;
       case 'session/index-updated':
         this.sessionSwitcher.refresh();
+        this.followIndexChange(push.sessionId, push.op);
         return;
       case 'session/context-updated':
         if (push.sessionId === this.sessionId) {
@@ -760,6 +779,7 @@ export class TuiApp {
       this.statusHint.text,
       this.sender.describe(),
       this.connected ? undefined : '重连中…',
+      this.sessionArchived ? '已归档 · /unarchive 恢复' : undefined,
       this.attachments.describe(),
       this.sideChat.describe(),
       this.editingMessageId === undefined ? undefined : '改写上一条提问 · Ctrl+C 取消',

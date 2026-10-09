@@ -1,4 +1,5 @@
 import { formatTokens } from './context-report.js';
+import { describeHostFailure } from './host-failure-text.js';
 import type {
   AgentEvent,
   AgentMessageRole,
@@ -220,7 +221,7 @@ export function applyAgentEvent(state: TranscriptState, event: AgentEvent): Tran
     case 'session/aborted':
       return appendNoticeOnce(settleStreaming(state), 'info', '已中断');
     case 'error':
-      return appendNoticeOnce(settleStreaming(state), 'error', event.message);
+      return appendNoticeOnce(settleStreaming(state), 'error', describeHostFailure(event.message));
     case 'model/retry':
       if (event.phase !== 'waiting') return state;
       return appendNotice(

@@ -753,6 +753,37 @@ describe('TUI end to end against a mock Host', () => {
       await shell.waitForIdle();
     });
 
+    it('shows that the open session was archived elsewhere, and clears it when restored', async () => {
+      const shell = await startTuiHarness();
+      tui = shell;
+      await converse(shell, '会被别处归档');
+      const sessionId = shell.sessionId();
+      shell.mark();
+      await shell.asOtherShell({ type: 'session/archive', sessionId });
+      await shell.waitFor('已归档 · /unarchive 恢复');
+      shell.mark();
+      await shell.submit('归档后再发');
+      await shell.waitFor('先用 /unarchive 恢复再发送');
+      shell.mark();
+      await shell.asOtherShell({ type: 'session/unarchive', sessionId });
+      await shell.press(KEY.ctrlU);
+      await shell.press('x');
+      await shell.waitFor('会被别处归档');
+      expect(shell.seen()).not.toContain('已归档 · /unarchive 恢复');
+    });
+
+    it('goes back to a new conversation when the open session is deleted elsewhere', async () => {
+      const shell = await startTuiHarness();
+      tui = shell;
+      await converse(shell, '会被别处删除');
+      const sessionId = shell.sessionId();
+      await shell.asOtherShell({ type: 'session/archive', sessionId });
+      shell.mark();
+      await shell.asOtherShell({ type: 'session/delete', sessionId });
+      await shell.waitFor('这个会话在别处被删除了');
+      await shell.waitFor('新会话 ·');
+    });
+
     it('announces a plan written from another shell and opens it', async () => {
       tui = await startTuiHarness({ project: true });
       await converse(tui, '先聊一句');

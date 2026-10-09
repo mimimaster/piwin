@@ -14,7 +14,15 @@ describe('describeHostFailure', () => {
     expect(describeHostFailure('connect ECONNREFUSED 127.0.0.1:8790')).toContain('连不上 Host');
   });
 
+  it('says an archived session has to be restored first', () => {
+    expect(describeHostFailure('Archived session must be restored before activation: session-1')).toContain('/unarchive');
+  });
+
+  it('says a session that is gone is gone', () => {
+    expect(describeHostFailure('Unknown session: s1')).toContain('不存在');
+  });
+
   it('leaves the Host’s own refusals alone', () => {
-    expect(describeHostFailure('Unknown session: s1')).toBe('Unknown session: s1');
+    expect(describeHostFailure('Run is already finished')).toBe('Run is already finished');
   });
 });
