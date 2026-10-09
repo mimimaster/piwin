@@ -88,7 +88,7 @@ export function buildPermissionRequestContext(
     return {
       kind: 'command',
       summary: action,
-      command: detailText || action,
+      command: facts?.command ?? (detailText || action),
       reason: 'Shell command requires review',
       destructive: /rm\s+-rf|sudo|mkfs|dd\s+if=|shutdown|reboot/i.test(detailText),
     };
@@ -193,7 +193,7 @@ export function buildPermissionRequestContext(
     return {
       kind: 'command',
       summary: action,
-      command: detailText || action,
+      command: facts?.command ?? (detailText || action),
       reason: 'Shell command requires review',
       destructive: /rm\s+-rf|sudo|mkfs|dd\s+if=|shutdown|reboot/i.test(detailText),
     };

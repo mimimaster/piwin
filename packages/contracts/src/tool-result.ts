@@ -97,6 +97,12 @@ export type ToolResultImage = {
   dataBase64: string;
 };
 
+/**
+ * Leads every message a permission refusal returns to the model. Tool
+ * presentation recognises refusals by it, so producer and consumer share it.
+ */
+export const PERMISSION_DENIED_MESSAGE_PREFIX = 'Permission denied for ';
+
 /** Stable error codes shared by Host, SDK and RPC tool projections. */
 export type ToolResultErrorCode =
   | 'tool-not-available'

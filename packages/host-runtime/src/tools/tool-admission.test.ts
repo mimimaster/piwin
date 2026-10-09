@@ -283,6 +283,38 @@ describe('host tool admission composition', () => {
     }
   });
 
+  it('tells the model approval was not granted, not that a rule matched', async () => {
+    const registration: HostToolRegistration = {
+      descriptor: {
+        name: 'bash',
+        description: 'bash',
+        parameters: { type: 'object', properties: { command: { type: 'string' } } },
+      },
+      family: 'shell',
+      permissionSpec: {
+        action: 'bash',
+        risk: 'command',
+        rememberable: false,
+        subjectBuilder: (args) => ({ kind: 'bash', command: String(args.command ?? '') }),
+      },
+      execute: async () => ({ ok: true, output: 'ok' }),
+    };
+    const result = await admit(
+      {
+        rules: createEmptyRuleSet(),
+        getPermissionMode: () => 'ask-all',
+        requestPermission: async () => 'deny',
+        projectRoot: '/tmp/project',
+      },
+      registration,
+      { command: 'python3 x.py' },
+    );
+    expect(result.allowed).toBe(false);
+    if (!result.allowed && !result.result.ok) {
+      expect(result.result.message).toContain('approval was required and the user did not grant it');
+    }
+  });
+
   it('fails closed when the interactive permission resolver throws', async () => {
     const diagnostics: string[] = [];
     const gate = createHostToolAdmission({

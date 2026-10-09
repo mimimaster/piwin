@@ -4,6 +4,7 @@ import type {
   MediaAttachmentRef,
   ModelRef,
   PermissionDecision,
+  PermissionRequestContext,
   ToolPresentation,
 } from './host.js';
 import type { HostOsFamily, HostPathStyle } from './host-platform.js';
@@ -562,6 +563,12 @@ export type RemotePendingPermission = {
   action: string;
   detail: string;
   defaultDecision: PermissionDecision;
+  /**
+   * Structured risk facts, as on the live `permission/request` push. A shell
+   * that joins late needs them for the same question: external-agent choices
+   * (`backendOptions`) exist only here, and answering without one is refused.
+   */
+  context?: PermissionRequestContext;
   runId?: string;
 };
 

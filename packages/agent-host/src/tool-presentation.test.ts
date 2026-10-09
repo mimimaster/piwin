@@ -234,6 +234,16 @@ describe('buildToolPresentation', () => {
     expect(presentation.output?.redacted).toBe(true);
   });
 
+  it('marks a permission refusal so clients can say so without parsing the message', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'bash',
+      args: { command: 'python3 x.py' },
+      isError: true,
+      outputText: 'Permission denied for bash: approval was required and the user did not grant it (ask-all-no-match)',
+    });
+    expect(presentation.error?.category).toBe('permission');
+  });
+
   it('marks errors', () => {
     const presentation = buildToolPresentation({
       toolName: 'bash',

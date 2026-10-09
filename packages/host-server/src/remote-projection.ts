@@ -257,6 +257,11 @@ export function projectRemoteResponse(
   return response;
 }
 
+/** A structured value leaving the Host the way a pushed one does: secrets and host paths redacted, sizes bounded. */
+export function projectRemoteValue(value: unknown): unknown {
+  return sanitizeRemoteValue(value, undefined);
+}
+
 export function createRemoteCapabilities(
   allowedCommands?: Iterable<HostCommand['type']>,
 ): RemoteCapabilitySummary {

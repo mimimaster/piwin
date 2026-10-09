@@ -4,6 +4,7 @@
 
 import {
   createEmptyRuleSet,
+  PERMISSION_DENIED_MESSAGE_PREFIX,
   formatError,
   type HostToolExecutionContext,
   type HostToolRegistration,
@@ -171,6 +172,7 @@ export async function resolveHostToolAdmission(input: {
               approval.reason,
               outcome.policy.action,
               outcome.policy.subject,
+              true,
             );
       }
     }
@@ -202,6 +204,8 @@ function denied(
   reason: string,
   action?: string,
   subject?: PermissionSubject,
+  /** The rule asked for approval and it was not granted, as opposed to a rule refusing outright. */
+  approvalNotGranted = false,
 ): HostToolAdmissionDecision {
   const paths = subject?.kind === 'file-paths'
     ? subject.paths.join(', ')
@@ -221,8 +225,10 @@ function denied(
       ok: false,
       code,
       message: explanation
-        ? `Permission denied for ${toolName}: ${explanation} (${reason})`
-        : `Permission denied for ${toolName}: ${reason}`,
+        ? `${PERMISSION_DENIED_MESSAGE_PREFIX}${toolName}: ${explanation} (${reason})`
+        : approvalNotGranted
+          ? `${PERMISSION_DENIED_MESSAGE_PREFIX}${toolName}: approval was required and the user did not grant it (${reason})`
+          : `${PERMISSION_DENIED_MESSAGE_PREFIX}${toolName}: ${reason}`,
     },
   };
 }

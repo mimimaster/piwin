@@ -9,6 +9,14 @@ describe('buildPermissionRequestContext', () => {
     expect(context.destructive).toBe(true);
   });
 
+  it('shows the bare command when the detail leads with the policy reason', () => {
+    const context = buildPermissionRequestContext('bash', 'ask-all-no-match: rm -rf /tmp/demo', {
+      command: 'rm -rf /tmp/demo',
+    });
+    expect(context.command).toBe('rm -rf /tmp/demo');
+    expect(context.destructive).toBe(true);
+  });
+
   it('classifies secret file write', () => {
     const context = buildPermissionRequestContext('file-write', 'write /repo/.env');
     expect(context.kind).toBe('file-write');
