@@ -81,6 +81,10 @@ class FakeTerminal implements Terminal {
   public get length(): number {
     return this.output.length;
   }
+  /** What was written since `mark`, escape sequences included. */
+  public rawSince(mark: number): string {
+    return this.output.slice(mark);
+  }
   public textSince(mark: number): string {
     return this.output.slice(mark).replace(ANSI_PATTERN, '');
   }
@@ -115,6 +119,8 @@ export type TuiHarness = {
   waitFor: (text: string) => Promise<void>;
   /** Everything drawn since the last mark, without escape sequences. */
   seen: () => string;
+  /** The same, escape sequences included. */
+  seenRaw: () => string;
   /**
    * Hold the Host's pushes to the TUI, as a slow link would; they arrive in
    * order when the returned release is called. Opens timing windows exactly.
@@ -286,6 +292,7 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
       }
     },
     seen: () => terminal.textSince(markAt),
+    seenRaw: () => terminal.rawSince(markAt),
     holdPushes: () => {
       heldPushes ??= [];
       return () => {

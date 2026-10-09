@@ -12,6 +12,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { formatError } from '@piwin/contracts';
+import { listenForTuiSession } from './xterm-tui-session';
 import { readDeckXtermFontFamily, readDeckXtermTheme } from './xterm-theme';
 import {
   listenTauriPtyData,
@@ -42,6 +43,8 @@ export type XtermSurfaceProps = {
    */
   tui?: { sessionId?: string };
   onStatus: (status: PtyStatus, ptyId: string | null, message?: string) => void;
+  /** The terminal shell announced the session it shows (see `parseTuiSessionAnnouncement`). */
+  onTuiSession?: (sessionId: string) => void;
 };
 
 const MIN_OPEN_WIDTH = 40;
@@ -55,6 +58,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   const ptyIdRef = useRef<string | null>(null);
   const bootingRef = useRef(false);
   const onStatusRef = useRef(props.onStatus);
+  const onTuiSessionRef = useRef(props.onTuiSession);
   const contextMenu = useDesktopContextMenu();
   // CM-13: terminal-selection menu target, captured on right-click.
   // The menu stays mounted so a single right-click opens it; last non-null
@@ -62,6 +66,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   const [selectionTarget, setSelectionTarget] = useState<ContextMenuTarget | null>(null);
   const lastSelectionRef = useRef<ContextMenuTarget | null>(null);
   onStatusRef.current = props.onStatus;
+  onTuiSessionRef.current = props.onTuiSession;
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -86,6 +91,9 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
+    const stopListeningForTuiSession = listenForTuiSession(terminal, (sessionId) =>
+      onTuiSessionRef.current?.(sessionId),
+    );
 
     const hasUsableSize = (element: HTMLElement): boolean => {
       const rect = element.getBoundingClientRect();
@@ -253,6 +261,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       if (ptyId) {
         void tauriPtyClose(ptyId);
       }
+      stopListeningForTuiSession();
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;

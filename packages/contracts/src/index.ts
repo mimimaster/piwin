@@ -149,6 +149,7 @@ export * from './queued-turn.js';
 export * from './agent-backend.js';
 export * from './backend-workflow.js';
 export * from './agent-backend-capabilities.js';
+export * from './embedded-tui.js';
 export * from './external-agent-status.js';
 export * from './model-context.js';
 export * from './subscription-quota.js';

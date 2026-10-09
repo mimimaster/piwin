@@ -137,6 +137,9 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
           sessionId={state.activeSessionId}
           projectPath={state.activeScope.kind === 'project' ? state.activeScope.projectPath : null}
           locale={desktopLocale}
+          onSessionChange={(sessionId) => {
+            if (sessionId !== state.activeSessionId) void handleResumeSession(sessionId);
+          }}
         />
       </Suspense>
     </div>

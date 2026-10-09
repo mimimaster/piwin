@@ -198,6 +198,22 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('用法：/new [agent]');
     });
 
+    it('tells an embedding terminal which session it shows, once one exists', async () => {
+      tui = await startTuiHarness({ embedded: true });
+      tui.mark();
+      await tui.submit('第一句');
+      await tui.waitFor('you said: 第一句');
+      expect(tui.seenRaw()).toContain(`\x1b]777;piwin;session;${tui.sessionId()}\x07`);
+    });
+
+    it('stays silent about sessions when it is not embedded', async () => {
+      tui = await startTuiHarness();
+      tui.mark();
+      await tui.submit('第一句');
+      await tui.waitFor('you said: 第一句');
+      expect(tui.seenRaw()).not.toContain('piwin;session;');
+    });
+
     it('pins and unpins the current session with /pin', async () => {
       tui = await startTuiHarness();
       await converse(tui, '要置顶的话');

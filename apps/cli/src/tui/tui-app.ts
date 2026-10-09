@@ -5,6 +5,7 @@ import {
   Loader,
   type TUI,
 } from '@earendil-works/pi-tui';
+import { formatTuiSessionAnnouncement } from '@piwin/contracts';
 import type {
   HostPush,
   RemotePendingPermission,
@@ -356,6 +357,7 @@ export class TuiApp {
     await this.features.load(sessionId);
     if (epoch !== this.sessionEpoch) return;
     this.editingMessageId = undefined;
+    this.announceSession(sessionId);
     await this.loadPendingPermissions(sessionId, epoch);
     // The previous session's lines are still on screen and in scrollback.
     this.transcriptView.invalidate();
@@ -398,6 +400,11 @@ export class TuiApp {
   }
 
   /** `agentId` picks the backend of the session this draft becomes; absent keeps the launch choice. */
+  /** Embedded in Desktop's terminal: say which session is on screen, so Desktop follows it. */
+  private announceSession(sessionId: string): void {
+    if (this.options.embedded) this.tui.terminal.write(formatTuiSessionAnnouncement(sessionId));
+  }
+
   private startDraftSession(agentId?: string): void {
     this.draftAgentId = agentId === undefined ? this.options.agentId : agentId === 'pi' ? undefined : agentId;
     this.sessionAgentId = this.draftAgentId;
@@ -471,6 +478,7 @@ export class TuiApp {
     this.sessionEpoch += 1;
     this.sessionId = created.sessionId;
     this.sessionAgentId = this.draftAgentId;
+    this.announceSession(created.sessionId);
     this.foreground = { kind: 'idle', generation: (this.foregroundGeneration += 1) };
     await this.link.client.updateSubscriptions([created.sessionId]);
     return created.sessionId;
