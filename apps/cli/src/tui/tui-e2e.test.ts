@@ -211,23 +211,88 @@ describe('TUI end to end against a mock Host', () => {
       expect(queued.queuedTurns.map((turn) => turn.input.text)).toEqual(['紧跟的消息']);
     });
 
-    it('lets the next message create a session after a failed creation', async () => {
+    it('returns unsent messages to the composer when creating the session fails', async () => {
       const shell = await startTuiHarness();
       tui = shell;
       const creating = shell.holdRequests('session/create');
       tui.mark();
       await tui.submit('建会话会失败的一条');
       await tui.submit('失败后的下一条');
+      await tui.waitFor('待发送 1 条');
       creating.fail('create-failed: injected');
       await tui.waitFor('create-failed: injected');
-      await tui.waitFor('失败后的下一条');
-      await tui.waitForIdle();
-      await vi.waitFor(async () => expect(await listSessions(shell)).toHaveLength(1));
+      // Nothing left for the Host out of context: both are back in the composer.
+      expect(await listSessions(shell)).toHaveLength(0);
+      expect(tui.seen()).not.toContain('› 建会话会失败的一条');
       tui.mark();
-      await tui.submit('同一个会话里再发一条');
-      await tui.waitFor('同一个会话里再发一条');
+      await tui.press(KEY.enter);
+      await tui.waitFor('› 建会话会失败的一条');
+      await tui.waitFor('失败后的下一条');
+      await tui.waitFor('mock_echo');
       await tui.waitForIdle();
       expect(await listSessions(shell)).toHaveLength(1);
+    });
+
+    it('returns a message the Host refuses to queue', async () => {
+      tui = await startTuiHarness({ hangingRuns: true });
+      await tui.submit('会一直跑');
+      await tui.waitFor('Esc 中断');
+      const queueing = tui.holdRequests('session/queued-turn-submit');
+      tui.mark();
+      await tui.submit('排不进去的一条');
+      queueing.fail('queue-refused: injected');
+      await tui.waitFor('queue-refused: injected');
+      expect(tui.seen()).not.toContain('已排队');
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('已排队（第 1 条）');
+      const queued = hostData<{ queuedTurns: Array<{ input: { text: string } }> }>(
+        await tui.asOtherShell({ type: 'session/queued-turn-list', sessionId: tui.sessionId() }),
+      );
+      expect(queued.queuedTurns.map((turn) => turn.input.text)).toEqual(['排不进去的一条']);
+    });
+
+    it('takes back messages that have not left yet with Ctrl+C', async () => {
+      const shell = await startTuiHarness({ hangingRuns: true });
+      tui = shell;
+      const creating = shell.holdRequests('session/create');
+      await tui.submit('已经在路上的一条');
+      await tui.submit('还没发出的一条');
+      await tui.waitFor('待发送 1 条');
+      tui.mark();
+      await tui.press(KEY.ctrlC);
+      await tui.waitFor('已取回 1 条未发出的消息');
+      creating.release();
+      await tui.waitFor('Esc 中断');
+      const sessionId = tui.sessionId();
+      await waitForForegroundRun(tui, sessionId, (run) => run?.status === 'running');
+      const queuedTurns = async (): Promise<string[]> =>
+        hostData<{ queuedTurns: Array<{ input: { text: string } }> }>(
+          await shell.asOtherShell({ type: 'session/queued-turn-list', sessionId }),
+        ).queuedTurns.map((turn) => turn.input.text);
+      expect(await queuedTurns()).toEqual([]);
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('已排队（第 1 条）');
+      expect(await queuedTurns()).toEqual(['还没发出的一条']);
+    });
+
+    it('does not send a waiting message into a conversation the user switched to', async () => {
+      const shell = await startTuiHarness();
+      tui = shell;
+      const creating = shell.holdRequests('session/create');
+      await tui.submit('切走之前发的一条');
+      tui.mark();
+      await tui.submit('/new');
+      creating.release();
+      await tui.waitFor('会话已切换');
+      // The session made for the abandoned draft is not the one on screen.
+      expect(() => shell.sessionId()).toThrow();
+      expect(tui.seen()).not.toContain('you said');
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('you said: 切走之前发的一条');
+      await tui.waitForIdle();
     });
 
     it('interrupts the running turn with Escape', async () => {

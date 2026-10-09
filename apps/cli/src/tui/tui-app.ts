@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   CombinedAutocompleteProvider,
   Container,
@@ -12,7 +11,6 @@ import {
 import type {
   HostCommand,
   HostPush,
-  PromptInput,
   RemotePendingPermission,
   RemoteProjectSummary,
   RemoteSessionListData,
@@ -25,7 +23,6 @@ import {
   applyHostPushToForeground,
   initialForegroundRunState,
   knownForegroundRunId,
-  requestPromptWithForeground,
   type ForegroundRunState,
 } from '@piwin/host-client';
 import { TextOverlay } from './choice-overlay.js';
@@ -48,7 +45,7 @@ import { TUI_COMMAND_NAMES, TUI_SLASH_COMMANDS, parseSlashCommand } from './tui-
 import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { TuiModalStack, createExtensionModal, createPermissionModal } from './tui-modals.js';
-import { describePromptExtras } from './queued-turns.js';
+import { TuiPromptSender } from './tui-prompt-sender.js';
 import { TuiSessionFeatures } from './tui-session-features.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
@@ -97,8 +94,8 @@ export class TuiApp {
   private sessionId: string | undefined;
   /** The `session/create` in flight, shared by everything that needs a session. */
   private creatingSession: Promise<string> | undefined;
-  /** Prompts leave in the order they were typed; see `sendPrompt`. */
-  private promptLane: Promise<unknown> = Promise.resolve();
+  /** Replaced whenever the user moves to another conversation; see `TuiPromptSender`. */
+  private conversation: object = {};
   private sessionName: string | undefined;
   private olderCursor: string | undefined;
   private projectId: string | undefined;
@@ -109,6 +106,7 @@ export class TuiApp {
   private readonly features: TuiSessionFeatures;
   private readonly sideChat: TuiSideChatController;
   private readonly turns: TuiTurnActions;
+  private readonly sender: TuiPromptSender;
   private readonly runCommand: (name: string, argument: string) => Promise<void>;
   /** `/edit`: the next prompt replaces this user turn as a sibling branch. */
   private editingMessageId: string | undefined;
@@ -220,6 +218,45 @@ export class TuiApp {
         this.refreshChrome();
       },
     });
+    this.sender = new TuiPromptSender({
+      link: this.link,
+      queue: this.features.queue,
+      attachments: this.attachments,
+      files: this.files,
+      composer: this.composer,
+      sideChat: this.sideChat,
+      conversation: () => this.conversation,
+      ensureSession: () => this.ensureSession(),
+      isRunning: () => this.isRunning(),
+      runId: () => knownForegroundRunId(this.foreground),
+      editingMessageId: () => this.editingMessageId,
+      clearEditing: () => {
+        this.editingMessageId = undefined;
+      },
+      echoUser: (messageId, text, annotations) => {
+        this.transcript = appendLocalUserMessage(this.transcript, messageId, text, annotations);
+        this.refreshChrome();
+      },
+      removeEcho: (messageId) => {
+        this.transcript = removeLocalUserMessage(this.transcript, messageId);
+        this.refreshChrome();
+      },
+      returnToComposer: (text) => {
+        const typed = this.editor.getText();
+        this.editor.setText(typed.length === 0 ? text : `${text}\n${typed}`);
+        this.tui.requestRender();
+      },
+      onTurnAccepted: async (sessionId) => {
+        if (this.isRunning() || sessionId !== this.sessionId) return;
+        // Show activity immediately; the run/updated push supplies the real run id.
+        await this.reconcileForegroundRun(sessionId, this.sessionEpoch);
+        this.refreshChrome();
+      },
+      reloadSession: (sessionId) => this.openSession(sessionId),
+      onChanged: () => this.refreshChrome(),
+      onHint: (text) => this.flashHint(text),
+      onNotice: notify,
+    });
     this.sessionSwitcher = new TuiSessionSwitcher({
       link: this.link,
       modals: this.modals,
@@ -261,7 +298,10 @@ export class TuiApp {
       startDraftSession: () => this.startDraftSession(),
       loadOlderMessages: () => this.loadOlderMessages(),
       renameSession: (name) => this.renameCurrentSession(name),
-      sendReplacingRun: (text) => this.sendPrompt(text, true),
+      sendReplacingRun: (text) => {
+        this.editor.addToHistory(text.trim());
+        return this.sender.send(text, true);
+      },
       setComposerText: (text) => {
         this.editor.setText(text);
         this.tui.requestRender();
@@ -326,6 +366,8 @@ export class TuiApp {
 
   private async openSession(sessionId: string): Promise<void> {
     const epoch = (this.sessionEpoch += 1);
+    // Reloading the session on screen is the same conversation.
+    if (sessionId !== this.sessionId) this.conversation = {};
     await this.link.client.updateSubscriptions([sessionId]);
     const resume = hostData<RemoteSessionResumeData>(
       await this.link.request({ type: 'session/resume', sessionId }),
@@ -382,6 +424,7 @@ export class TuiApp {
 
   private startDraftSession(): void {
     this.sessionEpoch += 1;
+    this.conversation = {};
     this.sessionId = undefined;
     this.sessionName = undefined;
     this.sessionProjectId = this.projectId;
@@ -398,16 +441,16 @@ export class TuiApp {
 
   private async reconcileForegroundRun(sessionId: string, epoch: number): Promise<void> {
     const generation = (this.foregroundGeneration += 1);
-    this.foreground = { kind: 'reconciling', generation };
+    const asked: ForegroundRunState = { kind: 'reconciling', generation };
+    this.foreground = asked;
     const response = await this.link.request({ type: 'session/foreground-run', sessionId });
     if (epoch !== this.sessionEpoch) return;
-    const answered = applyForegroundRunResponse(this.foreground, response, generation, sessionId);
-    // A run push that arrived while the question was in flight is newer than
-    // the answer. An answer of "nothing running", taken before the Host
-    // registered the run, must not put a confirmed running turn back to idle:
-    // the next message would then be sent as a new turn instead of queued.
-    if (answered.kind !== 'active' && this.isRunning()) return;
-    this.foreground = answered;
+    // Run pushes that arrived while the question was in flight are at least
+    // as new as the answer (same ordered link). An answer taken before the
+    // Host registered the run must not put a running turn back to idle, and
+    // one naming an earlier run must not replace the turn the pushes named.
+    if (this.foreground !== asked) return;
+    this.foreground = applyForegroundRunResponse(asked, response, generation, sessionId);
     if (this.foreground.kind !== 'active') {
       this.foreground = { kind: 'idle', generation };
       this.transcript = settleStreaming(this.transcript);
@@ -428,6 +471,7 @@ export class TuiApp {
   }
 
   private async createSession(): Promise<string> {
+    const conversation = this.conversation;
     const model = this.composer.modelRef();
     const created = hostData<{ sessionId: string }>(
       await this.link.request({
@@ -440,6 +484,11 @@ export class TuiApp {
         },
       }),
     );
+    if (conversation !== this.conversation) {
+      // The user moved on while the session was being created; pulling them
+      // back into it would replace the conversation they chose.
+      throw new Error('会话已切换，新建的会话没有打开');
+    }
     this.sessionEpoch += 1;
     this.sessionId = created.sessionId;
     this.foreground = { kind: 'idle', generation: (this.foregroundGeneration += 1) };
@@ -486,123 +535,8 @@ export class TuiApp {
       await this.runCommand(command.name, command.argument);
       return;
     }
-    await this.sendPrompt(rawText, false);
-  }
-
-  /**
-   * Send what is in the composer as a turn. While another turn runs it is
-   * queued behind it, unless `replaceRunning` asks the Host to stop that turn
-   * and run this one instead.
-   */
-  private sendPrompt(rawText: string, replaceRunning: boolean): Promise<void> {
-    // Each prompt waits until the one before it is accepted or queued by the
-    // Host. Two quick sends then land in the same session, in typing order:
-    // the second sees the first one's session and running turn.
-    const sent = this.promptLane.then(() => this.sendPromptNow(rawText, replaceRunning));
-    this.promptLane = sent.catch(() => undefined);
-    return sent;
-  }
-
-  private async sendPromptNow(rawText: string, replaceRunning: boolean): Promise<void> {
-    const typedText = rawText.trim();
-    this.editor.addToHistory(rawText.trim());
-    if (this.attachments.isUploading) {
-      this.editor.setText(rawText);
-      this.flashHint('附件还在上传，稍后再发');
-      return;
-    }
-    const sessionId = await this.ensureSession();
-    const clientMessageId = randomUUID();
-    const text = await this.attachments.adoptDroppedImages(sessionId, typedText);
-    const attached = this.attachments.take();
-    const mentions = await this.files.resolveMentions(text);
-    if (mentions.overLimit.length > 0) {
-      this.transcript = appendNotice(
-        this.transcript,
-        'error',
-        `一条消息最多引用 ${mentions.refs.length} 个文件，未带上：${mentions.overLimit.join('、')}`,
-      );
-    }
-    if (mentions.unresolved.length > 0) {
-      this.flashHint(`项目里没有 ${mentions.unresolved.map((path) => `@${path}`).join('、')}，按普通文字发送`);
-    }
-    const skillId = this.composer.takeSkillId();
-    const branchFromMessageId = this.editingMessageId;
-    if (branchFromMessageId !== undefined && this.isRunning()) {
-      this.editor.setText(rawText);
-      this.attachments.restore(attached);
-      this.flashHint('运行中不能改写提问，先按 Esc 中断');
-      return;
-    }
-    // Answers carried back from a side chat ride on this session's next prompt.
-    const handedOff = this.sideChat.takeRefs();
-    const contextRefs = [...handedOff, ...mentions.refs];
-    const input: PromptInput = {
-      text,
-      clientMessageId,
-      ...(branchFromMessageId === undefined ? {} : { branchFromMessageId }),
-      ...(attached.length === 0 ? {} : { attachments: attached.map((entry) => entry.attachment) }),
-      ...(skillId === undefined ? {} : { skillId }),
-      ...(contextRefs.length === 0 ? {} : { contextRefs }),
-      ...this.composer.promptFields(),
-    };
-    try {
-      const replacedRunId = replaceRunning ? knownForegroundRunId(this.foreground) : undefined;
-      if (this.isRunning() && replacedRunId === undefined) {
-        // A turn is running: this one waits its turn on the Host and is
-        // echoed when it starts. `/steer` is the way into the running turn.
-        const place = await this.features.queue.submit(sessionId, input, clientMessageId);
-        this.flashHint(`已排队（第 ${place} 条），/queue 查看`);
-        return;
-      }
-      this.transcript = appendLocalUserMessage(this.transcript, clientMessageId, text, describePromptExtras(input));
-      this.refreshChrome();
-      const response =
-        replacedRunId === undefined
-          ? // A turn this shell has not heard about yet (its running push is still
-            // on the way) makes the Host refuse an if-idle send; the shared
-            // admission then queues it, exactly as Desktop's composer does.
-            await requestPromptWithForeground({
-              request: (command) => this.link.request(command),
-              sessionId,
-              input,
-              queueWhenBusy: true,
-              onQueue: () => {
-                this.transcript = removeLocalUserMessage(this.transcript, clientMessageId);
-                return this.features.queue.request(sessionId, input, clientMessageId);
-              },
-            })
-          : // Naming the run makes the Host refuse if a different turn is running by now.
-            await this.link.request({
-              type: 'session/prompt',
-              sessionId,
-              input,
-              foreground: { kind: 'replace-run', runId: replacedRunId },
-            });
-      if (response.command === 'session/queued-turn-submit') {
-        const place = this.features.queue.accept(response);
-        this.refreshChrome();
-        this.flashHint(`已排队（第 ${place} 条），/queue 查看`);
-        return;
-      }
-      hostData(response);
-      if (branchFromMessageId !== undefined) {
-        // The old turn and its answer left the active path; reload rather than patch rows.
-        this.editingMessageId = undefined;
-        await this.openSession(sessionId);
-        return;
-      }
-    } catch (error) {
-      // A refused prompt keeps what it carried: the user fixes the cause and resends.
-      this.attachments.restore(attached);
-      this.sideChat.restoreRefs(handedOff);
-      throw error;
-    }
-    if (!this.isRunning()) {
-      // Show activity immediately; the run/updated push supplies the real run id.
-      await this.reconcileForegroundRun(sessionId, this.sessionEpoch);
-      this.refreshChrome();
-    }
+    this.editor.addToHistory(typedText);
+    await this.sender.send(rawText, false);
   }
 
   /** The session this shell shows, once it has one. */
@@ -755,6 +689,8 @@ export class TuiApp {
         this.flashHint('已取消改写');
       } else if (this.editor.getText().length > 0) {
         this.editor.setText('');
+      } else if (this.sender.cancelWaiting()) {
+        // Taken back into the composer; the hint says how many.
       } else if (running) {
         this.turns.abort().catch((error: unknown) => this.reportError(error));
       } else if (Date.now() - this.lastInterruptAt < EXIT_CONFIRM_WINDOW_MS) {
@@ -853,6 +789,7 @@ export class TuiApp {
         : undefined;
     return [
       this.statusHint?.text,
+      this.sender.describe(),
       this.connected ? undefined : '重连中…',
       this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),
       scope,
