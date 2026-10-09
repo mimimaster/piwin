@@ -355,6 +355,26 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('分支 1');
     });
 
+    it('keeps the branch count when a reload cannot read the branches', async () => {
+      tui = await startTuiHarness();
+      await converse(tui, '解释一下');
+      tui.mark();
+      await tui.submit('/retry keep');
+      await tui.waitFor('分支 1');
+      await tui.waitForIdle();
+      // The reloads that follow the next fork's pushes ask for the branches; that read fails.
+      const listing = tui.holdRequests('session/branch-list');
+      tui.mark();
+      await tui.submit('/retry keep');
+      await tui.waitFor('you said: 解释一下');
+      await tui.waitForIdle();
+      listing.fail('branch-list-failed: injected');
+      tui.mark();
+      await tui.press(KEY.shiftTab);
+      await tui.waitFor('权限 ');
+      expect(tui.seen()).toContain('分支 1');
+    });
+
     it('forks the conversation into a new session and opens it', async () => {
       tui = await startTuiHarness();
       await converse(tui, '主线对话');

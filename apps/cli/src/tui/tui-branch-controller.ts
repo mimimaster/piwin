@@ -22,6 +22,8 @@ export type TuiBranchControllerOptions = {
  */
 export class TuiBranchController {
   private branchPointCount = 0;
+  /** The session `branchPointCount` belongs to. */
+  private countedSessionId: string | undefined;
   /** A switch this shell asked for reloads on its own; the push must not reload twice. */
   private switching = false;
 
@@ -33,11 +35,19 @@ export class TuiBranchController {
 
   public reset(): void {
     this.branchPointCount = 0;
+    this.countedSessionId = undefined;
   }
 
+  /**
+   * Best effort. A failed read keeps the count this session already had: a
+   * reload after a branch push must not turn "分支 2" into none.
+   */
   public async load(sessionId: string): Promise<void> {
-    const points = await this.list(sessionId).catch((): TranscriptBranchPoint[] => []);
-    if (this.options.getSessionId() === sessionId) this.branchPointCount = points.length;
+    const points = await this.list(sessionId).catch(() => undefined);
+    if (this.options.getSessionId() !== sessionId) return;
+    if (points !== undefined) this.branchPointCount = points.length;
+    else if (this.countedSessionId !== sessionId) this.branchPointCount = 0;
+    this.countedSessionId = sessionId;
   }
 
   /** Returns true when the push was a branch update. */
@@ -46,6 +56,7 @@ export class TuiBranchController {
     const sessionId = this.options.getSessionId();
     if (push.sessionId !== sessionId || sessionId === undefined) return true;
     this.branchPointCount = push.branchPointCount;
+    this.countedSessionId = sessionId;
     this.options.onChanged();
     // Another shell moved the leaf: follow it, or this transcript shows a path nobody is on.
     if (!this.switching) this.options.reloadSession(sessionId).catch(this.options.onError);
