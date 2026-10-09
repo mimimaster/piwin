@@ -215,6 +215,15 @@ export async function doActivateSessionRuntime(
     }
     throw new Error(`activation aborted: ${admission.message}`);
   }
+  // The Run can be stopped at any await from here on. Each check sits before
+  // a step that allocates something a stopped Run would only throw away.
+  const cancelIfStopped = (): void => {
+    if (signal?.aborted === true) {
+      deps.residencyController.abortActivation(sessionId, runtimeGenerationId);
+      throw activationCancelled();
+    }
+  };
+  cancelIfStopped();
   // ADR 0082: external agent sessions bypass Pi blueprint compilation and
   // native replay seeds; the agent owns its own conversation state.
   if (isExternalRecord(record)) {
@@ -271,6 +280,8 @@ export async function doActivateSessionRuntime(
       });
     }
   }
+  // Stopped while the replay seed was being read: do not create a runtime for it.
+  cancelIfStopped();
   let handle: SessionHandle;
   try {
     // 3. create and commit a generation for the same product session id.

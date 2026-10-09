@@ -82,7 +82,87 @@ function acceptedRunId(response: HostResponse): string {
   return (response.data as { runId: string }).runId;
 }
 
+type ResidencyAdmission = {
+  beginActivation: (...args: unknown[]) => Promise<unknown>;
+};
+
+/** Hold the first residency admission's answer until released. */
+function gateFirstAdmission(runtime: HostRuntime) {
+  const residency = (runtime as unknown as { residencyController: ResidencyAdmission })
+    .residencyController;
+  const beginActivation = residency.beginActivation.bind(residency);
+  const entered = deferred();
+  const released = deferred();
+  let admissions = 0;
+  residency.beginActivation = async (...args) => {
+    const admitted = await beginActivation(...args);
+    admissions += 1;
+    if (admissions === 1) {
+      entered.resolve();
+      await released.promise;
+    }
+    return admitted;
+  };
+  return { entered: entered.promise, release: () => released.resolve() };
+}
+
 describe('stopping a Run during cold activation', () => {
+  it('creates no runtime for a Run stopped while its activation is still preparing', async () => {
+    const terminals = deferredMap<ExecutionRunRecord>();
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: await mkdtemp(join(tmpdir(), 'piwin-host-activation-prepare-cancel-')),
+      onPush: (push) => {
+        if (push.type === 'run/terminal') terminals(push.run.runId).resolve(push.run);
+      },
+    });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/activation-prepare-cancel' },
+    });
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const activation = gateNextActivation(runtime);
+    const admission = gateFirstAdmission(runtime);
+
+    const stoppedRunId = acceptedRunId(
+      await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: { text: 'stopped before its runtime is created' },
+        foreground: { kind: 'if-idle' },
+      }),
+    );
+    await admission.entered;
+    expect(
+      await runtime.handleCommand({ type: 'session/abort', sessionId, runId: stoppedRunId }),
+    ).toMatchObject({ success: true, data: { cancelled: true } });
+    expect((await terminals(stoppedRunId).promise).status).toBe('cancelled');
+    const nextRunId = acceptedRunId(
+      await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: { text: 'the next turn' },
+        foreground: { kind: 'if-idle' },
+      }),
+    );
+    await activation.requestedBy(nextRunId);
+    admission.release();
+    // Only the next turn's runtime is ever created; the gate on creation is its.
+    await activation.entered;
+    expect(activation.activatedGenerations).toHaveLength(1);
+    activation.release();
+    const next = await terminals(nextRunId).promise;
+
+    expect(next.status).toBe('completed');
+    expect(activation.activatedGenerations).toHaveLength(1);
+    expect(activation.droppedSessions).toEqual([]);
+    expect(next.runtimeGenerationId).toBe(activation.activatedGenerations[0]);
+    await runtime.dispose();
+  });
+
+
   it('cancels that activation, and the next turn activates its own runtime and completes', async () => {
     const terminals = deferredMap<ExecutionRunRecord>();
     const runtime = new HostRuntime({
