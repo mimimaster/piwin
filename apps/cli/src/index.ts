@@ -70,7 +70,7 @@ Usage:
   piwin session lifecycle apply --plan <plan-id> [--mock]
   piwin status [--project <path>] [--session <id>] [--mock]
   piwin chat <text> [--project <path>] [--mode sdk|rpc] [--agent pi|grok] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass|unrestricted] [--scheme <id>] [--ref <path>…]
-  piwin tui [--session <id>] [--continue] [--project <projectId> | --project-path <dir>] [--embedded] [--mock]
+  piwin tui [--session <id>] [--continue|-c] [--resume|-r [id]] [--project <projectId> | --project-path <dir>] [--embedded] [--mock]
   piwin scheme list [--mock]
   piwin scheme show <id> [--mock]
   piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass|unrestricted]

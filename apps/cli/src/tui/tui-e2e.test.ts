@@ -234,6 +234,12 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('还没有会话');
     });
 
+    it('opens the session picker on launch when resume has no id', async () => {
+      tui = await startTuiHarness({ openSessionPicker: true });
+      await tui.waitFor('还没有会话');
+      await tui.waitFor('会话 ·');
+    });
+
     it('shows a session list failure inside the picker', async () => {
       tui = await startTuiHarness();
       const listing = tui.holdRequests('session/list');

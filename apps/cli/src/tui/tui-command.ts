@@ -8,9 +8,10 @@ import { parseMock, readOption } from '../cli-args.js';
 import { TuiApp } from './tui-app.js';
 import { hostData, openTuiHostLink, type TuiHostLink } from './tui-host-link.js';
 import { resolveTuiLaunchScope } from './tui-launch-scope.js';
+import { resolveTuiLaunchSessionIntent } from './tui-launch-session.js';
 
 export const TUI_USAGE =
-  'Usage: piwin tui [--session <id>] [--continue] [--project <projectId> | --project-path <dir>] [--embedded] [--mock]';
+  'Usage: piwin tui [--session <id>] [--continue|-c] [--resume|-r [id]] [--project <projectId> | --project-path <dir>] [--embedded] [--mock]';
 
 /**
  * `piwin tui`: the interactive terminal shell. Attaches to `PIWIN_HOST_URL`
@@ -45,9 +46,16 @@ export async function commandTui(argv: string[]): Promise<void> {
       cwd: process.cwd(),
       canonicalPath,
     });
-    const sessionId =
-      readOption(argv, '--session') ??
-      (argv.includes('--continue') ? await findLatestSessionId(link, projectId) : undefined);
+    const intent = resolveTuiLaunchSessionIntent(argv);
+    let sessionId: string | undefined;
+    let openSessionPicker = false;
+    if (intent.kind === 'session') {
+      sessionId = intent.sessionId;
+    } else if (intent.kind === 'continue') {
+      sessionId = await findLatestSessionId(link, projectId);
+    } else if (intent.kind === 'picker') {
+      openSessionPicker = !embedded;
+    }
     const tui = new TuiMainScreen(new ProcessTerminal());
     await new Promise<void>((resolve, reject) => {
       app = new TuiApp({
@@ -57,6 +65,7 @@ export async function commandTui(argv: string[]): Promise<void> {
         ...(projectId === undefined ? {} : { projectId }),
         embedded,
         mock,
+        openSessionPicker,
         ...(notice === undefined ? {} : { startNotice: notice }),
         onExit: () => {
           tui.stop();

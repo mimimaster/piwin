@@ -73,6 +73,8 @@ export type TuiAppOptions = {
   projectId?: string;
   /** Desktop-embedded pane: pinned to one session, Desktop's sidebar switches. */
   embedded: boolean;
+  /** Open the session picker once after start (e.g. bare `--resume`). */
+  openSessionPicker?: boolean;
   mock: boolean;
   /** Something the launch has to tell the user, shown once above the composer. */
   startNotice?: string;
@@ -366,6 +368,8 @@ export class TuiApp {
     this.rebuildAutocomplete();
     if (this.options.sessionId !== undefined) {
       await this.openSession(this.options.sessionId);
+    } else if (this.options.openSessionPicker === true && !this.options.embedded) {
+      await this.sessionSwitcher.open();
     }
     if (this.options.startNotice !== undefined) {
       // After the session opened: opening replaces the transcript.
