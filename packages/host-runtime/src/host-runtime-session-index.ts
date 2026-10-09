@@ -12,6 +12,7 @@ import {
   isPlaceholderSessionName,
   getSessionRecord,
   setSessionAutoName,
+  updateSessionRecord,
   upsertSessionRecord,
 } from '@piwin/session';
 import { createTestFixtureSession } from './delayed-session-fixture.js';
@@ -129,12 +130,14 @@ export async function touchSession(
 ): Promise<void> {
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   const indexPath = getPiwinSessionIndexPath(rootDir);
-  const current = await getSessionRecord(indexPath, sessionId);
+  // Changed under the index lock: a rename or archive that lands while a turn
+  // ends must not be overwritten by a copy read before it.
+  const current = await updateSessionRecord(indexPath, sessionId, (record) => {
+    record.updatedAt = new Date().toISOString();
+    record.messageCount += 1;
+    record.lastPreview = preview.slice(0, 160);
+  });
   if (current) {
-    current.updatedAt = new Date().toISOString();
-    current.messageCount += 1;
-    current.lastPreview = preview.slice(0, 160);
-    await upsertSessionRecord(indexPath, current);
     pushSessionIndexTouch(deps, 'updated', current);
     return;
   }

@@ -5,6 +5,7 @@ export {
   loadSessionIndex,
   saveSessionIndex,
   upsertSessionRecord,
+  updateSessionRecord,
   listChildSessions,
   pinSessionRecord,
   unpinSessionRecord,

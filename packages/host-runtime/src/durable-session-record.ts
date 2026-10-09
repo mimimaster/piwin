@@ -7,7 +7,7 @@
 
 import { mkdir } from 'node:fs/promises';
 import type { ModelRef, SessionIndexRecord, ThinkingLevel } from '@piwin/contracts';
-import { createSessionRecord, getSessionRecord, upsertSessionRecord } from '@piwin/session';
+import { createSessionRecord, updateSessionRecord, upsertSessionRecord } from '@piwin/session';
 import { getPiwinGeneralWorkspacePath, getPiwinSessionDir } from './paths.js';
 import type { SessionLineage } from './host-runtime-types.js';
 import { applySubagentLineage, copySubagentLineage } from './session-lineage-apply.js';
@@ -34,26 +34,30 @@ export async function persistDurableSessionRecord(
   input: PersistDurableSessionInput,
 ): Promise<SessionIndexRecord> {
   await mkdir(getPiwinSessionDir(input.rootDir, input.sessionId), { recursive: true });
-  const current = await getSessionRecord(input.indexPath, input.sessionId);
-  if (current) {
-    current.updatedAt = new Date().toISOString();
-    if (input.sessionName) {
-      current.name = input.sessionName;
+  // Changed under the index lock, so a rename made meanwhile survives.
+  const current = await updateSessionRecord(input.indexPath, input.sessionId, (record) => {
+    record.updatedAt = new Date().toISOString();
+    // The name here may have been read before a rename landed (a runtime binds
+    // with the record it activated from); a name the person chose or a model
+    // title is not ours to put back.
+    if (input.sessionName && record.nameSource !== 'user' && record.nameSource !== 'llm') {
+      record.name = input.sessionName;
     }
-    applyLineageToExisting(current, input.lineage);
+    applyLineageToExisting(record, input.lineage);
     if (input.model) {
-      current.model = input.model;
+      record.model = input.model;
     }
     if (input.thinkingLevel !== undefined) {
-      current.thinkingLevel = input.thinkingLevel;
+      record.thinkingLevel = input.thinkingLevel;
     }
     if (input.knowledgeBaseIds && input.knowledgeBaseIds.length > 0) {
-      current.knowledgeBaseIds = input.knowledgeBaseIds;
+      record.knowledgeBaseIds = input.knowledgeBaseIds;
     }
     if (input.disabledMcpServerIds && input.disabledMcpServerIds.length > 0) {
-      current.disabledMcpServerIds = input.disabledMcpServerIds;
+      record.disabledMcpServerIds = input.disabledMcpServerIds;
     }
-    await upsertSessionRecord(input.indexPath, current);
+  });
+  if (current) {
     return current;
   }
 
