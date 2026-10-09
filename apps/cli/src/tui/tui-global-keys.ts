@@ -18,6 +18,8 @@ export type TuiGlobalKeysPort = {
   openSessions: () => void;
   pasteClipboardImage: () => void;
   cyclePermissionPreset: () => void;
+  openHistorySearch: () => void;
+  editInExternalEditor: () => void;
   /** Returns whether tool output and thinking are now shown in full. */
   toggleToolOutput: () => boolean;
   hint: (text: string) => void;
@@ -58,6 +60,14 @@ export class TuiGlobalKeys {
     }
     if (matchesKey(data, Key.ctrl('v'))) {
       port.pasteClipboardImage();
+      return { consume: true };
+    }
+    if (matchesKey(data, Key.ctrl('r'))) {
+      port.openHistorySearch();
+      return { consume: true };
+    }
+    if (matchesKey(data, Key.ctrl('g'))) {
+      port.editInExternalEditor();
       return { consume: true };
     }
     if (matchesKey(data, Key.shift('tab'))) {

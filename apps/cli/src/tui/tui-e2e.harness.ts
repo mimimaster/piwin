@@ -229,6 +229,7 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
     ...(projectId === undefined ? {} : { projectId }),
     embedded: options.embedded === true,
     mock: true,
+    historyFile: path.join(sandbox, 'prompt-history.jsonl'),
     ...(options.openSessionPicker === true ? { openSessionPicker: true } : {}),
     ...(options.startNotice === undefined ? {} : { startNotice: options.startNotice }),
     openFile: async (filePath) => {

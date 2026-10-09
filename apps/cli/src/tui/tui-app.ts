@@ -39,6 +39,9 @@ import { TUI_COMMAND_NAMES, TUI_SLASH_COMMANDS, parseSlashCommand } from './tui-
 import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { StatusHint } from './status-hint.js';
+import { HistorySearchOverlay } from './history-search-overlay.js';
+import { editTextExternally } from './external-editor.js';
+import { PromptHistory } from './prompt-history.js';
 import { TuiGlobalKeys } from './tui-global-keys.js';
 import { TuiHostPrompts } from './tui-host-prompts.js';
 import { TuiModalStack } from './tui-modals.js';
@@ -47,6 +50,7 @@ import { TuiSessionFeatures } from './tui-session-features.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
+import { TuiUsageController } from './tui-usage-controller.js';
 import { ProjectFiles } from './project-files.js';
 import type { FileOpener } from './tui-artifact-controller.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
@@ -72,6 +76,8 @@ export type TuiAppOptions = {
   /** Something the launch has to tell the user, shown once above the composer. */
   startNotice?: string;
   onExit: () => void;
+  /** Where this project's sent prompts are kept; absent keeps them for this run only. */
+  historyFile?: string;
   /** How an exported artifact page reaches a browser; the system opener by default. */
   openFile?: FileOpener;
 };
@@ -105,6 +111,7 @@ export class TuiApp {
   private readonly features: TuiSessionFeatures;
   private readonly sideChat: TuiSideChatController;
   private readonly turns: TuiTurnActions;
+  private readonly usage: TuiUsageController;
   private readonly sender: TuiPromptSender;
   private readonly runCommand: (name: string, argument: string) => Promise<void>;
   /** `/edit`: the next prompt replaces this user turn as a sibling branch. */
@@ -121,6 +128,7 @@ export class TuiApp {
 
   private readonly modals: TuiModalStack;
   private readonly prompts: TuiHostPrompts;
+  private readonly history: PromptHistory;
   private readonly globalKeys: TuiGlobalKeys;
   private readonly sessionSwitcher: TuiSessionSwitcher;
   private readonly disposers: Array<() => void> = [];
@@ -135,6 +143,8 @@ export class TuiApp {
       this.submit(text).catch((error: unknown) => this.reportError(error));
     };
     this.sessionProjectId = options.projectId;
+    this.history = new PromptHistory(options.historyFile);
+    for (const entry of this.history.all()) this.editor.addToHistory(entry);
     this.files = new ProjectFiles({
       request: (command) => this.link.request(command),
       getProjectId: () => this.sessionProjectId,
@@ -163,6 +173,7 @@ export class TuiApp {
         this.transcript = update(this.transcript);
       },
       getProjects: () => this.projects,
+      getContext: () => this.context,
       getConversation: () => this.conversation,
       getEditingMessageId: () => this.editingMessageId,
       setEditingMessageId: (messageId) => {
@@ -181,6 +192,7 @@ export class TuiApp {
       renameSession: (sessionId, name) => this.renameSession(sessionId, name),
       renameCurrentSession: (name) => this.renameCurrentSession(name),
       loadOlderMessages: () => this.loadOlderMessages(),
+      rememberPrompt: (text) => this.rememberPrompt(text),
       refresh: () => this.refreshChrome(),
       hint: (text) => this.flashHint(text),
       error: (error) => this.reportError(error),
@@ -191,6 +203,7 @@ export class TuiApp {
     this.features = controllers.features;
     this.sideChat = controllers.sideChat;
     this.turns = controllers.turns;
+    this.usage = controllers.usage;
     this.sender = controllers.sender;
     this.sessionSwitcher = controllers.sessionSwitcher;
     this.runCommand = controllers.runCommand;
@@ -219,6 +232,8 @@ export class TuiApp {
         this.attachments.pasteClipboardImage().catch((error: unknown) => this.reportError(error));
       },
       cyclePermissionPreset: () => this.composer.cyclePermissionPreset(),
+      openHistorySearch: () => this.openHistorySearch(),
+      editInExternalEditor: () => this.editInExternalEditor(),
       toggleToolOutput: () => this.transcriptView.toggleToolOutput(),
       hint: (text) => this.flashHint(text),
     });
@@ -304,6 +319,7 @@ export class TuiApp {
     this.olderCursor = resume.transcriptPage?.olderCursor;
     // Pushes only report changes; a reopened idle session would show no usage without this.
     this.context = resume.contextSnapshot;
+    this.usage.reset(resume.lastRequestUsage);
     if (resume.model !== undefined) this.composer.adoptSessionModel(resume.model);
     this.modals.clearQueue();
     await this.reconcileForegroundRun(sessionId, epoch);
@@ -352,6 +368,7 @@ export class TuiApp {
     this.sessionName = undefined;
     this.sessionProjectId = this.projectId;
     this.features.reset();
+    this.usage.reset(null);
     this.editingMessageId = undefined;
     this.transcript = EMPTY_TRANSCRIPT;
     this.olderCursor = undefined;
@@ -458,8 +475,44 @@ export class TuiApp {
       await this.runCommand(command.name, command.argument);
       return;
     }
-    this.editor.addToHistory(typedText);
+    this.rememberPrompt(typedText);
     await this.sender.send(rawText, false);
+  }
+
+  private rememberPrompt(text: string): void {
+    this.editor.addToHistory(text.trim());
+    this.history.add(text);
+  }
+
+  /** Ctrl+G: give the terminal to `$EDITOR` for the composer text, then take it back. */
+  private editInExternalEditor(): void {
+    const result = (() => {
+      this.tui.stop();
+      try {
+        // Pasted blocks are folded in the composer; the editor should see all of it.
+        return editTextExternally(this.editor.getExpandedText());
+      } finally {
+        this.tui.start();
+        this.tui.requestRender(true);
+      }
+    })();
+    if (result.kind === 'edited') this.editor.setText(result.text);
+    else if (result.kind === 'failed') this.flashHint(result.reason);
+  }
+
+  private openHistorySearch(): void {
+    const { modals } = this;
+    modals.show(
+      new HistorySearchOverlay({
+        search: (query) => this.history.search(query),
+        onPick: (text) => {
+          modals.close();
+          this.editor.setText(text);
+          this.tui.requestRender();
+        },
+        onCancel: () => modals.close(),
+      }),
+    );
   }
 
   /** The session this shell shows, once it has one. */
@@ -526,7 +579,7 @@ export class TuiApp {
       }
       this.refreshChrome();
     }
-    if (this.features.handlePush(push)) return;
+    if (this.features.handlePush(push) || this.usage.handlePush(push)) return;
     switch (push.type) {
       case 'event':
         if (push.sessionId !== this.sessionId) return;

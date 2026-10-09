@@ -35,6 +35,8 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'undo', description: '撤销最近一轮对文件的改动' },
   { name: 'branches', description: '在会话的分支之间切换' },
   { name: 'fork', description: '从这里分叉出一个新会话：/fork [名称]' },
+  { name: 'context', description: '看上下文占用和最近一次请求的用量（/usage 同）' },
+  { name: 'usage', description: '同 /context' },
   { name: 'rename', description: '重命名当前会话' },
   { name: 'pin', description: '置顶或取消置顶当前会话' },
   { name: 'archive', description: '归档当前会话（/unarchive 可撤销）' },

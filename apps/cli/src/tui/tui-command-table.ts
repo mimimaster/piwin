@@ -12,6 +12,7 @@ import type { TuiSideChatController } from './tui-side-chat-controller.js';
 import type { TuiSubagentController } from './tui-subagent-controller.js';
 import type { TuiTurnActions } from './tui-turn-actions.js';
 import type { TuiTurnChangeController } from './tui-turn-change-controller.js';
+import type { TuiUsageController } from './tui-usage-controller.js';
 import type { TuiWalkthroughController } from './tui-walkthrough-controller.js';
 
 type CommandHandler = (argument: string) => void | Promise<void>;
@@ -30,6 +31,7 @@ export type TuiCommandTableDeps = {
   sideChat: TuiSideChatController;
   artifacts: TuiArtifactController;
   turns: TuiTurnActions;
+  usage: TuiUsageController;
   sessionSwitcher: TuiSessionSwitcher;
   sessionExport: TuiSessionExport;
   sessionSearch: TuiSessionSearch;
@@ -46,7 +48,7 @@ export type TuiCommandTableDeps = {
 };
 
 const SHORTCUT_HELP =
-  'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+V 粘贴图片 · @ 引用文件 · 运行中发送即排队 · Ctrl+O 展开工具输出 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行';
+  'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+V 粘贴图片 · @ 引用文件 · 运行中发送即排队 · Ctrl+O 展开工具输出和思考 · Ctrl+R 历史提示词 · Ctrl+G 用 $EDITOR 编辑 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行';
 
 /** Slash command name → what it does. One entry per row of TUI_SLASH_COMMANDS. */
 export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string, argument: string) => Promise<void> {
@@ -84,6 +86,8 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     undo: () => deps.turnChanges.undoLatest(),
     branches: () => branches.open(),
     fork: (argument) => turns.fork(argument),
+    context: () => deps.usage.open(),
+    usage: () => deps.usage.open(),
     rename: (argument) => deps.renameSession(argument),
     pin: () => deps.sessionSwitcher.toggleCurrentPin(),
     archive: () => deps.sessionSwitcher.archiveCurrent(),

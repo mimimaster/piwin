@@ -354,6 +354,23 @@ describe('TUI end to end against a mock Host', () => {
       expect(tui.seen()).not.toContain('button.tsx');
     });
 
+    it('brings an earlier prompt back with Ctrl+R and keeps it for the next run', async () => {
+      tui = await startTuiHarness();
+      await converse(tui, '查一下登录 bug');
+      await converse(tui, '写一份发布文档');
+      tui.mark();
+      await tui.press(KEY.ctrlR);
+      await tui.waitFor('历史提示词');
+      tui.mark();
+      await tui.press(...'登录');
+      await tui.waitFor('→ 查一下登录 bug');
+      expect(tui.seen()).not.toContain('→ 写一份发布文档');
+      await tui.press(KEY.enter);
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('› 查一下登录 bug');
+    });
+
     it('finds a deep file by a fragment of its name', async () => {
       tui = await startTuiHarness({ project: true });
       await tui.waitFor('fixture');

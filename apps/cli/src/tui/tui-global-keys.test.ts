@@ -29,6 +29,8 @@ function setup(overrides: Partial<TuiGlobalKeysPort> = {}, initial: { text?: str
     openSessions: vi.fn(),
     pasteClipboardImage: vi.fn(),
     cyclePermissionPreset: vi.fn(),
+    openHistorySearch: vi.fn(),
+    editInExternalEditor: vi.fn(),
     toggleToolOutput: () => true,
     hint: vi.fn(),
     ...overrides,
@@ -86,6 +88,18 @@ describe('TuiGlobalKeys', () => {
     const { keys, editor } = setup({}, { text: '@bu', autocomplete: true });
     expect(keys.handle(CTRL_U)).toBeUndefined();
     expect(editor.handleInput).toHaveBeenCalledWith('\x1b');
+  });
+
+  it('opens the prompt history on Ctrl+R', () => {
+    const { keys, port } = setup();
+    expect(keys.handle('\x12')).toEqual({ consume: true });
+    expect(port.openHistorySearch).toHaveBeenCalledOnce();
+  });
+
+  it('opens the external editor on Ctrl+G', () => {
+    const { keys, port } = setup();
+    expect(keys.handle('\x07')).toEqual({ consume: true });
+    expect(port.editInExternalEditor).toHaveBeenCalledOnce();
   });
 
   it('keeps Ctrl+S for the session picker out of an embedded pane', () => {

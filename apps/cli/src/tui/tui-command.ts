@@ -5,6 +5,7 @@ import { ProcessTerminal, TuiMainScreen } from '@earendil-works/pi-tui';
 import type { RemoteProjectSummary, RemoteSessionListData } from '@piwin/contracts';
 import { getPiwinRoot } from '@piwin/host-runtime';
 import { parseMock, readOption } from '../cli-args.js';
+import { promptHistoryFile } from './prompt-history.js';
 import { TuiApp } from './tui-app.js';
 import { hostData, openTuiHostLink, type TuiHostLink } from './tui-host-link.js';
 import { resolveTuiLaunchScope } from './tui-launch-scope.js';
@@ -66,6 +67,7 @@ export async function commandTui(argv: string[]): Promise<void> {
         embedded,
         mock,
         openSessionPicker,
+        historyFile: promptHistoryFile(getPiwinRoot(), projectId),
         ...(notice === undefined ? {} : { startNotice: notice }),
         onExit: () => {
           tui.stop();

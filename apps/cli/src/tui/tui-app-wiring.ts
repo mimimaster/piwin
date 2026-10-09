@@ -1,5 +1,5 @@
 import type { Editor, TUI } from '@earendil-works/pi-tui';
-import type { RemoteProjectSummary } from '@piwin/contracts';
+import type { RemoteProjectSummary, SessionContextSnapshot } from '@piwin/contracts';
 import {
   appendLocalUserMessage,
   appendNotice,
@@ -20,6 +20,7 @@ import { TuiSessionSearch } from './tui-session-search.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
+import { TuiUsageController } from './tui-usage-controller.js';
 
 /**
  * What the controllers need from the running app, and nothing else. Every
@@ -40,6 +41,7 @@ export type TuiWiringPort = {
   /** Replaces the transcript; it does not redraw. */
   updateTranscript: (update: (transcript: TranscriptState) => TranscriptState) => void;
   getProjects: () => RemoteProjectSummary[];
+  getContext: () => SessionContextSnapshot | undefined;
   /** Replaced whenever the user moves to another conversation. */
   getConversation: () => object;
   getEditingMessageId: () => string | undefined;
@@ -53,6 +55,8 @@ export type TuiWiringPort = {
   renameSession: (sessionId: string, name: string) => Promise<void>;
   renameCurrentSession: (name: string) => Promise<void>;
   loadOlderMessages: () => Promise<void>;
+  /** A prompt was sent: keep it for Up-arrow and Ctrl+R. */
+  rememberPrompt: (text: string) => void;
   refresh: () => void;
   hint: (text: string) => void;
   error: (error: unknown) => void;
@@ -65,6 +69,7 @@ export type TuiControllers = {
   features: TuiSessionFeatures;
   sideChat: TuiSideChatController;
   turns: TuiTurnActions;
+  usage: TuiUsageController;
   sender: TuiPromptSender;
   sessionSwitcher: TuiSessionSwitcher;
   runCommand: (name: string, argument: string) => Promise<void>;
@@ -209,6 +214,12 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     onError: port.error,
     requestRender: () => port.tui.requestRender(),
   });
+  const usage = new TuiUsageController({
+    modals: port.modals,
+    getSessionId: port.getSessionId,
+    getContext: port.getContext,
+    describeModel: () => composer.describeModelAndThinking(),
+  });
   const runCommand = createTuiCommandTable({
     embedded: port.embedded,
     composer,
@@ -229,6 +240,7 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
       ...(port.openFile === undefined ? {} : { openFile: port.openFile }),
     }),
     turns,
+    usage,
     sessionSwitcher,
     sessionExport,
     sessionSearch,
@@ -236,7 +248,7 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     loadOlderMessages: port.loadOlderMessages,
     renameSession: port.renameCurrentSession,
     sendReplacingRun: (text) => {
-      port.editor.addToHistory(text.trim());
+      port.rememberPrompt(text);
       return sender.send(text, true);
     },
     setComposerText,
@@ -244,5 +256,5 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     notice: notify,
     exit: port.exit,
   });
-  return { composer, attachments, features, sideChat, turns, sender, sessionSwitcher, runCommand };
+  return { composer, attachments, features, sideChat, turns, usage, sender, sessionSwitcher, runCommand };
 }

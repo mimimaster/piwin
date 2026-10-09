@@ -27,6 +27,7 @@ function createDeps(embedded = false): TuiCommandTableDeps {
     sideChat: recorder(),
     artifacts: recorder(),
     turns: recorder(),
+    usage: recorder(),
     sessionSwitcher: recorder(),
     sessionExport: recorder(),
     sessionSearch: recorder(),

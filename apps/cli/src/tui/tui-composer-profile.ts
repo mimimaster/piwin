@@ -155,6 +155,12 @@ export class TuiComposerProfile {
     return skill?.id;
   }
 
+  /** The model and thinking level the next prompt uses, for reports that spell them out. */
+  public describeModelAndThinking(): { model: string; thinking?: string } {
+    const thinking = this.thinkingLevel ?? this.model?.thinkingLevel;
+    return { model: this.describeModel(), ...(thinking === undefined ? {} : { thinking }) };
+  }
+
   private describeModel(): string {
     if (this.model !== undefined) return this.model.label ?? this.model.modelId;
     const fallback = this.hostDefaultModel();
