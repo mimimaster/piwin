@@ -4,8 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ExecutionRunRecord, HostResponse } from '@piwin/contracts';
 import { HostRuntime } from './host-runtime.js';
-import type { ProductAgentHost } from './product-agent-host.js';
-import type { RunRegistry } from './run-registry.js';
+import type { SessionActivationProbe } from './host-runtime-types.js';
 
 type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
 
@@ -28,52 +27,72 @@ function deferredMap<T>() {
   };
 }
 
-type ActivateSessionRuntime = (
-  sessionId: string,
-  runId?: string,
-  signal?: AbortSignal,
-  excludeSeedMessageId?: string,
-) => Promise<unknown>;
-
 /**
- * Hold the next runtime creation until released. Records which Runs asked
- * for the session's runtime, and every runtime created and dropped.
+ * A Host whose first cold activation is held at one step until released.
+ * Everything is observed through the activation probe and the Host's pushes.
  */
-function gateNextActivation(runtime: HostRuntime) {
-  const kernel = runtime as unknown as { activateSessionRuntime: ActivateSessionRuntime };
-  const activateSessionRuntime = kernel.activateSessionRuntime.bind(runtime);
+async function openHostHoldingFirst(step: 'admitted' | 'creating', label: string) {
+  const terminals = deferredMap<ExecutionRunRecord>();
   const runtimeRequest = deferredMap<void>();
-  kernel.activateSessionRuntime = (sessionId, runId, signal, excludeSeedMessageId) => {
-    const activating = activateSessionRuntime(sessionId, runId, signal, excludeSeedMessageId);
-    if (runId !== undefined) runtimeRequest(runId).resolve();
-    return activating;
-  };
-
-  const host = runtime.host;
-  const activateSession = host.activateSession.bind(host);
-  const dropSession = host.dropSession.bind(host);
   const entered = deferred();
   const released = deferred();
-  const activatedGenerations: string[] = [];
-  const droppedSessions: string[] = [];
-  host.activateSession = async (...args: Parameters<ProductAgentHost['activateSession']>) => {
-    activatedGenerations.push(args[2]);
-    if (activatedGenerations.length === 1) {
-      entered.resolve();
-      await released.promise;
-    }
-    return activateSession(...args);
+  const createdGenerations: string[] = [];
+  const droppedGenerations: string[] = [];
+  let held = false;
+  const holdOnce = async (): Promise<void> => {
+    if (held) return;
+    held = true;
+    entered.resolve();
+    await released.promise;
   };
-  host.dropSession = async (sessionId: string) => {
-    droppedSessions.push(sessionId);
-    return dropSession(sessionId);
+  const activationProbe: SessionActivationProbe = {
+    requested: ({ runId }) => {
+      if (runId !== undefined) runtimeRequest(runId).resolve();
+    },
+    admitted: () => (step === 'admitted' ? holdOnce() : undefined),
+    creating: ({ runtimeGenerationId }) => {
+      createdGenerations.push(runtimeGenerationId);
+      return step === 'creating' ? holdOnce() : undefined;
+    },
+    dropped: ({ runtimeGenerationId }) => {
+      droppedGenerations.push(runtimeGenerationId);
+    },
   };
+  const runtime = new HostRuntime({
+    mode: 'sdk',
+    mock: true,
+    piwinRoot: await mkdtemp(join(tmpdir(), `piwin-host-activation-${label}-`)),
+    activationProbe,
+    onPush: (push) => {
+      if (push.type === 'run/terminal') terminals(push.run.runId).resolve(push.run);
+    },
+  });
+  const created = await runtime.handleCommand({
+    type: 'session/create',
+    input: { projectPath: `/tmp/activation-${label}` },
+  });
+  if (!created.success) throw new Error(created.error);
+  const sessionId = (created.data as { sessionId: string }).sessionId;
+  const prompt = async (text: string): Promise<string> =>
+    acceptedRunId(
+      await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: { text },
+        foreground: { kind: 'if-idle' },
+      }),
+    );
   return {
+    runtime,
+    sessionId,
+    prompt,
+    /** The first activation reached the held step. */
     entered: entered.promise,
     release: () => released.resolve(),
     requestedBy: (runId: string) => runtimeRequest(runId).promise,
-    activatedGenerations,
-    droppedSessions,
+    terminal: (runId: string) => terminals(runId).promise,
+    createdGenerations,
+    droppedGenerations,
   };
 }
 
@@ -82,144 +101,57 @@ function acceptedRunId(response: HostResponse): string {
   return (response.data as { runId: string }).runId;
 }
 
-type ResidencyAdmission = {
-  beginActivation: (...args: unknown[]) => Promise<unknown>;
-};
-
-/** Hold the first residency admission's answer until released. */
-function gateFirstAdmission(runtime: HostRuntime) {
-  const residency = (runtime as unknown as { residencyController: ResidencyAdmission })
-    .residencyController;
-  const beginActivation = residency.beginActivation.bind(residency);
-  const entered = deferred();
-  const released = deferred();
-  let admissions = 0;
-  residency.beginActivation = async (...args) => {
-    const admitted = await beginActivation(...args);
-    admissions += 1;
-    if (admissions === 1) {
-      entered.resolve();
-      await released.promise;
-    }
-    return admitted;
-  };
-  return { entered: entered.promise, release: () => released.resolve() };
-}
-
 describe('stopping a Run during cold activation', () => {
   it('creates no runtime for a Run stopped while its activation is still preparing', async () => {
-    const terminals = deferredMap<ExecutionRunRecord>();
-    const runtime = new HostRuntime({
-      mode: 'sdk',
-      mock: true,
-      piwinRoot: await mkdtemp(join(tmpdir(), 'piwin-host-activation-prepare-cancel-')),
-      onPush: (push) => {
-        if (push.type === 'run/terminal') terminals(push.run.runId).resolve(push.run);
-      },
-    });
-    const created = await runtime.handleCommand({
-      type: 'session/create',
-      input: { projectPath: '/tmp/activation-prepare-cancel' },
-    });
-    if (!created.success) throw new Error(created.error);
-    const sessionId = (created.data as { sessionId: string }).sessionId;
-    const activation = gateNextActivation(runtime);
-    const admission = gateFirstAdmission(runtime);
+    const host = await openHostHoldingFirst('admitted', 'prepare-cancel');
+    const { runtime, sessionId } = host;
 
-    const stoppedRunId = acceptedRunId(
-      await runtime.handleCommand({
-        type: 'session/prompt',
-        sessionId,
-        input: { text: 'stopped before its runtime is created' },
-        foreground: { kind: 'if-idle' },
-      }),
-    );
-    await admission.entered;
+    const stoppedRunId = await host.prompt('stopped before its runtime is created');
+    await host.entered;
     expect(
       await runtime.handleCommand({ type: 'session/abort', sessionId, runId: stoppedRunId }),
     ).toMatchObject({ success: true, data: { cancelled: true } });
-    expect((await terminals(stoppedRunId).promise).status).toBe('cancelled');
-    const nextRunId = acceptedRunId(
-      await runtime.handleCommand({
-        type: 'session/prompt',
-        sessionId,
-        input: { text: 'the next turn' },
-        foreground: { kind: 'if-idle' },
-      }),
-    );
-    await activation.requestedBy(nextRunId);
-    admission.release();
-    // Only the next turn's runtime is ever created; the gate on creation is its.
-    await activation.entered;
-    expect(activation.activatedGenerations).toHaveLength(1);
-    activation.release();
-    const next = await terminals(nextRunId).promise;
+    expect((await host.terminal(stoppedRunId)).status).toBe('cancelled');
+    const nextRunId = await host.prompt('the next turn');
+    await host.requestedBy(nextRunId);
+    host.release();
+    const next = await host.terminal(nextRunId);
 
     expect(next.status).toBe('completed');
-    expect(activation.activatedGenerations).toHaveLength(1);
-    expect(activation.droppedSessions).toEqual([]);
-    expect(next.runtimeGenerationId).toBe(activation.activatedGenerations[0]);
+    // Only the next turn's runtime was ever created, and nothing had to be released.
+    expect(host.createdGenerations).toEqual([next.runtimeGenerationId]);
+    expect(host.droppedGenerations).toEqual([]);
     await runtime.dispose();
   });
 
-
   it('cancels that activation, and the next turn activates its own runtime and completes', async () => {
-    const terminals = deferredMap<ExecutionRunRecord>();
-    const runtime = new HostRuntime({
-      mode: 'sdk',
-      mock: true,
-      piwinRoot: await mkdtemp(join(tmpdir(), 'piwin-host-activation-cancel-')),
-      onPush: (push) => {
-        if (push.type === 'run/terminal') terminals(push.run.runId).resolve(push.run);
-      },
-    });
-    const registry = (runtime as unknown as { runRegistry: RunRegistry }).runRegistry;
-    const created = await runtime.handleCommand({
-      type: 'session/create',
-      input: { projectPath: '/tmp/activation-cancel' },
-    });
-    if (!created.success) throw new Error(created.error);
-    const sessionId = (created.data as { sessionId: string }).sessionId;
-    const activation = gateNextActivation(runtime);
+    const host = await openHostHoldingFirst('creating', 'cancel');
+    const { runtime, sessionId } = host;
 
-    const stoppedRunId = acceptedRunId(
-      await runtime.handleCommand({
-        type: 'session/prompt',
-        sessionId,
-        input: { text: 'stopped while its runtime is created' },
-        foreground: { kind: 'if-idle' },
-      }),
-    );
-    await activation.entered;
+    const stoppedRunId = await host.prompt('stopped while its runtime is created');
+    await host.entered;
     expect(
       await runtime.handleCommand({ type: 'session/abort', sessionId, runId: stoppedRunId }),
     ).toMatchObject({ success: true, data: { cancelled: true } });
     // Stop is reflected at once, while the runtime is still being created.
-    const stopped = await terminals(stoppedRunId).promise;
+    const stopped = await host.terminal(stoppedRunId);
     expect(stopped.status).toBe('cancelled');
+    expect(stopped.runtimeGenerationId).toBeUndefined();
     expect(
       await runtime.handleCommand({ type: 'session/foreground-run', sessionId }),
     ).toMatchObject({ success: true, data: { run: null } });
 
     // The next turn asks for the runtime while the cancelled creation is unfinished.
-    const nextRunId = acceptedRunId(
-      await runtime.handleCommand({
-        type: 'session/prompt',
-        sessionId,
-        input: { text: 'the next turn' },
-        foreground: { kind: 'if-idle' },
-      }),
-    );
-    await activation.requestedBy(nextRunId);
-    activation.release();
-    const next = await terminals(nextRunId).promise;
+    const nextRunId = await host.prompt('the next turn');
+    await host.requestedBy(nextRunId);
+    host.release();
+    const next = await host.terminal(nextRunId);
 
     expect(next.status).toBe('completed');
-    // The cancelled creation released its runtime and never attached it.
-    expect(activation.droppedSessions).toEqual([sessionId]);
-    expect(registry.get(stoppedRunId)?.runtimeGenerationId).toBeUndefined();
-    expect(activation.activatedGenerations).toHaveLength(2);
-    expect(next.runtimeGenerationId).toBe(activation.activatedGenerations[1]);
+    // The cancelled creation released its runtime; the next turn runs on its own.
+    expect(host.createdGenerations).toHaveLength(2);
+    expect(host.droppedGenerations).toEqual([host.createdGenerations[0]]);
+    expect(next.runtimeGenerationId).toBe(host.createdGenerations[1]);
     await runtime.dispose();
   });
 });

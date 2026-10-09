@@ -68,6 +68,7 @@ export function activateSessionRuntime(
   }
   const inFlight = deps.sessionActivationPromises.get(sessionId);
   if (inFlight) {
+    deps.options.activationProbe?.requested?.({ sessionId, ...(runId !== undefined ? { runId } : {}) });
     if (runId !== undefined) {
       void deps.publishWaitingResourceWhileQueued(runId);
     }
@@ -87,6 +88,7 @@ export function activateSessionRuntime(
       });
   }
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
+  deps.options.activationProbe?.requested?.({ sessionId, ...(runId !== undefined ? { runId } : {}) });
   let activation: Promise<SessionHandle>;
   // Stopping the Run cancels the activation it started. Callers that arrive
   // afterwards start their own activation instead of joining the cancelled one.
@@ -223,6 +225,9 @@ export async function doActivateSessionRuntime(
       throw activationCancelled();
     }
   };
+  const probe = deps.options.activationProbe;
+  const probeStep = { sessionId, ...(runId !== undefined ? { runId } : {}) };
+  await probe?.admitted?.(probeStep);
   cancelIfStopped();
   // ADR 0082: external agent sessions bypass Pi blueprint compilation and
   // native replay seeds; the agent owns its own conversation state.
@@ -284,6 +289,7 @@ export async function doActivateSessionRuntime(
   cancelIfStopped();
   let handle: SessionHandle;
   try {
+    await probe?.creating?.({ ...probeStep, runtimeGenerationId });
     // 3. create and commit a generation for the same product session id.
     const activationModel = deps.sessionModels.get(sessionId) ?? record.model;
     handle = await deps.host.activateSession(
@@ -301,6 +307,7 @@ export async function doActivateSessionRuntime(
       // The Run was stopped while its runtime was being created. Its terminal
       // may already be published: release the generation, never attach it.
       await deps.host.dropSession(sessionId);
+      probe?.dropped?.({ ...probeStep, runtimeGenerationId });
       throw activationCancelled();
     }
     if (runId !== undefined) {
