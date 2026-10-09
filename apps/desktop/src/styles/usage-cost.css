@@ -1,0 +1,102 @@
+/* ── Reference cost (one summary card + on-demand details) ───────────
+   Cost is a peer of the token/cache/activity readouts: same card, same
+   type scale. Notes and breakdown stay behind explicit, keyboard-reachable
+   controls so the default page height does not grow. */
+
+.usage-cost-meta[data-attention='true'] {
+  color: color-mix(in srgb, var(--amber) 72%, var(--text-1));
+}
+
+.usage-cost-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: calc(-1 * var(--s-3)) 0 calc(-1 * var(--s-3)) calc(-1 * var(--s-3));
+}
+
+.usage-cost-action {
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+}
+
+.ui-popover-content.usage-cost-notes {
+  width: min(340px, calc(100vw - 32px));
+  padding: var(--s-5) var(--s-6);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.usage-cost-notes-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-normal, 1.5);
+}
+
+.usage-cost-notes-facts {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+}
+
+.usage-cost-notes-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-5);
+}
+
+.usage-cost-notes-facts dt {
+  color: var(--text-3);
+}
+
+.usage-cost-notes-facts dd {
+  margin: 0;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.usage-cost-notes-basis {
+  margin: 0;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-1);
+  color: var(--text-3);
+}
+
+.usage-cost-notes-mappings > span {
+  color: var(--text-3);
+}
+
+.usage-cost-notes-mappings ul {
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.usage-cost-notes-mappings li {
+  overflow-wrap: anywhere;
+  color: var(--text-2);
+}
+
+.usage-cost-notes-mappings code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+.usage-cost-details {
+  overflow: hidden;
+}
+
+.usage-cost-details .usage-cost-details-scroll {
+  margin: 0;
+  border-top: 0;
+}
+
+.usage-cost-table {
+  min-width: 560px;
+}
+
+.usage-cost-table td {
+  padding-block: 9px;
+}

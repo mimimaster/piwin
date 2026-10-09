@@ -98,9 +98,14 @@ export function UsageActivityHeatmap(props: UsageActivityHeatmapProps): ReactEle
   return (
     <section className="usage-card usage-heatmap-card" data-testid="usage-activity-heatmap">
       <div className="usage-section-header">
-        <div>
-          <h3>{isZh ? '用量活跃度' : 'Usage activity'}</h3>
-          <p>{isZh ? '过去一年每天的用量，颜色越深用得越多。' : 'Every day of the past year; darker means more.'}</p>
+        <div className="usage-heatmap-heading">
+          <h3>
+            {isZh ? '用量活跃度' : 'Usage activity'}
+            <span className="usage-scope-pill" data-testid="usage-heatmap-scope">
+              {isZh ? '过去一年 · 不随上方范围变化' : 'Past year · ignores the range above'}
+            </span>
+          </h3>
+          <p>{isZh ? '每天的用量，颜色越深用得越多。' : 'Daily usage; darker means more.'}</p>
         </div>
         <SegmentedControl
           value={metric}

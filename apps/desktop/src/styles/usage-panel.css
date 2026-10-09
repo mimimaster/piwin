@@ -101,6 +101,7 @@
   flex-direction: column;
   gap: var(--s-6);
   padding: 0;
+  container-type: inline-size;
 }
 
 .usage-card,
@@ -111,10 +112,24 @@
   box-shadow: var(--elev-1);
 }
 
+/* Four peer readouts; columns follow the panel's content width, not the
+   window, because the settings shell's sidebar takes a variable share. */
 .usage-summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--s-5);
+}
+
+@container (max-width: 860px) {
+  .usage-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 480px) {
+  .usage-summary-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .usage-summary-card {
@@ -261,6 +276,12 @@
   background: color-mix(in srgb, var(--hover) 72%, transparent);
 }
 
+/* Amounts and counts line up on the right edge. */
+.usage-table .usage-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
 .usage-table-model {
   max-width: 240px;
 }
@@ -341,16 +362,6 @@
   text-align: center;
 }
 
-@media (max-width: 860px) {
-  .usage-summary-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .usage-summary-card {
-    min-height: 132px;
-  }
-}
-
 @media (max-width: 680px) {
   .usage-toolbar,
   .usage-panel-body {
@@ -389,13 +400,15 @@
   align-items: center;
 }
 
-.usage-calls-heading h3 {
+.usage-calls-heading h3,
+.usage-heatmap-heading h3 {
   display: flex;
   align-items: center;
   gap: var(--s-4);
 }
 
-.usage-calls-window {
+.usage-calls-window,
+.usage-scope-pill {
   padding: 1px var(--s-3);
   border-radius: var(--r-pill);
   background: var(--hover);

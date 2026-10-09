@@ -1,9 +1,11 @@
 /**
  * Compact token usage dashboard (CE-OBS).
  *
- * Information is intentionally consolidated into three summary cards, one
- * usage heatmap, and one model + Key table. Provider configuration
- * ids are the safe Key dimension: API key values never reach the client.
+ * Information is intentionally consolidated into four peer summary cards
+ * (reference cost first), one usage heatmap, and the recent-call log. The
+ * model + Key cost breakdown is opt-in and collapsed by default. Provider
+ * configuration ids are the safe Key dimension: API key values never reach
+ * the client.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
@@ -19,7 +21,8 @@ import { isRemoteCommandGapError } from './remote-command-gap.js';
 import { useDesktopLocale } from './desktop-locale-context';
 import { UsageActivityHeatmap } from './usage-activity-heatmap';
 import { UsageRecentCalls } from './usage-recent-calls';
-import { UsageCostSummary } from './usage-cost-summary';
+import { UsageCostOverviewCard } from './usage-cost-overview';
+import { UsageCostDetails } from './usage-cost-details';
 import {
   EMPTY_USAGE_CALL_LOG,
   EMPTY_USAGE_ROLLUP,
@@ -67,6 +70,7 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
   const [callOffset, setCallOffset] = useState(0);
   const [callsLoading, setCallsLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [costDetailsOpen, setCostDetailsOpen] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -263,6 +267,13 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
 
       <div className="usage-panel-body">
         <div className="usage-summary-grid">
+          <UsageCostOverviewCard
+            rollup={rollup}
+            isZh={isZh}
+            detailsOpen={costDetailsOpen}
+            onDetailsOpen={setCostDetailsOpen}
+          />
+
           <section className="usage-summary-card">
             <span className="usage-summary-label">{isZh ? '总用量' : 'Total usage'}</span>
             <strong className="usage-summary-value" data-testid="usage-total">
@@ -333,7 +344,9 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
           </section>
         </div>
 
-        <UsageCostSummary rollup={rollup} isZh={isZh} />
+        {costDetailsOpen && rollup.byModelKey.length > 0 ? (
+          <UsageCostDetails rows={rollup.byModelKey} isZh={isZh} />
+        ) : null}
 
         <UsageActivityHeatmap
           request={props.request}
@@ -343,8 +356,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
           locale={locale}
           isZh={isZh}
         />
-
-
 
         {callLogSupported ? (
           <UsageRecentCalls
