@@ -24,22 +24,22 @@
 | M0-2 | mock Host 支持子代理与改动记录 | `mock-session` 能产出 subagent 生命周期事件和 per-turn file changes；`tui-e2e` 覆盖：起子代理→看结果→follow up；改文件→看 diff→undo |
 | M0-3 | 推送 `feat/cli-tui` 到 origin（Yorick 点头后，禁止 force） | 远端分支存在，tester 能拉到同一 commit |
 
-## M0 审查遗留（并入 M1 开头处理）
+## M0 审查遗留
 
-M0 的 13 个提交审查后留下的问题，都不阻塞 M1，但前两项在动会话管理前先做。
+M0 的 13 个提交审查后留下的问题。已做的留一行记录，没做的在动 M1 相关功能前处理。
 
-| ID | 问题 | 位置 |
+| ID | 问题 | 状态 |
 |---|---|---|
-| R-1 | 建会话失败后第一条消息原文没还给输入框；排队提交被 Host 拒绝时本地回显已撤、输入框内容也丢 | `tui-app.ts` `sendPromptNow` |
-| R-2 | 发送队列没有超时也不能取消：Host 一个请求不回，后面所有消息都卡住 | `tui-app.ts` `promptLane` |
-| R-3 | 队列里等待的消息取的是「发出时」的会话：期间切了会话，消息会发到新会话；`createSession` 回来时也会无条件把当前会话切回新建的那个 | `tui-app.ts` `sendPromptNow` / `createSession` |
-| R-4 | 停止检查只在运行时建好之后做，准备阶段点停止仍白跑一次冷启动；外部代理会话（`activateExternalSession`）完全没有这个检查，仍会把新一代运行时挂到已结束的 run 上 | `session-runtime-lifecycle.ts`、`grok/grok-session-router.ts` |
-| R-5 | cold activation 取消的测试替换了 Host 私有方法、读内部 run 记录，应有正式的测试接入点 | `session-runtime-activation-cancel.test.ts` |
-| R-6 | Desktop 的模拟 Host 只发早的那次分支推送；TUI `branches.load()` 失败当成 0 | `host-client-mock-turn.ts`、`tui-branch-controller.ts` |
-| R-7 | 不相关的 done 更新可能提前耗掉子代理追问计数，过早显示「已完成」 | `tui-subagent-controller.ts` |
-| R-8 | foreground-run 的回包与同代的 run 推送只按「是否在跑」取舍，回包里若是更早的一轮会盖掉推送来的新一轮 | `tui-app.ts` `reconcileForegroundRun` |
-| R-9 | `tui-app.ts` 870 行、`session-product-commands.ts` 967 行，接近 1000 行上限；M1 往里加功能前先按职责拆（发送/会话生命周期/推送） | AGENTS §3.2 |
-| R-10 | 小项：未注册的 `--project-path` 静默退回通用工作区；side chat 状态栏显示「对话」；`/back` 后上下文百分比消失；文案「会把1 个文件」缺空格；出错的分支在列表里显示「（空）」 | TUI 各 view |
+| R-1 | 建会话失败、排队被拒时消息原文丢失 | 已做：没被 Host 接下的消息连同排在它后面的一起放回输入框，本地回显撤掉（`tui-prompt-sender.ts`） |
+| R-2 | 发送队列不能取消 | 已做：状态栏显示「待发送 N 条」，Ctrl+C 取回；已发出的那条仍靠 host-client 的请求超时结束 |
+| R-3 | 等待中的消息会跟着切换发到别的会话；迟到的建会话把用户拉回旧草稿 | 已做：消息绑定输入时所在的对话，切走后放回输入框 |
+| R-4 | 准备阶段点停止仍白跑一次冷启动 | 已做：容量准入之后、建运行时之前各查一次。外部代理会话在停止后由后来的 turn 自己启动（不再挂到已结束的 run 上），只是被停的那次仍会打开一次外部会话再释放 |
+| R-5 | cold activation 取消的测试替换 Host 私有方法、读内部 run 记录，应有正式的测试接入点 | 未做（新加的准备阶段测试沿用了同样的做法） |
+| R-6 | TUI `branches.load()` 失败当成 0 | 已做：同一会话的重载读失败时保留原计数。Desktop 的模拟 Host（`host-client-mock-turn.ts`）只发早的那次分支推送，未做 |
+| R-7 | 不相关的 done 更新可能提前耗掉子代理追问计数 | 未做。追问在 Host 上是一个新 batch，但子会话摘要里没有它的 run id（`subagentParentRunId` 是父 turn 的），TUI 只能计数；要精确匹配需在 `SessionSummary` 加一个追问 run 标识，Desktop 同样受益 |
+| R-8 | foreground-run 回包盖掉推送来的新一轮 | 已做：提问期间只要有 run 推送改过状态，回包就丢弃 |
+| R-9 | `tui-app.ts`、`session-product-commands.ts` 接近 1000 行上限 | 部分：`tui-app.ts` 870 → 818（发送逻辑已拆出）；M1 加会话管理前继续拆会话生命周期。`session-product-commands.ts` 967 行未动 |
+| R-10 | 未注册的 `--project-path` 静默退回；side chat 状态栏显示「对话」；`/back` 后上下文百分比消失；「会把1 个文件」缺空格；出错分支显示「（空）」 | 已做 |
 
 ## M1 会话管理（对齐 Desktop + Claude Code `/resume`、Codex resume picker、opencode sessions）
 
