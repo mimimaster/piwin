@@ -2,16 +2,11 @@ import {
   CombinedAutocompleteProvider,
   Container,
   Editor,
-  Key,
   Loader,
-  matchesKey,
   type TUI,
-  type TuiInputListenerResult,
 } from '@earendil-works/pi-tui';
 import type {
-  HostCommand,
   HostPush,
-  PermissionRequestContext,
   RemotePendingPermission,
   RemoteProjectSummary,
   RemoteSessionListData,
@@ -30,8 +25,6 @@ import { TextOverlay } from './choice-overlay.js';
 import { StatusLine, describeRunPhase } from './status-line.js';
 import {
   EMPTY_TRANSCRIPT,
-  appendLocalUserMessage,
-  removeLocalUserMessage,
   appendNotice,
   appendNoticeOnce,
   applyAgentEvent,
@@ -41,30 +34,28 @@ import {
   type TranscriptState,
 } from './transcript-model.js';
 import { TranscriptView } from './transcript-view.js';
-import { createTuiCommandTable } from './tui-command-table.js';
+import { createTuiControllers } from './tui-app-wiring.js';
 import { TUI_COMMAND_NAMES, TUI_SLASH_COMMANDS, parseSlashCommand } from './tui-commands.js';
 import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
-import { describePermissionPrompt } from './permission-prompt-view.js';
-import { TuiModalStack, createExtensionModal, createPermissionModal } from './tui-modals.js';
+import { StatusHint } from './status-hint.js';
+import { TuiGlobalKeys } from './tui-global-keys.js';
+import { TuiHostPrompts } from './tui-host-prompts.js';
+import { TuiModalStack } from './tui-modals.js';
 import { TuiPromptSender } from './tui-prompt-sender.js';
 import { TuiSessionFeatures } from './tui-session-features.js';
-import { TuiSessionExport } from './tui-session-export.js';
-import { TuiSessionSearch } from './tui-session-search.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
 import { ProjectFiles } from './project-files.js';
-import { TuiArtifactController, type FileOpener } from './tui-artifact-controller.js';
+import type { FileOpener } from './tui-artifact-controller.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiAutocompleteProvider } from './tui-autocomplete.js';
 import { editorTheme, style } from './tui-theme.js';
 
 const SESSION_LOOKUP_LIMIT = 500;
-const STATUS_HINT_MS = 4_000;
 const TRANSCRIPT_PAGE_ITEMS = 50;
 const TRANSCRIPT_PAGE_BYTES = 256 * 1024;
-const EXIT_CONFIRM_WINDOW_MS = 1_500;
 
 export type TuiAppOptions = {
   tui: TUI;
@@ -126,14 +117,12 @@ export class TuiApp {
   /** Bumped on every session switch so late responses for the old session are dropped. */
   private sessionEpoch = 0;
   private connected = true;
-  /** A transient line in the status bar; kept for a few seconds, not one frame. */
-  private statusHint: { text: string; timer: ReturnType<typeof setTimeout> } | undefined;
-  private lastInterruptAt = 0;
+  private readonly statusHint = new StatusHint(() => this.refreshChrome());
 
   private readonly modals: TuiModalStack;
+  private readonly prompts: TuiHostPrompts;
+  private readonly globalKeys: TuiGlobalKeys;
   private readonly sessionSwitcher: TuiSessionSwitcher;
-  private readonly sessionExport: TuiSessionExport;
-  private readonly sessionSearch: TuiSessionSearch;
   private readonly disposers: Array<() => void> = [];
 
   public constructor(private readonly options: TuiAppOptions) {
@@ -152,193 +141,86 @@ export class TuiApp {
     });
     this.loader = new Loader(this.tui, style.cyan, style.gray, '');
     this.modals = new TuiModalStack(this.tui, this.editor, () => this.sessionSwitcher.handleOverlayClosed());
-    this.composer = new TuiComposerProfile({
+    this.prompts = new TuiHostPrompts({
       link: this.link,
       modals: this.modals,
-      getSessionId: () => this.sessionId,
-      onChanged: () => this.refreshChrome(),
-      onHint: (text) => this.flashHint(text),
+      getPathRoots: () => this.currentProjectRoots(),
+      isInProject: () => this.sessionProjectId !== undefined,
       onError: (error) => this.reportError(error),
     });
-    this.attachments = new TuiAttachmentController({
-      link: this.link,
-      ensureSession: () => this.ensureSession(),
-      onChanged: () => this.refreshChrome(),
-      onHint: (text) => this.flashHint(text),
-      onNotice: (tone, text) => {
-        this.transcript = appendNotice(this.transcript, tone, text);
-        this.refreshChrome();
-      },
-    });
-    const notify = (tone: 'info' | 'error', text: string): void => {
-      this.transcript = appendNotice(this.transcript, tone, text);
-      this.refreshChrome();
-    };
-    this.features = new TuiSessionFeatures({
+    const controllers = createTuiControllers({
+      tui: this.tui,
+      editor: this.editor,
       link: this.link,
       modals: this.modals,
+      files: this.files,
       embedded: options.embedded,
+      ...(options.openFile === undefined ? {} : { openFile: options.openFile }),
       getSessionId: () => this.sessionId,
       getRunId: () => knownForegroundRunId(this.foreground),
       getTranscript: () => this.transcript,
-      isRunning: () => this.isRunning(),
-      openSession: (sessionId) => this.openSession(sessionId),
-      onChanged: () => this.refreshChrome(),
-      onHint: (text) => this.flashHint(text),
-      onNotice: notify,
-      onError: (error) => this.reportError(error),
-      echoUser: (messageId, text, annotations) => {
-        this.transcript = appendLocalUserMessage(this.transcript, messageId, text, annotations);
+      updateTranscript: (update) => {
+        this.transcript = update(this.transcript);
       },
-      setComposerText: (text) => {
-        this.editor.setText(text);
-        this.tui.requestRender();
-      },
-    });
-    this.sideChat = new TuiSideChatController({
-      link: this.link,
-      modals: this.modals,
-      getSessionId: () => this.sessionId,
-      getTranscript: () => this.transcript,
-      isRunning: () => this.isRunning(),
-      openSession: (sessionId) => this.openSession(sessionId),
-      onChanged: () => this.refreshChrome(),
-      onHint: (text) => this.flashHint(text),
-      onNotice: notify,
-      onError: (error) => this.reportError(error),
-    });
-    this.turns = new TuiTurnActions({
-      request: (command) => this.link.request(command),
-      embedded: options.embedded,
-      sessionId: () => this.sessionId,
-      runId: () => knownForegroundRunId(this.foreground),
-      isRunning: () => this.isRunning(),
-      transcript: () => this.transcript,
-      promptFields: () => this.composer.promptFields(),
-      hint: (text) => this.flashHint(text),
-      notice: notify,
-      echoUser: (messageId, text, annotations) => {
-        this.transcript = appendLocalUserMessage(this.transcript, messageId, text, annotations);
-        this.refreshChrome();
-      },
-      openSession: (sessionId) => this.openSession(sessionId),
-      beginEdit: (messageId, text) => {
+      getProjects: () => this.projects,
+      getConversation: () => this.conversation,
+      getEditingMessageId: () => this.editingMessageId,
+      setEditingMessageId: (messageId) => {
         this.editingMessageId = messageId;
-        this.editor.setText(text);
-        this.refreshChrome();
       },
-    });
-    this.sender = new TuiPromptSender({
-      link: this.link,
-      queue: this.features.queue,
-      attachments: this.attachments,
-      files: this.files,
-      composer: this.composer,
-      sideChat: this.sideChat,
-      conversation: () => this.conversation,
-      ensureSession: () => this.ensureSession(),
       isRunning: () => this.isRunning(),
-      runId: () => knownForegroundRunId(this.foreground),
-      editingMessageId: () => this.editingMessageId,
-      clearEditing: () => {
-        this.editingMessageId = undefined;
-      },
-      echoUser: (messageId, text, annotations) => {
-        this.transcript = appendLocalUserMessage(this.transcript, messageId, text, annotations);
-        this.refreshChrome();
-      },
-      removeEcho: (messageId) => {
-        this.transcript = removeLocalUserMessage(this.transcript, messageId);
-        this.refreshChrome();
-      },
-      returnToComposer: (text) => {
-        const typed = this.editor.getText();
-        this.editor.setText(typed.length === 0 ? text : `${text}\n${typed}`);
-        this.tui.requestRender();
-      },
+      ensureSession: () => this.ensureSession(),
+      openSession: (sessionId) => this.openSession(sessionId),
+      startDraftSession: () => this.startDraftSession(),
       onTurnAccepted: async (sessionId) => {
         if (this.isRunning() || sessionId !== this.sessionId) return;
         // Show activity immediately; the run/updated push supplies the real run id.
         await this.reconcileForegroundRun(sessionId, this.sessionEpoch);
         this.refreshChrome();
       },
-      reloadSession: (sessionId) => this.openSession(sessionId),
-      onChanged: () => this.refreshChrome(),
-      onHint: (text) => this.flashHint(text),
-      onNotice: notify,
+      renameSession: (sessionId, name) => this.renameSession(sessionId, name),
+      renameCurrentSession: (name) => this.renameCurrentSession(name),
+      loadOlderMessages: () => this.loadOlderMessages(),
+      refresh: () => this.refreshChrome(),
+      hint: (text) => this.flashHint(text),
+      error: (error) => this.reportError(error),
+      exit: () => options.onExit(),
     });
-    this.sessionSwitcher = new TuiSessionSwitcher({
-      link: this.link,
-      modals: this.modals,
-      getProjects: () => this.projects,
-      getCurrentSessionId: () => this.sessionId,
-      onOpen: (sessionId) => {
-        this.openSession(sessionId).catch((error: unknown) => this.reportError(error));
-      },
-      onNew: () => this.startDraftSession(),
-      onRename: (sessionId, name) => this.renameSession(sessionId, name),
-      onError: (error) => this.reportError(error),
-      onHint: (text) => this.flashHint(text),
-      onNotice: notify,
-      requestRender: () => this.tui.requestRender(),
-    });
-    this.sessionExport = new TuiSessionExport({
-      link: this.link,
-      getSessionId: () => this.sessionId,
-      defaultDir: () => process.cwd(),
-      onHint: (text) => this.flashHint(text),
-      onNotice: notify,
-    });
-    this.sessionSearch = new TuiSessionSearch({
-      link: this.link,
-      modals: this.modals,
-      onOpen: (sessionId) => {
-        this.openSession(sessionId).catch((error: unknown) => this.reportError(error));
-      },
-      onError: (error) => this.reportError(error),
-      requestRender: () => this.tui.requestRender(),
-    });
+    this.composer = controllers.composer;
+    this.attachments = controllers.attachments;
+    this.features = controllers.features;
+    this.sideChat = controllers.sideChat;
+    this.turns = controllers.turns;
+    this.sender = controllers.sender;
+    this.sessionSwitcher = controllers.sessionSwitcher;
+    this.runCommand = controllers.runCommand;
     this.tui.addChild(this.transcriptView);
     this.tui.addChild(this.activitySlot);
     this.tui.addChild(this.editor);
     this.tui.addChild(this.statusLine);
-    this.runCommand = createTuiCommandTable({
+    this.globalKeys = new TuiGlobalKeys({
+      editor: this.editor,
       embedded: options.embedded,
-      composer: this.composer,
-      attachments: this.attachments,
-      plans: this.features.plans,
-      queue: this.features.queue,
-      branches: this.features.branches,
-      subagents: this.features.subagents,
-      turnChanges: this.features.turnChanges,
-      walkthroughs: this.features.walkthroughs,
-      sideChat: this.sideChat,
-      artifacts: new TuiArtifactController({
-        modals: this.modals,
-        getTranscript: () => this.transcript,
-        onHint: (text) => this.flashHint(text),
-        onNotice: notify,
-        onError: (error) => this.reportError(error),
-        ...(options.openFile === undefined ? {} : { openFile: options.openFile }),
-      }),
-      turns: this.turns,
-      sessionSwitcher: this.sessionSwitcher,
-      sessionExport: this.sessionExport,
-      sessionSearch: this.sessionSearch,
-      startDraftSession: () => this.startDraftSession(),
-      loadOlderMessages: () => this.loadOlderMessages(),
-      renameSession: (name) => this.renameCurrentSession(name),
-      sendReplacingRun: (text) => {
-        this.editor.addToHistory(text.trim());
-        return this.sender.send(text, true);
+      isModalOpen: () => this.modals.isOpen,
+      isRunning: () => this.isRunning(),
+      isEditingTurn: () => this.editingMessageId !== undefined,
+      cancelEditingTurn: () => {
+        this.editingMessageId = undefined;
       },
-      setComposerText: (text) => {
-        this.editor.setText(text);
-        this.tui.requestRender();
+      cancelWaitingMessages: () => this.sender.cancelWaiting(),
+      abortTurn: () => {
+        this.turns.abort().catch((error: unknown) => this.reportError(error));
       },
-      hint: (text) => this.flashHint(text),
-      notice: notify,
       exit: () => options.onExit(),
+      openSessions: () => {
+        this.sessionSwitcher.open().catch((error: unknown) => this.reportError(error));
+      },
+      pasteClipboardImage: () => {
+        this.attachments.pasteClipboardImage().catch((error: unknown) => this.reportError(error));
+      },
+      cyclePermissionPreset: () => this.composer.cyclePermissionPreset(),
+      toggleToolOutput: () => this.transcriptView.toggleToolOutput(),
+      hint: (text) => this.flashHint(text),
     });
     this.tui.setFocus(this.editor);
     this.rebuildAutocomplete();
@@ -357,7 +239,7 @@ export class TuiApp {
           this.openSession(this.sessionId).catch((error: unknown) => this.reportError(error));
         }
       }),
-      this.tui.addInputListener((data) => this.handleGlobalInput(data)),
+      this.tui.addInputListener((data) => this.globalKeys.handle(data)),
     );
     this.tui.start();
     this.refreshChrome();
@@ -381,7 +263,7 @@ export class TuiApp {
   }
 
   public dispose(): void {
-    if (this.statusHint !== undefined) clearTimeout(this.statusHint.timer);
+    this.statusHint.dispose();
     this.loader.stop();
     for (const dispose of this.disposers.splice(0)) dispose();
   }
@@ -444,7 +326,7 @@ export class TuiApp {
     if (epoch !== this.sessionEpoch) return;
     for (const pending of data.permissions ?? []) {
       if (pending.sessionId === sessionId) {
-        this.queuePermission(pending);
+        this.prompts.askPermission(pending);
       }
     }
   }
@@ -653,16 +535,16 @@ export class TuiApp {
         return;
       case 'permission/request':
         if (push.sessionId !== this.sessionId) return;
-        this.queuePermission(push);
+        this.prompts.askPermission(push);
         this.modals.pump();
         return;
       case 'permission/resolved':
         // Answered from another shell (Desktop, phone): drop our copy.
-        this.modals.drop(`permission:${push.requestId}`);
+        this.prompts.permissionResolvedElsewhere(push.requestId);
         return;
       case 'extension/ui_request':
         if (push.sessionId !== this.sessionId) return;
-        this.queueExtensionRequest(push);
+        this.prompts.askExtension(push);
         this.modals.pump();
         return;
       case 'session/name-updated':
@@ -686,105 +568,6 @@ export class TuiApp {
     }
   }
 
-  // ------------------------------------------------------------------ modals
-
-  private queuePermission(push: {
-    requestId: string;
-    action: string;
-    detail: string;
-    context?: PermissionRequestContext;
-  }): void {
-    const { requestId } = push;
-    const prompt = describePermissionPrompt(push, this.currentProjectRoots());
-    this.modals.enqueue(`permission:${requestId}`, () =>
-      this.modals.show(
-        createPermissionModal({
-          requestId,
-          title: prompt.title,
-          message: prompt.message,
-          inProject: this.sessionProjectId !== undefined,
-          ...(prompt.backendOptions === undefined ? {} : { backendOptions: prompt.backendOptions }),
-          resolve: (command) => this.answerModal(command),
-        }),
-      ),
-    );
-  }
-
-  private queueExtensionRequest(push: Extract<HostPush, { type: 'extension/ui_request' }>): void {
-    const { requestId } = push;
-    this.modals.enqueue(`extension:${requestId}`, () =>
-      this.modals.show(
-        createExtensionModal(push, (fields) =>
-          this.answerModal({ type: 'extension/ui_resolve', requestId, ...fields }),
-        ),
-      ),
-    );
-  }
-
-  private answerModal(command: HostCommand): void {
-    this.modals.close();
-    this.link.request(command).then(hostData, (error: unknown) => this.reportError(error));
-  }
-
-  // ------------------------------------------------------------------- input
-
-  private handleGlobalInput(data: string): TuiInputListenerResult {
-    if (this.modals.isOpen) return undefined;
-    const running = this.foreground.kind === 'active';
-    if (matchesKey(data, Key.ctrl('c'))) {
-      if (this.editingMessageId !== undefined) {
-        this.editingMessageId = undefined;
-        this.editor.setText('');
-        this.flashHint('已取消改写');
-      } else if (this.editor.getText().length > 0) {
-        this.editor.setText('');
-      } else if (this.sender.cancelWaiting()) {
-        // Taken back into the composer; the hint says how many.
-      } else if (running) {
-        this.turns.abort().catch((error: unknown) => this.reportError(error));
-      } else if (Date.now() - this.lastInterruptAt < EXIT_CONFIRM_WINDOW_MS) {
-        this.options.onExit();
-      } else {
-        this.lastInterruptAt = Date.now();
-        this.flashHint('再按一次 Ctrl+C 退出');
-      }
-      return { consume: true };
-    }
-    if (matchesKey(data, Key.escape) && running && !this.editor.isShowingAutocomplete()) {
-      this.turns.abort().catch((error: unknown) => this.reportError(error));
-      return { consume: true };
-    }
-    if ((matchesKey(data, Key.ctrl('u')) || matchesKey(data, Key.ctrl('k'))) && this.editor.isShowingAutocomplete()) {
-      // pi-tui's line kills do not refresh the completion list, so the list
-      // would outlive the text it was completing. Closing it first (Esc) lets
-      // the kill proceed on its own.
-      this.editor.handleInput('\x1b');
-      return undefined;
-    }
-    if (matchesKey(data, Key.ctrl('d')) && this.editor.getText().length === 0) {
-      this.options.onExit();
-      return { consume: true };
-    }
-    if (matchesKey(data, Key.ctrl('s')) && !this.options.embedded) {
-      this.sessionSwitcher.open().catch((error: unknown) => this.reportError(error));
-      return { consume: true };
-    }
-    if (matchesKey(data, Key.ctrl('v'))) {
-      this.attachments.pasteClipboardImage().catch((error: unknown) => this.reportError(error));
-      return { consume: true };
-    }
-    if (matchesKey(data, Key.shift('tab'))) {
-      this.composer.cyclePermissionPreset();
-      return { consume: true };
-    }
-    if (matchesKey(data, Key.ctrl('o'))) {
-      this.flashHint(this.transcriptView.toggleToolOutput() ? '工具输出与思考：完整' : '工具输出与思考：摘要');
-      this.tui.requestRender();
-      return { consume: true };
-    }
-    return undefined;
-  }
-
   // ------------------------------------------------------------------ chrome
 
   private async loadProjects(): Promise<void> {
@@ -793,17 +576,7 @@ export class TuiApp {
   }
 
   private flashHint(text: string): void {
-    if (this.statusHint !== undefined) clearTimeout(this.statusHint.timer);
-    // Pushes redraw the status bar many times a second. A hint cleared inside
-    // the redraw that displays it would never reach the screen, so the redraw
-    // keeps the current hint and only this timer retires it.
-    const timer = setTimeout(() => {
-      this.statusHint = undefined;
-      this.refreshChrome();
-    }, STATUS_HINT_MS);
-    timer.unref();
-    this.statusHint = { text, timer };
-    this.refreshChrome();
+    this.statusHint.show(text);
   }
 
   private reportError(error: unknown): void {
@@ -851,7 +624,7 @@ export class TuiApp {
         ? `上下文 ${Math.round((occupancy.tokensUsed / occupancy.tokensLimit) * 100)}%`
         : undefined;
     return [
-      this.statusHint?.text,
+      this.statusHint.text,
       this.sender.describe(),
       this.connected ? undefined : '重连中…',
       this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),
