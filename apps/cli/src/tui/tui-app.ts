@@ -27,6 +27,8 @@ import { StatusLine, describeRunPhase } from './status-line.js';
 import {
   EMPTY_TRANSCRIPT,
   appendNotice,
+  mergeMissingUserMessages,
+  startsTurnWithoutPrompt,
   appendNoticeOnce,
   applyAgentEvent,
   prependOlderMessages,
@@ -66,6 +68,7 @@ import { editorTheme, style } from './tui-theme.js';
 
 const SESSION_LOOKUP_LIMIT = 500;
 const TRANSCRIPT_PAGE_ITEMS = 50;
+const FOREIGN_PROMPT_PAGE_ITEMS = 6;
 const TRANSCRIPT_PAGE_BYTES = 256 * 1024;
 
 export type TuiAppOptions = {
@@ -405,6 +408,25 @@ export class TuiApp {
     if (this.options.embedded) this.tui.terminal.write(formatTuiSessionAnnouncement(sessionId));
   }
 
+  /** An answer began with no prompt before it: another shell sent it, and its text is only in the durable page. */
+  private fetchForeignPrompt(sessionId: string): void {
+    const epoch = this.sessionEpoch;
+    this.link
+      .request({
+        type: 'session/transcript-page',
+        query: { sessionId, limit: FOREIGN_PROMPT_PAGE_ITEMS, maximumBytes: TRANSCRIPT_PAGE_BYTES },
+      })
+      .then((response) => {
+        if (epoch !== this.sessionEpoch || !response.success) return;
+        const page = response.data as RemoteSessionTranscriptPageData;
+        if (page.status !== 'page') return;
+        this.transcript = mergeMissingUserMessages(this.transcript, page.messages);
+        this.transcriptView.invalidate();
+        this.refreshChrome();
+      })
+      .catch((error: unknown) => this.reportError(error));
+  }
+
   private startDraftSession(agentId?: string): void {
     this.draftAgentId = agentId === undefined ? this.options.agentId : agentId === 'pi' ? undefined : agentId;
     this.sessionAgentId = this.draftAgentId;
@@ -636,6 +658,7 @@ export class TuiApp {
     switch (push.type) {
       case 'event':
         if (push.sessionId !== this.sessionId) return;
+        if (startsTurnWithoutPrompt(this.transcript, push.event)) this.fetchForeignPrompt(push.sessionId);
         this.transcript = applyAgentEvent(this.transcript, push.event);
         this.refreshChrome();
         return;

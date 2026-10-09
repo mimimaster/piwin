@@ -74,6 +74,28 @@ export function prependOlderMessages(
   return older.length === 0 ? state : { ...state, entries: [...older, ...state.entries] };
 }
 
+/**
+ * Prompts another shell sent: user turns have no text on the event stream, so
+ * a turn started from Desktop or a phone only reaches this view through the
+ * durable page. Each missing user message is placed before the first later
+ * message this view already shows, or at the end when none is shown yet.
+ */
+export function mergeMissingUserMessages(
+  state: TranscriptState,
+  remote: readonly RemoteTranscriptMessage[],
+): TranscriptState {
+  const entries = [...state.entries];
+  let changed = false;
+  remote.forEach((message, index) => {
+    if (message.role !== 'user' || entries.some((entry) => entry.id === message.id)) return;
+    const laterIds = new Set(remote.slice(index + 1).map((later) => later.id));
+    const before = entries.findIndex((entry) => laterIds.has(entry.id));
+    entries.splice(before === -1 ? entries.length : before, 0, entryFromMessage(message));
+    changed = true;
+  });
+  return changed ? { ...state, entries } : state;
+}
+
 /** Echo the user's prompt before the Host confirms it; the Host row reuses this id. */
 export function appendLocalUserMessage(
   state: TranscriptState,
@@ -357,4 +379,16 @@ function findToolOwnerIndex(
   }
   if (named !== -1) return named;
   return responseMessageId === undefined ? latestAssistant : -1;
+}
+
+/** An assistant message opens while the last message on screen is not a prompt. */
+export function startsTurnWithoutPrompt(state: TranscriptState, event: AgentEvent): boolean {
+  if (event.type !== 'message/start' || event.role !== 'assistant') return false;
+  if (state.entries.some((entry) => entry.id === event.messageId)) return false;
+  for (let index = state.entries.length - 1; index >= 0; index -= 1) {
+    const entry = state.entries[index];
+    if (entry?.kind === 'message') return entry.role !== 'user';
+  }
+  // Nothing shown yet: an empty view has no prompt before this answer either.
+  return true;
 }

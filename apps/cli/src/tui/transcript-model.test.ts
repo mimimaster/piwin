@@ -5,6 +5,8 @@ import {
   appendLocalUserMessage,
   appendNotice,
   appendNoticeOnce,
+  mergeMissingUserMessages,
+  startsTurnWithoutPrompt,
   applyAgentEvent,
   prependOlderMessages,
   settleStreaming,
@@ -164,5 +166,37 @@ describe('compaction notice', () => {
 
   it('reports a failure with the Host’s reason', () => {
     expect(noticeText({ type: 'compaction/end', ok: false, message: '模型不可用' })).toBe('压缩失败：模型不可用');
+  });
+});
+
+describe('prompts from another shell', () => {
+  const remoteUser = (id: string, text: string) => ({ id, role: 'user', text, status: 'done' }) as never;
+  const remoteAssistant = (id: string) => ({ id, role: 'assistant', text: '', status: 'streaming' }) as never;
+
+  it('puts a missing prompt before the answer it started', () => {
+    const state = applyAgentEvent(EMPTY_TRANSCRIPT, { type: 'message/start', messageId: 'a2', role: 'assistant' } as AgentEvent);
+    const merged = mergeMissingUserMessages(state, [remoteUser('u2', '从 Desktop 发的'), remoteAssistant('a2')]);
+    expect(merged.entries.map((entry) => entry.id)).toEqual(['u2', 'a2']);
+  });
+
+  it('keeps earlier turns in order and adds nothing it already shows', () => {
+    const state: TranscriptState = {
+      entries: [
+        { kind: 'message', id: 'u1', role: 'user', text: 'one', thinking: '', status: 'done', tools: [] },
+        { kind: 'message', id: 'a1', role: 'assistant', text: 'A', thinking: '', status: 'done', tools: [] },
+        { kind: 'message', id: 'a2', role: 'assistant', text: '', thinking: '', status: 'streaming', tools: [] },
+      ],
+      noticeCount: 0,
+    };
+    const remote = [remoteUser('u1', 'one'), remoteAssistant('a1'), remoteUser('u2', 'two'), remoteAssistant('a2')];
+    expect(mergeMissingUserMessages(state, remote).entries.map((entry) => entry.id)).toEqual(['u1', 'a1', 'u2', 'a2']);
+    expect(mergeMissingUserMessages(mergeMissingUserMessages(state, remote), remote).entries).toHaveLength(4);
+  });
+
+  it('recognises an answer that starts with no prompt before it, and not one this shell echoed', () => {
+    const start = { type: 'message/start', messageId: 'a9', role: 'assistant' } as AgentEvent;
+    expect(startsTurnWithoutPrompt(EMPTY_TRANSCRIPT, start)).toBe(true);
+    expect(startsTurnWithoutPrompt(appendLocalUserMessage(EMPTY_TRANSCRIPT, 'u9', 'hi'), start)).toBe(false);
+    expect(startsTurnWithoutPrompt(EMPTY_TRANSCRIPT, { type: 'message/start', messageId: 'u', role: 'user' } as AgentEvent)).toBe(false);
   });
 });

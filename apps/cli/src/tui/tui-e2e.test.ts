@@ -736,6 +736,23 @@ describe('TUI end to end against a mock Host', () => {
   });
 
   describe('state other shells change', () => {
+    it('shows a prompt another shell sent, in front of the answer it started', async () => {
+      const shell = await startTuiHarness();
+      tui = shell;
+      await converse(shell, '本机发的');
+      shell.mark();
+      const sent = await shell.asOtherShell({
+        type: 'session/prompt',
+        sessionId: shell.sessionId(),
+        input: { text: '别处发的' },
+        foreground: { kind: 'if-idle' },
+      });
+      expect(sent.success, JSON.stringify(sent).slice(0, 200)).toBe(true);
+      await shell.waitFor('› 别处发的');
+      await shell.waitFor('you said: 别处发的');
+      await shell.waitForIdle();
+    });
+
     it('announces a plan written from another shell and opens it', async () => {
       tui = await startTuiHarness({ project: true });
       await converse(tui, '先聊一句');
