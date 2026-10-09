@@ -56,8 +56,8 @@ export type SessionTruncateFromResult = {
   remainingCount: number;
 };
 
-/** CE-SHARE-01: local session export (MD/HTML). */
-export type SessionExportFormat = 'md' | 'html';
+/** CE-SHARE-01: local session export (MD/HTML/JSON). */
+export type SessionExportFormat = 'md' | 'html' | 'json';
 
 export type SessionExportDestination = 'file' | 'content';
 

@@ -186,10 +186,43 @@ describe('exportTranscript', () => {
     expect(result.content).toContain('_(empty transcript)_');
   });
 
+  it('exports JSON matching the transcript message schema', () => {
+    const result = exportTranscript(sampleMessages(), {
+      format: 'json',
+      sessionId: 'sess-123',
+      title: 'demo',
+      exportedAt: '2026-07-21T12:00:00.000Z',
+    });
+    expect(result.format).toBe('json');
+    const body = JSON.parse(result.content) as {
+      schema: string;
+      messages: Array<{ id: string; role: string; tools?: Array<{ output?: string }> }>;
+    };
+    expect(body.schema).toBe('piwin.session-transcript.v1');
+    expect(body.messages.map((message) => message.id)).toEqual(['u1', 'a1']);
+    expect(body.messages[1]?.tools?.[0]?.output).toContain('secret-token');
+  });
+
+  it('redacts tool output in JSON when asked', () => {
+    const result = exportTranscript(sampleMessages(), {
+      format: 'json',
+      redactTools: true,
+      sessionId: 'sess-123',
+      exportedAt: '2026-07-21T12:00:00.000Z',
+    });
+    const body = JSON.parse(result.content) as {
+      messages: Array<{ tools?: Array<{ output?: string }> }>;
+    };
+    expect(body.messages[1]?.tools?.[0]?.output).toBe(TOOL_OUTPUT_REDACTED_PLACEHOLDER);
+  });
+
   it('suggests stable export basenames', () => {
     expect(suggestSessionExportBasename('abcdef01-rest', 'md')).toBe('piwin-export-abcdef01.md');
     expect(suggestSessionExportBasename('abcdef01-rest', 'html')).toBe(
       'piwin-export-abcdef01.html',
+    );
+    expect(suggestSessionExportBasename('abcdef01-rest', 'json')).toBe(
+      'piwin-export-abcdef01.json',
     );
   });
 

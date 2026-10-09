@@ -761,7 +761,8 @@ export async function handleSessionLiveCommand(
       if (rejectedExport) {
         return rejectedExport;
       }
-      const format: 'html' | 'md' = command.format === 'html' ? 'html' : 'md';
+      const format: 'html' | 'md' | 'json' =
+        command.format === 'html' ? 'html' : command.format === 'json' ? 'json' : 'md';
       const redactTools = command.redactTools === true;
       const store = await context.getTranscriptStore(command.sessionId);
       const exportOptions = {

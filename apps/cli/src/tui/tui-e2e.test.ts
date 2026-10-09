@@ -21,6 +21,18 @@ describe('TUI end to end against a mock Host', () => {
     tui = undefined;
   });
 
+  /** Path printed under an `/export` notice (terminal wrap may split it). */
+  function extractExportPath(drawn: string, format: 'md' | 'json' | 'html'): string {
+    const start = drawn.indexOf(`已导出 ${format}`);
+    if (start < 0) throw new Error(`No ${format} export notice in:\n${drawn.slice(-800)}`);
+    const slice = drawn.slice(start).replace(/\s+/g, '');
+    const match = new RegExp(`已导出${format}（\\d+字节）(\\/[^\\s]+\\.${format})`).exec(slice);
+    if (match?.[1] === undefined) {
+      throw new Error(`No ${format} export path in:\n${drawn.slice(-800)}`);
+    }
+    return match[1];
+  }
+
   /** Send a message and wait for the mock's reply to finish. */
   async function converse(harness: TuiHarness, text: string): Promise<void> {
     harness.mark();
@@ -78,6 +90,29 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('搜索');
       await tui.waitFor('今天');
       await tui.waitFor('改过名的会话');
+    });
+
+    it('exports the open session as markdown and json', async () => {
+      tui = await startTuiHarness();
+      await converse(tui, '导出用的一句话');
+      tui.mark();
+      await tui.submit('/export md');
+      await tui.waitFor('已导出 md');
+      await tui.waitFor('piwin-export-');
+      const mdPath = extractExportPath(tui.seen(), 'md');
+      expect(existsSync(mdPath)).toBe(true);
+      expect(readFileSync(mdPath, 'utf8')).toContain('导出用的一句话');
+      tui.mark();
+      await tui.submit('/export json');
+      await tui.waitFor('已导出 json');
+      await tui.waitFor('.json');
+      const jsonPath = extractExportPath(tui.seen(), 'json');
+      const body = JSON.parse(readFileSync(jsonPath, 'utf8')) as {
+        schema: string;
+        messages: Array<{ text?: string }>;
+      };
+      expect(body.schema).toBe('piwin.session-transcript.v1');
+      expect(body.messages.some((message) => message.text?.includes('导出用的一句话'))).toBe(true);
     });
 
     it('archives with /archive and undoes with /unarchive', async () => {

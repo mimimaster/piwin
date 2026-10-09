@@ -47,6 +47,7 @@ import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { TuiModalStack, createExtensionModal, createPermissionModal } from './tui-modals.js';
 import { TuiPromptSender } from './tui-prompt-sender.js';
 import { TuiSessionFeatures } from './tui-session-features.js';
+import { TuiSessionExport } from './tui-session-export.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
@@ -126,6 +127,7 @@ export class TuiApp {
 
   private readonly modals: TuiModalStack;
   private readonly sessionSwitcher: TuiSessionSwitcher;
+  private readonly sessionExport: TuiSessionExport;
   private readonly disposers: Array<() => void> = [];
 
   public constructor(private readonly options: TuiAppOptions) {
@@ -274,6 +276,13 @@ export class TuiApp {
       onNotice: notify,
       requestRender: () => this.tui.requestRender(),
     });
+    this.sessionExport = new TuiSessionExport({
+      link: this.link,
+      getSessionId: () => this.sessionId,
+      defaultDir: () => process.cwd(),
+      onHint: (text) => this.flashHint(text),
+      onNotice: notify,
+    });
     this.tui.addChild(this.transcriptView);
     this.tui.addChild(this.activitySlot);
     this.tui.addChild(this.editor);
@@ -299,6 +308,7 @@ export class TuiApp {
       }),
       turns: this.turns,
       sessionSwitcher: this.sessionSwitcher,
+      sessionExport: this.sessionExport,
       startDraftSession: () => this.startDraftSession(),
       loadOlderMessages: () => this.loadOlderMessages(),
       renameSession: (name) => this.renameCurrentSession(name),

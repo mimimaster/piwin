@@ -10,7 +10,7 @@ import {
   type SessionToolCardView,
 } from '@piwin/contracts';
 
-export type SessionExportFormat = 'md' | 'html';
+export type SessionExportFormat = 'md' | 'html' | 'json';
 
 export type ExportTranscriptOptions = {
   format: SessionExportFormat;
@@ -45,6 +45,13 @@ export function exportTranscript(
   options: ExportTranscriptOptions,
 ): ExportTranscriptResult {
   const redactTools = options.redactTools === true;
+  if (options.format === 'json') {
+    return {
+      content: renderTranscriptJson(messages, options, redactTools),
+      format: 'json',
+      redactTools,
+    };
+  }
   const format = options.format === 'html' ? 'html' : 'md';
   const content =
     format === 'html'
@@ -66,6 +73,10 @@ export async function* streamTranscriptExport(
   options: ExportTranscriptOptions,
 ): AsyncIterable<string> {
   const redactTools = options.redactTools === true;
+  if (options.format === 'json') {
+    yield* streamTranscriptJson(messages, options, redactTools);
+    return;
+  }
   const format = options.format === 'html' ? 'html' : 'md';
   let count = 0;
   if (format === 'html') {
@@ -99,8 +110,63 @@ export function suggestSessionExportBasename(
   format: SessionExportFormat,
 ): string {
   const shortId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 8) || 'session';
-  const extension = format === 'html' ? 'html' : 'md';
+  const extension = format === 'html' ? 'html' : format === 'json' ? 'json' : 'md';
   return `piwin-export-${shortId}.${extension}`;
+}
+
+const JSON_EXPORT_SCHEMA = 'piwin.session-transcript.v1';
+
+function renderTranscriptJson(
+  messages: readonly SessionTranscriptMessage[],
+  options: ExportTranscriptOptions,
+  redactTools: boolean,
+): string {
+  return `${JSON.stringify(
+    {
+      schema: JSON_EXPORT_SCHEMA,
+      sessionId: options.sessionId,
+      title: options.title,
+      projectPath: options.projectPath,
+      exportedAt: options.exportedAt ?? new Date().toISOString(),
+      redactTools,
+      branch: 'active-leaf',
+      messages: messages.map((message) => jsonExportMessage(message, redactTools)),
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+async function* streamTranscriptJson(
+  messages: AsyncIterable<SessionTranscriptMessage>,
+  options: ExportTranscriptOptions,
+  redactTools: boolean,
+): AsyncIterable<string> {
+  // Stream as one JSON document so importers can JSON.parse the file whole.
+  const collected: SessionTranscriptMessage[] = [];
+  for await (const message of messages) collected.push(message);
+  yield renderTranscriptJson(collected, options, redactTools);
+}
+
+function jsonExportMessage(
+  message: SessionTranscriptMessage,
+  redactTools: boolean,
+): SessionTranscriptMessage {
+  if (!redactTools || message.tools === undefined || message.tools.length === 0) {
+    return message;
+  }
+  return {
+    ...message,
+    tools: message.tools.map((tool) => jsonExportTool(tool)),
+  };
+}
+
+function jsonExportTool(tool: SessionToolCardView): SessionToolCardView {
+  if (isHealthSensitiveToolResult(tool.presentation)) {
+    return { ...tool, output: HEALTH_TOOL_OUTPUT_OMITTED_PLACEHOLDER };
+  }
+  if (tool.output === undefined) return tool;
+  return { ...tool, output: TOOL_OUTPUT_REDACTED_PLACEHOLDER };
 }
 
 function renderTranscriptMarkdown(

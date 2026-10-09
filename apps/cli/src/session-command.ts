@@ -456,14 +456,14 @@ export async function commandSession(argv: string[]): Promise<void> {
       const sessionId = argv[2];
       if (!sessionId || sessionId.startsWith('--')) {
         console.error(
-          'Usage: piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]',
+          'Usage: piwin session export <id> --format md|json|html [--redact-tools] [--out <path>] [--mock]',
         );
         process.exitCode = 1;
         return;
       }
       const formatRaw = readOption(argv, '--format') ?? 'md';
-      if (formatRaw !== 'md' && formatRaw !== 'html') {
-        console.error(`Unsupported format: ${formatRaw} (use md or html)`);
+      if (formatRaw !== 'md' && formatRaw !== 'json' && formatRaw !== 'html') {
+        console.error(`Unsupported format: ${formatRaw} (use md, json, or html)`);
         process.exitCode = 1;
         return;
       }
