@@ -632,3 +632,53 @@ async function waitForPush(
   }
   throw new Error('Timed out waiting for mock host event');
 }
+
+describe('MockHostBackend session/branch-updated', () => {
+  type BranchUpdated = { type: 'session/branch-updated'; branchPointCount: number };
+
+  async function openConversation() {
+    const pushes: Array<{ type: string }> = [];
+    let runEnded: () => void = () => undefined;
+    const backend = new MockHostBackend(
+      (push) => {
+        pushes.push(push);
+        if (push.type === 'run/terminal') runEnded();
+      },
+      () => 'sdk',
+    );
+    const created = await backend.handle(
+      { type: 'session/create', input: { scope: { kind: 'general' } } },
+      'create-branch-pushes',
+    );
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const prompt = async (input: Record<string, unknown>): Promise<void> => {
+      const ended = new Promise<void>((resolve) => (runEnded = resolve));
+      const prompted = await backend.handle(
+        { type: 'session/prompt', sessionId, input: { text: '', ...input } },
+        `prompt-${pushes.length}`,
+      );
+      if (!prompted.success) throw new Error(prompted.error);
+      await ended;
+    };
+    const branchCounts = (): number[] =>
+      pushes
+        .filter((push): push is BranchUpdated => push.type === 'session/branch-updated')
+        .map((push) => push.branchPointCount);
+    return { prompt, branchCounts };
+  }
+
+  it('announces a kept retry again once its new answer is stored', async () => {
+    const { prompt, branchCounts } = await openConversation();
+    await prompt({ text: 'same question', clientMessageId: 'user-1' });
+    await prompt({ retryUserMessageId: 'user-1', keepPreviousAttempt: true });
+    expect(branchCounts()).toEqual([0, 1]);
+  });
+
+  it('announces a branch prompt again once its new message is stored', async () => {
+    const { prompt, branchCounts } = await openConversation();
+    await prompt({ text: 'turn one', clientMessageId: 'user-1' });
+    await prompt({ text: 'turn one rewritten', branchFromMessageId: 'user-1' });
+    expect(branchCounts()).toEqual([0, 1]);
+  });
+});

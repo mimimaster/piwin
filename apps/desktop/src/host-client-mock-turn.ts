@@ -119,6 +119,23 @@ export async function handleMockTurnCommands(
             error: 'retry-and-branch-conflict',
           };
         }
+        // The leaf moves now, but the fork exists only once the new sibling is
+        // stored; like the real Host, say so again when the count changed.
+        let announcedBranchCount: number | undefined;
+        const announceBranches = (): void => {
+          const branchPointCount = listMockBranchPoints(session).length;
+          if (branchPointCount === announcedBranchCount) return;
+          announcedBranchCount = branchPointCount;
+          host.emitPush({
+            type: 'session/branch-updated',
+            sessionId: command.sessionId,
+            activeLeafMessageId: session.activeLeafMessageId ?? null,
+            branchPointCount,
+          });
+        };
+        const forksConversation =
+          command.input.retryUserMessageId !== undefined ||
+          command.input.branchFromMessageId !== undefined;
         let retryUser: SessionTranscriptMessage | undefined;
         if (command.input.retryUserMessageId !== undefined) {
           const retried = applyMockRetryPrompt(session, {
@@ -139,12 +156,7 @@ export async function handleMockTurnCommands(
             };
           }
           retryUser = retried.user;
-          host.emitPush({
-            type: 'session/branch-updated',
-            sessionId: command.sessionId,
-            activeLeafMessageId: session.activeLeafMessageId ?? null,
-            branchPointCount: listMockBranchPoints(session).length,
-          });
+          announceBranches();
         } else if (command.input.branchFromMessageId !== undefined) {
           const branched = applyMockBranchPrompt(session, {
             branchFromMessageId: command.input.branchFromMessageId,
@@ -162,12 +174,7 @@ export async function handleMockTurnCommands(
                 : {}),
             };
           }
-          host.emitPush({
-            type: 'session/branch-updated',
-            sessionId: command.sessionId,
-            activeLeafMessageId: session.activeLeafMessageId ?? null,
-            branchPointCount: listMockBranchPoints(session).length,
-          });
+          announceBranches();
         }
         if (
           retryUser === undefined &&
@@ -176,6 +183,7 @@ export async function handleMockTurnCommands(
           command.input.source !== 'continuation'
         ) {
           appendMockTranscriptMessage(session, userMessage);
+          if (forksConversation) announceBranches();
         }
         // Ordinary prompts replace the paused task. Keep the checkpoint
         // through admission failures above; retire it only when this turn is
@@ -204,11 +212,12 @@ export async function handleMockTurnCommands(
           ...(command.input.attachments ? { attachments: command.input.attachments } : {}),
         });
         // Stream asynchronously so concurrent session/abort can cancel mid-turn.
-        void host.emitMockPrompt(
-          command.sessionId,
-          `${promptText}${attachmentNote}`,
-          runId,
-        );
+        void host
+          .emitMockPrompt(command.sessionId, `${promptText}${attachmentNote}`, runId)
+          .then(() => {
+            // A kept retry forks when its new answer is stored.
+            if (forksConversation) announceBranches();
+          });
         return {
           id,
           type: 'response',
