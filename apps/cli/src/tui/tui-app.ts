@@ -11,6 +11,7 @@ import {
 import type {
   HostCommand,
   HostPush,
+  PermissionRequestContext,
   RemotePendingPermission,
   RemoteProjectSummary,
   RemoteSessionListData,
@@ -44,6 +45,7 @@ import { createTuiCommandTable } from './tui-command-table.js';
 import { TUI_COMMAND_NAMES, TUI_SLASH_COMMANDS, parseSlashCommand } from './tui-commands.js';
 import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
+import { describePermissionPrompt } from './permission-prompt-view.js';
 import { TuiModalStack, createExtensionModal, createPermissionModal } from './tui-modals.js';
 import { TuiPromptSender } from './tui-prompt-sender.js';
 import { TuiSessionFeatures } from './tui-session-features.js';
@@ -442,7 +444,7 @@ export class TuiApp {
     if (epoch !== this.sessionEpoch) return;
     for (const pending of data.permissions ?? []) {
       if (pending.sessionId === sessionId) {
-        this.queuePermission(pending.requestId, pending.action, pending.detail);
+        this.queuePermission(pending);
       }
     }
   }
@@ -651,7 +653,7 @@ export class TuiApp {
         return;
       case 'permission/request':
         if (push.sessionId !== this.sessionId) return;
-        this.queuePermission(push.requestId, push.action, push.detail);
+        this.queuePermission(push);
         this.modals.pump();
         return;
       case 'permission/resolved':
@@ -686,14 +688,22 @@ export class TuiApp {
 
   // ------------------------------------------------------------------ modals
 
-  private queuePermission(requestId: string, action: string, detail: string): void {
+  private queuePermission(push: {
+    requestId: string;
+    action: string;
+    detail: string;
+    context?: PermissionRequestContext;
+  }): void {
+    const { requestId } = push;
+    const prompt = describePermissionPrompt(push, this.currentProjectRoots());
     this.modals.enqueue(`permission:${requestId}`, () =>
       this.modals.show(
         createPermissionModal({
           requestId,
-          action,
-          detail,
+          title: prompt.title,
+          message: prompt.message,
           inProject: this.sessionProjectId !== undefined,
+          ...(prompt.backendOptions === undefined ? {} : { backendOptions: prompt.backendOptions }),
           resolve: (command) => this.answerModal(command),
         }),
       ),
@@ -744,6 +754,13 @@ export class TuiApp {
       this.turns.abort().catch((error: unknown) => this.reportError(error));
       return { consume: true };
     }
+    if ((matchesKey(data, Key.ctrl('u')) || matchesKey(data, Key.ctrl('k'))) && this.editor.isShowingAutocomplete()) {
+      // pi-tui's line kills do not refresh the completion list, so the list
+      // would outlive the text it was completing. Closing it first (Esc) lets
+      // the kill proceed on its own.
+      this.editor.handleInput('\x1b');
+      return undefined;
+    }
     if (matchesKey(data, Key.ctrl('d')) && this.editor.getText().length === 0) {
       this.options.onExit();
       return { consume: true };
@@ -761,7 +778,7 @@ export class TuiApp {
       return { consume: true };
     }
     if (matchesKey(data, Key.ctrl('o'))) {
-      this.flashHint(this.transcriptView.toggleToolOutput() ? '工具输出：完整' : '工具输出：摘要');
+      this.flashHint(this.transcriptView.toggleToolOutput() ? '工具输出与思考：完整' : '工具输出与思考：摘要');
       this.tui.requestRender();
       return { consume: true };
     }
@@ -798,6 +815,7 @@ export class TuiApp {
   /** Push current state into the components and schedule a frame. */
   private refreshChrome(forceFullRedraw = false): void {
     this.transcriptView.setState(this.transcript);
+    this.transcriptView.setPathRoots(this.currentProjectRoots());
     const running = this.foreground.kind === 'active';
     const hasLoader = this.activitySlot.children.length > 0;
     if (running) {
@@ -814,6 +832,12 @@ export class TuiApp {
     this.statusLine.setText(style.gray(this.describeStatus()));
     this.tui.terminal.setTitle(`piwin · ${this.sessionName ?? '新会话'}`);
     this.tui.requestRender(forceFullRedraw);
+  }
+
+  /** Roots the current session's tool paths are shown relative to. */
+  private currentProjectRoots(): string[] {
+    const project = this.projects.find((candidate) => candidate.projectId === this.sessionProjectId);
+    return [project?.path, project?.gitRootPath].filter((root): root is string => root !== undefined);
   }
 
   private describeStatus(): string {

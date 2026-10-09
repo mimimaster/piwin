@@ -1,5 +1,6 @@
 import type { Component, OverlayHandle, TUI } from '@earendil-works/pi-tui';
-import type { HostCommand, HostPush } from '@piwin/contracts';
+import type { BackendPermissionOption, HostCommand, HostPush } from '@piwin/contracts';
+import { isAllowPermissionOptionKind } from '@piwin/contracts';
 import { ChoiceOverlay, TextOverlay } from './choice-overlay.js';
 
 type PendingModal = { key: string; open: () => void };
@@ -62,18 +63,59 @@ export class TuiModalStack {
 
 export type PermissionModalInput = {
   requestId: string;
-  action: string;
-  detail: string;
+  title: string;
+  message: string;
   /** "Always allow in this project" is only offered inside a project. */
   inProject: boolean;
+  /**
+   * An external agent decided the choices (ADR 0082): they are shown as given
+   * and answered by option id; piwin's own remember scopes do not apply.
+   */
+  backendOptions?: readonly BackendPermissionOption[];
   resolve: (command: HostCommand) => void;
 };
 
 export function createPermissionModal(input: PermissionModalInput): Component {
   const { requestId, resolve } = input;
+  const denyOnce: HostCommand = { type: 'permission/resolve', requestId, decision: 'deny' };
+  const backendOptions = input.backendOptions;
+  if (backendOptions !== undefined && backendOptions.length > 0) {
+    // Allow choices first, refusals last, each group in the agent's order.
+    const ordered = [
+      ...backendOptions.filter((option) => isAllowPermissionOptionKind(option.kind)),
+      ...backendOptions.filter((option) => !isAllowPermissionOptionKind(option.kind)),
+    ];
+    return new ChoiceOverlay({
+      title: input.title,
+      message: input.message,
+      items: ordered.map((option) => ({ value: option.optionId, label: option.label })),
+      onSelect: (value) => {
+        const chosen = ordered.find((option) => option.optionId === value);
+        resolve(
+          chosen === undefined
+            ? denyOnce
+            : {
+                type: 'permission/resolve',
+                requestId,
+                decision: isAllowPermissionOptionKind(chosen.kind) ? 'allow' : 'deny',
+                backendOptionId: chosen.optionId,
+              },
+        );
+      },
+      onCancel: () => {
+        // Refusing must still name one of the agent's options; the first refusal is the closest to "no".
+        const refusal = ordered.find((option) => !isAllowPermissionOptionKind(option.kind));
+        resolve(
+          refusal === undefined
+            ? denyOnce
+            : { ...denyOnce, backendOptionId: refusal.optionId },
+        );
+      },
+    });
+  }
   return new ChoiceOverlay({
-    title: `需要确认：${input.action}`,
-    message: input.detail,
+    title: input.title,
+    message: input.message,
     items: [
       { value: 'once', label: '允许一次' },
       { value: 'session', label: '本会话内始终允许' },
@@ -83,7 +125,7 @@ export function createPermissionModal(input: PermissionModalInput): Component {
     onSelect: (value) =>
       resolve(
         value === 'deny'
-          ? { type: 'permission/resolve', requestId, decision: 'deny' }
+          ? denyOnce
           : {
               type: 'permission/resolve',
               requestId,
@@ -91,7 +133,7 @@ export function createPermissionModal(input: PermissionModalInput): Component {
               rememberScope: value === 'session' ? 'session' : value === 'project' ? 'project' : 'once',
             },
       ),
-    onCancel: () => resolve({ type: 'permission/resolve', requestId, decision: 'deny' }),
+    onCancel: () => resolve(denyOnce),
   });
 }
 

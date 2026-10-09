@@ -4,6 +4,7 @@ import type { TranscriptState } from './transcript-model.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import type { TuiModalStack } from './tui-modals.js';
 import { ViewerOverlay } from './viewer-overlay.js';
+import { describeWalkthroughFailure } from './walkthrough-failure.js';
 
 export type TuiWalkthroughControllerOptions = {
   link: TuiHostLink;
@@ -67,7 +68,9 @@ export class TuiWalkthroughController {
     this.awaited.delete(artifact.messageId);
     this.generating = Math.max(0, this.generating - 1);
     if (artifact.status === 'ready') this.options.onNotice('info', '交付报告已生成 · /walkthrough 查看');
-    else if (artifact.error.code !== 'cancelled') this.options.onNotice('error', `交付报告没有生成 — ${artifact.error.message}`);
+    else if (artifact.error.code !== 'cancelled') {
+      this.options.onNotice('error', `交付报告没有生成 — ${describeWalkthroughFailure(artifact.error)}`);
+    }
     this.options.onChanged();
     return true;
   }
@@ -116,7 +119,7 @@ export class TuiWalkthroughController {
     }
     this.awaited.delete(answer.messageId);
     this.generating = Math.max(0, this.generating - 1);
-    this.options.onNotice('error', `交付报告没有生成 — ${response.error}`);
+    this.options.onNotice('error', `交付报告没有生成 — ${describeWalkthroughFailure(response.error)}`);
     this.options.onChanged();
   }
 

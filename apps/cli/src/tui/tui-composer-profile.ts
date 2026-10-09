@@ -53,6 +53,7 @@ export class TuiComposerProfile {
   private permissionPreset: PermissionPreset | undefined;
   /** What the Host falls back to, for display only. */
   private hostPermissionPreset: PermissionPreset | undefined;
+  private hostDefaultModelKey: string | undefined;
   private promptTemplates: PromptTemplateSummary[] = [];
 
   public constructor(private readonly options: TuiComposerProfileOptions) {}
@@ -106,9 +107,21 @@ export class TuiComposerProfile {
   public async loadHostPermissionPreset(): Promise<void> {
     const response = await this.options.link.request({ type: 'config/get' });
     if (!response.success) return;
-    const permissions = (response.data as { config?: { permissions?: PermissionConfig } } | undefined)?.config
-      ?.permissions;
-    this.hostPermissionPreset = resolvePermissionPreset(permissions);
+    const config = (
+      response.data as
+        | { config?: { permissions?: PermissionConfig; defaultProviderId?: string; defaultModelId?: string } }
+        | undefined
+    )?.config;
+    this.hostPermissionPreset = resolvePermissionPreset(config?.permissions);
+    this.hostDefaultModelKey =
+      config?.defaultProviderId !== undefined && config.defaultModelId !== undefined
+        ? modelKey({ providerId: config.defaultProviderId, modelId: config.defaultModelId })
+        : undefined;
+  }
+
+  /** The model a turn uses when none is chosen: the Host's default, when it names one this Host lists. */
+  private hostDefaultModel(): ConfiguredModel | undefined {
+    return this.models.find((model) => modelKey(model) === this.hostDefaultModelKey);
   }
 
   /** The session's own model wins over whatever the previous session used. */
@@ -142,10 +155,16 @@ export class TuiComposerProfile {
     return skill?.id;
   }
 
+  private describeModel(): string {
+    if (this.model !== undefined) return this.model.label ?? this.model.modelId;
+    const fallback = this.hostDefaultModel();
+    return fallback === undefined ? '默认模型' : `${fallback.label ?? fallback.modelId}（默认）`;
+  }
+
   /** Status-line parts, in display order. */
   public describe(): Array<string | undefined> {
     return [
-      this.model === undefined ? '默认模型' : (this.model.label ?? this.model.modelId),
+      this.describeModel(),
       describeThinkingLevel(this.thinkingLevel),
       describePermissionPreset(this.permissionPreset, this.hostPermissionPreset),
       this.nextSkill === undefined ? undefined : `技能 ${this.nextSkill.name}`,
@@ -158,6 +177,7 @@ export class TuiComposerProfile {
       this.options.onHint('Host 没有已配置的模型');
       return;
     }
+    const current = this.model ?? this.hostDefaultModel();
     modals.show(
       new ChoiceOverlay({
         title: '选择模型',
@@ -166,7 +186,7 @@ export class TuiComposerProfile {
           label: model.label ?? model.modelId,
           ...(model.providerName === undefined ? {} : { description: model.providerName }),
         })),
-        ...(this.model === undefined ? {} : { initialValue: modelKey(this.model) }),
+        ...(current === undefined ? {} : { initialValue: modelKey(current) }),
         onSelect: (value) => {
           modals.close();
           const picked = this.models.find((model) => modelKey(model) === value);

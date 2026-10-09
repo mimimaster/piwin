@@ -203,7 +203,7 @@ export class SessionPicker implements Component, Focusable {
     const pinKey = selected?.pinned === true ? '取消置顶' : '置顶';
     const deleteKey = selected?.archived === true ? ' · ^D 删除' : '';
     const archivedKey = this.archivedExpanded ? '折叠' : '展开归档';
-    return `Enter 打开 · ^N 新建 · ^R 重命名 · ^T ${pinKey} · ^X ${archiveKey}${deleteKey} · ^P 项目 · Tab ${archivedKey} · Esc`;
+    return `Enter 打开 · ^N 新建 · ^R 重命名 · ^T ${pinKey} · ^X ${archiveKey}${deleteKey} · ^P 项目 · Tab ${archivedKey} · Esc 关闭`;
   }
 
   private renderList(inner: number): string[] {

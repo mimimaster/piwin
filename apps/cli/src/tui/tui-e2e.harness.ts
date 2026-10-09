@@ -31,6 +31,7 @@ export const KEY = {
   ctrlC: '\x03',
   ctrlD: '\x04',
   ctrlS: '\x13',
+  ctrlU: '\x15',
   ctrlR: '\x12',
   ctrlP: '\x10',
   ctrlT: '\x14',

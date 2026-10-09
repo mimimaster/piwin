@@ -338,6 +338,22 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('⎿ @src/a.ts');
     });
 
+    it('closes the file list when Ctrl+U clears the text it was completing', async () => {
+      tui = await startTuiHarness({ project: true });
+      await tui.waitFor('fixture');
+      tui.mark();
+      await tui.press(...'@butt');
+      await tui.waitFor('src/ui/button.tsx');
+      await tui.press(KEY.ctrlU);
+      // A list that outlived its text would take this Enter as "accept the file".
+      await tui.press(KEY.enter);
+      await tui.press('x');
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('› x');
+      expect(tui.seen()).not.toContain('button.tsx');
+    });
+
     it('finds a deep file by a fragment of its name', async () => {
       tui = await startTuiHarness({ project: true });
       await tui.waitFor('fixture');
