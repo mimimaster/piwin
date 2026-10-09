@@ -70,6 +70,13 @@ function mapModel(
       cacheRead: finiteNumber(cost?.cache_read) ?? 0,
       cacheWrite: finiteNumber(cost?.cache_write) ?? 0,
     },
+    missingCostFields: (['input', 'output', 'cacheRead', 'cacheWrite'] as const).filter(
+      (field) => {
+        const sourceField = field === 'cacheRead' ? 'cache_read' : field === 'cacheWrite' ? 'cache_write' : field;
+        const rate = finiteNumber(cost?.[sourceField]);
+        return rate === undefined || rate < 0;
+      },
+    ),
   };
   if (!output.includes('image')) {
     return { entry };

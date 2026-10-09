@@ -4,7 +4,7 @@ import { computePromptCacheHitRate, computeTokensPerSecond, type UsageCallLog } 
 import {
   RECENT_CALLS_PAGE_SIZES, RECENT_CALLS_POLL_MS, formatThinkingLabel, formatTokensPerSecond, formatUsageClock,
   formatUsageCompact, formatUsageDuration, formatUsageExact, formatUsagePercent,
-  formatUsageTimestamp, resolveUsageCallLogPage, summarizeUsageCallLog,
+  formatUsageTimestamp, formatUsageUsd, resolveUsageCallLogPage, summarizeUsageCallLog,
 } from './usage-panel-statistics';
 
 export type UsageRecentCallsProps = {
@@ -85,6 +85,7 @@ export function UsageRecentCalls({
                     <tr>
                       <th>{isZh ? '模型' : 'Model'}</th>
                       <th>Key</th>
+                      <th>{isZh ? '参考费用（USD）' : 'Reference cost (USD)'}</th>
                       <th title={isZh ? '本次调用的思考度' : 'Thinking level for this call'}>
                         {isZh ? '思考度' : 'Thinking'}
                       </th>
@@ -140,6 +141,9 @@ export function UsageRecentCalls({
                             <span className="usage-key-label">
                               {entry.providerId ?? (isZh ? '未知 Key' : 'Unknown Key')}
                             </span>
+                          </td>
+                          <td data-testid="usage-call-cost" title={entry.cost?.reference}>
+                            {formatUsageUsd(entry.cost?.usd)}
                           </td>
                           <td className="usage-call-thinking" data-testid="usage-call-thinking">
                             {formatThinkingLabel(entry.thinkingLevel, isZh)}

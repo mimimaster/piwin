@@ -19,6 +19,7 @@ import { isRemoteCommandGapError } from './remote-command-gap.js';
 import { useDesktopLocale } from './desktop-locale-context';
 import { UsageActivityHeatmap } from './usage-activity-heatmap';
 import { UsageRecentCalls } from './usage-recent-calls';
+import { UsageCostSummary } from './usage-cost-summary';
 import {
   EMPTY_USAGE_CALL_LOG,
   EMPTY_USAGE_ROLLUP,
@@ -331,6 +332,8 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
             <span className="usage-summary-meta">{rangeLabel}</span>
           </section>
         </div>
+
+        <UsageCostSummary rollup={rollup} isZh={isZh} />
 
         <UsageActivityHeatmap
           request={props.request}

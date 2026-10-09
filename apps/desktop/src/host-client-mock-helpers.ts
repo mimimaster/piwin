@@ -5,9 +5,12 @@ import type {
   ThemeManifest,
   UsageBucket,
   UsageCallLog,
+  UsageCostEstimate,
+  UsageRecord,
   UsageRollup,
 } from '@piwin/contracts';
 import {
+  estimateUsageCost,
   QUEUED_TURN_MAX_TEXT_BYTES,
   SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
   SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
@@ -70,12 +73,8 @@ export function createMockUsageRollup(projectPath: string | undefined): UsageRol
   };
   return {
     scope: projectPath ? { kind: 'project', projectPath } : { kind: 'global' },
-    promptTokens: 157_000,
-    completionTokens: 44_000,
-    cacheReadTokens: 198_000,
-    cacheWriteTokens: 25_000,
-    totalTokens: 424_000,
-    entryCount: 66,
+    ...usageBucket(157_000, 44_000, 198_000, 25_000, 66),
+    pricingCatalog: { source: 'models.dev', catalogVersion: 'models.dev@mock-synthetic-prices', fetchedAt: `${day(0)}T00:00:00Z` },
     sessionCount: 12,
     firstAt: `${day(12)}T08:00:00.000Z`,
     lastAt: `${day(0)}T12:00:00.000Z`,
@@ -87,16 +86,19 @@ export function createMockUsageRollup(projectPath: string | undefined): UsageRol
       {
         providerId: 'openai-work',
         modelId: 'gpt-5.2-codex',
+        costReference: 'mock/gpt-5.2-codex',
         ...usageBucket(78_000, 18_000, 132_000, 12_000, 32),
       },
       {
         providerId: 'anthropic-main',
         modelId: 'claude-sonnet-4-5',
+        costReference: 'mock/claude-sonnet-4-5',
         ...usageBucket(35_000, 14_000, 42_000, 5_000, 16),
       },
       {
         providerId: 'openai-personal',
         modelId: 'gpt-5.2-codex',
+        costReference: 'mock/gpt-5.2-codex',
         ...usageBucket(44_000, 12_000, 24_000, 8_000, 18),
       },
     ],
@@ -146,6 +148,7 @@ export function createMockUsageCallLog(
       totalTokens: promptTokens + completionTokens + cacheReadTokens + cacheWriteTokens,
       durationMs: 2_400 + ((index * 911) % 26_000),
       source: 'assistant-usage' as const,
+      cost: mockUsageCost({ promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens }, model.modelId),
     };
   });
   const safeOffset = Math.min(Math.max(0, offset), Math.max(0, (Math.ceil(all.length / limit) - 1) * limit));
@@ -176,7 +179,27 @@ export function usageBucket(
     cacheWriteTokens,
     totalTokens: promptTokens + completionTokens + cacheReadTokens + cacheWriteTokens,
     entryCount,
+    estimatedCostUsd: mockUsageCost({ promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens }).usd,
+    pricedEntryCount: entryCount,
   };
+}
+
+/** Synthetic test prices, not vendor quotes. Uses the same contract arithmetic. */
+function mockUsageCost(
+  tokens: Pick<UsageRecord, 'promptTokens' | 'completionTokens' | 'cacheReadTokens' | 'cacheWriteTokens'>,
+  modelId = 'mock-reference',
+): UsageCostEstimate {
+  const cost = estimateUsageCost({
+    ...tokens, sessionId: 'mock', projectPath: null, source: 'assistant-usage', recordedAt: '',
+    totalTokens: (tokens.promptTokens ?? 0) + (tokens.completionTokens ?? 0)
+      + (tokens.cacheReadTokens ?? 0) + (tokens.cacheWriteTokens ?? 0),
+  }, {
+    catalogProviderId: 'mock', modelId, name: modelId, input: ['text'], reasoning: false,
+    contextWindow: 200_000, maxTokens: 8_000, missingCostFields: [],
+    cost: { input: 1, output: 4, cacheRead: 0.1, cacheWrite: 1.25 },
+  });
+  if (!cost) throw new Error('invalid mock usage cost');
+  return cost;
 }
 
 export function mockSessionMessageResponse(

@@ -3,6 +3,8 @@
  * Reads the append-only ledger and returns token rollups for the panel.
  */
 import type { HostCommand, HostResponse } from '@piwin/contracts';
+import { getModelCatalogStatus } from '@piwin/agent-host';
+import { createUsageCostEstimator } from '../usage-reference-pricing.js';
 import { computeUsageCallLog, readUsageCallLog, readUsageRollup } from '@piwin/session';
 import { getPiwinRoot, getPiwinUsageLedgerPath } from '../paths.js';
 import { fail, ok } from '../response-helpers.js';
@@ -36,7 +38,9 @@ export async function handleUsageCommand(
         ...(command.window ? { window: command.window } : {}),
         ...(command.topSessions !== undefined ? { topSessions: command.topSessions } : {}),
         ...(command.timeZone !== undefined ? { timeZone: command.timeZone } : {}),
+        estimateCost: createUsageCostEstimator(),
       });
+      rollup.pricingCatalog = getModelCatalogStatus();
       return ok(requestId, 'usage/get-rollup', { rollup });
     }
     case 'usage/get-session': {
@@ -66,7 +70,9 @@ export async function handleUsageCommand(
         ...(command.windowMinutes !== undefined ? { windowMinutes: command.windowMinutes } : {}),
         ...(command.limit !== undefined ? { limit: command.limit } : {}),
         ...(command.offset !== undefined ? { offset: command.offset } : {}),
+        estimateCost: createUsageCostEstimator(),
       });
+      log.pricingCatalog = getModelCatalogStatus();
       return ok(requestId, 'usage/list-recent', { log });
     }
     default:

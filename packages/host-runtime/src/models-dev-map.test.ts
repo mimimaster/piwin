@@ -53,6 +53,19 @@ describe('projectModelsDevApi', () => {
     ]);
   });
 
+  it('preserves missing rates separately from explicitly free rates', () => {
+    const { entries } = projectModelsDevApi({ provider: { models: {
+      free: { id: 'free', cost: { input: 0, output: 0, cache_read: 0, cache_write: 0 } },
+      unknown: { id: 'unknown' },
+      partial: { id: 'partial', cost: { input: 1, output: -1, cache_read: Number.NaN } },
+    } } });
+    expect(entries.find((entry) => entry.modelId === 'free')?.missingCostFields).toEqual([]);
+    expect(entries.find((entry) => entry.modelId === 'unknown')?.missingCostFields)
+      .toEqual(['input', 'output', 'cacheRead', 'cacheWrite']);
+    expect(entries.find((entry) => entry.modelId === 'partial')?.missingCostFields)
+      .toEqual(['output', 'cacheRead', 'cacheWrite']);
+  });
+
   it('returns empty arrays for non-objects', () => {
     expect(projectModelsDevApi(null)).toEqual({ entries: [], imageEntries: [] });
     expect(projectModelsDevApi('nope')).toEqual({ entries: [], imageEntries: [] });

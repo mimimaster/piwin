@@ -85,6 +85,7 @@ export * from './plan.js';
 export * from './plan-display.js';
 export * from './plan-execution.js';
 export * from './usage.js';
+export * from './usage-cost.js';
 export * from './context-telemetry.js';
 export * from './assistant-usage.js';
 export * from './agent-plugin-request-usage.js';

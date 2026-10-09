@@ -4,6 +4,7 @@
  */
 
 import type { SessionScope, ThinkingLevel } from './host.js';
+import type { UsageCostEstimate, UsageCostTotals, UsagePricingCatalog } from './usage-cost.js';
 
 export type UsageSource = 'pi-contextUsage' | 'assistant-usage' | 'host-estimate';
 /** Turn timing includes tool/approval waits; request timing describes one model call. */
@@ -133,7 +134,7 @@ export type UsageRecord = {
 };
 
 /** Token aggregate for a single model / day / session bucket. */
-export type UsageBucket = {
+export type UsageBucket = UsageCostTotals & {
   promptTokens: number;
   completionTokens: number;
   cacheReadTokens: number;
@@ -186,6 +187,8 @@ export type UsageSessionTotal = UsageBucket & {
  * `null` represents legacy ledger entries written before provider attribution.
  */
 export type UsageModelKeyTotal = UsageBucket & {
+  /** Catalog match for the priced records in this row. */
+  costReference?: string;
   providerId: string | null;
   modelId: string;
 };
@@ -287,6 +290,8 @@ function resolveDecodeWindowTokens(
  * across polls, which keeps React keys (and row identity) steady.
  */
 export type UsageCallLogEntry = {
+  /** Reference cost at the current catalog price; absent when unpriced. */
+  cost?: UsageCostEstimate;
   id: string;
   recordedAt: string;
   sessionId: string;
@@ -336,10 +341,12 @@ export type UsageCallLog = {
   totalInWindow: number;
   /** True when rows exist outside this page. */
   truncated: boolean;
+  pricingCatalog?: UsagePricingCatalog;
 };
 
 /** Aggregated token statistics returned by `usage/get-rollup`. */
-export type UsageRollup = {
+export type UsageRollup = UsageCostTotals & {
+  pricingCatalog?: UsagePricingCatalog;
   scope: SessionScope | { kind: 'global' };
   promptTokens: number;
   completionTokens: number;

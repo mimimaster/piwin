@@ -4,6 +4,7 @@ import {
   formatThinkingLabel,
   formatTokensPerSecond,
   formatUsageDuration,
+  formatUsageUsd,
   normalizeUsageRollup,
   resolveUsageWindow,
   tokenComponents,
@@ -14,6 +15,16 @@ afterEach(() => {
 });
 
 describe('usage-panel-statistics', () => {
+  it('formats small USD costs without confusing unknown, tiny and genuinely free', () => {
+    expect(formatUsageUsd(undefined)).toBe('—');
+    expect(formatUsageUsd(Number.NaN)).toBe('—');
+    expect(formatUsageUsd(-1)).toBe('—');
+    expect(formatUsageUsd(0)).toBe('$0.00');
+    expect(formatUsageUsd(0.00001)).toBe('<$0.0001');
+    expect(formatUsageUsd(0.006975)).toBe('$0.0070');
+    expect(formatUsageUsd(12.345)).toBe('$12.35');
+  });
+
   it('resolves bounded windows and leaves all-time unbounded', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-09T12:00:00.000Z'));

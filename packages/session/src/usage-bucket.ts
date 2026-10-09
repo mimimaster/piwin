@@ -28,7 +28,15 @@ export function createUsageBucket(): UsageBucket {
   };
 }
 
-export function addToUsageBucket(bucket: UsageBucket, sample: UsageBucketSample): void {
+export function addToUsageBucket(
+  bucket: UsageBucket,
+  sample: UsageBucketSample,
+  estimatedCostUsd?: number,
+): void {
+  if (estimatedCostUsd !== undefined && Number.isFinite(estimatedCostUsd) && estimatedCostUsd >= 0) {
+    bucket.estimatedCostUsd = (bucket.estimatedCostUsd ?? 0) + estimatedCostUsd;
+    bucket.pricedEntryCount = (bucket.pricedEntryCount ?? 0) + 1;
+  }
   bucket.promptTokens += sample.promptTokens ?? 0;
   bucket.completionTokens += sample.completionTokens ?? 0;
   bucket.cacheReadTokens += sample.cacheReadTokens ?? 0;

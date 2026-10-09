@@ -10,6 +10,7 @@ import type {
   SessionScope,
   UsageBucket,
   UsageCallLog,
+  UsageCostEstimate,
   UsageModelKeyTotal,
   UsageRecord,
   UsageRollup,
@@ -25,6 +26,8 @@ export type UsageRollupOptions = {
   topSessions?: number;
   /** IANA zone for `byDay` keys; UTC when omitted or unknown. */
   timeZone?: string;
+  /** Optional reference-price projection; storage remains token-only. */
+  estimateCost?: (record: UsageRecord) => UsageCostEstimate | undefined;
 };
 
 /**
@@ -228,14 +231,16 @@ export function computeUsageRollup(
   const bySession = new Map<string, UsageBucket & { firstAt: string; lastAt: string }>();
 
   for (const record of filtered) {
-    addToUsageBucket(totals, record);
+    const cost = options?.estimateCost?.(record);
+    const estimatedCostUsd = cost?.usd;
+    addToUsageBucket(totals, record, estimatedCostUsd);
     if (record.modelId) {
       let modelBucket = byModel[record.modelId];
       if (!modelBucket) {
         modelBucket = createUsageBucket();
         byModel[record.modelId] = modelBucket;
       }
-      addToUsageBucket(modelBucket, record);
+      addToUsageBucket(modelBucket, record, estimatedCostUsd);
 
       const providerId = normalizeProviderId(record.providerId);
       const modelKey = JSON.stringify([providerId, record.modelId]);
@@ -248,7 +253,8 @@ export function computeUsageRollup(
         };
         byModelKey.set(modelKey, modelKeyBucket);
       }
-      addToUsageBucket(modelKeyBucket, record);
+      addToUsageBucket(modelKeyBucket, record, estimatedCostUsd);
+      if (cost) modelKeyBucket.costReference = cost.reference;
     }
     const day = dayKeyOf(record.recordedAt);
     if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
@@ -257,29 +263,14 @@ export function computeUsageRollup(
         dayBucket = createUsageBucket();
         byDay[day] = dayBucket;
       }
-      addToUsageBucket(dayBucket, record);
+      addToUsageBucket(dayBucket, record, estimatedCostUsd);
     }
     const sessionTotal = bySession.get(record.sessionId) ?? {
-      promptTokens: 0,
-      completionTokens: 0,
-      cacheReadTokens: 0,
-      cacheWriteTokens: 0,
-      totalTokens: 0,
-      entryCount: 0,
+      ...createUsageBucket(),
       firstAt: record.recordedAt,
       lastAt: record.recordedAt,
     };
-    sessionTotal.promptTokens += record.promptTokens ?? 0;
-    sessionTotal.completionTokens += record.completionTokens ?? 0;
-    sessionTotal.cacheReadTokens += record.cacheReadTokens ?? 0;
-    sessionTotal.cacheWriteTokens += record.cacheWriteTokens ?? 0;
-    sessionTotal.totalTokens += record.totalTokens;
-    sessionTotal.entryCount += 1;
-    if (typeof record.durationMs === 'number' && Number.isFinite(record.durationMs)) {
-      sessionTotal.durationMs = (sessionTotal.durationMs ?? 0) + record.durationMs;
-      sessionTotal.durationMsCompletionTokens =
-        (sessionTotal.durationMsCompletionTokens ?? 0) + (record.completionTokens ?? 0);
-    }
+    addToUsageBucket(sessionTotal, record, estimatedCostUsd);
     if (record.recordedAt < sessionTotal.firstAt) sessionTotal.firstAt = record.recordedAt;
     if (record.recordedAt > sessionTotal.lastAt) sessionTotal.lastAt = record.recordedAt;
     bySession.set(record.sessionId, sessionTotal);
@@ -300,6 +291,8 @@ export function computeUsageRollup(
     cacheReadTokens: totals.cacheReadTokens,
     cacheWriteTokens: totals.cacheWriteTokens,
     totalTokens: totals.totalTokens,
+    ...(totals.estimatedCostUsd !== undefined ? { estimatedCostUsd: totals.estimatedCostUsd } : {}),
+    ...(options?.estimateCost ? { pricedEntryCount: totals.pricedEntryCount ?? 0 } : {}),
     entryCount: totals.entryCount,
     sessionCount: bySession.size,
     firstAt: filtered.length > 0 ? firstOf(filtered).recordedAt : null,

@@ -212,6 +212,36 @@ describe('UsagePanel', () => {
     }
   });
 
+  it('renders reference USD costs, price source, partial coverage and per-call unknowns', async () => {
+    const rollup: UsageRollup = {
+      ...SAMPLE_ROLLUP, estimatedCostUsd: 0.006975, pricedEntryCount: 2,
+      pricingCatalog: { source: 'models.dev', catalogVersion: 'models.dev@test', fetchedAt: '2026-10-09T00:00:00Z' },
+      byModelKey: SAMPLE_ROLLUP.byModelKey.map((row, index) => index === 0
+        ? { ...row, estimatedCostUsd: 0.006975, pricedEntryCount: 2, costReference: 'reference/gpt-4o' } : row),
+    };
+    const log: UsageCallLog = { ...SAMPLE_CALL_LOG, entries: SAMPLE_CALL_LOG.entries.map((entry, index) => index === 0
+      ? { ...entry, cost: { usd: 0.006975, reference: 'reference/gpt-4o' } } : entry) };
+    ({ root, container } = renderPanel({ request: async (command) => okResponse(
+      command.type === 'usage/list-recent' ? { log } : { rollup },
+    ) }));
+    await flushLoad();
+    expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('$0.0070');
+    expect(container?.querySelector('[data-testid="usage-cost-source"]')?.textContent).toContain('models.dev');
+    expect(container?.querySelector('[data-testid="usage-cost-coverage"]')?.textContent).toMatch(/2.*3/);
+    expect(container?.querySelector('[data-testid="usage-cost-model-row"]')?.textContent).toContain('reference/gpt-4o');
+    const cells = container?.querySelectorAll('[data-testid="usage-call-cost"]');
+    expect(cells?.[0]?.textContent).toBe('$0.0070');
+    expect(cells?.[0]?.getAttribute('title')).toBe('reference/gpt-4o');
+    expect(cells?.[1]?.textContent).toBe('—');
+  });
+
+  it('keeps old Hosts unknown instead of showing a free cost', async () => {
+    ({ root, container } = renderPanel());
+    await flushLoad();
+    expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('—');
+    expect(container?.querySelector('[data-testid="usage-call-cost"]')?.textContent).toBe('—');
+  });
+
   it('consolidates totals, cache efficiency, and activity into three summaries', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();

@@ -1,5 +1,5 @@
 /** Pure rolling model-call projection; storage and all-time rollups stay separate. */
-import type { SessionScope, UsageCallLog, UsageCallLogEntry, UsageRecord } from '@piwin/contracts';
+import type { SessionScope, UsageCallLog, UsageCallLogEntry, UsageCostEstimate, UsageRecord } from '@piwin/contracts';
 
 export type UsageCallLogOptions = {
   scope?: SessionScope;
@@ -14,6 +14,7 @@ export type UsageCallLogOptions = {
   now?: Date;
   /** Detailed backend requests replace that backend session's turn rows in this view only. */
   requestRecords?: readonly UsageRecord[];
+  estimateCost?: (record: UsageRecord) => UsageCostEstimate | undefined;
 };
 
 const DEFAULT_CALL_LOG_WINDOW_MINUTES = 60;
@@ -70,7 +71,12 @@ export function computeUsageCallLog(
   // instead of returning an empty one.
   const offset =
     inWindow.length === 0 ? 0 : Math.min(requestedOffset, lastPageOffset(inWindow.length, limit));
-  const entries = inWindow.slice(offset, offset + limit).map(toCallLogEntry);
+  const entries = inWindow.slice(offset, offset + limit).map((record) => {
+    const entry = toCallLogEntry(record);
+    const cost = options?.estimateCost?.(record);
+    if (cost) entry.cost = cost;
+    return entry;
+  });
 
   return {
     windowMinutes,

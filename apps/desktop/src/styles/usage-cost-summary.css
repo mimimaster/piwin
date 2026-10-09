@@ -1,0 +1,18 @@
+.usage-cost-heading {
+  flex: 1;
+  min-width: 220px;
+}
+
+.usage-cost-card .usage-summary-value {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.usage-cost-table {
+  min-width: 560px;
+}
+
+.usage-cost-reference {
+  display: block;
+  overflow-wrap: break-word;
+}

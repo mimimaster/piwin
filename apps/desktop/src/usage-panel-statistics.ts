@@ -51,6 +51,17 @@ export function formatUsageCompact(value: number): string {
   return String(value);
 }
 
+/** Small model calls must not disappear into a rounded $0.00. */
+export function formatUsageUsd(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value) || value < 0) return '—';
+  if (value > 0 && value < 0.0001) return '<$0.0001';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: 'USD',
+    minimumFractionDigits: value === 0 || value >= 1 ? 2 : 4,
+    maximumFractionDigits: value >= 1 ? 2 : 4,
+  }).format(value);
+}
+
 export function formatUsageExact(value: number): string {
   return value.toLocaleString('en-US');
 }
@@ -93,6 +104,8 @@ export function deriveLegacyModelKeyRows(
       cacheWriteTokens: bucket.cacheWriteTokens ?? 0,
       totalTokens: bucket.totalTokens,
       entryCount: bucket.entryCount,
+      ...(bucket.estimatedCostUsd !== undefined ? { estimatedCostUsd: bucket.estimatedCostUsd } : {}),
+      ...(bucket.pricedEntryCount !== undefined ? { pricedEntryCount: bucket.pricedEntryCount } : {}),
       ...(bucket.durationMs !== undefined ? { durationMs: bucket.durationMs } : {}),
       ...(bucket.firstTokenMs !== undefined ? { firstTokenMs: bucket.firstTokenMs } : {}),
       ...(bucket.successCount !== undefined ? { successCount: bucket.successCount } : {}),

@@ -22,12 +22,15 @@ export type ModelCatalogEntry = {
   reasoning: boolean;
   contextWindow: number;
   maxTokens: number;
+  /** USD per million tokens. */
   cost: {
     input: number;
     output: number;
     cacheRead: number;
     cacheWrite: number;
   };
+  /** Missing rates are not free. Omitted in older catalog snapshots. */
+  missingCostFields?: readonly (keyof ModelCatalogEntry['cost'])[];
 };
 
 export type ModelCatalogSearchRequest = {
