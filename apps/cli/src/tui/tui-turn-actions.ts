@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { HostCommand, HostResponse, PromptInput } from '@piwin/contracts';
 import type { TranscriptState } from './transcript-model.js';
 import { findLastUserMessage } from './tui-composer-options.js';
+import { listRewindItems } from './rewind-items.js';
 import { hostData } from './tui-host-link.js';
 
 /** What the turn actions need from the app that owns the session on screen. */
@@ -105,12 +106,22 @@ export class TuiTurnActions {
   /** Load the last prompt into the composer; sending it branches from that turn. */
   public beginEditingLastTurn(): void {
     const last = findLastUserMessage(this.port.transcript());
-    if (this.port.sessionId() === undefined || last === undefined) {
+    if (last === undefined) {
+      this.port.hint(this.port.sessionId() === undefined ? '当前还没有会话' : '没有可以改写的提问');
+      return;
+    }
+    this.beginEditingTurn(last.id);
+  }
+
+  /** Load any earlier prompt into the composer; sending it branches from that turn. */
+  public beginEditingTurn(messageId: string): void {
+    const turn = listRewindItems(this.port.transcript()).find((item) => item.id === messageId);
+    if (turn === undefined) {
       this.port.hint('没有可以改写的提问');
       return;
     }
     if (this.requireIdleSession('改写提问') === undefined) return;
-    this.port.beginEdit(last.id, last.text);
+    this.port.beginEdit(turn.id, turn.text);
   }
 
   /** A linked copy of the conversation up to the latest answer; this session is untouched. */

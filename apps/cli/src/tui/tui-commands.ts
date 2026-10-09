@@ -28,6 +28,8 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'plan', description: '查看计划，批准、执行或中止' },
   { name: 'compact', description: '压缩上下文（可附加说明）' },
   { name: 'retry', description: '重新生成上一轮回答（/retry keep 保留旧回答为分支）' },
+  { name: 'find', description: '在这段对话里查找：/find' },
+  { name: 'rewind', description: '回到更早的一条提问，从那里改写（Esc Esc 同）' },
   { name: 'edit', description: '改写上一条提问并作为新分支发送' },
   { name: 'artifacts', description: '列出对话里的 artifact，看源码或在浏览器里打开' },
   { name: 'walkthrough', description: '查看或生成最近一次回答的交付报告（/walkthrough new 重写）' },

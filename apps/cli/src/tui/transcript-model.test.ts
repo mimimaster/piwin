@@ -145,3 +145,24 @@ describe('appendNoticeOnce', () => {
     expect(appendNoticeOnce(once, 'info', 'provider timed out').entries).toHaveLength(2);
   });
 });
+
+describe('compaction notice', () => {
+  const noticeText = (event: AgentEvent): string | undefined => {
+    const entry = applyAgentEvent(EMPTY_TRANSCRIPT, event).entries.at(-1);
+    return entry?.kind === 'notice' ? entry.text : undefined;
+  };
+
+  it('says how much the context shrank and how long it took', () => {
+    expect(
+      noticeText({ type: 'compaction/end', ok: true, tokensBefore: 62_000, tokensAfter: 8_100, durationMs: 3_240 }),
+    ).toBe('上下文已压缩：62.0k → 8.1k tokens，省 87% · 3.2s');
+  });
+
+  it('keeps the short notice when the sizes are unknown', () => {
+    expect(noticeText({ type: 'compaction/end', ok: true })).toBe('上下文已压缩');
+  });
+
+  it('reports a failure with the Host’s reason', () => {
+    expect(noticeText({ type: 'compaction/end', ok: false, message: '模型不可用' })).toBe('压缩失败：模型不可用');
+  });
+});

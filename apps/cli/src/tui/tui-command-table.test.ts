@@ -28,6 +28,8 @@ function createDeps(embedded = false): TuiCommandTableDeps {
     artifacts: recorder(),
     turns: recorder(),
     usage: recorder(),
+    rewind: recorder(),
+    find: recorder(),
     sessionSwitcher: recorder(),
     sessionExport: recorder(),
     sessionSearch: recorder(),

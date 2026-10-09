@@ -8,6 +8,8 @@ export type ViewerOverlayOptions = {
   title: string;
   /** Already split into lines; long lines are clipped, not wrapped, so a diff keeps its columns. */
   lines: string[];
+  /** Plain text, not a diff: lines starting with + or - keep their own color. */
+  plain?: boolean;
   onClose: () => void;
 };
 
@@ -38,7 +40,7 @@ export class ViewerOverlay implements Component {
   public render(width: number): string[] {
     const inner = Math.max(4, width - 4);
     const { lines } = this.options;
-    const shown = lines.slice(this.top, this.top + VISIBLE_LINES).map((line) => truncateToWidth(paintDiffLine(line), inner));
+    const shown = lines.slice(this.top, this.top + VISIBLE_LINES).map((line) => truncateToWidth(this.options.plain === true ? line : paintDiffLine(line), inner));
     const end = Math.min(lines.length, this.top + VISIBLE_LINES);
     const position = lines.length === 0 ? '空' : `${this.top + 1}–${end} / ${lines.length}`;
     return frameOverlay(this.options.title, shown, `${position} · ↑↓ PgUp PgDn 滚动 · Esc 关闭`, width);

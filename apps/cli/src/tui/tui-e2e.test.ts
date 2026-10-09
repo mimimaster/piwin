@@ -371,6 +371,25 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('› 查一下登录 bug');
     });
 
+    it('finds text in this conversation, reads the hit and comes back to the list', async () => {
+      tui = await startTuiHarness();
+      await converse(tui, '查一下登录 bug');
+      await converse(tui, '写一份发布文档');
+      tui.mark();
+      await tui.submit('/find');
+      await tui.waitFor('在这段对话里查找');
+      tui.mark();
+      await tui.press(...'登录');
+      await tui.waitFor('你 · 查一下登录 bug');
+      expect(tui.seen()).not.toContain('发布文档');
+      tui.mark();
+      await tui.press(KEY.enter);
+      await tui.waitFor('1–');
+      tui.mark();
+      await tui.press(KEY.escape);
+      await tui.waitFor('在这段对话里查找');
+    });
+
     it('finds a deep file by a fragment of its name', async () => {
       tui = await startTuiHarness({ project: true });
       await tui.waitFor('fixture');
@@ -607,6 +626,24 @@ describe('TUI end to end against a mock Host', () => {
       await converse(tui, '解释一下');
       tui.mark();
       await tui.submit('/retry keep');
+      await tui.waitFor('分支 1');
+    });
+
+    it('rewrites from an earlier prompt chosen with Esc Esc', async () => {
+      tui = await startTuiHarness();
+      await converse(tui, '先用 Redis');
+      await converse(tui, '再加个测试');
+      tui.mark();
+      await tui.press(KEY.escape, KEY.escape);
+      await tui.waitFor('回到哪一条提问');
+      await tui.waitFor('往前 1 条');
+      await tui.press(KEY.down);
+      await tui.press(KEY.enter);
+      await tui.waitFor('改写上一条提问');
+      await tui.press(KEY.ctrlU);
+      tui.mark();
+      await tui.submit('改用 SQLite');
+      await tui.waitFor('you said: 改用 SQLite');
       await tui.waitFor('分支 1');
     });
 

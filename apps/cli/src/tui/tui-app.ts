@@ -39,7 +39,7 @@ import { TUI_COMMAND_NAMES, TUI_SLASH_COMMANDS, parseSlashCommand } from './tui-
 import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { StatusHint } from './status-hint.js';
-import { HistorySearchOverlay } from './history-search-overlay.js';
+import { QueryListOverlay } from './query-list-overlay.js';
 import { editTextExternally } from './external-editor.js';
 import { PromptHistory } from './prompt-history.js';
 import { TuiGlobalKeys } from './tui-global-keys.js';
@@ -50,6 +50,7 @@ import { TuiSessionFeatures } from './tui-session-features.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
+import { TuiRewindController } from './tui-rewind-controller.js';
 import { TuiUsageController } from './tui-usage-controller.js';
 import { ProjectFiles } from './project-files.js';
 import type { FileOpener } from './tui-artifact-controller.js';
@@ -112,6 +113,7 @@ export class TuiApp {
   private readonly sideChat: TuiSideChatController;
   private readonly turns: TuiTurnActions;
   private readonly usage: TuiUsageController;
+  private readonly rewind: TuiRewindController;
   private readonly sender: TuiPromptSender;
   private readonly runCommand: (name: string, argument: string) => Promise<void>;
   /** `/edit`: the next prompt replaces this user turn as a sibling branch. */
@@ -204,6 +206,7 @@ export class TuiApp {
     this.sideChat = controllers.sideChat;
     this.turns = controllers.turns;
     this.usage = controllers.usage;
+    this.rewind = controllers.rewind;
     this.sender = controllers.sender;
     this.sessionSwitcher = controllers.sessionSwitcher;
     this.runCommand = controllers.runCommand;
@@ -233,6 +236,7 @@ export class TuiApp {
       },
       cyclePermissionPreset: () => this.composer.cyclePermissionPreset(),
       openHistorySearch: () => this.openHistorySearch(),
+      openRewind: () => this.rewind.open(),
       editInExternalEditor: () => this.editInExternalEditor(),
       toggleToolOutput: () => this.transcriptView.toggleToolOutput(),
       hint: (text) => this.flashHint(text),
@@ -503,8 +507,13 @@ export class TuiApp {
   private openHistorySearch(): void {
     const { modals } = this;
     modals.show(
-      new HistorySearchOverlay({
+      new QueryListOverlay<string>({
+        title: '历史提示词',
+        footer: '↑↓ 选择 · Enter 填入输入框 · Esc 取消',
+        emptyHint: '还没有发送过的提示词',
+        noMatchHint: '没有匹配的提示词',
         search: (query) => this.history.search(query),
+        label: (text) => text,
         onPick: (text) => {
           modals.close();
           this.editor.setText(text);

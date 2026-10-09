@@ -12,6 +12,8 @@ import type { TuiSideChatController } from './tui-side-chat-controller.js';
 import type { TuiSubagentController } from './tui-subagent-controller.js';
 import type { TuiTurnActions } from './tui-turn-actions.js';
 import type { TuiTurnChangeController } from './tui-turn-change-controller.js';
+import type { TuiFindController } from './tui-find-controller.js';
+import type { TuiRewindController } from './tui-rewind-controller.js';
 import type { TuiUsageController } from './tui-usage-controller.js';
 import type { TuiWalkthroughController } from './tui-walkthrough-controller.js';
 
@@ -32,6 +34,8 @@ export type TuiCommandTableDeps = {
   artifacts: TuiArtifactController;
   turns: TuiTurnActions;
   usage: TuiUsageController;
+  rewind: TuiRewindController;
+  find: TuiFindController;
   sessionSwitcher: TuiSessionSwitcher;
   sessionExport: TuiSessionExport;
   sessionSearch: TuiSessionSearch;
@@ -48,7 +52,7 @@ export type TuiCommandTableDeps = {
 };
 
 const SHORTCUT_HELP =
-  'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+V 粘贴图片 · @ 引用文件 · 运行中发送即排队 · Ctrl+O 展开工具输出和思考 · Ctrl+R 历史提示词 · Ctrl+G 用 $EDITOR 编辑 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行';
+  'Ctrl+S 会话 · Shift+Tab 权限模式 · Ctrl+V 粘贴图片 · @ 引用文件 · 运行中发送即排队 · Ctrl+O 展开工具输出和思考 · Ctrl+R 历史提示词 · Ctrl+G 用 $EDITOR 编辑 · Esc Esc 回到更早的提问 · Esc 中断 · Ctrl+C 两次退出 · Shift+Enter 换行';
 
 /** Slash command name → what it does. One entry per row of TUI_SLASH_COMMANDS. */
 export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string, argument: string) => Promise<void> {
@@ -80,6 +84,8 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     compact: (argument) => turns.compact(argument),
     retry: (argument) => turns.retry(argument === 'keep'),
     edit: () => turns.beginEditingLastTurn(),
+    rewind: () => deps.rewind.open(),
+    find: () => deps.find.open(),
     walkthrough: (argument) => deps.walkthroughs.open(argument === 'new'),
     artifacts: () => deps.artifacts.open(),
     changes: () => deps.turnChanges.open(),

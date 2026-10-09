@@ -30,6 +30,7 @@ function setup(overrides: Partial<TuiGlobalKeysPort> = {}, initial: { text?: str
     pasteClipboardImage: vi.fn(),
     cyclePermissionPreset: vi.fn(),
     openHistorySearch: vi.fn(),
+    openRewind: vi.fn(),
     editInExternalEditor: vi.fn(),
     toggleToolOutput: () => true,
     hint: vi.fn(),
@@ -94,6 +95,28 @@ describe('TuiGlobalKeys', () => {
     const { keys, port } = setup();
     expect(keys.handle('\x12')).toEqual({ consume: true });
     expect(port.openHistorySearch).toHaveBeenCalledOnce();
+  });
+
+  it('opens the rewind list on a second Escape, not on one', () => {
+    const { keys, port } = setup();
+    expect(keys.handle(ESCAPE)).toBeUndefined();
+    expect(port.openRewind).not.toHaveBeenCalled();
+    expect(keys.handle(ESCAPE)).toEqual({ consume: true });
+    expect(port.openRewind).toHaveBeenCalledOnce();
+    // The pair is spent: a third Escape starts over.
+    expect(keys.handle(ESCAPE)).toBeUndefined();
+    expect(port.openRewind).toHaveBeenCalledOnce();
+  });
+
+  it('does not count Escapes pressed to interrupt a run or close a list as a rewind', () => {
+    const running = setup({ isRunning: () => true });
+    running.keys.handle(ESCAPE);
+    running.keys.handle(ESCAPE);
+    expect(running.port.openRewind).not.toHaveBeenCalled();
+    const completing = setup({}, { autocomplete: true });
+    completing.keys.handle(ESCAPE);
+    completing.keys.handle(ESCAPE);
+    expect(completing.port.openRewind).not.toHaveBeenCalled();
   });
 
   it('opens the external editor on Ctrl+G', () => {

@@ -1,6 +1,7 @@
 import { Key, matchesKey, type Editor, type TuiInputListenerResult } from '@earendil-works/pi-tui';
 
 const EXIT_CONFIRM_WINDOW_MS = 1_500;
+const DOUBLE_ESCAPE_WINDOW_MS = 500;
 
 export type TuiGlobalKeysPort = {
   editor: Editor;
@@ -19,6 +20,7 @@ export type TuiGlobalKeysPort = {
   pasteClipboardImage: () => void;
   cyclePermissionPreset: () => void;
   openHistorySearch: () => void;
+  openRewind: () => void;
   editInExternalEditor: () => void;
   /** Returns whether tool output and thinking are now shown in full. */
   toggleToolOutput: () => boolean;
@@ -28,6 +30,7 @@ export type TuiGlobalKeysPort = {
 /** Shortcuts that work wherever the cursor is, ahead of the editor. */
 export class TuiGlobalKeys {
   private lastInterruptAt = 0;
+  private lastIdleEscapeAt = 0;
 
   public constructor(private readonly port: TuiGlobalKeysPort) {}
 
@@ -42,6 +45,17 @@ export class TuiGlobalKeys {
     if (matchesKey(data, Key.escape) && port.isRunning() && !editor.isShowingAutocomplete()) {
       port.abortTurn();
       return { consume: true };
+    }
+    if (matchesKey(data, Key.escape) && !port.isRunning() && !editor.isShowingAutocomplete()) {
+      // Esc Esc: rewind. A lone Esc stays the editor's (closing things, leaving history).
+      const now = Date.now();
+      const doubled = now - this.lastIdleEscapeAt < DOUBLE_ESCAPE_WINDOW_MS;
+      this.lastIdleEscapeAt = doubled ? 0 : now;
+      if (doubled) {
+        port.openRewind();
+        return { consume: true };
+      }
+      return undefined;
     }
     if ((matchesKey(data, Key.ctrl('u')) || matchesKey(data, Key.ctrl('k'))) && editor.isShowingAutocomplete()) {
       // pi-tui's line kills do not refresh the completion list, so the list

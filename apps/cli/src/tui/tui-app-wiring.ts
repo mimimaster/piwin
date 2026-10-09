@@ -13,7 +13,9 @@ import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiComposerProfile } from './tui-composer-profile.js';
 import type { TuiHostLink } from './tui-host-link.js';
 import type { TuiModalStack } from './tui-modals.js';
+import { TuiFindController } from './tui-find-controller.js';
 import { TuiPromptSender } from './tui-prompt-sender.js';
+import { TuiRewindController } from './tui-rewind-controller.js';
 import { TuiSessionExport } from './tui-session-export.js';
 import { TuiSessionFeatures } from './tui-session-features.js';
 import { TuiSessionSearch } from './tui-session-search.js';
@@ -70,6 +72,7 @@ export type TuiControllers = {
   sideChat: TuiSideChatController;
   turns: TuiTurnActions;
   usage: TuiUsageController;
+  rewind: TuiRewindController;
   sender: TuiPromptSender;
   sessionSwitcher: TuiSessionSwitcher;
   runCommand: (name: string, argument: string) => Promise<void>;
@@ -220,6 +223,13 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     getContext: port.getContext,
     describeModel: () => composer.describeModelAndThinking(),
   });
+  const rewind = new TuiRewindController({
+    modals: port.modals,
+    getTranscript: port.getTranscript,
+    beginEditingTurn: (messageId) => turns.beginEditingTurn(messageId),
+    onHint: port.hint,
+  });
+  const find = new TuiFindController({ modals: port.modals, getTranscript: port.getTranscript });
   const runCommand = createTuiCommandTable({
     embedded: port.embedded,
     composer,
@@ -241,6 +251,8 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     }),
     turns,
     usage,
+    rewind,
+    find,
     sessionSwitcher,
     sessionExport,
     sessionSearch,
@@ -256,5 +268,5 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     notice: notify,
     exit: port.exit,
   });
-  return { composer, attachments, features, sideChat, turns, usage, sender, sessionSwitcher, runCommand };
+  return { composer, attachments, features, sideChat, turns, usage, rewind, sender, sessionSwitcher, runCommand };
 }

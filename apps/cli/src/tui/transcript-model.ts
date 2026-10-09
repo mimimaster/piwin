@@ -1,3 +1,4 @@
+import { formatTokens } from './context-report.js';
 import type {
   AgentEvent,
   AgentMessageRole,
@@ -212,11 +213,20 @@ export function applyAgentEvent(state: TranscriptState, event: AgentEvent): Tran
       return appendNotice(
         state,
         event.ok === false ? 'error' : 'info',
-        event.ok === false ? `压缩失败${event.message ? `：${event.message}` : ''}` : '上下文已压缩',
+        event.ok === false ? `压缩失败${event.message ? `：${event.message}` : ''}` : describeCompaction(event),
       );
     default:
       return state;
   }
+}
+
+/** Before and after sizes are what tells the person whether compacting was worth it. */
+function describeCompaction(event: { tokensBefore?: number; tokensAfter?: number; durationMs?: number }): string {
+  const { tokensBefore, tokensAfter, durationMs } = event;
+  if (tokensBefore === undefined || tokensAfter === undefined) return '上下文已压缩';
+  const saved = tokensBefore > 0 ? `，省 ${Math.round((1 - tokensAfter / tokensBefore) * 100)}%` : '';
+  const took = durationMs === undefined ? '' : ` · ${(durationMs / 1_000).toFixed(1)}s`;
+  return `上下文已压缩：${formatTokens(tokensBefore)} → ${formatTokens(tokensAfter)} tokens${saved}${took}`;
 }
 
 function entryFromMessage(message: RemoteTranscriptMessage): TranscriptMessageEntry {

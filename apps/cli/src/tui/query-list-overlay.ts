@@ -4,22 +4,28 @@ import { style } from './tui-theme.js';
 
 const VISIBLE_ROWS = 8;
 
-export type HistorySearchOverlayOptions = {
-  /** Newest-first matches for the query; called on every keystroke. */
-  search: (query: string) => string[];
-  onPick: (text: string) => void;
+export type QueryListOverlayOptions<T> = {
+  title: string;
+  footer: string;
+  /** Shown when nothing was typed and nothing is listed, and when a query matches nothing. */
+  emptyHint: string;
+  noMatchHint: string;
+  /** Best match first; called on every keystroke. */
+  search: (query: string) => T[];
+  label: (item: T) => string;
+  onPick: (item: T) => void;
   onCancel: () => void;
 };
 
-/** Ctrl+R: type to narrow earlier prompts, Enter puts the chosen one back in the composer. */
-export class HistorySearchOverlay implements Component, Focusable {
+/** Type to narrow a list, move with the arrows, Enter picks: prompt history, in-session find. */
+export class QueryListOverlay<T> implements Component, Focusable {
   private readonly input = new Input();
   private focusedState = false;
-  private matches: string[];
+  private matches: T[];
   private selected = 0;
   private query = '';
 
-  public constructor(private readonly options: HistorySearchOverlayOptions) {
+  public constructor(private readonly options: QueryListOverlayOptions<T>) {
     this.matches = options.search('');
   }
 
@@ -63,14 +69,14 @@ export class HistorySearchOverlay implements Component, Focusable {
   public render(width: number): string[] {
     const inner = Math.max(4, width - 4);
     const body = [...this.input.render(inner), ''];
-    if (this.matches.length === 0) body.push(style.gray(this.query.length === 0 ? '还没有发送过的提示词' : '没有匹配的提示词'));
+    if (this.matches.length === 0) body.push(style.gray(this.query.length === 0 ? this.options.emptyHint : this.options.noMatchHint));
     const first = Math.min(Math.max(0, this.selected - VISIBLE_ROWS + 1), Math.max(0, this.matches.length - VISIBLE_ROWS));
     this.matches.slice(first, first + VISIBLE_ROWS).forEach((match, offset) => {
       const index = first + offset;
-      const label = truncateToWidth(match.replace(/\s+/g, ' '), inner - 2);
+      const label = truncateToWidth(this.options.label(match).replace(/\s+/g, ' '), inner - 2);
       body.push(index === this.selected ? style.cyan(`→ ${label}`) : `  ${label}`);
     });
-    return frameOverlay('历史提示词', body, '↑↓ 选择 · Enter 填入输入框 · Esc 取消', width);
+    return frameOverlay(this.options.title, body, this.options.footer, width);
   }
 
   private move(delta: number): void {
