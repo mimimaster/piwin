@@ -1,6 +1,6 @@
 import type { BackendPermissionOption, HostCommand } from '@piwin/contracts';
 import { describe, expect, it } from 'vitest';
-import { createPermissionModal } from './tui-modals.js';
+import { TuiModalStack, createPermissionModal } from './tui-modals.js';
 
 const DOWN = '\x1b[B';
 const ENTER = '\r';
@@ -59,5 +59,59 @@ describe('createPermissionModal', () => {
     expect(resolved).toEqual([
       { type: 'permission/resolve', requestId: 'r1', decision: 'deny', backendOptionId: 'reject' },
     ]);
+  });
+});
+
+describe('TuiModalStack requests answered elsewhere', () => {
+  function stack() {
+    const shown: Array<{ hidden: boolean }> = [];
+    const tui = {
+      showOverlay: () => {
+        const handle = { hidden: false, hide: () => (handle.hidden = true) };
+        shown.push(handle);
+        return handle;
+      },
+      requestRender: () => undefined,
+      setFocus: () => undefined,
+    };
+    const modals = new TuiModalStack(tui as never, {} as never, () => undefined);
+    return { modals, shown };
+  }
+  const open = (modals: TuiModalStack, key: string) => () => modals.show({ render: () => [], invalidate: () => undefined });
+
+  it('takes down the dialog that is open when its request was answered on another shell', () => {
+    const { modals, shown } = stack();
+    modals.enqueue('permission:r1', open(modals, 'r1'));
+    modals.pump();
+    expect(modals.isOpen).toBe(true);
+    modals.drop('permission:r1');
+    expect(modals.isOpen).toBe(false);
+    expect(shown[0]?.hidden).toBe(true);
+  });
+
+  it('moves on to the next waiting request when the open one is dropped', () => {
+    const { modals, shown } = stack();
+    modals.enqueue('permission:r1', open(modals, 'r1'));
+    modals.enqueue('permission:r2', open(modals, 'r2'));
+    modals.pump();
+    modals.drop('permission:r1');
+    expect(shown).toHaveLength(2);
+    expect(modals.isOpen).toBe(true);
+  });
+
+  it('does not queue a request again while its dialog is open', () => {
+    const { modals, shown } = stack();
+    modals.enqueue('permission:r1', open(modals, 'r1'));
+    modals.pump();
+    modals.enqueue('permission:r1', open(modals, 'r1'));
+    modals.close();
+    expect(shown).toHaveLength(1);
+  });
+
+  it('leaves a dialog the person opened alone when an unrelated request is dropped', () => {
+    const { modals } = stack();
+    modals.show({ render: () => [], invalidate: () => undefined });
+    modals.drop('permission:other');
+    expect(modals.isOpen).toBe(true);
   });
 });

@@ -11,6 +11,8 @@ type PendingModal = { key: string; open: () => void };
  */
 export class TuiModalStack {
   private overlay: OverlayHandle | undefined;
+  /** Key of the queued Host request the open overlay answers, when it is one. */
+  private shownKey: string | undefined;
   private readonly queue: PendingModal[] = [];
 
   public constructor(
@@ -34,6 +36,7 @@ export class TuiModalStack {
     if (this.overlay === undefined) return;
     this.overlay.hide();
     this.overlay = undefined;
+    this.shownKey = undefined;
     this.onClosed();
     this.tui.setFocus(this.focusTarget);
     this.tui.requestRender();
@@ -42,11 +45,16 @@ export class TuiModalStack {
 
   /** A key identifies one Host request, so a replayed push cannot queue it twice. */
   public enqueue(key: string, open: () => void): void {
-    if (this.queue.some((modal) => modal.key === key)) return;
+    if (this.shownKey === key || this.queue.some((modal) => modal.key === key)) return;
     this.queue.push({ key, open });
   }
 
+  /** The request was answered elsewhere: forget it, and take its dialog down if it is the one open. */
   public drop(key: string): void {
+    if (this.shownKey === key) {
+      this.close();
+      return;
+    }
     const index = this.queue.findIndex((modal) => modal.key === key);
     if (index !== -1) this.queue.splice(index, 1);
   }
@@ -57,7 +65,11 @@ export class TuiModalStack {
 
   public pump(): void {
     if (this.overlay !== undefined) return;
-    this.queue.shift()?.open();
+    const next = this.queue.shift();
+    if (next === undefined) return;
+    next.open();
+    // `open` shows its dialog, and showing clears the key: set it after.
+    if (this.overlay !== undefined) this.shownKey = next.key;
   }
 }
 
