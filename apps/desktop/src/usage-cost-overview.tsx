@@ -47,7 +47,7 @@ export function UsageCostOverviewCard({ rollup, isZh, detailsOpen, onDetailsOpen
     >
       <span className="usage-summary-label">{isZh ? '估算费用' : 'Estimated cost'}</span>
       <strong className="usage-summary-value" data-testid="usage-cost-total">
-        {formatUsageUsdSummary(overview.totalUsd)}
+        <UsdAmount text={formatUsageUsdSummary(overview.totalUsd)} />
       </strong>
       <span
         className="usage-summary-meta usage-cost-meta"
@@ -138,5 +138,17 @@ function UsageCostNotes({ rollup, isZh }: { rollup: UsageRollup; isZh: boolean }
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** The dollar sign reads as a unit, not a glyph as tall as the digits. */
+function UsdAmount({ text }: { text: string }) {
+  const match = /^(<?\$)(.*)$/.exec(text);
+  if (!match) return <>{text}</>;
+  return (
+    <>
+      <span className="usage-cost-currency">{match[1]}</span>
+      {match[2]}
+    </>
   );
 }

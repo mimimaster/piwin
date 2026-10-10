@@ -3,6 +3,14 @@
    type scale. Notes and breakdown stay behind explicit, keyboard-reachable
    controls so the default page height does not grow. */
 
+.usage-cost-currency {
+  margin-right: 0.08em;
+  color: var(--text-3);
+  font-size: 0.52em;
+  font-weight: 500;
+  vertical-align: 0.62em;
+}
+
 .usage-cost-meta[data-attention='true'] {
   color: color-mix(in srgb, var(--amber) 72%, var(--text-1));
 }
