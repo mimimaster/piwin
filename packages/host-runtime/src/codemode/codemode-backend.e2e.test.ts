@@ -73,7 +73,7 @@ async function close(h: Harness) {
 }
 
 describe.each(['sdk', 'rpc'] as const)('model-driven Codemode (%s)', (mode) => {
-  it('compiles enabled config, advertises the tool and filters >120k structured data', async () => {
+  it('uses default-enabled config, advertises the tool and filters >120k structured data', async () => {
     const h = await openCodemodeBackend(mode, filterCode);
     try {
       expect(h.supervisor.getStatus().activeWorkers).toBe(mode === 'rpc' ? 1 : 0);

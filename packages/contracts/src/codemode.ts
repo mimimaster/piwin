@@ -1,8 +1,8 @@
 /**
- * Opt-in read-only Codemode config (ADR 0087).
+ * Default-enabled read-only Codemode config (ADR 0087).
  *
- * Default is off. Omitted, malformed, or out-of-range values normalize to the
- * safe defaults below. They never widen a limit past the hard maximum.
+ * Explicit false is an operator rollback override. Omitted, malformed, or
+ * out-of-range values use defaults without widening a limit past its hard cap.
  */
 
 export const CODEMODE_TOOL_NAME = 'piwin_codemode';
@@ -19,7 +19,7 @@ export const CODEMODE_MAX_OUTPUT_CHARS = { default: 16_000, min: 256, max: 32_00
 export const CODEMODE_MAX_TOOLS = { default: 32, min: 1, max: 64 } as const;
 
 export type CodemodeConfig = {
-  /** When false, `piwin_codemode` is not registered and not callable. */
+  /** Enabled by default; explicit false removes the tool for operator rollback. */
   enabled: boolean;
   /** Hard deadline for one script, including nested tool time. */
   timeoutMs: number;
@@ -61,7 +61,7 @@ const LIMITS = {
 
 export function createDefaultCodemodeConfig(): CodemodeConfig {
   return {
-    enabled: false,
+    enabled: true,
     timeoutMs: CODEMODE_TIMEOUT_MS.default,
     memoryLimitBytes: CODEMODE_MEMORY_LIMIT_BYTES.default,
     maxCalls: CODEMODE_MAX_CALLS.default,
@@ -78,7 +78,7 @@ export function normalizeCodemodeConfig(value: unknown): CodemodeConfig {
   }
   const record = value as Record<string, unknown>;
   return {
-    enabled: record.enabled === true,
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : defaults.enabled,
     timeoutMs: clampInteger(record.timeoutMs, LIMITS.timeoutMs, defaults.timeoutMs),
     memoryLimitBytes: clampInteger(
       record.memoryLimitBytes,
@@ -100,7 +100,7 @@ export function normalizeCodemodeConfig(value: unknown): CodemodeConfig {
   };
 }
 
-/** Report values that were not usable. Normalization still fail-closes. */
+/** Report unusable values; normalization uses defaults without widening limits. */
 export function validateCodemodeConfig(value: unknown): CodemodeConfigIssue[] {
   if (value === undefined) {
     return [];

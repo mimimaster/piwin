@@ -1,6 +1,6 @@
 # Read-only Codemode
 
-Codemode lets a model run one JavaScript script that calls already admitted read-only tools and returns a small result. It is off until `codemode.enabled` is true. There is no settings page for this slice; edit the Host config and let the runtime generation reload.
+Codemode lets a model run one JavaScript script that calls already admitted read-only tools and returns a small result. It is enabled by default; no config edit is needed, including for older configs without a Codemode block. There is no settings page for this slice. The config flag remains only for explicit operational rollback, not opt-in rollout.
 
 ## Config
 
@@ -18,7 +18,7 @@ Codemode lets a model run one JavaScript script that calls already admitted read
 }
 ```
 
-Missing or invalid values fall back to the defaults. They never raise a limit above the hard maximum. While `enabled` is false, `piwin_codemode` is neither described nor callable. Existing direct tools and `piwin_toolbox` are unchanged.
+This block shows the defaults, not a required setup step. Missing or invalid values fall back to the defaults, including `enabled: true`. They never raise a limit above the hard maximum. To roll back, explicitly set `codemode.enabled: false` and let the runtime generation reload: the tool is then neither described nor callable. Explicit false is preserved. Existing direct tools and `piwin_toolbox` remain available.
 
 ## Callable surface
 

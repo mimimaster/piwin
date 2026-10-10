@@ -6,9 +6,21 @@ import {
 } from './codemode.js';
 
 describe('normalizeCodemodeConfig', () => {
-  it('defaults to off and does not widen out-of-range limits', () => {
-    expect(createDefaultCodemodeConfig().enabled).toBe(false);
-    expect(normalizeCodemodeConfig(undefined).enabled).toBe(false);
+  it('enables fresh and legacy omitted config by default', () => {
+    expect(createDefaultCodemodeConfig().enabled).toBe(true);
+    for (const value of [undefined, null, {}, [], { maxCalls: 2 }]) {
+      expect(normalizeCodemodeConfig(value).enabled).toBe(true);
+    }
+  });
+
+  it('keeps an explicit operator disable override', () => {
+    expect(normalizeCodemodeConfig({ enabled: false })).toEqual({
+      ...createDefaultCodemodeConfig(),
+      enabled: false,
+    });
+  });
+
+  it('does not widen malformed or out-of-range limits', () => {
     expect(normalizeCodemodeConfig({ enabled: 'yes', timeoutMs: 0, maxCalls: 10_000 })).toEqual(
       createDefaultCodemodeConfig(),
     );

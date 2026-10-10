@@ -66,8 +66,8 @@ function rows(count: number): Array<{ id: number; tag: string; filler: string }>
 }
 
 describe('piwin_codemode execution', () => {
-  it('omits the descriptor unless config is enabled and a port is present', async () => {
-    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-codemode-off-'));
+  it('registers by default, but respects explicit disable and a missing port', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-codemode-default-'));
     const port = createSessionHostToolExecutionPort({
       isSessionKnown: () => true,
       getRuntimeGenerationId: () => GENERATION,
@@ -76,14 +76,14 @@ describe('piwin_codemode execution', () => {
       const off = await buildSessionHostTools({
         sessionId: SESSION,
         piwinRoot: rootDir,
-        config: createDefaultPiwinConfig(),
+        config: { ...createDefaultPiwinConfig(), codemode: limits({ enabled: false }) },
         codemodePort: port,
       });
       expect(descriptorsFromTools(off).some((tool) => tool.name === 'piwin_codemode')).toBe(false);
       const onWithoutPort = await buildSessionHostTools({
         sessionId: SESSION,
         piwinRoot: rootDir,
-        config: { ...createDefaultPiwinConfig(), codemode: limits() },
+        config: createDefaultPiwinConfig(),
       });
       expect(descriptorsFromTools(onWithoutPort).some((tool) => tool.name === 'piwin_codemode')).toBe(
         false,
@@ -91,7 +91,7 @@ describe('piwin_codemode execution', () => {
       const on = await buildSessionHostTools({
         sessionId: SESSION,
         piwinRoot: rootDir,
-        config: { ...createDefaultPiwinConfig(), codemode: limits() },
+        config: createDefaultPiwinConfig(),
         codemodePort: port,
       });
       expect(descriptorsFromTools(on).some((tool) => tool.name === 'piwin_codemode')).toBe(true);

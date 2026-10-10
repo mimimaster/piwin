@@ -108,9 +108,9 @@ function readTool(name: string, execute: HostToolRegistration['execute']): HostT
   };
 }
 
-export async function openCodemodeBackend(mode: Mode, code: string, enabled = true) {
+export async function openCodemodeBackend(mode: Mode, code: string, enabled?: boolean) {
   const root = await mkdtemp(join(tmpdir(), `piwin-codemode-${mode}-`));
-  const model = await startModel(code, enabled).catch(async (error: unknown) => {
+  const model = await startModel(code, enabled ?? true).catch(async (error: unknown) => {
     await rm(root, { recursive: true, force: true });
     throw error;
   });
@@ -169,7 +169,12 @@ export async function openCodemodeBackend(mode: Mode, code: string, enabled = tr
       providers: [{ id: MODEL.providerId, name: 'Local fixture', protocol: MODEL.protocol,
         baseUrl: model.baseUrl, apiKeyRef: 'test-only-key',
         models: [{ id: MODEL.modelId, label: 'Fixture', input: ['text' as const], reasoning: false }] }],
-      codemode: { ...createDefaultCodemodeConfig(), enabled, timeoutMs: 15_000, maxConcurrency: 1 },
+      codemode: {
+        ...createDefaultCodemodeConfig(),
+        ...(enabled === undefined ? {} : { enabled }),
+        timeoutMs: 15_000,
+        maxConcurrency: 1,
+      },
     };
     const composed = await buildSessionHostTools({
       sessionId: SESSION, runtimeGenerationId: GENERATION, piwinRoot: root, projectPath: project,

@@ -4,7 +4,7 @@ Status: accepted. Normative companion to [ADR 0087](../adr/0087-readonly-codemod
 
 ## Registration
 
-- Config module: `packages/contracts/src/codemode.ts`. Default `enabled: false`.
+- Config module: `packages/contracts/src/codemode.ts`. Default `enabled: true`, also for omitted legacy domains/enable flags. Explicit `enabled: false` is preserved as an operator rollback override; normal use needs no opt-in.
 - Tool name: `piwin_codemode`. Family: `codemode`. Permission action: `codemode:run`. `readOnly: true`. File effect: `none`.
 - Absent when disabled, when the session port is absent, or when the compiled manifest excludes the family.
 - SDK `customTools` and RPC proxy tools are derived from that manifest. No second executor.
@@ -49,6 +49,6 @@ pnpm --filter @piwin/host-runtime --filter @piwin/agent-host typecheck
 pnpm test:architecture
 ```
 
-Verified: 12 tests passed; both package typechecks and package boundaries passed. The test-only loopback OpenAI SSE endpoint scripts a model tool call through the production SDK session factory or an actual spawned RPC worker (default source worker entry, JSONL). Both use the real restricted SessionHostToolExecutionPort and CodemodeSandbox. Config on/off is compiled into the final manifest and checked in actual HTTP model requests. A >120k on-disk read-only structured fixture produces `[1998,1996,1994]`; parent/nested generation-normalized IDs, Run binding, structured-payload non-leakage, script/tool errors, and prompt abort reaching Host without starting a queued read are asserted. Backends, HTTP connections, temporary files and generation surfaces are disposed in `finally`.
+Verified: 12 tests passed; both package typechecks and package boundaries passed. The test-only loopback OpenAI SSE endpoint scripts a model tool call through the production SDK session factory or an actual spawned RPC worker (default source worker entry, JSONL). Both use the real restricted SessionHostToolExecutionPort and CodemodeSandbox. Default enablement (without a fixture enable override) and explicit rollback disablement are compiled into the final manifest and checked in actual HTTP model requests. A >120k on-disk read-only structured fixture produces `[1998,1996,1994]`; parent/nested generation-normalized IDs, Run binding, structured-payload non-leakage, script/tool errors, and prompt abort reaching Host without starting a queued read are asserted. Backends, HTTP connections, temporary files and generation surfaces are disposed in `finally`.
 
 The child test reproduced an internal/product session-ID mismatch in RPC abort: parent tool controllers were not cancelled until the sandbox deadline. The minimal fix uses the product session alias for abort, matching parent controllers; the worker already accepts that alias. Cancellation is asserted within 2s, before the 15s deadline. Pi 0.84.2 currently classifies mid-tool abort as a failed prompt with “This operation was aborted”; the test records that behavior, not an `aborted` prompt-outcome claim. This evidence uses fixture reads, not live providers/MCP or a packaged worker. Existing Codemode integration/MCP checks (3 tests) and adjacent backend conformance/worker lifecycle/client checks (30 tests) also passed; no full-suite or bundle rerun is claimed for this slice.

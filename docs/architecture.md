@@ -415,7 +415,8 @@ See [ADR 0044](./adr/0044-lazy-host-toolbox.md) and
 
 #### Read-only Codemode (ADR 0087)
 
-`piwin_codemode` is off unless `codemode.enabled` is true. The tool is a normal
+`piwin_codemode` is enabled by default, including omitted legacy config. Explicit
+`codemode.enabled: false` is an operator rollback override. The tool is a normal
 Host registration, so SDK and RPC see the same descriptor. Nested calls re-enter
 `SessionHostToolExecutionPort` with a host-only script-readonly restriction.
 Shell, browser, process, write, and unhinted MCP tools fail closed. `store`/`load`

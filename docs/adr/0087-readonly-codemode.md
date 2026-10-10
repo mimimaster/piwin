@@ -1,7 +1,8 @@
-# ADR 0087: Opt-in read-only Codemode
+# ADR 0087: Default-enabled read-only Codemode
 
 - **Status**: Accepted
 - **Date**: 2026-08-14
+- **Updated**: 2026-10-10 — product owner directed default enablement; opt-in rollout removed.
 - **Scope**: `@piwin/contracts`, `@piwin/agent-host`, `@piwin/host-runtime`
 - **Consults**: ADR 0019, ADR 0033, ADR 0050, ADR 0053
 
@@ -11,7 +12,7 @@ Models need to filter large tool results before those results enter the transcri
 
 ## Decision
 
-1. Codemode is off by default. `codemode` is a settings domain. Enabling or changing it invalidates the runtime generation. There is no desktop control in this slice.
+1. Codemode is on by default, including legacy configs without the domain or enable flag. `enabled: false` remains only an explicit operator rollback override, not an opt-in requirement. `codemode` is a settings domain; changes invalidate the runtime generation. There is no desktop control in this slice.
 2. `@piwin/agent-host` is the only package that depends on `@earendil-works/pi-codemode@1.1.0`. It exposes `runCodemodeScript`. `@earendil-works/pi-coding-agent` and `@earendil-works/pi-ai` stay at 0.84.2. Host-runtime does not import the sandbox package.
 3. `buildSessionHostTools` registers `piwin_codemode` only when the normalized config is enabled and the real session port is available. The same descriptor reaches SDK custom tools and RPC proxy tools.
 4. Nested calls use `SessionHostToolExecutionPort.execute` for the admitted generation and Run. The host, not the model, sets `sessionId`, `runtimeGenerationId`, `runId`, `toolCallId`, and `scriptInvocation`. Nested ids are generation-normalized and record the parent call. Permission, disablement, schema validation, and capture still apply. Recursion is denied.
@@ -22,12 +23,12 @@ Models need to filter large tool results before those results enter the transcri
 
 ## Consequences
 
-- Direct tools and `piwin_toolbox` are unchanged while Codemode is off.
+- The default manifest includes Codemode alongside existing direct tools and `piwin_toolbox`; no manual enablement is required.
 - Subagent ceilings, trust, and live disablement still apply because nested calls use the frozen generation surface.
 - A script can observe a nested read that already completed if a later call is cancelled. That is not rolled back.
 - `store`/`load` must not be described as branch or resume state.
 
-## Enable
+## Defaults and rollback
 
 ```json
 {
@@ -43,4 +44,4 @@ Models need to filter large tool results before those results enter the transcri
 }
 ```
 
-Omitted config normalizes to `enabled: false` and the safe defaults. Out-of-range numbers do not widen the hard maximums.
+Omitted config or enable flags normalize to `enabled: true` and the safe defaults. Set `codemode.enabled: false` only to remove the tool for operational rollback. Explicit false is preserved. Out-of-range numbers do not widen the hard maximums.
