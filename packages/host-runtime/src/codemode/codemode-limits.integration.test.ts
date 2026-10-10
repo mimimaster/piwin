@@ -149,11 +149,18 @@ describe('codemode hard limits', () => {
       `await Promise.all([tools.hold({ id: 'first' }), tools.hold({ id: 'second' })]); return 'done';`,
       controller.signal,
     );
-    await new Promise((resolve) => setTimeout(resolve, 40));
-    controller.abort();
-    await pending;
-    expect(started).toContain('first');
-    expect(started).not.toContain('second');
+    try {
+      // Worker/WASM startup can exceed 40ms under suite load. Abort only once
+      // the first read is running, so this tests the queue rather than startup.
+      await expect.poll(() => started.includes('first'), { timeout: 5_000 }).toBe(true);
+      controller.abort();
+      await pending;
+      expect(started).toContain('first');
+      expect(started).not.toContain('second');
+    } finally {
+      controller.abort();
+      await pending;
+    }
   }, 15_000);
 
   it('fails a memory-heavy script and still closes the worker', async () => {
