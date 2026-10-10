@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { requestLiveMicrophone } from './live-microphone-request.js';
 import { waitForLiveStart } from '../live-start-wait.js';
+import { createOpenaiRealtimeDriver } from './openai-realtime-driver.js';
+import { createGeminiLiveDriver } from './gemini-live-driver.js';
 
 afterEach(() => vi.useRealTimers());
 
@@ -32,5 +34,21 @@ describe('Live microphone acquisition', () => {
   it('preserves a denied permission response', async () => {
     const denied = new DOMException('denied', 'NotAllowedError');
     await expect(requestLiveMicrophone({ request: async () => { throw denied; } })).rejects.toBe(denied);
+  });
+
+  it.each(['openai', 'gemini'])('releases a late browser microphone after %s hangup', async (kind) => {
+    let approve: (stream: MediaStream) => void = () => undefined;
+    const permission = new Promise<MediaStream>((resolve) => { approve = resolve; });
+    const stop = vi.fn();
+    const deps = { getUserMedia: () => permission };
+    const driver = kind === 'openai' ? createOpenaiRealtimeDriver(deps) : createGeminiLiveDriver(deps);
+    const preparing = driver.prepareStart();
+    const cancelled = expect(preparing).rejects.toMatchObject({ name: 'AbortError' });
+    await driver.close();
+    await cancelled;
+    approve({ getTracks: () => [{ stop }] } as unknown as MediaStream);
+    await Promise.resolve();
+    expect(stop).toHaveBeenCalledOnce();
+    expect(driver.snapshot().phase).toBe('ended');
   });
 });

@@ -66,6 +66,29 @@ describe('iOS native realtime transport', () => {
     expect(test.invoke.mock.calls.some(([command]) => command.endsWith('connect'))).toBe(false);
   });
 
+  it('reports a missing native event-channel permission as unsupported media', async () => {
+    const invoke = vi.fn(async (): Promise<unknown> => ({ ok: true }));
+    const media = createIosRealtimeTransport({ bridge: createNativeLiveAudioBridge(invoke),
+      listen: async () => { throw 'register_listener not allowed by ACL'; } });
+    await media.prepare();
+    await expect(media.connect(bootstrap, 'host-call')).rejects.toThrow('live-media-unsupported');
+    await media.close();
+  });
+
+  it('times out a silent native microphone request and closes its preparation', async () => {
+    vi.useFakeTimers();
+    try {
+      const test = fixture(() => new Promise<void>(() => undefined));
+      const preparing = test.media.prepare();
+      const failed = expect(preparing).rejects.toThrow('mic-permission-timeout');
+      await vi.advanceTimersByTimeAsync(30_000);
+      await failed;
+      await test.media.close();
+      expect(test.invoke.mock.calls.some(([command]) => command.endsWith('close'))).toBe(true);
+      expect(test.invoke.mock.calls.some(([command]) => command.endsWith('connect'))).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
+
   it('ignores another connection and propagates native failure', async () => {
     const test = fixture(); const owner = vi.fn(); test.driver.subscribeEvents(owner);
     await test.driver.prepareStart();

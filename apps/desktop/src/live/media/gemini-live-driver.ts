@@ -15,7 +15,7 @@ import {
   parseGeminiLiveMessage,
 } from './gemini-live-events.js';
 import { floatToPcm16Base64 } from './gemini-live-codec.js';
-import { requestLiveMicrophone } from './live-microphone-request.js';
+import { mapLiveMicrophoneError, requestLiveMicrophone } from './live-microphone-request.js';
 
 export const GEMINI_LIVE_FIXED_ENDPOINT =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
@@ -85,9 +85,7 @@ export function createGeminiLiveDriver(deps: GeminiLiveDriverDeps = {}): Desktop
           ...(deps.getUserMedia ? { request: deps.getUserMedia } : {}) });
       } catch (error: unknown) {
         if (abort.signal.aborted) throw error;
-        errorCode = error instanceof DOMException && error.name === 'NotAllowedError'
-          ? 'mic-denied' : error instanceof Error && error.message === 'mic-permission-timeout'
-            ? 'mic-permission-timeout' : 'mic-unavailable';
+        errorCode = mapLiveMicrophoneError(error);
         setPhase('error');
         throw new Error(errorCode);
       }

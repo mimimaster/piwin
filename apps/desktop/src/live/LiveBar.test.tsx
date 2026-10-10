@@ -106,6 +106,13 @@ describe('LiveBar', () => {
     expect(container?.querySelector('.live-spinner')).not.toBeNull();
   });
 
+  it('distinguishes microphone permission waiting from upstream connection', () => {
+    render(<LiveBar call={null} {...controls} starting={true}
+      peer={{ phase: 'acquiring-mic', muted: false, errorCode: null }} />);
+    expect(container?.querySelector('[data-testid="live-bar-label"]')?.textContent).toContain('等待麦克风');
+    expect(container?.querySelector('[data-testid="live-bar"]')?.getAttribute('aria-label')).toContain('系统权限');
+  });
+
   it('announces remaining reconnect budget while media is down', () => {
     render(
       <LiveBar

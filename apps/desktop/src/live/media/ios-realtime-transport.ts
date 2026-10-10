@@ -46,6 +46,7 @@ export function createIosRealtimeTransport(injected?: IosRealtimeTransportDeps):
       const abort = new AbortController();
       prepareAbort = abort;
       const { bridge } = await dependencies();
+      if (abort.signal.aborted) throw new DOMException('aborted', 'AbortError');
       await waitForLiveStart({ work: bridge.prepare(currentId), signal: abort.signal,
         timeoutMs: 30_000, timeoutCode: 'mic-permission-timeout' });
       // A microphone permission prompt may resolve after the user ends Live.
@@ -98,7 +99,9 @@ export function createIosRealtimeTransport(injected?: IosRealtimeTransportDeps):
         }
       };
       const notice = (): void => { drainChain = drainChain.then(drain).catch(() => failed(current)); };
-      const unregister = await listen(notice);
+      let unregister: () => Promise<void>;
+      try { unregister = await listen(notice); }
+      catch (error: unknown) { throw new Error('live-media-unsupported', { cause: error }); }
       if (connectionId !== currentId) { await unregister(); throw new DOMException('aborted', 'AbortError'); }
       release = unregister;
       const resume = (): void => { if (document.visibilityState === 'visible') notice(); };

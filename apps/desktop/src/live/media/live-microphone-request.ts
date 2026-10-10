@@ -19,3 +19,11 @@ export async function requestLiveMicrophone(input: {
     releaseLate: (stream) => { for (const track of stream.getTracks()) track.stop(); },
   });
 }
+
+export function mapLiveMicrophoneError(error: unknown): 'mic-denied' | 'mic-unavailable' | 'mic-permission-timeout' {
+  if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) {
+    return 'mic-denied';
+  }
+  if (error instanceof Error && error.message === 'mic-permission-timeout') return 'mic-permission-timeout';
+  return 'mic-unavailable';
+}

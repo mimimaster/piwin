@@ -5,6 +5,7 @@ import type {
   LiveStatusData,
   LiveStatusInput,
 } from '@piwin/contracts';
+import { isIosTauriRuntime } from '../shell-runtime.js';
 
 export function withoutLiveCallBusy(
   missing: readonly LiveReadyMissing[],
@@ -20,7 +21,7 @@ export function desktopLiveCapabilities(): LiveStatusInput['capabilities'] {
     mediaDriverIds.push('openai-realtime-ws-v1');
   }
   return {
-    microphone: typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices),
+    microphone: isIosTauriRuntime() || (typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia)),
     mediaDriverIds,
   };
 }

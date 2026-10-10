@@ -119,6 +119,10 @@ describe('liveStartErrorLabel', () => {
   it('maps microphone failures', () => {
     expect(liveStartErrorLabel('mic-denied', true)).toContain('麦克风');
     expect(liveStartErrorLabel('mic-unavailable', true)).toContain('麦克风');
+    expect(liveStartErrorLabel('mic-unavailable', true)).not.toContain('Desktop');
+    expect(liveStartErrorLabel('mic-permission-timeout', true)).toContain('授权弹窗');
+    expect(liveStartErrorLabel('Host request timed out: voice/live/start', true)).toContain('网络');
+    expect(liveStartErrorLabel('live-media-unsupported', true)).toContain('当前设备');
   });
 
   it('maps provider 403 to the upstream rejection copy, not cancelled', () => {
