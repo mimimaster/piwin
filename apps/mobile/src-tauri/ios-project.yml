@@ -55,12 +55,12 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 1.0.0
-        CFBundleVersion: '1.0.0.13'
+        CFBundleVersion: '1.0.0.15'
         NSMicrophoneUsageDescription: '需要访问麦克风以支持语音实时转写输入'
         NSSpeechRecognitionUsageDescription: '需要语音识别权限以使用 iOS 原生语音听写功能'
         NSLocalNetworkUsageDescription: 'Piwin 需要访问局域网中的 Piwin Host，才能在手机上使用应用。'
-        NSHealthShareUsageDescription: 'Piwin reads the Apple Health categories you select and sends those summaries to your configured Piwin Host for chat analysis. Piwin never writes to Apple Health.'
-        NSHealthUpdateUsageDescription: 'Piwin uses Apple Health data only to provide the health summaries you request in chat. Piwin does not write or modify Apple Health data.'
+        NSHealthShareUsageDescription: 'Piwin reads only the Apple Health categories you allow (such as steps, activity, sleep, heart rate and weight) to create the health summaries you ask for. After you agree in the app, these summaries are sent to your own Piwin Host and then to the AI model provider you configured there. Health data is never used for advertising or sold.'
+        NSHealthUpdateUsageDescription: 'Piwin never writes to or changes your Apple Health data. It only reads the categories you allow to create the health summaries you ask for.'
     entitlements:
       path: ../../HealthKit.entitlements
     scheme:
@@ -81,6 +81,9 @@ targets:
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
       groups: [app]
     dependencies:
+      # 1.0 App Store builds strip this extension (no App Store profile for
+      # app.piwin.mobile.live-activity yet) and src-tauri/Info.plist no longer sets
+      # NSSupportsLiveActivities. Re-enable both together once the profile exists.
       - target: PiwinLiveActivityExtension
         embed: true
       - framework: libapp.a
@@ -113,7 +116,7 @@ targets:
       properties:
         CFBundleDisplayName: piwin Live
         CFBundleShortVersionString: 1.0.0
-        CFBundleVersion: '1.0.0.13'
+        CFBundleVersion: '1.0.0.15'
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

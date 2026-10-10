@@ -61,7 +61,15 @@ export function HealthConsentDialog(): ReactElement | null {
               <dd>{request.display.periodLabel}</dd>
               <dt>发送到</dt>
               <dd>{destination}</dd>
+              <dt>用途</dt>
+              <dd>生成这次回答需要的健康摘要</dd>
             </dl>
+            <p className="quote-note">
+              {provider?.processing === 'local'
+                ? '摘要发送到你自己的 Piwin Host，由 Host 本机的模型处理。'
+                : '摘要先发送到你自己的 Piwin Host，再由 Host 交给你配置的第三方 AI 模型服务商处理。'}
+              不会用于广告，也不会出售。可以拒绝，拒绝不影响其他功能；之后也能随时在设置的 Apple Health 里改为「关闭」或断开。
+            </p>
             <p className="quote-note">只读摘要，不会写入 Apple Health；原始样本不离开手机。</p>
             <FullButton onClick={() => host.resolveHealthConsent('once')}>允许一次</FullButton>
             <FullButton variant="secondary" onClick={() => host.resolveHealthConsent('session')}>

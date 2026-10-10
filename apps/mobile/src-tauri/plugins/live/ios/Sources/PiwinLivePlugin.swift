@@ -60,7 +60,9 @@ final class PiwinLivePlugin: Plugin {
 
   @objc func live_activity_status(_ invoke: Invoke) {
     if #available(iOS 17.0, *) {
-      invoke.resolve(["enabled": ActivityAuthorizationInfo().areActivitiesEnabled])
+      // False when the build does not declare Live Activities (1.0); the
+      // front end then never syncs a card and Live voice works without one.
+      invoke.resolve(["enabled": liveActivitiesDeclaredInInfoPlist() && ActivityAuthorizationInfo().areActivitiesEnabled])
     } else { invoke.resolve(["enabled": false]) }
   }
 

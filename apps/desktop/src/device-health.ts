@@ -323,12 +323,18 @@ async function refreshBackgroundSync(
   options: { syncIfEnabled?: boolean } = {},
 ): Promise<void> {
   try {
-    const [native, hostStorageEnabled] = await Promise.all([
+    const [nativeStatus, hostStorageEnabled] = await Promise.all([
       backgroundSync().status(),
       readHostStorageEnabled(current.client),
     ]);
     if (attachment !== current) {
       return;
+    }
+    let native = nativeStatus;
+    // Background uploads ride on the connection that recorded the user's
+    // sharing consent. Sync left on from before that consent stops here.
+    if (native.enabled && !readHealthConnectedSetting()) {
+      native = await backgroundSync().disable();
     }
     publish({ backgroundSync: { ...native, hostStorageEnabled } });
     if (options.syncIfEnabled === true && native.enabled && hostStorageEnabled) {

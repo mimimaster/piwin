@@ -244,12 +244,64 @@ Denies the live_audio_take_events command without any pre-configured scope.
 <tr>
 <td>
 
+`piwin-live:allow-register-listener`
+
+</td>
+<td>
+
+Enables the register_listener command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`piwin-live:deny-register-listener`
+
+</td>
+<td>
+
+Denies the register_listener command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`piwin-live:allow-remove-listener`
+
+</td>
+<td>
+
+Enables the remove_listener command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`piwin-live:deny-remove-listener`
+
+</td>
+<td>
+
+Denies the remove_listener command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `piwin-live:default`
 
 </td>
 <td>
 
-Manage this device's Live Activity and consume its call controls.
+Manage this device's Live Activity, audio events and call controls.
 
 </td>
 </tr>

@@ -5,7 +5,7 @@
   "identifier": "app.piwin.mobile",
   "build": {
     "beforeDevCommand": {
-      "script": "pnpm dev",
+      "script": "pnpm icons:ios && pnpm dev",
       "cwd": ".."
     },
     "devUrl": "http://localhost:1421",
@@ -35,7 +35,7 @@
     "iOS": {
       "minimumSystemVersion": "15.0",
       "developmentTeam": "F47G63A8DM",
-      "bundleVersion": "1.0.0.13",
+      "bundleVersion": "1.0.0.15",
       "template": "src-tauri/ios-project.yml",
       "infoPlist": "Info.plist"
     }

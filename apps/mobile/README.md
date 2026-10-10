@@ -76,6 +76,17 @@ The generated src-tauri/gen/ directory is local build output and is ignored by
 the repository. Do not add desktop sidecar resources or external binaries to
 this app.
 
+## iOS app icon
+
+`src-tauri/icons/icon.png` is the opaque 1024-pixel mobile master with its
+background reaching the canvas edges. It uses the shared Inkstone artwork
+without the Desktop Dock inset. iOS applies the outside icon mask itself.
+
+`pnpm icons:ios` regenerates the 18 iPhone/iPad icon sizes and updates the
+existing Xcode asset catalog. Native initialization, development and shell
+builds run this sync so an older catalog cannot retain the small padded icon.
+Replacing the app icon requires a new native build installed on the device.
+
 ## Live voice and Dynamic Island
 
 On iOS 17+, locally owned Live calls expose status, elapsed time, mute, end,
@@ -84,9 +95,22 @@ omitted from the lock-screen card. The generated Xcode project embeds the
 `PiwinLiveActivityExtension` widget target; regenerate with `ios:init` after
 updating the native project template.
 
+1.0 App Store builds ship without that extension (`app.piwin.mobile.live-activity`
+has no App Store profile yet), so `src-tauri/Info.plist` does not declare
+`NSSupportsLiveActivities` and the plugin reports Live Activities as unavailable;
+Live voice still works without a card. To re-enable, create the profile, keep the
+extension embedded and add the key back (comments mark both places).
+
 Grok/OpenAI Realtime PCM runs through native iOS audio and an authenticated
 native socket. The audio background mode applies only while a user-started
 call owns the audio session. Codex WebRTC and Gemini remain foreground media
 paths. Host task admission and permission handling may wait until the shell
 resumes. Lock-screen recording and Bluetooth behavior require true-device
 acceptance. See ADR 0085 for ownership, privacy and verification boundaries.
+
+Starting Live shows a separate microphone-wait state. Unanswered microphone
+requests expire after 30 seconds; Host status/end controls use a 5-second
+budget and Host start uses 30 seconds. A denied microphone is enabled again
+in iOS Settings; the system remembers previous decisions and may not prompt
+again. The native plugin's default capability includes audio event listener
+registration and removal, which are required to receive connection status.

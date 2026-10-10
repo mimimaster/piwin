@@ -47,6 +47,8 @@ export function DeviceHealthConsentDialog(): ReactElement | null {
         <p>{request.display.metricLabels.join('、')}</p>
         <p className="muted">{request.display.periodLabel}</p>
         <p className="muted">{copy.consentDestination(destination)}</p>
+        <p className="muted">{copy.consentFlow(provider?.processing)}</p>
+        <p className="muted">{copy.consentRevoke}</p>
         <p className="muted">{copy.consentReadOnly}</p>
         <div className="device-health-consent-actions">
           <Button variant="primary" onClick={() => resolveDeviceHealthConsent('once')}>

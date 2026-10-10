@@ -24,6 +24,22 @@ type DeviceHealthCopy = {
   consentLocal: string;
   consentExternal: string;
   consentReadOnly: string;
+  /** Where a foreground read goes after the Host (App Review 5.1.2(i)). */
+  consentFlow: (processing: 'local' | 'external' | undefined) => string;
+  consentRevoke: string;
+  /**
+   * The data-sharing disclosure shown before Connect and before background
+   * sync is turned on. Nothing leaves the phone until the user taps Allow.
+   */
+  sharingTitle: string;
+  sharingDataTypes: string;
+  sharingDestination: (host: string, model: string | undefined) => string;
+  sharingPurpose: string;
+  sharingNoAds: string;
+  sharingRevoke: string;
+  sharingBackground: string;
+  sharingAllow: string;
+  sharingDeny: string;
   allowOnce: string;
   allowSession: string;
   allowAlways: string;
@@ -70,6 +86,25 @@ export const DEVICE_HEALTH_COPY: Record<DesktopLocale, DeviceHealthCopy> = {
     consentLocal: '本地',
     consentExternal: '外部',
     consentReadOnly: 'Piwin 只读，不会向 Apple Health 写入任何内容。',
+    consentFlow: (processing) =>
+      processing === 'local'
+        ? '用途：生成这次回答需要的健康摘要。摘要发送到你自己的 Piwin Host，由 Host 本机的模型处理。'
+        : '用途：生成这次回答需要的健康摘要。摘要先发送到你自己的 Piwin Host，再由 Host 交给你配置的第三方 AI 模型服务商处理。',
+    consentRevoke:
+      '不会用于广告，也不会出售。可以拒绝，拒绝不影响其他功能；之后也能随时在设置的「Apple Health」里改为「关闭」或断开。',
+    sharingTitle: '允许把健康数据发送给 AI 模型？',
+    sharingDataTypes:
+      '读取的数据：步数、活动能量、锻炼分钟数、日照时间、静息心率、心率变异性、体重、体脂率、最大摄氧量、呼吸频率、血氧、手腕温度、体能训练、睡眠和正念分钟数的汇总。只读取你在 Apple 健康授权页里允许的类别。',
+    sharingDestination: (host, model) =>
+      `发送到：你自己的 Piwin Host（${host}），再由 Host 交给你在 Host 上配置的第三方 AI 模型服务商（${model ?? '你选择的模型服务商'}）。`,
+    sharingPurpose: '用途：只用于生成你要求的健康摘要、回答你的健康问题。',
+    sharingNoAds: '不会用于广告，也不会出售。Piwin 开发者不会收到这些数据。',
+    sharingRevoke:
+      '你可以选择「不允许」，其他功能照常使用；之后也能随时在设置的「Apple Health」里断开、关闭后台同步或改为「关闭」来撤回同意。',
+    sharingBackground:
+      '开启后台同步后，iPhone 会在后台自动把每日健康摘要上传到你的 Host，不再逐次询问；Host 的定时健康摘要会把它们交给上面的模型。',
+    sharingAllow: '允许',
+    sharingDeny: '不允许',
     allowOnce: '允许一次',
     allowSession: '允许本次会话',
     allowAlways: '始终允许此 Host',
@@ -119,6 +154,25 @@ export const DEVICE_HEALTH_COPY: Record<DesktopLocale, DeviceHealthCopy> = {
     consentLocal: 'local',
     consentExternal: 'external',
     consentReadOnly: 'Piwin only reads. Nothing is written to Apple Health.',
+    consentFlow: (processing) =>
+      processing === 'local'
+        ? 'Purpose: a health summary for this answer. It is sent to your own Piwin Host and processed by a model running on that Host.'
+        : 'Purpose: a health summary for this answer. It is sent to your own Piwin Host, which passes it to the third-party AI model provider you configured.',
+    consentRevoke:
+      'Never used for advertising and never sold. You can deny without losing other features, and change this to Off or disconnect anytime in Settings under Apple Health.',
+    sharingTitle: 'Send health data to an AI model?',
+    sharingDataTypes:
+      'Data read: summaries of steps, active energy, exercise minutes, time in daylight, resting heart rate, heart rate variability, weight, body fat percentage, VO2 max, respiratory rate, blood oxygen, wrist temperature, workouts, sleep and mindful minutes. Only the categories you allow on the Apple Health permission screen are read.',
+    sharingDestination: (host, model) =>
+      `Sent to: your own Piwin Host (${host}), which passes it to the third-party AI model provider you configured on that Host (${model ?? 'the provider you selected'}).`,
+    sharingPurpose: 'Purpose: only to generate the health summaries you ask for and answer your health questions.',
+    sharingNoAds: 'Never used for advertising and never sold. The Piwin developer does not receive this data.',
+    sharingRevoke:
+      'You can choose Don’t Allow and keep using everything else. You can also revoke this anytime in Settings under Apple Health by disconnecting, turning off background sync or choosing Off.',
+    sharingBackground:
+      'With background sync on, the iPhone uploads daily health summaries to your Host automatically, without asking each time, and the Host’s scheduled digest sends them to the model above.',
+    sharingAllow: 'Allow',
+    sharingDeny: 'Don’t Allow',
     allowOnce: 'Allow once',
     allowSession: 'Allow for this session',
     allowAlways: 'Always allow this Host',

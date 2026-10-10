@@ -11,6 +11,13 @@ struct LiveActivitySnapshot: Decodable {
   let muted: Bool
 }
 
+/// Live Activities are opt-in through Info.plist. 1.0 ships without the
+/// widget extension and without NSSupportsLiveActivities (see
+/// src-tauri/Info.plist), so no card may be started that nothing can render.
+func liveActivitiesDeclaredInInfoPlist() -> Bool {
+  Bundle.main.object(forInfoDictionaryKey: "NSSupportsLiveActivities") as? Bool == true
+}
+
 @available(iOS 16.2, *)
 @MainActor
 final class PiwinLiveActivityManager {
@@ -81,7 +88,7 @@ final class PiwinLiveActivityManager {
     }
     await current?.end(nil, dismissalPolicy: .immediate)
     controls.removeAll()
-    guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+    guard liveActivitiesDeclaredInInfoPlist(), ActivityAuthorizationInfo().areActivitiesEnabled else { return }
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     let startedAt = formatter.date(from: snapshot.startedAt)

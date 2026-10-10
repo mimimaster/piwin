@@ -19,7 +19,10 @@ import {
 } from './client-tool-runtime.js';
 import type { HealthKitBridge } from './healthkit-bridge.js';
 
-const HEALTH_CONNECTED_KEY = 'piwin.mobile.health.connected';
+// v2: written only after the user accepts the data-sharing disclosure (where
+// summaries go, incl. the Host's AI model provider; App Review 5.1.2(i)).
+// Connections saved before that disclosure existed must connect again.
+const HEALTH_CONNECTED_KEY = 'piwin.mobile.health.connected.v2';
 const HEALTH_GRANT_PREFIX = 'piwin.mobile.health.grant.';
 
 /** Marks a turn as allowed to read Apple Health from this device. */

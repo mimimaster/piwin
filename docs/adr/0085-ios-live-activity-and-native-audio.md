@@ -14,6 +14,13 @@ Grok/OpenAI Realtime PCM uses an iOS native AVAudioEngine and ephemeral URLSessi
 
 Live Activities need user/system authorization and can be dismissed by the system. Disabling them does not block Live voice. Force termination cannot preserve audio. Bluetooth, locked-device recording, interruptions and long background sessions require physical-device validation; a simulator card preview is not evidence of microphone or upstream conversation success.
 
+Live startup bounds microphone permission waits to 30 seconds and displays
+them separately from media negotiation. Cancellation releases late browser
+streams and cancels native preparation. The iOS plugin allows the event
+listener registration/removal commands used by Tauri's `addPluginListener`;
+these are internal IPC capabilities, separate from system microphone consent.
+Host start uses a 30-second budget, with 5 seconds for status/end controls.
+
 ## Verification
 
 The native shell minimum is iOS 15, consistently set in Tauri and the Xcode

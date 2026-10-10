@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "vite --port 1421 --strictPort",
     "build": "tsc -b && vite build",
-    "build:shell": "tsc -b && tsx scripts/build-shell-dist.ts",
+    "build:shell": "tsc -b && pnpm icons:ios && tsx scripts/build-shell-dist.ts",
+    "icons:ios": "tsx scripts/sync-ios-icons.ts",
     "preview": "vite preview",
     "dev:tauri": "tauri dev --config src-tauri/tauri.conf.json",
-    "ios:init": "tauri ios init",
+    "ios:init": "tauri ios init && pnpm icons:ios",
     "ios:dev": "tauri ios dev",
     "ios:build": "tauri ios build",
     "android:init": "tauri android init",

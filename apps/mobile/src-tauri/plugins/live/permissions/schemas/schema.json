@@ -403,10 +403,34 @@
           "markdownDescription": "Denies the live_audio_take_events command without any pre-configured scope."
         },
         {
-          "description": "Manage this device's Live Activity and consume its call controls.",
+          "description": "Enables the register_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-register-listener",
+          "markdownDescription": "Enables the register_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the register_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-register-listener",
+          "markdownDescription": "Denies the register_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-remove-listener",
+          "markdownDescription": "Enables the remove_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-remove-listener",
+          "markdownDescription": "Denies the remove_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Manage this device's Live Activity, audio events and call controls.",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Manage this device's Live Activity and consume its call controls."
+          "markdownDescription": "Manage this device's Live Activity, audio events and call controls."
         }
       ]
     }

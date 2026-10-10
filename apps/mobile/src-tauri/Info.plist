@@ -4,8 +4,13 @@
 <dict>
   <key>UIBackgroundModes</key>
   <array><string>audio</string></array>
-  <key>NSSupportsLiveActivities</key>
-  <true/>
+  <!--
+    Live Activities are off for 1.0: the build ships without
+    PiwinLiveActivityExtension (app.piwin.mobile.live-activity has no App Store
+    profile yet). To re-enable, register that bundle ID with a profile, embed
+    the extension (ios-project.yml) and add back:
+      <key>NSSupportsLiveActivities</key><true/>
+  -->
   <key>CFBundleURLTypes</key>
   <array>
     <dict>
@@ -26,8 +31,8 @@
   <key>NSLocalNetworkUsageDescription</key>
   <string>Piwin connects to your Piwin Host on your private network so you can use the app on this device.</string>
   <key>NSHealthShareUsageDescription</key>
-  <string>Piwin reads the Apple Health categories you select and sends those summaries to your configured Piwin Host for chat analysis. Piwin never writes to Apple Health.</string>
+  <string>Piwin reads only the Apple Health categories you allow (such as steps, activity, sleep, heart rate and weight) to create the health summaries you ask for. After you agree in the app, these summaries are sent to your own Piwin Host and then to the AI model provider you configured there. Health data is never used for advertising or sold.</string>
   <key>NSHealthUpdateUsageDescription</key>
-  <string>Piwin uses Apple Health data only to provide the health summaries you request in chat. Piwin does not write or modify Apple Health data.</string>
+  <string>Piwin never writes to or changes your Apple Health data. It only reads the categories you allow to create the health summaries you ask for.</string>
 </dict>
 </plist>
