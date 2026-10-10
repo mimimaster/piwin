@@ -25,14 +25,17 @@ export function PromptsPanel(props: PromptsPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Keyed on what the query reads; a fresh `props` object per parent render
+  // must not refetch and flash the spinner.
+  const { request, projectPath } = props;
   const loadPrompts = useCallback(async () => {
     setLoading(true);
     setError(null);
     const command: { type: 'prompts/list'; projectPath?: string } = { type: 'prompts/list' };
-    if (props.projectPath) {
-      command.projectPath = props.projectPath;
+    if (projectPath) {
+      command.projectPath = projectPath;
     }
-    const response = await props.request(command);
+    const response = await request(command);
     setLoading(false);
     if (!response.success) {
       setError(response.error);
@@ -40,7 +43,7 @@ export function PromptsPanel(props: PromptsPanelProps) {
     }
     const data = response.data as PromptsListData;
     setPrompts(data.prompts ?? []);
-  }, [props]);
+  }, [request, projectPath]);
 
   useEffect(() => {
     void loadPrompts();

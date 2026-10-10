@@ -74,3 +74,8 @@ export function isDesktopTauriRuntime(): boolean {
 export function isMobileTauriRuntime(): boolean {
   return readShellRuntime() === 'mobile-tauri';
 }
+
+/** iOS supplies a native Live microphone independently of WebKit capture. */
+export function isIosTauriRuntime(): boolean {
+  return isMobileTauriRuntime() && !/Android/.test(navigator.userAgent);
+}

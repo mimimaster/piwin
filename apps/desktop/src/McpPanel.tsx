@@ -86,8 +86,11 @@ export function McpPanel(props: McpPanelProps) {
     setDocument(next);
   }
 
+  // Keyed on the stable request adapter; a fresh `props` object per parent
+  // render must not reload the config and flash the spinner.
+  const { request } = props;
   const refreshHealth = useCallback(async () => {
-    const response = await props.request({ type: 'mcp/status' });
+    const response = await request({ type: 'mcp/status' });
     if (!response.success) return;
     const data = response.data as { servers: McpServerHealth[] };
     const next: Record<string, McpServerHealth> = {};
@@ -95,12 +98,12 @@ export function McpPanel(props: McpPanelProps) {
       next[server.serverId] = server;
     }
     setHealthById(next);
-  }, [props]);
+  }, [request]);
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const response = await props.request({ type: 'mcp/get' });
+    const response = await request({ type: 'mcp/get' });
     if (!response.success) {
       setError(response.error);
       setLoading(false);
@@ -110,7 +113,7 @@ export function McpPanel(props: McpPanelProps) {
     updateDocument(data.document);
     await refreshHealth();
     setLoading(false);
-  }, [props, refreshHealth]);
+  }, [request, refreshHealth]);
 
   useEffect(() => {
     void loadConfig();

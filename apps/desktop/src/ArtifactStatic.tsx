@@ -1,12 +1,17 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   MIN_ARTIFACT_IFRAME_HEIGHT,
+  buildArtifactReportKitCss,
+  resolveArtifactOnAccent,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
 import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
-import { sanitizeStaticArtifactSource } from './artifact-static-sanitizer.js';
+import {
+  sanitizeStaticArtifactSource,
+  sanitizeStaticArtifactSourceNow,
+} from './artifact-static-sanitizer.js';
 
 export type ArtifactStaticProps = {
   source: string;
@@ -87,6 +92,21 @@ const STATIC_ARTIFACT_BASE_CSS = `
 .piwin-artifact-root td { overflow-wrap: anywhere; }
 `;
 
+/**
+ * The Report Kit, as the sandbox ships it, plus the Inline measure: the chat
+ * column already supplies the gutter. The kit's own Inline rule keys off the
+ * sandbox document's `<html data-frame-mode>`, which a shadow tree has not.
+ * Without this a kit report loses all styling the moment its stream finishes
+ * and the static renderer takes over.
+ */
+const STATIC_ARTIFACT_REPORT_KIT_CSS = `${buildArtifactReportKitCss()}
+.piwin-artifact-root > .piwin-report {
+  max-width: 100%;
+  margin: 0;
+  padding: 2px 0 6px;
+}
+`;
+
 function resolveLocalArtifactViewportHeight(element: HTMLElement | null): number {
   const windowHeight = typeof window === 'undefined' ? 640 : window.innerHeight;
   const preferredHeight = resolveArtifactViewportFrameHeight(windowHeight);
@@ -103,9 +123,13 @@ function escapeCssValue(value: string): string {
 
 function buildThemeCss(theme: ArtifactThemeVariables | undefined): string {
   if (!theme) return '';
+  // `color-scheme` keeps system colors (the contract's `Canvas` ink) on the
+  // artifact theme rather than whatever the surrounding app resolves to.
   return `:host {\n${ARTIFACT_THEME_VARIABLES.map(
     (name) => `  ${name}: ${escapeCssValue(theme[name])};`,
-  ).join('\n')}\n}`;
+  ).join('\n')}\n  --piwin-artifact-on-accent: ${escapeCssValue(
+    resolveArtifactOnAccent(theme),
+  )};\n  color-scheme: ${theme['--piwin-artifact-theme']};\n}`;
 }
 
 /**
@@ -121,18 +145,26 @@ export function ArtifactStatic({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [overflows, setOverflows] = useState(false);
   const [localViewportHeight, setLocalViewportHeight] = useState<number | null>(null);
-  const [sanitizedSource, setSanitizedSource] = useState('');
+  // Sanitized in render once the sanitizer is loaded, so the first commit
+  // already carries the content and the Artifact never paints empty.
+  const sanitizedNow = useMemo(() => sanitizeStaticArtifactSourceNow(source), [source]);
+  const [sanitizedLater, setSanitizedLater] = useState<{ source: string; value: string } | null>(
+    null,
+  );
+  const sanitizedSource =
+    sanitizedNow ?? (sanitizedLater?.source === source ? sanitizedLater.value : '');
   const themeCss = useMemo(() => buildThemeCss(theme), [theme]);
 
   useEffect(() => {
+    if (sanitizedNow !== null) return;
     let cancelled = false;
-    void sanitizeStaticArtifactSource(source).then((next) => {
-      if (!cancelled) setSanitizedSource(next);
+    void sanitizeStaticArtifactSource(source).then((value) => {
+      if (!cancelled) setSanitizedLater({ source, value });
     });
     return () => {
       cancelled = true;
     };
-  }, [source]);
+  }, [sanitizedNow, source]);
 
   useLayoutEffect(() => {
     const host = hostRef.current;
@@ -158,7 +190,7 @@ export function ArtifactStatic({
     const shadowRoot = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
     const baseStyle = document.createElement('style');
     baseStyle.dataset['piwinArtifactStaticBase'] = '';
-    baseStyle.textContent = `${themeCss}\n${STATIC_ARTIFACT_BASE_CSS}`;
+    baseStyle.textContent = `${themeCss}\n${STATIC_ARTIFACT_BASE_CSS}\n${STATIC_ARTIFACT_REPORT_KIT_CSS}`;
     const content = document.createElement('div');
     content.className = 'piwin-artifact-root';
     content.innerHTML = sanitizedSource;

@@ -441,6 +441,35 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--t1);
 }
 
+/* Status reads as a marginal note, not a filled pill: the Deck --mint/--amber
+   washes are tuned for dark surfaces and glare on paper. Colour lives only in
+   the dot; "built-in" is a fact rather than a state, so it carries no dot. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-engine-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--t3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-engine-badge:is(.is-ready, .is-warning)::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--pine);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-engine-badge.is-warning::before {
+  background: var(--ochre);
+}
+
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-engine-desc {
   font-family: var(--sans);
   color: var(--t3);

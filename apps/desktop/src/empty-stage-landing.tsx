@@ -141,7 +141,7 @@ export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
                   <div className="empty-stage-engine-card-header">
                     <span className="empty-stage-engine-name">{engineLabel}</span>
                     <span
-                      className={`empty-stage-engine-badge${option.ready ? ' is-ready' : ' is-warning'}`}
+                      className={`empty-stage-engine-badge${option.agentId === 'pi' ? ' is-builtin' : option.ready ? ' is-ready' : ' is-warning'}`}
                     >
                       {option.agentId === 'pi'
                         ? isChinese

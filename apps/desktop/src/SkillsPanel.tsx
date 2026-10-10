@@ -73,14 +73,17 @@ export function SkillsPanel(props: SkillsPanelProps) {
   const [mappedPaths, setMappedPaths] = useState<string[]>([]);
   const [mappingBusy, setMappingBusy] = useState(false);
 
+  // Keyed on what the queries read; a fresh `props` object per parent render
+  // must not refetch and flash the spinner.
+  const { request, projectPath, readOnly } = props;
   const loadSkills = useCallback(async () => {
     setLoading(true);
     setError(null);
     const command: { type: 'skills/list'; projectPath?: string } = { type: 'skills/list' };
-    if (props.projectPath) {
-      command.projectPath = props.projectPath;
+    if (projectPath) {
+      command.projectPath = projectPath;
     }
-    const response = await props.request(command);
+    const response = await request(command);
     setLoading(false);
     if (!response.success) {
       if (!isRemoteCommandGapError(response.error)) {
@@ -90,18 +93,18 @@ export function SkillsPanel(props: SkillsPanelProps) {
     }
     const data = response.data as SkillsListData;
     setSkills(data.skills ?? []);
-  }, [props]);
+  }, [request, projectPath]);
 
   const loadMappedPaths = useCallback(async () => {
-    if (props.readOnly) {
+    if (readOnly) {
       setMappedPaths([]);
       return;
     }
-    const response = await props.request({ type: 'config/get' });
+    const response = await request({ type: 'config/get' });
     if (!response.success) return;
     const data = response.data as { config: PiwinConfig };
     setMappedPaths(data.config.skills?.extraPaths ?? []);
-  }, [props]);
+  }, [request, readOnly]);
 
   useEffect(() => {
     void loadSkills();

@@ -54,7 +54,12 @@
 
 /* Streaming caret: same ember signal as .stream-dot — it only exists while
    the agent is producing tokens. Streamdown's package caret is not used. */
-.markdown.has-stream-caret > :last-child::after {
+/* The caret trails the last streamed text (`stream-caret-anchor.ts`): the last
+   table cell, list item or code line, not a line of its own under the block.
+   Until an anchor is found, or when the tail is a rendered widget, it falls
+   back to the reply's last top-level block. */
+.markdown.has-stream-caret [data-stream-caret]::after,
+.markdown.has-stream-caret:not(:has([data-stream-caret])) > :last-child::after {
   display: inline-block;
   margin-left: 2px;
   color: var(--ember);
@@ -595,6 +600,33 @@ html:not([data-theme-mode='light']) {
   border-bottom: none;
 }
 
+/* In prose an inline code token may break anywhere, so a long path never
+   pushes the reading column wider. In a table that same rule makes the
+   column's minimum width a single character: the layout crushes a "File"
+   column to a few characters, every row grows several lines tall, and one
+   longer token arriving mid-stream reflows the whole table. A token in a cell
+   keeps its natural break points; a table that is then too wide scrolls
+   sideways in its wrapper. */
+.md-table .md-inline-code {
+  overflow-wrap: break-word;
+}
+
+/* Four or more columns of real content do not fit the reading column at a
+   readable width: left to fit, each prose column sits at its longest word, a
+   row runs a dozen lines, and one long token arriving mid-stream reflows
+   every row above it. Such a table takes the width its content wants, with every column
+   capped at a comfortable measure, and scrolls sideways. Columns then only
+   ever widen up to the cap as rows stream in, so earlier rows stop reflowing. */
+.md-table:has(tr > :nth-child(4)) {
+  width: max-content;
+  min-width: 100%;
+}
+
+.md-table:has(tr > :nth-child(4)) th,
+.md-table:has(tr > :nth-child(4)) td {
+  max-width: 24ch;
+}
+
 .md-table tbody tr:nth-child(even) {
   background: var(--hover);
 }
@@ -754,6 +786,9 @@ html:not([data-theme-mode='light']) {
   width: auto !important;
   max-width: 100% !important;
   height: auto;
+  /* Drawn at its own size (`mermaid-svg-size.ts`), so a small diagram no
+     longer fills the stage; centre it instead of pinning it to the edge. */
+  margin-inline: auto;
 }
 
 .md-mermaid-loading {

@@ -46,10 +46,13 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const [hooks, setHooks] = useState<HookDefinition[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Depend on the stable request adapter, not the props object: the parent
+  // re-renders on every settings notice, and a fresh `props` would reload here.
+  const { request } = props;
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const cfgRes = await props.request({ type: 'config/get' });
+    const cfgRes = await request({ type: 'config/get' });
     if (!cfgRes.success) {
       setError(cfgRes.error);
       setLoading(false);
@@ -58,19 +61,19 @@ export function AutomationPanel(props: AutomationPanelProps) {
     const cfgData = cfgRes.data as { config: PiwinConfig };
     setConfig(cfgData.config);
 
-    const cronRes = await props.request({ type: 'cron/list' });
+    const cronRes = await request({ type: 'cron/list' });
     if (cronRes.success) {
       const data = cronRes.data as { jobs?: CronJob[] };
       setJobs(data.jobs ?? []);
     }
 
-    const hooksRes = await props.request({ type: 'hooks/list' });
+    const hooksRes = await request({ type: 'hooks/list' });
     if (hooksRes.success) {
       const data = hooksRes.data as { hooks?: HookDefinition[] };
       setHooks(data.hooks ?? []);
     }
     setLoading(false);
-  }, [props]);
+  }, [request, setError]);
 
   useEffect(() => {
     void loadAll();
@@ -129,7 +132,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
             <Switch
               checked={enabled}
               onCheckedChange={(checked) =>
-                void saveAutomation({ ...config?.automation, enabled: checked } as any)
+                void saveAutomation({ ...config?.automation, enabled: checked })
               }
               aria-label={isChinese ? '启用自动化' : 'Enable Automation'}
               testId="automation-enabled-switch"

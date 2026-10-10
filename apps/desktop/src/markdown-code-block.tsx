@@ -1,4 +1,11 @@
-import { useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
+import {
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { Button } from '@piwin/ui-kit';
 import { CollapsibleContentBlock } from './collapsible-content-block.js';
 import { computeDiffLineNumbers } from './diff-line-numbers.js';
@@ -197,6 +204,15 @@ export function SourceCodeBlock(props: {
 }): ReactElement {
   const reference = parseCodeReferenceFence(props.language);
   const language = reference?.language ?? props.language;
+  // A block the reader watched being written stays open once it closes.
+  // Folding it to the preview the moment its fence ends pulls a screenful of
+  // code out from under the reader while the reply is still streaming below.
+  // A block that mounts already complete (history) starts folded as before.
+  const writtenLiveRef = useRef(props.streaming === true);
+  if (props.streaming === true) {
+    writtenLiveRef.current = true;
+  }
+  const keepOpen = props.streaming === true || writtenLiveRef.current;
   return (
     <div
       className="md-code-block"
@@ -245,10 +261,10 @@ export function SourceCodeBlock(props: {
         language={language}
         highlightEnabled={!props.streaming}
         {...(reference ? { startLine: reference.startLine } : {})}
-        {...(props.streaming
-          ? { defaultCollapsed: false }
-          : props.defaultCollapsed !== undefined
-            ? { defaultCollapsed: props.defaultCollapsed }
+        {...(props.defaultCollapsed !== undefined && props.streaming !== true
+          ? { defaultCollapsed: props.defaultCollapsed }
+          : keepOpen
+            ? { defaultCollapsed: false }
             : {})}
       />
       {props.blockedReason ? (

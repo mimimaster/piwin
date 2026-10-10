@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 import type {
   ArtifactActionMessage,
   ArtifactRenderPlan,
@@ -10,6 +10,7 @@ import {
   type ArtifactSandboxPlan,
 } from './artifact-sandbox-frame.js';
 import { ArtifactStatic } from './ArtifactStatic.js';
+import { preloadStaticArtifactSanitizer } from './artifact-static-sanitizer.js';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
 
@@ -36,6 +37,11 @@ export function ArtifactFrame({
   theme,
   locale = 'en',
 }: ArtifactFrameProps): ReactElement {
+  // A stream preview hands over to the static renderer when it completes; the
+  // sanitizer must already be there or that first static frame paints empty.
+  useEffect(() => {
+    preloadStaticArtifactSanitizer();
+  }, []);
   if (plan.kind === 'blocked') {
     const contentLabel = plan.descriptor.type === 'svg' ? 'SVG' : 'HTML UI';
     return (

@@ -24,6 +24,7 @@ import {
   readMermaidDiagramSvg,
   rememberMermaidDiagramHeight,
 } from './mermaid-diagram-cache.js';
+import { withIntrinsicMermaidSvgSize } from './mermaid-svg-size.js';
 
 const MERMAID_RENDER_TIMEOUT_MS = 8_000;
 
@@ -69,6 +70,10 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
   const phase = useMarkdownRenderingPhase();
   const themeMode = useThemeMode();
   const diagramRef = useRef<HTMLDivElement | null>(null);
+  const writtenLiveRef = useRef(phase === 'streaming');
+  if (phase === 'streaming') {
+    writtenLiveRef.current = true;
+  }
   const [state, setState] = useState<MermaidRenderState>(() =>
     mermaidStateFromCache(source, themeMode),
   );
@@ -115,7 +120,7 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
           });
           const diagramId = `piwin-mermaid-${reactId}-${Date.now().toString(36)}`;
           const rendered = await mermaid.render(diagramId, source);
-          return rendered.svg;
+          return withIntrinsicMermaidSvgSize(rendered.svg);
         });
         if (timeoutId !== undefined) {
           clearTimeout(timeoutId);
@@ -158,7 +163,14 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
     rememberMermaidDiagramHeight(source, themeMode, element.getBoundingClientRect().height);
   }, [source, state, themeMode]);
 
-  if (phase === 'streaming') {
+  // A diagram the reader watched arrive as source keeps showing that source
+  // until its drawing is ready. Swapping to the one-line placeholder in
+  // between collapses the block and then grows it again within a few frames.
+  const holdStreamSource =
+    state.status === 'loading' &&
+    writtenLiveRef.current &&
+    readMermaidDiagramHeight(source, themeMode) === null;
+  if (phase === 'streaming' || holdStreamSource) {
     return (
       <pre className="md-code" data-testid="mermaid-stream-source">
         <code data-language="mermaid">{source}</code>

@@ -38,6 +38,65 @@ describe('ArtifactStatic', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
+  it('carries its content in the first commit once the sanitizer is loaded', () => {
+    // No awaited effect flush: a first frame without content is a frame in
+    // which the transcript below jumps up by the Artifact's whole height.
+    act(() => {
+      root.render(<ArtifactStatic type="html" source="<section><h1>Ready</h1></section>" />);
+    });
+    const host = container.querySelector<HTMLElement>('[data-testid="artifact-static"]');
+    expect(host?.shadowRoot?.querySelector('h1')?.textContent).toBe('Ready');
+
+    act(() => {
+      root.render(<ArtifactStatic type="html" source="<section><h1>Next</h1></section>" />);
+    });
+    expect(host?.shadowRoot?.querySelector('h1')?.textContent).toBe('Next');
+  });
+
+  it('still strips scripts and handlers on the immediate path', () => {
+    act(() => {
+      root.render(
+        <ArtifactStatic
+          type="html"
+          source={'<section><p onclick="steal()">text</p></section><script>steal()</script>'}
+        />,
+      );
+    });
+    const shadow = container.querySelector<HTMLElement>('[data-testid="artifact-static"]')?.shadowRoot;
+    const content = shadow?.querySelector('.piwin-artifact-root');
+    expect(content?.textContent).toContain('text');
+    expect(content?.innerHTML).not.toContain('steal');
+    expect(shadow?.querySelector('script')).toBeNull();
+  });
+
+  it('never leaves the sanitizer wrapper in the rendered markup', () => {
+    act(() => {
+      root.render(<ArtifactStatic type="html" source="<p>one</p><p>two</p>" />);
+    });
+    const content = container
+      .querySelector<HTMLElement>('[data-testid="artifact-static"]')
+      ?.shadowRoot?.querySelector('.piwin-artifact-root');
+    expect(content?.innerHTML).toBe('<p>one</p><p>two</p>');
+  });
+
+  it('styles a Report Kit document the way the sandbox does, at the Inline measure', () => {
+    act(() => {
+      root.render(
+        <ArtifactStatic
+          type="html"
+          source={'<main class="piwin-report"><h1>Report</h1><span class="piwin-badge">ok</span></main>'}
+        />,
+      );
+    });
+    const shadow = container.querySelector<HTMLElement>('[data-testid="artifact-static"]')?.shadowRoot;
+    const css = shadow?.querySelector('style')?.textContent ?? '';
+    expect(css).toContain(':where(.piwin-report) :where(.piwin-badge)');
+    expect(css).toContain('.piwin-artifact-root > .piwin-report');
+    expect(shadow?.querySelector('.piwin-artifact-root')?.innerHTML).toBe(
+      '<main class="piwin-report"><h1>Report</h1><span class="piwin-badge">ok</span></main>',
+    );
+  });
+
   it('renders sanitized static markup in a naturally-sized Shadow DOM without an iframe', async () => {
     act(() => {
       root.render(

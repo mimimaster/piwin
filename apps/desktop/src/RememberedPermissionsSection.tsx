@@ -41,16 +41,19 @@ export function RememberedPermissionsSection(
     props.onToggle?.();
   };
 
+  // Keyed on what the query reads; a fresh `props` object per parent render
+  // must not refetch the list.
+  const { request, projectPath } = props;
   const load = useCallback(async () => {
-    if (!props.projectPath) {
+    if (!projectPath) {
       setPermissions([]);
       return;
     }
     setLoading(true);
     setError(null);
-    const response = await props.request({
+    const response = await request({
       type: 'project/permissions-list',
-      path: props.projectPath,
+      path: projectPath,
     });
     setLoading(false);
     if (!response.success) {
@@ -59,7 +62,7 @@ export function RememberedPermissionsSection(
     }
     const data = response.data as { permissions?: RememberedPermission[] };
     setPermissions(data.permissions ?? []);
-  }, [props]);
+  }, [request, projectPath]);
 
   useEffect(() => {
     void load();

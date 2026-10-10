@@ -67,9 +67,12 @@ export function PetPanel(props: PetPanelProps) {
 
   useEffect(() => subscribePetOverlayVisibility(setOverlayVisible), []);
 
+  // Keyed on the stable request adapter; a fresh `props` object per parent
+  // render must not refetch the list.
+  const { request } = props;
   const reload = useCallback(async () => {
     setError(null);
-    const listed = await props.request({ type: 'pet/list' });
+    const listed = await request({ type: 'pet/list' });
     if (!listed.success) {
       setError(listed.error);
       return;
@@ -77,7 +80,7 @@ export function PetPanel(props: PetPanelProps) {
     const data = listed.data as { pets: PetSummary[]; activePetId: string };
     setPets(data.pets);
     setActiveId(data.activePetId);
-  }, [props]);
+  }, [request]);
 
   useEffect(() => {
     void reload();

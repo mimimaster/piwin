@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactElement } from 'react';
 import { cjk } from '@streamdown/cjk';
 import {
   projectArtifactMarkdownForRender,
@@ -26,6 +26,7 @@ import {
 import { MarkdownRenderingPhaseProvider } from './markdown-rendering-phase.js';
 import { RenderErrorBoundary } from './render-error-boundary.js';
 import { useStableArtifactTheme } from './artifact-stable-theme.js';
+import { useStreamCaretAnchor } from './stream-caret-anchor.js';
 import {
   getStreamdownMathPlugin,
   loadStreamdownMathPlugin,
@@ -178,6 +179,10 @@ export function MarkdownView({
   );
   const streamdownText = artifactProjection.markdown;
   const shouldShowStreamingCaret = streamMode && showStreamingCaret && text.trim().length > 0;
+  // Unique per mounted reply, so the caret anchor finds this reply's root
+  // without wrapping Streamdown in an element of our own.
+  const caretRootClass = `md-caret-root-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  useStreamCaretAnchor(caretRootClass, shouldShowStreamingCaret);
   // Streamdown treats a trailing blank line as a separate streaming block.
   // That would put the caret on an otherwise empty line, so remove only the
   // transient trailing line break from the live render. The stored message is
@@ -265,7 +270,11 @@ export function MarkdownView({
         <StreamdownRendererOptionsProvider value={streamdownRendererOptions}>
         <KnowledgeCitationIndexProvider value={knowledgeCitations}>
         <Streamdown
-          className={shouldShowStreamingCaret ? 'prose markdown has-stream-caret' : 'prose markdown'}
+          className={
+            shouldShowStreamingCaret
+              ? `prose markdown has-stream-caret ${caretRootClass}`
+              : 'prose markdown'
+          }
           // Live tokens stay on Streamdown's streaming tree. `static` skips remend
           // and re-parses a finished document on every delta. The animate object
           // only disables startTransition; isAnimating stays false so word spans

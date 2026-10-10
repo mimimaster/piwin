@@ -248,6 +248,12 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint, #117d56) 25%, transparent);
 }
 
+.empty-stage-engine-badge.is-builtin {
+  background: color-mix(in srgb, var(--text-3) 10%, transparent);
+  color: var(--text-3);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-3) 20%, transparent);
+}
+
 .empty-stage-engine-badge.is-warning {
   background: color-mix(in srgb, var(--amber, #956408) 12%, transparent);
   color: var(--amber, #956408);

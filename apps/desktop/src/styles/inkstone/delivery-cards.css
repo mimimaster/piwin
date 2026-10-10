@@ -6,8 +6,16 @@ html[data-theme-id='piwin-inkstone-ink'] .prose {
   color: var(--t1);
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .markdown.has-stream-caret > :last-child::after,
-html[data-theme-id='piwin-inkstone-ink'] .markdown.has-stream-caret > :last-child::after,
+/* Same anchor contract as transcript-markdown.css: the caret trails the last
+   streamed text, and only falls back to the last block without an anchor. */
+html[data-theme-id='piwin-inkstone-paper'] .markdown.has-stream-caret [data-stream-caret]::after,
+html[data-theme-id='piwin-inkstone-ink'] .markdown.has-stream-caret [data-stream-caret]::after,
+html[data-theme-id='piwin-inkstone-paper']
+  .markdown.has-stream-caret:not(:has([data-stream-caret]))
+  > :last-child::after,
+html[data-theme-id='piwin-inkstone-ink']
+  .markdown.has-stream-caret:not(:has([data-stream-caret]))
+  > :last-child::after,
 html[data-theme-id='piwin-inkstone-paper'] .caret,
 html[data-theme-id='piwin-inkstone-ink'] .caret {
   content: '';

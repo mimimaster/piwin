@@ -138,6 +138,39 @@ describe('AutomationPanel', () => {
     expect(container!.querySelector('[data-testid="automation-enabled-switch"]')).not.toBeNull();
   });
 
+  it('does not reload when the parent re-renders with the same request', async () => {
+    const request = vi.fn(async (command: { type: string }) => ({
+      type: 'response' as const,
+      command: command.type,
+      success: true as const,
+      data:
+        command.type === 'config/get'
+          ? { config: baseConfig() }
+          : command.type === 'cron/list'
+            ? { jobs: [] }
+            : { hooks: [] },
+    }));
+    const settings = { setInfo: vi.fn(), setError: vi.fn() } as unknown as SettingsContextValue;
+    const renderPanel = async (): Promise<void> => {
+      await act(async () => {
+        root!.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+              <SettingsProvider value={settings}>
+                <AutomationPanel projectPath={null} request={request} variant="inline" />
+              </SettingsProvider>
+            </DesktopLocaleProvider>
+          </PiwinUiProvider>,
+        );
+      });
+    };
+
+    await renderPanel();
+    await renderPanel();
+
+    expect(request.mock.calls.filter(([command]) => command.type === 'config/get')).toHaveLength(1);
+  });
+
   it('renders cron jobs when the list has items', async () => {
     const request = vi.fn(async (command: { type: string }) => {
       if (command.type === 'config/get') {

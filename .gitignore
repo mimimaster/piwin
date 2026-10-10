@@ -35,6 +35,7 @@ apps/desktop/playwright/.cache/
 .playwright-mcp/
 
 # Local scratch / asset drafts
+/.tmp-*
 icon-preview-2d.html
 pelican-bicycle.html
 pelican-bike.html

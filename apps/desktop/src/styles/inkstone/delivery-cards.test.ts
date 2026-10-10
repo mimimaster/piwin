@@ -7,8 +7,13 @@ const here = dirname(fileURLToPath(import.meta.url));
 const css = readFileSync(join(here, 'delivery-cards.css'), 'utf8');
 
 describe('Inkstone streaming caret', () => {
-  it('attaches the streaming caret to the last-child inline instead of the outer container', () => {
-    expect(css).toContain('.markdown.has-stream-caret > :last-child::after');
+  it('attaches the streaming caret to the anchored text, falling back to the last block', () => {
+    expect(css).toContain('.markdown.has-stream-caret [data-stream-caret]::after');
+    // Fallback only while no anchor exists, or two carets would paint.
+    expect(css).toMatch(
+      /\.markdown\.has-stream-caret:not\(:has\(\[data-stream-caret\]\)\)\s*>\s*:last-child::after/,
+    );
+    expect(css).not.toMatch(/\.markdown\.has-stream-caret\s*>\s*:last-child::after/);
     expect(css).toMatch(/width:\s*2px;/);
     expect(css).toMatch(/background:\s*var\(--lamp\);/);
     expect(css).toMatch(/animation:\s*breath 1s ease-in-out infinite;/);
