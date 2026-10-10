@@ -38,6 +38,7 @@ export type SessionToolFamily =
   | 'extensions-write'
   | 'artifact'
   | 'toolbox'
+  | 'codemode'
   | 'image-generation'
   | 'video-generation'
   | 'device-health';

@@ -8,7 +8,7 @@
  *   dist-host/bundled-assets/ (S0 layout)
  */
 import { build } from 'esbuild';
-import { cp, lstat, mkdir, readdir, rm, writeFile, stat } from 'node:fs/promises';
+import { cp, lstat, mkdir, readFile, readdir, rm, writeFile, stat } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -25,6 +25,7 @@ const workerOutfile = join(distHost, 'agent-worker.mjs');
 /** Keep on disk for assets / WASM / native / dynamic loads (ADR 0017). */
 const EXTERNAL_DEPS = {
   '@earendil-works/pi-coding-agent': '0.84.2',
+  '@earendil-works/pi-codemode': '1.1.0',
   '@lancedb/lancedb': '0.37.1',
   '@silvia-odwyer/photon-node': '0.3.4',
   '@medv/finder': '4.0.2',
@@ -238,7 +239,89 @@ async function main() {
     throw new Error('missing dist-host/host-listen.mjs after esbuild — bundle incomplete');
   }
 
+  await verifyPinnedExternalVersions(distHost);
+  await smokeCodemodeSandbox(distHost);
+
   console.log(`[bundle-host] done → ${relative(root, distHost)}`);
+}
+
+async function verifyPinnedExternalVersions(distHost) {
+  const expected = {
+    '@earendil-works/pi-coding-agent': '0.84.2',
+    '@earendil-works/pi-ai': '0.84.2',
+    '@earendil-works/pi-codemode': '1.1.0',
+  };
+  for (const [name, version] of Object.entries(expected)) {
+    const packagePath = join(distHost, 'node_modules', name, 'package.json');
+    if (name === '@earendil-works/pi-ai' && !(await pathExists(packagePath))) {
+      continue;
+    }
+    const parsed = JSON.parse(await readFile(packagePath, 'utf8'));
+    if (parsed.version !== version) {
+      throw new Error(`${name} bundle version ${parsed.version} !== ${version}`);
+    }
+  }
+}
+
+async function smokeCodemodeSandbox(distHost) {
+  const worker = join(
+    distHost,
+    'node_modules/@earendil-works/pi-codemode/dist/runtime/worker.js',
+  );
+  const wasmCandidates = [
+    join(distHost, 'node_modules/quickjs-wasi/quickjs.wasm'),
+    join(
+      distHost,
+      'node_modules/@earendil-works/pi-codemode/node_modules/quickjs-wasi/quickjs.wasm',
+    ),
+  ];
+  if (!(await pathExists(worker))) {
+    throw new Error('missing pi-codemode worker after prune');
+  }
+  let wasmPath;
+  for (const candidate of wasmCandidates) {
+    if (await pathExists(candidate)) {
+      wasmPath = candidate;
+      break;
+    }
+  }
+  if (!wasmPath) {
+    throw new Error('missing quickjs-wasi/quickjs.wasm after prune');
+  }
+  console.log(`[bundle-host] codemode worker: ${relative(distHost, worker)}`);
+  console.log(`[bundle-host] codemode wasm: ${relative(distHost, wasmPath)}`);
+  const scriptPath = join(distHost, 'codemode-smoke.mjs');
+  await writeFile(
+    scriptPath,
+    [
+      "import { CodemodeSandbox, loadQuickJSWasm } from '@earendil-works/pi-codemode';",
+      "import { pathToFileURL } from 'node:url';",
+      'const sandbox = new CodemodeSandbox({',
+      '  timeoutMs: 10000,',
+      '  memoryLimitBytes: 32 * 1024 * 1024,',
+      `  wasm: loadQuickJSWasm(${JSON.stringify(wasmPath)}),`,
+      `  workerUrl: pathToFileURL(${JSON.stringify(worker)}),`,
+      "  tools: [{ name: 'echo', async execute(args) { return args; } }],",
+      '});',
+      'try {',
+      "  const result = await sandbox.execute('return await tools.echo({ n: 1 })');",
+      '  if (!result.ok || result.value?.n !== 1) {',
+      '    console.error(result);',
+      '    process.exit(1);',
+      '  }',
+      "  console.log('[bundle-host] codemode sandbox smoke ok');",
+      '} finally {',
+      '  await sandbox.close();',
+      '}',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  try {
+    run('node', [scriptPath], { cwd: distHost });
+  } finally {
+    await rm(scriptPath, { force: true });
+  }
 }
 
 main().catch((error) => {

@@ -26,6 +26,8 @@ export type McpToolSummary = {
   description: string;
   /** Optional JSON Schema from tools/list when available. */
   inputSchema?: Record<string, unknown>;
+  /** True only when upstream `annotations.readOnlyHint` was explicitly true. */
+  readOnlyHint?: boolean;
 };
 
 /** Stable tool selector: `${serverId}.${toolName}`. */
@@ -47,6 +49,8 @@ export type McpToolMetadata = {
   inputSchema: Record<string, unknown>;
   metadataFingerprint: string;
   fetchedAt: string;
+  /** True only when upstream `annotations.readOnlyHint` was explicitly true. */
+  readOnlyHint?: boolean;
 };
 
 /** Persisted product document for MCP tool metadata cache. */

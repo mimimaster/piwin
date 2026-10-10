@@ -465,6 +465,7 @@ describe('host tool admission composition', () => {
       'artifact:instructions',
       'subagent:playbook',
       'toolbox:route',
+      'codemode:run',
     ]);
     const gate = createHostToolAdmission({
       rules: createEmptyRuleSet(),

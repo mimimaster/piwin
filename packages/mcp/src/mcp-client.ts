@@ -215,6 +215,7 @@ export function spawnHandcraftedMcpStdio(
               name: string;
               description?: string;
               inputSchema?: Record<string, unknown>;
+              annotations?: { readOnlyHint?: unknown };
             }>;
           };
           return (result.tools ?? []).map((tool) => {
@@ -224,6 +225,9 @@ export function spawnHandcraftedMcpStdio(
             }
             if (tool.inputSchema && typeof tool.inputSchema === 'object') {
               item.inputSchema = tool.inputSchema;
+            }
+            if (tool.annotations?.readOnlyHint === true) {
+              item.readOnlyHint = true;
             }
             return item;
           });

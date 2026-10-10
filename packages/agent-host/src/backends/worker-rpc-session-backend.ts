@@ -163,7 +163,9 @@ export class WorkerSessionBackend implements PiSessionBackend {
         return () => interventionListeners.delete(listener);
       },
       async abort() {
-        await client.abort(created.sessionId);
+        // Parent tool controllers use the product identity, not Pi's internal
+        // session id. The worker accepts both aliases for session control.
+        await client.abort(input.blueprint.sessionId);
       },
       async compact(customInstructions?: string) {
         return client.compact(created.sessionId, customInstructions);

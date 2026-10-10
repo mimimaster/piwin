@@ -6,6 +6,8 @@ export type McpListedTool = {
   name: string;
   description?: string;
   inputSchema?: Record<string, unknown>;
+  /** Present only when the server sent a boolean `annotations.readOnlyHint`. */
+  readOnlyHint?: boolean;
 };
 
 export type McpTransportClient = {

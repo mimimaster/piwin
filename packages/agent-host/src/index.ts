@@ -7,6 +7,17 @@
  */
 export { mapPiSessionEvent } from './event-map.js';
 export {
+  parseCodemodeSource,
+  resolveCodemodeRuntimeAssets,
+  runCodemodeScript,
+} from './codemode-engine.js';
+export type {
+  CodemodeEngineCall,
+  CodemodeEngineLimits,
+  CodemodeEngineResult,
+  CodemodeEngineTool,
+} from './codemode-engine.js';
+export {
   assistantUsageMeasurementId,
   normalizeGenerationMessageId,
   normalizeGenerationToolCallId,
@@ -163,6 +174,11 @@ export type {
   WorkerPiSessionFactoryOptions,
 } from './rpc/worker-pi-session-factory.js';
 export { buildWorkerProxyTools, buildSingleProxyTool } from './rpc/worker-proxy-tool-factory.js';
+export {
+  projectHostToolResultToPiContent,
+  toPiBackendCustomTool,
+  toPiBackendCustomTools,
+} from './backends/pi-backend-tool-adapter.js';
 export type { ToolProxyCall } from './rpc/worker-proxy-tool-factory.js';
 export {
   createPiBashToolDefinition,

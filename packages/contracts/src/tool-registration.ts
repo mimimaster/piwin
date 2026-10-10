@@ -3,6 +3,7 @@
 import type { PermissionRiskKind } from './host.js';
 import type { PermissionSubject } from './permission.js';
 import type { SessionToolFamily } from './session-capability.js';
+import type { ScriptReadonlyInvocation } from './codemode.js';
 import type { HostToolDescriptor } from './host-tool.js';
 import type { ToolResult } from './tool-result.js';
 
@@ -14,6 +15,8 @@ export type HostToolExecutionContext = {
   /** Generation-normalized parent tool call, when the backend supplied it. */
   toolCallId?: string;
   toolName: string;
+  /** Present only when this call was dispatched from an admitted script. */
+  scriptInvocation?: ScriptReadonlyInvocation;
 };
 
 /**
@@ -77,6 +80,7 @@ export const HOST_TOOL_PERMISSION_ACTIONS = [
   'subagent:playbook',
   'artifact:instructions',
   'toolbox:route',
+  'codemode:run',
   'mcp:trusted',
   'device:health-read',
 ] as const;

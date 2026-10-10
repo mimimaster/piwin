@@ -19,6 +19,7 @@ import {
   createDefaultArtifactConfig,
   createDefaultAutomationConfig,
   createDefaultCodeSearchConfig,
+  createDefaultCodemodeConfig,
   createDefaultCompactionConfig,
   createDefaultExecutionConfig,
   createDefaultExtensionsConfig,
@@ -34,6 +35,7 @@ import {
   createDefaultWebConfig,
   createSafeFallbackPermissionConfig,
   modeToPreset,
+  normalizeCodemodeConfig,
   normalizeExecutionConfig,
   normalizeHealthConfig,
   normalizeWalkthroughConfig,
@@ -95,6 +97,7 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     subagents: createDefaultSubagentConfig(),
     execution: createDefaultExecutionConfig(),
     permissions: createDefaultPermissionConfig(),
+    codemode: createDefaultCodemodeConfig(),
   };
 }
 
@@ -302,6 +305,7 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   if (browser) {
     normalized.browser = browser;
   }
+  normalized.codemode = normalizeCodemodeConfig(record.codemode);
   return normalized;
 }
 
