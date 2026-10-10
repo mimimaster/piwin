@@ -44,7 +44,9 @@ export { isProjectableStreamingFence } from './fence-syntax.js';
 
 export { projectArtifactMarkdownForRender } from './markdown-projection.js';
 
-export { createDefaultArtifactTheme } from './theme.js';
+export { createDefaultArtifactTheme, resolveArtifactOnAccent } from './theme.js';
+
+export { buildArtifactReportKitCss } from './srcdoc-report-kit.js';
 
 export {
   parseArtifactBridgeMessage,

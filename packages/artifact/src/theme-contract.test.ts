@@ -69,10 +69,55 @@ describe('applyArtifactThemeContract', () => {
     expect(result.source).toContain('font-size: 26px');
   });
 
-  it('keeps light text on accent or filled buttons', () => {
-    const source =
-      '<style>.btn { background: var(--piwin-artifact-accent); color: #fff; }\n.chip { background: #2563eb; color: white; }</style>';
+  it('keeps light text on a fixed filled button', () => {
+    const source = '<style>.chip { background: #2563eb; color: white; }</style>';
     expect(applyArtifactThemeContract(source).changed).toBe(false);
+  });
+
+  it('swaps a fixed ink on an accent fill for the theme ink, since accent may be pale', () => {
+    const result = applyArtifactThemeContract(
+      '<style>.btn { background: var(--piwin-artifact-accent); color: #fff; }\n.cta { background: var(--piwin-artifact-accent, #2563eb); color: #ffffff; }</style>',
+    );
+    expect(result.source.match(/color: var\(--piwin-artifact-on-accent\)/g)).toHaveLength(2);
+    expect(result.source).toContain('background: var(--piwin-artifact-accent, #2563eb)');
+  });
+
+  it('gives a solid accent fill a readable ink instead of a transparent variable', () => {
+    const result = applyArtifactThemeContract(
+      '<style>.chip[aria-pressed="true"] { background:var(--piwin-artifact-accent); color:var(--piwin-artifact-bg); border-color:var(--piwin-artifact-accent); }\n.btn { background: var(--piwin-artifact-accent); color: var(--piwin-artifact-surface); }</style><b style="background: var(--piwin-artifact-accent); color: var(--piwin-artifact-accent)">x</b>',
+    );
+    expect(result.source.match(/color:\s*var\(--piwin-artifact-on-accent\)/g)).toHaveLength(3);
+    expect(result.source).toContain('border-color:var(--piwin-artifact-accent)');
+    expect(result.issues.every((issue) => issue.kind === 'unreadable-fill-text')).toBe(true);
+  });
+
+  it('repairs the ink of a solid fill even when the artifact owns its palette', () => {
+    const result = applyArtifactThemeContract(
+      '<style>.on { background: var(--piwin-artifact-text); color: var(--piwin-artifact-bg); }</style>',
+      { palette: 'own' },
+    );
+    expect(result.source).toContain('color: Canvas');
+  });
+
+  it('maps an invented on-accent name to the on-accent ink, not to accent', () => {
+    const result = applyArtifactThemeContract(
+      '<style>.a { color: var(--piwin-artifact-accent-contrast); }\n.b { color: var(--piwin-artifact-accent-fg, #fff); }\n.c { background: var(--piwin-artifact-accent-soft); }</style>',
+    );
+    expect(result.source.match(/var\(--piwin-artifact-on-accent/g)).toHaveLength(2);
+    expect(result.source).toContain('background: var(--piwin-artifact-accent)');
+  });
+
+  it('leaves readable theme pairings alone', () => {
+    const source =
+      '<style>.a { background: var(--piwin-artifact-accent); color: var(--piwin-artifact-on-accent); }\n.b { background: color-mix(in srgb, var(--piwin-artifact-accent) 12%, transparent); color: var(--piwin-artifact-accent); }\n.c { background: var(--piwin-artifact-surface); color: var(--piwin-artifact-muted); }\n.d { background: var(--piwin-artifact-text); color: var(--piwin-artifact-accent); }</style>';
+    expect(applyArtifactThemeContract(source).changed).toBe(false);
+  });
+
+  it('rewrites light text on an accent tint, which is a wash rather than a fill', () => {
+    const result = applyArtifactThemeContract(
+      '<style>.tag { background: color-mix(in srgb, var(--piwin-artifact-accent) 12%, transparent); color: #fff; }</style>',
+    );
+    expect(result.source).toContain('color: var(--piwin-artifact-text)');
   });
 
   it('rewrites fixed dark surfaces that rely on theme text', () => {

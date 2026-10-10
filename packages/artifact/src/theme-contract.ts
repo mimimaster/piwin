@@ -8,6 +8,7 @@
  * if left alone.
  * Ported from openwebui_m artifactThemeContract (subset) — soft repair only.
  */
+import { parseColorToken, relativeLuminance, type Rgba } from './color-luminance.js';
 import type {
   ArtifactThemeContractIssue,
   ArtifactThemeContractIssueKind,
@@ -18,6 +19,9 @@ import type {
 const SURFACE_REPLACEMENT = 'var(--piwin-artifact-surface)';
 const SURFACE_CLASS_REPLACEMENT = 'piwin-artifact-surface';
 const TEXT_REPLACEMENT = 'var(--piwin-artifact-text)';
+const ON_ACCENT_REPLACEMENT = 'var(--piwin-artifact-on-accent)';
+/** The page canvas for the active color scheme: the inverse of theme text. */
+const ON_TEXT_REPLACEMENT = 'Canvas';
 
 const LIGHT_COLOR_PATTERN =
   /(?:\bwhite\b|#fff(?:fff)?\b|#f8fafc\b|#f9fafb\b|#f3f4f6\b|#fafafa\b|#f7f7f7\b|#f5f5f5\b|#eeeeee\b|#e5e7eb\b|rgba?\(\s*(?:24[5-9]|25[0-5])\s*,\s*(?:24[5-9]|25[0-5])\s*,\s*(?:24[5-9]|25[0-5])(?:\s*,\s*(?:0?\.?\d+|1(?:\.0)?))?\s*\)|hsl\(\s*0\s+0%\s+(?:9[2-9]|100)%\s*\)|oklch\(\s*(?:0?\.9\d+|1(?:\.0)?)\s+[^)]*\))/i;
@@ -91,9 +95,7 @@ export function applyArtifactThemeContract(
     },
   );
 
-  if (repairColors) {
-    output = repairRuleColorPairs(output, issues, repairs);
-  }
+  output = repairRuleColorPairs(output, issues, repairs, repairColors);
 
   return {
     source: output,
@@ -183,7 +185,14 @@ function repairRuleColorPairs(
   source: string,
   issues: ArtifactThemeContractIssue[],
   repairs: ArtifactThemeContractRepair[],
+  repairFixedColors: boolean,
 ): string {
+  const repairBlock = (body: string, selector: string): string =>
+    repairFillInk(
+      repairFixedColors ? repairDeclarationBlock(body, issues, repairs, selector) : body,
+      issues,
+      repairs,
+    );
   let output = source;
   output = output.replace(
     STYLE_ELEMENT_PATTERN,
@@ -191,13 +200,13 @@ function repairRuleColorPairs(
       `${open}${css.replace(
         CSS_RULE_PATTERN,
         (_rule, selector: string, body: string) =>
-          `${selector}{${repairDeclarationBlock(body, issues, repairs, selector)}}`,
+          `${selector}{${repairBlock(body, selector)}}`,
       )}${close}`,
   );
   output = output.replace(
     STYLE_ATTRIBUTE_ON_TAG_PATTERN,
     (_fullMatch, open: string, tagName: string, quote: string, body: string) =>
-      `${open}${quote}${repairDeclarationBlock(body, issues, repairs, tagName)}${quote}`,
+      `${open}${quote}${repairBlock(body, tagName)}${quote}`,
   );
 
   return output;
@@ -214,6 +223,7 @@ const KNOWN_THEME_VARIABLES = new Set([
   'text',
   'muted',
   'accent',
+  'on-accent',
   'border',
   'radius',
   'font',
@@ -226,6 +236,11 @@ const KNOWN_THEME_VARIABLES = new Set([
 const THEME_VARIABLE_REFERENCE_PATTERN = /(var\(\s*)--piwin-artifact-([a-z0-9_-]+)/gi;
 
 function nearestThemeVariable(name: string): string {
+  // Before the `accent` prefix match: an invented "text on accent" name mapped
+  // to `accent` itself paints the label in its own fill color.
+  if (/on-accent|^accent-(?:on|fg|foreground|contrast|text|ink|label)\b/.test(name)) {
+    return 'on-accent';
+  }
   if (/muted|secondary|subtle|dim|faint/.test(name)) return 'muted';
   for (const base of ['surface', 'bg', 'text', 'accent', 'border', 'radius', 'font']) {
     if (name.startsWith(base)) return base;
@@ -245,53 +260,6 @@ const COLOR_DECLARATION_PATTERN = /((?:^|[;\s])color\s*:\s*)([^;]+)/i;
 const COLOR_TOKEN_PATTERN = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)|\b(?:white|black)\b/gi;
 const CODE_LIKE_SELECTOR_PATTERN =
   /(?:^|[\s>+~])(?:pre|code|kbd|samp)(?:$|[\s.:#[>+~])|\.hljs\b|\.token\b|\.language-[\w-]+/i;
-
-type Rgba = { r: number; g: number; b: number; a: number };
-
-function parseColorToken(token: string): Rgba | undefined {
-  const lower = token.toLowerCase();
-  if (lower === 'white') return { r: 255, g: 255, b: 255, a: 1 };
-  if (lower === 'black') return { r: 0, g: 0, b: 0, a: 1 };
-  if (lower.startsWith('#')) {
-    const hex = lower.slice(1);
-    const full =
-      hex.length === 3 || hex.length === 4
-        ? hex
-            .split('')
-            .map((c) => c + c)
-            .join('')
-        : hex;
-    if (full.length !== 6 && full.length !== 8) return undefined;
-    return {
-      r: parseInt(full.slice(0, 2), 16),
-      g: parseInt(full.slice(2, 4), 16),
-      b: parseInt(full.slice(4, 6), 16),
-      a: full.length === 8 ? parseInt(full.slice(6, 8), 16) / 255 : 1,
-    };
-  }
-  const parts = lower
-    .replace(/^rgba?\(/, '')
-    .replace(/\)$/, '')
-    .split(/[\s,/]+/)
-    .filter(Boolean)
-    .map((part) => (part.endsWith('%') ? (parseFloat(part) / 100) * 255 : parseFloat(part)));
-  if (parts.length < 3 || parts.slice(0, 3).some((n) => Number.isNaN(n))) return undefined;
-  const alpha = parts[3];
-  return {
-    r: parts[0]!,
-    g: parts[1]!,
-    b: parts[2]!,
-    a: alpha === undefined || Number.isNaN(alpha) ? 1 : alpha > 1 ? alpha / 255 : alpha,
-  };
-}
-
-function relativeLuminance({ r, g, b }: Rgba): number {
-  const channel = (value: number): number => {
-    const c = value / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-}
 
 /** Opaque hard-coded colors in a value; empty when it leans on `var()`. */
 function hardcodedColors(value: string): Rgba[] {
@@ -358,7 +326,9 @@ function isLightText(value: string): boolean {
 
 /** A background that is meant to carry light text: an accent or a mid/dark fill. */
 function backsLightText(background: string): boolean {
-  if (/accent/i.test(background)) return true;
+  // An accent tint (`color-mix(... accent 12%, transparent)`) is a wash over
+  // the page, not a fill: light text on it is light text on the page.
+  if (/accent/i.test(background)) return !/\btransparent\b/i.test(background);
   return hardcodedColors(background).some((color) => relativeLuminance(color) < 0.5);
 }
 
@@ -420,4 +390,48 @@ function repairDeclarationBlock(
   }
 
   return output;
+}
+
+// A model-supplied fallback (`var(--piwin-artifact-accent, #2563eb)`) never
+// applies, since the host always defines the variable; it is still that fill.
+const SOLID_THEME_FILL_PATTERN = /^var\(\s*--piwin-artifact-(accent|text)\s*(?:,[^)]*)?\)$/i;
+const NON_INK_THEME_COLOR_PATTERN =
+  /^var\(\s*--piwin-artifact-(bg|surface|accent)\s*(?:,[^)]*)?\)$/i;
+
+/**
+ * A solid `accent` or `text` fill needs an ink of its own. Models reach for
+ * `bg` or `surface` as "the opposite of text", but `bg` is transparent and
+ * `surface` is a tint, so the label vanishes into the fill. A fixed `#fff` on
+ * `accent` fails the same way on a theme whose accent is pale.
+ */
+function repairFillInk(
+  body: string,
+  issues: ArtifactThemeContractIssue[],
+  repairs: ArtifactThemeContractRepair[],
+): string {
+  const fill = SOLID_THEME_FILL_PATTERN.exec(
+    BACKGROUND_DECLARATION_PATTERN.exec(body)?.[2]?.trim() ?? '',
+  )?.[1]?.toLowerCase();
+  const color = COLOR_DECLARATION_PATTERN.exec(body)?.[2]?.trim();
+  if (fill === undefined || color === undefined) return body;
+  const themeInk = NON_INK_THEME_COLOR_PATTERN.exec(color)?.[1]?.toLowerCase();
+  const fixedInkOnAccent = fill === 'accent' && hardcodedColors(color).length > 0;
+  if (themeInk === undefined && !fixedInkOnAccent) return body;
+  // Accent text on a `text` fill is a legitimate, readable pairing.
+  if (fill === 'text' && themeInk === 'accent') return body;
+
+  const inkReplacement = fill === 'accent' ? ON_ACCENT_REPLACEMENT : ON_TEXT_REPLACEMENT;
+  return body.replace(COLOR_DECLARATION_PATTERN, (fullMatch, prefix: string) => {
+    const replacement = `${prefix}${inkReplacement}`;
+    issues.push(
+      createIssue(
+        'unreadable-fill-text',
+        fullMatch.trim(),
+        'Artifact put an ink on a solid theme fill that the host theme cannot keep readable; replaced with the matching ink.',
+        true,
+      ),
+    );
+    repairs.push({ kind: 'unreadable-fill-text', from: fullMatch.trim(), to: replacement.trim() });
+    return replacement;
+  });
 }

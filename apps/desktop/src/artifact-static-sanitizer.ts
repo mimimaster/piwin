@@ -159,22 +159,27 @@ function normalizeStaticSvgRootSizing(root: DocumentFragment): void {
   }
 }
 
-const SVG_ROOT_WRAP_ATTR = 'data-piwin-svg-root-wrap';
+const ROOT_WRAP_ATTR = 'data-piwin-root-wrap';
 
 /**
- * DOMPurify (especially under happy-dom) unwraps a bare `<svg>` document into
- * its children, which destroys the SVG namespace and breaks `<use>`/geometry.
- * Temporarily wrap a sole SVG root so purify keeps the element intact.
+ * DOMPurify (especially under happy-dom) unwraps a document that is a single
+ * root element into that element's children. For a bare `<svg>` that destroys
+ * the SVG namespace and breaks `<use>`/geometry; for a Report Kit document it
+ * drops the `piwin-report` root every kit style hangs from. The markup is
+ * wrapped for the sanitizer's pass so whatever the author wrote at the top
+ * level stays an element.
  */
-function protectSoleSvgRoot(html: string): string {
-  const trimmed = html.trim();
-  if (!/^<svg(\s|>)/i.test(trimmed)) return html;
-  return `<div ${SVG_ROOT_WRAP_ATTR}="1">${html}</div>`;
+function protectTopLevelMarkup(html: string): string {
+  return `<div ${ROOT_WRAP_ATTR}="1">${html}</div>`;
 }
 
-function unwrapProtectedSvgRoot(root: DocumentFragment): void {
-  const wrap = root.querySelector(`:scope > div[${SVG_ROOT_WRAP_ATTR}]`);
-  if (wrap === null) return;
+function unwrapProtectedMarkup(root: DocumentFragment): void {
+  // Not `:scope >`: a DocumentFragment is not an element, and browsers match
+  // nothing for `:scope` there — the wrapper would stay in the output.
+  const wrap = Array.from(root.children).find(
+    (child) => child.tagName === 'DIV' && child.hasAttribute(ROOT_WRAP_ATTR),
+  );
+  if (wrap === undefined) return;
   wrap.replaceWith(...wrap.childNodes);
 }
 
@@ -184,6 +189,47 @@ function unwrapProtectedSvgRoot(root: DocumentFragment): void {
  * DOMPurify then provides a second independent HTML/SVG sanitizer.
  */
 export async function sanitizeStaticArtifactSource(source: string): Promise<string> {
+  return sanitizeWithPurifier(await loadDomPurify(), source);
+}
+
+/** Starts loading the sanitizer so the first static Artifact can paint at once. */
+export function preloadStaticArtifactSanitizer(): void {
+  void loadDomPurify().catch(() => undefined);
+}
+
+/**
+ * Sanitized markup without waiting, or null while the sanitizer is still
+ * loading. An Artifact that mounts empty and fills in a moment later paints
+ * one frame at a few pixels tall: the transcript below it jumps up by the
+ * Artifact's whole height and back. That happens each time a finished stream
+ * hands over to the static renderer and each time a virtualized row remounts.
+ */
+export function sanitizeStaticArtifactSourceNow(source: string): string | null {
+  if (!domPurify) return null;
+  const cached = sanitizedSourceCache.get(source);
+  if (cached !== undefined) {
+    // Refresh recency.
+    sanitizedSourceCache.delete(source);
+    sanitizedSourceCache.set(source, cached);
+    return cached;
+  }
+  const sanitized = sanitizeWithPurifier(domPurify, source);
+  if (source.length <= MAX_CACHED_SOURCE_CHARS) {
+    sanitizedSourceCache.set(source, sanitized);
+    if (sanitizedSourceCache.size > MAX_CACHED_SOURCES) {
+      const oldest = sanitizedSourceCache.keys().next().value;
+      if (oldest !== undefined) sanitizedSourceCache.delete(oldest);
+    }
+  }
+  return sanitized;
+}
+
+/** Rows remount as the transcript scrolls; their markup need not be re-sanitized. */
+const MAX_CACHED_SOURCES = 32;
+const MAX_CACHED_SOURCE_CHARS = 64 * 1024;
+const sanitizedSourceCache = new Map<string, string>();
+
+function sanitizeWithPurifier(purify: DomPurifyApi, source: string): string {
   const template = document.createElement('template');
   template.innerHTML = source;
   template.content.querySelectorAll(FORBIDDEN_STATIC_TAGS.join(',')).forEach((element) => {
@@ -221,11 +267,10 @@ export async function sanitizeStaticArtifactSource(source: string): Promise<stri
   // ordinary SVG geometry. The cloned geometry is still purified below.
   expandLocalSvgUseReferences(template.content);
 
-  const purify = await loadDomPurify();
-  const purified = purify.sanitize(protectSoleSvgRoot(template.innerHTML), PURIFY_OPTIONS);
+  const purified = purify.sanitize(protectTopLevelMarkup(template.innerHTML), PURIFY_OPTIONS);
   const purifiedTemplate = document.createElement('template');
   purifiedTemplate.innerHTML = purified;
-  unwrapProtectedSvgRoot(purifiedTemplate.content);
+  unwrapProtectedMarkup(purifiedTemplate.content);
   expandLocalSvgUseReferences(purifiedTemplate.content);
   normalizeStaticSvgRootSizing(purifiedTemplate.content);
   for (const css of styleBlocks) {

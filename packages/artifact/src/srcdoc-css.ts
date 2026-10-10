@@ -3,6 +3,7 @@
  * Overflow/scroll ownership lives in the late cascade so model CSS cannot
  * create a second scrollport.
  */
+import { resolveArtifactOnAccent } from './theme.js';
 import type { ArtifactThemeVariables } from './types.js';
 
 function escapeCssValue(value: string): string {
@@ -10,7 +11,10 @@ function escapeCssValue(value: string): string {
 }
 
 export function buildArtifactThemeCss(theme: ArtifactThemeVariables): string {
-  const variables = Object.entries(theme)
+  const variables = Object.entries({
+    ...theme,
+    '--piwin-artifact-on-accent': resolveArtifactOnAccent(theme),
+  })
     .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
     .map(([name, value]) => `  ${name}: ${escapeCssValue(value)};`)
     .join('\n');

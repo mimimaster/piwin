@@ -368,25 +368,30 @@ function ArtifactCanvasStreamCase(props: { tps: number; paper: boolean; hold: bo
   );
 }
 
+/** A reply with the shapes that used to move while streaming. */
 const MARKDOWN_STREAM_FALLBACK = [
   '## Streaming reply',
   '',
   'A paragraph with `inline code`, **strong** text and a [link](https://example.com).',
   '',
+  '| Component | File | Trigger | Content | States |',
+  '| :--- | :--- | :--- | :--- | :--- |',
+  ...Array.from(
+    { length: 10 },
+    (_unused, index) =>
+      `| **Dialog${index}** | \`workspace-subpages/studio/media-lightbox-${index}.tsx:7${index}\` | Click a thumbnail in media, chat or studio | Fullscreen modal with zoom, download and navigation controls (Again/Hard/Good/Easy) | Closed, open, loading |`,
+  ),
+  '',
   '1. First step',
   '   - nested detail',
   '2. Second step',
   '',
-  '| Name | Count |',
-  '| :--- | ---: |',
-  '| a | 1 |',
-  '| b | 2 |',
-  '',
   '```ts',
-  'const answer = 42;',
+  ...Array.from({ length: 24 }, (_unused, index) => `const value${index} = compute(${index});`),
   '```',
   '',
-  'Closing line.',
+  '- a closing list item',
+  '- the last list item',
 ].join('\n');
 
 /**

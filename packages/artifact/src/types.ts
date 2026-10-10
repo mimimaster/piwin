@@ -68,6 +68,8 @@ export type ArtifactThemeVariables = {
   '--piwin-artifact-text': string;
   '--piwin-artifact-muted': string;
   '--piwin-artifact-accent': string;
+  /** Text on a solid accent fill. Derived from `accent` when a theme omits it. */
+  '--piwin-artifact-on-accent'?: string;
   '--piwin-artifact-border': string;
   '--piwin-artifact-radius': string;
   '--piwin-artifact-font': string;
@@ -89,7 +91,8 @@ export type ArtifactThemeContractIssueKind =
   | 'tailwind-light-surface'
   | 'unknown-theme-variable'
   | 'fixed-light-text'
-  | 'fixed-dark-surface';
+  | 'fixed-dark-surface'
+  | 'unreadable-fill-text';
 
 export type ArtifactThemeContractIssue = {
   kind: ArtifactThemeContractIssueKind;
