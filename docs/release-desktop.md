@@ -15,6 +15,10 @@ notarization is **optional** (residual **D-ENG-03b** when certs unavailable).
 > `docs/plans/2026-07-26-host-sidecar-bundling-execution-plan.md`.
 > Shell / Host split packaging: `docs/plans/2026-08-19-shell-host-split-packaging.md`.
 
+> **Publishing** (version numbers, changelog, upload, download page) is one
+> command — see [`guides/desktop-release.md`](./guides/desktop-release.md).
+> This document covers how an installer is built.
+
 ## Prerequisites
 
 ### Build machine
@@ -166,5 +170,6 @@ and Desktop restore-first settings. Operator recovery lives in
 Default CI (`.github/workflows/ci.yml`) stays on Ubuntu: typecheck, tests, host
 smoke. macOS all-in-one packaging is a **separate**, manually triggered
 verification workflow, [`.github/workflows/package-macos.yml`](../.github/workflows/package-macos.yml).
-Local release installers are uploaded separately to GitHub Releases and R2.
+Releases are built and published by `pnpm release:desktop`
+([`guides/desktop-release.md`](./guides/desktop-release.md)).
 Details: [`guides/package-macos-ci.md`](./guides/package-macos-ci.md).
