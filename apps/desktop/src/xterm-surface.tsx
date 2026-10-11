@@ -17,6 +17,7 @@ import { TAURI_PTY_TRANSPORT, type XtermPty } from './xterm-pty-transport.js';
 import { connectXtermPty } from './xterm-pty-connection.js';
 import { listenForTuiSession } from './xterm-tui-session';
 import { readDeckXtermFontFamily, readDeckXtermTheme } from './xterm-theme';
+import { attachXtermWebglRenderer, type XtermRenderer } from './xterm-webgl-renderer';
 import {
   tauriPtyOpen,
   tauriPtyOpenTui,
@@ -83,6 +84,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     let lastSize: { cols: number; rows: number } | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let resizeDebounce: ReturnType<typeof setTimeout> | null = null;
+    let renderer: XtermRenderer | null = null;
 
     const terminal = new Terminal({
       cursorBlink: true,
@@ -159,6 +161,8 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
 
       try {
         terminal.open(containerRef.current);
+        renderer = attachXtermWebglRenderer(terminal);
+        containerRef.current.dataset.renderer = renderer.kind;
         terminalRef.current = terminal;
         fitAddonRef.current = fitAddon;
         bootingRef.current = false;
@@ -269,6 +273,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       connection.abort();
       ptyIdRef.current = null;
       stopListeningForTuiSession();
+      renderer?.dispose();
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
