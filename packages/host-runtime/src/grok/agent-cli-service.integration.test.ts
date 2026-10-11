@@ -100,3 +100,25 @@ it('preserves a Host turn admitted while history refresh was reading the index',
   expect(kernel.runRegistry.getForegroundRun(sessionId)?.status).toBe('running');
   expect(host.close).not.toHaveBeenCalled();
 });
+
+it('marks an imported session whose history was never replayed, until it is synced', async () => {
+  const host = await setup([{ backendSessionId: 'native-grok-id', title: 'Vendor session', cwd: '/tmp/vendor', lastChangeUnixMs: 1 }]);
+  let sessionId = '';
+  host.runtime.attachPushSink({ id: 'imported-session', push: (push) => {
+    if (push.type === 'session/index-updated' && push.op === 'created') sessionId = push.sessionId;
+  } });
+  const imported = await host.runtime.handleCommand({ type: 'agents/sessions-sync', agentId: 'grok' });
+  expect(imported.success, imported.success ? '' : imported.error).toBe(true);
+  const resume = async () => {
+    const response = await host.runtime.handleCommand({ type: 'session/resume', sessionId });
+    if (!response.success) throw new Error(response.error);
+    return response.data as { messages: unknown[]; nativeHistory?: string };
+  };
+  // Without the mark a client paints this conversation as an empty new one.
+  expect(await resume()).toMatchObject({ messages: [], nativeHistory: 'unsynced' });
+  const synced = await host.runtime.handleCommand({ type: 'agents/cli-sync', sessionId });
+  expect(synced.success, synced.success ? '' : synced.error).toBe(true);
+  const after = await resume();
+  expect(after.nativeHistory).toBeUndefined();
+  expect(after.messages).toEqual([expect.objectContaining({ text: '来自原生 CLI 的回答' })]);
+});

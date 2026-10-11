@@ -379,12 +379,12 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             {...(onPlanExecute ? { onPlanExecute } : {})}
             {...(sessionPlan ? { sessionPlan } : {})}
           />
-        ) : (
+        ) : activeSessionId !== null && state.awaitingTranscript ? null : (
           <EmptyStageLanding
             locale={locale}
             sessions={scopeSessions}
             onResumeSession={(sessionId) => void onOpenSession(sessionId)}
-            draftAgentId={landingAgent.agentId}
+              draftAgentId={landingAgent.agentId}
             {...(landingAgent.agentOptions !== undefined ? { draftAgentOptions: landingAgent.agentOptions } : {})}
             onSelectDraftAgent={(agentId) => {
               void landingAgent.selectAgent(agentId).catch((error: unknown) => {

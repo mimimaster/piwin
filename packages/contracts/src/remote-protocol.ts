@@ -489,6 +489,8 @@ export type RemoteSessionResumeData = {
   contextSnapshot: import('./context-telemetry.js').SessionContextSnapshot;
   lastRequestUsage: import('./assistant-usage.js').AssistantUsageMeasurement | null;
   outline?: RemoteSessionOutlineNode[];
+  /** Mirrors `SessionResumeData.nativeHistory`. */
+  nativeHistory?: 'unsynced';
 };
 
 export type HostCommandFrame = {

@@ -35,3 +35,10 @@ it('keeps complete counts through remote pages and resume, without extra payload
   expect(JSON.stringify(projectRemoteTurnSummaries(page.turnSummaries))).not.toContain('secret');
   expect(projectRemoteTurnSummaries(Array.from({ length: 100 }, () => summary))).toHaveLength(50);
 });
+
+it('tells a remote client when the agent holds history the transcript lacks', () => {
+  const resume = { sessionId: 'session', live: false, messages: [] };
+  expect(projectSessionResume({ ...resume, nativeHistory: 'unsynced' }, {})).toMatchObject({ nativeHistory: 'unsynced' });
+  expect(projectSessionResume({ ...resume, nativeHistory: 'anything-else' }, {})).not.toHaveProperty('nativeHistory');
+  expect(projectSessionResume(resume, {})).not.toHaveProperty('nativeHistory');
+});

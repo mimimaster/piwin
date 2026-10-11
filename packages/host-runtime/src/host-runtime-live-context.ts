@@ -18,6 +18,7 @@ import {
 } from './turn-changes/turn-change-model-notice.js';
 import { isConversationIndexRecord } from './session-scope.js';
 import { bindNewExternalSession, isExternalRecord } from './grok/grok-session-router.js';
+import { externalProjectionNeedsReplay } from './grok/external-projection-staleness.js';
 import { listExtensionBackends } from './extension-session-backends.js';
 import { sessionMcpOverrideKey } from './session-mcp-overrides.js';
 import { type SessionLiveContext } from './commands/session-live-commands.js';
@@ -102,6 +103,14 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     resolveInstalledAgentIds: async () =>
       (await listExtensionBackends(getPiwinRoot(deps.options.piwinRoot))).map(
         (backend) => backend.declaration.id,
+      ),
+    externalHistoryUnsynced: (record) =>
+      isExternalRecord(record) && record.backend !== undefined &&
+      externalProjectionNeedsReplay(
+        record.backend,
+        record.backend.backendSessionId !== undefined
+          ? deps.externalCatalogChanges.get(record.backend.backendSessionId)
+          : undefined,
       ),
     describeExternalBackend: (record) => {
       if (!isExternalRecord(record) || record.backend === undefined) {

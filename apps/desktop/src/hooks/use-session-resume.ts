@@ -15,6 +15,7 @@ import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
 import { pushError, pushInfo } from '../notification-queue';
 import { resolveSessionOutline } from '../transcript-outline';
+import { nativeHistorySyncFailure, syncNativeHistory } from '../native-history-sync.js';
 import { chooseSessionPackPath } from '../session-pack-dialog';
 import { isSessionBodyOffloaded } from '../session-storage-ui';
 import { activateProjectOnHost } from '../remote-session-hydrate';
@@ -61,6 +62,10 @@ export function useSessionResume(input: {
     onSessionComposerProfileRestored,
   } = input;
   const selectionGuardRef = useRef(createSessionSelectionGuard(hostClient.getHostInstanceId()));
+  const nativeHistoryAttemptsRef = useRef(new Set<string>());
+  const resumeSessionRef = useRef<
+    ((sessionId: string, context?: { refresh?: boolean }) => Promise<void>) | null
+  >(null);
   const [coldRestorePrompt, setColdRestorePrompt] = useState<{
     sessionId: string;
     storage: SessionStorageInfo;
@@ -237,6 +242,22 @@ export function useSessionResume(input: {
       const data = resumed.data as SessionResumeData & {
         contextUsage?: import('@piwin/contracts').ContextUsageSnapshot;
       };
+      const nativeHistoryKey = `${started.ticket.hostInstanceId ?? ''}:${sessionId}`;
+      if (data.nativeHistory === 'unsynced' && !nativeHistoryAttemptsRef.current.has(nativeHistoryKey)) {
+        // Once per session and Host instance: a replay the adapter cannot
+        // deliver must not be retried by every later refresh of this session.
+        nativeHistoryAttemptsRef.current.add(nativeHistoryKey);
+        // Never gate the paint on the agent: the transcript below settles
+        // first, then a successful replay reloads it.
+        void syncNativeHistory(hostClient, sessionId).then(async (result) => {
+          if (!ticketMatches()) return;
+          if (result.ok) {
+            await resumeSessionRef.current?.(sessionId, { refresh: true });
+          } else if (context?.quiet !== true) {
+            dispatchNotification(pushError(nativeHistorySyncFailure(locale, result.error)));
+          }
+        });
+      }
       if (data.activeRun) {
         dispatch({ type: 'run/updated', run: data.activeRun });
       }
@@ -429,6 +450,8 @@ export function useSessionResume(input: {
       syncHostInstance,
     ],
   );
+
+  resumeSessionRef.current = handleResumeSession;
 
   const confirmColdRestore = useCallback(
     async (packPath?: string): Promise<void> => {
