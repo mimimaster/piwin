@@ -65,11 +65,11 @@ export function sumObservedUsage(requests) {
     return values.every(value => typeof value === 'number') ? values.reduce((total, value) => total + value, 0) : null;
   };
   return {
-    promptTokensIncludingCache: sum(usage => usage.prompt_tokens),
-    completionTokens: sum(usage => usage.completion_tokens),
-    cacheReadTokens: sum(usage => usage.prompt_tokens_details?.cached_tokens),
+    promptTokensIncludingCache: sum(usage => usage.prompt_tokens ?? usage.input_tokens),
+    completionTokens: sum(usage => usage.completion_tokens ?? usage.output_tokens),
+    cacheReadTokens: sum(usage => usage.prompt_tokens_details?.cached_tokens ?? usage.input_tokens_details?.cached_tokens),
     cacheWriteTokens: sum(usage => usage.prompt_tokens_details?.cache_write_tokens ?? usage.cache_creation_input_tokens),
-    reasoningTokens: sum(usage => usage.completion_tokens_details?.reasoning_tokens),
+    reasoningTokens: sum(usage => usage.completion_tokens_details?.reasoning_tokens ?? usage.output_tokens_details?.reasoning_tokens),
     totalTokens: sum(usage => usage.total_tokens),
   };
 }

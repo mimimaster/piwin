@@ -36,3 +36,21 @@ test('missing provider usage/cache categories remain unknown; cache is not added
   assert.equal(sumObservedUsage([{ completed: true, usage: null }]), null);
   assert.equal(sumObservedUsage([{ ...requests[0], completed: false }]), null);
 });
+
+test('Responses usage preserves cache as input subset', () => {
+  const usage = sumObservedUsage([{ completed: true, usage: { input_tokens: 200, output_tokens: 20, total_tokens: 220, input_tokens_details: { cached_tokens: 150 }, output_tokens_details: { reasoning_tokens: 5 } } }]);
+  assert.equal(usage.totalTokens, 220); assert.equal(usage.promptTokensIncludingCache, 200);
+  assert.equal(usage.cacheReadTokens, 150); assert.equal(usage.reasoningTokens, 5);
+});
+
+import { summarizeNativeSession } from './native-sessions.mjs';
+
+test('native Scout usage requires a terminal response and does not claim unsupported cache writes', () => {
+  const records = [{ role: 'assistant', stopReason: 'toolUse', usage: { input: 10, output: 2, cacheRead: 20, cacheWrite: 0, reasoning: 1, totalTokens: 32 }, toolCalls: [{ name: 'read' }] }];
+  assert.equal(summarizeNativeSession({ records }).usage, null);
+  records.push({ role: 'assistant', stopReason: 'stop', usage: { input: 5, output: 3, cacheRead: 25, cacheWrite: 0, reasoning: 2, totalTokens: 33 } });
+  const result = summarizeNativeSession({ records });
+  assert.equal(result.complete, true); assert.equal(result.usage.totalTokens, 65);
+  assert.equal(result.usage.promptTokens, 15); assert.equal(result.usage.cacheReadTokens, 45);
+  assert.equal(result.usage.cacheWriteTokens, null);
+});
