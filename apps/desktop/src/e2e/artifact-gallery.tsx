@@ -26,6 +26,7 @@ import {
 import { MarkdownView } from '../MarkdownView';
 import { CodePreviewGallery } from './code-preview-gallery.js';
 import { DocSelectionGallery } from './doc-selection-gallery.js';
+import { ArtifactV14Showcase } from './artifact-v14-showcase.js';
 
 const GALLERY_ROOT_STYLE: CSSProperties = {
   minHeight: '100vh',
@@ -456,6 +457,14 @@ export function ArtifactGallery(): ReactElement {
   const constrainedPane = window.location.hash.includes('&pane=1');
   if (selection === 'code-preview') return <CodePreviewGallery />;
   if (selection === 'doc-selection') return <DocSelectionGallery />;
+  if (selection === 'v14-showcase') {
+    const params = new URLSearchParams(window.location.hash.slice(window.location.hash.indexOf('?') + 1));
+    return (
+      <div style={GALLERY_ROOT_STYLE} data-testid="artifact-gallery">
+        <ArtifactV14Showcase paper={params.get('theme') === 'paper'} />
+      </div>
+    );
+  }
   if (selection === 'slow-stream') {
     const params = new URLSearchParams(window.location.hash.slice(window.location.hash.indexOf('?') + 1));
     return (
