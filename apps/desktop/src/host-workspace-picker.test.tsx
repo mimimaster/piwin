@@ -3,6 +3,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostListDirData } from '@piwin/contracts';
+import { PiwinUiProvider } from '@piwin/ui-kit';
+import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { HostWorkspacePicker } from './host-workspace-picker';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -56,14 +58,14 @@ describe('HostWorkspacePicker', () => {
 
     await act(async () => {
       root?.render(
-        <HostWorkspacePicker
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><HostWorkspacePicker
           locale="zh-CN"
           currentPath=""
           onCurrentPathChange={onCurrentPathChange}
           listDirectory={listDirectory}
           onConfirm={onConfirm}
           onCancel={() => undefined}
-        />,
+        /></PiwinUiProvider>,
       );
     });
 
@@ -103,7 +105,7 @@ describe('HostWorkspacePicker', () => {
 
     await act(async () => {
       root?.render(
-        <HostWorkspacePicker
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><HostWorkspacePicker
           locale="en"
           currentPath=""
           onCurrentPathChange={() => undefined}
@@ -111,7 +113,7 @@ describe('HostWorkspacePicker', () => {
           mode="file"
           onConfirm={onConfirm}
           onCancel={() => undefined}
-        />,
+        /></PiwinUiProvider>,
       );
     });
 
@@ -154,14 +156,14 @@ describe('HostWorkspacePicker', () => {
 
     await act(async () => {
       root?.render(
-        <HostWorkspacePicker
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><HostWorkspacePicker
           locale="zh-CN"
           currentPath=""
           onCurrentPathChange={() => undefined}
           listDirectory={listDirectory}
           onConfirm={onConfirm}
           onCancel={() => undefined}
-        />,
+        /></PiwinUiProvider>,
       );
     });
 
@@ -196,14 +198,14 @@ describe('HostWorkspacePicker', () => {
 
     await act(async () => {
       root?.render(
-        <HostWorkspacePicker
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><HostWorkspacePicker
           locale="zh-CN"
           currentPath="/Users/host/Projects"
           onCurrentPathChange={() => undefined}
           listDirectory={listDirectory}
           onConfirm={() => undefined}
           onCancel={() => undefined}
-        />,
+        /></PiwinUiProvider>,
       );
     });
 
@@ -212,8 +214,8 @@ describe('HostWorkspacePicker', () => {
         expect(container?.querySelectorAll('[data-testid="host-workspace-column"]').length).toBe(2);
       });
     });
-    expect(listDirectory).toHaveBeenCalledWith('/Users/host/Projects');
-    expect(listDirectory).toHaveBeenCalledWith('/Users/host');
+    expect(listDirectory).toHaveBeenCalledWith('/Users/host/Projects', false);
+    expect(listDirectory).toHaveBeenCalledWith('/Users/host', false);
     expect(container?.querySelector('.host-workspace-column.is-last')).toBeTruthy();
     expect(container?.querySelector('[data-testid="host-workspace-col-resizer"]')).toBeTruthy();
     expect(container?.querySelector('[data-testid="host-workspace-sidebar-resizer"]')).toBeTruthy();
@@ -235,14 +237,14 @@ describe('HostWorkspacePicker', () => {
 
     await act(async () => {
       root?.render(
-        <HostWorkspacePicker
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><HostWorkspacePicker
           locale="en"
           currentPath=""
           onCurrentPathChange={() => undefined}
           listDirectory={listDirectory}
           onConfirm={() => undefined}
           onCancel={() => undefined}
-        />,
+        /></PiwinUiProvider>,
       );
     });
 
@@ -286,14 +288,14 @@ describe('HostWorkspacePicker', () => {
 
     await act(async () => {
       root?.render(
-        <HostWorkspacePicker
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><HostWorkspacePicker
           locale="en"
           currentPath="/Users/host/Projects"
           onCurrentPathChange={() => undefined}
           listDirectory={listDirectory}
           onConfirm={() => undefined}
           onCancel={() => undefined}
-        />,
+        /></PiwinUiProvider>,
       );
     });
     await act(async () => {
@@ -347,14 +349,14 @@ describe('HostWorkspacePicker', () => {
 
     await act(async () => {
       root?.render(
-        <HostWorkspacePicker
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><HostWorkspacePicker
           locale="en"
           currentPath=""
           onCurrentPathChange={() => undefined}
           listDirectory={listDirectory}
           onConfirm={() => undefined}
           onCancel={() => undefined}
-        />,
+        /></PiwinUiProvider>,
       );
     });
     const drive = container?.querySelector(
@@ -405,14 +407,14 @@ describe('HostWorkspacePicker', () => {
 
     await act(async () => {
       root?.render(
-        <HostWorkspacePicker
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><HostWorkspacePicker
           locale="zh-CN"
           currentPath={deepPath}
           onCurrentPathChange={() => undefined}
           listDirectory={listDirectory}
           onConfirm={() => undefined}
           onCancel={() => undefined}
-        />,
+        /></PiwinUiProvider>,
       );
     });
     expect(pathInputValue(container)).toBe(deepPath);

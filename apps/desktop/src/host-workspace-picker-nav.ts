@@ -152,3 +152,23 @@ export function sortPickerEntries(entries: HostDirEntry[]): HostDirEntry[] {
     return left.name.localeCompare(right.name);
   });
 }
+
+/** Suggest a name without hiding collisions behind an overwrite confirmation. */
+export function suggestHostEntryName(
+  entries: readonly HostDirEntry[],
+  kind: HostDirEntry['kind'],
+  locale: 'zh-CN' | 'en',
+): string {
+  const base = kind === 'directory'
+    ? (locale === 'zh-CN' ? '未命名文件夹' : 'Untitled Folder')
+    : (locale === 'zh-CN' ? '未命名' : 'Untitled');
+  const extension = kind === 'file' ? '.txt' : '';
+  const names = new Set(entries.map((entry) => entry.name.toLocaleLowerCase()));
+  let candidate = `${base}${extension}`;
+  let suffix = 2;
+  while (names.has(candidate.toLocaleLowerCase())) {
+    candidate = `${base} ${suffix}${extension}`;
+    suffix += 1;
+  }
+  return candidate;
+}

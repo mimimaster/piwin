@@ -1,6 +1,9 @@
 import type { HostCommand, PromptAttachment } from '@piwin/contracts';
 import {
   ACTIVITY_SUMMARY_MAX_ITEMS,
+  AGENT_CLI_MAX_INPUT_CHARS,
+  isValidTerminalSize,
+  isValidHostEntryName,
   isFlashcardStudyCommandType,
   isSupportedAttachmentMimeType,
   parseFlashcardStudyCommand,
@@ -70,6 +73,24 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
     return parseFlashcardStudyCommand(command).ok;
   }
   switch (command.type) {
+    case 'agents/cli-open': {
+      const input: unknown = command.input;
+      return isRecord(input) && input.agentId === 'grok' &&
+        (input.sessionId === undefined || (typeof input.sessionId === 'string' && isSafeRemoteId(input.sessionId))) &&
+        isSafeRemoteProjectLocator(input.projectPath) && isValidTerminalSize(input.cols, input.rows);
+    }
+    case 'agents/cli-sync': return isSafeRemoteId(command.sessionId);
+    case 'pty/write': return isSafeRemoteId(command.ptyId) && typeof command.data === 'string' && command.data.length <= AGENT_CLI_MAX_INPUT_CHARS;
+    case 'pty/resize': return isSafeRemoteId(command.ptyId) && isValidTerminalSize(command.cols, command.rows);
+    case 'pty/close': return isSafeRemoteId(command.ptyId);
+    case 'host/create-entry': {
+      const input: unknown = command.input;
+      return isRecord(input) &&
+        typeof input.parentPath === 'string' && input.parentPath.length > 0 &&
+        input.parentPath.length <= 4096 && !input.parentPath.includes('\0') &&
+        isValidHostEntryName(input.name, 'posix') &&
+        (input.kind === 'directory' || input.kind === 'file');
+    }
     case 'host/list-dir':
       return (
         command.path === undefined ||

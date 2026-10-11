@@ -2,8 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { HostCommand, HostResponse } from '@piwin/contracts';
 import { remoteCommandRequiresIdempotencyKey } from '@piwin/contracts';
 import type { HostClient } from '@piwin/host-client';
-import { getPiwinRoot, HostRuntime } from '@piwin/host-runtime';
-import { HostServer } from '@piwin/host-server';
+import { getPiwinRoot } from '@piwin/host-runtime/paths';
 import { connectCliAttachedHost, readCliHostAttachTarget } from '../attach-existing-host.js';
 
 /**
@@ -41,6 +40,10 @@ export async function openTuiHostLink(options: TuiHostLinkOptions): Promise<TuiH
     };
   }
 
+  const [{ HostRuntime }, { HostServer }] = await Promise.all([
+    import('@piwin/host-runtime'),
+    import('@piwin/host-server'),
+  ]);
   const piwinRoot = getPiwinRoot();
   const runtime = new HostRuntime({ mode: 'sdk', mock: options.mock, piwinRoot });
   // Loopback only, random port, random door token: nothing else on the machine

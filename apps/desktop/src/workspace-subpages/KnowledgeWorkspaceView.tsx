@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactElement } from 're
 import { Button, Dialog, EmptyState, Notice, Spinner } from '@piwin/ui-kit';
 import type { HostListDirData, HostPush, KnowledgeCitation, WikiDistillResult } from '@piwin/contracts';
 import { IconBook } from '../shell-icons';
+import { requestHostPickerEntry } from '../host-picker-create-entry.js';
 import { HostWorkspacePicker } from '../host-workspace-picker';
 import { StudioTopbar } from './studio/studio-chrome';
 import { KnowledgeWikiView } from '../knowledge/KnowledgeWikiView.js';
@@ -134,9 +135,10 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
   }
 
   const listHostDirectory = useCallback(
-    async (path?: string): Promise<HostListDirData> => {
+    async (path?: string, includeHidden?: boolean): Promise<HostListDirData> => {
       const response = await props.request({
         type: 'host/list-dir',
+        includeHidden: includeHidden ?? false,
         ...(path && path.trim().length > 0 ? { path: path.trim() } : {}),
       });
       if (!response.success) {
@@ -406,6 +408,7 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
           currentPath={folderPickerPath}
           onCurrentPathChange={setFolderPickerPath}
           listDirectory={listHostDirectory}
+          createEntry={(input) => requestHostPickerEntry(props.request, input, props.locale)}
           recents={sourceBases
             .map((base) => base.folderPath)
             .filter((folderPath): folderPath is string => typeof folderPath === 'string' && folderPath.length > 0)}

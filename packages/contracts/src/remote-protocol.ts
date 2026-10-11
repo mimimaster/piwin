@@ -98,6 +98,11 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'session/backend-set',
   'agents/sessions-sync',
   'agents/status',
+  'agents/cli-open',
+  'agents/cli-sync',
+  'pty/write',
+  'pty/resize',
+  'pty/close',
   'agents/list',
   'agents/install',
   'agents/set-enabled',
@@ -286,6 +291,8 @@ export type RemoteCapabilitySummary = {
   homeDirectory?: string;
   /** Host accepts `host/list-dir` for the workspace folder picker. */
   hostListDir?: boolean;
+  /** Host accepts exclusive file/folder creation from the workspace picker. */
+  hostCreateEntry?: boolean;
 };
 
 export type HostHello = {

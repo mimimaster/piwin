@@ -2,31 +2,32 @@
  * Tracks layout + visual viewport with listener cleanup.
  * Writes CSS variables used by the phone shell; never leaves them behind.
  */
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import {
   applyWebViewportCssVars,
   clearWebViewportCssVars,
-  fallbackWebViewportMetrics,
   readWebViewportMetrics,
   shouldResetDocumentScroll,
-  type WebViewportMetrics,
 } from '../web-viewport';
 
-export function useWebViewport(): WebViewportMetrics {
-  const [metrics, setMetrics] = useState<WebViewportMetrics>(() =>
-    typeof window === 'undefined' ? fallbackWebViewportMetrics() : readWebViewportMetrics(window),
-  );
-
+export function useWebViewport(): void {
   useEffect(() => {
     const root = document.documentElement;
+    let previousHeight: number | undefined;
+    let previousKeyboardInset: number | undefined;
 
     function sync(): void {
       if (shouldResetDocumentScroll(window)) {
         window.scrollTo(0, 0);
       }
       const next = readWebViewportMetrics(window);
-      applyWebViewportCssVars(root, next);
-      setMetrics(next);
+      // These values only size CSS surfaces. Root React state would rerender
+      // the whole workbench on every native window / visual viewport sample.
+      if (next.height !== previousHeight || next.keyboardInset !== previousKeyboardInset) {
+        applyWebViewportCssVars(root, next);
+        previousHeight = next.height;
+        previousKeyboardInset = next.keyboardInset;
+      }
     }
 
     sync();
@@ -45,6 +46,4 @@ export function useWebViewport(): WebViewportMetrics {
       clearWebViewportCssVars(root);
     };
   }, []);
-
-  return metrics;
 }

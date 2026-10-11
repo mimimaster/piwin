@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PiwinUiProvider } from '@piwin/ui-kit';
+import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { SessionListItemUi } from './chat-ui-types';
@@ -70,6 +72,7 @@ describe('EmptyStageLanding', () => {
   function renderLanding(
     sessions: readonly SessionListItemUi[],
     onResumeSession: (sessionId: string) => void = () => {},
+    extra: Partial<import('./empty-stage-landing').EmptyStageLandingProps> = {},
   ): HTMLElement {
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -77,15 +80,35 @@ describe('EmptyStageLanding', () => {
     mountedRoots.push({ root, container });
     act(() => {
       root.render(
-        <EmptyStageLanding
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><EmptyStageLanding
           locale="en"
           sessions={sessions}
           onResumeSession={onResumeSession}
-        />,
+          {...extra}
+        /></PiwinUiProvider>,
       );
     });
     return container;
   }
+
+  it('only lists agent engines, with no separate TUI session entry', () => {
+    const container = renderLanding([], undefined, {
+      locale: 'zh-CN',
+      draftAgentOptions: [
+        { agentId: 'pi', label: 'piwin', ready: true, state: 'ready' },
+        { agentId: 'grok', label: 'Grok Build', ready: true, state: 'ready' },
+      ],
+    });
+    expect(container.querySelector('[data-testid="empty-stage-engine-pi"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="empty-stage-engine-grok"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="empty-stage-engine-tui"]')).toBeNull();
+    expect(container.textContent).not.toContain('TUI 会话');
+  });
+
+  it('does not expose a terminal entry when disabled or unavailable', () => {
+    const container = renderLanding([]);
+    expect(container.querySelector('[data-testid="empty-stage-engine-tui"]')).toBeNull();
+  });
 
   it('still renders the welcome chrome when there is no history to resume', () => {
     const container = renderLanding([]);
@@ -129,11 +152,11 @@ describe('EmptyStageLanding', () => {
     mountedRoots.push({ root: zhRoot, container: zhContainer });
     act(() => {
       zhRoot.render(
-        <EmptyStageLanding
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><EmptyStageLanding
           locale="zh-CN"
           sessions={[session({ id: 'abc', name: 'Notes' })]}
           onResumeSession={() => {}}
-        />,
+        /></PiwinUiProvider>,
       );
     });
     expect(zhContainer.querySelector('h1')?.textContent).toBe('研墨起笔');
@@ -150,7 +173,7 @@ describe('EmptyStageLanding', () => {
     mountedRoots.push({ root, container });
     act(() => {
       root.render(
-        <EmptyStageLanding
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><EmptyStageLanding
           locale="zh-CN"
           sessions={[
             session({ id: '1', name: 'S1' }),
@@ -158,7 +181,7 @@ describe('EmptyStageLanding', () => {
           ]}
           onResumeSession={() => {}}
           onOpenAllSessions={onOpenAll}
-        />,
+        /></PiwinUiProvider>,
       );
     });
 
@@ -184,7 +207,7 @@ describe('EmptyStageLanding', () => {
     mountedRoots.push({ root, container });
     act(() => {
       root.render(
-        <EmptyStageLanding
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><EmptyStageLanding
           locale="zh-CN"
           sessions={[
             session({
@@ -200,7 +223,7 @@ describe('EmptyStageLanding', () => {
           ]}
           onResumeSession={() => {}}
           runningSessionIds={{ 's-running': true }}
-        />,
+        /></PiwinUiProvider>,
       );
     });
 
@@ -217,12 +240,12 @@ describe('EmptyStageLanding', () => {
     mountedRoots.push({ root, container });
     act(() => {
       root.render(
-        <EmptyStageLanding
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><EmptyStageLanding
           locale="zh-CN"
           sessions={[]}
           onResumeSession={() => {}}
           draftAgentOptions={[{ agentId: 'pi', label: 'Pi', ready: true }]}
-        />,
+        /></PiwinUiProvider>,
       );
     });
     expect(container.querySelector('[data-testid="empty-stage-engines"]')).toBeNull();
@@ -236,7 +259,7 @@ describe('EmptyStageLanding', () => {
     mountedRoots.push({ root, container });
     act(() => {
       root.render(
-        <EmptyStageLanding
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><EmptyStageLanding
           locale="zh-CN"
           sessions={[]}
           onResumeSession={() => {}}
@@ -246,7 +269,7 @@ describe('EmptyStageLanding', () => {
             { agentId: 'grok', label: 'Grok Build', ready: true, description: '自主编码与构建' },
           ]}
           onSelectDraftAgent={onSelectDraftAgent}
-        />,
+        /></PiwinUiProvider>,
       );
     });
     const engines = container.querySelector('[data-testid="empty-stage-engines"]');
@@ -277,7 +300,7 @@ describe('EmptyStageLanding', () => {
     mountedRoots.push({ root, container });
     act(() => {
       root.render(
-        <EmptyStageLanding
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><EmptyStageLanding
           locale="zh-CN"
           sessions={[]}
           onResumeSession={() => {}}
@@ -285,7 +308,7 @@ describe('EmptyStageLanding', () => {
             { agentId: 'pi', label: 'Pi', ready: true },
             { agentId: 'custom-agent', label: 'Custom Agent', ready: true },
           ]}
-        />,
+        /></PiwinUiProvider>,
       );
     });
     const customCard = container.querySelector<HTMLButtonElement>('[data-testid="empty-stage-engine-custom-agent"]');
@@ -302,7 +325,7 @@ describe('EmptyStageLanding', () => {
     mountedRoots.push({ root, container });
     act(() => {
       root.render(
-        <EmptyStageLanding
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}><EmptyStageLanding
           locale="zh-CN"
           sessions={[]}
           onResumeSession={() => {}}
@@ -311,7 +334,7 @@ describe('EmptyStageLanding', () => {
             { agentId: 'grok', label: 'Grok Build', ready: false },
           ]}
           onOpenAgentSettings={onOpenAgentSettings}
-        />,
+        /></PiwinUiProvider>,
       );
     });
 

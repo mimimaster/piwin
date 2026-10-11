@@ -79,6 +79,7 @@ export type PlatformHostCommand =
   | PiEnvironmentHostCommand
   | { id?: string; type: 'host/ping' }
   | { id?: string; type: 'host/status' }
+  | { id?: string; type: 'host/create-entry'; input: import('./host-entry.js').HostCreateEntryInput }
   | { id?: string; type: 'host/shell-environment' }
   | {
       id?: string;

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, writeFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -53,8 +53,7 @@ console.log('ALIVE');
 await supervisor.dispose();
 `,
     );
-    const tsx = fileURLToPath(new URL('../node_modules/.bin/tsx', import.meta.url));
-    const result = await execFileAsync(tsx, [script]).catch((error: { stdout?: string; stderr?: string; code?: number }) => error);
+    const result = await execFileAsync(process.execPath, ['--import', createRequire(import.meta.url).resolve('tsx'), script]).catch((error: { stdout?: string; stderr?: string; code?: number }) => error);
     const stdout = 'stdout' in result ? String(result.stdout) : '';
     expect(stdout).toContain('REJECTED spawn failed: working directory does not exist');
     expect(stdout).toContain('ALIVE');

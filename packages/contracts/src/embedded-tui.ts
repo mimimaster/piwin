@@ -1,3 +1,13 @@
+import type { HostAttachTarget } from './host-attach-target.js';
+
+/** Desktop's native PTY launch; absent remoteTarget means its own sidecar. */
+export type EmbeddedTuiLaunch = {
+  sessionId?: string;
+  projectPath?: string;
+  projectId?: string;
+  remoteTarget?: HostAttachTarget;
+};
+
 /**
  * An embedded TUI tells the terminal emulator around it which session it now
  * shows, as an OSC 777 string only that emulator reads (`piwin;session;<id>`).

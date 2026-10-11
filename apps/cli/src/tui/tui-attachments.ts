@@ -14,6 +14,8 @@ export type PendingAttachment = {
   attachment: PromptAttachment;
   /** Shown in the status line and under the sent message. */
   label: string;
+  /** Image order within the pending prompt; retained when a send is refused. */
+  imageNumber?: number;
 };
 
 export type AttachmentUploaderOptions = {
@@ -62,10 +64,11 @@ export class AttachmentQueue {
 
   public async addFile(sessionId: string, filePath: string, source: 'file-picker' | 'drop'): Promise<string> {
     const { bytes, mimeType } = await readAttachableFile(filePath);
-    return this.upload(sessionId, bytes, mimeType, path.basename(filePath), source);
+    const uploaded = await this.upload(sessionId, bytes, mimeType, path.basename(filePath), source);
+    return uploaded.label;
   }
 
-  public addImageBytes(sessionId: string, bytes: Uint8Array, mimeType: string, name: string): Promise<string> {
+  public addImageBytes(sessionId: string, bytes: Uint8Array, mimeType: string, name: string): Promise<PendingAttachment> {
     return this.upload(sessionId, bytes, mimeType, name, 'paste');
   }
 
@@ -95,7 +98,7 @@ export class AttachmentQueue {
     mimeType: string,
     name: string,
     source: 'file-picker' | 'drop' | 'paste',
-  ): Promise<string> {
+  ): Promise<PendingAttachment> {
     if (this.pending.length >= MAX_PROMPT_ATTACHMENTS) {
       throw new AttachmentError(`一条消息最多带 ${MAX_PROMPT_ATTACHMENTS} 个附件`);
     }
@@ -114,9 +117,17 @@ export class AttachmentQueue {
     if (this.pending.length >= MAX_PROMPT_ATTACHMENTS) {
       throw new AttachmentError(`一条消息最多带 ${MAX_PROMPT_ATTACHMENTS} 个附件`);
     }
-    const label = asset.name ?? name;
-    this.pending.push({ attachment: toMediaAttachmentRef(asset, source), label });
-    return label;
+    // Allocate after upload, with no await before enqueueing, so concurrent
+    // clipboard reads cannot produce the same image number.
+    const uploaded: PendingAttachment = {
+      attachment: toMediaAttachmentRef(asset, source),
+      label: asset.name ?? name,
+      ...(contentKind === 'image'
+        ? { imageNumber: this.pending.reduce((highest, entry) => Math.max(highest, entry.imageNumber ?? 0), 0) + 1 }
+        : {}),
+    };
+    this.pending.push(uploaded);
+    return uploaded;
   }
 }
 

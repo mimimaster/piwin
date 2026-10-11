@@ -137,6 +137,7 @@ export * from './apple-health.js';
 export * from './health-summary.js';
 export * from './remote-protocol.js';
 export * from './host-platform.js';
+export * from './host-entry.js';
 export * from './child-process-env.js';
 export * from './remote-idempotency.js';
 export * from './host-command-request.js';
@@ -160,3 +161,6 @@ export { waitForLiveMediaReady } from './live-media-readiness.js';
 export * from './devin-session-token.js';
 export * from './user-facing-text.js';
 export * from './live-system-activity.js';
+export type { HostAttachTarget } from './host-attach-target.js';
+
+export * from './agent-cli.js';

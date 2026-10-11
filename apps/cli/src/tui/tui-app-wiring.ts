@@ -108,6 +108,10 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     onError: port.error,
   });
   const attachments = new TuiAttachmentController({
+    insertImageMarker: (marker) => {
+      port.editor.insertTextAtCursor(marker);
+      port.tui.requestRender();
+    },
     link: port.link,
     ensureSession: port.ensureSession,
     onChanged: port.refresh,

@@ -498,3 +498,65 @@ explicit fold choice stays respected while running. Execution history is
 secondary expandable detail. These are backend observations, not fabricated
 Pi tool events, and no workflow state is written back by this UI. Pauses and
 failures preserve completed stages and do not animate as running.
+
+
+### Amendment: Native Grok Build view in Desktop (2026-10-11, accepted)
+
+The titlebar Desktop/CLI switch opens Grok's own fullscreen TUI for a Grok
+conversation, rather than piwin's terminal rendering of the ACP transcript.
+The Host resolves the enabled extension's detected binary, trusted working
+directory and durable `SessionBackendBinding.backendSessionId`, then launches
+`grok --fullscreen --cwd <host-cwd> --resume <native-id>`. A new conversation
+is created and bound through the existing Host session path first. General's
+Pi-only scope stays intact: an unscoped native Grok conversation belongs to the
+built-in No Repo workspace and Desktop adopts that scope without remounting.
+
+`agents/cli-open` accepts only the Grok agent, an optional product session or
+project locator and a bounded terminal grid. Remote locators must be opaque
+project ids; resumed sessions use their saved Host cwd. The command needs a
+caller gesture idempotency key so one click cannot spawn multiple terminals.
+`pty/write`, `pty/resize` and `pty/close` carry only the returned terminal id
+and bounded control payloads. The process package owns OS PTYs through
+node-pty; host-runtime composes binary/trust/session policy and streams the
+existing `pty/output` and `pty/exit` pushes. Desktop's shared xterm transport
+buffers early output before the open response, just as the Tauri transport
+does. The same protocol supports local sidecar and remote Host connections.
+No executable path or arbitrary shell command is accepted from the renderer.
+
+Returning to Desktop through the switch invokes `agents/cli-sync` in the background:
+keep the interactive PTY alive, reload native history through the existing
+`session/load` projection, and refresh Desktop even when already selected.
+Concurrent refreshes share one operation. Runtime suspension uses the existing
+residency transaction, which preserves protected Runs and serializes arriving
+activation, rather than disposal that could cancel newly admitted work.
+CLI selection stays available during replay; late completion cannot navigate
+back after the user leaves or force a Desktop refresh while CLI is selected.
+Rapid returns coalesce into a final snapshot. One native view is retained for
+the current Host/session/scope, then released on navigation, terminal disable
+or a Host-controlled Grok turn that makes its native snapshot stale.
+Vendor-native interactive prompts remain owned by Grok; their recorded history
+is imported through the existing adapter, rather than fabricated Pi events.
+
+**Unreplayed history is announced on resume (2026-10-11).** `session/resume`
+stays a durable read and never activates an adapter, so a session imported
+from the agent's catalog, or continued in its own TUI, returned an empty or
+stale transcript and clients painted it as a new conversation. The Host now
+sets `SessionResumeData.nativeHistory = 'unsynced'` (projected to remote
+clients) when the binding has a native id and its projection was never synced
+or is older than the catalog's last change, unless a Host-controlled turn is
+running. Desktop paints what the transcript has, requests `agents/cli-sync`
+in the background (once per session and Host instance), and reloads the
+session when the replay succeeds; a failed or timed-out replay is reported and
+never blocks the transcript. While any selected session's transcript is
+pending, Desktop shows the opening state, never the new-conversation landing.
+
+Long histories need the adapter's streamed replay. The published adapter
+(`b6e09c7`) returns the whole replay inline and a long session exceeds the
+2 MiB frame limit; the producer side is implemented in the adapter repository
+and verified on a development Host, but not yet committed or published. See
+[the overflow evidence](../evidence/2026-10-05-grok-replay-frame-overflow.md).
+
+The native addon stays external in Host packaging, including its executable
+spawn helper. node-pty is pinned to `1.2.0-beta.12` because the stable `1.1.0`
+macOS tarball ships that helper without execute permission (upstream #919).
+The bundled ESM/pruned-dependency smoke exercises a real PTY after packaging.

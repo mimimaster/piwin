@@ -12,13 +12,14 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { TuiMainScreen, type Terminal } from '@earendil-works/pi-tui';
+import { TuiAltScreen } from '@earendil-works/pi-tui';
 import type { HostCommand, HostPush, HostResponse } from '@piwin/contracts';
 import type { HostClient } from '@piwin/host-client';
 import { HostRuntime } from '@piwin/host-runtime';
 import { HostServer } from '@piwin/host-server';
 import { connectCliAttachedHost } from '../attach-existing-host.js';
 import { TuiApp } from './tui-app.js';
+import { TuiTestTerminal as FakeTerminal } from './tui-terminal.fixture.js';
 import type { TuiConfig } from './tui-config.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 
@@ -27,6 +28,8 @@ export const KEY = {
   escape: '\x1b',
   up: '\x1b[A',
   down: '\x1b[B',
+  pageUp: '\x1b[5~',
+  pageDown: '\x1b[6~',
   tab: '\t',
   shiftTab: '\x1b[Z',
   ctrlC: '\x03',
@@ -39,56 +42,8 @@ export const KEY = {
   ctrlX: '\x18',
 } as const;
 
-const ANSI_PATTERN = /\x1b\[[0-9;?<>=]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[_P^][^\x1b]*\x1b\\|\x1b[@-Z\\-_]/g;
 const WAIT_TIMEOUT_MS = 4_000;
 const POLL_MS = 15;
-
-class FakeTerminal implements Terminal {
-  public readonly kittyProtocolActive = false;
-  public title = '';
-  private output = '';
-  private onInput: ((data: string) => void) | undefined;
-
-  public constructor(
-    public readonly columns: number,
-    public readonly rows: number,
-  ) {}
-
-  public start(onInput: (data: string) => void): void {
-    this.onInput = onInput;
-  }
-  public stop(): void {
-    this.onInput = undefined;
-  }
-  public async drainInput(): Promise<void> {}
-  public write(data: string): void {
-    this.output += data;
-  }
-  public moveBy(): void {}
-  public hideCursor(): void {}
-  public showCursor(): void {}
-  public clearLine(): void {}
-  public clearFromCursor(): void {}
-  public clearScreen(): void {}
-  public setTitle(title: string): void {
-    this.title = title;
-  }
-  public setProgress(): void {}
-
-  public type(data: string): void {
-    this.onInput?.(data);
-  }
-  public get length(): number {
-    return this.output.length;
-  }
-  /** What was written since `mark`, escape sequences included. */
-  public rawSince(mark: number): string {
-    return this.output.slice(mark);
-  }
-  public textSince(mark: number): string {
-    return this.output.slice(mark).replace(ANSI_PATTERN, '');
-  }
-}
 
 export type TuiHarnessOptions = {
   /** Register a throwaway project and start the TUI inside it. */
@@ -229,7 +184,7 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
   }
 
   const terminal = new FakeTerminal(110, 40);
-  const tui = new TuiMainScreen(terminal);
+  const tui = new TuiAltScreen(terminal);
   let exited = false;
   const openedFiles: string[] = [];
   const app = new TuiApp({

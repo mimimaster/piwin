@@ -8,7 +8,7 @@
 
 **基于 Pi 的面向个人的 Coding Agent Desktop**
 
-<sub><i>砚者，研墨沉淀、静水流深。集百家之所长，归于一案之间。</i></sub>
+<sub><i>天寒水不冻，日用心不倦。</i></sub>
 
 <p align="center">
   <a href="https://github.com/mimimaster/piwin/releases"><img src="https://img.shields.io/github/v/release/mimimaster/piwin?color=6366f1&label=Release&logo=github" alt="Release" /></a>
@@ -21,11 +21,11 @@
 </p>
 
 <p align="center">
-  <a href="https://docs.piwinwin.com"><b>📖 文档</b></a> ·
-  <a href="#-快速上手"><b>⚡ 快速上手</b></a> ·
-  <a href="#-核心特色"><b>✨ 核心特色</b></a> ·
-  <a href="#-架构总览"><b>🏛️ 架构</b></a> ·
-  <a href="./docs/adr/"><b>📐 ADR</b></a>
+  <a href="https://docs.piwinwin.com"><b>文档</b></a> ·
+  <a href="#-快速上手"><b>快速上手</b></a> ·
+  <a href="#-核心特色"><b>核心特色</b></a> ·
+  <a href="#-架构总览"><b>架构</b></a> ·
+  <a href="./docs/adr/"><b>ADR</b></a>
 </p>
 
 <p align="center">
@@ -40,27 +40,27 @@
 
 </div>
 
-Piwin 是基于 Pi SDK（v0.84.2）的桌面端 Coding Agent。Pi 的功能、提示词和工具接入都由你自己掌控；Piwin 在它之上补齐图形界面、一键配置和多端访问——客户端与 Host Runtime 分离，支持 Desktop / Web / Mobile 接入，所有数据留在本地。
+Piwin 是基于 Pi SDK（v0.84.2）的桌面端 Coding Agent。Piwin 是由tauri + node运行时构建的，支持前后端分离，也支持一体包安装，天然支持Desktop / Web / Mobile 接入，不会上传你的任何数据，问题是现在也没啥用户。
 
 ---
 
-## ⚡ 快速上手
+## 快速上手
 
-所有命令在仓库根目录执行。一体包和独立 Host **不要在同一台机器同时开**（会抢 `~/.piwin`，可以自己额外指向目录从而达成多host配置）。
+所有命令在仓库根目录执行。默认配置和数据空间在~/.piwin，如有特殊需求，请自行配置。
 
 | 入口 | 场景 | 开发 | 打包 / 使用 |
 | :--- | :--- | :--- | :--- |
 | **Desktop** | 一体包，开箱即用 | `pnpm dev:tauri` | `pnpm package:desktop` → 安装 dmg / exe |
-| **Web** | 浏览器访问，前后端同端口 | `pnpm dev:host` + `pnpm dev:web` | `pnpm package:web` → `./dist/piwin-host/start-host.sh` → `http://127.0.0.1:8787` |
-| **Desktop Shell** | 轻量桌面壳，连远程 Host | `pnpm dev:tauri:shell` | `pnpm package:desktop-shell` → 填 `ws://` 地址 |
-| **Host** | 独立后端，供其他客户端连接 | `pnpm dev:host` | `pnpm package:host` → `./dist/piwin-host/start-host.sh` |
+| **Web** | 浏览器访问，前后端同端口，可以远程访问 | `pnpm dev:host` + `pnpm dev:web` | `pnpm package:web` → `./dist/piwin-host/start-host.sh` → `http://127.0.0.1:8787` |
+| **Desktop Shell** | 轻量桌面壳，连远程 Host，单独启动| `pnpm dev:tauri:shell` | `pnpm package:desktop-shell` → 填 `ws://` 地址 |
+| **Host** | 独立后端，供其他客户端连接，适合部署在你自己的vps| `pnpm dev:host` | `pnpm package:host` → `./dist/piwin-host/start-host.sh` |
 
 ### 下载安装包（零环境门槛）
 
 前往 **[GitHub Releases](https://github.com/mimimaster/piwin/releases)** 下载最新版：
 
 - **macOS**：`piwinwin_<version>_aarch64.dmg` — 拖入 Applications 即可
-- **Windows**：`piwinwin_<version>_x64-setup.exe` — 按指引安装，推荐预装 [Git Bash](https://git-scm.com/downloads/win)
+- **Windows**：`piwinwin_<version>_x64-setup.exe` — 按指引安装，推荐预装 [Git Bash](https://git-scm.com/downloads/win)，避免模型大战powershell
 
 安装包内置 Node 22 LTS + Host Sidecar + LanceDB + Tauri 2，无需额外环境。
 
@@ -82,7 +82,7 @@ pnpm install && pnpm package:web
 ./dist/piwin-host/start-host.sh   # http://127.0.0.1:8787
 ```
 
-对外暴露时，在前面放 TLS 反代（Caddy / nginx / Tailscale Serve）：
+对外暴露时，在前面放 TLS 反代（Caddy / nginx / Tailscale Serve，懂得都懂，建议搞个tailscale，安全又方便）：
 
 ```bash
 export PIWIN_HOST_BIND=127.0.0.1
@@ -94,19 +94,22 @@ export PIWIN_HOST_ALLOWED_ORIGINS='https://ui.example.com'
 
 ---
 
-## ✨ 核心特色
+## 核心特色
 
 Piwin 真正想做好的就这几件事，每一件都封装成了开箱即用的产品体验：
 
-| # | 特色 | 一句话 |
-| :-: | :--- | :--- |
-| 1 | [**Pi 扩展热安装**](#1-pi-扩展热安装) | 市场 / Git / 本地一键装，下一轮对话即生效，不重启、不丢会话 |
-| 2 | [**子代理编排**](#2-子代理编排ultra-code--fusion--reviewed-delivery) | 内置 Ultra Code、Fusion、Reviewed Delivery 三套方案，输入框里一键切换 |
-| 3 | [**全双工语音**](#3-全双工语音) | 一边语音聊，一边让 Agent 在后台干活，随时插话 |
-| 4 | [**按能力类型配模型**](#4-按能力类型配模型) | 推理、视觉、生图、视频、实时语音、Embedding、Reranker 分开配 |
-| 5 | [**Web Search 一键配置**](#5-web-search-一键配置) | 免 Key 起步，搜索源与网页抓取随时切换 |
-| 6 | [**视觉委托**](#6-视觉委托) | 纯文本模型也能看图，截图交给轻量多模态模型提炼 |
-| 7 | [**code_search**](#7-code_search) | Host 内置的代码检索工具，搜索过程不进主上下文 |
+|  #  | 特色                                                         | 一句话                                                                                                           |
+| :-: | :--------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------ |
+|  1  | [**Pi 扩展热安装**](#1-pi-扩展热安装)                                | 市场 / Git / 本地一键装，搜索对接git和npm仓库，可以检索到对应仓库并一键安装，提供piwin-extension拓展仓库https://extension.piwinwin.com/，方便您的pi插件改造 |
+|  2  | [**子代理编排**](#2-子代理编排ultra-code--fusion--reviewed-delivery) | 内置多种智能编排方案，具体可看文档，推荐使用内置auto编排方案                                                                              |
+|  3  | [**全双工语音**](#3-全双工语音)                                      | 支持你边语音边coding，可以一边跳舞，一边看原子弹爆炸                                                                                 |
+|  4  | [**灵活的BYOK方案**](#4-按能力类型配模型)                               | 推理、视觉、生图、视频、实时语音、Embedding、Reranker等类型的模型配置，支持丰富的模型厂商接入                                                       |
+|  5  | [**Web Search 一键配置**](#5-web-search-一键配置)                  | 支持模型原生web_search，也支持各种外部搜索渠道接入，降级路由，十分灵活方便                                                                    |
+|  6  | [**code_search**](#6-code_search)                          | Host 内置的代码检索工具，让你的上下文保持干燥，避免垃圾的工具输出稀释注意力，从而精进模型决策                                                             |
+|  7  | [**aritfact**](#7-aritfact)                                | inline artifact和canvas，密集型信息，美观直接，方便学习知识，了解概念，而且超好看                                                           |
+|  8  | 乐观锁与并发控制                                                   | 实现HOST级别编辑工具，乐观锁控制，支持原生级别的一键撤回，当然还是建议配合git使用                                                                  |
+|  9  | LLM wiki与闪卡                                                | 学习的好工具，支持自己配置RAG流程与闪卡出卡                                                                                       |
+| 10  | codemode实现                                                 |                                                                                                               |
 
 <table>
   <tr>
@@ -119,11 +122,15 @@ Piwin 真正想做好的就这几件事，每一件都封装成了开箱即用�
   </tr>
   <tr>
     <td width="50%" valign="top"><img src="./docs/marketing/readme/web-search.jpg" alt="Web Search 设置" width="100%" /><br /><sub><b>5 · Web Search 一键配置</b></sub></td>
-    <td width="50%" valign="top"><img src="./docs/marketing/readme/vision.jpg" alt="视觉委托设置" width="100%" /><br /><sub><b>6 · 视觉委托</b></sub></td>
+    <td width="50%" valign="top"><img src="./docs/marketing/readme/code-search.jpg" alt="code_search 设置" width="100%" /><br /><sub><b>6 · code_search</b></sub></td>
   </tr>
   <tr>
-    <td width="50%" valign="top"><img src="./docs/marketing/readme/code-search.jpg" alt="code_search 设置" width="100%" /><br /><sub><b>7 · code_search</b></sub></td>
-    <td width="50%" valign="top"><img src="./docs/marketing/readme/knowledge.jpg" alt="知识库重排设置" width="100%" /><br /><sub><b>知识库：Embedding / Reranker 单独配置</b></sub></td>
+    <td width="50%" valign="top"><img src="https://img.yorickjue.com/file/1791547843874_image.png" alt="inline artifact展示" width="100%" /><br /><sub><b>7 ·inline-artifact</b></sub></td>
+	 <td width="50%" valign="top"><img src="https://img.yorickjue.com/file/1791547960452_image.png" alt="canvas artifact展示" width="100%" /><br /><sub><b>7 ·canvas-artifact</b></sub></td>
+  </tr>
+  <td width="50%" valign="top"><img src="./docs/marketing/readme/knowledge.jpg" alt="知识库重排设置" width="100%" /><br /><sub><b>知识库：Embedding / Reranker 单独配置</b></sub></td>
+  <tr>
+  
   </tr>
 </table>
 
@@ -134,30 +141,27 @@ Piwin 真正想做好的就这几件事，每一件都封装成了开箱即用�
 - **能力覆盖**：扩展提供的 Tools、事件 Hook、自定义 Provider、确认 / 选择 / 输入类对话框都能在桌面端直接用；纯终端 TUI 类扩展会被标记出来，不会装上就坏。
 - 扩展统一放在 `~/.piwin/extensions/`，由 Host 管理版本与启用状态。
 
-### 2. 子代理编排：Ultra Code / Fusion / Reviewed Delivery
+### 2. 子代理编排
 
 在输入框的「编排方案」里一键切换，三套内置方案都是根据公开的技术文章与产品资料实现的：
 
-| 方案 | 解决什么 | 怎么做 |
-| :--- | :--- | :--- |
-| **Ultra Code** | 主上下文腐烂 | 依据《拯救 5.6 Sol》对 Codex Ultra 的拆解实现：主代理把广搜、调研、核验派给只读 **Scout** 子代理，原始的 grep 结果、文件内容、死路都留在用完即弃的子上下文里，只有蒸馏后的结论回流；Scout 可以钉一个便宜模型，避免“子代理继承主模型”把额度烧光 |
-| **Fusion** | 降本且不掉智 | 对照 Cognition 的 Devin Fusion 实现：当前会话是 **Lead**（前沿模型），只做计划、解释歧义和终审；机械实现交给一条可复用的便宜 **Sidekick** 子会话。两边只交换 brief 与 result，**从不传完整对话历史**，各自的提示词缓存都能保住 |
-| **Reviewed Delivery** | 合入质量 | **Worker** 在独立 Git Worktree 里产出候选改动，**Reviewer** 只读审查并给出结构化裁决，通过后才合回主工程 |
+| 方案             | 解决什么   | 怎么做                                                                                                                                              |
+| :------------- | :----- | :----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ultra Code** | 主上下文腐烂 | 依据《拯救 5.6 Sol》对 Codex Ultra 的拆解实现：主代理把广搜、调研、核验派给只读 **Scout** 子代理，原始的 grep 结果、文件内容、死路都留在用完即弃的子上下文里，只有蒸馏后的结论回流；Scout 可以钉一个便宜模型，避免“子代理继承主模型”把额度烧光   |
+| **Fusion**     | 降本且不掉智 | 对照 Cognition 的 Devin Fusion 实现：当前会话是 **Lead**（前沿模型），只做计划、解释歧义和终审；机械实现交给一条可复用的便宜 **Sidekick** 子会话。两边只交换 brief 与 result，**从不传完整对话历史**，各自的提示词缓存都能保住 |
+| **AUTO*        | 综合成本方案 | 有效利用好各种模型特性，综合融入scout和fusion设计，集成本和效用于一身的综合性方案，适合任意开发任务，具体实现可看文档，是很优秀的harness工程实践                                                                |
 
-也可以自建方案：自定义角色（scout / coder / reviewer / tester …）、每个角色用什么模型、并发上限和主代理纪律，全部在设置里可视化编辑。
+也可以自建方案：自定义角色（scout / coder / reviewer / tester …）、每个角色用什么模型、并发上限和主代理纪律，全部在设置里可视化编辑。（这些就是些cosplay，真要玩，建议自定义契约，约定好子代理限制和输入输出，代码反正都是开源了，可玩性很高）
 
 ### 3. 全双工语音
 
-不是把语音转成文字塞进输入框，而是**说话和干活分开**：
+**说话和干活分开**：
 
-- **说话面**负责实时对话——聊方案、纠正思路，随时插话打断；
-- 需要改代码、跑测试时，说话面把任务简报**交接给会话里的 Agent** 去执行，做完再用一句话告诉你结论。
+简单说就是一边聊天，一边干活，其实是realtime模型和推理模型同时在工作，就是codex那个，效果还是蛮不错的。
 
-你可以一边盯着页面一边口头指挥，Agent 在后台推进。支持 **Codex Live**（ChatGPT 订阅）、**Gemini Live** 和 **OpenAI Realtime 兼容协议**。
+支持 **Codex Live**（ChatGPT 订阅）、**Gemini Live** 和 **OpenAI Realtime 兼容协议**。
 
-### 4. 按能力类型配模型
-
-不是按厂商堆一个模型列表，而是按“这个模型用来干什么”分开配置，每一类都有默认模型和调用测试：
+### 4. 灵活的BYOK方案
 
 | 能力 | 用途 |
 | :--- | :--- |
@@ -171,7 +175,7 @@ Piwin 真正想做好的就这几件事，每一件都封装成了开箱即用�
 | code_search 后端 | 已配置模型，或 Devin 账号 / Windsurf Token |
 
 - **接入方式**：任意 OpenAI 兼容端点（BYOK），或 OAuth 一键登录官方订阅（Kimi Coding / Codex / Claude / Grok / Copilot / Devin）。
-- **改完即生效**：设置由 Host 统一下发，正在进行的会话在下一轮自动用上新配置。
+由host存储管理，全局可配置，很灵活的，除了决策模型还没支持，其他都支持了；
 
 ### 5. Web Search 一键配置
 
@@ -189,7 +193,7 @@ Piwin 真正想做好的就这几件事，每一件都封装成了开箱即用�
 
 ---
 
-## 🧰 更多能力
+## 更多能力
 
 <table>
   <tr>
@@ -221,7 +225,7 @@ Piwin 真正想做好的就这几件事，每一件都封装成了开箱即用�
 
 ---
 
-## ⚙️ 配置速查
+##  配置速查
 
 | 模块 | 推荐方案 | 文档 |
 | :--- | :--- | :--- |
@@ -234,7 +238,7 @@ Piwin 真正想做好的就这几件事，每一件都封装成了开箱即用�
 
 ---
 
-## 🏛️ 架构总览
+##  架构总览
 
 客户端 → Host 单一权威 → 本地数据，前后端分离。
 

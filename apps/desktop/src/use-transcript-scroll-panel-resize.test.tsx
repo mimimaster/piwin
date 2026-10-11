@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import { act, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { beginPanelResize } from './panel-resize-activity.js';
+import { installWindowResizeActivity, WINDOW_RESIZE_SETTLE_MS } from './window-resize-activity.js';
 import { useTranscriptScroll } from './use-transcript-scroll.js';
 
 function nextFrame(): Promise<void> {
@@ -11,7 +12,7 @@ function nextFrame(): Promise<void> {
   });
 }
 
-it('coalesces follow-tail sticks to one frame during a panel drag and settles on release', async () => {
+it.each(['panel', 'window'] as const)('coalesces follow-tail sticks during %s resize and settles on release', async (kind) => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -49,7 +50,14 @@ it('coalesces follow-tail sticks to one frame during a panel drag and settles on
     await act(async () => scroll?.jumpToLatest());
     expect(scroll.followTail).toBe(true);
 
-    release = beginPanelResize();
+    if (kind === 'panel') {
+      release = beginPanelResize();
+    } else {
+      const width = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1_000);
+      release = installWindowResizeActivity(window);
+      width.mockReturnValue(1_020);
+      window.dispatchEvent(new Event('resize'));
+    }
     scrollHeightReads = 0;
     act(() => {
       scrollHeight = 1_100;
@@ -67,8 +75,11 @@ it('coalesces follow-tail sticks to one frame during a panel drag and settles on
     // One coalesced stick per frame keeps the live tail visible while dragging.
     expect(scrollTop).toBe(900);
 
-    act(() => {
+    await act(async () => {
       scrollHeight = 1_250;
+      if (kind === 'window') {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, WINDOW_RESIZE_SETTLE_MS));
+      }
       release?.();
       release = null;
     });
@@ -79,5 +90,6 @@ it('coalesces follow-tail sticks to one frame during a panel drag and settles on
     release?.();
     act(() => root.unmount());
     container.remove();
+    vi.restoreAllMocks();
   }
 });

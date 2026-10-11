@@ -6,6 +6,15 @@ export const IconTerminal = createIcon(
   16,
 );
 
+/** Monitor on a stand: the graphical Desktop shell, as the counterpart of IconTerminal. */
+export const IconDesktop = createIcon(
+  <>
+    <rect x="2" y="2.75" width="12" height="8.25" rx="1.6" />
+    <path d="M8 11v2.25M5.5 13.25h5" />
+  </>,
+  16,
+);
+
 export const IconCode = createIcon(
   <>
     <path d="M15.75 7.5 20.25 12l-4.5 4.5" />

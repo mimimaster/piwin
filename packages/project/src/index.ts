@@ -28,4 +28,5 @@ export type {
   ResolveProjectPathResult,
 } from './path-traversal.js';
 export { commandInBashAllowlist, pathInFileWriteAllowlist } from './allowlist-match.js';
+export { createHostEntry, HostEntryCreateError } from './create-host-entry.js';
 export { projectIdForPath, resolveProjectPathById } from './project-id.js';

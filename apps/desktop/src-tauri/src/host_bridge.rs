@@ -268,8 +268,26 @@ pub(crate) fn resolve_cli_invocation(
     app: &AppHandle,
     subcommand: &[String],
 ) -> Result<CliInvocation, String> {
-    if is_shell_only_build() {
-        return Err(SHELL_ONLY_HOST_START_ERROR.to_string());
+    // A release thin shell has no bundled CLI. It can render the TUI with
+    // an installed CLI without ever starting a local Host.
+    if is_shell_only_build() && !cfg!(debug_assertions) {
+        let binary = if cfg!(windows) {
+            "piwin.exe"
+        } else {
+            "piwin"
+        };
+        let program = resolve::which(binary).ok_or_else(|| {
+            "Install the piwin CLI to use the terminal UI in attach-only Desktop".to_string()
+        })?;
+        return Ok(CliInvocation {
+            program,
+            args: subcommand.to_vec(),
+            cwd: app
+                .path()
+                .home_dir()
+                .map_err(|error| format!("resolve CLI working directory: {error}"))?,
+            environment: Vec::new(),
+        });
     }
     let resource_dir = app
         .path()

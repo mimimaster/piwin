@@ -7,6 +7,7 @@ import {
 import { handleMockAuthCommand } from './host-client-mock-auth.js';
 import { handleMockLiveCommand, type MockLiveSlot } from './host-client-mock-live.js';
 import { MockContextTelemetryStore } from './host-client-mock-context.js';
+import { MockHostFileSystem } from './host-client-mock-filesystem.js';
 import { handleMockHostCommands } from './host-client-mock-host.js';
 import { handleMockSessionReadCommands } from './host-client-mock-session-read.js';
 import { handleMockTurnCommands } from './host-client-mock-turn.js';
@@ -57,6 +58,7 @@ export type MockExtraCommandHandler = (command: HostCommand, id: string) => Host
 export class MockHostBackend {
   readonly emitPush: MockEmit;
   readonly getMode: () => HostMode;
+  readonly fileSystem = new MockHostFileSystem();
   readonly contextTelemetry = new MockContextTelemetryStore();
   readonly extraCommandHandlers: MockExtraCommandHandler[] = [];
 

@@ -15,7 +15,7 @@ use serde::Serialize;
 use serde_json::json;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::host_bridge::{host_request, resolve_cli_invocation, HostBridgeState};
+use crate::host_bridge::{host_request, HostBridgeState};
 
 static PTY_SEQ: AtomicU64 = AtomicU64::new(1);
 
@@ -173,11 +173,11 @@ impl Utf8StreamDecoder {
 
 /// What a PTY runs. The interactive shell is the default; Desktop's own CLI
 /// subcommands (the embedded TUI) are the only other program.
-struct PtyLaunch {
-    program: String,
-    args: Vec<String>,
-    cwd: std::path::PathBuf,
-    environment: Vec<(String, std::ffi::OsString)>,
+pub(crate) struct PtyLaunch {
+    pub program: String,
+    pub args: Vec<String>,
+    pub cwd: std::path::PathBuf,
+    pub environment: Vec<(String, std::ffi::OsString)>,
 }
 
 impl PtyLaunch {
@@ -193,99 +193,6 @@ impl PtyLaunch {
             environment: Vec::new(),
         }
     }
-}
-
-/// The session id travels as a CLI argument. It is a Host-minted opaque id;
-/// anything else is refused rather than passed to a process.
-fn is_safe_cli_id(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && !value.starts_with('-')
-        && value
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | ':'))
-}
-
-fn tui_subcommand(session_id: Option<&str>, project_path: Option<&str>) -> Result<Vec<String>, String> {
-    let mut subcommand = vec!["tui".to_string(), "--embedded".to_string()];
-    let non_empty = |value: Option<&str>| value.map(str::trim).filter(|value| !value.is_empty()).map(str::to_string);
-    if let Some(session_id) = non_empty(session_id) {
-        if !is_safe_cli_id(&session_id) {
-            return Err("invalid session id".to_string());
-        }
-        subcommand.push("--session".to_string());
-        subcommand.push(session_id);
-        // A session already has its scope; the project hint is for new ones.
-        return Ok(subcommand);
-    }
-    if let Some(project_path) = non_empty(project_path) {
-        // An absolute path cannot be read as an option. The TUI only matches
-        // it against projects the Host already knows; it opens nothing by path.
-        if !std::path::Path::new(&project_path).is_absolute() {
-            return Err("project path must be absolute".to_string());
-        }
-        subcommand.push("--project-path".to_string());
-        subcommand.push(project_path);
-    }
-    Ok(subcommand)
-}
-
-/// Open the terminal shell (`piwin tui --embedded`) in a PTY, attached to the
-/// sidecar Host through its loopback entrance (ADR 0086).
-///
-/// The door token goes from the sidecar to the child's environment inside
-/// this process; it is never returned to the webview.
-#[tauri::command]
-pub async fn pty_open_tui(
-    app: AppHandle,
-    state: State<'_, PtyHostState>,
-    host: State<'_, HostBridgeState>,
-    session_id: Option<String>,
-    project_path: Option<String>,
-    cols: Option<u16>,
-    rows: Option<u16>,
-) -> Result<PtyOpenResult, String> {
-    let subcommand = tui_subcommand(session_id.as_deref(), project_path.as_deref())?;
-    let response = host_request(host, json!({ "type": "local-shell-access/open" }), Some(8_000)).await?;
-    let data = response
-        .get("success")
-        .and_then(|value| value.as_bool())
-        .filter(|success| *success)
-        .and_then(|_| response.get("data"));
-    let read = |key: &str| {
-        data.and_then(|data| data.get(key))
-            .and_then(|value| value.as_str())
-            .map(str::to_string)
-    };
-    let (Some(endpoint), Some(auth_token)) = (read("endpoint"), read("authToken")) else {
-        let error = response
-            .get("error")
-            .and_then(|value| value.as_str())
-            .unwrap_or("local shell entrance unavailable");
-        return Err(error.to_string());
-    };
-
-    let invocation = resolve_cli_invocation(&app, &subcommand)?;
-    let mut environment: Vec<(String, std::ffi::OsString)> = invocation
-        .environment
-        .into_iter()
-        .map(|(key, value)| (key.to_string(), value))
-        .collect();
-    environment.push(("PIWIN_HOST_URL".to_string(), endpoint.into()));
-    environment.push(("PIWIN_HOST_TOKEN".to_string(), auth_token.into()));
-    let launch = PtyLaunch {
-        program: invocation.program,
-        args: invocation.args,
-        cwd: invocation.cwd,
-        environment,
-    };
-
-    let cols = cols.unwrap_or(80).max(20);
-    let rows = rows.unwrap_or(24).max(5);
-    let sessions = Arc::clone(&state.sessions);
-    tauri::async_runtime::spawn_blocking(move || pty_open_blocking(app, sessions, launch, cols, rows))
-        .await
-        .map_err(|error| format!("pty_open_tui worker failed: {error}"))?
 }
 
 /// Open an interactive PTY.
@@ -372,7 +279,7 @@ fn sidecar_is_absent(error: &str) -> bool {
     error.contains("host process is not running")
 }
 
-fn pty_open_blocking(
+pub(crate) fn pty_open_blocking(
     app: AppHandle,
     sessions: Arc<Mutex<HashMap<String, PtySession>>>,
     launch: PtyLaunch,
@@ -833,42 +740,5 @@ mod utf8_stream_tests {
         assert_eq!(decoder.push(b"ok\xffthen"), "ok\u{fffd}then");
         // A lead byte followed by a byte that cannot continue it.
         assert_eq!(decoder.push(b"\xe4A"), "\u{fffd}A");
-    }
-}
-
-#[cfg(test)]
-mod tui_launch_tests {
-    use super::*;
-
-    #[test]
-    fn tui_subcommand_is_always_embedded() {
-        assert_eq!(tui_subcommand(None, None).unwrap(), vec!["tui", "--embedded"]);
-        assert_eq!(
-            tui_subcommand(Some(" session-abc_1 "), None).unwrap(),
-            vec!["tui", "--embedded", "--session", "session-abc_1"]
-        );
-    }
-
-    #[test]
-    fn a_new_conversation_carries_its_project_and_an_existing_session_does_not() {
-        let project = if cfg!(windows) { "C:\\work\\app" } else { "/work/app" };
-        assert_eq!(
-            tui_subcommand(None, Some(project)).unwrap(),
-            vec!["tui", "--embedded", "--project-path", project]
-        );
-        assert_eq!(
-            tui_subcommand(Some("session-1"), Some(project)).unwrap(),
-            vec!["tui", "--embedded", "--session", "session-1"]
-        );
-    }
-
-    #[test]
-    fn tui_subcommand_refuses_values_that_could_be_read_as_options() {
-        for hostile in ["--mock", "a b", "../x", "a;b", "a/b"] {
-            assert!(tui_subcommand(Some(hostile), None).is_err(), "{hostile}");
-        }
-        for hostile in ["--mock", "relative/dir", "-x"] {
-            assert!(tui_subcommand(None, Some(hostile)).is_err(), "{hostile}");
-        }
     }
 }

@@ -121,6 +121,29 @@ describe('AttachmentQueue', () => {
     expect(queue.labels()).toEqual(['My Shot.png']);
   });
 
+  it('numbers images together, preserves refused-send numbers and restarts after take or clear', async () => {
+    const queue = new AttachmentQueue({ request: createHost().request });
+    await queue.addFile('s', await file('first.png', PNG), 'file-picker');
+    expect((await queue.addImageBytes('s', PNG, 'image/png', 'second.png')).imageNumber).toBe(2);
+    const taken = queue.take();
+    queue.restore(taken);
+    expect((await queue.addImageBytes('s', PNG, 'image/png', 'third.png')).imageNumber).toBe(3);
+    queue.take();
+    expect((await queue.addImageBytes('s', PNG, 'image/png', 'next.png')).imageNumber).toBe(1);
+    queue.clear();
+    expect((await queue.addImageBytes('s', PNG, 'image/png', 'fresh.png')).imageNumber).toBe(1);
+  });
+
+  it('assigns distinct image numbers to concurrent clipboard uploads', async () => {
+    const queue = new AttachmentQueue({ request: createHost().request });
+    const uploaded = await Promise.all([
+      queue.addImageBytes('s', PNG, 'image/png', 'first.png'),
+      queue.addImageBytes('s', PNG, 'image/png', 'second.png'),
+    ]);
+    expect(uploaded.map((entry) => entry.imageNumber)).toEqual([1, 2]);
+    expect(queue.count).toBe(2);
+  });
+
   it('stops at the per-prompt limit and gives taken attachments back on restore', async () => {
     const host = createHost();
     const queue = new AttachmentQueue({ request: host.request });

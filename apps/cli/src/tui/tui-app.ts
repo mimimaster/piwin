@@ -4,13 +4,13 @@ import {
   Editor,
   Loader,
   type TUI,
+  type ScrollView,
 } from '@earendil-works/pi-tui';
 import { formatTuiSessionAnnouncement } from '@piwin/contracts';
 import type {
   HostPush,
   RemotePendingPermission,
   RemoteProjectSummary,
-  RemoteSessionListData,
   RemoteSessionResumeData,
   RemoteSessionTranscriptPageData,
   SessionContextSnapshot,
@@ -41,6 +41,8 @@ import { createTuiControllers } from './tui-app-wiring.js';
 import { TUI_COMMAND_NAMES, TUI_SLASH_COMMANDS, parseSlashCommand } from './tui-commands.js';
 import { TuiComposerProfile } from './tui-composer-profile.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
+import { mountTuiLayout } from './tui-layout.js';
+import { readTuiSessionIndex } from './tui-session-index.js';
 import { StatusHint } from './status-hint.js';
 import { QueryListOverlay } from './query-list-overlay.js';
 import { describeHostFailure } from './host-failure-text.js';
@@ -66,7 +68,6 @@ import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiAutocompleteProvider } from './tui-autocomplete.js';
 import { editorTheme, style } from './tui-theme.js';
 
-const SESSION_LOOKUP_LIMIT = 500;
 const TRANSCRIPT_PAGE_ITEMS = 50;
 const FOREIGN_PROMPT_PAGE_ITEMS = 6;
 const TRANSCRIPT_PAGE_BYTES = 256 * 1024;
@@ -104,6 +105,8 @@ export class TuiApp {
   private readonly tui: TUI;
   private readonly link: TuiHostLink;
   private readonly transcriptView: TranscriptView;
+  private readonly transcriptScroll: ScrollView | undefined;
+  private openingSession = false;
   private readonly activitySlot = new Container();
   private readonly editor: Editor;
   private readonly statusLine = new StatusLine();
@@ -159,6 +162,7 @@ export class TuiApp {
     this.tui = options.tui;
     this.keybindings = options.config?.keybindings ?? DEFAULT_KEYBINDINGS;
     this.link = options.link;
+    this.openingSession = options.sessionId !== undefined;
     this.projectId = options.projectId;
     this.transcriptView = new TranscriptView(options.embedded);
     this.editor = new Editor(this.tui, editorTheme, { paddingX: 1 });
@@ -237,10 +241,9 @@ export class TuiApp {
     this.sender = controllers.sender;
     this.sessionSwitcher = controllers.sessionSwitcher;
     this.runCommand = controllers.runCommand;
-    this.tui.addChild(this.transcriptView);
-    this.tui.addChild(this.activitySlot);
-    this.tui.addChild(this.editor);
-    this.tui.addChild(this.statusLine);
+    this.transcriptScroll = mountTuiLayout(this.tui, {
+      transcript: this.transcriptView, activity: this.activitySlot, editor: this.editor, status: this.statusLine,
+    });
     this.globalKeys = new TuiGlobalKeys({
       editor: this.editor,
       embedded: options.embedded,
@@ -290,18 +293,26 @@ export class TuiApp {
     );
     this.tui.start();
     this.refreshChrome();
+    const profileErrors: unknown[] = [];
+    const recordProfileError = (error: unknown): void => { profileErrors.push(error); };
+    const projects = this.loadProjects().catch(recordProfileError);
     await Promise.all([
-      this.loadProjects(),
-      this.composer.loadModels(),
-      this.composer.loadHostPermissionPreset(),
-      this.composer.loadPromptTemplates(),
+      Promise.all([
+        projects,
+        this.composer.loadModels().catch(recordProfileError),
+        this.composer.loadHostPermissionPreset().catch(recordProfileError),
+        this.composer.loadPromptTemplates().catch(recordProfileError),
+      ]).then(() => {
+        this.rebuildAutocomplete();
+        this.refreshChrome();
+      }),
+      this.options.sessionId !== undefined
+        ? this.openSession(this.options.sessionId)
+        : this.options.openSessionPicker === true && !this.options.embedded
+          ? projects.then(() => this.sessionSwitcher.open())
+          : Promise.resolve(),
     ]);
-    this.rebuildAutocomplete();
-    if (this.options.sessionId !== undefined) {
-      await this.openSession(this.options.sessionId);
-    } else if (this.options.openSessionPicker === true && !this.options.embedded) {
-      await this.sessionSwitcher.open();
-    }
+    for (const error of profileErrors) this.reportError(error);
     if (this.options.startNotice !== undefined) {
       // After the session opened: opening replaces the transcript.
       this.transcript = appendNotice(this.transcript, 'info', this.options.startNotice);
@@ -333,41 +344,66 @@ export class TuiApp {
     // Reloading the session on screen is the same conversation.
     if (sessionId !== this.sessionId) this.conversation = {};
     const previous = { sessionId: this.sessionId, projectId: this.sessionProjectId };
-    await this.link.client.updateSubscriptions([sessionId]);
-    const resume = hostData<RemoteSessionResumeData>(
-      await this.link.request({ type: 'session/resume', sessionId }),
-    );
-    if (epoch !== this.sessionEpoch) return;
-    this.sessionId = sessionId;
-    this.sessionName = resume.name;
-    const indexed = await this.lookUpIndexedSession(sessionId);
-    this.sessionProjectId =
-      resume.scope === 'project'
-        ? (indexed?.projectId ??
-          // A side chat is not in the session index; it lives in its source's project.
-          (this.sideChat.sourceSessionOf(sessionId) === previous.sessionId ? previous.projectId : undefined))
-        : undefined;
-    this.sessionAgentId = indexed?.agentId;
-    this.sessionArchived = indexed?.archived === true;
-    if (epoch !== this.sessionEpoch) return;
-    this.transcript = transcriptFromMessages(resume.messages);
-    this.olderCursor = resume.transcriptPage?.olderCursor;
-    // Pushes only report changes; a reopened idle session would show no usage without this.
-    this.context = resume.contextSnapshot;
-    this.usage.reset(resume.lastRequestUsage);
-    if (resume.model !== undefined) this.composer.adoptSessionModel(resume.model);
-    this.modals.clearQueue();
-    await this.reconcileForegroundRun(sessionId, epoch);
-    if (epoch !== this.sessionEpoch) return;
-    await this.features.load(sessionId);
-    if (epoch !== this.sessionEpoch) return;
-    this.editingMessageId = undefined;
-    this.announceSession(sessionId);
-    await this.loadPendingPermissions(sessionId, epoch);
-    // The previous session's lines are still on screen and in scrollback.
-    this.transcriptView.invalidate();
-    this.refreshChrome(true);
-    this.modals.pump();
+    this.openingSession = true;
+    this.foreground = { kind: 'reconciling', generation: (this.foregroundGeneration += 1) };
+    if (previous.sessionId !== sessionId) this.features.reset();
+    try {
+      await this.link.client.updateSubscriptions([sessionId]);
+      // Subscribe first, then resume and look up metadata together. The history
+      // can be drawn as soon as it arrives, while the index is still loading.
+      const [resume, indexed] = await Promise.all([
+        this.link.request({ type: 'session/resume', sessionId }).then((response) => {
+          const snapshot = hostData<RemoteSessionResumeData>(response);
+          if (epoch === this.sessionEpoch) {
+            this.sessionId = sessionId;
+            this.sessionName = snapshot.name;
+            this.transcript = transcriptFromMessages(snapshot.messages);
+            this.olderCursor = snapshot.transcriptPage?.olderCursor;
+            this.context = snapshot.contextSnapshot;
+            this.usage.reset(snapshot.lastRequestUsage);
+            if (snapshot.model !== undefined) this.composer.adoptSessionModel(snapshot.model);
+            this.editingMessageId = undefined;
+            if (previous.sessionId !== sessionId) this.transcriptScroll?.scrollToEnd();
+            this.transcriptView.invalidate();
+            this.refreshChrome(true);
+          }
+          return snapshot;
+        }),
+        readTuiSessionIndex(this.link, sessionId),
+      ]);
+      if (epoch !== this.sessionEpoch) return;
+      this.sessionProjectId =
+        resume.scope === 'project'
+          ? (indexed?.projectId ??
+            // A side chat is not in the session index; it lives in its source's project.
+            (this.sideChat.sourceSessionOf(sessionId) === previous.sessionId ? previous.projectId : undefined))
+          : undefined;
+      this.sessionAgentId = indexed?.agentId;
+      this.sessionArchived = indexed?.archived === true;
+      this.modals.clearQueue();
+      await Promise.all([
+        this.features.load(sessionId),
+        Promise.all([
+          this.reconcileForegroundRun(sessionId, epoch),
+          this.loadPendingPermissions(sessionId, epoch),
+        ]).then(() => {
+          if (epoch !== this.sessionEpoch) return;
+          // Input is safe once target/foreground/permissions are known. Auxiliary
+          // feature reads must not keep a usable conversation behind a spinner.
+          this.openingSession = false;
+          this.announceSession(sessionId);
+          this.refreshChrome();
+          this.modals.pump();
+        }),
+      ]);
+      if (epoch === this.sessionEpoch) this.refreshChrome();
+    } catch (error) {
+      if (epoch === this.sessionEpoch) {
+        this.openingSession = false;
+        this.refreshChrome();
+      }
+      throw error;
+    }
   }
 
   /** Requests raised before this shell opened the session (or while it was offline). */
@@ -381,28 +417,6 @@ export class TuiApp {
         this.prompts.askPermission(pending);
       }
     }
-  }
-
-  /** The resume payload says "project" but not which one, nor which agent; the index does. */
-  private async lookUpIndexedSession(
-    sessionId: string,
-  ): Promise<{ projectId?: string; agentId?: string; archived?: boolean } | undefined> {
-    const response = await this.link.request({
-      type: 'session/list',
-      scopeRef: { kind: 'all-authorized' },
-      order: 'updated',
-      maxItems: SESSION_LOOKUP_LIMIT,
-      includeArchived: true,
-    });
-    if (!response.success) return undefined;
-    const session = (response.data as RemoteSessionListData).sessions.find((item) => item.sessionId === sessionId);
-    if (session === undefined) return undefined;
-    const agentId = session.backend?.agentId;
-    return {
-      ...(session.projectId === undefined ? {} : { projectId: session.projectId }),
-      ...(agentId === undefined || agentId === 'pi' ? {} : { agentId }),
-      ...(session.archived === true ? { archived: true } : {}),
-    };
   }
 
   /** `agentId` picks the backend of the session this draft becomes; absent keeps the launch choice. */
@@ -444,6 +458,8 @@ export class TuiApp {
   }
 
   private startDraftSession(agentId?: string): void {
+    this.openingSession = false;
+    this.transcriptScroll?.scrollToEnd();
     this.draftAgentId = agentId === undefined ? this.options.agentId : agentId === 'pi' ? undefined : agentId;
     this.sessionAgentId = this.draftAgentId;
     this.sessionArchived = false;
@@ -488,6 +504,7 @@ export class TuiApp {
    * so the next caller starts a fresh one instead of waiting on the failure.
    */
   private ensureSession(): Promise<string> {
+    if (this.openingSession) return Promise.reject(new Error('会话正在加载，请稍候再操作'));
     if (this.sessionId !== undefined) return Promise.resolve(this.sessionId);
     this.creatingSession ??= this.createSession().finally(() => {
       this.creatingSession = undefined;
@@ -557,7 +574,13 @@ export class TuiApp {
   private async submit(rawText: string): Promise<void> {
     const typedText = rawText.trim();
     if (typedText.length === 0) return;
+    if (this.openingSession) {
+      this.editor.setText(rawText);
+      this.flashHint('会话正在加载，请稍候再发送');
+      return;
+    }
     this.editor.setText('');
+    this.transcriptScroll?.scrollToEnd();
     const command = parseSlashCommand(typedText);
     if (command !== undefined) {
       await this.runCommand(command.name, command.argument);
@@ -751,7 +774,7 @@ export class TuiApp {
       this.loader.stop();
       this.activitySlot.clear();
     }
-    this.statusLine.setText(style.gray(this.describeStatus()));
+    this.statusLine.setText(style.gray(this.openingSession ? '正在加载会话…' : this.describeStatus()));
     this.tui.terminal.setTitle(`piwin · ${this.sessionName ?? '新会话'}`);
     this.tui.requestRender(forceFullRedraw);
   }

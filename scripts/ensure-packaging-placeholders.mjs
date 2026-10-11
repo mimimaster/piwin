@@ -42,6 +42,10 @@ async function main() {
       'utf8',
     );
   }
+  if (!(await readdir(distHost)).some((name) => /^cli-chunk-.*\.mjs$/.test(name))) {
+    // Tauri rejects an unmatched resource glob even in a source-only checkout.
+    await writeFile(join(distHost, 'cli-chunk-placeholder.mjs'), '// placeholder — run pnpm bundle:host before packaging\n', 'utf8');
+  }
   if (!(await exists(join(distHost, 'package.json')))) {
     await writeFile(
       join(distHost, 'package.json'),

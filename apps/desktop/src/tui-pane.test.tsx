@@ -4,31 +4,37 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
+import type { HostAttachTarget } from '@piwin/contracts';
+import type { TuiPaneProps } from './tui-pane';
 import type { DesktopLocale } from './desktop-locale';
 
 const pty = vi.hoisted(() => ({
   available: true,
   mounts: 0,
   announce: undefined as ((sessionId: string) => void) | undefined,
+  stop: undefined as (() => void) | undefined,
 }));
 
 vi.mock('./tauri-pty', () => ({ isTauriPtyAvailable: () => pty.available }));
 vi.mock('./xterm-surface', () => ({
   XtermSurface: (props: {
-    tui?: { sessionId?: string };
+    tui?: { sessionId?: string; remoteTarget?: HostAttachTarget };
     projectPath?: string;
     onTuiSession?: (sessionId: string) => void;
+    onStatus?: (kind: string, ptyId: string | null) => void;
   }) => {
     // One id per mounted process: a remount shows as a new id.
     const mount = useRef(0);
     if (mount.current === 0) mount.current = pty.mounts += 1;
     pty.announce = props.onTuiSession;
+    pty.stop = () => props.onStatus?.('exited', null);
     return (
       <div
         data-testid="xterm-stub"
         data-session={props.tui?.sessionId ?? 'new'}
         data-project={props.projectPath ?? ''}
         data-mount={mount.current}
+        data-host={props.tui?.remoteTarget?.endpoint ?? 'local'}
       />
     );
   },
@@ -43,6 +49,7 @@ describe('TuiPane', () => {
   beforeEach(() => {
     pty.mounts = 0;
     pty.announce = undefined;
+    pty.stop = undefined;
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     document.body.append(container);
@@ -60,6 +67,7 @@ describe('TuiPane', () => {
     locale: DesktopLocale,
     projectPath?: string,
     onSessionChange?: (sessionId: string) => void,
+    connection: Pick<TuiPaneProps, 'hostKey' | 'remoteTarget'> = {},
   ): void {
     act(() => {
       root.render(
@@ -67,6 +75,7 @@ describe('TuiPane', () => {
           <TuiPane
             sessionId={sessionId}
             locale={locale}
+            {...connection}
             {...(projectPath ? { projectPath } : {})}
             {...(onSessionChange ? { onSessionChange } : {})}
           />
@@ -97,6 +106,8 @@ describe('TuiPane', () => {
     // Desktop opens the session the TUI announced: same process, no restart.
     renderPane('session-new', 'zh-CN', '/work/app', changed);
     expect(surface()?.dataset.mount).toBe(before);
+    // Stable keys must also keep XtermSurface's effect inputs unchanged.
+    expect(surface()?.dataset.session).toBe('new');
   });
 
   it('restarts the terminal shell when Desktop moves to a session the shell did not announce', () => {
@@ -115,6 +126,51 @@ describe('TuiPane', () => {
     renderPane(null, 'zh-CN', '/work/app');
     expect(surface()?.dataset.mount).not.toBe(adopted);
     expect(surface()?.dataset.session).toBe('new');
+  });
+
+  it('restarts on the adopted session rather than creating another conversation', () => {
+    renderPane(null, 'zh-CN', '/work/app');
+    act(() => pty.announce?.('session-new'));
+    renderPane('session-new', 'zh-CN', '/work/app');
+    act(() => pty.stop?.());
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="tui-pane-restart"]')?.click());
+    expect(surface()?.dataset.session).toBe('session-new');
+  });
+
+  it('does not keep a stale announcement after navigation to another session', () => {
+    renderPane(null, 'zh-CN');
+    act(() => pty.announce?.('session-announced'));
+    renderPane('session-other', 'zh-CN');
+    const before = surface()?.dataset.mount;
+    renderPane('session-announced', 'zh-CN');
+    expect(surface()?.dataset.mount).not.toBe(before);
+    expect(surface()?.dataset.session).toBe('session-announced');
+  });
+
+  it('keeps remote launch inputs during adoption and restarts on a different Host', () => {
+    const first = { remoteTarget: { endpoint: 'wss://first.example', authToken: 'secret' } };
+    renderPane(null, 'zh-CN', undefined, undefined, first);
+    const before = surface()?.dataset.mount;
+    expect(surface()?.dataset.host).toBe('wss://first.example');
+    act(() => pty.announce?.('session-new'));
+    renderPane('session-new', 'zh-CN', undefined, undefined, { ...first });
+    expect(surface()?.dataset.mount).toBe(before);
+    expect(surface()?.dataset.session).toBe('new');
+    act(() => pty.announce?.('session-new'));
+    renderPane('session-new', 'zh-CN', undefined, undefined, {
+      remoteTarget: { endpoint: 'wss://second.example' },
+    });
+    expect(surface()?.dataset.mount).not.toBe(before);
+    expect(surface()?.dataset.host).toBe('wss://second.example');
+    expect(surface()?.dataset.session).toBe('session-new');
+  });
+
+  it('restarts when the Host instance changes at the same endpoint', () => {
+    const remoteTarget = { endpoint: 'wss://first.example' };
+    renderPane('session-1', 'zh-CN', undefined, undefined, { remoteTarget, hostKey: 'instance-1' });
+    const before = surface()?.dataset.mount;
+    renderPane('session-1', 'zh-CN', undefined, undefined, { remoteTarget, hostKey: 'instance-2' });
+    expect(surface()?.dataset.mount).not.toBe(before);
   });
 
   it('starts nothing outside the desktop app', () => {

@@ -57,8 +57,10 @@ describe('TUI end to end against a mock Host', () => {
     it('lists its commands and leaves an unknown slash word to the agent', async () => {
       tui = await startTuiHarness();
       await tui.submit('/help');
-      await tui.waitFor('/sessions  切换、搜索、重命名、归档会话');
       await tui.waitFor('Shift+Tab 权限模式');
+      // Help is longer than the transcript viewport; the fixed composer stays below it.
+      await tui.press(KEY.pageUp);
+      await tui.waitFor('/sessions  切换、搜索、重命名、归档会话');
       await converse(tui, '/not-a-tui-command');
     });
 

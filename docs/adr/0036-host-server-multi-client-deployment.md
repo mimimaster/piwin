@@ -125,3 +125,34 @@ Tauri-local under ADR 0013 until a separate remote PTY design is accepted.
   model; the Host is the source of truth and clients use protocol-level state.
 - **A new remote-only wire protocol** — rejected; all transports reuse the
   normalized Host protocol.
+
+## 2026-10-10 amendment: Host file picker creation
+
+The file picker extends `host/list-dir` with `host/create-entry`, accepting an
+absolute Host parent path, one child name, and `directory` or `file`. This is
+an explicit operator action available before opening/registering a project.
+`@piwin/project` owns filesystem creation; `@piwin/host-runtime` dispatches the
+same command in SDK and RPC modes. Apps use contracts and never perform the
+filesystem write themselves.
+
+The parent must already exist. Reject separators, traversal, invalid Windows
+names, and existing entries (including dangling symlinks). Files are created
+empty with exclusive creation and folders use non-recursive creation. Failures
+return stable `host-entry-*` problem codes. The remote server validates payloads,
+retains the new entry's Host path for the picker just as for directory listings,
+and advertises `hostCreateEntry`; normal authentication and command ceilings
+remain in force.
+
+Desktop workspace, knowledge folder, and script pickers offer creation, refresh,
+and hidden-file visibility through shared UI. A nested name dialog supports
+Enter to create and Escape to cancel; success refreshes the parent, opens the
+new folder or selects the new file, and clears filters that would hide it.
+CLI may issue the same Host command but has no visual folder-picker interface.
+
+The picker keeps its footer for Cancel/Open (Choose for file selection). A compact
+File actions menu in the toolbar exposes New Folder, New File, Refresh, and Show
+Hidden Files. Context menus name their target folder. A folder row offers Open
+Folder and creation inside that folder; a file row or column blank space uses
+the containing column for creation and view operations. Refreshing a column preserves the
+current location and selection. Naming opens a focused dialog with an explicit
+parent path; Enter creates and Escape cancels only that dialog.

@@ -12,7 +12,7 @@
  *   Inkstone parks project/branch chips in the stage header trailing slot
  *   (no separate session-context row) so the transcript keeps height.
  */
-import type { ReactElement, ReactNode } from 'react';
+import { useEffect, useRef, type ReactElement, type ReactNode } from 'react';
 
 export type WorkspaceShellProps = {
   sidebar: ReactNode;
@@ -26,13 +26,12 @@ export type WorkspaceShellProps = {
   activityDock?: ReactNode | undefined;
   permissionBar?: ReactNode | undefined;
   composerDock: ReactNode;
-  /** Floats over the conversation stage whatever draws it (surface switch). */
-  conversationOverlay?: ReactNode | undefined;
   /**
-   * Draws the whole conversation stage in place of transcript, activity,
-   * permission bar and composer — the terminal shell owns all four itself.
+   * Alternate conversation view. Both views stay mounted so switching avoids
+   * process startup and transcript/composer reconstruction.
    */
   conversationOverride?: ReactNode | undefined;
+  conversationOverrideActive?: boolean | undefined;
   rightPanel: ReactNode;
   workspaceClassName?: string | undefined;
   chatColumnClassName?: string | undefined;
@@ -48,12 +47,21 @@ type WorkspaceChatColumnProps = Pick<
   | 'activityDock'
   | 'permissionBar'
   | 'composerDock'
-  | 'conversationOverlay'
   | 'conversationOverride'
+  | 'conversationOverrideActive'
   | 'chatColumnClassName'
 >;
 
 function WorkspaceChatColumn(props: WorkspaceChatColumnProps): ReactElement {
+  const desktop = useRef<HTMLDivElement | null>(null);
+  const previousOverride = useRef(props.conversationOverrideActive === true);
+  useEffect(() => {
+    const returning = previousOverride.current && props.conversationOverrideActive !== true;
+    previousOverride.current = props.conversationOverrideActive === true;
+    if (!returning) return;
+    const frame = requestAnimationFrame(() => desktop.current?.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]')?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [props.conversationOverrideActive]);
   return (
     <section
       className={`chat-column${props.chatColumnClassName !== undefined ? ` ${props.chatColumnClassName}` : ''}`}
@@ -61,15 +69,13 @@ function WorkspaceChatColumn(props: WorkspaceChatColumnProps): ReactElement {
       {props.stageHeader}
       {props.sessionContext}
       <div className="chat-stage">
-        {props.conversationOverlay}
-        {props.conversationOverride ?? (
-          <>
-            {props.transcript}
-            {props.activityDock !== undefined ? props.activityDock : null}
-            {props.permissionBar !== undefined ? props.permissionBar : null}
-            {props.composerDock}
-          </>
-        )}
+        <div ref={desktop} className="conversation-desktop-surface" hidden={props.conversationOverrideActive === true}>
+          {props.transcript}
+          {props.activityDock !== undefined ? props.activityDock : null}
+          {props.permissionBar !== undefined ? props.permissionBar : null}
+          {props.composerDock}
+        </div>
+        {props.conversationOverride}
       </div>
     </section>
   );
@@ -84,8 +90,8 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
       activityDock={props.activityDock}
       permissionBar={props.permissionBar}
       composerDock={props.composerDock}
-      conversationOverlay={props.conversationOverlay}
       conversationOverride={props.conversationOverride}
+      conversationOverrideActive={props.conversationOverrideActive}
       chatColumnClassName={props.chatColumnClassName}
     />
   );

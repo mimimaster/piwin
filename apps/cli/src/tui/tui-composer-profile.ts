@@ -65,6 +65,8 @@ export class TuiComposerProfile {
       await this.options.link.request({ type: 'models/configured' }),
     );
     this.models = data.models ?? [];
+    // Resume can arrive before this catalog; recover its label/default profile.
+    if (this.model !== undefined) this.adoptSessionModel(this.model);
   }
 
   /** Best effort: without the list, a template still works when typed by name. */

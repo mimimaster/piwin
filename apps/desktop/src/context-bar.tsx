@@ -46,6 +46,7 @@ export type ContextBarProps = {
   onOpenSearch?: (() => void) | undefined;
   /** Persistent session-level navigation control rendered beside the title. */
   sessionTreeControl?: ReactNode;
+  conversationShellControl?: ReactNode;
   /** SF-04: product session origin for branch/duplicate badge. */
   origin?: ProductSessionOrigin | null;
   /** SF-04: callback to return to root/parent session. */
@@ -298,6 +299,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
         role="toolbar"
         aria-label={titlebarCopy.tools}
       >
+        {props.conversationShellControl}
         <span className="seg ml" aria-label={isChinese ? '输入石板' : 'Input slab'}>
           <button
             type="button"

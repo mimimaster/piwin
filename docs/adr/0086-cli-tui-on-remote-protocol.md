@@ -47,15 +47,44 @@ Two things in the existing rules stood in the way of the obvious build:
    reducer, which is bound to React state and Desktop-only concerns.
 6. **`--embedded` pins the TUI to one session** and disables its session
    switching, for a host application that owns navigation.
-7. **Desktop can draw the conversation area with the TUI.** A "对话 / 终端"
-   switch on the conversation stage replaces transcript, permission bar and
-   composer with an xterm surface on a Desktop PTY running the same program
-   the sidecar Host runs, as `tui --embedded`. With an active session it runs
-   `--session <id>` and restarts when the active session changes; with none
-   it starts a new conversation, scoped by `--project-path` to the active
-   project when that project is registered on the Host. The choice is a
-   device preference (`piwin.desktop.conversation-surface`), not session
-   state. The switch is offered only where a local Host exists.
+7. **Desktop and CLI are two views of the conversation.** The titlebar has
+   an icon-only segmented switch before the Inkstone/paper and light/dark
+   controls. It is two square cells forming one pill, sized like the titlebar
+   icon buttons: a monitor for Desktop and a `>_` prompt for CLI, drawn at the
+   same stroke weight. The selected glyph is white on dark themes and black on
+   light themes; the other is muted. (The brush brand mark read as a loading
+   spinner at this size, and a chat bubble duplicated the conversation icon.)
+   The homepage
+   selects the agent engine (piwin or Grok), with no separate TUI session card.
+   Selecting CLI shows xterm and hides the mounted Desktop transcript,
+   permission bar and composer. xterm renders through its WebGL addon so cell
+   backgrounds stay on the grid; the DOM renderer remains the fallback when
+   WebGL2 is unavailable or the context is lost. One terminal is retained after its first open
+   for the current Host/session/scope, so repeated switches do not restart the
+   CLI, lose its draft or reconstruct the Desktop view. Hidden terminals keep
+   their grid, blur, and refit/focus when shown. Navigation, feature disable,
+   Host replacement or a new conversation releases the retained view. Renderer
+   code warms on pointer/focus intent; cold startup shows progress immediately.
+   Pi uses a Desktop PTY running the sidecar's CLI as `tui --embedded`:
+   `--session <id>` for existing sessions, `--project-path` for a local new
+   conversation or `--project <opaque-id>` for a remote one. Newly announced
+   sessions are adopted without restarting the terminal, including a Grok
+   session's transition from General to the built-in No Repo workspace.
+   The monitor cell restores Desktop; starting a new conversation restores Desktop.
+   The view follows Desktop's **active local or remote Host**. Pi remote
+   launches explicitly pass the selected endpoint and its token or paired
+   credential, never request the local sidecar entrance. Grok instead runs
+   the native Grok Build TUI on that Host, using its persisted native session
+   id, via Host-owned terminal commands (ADR 0082). Returning from Grok reloads
+   native history and explicitly refreshes the same Desktop conversation.
+   Host changes close the old view. Browser and mobile have no entry.
+   General settings stores the device preference
+   `piwin.desktop.terminalEnabled`, gating both conversation and inspector
+   terminals, including remembered tabs. Missing preferences default off in
+   production and on in development, test mode, and E2E fixture builds. An
+   explicit preference wins. The retired conversation-surface preference is
+   ignored. This switch does not disable Host process tools or standalone CLI.
+
 8. **The sidecar gets a loopback entrance for local shells.** The sidecar
    speaks JSONL on stdio, which a second process cannot share. A local-only
    sidecar command, `local-shell-access/open`, starts a `HostServer` on
@@ -64,10 +93,36 @@ Two things in the existing rules stood in the way of the obvious build:
    listens until the first request. It is independent of phone access: a
    different listener, no device pairing, and the phone-access switch does not
    affect it.
-9. **The token does not pass through the webview on the way to the TUI.**
+9. **The local entrance token remains native-only on the way to the TUI.**
    `pty_open_tui` (Rust) asks the sidecar for the entrance and puts the
    endpoint and token in the child's environment. `local-shell-access/*` is
-   refused on every WebSocket connection, like `mobile-access/*`.
+   refused on every WebSocket connection, like `mobile-access/*`. For an
+   explicit remote target, `pty_open_remote_tui` puts Desktop's already-held admission
+   in the child environment. Credentials never enter command arguments. Unused
+   inherited admission fields are cleared; invalid explicit attachment fails
+   instead of creating a local Host. Separate native command names make an
+   older running Desktop reject a remote launch instead of ignoring its target
+   during frontend hot reload. Thin-shell development uses the workspace
+   CLI; packaged thin shells require an installed `piwin` CLI (a native
+   `piwin.exe` on Windows). The local Host start prohibition still applies.
+
+10. **Pi's composer stays at the bottom of the terminal.** `TuiAltScreen`
+    mounts a `VStack` with a primary `ScrollView` for the transcript and a
+    fixed activity/editor/status footer. Wheel and Page Up/Down scroll the
+    transcript without moving the input. Output follows the end until the
+    reader scrolls back; sending a prompt or opening a different session
+    follows the end again. Short terminals give space to the editor cursor.
+11. **Attached CLI startup only loads the client shell.** Command handlers are
+    dynamic imports; `@piwin/host-runtime/paths` exposes the existing Node-only
+    root helpers without the composition graph. Host-runtime and Host-server
+    implementations load only if no Host attachment was requested. Packaged
+    commands use sibling ESM chunks (ADR 0017), preserving deferred external
+    imports. Embedded existing-session launches skip the pre-frame draft project lookup;
+    resume/index/profile reads overlap and resumed history draws immediately.
+    Target metadata, foreground and pending permissions still settle before
+    sending input; early Enter keeps the draft and early media paste cannot
+    create an unrelated session. Plan/queue/branch/subagent reads do not delay
+    the embedded session-ready announcement.
 
 ## Composer inputs
 
@@ -89,6 +144,13 @@ Two things in the existing rules stood in the way of the obvious build:
   it — is attached and replaced by a marker; other paths are left as written.
   The clipboard image comes from the platform tool (`osascript`,
   `wl-paste`/`xclip`, PowerShell), since a terminal paste carries text only.
+  A successful clipboard upload inserts `【image 1】`, `【image 2】`, etc. at
+  the composer's current cursor, without replacing surrounding text or folded
+  text pastes. The numbering follows image attachments in the pending prompt;
+  a refused send keeps both markers and attachments, and the next prompt
+  starts numbering again. Empty clipboard and refused uploads insert nothing.
+  These markers are visible text; image bytes still reach the Host as native
+  media attachments, never as a path or encoded text in the prompt.
 - A message sent while a run is in flight joins that run as plain text:
   references and attachments wait for a turn of their own.
 
@@ -165,9 +227,20 @@ session and no terminal to take.
   global ones only).
 - Switching back to the chat surface ends the TUI process. Nothing is lost
   (state is the Host's), but terminal scrollback is.
-- A conversation the TUI starts does not become Desktop's active session by
-  itself; it appears in the sidebar like one started from any other shell.
 - Split conversation panes other than the primary one always use the chat
   surface.
-- With a remote (attach-only) Host there is no sidecar, so the pane reports
-  that it is unavailable.
+
+## Desktop startup lifecycle (2026-10-10)
+
+PTY output and exit events can arrive before the native open response returns
+its id. Desktop registers both listeners first, buffers a bounded startup
+window, then replays only the opened PTY's events. A pane removed during open
+unsubscribes immediately and closes a late-created PTY. Listener registration
+errors surface as startup failures. This keeps the first frame and session
+announcement visible and makes an immediate exit observable.
+
+The TUI stage explicitly stretches across its parent, including the centered
+empty homepage. Its width is determined by the conversation stage, never by
+xterm's fitted canvas: otherwise each fit subtracts padding from its own
+previous width and the pane repeatedly narrows. Browser regression coverage
+checks this with real xterm rendering in Chromium and Desktop WebKit.

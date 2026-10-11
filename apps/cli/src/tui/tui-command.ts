@@ -1,9 +1,9 @@
 import { createWriteStream, mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { format } from 'node:util';
-import { ProcessTerminal, TuiMainScreen } from '@earendil-works/pi-tui';
+import { ProcessTerminal, TuiAltScreen } from '@earendil-works/pi-tui';
 import type { RemoteProjectSummary, RemoteSessionListData } from '@piwin/contracts';
-import { getPiwinRoot } from '@piwin/host-runtime';
+import { getPiwinRoot } from '@piwin/host-runtime/paths';
 import { parseMock, readOption } from '../cli-args.js';
 import { promptHistoryFile } from './prompt-history.js';
 import { parseCliAgent } from '../external-agent-cli.js';
@@ -45,17 +45,23 @@ export async function commandTui(argv: string[]): Promise<void> {
 
   let app: TuiApp | undefined;
   try {
-    const { projects = [] } = hostData<{ projects?: RemoteProjectSummary[] }>(
-      await link.request({ type: 'project/list' }),
-    );
+    const intent = resolveTuiLaunchSessionIntent(argv);
+    const explicitProjectId = readOption(argv, '--project');
+    // Desktop pins an existing conversation; standalone keeps cwd scope for
+    // later /new commands and project prompt history.
+    const skipDraftScope = embedded && intent.kind === 'session';
+    const projects = skipDraftScope || explicitProjectId !== undefined
+      ? []
+      : hostData<{ projects?: RemoteProjectSummary[] }>(
+          await link.request({ type: 'project/list' }),
+        ).projects ?? [];
     const { projectId, notice } = resolveTuiLaunchScope({
       projects,
-      explicitProjectId: readOption(argv, '--project'),
-      explicitPath: readOption(argv, '--project-path'),
+      explicitProjectId,
+      explicitPath: skipDraftScope ? undefined : readOption(argv, '--project-path'),
       cwd: process.cwd(),
       canonicalPath,
     });
-    const intent = resolveTuiLaunchSessionIntent(argv);
     let sessionId: string | undefined;
     let openSessionPicker = false;
     if (intent.kind === 'session') {
@@ -67,7 +73,7 @@ export async function commandTui(argv: string[]): Promise<void> {
     }
     const config = loadTuiConfig(getPiwinRoot());
     const startNotice = [notice, ...config.problems].filter((line): line is string => line !== undefined).join('\n');
-    const tui = new TuiMainScreen(new ProcessTerminal());
+    const tui = new TuiAltScreen(new ProcessTerminal());
     await new Promise<void>((resolve, reject) => {
       app = new TuiApp({
         tui,

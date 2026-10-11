@@ -78,7 +78,7 @@ export function projectRemoteResponse(
   if (command.type === 'host/status') {
     return { ...response, data: projectRemoteStatusData(response.data, context) };
   }
-  if (command.type === 'host/list-dir') {
+  if (command.type === 'host/list-dir' || command.type === 'host/create-entry') {
     return response;
   }
   if (command.type === 'activity/summary') {
@@ -303,6 +303,7 @@ export function createRemoteCapabilities(
     flashcardStudy: true,
     knowledgeBases: true,
     hostListDir: true,
+    hostCreateEntry: true,
     homeDirectory: os.homedir(),
   };
 }

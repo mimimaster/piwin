@@ -78,3 +78,21 @@ describe('TuiComposerProfile default model', () => {
     expect(profile.describe()[0]).toBe('默认模型');
   });
 });
+
+
+describe('TUI profile arriving after resume', () => {
+  it('fills in the selected session model label when the catalog finally arrives', async () => {
+    const request = async (command: HostCommand): Promise<HostResponse> => ({
+      type: 'response', command: command.type, success: true, data: { models: MODELS },
+    });
+    const profile = new TuiComposerProfile({
+      link: { request } as unknown as TuiHostLink, modals: new FakeModals() as unknown as TuiModalStack,
+      getSessionId: () => 's1', getAgentId: () => undefined,
+      onChanged: vi.fn(), onHint: vi.fn(), onError: vi.fn(),
+    });
+    profile.adoptSessionModel({ providerId: 'xai', modelId: 'grok-4.5' });
+    await profile.loadModels();
+    expect(profile.describe()[0]).toBe('Grok 4.5');
+    expect(profile.modelRef()).toEqual({ providerId: 'xai', modelId: 'grok-4.5' });
+  });
+});

@@ -20,6 +20,7 @@ import { DeviceHealthSettings } from '../../device-health-settings';
 import { HostHealthSettings } from '../host-health-settings';
 import { HostTargetSettings } from '../../host-target-settings';
 import { ShellInterfaceSettings } from '../../shell-interface-settings';
+import { TerminalFeatureSettings } from '../../terminal-feature-settings.js';
 import { isMobileTauriRuntime } from '../../shell-runtime';
 import { MobileAccessSettings } from '../../mobile-access-settings';
 import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
@@ -120,6 +121,8 @@ function GeneralPreferencesSection(): ReactElement {
       </div>
 
       <ShellInterfaceSettings />
+
+      <TerminalFeatureSettings />
 
       <DeviceHealthSettings />
 

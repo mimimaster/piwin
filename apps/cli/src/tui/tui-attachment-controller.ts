@@ -9,6 +9,7 @@ export type TuiAttachmentControllerOptions = {
   /** Uploads belong to a session's media vault, so attaching to a draft creates it. */
   ensureSession: () => Promise<string>;
   onChanged: () => void;
+  insertImageMarker: (marker: string) => void;
   onHint: (text: string) => void;
   onNotice: (tone: 'info' | 'error', text: string) => void;
 };
@@ -73,7 +74,10 @@ export class TuiAttachmentController {
     await this.track(async (sessionId) => {
       try {
         const name = `clipboard-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
-        await this.queue.addImageBytes(sessionId, clipboard.image.bytes, clipboard.image.mimeType, name);
+        const uploaded = await this.queue.addImageBytes(sessionId, clipboard.image.bytes, clipboard.image.mimeType, name);
+        if (uploaded.imageNumber !== undefined) {
+          this.options.insertImageMarker(`【image ${uploaded.imageNumber}】`);
+        }
       } catch (error) {
         this.options.onNotice('error', `粘贴图片失败：${describeError(error)}`);
       }

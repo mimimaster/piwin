@@ -62,6 +62,13 @@ apps/*  ↛  Pi packages
 apps/gateway (optional) → host-transport + contracts only
 ```
 
+CLI command dispatch loads only the selected handler. The public Node-only
+`@piwin/host-runtime/paths` entry exports root resolution without loading the
+Host composition graph; an attached TUI defers local Host implementations.
+Packaged CLI commands retain this boundary with sibling ESM chunks. Pi's TUI
+uses an alternate-screen transcript viewport above a fixed composer/status
+footer (ADR 0086); session/profile reads overlap during startup.
+
 Violations are architecture bugs.
 
 ### 2.0.1 piwin Live topology (ADR 0065)
@@ -1017,7 +1024,7 @@ or open a second CardStore.
 | **Agent backend** | mock session · SDK in-process · RPC worker isolated | UI never claims a live model when mock is active. Until Runtime Refactor Phase 3 exits, any fallback is labeled transitional and not isolated. |
 | **Desktop host mode** | SDK in-process · RPC worker isolated when available | Desktop must report actual backend and isolation capability; it must not infer isolation from configured `hostMode` alone. |
 | **Terminal** | Tauri PTY authorized · unavailable | Interactive Terminal is a **desktop capability** (ADR 0013). Host `capabilities.pty` and remote transport are **not** proof that Tauri Terminal is unavailable. |
-| **Jobs** | starting · running · ready · terminal | Non-interactive process state comes from JobController; interactive Terminal remains Tauri-owned. |
+| **Jobs** | starting · running · ready · terminal | Non-interactive process state comes from JobController. Generic inspector terminals remain Tauri-owned; native Grok conversation terminals run on the selected Host through the process package PTY manager (ADR 0082). |
 | **Provider** | unconfigured · credential unavailable · configured | Best-effort status only. Provider readiness must **not** gate workspace browse/trust (PSR D7). |
 | **Packages** | `memory`, `process`, `automation` first-class | Product commands route through host-runtime; Advanced/Experimental in Desktop Settings. |
 | **Evidence coverage** | browser mock · live JSONL sidecar · native macOS | [See automated prerequisites](../README.md#automated-prerequisite-sequence) and [trace recipe](plans/2026-07-24-responsiveness-trace-recipe.md). Automated prerequisites are not a release candidate; a separately reviewed dated native macOS evidence manifest is required before declaring one. |

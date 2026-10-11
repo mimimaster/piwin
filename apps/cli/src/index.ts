@@ -1,37 +1,6 @@
 #!/usr/bin/env node
-import { runKbCommand } from './kb-command.js';
-import { SideChatHostClient } from './side-chat-command.js';
-import { WalkthroughHostClient } from './walkthrough-command.js';
 import { formatError } from '@piwin/contracts';
-import { commandAuth } from './auth-command.js';
-import { commandAgents } from './agents-command.js';
-import { commandCards } from './cards-command.js';
-import { commandChat } from './chat-command.js';
 import { isPrintFlag, printModeArgv } from './print-mode.js';
-import { commandTui } from './tui/tui-command.js';
-import { commandConfig } from './config-command.js';
-import { commandContext } from './context-command.js';
-import { commandCron } from './cron-command.js';
-import { commandDocCards } from './doccards-command.js';
-import { commandDoctor } from './doctor-command.js';
-import { commandExtension } from './extension-command.js';
-import { commandMarket } from './market-command.js';
-import { commandHostMode } from './host-mode-command.js';
-import { commandHostServe } from './host-serve-command.js';
-import { commandMcp } from './mcp-command.js';
-import { commandNotes } from './notes-command.js';
-import { commandPlugin } from './plugin-command.js';
-import { commandPrompt } from './prompt-command.js';
-import { commandScheme } from './scheme-command.js';
-import { commandSession } from './session-command.js';
-import { commandSideChat } from './side-chat-command.js';
-import { commandSkill } from './skill-command.js';
-import { commandStatus } from './status-command.js';
-import { commandStudy } from './study-command.js';
-import { commandSubagent } from './subagent-command.js';
-import { commandTurn } from './turn-command.js';
-import { commandUsage } from './usage-command.js';
-import { commandWalkthrough } from './walkthrough-command.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -154,44 +123,6 @@ test fixture: harness-only delayed session; rejected outside NODE_ENV=test
 `);
 }
 
-/** Positional tokens, excluding flags and the value tokens of the given options. */
-
-/** Explicit --project path, or null when the user did not pass --project. */
-
-/** Legacy helper: --project or process.cwd() for project-bound commands. */
-
-/**
- * Parse the session-level permission mode override (ADR 0019 §3) and emit the
- * stderr warning when the dangerous alias is used. Returns `undefined` when
- * neither flag is present so the configured `config.permissions.mode` applies.
- */
-
-/**
- * Stateful assistant event formatter for the CLI.
- * Accumulates thinking deltas into a block and tool output per tool call.
- */
-
-/**
- * CE-SUB-ORCH: CLI subagent batch observation and cancellation.
- * Usage: piwin subagent status <runId> | cancel <runId>
- */
-
-/**
- * CLI side-chat commands (spec §12).
- * Usage: piwin side-chat list|open|sync|send|resume
- */
-
-/** Same attached/in-process Host as other CLI verbs. Study never opens a second flashcards root. */
-
-/**
- * Build a {@link SideChatHostClient} on the live Host, or an in-process runtime.
- */
-
-/**
- * Build a {@link WalkthroughHostClient} on the live Host, or an in-process runtime.
- * `onPush` is bridged so `generate` can wait for `walkthrough/updated`.
- */
-
 async function readPipedStdin(): Promise<string | undefined> {
   if (process.stdin.isTTY) return undefined;
   const chunks: Buffer[] = [];
@@ -211,118 +142,147 @@ async function main(argv: string[]): Promise<void> {
     return;
   }
   if (command === 'doctor') {
+    const { commandDoctor } = await import('./doctor-command.js');
     await commandDoctor(argv.slice(1));
     return;
   }
   if (command === 'host-mode') {
+    const { commandHostMode } = await import('./host-mode-command.js');
     await commandHostMode();
     return;
   }
   if (command === 'config') {
+    const { commandConfig } = await import('./config-command.js');
     await commandConfig(argv);
     return;
   }
   if (command === 'session' || command === 'sessions') {
+    const { commandSession } = await import('./session-command.js');
     await commandSession(argv);
     return;
   }
   if (command === 'status') {
+    const { commandStatus } = await import('./status-command.js');
     await commandStatus(argv);
     return;
   }
   if (command === 'chat') {
+    const { commandChat } = await import('./chat-command.js');
     await commandChat(argv);
     return;
   }
   if (command === 'tui') {
+    const { commandTui } = await import('./tui/tui-command.js');
     await commandTui(argv);
     return;
   }
   if (command === 'scheme') {
+    const { commandScheme } = await import('./scheme-command.js');
     await commandScheme(argv);
     return;
   }
   if (command === 'skill') {
+    const { commandSkill } = await import('./skill-command.js');
     await commandSkill(argv);
     return;
   }
   if (command === 'extension') {
+    const { commandExtension } = await import('./extension-command.js');
     await commandExtension(argv);
     return;
   }
   if (command === 'market') {
+    const { commandMarket } = await import('./market-command.js');
     await commandMarket(argv);
     return;
   }
   if (command === 'prompt') {
+    const { commandPrompt } = await import('./prompt-command.js');
     await commandPrompt(argv);
     return;
   }
   if (command === 'mcp') {
+    const { commandMcp } = await import('./mcp-command.js');
     await commandMcp(argv);
     return;
   }
   if (command === 'plugin') {
+    const { commandPlugin } = await import('./plugin-command.js');
     await commandPlugin(argv);
     return;
   }
   if (command === 'agents') {
+    const { commandAgents } = await import('./agents-command.js');
     await commandAgents(argv);
     return;
   }
   if (command === 'cron') {
+    const { commandCron } = await import('./cron-command.js');
     await commandCron(argv);
     return;
   }
   if (command === 'notes') {
+    const { commandNotes } = await import('./notes-command.js');
     await commandNotes(argv);
     return;
   }
   if (command === 'cards') {
+    const { commandCards } = await import('./cards-command.js');
     await commandCards(argv);
     return;
   }
   if (command === 'study') {
+    const { commandStudy } = await import('./study-command.js');
     await commandStudy(argv.slice(1));
     return;
   }
   if (command === 'doccards') {
+    const { commandDocCards } = await import('./doccards-command.js');
     await commandDocCards(argv);
     return;
   }
   if (command === 'kb') {
+    const { runKbCommand } = await import('./kb-command.js');
     await runKbCommand(argv);
     return;
   }
   if (command === 'host' && argv[1] === 'serve') {
+    const { commandHostServe } = await import('./host-serve-command.js');
     await commandHostServe(argv);
     return;
   }
   if (command === 'usage') {
+    const { commandUsage } = await import('./usage-command.js');
     await commandUsage(argv);
     return;
   }
   if (command === 'auth') {
+    const { commandAuth } = await import('./auth-command.js');
     await commandAuth(argv.slice(1));
     return;
   }
   if (command === 'walkthrough') {
+    const { commandWalkthrough } = await import('./walkthrough-command.js');
     await commandWalkthrough(argv);
     return;
   }
   if (command === 'context') {
+    const { commandContext } = await import('./context-command.js');
     await commandContext(argv);
     return;
   }
   if (command === 'subagent') {
+    const { commandSubagent } = await import('./subagent-command.js');
     await commandSubagent(argv);
     return;
   }
   if (command === 'turn') {
+    const { commandTurn } = await import('./turn-command.js');
     await commandTurn(argv);
     return;
   }
   if (command === 'side-chat') {
+    const { commandSideChat } = await import('./side-chat-command.js');
     await commandSideChat(argv);
     return;
   }

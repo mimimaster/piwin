@@ -169,6 +169,8 @@ export type DesktopPreferences = {
   lightTheme: AppearanceThemeSettings;
   /** Theme token settings used when the dark mode is active. */
   darkTheme: AppearanceThemeSettings;
+  /** Device rollout switch for TUI and inspector terminals; absent uses build defaults. */
+  terminalEnabled?: boolean;
   /** Last terminal working directory (remembered across sessions). */
   terminalLastCwd?: string;
   /** Recent terminal directories (most recent first, max 5). */
@@ -190,6 +192,7 @@ const CONVERSATION_WIDTH_KEY = 'piwin.desktop.conversationWidth';
 const APPEARANCE_MODE_KEY = 'piwin.desktop.appearanceMode';
 const LIGHT_THEME_KEY = 'piwin.desktop.lightTheme';
 const DARK_THEME_KEY = 'piwin.desktop.darkTheme';
+const TERMINAL_ENABLED_KEY = 'piwin.desktop.terminalEnabled';
 const TERMINAL_LAST_CWD_KEY = 'piwin.desktop.terminalLastCwd';
 const TERMINAL_RECENT_DIRS_KEY = 'piwin.desktop.terminalRecentDirs';
 const AGENT_LOCATOR_ANIMATION_KEY = 'piwin.desktop.agentLocatorAnimation';
@@ -344,6 +347,7 @@ function parseAppearanceTheme(
 }
 
 export function loadDesktopPreferences(): DesktopPreferences {
+  const terminalEnabled = readString(TERMINAL_ENABLED_KEY);
   const lastCwd = readString(TERMINAL_LAST_CWD_KEY);
   const recentDirsRaw = readString(TERMINAL_RECENT_DIRS_KEY);
   const locatorAnimationRaw = readString(AGENT_LOCATOR_ANIMATION_KEY);
@@ -368,6 +372,9 @@ export function loadDesktopPreferences(): DesktopPreferences {
     ...(locatorAnimationRaw
       ? { agentLocatorAnimation: parseAgentLocatorAnimation(locatorAnimationRaw) }
       : {}),
+    ...(terminalEnabled === 'true' || terminalEnabled === 'false'
+      ? { terminalEnabled: terminalEnabled === 'true' }
+      : {}),
     ...(lastCwd ? { terminalLastCwd: lastCwd } : {}),
     ...(recentDirsRaw ? { terminalRecentDirs: parseStringArray(recentDirsRaw) ?? [] } : {}),
     ...(parseCustomFonts(readString(CUSTOM_FONTS_KEY)) !== undefined
@@ -390,6 +397,9 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   writeString(DARK_THEME_KEY, JSON.stringify(prefs.darkTheme));
   if (prefs.agentLocatorAnimation) {
     writeString(AGENT_LOCATOR_ANIMATION_KEY, prefs.agentLocatorAnimation);
+  }
+  if (prefs.terminalEnabled !== undefined) {
+    writeString(TERMINAL_ENABLED_KEY, String(prefs.terminalEnabled));
   }
   if (prefs.terminalLastCwd) {
     writeString(TERMINAL_LAST_CWD_KEY, prefs.terminalLastCwd);

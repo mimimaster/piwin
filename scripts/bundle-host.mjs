@@ -3,11 +3,12 @@
  * Bundle the piwin host for Tauri packaging (ADR 0017 / plan S1).
  *
  * Output layout:
- *   dist-host/host-serve.mjs
+ *   dist-host/host-serve.mjs + cli-chunk-*.mjs
  *   dist-host/node_modules/   (externals only)
  *   dist-host/bundled-assets/ (S0 layout)
  */
 import { build } from 'esbuild';
+import { bundleCliEntry } from './lib/bundle-cli-entry.mjs';
 import { cp, lstat, mkdir, readFile, readdir, rm, writeFile, stat } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +20,6 @@ import {
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const distHost = join(root, 'dist-host');
-const outfile = join(distHost, 'host-serve.mjs');
 const workerOutfile = join(distHost, 'agent-worker.mjs');
 
 /** Keep on disk for assets / WASM / native / dynamic loads (ADR 0017). */
@@ -31,6 +31,9 @@ const EXTERNAL_DEPS = {
   '@medv/finder': '4.0.2',
   esbuild: '0.25.12',
   'playwright-core': '1.61.1',
+  // Keep native PTY bindings and spawn-helper on disk. The pinned beta fixes
+  // missing executable permissions in 1.1.0's macOS prebuilds (upstream #919).
+  'node-pty': '1.2.0-beta.12',
   // Native libvips bindings cannot be inlined by esbuild.
   sharp: '0.35.4',
 };
@@ -96,21 +99,7 @@ async function main() {
   await mkdir(distHost, { recursive: true });
 
   console.log('[bundle-host] esbuild entry apps/cli/src/index.ts…');
-  const result = await build({
-    entryPoints: [join(root, 'apps/cli/src/index.ts')],
-    bundle: true,
-    platform: 'node',
-    format: 'esm',
-    target: 'node20',
-    outfile,
-    metafile: true,
-    packages: 'bundle',
-    external: Object.keys(EXTERNAL_DEPS),
-    banner: {
-      js: "import { createRequire as __piwinCreateRequire } from 'node:module'; const require = __piwinCreateRequire(import.meta.url);",
-    },
-    logLevel: 'info',
-  });
+  const result = await bundleCliEntry({ root, outdir: distHost, external: Object.keys(EXTERNAL_DEPS) });
 
   console.log('[bundle-host] esbuild internal agent worker…');
   await build({

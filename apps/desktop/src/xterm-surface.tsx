@@ -11,17 +11,15 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
+import type { HostAttachTarget } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
+import { TAURI_PTY_TRANSPORT, type XtermPty } from './xterm-pty-transport.js';
+import { connectXtermPty } from './xterm-pty-connection.js';
 import { listenForTuiSession } from './xterm-tui-session';
 import { readDeckXtermFontFamily, readDeckXtermTheme } from './xterm-theme';
 import {
-  listenTauriPtyData,
-  listenTauriPtyExit,
-  tauriPtyClose,
   tauriPtyOpen,
   tauriPtyOpenTui,
-  tauriPtyResize,
-  tauriPtyWrite,
 } from './tauri-pty';
 import {
   ContextMenuFromCatalog,
@@ -34,6 +32,8 @@ export type PtyStatus = 'idle' | 'starting' | 'open' | 'error' | 'exited';
 export type XtermSurfaceProps = {
   /** Actual working directory for the terminal. */
   cwd: string;
+  /** A retained conversation terminal only fits/focuses while visible. */
+  visible?: boolean | undefined;
   /** Project root for authorization (empty = general-scope terminal). */
   projectPath?: string;
   /**
@@ -41,7 +41,8 @@ export type XtermSurfaceProps = {
    * session or on a new conversation. `cwd` is unused then: the program is
    * Desktop's own CLI; `projectPath` scopes a new conversation.
    */
-  tui?: { sessionId?: string };
+  tui?: { sessionId?: string; remoteTarget?: HostAttachTarget } | undefined;
+  pty?: XtermPty | undefined;
   onStatus: (status: PtyStatus, ptyId: string | null, message?: string) => void;
   /** The terminal shell announced the session it shows (see `parseTuiSessionAnnouncement`). */
   onTuiSession?: (sessionId: string) => void;
@@ -57,6 +58,9 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const ptyIdRef = useRef<string | null>(null);
   const bootingRef = useRef(false);
+  const visibleRef = useRef(props.visible !== false);
+  visibleRef.current = props.visible !== false;
+  const showRef = useRef<(() => void) | null>(null);
   const onStatusRef = useRef(props.onStatus);
   const onTuiSessionRef = useRef(props.onTuiSession);
   const contextMenu = useDesktopContextMenu();
@@ -73,9 +77,10 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       return;
     }
 
+    const transport = props.pty?.transport ?? TAURI_PTY_TRANSPORT;
     let disposed = false;
-    let unlistenData: (() => void) | null = null;
-    let unlistenExit: (() => void) | null = null;
+    const connection = new AbortController();
+    let lastSize: { cols: number; rows: number } | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let resizeDebounce: ReturnType<typeof setTimeout> | null = null;
 
@@ -87,7 +92,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       allowProposedApi: false,
       // A full-screen program positions the cursor itself; rewriting its line
       // feeds would shift every frame.
-      convertEol: props.tui === undefined,
+      convertEol: props.tui === undefined && props.pty === undefined,
     });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
@@ -104,7 +109,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       if (disposed || !containerRef.current || !terminalRef.current || !fitAddonRef.current) {
         return;
       }
-      if (!hasUsableSize(containerRef.current)) {
+      if (!visibleRef.current || !hasUsableSize(containerRef.current)) {
         return;
       }
       try {
@@ -116,9 +121,19 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       const ptyId = ptyIdRef.current;
       if (!ptyId) return;
       const dims = { cols: terminalRef.current.cols, rows: terminalRef.current.rows };
-      void tauriPtyResize(ptyId, dims.cols, dims.rows).catch(() => {
+      if (lastSize?.cols === dims.cols && lastSize.rows === dims.rows) return;
+      lastSize = dims;
+      void transport.resize(ptyId, dims.cols, dims.rows).catch(() => {
         /* ignore resize races during teardown */
       });
+    };
+
+    showRef.current = () => {
+      if (disposed || !visibleRef.current) return;
+      applyResize();
+      if (terminalRef.current === null) return;
+      terminal.refresh(0, terminal.rows - 1);
+      if (ptyIdRef.current !== null && (props.tui !== undefined || props.pty !== undefined)) terminal.focus();
     };
 
     const debouncedResize = (): void => {
@@ -162,46 +177,42 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       terminal.onData((data) => {
         const ptyId = ptyIdRef.current;
         if (!ptyId) return;
-        void tauriPtyWrite(ptyId, data).catch(() => {
+        void transport.write(ptyId, data).catch(() => {
           /* drop write if session already closed */
         });
       });
 
-      unlistenData = await listenTauriPtyData((event) => {
-        if (disposed || event.pty_id !== ptyIdRef.current) return;
-        terminal.write(event.data);
-      });
-      unlistenExit = await listenTauriPtyExit((event) => {
-        if (disposed || event.pty_id !== ptyIdRef.current) return;
-        terminal.writeln('\r\n[process exited]');
-        const closedId = ptyIdRef.current;
-        ptyIdRef.current = null;
-        onStatusRef.current('exited', closedId);
-      });
-
       try {
         const size = { cols: terminal.cols, rows: terminal.rows };
-        const opened =
-          props.tui === undefined
-            ? await tauriPtyOpen({
+        lastSize = size;
+        await connectXtermPty({
+          signal: connection.signal,
+          transport,
+          open: () => props.pty !== undefined ? props.pty.open(size) : props.tui === undefined
+            ? tauriPtyOpen({
                 cwd: props.cwd,
                 ...(props.projectPath ? { projectPath: props.projectPath } : {}),
                 ...size,
               })
-            : await tauriPtyOpenTui({
+            : tauriPtyOpenTui({
                 ...(props.tui.sessionId ? { sessionId: props.tui.sessionId } : {}),
+                ...(props.tui.remoteTarget === undefined ? {} : { remoteTarget: props.tui.remoteTarget }),
                 ...(props.projectPath ? { projectPath: props.projectPath } : {}),
                 ...size,
-              });
-        if (disposed) {
-          await tauriPtyClose(opened.pty_id);
-          return;
-        }
-        ptyIdRef.current = opened.pty_id;
-        onStatusRef.current('open', opened.pty_id);
-        // The terminal shell is the conversation itself: typing should land in it.
-        if (props.tui !== undefined) terminal.focus();
-        applyResize();
+              }),
+          onOpen: (ptyId) => {
+            ptyIdRef.current = ptyId;
+            onStatusRef.current('open', ptyId);
+            if (visibleRef.current && (props.tui !== undefined || props.pty !== undefined)) terminal.focus();
+            applyResize();
+          },
+          onData: (data) => terminal.write(data),
+          onExit: (event) => {
+            terminal.writeln('\r\n[process exited]');
+            ptyIdRef.current = null;
+            onStatusRef.current('exited', event.pty_id);
+          },
+        });
       } catch (error) {
         if (disposed) return;
         const message = formatError(error);
@@ -248,25 +259,27 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
 
     return () => {
       disposed = true;
+      showRef.current = null;
       bootingRef.current = false;
       themeObserver.disconnect();
       if (resizeDebounce) {
         clearTimeout(resizeDebounce);
       }
       resizeObserver?.disconnect();
-      unlistenData?.();
-      unlistenExit?.();
-      const ptyId = ptyIdRef.current;
+      connection.abort();
       ptyIdRef.current = null;
-      if (ptyId) {
-        void tauriPtyClose(ptyId);
-      }
       stopListeningForTuiSession();
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [props.cwd, props.projectPath, props.tui?.sessionId]);
+  }, [props.cwd, props.projectPath, props.tui?.sessionId, props.tui?.remoteTarget, props.pty]);
+
+  useEffect(() => {
+    if (props.visible === false) { terminalRef.current?.blur(); return; }
+    const frame = requestAnimationFrame(() => showRef.current?.());
+    return () => cancelAnimationFrame(frame);
+  }, [props.visible]);
 
   // CM-13: read the xterm selection on right-click; only then show the menu.
   function handleContextMenu(): void {
