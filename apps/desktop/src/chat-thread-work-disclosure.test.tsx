@@ -486,6 +486,66 @@ describe('ChatThread completed work disclosure', () => {
     expect(container.querySelector('#msg-live-1')).toBeNull();
   });
 
+  it('keeps a running subagent group on screen while other live steps stay folded', () => {
+    const delegation = (id: string, status: 'running' | 'done', runId: string) => ({
+      toolCallId: id,
+      toolName: 'piwin_subagent_run',
+      status,
+      output: '',
+      runId,
+      args: { label: `scout-${id}`, task: 'read one file' },
+    });
+    const liveMessages = [
+      message('user-1', { role: 'user', text: 'Fan out.' }),
+      message('read-msg', {
+        text: 'Looking around first.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: 'x', runId: 'run-1' }],
+      }),
+      message('fan-msg', {
+        text: 'Dispatching three scouts.',
+        runId: 'run-1',
+        status: 'streaming',
+        tools: [delegation('a', 'running', 'run-1'), delegation('b', 'running', 'run-1'), delegation('c', 'running', 'run-1')],
+      }),
+    ];
+    const liveRecords: Record<string, RunRecordUi> = {
+      'run-1': { runId: 'run-1', phaseHistory: [], startedAt: 1_000, endedAt: null },
+    };
+    act(() =>
+      root.render(renderThread(liveMessages, { streaming: true, activeRunId: 'run-1', runRecordsById: liveRecords })),
+    );
+    // Nothing clicked: the delegation step is open, so its group renders.
+    const group = container.querySelector('[data-testid="subagent-group"]');
+    expect(group).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="subagent-invocation-block"]')).toHaveLength(3);
+    const segments = [...container.querySelectorAll<HTMLElement>('[data-testid="turn-work-segment"]')];
+    expect(segments.map((segment) => segment.getAttribute('data-open'))).toEqual(['false', 'true']);
+    // The read step keeps its ordinary fold: narration shows, its tools do not.
+    expect(segments[0]?.querySelector('.turn-work-segment-body')).toBeNull();
+
+    // The turn settles: the chain folds into 已工作 once, as for any turn.
+    const settledMessages = [
+      ...liveMessages.slice(0, 2),
+      message('fan-msg', {
+        text: 'Dispatching three scouts.',
+        runId: 'run-1',
+        tools: [delegation('a', 'done', 'run-1'), delegation('b', 'done', 'run-1'), delegation('c', 'done', 'run-1')],
+      }),
+      message('answer-1', { runId: 'run-1', text: 'All three are back.' }),
+    ];
+    act(() => root.render(renderThread(settledMessages)));
+    const trigger = container.querySelector<HTMLElement>('[data-testid="turn-work-disclosure-trigger"]');
+    expect(trigger?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-testid="subagent-group"]')).toBeNull();
+    // Reopened, the finished group is back in the same open step; the
+    // earlier step keeps its ordinary fold.
+    act(() => trigger?.click());
+    expect(container.querySelector('[data-testid="subagent-group"]')).not.toBeNull();
+    const reopened = [...container.querySelectorAll<HTMLElement>('[data-testid="turn-work-segment"]')];
+    expect(reopened.map((segment) => segment.getAttribute('data-open'))).toEqual(['false', 'true']);
+  });
+
   it('does not tuck a mid-turn user-facing reply into the process disclosure', () => {
     const messages = [
       message('user-1', { role: 'user', text: 'Implement this.' }),

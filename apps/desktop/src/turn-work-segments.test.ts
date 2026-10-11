@@ -241,6 +241,45 @@ describe('resolveSegmentDefaultOpen', () => {
   });
 });
 
+describe('subagent segments', () => {
+  const delegation = (id: string, status: ToolCardUi['status'], toolName = 'piwin_subagent_run'): ToolCardUi =>
+    tool(id, { toolName, status, presentation: { kind: 'subagent', title: toolName } });
+  const single = (message: ChatMessageUi) => buildTurnWorkSegments(turnOf([message]), 0, 0)[0];
+
+  it('opens a running delegation so its subagent group is on screen', () => {
+    const running = single(
+      assistant('d', { text: '并行派出 3 个 scout', status: 'streaming', tools: [delegation('s1', 'running'), delegation('s2', 'running')] }),
+    );
+    if (!running) throw new Error('fixture');
+    expect(running.running).toBe(true);
+    expect(running.stats.subagent).toBe(2);
+    expect(resolveSegmentDefaultOpen(running, { isLast: true, expandAll: false })).toBe(true);
+    expect(resolveSegmentDefaultOpen(running, { isLast: false, expandAll: false })).toBe(true);
+  });
+
+  it('keeps a finished delegation open where it was, even when it is no longer the newest', () => {
+    const settled = single(assistant('d', { text: 'x', tools: [delegation('s1', 'done')] }));
+    if (!settled) throw new Error('fixture');
+    expect(resolveSegmentDefaultOpen(settled, { isLast: false, expandAll: false })).toBe(true);
+  });
+
+  it('counts piwin_subagent_start, whose children outlive the tool call', () => {
+    const started = single(
+      assistant('d', { text: 'x', tools: [tool('a', { toolName: 'piwin_subagent_start', status: 'done' })] }),
+    );
+    if (!started) throw new Error('fixture');
+    expect(started.stats.subagent).toBe(1);
+    expect(resolveSegmentDefaultOpen(started, { isLast: false, expandAll: false })).toBe(true);
+  });
+
+  it('leaves other running tools folded', () => {
+    const bash = single(assistant('b', { text: 'x', status: 'streaming', tools: [tool('t', { status: 'running' })] }));
+    if (!bash) throw new Error('fixture');
+    expect(bash.stats.subagent).toBe(0);
+    expect(resolveSegmentDefaultOpen(bash, { isLast: true, expandAll: false })).toBe(false);
+  });
+});
+
 describe('resolveSegmentLiveActions', () => {
   const bash = (id: string, command: string, status: ToolCardUi['status']): ToolCardUi =>
     tool(id, { status, presentation: { kind: 'shell', title: 'bash', command } });

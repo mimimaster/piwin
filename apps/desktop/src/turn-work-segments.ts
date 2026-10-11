@@ -133,6 +133,11 @@ function clusterKindOf(tool: ToolCardUi): ToolClusterKind {
   return kind;
 }
 
+/** `piwin_subagent_start` hands back at once, but its subagents run on. */
+function isDelegationKind(kind: ToolClusterKind, tool: ToolCardUi): boolean {
+  return kind === 'subagent' || tool.toolName === 'piwin_subagent_start';
+}
+
 function addTool(draft: SegmentDraft, tool: ToolCardUi): void {
   draft.toolCount += 1;
   if (tool.status === 'error') draft.stats.failed += 1;
@@ -141,7 +146,7 @@ function addTool(draft: SegmentDraft, tool: ToolCardUi): void {
   if (isExploratoryKind(kind)) draft.stats.explore += 1;
   else if (kind === 'edit') draft.stats.edit += 1;
   else if (kind === 'command') draft.stats.command += 1;
-  else if (kind === 'subagent') draft.stats.subagent += 1;
+  else if (isDelegationKind(kind, tool)) draft.stats.subagent += 1;
   else draft.stats.other += 1;
   if (kind === 'edit' || changedPathsOf(tool).length > 0) {
     for (const path of changedPathsOf(tool)) {
@@ -311,12 +316,19 @@ export function indexSegmentsByItem(
  * preferences open every segment. Otherwise the newest settled segment and any
  * segment with a failure open, so the fold lands on where the run ended (or
  * where it went wrong).
+ *
+ * A segment that delegated to subagents is open too, running or not: its
+ * subagent group is what the reader watches while the children work, and
+ * leaving it open once they finish keeps the folded group where it was
+ * instead of folding it away under them. The turn still folds into 已工作
+ * once when it settles; reopening that lands on the same group.
  */
 export function resolveSegmentDefaultOpen(
   segment: TurnWorkSegment,
   options: { isLast: boolean; expandAll: boolean },
 ): boolean {
   if (options.expandAll) return true;
+  if (segment.stats.subagent > 0) return true;
   // A running segment stays folded: its header already says what it is doing
   // (rotating through the tools in flight). A failure is the exception —
   // it must be on screen.
