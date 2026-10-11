@@ -1,6 +1,7 @@
 import type { ArtifactThemeVariables } from '@piwin/artifact';
 import { createDefaultArtifactTheme } from '@piwin/artifact';
 import type { ThemeManifest } from '@piwin/contracts';
+import { resolveDeckTokens } from './theme/deck-derive';
 
 /**
  * Map an active desktop theme package to artifact CSS variables.
@@ -15,6 +16,7 @@ export function mapThemeToArtifactVariables(
 
   const artifact = theme.artifact;
   const tokens = theme.tokens;
+  const deck = resolveDeckTokens(theme);
 
   return {
     '--piwin-artifact-theme': theme.mode,
@@ -25,6 +27,7 @@ export function mapThemeToArtifactVariables(
     '--piwin-artifact-text': artifact?.text ?? tokens.text,
     '--piwin-artifact-muted': artifact?.muted ?? tokens.muted,
     '--piwin-artifact-accent': artifact?.accent ?? tokens.accent,
+    '--piwin-artifact-on-accent-themed': artifact?.onAccent ?? deck.onIris,
     '--piwin-artifact-border': artifact?.border ?? tokens.border,
     '--piwin-artifact-radius': artifact?.radius ?? tokens.radius,
     '--piwin-artifact-font': artifact?.font ?? tokens.font,

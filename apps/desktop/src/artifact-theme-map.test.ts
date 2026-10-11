@@ -43,4 +43,14 @@ describe('mapThemeToArtifactVariables', () => {
     expect(vars['--piwin-artifact-theme']).toBe('dark');
     expect(vars['--piwin-artifact-bg']).toBe('transparent');
   });
+
+  it('passes the Deck on-iris ink as the v14 on-accent input', () => {
+    const derived = mapThemeToArtifactVariables(sampleTheme);
+    expect(derived['--piwin-artifact-on-accent-themed']).toMatch(/^#|^rgb/);
+    const authored = mapThemeToArtifactVariables({
+      ...sampleTheme,
+      artifact: { ...sampleTheme.artifact, onAccent: '#101010' },
+    });
+    expect(authored['--piwin-artifact-on-accent-themed']).toBe('#101010');
+  });
 });

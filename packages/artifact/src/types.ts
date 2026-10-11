@@ -27,6 +27,16 @@ export type ArtifactSecurityResult = {
 /** Whether the model deliberately emitted an Artifact fence or ordinary code. */
 export type ArtifactDeclaration = 'explicit' | 'native';
 
+/**
+ * Visual style an artifact declared on its fence (`style="host" | "expressive"`).
+ * Runtime contract v14 asks for it on every fence, so its presence is also the
+ * marker that the artifact was written under the v14 rules.
+ */
+export type ArtifactStyle = 'host' | 'expressive';
+
+/** Which artifact runtime rules the source was written for. */
+export type ArtifactRules = 'legacy' | 'v14';
+
 /** Full documents require a viewport; fragments may participate in Inline flow. */
 export type ArtifactDocumentKind = 'fragment' | 'document';
 
@@ -41,6 +51,8 @@ export type ArtifactDescriptorBase = {
   documentKind: ArtifactDocumentKind;
   /** Where the artifact is rendered in the product UI. */
   surface: ArtifactSurface;
+  /** Declared style; absent on fences written before runtime contract v14. */
+  style?: ArtifactStyle;
 };
 
 export type HtmlArtifactDescriptor = ArtifactDescriptorBase & {
@@ -70,6 +82,12 @@ export type ArtifactThemeVariables = {
   '--piwin-artifact-accent': string;
   /** Text on a solid accent fill. Derived from `accent` when a theme omits it. */
   '--piwin-artifact-on-accent'?: string;
+  /**
+   * Theme-authored ink for a solid accent fill (Deck `onIris`). Host input only,
+   * never emitted as a CSS variable: v14 artifacts get it as `on-accent`, while
+   * legacy artifacts keep the derived ink they were designed against.
+   */
+  '--piwin-artifact-on-accent-themed'?: string;
   '--piwin-artifact-border': string;
   '--piwin-artifact-radius': string;
   '--piwin-artifact-font': string;

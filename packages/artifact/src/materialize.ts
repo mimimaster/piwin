@@ -6,6 +6,7 @@
  */
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import { paintsOwnScene } from './scene-palette.js';
+import { resolveArtifactRules } from './artifact-rules.js';
 import { buildHtmlArtifactSrcdoc } from './srcdoc.js';
 import {
   buildStreamableArtifactPreview,
@@ -119,6 +120,7 @@ export function materializeArtifact(
     enableStreamUpdates: true,
     freezeSource: mode !== 'stream-preview',
     ownPalette,
+    rules: resolveArtifactRules(intent.descriptor),
     documentKind: streamFragmentShell ? 'fragment' : intent.descriptor.documentKind,
   });
 

@@ -1,4 +1,5 @@
 import { useEffect, type ReactElement } from 'react';
+import { resolveArtifactRules } from '@piwin/artifact';
 import type {
   ArtifactActionMessage,
   ArtifactRenderPlan,
@@ -84,6 +85,7 @@ export function ArtifactFrame({
         <ArtifactStatic
           source={document.source}
           type={plan.intent.descriptor.type}
+          rules={resolveArtifactRules(plan.intent.descriptor)}
           locale={locale}
           {...(theme ? { theme } : {})}
         />

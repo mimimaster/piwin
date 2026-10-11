@@ -16,6 +16,7 @@ import type {
   ArtifactDocumentKind,
   ArtifactFrameMode,
   ArtifactIframePolicy,
+  ArtifactRules,
   ArtifactSurface,
   ArtifactThemeVariables,
 } from './types.js';
@@ -113,6 +114,8 @@ export type BuildHtmlArtifactSrcdocInput = {
    * and text colors stand instead of being forced onto the host surface.
    */
   ownPalette?: boolean;
+  /** Rules the source was written under (see `resolveArtifactRules`). Default legacy. */
+  rules?: ArtifactRules;
   /** When false, omit the parent bridge entirely. Default true. */
   includeBridge?: boolean;
   /** Accept sanitized parent snapshots without replacing the iframe document. */
@@ -139,7 +142,7 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   const includeBridge = input.includeBridge !== false;
   const enableRenderCommand = input.enableStreamUpdates !== false && includeBridge;
   const csp = buildStrictArtifactCsp(iframePolicy);
-  const css = buildArtifactThemeCss(theme);
+  const css = buildArtifactThemeCss(theme, { rules: input.rules ?? 'legacy' });
   const themeGuardCss = input.ownPalette === true ? '' : buildArtifactThemeGuardCss();
   const frameModePolicyCss = buildArtifactFrameModePolicyCss();
   const motionPolicyCss = buildArtifactMotionPolicyCss();

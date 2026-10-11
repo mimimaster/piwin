@@ -4,18 +4,38 @@
  * create a second scrollport.
  */
 import { resolveArtifactOnAccent } from './theme.js';
-import type { ArtifactThemeVariables } from './types.js';
+import type { ArtifactRules, ArtifactThemeVariables } from './types.js';
 
 function escapeCssValue(value: string): string {
   return value.replace(/[;{}]/g, '').trim();
 }
 
-export function buildArtifactThemeCss(theme: ArtifactThemeVariables): string {
+/** Internal theme inputs that select a value but are never CSS variables. */
+const HOST_ONLY_THEME_INPUTS = new Set<string>(['--piwin-artifact-on-accent-themed']);
+
+/**
+ * `on-accent` for the rules an artifact was written under: v14 uses the
+ * theme's authored ink when it has one; legacy keeps the derived ink.
+ */
+export function resolveArtifactOnAccentForRules(
+  theme: ArtifactThemeVariables,
+  rules: ArtifactRules = 'legacy',
+): string {
+  const themed = theme['--piwin-artifact-on-accent-themed']?.trim();
+  if (rules === 'v14' && themed) return themed;
+  return resolveArtifactOnAccent(theme);
+}
+
+export function buildArtifactThemeCss(
+  theme: ArtifactThemeVariables,
+  options: { rules?: ArtifactRules } = {},
+): string {
   const variables = Object.entries({
     ...theme,
-    '--piwin-artifact-on-accent': resolveArtifactOnAccent(theme),
+    '--piwin-artifact-on-accent': resolveArtifactOnAccentForRules(theme, options.rules),
   })
     .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    .filter(([name]) => !HOST_ONLY_THEME_INPUTS.has(name))
     .map(([name, value]) => `  ${name}: ${escapeCssValue(value)};`)
     .join('\n');
   const colorScheme = theme['--piwin-artifact-theme'] === 'dark' ? 'dark' : 'light';
@@ -152,13 +172,16 @@ html[data-frame-mode="inline-flow"] .piwin-artifact-root code {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+/* Tables size columns from content and wrap at word boundaries, as the
+   runtime contract tells the model. "anywhere" would collapse every column's
+   min-content to one glyph and split labels mid-word. */
 html[data-frame-mode="inline-flow"] .piwin-artifact-root table {
   width: 100% !important;
-  table-layout: fixed;
+  table-layout: auto;
 }
 html[data-frame-mode="inline-flow"] .piwin-artifact-root th,
 html[data-frame-mode="inline-flow"] .piwin-artifact-root td {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 `;
 }

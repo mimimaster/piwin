@@ -25,6 +25,8 @@ export type {
   ArtifactDescriptor,
   ArtifactDeclaration,
   ArtifactDocumentKind,
+  ArtifactRules,
+  ArtifactStyle,
   ArtifactThemeVariables,
   ArtifactActionMessage,
   ArtifactErrorMessage,
@@ -45,6 +47,8 @@ export { isProjectableStreamingFence } from './fence-syntax.js';
 export { projectArtifactMarkdownForRender } from './markdown-projection.js';
 
 export { createDefaultArtifactTheme, resolveArtifactOnAccent } from './theme.js';
+export { resolveArtifactOnAccentForRules } from './srcdoc-css.js';
+export { resolveArtifactRules } from './artifact-rules.js';
 
 export { buildArtifactReportKitCss } from './srcdoc-report-kit.js';
 

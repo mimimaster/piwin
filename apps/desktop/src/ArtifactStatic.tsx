@@ -2,9 +2,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElemen
 import {
   MIN_ARTIFACT_IFRAME_HEIGHT,
   buildArtifactReportKitCss,
-  resolveArtifactOnAccent,
+  resolveArtifactOnAccentForRules,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
+  type ArtifactRules,
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
 import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
@@ -17,6 +18,8 @@ export type ArtifactStaticProps = {
   source: string;
   type: 'html' | 'svg';
   theme?: ArtifactThemeVariables;
+  /** Rules the source was written under; selects the `on-accent` ink. */
+  rules?: ArtifactRules;
   locale?: 'zh-CN' | 'en';
 };
 
@@ -86,10 +89,10 @@ const STATIC_ARTIFACT_BASE_CSS = `
 }
 .piwin-artifact-root table {
   width: 100%;
-  table-layout: fixed;
+  table-layout: auto;
 }
 .piwin-artifact-root th,
-.piwin-artifact-root td { overflow-wrap: anywhere; }
+.piwin-artifact-root td { overflow-wrap: break-word; }
 `;
 
 /**
@@ -121,14 +124,14 @@ function escapeCssValue(value: string): string {
   return value.replace(/[;{}]/g, '').trim();
 }
 
-function buildThemeCss(theme: ArtifactThemeVariables | undefined): string {
+function buildThemeCss(theme: ArtifactThemeVariables | undefined, rules: ArtifactRules): string {
   if (!theme) return '';
   // `color-scheme` keeps system colors (the contract's `Canvas` ink) on the
   // artifact theme rather than whatever the surrounding app resolves to.
   return `:host {\n${ARTIFACT_THEME_VARIABLES.map(
     (name) => `  ${name}: ${escapeCssValue(theme[name])};`,
   ).join('\n')}\n  --piwin-artifact-on-accent: ${escapeCssValue(
-    resolveArtifactOnAccent(theme),
+    resolveArtifactOnAccentForRules(theme, rules),
   )};\n  color-scheme: ${theme['--piwin-artifact-theme']};\n}`;
 }
 
@@ -140,6 +143,7 @@ export function ArtifactStatic({
   source,
   type,
   theme,
+  rules = 'legacy',
   locale = 'en',
 }: ArtifactStaticProps): ReactElement {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -153,7 +157,7 @@ export function ArtifactStatic({
   );
   const sanitizedSource =
     sanitizedNow ?? (sanitizedLater?.source === source ? sanitizedLater.value : '');
-  const themeCss = useMemo(() => buildThemeCss(theme), [theme]);
+  const themeCss = useMemo(() => buildThemeCss(theme, rules), [theme, rules]);
 
   useEffect(() => {
     if (sanitizedNow !== null) return;
