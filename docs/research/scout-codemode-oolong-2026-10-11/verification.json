@@ -15,8 +15,9 @@
     "passed": true
   },
   "diffCheck": {
-    "command": "git diff --check",
-    "passed": true
+    "command": "git diff --check 40075bb1..HEAD -- . ':!docs/research/scout-codemode-oolong-2026-10-11/inputs/**'",
+    "passed": true,
+    "scope": "Scripts, report, metadata and raw JSON; upstream input files excluded because their original trailing whitespace/blank lines are retained byte-for-byte and verified by SHA256."
   },
   "sourceEvidence": {
     "attempts": 18,
