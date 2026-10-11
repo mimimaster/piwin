@@ -43,6 +43,12 @@ const INVALID_DOCUMENT_BODY: &[u8] = b"invalid artifact document";
 const MISSING_DOCUMENT_BODY: &[u8] = b"artifact document not found";
 const METHOD_NOT_ALLOWED_BODY: &[u8] = b"method not allowed";
 const FORBIDDEN_BODY: &[u8] = b"forbidden";
+const JS_CONTENT_TYPE: &str = "text/javascript; charset=utf-8";
+const IMMUTABLE_CACHE: &str = "public, max-age=31536000, immutable";
+/// Artifact kit v1 (design: charts + icons), compiled into the binary.
+/// Regenerate with `pnpm exec tsx scripts/emit-kit.ts` in packages/artifact.
+const ARTIFACT_KIT_V1_PATH: &str = "/lib/v1/kit.js";
+const ARTIFACT_KIT_V1_JS: &[u8] = include_bytes!("../../../packages/artifact/kit/v1/kit.js");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArtifactDocumentError {
@@ -189,11 +195,20 @@ fn protocol_response(
     content_type: &'static str,
     body: impl Into<Vec<u8>>,
 ) -> Response<Vec<u8>> {
+    protocol_response_with_cache(status, content_type, "no-store", body)
+}
+
+fn protocol_response_with_cache(
+    status: StatusCode,
+    content_type: &'static str,
+    cache_control: &'static str,
+    body: impl Into<Vec<u8>>,
+) -> Response<Vec<u8>> {
     let mut response = Response::new(body.into());
     *response.status_mut() = status;
     let headers = response.headers_mut();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(cache_control));
     headers.insert(
         HeaderName::from_static("x-content-type-options"),
         HeaderValue::from_static("nosniff"),
@@ -229,6 +244,19 @@ pub fn handle_artifact_request(
             TEXT_CONTENT_TYPE,
             INVALID_DOCUMENT_BODY,
         );
+    }
+    // Static, read-only kit files. A fixed allowlist: no filesystem, no
+    // parameters, nothing else under /lib/ resolves.
+    if request.uri().path() == ARTIFACT_KIT_V1_PATH {
+        return protocol_response_with_cache(
+            StatusCode::OK,
+            JS_CONTENT_TYPE,
+            IMMUTABLE_CACHE,
+            ARTIFACT_KIT_V1_JS,
+        );
+    }
+    if request.uri().path().starts_with("/lib/") {
+        return protocol_response(StatusCode::NOT_FOUND, TEXT_CONTENT_TYPE, MISSING_DOCUMENT_BODY);
     }
     let id = request.uri().path().strip_prefix('/').unwrap_or_default();
     if !is_valid_document_id(id) {
@@ -409,6 +437,52 @@ mod tests {
         let body = String::from_utf8_lossy(invalid.body());
         assert_eq!(body.as_ref(), "invalid artifact document");
         assert!(!body.contains("not-valid"));
+    }
+
+    #[test]
+    fn serves_only_the_compiled_kit_under_lib() {
+        let store = ArtifactDocumentStore::default();
+        for uri in [
+            "piwin-artifact://localhost/lib/v1/kit.js",
+            "http://piwin-artifact.localhost/lib/v1/kit.js",
+        ] {
+            let response = get(&store, uri);
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(
+                response.headers().get(header::CONTENT_TYPE).map(|value| value.as_bytes()),
+                Some(JS_CONTENT_TYPE.as_bytes())
+            );
+            assert_eq!(
+                response.headers().get(header::CACHE_CONTROL).map(|value| value.as_bytes()),
+                Some(IMMUTABLE_CACHE.as_bytes())
+            );
+            assert!(response.body().starts_with(b"/* piwin artifact kit 1."));
+        }
+        for uri in [
+            "piwin-artifact://localhost/lib/v1/icons.json",
+            "piwin-artifact://localhost/lib/v1/../../etc/passwd",
+            "piwin-artifact://localhost/lib/v2/kit.js",
+        ] {
+            assert_eq!(get(&store, uri).status(), StatusCode::NOT_FOUND, "{uri}");
+        }
+        assert_eq!(
+            get(&store, "piwin-artifact://localhost/lib/v1/kit.js?x=1").status(),
+            StatusCode::BAD_REQUEST
+        );
+        let other = handle_artifact_request(
+            &store,
+            "pet-overlay",
+            &request("GET", "piwin-artifact://localhost/lib/v1/kit.js"),
+            NO_WAIT,
+        );
+        assert_eq!(other.status(), StatusCode::FORBIDDEN);
+        let post = handle_artifact_request(
+            &store,
+            "main",
+            &request("POST", "piwin-artifact://localhost/lib/v1/kit.js"),
+            NO_WAIT,
+        );
+        assert_eq!(post.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[test]

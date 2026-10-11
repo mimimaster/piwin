@@ -6,6 +6,7 @@ import { buildArtifactFrameSrcCsp, createDefaultArtifactIframePolicy } from './i
 import { createDefaultArtifactTheme } from './theme.js';
 import { buildArtifactBridgeBootstrapScript } from './srcdoc-bridge.js';
 import { buildArtifactReportKitCss } from './srcdoc-report-kit.js';
+import { artifactKitScriptSource, buildArtifactKitHead, usesArtifactKit } from './kit/index.js';
 import {
   buildArtifactFrameModePolicyCss,
   buildArtifactMotionPolicyCss,
@@ -23,11 +24,16 @@ import type {
 
 export { buildArtifactBridgeBootstrapScript } from './srcdoc-bridge.js';
 
-export function buildStrictArtifactCsp(policy: ArtifactIframePolicy): string {
+export function buildStrictArtifactCsp(
+  policy: ArtifactIframePolicy,
+  options: { kitScriptSource?: string | null } = {},
+): string {
+  // The kit is the only non-inline script, and only on the scheme path.
+  const kit = options.kitScriptSource ? ` ${options.kitScriptSource}` : '';
   return [
     "default-src 'none'",
     "base-uri 'none'",
-    "script-src 'unsafe-inline'",
+    `script-src 'unsafe-inline'${kit}`,
     "style-src 'unsafe-inline'",
     'img-src data: blob:',
     'font-src data:',
@@ -116,6 +122,11 @@ export type BuildHtmlArtifactSrcdocInput = {
   ownPalette?: boolean;
   /** Rules the source was written under (see `resolveArtifactRules`). Default legacy. */
   rules?: ArtifactRules;
+  /**
+   * Inject the chart/icon kit. Default: only when the source uses it. Stream
+   * previews of v14 fences pass true because the source is still arriving.
+   */
+  kit?: boolean;
   /** When false, omit the parent bridge entirely. Default true. */
   includeBridge?: boolean;
   /** Accept sanitized parent snapshots without replacing the iframe document. */
@@ -141,7 +152,10 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   const frameMode = input.frameMode ?? frameModeFromSurface(surface);
   const includeBridge = input.includeBridge !== false;
   const enableRenderCommand = input.enableStreamUpdates !== false && includeBridge;
-  const csp = buildStrictArtifactCsp(iframePolicy);
+  const kit = input.kit ?? usesArtifactKit(input.source);
+  const csp = buildStrictArtifactCsp(iframePolicy, {
+    kitScriptSource: kit ? artifactKitScriptSource() : null,
+  });
   const css = buildArtifactThemeCss(theme, { rules: input.rules ?? 'legacy' });
   const themeGuardCss = input.ownPalette === true ? '' : buildArtifactThemeGuardCss();
   const frameModePolicyCss = buildArtifactFrameModePolicyCss();
@@ -165,7 +179,7 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   <meta name="piwin-artifact-channel" content="${channelAttr}" />
   <style data-piwin-artifact-theme>${css}</style>
   <style data-piwin-artifact-report-kit>${buildArtifactReportKitCss({ rules: input.rules ?? 'legacy' })}</style>
-${bridge}`;
+${bridge}${kit ? `\n  ${buildArtifactKitHead()}` : ''}`;
   const themeGuardStyle = themeGuardCss
     ? `\n  <style data-piwin-artifact-theme-guard>${themeGuardCss}</style>`
     : '';

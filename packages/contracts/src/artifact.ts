@@ -137,6 +137,26 @@ export const ARTIFACT_INSTRUCTIONS_TOOL_NAME = 'artifact_instructions' as const;
  */
 export const ARTIFACT_KIT_VERSION = 1 as const;
 
+/** Kit v1 icon names; `@piwin/artifact` draws exactly this set (checked by test). */
+export const ARTIFACT_KIT_V1_ICONS = ['activity', 'alert', 'arrow-down', 'arrow-left', 'arrow-right', 'arrow-up', 'book', 'bookmark', 'brain', 'bug', 'calendar', 'chart', 'check', 'check-circle', 'clock', 'cloud', 'code', 'coffee', 'database', 'doc', 'download', 'external', 'eye', 'file', 'flame', 'folder', 'fork', 'git', 'globe', 'heart', 'image', 'info', 'leaf', 'link', 'lock', 'minus', 'moon', 'pause', 'pin', 'play', 'plus', 'refresh', 'search', 'server', 'settings', 'shield', 'star', 'sun', 'table', 'target', 'terminal', 'trend-down', 'trend-up', 'user', 'users', 'warn', 'x', 'x-circle', 'zap'] as const;
+
+/**
+ * Kit reference returned by `artifact_instructions` (not resident: the
+ * resident contract only carries the one-line pointer).
+ */
+export function formatArtifactKitReference(): string {
+  return [
+    '[piwin-artifact-kit version="1"]',
+    'Local built-ins, no network. Use only when they help; plain HTML/SVG stays fine.',
+    `Icons: \`<i data-piwin-icon="NAME" data-size="16"></i>\` (stroke = currentColor; size 8–96). Names: ${ARTIFACT_KIT_V1_ICONS.join(' ')}.`,
+    'Charts: `<figure data-piwin-chart="bar|line|donut|spark">` holding `<script type="application/json">` with {"labels": [..], "series": [{"name": "..", "values": [..], "color": "var(--piwin-artifact-series-2)"}], "max": n, "height": px, "center": "96%"}. Always add a `<figcaption>` that states the takeaway in words; it stays readable if the chart cannot draw.',
+    '- bar: grouped bars per label. line: one line per series. donut: first series as parts of `labels`, optional `center` text. spark: tiny inline trend, no labels.',
+    '- Colors: omit for `series-1`…`series-6` in order; `color` accepts only `var(--piwin-artifact-*)`. Charts redraw with the container width.',
+    'Script API for interactive artifacts: `piwin.chart(el, {kind, labels, series, height})`, `piwin.icon(name, size)` → SVG string, `piwin.hydrate(root)` after inserting kit markup, `piwin.version`.',
+    '[/piwin-artifact-kit]',
+  ].join('\n');
+}
+
 /** Trigger constraint prefixed onto instructions whenever triggerMode is explicit-only. */
 export const ARTIFACT_EXPLICIT_ONLY_HINT =
   'Use an Artifact only when the user explicitly requests an artifact, visualization, interactive page, prototype, or UI.';
@@ -344,6 +364,7 @@ export function formatArtifactProtocol(): string {
     '- Outermost wrapper background: transparent on Inline and Canvas; surface colors on inner cards only. Never paint html/body/the outer stage as a dark full-bleed page — that becomes a black Canvas on a paper host. Dark `pre`/`code` islands may keep their own contrast pair.',
     '- Inline layout is a 360–760px chat column; fluid grids; not a full-page landing. Inline grows with its content: no page-level or nested vertical scroll regions; let the conversation own vertical scrolling; never add horizontal scrolling to Inline. No viewport-filling height (`100vh`/`100%`) or page-level overflow on html/body/outer wrapper for Inline.',
     '- A client may supply a send-time Inline column width as advisory context. Never hardcode it: use width:100%, max-width:100%, min-width:0, border-box sizing and container queries to adapt through resizing and replay. Remain readable at 360px and adapt below that where needed. A width hint does not request artifact generation.',
+    '- Built-ins (no network): `<i data-piwin-icon="check"></i>` icons and `<figure data-piwin-chart="bar|line|donut|spark"><script type="application/json">{"labels":[],"series":[{"name":"","values":[]}]}</script><figcaption>…</figcaption></figure>` charts. Call `artifact_instructions` for the icon list and chart options.',
     '- Tables: wrap long data cells with `overflow-wrap: break-word` only. Never `word-break: break-word`, `word-break: break-all`, or `overflow-wrap: anywhere` — they collapse column min-content to 1ch. Row/column labels may `white-space: nowrap` or `width: max-content`. `min-width: 0` is for the outer stage, not table columns. Inline: no page-level horizontal scroll; stack with `@container` before wrapping labels. Canvas: dense comparisons keep label min-content; table `overflow-x: auto` is allowed. Dense wide comparisons belong on Canvas.',
     '- **Canvas Viewport**: The Canvas iframe is the design viewport. Root layout (and the primary stage) uses `width: 100%` and `height: 100%` / `100dvh` of that iframe. Do not lock a phone/poster width or an `aspect-ratio` that letterboxes empty bars; extra panel width is scene/layout space. If the UI needs a wide workspace or horizontal scrolling, declare `surface="canvas"`.',
     '- Repeated cards/items are siblings — no card-in-card.',

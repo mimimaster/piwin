@@ -15,6 +15,8 @@ import { isTauriRuntime } from './tauri-pty';
 import { primeDeviceCredential } from './device-admission';
 import { loadDesktopRemoteHostTarget } from './remote-host-session';
 import { isMobileTauriRuntime } from './shell-runtime';
+import { configureArtifactKitDelivery } from '@piwin/artifact';
+import { resolveArtifactSchemeOrigin } from './artifact-frame-stream';
 import './styles.css';
 
 // Pre-paint: use last known built-in theme (or Appearance prefs) so the first
@@ -32,6 +34,12 @@ void loadAndRegisterAllCustomFonts(startupPreferences.customFonts);
 installMemoryPressureBridge();
 installMemoryParking();
 installArtifactMemoryBridge();
+// Packaged shells load artifact documents from the artifact scheme, which
+// also serves the chart/icon kit; browser builds keep inlining it.
+const artifactSchemeOrigin = resolveArtifactSchemeOrigin();
+if (artifactSchemeOrigin) {
+  configureArtifactKitDelivery({ kind: 'scheme', origin: artifactSchemeOrigin });
+}
 void installPetOverlayStateRelay();
 installPetOverlayRestore();
 // Before first render: an external link click must never navigate the Tauri

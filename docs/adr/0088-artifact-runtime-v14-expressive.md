@@ -66,3 +66,32 @@ sessions.
    (follow/paper/ink; repaints only that frame, never persisted), fullscreen,
    code, download (moved from the floating button). Keys: F, Esc, 1–4, T;
    ⌘⇧O on an Inline artifact's actions. The mobile shell shows fullscreen only.
+
+## Kit v1 (P3)
+
+10. **Primitives.** `<i data-piwin-icon>` (59 line icons generated from
+    `@piwin/ui-kit` plus a few drawn on the same grid) and
+    `<figure data-piwin-chart="bar|line|donut|spark">` with a JSON spec, plus
+    `piwin.chart/icon/hydrate/version`. Labels are text nodes; colors accept
+    only `var(--piwin-artifact-*)`; no eval, fetch or `parent`. `window.piwin`
+    is frozen. Charts redraw on container resize; streamed markup hydrates via
+    a MutationObserver. 21.5 KB raw / 6.6 KB gzip.
+11. **Delivery.** Packaged shells: `piwin-artifact://localhost/lib/v1/kit.js`
+    (Windows `http://piwin-artifact.localhost/...`), compiled into the binary
+    with `include_bytes!`, fixed allowlist, GET only, main webview only,
+    `immutable` cache. The document CSP gains only
+    `script-src … <origin>/lib/v1/`; `connect-src 'none'` is unchanged.
+    Browser/e2e builds inline the same bytes. Injected only when the source
+    uses the kit (and for v14 stream previews). Kit CSS is always inline.
+    Kit artifacts always take the sandbox renderer.
+12. **Prompt.** The resident contract carries one pointer line (+~80 tokens
+    on the conversation estimate, 2570 → 2650; CHT-803 was already red). The
+    full reference (icon names, chart options, API) is returned by
+    `artifact_instructions`, whose description now says to call it only for
+    that reference.
+13. **Deviations from the design.** Icons are embedded in `kit.js` (a separate
+    `icons.json` would need `connect-src`); kit CSS is inline (no `style-src`
+    change); the kit major version follows the rules version (v14 → kit v1)
+    rather than a separate descriptor field. WebKit verification that
+    subresource loads from the scheme grant the frame no IPC is still owed on
+    a packaged build.

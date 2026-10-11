@@ -87,3 +87,19 @@ export {
   buildStreamableArtifactPreview,
   projectHtmlSourceForStreamRoot,
 } from './streamable-preview.js';
+
+export {
+  ARTIFACT_KIT_CHART_KINDS,
+  ARTIFACT_KIT_MAJOR,
+  ARTIFACT_KIT_V1_ICON_NAMES,
+  ARTIFACT_KIT_V1_PATH,
+  ARTIFACT_KIT_VERSION_STRING,
+  artifactKitScriptSource,
+  buildArtifactKitCss,
+  buildArtifactKitHead,
+  buildArtifactKitV1Script,
+  configureArtifactKitDelivery,
+  getArtifactKitDelivery,
+  usesArtifactKit,
+} from './kit/index.js';
+export type { ArtifactKitDelivery } from './kit/index.js';

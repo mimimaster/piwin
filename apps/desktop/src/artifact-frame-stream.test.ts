@@ -5,6 +5,7 @@ import {
   artifactDocumentKey,
   buildArtifactDocumentDataUrl,
   buildArtifactDocumentUrl,
+  resolveArtifactSchemeOrigin,
   createArtifactDocumentId,
   initialArtifactDocumentPhase,
   publishArtifactDocument,
@@ -80,6 +81,18 @@ describe('Artifact document transport in Tauri', () => {
     expect(invokeCalls).toHaveLength(1);
     expect(invokeCalls[0]?.command).toBe('artifact_document_put');
     expect(invokeCalls[0]?.args).toEqual({ id: documentId, html: srcdoc });
+  });
+  it('resolves the kit origin from the document scheme, and none in a browser build', () => {
+    expect(resolveArtifactSchemeOrigin()).toBeNull();
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {
+        convertFileSrc: (filePath: string, protocol?: string) => `http://${protocol}.localhost/${filePath}`,
+        invoke: async () => null,
+        transformCallback: () => 0,
+      },
+    });
+    expect(resolveArtifactSchemeOrigin()).toBe('http://piwin-artifact.localhost');
   });
   it('uses the isolated scheme in the iOS shell too, not an inherited-CSP data: frame', () => {
     const userAgent = vi

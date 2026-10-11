@@ -158,6 +158,9 @@ describe('artifact protocol formatter', () => {
       expect(protocol).toContain(token);
     }
     expect(protocol).toContain('no serif or display fonts');
+    expect(protocol).toContain('data-piwin-chart="bar|line|donut|spark"');
+    expect(protocol).toContain('Call `artifact_instructions` for the icon list and chart options.');
+    expect(protocol).not.toContain('trend-up');
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Unprompted artifacts use `style="host"`.');
   });
 
