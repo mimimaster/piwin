@@ -95,20 +95,78 @@ describe('SubagentInlineSession', () => {
     // must never offer a user-facing continuation input.
     expect(document.querySelector('[data-testid="subagent-follow-up-input"]')).toBeNull();
     expect(document.querySelector('[data-testid="subagent-session-composer"]')).toBeNull();
-    expect(document.querySelector('[data-testid="subagent-open-full-session"]')).toBeNull();
   });
 
-  it('collapses through the header button without destroying the child', () => {
-    const onClose = vi.fn();
-    renderPanel({ onClose });
+  it('shows the proto-13 detail box from Host data', () => {
+    renderPanel({
+      invocation: {
+        id: 'inv-1',
+        parentSessionId: 'parent-1',
+        runId: 'run-1',
+        taskId: 'task-1',
+        task: 'Review the implementation',
+        childSessionId: child.id,
+        status: 'completed',
+        activity: { kind: 'completed', summary: '没有发现回归' },
+        usage: { toolCalls: 6, totalTokens: 14_000, requests: 3 },
+        revision: 4,
+        createdAt: '2026-08-12T00:00:00.000Z',
+        updatedAt: '2026-08-12T00:00:30.000Z',
+      },
+    });
+    const text = (testId: string) =>
+      document.querySelector(`[data-testid="${testId}"]`)?.textContent ?? null;
+    expect(text('subagent-inline-step')).toBe('step 6 · 已完成');
+    expect(text('subagent-inline-conclusion')).toBe('已完成：没有发现回归');
+    expect(text('subagent-inline-steps-toggle')).toBe('6 次工具调用 · 保留最近 20 步');
+    expect(text('subagent-open-full-session')).toBe('打开完整会话 →');
+  });
+
+  it('hides the counters for an older Host without inventing them', () => {
+    renderPanel();
+    expect(document.querySelector('[data-testid="subagent-inline-step"]')?.textContent).toBe('已完成');
+    expect(document.querySelector('[data-testid="subagent-inline-steps-toggle"]')?.textContent).toBe(
+      '保留最近 20 步',
+    );
+  });
+
+  it('promotes the box to the full session view', () => {
+    const onOpenFullSession = vi.fn();
+    renderPanel({ onOpenFullSession });
 
     act(() => {
       document
-        .querySelector<HTMLElement>('[data-testid="subagent-inline-collapse"]')
+        .querySelector<HTMLElement>('[data-testid="subagent-open-full-session"]')
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onOpenFullSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('folds the recent steps until asked, keeping only the latest 20 messages', () => {
+    const messages = Array.from({ length: 24 }, (_, index) => ({
+      id: `m-${index}`,
+      role: 'assistant' as const,
+      text: `step text ${index}`,
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done' as const,
+    }));
+    renderPanel({ messages });
+    expect(document.querySelector('[data-testid="subagent-inline-steps"]')).toBeNull();
+
+    act(() => {
+      document
+        .querySelector<HTMLElement>('[data-testid="subagent-inline-steps-toggle"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const steps = document.querySelector('[data-testid="subagent-inline-steps"]');
+    expect(steps).not.toBeNull();
+    expect(steps?.textContent).toContain('step text 23');
+    expect(steps?.textContent).toContain('step text 4');
+    expect(steps?.textContent).not.toContain('step text 3');
   });
 
   it('does not show the apply/retain/discard bar for a completed worktree child', () => {

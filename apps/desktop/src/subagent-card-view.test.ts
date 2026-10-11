@@ -165,14 +165,38 @@ describe('deriveSubagentRowView', () => {
     expect(running.badges).toEqual([]);
   });
 
-  it('carries no token or tool-call counters: the Host does not push them', () => {
+  it('hides tool and token counters when the Host did not send them (older Hosts)', () => {
     const view = deriveSubagentRowView({ tool, invocation: invocation(), child, locale: 'zh-CN' });
-    const keys = Object.keys(view).join(' ').toLowerCase();
-    expect(keys).not.toMatch(/token|toolcount|tools\b/);
+    expect(view.toolCalls).toBeUndefined();
+    expect(view.totalTokens).toBeUndefined();
+    expect(view.toolsLabel).toBeUndefined();
+    expect(view.tokensLabel).toBeUndefined();
     // A missing model is hidden, never a placeholder.
     const { model: _model, ...withoutModel } = invocation();
     const noModel = deriveSubagentRowView({ tool, invocation: withoutModel, locale: 'zh-CN' });
     expect(noModel.modelLabel).toBeUndefined();
+  });
+
+  it('shows Host-counted tools and tokens as in the prototype meta line', () => {
+    const view = deriveSubagentRowView({
+      tool,
+      invocation: invocation({ usage: { toolCalls: 7, totalTokens: 12_400, requests: 4 } }),
+      locale: 'zh-CN',
+    });
+    expect(view).toMatchObject({
+      toolCalls: 7,
+      totalTokens: 12_400,
+      toolsLabel: '7 工具',
+      tokensLabel: '12k tok',
+    });
+    // Proto hides `0 tok` before the first request finalizes, but keeps the tool count.
+    const fresh = deriveSubagentRowView({
+      tool,
+      invocation: invocation({ usage: { toolCalls: 0, totalTokens: 0, requests: 0 } }),
+      locale: 'en',
+    });
+    expect(fresh.toolsLabel).toBe('0 tools');
+    expect(fresh.tokensLabel).toBeUndefined();
   });
 
   it('maps a legacy transcript card onto a lone row', () => {
@@ -207,6 +231,8 @@ describe('areSubagentRowViewsEqual', () => {
     expect(
       areSubagentRowViewsEqual(base, row({ badges: [{ tone: 'danger', label: '冲突', testId: 'x' }] })),
     ).toBe(false);
+    expect(areSubagentRowViewsEqual(base, row({ toolCalls: 3, toolsLabel: '3 工具' }))).toBe(false);
+    expect(areSubagentRowViewsEqual(row({ totalTokens: 10 }), row({ totalTokens: 10 }))).toBe(true);
     const { modelLabel: _drop, ...withoutModel } = base;
     expect(areSubagentRowViewsEqual(base, withoutModel as SubagentRowView)).toBe(false);
   });
@@ -227,6 +253,21 @@ describe('group summary', () => {
       'zh-CN',
     );
     expect(settled).toMatchObject({ countsLabel: '2 完成 · 1 失败', active: false, endedAt: '2026-10-11T08:00:30.000Z' });
+  });
+
+  it('totals tools and tokens in the settled header only when every row has Host counters', () => {
+    const counted = [
+      row({ phase: 'done', toolCalls: 4, totalTokens: 8_000 }),
+      row({ phase: 'failed', toolCalls: 5, totalTokens: 10_500 }),
+    ];
+    expect(deriveSubagentGroupSummary(counted, 'zh-CN').usageLabel).toBe('9 工具 · 19k tok');
+    // While anything runs the header shows only the elapsed time (proto ①).
+    expect(
+      deriveSubagentGroupSummary([...counted, row({ phase: 'running', toolCalls: 1, totalTokens: 0 })], 'zh-CN')
+        .usageLabel,
+    ).toBeUndefined();
+    // A row from an older Host would make the sum an undercount: hide it.
+    expect(deriveSubagentGroupSummary([...counted, row({ phase: 'done' })], 'zh-CN').usageLabel).toBeUndefined();
   });
 
   it('flags attention when a finished row carries a badge', () => {

@@ -118,6 +118,24 @@ describe('subagent group card', () => {
       ),
     );
     expect(Object.fromEntries(sealRenders)).toEqual({ 铸: 1, 校: 2, 斥: 1 });
+
+    // A Host usage push for one child (new tool call, more tokens) repaints only that row.
+    render(
+      tools,
+      invocations((index) =>
+        index === 1
+          ? {
+              revision: 3,
+              activity: { kind: 'tool', toolName: 'read', title: 'read (permissions.md)' },
+              usage: { toolCalls: 2, totalTokens: 3_400, requests: 1 },
+            }
+          : {},
+      ),
+    );
+    expect(Object.fromEntries(sealRenders)).toEqual({ 铸: 1, 校: 3, 斥: 1 });
+    const reviewer = container.querySelector('[data-invocation-id="inv-1"]');
+    expect(reviewer?.querySelector('[data-testid="subagent-row-tools"]')?.textContent).toBe('2 工具');
+    expect(reviewer?.querySelector('[data-testid="subagent-row-tokens"]')?.textContent).toBe('3.4k tok');
     expect(container.textContent).toContain('正在执行 read (permissions.md)');
   });
 
@@ -183,5 +201,26 @@ describe('subagent group card', () => {
     expect(container.querySelector('[data-testid="subagent-group"]')?.getAttribute('data-count')).toBe('1');
     expect(header()).toBeNull();
     expect(container.querySelectorAll('[data-testid="subagent-invocation-block"]')).toHaveLength(1);
+  });
+  it('shows the settled total of Host-counted tools and tokens in the folded header', () => {
+    render(
+      delegations(),
+      invocations((index) => ({
+        status: 'completed',
+        activity: { kind: 'completed' },
+        usage: { toolCalls: index + 2, totalTokens: 6_000, requests: 2 },
+      })),
+    );
+    expect(container.querySelector('[data-testid="subagent-group-usage"]')?.textContent).toBe(
+      '9 工具 · 18k tok',
+    );
+    // Older Hosts: no counters, no usage segment, the elapsed time still shows.
+    render(
+      delegations(),
+      invocations(() => ({ status: 'completed', activity: { kind: 'completed' } })),
+    );
+    expect(container.querySelector('[data-testid="subagent-group-usage"]')).toBeNull();
+    expect(container.querySelector('[data-testid="subagent-row-tools"]')).toBeNull();
+    expect(container.querySelector('[data-testid="subagent-group-elapsed"]')?.textContent).toBe('5s');
   });
 });

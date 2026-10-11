@@ -60,6 +60,16 @@ function RowMeta({ view }: { view: SubagentRowView }): ReactElement {
           {view.modelLabel}
         </span>
       ) : null}
+      {view.toolsLabel ? (
+        <span className="subagent-row-tools" data-testid="subagent-row-tools">
+          {view.toolsLabel}
+        </span>
+      ) : null}
+      {view.tokensLabel ? (
+        <span className="subagent-row-tokens" data-testid="subagent-row-tokens">
+          {view.tokensLabel}
+        </span>
+      ) : null}
       {view.phase === 'queued' ? null : (
         <SubagentElapsed
           startedAt={view.startedAt}

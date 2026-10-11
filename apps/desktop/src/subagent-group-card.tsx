@@ -23,6 +23,7 @@ import { SubagentElapsed, SubagentSpinner } from './subagent-card-parts';
 type SubagentGroupHeaderProps = {
   title: string;
   countsLabel: string;
+  usageLabel?: string | undefined;
   active: boolean;
   startedAt?: string | undefined;
   endedAt?: string | undefined;
@@ -48,13 +49,20 @@ const SubagentGroupHeader = memo(function SubagentGroupHeader(
           {props.countsLabel}
         </span>
       ) : null}
-      <SubagentElapsed
-        startedAt={props.startedAt}
-        endedAt={props.endedAt}
-        active={props.active}
-        className="subagent-group-time"
-        testId="subagent-group-elapsed"
-      />
+      <span className="subagent-group-time">
+        {props.usageLabel ? (
+          <span className="subagent-group-usage" data-testid="subagent-group-usage">
+            {props.usageLabel}
+          </span>
+        ) : null}
+        <SubagentElapsed
+          startedAt={props.startedAt}
+          endedAt={props.endedAt}
+          active={props.active}
+          className="subagent-group-elapsed"
+          testId="subagent-group-elapsed"
+        />
+      </span>
       <IconChevronDown className="subagent-group-chev" width={14} height={14} aria-hidden="true" />
     </button>
   );
@@ -95,6 +103,7 @@ export function SubagentGroupCard(props: SubagentGroupCardProps): ReactElement {
         <SubagentGroupHeader
           title={title}
           countsLabel={summary.countsLabel}
+          usageLabel={summary.usageLabel}
           active={summary.active}
           startedAt={summary.startedAt}
           endedAt={summary.endedAt}

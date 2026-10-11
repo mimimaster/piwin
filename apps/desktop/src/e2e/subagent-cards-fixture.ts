@@ -40,30 +40,32 @@ type Spec = {
   activity: SubagentInvocation['activity'];
   integration?: SessionSummary['subagentIntegrationStatus'];
   summary?: SessionSummary['subagentSummaryStatus'];
+  /** Host-counted work; omitted on one row to show an older Host. */
+  usage?: SubagentInvocation['usage'];
 };
 
 /** ① live — the pushes below walk these through the prototype's ~36s script. */
 const LIVE: Spec[] = [
-  { key: 'live-export', title: '实现导出接口', role: 'implementer', model: SONNET, startedAgo: 2, status: 'running', activity: { kind: 'tool', toolName: 'edit', title: 'edit (session-export.ts)' } },
-  { key: 'live-review', title: '审查权限改动', role: 'reviewer', model: OPUS, startedAgo: 2, status: 'running', activity: { kind: 'tool', toolName: 'read', title: 'read (permission-policy.ts)' } },
-  { key: 'live-cache', title: '调研缓存策略', role: 'scout', model: HAIKU, startedAgo: 0, status: 'queued', activity: { kind: 'queued' } },
+  { key: 'live-export', title: '实现导出接口', role: 'implementer', model: SONNET, startedAgo: 2, status: 'running', activity: { kind: 'tool', toolName: 'edit', title: 'edit (session-export.ts)' }, usage: { toolCalls: 3, totalTokens: 4200, requests: 2 } },
+  { key: 'live-review', title: '审查权限改动', role: 'reviewer', model: OPUS, startedAgo: 2, status: 'running', activity: { kind: 'tool', toolName: 'read', title: 'read (permission-policy.ts)' }, usage: { toolCalls: 2, totalTokens: 3100, requests: 1 } },
+  { key: 'live-cache', title: '调研缓存策略', role: 'scout', model: HAIKU, startedAgo: 0, status: 'queued', activity: { kind: 'queued' }, usage: { toolCalls: 0, totalTokens: 0, requests: 0 } },
 ];
 
 /** ② every row settled long ago — the group folds to its header. */
 const SETTLED: Spec[] = [
-  { key: 'done-export', title: '实现导出接口', role: 'implementer', model: SONNET, startedAgo: 900, took: 14, status: 'completed', activity: { kind: 'completed', summary: '导出路径改走 media 目录，补上越界校验' }, summary: 'merged' },
-  { key: 'done-review', title: '审查权限改动', role: 'reviewer', model: OPUS, startedAgo: 900, took: 24, status: 'completed', activity: { kind: 'completed', summary: '文件写入闸门在 bypass 模式下仍然生效' }, summary: 'merged' },
-  { key: 'done-cache', title: '调研缓存策略', role: 'scout', model: HAIKU, startedAgo: 897, took: 27, status: 'failed', activity: { kind: 'failed', message: 'web_fetch 超时（30s），未取得文档' } },
+  { key: 'done-export', title: '实现导出接口', role: 'implementer', model: SONNET, startedAgo: 900, took: 14, status: 'completed', activity: { kind: 'completed', summary: '导出路径改走 media 目录，补上越界校验' }, summary: 'merged', usage: { toolCalls: 6, totalTokens: 8400, requests: 4 } },
+  { key: 'done-review', title: '审查权限改动', role: 'reviewer', model: OPUS, startedAgo: 900, took: 24, status: 'completed', activity: { kind: 'completed', summary: '文件写入闸门在 bypass 模式下仍然生效' }, summary: 'merged', usage: { toolCalls: 4, totalTokens: 11200, requests: 3 } },
+  { key: 'done-cache', title: '调研缓存策略', role: 'scout', model: HAIKU, startedAgo: 897, took: 27, status: 'failed', activity: { kind: 'failed', message: 'web_fetch 超时（30s），未取得文档' }, usage: { toolCalls: 2, totalTokens: 2900, requests: 2 } },
 ];
 
 /** ③ a lone delegation — no group header. */
 const SINGLE: Spec[] = [
-  { key: 'solo-review', title: '审查权限改动', role: 'reviewer', model: OPUS, startedAgo: 7, status: 'running', activity: { kind: 'tool', toolName: 'read', title: 'read (permission-policy.ts)' } },
+  { key: 'solo-review', title: '审查权限改动', role: 'reviewer', model: OPUS, startedAgo: 7, status: 'running', activity: { kind: 'tool', toolName: 'read', title: 'read (permission-policy.ts)' }, usage: { toolCalls: 3, totalTokens: 5600, requests: 2 } },
 ];
 
 /** ④ finished, but the result still needs the user. */
 const ATTENTION: Spec[] = [
-  { key: 'att-export', title: '实现导出接口', role: 'implementer', model: SONNET, startedAgo: 600, took: 14, status: 'needs-integration', activity: { kind: 'needs-integration' }, integration: 'pending', summary: 'merged' },
+  { key: 'att-export', title: '实现导出接口', role: 'implementer', model: SONNET, startedAgo: 600, took: 14, status: 'needs-integration', activity: { kind: 'needs-integration' }, integration: 'pending', summary: 'merged', usage: { toolCalls: 7, totalTokens: 9100, requests: 4 } },
   { key: 'att-review', title: '审查权限改动', role: 'reviewer', model: OPUS, startedAgo: 600, took: 24, status: 'completed', activity: { kind: 'completed' }, integration: 'conflict', summary: 'merged' },
 ];
 
@@ -87,6 +89,7 @@ function invocationFor(spec: Spec, now: number, revision = 1): SubagentInvocatio
     childSessionId: `child-${spec.key}`,
     status: spec.status,
     activity: spec.activity,
+    ...(spec.usage !== undefined ? { usage: spec.usage } : {}),
     revision,
     createdAt: iso(startMs),
     updatedAt: iso(spec.took !== undefined ? startMs + spec.took * 1000 : now),
@@ -170,12 +173,13 @@ export function buildSubagentCardsTranscript(): SessionTranscriptMessage[] {
  * times out, 审查 finishes last.
  */
 const LIVE_SCRIPT: Array<{ at: number; key: string; patch: Partial<Spec> }> = [
-  { at: 4, key: 'live-cache', patch: { status: 'running', activity: { kind: 'tool', toolName: 'web_fetch', title: 'web_fetch (prompt caching)' } } },
-  { at: 6, key: 'live-review', patch: { activity: { kind: 'tool', toolName: 'read', title: 'read (permissions.md)' } } },
-  { at: 8, key: 'live-export', patch: { status: 'completed', activity: { kind: 'completed', summary: '导出路径改走 media 目录' } } },
-  { at: 10, key: 'live-cache', patch: { activity: { kind: 'permission', action: 'web_fetch' } } },
+  { at: 2, key: 'live-export', patch: { usage: { toolCalls: 5, totalTokens: 7300, requests: 3 } } },
+  { at: 4, key: 'live-cache', patch: { status: 'running', activity: { kind: 'tool', toolName: 'web_fetch', title: 'web_fetch (prompt caching)' }, usage: { toolCalls: 1, totalTokens: 1800, requests: 1 } } },
+  { at: 6, key: 'live-review', patch: { activity: { kind: 'tool', toolName: 'read', title: 'read (permissions.md)' }, usage: { toolCalls: 4, totalTokens: 6900, requests: 2 } } },
+  { at: 8, key: 'live-export', patch: { status: 'completed', activity: { kind: 'completed', summary: '导出路径改走 media 目录' }, usage: { toolCalls: 6, totalTokens: 9400, requests: 4 } } },
+  { at: 10, key: 'live-cache', patch: { activity: { kind: 'permission', action: 'web_fetch' }, usage: { toolCalls: 2, totalTokens: 2600, requests: 2 } } },
   { at: 14, key: 'live-cache', patch: { status: 'failed', activity: { kind: 'failed', message: 'web_fetch 超时（30s），未取得文档' } } },
-  { at: 18, key: 'live-review', patch: { status: 'completed', activity: { kind: 'completed', summary: '符合 ADR 0019' } } },
+  { at: 18, key: 'live-review', patch: { status: 'completed', activity: { kind: 'completed', summary: '符合 ADR 0019' }, usage: { toolCalls: 7, totalTokens: 13800, requests: 4 } } },
 ];
 
 export function seedSubagentCardsShowcase(host: MockHostBackend): void {

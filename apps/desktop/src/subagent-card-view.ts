@@ -32,6 +32,7 @@ import {
   reviewLoopAttachLabel,
   type SubagentReviewLoopAttach,
 } from './subagent-review-summary-model';
+import { subagentUsageLabels, sumSubagentUsageLabel } from './subagent-usage-view';
 
 export type SubagentLocale = 'zh-CN' | 'en';
 
@@ -68,6 +69,11 @@ export type SubagentRowView = {
   role?: string;
   modelLabel?: string;
   modelTitle?: string;
+  /** Host-measured counters (`invocation.usage`); absent on older Hosts. */
+  toolCalls?: number;
+  totalTokens?: number;
+  toolsLabel?: string;
+  tokensLabel?: string;
   stateLabel: string;
   /** Attention badges; when present they take the state column (proto ④). */
   badges: readonly SubagentRowBadge[];
@@ -164,7 +170,10 @@ export function resolveSubagentRowLifecycle(input: SubagentRowInput): LifecycleA
   return { executionStatus: 'starting' };
 }
 
-function persistedActivityLabel(activity: SubagentInvocationActivity, locale: SubagentLocale): string {
+export function subagentInvocationActivityLabel(
+  activity: SubagentInvocationActivity,
+  locale: SubagentLocale,
+): string {
   const zh = locale === 'zh-CN';
   switch (activity.kind) {
     case 'queued':
@@ -202,7 +211,7 @@ export function resolveSubagentRowActivity(
   // The approval gate sits inside the running tool call, so the stream still
   // shows that tool as running; the Host-side wait must win over it.
   if (input.invocation?.activity.kind === 'permission') {
-    return persistedActivityLabel(input.invocation.activity, input.locale);
+    return subagentInvocationActivityLabel(input.invocation.activity, input.locale);
   }
   const runningTool = [...(input.stream?.tools ?? [])]
     .reverse()
@@ -213,7 +222,7 @@ export function resolveSubagentRowActivity(
   const text = input.stream?.text.trim();
   if (text) return text.replace(/\s+/g, ' ').slice(0, 160);
   if (input.stream?.thinking.trim()) return zh ? '思考中' : 'Thinking';
-  if (input.invocation) return persistedActivityLabel(input.invocation.activity, input.locale);
+  if (input.invocation) return subagentInvocationActivityLabel(input.invocation.activity, input.locale);
   if (status === 'failed') {
     return input.tool.presentation?.error?.message?.trim() || (zh ? '子任务失败' : 'Subtask failed');
   }
@@ -415,6 +424,7 @@ export function deriveSubagentRowView(input: SubagentRowInput): SubagentRowView 
   const startedAt = input.orchestrationItem?.startedAt ?? input.invocation?.createdAt;
   const endedAt = input.orchestrationItem?.updatedAt ?? input.invocation?.updatedAt;
   const attach = input.reviewLoopAttach;
+  const usage = subagentUsageLabels(input.invocation?.usage, input.locale);
   return {
     anchorId: invocationId ?? input.tool.toolCallId,
     toolCallId: input.tool.toolCallId,
@@ -428,6 +438,14 @@ export function deriveSubagentRowView(input: SubagentRowInput): SubagentRowView 
     ...(roleLabel !== undefined ? { role: roleLabel } : {}),
     ...(model && modelLabel
       ? { modelLabel, modelTitle: `${model.providerId} / ${model.modelId}` }
+      : {}),
+    ...(usage !== undefined
+      ? {
+          toolCalls: usage.toolCalls,
+          totalTokens: usage.totalTokens,
+          toolsLabel: usage.toolsLabel,
+          ...(usage.tokensLabel !== undefined ? { tokensLabel: usage.tokensLabel } : {}),
+        }
       : {}),
     stateLabel: subagentStateLabel(phase, input.locale),
     badges: subagentAttentionBadges(axes, input.locale),
@@ -545,6 +563,8 @@ export type SubagentGroupSummary = {
   startedAt?: string;
   /** Latest row end (ISO) once every row settled; a live header ticks to now. */
   endedAt?: string;
+  /** Settled total `N 工具 · Xk tok` (proto ②); absent when a row lacks Host counters. */
+  usageLabel?: string;
 };
 
 export function deriveSubagentGroupSummary(
@@ -583,6 +603,7 @@ export function deriveSubagentGroupSummary(
   if (counts.running) parts.push(zh ? `${counts.running} 运行中` : `${counts.running} running`);
   if (counts.queued) parts.push(zh ? `${counts.queued} 排队` : `${counts.queued} queued`);
   const active = counts.running + counts.queued > 0;
+  const usageLabel = sumSubagentUsageLabel(rows, locale);
   return {
     count: rows.length,
     countsLabel: parts.join(' · '),
@@ -590,6 +611,7 @@ export function deriveSubagentGroupSummary(
     attention: rows.some((row) => row.badges.length > 0),
     ...(startedAt !== undefined ? { startedAt } : {}),
     ...(!active && endedAt !== undefined ? { endedAt } : {}),
+    ...(!active && usageLabel !== undefined ? { usageLabel } : {}),
   };
 }
 
