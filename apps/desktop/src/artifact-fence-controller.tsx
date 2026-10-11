@@ -23,6 +23,7 @@ import {
   sameArtifactTypography,
   type ArtifactTypography,
 } from './artifact-typography.js';
+import { useArtifactStyleModes } from './artifact-style-modes.js';
 
 /**
  * Bound-fence source/preview/Canvas controller.
@@ -135,6 +136,12 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     setTypography((current) => (sameArtifactTypography(current, next) ? current : next));
   }, [willMountInlineFrame, props.artifactThemeKey]);
 
+  const styleModes = useArtifactStyleModes();
+  const [hostView, setHostView] = useState(false);
+  const styleOverride = useMemo(
+    () => ({ active: hostView, onToggle: () => setHostView((value) => !value) }),
+    [hostView],
+  );
   const plan = useMemo((): Extract<ArtifactRenderPlan, { kind: 'render' }> | null => {
     if (!willMountInlineFrame || typography === null || analysis?.kind !== 'intent') return null;
     try {
@@ -143,6 +150,8 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
         source: props.source,
         presentation: 'inline',
         mediaDataUrls,
+        styleModes,
+        ...(hostView ? { forceHostStyle: true } : {}),
         theme: { ...(props.artifactTheme ?? createDefaultArtifactTheme('dark')), ...typography },
       });
     } catch (error) {
@@ -157,6 +166,8 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     props.source,
     props.artifactTheme,
     mediaDataUrls,
+    styleModes,
+    hostView,
   ]);
 
   const incompleteNotice = settledIncompleteArtifact ? (
@@ -282,6 +293,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     if (willMountInlineFrame && plan) {
       return previewRoot(
         <ArtifactInlinePreview
+          styleOverride={styleOverride}
           plan={plan}
           fenceId={stickyFenceId}
           initPriority={props.initPriority}
@@ -362,6 +374,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   if (willMountInlineFrame && plan) {
     return previewRoot(
       <ArtifactInlinePreview
+          styleOverride={styleOverride}
         plan={plan}
         fenceId={stickyFenceId}
         initPriority={props.initPriority}

@@ -9,11 +9,13 @@ import {
   clampArtifactHeight,
   parseArtifactActionMessage,
   parseArtifactBridgeMessage,
+  parseArtifactContrastMessage,
   parseArtifactErrorMessage,
   readArtifactPostSeq,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
   type ArtifactActionMessage,
+  type ArtifactContrastMessage,
   type ArtifactErrorMessage,
   type ArtifactFrameMode,
 } from '@piwin/artifact';
@@ -46,6 +48,8 @@ type BridgeInput = {
   onContentGrew?: () => void;
   /** A script in the sandbox failed. Diagnostic only — never a capability. */
   onScriptError?: (error: ArtifactErrorMessage) => void;
+  /** Expressive contrast probe found a problem (badge only). */
+  onContrastIssue?: (issue: ArtifactContrastMessage) => void;
 };
 
 function hostOwnsViewport(frameMode: ArtifactFrameMode): boolean {
@@ -212,6 +216,18 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
         lastPostSeqRef.current = postSeq;
       }
       current.onScriptError?.(scriptError);
+      return;
+    }
+
+    const contrast = parseArtifactContrastMessage(data);
+    if (contrast) {
+      if (!trustedSource || contrast.channelId !== current.channelId) {
+        return;
+      }
+      if (postSeq !== null) {
+        lastPostSeqRef.current = postSeq;
+      }
+      current.onContrastIssue?.(contrast);
       return;
     }
 

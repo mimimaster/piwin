@@ -8,7 +8,7 @@ import {
  * Host commands stay with App; this file owns transcript, permission, and
  * composer-dock chrome.
  */
-import { useCallback, useMemo, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, type ReactElement } from 'react';
 import type {
   ContextSummaryPush,
   FlashcardReviewCard,
@@ -26,6 +26,7 @@ import type {
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
+import { setArtifactStyleModes } from './artifact-style-modes';
 import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifact-surfaces';
 import { ChatThread } from './chat-thread';
 import { isEventHandlerPropName, memoWithLatestCallbacks } from './memo-with-latest-callbacks';
@@ -213,6 +214,10 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     sidebarMode,
   } = props;
   const activeSessionId = state.activeSessionId;
+  const artifactStyleModes = config?.artifact?.styleModes;
+  useEffect(() => {
+    setArtifactStyleModes(artifactStyleModes);
+  }, [artifactStyleModes]);
   const transcriptComposerCard = useTranscriptComposerCard(composerCard);
   const landingAgent = buildEmptyStageAgentControl(transcriptComposerCard, props);
   const isConversationSession = isConversationSessionChrome(

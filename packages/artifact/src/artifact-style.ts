@@ -4,6 +4,7 @@
  * Precedence: report kit (always host) > internal host-only switch / user
  * "view as host" > fence `style` > legacy Canvas cover-scene heuristic > host.
  */
+import type { ArtifactStyleModes } from '@piwin/contracts';
 import { paintsOwnScene } from './scene-palette.js';
 import type { ArtifactDescriptor, ArtifactStyle, ArtifactSurface } from './types.js';
 
@@ -15,7 +16,7 @@ import type { ArtifactDescriptor, ArtifactStyle, ArtifactSurface } from './types
 export type ArtifactPalette = 'host' | 'stage' | 'own';
 
 /** Internal switch (not user-visible): `host-only` turns expressive off. */
-export type ArtifactStyleModes = 'model' | 'host-only';
+export type { ArtifactStyleModes };
 
 export type ResolveArtifactPaletteInput = {
   descriptor: Pick<ArtifactDescriptor, 'style'>;

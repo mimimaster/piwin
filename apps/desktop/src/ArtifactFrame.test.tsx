@@ -97,6 +97,7 @@ function renderFrame(
   presentation: 'inline' | 'canvas' = 'inline',
   extraHeaderAction?: ReactElement,
   locale: 'zh-CN' | 'en' = 'en',
+  styleOverride?: { active: boolean; onToggle: () => void },
 ): { container: HTMLDivElement; root: Root } {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -110,6 +111,7 @@ function renderFrame(
             presentation={presentation}
             locale={locale}
             {...(extraHeaderAction ? { extraHeaderAction } : {})}
+            {...(styleOverride ? { styleOverride } : {})}
           />
         </PiwinUiProvider>
       ) as ReactElement,
@@ -218,6 +220,64 @@ describe('ArtifactFrame chrome', () => {
     expect(container.querySelector('[data-testid="artifact-script-error"]')?.textContent).toContain(
       "SyntaxError: Identifier 'TEA' has already been declared",
     );
+  });
+
+  it('shows the contrast badge from its own iframe and offers the theme view', async () => {
+    const decision = makeRenderPlan();
+    const onToggle = vi.fn();
+    const { container, root } = renderFrame(decision, 'inline', undefined, 'zh-CN', {
+      active: false,
+      onToggle,
+    });
+    instances.push({ container, root });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
+    const report = {
+      type: 'piwin-artifact:contrast',
+      channelId: decision.intent.descriptor.id,
+      lowContrast: true,
+      themeMismatch: false,
+      sampled: 20,
+      failing: 6,
+      minRatio: 1.8,
+    };
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', { source: window, data: report }));
+    });
+    expect(container.querySelector('[data-testid="artifact-contrast-badge"]')).toBeNull();
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', { source: iframe?.contentWindow ?? null, data: report }),
+      );
+    });
+    const badge = container.querySelector('[data-testid="artifact-contrast-badge"]');
+    expect(badge?.textContent).toContain('对比度偏低');
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="artifact-contrast-host-view"]')?.click();
+    });
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a restore chip while an artifact is shown with the theme style', () => {
+    const plan = makeRenderPlan();
+    const staticPlan = {
+      ...plan,
+      document: { kind: 'static-source' as const, source: '<p>hi</p>' },
+    };
+    const onToggle = vi.fn();
+    const { container, root } = renderFrame(staticPlan, 'inline', undefined, 'zh-CN', {
+      active: true,
+      onToggle,
+    });
+    instances.push({ container, root });
+    expect(container.querySelector('[data-testid="artifact-host-view"]')?.textContent).toContain('已用主题样式显示');
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="artifact-host-view-restore"]')?.click();
+    });
+    expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
   it('lets an Inline frame grow past the legacy 900px scrollport', async () => {

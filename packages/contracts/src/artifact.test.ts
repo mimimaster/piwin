@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ARTIFACT_CANVAS_ONLY_HINT,
   ARTIFACT_EXPLICIT_ONLY_HINT,
+  ARTIFACT_HOST_STYLE_ONLY_HINT,
   ARTIFACT_INLINE_ONLY_HINT,
   ARTIFACT_LANGUAGE_ALIASES,
   ARTIFACT_RUNTIME_CONTRACT,
@@ -200,6 +201,15 @@ describe('artifact protocol formatter', () => {
     expect(instructions).toContain(formatArtifactProtocol());
     expect(instructions).not.toContain('## Artifact Decision Policy');
     expect(instructions).not.toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
+  });
+
+  it('adds the host-style-only hint only for the internal host-only switch', () => {
+    const config = createDefaultArtifactConfig();
+    expect(formatArtifactInstructions(config)).not.toContain(ARTIFACT_HOST_STYLE_ONLY_HINT);
+    config.styleModes = 'host-only';
+    const instructions = formatArtifactInstructions(config);
+    expect(instructions.startsWith(ARTIFACT_HOST_STYLE_ONLY_HINT)).toBe(true);
+    expect(instructions).toContain(formatArtifactProtocol());
   });
 
   it('prefixes the explicit-only constraint onto default and custom decision prompts', () => {

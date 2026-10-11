@@ -39,6 +39,7 @@ import {
 } from './artifact-viewer-model.js';
 import { SourceCodeBlock } from './markdown-code-block.js';
 import { isMobileTauriRuntime } from './shell-runtime.js';
+import { useArtifactStyleModes } from './artifact-style-modes';
 
 export type ArtifactCanvasProposal = ComposerProposeTextActionPayload;
 
@@ -90,6 +91,9 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
   const [previewTheme, setPreviewTheme] = useState<ArtifactPreviewTheme>('follow');
   const [fullscreen, setFullscreen] = useState(false);
   const [showingCode, setShowingCode] = useState(false);
+  // "View with theme" applies to one artifact; another target starts in its own style.
+  const [hostViewTargetId, setHostViewTargetId] = useState<string | null>(null);
+  const styleModes = useArtifactStyleModes();
   const presets = props.viewerPresets ?? !isMobileTauriRuntime();
   const mediaDataUrls = useArtifactSessionMediaDataUrls({
     source: activeTarget?.source ?? '',
@@ -102,6 +106,7 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
     [previewTheme, hostTheme],
   );
   const artifactTheme = previewTheme === 'follow' ? hostTheme : previewVariables;
+  const hostView = activeTarget !== null && activeTarget !== undefined && hostViewTargetId === activeTarget.id;
   const plan = useMemo(() => {
     if (!activeTarget) return null;
     return materializeArtifact(activeTarget.intent, {
@@ -109,9 +114,11 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
       source: activeTarget.source,
       presentation: 'canvas',
       mediaDataUrls,
+      styleModes,
+      ...(hostView ? { forceHostStyle: true } : {}),
       ...(artifactTheme ? { theme: artifactTheme } : {}),
     });
-  }, [activeTarget, artifactTheme, mediaDataUrls]);
+  }, [activeTarget, artifactTheme, mediaDataUrls, styleModes, hostView]);
 
   function handleInsert(): void {
     if (pendingProposal && props.onInsertProposal) {
@@ -238,6 +245,10 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
             locale={locale}
             initPriority={0}
             onComposerProposal={setPendingProposal}
+            styleOverride={{
+              active: hostView,
+              onToggle: () => setHostViewTargetId(hostView ? null : activeTarget.id),
+            }}
           />
         </ArtifactViewerStage>
       ) : (

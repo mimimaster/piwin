@@ -105,7 +105,14 @@ export type ArtifactConfig = {
   blockExternalScripts?: boolean;
   /** When true (default), any external resource blocks render. */
   blockExternalResources?: boolean;
+  /**
+   * Internal switch, not in Settings. `model` (default) lets the model pick
+   * `style="expressive"`; `host-only` renders everything under host style.
+   */
+  styleModes?: ArtifactStyleModes;
 };
+
+export type ArtifactStyleModes = 'model' | 'host-only';
 
 // ---------------------------------------------------------------------------
 // Artifact language aliases and runtime constants
@@ -158,6 +165,10 @@ export function formatArtifactKitReference(): string {
 }
 
 /** Trigger constraint prefixed onto instructions whenever triggerMode is explicit-only. */
+/** Prefixed onto instructions when `artifact.styleModes` is `host-only`. */
+export const ARTIFACT_HOST_STYLE_ONLY_HINT =
+  'Expressive style is off for this Host: every artifact fence uses `style="host"`.';
+
 export const ARTIFACT_EXPLICIT_ONLY_HINT =
   'Use an Artifact only when the user explicitly requests an artifact, visualization, interactive page, prototype, or UI.';
 
@@ -408,6 +419,7 @@ export function formatArtifactInstructions(
   }
   const parts = [
     config.triggerMode === 'explicit-only' ? ARTIFACT_EXPLICIT_ONLY_HINT : undefined,
+    config.styleModes === 'host-only' ? ARTIFACT_HOST_STYLE_ONLY_HINT : undefined,
     resolveArtifactSurfaceHint(capability),
     resolveArtifactDecisionPrompt(config),
     formatArtifactProtocol(),

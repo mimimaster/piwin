@@ -63,5 +63,6 @@ export function normalizeArtifactConfig(value: unknown, defaults: ArtifactConfig
     maxBytes,
     blockExternalScripts: record.blockExternalScripts === false ? false : true,
     blockExternalResources: record.blockExternalResources === false ? false : true,
+    ...(record.styleModes === 'host-only' ? { styleModes: 'host-only' as const } : {}),
   };
 }

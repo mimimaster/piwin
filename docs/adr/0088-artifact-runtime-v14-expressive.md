@@ -95,3 +95,27 @@ sessions.
     rather than a separate descriptor field. WebKit verification that
     subresource loads from the scheme grant the frame no IPC is still owed on
     a packaged build.
+
+## Style modes (P4)
+
+14. **Resolution.** Report kit (`class="piwin-report"`) is always host; then
+    the internal `artifact.styleModes: host-only` switch or the user's
+    "view with theme"; then the fence `style`; legacy fences without `style`
+    keep the Canvas cover-scene heuristic (`own`); otherwise host.
+15. **Expressive = `stage`.** Sandbox only (Shadow DOM cannot scope its
+    colors), `html[data-piwin-style="expressive"]`, theme guard limited to a
+    transparent page shell + host color-scheme, soft repair limited to
+    html/body/:root/root selectors (cards keep their colors), invented theme
+    names still mapped.
+16. **Contrast probe.** Final stage/own documents sample up to 200 text
+    elements (colors normalized by painting one canvas pixel) against WCAG AA
+    and look for a page-size fill on the wrong side of the host scheme. A hit
+    posts `piwin-artifact:contrast` (also whitelisted on the WebKit native
+    bridge). Desktop shows a badge 「对比度偏低」/「与当前主题不一致」 with
+    「用主题样式查看」; the theme view shows 「已用主题样式显示 · 恢复原样」.
+    Never an automatic rewrite.
+17. **Internal switch.** `artifact.styleModes` (`model` default /
+    `host-only`) lives in Host config only, not Settings. `host-only` adds a
+    prompt hint (every fence uses `style="host"`) and Desktop downgrades any
+    expressive fence to host. Per-session-type forcing (voice, automation,
+    subagents) from design §6.3 is not implemented.

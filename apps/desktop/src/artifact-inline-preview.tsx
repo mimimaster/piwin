@@ -10,6 +10,7 @@ import { artifactDownloadLabel, downloadArtifactSource } from './artifact-source
 import { ArtifactFullscreenOverlay } from './artifact-fullscreen-overlay.js';
 import { artifactViewerCopy, resolveArtifactViewerKey } from './artifact-viewer-model.js';
 import { isMobileTauriRuntime } from './shell-runtime.js';
+import type { ArtifactStyleOverride } from './artifact-style-override.js';
 
 export type ArtifactInlinePreviewProps = {
   plan: Extract<ArtifactRenderPlan, { kind: 'render' }>;
@@ -23,6 +24,8 @@ export type ArtifactInlinePreviewProps = {
   /** Promote this fence to the Canvas surface; omitted when Canvas is unavailable. */
   onOpenCanvas?: () => void;
   mediaDataUrls?: ReadonlyMap<string, string>;
+  /** "View with theme" for expressive artifacts. */
+  styleOverride?: ArtifactStyleOverride;
 };
 
 /**
@@ -51,6 +54,7 @@ export function ArtifactInlinePreview(props: ArtifactInlinePreviewProps): ReactE
           locale={props.locale}
           {...(props.artifactTheme ? { theme: props.artifactTheme } : {})}
           {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
+          {...(props.styleOverride ? { styleOverride: props.styleOverride } : {})}
         />
       </div>
       <div
