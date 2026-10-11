@@ -29,6 +29,8 @@ export type TuiPaneProps = {
   hostKey?: string | undefined;
   /** The terminal shell started or opened this session: make it the one Desktop shows. */
   onSessionChange?: (sessionId: string) => void;
+  /** Show a file the agent's own TUI generated (native agent terminals only). */
+  onOpenImage?: ((fileName: string) => void) | undefined;
 };
 
 type TuiPaneCopy = { unavailable: string; restart: string; exited: string };
@@ -136,6 +138,7 @@ export function TuiPane(props: TuiPaneProps): ReactElement {
           visible={props.visible}
           {...(shown.current.projectPath ? { projectPath: shown.current.projectPath } : {})}
           pty={agentPty}
+          onOpenImage={agentPty === undefined ? undefined : props.onOpenImage}
           tui={agentId === 'pi' ? {
             ...(shown.current.sessionId === null ? {} : { sessionId: shown.current.sessionId }),
             ...(shown.current.remoteTarget === undefined ? {} : { remoteTarget: shown.current.remoteTarget }),

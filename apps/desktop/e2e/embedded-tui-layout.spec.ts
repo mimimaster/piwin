@@ -75,6 +75,30 @@ for (const theme of ['ink', 'paper']) {
   });
 }
 
+test('the native agent image button opens in Desktop instead of reaching the program', async ({ page }) => {
+  await page.goto('/e2e/fixtures/embedded-tui.html?agent=grok');
+  await page.getByTestId('conversation-shell-cli').click();
+  await expect(page.locator('.xterm-screen')).toBeVisible();
+  await expect.poll(async () => (await geometry(page)).cols).toBeGreaterThan(20);
+  const cell = await page.evaluate(() => {
+    const screen = document.querySelector('.xterm-screen')?.getBoundingClientRect();
+    if (screen === undefined) throw new Error('terminal not mounted');
+    return {
+      left: screen.left, top: screen.top,
+      width: screen.width / Number(document.documentElement.dataset.ptyCols),
+      height: screen.height / Number(document.documentElement.dataset.ptyRows),
+    };
+  });
+  const writes = () => page.evaluate(() => Number(document.documentElement.dataset.ptyWrites ?? 0));
+  // Fixture frame: row 3 holds `[Open Image]` from column 4.
+  const rowMiddle = cell.top + 3.5 * cell.height;
+  await page.mouse.click(cell.left + 8 * cell.width, rowMiddle);
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.openedImage)).toBe('1.jpg');
+  expect(await writes()).toBe(0);
+  await page.mouse.click(cell.left + 40 * cell.width, rowMiddle);
+  await expect.poll(writes).toBeGreaterThan(0);
+});
+
 for (const agent of ['pi', 'grok']) {
   test(`repeated ${agent} shell switches reuse the running terminal`, async ({ page }) => {
     await page.goto(`/e2e/fixtures/embedded-tui.html?agent=${agent}`);

@@ -8,6 +8,7 @@ import { WorkbenchTuiStage, useWorkbenchTui } from './workbench-tui.js';
 import { canOpenEmbeddedTui, isTerminalFeatureEnabled } from './terminal-feature.js';
 import { prefetchTuiPane } from './deferred-desktop-surfaces.js';
 import { isTauriPtyAvailable } from './tauri-pty.js';
+import { useCliImagePreview } from './cli-image-preview.js';
 
 /** Owns shell selection and native-agent routing; the shell frame only places slots. */
 export function useWorkbenchCli(input: {
@@ -86,6 +87,7 @@ export function useWorkbenchCli(input: {
       setSyncing(false);
     });
   };
+  const imagePreview = useCliImagePreview({ hostClient, sessionId: state.activeSessionId, locale: input.locale });
   const visible = !input.studioOpen && !input.subpageOpen;
   return {
     active: tui.active && visible,
@@ -94,14 +96,15 @@ export function useWorkbenchCli(input: {
       appearanceMode={input.appearanceMode} busy={syncing} onDesktop={close}
       onCliIntent={() => { void prefetchTuiPane().catch(input.onError); }}
       onCli={() => { selected.current = true; tui.open(); }} /> : null,
-    stage: tui.mounted ? <WorkbenchTuiStage visible={tui.active && visible} sessionId={state.activeSessionId} projectPath={state.activeScope.kind === 'project' ? state.activeScope.projectPath : null}
+    stage: tui.mounted ? <>{imagePreview.element}<WorkbenchTuiStage visible={tui.active && visible} sessionId={state.activeSessionId} projectPath={state.activeScope.kind === 'project' ? state.activeScope.projectPath : null}
       agentId={agentId} hostClient={hostClient} hostKey={hostKey} remoteTarget={remoteTarget} locale={input.locale}
+      onOpenImage={imagePreview.open}
       onSessionChange={(sessionId) => {
         if (sessionId !== state.activeSessionId) {
           adoptedEngine.current = { sessionId, agentId, hostKey };
           tui.adopt(sessionId);
           void Promise.resolve(input.onResumeSession(sessionId)).catch(input.onError);
         }
-      }} /> : null,
+      }} /></> : null,
   };
 }

@@ -51,6 +51,7 @@ export function WorkbenchTuiStage(props: {
   remoteTarget?: HostAttachTarget | undefined;
   hostKey?: string | undefined;
   onSessionChange: (sessionId: string) => void;
+  onOpenImage?: ((fileName: string) => void) | undefined;
 }): ReactElement {
   return (
     <div className="conversation-tui-stage" hidden={props.visible === false} data-testid="conversation-tui-stage">

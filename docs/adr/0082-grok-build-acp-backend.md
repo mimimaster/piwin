@@ -556,6 +556,16 @@ Long histories need the adapter's streamed replay. The published adapter
 and verified on a development Host, but not yet committed or published. See
 [the overflow evidence](../evidence/2026-10-05-grok-replay-frame-overflow.md).
 
+**Generated images in the native view (2026-10-11).** Grok's TUI prints an
+`[Open Image]` button that opens the file on the Host machine, which a remote
+Desktop never sees, and it only draws inline images over the Kitty graphics
+protocol, which the embedded xterm cannot render before xterm 6.1. Desktop
+therefore takes the click itself: a capture-phase handler on the terminal
+surface recognises the button and the file name printed above it, withholds
+the click from the program, requests `agents/cli-sync`, and previews the
+matching generated attachment from the session transcript. Only native agent
+terminals opt in; the lookup is by base name within the newest transcript page.
+
 The native addon stays external in Host packaging, including its executable
 spawn helper. node-pty is pinned to `1.2.0-beta.12` because the stable `1.1.0`
 macOS tarball ships that helper without execute permission (upstream #919).

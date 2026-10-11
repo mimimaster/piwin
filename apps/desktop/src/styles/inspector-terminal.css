@@ -378,6 +378,19 @@
   overflow-y: auto !important;
 }
 
+/* The program's own image button: Desktop takes the click (see xterm-image-links). */
+.xterm-surface.has-terminal-image-link,
+.xterm-surface.has-terminal-image-link .xterm-screen {
+  cursor: pointer;
+}
+
+.cli-image-preview-status {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  color: var(--text-2);
+}
+
 /* ── Terminal sessions ────────────────────────────────────────────── */
 
 .terminal-dock-session-strip {

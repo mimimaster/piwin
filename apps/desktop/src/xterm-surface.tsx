@@ -18,6 +18,7 @@ import { connectXtermPty } from './xterm-pty-connection.js';
 import { listenForTuiSession } from './xterm-tui-session';
 import { readDeckXtermFontFamily, readDeckXtermTheme } from './xterm-theme';
 import { attachXtermWebglRenderer, type XtermRenderer } from './xterm-webgl-renderer';
+import { attachXtermImageLinks } from './xterm-image-links.js';
 import {
   tauriPtyOpen,
   tauriPtyOpenTui,
@@ -47,6 +48,8 @@ export type XtermSurfaceProps = {
   onStatus: (status: PtyStatus, ptyId: string | null, message?: string) => void;
   /** The terminal shell announced the session it shows (see `parseTuiSessionAnnouncement`). */
   onTuiSession?: (sessionId: string) => void;
+  /** The program's `[Open Image]` button was clicked; Desktop shows the file itself. */
+  onOpenImage?: ((fileName: string) => void) | undefined;
 };
 
 const MIN_OPEN_WIDTH = 40;
@@ -64,6 +67,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   const showRef = useRef<(() => void) | null>(null);
   const onStatusRef = useRef(props.onStatus);
   const onTuiSessionRef = useRef(props.onTuiSession);
+  const onOpenImageRef = useRef(props.onOpenImage);
   const contextMenu = useDesktopContextMenu();
   // CM-13: terminal-selection menu target, captured on right-click.
   // The menu stays mounted so a single right-click opens it; last non-null
@@ -72,6 +76,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   const lastSelectionRef = useRef<ContextMenuTarget | null>(null);
   onStatusRef.current = props.onStatus;
   onTuiSessionRef.current = props.onTuiSession;
+  onOpenImageRef.current = props.onOpenImage;
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -100,6 +105,10 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     terminal.loadAddon(fitAddon);
     const stopListeningForTuiSession = listenForTuiSession(terminal, (sessionId) =>
       onTuiSessionRef.current?.(sessionId),
+    );
+    // Only a surface with a consumer takes the click away from the program.
+    const detachImageLinks = props.onOpenImage === undefined ? null : attachXtermImageLinks(
+      terminal, containerRef.current, (fileName) => onOpenImageRef.current?.(fileName),
     );
 
     const hasUsableSize = (element: HTMLElement): boolean => {
@@ -273,6 +282,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       connection.abort();
       ptyIdRef.current = null;
       stopListeningForTuiSession();
+      detachImageLinks?.();
       renderer?.dispose();
       terminal.dispose();
       terminalRef.current = null;

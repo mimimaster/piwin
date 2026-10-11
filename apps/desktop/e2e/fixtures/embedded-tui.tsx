@@ -46,11 +46,13 @@ const host: AgentCliHost = {
       ptySequence += 1; activePtyId = `grok-pty-${ptySequence}`;
       document.documentElement.dataset.ptyOpens = String(ptySequence);
       document.documentElement.dataset.ptyCols = String(command.input.cols);
+      document.documentElement.dataset.ptyRows = String(command.input.rows);
       document.documentElement.dataset.cliAgent = 'grok';
-      for (const listener of hostListeners) listener({ type: 'pty/output', ptyId: activePtyId, data: 'Grok Build native CLI\r\n', at: '' });
+      for (const listener of hostListeners) listener({ type: 'pty/output', ptyId: activePtyId, data: '\u001b[?1000h\u001b[?1006hGrok Build native CLI\r\n/Users/me/.grok/sessions/demo/images/1.jpg\r\n\r\n    [Open Image]\r\n', at: '' });
       return { type: 'response', command: command.type, success: true, data: { ptyId: activePtyId, sessionId: 'session-layout' } };
     }
-    if (command.type === 'pty/resize') document.documentElement.dataset.ptyCols = String(command.cols);
+    if (command.type === 'pty/resize') { document.documentElement.dataset.ptyCols = String(command.cols); document.documentElement.dataset.ptyRows = String(command.rows); }
+    if (command.type === 'pty/write') document.documentElement.dataset.ptyWrites = String(Number(document.documentElement.dataset.ptyWrites ?? 0) + 1);
     return { type: 'response', command: command.type, success: true, data: {} };
   },
   subscribe: (listener) => { hostListeners.add(listener); return () => { hostListeners.delete(listener); }; },
@@ -84,6 +86,7 @@ function LayoutFixture() {
             sessionId={sessionId} projectPath={projectPath} locale="zh-CN" agentId={agentId} hostClient={host}
             remoteTarget={{ endpoint: 'wss://layout.example' }}
             onSessionChange={(id) => { tui.adopt(id); setSessionId(id); }}
+            onOpenImage={(fileName) => { document.documentElement.dataset.openedImage = fileName; }}
           /> : undefined}
         />
         {selected ? <Button style={{ position: 'fixed', bottom: 4, left: 4, zIndex: 100 }} data-testid="fixture-adopt-session"
