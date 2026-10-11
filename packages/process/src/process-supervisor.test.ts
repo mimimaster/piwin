@@ -1,9 +1,14 @@
-import { mkdtemp } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { createProcessSupervisor } from './process-supervisor.js';
+
+const execFileAsync = promisify(execFile);
 
 async function makeTrustedProject(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'piwin-supervisor-test-'));
@@ -24,6 +29,46 @@ async function waitForProcessToExit(processId: number, timeoutMs = 2_000): Promi
   }
   throw new Error(`process ${processId} did not exit within ${timeoutMs}ms`);
 }
+
+describe('ProcessSupervisor spawn failures', () => {
+  it('fails the call, not the process, when the working directory no longer exists', async () => {
+    // An 'error' event nobody listens to is an uncaught exception, which the
+    // test runner swallows. Run the failing spawn in a process of its own and
+    // read how it ended.
+    const trustedProject = await makeTrustedProject();
+    const script = join(trustedProject, 'spawn-missing-cwd.mts');
+    const supervisorUrl = new URL('./process-supervisor.js', import.meta.url).href;
+    await writeFile(
+      script,
+      `import { createProcessSupervisor } from ${JSON.stringify(supervisorUrl)};
+const supervisor = createProcessSupervisor({ killGraceMs: 50, finalWaitMs: 100 });
+try {
+  await supervisor.spawn({ command: '/bin/sh', argv: ['-c', 'true'], cwd: ${JSON.stringify(join(trustedProject, 'deleted-checkout'))}, trustedProjectRoots: [${JSON.stringify(trustedProject)}] });
+  console.log('SPAWNED');
+} catch (error) {
+  console.log('REJECTED ' + error.message);
+}
+await new Promise((resolve) => setTimeout(resolve, 100));
+console.log('ALIVE');
+await supervisor.dispose();
+`,
+    );
+    const result = await execFileAsync(process.execPath, ['--import', createRequire(import.meta.url).resolve('tsx'), script]).catch((error: { stdout?: string; stderr?: string; code?: number }) => error);
+    const stdout = 'stdout' in result ? String(result.stdout) : '';
+    expect(stdout).toContain('REJECTED spawn failed: working directory does not exist');
+    expect(stdout).toContain('ALIVE');
+  });
+
+  it('names a command that cannot be found', async () => {
+    const trustedProject = await makeTrustedProject();
+    const supervisor = createProcessSupervisor({ killGraceMs: 50, finalWaitMs: 100 });
+    await expect(
+      supervisor.spawn({ command: '/no/such/command', argv: [], cwd: trustedProject, trustedProjectRoots: [trustedProject] }),
+    ).rejects.toThrow(/spawn failed/);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await supervisor.dispose();
+  });
+});
 
 describe('ProcessSupervisor', () => {
   it('waits for a child to exit before stop resolves', async () => {

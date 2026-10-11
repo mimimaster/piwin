@@ -972,6 +972,66 @@ describe('HostServer', () => {
     await server.stop();
   });
 
+  it('hydrates a pending permission with the context its answer depends on', async () => {
+    const runtime = new FakeRuntime();
+    runtime.pendingPermissions = [
+      {
+        requestId: 'perm-1',
+        sessionId: 'session-1',
+        action: 'bash',
+        detail: 'ls',
+        defaultDecision: 'ask',
+        context: {
+          kind: 'command',
+          summary: 'bash',
+          command: 'ls',
+          backendAgentId: 'grok',
+          backendOptions: [{ optionId: 'allow-once', label: 'Allow once', kind: 'allow_once' }],
+        },
+      },
+    ];
+    const server = new HostServer({ runtime, port: 0, instanceId: 'host-hydration-perm', maxReplay: 1 });
+    const address = await server.start();
+    runtime.emit({ type: 'host/log', level: 'info', message: 'first' });
+    runtime.emit({ type: 'host/log', level: 'info', message: 'second' });
+    await waitForDrain();
+
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => {
+      inbox.push(decodeHostWireMessage(data.toString()));
+    });
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'desktop-hydration-perm',
+        lastSeq: 0,
+        capabilities: { pushBatching: true, cursorBatches: true, boundedReplay: true, hydration: true },
+        subscriptions: { sessionIds: ['session-1'] },
+      }),
+    );
+
+    await inbox.waitFor((message) => message.type === 'host/hello');
+    const hydration = await inbox.waitFor((message) => message.type === 'hydration');
+    expect(hydration).toMatchObject({
+      snapshot: {
+        pendingPermissions: [
+          {
+            requestId: 'perm-1',
+            context: { backendOptions: [{ optionId: 'allow-once', kind: 'allow_once' }], backendAgentId: 'grok' },
+          },
+        ],
+      },
+    });
+
+    socket.close();
+    await server.stop();
+  });
+
   it('sends snapshot then complete replay/done when hydration is disabled', async () => {
     const runtime = new FakeRuntime();
     const server = new HostServer({

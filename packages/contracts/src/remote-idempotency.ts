@@ -8,6 +8,7 @@ export const REMOTE_IDEMPOTENT_MUTATION_TYPES = [
   'session/abort',
   'session/delete',
   'session/create',
+  'agents/cli-open',
   'permission/resolve',
   'settings/apply',
   'auth/login',

@@ -18,6 +18,9 @@ import { memoWithLatestCallbacks } from './memo-with-latest-callbacks';
 import type { useConversationPaneLayout } from './use-conversation-pane-layout';
 import type { useDockingWorkspace } from './workbench/docking/use-docking-workspace';
 import { WorkbenchContextBar } from './workbench-context-bar';
+import { useWorkbenchCli } from './use-workbench-cli.js';
+import { isTerminalFeatureEnabled } from './terminal-feature.js';
+import { formatError } from '@piwin/contracts';
 import { WorkbenchPermissionBar, WorkbenchTranscript } from './workbench-conversation';
 import { WorkbenchInspector } from './workbench-inspector';
 import { WorkbenchSidebar } from './workbench-sidebar';
@@ -114,6 +117,13 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
   const { setComposer, switchBranch, terminalJobMonitor, transcriptHistoryLoading } = model;
   const { visibleRunRecordsById, visibleTranscriptMessages, worktrees } = model;
 
+  const terminalEnabled = isTerminalFeatureEnabled(preferences.terminalEnabled);
+  const cli = useWorkbenchCli({
+    state, hostClient, terminalEnabled, studioOpen, subpageOpen: activeSubPage !== null,
+    locale: desktopLocale, appearanceMode: activeTheme.mode === 'light' ? 'light' : 'dark',
+    onResumeSession: handleResumeSession,
+    onError: (error) => dispatch({ type: 'error', message: formatError(error) }),
+  });
   return (
     <div
       className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${studioOpen ? ' studio-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}${rightPanelOpen && inspectorPlacement === 'column' && rightPanelResize.isFullWidth ? ' right-panel-full-width' : ''}`}
@@ -162,12 +172,14 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             onOpenWorktreeProject={(path) => handleOpenProject(path, { switchSession: true })}
             onRemoveProject={handleRemoveProjectFromSidebar}
             onNewSession={(options) => {
+              cli.reset();
               setActiveSubPage(null);
               if (isOverlayPresentation) shell.closeOverlay();
               return handleStartNewSession(options);
             }}
             onResumeSession={openSessionFromShell}
             onResumeDraft={(draftId) => {
+              cli.reset();
               setActiveSubPage(null);
               if (isOverlayPresentation) shell.closeOverlay();
               return handleResumeDraft(draftId);
@@ -220,6 +232,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             onResumeSession={handleResumeSession}
             onRetryLastUser={(messageId) => void retryTurn(messageId, { keepPrevious: false })}
             onOpenSessionSearch={openSessionSearch}
+            conversationShellControl={cli.control}
             trailing={sessionContextRow}
             isInkstone={inkstoneStage}
           />
@@ -250,6 +263,8 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             handleCreatePaneConversation={handleCreatePaneConversation}
           />
         )}
+        conversationOverride={cli.stage}
+        conversationOverrideActive={cli.active}
         transcript={
           <WorkbenchTranscript
             locale={desktopLocale}
@@ -381,6 +396,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             ptyOutput={ptyOutput}
             setPtyOutput={setPtyOutput}
             terminalCwd={terminalCwd}
+            terminalEnabled={terminalEnabled}
             handleTerminalCwdChange={handleTerminalCwdChange}
             terminalRecentDirs={terminalRecentDirs}
             terminalJobMonitor={terminalJobMonitor}

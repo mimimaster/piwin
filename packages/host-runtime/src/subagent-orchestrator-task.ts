@@ -125,6 +125,7 @@ export async function dispatchTask(
     await deps.registerTaskSession?.({
       childSessionId,
       parentSessionId: task.parentSessionId,
+      batchRunId: runId,
       runtimeGenerationId,
       workingDirectory: lease.cwd,
       task,

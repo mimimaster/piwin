@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  readonly VITE_PIWIN_E2E_FIXTURES?: string;
   readonly VITE_PIWIN_SHELL_ONLY?: string;
   /** Prefilled Host WebSocket for a deployed Web shell. */
   readonly VITE_PIWIN_HOST_ENDPOINT?: string;

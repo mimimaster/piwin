@@ -419,3 +419,23 @@ describe('artifactCodeFirst', () => {
     expect('artifactPreviewEnabled' in prefs).toBe(false);
   });
 });
+
+describe('terminal rollout preference persistence', () => {
+  it('leaves an unset or malformed preference to environment policy', () => {
+    expect(loadDesktopPreferences().terminalEnabled).toBeUndefined();
+    setLocalStorage('terminalEnabled', 'invalid');
+    expect(loadDesktopPreferences().terminalEnabled).toBeUndefined();
+  });
+
+  it('persists explicit enable and disable values across reloads', () => {
+    saveDesktopPreferences({ ...loadDesktopPreferences(), terminalEnabled: false });
+    expect(loadDesktopPreferences().terminalEnabled).toBe(false);
+    saveDesktopPreferences({ ...loadDesktopPreferences(), terminalEnabled: true });
+    expect(loadDesktopPreferences().terminalEnabled).toBe(true);
+  });
+
+  it('does not turn a build default into a stored override when saving another preference', () => {
+    saveDesktopPreferences(loadDesktopPreferences());
+    expect(localStorage.getItem('piwin.desktop.terminalEnabled')).toBeNull();
+  });
+});

@@ -33,6 +33,7 @@ import {
   webToDraft,
   type DraftSearchSource,
 } from '../web-draft';
+import { requestHostPickerEntry } from '../../host-picker-create-entry.js';
 import { HostWorkspacePicker } from '../../host-workspace-picker';
 import { pickLocalFile } from '../../pick-project-directory';
 import { WebPageSearchTab } from './web-page-search-tab';
@@ -515,17 +516,25 @@ export function WebPage(): ReactElement {
         currentPath={filePickerPath}
         onCurrentPathChange={setFilePickerPath}
         mode="file"
-        listDirectory={async (path) => {
+        listDirectory={async (path, includeHidden) => {
           const response = await hostClient?.request?.({
             type: 'host/list-dir',
             ...(path ? { path } : {}),
-            includeHidden: true,
+            includeHidden: includeHidden ?? false,
           });
           if (!response?.success) {
             throw new Error(response?.error ?? 'host/list-dir failed');
           }
           return response.data as HostListDirData;
         }}
+        {...(hostClient?.supportsCommand?.('host/create-entry') && hostClient.request
+          ? { createEntry: (input) => requestHostPickerEntry(
+              (command) => {
+                const send = hostClient.request;
+                if (!send) throw new Error('Host connection is unavailable.');
+                return send(command);
+              }, input, locale === 'zh-CN' ? 'zh-CN' : 'en',
+            ) } : {})}
         onConfirm={(path) => closeFilePicker(path)}
         onCancel={() => closeFilePicker(null)}
       />

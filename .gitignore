@@ -80,6 +80,7 @@ AGENTS.md
 docs/plans/
 docs/specs/*
 !docs/specs/ios-shell-display-mapping.md
+!docs/specs/codemode-readonly.md
 docs/notes/
 cropped-portraits/
 cropped-portraits-16.zip

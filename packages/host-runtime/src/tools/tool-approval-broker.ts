@@ -127,6 +127,10 @@ export function createToolApprovalBroker(options: ToolApprovalBrokerOptions): To
           ...(input.policy.subject?.kind === 'process' && input.policy.subject.cwd
             ? { cwd: input.policy.subject.cwd }
             : {}),
+          // The bare command: `detail` leads with the policy reason code.
+          ...(input.policy.action === 'bash' && input.policy.subject?.kind === 'bash'
+            ? { command: input.policy.subject.command }
+            : {}),
           ...(input.policy.action === 'process:start'
             ? { command: [String(input.arguments.command ?? ''), ...(Array.isArray(input.arguments.argv) ? input.arguments.argv.map(String) : [])].join(' ').trim() }
             : {}),

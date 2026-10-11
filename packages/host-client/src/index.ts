@@ -1,6 +1,7 @@
 export * from './host-client.js';
 export * from './foreground-run-projection.js';
 export * from './host-request-attempt.js';
+export * from './prompt-admission.js';
 export * from './flashcard-study-pending.js';
 export * from './flashcard-study-view-model.js';
 export * from './flashcard-study-controller.js';
@@ -21,3 +22,4 @@ export * from './device-tools/health-background-sync.js';
 export * from './host-wake.js';
 export * from './live-activity-bridge.js';
 export * from './native-live-audio.js';
+export * from './media-upload.js';

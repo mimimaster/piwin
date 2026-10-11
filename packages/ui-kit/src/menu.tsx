@@ -7,6 +7,8 @@ import { restoreSelectionRanges, snapshotSelectionRanges } from './selection-ran
 export type DropdownMenuProps = {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Let dialogs opened from a menu retain focus instead of restoring the trigger. */
+  onCloseAutoFocus?: (event: Event) => void;
   trigger: ReactNode;
   children: ReactNode;
   align?: 'start' | 'center' | 'end';
@@ -45,6 +47,7 @@ export function DropdownMenu(props: DropdownMenuProps): ReactElement {
               ? `ui-menu-content ${props.contentClassName}`
               : 'ui-menu-content'
           }
+          onCloseAutoFocus={props.onCloseAutoFocus}
           sideOffset={6}
           align={props.align ?? 'start'}
           side={props.side ?? 'bottom'}

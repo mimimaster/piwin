@@ -103,9 +103,44 @@ export function extensionApplyDataFromRecord(
   };
 }
 
+/**
+ * Test-only view into a session's cold activation: the points where a Run can
+ * be stopped while its runtime is prepared and created. A returned promise
+ * holds the activation at that point. Production Hosts never set this.
+ */
+export type SessionActivationProbe = {
+  /** A caller asked for the session's runtime (it may join one in flight). */
+  requested?: (step: { sessionId: string; runId?: string }) => void;
+  /** Residency admitted the activation; nothing is allocated yet. */
+  admitted?: (step: { sessionId: string; runId?: string }) => void | Promise<void>;
+  /** The runtime is about to be created under this generation. */
+  creating?: (step: {
+    sessionId: string;
+    runId?: string;
+    runtimeGenerationId: string;
+  }) => void | Promise<void>;
+  /** A created runtime was released because its Run was stopped meanwhile. */
+  dropped?: (step: { sessionId: string; runId?: string; runtimeGenerationId: string }) => void;
+};
+
 export type HostRuntimeOptions = {
   mode: HostMode;
   mock?: boolean;
+  /** Tests only; see `SessionActivationProbe`. */
+  activationProbe?: SessionActivationProbe;
+  /**
+   * Mock mode only: compose the subagent lifecycle stand-in so shells can
+   * exercise start, result and follow-up. Off by default, so a plain mock Host
+   * keeps reporting subagent orchestration as not ready.
+   */
+  mockSubagents?: boolean;
+  /**
+   * Mock mode only: a prompt starting with "改文件" writes a real file into the
+   * session's project and records it as a turn change, so shells can exercise
+   * diff and undo. Off by default: a mock Host a user turned on in settings
+   * must never write into their workspace.
+   */
+  mockFileChanges?: boolean;
   piwinRoot?: string;
   /**
    * Cross-process ownership of the canonical piwin data root. Production

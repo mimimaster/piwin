@@ -5,6 +5,7 @@ import type {
   HostReplayDoneFrame,
   HostSnapshotFrame,
   HostWireMessage,
+  PermissionRequestContext,
   RemoteCapabilitySummary,
   RemoteHostStatusData,
   RemotePendingPermission,
@@ -16,6 +17,7 @@ import { HOST_PROTOCOL_VERSION, LIVE_SUBSCRIPTION_MAX_SESSION_IDS } from '@piwin
 import type { HostRuntime } from '@piwin/host-runtime';
 import {
   projectRemoteResponse,
+  projectRemoteValue,
   projectRemoteStatusData,
   redactRemoteHostPaths,
   type RemoteProjectionContext,
@@ -310,6 +312,9 @@ async function loadHydrationPendingPermissions(
         detail: redactRemoteHostPaths(truncateUtf8(record.detail, 4 * 1024)),
         defaultDecision: record.defaultDecision,
       };
+      if (isRecord(record.context)) {
+        permission.context = projectRemoteValue(record.context) as PermissionRequestContext;
+      }
       if (typeof record.runId === 'string') {
         permission.runId = record.runId;
       }

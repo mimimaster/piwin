@@ -5,6 +5,8 @@
  */
 import type { ReactElement } from 'react';
 import type {
+  HostCreateEntryInput,
+  HostDirEntry,
   HostOsFamily,
   PermissionDecision,
   PermissionRememberScope,
@@ -66,7 +68,8 @@ export type AppDialogsProps = {
   /** Host OS from hello capabilities. Drives path placeholder and validation. */
   hostOsFamily?: HostOsFamily;
   /** List a Host directory for the remote folder picker. */
-  onListHostDirectory?: (path?: string) => Promise<import('@piwin/contracts').HostListDirData>;
+  onListHostDirectory?: (path?: string, includeHidden?: boolean) => Promise<import('@piwin/contracts').HostListDirData>;
+  onCreateHostEntry?: (input: HostCreateEntryInput) => Promise<HostDirEntry>;
 };
 
 export function AppDialogs(props: AppDialogsProps): ReactElement {
@@ -103,6 +106,7 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
             currentPath={props.projectInput}
             onCurrentPathChange={props.onProjectInputChange}
             listDirectory={props.onListHostDirectory}
+            {...(props.onCreateHostEntry ? { createEntry: props.onCreateHostEntry } : {})}
             recents={props.trustedProjects
               .map((project) => project.path)
               .filter((path) => looksLikeHostAbsolutePath(path, hostPathStyle))}

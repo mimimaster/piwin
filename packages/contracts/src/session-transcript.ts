@@ -195,6 +195,12 @@ export type SessionResumeData = {
   backendCapabilities?: import('./agent-backend-capabilities.js').SessionBackendCapabilities;
   /** ADR 0082: backend-owned composer options (models, efforts, modes, commands). */
   backendOptions?: import('./agent-backend-capabilities.js').SessionBackendOptions;
+  /**
+   * ADR 0082: the external agent holds history this transcript does not show
+   * yet (a session imported from its catalog, or continued in its own TUI).
+   * A client that wants it requests `agents/cli-sync`, then resumes again.
+   */
+  nativeHistory?: 'unsynced';
 };
 
 /** Lightweight linear outline derived from product transcript. */

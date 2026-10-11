@@ -19,9 +19,34 @@ import {
   SessionIndexCorruptError,
   unarchiveSessionRecord,
   unpinSessionRecord,
+  updateSessionRecord,
   upsertSessionRecord,
   listAllSessionRecords,
 } from './session-index-store.js';
+
+describe('updateSessionRecord', () => {
+  it('keeps a rename that lands while another change to the record is in flight', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-session-'));
+    const filePath = join(dir, 'index.json');
+    await upsertSessionRecord(filePath, createSessionRecord({ id: 's1', projectPath: '/tmp/proj', name: 'first prompt' }));
+    // Both start from the same stored record; each must see the other's result.
+    await Promise.all([
+      renameSessionRecord(filePath, 's1', 'my title'),
+      updateSessionRecord(filePath, 's1', (record) => {
+        record.messageCount += 1;
+        record.lastPreview = 'reply';
+      }),
+    ]);
+    const [stored] = (await loadSessionIndex(filePath)).sessions;
+    expect(stored).toMatchObject({ name: 'my title', nameSource: 'user', messageCount: 1, lastPreview: 'reply' });
+  });
+
+  it('does nothing for a session without a record', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-session-'));
+    const filePath = join(dir, 'index.json');
+    await expect(updateSessionRecord(filePath, 'absent', () => undefined)).resolves.toBeUndefined();
+  });
+});
 
 describe('session-index-store', () => {
   it('upserts and lists by project', async () => {

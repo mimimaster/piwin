@@ -48,14 +48,14 @@ export function projectHostToolResultToPiContent(
     const part = toPiImagePart(image);
     if (part) content.push(part);
   }
-  return {
-    content,
-    details: {
-      byteSize: truncated.length,
-      ...extraDetails,
-      ...(result.details ?? {}),
-    },
+  const details = {
+    byteSize: truncated.length,
+    ...extraDetails,
+    ...(result.details ?? {}),
   };
+  // Script payloads stay on the in-process ToolResult. Never project them.
+  delete (details as { scriptPayload?: unknown }).scriptPayload;
+  return { content, details };
 }
 
 function toPiImagePart(image: ToolResultImage): PiBackendToolContentPart | undefined {

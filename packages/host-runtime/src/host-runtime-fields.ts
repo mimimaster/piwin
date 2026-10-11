@@ -68,6 +68,7 @@ import { type PiwinRootLease } from './piwin-root-lease.js';
 import type { SubagentTaskResult } from '@piwin/contracts';
 
 import type { ComposedSessionHostTools, HostRuntimeOptions } from './host-runtime-types.js';
+import type { AgentCliService } from './grok/agent-cli-service.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import type { SubscriptionAuthService } from './subscription-auth-service.js';
 import type { LiveCallCoordinator } from './voice/live-call-coordinator.js';
@@ -87,6 +88,7 @@ export class HostRuntimeFields {
   host = undefined as unknown as ProductAgentHost;
   /** ADR 0082: Grok Build backend (null when this Host runs mock/Pi-only). */
   externalAgents: ExternalAgentBackend | undefined = undefined;
+  agentCliService: AgentCliService | undefined = undefined;
   /** Last Grok catalog change per backend session (drives replay on stale projection). */
   externalCatalogChanges = new Map<string, number>();
   sessions = new Map<string, SessionHandle>();

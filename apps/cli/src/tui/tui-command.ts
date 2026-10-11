@@ -1,0 +1,150 @@
+import { createWriteStream, mkdirSync, realpathSync } from 'node:fs';
+import { join } from 'node:path';
+import { format } from 'node:util';
+import { ProcessTerminal, TuiAltScreen } from '@earendil-works/pi-tui';
+import type { RemoteProjectSummary, RemoteSessionListData } from '@piwin/contracts';
+import { getPiwinRoot } from '@piwin/host-runtime/paths';
+import { parseMock, readOption } from '../cli-args.js';
+import { promptHistoryFile } from './prompt-history.js';
+import { parseCliAgent } from '../external-agent-cli.js';
+import { TuiApp } from './tui-app.js';
+import { loadTuiConfig } from './tui-config.js';
+import { hostData, openTuiHostLink, type TuiHostLink } from './tui-host-link.js';
+import { resolveTuiLaunchScope } from './tui-launch-scope.js';
+import { resolveTuiLaunchSessionIntent } from './tui-launch-session.js';
+
+export const TUI_USAGE =
+  'Usage: piwin tui [--session <id>] [--continue|-c] [--resume|-r [id]] [--project <projectId> | --project-path <dir>] [--embedded] [--agent <id>] [--mock]';
+
+/**
+ * `piwin tui`: the interactive terminal shell. Attaches to `PIWIN_HOST_URL`
+ * when set, otherwise runs its own loopback Host for the lifetime of the TUI.
+ */
+export async function commandTui(argv: string[]): Promise<void> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    console.error('piwin tui needs an interactive terminal. Use `piwin chat <text>` for scripts.');
+    process.exitCode = 1;
+    return;
+  }
+  const mock = parseMock(argv);
+  const agent = parseCliAgent(argv);
+  if (typeof agent === 'object') {
+    console.error(agent.error);
+    process.exitCode = 1;
+    return;
+  }
+  const embedded = argv.includes('--embedded');
+  const restoreConsole = redirectConsoleToLog();
+  let link: TuiHostLink;
+  try {
+    link = await openTuiHostLink({ mock, onHostError: (message) => console.error(message) });
+  } catch (error) {
+    restoreConsole();
+    throw error;
+  }
+
+  let app: TuiApp | undefined;
+  try {
+    const intent = resolveTuiLaunchSessionIntent(argv);
+    const explicitProjectId = readOption(argv, '--project');
+    // Desktop pins an existing conversation; standalone keeps cwd scope for
+    // later /new commands and project prompt history.
+    const skipDraftScope = embedded && intent.kind === 'session';
+    const projects = skipDraftScope || explicitProjectId !== undefined
+      ? []
+      : hostData<{ projects?: RemoteProjectSummary[] }>(
+          await link.request({ type: 'project/list' }),
+        ).projects ?? [];
+    const { projectId, notice } = resolveTuiLaunchScope({
+      projects,
+      explicitProjectId,
+      explicitPath: skipDraftScope ? undefined : readOption(argv, '--project-path'),
+      cwd: process.cwd(),
+      canonicalPath,
+    });
+    let sessionId: string | undefined;
+    let openSessionPicker = false;
+    if (intent.kind === 'session') {
+      sessionId = intent.sessionId;
+    } else if (intent.kind === 'continue') {
+      sessionId = await findLatestSessionId(link, projectId);
+    } else if (intent.kind === 'picker') {
+      openSessionPicker = !embedded;
+    }
+    const config = loadTuiConfig(getPiwinRoot());
+    const startNotice = [notice, ...config.problems].filter((line): line is string => line !== undefined).join('\n');
+    const tui = new TuiAltScreen(new ProcessTerminal());
+    await new Promise<void>((resolve, reject) => {
+      app = new TuiApp({
+        tui,
+        link,
+        ...(sessionId === undefined ? {} : { sessionId }),
+        ...(projectId === undefined ? {} : { projectId }),
+        embedded,
+        mock,
+        openSessionPicker,
+        ...(agent === 'pi' ? {} : { agentId: agent }),
+        historyFile: promptHistoryFile(getPiwinRoot(), projectId),
+        config,
+        ...(startNotice.length === 0 ? {} : { startNotice }),
+        onExit: () => {
+          tui.stop();
+          resolve();
+        },
+      });
+      app.start().catch((error: unknown) => {
+        tui.stop();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      });
+    });
+  } finally {
+    app?.dispose();
+    await link.dispose();
+    restoreConsole();
+  }
+}
+
+async function findLatestSessionId(link: TuiHostLink, projectId: string | undefined): Promise<string | undefined> {
+  const list = hostData<RemoteSessionListData>(
+    await link.request({
+      type: 'session/list',
+      scopeRef: projectId === undefined ? { kind: 'general' } : { kind: 'project', projectId },
+      order: 'updated',
+      maxItems: 20,
+    }),
+  );
+  return list.sessions.find((session) => session.kind === undefined || session.kind === 'main')?.sessionId;
+}
+
+function canonicalPath(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    // A registered project whose folder is gone simply never matches the cwd.
+    return path;
+  }
+}
+
+/**
+ * The TUI owns the screen. An in-process Host logs through `console`, which
+ * would tear the frame, so console output goes to a log file while it runs.
+ */
+function redirectConsoleToLog(): () => void {
+  const logDirectory = join(getPiwinRoot(), 'logs');
+  mkdirSync(logDirectory, { recursive: true });
+  const stream = createWriteStream(join(logDirectory, 'tui.log'), { flags: 'a' });
+  const original = { log: console.log, info: console.info, warn: console.warn, error: console.error };
+  const write =
+    (level: string) =>
+    (...values: unknown[]): void => {
+      stream.write(`${new Date().toISOString()} ${level} ${format(...values)}\n`);
+    };
+  console.log = write('info');
+  console.info = write('info');
+  console.warn = write('warn');
+  console.error = write('error');
+  return () => {
+    Object.assign(console, original);
+    stream.end();
+  };
+}

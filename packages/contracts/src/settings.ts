@@ -24,6 +24,7 @@ import type { SkillsConfig } from './skills.js';
 import type { WalkthroughConfig } from './walkthrough.js';
 import type { HealthConfig } from './health-summary.js';
 import type { WebConfig } from './web.js';
+import type { CodemodeConfig } from './codemode.js';
 import type { McpConfigDocument } from './mcp.js';
 
 /** Persisted settings document version managed by SettingsService. */
@@ -64,6 +65,7 @@ export type SettingsDomain =
   | 'subagents'
   | 'execution'
   | 'remote'
+  | 'codemode'
   | 'mcp';
 
 /** Type map used to make domain replacement mutations compile-time checked. */
@@ -102,6 +104,7 @@ export type SettingsDomainValueMap = {
   subagents: SubagentConfig | undefined;
   execution: ExecutionConfig | undefined;
   remote: RemoteConfig | undefined;
+  codemode: CodemodeConfig | undefined;
   mcp: McpConfigDocument | undefined;
 };
 
@@ -169,6 +172,7 @@ export const REMOTE_SETTINGS_APPLY_DOMAINS = [
   'subagents',
   'execution',
   'remote',
+  'codemode',
   'mcp',
   'desktop',
 ] as const satisfies readonly SettingsDomain[];
@@ -317,6 +321,7 @@ export const SETTINGS_DOMAINS = [
   'subagents',
   'execution',
   'remote',
+  'codemode',
   'mcp',
 ] as const satisfies readonly SettingsDomain[];
 
@@ -355,5 +360,6 @@ const settingsDomainValueMap: Record<SettingsDomain, true> = {
   subagents: true,
   execution: true,
   remote: true,
+  codemode: true,
   mcp: true,
 };

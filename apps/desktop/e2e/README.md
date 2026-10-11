@@ -118,3 +118,23 @@ flags to confirm a clean pass.
 
 - Tauri WebDriver / `tauri-driver` for live host path
 - Optional CI job (keep host `pnpm e2e:smoke` as primary gate until UI e2e is stable)
+
+### Embedded TUI layout
+
+```bash
+pnpm --dir apps/desktop exec playwright test -c playwright.tui.config.ts
+```
+
+This checks the real TUI pane and xterm/FitAddon in Chromium and desktop
+WebKit, using Tauri native-IPC and Host-terminal test ports. Both Inkstone faces, centered
+empty and existing conversation layouts, viewport shrinking/growing, session
+adoption and return to Desktop are covered. The titlebar monitor/`>_` switch,
+selected-glyph contrast in both themes, and direct native Grok transport adoption
+are also covered (20 cases across both browsers). The width must follow the stage
+across repeated fits so homepage centering cannot gradually compress it.
+The fixtures under `e2e/fixtures` are not production build entries.
+
+Shell performance regressions also check Pi/Grok repeated switches with one
+PTY open, draft DOM retention, restored composer/terminal focus, and hidden
+terminal grid preservation while the window is resized. The fixture substitutes
+only native process/Host I/O; xterm/FitAddon, React and layout remain real.

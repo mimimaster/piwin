@@ -32,7 +32,9 @@ import { primaryModelSupportsImage } from '../vision-delegation.js';
 import { buildNotesTools } from '../notes-tools.js';
 import { buildKnowledgeTools } from '../knowledge-tools.js';
 import type { FolderRag } from '@piwin/doc-rag';
+import { buildCodemodeTool } from '../codemode/codemode-tool.js';
 import { createDefaultPiwinConfig } from '../config-store.js';
+import { normalizeCodemodeConfig } from '@piwin/contracts';
 import { buildFlashcardTools } from '../flashcard-tools.js';
 import { buildExtensionTools, type ExtensionApplyOutcome } from '../extension-tools.js';
 import { buildCapabilityTools } from '../capability-tools.js';
@@ -198,6 +200,8 @@ export type BuildSessionHostToolsOptions = {
    * sessions only; `health_read_context` is then registered when a paired
    * device has offered Apple Health.
    */
+  /** Real port used by piwin_codemode for nested calls. Absent omits the tool. */
+  codemodePort?: import('../codemode/codemode-tool.js').CodemodeSurfaceReader;
   deviceTools?: {
     execution: ClientToolExecutionPort;
     healthBudget: HealthToolRunBudget;
@@ -639,6 +643,11 @@ export async function buildSessionHostTools(
         mcpBrief: mcpCapabilityBrief,
       }),
     );
+  }
+
+  const codemode = normalizeCodemodeConfig(options.config?.codemode);
+  if (codemode.enabled && options.codemodePort) {
+    tools.push(buildCodemodeTool({ config: codemode, port: options.codemodePort }));
   }
 
   const deviceTools = options.deviceTools;

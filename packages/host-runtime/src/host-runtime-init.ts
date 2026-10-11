@@ -26,6 +26,8 @@ import { composeExternalAgentBackend } from './grok/grok-compose.js';
 import { ensureLoginShellPath } from './login-shell-path.js';
 import { createSessionTranscriptStoreRegistry } from './session-transcript-store-registry.js';
 import { ProductAgentHost } from './product-agent-host.js';
+import { composeMockFileChanges } from './mock-file-changes.js';
+import { createMockSubagentOrchestrator } from './mock-subagent.js';
 import { loadPiwinConfig } from './config-store.js';
 import {
   applyPiwinPlaywrightBrowsersPath,
@@ -551,7 +553,20 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
     };
     if (options.mock === true) {
       deps.sessionHostToolPort = null;
-      deps.host = new ProductAgentHost({ ...commonHostOptions, mock: true });
+      deps.host = new ProductAgentHost({
+        ...commonHostOptions,
+        mock: true,
+        ...(options.mockFileChanges === true ? composeMockFileChanges(deps, options) : {}),
+      });
+      // Lifecycle stand-in: same commands, no worker processes or worktrees.
+      // The field's type is the production class; only the methods the command
+      // path calls are implemented, so the cast stays at this one boundary.
+      if (options.mockSubagents === true) {
+        deps.subagentOrchestrator = createMockSubagentOrchestrator({
+          ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+          push: (message) => deps.push(message),
+        }) as unknown as SubagentOrchestrator;
+      }
     } else {
       deps.turnChangeRuntime = openTurnChangeRuntime({
         hostInstanceId: deps.hostInstanceId,

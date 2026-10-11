@@ -1,0 +1,66 @@
+/** Slash commands the TUI handles itself; anything else is sent to the agent as text. */
+export type TuiSlashCommand = {
+  name: string;
+  description: string;
+  /** Unavailable when Desktop embeds the TUI and owns session switching. */
+  standaloneOnly?: boolean;
+};
+
+export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
+  { name: 'sessions', description: '切换、搜索、重命名、归档会话', standaloneOnly: true },
+  { name: 'new', description: '开始新会话；/new grok 用外部 agent 开始', standaloneOnly: true },
+  { name: 'model', description: '选择模型' },
+  { name: 'thinking', description: '选择思考强度' },
+  { name: 'permission', description: '选择权限模式（询问 / 自动 / 放行）' },
+  { name: 'prompts', description: '选择提示词模板填入输入框' },
+  { name: 'skill', description: '为下一条消息选择技能' },
+  { name: 'attach', description: '附加文件或图片：/attach <路径…>' },
+  { name: 'paste', description: '附加剪贴板里的图片（Ctrl+V）' },
+  { name: 'detach', description: '清空待发送的附件' },
+  { name: 'queue', description: '查看排队的消息，取回或取消' },
+  { name: 'replace', description: '中断正在运行的这一轮，改为执行：/replace <文字>' },
+  { name: 'steer', description: '把一句话插入正在运行的这一轮：/steer <文字>' },
+  { name: 'side', description: '开一个侧聊：不写回主会话的旁支对话（/side [名称]）' },
+  { name: 'back', description: '从侧聊返回主会话' },
+  { name: 'sync', description: '侧聊里：同步主会话的新内容' },
+  { name: 'handoff', description: '侧聊里：把最新回答带回主会话的下一条消息' },
+  { name: 'subagents', description: '查看子代理及其结果，应用、保留或丢弃' },
+  { name: 'plan', description: '查看计划，批准、执行或中止' },
+  { name: 'compact', description: '压缩上下文（可附加说明）' },
+  { name: 'retry', description: '重新生成上一轮回答（/retry keep 保留旧回答为分支）' },
+  { name: 'find', description: '在这段对话里查找：/find' },
+  { name: 'rewind', description: '回到更早的一条提问，从那里改写（Esc Esc 同）' },
+  { name: 'edit', description: '改写上一条提问并作为新分支发送' },
+  { name: 'artifacts', description: '列出对话里的 artifact，看源码或在浏览器里打开' },
+  { name: 'walkthrough', description: '查看或生成最近一次回答的交付报告（/walkthrough new 重写）' },
+  { name: 'changes', description: '查看各轮改了哪些文件，撤销或恢复' },
+  { name: 'undo', description: '撤销最近一轮对文件的改动' },
+  { name: 'branches', description: '在会话的分支之间切换' },
+  { name: 'fork', description: '从这里分叉出一个新会话：/fork [名称]' },
+  { name: 'context', description: '看上下文占用和最近一次请求的用量（/usage 同）' },
+  { name: 'usage', description: '同 /context' },
+  { name: 'rename', description: '重命名当前会话' },
+  { name: 'pin', description: '置顶或取消置顶当前会话' },
+  { name: 'archive', description: '归档当前会话（/unarchive 可撤销）' },
+  { name: 'unarchive', description: '撤销最近一次归档，或取消归档当前会话' },
+  { name: 'delete', description: '永久删除当前会话（需输入标题确认）' },
+  { name: 'export', description: '导出当前会话：/export [md|json|html] [路径]' },
+  { name: 'search', description: '跨会话全文搜索：/search [关键词]' },
+  { name: 'older', description: '加载更早的消息' },
+  { name: 'help', description: '查看命令和快捷键' },
+  { name: 'quit', description: '退出' },
+];
+
+export const TUI_COMMAND_NAMES: ReadonlySet<string> = new Set(TUI_SLASH_COMMANDS.map((command) => command.name));
+const KNOWN_NAMES = TUI_COMMAND_NAMES;
+
+/**
+ * Only known names are commands. `/etc/hosts 是什么` or a skill-style `/review`
+ * stays a normal prompt and reaches the Host untouched.
+ */
+export function parseSlashCommand(text: string): { name: string; argument: string } | undefined {
+  const match = /^\/([a-z]+)(?:\s+([\s\S]*))?$/.exec(text.trim());
+  const name = match?.[1];
+  if (name === undefined || !KNOWN_NAMES.has(name)) return undefined;
+  return { name, argument: (match?.[2] ?? '').trim() };
+}

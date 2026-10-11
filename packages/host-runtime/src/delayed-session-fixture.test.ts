@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@piwin/contracts';
+import {
+  ABORTED_PROMPT_OUTCOME,
+  COMPLETED_STOP_OUTCOME,
+  type AgentEvent,
+} from '@piwin/contracts';
 import { createDelayedSessionHandle } from './delayed-session-fixture.js';
 
 function collectEvents(handle: ReturnType<typeof createDelayedSessionHandle>): AgentEvent[] {
@@ -137,6 +141,53 @@ describe('createDelayedSessionHandle', () => {
 
     // The abort() call should have invoked delay with cancellationAckMs.
     expect(delayCalls).toContain(50);
+  });
+
+  it('a late abort for the previous turn does not stop the next turn', async () => {
+    const CANCELLATION_ACK_MS = 200;
+    // Each abort acknowledgement waits for the test to release it; polling steps yield one macrotask.
+    const acknowledgements: Array<() => void> = [];
+    const handle = createDelayedSessionHandle({
+      delays: { hangUntilAbort: true, cancellationAckMs: CANCELLATION_ACK_MS },
+      delayFn: (ms) =>
+        new Promise((resolve) => {
+          if (ms === CANCELLATION_ACK_MS) acknowledgements.push(() => resolve());
+          else setImmediate(resolve);
+        }),
+      chunkCount: 0,
+    });
+    const yieldTurns = async (count: number): Promise<void> => {
+      for (let index = 0; index < count; index += 1) await new Promise((resolve) => setImmediate(resolve));
+    };
+
+    const previous = handle.prompt({ text: 'previous turn' });
+    // Stop is issued twice for the previous turn, as Stop and the turn's own
+    // cleanup both do; the second acknowledgement arrives late.
+    const stop = handle.abort();
+    const lateStop = handle.abort();
+    acknowledgements[0]?.();
+    await stop;
+    expect(await previous).toEqual(ABORTED_PROMPT_OUTCOME);
+
+    let nextSettled = false;
+    const next = handle.prompt({ text: 'next turn' }).finally(() => {
+      nextSettled = true;
+    });
+    acknowledgements[1]?.();
+    await lateStop;
+    await yieldTurns(10);
+    expect(nextSettled).toBe(false);
+
+    const stopNext = handle.abort();
+    acknowledgements[2]?.();
+    await stopNext;
+    expect(await next).toEqual(ABORTED_PROMPT_OUTCOME);
+  });
+
+  it('abort with no turn running does nothing to the next turn', async () => {
+    const handle = createDelayedSessionHandle({ chunkCount: 1 });
+    await handle.abort();
+    expect(await handle.prompt({ text: 'after an idle abort' })).toEqual(COMPLETED_STOP_OUTCOME);
   });
 
   it('promptSettled resolves after normal completion', async () => {

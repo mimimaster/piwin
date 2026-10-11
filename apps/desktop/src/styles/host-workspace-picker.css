@@ -341,38 +341,24 @@
   border-top: 1px solid var(--l1, var(--line-1));
 }
 
-.host-workspace-footer-ghost,
-.host-workspace-footer-open {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 6px;
-  font-size: 12.5px;
-  cursor: pointer;
+.host-workspace-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.host-workspace-footer-ghost {
-  background: transparent;
-  color: var(--t2, var(--text-2));
+.host-workspace-create-form h3,
+.host-workspace-create-location {
+  margin: 0;
 }
 
-.host-workspace-footer-ghost:hover {
-  background: var(--s2, var(--surface-2));
-  color: var(--t1, var(--text-1));
+.host-workspace-create-location {
+  overflow-wrap: anywhere;
+  font-size: 12px;
 }
 
-.host-workspace-footer-open {
-  background: var(--zhu, var(--iris));
-  color: var(--on-zhu, var(--on-iris));
-}
-
-.host-workspace-footer-open:hover:not(:disabled) {
-  background: var(--zhu-lift, var(--iris-lift));
-}
-
-.host-workspace-footer-open:disabled {
-  opacity: 0.45;
-  cursor: default;
+.host-workspace-create-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }

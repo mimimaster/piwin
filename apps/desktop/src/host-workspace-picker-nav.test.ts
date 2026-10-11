@@ -13,6 +13,7 @@ import {
   selectedEntryIsFile,
   shouldListParentColumn,
   sortPickerEntries,
+  suggestHostEntryName,
 } from './host-workspace-picker-nav.js';
 
 const home: HostListDirData = {
@@ -105,5 +106,19 @@ describe('host-workspace-picker-nav', () => {
       HOST_PICKER_COLUMN_MAX,
     );
     expect(clampPickerMeasure(220.4, HOST_PICKER_COLUMN_MIN, HOST_PICKER_COLUMN_MAX)).toBe(220);
+  });
+});
+
+
+describe('picker default creation names', () => {
+  it('increments folder and file names before the extension across entry kinds', () => {
+    const entries = [
+      { name: 'Untitled Folder', path: '/a', kind: 'directory' },
+      { name: 'untitled.txt', path: '/b', kind: 'file' },
+      { name: 'Untitled 2.txt', path: '/c', kind: 'directory' },
+    ] as const;
+    expect(suggestHostEntryName(entries, 'directory', 'en')).toBe('Untitled Folder 2');
+    expect(suggestHostEntryName(entries, 'file', 'en')).toBe('Untitled 3.txt');
+    expect(suggestHostEntryName([], 'directory', 'zh-CN')).toBe('未命名文件夹');
   });
 });

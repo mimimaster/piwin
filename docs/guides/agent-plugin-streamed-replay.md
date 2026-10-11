@@ -2,7 +2,7 @@
 
 Related: [ADR 0082](../adr/0082-grok-build-acp-backend.md), [failure evidence](../evidence/2026-10-05-grok-replay-frame-overflow.md).
 
-Status: Host/contracts implemented and fixture-verified (9 protocol and 67 focused Host tests, both package typechecks, and root typecheck passed). Independent adapter implementation and real-history acceptance are still pending. This is not an installed-plugin upgrade or a release.
+Status: Host/contracts implemented and fixture-verified (9 protocol and 67 focused Host tests, both package typechecks, and root typecheck passed). The Grok adapter producer is implemented and passed real-history acceptance on a development Host (2026-10-11, see the evidence note); it is not yet committed or published. This is not an installed-plugin upgrade or a release.
 
 ## Invariants
 

@@ -145,6 +145,29 @@ export async function upsertSessionRecord(
   });
 }
 
+/**
+ * Read-modify-write of one record under the index lock. Callers that read a
+ * record, change it and `upsertSessionRecord` the copy overwrite whatever
+ * landed in between (a rename, an archive); change a record through this.
+ * Returns undefined when the session has no record.
+ */
+export async function updateSessionRecord(
+  filePath: string,
+  sessionId: string,
+  mutate: (record: SessionIndexRecord) => void,
+): Promise<SessionIndexRecord | undefined> {
+  return withIndexWriteLock(filePath, async () => {
+    const document = await loadSessionIndex(filePath);
+    const record = document.sessions.find((item) => item.id === sessionId);
+    if (!record) {
+      return undefined;
+    }
+    mutate(record);
+    await saveSessionIndex(filePath, document);
+    return record;
+  });
+}
+
 export type ListSessionsForProjectOptions = {
   /** When true, include archived sessions. Default false (active only). */
   includeArchived?: boolean;
@@ -229,6 +252,7 @@ export function createSessionRecord(input: {
   subagentInvocationId?: string;
   subagentTaskId?: string;
   subagentParentRunId?: string;
+  subagentBatchRunId?: string;
   subagentParentToolCallId?: string;
   subagentMode?: SessionIndexRecord['subagentMode'];
   subagentApplyPolicy?: SessionIndexRecord['subagentApplyPolicy'];
@@ -306,6 +330,9 @@ export function createSessionRecord(input: {
   }
   if (input.subagentParentRunId) {
     record.subagentParentRunId = input.subagentParentRunId;
+  }
+  if (input.subagentBatchRunId) {
+    record.subagentBatchRunId = input.subagentBatchRunId;
   }
   if (input.subagentParentToolCallId) {
     record.subagentParentToolCallId = input.subagentParentToolCallId;

@@ -58,6 +58,15 @@ export const DeferredTerminalDock = lazy(async () => {
   return { default: module.TerminalDock };
 });
 
+function loadTuiPane(): Promise<{ default: typeof import('./tui-pane').TuiPane }> {
+  return import('./tui-pane').then((module) => ({ default: module.TuiPane }));
+}
+
+export const DeferredTuiPane = lazy(loadTuiPane);
+
+/** Warm the renderer on intent without starting a process or creating a session. */
+export function prefetchTuiPane(): Promise<unknown> { return loadTuiPane(); }
+
 export const DeferredReviewPanel = lazy(async () => {
   const module = await import('./review-panel');
   return { default: module.ReviewPanel };

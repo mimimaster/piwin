@@ -745,7 +745,13 @@ export function createMcpLifecycleManager(
           listed,
         );
         return listed.map((tool) =>
-          toMcpToolSummary(serverId, tool.name, tool.description ?? '', tool.inputSchema),
+          toMcpToolSummary(
+            serverId,
+            tool.name,
+            tool.description ?? '',
+            tool.inputSchema,
+            tool.readOnlyHint,
+          ),
         );
       } catch (error) {
         if (isAbortError(error) || isTimeoutError(error)) {

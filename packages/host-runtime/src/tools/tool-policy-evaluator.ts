@@ -391,6 +391,7 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'artifact:instructions':
     case 'subagent:playbook':
     case 'toolbox:route':
+    case 'codemode:run':
     case 'mcp:trusted':
     // knowledge_* tools always set readOnly: true, so evaluateHostToolPolicy
     // short-circuits to allow before this domain evaluator ever runs.

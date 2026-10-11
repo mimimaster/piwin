@@ -12,6 +12,7 @@ import type {
 import { formatError } from '@piwin/contracts';
 
 import { fail, ok } from './response-helpers.js';
+import { handleHostCreateEntry } from './commands/host-create-entry.js';
 import { handleHostListDir } from './commands/host-list-dir.js';
 import { projectActivitySummary } from './activity-summary.js';
 import { dispatchDomainCommands } from './commands/domain-command-dispatch.js';
@@ -27,6 +28,7 @@ import {
   TRANSCRIPT_STORE_LEASED_COMMANDS,
 } from './host-runtime-types.js';
 import { PiwinRootLeaseCompromisedError } from './piwin-root-lease.js';
+import { handleAgentCliCommand } from './grok/agent-cli-service.js';
 import { handleExternalAgentCommand } from './grok/grok-host-commands.js';
 
 const ROOT_LEASE_UNAVAILABLE_ERROR =
@@ -105,6 +107,8 @@ export async function handleCommandWithTranscriptLease(
         }
       }
     }
+    const agentCli = await handleAgentCliCommand(deps, command, requestId);
+    if (agentCli !== null) return agentCli;
     const ctx = await deps.buildDomainContext();
     const externalAgent = await handleExternalAgentCommand(deps, command, requestId);
     if (externalAgent) {
@@ -157,6 +161,8 @@ export async function handleCommandWithTranscriptLease(
           gitBashInstalled: process.platform === 'win32' && findGitBash(deps.options.piwinRoot) !== undefined,
         });
       }
+      case 'host/create-entry':
+        return handleHostCreateEntry(command, requestId);
       case 'host/list-dir':
         return handleHostListDir(command, requestId);
       case 'activity/summary':

@@ -15,6 +15,7 @@
 @import './styles/behavior-activity.css';
 @import './styles/compaction-seam.css';
 @import './styles/region-shell.css';
+@import './styles/resize-performance.css';
 @import './styles/region-sidebar.css';
 @import './styles/region-sidebar-tree.css';
 @import './styles/region-sidebar-session.css';
@@ -133,6 +134,7 @@
 @import './styles/region-phone.css';
 @import './styles/region-phone-edge.css';
 @import './styles/region-phone-touch.css';
+@import './styles/conversation-shell-switch.css';
 /* Memory-governor degradation overlay. Cross-cutting override layer, not a
    region: keyed off html[data-memory-pressure] and must import last so its
    !important strips beat every region sheet above. */

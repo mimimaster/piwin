@@ -15,6 +15,11 @@
       "types": "./src/testing.ts",
       "import": "./src/testing.ts",
       "default": "./src/testing.ts"
+    },
+    "./paths": {
+      "types": "./src/client-paths.ts",
+      "import": "./src/client-paths.ts",
+      "default": "./src/client-paths.ts"
     }
   },
   "scripts": {

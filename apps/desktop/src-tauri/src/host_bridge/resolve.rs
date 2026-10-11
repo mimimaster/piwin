@@ -21,23 +21,38 @@ pub(super) struct PackagedHostPaths {
     pub cwd: PathBuf,
 }
 
-/// Pure resolution decision used by spawn and unit tests.
+/// Host-serve resolution without the filesystem, for unit tests.
+#[cfg(test)]
 pub(super) fn resolve_host_command_tiered(
     mock: bool,
     packaged: Option<&PackagedHostPaths>,
 ) -> Result<(String, Vec<String>, HostCommandTier, Option<PathBuf>), String> {
+    resolve_cli_command_tiered(&host_serve_subcommand(mock), packaged)
+}
+
+pub(super) fn host_serve_subcommand(mock: bool) -> Vec<String> {
+    let mut subcommand = vec![
+        "host".to_string(),
+        "serve".to_string(),
+        "--mode".to_string(),
+        "sdk".to_string(),
+    ];
+    if mock {
+        subcommand.push("--mock".to_string());
+    }
+    subcommand
+}
+
+/// The sidecar bundle is the whole CLI, so any CLI subcommand (the Host, the
+/// embedded TUI) launches through the same program with different arguments.
+pub(super) fn resolve_cli_command_tiered(
+    subcommand: &[String],
+    packaged: Option<&PackagedHostPaths>,
+) -> Result<(String, Vec<String>, HostCommandTier, Option<PathBuf>), String> {
     if let Some(paths) = packaged {
         if paths.node_bin.is_file() && paths.host_js.is_file() {
-            let mut args = vec![
-                paths.host_js.to_string_lossy().into_owned(),
-                "host".to_string(),
-                "serve".to_string(),
-                "--mode".to_string(),
-                "sdk".to_string(),
-            ];
-            if mock {
-                args.push("--mock".to_string());
-            }
+            let mut args = vec![paths.host_js.to_string_lossy().into_owned()];
+            args.extend(subcommand.iter().cloned());
             let assets = if paths.bundled_assets.is_dir() {
                 Some(paths.bundled_assets.clone())
             } else {
@@ -59,14 +74,8 @@ pub(super) fn resolve_host_command_tiered(
         "exec".to_string(),
         "tsx".to_string(),
         "src/index.ts".to_string(),
-        "host".to_string(),
-        "serve".to_string(),
-        "--mode".to_string(),
-        "sdk".to_string(),
     ];
-    if mock {
-        args.push("--mock".to_string());
-    }
+    args.extend(subcommand.iter().cloned());
 
     Ok((pnpm, args, HostCommandTier::Dev, None))
 }
@@ -154,6 +163,22 @@ pub(super) fn resolve_host_command(
     ),
     String,
 > {
+    resolve_cli_command(&host_serve_subcommand(mock), resource_dir)
+}
+
+pub(super) fn resolve_cli_command(
+    subcommand: &[String],
+    resource_dir: Option<PathBuf>,
+) -> Result<
+    (
+        String,
+        Vec<String>,
+        HostCommandTier,
+        Option<PathBuf>,
+        PathBuf,
+    ),
+    String,
+> {
     // Development must execute the workspace Host source. Tauri copies resource
     // files into its debug target and those copies can outlive a source change;
     // preferring them here made real-provider E2E exercise a stale Host bundle.
@@ -165,7 +190,7 @@ pub(super) fn resolve_host_command(
             .as_ref()
             .and_then(|dir| packaged_host_paths_from_resource_dir(dir))
     };
-    let (program, args, tier, assets) = resolve_host_command_tiered(mock, packaged.as_ref())?;
+    let (program, args, tier, assets) = resolve_cli_command_tiered(subcommand, packaged.as_ref())?;
 
     let cwd = match (&tier, packaged) {
         (HostCommandTier::Packaged, Some(paths)) => paths.cwd,

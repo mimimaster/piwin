@@ -7,6 +7,7 @@ import type { SearchRoutePreviewInput, WebSearchTestInput } from './web.js';
 export type HostRuntimeCommand =
   | { id?: string; type: 'host/ping' }
   | { id?: string; type: 'host/status' }
+  | { id?: string; type: 'host/create-entry'; input: import('./host-entry.js').HostCreateEntryInput }
   | { id?: string; type: 'host/list-dir'; path?: string; includeHidden?: boolean }
   | {
       id?: string;

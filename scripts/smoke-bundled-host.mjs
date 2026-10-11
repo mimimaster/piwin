@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -33,8 +33,10 @@ const FORBIDDEN_BUNDLE_MARKERS = [
 ];
 
 async function assertNoVendorImplementation() {
-  const source = await readFile(hostServe, 'utf8');
-  const found = FORBIDDEN_BUNDLE_MARKERS.filter((marker) => source.includes(marker));
+  // Lazy command chunks carry implementation too; inspect every emitted module.
+  const modules = (await readdir(dirname(hostServe))).filter((name) => name.endsWith('.mjs'));
+  const sources = await Promise.all(modules.map((name) => readFile(join(dirname(hostServe), name), 'utf8')));
+  const found = FORBIDDEN_BUNDLE_MARKERS.filter((marker) => sources.some((source) => source.includes(marker)));
   if (found.length > 0) {
     console.error(`[smoke-bundled-host] vendor implementation in bundle: ${found.join(', ')}`);
     return false;

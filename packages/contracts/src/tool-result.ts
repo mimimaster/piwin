@@ -97,6 +97,12 @@ export type ToolResultImage = {
   dataBase64: string;
 };
 
+/**
+ * Leads every message a permission refusal returns to the model. Tool
+ * presentation recognises refusals by it, so producer and consumer share it.
+ */
+export const PERMISSION_DENIED_MESSAGE_PREFIX = 'Permission denied for ';
+
 /** Stable error codes shared by Host, SDK and RPC tool projections. */
 export type ToolResultErrorCode =
   | 'tool-not-available'
@@ -135,12 +141,24 @@ export type ToolResultErrorCode =
   | 'browser-operation-interrupted'
   | 'browser-agent-has-control';
 
+/**
+ * Explicit structured facts for a script caller. Absent means the script must
+ * not invent structure by parsing `output`. Chat projection and transcript
+ * details must not copy this field.
+ */
+export type ToolScriptPayload = {
+  structuredContent?: unknown;
+  /** Preserved only when the upstream result actually supplied a boolean. */
+  isError?: boolean;
+};
+
 export type ToolResult =
   | {
       ok: true;
       output: string;
       details?: ToolResultDetails;
       images?: ToolResultImage[];
+      scriptPayload?: ToolScriptPayload;
     }
   | {
       ok: false;
@@ -149,6 +167,7 @@ export type ToolResult =
       details?: ToolResultDetails;
       cancelled?: boolean;
       retryable?: boolean;
+      scriptPayload?: ToolScriptPayload;
     };
 
 /**

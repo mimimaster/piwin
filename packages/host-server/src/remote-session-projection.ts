@@ -152,6 +152,9 @@ export function projectSessionResume(
   if (transcriptPage !== undefined) {
     resume.transcriptPage = transcriptPage;
   }
+  if (record?.nativeHistory === 'unsynced') {
+    resume.nativeHistory = 'unsynced';
+  }
   copyBoundedString(record ?? {}, 'name', resume, 'name', 512);
   copyBoundedString(record ?? {}, 'thinkingLevel', resume, 'thinkingLevel', 64);
   const contextUsage = projectContextUsage(record?.contextUsage, sessionId);

@@ -1,5 +1,5 @@
 /**
- * Live pointer drag of a workbench panel edge (left navigator, right panel).
+ * Layout resize activity: workbench panel-edge drags and window resize bursts.
  *
  * Every drag frame reflows the transcript column. Consumers that keep layout
  * in sync (transcript follow-tail) use this signal to coalesce their forced
@@ -21,7 +21,7 @@ export function isPanelResizeActive(): boolean {
   return activeDragTokens.size > 0;
 }
 
-/** Mark a drag as started; the returned release is idempotent. */
+/** Mark a resize as started; the returned release is idempotent. */
 export function beginPanelResize(): () => void {
   const token = Symbol('panel-resize');
   const wasActive = isPanelResizeActive();

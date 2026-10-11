@@ -29,6 +29,7 @@ import {
 import { isDocumentThemeId, rememberAppliedTheme, resolveStartupAppearance } from './theme-startup';
 import { loadDesktopPreferences } from './ui-preferences';
 import { useWebViewport } from './hooks/use-web-viewport';
+import { useWindowResizeActivity } from './hooks/use-window-resize-activity.js';
 import { applyWindowChromeToDocument } from './window-chrome';
 
 /**
@@ -124,6 +125,7 @@ function themePaintEquals(left: ThemeManifest, right: ThemeManifest): boolean {
 
 export function DesktopThemeRoot() {
   useWebViewport();
+  useWindowResizeActivity();
   useLayoutEffect(() => {
     applyWindowChromeToDocument(document.documentElement);
   }, []);

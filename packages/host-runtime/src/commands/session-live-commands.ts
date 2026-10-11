@@ -481,6 +481,10 @@ export async function handleSessionLiveCommand(
       if (existing.thinkingLevel) {
         data.thinkingLevel = existing.thinkingLevel;
       }
+      // A Host-controlled turn keeps its own projection; replay would race it.
+      if (activeRun === undefined && context.externalHistoryUnsynced?.(existing) === true) {
+        data.nativeHistory = 'unsynced';
+      }
       if (context.describeExternalBackend !== undefined && existing.backend !== undefined) {
         const described = context.describeExternalBackend(existing);
         if (described !== undefined) {
@@ -761,7 +765,8 @@ export async function handleSessionLiveCommand(
       if (rejectedExport) {
         return rejectedExport;
       }
-      const format: 'html' | 'md' = command.format === 'html' ? 'html' : 'md';
+      const format: 'html' | 'md' | 'json' =
+        command.format === 'html' ? 'html' : command.format === 'json' ? 'json' : 'md';
       const redactTools = command.redactTools === true;
       const store = await context.getTranscriptStore(command.sessionId);
       const exportOptions = {

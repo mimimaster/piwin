@@ -16,6 +16,7 @@ import type {
   ToolResultErrorCode,
 } from '@piwin/contracts';
 import { formatError, toolDisabledResult } from '@piwin/contracts';
+import { scriptReadonlyDenial } from '../codemode/script-readonly-admission.js';
 import { mapBrowserToolError } from '../browser-tool-errors.js';
 import { resolveHostToolAdmission, type HostToolAdmission } from './tool-admission.js';
 import { validateCanonicalArguments } from './canonical-tool-args.js';
@@ -123,6 +124,19 @@ export class HostToolExecutionRouter {
     const tool = this.toolsByName.get(toolName);
     if (!tool) {
       return { ok: false, code: 'tool-not-available', message: `tool not available: ${toolName}` };
+    }
+    if (context.scriptInvocation) {
+      const denied = scriptReadonlyDenial(tool);
+      if (denied) {
+        return { ok: false, code: denied.code, message: denied.message };
+      }
+      if (!context.scriptInvocation.admittedToolNames.includes(tool.descriptor.name)) {
+        return {
+          ok: false,
+          code: 'tool-not-available',
+          message: `script cannot call ${tool.descriptor.name}`,
+        };
+      }
     }
 
     let canonicalArgs = args;

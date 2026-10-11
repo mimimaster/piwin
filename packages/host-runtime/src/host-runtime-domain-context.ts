@@ -237,8 +237,17 @@ export async function buildDomainContext(
               subagentOrchestrator.getBatchProjectionAsync(runId),
             cancelBatch: (runId: string, options?: { initiator?: 'user' }) =>
               subagentOrchestrator.cancelBatch(runId, options),
-            continueChild: (childSessionId: string, text: string) =>
-              deps.continueSubagentChild(subagentOrchestrator, childSessionId, text),
+            continueChild: (childSessionId: string, text: string) => {
+              if (deps.options.mock === true) {
+                // The production follow-up needs a retained runtime snapshot the mock child never has.
+                return (
+                  subagentOrchestrator as unknown as {
+                    continueExisting(childSessionId: string, text: string): Promise<{ runId: string }>;
+                  }
+                ).continueExisting(childSessionId, text);
+              }
+              return deps.continueSubagentChild(subagentOrchestrator, childSessionId, text);
+            },
             actOnWorktree: (childSessionId: string, action: 'apply' | 'retain' | 'discard') =>
               deps.actOnSubagentWorktree(childSessionId, action),
             previewWorktreeGc: () => {

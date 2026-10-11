@@ -6,6 +6,7 @@ import type { SessionTranscriptMessage } from '@piwin/contracts';
 import type { TranscriptStoreCore, SessionTranscriptStore } from './transcript-store.js';
 import { isSqliteUniqueConstraint, rollback } from './sqlite-errors.js';
 import { isIndexedUserMessage, validatePositiveBoundedInteger } from './transcript-store-bounds.js';
+import { TREE_VISIBLE_MESSAGE } from './transcript-store-branches.js';
 import { countPathRows, withActivePath } from './transcript-store-path.js';
 import { rowToMessage, type MessageRow } from './transcript-store-rows.js';
 
@@ -63,6 +64,20 @@ export function createTranscriptMessagesOps(
       return (rows as unknown as MessageRow[]).reverse().map(rowToMessage);
     }
 
+    /** True when another visible row shares this row's parent. */
+    function hasVisibleSibling(messageId: string): boolean {
+      const sibling = db
+        .prepare(
+          `SELECT 1 FROM transcript_message
+           WHERE parent_message_id IS (SELECT parent_message_id FROM transcript_message WHERE id = ?)
+             AND id <> ?
+             AND ${TREE_VISIBLE_MESSAGE}
+           LIMIT 1`,
+        )
+        .get(messageId, messageId);
+      return sibling !== undefined;
+    }
+
   return {
       async appendMessage(input) {
         ensureOpen();
@@ -86,9 +101,10 @@ export function createTranscriptMessagesOps(
         db.exec('BEGIN');
         try {
           insertMessageRow(input);
+          const startedBranch = input.preserveActiveLeaf !== true && hasVisibleSibling(input.id);
           bumpRevision(1, isIndexedUserMessage(input.role, input.text) ? 1 : 0);
           db.exec('COMMIT');
-          return { ok: true };
+          return startedBranch ? { ok: true, startedBranch: true } : { ok: true };
         } catch (error) {
           rollback(db);
           if (isSqliteUniqueConstraint(error)) {

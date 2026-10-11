@@ -23,6 +23,7 @@ export function indexRecordToSummary(
     | 'subagentInvocationId'
     | 'subagentTaskId'
     | 'subagentParentRunId'
+    | 'subagentBatchRunId'
     | 'subagentParentToolCallId'
     | 'mergedAt'
     | 'mergeMessageId'
@@ -77,6 +78,7 @@ export function indexRecordToSummary(
   if (record.subagentInvocationId) summary.subagentInvocationId = record.subagentInvocationId;
   if (record.subagentTaskId) summary.subagentTaskId = record.subagentTaskId;
   if (record.subagentParentRunId) summary.subagentParentRunId = record.subagentParentRunId;
+  if (record.subagentBatchRunId) summary.subagentBatchRunId = record.subagentBatchRunId;
   if (record.subagentParentToolCallId) {
     summary.subagentParentToolCallId = record.subagentParentToolCallId;
   }

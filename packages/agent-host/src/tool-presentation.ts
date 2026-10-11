@@ -12,7 +12,7 @@ import type {
   ToolOutputTruncation,
   ToolPresentation,
 } from '@piwin/contracts';
-import { projectBoundedHealthToolCardSummary } from '@piwin/contracts';
+import { PERMISSION_DENIED_MESSAGE_PREFIX, projectBoundedHealthToolCardSummary } from '@piwin/contracts';
 import { attachFlashcardPresentation } from './flashcard-presentation.js';
 import { attachGoalPresentation } from './goal-presentation.js';
 import { attachKnowledgePresentation } from './knowledge-presentation.js';
@@ -317,7 +317,11 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
       presentation.output?.text.slice(0, 240).replace(/\s+/g, ' ').trim() || 'Tool failed';
     toolWasCancelled = looksLikeCancelledToolOutput(rawMessage);
     const error: ToolErrorView = {
-      category: toolWasCancelled ? 'cancelled' : 'execution',
+      category: toolWasCancelled
+        ? 'cancelled'
+        : rawMessage.startsWith(PERMISSION_DENIED_MESSAGE_PREFIX)
+          ? 'permission'
+          : 'execution',
       message: toolWasCancelled ? rawMessage.slice(0, 200) : rawMessage.slice(0, 120),
     };
     presentation.error = error;

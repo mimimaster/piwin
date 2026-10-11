@@ -2,6 +2,8 @@
  * Desktop-owned interactive PTY (ADR 0013).
  * Uses Tauri invoke/events — never routes bytes through Node host JSONL.
  */
+import type { HostAttachTarget } from '@piwin/contracts';
+import { resolveEmbeddedTuiLaunch } from './embedded-tui-target.js';
 import { isDesktopTauriRuntime } from './shell-runtime.js';
 
 export type TauriPtyOpenResult = {
@@ -49,6 +51,34 @@ export async function tauriPtyOpen(input: {
   if (typeof input.cols === 'number') payload.cols = input.cols;
   if (typeof input.rows === 'number') payload.rows = input.rows;
   return invoke<TauriPtyOpenResult>('pty_open', payload);
+}
+
+/**
+ * Open the terminal shell on Desktop's active Host. A remote target is explicit;
+ * otherwise native code obtains the sidecar's loopback entrance and token.
+ */
+export async function tauriPtyOpenTui(input: {
+  /** Absent: a new conversation, created by the first message. */
+  sessionId?: string;
+  /** Project key (local path or remote id); ignored once a session exists. */
+  projectPath?: string;
+  remoteTarget?: HostAttachTarget;
+  cols?: number;
+  rows?: number;
+}): Promise<TauriPtyOpenResult> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  const payload = {
+    ...resolveEmbeddedTuiLaunch({
+      sessionId: input.sessionId ?? null,
+      projectPath: input.projectPath ?? null,
+      ...(input.remoteTarget === undefined ? {} : { remoteTarget: input.remoteTarget }),
+    }),
+    ...(typeof input.cols === 'number' ? { cols: input.cols } : {}),
+    ...(typeof input.rows === 'number' ? { rows: input.rows } : {}),
+  };
+  // Separate command fails closed if HMR has a newer frontend than native code.
+  const command = payload.remoteTarget === undefined ? 'pty_open_tui' : 'pty_open_remote_tui';
+  return invoke<TauriPtyOpenResult>(command, payload);
 }
 
 export async function tauriPtyWrite(ptyId: string, data: string): Promise<void> {

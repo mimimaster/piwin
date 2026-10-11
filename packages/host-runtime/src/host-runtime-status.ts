@@ -153,7 +153,8 @@ export function getStatus(deps: HostRuntimeKernel): HostStatusData {
       // ADR 0013: real Tauri PTY not shipped — do not claim interactive PTY.
       pty: false,
       // ADR 0030: subagent worktree is available when the orchestrator is composed.
-      subagentWorktree: deps.subagentOrchestrator !== null,
+      // The mock lifecycle stand-in never creates worktrees.
+      subagentWorktree: deps.subagentOrchestrator !== null && deps.options.mock !== true,
       subagentDeliveryV1: true,
       subagentResultReviewV1: true,
       subagentReviewLoopV1: true,

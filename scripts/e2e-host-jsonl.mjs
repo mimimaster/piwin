@@ -22,6 +22,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { exit } from 'node:process';
 import { randomUUID } from 'node:crypto';
+import { encodeHostCommandFixture } from './lib/host-command-fixture-encoding.mjs';
 
 // ── utilities ────────────────────────────────────────────────────
 
@@ -141,7 +142,7 @@ async function runTestSequence(child, piwinRoot) {
   function writeCommand(command) {
     const id = command.id || randomUUID();
     const withId = { ...command, id };
-    child.stdin.write(`${JSON.stringify(withId)}\n`);
+    child.stdin.write(encodeHostCommandFixture(withId));
     debug('write:', command.type, id);
     return id;
   }
@@ -571,7 +572,7 @@ async function testMcpStatus(piwinRoot) {
 
   // Send mcp/status.
   const mcpId = randomUUID();
-  child.stdin.write(JSON.stringify({ id: mcpId, type: 'mcp/status' }) + '\n');
+  child.stdin.write(encodeHostCommandFixture({ id: mcpId, type: 'mcp/status' }));
 
   // Wait for the response.
   await new Promise((resolve, reject) => {
@@ -681,12 +682,12 @@ async function testPermissionResolve(piwinRoot) {
   // Resolve a non-existent permission request (idempotent).
   const resolveId = randomUUID();
   child.stdin.write(
-    JSON.stringify({
+    encodeHostCommandFixture({
       id: resolveId,
       type: 'permission/resolve',
       requestId: 'definitely-nonexistent-request-id',
       decision: 'deny',
-    }) + '\n',
+    }),
   );
 
   // Wait for the response.
@@ -794,7 +795,7 @@ async function testHighRateOutput(piwinRoot) {
   // Create project + session.
   const projectPath = join(piwinRoot, 'highrate-proj');
   const openId = randomUUID();
-  child.stdin.write(JSON.stringify({ id: openId, type: 'project/open', path: projectPath }) + '\n');
+  child.stdin.write(encodeHostCommandFixture({ id: openId, type: 'project/open', path: projectPath }));
   await new Promise((resolve, reject) => {
     const timer = setTimeout(
       () => reject(new Error('timeout project/open in high-rate test')),
@@ -813,7 +814,7 @@ async function testHighRateOutput(piwinRoot) {
 
   const trustId = randomUUID();
   child.stdin.write(
-    JSON.stringify({ id: trustId, type: 'project/trust', path: projectPath }) + '\n',
+    encodeHostCommandFixture({ id: trustId, type: 'project/trust', path: projectPath }),
   );
   await new Promise((resolve, reject) => {
     const timer = setTimeout(
@@ -833,11 +834,11 @@ async function testHighRateOutput(piwinRoot) {
 
   const createId = randomUUID();
   child.stdin.write(
-    JSON.stringify({
+    encodeHostCommandFixture({
       id: createId,
       type: 'session/create',
       input: { projectPath, sessionName: 'highrate-e2e' },
-    }) + '\n',
+    }),
   );
   await new Promise((resolve, reject) => {
     const timer = setTimeout(
@@ -867,12 +868,12 @@ async function testHighRateOutput(piwinRoot) {
   // transcript must retain its bounded tool output and terminal lifecycle.
   const promptId = randomUUID();
   child.stdin.write(
-    JSON.stringify({
+    encodeHostCommandFixture({
       id: promptId,
       type: 'session/prompt',
       sessionId,
       input: { text: 'generate high-rate output' },
-    }) + '\n',
+    }),
   );
 
   // Wait for prompt ack.
@@ -929,7 +930,7 @@ async function testHighRateOutput(piwinRoot) {
   debug('high-rate test: terminal event outcome=%s', terminalParsed.run.status);
 
   const messageId = randomUUID();
-  child.stdin.write(JSON.stringify({ id: messageId, type: 'session/messages', sessionId }) + '\n');
+  child.stdin.write(encodeHostCommandFixture({ id: messageId, type: 'session/messages', sessionId }));
   const retentionDeadline = Date.now() + 15_000;
   let transcriptResponse;
   while (Date.now() < retentionDeadline) {
@@ -942,7 +943,7 @@ async function testHighRateOutput(piwinRoot) {
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
     child.stdin.write(
-      JSON.stringify({ id: messageId, type: 'session/messages', sessionId }) + '\n',
+      encodeHostCommandFixture({ id: messageId, type: 'session/messages', sessionId }),
     );
   }
   assert(transcriptResponse?.success === true, 'high-rate test: transcript response succeeds');

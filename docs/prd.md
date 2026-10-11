@@ -136,6 +136,13 @@ project/session records remain on disk until explicitly removed. A merged user
 worktree is cleaned up after checking its commits and unsaved changes; merging
 alone does not authorize automatic deletion of a user checkout.
 
+**Workspace picker creation (2026-10-10):** The Host file picker supports new
+folders, empty files, refresh, and hidden files through a compact toolbar menu
+and column context menus; the footer remains focused on Cancel/Open. Creation
+uses the menu's target Host directory, prompts for a name, never overwrites an
+existing entry, and refreshes/selects the result. See
+[ADR 0036](./adr/0036-host-server-multi-client-deployment.md).
+
 ### 4.1.1 Conversation multi-pane workspace (P1)
 
 | ID | Requirement | Priority |
@@ -350,7 +357,7 @@ ADR [0065](./adr/0065-piwin-live-voice-work-session.md).
 Same host, same config root:
 
 ```bash
-piwin                 # interactive
+piwin tui             # interactive terminal shell (ADR 0086)
 piwin chat "..."      # one-shot
 piwin session list
 piwin skill install <id>

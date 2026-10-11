@@ -9,6 +9,7 @@ import type { ReactElement } from 'react';
 import type { SessionListItemUi } from './chat-ui-types';
 import type { DesktopLocale } from './desktop-locale';
 import type { ComposerDraftAgentOption } from './composer-dock-types';
+import { EmptyStageSessionChoices } from './empty-stage-session-choices.js';
 import { formatSessionRelativeTime } from './session-relative-time';
 
 /** Enough to be useful, few enough that the composer keeps the visual weight. */
@@ -84,23 +85,7 @@ export function selectResumableSessions(
     .slice(0, limit);
 }
 
-export function resolveEngineLabel(
-  agentId: string,
-  label: string,
-  isChinese: boolean,
-): string {
-  if (agentId === 'pi') {
-    return isChinese ? 'piwin 会话' : 'piwin session';
-  }
-  if (agentId === 'grok') {
-    return isChinese ? 'grok 会话' : 'grok session';
-  }
-  const cleanLabel = (label || agentId).trim();
-  if (isChinese) {
-    return cleanLabel.endsWith('会话') ? cleanLabel : `${cleanLabel} 会话`;
-  }
-  return cleanLabel.toLowerCase().endsWith('session') ? cleanLabel : `${cleanLabel} session`;
-}
+export { resolveEngineLabel } from './empty-stage-session-choices.js';
 
 export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
   const recentSessions = selectResumableSessions(props.sessions);
@@ -108,7 +93,6 @@ export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
   const heading = isChinese ? '研墨起笔' : 'Begin with Ink';
   const totalCount =
     props.sessions.filter((session) => !session.isArchived).length || props.sessions.length;
-  const hasMultipleEngines = (props.draftAgentOptions?.length ?? 0) > 1;
 
   return (
     <div className="empty-stage-landing" data-testid="empty-stage-landing">
@@ -117,71 +101,13 @@ export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
           砚
         </span>
         <h1>{heading}</h1>
-        {hasMultipleEngines ? (
-          <div
-            className="empty-stage-engines"
-            data-testid="empty-stage-engines"
-            role="radiogroup"
-            aria-label={isChinese ? '选择会话引擎' : 'Select Session Engine'}
-          >
-            {props.draftAgentOptions!.map((option) => {
-              const isSelected = (props.draftAgentId ?? 'pi') === option.agentId;
-              const engineLabel = resolveEngineLabel(option.agentId, option.label, isChinese);
-              return (
-                <button
-                  key={option.agentId}
-                  type="button"
-                  role="radio"
-                  aria-checked={isSelected}
-                  className={`empty-stage-engine-card${isSelected ? ' is-selected' : ''}${!option.ready ? ' is-not-ready' : ''}`}
-                  data-testid={`empty-stage-engine-${option.agentId}`}
-                  title={option.description || engineLabel}
-                  onClick={() => props.onSelectDraftAgent?.(option.agentId)}
-                >
-                  <div className="empty-stage-engine-card-header">
-                    <span className="empty-stage-engine-name">{engineLabel}</span>
-                    <span
-                      className={`empty-stage-engine-badge${option.agentId === 'pi' ? ' is-builtin' : option.ready ? ' is-ready' : ' is-warning'}`}
-                    >
-                      {option.agentId === 'pi'
-                        ? isChinese
-                          ? '内置'
-                          : 'Built-in'
-                        : option.ready
-                          ? isChinese
-                            ? '已就绪'
-                            : 'Ready'
-                          : option.state === 'unauthenticated'
-                            ? isChinese
-                              ? '未登录'
-                              : 'Sign-in Required'
-                            : option.state === 'unavailable'
-                              ? isChinese
-                                ? '未就绪'
-                                : 'Not Ready'
-                              : isChinese
-                                ? '未安装 CLI'
-                                : 'CLI Missing'}
-                    </span>
-                  </div>
-                  {!option.ready && props.onOpenAgentSettings ? (
-                    <div className="empty-stage-engine-footer">
-                      <span
-                        className="empty-stage-engine-settings-link"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          props.onOpenAgentSettings?.();
-                        }}
-                      >
-                        {isChinese ? '配置环境 →' : 'Configure →'}
-                      </span>
-                    </div>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
+        <EmptyStageSessionChoices
+          locale={props.locale}
+          draftAgentId={props.draftAgentId}
+          draftAgentOptions={props.draftAgentOptions}
+          onSelectDraftAgent={props.onSelectDraftAgent}
+          onOpenAgentSettings={props.onOpenAgentSettings}
+        />
       </div>
       {recentSessions.length > 0 ? (
         <div className="empty-stage-landing-history" data-testid="empty-stage-landing-history">

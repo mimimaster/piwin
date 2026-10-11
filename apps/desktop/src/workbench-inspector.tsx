@@ -140,6 +140,7 @@ export type WorkbenchInspectorProps = {
   ptyOutput: PtyOutputLine[];
   setPtyOutput: Dispatch<SetStateAction<PtyOutputLine[]>>;
   terminalCwd: string;
+  terminalEnabled?: boolean | undefined;
   handleTerminalCwdChange: (cwd: string) => void;
   terminalRecentDirs: string[];
   tasksContent?: ReactNode;
@@ -225,10 +226,10 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
   const terminalSessions = useTerminalSessions(
     terminalProjectPath,
     projectTrusted,
-    isTauriPtyAvailable(),
+    props.terminalEnabled !== false && isTauriPtyAvailable(),
     terminalSpawnCwd || terminalCwd,
   );
-  const terminalDock = (
+  const terminalDock = props.terminalEnabled === false ? null : (
     <DeferredTerminalDock
       projectPath={terminalProjectPath}
       projectTrusted={projectTrusted}
@@ -256,6 +257,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
 
         <RightPanel
           open={rightPanelOpen}
+          terminalEnabled={props.terminalEnabled}
           terminalSessions={terminalSessions}
           onOpen={() => shell.openInspector(rightPanelTab)}
           onClose={() => {

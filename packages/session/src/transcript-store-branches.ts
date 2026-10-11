@@ -57,7 +57,7 @@ const MAX_PREVIEW_CHARS = 500;
 // Queued rows are durable UI projections until Host admission starts. They may
 // share a parent with an in-flight reply, but must not create conversation-tree
 // siblings before transitionQueuedTurn reattaches them to the current leaf.
-const TREE_VISIBLE_MESSAGE = `NOT EXISTS (
+export const TREE_VISIBLE_MESSAGE = `NOT EXISTS (
   SELECT 1 FROM queued_turn queued
   WHERE queued.user_message_id = transcript_message.id
     AND queued.status NOT IN ('starting', 'started')

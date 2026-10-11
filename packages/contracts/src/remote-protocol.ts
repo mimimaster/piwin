@@ -4,6 +4,7 @@ import type {
   MediaAttachmentRef,
   ModelRef,
   PermissionDecision,
+  PermissionRequestContext,
   ToolPresentation,
 } from './host.js';
 import type { HostOsFamily, HostPathStyle } from './host-platform.js';
@@ -97,6 +98,11 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'session/backend-set',
   'agents/sessions-sync',
   'agents/status',
+  'agents/cli-open',
+  'agents/cli-sync',
+  'pty/write',
+  'pty/resize',
+  'pty/close',
   'agents/list',
   'agents/install',
   'agents/set-enabled',
@@ -285,6 +291,8 @@ export type RemoteCapabilitySummary = {
   homeDirectory?: string;
   /** Host accepts `host/list-dir` for the workspace folder picker. */
   hostListDir?: boolean;
+  /** Host accepts exclusive file/folder creation from the workspace picker. */
+  hostCreateEntry?: boolean;
 };
 
 export type HostHello = {
@@ -481,6 +489,8 @@ export type RemoteSessionResumeData = {
   contextSnapshot: import('./context-telemetry.js').SessionContextSnapshot;
   lastRequestUsage: import('./assistant-usage.js').AssistantUsageMeasurement | null;
   outline?: RemoteSessionOutlineNode[];
+  /** Mirrors `SessionResumeData.nativeHistory`. */
+  nativeHistory?: 'unsynced';
 };
 
 export type HostCommandFrame = {
@@ -562,6 +572,12 @@ export type RemotePendingPermission = {
   action: string;
   detail: string;
   defaultDecision: PermissionDecision;
+  /**
+   * Structured risk facts, as on the live `permission/request` push. A shell
+   * that joins late needs them for the same question: external-agent choices
+   * (`backendOptions`) exist only here, and answering without one is refused.
+   */
+  context?: PermissionRequestContext;
   runId?: string;
 };
 

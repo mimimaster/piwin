@@ -1,13 +1,11 @@
+import type { HostAttachTarget } from '@piwin/contracts';
 import { HostClient } from '@piwin/host-client';
-import { getPiwinRoot } from '@piwin/host-runtime';
+import { getPiwinRoot } from '@piwin/host-runtime/paths';
 import { WebSocketHostTransport } from '@piwin/host-transport';
 import { createNodeHostWebSocket } from './node-host-websocket.js';
 import { readCliClientPrincipalId } from './cli-client-principal.js';
 
-export type CliHostAttachTarget = {
-  endpoint: string;
-  authToken?: string;
-};
+export type CliHostAttachTarget = HostAttachTarget;
 
 export function readCliHostAttachTarget(
   env: NodeJS.ProcessEnv = process.env,
@@ -17,7 +15,15 @@ export function readCliHostAttachTarget(
     return undefined;
   }
   if (!isCliHostEndpoint(endpoint)) {
-    return undefined;
+    throw new Error('PIWIN_HOST_URL must be a ws:// or wss:// Host endpoint');
+  }
+  const deviceId = env.PIWIN_HOST_DEVICE_ID?.trim();
+  const deviceSecret = env.PIWIN_HOST_DEVICE_SECRET?.trim();
+  if (deviceId || deviceSecret) {
+    if (!deviceId || !deviceSecret) {
+      throw new Error('PIWIN_HOST_DEVICE_ID and PIWIN_HOST_DEVICE_SECRET must be provided together');
+    }
+    return { endpoint, deviceCredential: { deviceId, deviceSecret } };
   }
   const authToken = env.PIWIN_HOST_TOKEN?.trim();
   return {
@@ -42,14 +48,25 @@ export async function resolveCliAttachedClientId(
   return readCliClientPrincipalId(piwinRoot ?? getPiwinRoot(), endpoint);
 }
 
+export type CliHostAttachOptions = {
+  /** Long-lived shells (TUI) reconnect; one-shot commands fail fast. */
+  autoReconnect?: boolean;
+  /**
+   * Receive session pushes only for sessions named through
+   * `updateSubscriptions`. One-shot commands leave it off and get every push.
+   */
+  liveSubscriptions?: boolean;
+};
+
 export async function connectCliAttachedHost(
   target: CliHostAttachTarget,
   piwinRoot?: string,
+  options: CliHostAttachOptions = {},
 ): Promise<HostClient> {
   const clientId = await resolveCliAttachedClientId(target.endpoint, piwinRoot);
   const transport = new WebSocketHostTransport({
     endpoint: target.endpoint,
-    autoReconnect: false,
+    autoReconnect: options.autoReconnect ?? false,
     webSocketFactory: createNodeHostWebSocket,
   });
   const client = new HostClient({
@@ -62,8 +79,11 @@ export async function connectCliAttachedHost(
       cursorBatches: true,
       boundedReplay: true,
       hydration: false,
+      ...(options.liveSubscriptions === true ? { liveSubscriptions: true } : {}),
     },
-    ...(target.authToken === undefined ? {} : { authToken: target.authToken }),
+    ...(target.deviceCredential !== undefined
+      ? { deviceCredential: target.deviceCredential }
+      : target.authToken === undefined ? {} : { authToken: target.authToken }),
   });
   await client.connect();
   return client;

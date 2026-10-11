@@ -38,10 +38,11 @@ export function isSessionBranchCommand(command: HostCommand): boolean {
 
 /**
  * Notify shells that the active leaf moved (branch prompt, switch, subtree
- * delete). Ids and counts only — no message bodies ride a push.
+ * delete) or that an append started a branch. Ids and counts only — no
+ * message bodies ride a push.
  */
 export async function pushBranchUpdated(
-  context: SessionLiveContext,
+  context: Pick<SessionLiveContext, 'push'>,
   sessionId: string,
   store: SessionTranscriptStore,
 ): Promise<void> {

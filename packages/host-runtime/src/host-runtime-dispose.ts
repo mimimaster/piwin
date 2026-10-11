@@ -204,6 +204,10 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
   }
   // Adapter sessions release their own processes in `host.dispose()`, but the
   // readiness/catalog control process is Host-owned and must not outlive us.
+  if (deps.agentCliService) {
+    try { await deps.agentCliService.dispose(); } catch (error) { shutdownErrors.push(error); }
+    deps.agentCliService = undefined;
+  }
   if (deps.externalAgents) {
     try {
       await deps.externalAgents.dispose();

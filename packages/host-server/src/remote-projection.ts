@@ -78,7 +78,7 @@ export function projectRemoteResponse(
   if (command.type === 'host/status') {
     return { ...response, data: projectRemoteStatusData(response.data, context) };
   }
-  if (command.type === 'host/list-dir') {
+  if (command.type === 'host/list-dir' || command.type === 'host/create-entry') {
     return response;
   }
   if (command.type === 'activity/summary') {
@@ -257,6 +257,11 @@ export function projectRemoteResponse(
   return response;
 }
 
+/** A structured value leaving the Host the way a pushed one does: secrets and host paths redacted, sizes bounded. */
+export function projectRemoteValue(value: unknown): unknown {
+  return sanitizeRemoteValue(value, undefined);
+}
+
 export function createRemoteCapabilities(
   allowedCommands?: Iterable<HostCommand['type']>,
 ): RemoteCapabilitySummary {
@@ -298,6 +303,7 @@ export function createRemoteCapabilities(
     flashcardStudy: true,
     knowledgeBases: true,
     hostListDir: true,
+    hostCreateEntry: true,
     homeDirectory: os.homedir(),
   };
 }

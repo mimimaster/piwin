@@ -25,6 +25,7 @@ import {
   type SessionTranscriptStore,
 } from '@piwin/session';
 import type { SessionTranscriptMessage } from '@piwin/contracts';
+import { pushBranchUpdated } from './commands/session-branch-commands.js';
 import { createStoreTranscriptRecorder } from './store-transcript-recorder.js';
 import { transcriptAppendPush } from './transcript-append-push.js';
 import { appendUserPromptToTranscriptStore } from './transcript-user-prompt.js';
@@ -64,6 +65,7 @@ export async function ensureTranscriptRecorder(
       resolveModel: () => deps.sessionModels.get(sessionId),
       onDiagnostic: (message) =>
         deps.push({ type: 'host/log', level: 'warn', message: `[transcript] ${message}` }),
+      onBranchStarted: () => pushBranchUpdated(deps, sessionId, store),
     }),
   );
 }
@@ -186,13 +188,25 @@ export async function recordUserPrompt(
   // downgrade the candidate generation's recorder before it is published.
   const result = await deps.withTranscriptStore(
     sessionId,
-    (store) =>
-      appendUserPromptToTranscriptStore({
+    async (store) => {
+      const appended = await appendUserPromptToTranscriptStore({
         store,
         input,
         messageId: userId,
         createdAt,
-      }),
+      });
+      if (appended.ok && appended.startedBranch === true) {
+        // The row is stored either way; a failed notice must not fail the prompt.
+        await pushBranchUpdated(deps, sessionId, store).catch((error: unknown) => {
+          deps.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `[transcript] branch notice failed for ${sessionId}: ${formatError(error)}`,
+          });
+        });
+      }
+      return appended;
+    },
     projectPath,
   );
   if (!result.ok) {

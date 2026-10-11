@@ -168,6 +168,8 @@ export type SessionLiveContext = {
         options?: import('@piwin/contracts').SessionBackendOptions;
       }
     | undefined;
+  /** ADR 0082: the agent holds history this session's transcript projection has not replayed. */
+  externalHistoryUnsynced?: (record: import('@piwin/contracts').SessionIndexRecord) => boolean;
   /** ORCH: read scheme for the active/parent run (soft-generic spawn). */
   getRunOrchestrationScheme: (runId: string) => ResolvedOrchestrationScheme | undefined;
   /** Builtin + settings profile ids for scheme resolve validation. */

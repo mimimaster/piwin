@@ -68,6 +68,7 @@ export function activateSessionRuntime(
   }
   const inFlight = deps.sessionActivationPromises.get(sessionId);
   if (inFlight) {
+    deps.options.activationProbe?.requested?.({ sessionId, ...(runId !== undefined ? { runId } : {}) });
     if (runId !== undefined) {
       void deps.publishWaitingResourceWhileQueued(runId);
     }
@@ -87,10 +88,25 @@ export function activateSessionRuntime(
       });
   }
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
-  const activation = withSessionOperationLock({
+  deps.options.activationProbe?.requested?.({ sessionId, ...(runId !== undefined ? { runId } : {}) });
+  let activation: Promise<SessionHandle>;
+  // Stopping the Run cancels the activation it started. Callers that arrive
+  // afterwards start their own activation instead of joining the cancelled one.
+  const releaseActivationSlot = (): void => {
+    if (deps.sessionActivationPromises.get(sessionId) === activation) {
+      deps.sessionActivationPromises.delete(sessionId);
+    }
+  };
+  activation = withSessionOperationLock({
     rootDir,
     sessionId,
     operation: async () => {
+      // A cancelled activation still unwinding holds this lock; one that got
+      // past its last cancellation point leaves a resident runtime to reuse.
+      const resident = deps.sessions.get(sessionId);
+      if (resident) {
+        return resident;
+      }
       if (
         await hasForeignLiveSessionRuntime({
           rootDir,
@@ -108,9 +124,11 @@ export function activateSessionRuntime(
       return handle;
     })
     .finally(() => {
-      deps.sessionActivationPromises.delete(sessionId);
+      signal?.removeEventListener('abort', releaseActivationSlot);
+      releaseActivationSlot();
     });
   deps.sessionActivationPromises.set(sessionId, activation);
+  signal?.addEventListener('abort', releaseActivationSlot, { once: true });
   if (runId !== undefined) {
     void deps.publishWaitingResourceWhileQueued(runId);
   }
@@ -119,6 +137,11 @@ export function activateSessionRuntime(
 
 function isActivationAbort(error: unknown): boolean {
   return error instanceof Error && error.message === 'aborted';
+}
+
+/** Same shape as the residency admission abort, so every caller reads one kind of cancellation. */
+function activationCancelled(): Error {
+  return Object.assign(new Error('aborted'), { code: 'aborted' });
 }
 
 function attachRunToResidentGeneration(
@@ -194,6 +217,18 @@ export async function doActivateSessionRuntime(
     }
     throw new Error(`activation aborted: ${admission.message}`);
   }
+  // The Run can be stopped at any await from here on. Each check sits before
+  // a step that allocates something a stopped Run would only throw away.
+  const cancelIfStopped = (): void => {
+    if (signal?.aborted === true) {
+      deps.residencyController.abortActivation(sessionId, runtimeGenerationId);
+      throw activationCancelled();
+    }
+  };
+  const probe = deps.options.activationProbe;
+  const probeStep = { sessionId, ...(runId !== undefined ? { runId } : {}) };
+  await probe?.admitted?.(probeStep);
+  cancelIfStopped();
   // ADR 0082: external agent sessions bypass Pi blueprint compilation and
   // native replay seeds; the agent owns its own conversation state.
   if (isExternalRecord(record)) {
@@ -250,8 +285,11 @@ export async function doActivateSessionRuntime(
       });
     }
   }
+  // Stopped while the replay seed was being read: do not create a runtime for it.
+  cancelIfStopped();
   let handle: SessionHandle;
   try {
+    await probe?.creating?.({ ...probeStep, runtimeGenerationId });
     // 3. create and commit a generation for the same product session id.
     const activationModel = deps.sessionModels.get(sessionId) ?? record.model;
     handle = await deps.host.activateSession(
@@ -265,6 +303,13 @@ export async function doActivateSessionRuntime(
       runtimeGenerationId,
       replaySeedOptions ?? {},
     );
+    if (signal?.aborted === true) {
+      // The Run was stopped while its runtime was being created. Its terminal
+      // may already be published: release the generation, never attach it.
+      await deps.host.dropSession(sessionId);
+      probe?.dropped?.({ ...probeStep, runtimeGenerationId });
+      throw activationCancelled();
+    }
     if (runId !== undefined) {
       const attached = deps.runRegistry.attachRuntimeGeneration(runId, runtimeGenerationId);
       if (!attached.ok) {

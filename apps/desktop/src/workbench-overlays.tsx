@@ -28,6 +28,7 @@ import type {
   WorkspaceWrites,
 } from '@piwin/contracts';
 
+import { requestHostPickerEntry } from './host-picker-create-entry.js';
 import { AppDialogs } from './app-dialogs';
 import { BranchSwitchConfirmDialog } from './branch-switch-confirm-dialog';
 import { CommandPalette } from './command-palette';
@@ -191,9 +192,10 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
           ? {
               hostWorkspacePicker: true,
               ...(hostOsFamily === undefined ? {} : { hostOsFamily }),
-              onListHostDirectory: async (path?: string): Promise<HostListDirData> => {
+              onListHostDirectory: async (path?: string, includeHidden?: boolean): Promise<HostListDirData> => {
                 const response = await props.hostClient.request({
                   type: 'host/list-dir',
+                  includeHidden: includeHidden ?? false,
                   ...(path && path.trim().length > 0 ? { path: path.trim() } : {}),
                 });
                 if (!response.success) {
@@ -203,6 +205,12 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
               },
             }
           : {})}
+        {...(props.hostClient.supportsCommand('host/create-entry') &&
+          (props.hostClient.getTransport() !== 'remote' ||
+            props.hostClient.getRemoteCapabilities()?.hostCreateEntry === true)
+          ? { onCreateHostEntry: (input) => requestHostPickerEntry(
+              (command) => props.hostClient.request(command), input, props.locale === 'zh-CN' ? 'zh-CN' : 'en',
+            ) } : {})}
         projectPath={props.state.projectPath}
         trustDialogOpen={props.state.trustDialogOpen}
         onTrustProject={(trust) => void props.onTrustProject(trust)}

@@ -6,6 +6,7 @@ mod host_bridge;
 mod memory_pressure;
 mod pet_overlay;
 mod pty_host;
+mod pty_tui;
 mod reveal_in_file_manager;
 mod save_user_file;
 
@@ -22,9 +23,11 @@ use pet_overlay::{
     pet_overlay_hide, pet_overlay_show, pet_overlay_toggle, raise_main_window, show_main_window,
 };
 use pty_host::{
-    pty_close, pty_close_all, pty_open, pty_resize, pty_write, snapshot_pty_sessions_blocking,
+    pty_close, pty_close_all, pty_open, pty_resize, pty_write,
+    snapshot_pty_sessions_blocking,
     PtyHostState, PtyShutdownSnapshot,
 };
+use pty_tui::{pty_open_remote_tui, pty_open_tui};
 use serde::Serialize;
 use tauri::{Emitter, Manager, WindowEvent};
 
@@ -171,6 +174,8 @@ pub fn run() {
             host_request,
             host_is_running,
             pty_open,
+            pty_open_tui,
+            pty_open_remote_tui,
             pty_write,
             pty_resize,
             pty_close,

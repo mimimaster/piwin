@@ -27,6 +27,7 @@ describe('runtime stale domain classification (contracts)', () => {
       'prompts',
       'permissions',
       'subagents',
+      'codemode',
     ]) {
       expect(isRuntimeStaleDomain(domain as never)).toBe(true);
     }

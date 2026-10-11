@@ -872,6 +872,8 @@ async function appendDerivedMessage(
   }
 }
 
+const FORK_DEFAULT_SOURCE_TAIL_ROWS = 100;
+
 async function resolveForkAssistantMessage(
   store: SessionTranscriptStore,
   messageId: string | undefined,
@@ -879,7 +881,8 @@ async function resolveForkAssistantMessage(
   if (messageId !== undefined) {
     return store.getMessage(messageId);
   }
-  const tail = await store.listTail(200);
+  // The store serves at most this many tail rows; asking for more is refused outright.
+  const tail = await store.listTail(FORK_DEFAULT_SOURCE_TAIL_ROWS);
   for (let index = tail.length - 1; index >= 0; index -= 1) {
     const message = tail[index];
     if (message?.role === 'assistant' && message.status === 'done') {

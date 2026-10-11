@@ -44,6 +44,14 @@ assets), not to a single file.
 
 ## Decision
 
+The CLI entry and its lazy `cli-chunk-*.mjs` modules ship together at the
+Host resource directory root. Keeping chunks beside `agent-worker.mjs` preserves
+worker/native resolution relative to `import.meta.url`. Single-file ESM output
+hoists external imports from unused commands and delays an attached TUI; code
+splitting preserves on-demand loading (ADR 0086). Desktop resources include the
+chunk glob, source-only placeholder generation satisfies it, and the bundle
+smoke scans every emitted module for forbidden vendor implementation markers.
+
 1. **Ship the host as a Tauri sidecar directory**: a bundled JS entry
    (`host-serve.mjs`) plus required runtime assets, executed by a
    **bundled Node runtime binary** registered via Tauri `externalBin`.
@@ -90,12 +98,15 @@ Add `scripts/bundle-host.mjs` (repo root), invoked as `pnpm bundle:host`:
 import { build } from 'esbuild';
 
 await build({
-  entryPoints: ['apps/cli/src/index.ts'],
+  entryPoints: { 'host-serve': 'apps/cli/src/index.ts' },
   bundle: true,
   platform: 'node',
   format: 'esm',
   target: 'node20',
-  outfile: 'dist-host/host-serve.mjs',
+  outdir: 'dist-host',
+  splitting: true,
+  chunkNames: 'cli-chunk-[hash]',
+  outExtension: { '.js': '.mjs' },
   // Keep Pi + asset/native-ish deps on disk; everything @piwin/* gets inlined.
   external: [
     '@earendil-works/pi-coding-agent',
@@ -155,6 +166,7 @@ executable renamed; the JS bundle + node_modules ride along as `resources`.
     "externalBin": ["binaries/piwin-host"],
     "resources": {
       "../../dist-host/host-serve.mjs": "host/host-serve.mjs",
+      "../../dist-host/cli-chunk-*.mjs": "host",
       "../../dist-host/node_modules": "host/node_modules"
     }
   }

@@ -34,3 +34,6 @@ export type {
 export { canonicalFsPath, isPathInsideRoot, resolveTrustedCwd } from './cwd-policy.js';
 export type { CwdPolicyResult } from './cwd-policy.js';
 export { redactSecretText } from './redact-logs.js';
+
+export { InteractiveTerminalManager, InteractiveTerminalError } from './interactive-terminal.js';
+export type { InteractiveTerminalInput } from './interactive-terminal.js';

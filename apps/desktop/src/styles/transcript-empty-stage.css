@@ -182,7 +182,9 @@
   box-sizing: border-box;
 }
 
-.empty-stage-engine-card {
+.piwin-button.empty-stage-engine-card {
+  height: auto;
+  white-space: normal;
   display: flex;
   flex-direction: column;
   padding: 10px 14px;
@@ -284,4 +286,17 @@
 .empty-stage-engine-settings-link:hover {
   opacity: 0.8;
   text-decoration: underline;
+}
+
+/* Shared Button content stretches to the full product card measure. */
+.empty-stage-engine-card .mantine-Button-inner,
+.empty-stage-engine-card .mantine-Button-label {
+  width: 100%;
+}
+
+.empty-stage-engine-card .mantine-Button-label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  white-space: normal;
 }

@@ -84,6 +84,7 @@ export const FAMILY_PI_BUILTIN_TOOLS: Readonly<Record<SessionToolFamily, readonl
   'extensions-write': [],
   artifact: [],
   toolbox: [],
+  codemode: [],
   'image-generation': [],
   'video-generation': [],
   'device-health': [],
@@ -192,6 +193,9 @@ export function resolveToolPolicyDetails(input: ToolExposureInput): ResolvedTool
   }
   if (input.availableFamilies?.has('toolbox')) {
     enabledFamilies.add('toolbox');
+  }
+  if (input.availableFamilies?.has('codemode')) {
+    enabledFamilies.add('codemode');
   }
   // Image generation: master AND valid model available.
   if (

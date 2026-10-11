@@ -1,0 +1,56 @@
+/* Two square cells in one pill. The cell edge tracks the titlebar icon-button
+   size so the switch lines up with its neighbours and grows on touch layouts. */
+.conversation-shell-switch {
+  --shell-switch-cell: var(--titleband-btn-size, 22px);
+  display: inline-flex;
+  align-items: stretch;
+  flex: none;
+  box-sizing: content-box;
+  height: var(--shell-switch-cell);
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  margin-right: 8px;
+}
+.conversation-shell-switch button.piwin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: none;
+  width: var(--shell-switch-cell);
+  min-width: var(--shell-switch-cell);
+  height: var(--shell-switch-cell);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-muted);
+}
+.conversation-shell-switch button.piwin-button + button.piwin-button { border-left: 1px solid var(--border-soft); }
+.conversation-shell-switch button.piwin-button.on { background: var(--surface-raised); color: var(--text-primary); }
+.conversation-shell-switch button.piwin-button:hover { background: var(--surface-raised); }
+.conversation-shell-switch button.piwin-button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.conversation-shell-switch .shell-glyph { display: block; flex: none; }
+.conversation-shell-switch[data-appearance='dark'] button.on .shell-glyph { color: #fff; }
+.conversation-shell-switch[data-appearance='light'] button.on .shell-glyph { color: #000; }
+/* Inkstone pins every titlebar `.seg` to a 20px pill with padded mono text
+   buttons; this switch holds icons, so keep square cells at that height. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .conversation-shell-switch {
+  /* Same outer height as the neighbouring 20px `.seg` pills: 18px cells + 1px borders. */
+  --shell-switch-cell: 18px;
+  box-sizing: content-box;
+  align-items: stretch;
+  height: var(--shell-switch-cell);
+  max-height: none;
+}
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .conversation-shell-switch button.piwin-button {
+  /* Side room like the 砚/纸 text buttons instead of tight square cells. */
+  padding: 0 6px;
+  width: auto;
+  min-width: 0;
+  height: var(--shell-switch-cell);
+  box-shadow: none;
+}

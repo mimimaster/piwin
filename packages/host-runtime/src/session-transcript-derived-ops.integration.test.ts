@@ -260,6 +260,15 @@ describe('SQLite transcript derived operations', () => {
       if (!forked.success) throw new Error(forked.error);
       forkSessionId = (forked.data as { sessionId: string }).sessionId;
 
+      // Without a message id the fork starts from the latest completed answer.
+      const forkedFromLatest = await runtime.handleCommand({
+        type: 'session/fork',
+        sessionId: sourceSessionId,
+        workspaceStrategy: 'shared',
+        messageProjection: 'none',
+      });
+      expect(forkedFromLatest.success, JSON.stringify(forkedFromLatest)).toBe(true);
+
       // The warm runtime created before the copy has an empty model context;
       // derived sessions must be cold so the next turn replays copied history.
       const residency = (

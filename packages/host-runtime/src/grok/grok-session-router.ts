@@ -24,6 +24,7 @@ import { workingDirectoryFromIndexRecord } from '../session-scope.js';
 import { externalOperationRefusal } from '../external-agent-policy.js';
 import type { AgentPluginSession } from '../agent-plugin-session.js';
 import { rebuildTranscriptFromReplay } from './grok-transcript-replay.js';
+import { externalProjectionNeedsReplay } from './external-projection-staleness.js';
 import { listExtensionBackends, requireExtensionBackendLaunch, type ExtensionBackend } from '../extension-session-backends.js';
 
 export function isExternalRecord(record: SessionIndexRecord | undefined): boolean {
@@ -76,17 +77,10 @@ export async function activateExternalSession(
     throw new Error('agent-update-requires-migration: this session uses a different adapter revision');
   }
   const cwd = workingDirectoryFromIndexRecord(record, deps.options.piwinRoot);
-  // Replay when the projection has never been synced from the agent (a session
-  // imported from the catalog, or a lost projection) or the agent changed it
-  // since (e.g. the user continued in its own TUI). Sessions created in piwin
-  // record `syncedChangeUnixMs` on first bind, so they resume without replay.
-  const catalogChange =
-    binding.backendSessionId !== undefined
-      ? (deps.externalCatalogChanges.get(binding.backendSessionId) ?? 0)
-      : 0;
-  const replay =
-    binding.backendSessionId !== undefined &&
-    (binding.syncedChangeUnixMs === undefined || binding.syncedChangeUnixMs < catalogChange);
+  const replay = externalProjectionNeedsReplay(
+    binding,
+    binding.backendSessionId !== undefined ? deps.externalCatalogChanges.get(binding.backendSessionId) : undefined,
+  );
   const mode = binding.backendSessionId === undefined ? 'new' : replay ? 'load' : 'resume';
   const opened = await backend.openSession({
     agentId: binding.agentId,

@@ -27,6 +27,8 @@ import {
   type PiSessionBackend,
   PIWIN_PI_AGENT_DIR_ENV,
 } from '@piwin/agent-host';
+import type { TurnChangeObjectStore } from '@piwin/git';
+import type { MockFileChangeRecorder } from './mock-file-changes.js';
 import { createMockSessionHandle } from './mock-session.js';
 import { createTestFixtureSession } from './delayed-session-fixture.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
@@ -81,6 +83,12 @@ type ProductAgentHostCommonOptions = {
     usableSubscriptionProviderIds: readonly string[];
     subscriptionAccounts: import('./resolve-chat-model.js').ResolveChatModelAccounts;
   }>;
+  /**
+   * Mock only: record a file the mock session wrote, so the turn-change
+   * runtime can diff and undo it. Production hosts never set this.
+   */
+  recordMockFileChange?: MockFileChangeRecorder;
+  mockObjectStore?: TurnChangeObjectStore;
   /** Derive the host-local family index from the same registrations as descriptors. */
   buildToolFamilyIndex?: (
     sessionId: string,
@@ -349,6 +357,7 @@ export class ProductAgentHost implements AgentHost {
     options: CreateSessionOptions = {},
   ): Promise<PreparedProductSession> {
     if (this.options.mock) {
+      const recordMockFileChange = this.options.recordMockFileChange;
       const session =
         this.options.testFixture !== undefined
           ? createTestFixtureSession(this.options.testFixture, {
@@ -359,6 +368,15 @@ export class ProductAgentHost implements AgentHost {
               ...input,
               sessionId,
               ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
+              ...(recordMockFileChange
+                ? {
+                    recordFileChange: (receipt, workspaceRoot) =>
+                      recordMockFileChange(sessionId, receipt, workspaceRoot),
+                  }
+                : {}),
+              ...(this.options.mockObjectStore
+                ? { objectStore: this.options.mockObjectStore }
+                : {}),
             });
       const settingsRevision = this.options.piwinRoot
         ? createSettingsSnapshot(await loadPiwinConfig(this.options.piwinRoot)).runtimeRevision

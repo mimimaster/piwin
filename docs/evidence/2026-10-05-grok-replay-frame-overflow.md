@@ -1,6 +1,6 @@
 # Grok historical replay exceeds the plugin frame limit
 
-Status: root cause reproduced; plan step 1 (Host/contracts) implemented and verified. Independent adapter producer and real-history acceptance remain pending.
+Status: root cause reproduced; plan step 1 (Host/contracts) and step 2 (adapter producer) implemented. Real-history acceptance passed on a development Host (2026-10-11). The adapter change is uncommitted and unpublished; installed production adapters still overflow.
 
 ## Target and safe probe scope
 
@@ -85,3 +85,35 @@ Existing unrelated working-tree edits in Desktop backend controls, their tests, 
 - `git diff --check`: passed. Touched production files are 152, 356, 371, 36 and 38 lines, all below the 1,000-line cap.
 
 Independent source checkout located at `/Volumes/BigDisk/Projects/Projects/grok-build`, origin `git@github.com:mimimaster/grok-build-acp.git`, HEAD `b6e09c7664004f83f02d3a6ed29cf97085145861`. It already has unrelated usage-feature edits, including `plugin-server.ts`, its contract shim, `dist/agent.mjs`, and `piwin.json`; do not overwrite or rebuild that dirty checkout. Preparing a separate producer worktree is the next explicit gate. No installed extension, session binding or native history has been migrated or deleted, and no model prompt has been sent.
+
+## Step 2 and real-history acceptance (2026-10-11)
+
+The product owner directed the producer change to be made directly in the
+existing adapter checkout (`/Volumes/BigDisk/Projects/Projects/grok-build`), on
+top of its uncommitted usage work, instead of a separate worktree.
+
+- `packages/agent-grok/src/plugin-server.ts` reads `hostCapabilities.replayStreaming`
+  at `plugin/initialize`. For a negotiated `session/load` it emits one event
+  frame per historical emission in order, then returns `replayEvents: []` with
+  `streamedReplayEventCount`. A Host that did not opt in, and `session/new` /
+  `session/resume`, keep the inline array.
+- `replay-stream.ts` checks every frame against the 2,097,152-byte limit before
+  the first is written; a single oversized event fails the load and names it.
+- Adapter suite: 39 passed across 10 files, including the standalone artifact test.
+- Built artifact: 156,758 bytes, sha256 `bd0e1faa5a84601987bd8f42436de1522ae4494c694ee6c8b983c5a0c265f43b`.
+  Installed on the development Host root (`~/.piwin-test`) from a staged local
+  directory as extension revision `9ca9adfe21bb80cd3cfe8b40e5873c8f637e0d7d7e70da019c31e026e2bc0459`,
+  with the three earlier revisions listed as compatible.
+
+Acceptance against the same native session (`01a10746-0b83-7923-a192-10704dfa70ca`,
+13 MB on disk), through the running development Host, with no model prompt:
+
+| Step | Before (revision `61ab2e95…`) | After (revision `9ca9adfe…`) |
+| --- | --- | --- |
+| `session/resume` | 0 messages, `nativeHistory: unsynced` | 0 messages, `nativeHistory: unsynced` |
+| `agents/cli-sync` | failed in 2,983 ms: `invalid frame size or framing (in flight: session/load)` | succeeded in 1,558 ms |
+| `session/resume` | 0 messages, still unsynced | 50-message page of 268, flag cleared |
+
+Still open: commit and publish the adapter (the registry pins `b6e09c7`), then
+upgrade installed production adapters. Not verified: Desktop rendering of the
+synced transcript in the Tauri window, and an end-to-end prompt after the load.
