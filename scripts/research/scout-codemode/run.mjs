@@ -7,20 +7,28 @@ import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { promisify } from 'node:util';
 import { COMMON, TASKS, CHAIN_ORACLE, makeRows, aggregateRows, inventory, fingerprint, walkFiles, grade } from './tasks.mjs';
+import { installModelApiOnlyFetch, networkDenials } from './network-isolation.mjs';
+import { decideExperimentPermission } from './experiment-permissions.mjs';
+import { prepareOolong, gradeOolong } from './oolong-tasks.mjs';
 import { readNativeSessions, sumLedger } from './native-sessions.mjs';
 import { openProviderObserver, sumObservedUsage } from './provider-observer.mjs';
 
 const exec = promisify(execFile);
 const repository = resolve(import.meta.dirname, '../../..');
 const require = createRequire(join(repository, 'apps/cli/package.json'));
+if (process.argv.includes('--oolong')) installModelApiOnlyFetch();
 const { HostRuntime, createDefaultPiwinConfig } = await import(require.resolve('@piwin/host-runtime'));
 const { BUILTIN_ULTRA_CODE_SCHEME } = await import(require.resolve('@piwin/contracts'));
 const oauth = process.argv.includes('--oauth');
-const output = process.env.PIWIN_EXPERIMENT_OUTPUT_DIR ?? join(repository, 'docs/research', oauth ? 'scout-codemode-oauth-2026-10-11' : 'scout-codemode-2026-10-11');
+const oolong = process.argv.includes('--oolong');
+const resumeOolong = process.argv.includes('--resume-oolong');
+if (resumeOolong && !oolong) throw new Error('Resume is restricted to the counted OOLONG interruption');
+if (oolong && !oauth) throw new Error('OOLONG experiment requires the authorized OAuth channel');
+const output = process.env.PIWIN_EXPERIMENT_OUTPUT_DIR ?? join(repository, 'docs/research', oolong ? 'scout-codemode-oolong-2026-10-11' : (oauth ? 'scout-codemode-oauth-2026-10-11' : 'scout-codemode-2026-10-11'));
 const sourceRoot = process.env.PIWIN_EXPERIMENT_SOURCE_ROOT ?? join(homedir(), oauth ? '.piwin-test' : '.piwin');
 const modelId = process.env.PIWIN_EXPERIMENT_MODEL ?? 'grok-4.5';
 const scoutModelId = process.env.PIWIN_EXPERIMENT_SCOUT_MODEL ?? 'grok-4.5';
-const timeoutMs = 300_000;
+const timeoutMs = oolong ? 900_000 : 300_000;
 const snapshotCommit = '5868a0de4af5afd3137d00b8142c6fc033d6d895';
 const mainModel = { protocol: 'openai-compatible', source: oauth ? 'subscription' : 'channel', providerId: oauth ? 'xai' : 'experiment-channel', modelId };
 const scoutModel = { ...mainModel, modelId: scoutModelId };
@@ -58,7 +66,8 @@ function buildConfig(provider, baseUrl, enabled) {
   config.defaultProviderId = mainModel.providerId; config.defaultModelId = modelId;
   config.codemode.enabled = enabled;
   config.skills.enabled = false; config.extensions.enabled = false; config.prompts.enabled = false;
-  config.artifact.enabled = false; config.web.searchEnabled = false;
+  config.artifact.enabled = false;
+  config.web.searchProvider = 'none'; config.web.searchSources = [];
   config.walkthrough.enabled = false; config.walkthrough.autoGenerate = false;
   config.permissions = { mode: 'bypass', preset: 'yolo' };
   const scheme = structuredClone(BUILTIN_ULTRA_CODE_SCHEME);
@@ -76,6 +85,7 @@ async function readLedger(root) {
 
 async function runTask({ project, provider, observer, task, group, repetition, ordinal, expected, snapshotHash, credential, redact }) {
   const root = await mkdtemp(join(tmpdir(), 'piwin-ab-host-'));
+  const beforeNetworkDenials = networkDenials.length;
   const beforeRequests = observer.requests?.length ?? 0;
   if (oauth) {
     process.env.PIWIN_EXPERIMENT_OBSERVER_RUN_DIR = join(observer.directory, String(ordinal));
@@ -88,8 +98,13 @@ async function runTask({ project, provider, observer, task, group, repetition, o
     { target: { kind: 'file-write', pathGlob: '**' }, decision: 'deny', reason: 'experiment-readonly' },
     { target: { kind: 'bash', pattern: 're:\\b(rm|mv|cp|mkdir|touch|chmod|chown|sudo|curl|wget)\\b' }, decision: 'deny', reason: 'experiment-readonly' },
     { target: { kind: 'bash', pattern: 're:\\bgit\\s+(add|commit|reset|checkout|switch|clean|stash|push)' }, decision: 'deny', reason: 'experiment-readonly' },
+    ...(oolong ? [
+      { target: { kind: 'web-search' }, decision: 'deny', reason: 'experiment-no-network' },
+      { target: { kind: 'process' }, decision: 'deny', reason: 'experiment-readonly' },
+      { target: { kind: 'git', pattern: '*' }, decision: 'deny', reason: 'experiment-readonly' },
+    ] : []),
     { target: { kind: 'notes-mutate' }, decision: 'deny', reason: 'experiment-readonly' },
-  ] }));
+  ], allow: oolong ? [{ target: { kind: 'bash', pattern: '*' }, decision: 'allow', reason: 'experiment-os-protected-shell' }] : [] }));
   await mkdir(join(root, 'pi-agent'));
   if (oauth) await writeFile(join(root, 'pi-agent/auth.json'), JSON.stringify({ xai: credential }), { mode: 0o600 });
   await writeFile(join(root, 'pi-agent/settings.json'), JSON.stringify({ retry: { enabled: false }, compaction: { enabled: false } }));
@@ -108,6 +123,10 @@ async function runTask({ project, provider, observer, task, group, repetition, o
       // Requests for side-effect actions are denied. Bash reads normally run under
       // the unchanged Host classifier; no weakening of Scout/read capabilities.
       if (event.type === 'permission/request') void runtime.handleCommand({ type: 'permission/respond', sessionId: recordedSessionId, requestId: event.requestId, decision: 'deny' });
+    }
+    if (push.type === 'permission/request') {
+      events.push({ sessionId: push.sessionId, event: { ...push } });
+      void runtime.handleCommand({ type: 'permission/respond', sessionId: push.sessionId, requestId: push.requestId, decision: oolong ? decideExperimentPermission(push.action) : 'deny' }).then(response => { if (!response.success) diagnostics.push({ level: 'error', message: response.error ?? 'permission response failed' }); });
     }
     if (push.type === 'run/terminal') terminals.push(push.run);
     if (push.type === 'host/log' && push.level !== 'debug') diagnostics.push({ level: push.level, message: push.message });
@@ -132,7 +151,7 @@ async function runTask({ project, provider, observer, task, group, repetition, o
     elapsedMs = Math.round(performance.now() - started);
     const terminal = terminals.find(run => run.runId === runId);
     status = terminal?.status ?? 'timeout';
-    if (!terminal) { await runtime.handleCommand({ type: 'session/abort', sessionId }); failure = '300000ms hard deadline'; }
+    if (!terminal) { await runtime.handleCommand({ type: 'session/abort', sessionId }); failure = `${timeoutMs}ms hard deadline`; }
     if (terminal?.error) failure = terminal.error;
   } catch (error) { failure = error.message; }
   finally { unsubscribe(); await runtime.dispose(); }
@@ -140,6 +159,7 @@ async function runTask({ project, provider, observer, task, group, repetition, o
   const ledger = await readLedger(root);
   const nativeSessions = oauth ? await readNativeSessions(root) : null;
   const requests = oauth ? await observer.readRequests(ordinal) : observer.requests.slice(beforeRequests);
+  const usageRequests = requests.filter(request => request.failure !== 'ExperimentNetworkDenied');
   const scoutIds = [...new Set(events.filter(row => row.sessionId !== sessionId).map(row => row.sessionId))];
   const tools = events.filter(row => row.event.type === 'tool/start');
   const codemodeIds = new Set(tools.filter(row => row.event.toolName === 'piwin_codemode').map(row => row.event.toolCallId));
@@ -147,13 +167,13 @@ async function runTask({ project, provider, observer, task, group, repetition, o
   const codemodeResults = nativeSessions?.sessions.flatMap(session => session.records.filter(record => record.toolName === 'piwin_codemode')) ?? [];
   const nestedCalls = codemodeResults.flatMap(record => record.details?.calls ?? []);
   const nestedComplete = codemodeResults.length > 0 && codemodeResults.every(record => record.details?.invocationLocalStore === true);
-  const validation = grade(task.id, answer, expected);
+  const validation = oolong ? gradeOolong(answer, expected) : grade(task.id, answer, expected);
   const unchanged = await fingerprint(project) === snapshotHash;
   const result = {
     ordinal, taskId: task.id, group, repetition, sessionId, runId, status, failure, elapsedMs,
     configHashWithoutCodemodeEnabled: hash(JSON.stringify({ ...config, codemode: { ...config.codemode, enabled: null } })),
     promptHash: hash(`${COMMON}\n\n${task.prompt}`), snapshotHash, sourceUnchanged: unchanged,
-    validation, answer, nativeSessions, scoutSessionIds: scoutIds, scoutCount: scoutIds.length,
+    validation, answer, networkDenials: networkDenials.slice(beforeNetworkDenials), nativeSessions, scoutSessionIds: scoutIds, scoutCount: scoutIds.length,
     toolCalls: tools.length, mainToolCalls: tools.filter(row => row.sessionId === sessionId).length,
     scoutToolCalls: tools.filter(row => row.sessionId !== sessionId).length,
     codemodeCalls: tools.filter(row => row.event.toolName === 'piwin_codemode').length,
@@ -162,12 +182,12 @@ async function runTask({ project, provider, observer, task, group, repetition, o
     toolFailures: events.filter(row => row.event.type === 'tool/end' && row.event.isError).length,
     modelRetryAttempts: events.filter(row => row.event.type === 'model/retry' && row.event.phase === 'attempting').length,
     toolRetryAttempts: null, upstreamInternalRetries: null,
-    observedUsage: oauth ? null : sumObservedUsage(requests),
-    observedMainSseUsage: oauth ? sumObservedUsage(requests) : null,
+    observedUsage: oauth ? null : sumObservedUsage(usageRequests),
+    observedMainSseUsage: oauth ? sumObservedUsage(usageRequests) : null,
     mainLedgerUsage: sumLedger(ledger.filter(record => record.sessionId === sessionId)),
     scoutLedgerUsage: sumLedger(ledger.filter(record => scoutIds.includes(record.sessionId))),
-    mainObservedUsage: sumObservedUsage(requests.filter(request => request.reasoningEffort === 'high')),
-    scoutObservedUsage: sumObservedUsage(requests.filter(request => request.reasoningEffort === 'low')), providerRequests: requests, usageLedger: ledger, events, diagnostics,
+    mainObservedUsage: sumObservedUsage(usageRequests.filter(request => request.reasoningEffort === 'high')),
+    scoutObservedUsage: sumObservedUsage(usageRequests.filter(request => request.reasoningEffort === 'low')), providerRequests: requests, usageLedger: ledger, events, diagnostics,
   };
   await writeFile(join(output, `${String(ordinal).padStart(2, '0')}-${task.id}-${group}${repetition}.json`), redact(JSON.stringify(result, null, 2)));
   if (!process.env.PIWIN_EXPERIMENT_KEEP_STATE) await rm(root, { recursive: true, force: true });
@@ -177,11 +197,25 @@ async function runTask({ project, provider, observer, task, group, repetition, o
 
 async function main() {
   await mkdir(output, { recursive: true });
-  if ((await readdir(output)).some(name => /^\d{2}-.*\.json$/.test(name))) {
+  const existing = (await readdir(output)).filter(name => /^\d{2}-.*\.json$/.test(name));
+  let interruption; let priorManifest;
+  if (resumeOolong) {
+    interruption = JSON.parse(await readFile(join(output, 'interrupted-attempt.json'), 'utf8'));
+    if (![1, 4, 5, 6].includes(interruption.ordinal) || existing.length !== interruption.ordinal) throw new Error('Resume only permits the recorded counted interruption; no reruns');
+    const ordered = existing.sort();
+    if (ordered.some((name, index) => Number(name.slice(0, 2)) !== index + 1)) throw new Error('Interrupted schedule has gaps');
+    const last = JSON.parse(await readFile(join(output, ordered.at(-1)), 'utf8'));
+    if (!last.status.startsWith('invalid-')) throw new Error('Last attempt is not the recorded protocol interruption');
+    priorManifest = JSON.parse(await readFile(join(output, 'manifest.json'), 'utf8'));
+  } else if (existing.length) {
     throw new Error('Raw attempts already exist. Preserve this experiment and use a fresh worktree/output directory for a separately authorized experiment.');
   }
   const connection = await readProvider();
   const { provider, secret, credential } = connection;
+  if (resumeOolong) {
+    const original = JSON.parse(await readFile(join(interruption.oldHostRoot, 'pi-agent/auth.json'), 'utf8')).xai;
+    if (hash(JSON.stringify(original)) !== hash(JSON.stringify(credential))) throw new Error('Pinned xAI credential changed; refusing resume');
+  }
   const redact = value => [secret, credential?.access, credential?.refresh].filter(Boolean).reduce((text, item) => text.replaceAll(item, '[REDACTED]'), value);
   let observer;
   if (oauth) {
@@ -197,25 +231,40 @@ async function main() {
     }, close: async () => rm(directory, { recursive: true, force: true }) };
   } else { observer = await openProviderObserver(provider.baseUrl, secret); process.env.PIWIN_EXPERIMENT_PROVIDER_KEY = secret; }
   process.env.PIWIN_MOCK = '0';
-  const project = await mkdtemp(join(tmpdir(), 'piwin-ab-snapshot-'));
+  if (oolong) process.env.SHELL = join(import.meta.dirname, 'readonly-shell.sh');
+  const project = interruption?.projectPath ?? await mkdtemp(join(tmpdir(), 'piwin-ab-snapshot-'));
+  let experimentStarted = false;
   try {
     const commit = (await exec('git', ['rev-parse', snapshotCommit], { cwd: repository })).stdout.trim();
-    const archive = join(project, 'snapshot.tar');
-    await exec('git', ['archive', '--format=tar', '-o', archive, commit], { cwd: repository });
-    await exec('tar', ['-xf', archive, '-C', project]); await rm(archive);
-    await mkdir(join(project, 'experiment-data'));
-    const rows = makeRows();
-    const fixture = JSON.stringify({ schemaVersion: 1, rows });
-    await writeFile(join(project, 'experiment-data/orders.json'), fixture);
-    const expected = { 'call-chain': CHAIN_ORACLE, 'cross-file': await inventory(project), 'structured-data': aggregateRows(rows) };
+    if (!resumeOolong) {
+      const archive = join(project, 'snapshot.tar');
+      await exec('git', ['archive', '--format=tar', '-o', archive, commit], { cwd: repository });
+      await exec('tar', ['-xf', archive, '-C', project]); await rm(archive);
+      await mkdir(join(project, 'experiment-data'));
+    }
+    const prepared = resumeOolong ? { tasks: priorManifest.tasks, expected: priorManifest.expected, provenance: priorManifest.benchmark } : (oolong ? await prepareOolong(project, output) : null);
+    const tasks = prepared?.tasks ?? TASKS;
+    const rows = oolong ? null : makeRows();
+    const fixture = rows ? JSON.stringify({ schemaVersion: 1, rows }) : null;
+    if (fixture) await writeFile(join(project, 'experiment-data/orders.json'), fixture);
+    const expected = prepared?.expected ?? { 'call-chain': CHAIN_ORACLE, 'cross-file': await inventory(project), 'structured-data': aggregateRows(rows) };
     const snapshotHash = await fingerprint(project);
-    for (const path of await walkFiles(project)) await chmod(path, 0o444);
+    if (resumeOolong && snapshotHash !== priorManifest.snapshotHash) throw new Error('Original fixed snapshot changed; refusing resume');
+    if (!resumeOolong) for (const path of await walkFiles(project)) await chmod(path, 0o444);
     const manifest = { commit, backend: 'sdk', mainModel, mainThinking: 'high', scoutModel, scoutThinking: 'low',
-      sourceRoot, upstreamBaseUrl: oauth ? 'https://api.x.ai/v1' : provider.baseUrl, credentialMode: oauth ? 'native xai OAuth' : 'channel', sourceAuthHash: connection.authHash ?? null, snapshotHash, fixtureHash: hash(fixture), fixtureBytes: Buffer.byteLength(fixture),
-      timeoutMs, scheme: 'ultra-code', commonPrompt: COMMON, tasks: TASKS, expected, startedAt: new Date().toISOString(),
+      sourceRoot, upstreamBaseUrl: oauth ? 'https://api.x.ai/v1' : provider.baseUrl, credentialMode: oauth ? 'native xai OAuth' : 'channel', sourceAuthHash: priorManifest?.sourceAuthHash ?? connection.authHash ?? null, sourceAuthHashAtResume: resumeOolong ? connection.authHash : null, xaiCredentialHash: oauth ? hash(JSON.stringify(credential)) : null, snapshotHash, fixtureHash: fixture ? hash(fixture) : null, fixtureBytes: fixture ? Buffer.byteLength(fixture) : prepared.provenance.tasks.reduce((total, row) => total + row.inputBytes, 0),
+      timeoutMs, scheme: 'ultra-code', commonPrompt: COMMON, tasks, expected, benchmark: prepared?.provenance ?? null, startedAt: priorManifest?.startedAt ?? new Date().toISOString(),
+      resumedAt: resumeOolong ? new Date().toISOString() : null,
+      readOnlyIsolation: oolong ? { shell: process.env.SHELL, profile: 'readonly-shell.sb', profileHash: hash(await readFile(join(import.meta.dirname, 'readonly-shell.sb'))), denies: ['file-write*', 'network*'], firstProtectedOrdinal: resumeOolong ? 2 : 1, invalidAttempt: interruption?.reason ?? null, networkToolsDeniedFromOrdinal: resumeOolong ? interruption.ordinal + 1 : 1, permissionMode: 'bypass', networkGuardHash: hash(await readFile(join(import.meta.dirname, 'network-isolation.mjs'))) } : null,
       measurement: 'Main Host usage ledger + passive main OAuth SSE metadata + native Pi SDK/RPC assistant usage',
-      sequence: TASKS.flatMap((task, index) => Array.from({ length: 3 }, (_, repetition) => (oauth || index % 2 === 0 ? ['A','B'] : ['B','A']).map(group => ({ taskId: task.id, group, repetition: repetition + 1 }))).flat()) };
+      sequence: tasks.flatMap((task, index) => Array.from({ length: 3 }, (_, repetition) => (oauth || index % 2 === 0 ? ['A','B'] : ['B','A']).map(group => ({ taskId: task.id, group, repetition: repetition + 1 }))).flat()) };
+    if (resumeOolong && (JSON.stringify(manifest.sequence) !== JSON.stringify(priorManifest.sequence) || JSON.stringify(mainModel) !== JSON.stringify(priorManifest.mainModel) )) throw new Error('Schedule, model or source credential changed; refusing resume');
     await writeFile(join(output, 'manifest.json'), JSON.stringify(manifest, null, 2));
+    if (resumeOolong) {
+      await rm(interruption.oldHostRoot, { recursive: true, force: true });
+      await rm(interruption.oldObserverRoot, { recursive: true, force: true });
+    }
+    experimentStarted = true;
     if (process.argv.includes('--prepare-only')) {
       buildConfig(provider, observer.baseUrl, false); buildConfig(provider, observer.baseUrl, true);
       return;
@@ -223,7 +272,8 @@ async function main() {
     let ordinal = 0;
     for (const scheduled of manifest.sequence) {
       ordinal += 1;
-      const task = TASKS.find(task => task.id === scheduled.taskId);
+      if (resumeOolong && ordinal <= interruption.ordinal) continue;
+      const task = tasks.find(task => task.id === scheduled.taskId);
       const result = await runTask({ project, provider, observer, task, ...scheduled, ordinal, expected: expected[task.id], snapshotHash, credential, redact });
       if (oauth && result.status !== 'completed' && result.toolCalls === 0) {
         console.log('STOP: generation/admission failed before tools; preserving this counted attempt instead of repeating a systemic blocker.');
@@ -235,6 +285,6 @@ async function main() {
       const afterHash = hash(await readFile(connection.authPath, 'utf8'));
       await writeFile(join(output, 'source-auth-integrity.json'), JSON.stringify({ before: connection.authHash, after: afterHash, unchanged: afterHash === connection.authHash }, null, 2));
     }
-    await observer.close(); delete process.env.PIWIN_EXPERIMENT_PROVIDER_KEY; await rm(project, { recursive: true, force: true }); }
+    await observer.close(); delete process.env.PIWIN_EXPERIMENT_PROVIDER_KEY; if (!resumeOolong || experimentStarted) await rm(project, { recursive: true, force: true }); }
 }
 await main();

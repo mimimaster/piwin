@@ -48,9 +48,21 @@ import { summarizeNativeSession } from './native-sessions.mjs';
 test('native Scout usage requires a terminal response and does not claim unsupported cache writes', () => {
   const records = [{ role: 'assistant', stopReason: 'toolUse', usage: { input: 10, output: 2, cacheRead: 20, cacheWrite: 0, reasoning: 1, totalTokens: 32 }, toolCalls: [{ name: 'read' }] }];
   assert.equal(summarizeNativeSession({ records }).usage, null);
+  assert.equal(summarizeNativeSession({ records }).recordedUsage.totalTokens, 32);
   records.push({ role: 'assistant', stopReason: 'stop', usage: { input: 5, output: 3, cacheRead: 25, cacheWrite: 0, reasoning: 2, totalTokens: 33 } });
   const result = summarizeNativeSession({ records });
   assert.equal(result.complete, true); assert.equal(result.usage.totalTokens, 65);
   assert.equal(result.usage.promptTokens, 15); assert.equal(result.usage.cacheReadTokens, 45);
   assert.equal(result.usage.cacheWriteTokens, null);
+});
+
+import { gradeOolong } from './oolong-tasks.mjs';
+test('OOLONG exact acceptance stays distinct from official numeric partial credit', () => {
+  assert.equal(gradeOolong('{"answer":261}', { answer: 261 }).passed, true);
+  const missed = gradeOolong('{"answer":260}', { answer: 261 });
+  assert.equal(missed.passed, false); assert.equal(missed.officialScore, 0.75);
+  assert.equal(gradeOolong('{"answer":"261"}', { answer: 261 }).officialScore, 0);
+  assert.equal(gradeOolong('{"answer":"Business"}', { answer: 'Business' }).passed, true);
+  assert.equal(gradeOolong('{"answer":"business"}', { answer: 'Business' }).passed, false);
+  assert.equal(gradeOolong('{"answer":261,"extra":true}', { answer: 261 }).passed, false);
 });

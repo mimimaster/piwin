@@ -35,14 +35,15 @@ export function summarizeNativeSession(session) {
   const complete = !!last && last.stopReason === 'stop';
   const sum = key => assistants.every(record => Number.isFinite(record.usage?.[key]))
     ? assistants.reduce((total, record) => total + record.usage[key], 0) : null;
-  const usage = complete ? { promptTokens: sum('input'), completionTokens: sum('output'), cacheReadTokens: sum('cacheRead'),
-    cacheWriteTokens: null, reasoningTokens: sum('reasoning'), totalTokens: sum('totalTokens') } : null;
+  const recordedUsage = { promptTokens: sum('input'), completionTokens: sum('output'), cacheReadTokens: sum('cacheRead'),
+    cacheWriteTokens: null, reasoningTokens: sum('reasoning'), totalTokens: sum('totalTokens') };
+  const usage = complete ? recordedUsage : null;
   // Pi populates cacheWrite=0 even when xAI does not report this category.
   const tools = assistants.flatMap(record => record.toolCalls ?? []);
   const results = session.records.filter(record => record.role === 'toolResult');
   const codemode = tools.filter(tool => tool.name === 'piwin_codemode');
   const nested = results.filter(record => record.details?.invocationLocalStore === true).flatMap(record => record.details.calls ?? []);
-  return { complete, requests: assistants.length, usage, tools, results, codemode, nested };
+  return { complete, requests: assistants.length, usage, recordedUsage, tools, results, codemode, nested };
 }
 
 export function sumLedger(records) {
