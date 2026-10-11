@@ -1,0 +1,47 @@
+[
+  {
+    "id": 415040019,
+    "sourceRows": 683,
+    "relevantRows": 683,
+    "labelCounts": {
+      "False": 422,
+      "True": 261
+    },
+    "derivedAnswer": 261,
+    "matchesPinnedGold": true,
+    "source": "with_labels source Parquet used only by evaluator; never copied to model project"
+  },
+  {
+    "id": 316030027,
+    "sourceRows": 687,
+    "relevantRows": 6,
+    "labelCounts": {
+      "World": 2,
+      "Business": 3,
+      "Sci/Tech": 1
+    },
+    "derivedAnswer": "Business",
+    "matchesPinnedGold": true,
+    "source": "with_labels source Parquet used only by evaluator; never copied to model project"
+  },
+  {
+    "id": 517050022,
+    "sourceRows": 1676,
+    "relevantRows": 1676,
+    "labelCounts": {
+      "Entertainment & Music": 237,
+      "Business & Finance": 141,
+      "Sports": 417,
+      "Politics & Government": 106,
+      "Health": 375,
+      "Education & Reference": 122,
+      "Computers & Internet": 77,
+      "Society & Culture": 141,
+      "Science & Mathematics": 44,
+      "Family & Relationships": 16
+    },
+    "derivedAnswer": "Family & Relationships",
+    "matchesPinnedGold": true,
+    "source": "with_labels source Parquet used only by evaluator; never copied to model project"
+  }
+]

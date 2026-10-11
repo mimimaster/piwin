@@ -1,0 +1,34 @@
+[
+  {
+    "ordinal": 1,
+    "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-zxpGU1",
+    "oldHostRoot": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-host-Alzoat",
+    "oldObserverRoot": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-oauth-observer-HX4psy",
+    "reason": "Python wrote /tmp/neg_parsed.txt and /tmp/triples.tsv. Counted attempt interrupted; no replacement run.",
+    "exactStopTimeUnavailable": true
+  },
+  {
+    "ordinal": 4,
+    "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-zxpGU1",
+    "oldHostRoot": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-host-CEDPm8",
+    "oldObserverRoot": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-oauth-observer-HwZmOU",
+    "reason": "A Scout executed an external DuckDuckGo web_search despite the task no-network rule. Counted attempt interrupted; no replacement.",
+    "exactStopTimeUnavailable": true
+  },
+  {
+    "ordinal": 5,
+    "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-zxpGU1",
+    "oldHostRoot": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-host-iSknMG",
+    "oldObserverRoot": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-oauth-observer-5hoANz",
+    "reason": "Safety interruption after no-network permission verification failed for wildcard web-fetch. No replacement run; no observed network tool execution in A3.",
+    "exactStopTimeUnavailable": true
+  },
+  {
+    "ordinal": 6,
+    "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-zxpGU1",
+    "oldHostRoot": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-host-3MBN8H",
+    "oldObserverRoot": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-oauth-observer-EDGrsG",
+    "reason": "Safety interruption: auto-mode permission experiment did not complete Scout startup normally. Excluded to avoid weakening tool capability; no replacement.",
+    "exactStopTimeUnavailable": true
+  }
+]

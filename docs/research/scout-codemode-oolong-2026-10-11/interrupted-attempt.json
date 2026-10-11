@@ -1,0 +1,8 @@
+{
+  "ordinal": 6,
+  "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-zxpGU1",
+  "oldHostRoot": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-host-3MBN8H",
+  "oldObserverRoot": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-oauth-observer-EDGrsG",
+  "reason": "Safety interruption: auto-mode permission experiment did not complete Scout startup normally. Excluded to avoid weakening tool capability; no replacement.",
+  "exactStopTimeUnavailable": true
+}

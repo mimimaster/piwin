@@ -1,0 +1,2089 @@
+{
+  "measurementNotes": {
+    "authoritative": "These corrected metrics take precedence over original scoutCount/tool totals in raw capture files.",
+    "timing": "Completed runs measure prompt submission to observed primary terminal. Legacy timeout raw elapsedMs measures deadline detection only; normalized full end-to-end time is unknown, with deadlineElapsedMs reported separately.",
+    "incomplete": "Interrupted/aborted native recordedUsageLowerBound sums only observed usage; incomplete response or provider billing remains unknown. It is never used as full-task token savings.",
+    "main": "Actual xAI Responses SSE usage, reconciled with Host finalized usage and native Pi where available.",
+    "scout": "Actual provider-normalized Pi assistant usage in completed RPC sessions; no estimation.",
+    "cache": "promptTokens is uncached; cacheRead counted once in totalTokens; reasoning is output subset; cacheWrite unknown because xAI did not report it.",
+    "interruption": "Interrupted protocol-violation attempts have recovered native tool evidence, completed-request token lower bound only, and unknown exact elapsed/retries; excluded from valid A/B means.",
+    "gap": "Interrupted attempts have reconstructed native evidence, not full streaming capture. Normal completed/timeout attempts preserve subagent/stream plus native SDK/RPC evidence; per-run completeness is explicit.",
+    "retries": "Observed main/Scout retry events are counted when full child capture exists; provider-internal/model-selected tool retries remain unknown."
+  },
+  "runs": [
+    {
+      "ordinal": 1,
+      "taskId": "negation-32k",
+      "group": "A",
+      "repetition": 1,
+      "status": "invalid-readonly-violation",
+      "validProtocol": false,
+      "elapsedMs": null,
+      "deadlineElapsedMs": null,
+      "correct": false,
+      "officialScore": null,
+      "acceptanceFailures": [
+        "read-only task violation; interrupted"
+      ],
+      "mainUsage": null,
+      "scoutUsage": {
+        "promptTokens": 56250,
+        "completionTokens": 20598,
+        "cacheReadTokens": 50560,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 18177,
+        "totalTokens": 127408
+      },
+      "totalUsage": null,
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 84885,
+        "completionTokens": 34545,
+        "cacheReadTokens": 573952,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 2676,
+        "totalTokens": 693382
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T10-04-47-752Z_01a12a6c-1108-74a3-9645-03f822686df4.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 15647,
+            "completionTokens": 6559,
+            "cacheReadTokens": 7552,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5828,
+            "totalTokens": 29758
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 15647,
+            "completionTokens": 6559,
+            "cacheReadTokens": 7552,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5828,
+            "totalTokens": 29758
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T10-04-47-756Z_01a12a6c-110c-7032-ba7e-e6b6d308c2b0.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 17133,
+            "completionTokens": 7120,
+            "cacheReadTokens": 16256,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 6215,
+            "totalTokens": 40509
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 17133,
+            "completionTokens": 7120,
+            "cacheReadTokens": 16256,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 6215,
+            "totalTokens": 40509
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T10-06-16-778Z_01a12a6d-6cca-7df0-8d4c-efe6f4dd5964.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 23470,
+            "completionTokens": 6919,
+            "cacheReadTokens": 26752,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 6134,
+            "totalTokens": 57141
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 23470,
+            "completionTokens": 6919,
+            "cacheReadTokens": 26752,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 6134,
+            "totalTokens": 57141
+          }
+        }
+      ],
+      "scoutCount": 3,
+      "scoutSessionIds": [
+        "bb1c39a6-e7d2-46d9-8008-3414fb35cd81",
+        "5635d392-a1ef-44bb-ab4a-8d6d7dae83c5",
+        "6e4804f5-5501-49cc-8ae1-cf5efc64405a"
+      ],
+      "mainToolCalls": 26,
+      "scoutToolCalls": 6,
+      "toolCalls": 32,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 32,
+      "failedModelResponses": 0,
+      "toolFailures": 7,
+      "mainToolFailures": 7,
+      "mainModelRetryAttempts": null,
+      "allModelRetryAttempts": null,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "01-negation-32k-A1.json",
+        "nativeRecoveryRoot": "piwin-ab-host-Alzoat",
+        "mainSseMatchesNative": false,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1353ec234267754b3a9d3e79c0a498b16b0de007fa60c9df54687fe43d2de4a1",
+        "promptHash": "5cf66e8a804d16d46cfd7db9d7f765de97c2da039c68061e3cb17f0fbdd460dd",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 2,
+      "taskId": "negation-32k",
+      "group": "B",
+      "repetition": 1,
+      "status": "timeout",
+      "validProtocol": true,
+      "elapsedMs": null,
+      "deadlineElapsedMs": 900035,
+      "correct": false,
+      "officialScore": 0,
+      "acceptanceFailures": [
+        "invalid JSON"
+      ],
+      "mainUsage": {
+        "promptTokens": 51247,
+        "completionTokens": 21353,
+        "cacheReadTokens": 326016,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 16943,
+        "totalTokens": 398616
+      },
+      "scoutUsage": null,
+      "totalUsage": null,
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 51247,
+        "completionTokens": 21353,
+        "cacheReadTokens": 326016,
+        "cacheWriteTokens": null,
+        "reasoningTokens": null,
+        "totalTokens": 398616
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T10-23-48-265Z_01a12a7d-7829-7e5c-a85c-f4ed462173bc.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 60381,
+            "completionTokens": 14870,
+            "cacheReadTokens": 724352,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5363,
+            "totalTokens": 799603
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 60381,
+            "completionTokens": 14870,
+            "cacheReadTokens": 724352,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5363,
+            "totalTokens": 799603
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T10-24-18-484Z_01a12a7d-ee34-7aac-a185-5c45fec1040c.jsonl",
+          "complete": false,
+          "usage": null,
+          "recordedUsageLowerBound": {
+            "promptTokens": 80323,
+            "completionTokens": 56972,
+            "cacheReadTokens": 476800,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null,
+            "totalTokens": 614095
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T10-27-51-416Z_01a12a81-2df8-7677-b026-a276af5b1387.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 166102,
+            "completionTokens": 47358,
+            "cacheReadTokens": 596864,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5432,
+            "totalTokens": 810324
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 166102,
+            "completionTokens": 47358,
+            "cacheReadTokens": 596864,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5432,
+            "totalTokens": 810324
+          }
+        }
+      ],
+      "scoutCount": 3,
+      "scoutSessionIds": [
+        "1122f9f4-7ccb-4335-9b12-c634afb3bb96",
+        "49133aee-3ed5-4405-a3db-5913d4e1aab5",
+        "c6753e2c-d254-4838-84c4-d512c8727782"
+      ],
+      "mainToolCalls": 19,
+      "scoutToolCalls": 50,
+      "toolCalls": 69,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 45,
+      "codemodeFailures": 5,
+      "nestedCallCount": null,
+      "observedNestedCallCount": 35,
+      "executedToolCalls": null,
+      "failedModelResponses": 2,
+      "toolFailures": 9,
+      "mainToolFailures": 3,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "02-negation-32k-B1.json",
+        "nativeRecoveryRoot": "piwin-ab-host-gogovJ",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": false,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "cf8bda9e7b731ca1c1d2767b41b8b3828891113d1540d73d8a4686da4e6d07c2",
+        "promptHash": "5cf66e8a804d16d46cfd7db9d7f765de97c2da039c68061e3cb17f0fbdd460dd",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 3,
+      "taskId": "negation-32k",
+      "group": "A",
+      "repetition": 2,
+      "status": "completed",
+      "validProtocol": true,
+      "elapsedMs": 505816,
+      "deadlineElapsedMs": null,
+      "correct": false,
+      "officialScore": 0.421875,
+      "acceptanceFailures": [
+        "answer differs from pinned gold"
+      ],
+      "mainUsage": {
+        "promptTokens": 92271,
+        "completionTokens": 27959,
+        "cacheReadTokens": 1040768,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 18096,
+        "totalTokens": 1160998
+      },
+      "scoutUsage": null,
+      "totalUsage": null,
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 92271,
+        "completionTokens": 27959,
+        "cacheReadTokens": 1040768,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 18096,
+        "totalTokens": 1160998
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T10-38-46-057Z_01a12a8b-2b29-7d47-b3a7-b073fa72e351.jsonl",
+          "complete": false,
+          "usage": null,
+          "recordedUsageLowerBound": {
+            "promptTokens": 37895,
+            "completionTokens": 2007,
+            "cacheReadTokens": 20352,
+            "cacheWriteTokens": null,
+            "reasoningTokens": null,
+            "totalTokens": 60254
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T10-40-19-494Z_01a12a8c-9826-7164-8da5-47cc18e612b5.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 14742,
+            "completionTokens": 6868,
+            "cacheReadTokens": 16128,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 4712,
+            "totalTokens": 37738
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 14742,
+            "completionTokens": 6868,
+            "cacheReadTokens": 16128,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 4712,
+            "totalTokens": 37738
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T10-40-19-533Z_01a12a8c-984d-77e4-92c6-7982ada01ef4.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 23404,
+            "completionTokens": 6711,
+            "cacheReadTokens": 21632,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 4603,
+            "totalTokens": 51747
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 23404,
+            "completionTokens": 6711,
+            "cacheReadTokens": 21632,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 4603,
+            "totalTokens": 51747
+          }
+        }
+      ],
+      "scoutCount": 3,
+      "scoutSessionIds": [
+        "7c7958d6-0d2b-40aa-8fdb-5473c6cec87a",
+        "88b5e02f-d9f3-4be3-8d27-f737a4a456bc",
+        "8e9f628e-6706-4d6b-b0cd-3a8204eefa3c"
+      ],
+      "mainToolCalls": 37,
+      "scoutToolCalls": 7,
+      "toolCalls": 44,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 44,
+      "failedModelResponses": 1,
+      "toolFailures": 8,
+      "mainToolFailures": 8,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "03-negation-32k-A2.json",
+        "nativeRecoveryRoot": "piwin-ab-host-JZZ7pO",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": false,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "cf8bda9e7b731ca1c1d2767b41b8b3828891113d1540d73d8a4686da4e6d07c2",
+        "promptHash": "5cf66e8a804d16d46cfd7db9d7f765de97c2da039c68061e3cb17f0fbdd460dd",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 4,
+      "taskId": "negation-32k",
+      "group": "B",
+      "repetition": 2,
+      "status": "invalid-network-violation",
+      "validProtocol": false,
+      "elapsedMs": null,
+      "deadlineElapsedMs": null,
+      "correct": false,
+      "officialScore": null,
+      "acceptanceFailures": [
+        "no-network task violation; interrupted"
+      ],
+      "mainUsage": null,
+      "scoutUsage": {
+        "promptTokens": 115231,
+        "completionTokens": 54006,
+        "cacheReadTokens": 756352,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 17266,
+        "totalTokens": 925589
+      },
+      "totalUsage": null,
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 60817,
+        "completionTokens": 15526,
+        "cacheReadTokens": 463104,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 3878,
+        "totalTokens": 539447
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T10-47-11-975Z_01a12a92-e367-7e78-9389-bc7ec076687a.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 84877,
+            "completionTokens": 35772,
+            "cacheReadTokens": 727552,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 1828,
+            "totalTokens": 848201
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 84877,
+            "completionTokens": 35772,
+            "cacheReadTokens": 727552,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 1828,
+            "totalTokens": 848201
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T10-48-49-489Z_01a12a94-6051-7d94-8a1a-2a7abef27439.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 15394,
+            "completionTokens": 10016,
+            "cacheReadTokens": 21504,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 8575,
+            "totalTokens": 46914
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 15394,
+            "completionTokens": 10016,
+            "cacheReadTokens": 21504,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 8575,
+            "totalTokens": 46914
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T10-50-47-559Z_01a12a96-2d87-71e3-95db-cc04bb240502.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 14960,
+            "completionTokens": 8218,
+            "cacheReadTokens": 7296,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 6863,
+            "totalTokens": 30474
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 14960,
+            "completionTokens": 8218,
+            "cacheReadTokens": 7296,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 6863,
+            "totalTokens": 30474
+          }
+        }
+      ],
+      "scoutCount": 3,
+      "scoutSessionIds": [
+        "1df5f5d2-3c98-4c08-88ae-116ca96784f8",
+        "9f09846f-a868-4dc2-bbe5-ce7df50805ac",
+        "23944ffd-8f6b-4a93-8408-e9dd7882e85f"
+      ],
+      "mainToolCalls": 24,
+      "scoutToolCalls": 18,
+      "toolCalls": 42,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 12,
+      "codemodeFailures": 1,
+      "nestedCallCount": null,
+      "observedNestedCallCount": 12,
+      "executedToolCalls": null,
+      "failedModelResponses": 0,
+      "toolFailures": 5,
+      "mainToolFailures": 4,
+      "mainModelRetryAttempts": null,
+      "allModelRetryAttempts": null,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "04-negation-32k-B2.json",
+        "nativeRecoveryRoot": "piwin-ab-host-CEDPm8",
+        "mainSseMatchesNative": false,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1353ec234267754b3a9d3e79c0a498b16b0de007fa60c9df54687fe43d2de4a1",
+        "promptHash": "5cf66e8a804d16d46cfd7db9d7f765de97c2da039c68061e3cb17f0fbdd460dd",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 5,
+      "taskId": "negation-32k",
+      "group": "A",
+      "repetition": 3,
+      "status": "invalid-isolation-audit",
+      "validProtocol": false,
+      "elapsedMs": null,
+      "deadlineElapsedMs": null,
+      "correct": false,
+      "officialScore": null,
+      "acceptanceFailures": [
+        "safety interruption for isolation audit"
+      ],
+      "mainUsage": null,
+      "scoutUsage": {
+        "promptTokens": 89916,
+        "completionTokens": 19711,
+        "cacheReadTokens": 60032,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 15380,
+        "totalTokens": 169659
+      },
+      "totalUsage": null,
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 113341,
+        "completionTokens": 15340,
+        "cacheReadTokens": 193152,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 10458,
+        "totalTokens": 321833
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T11-00-32-643Z_01a12a9f-1b03-7c8e-aed3-264d77448fb9.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 42349,
+            "completionTokens": 6663,
+            "cacheReadTokens": 36224,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5090,
+            "totalTokens": 85236
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 42349,
+            "completionTokens": 6663,
+            "cacheReadTokens": 36224,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5090,
+            "totalTokens": 85236
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T11-00-32-663Z_01a12a9f-1b17-7f66-a658-96e5510ab073.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 13701,
+            "completionTokens": 6859,
+            "cacheReadTokens": 7296,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5504,
+            "totalTokens": 27856
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 13701,
+            "completionTokens": 6859,
+            "cacheReadTokens": 7296,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5504,
+            "totalTokens": 27856
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T11-02-11-554Z_01a12aa0-9d62-7baa-929b-6606acbbafad.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 33866,
+            "completionTokens": 6189,
+            "cacheReadTokens": 16512,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 4786,
+            "totalTokens": 56567
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 33866,
+            "completionTokens": 6189,
+            "cacheReadTokens": 16512,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 4786,
+            "totalTokens": 56567
+          }
+        }
+      ],
+      "scoutCount": 3,
+      "scoutSessionIds": [
+        "5d1d2f82-ba1d-41a3-8337-12a1f1491821",
+        "01055ad7-2c26-42c8-949d-37a55ff5ca78",
+        "5899ad68-f8a5-4533-be44-c17782d0613d"
+      ],
+      "mainToolCalls": 17,
+      "scoutToolCalls": 8,
+      "toolCalls": 25,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 25,
+      "failedModelResponses": 0,
+      "toolFailures": 3,
+      "mainToolFailures": 3,
+      "mainModelRetryAttempts": null,
+      "allModelRetryAttempts": null,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "05-negation-32k-A3.json",
+        "nativeRecoveryRoot": "piwin-ab-host-iSknMG",
+        "mainSseMatchesNative": false,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1353ec234267754b3a9d3e79c0a498b16b0de007fa60c9df54687fe43d2de4a1",
+        "promptHash": "5cf66e8a804d16d46cfd7db9d7f765de97c2da039c68061e3cb17f0fbdd460dd",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 6,
+      "taskId": "negation-32k",
+      "group": "B",
+      "repetition": 3,
+      "status": "invalid-permission-audit",
+      "validProtocol": false,
+      "elapsedMs": null,
+      "deadlineElapsedMs": null,
+      "correct": false,
+      "officialScore": null,
+      "acceptanceFailures": [
+        "safety interruption for tool availability audit"
+      ],
+      "mainUsage": null,
+      "scoutUsage": null,
+      "totalUsage": null,
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 21691,
+        "completionTokens": 1328,
+        "cacheReadTokens": 32128,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 369,
+        "totalTokens": 55147
+      },
+      "scoutSessions": [],
+      "scoutCount": 0,
+      "scoutSessionIds": [],
+      "mainToolCalls": 5,
+      "scoutToolCalls": 0,
+      "toolCalls": 5,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 5,
+      "failedModelResponses": 0,
+      "toolFailures": 0,
+      "mainToolFailures": 0,
+      "mainModelRetryAttempts": null,
+      "allModelRetryAttempts": null,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "06-negation-32k-B3.json",
+        "nativeRecoveryRoot": "piwin-ab-host-3MBN8H",
+        "mainSseMatchesNative": false,
+        "scoutUsageComplete": false,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1bd4570f0b72362cb14279a5933e6751675cb020b3771c5e8be69752ab16e172",
+        "promptHash": "5cf66e8a804d16d46cfd7db9d7f765de97c2da039c68061e3cb17f0fbdd460dd",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 7,
+      "taskId": "agnews-64k",
+      "group": "A",
+      "repetition": 1,
+      "status": "completed",
+      "validProtocol": true,
+      "elapsedMs": 30593,
+      "deadlineElapsedMs": null,
+      "correct": true,
+      "officialScore": 1,
+      "acceptanceFailures": [],
+      "mainUsage": {
+        "promptTokens": 19550,
+        "completionTokens": 1430,
+        "cacheReadTokens": 51584,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 755,
+        "totalTokens": 72564
+      },
+      "scoutUsage": {
+        "promptTokens": 7293,
+        "completionTokens": 530,
+        "cacheReadTokens": 7296,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 47,
+        "totalTokens": 15119
+      },
+      "totalUsage": {
+        "promptTokens": 26843,
+        "completionTokens": 1960,
+        "cacheReadTokens": 58880,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 802,
+        "totalTokens": 87683
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 19550,
+        "completionTokens": 1430,
+        "cacheReadTokens": 51584,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 755,
+        "totalTokens": 72564
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T11-23-54-239Z_01a12ab4-7dff-7a4a-9273-27e789e99e42.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 7293,
+            "completionTokens": 530,
+            "cacheReadTokens": 7296,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 47,
+            "totalTokens": 15119
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 7293,
+            "completionTokens": 530,
+            "cacheReadTokens": 7296,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 47,
+            "totalTokens": 15119
+          }
+        }
+      ],
+      "scoutCount": 1,
+      "scoutSessionIds": [
+        "1395c6c1-1a0b-432f-928b-4a7e30d7ab3e"
+      ],
+      "mainToolCalls": 7,
+      "scoutToolCalls": 1,
+      "toolCalls": 8,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 8,
+      "failedModelResponses": 0,
+      "toolFailures": 0,
+      "mainToolFailures": 0,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "07-agnews-64k-A1.json",
+        "nativeRecoveryRoot": "piwin-ab-host-nPNdbH",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "ea731bcf59d9213c5fd86579bbd310ac5cdd57c9bb63d1f1ea3b4624e251ba3b",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 8,
+      "taskId": "agnews-64k",
+      "group": "B",
+      "repetition": 1,
+      "status": "completed",
+      "validProtocol": true,
+      "elapsedMs": 29808,
+      "deadlineElapsedMs": null,
+      "correct": true,
+      "officialScore": 1,
+      "acceptanceFailures": [],
+      "mainUsage": {
+        "promptTokens": 32653,
+        "completionTokens": 1096,
+        "cacheReadTokens": 16000,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 639,
+        "totalTokens": 49749
+      },
+      "scoutUsage": {
+        "promptTokens": 7269,
+        "completionTokens": 751,
+        "cacheReadTokens": 7424,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 196,
+        "totalTokens": 15444
+      },
+      "totalUsage": {
+        "promptTokens": 39922,
+        "completionTokens": 1847,
+        "cacheReadTokens": 23424,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 835,
+        "totalTokens": 65193
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 32653,
+        "completionTokens": 1096,
+        "cacheReadTokens": 16000,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 639,
+        "totalTokens": 49749
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T11-24-22-837Z_01a12ab4-edb5-7d82-a202-92a7ccef3a05.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 7269,
+            "completionTokens": 751,
+            "cacheReadTokens": 7424,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 196,
+            "totalTokens": 15444
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 7269,
+            "completionTokens": 751,
+            "cacheReadTokens": 7424,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 196,
+            "totalTokens": 15444
+          }
+        }
+      ],
+      "scoutCount": 1,
+      "scoutSessionIds": [
+        "bb0633be-9e21-4c05-9be3-3ecbad86abcb"
+      ],
+      "mainToolCalls": 4,
+      "scoutToolCalls": 1,
+      "toolCalls": 5,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 5,
+      "failedModelResponses": 0,
+      "toolFailures": 0,
+      "mainToolFailures": 0,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "08-agnews-64k-B1.json",
+        "nativeRecoveryRoot": "piwin-ab-host-pjbRMJ",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "ea731bcf59d9213c5fd86579bbd310ac5cdd57c9bb63d1f1ea3b4624e251ba3b",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 9,
+      "taskId": "agnews-64k",
+      "group": "A",
+      "repetition": 2,
+      "status": "completed",
+      "validProtocol": true,
+      "elapsedMs": 28677,
+      "deadlineElapsedMs": null,
+      "correct": true,
+      "officialScore": 1,
+      "acceptanceFailures": [],
+      "mainUsage": {
+        "promptTokens": 37435,
+        "completionTokens": 1170,
+        "cacheReadTokens": 33408,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 610,
+        "totalTokens": 72013
+      },
+      "scoutUsage": {
+        "promptTokens": 11816,
+        "completionTokens": 1022,
+        "cacheReadTokens": 7296,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 193,
+        "totalTokens": 20134
+      },
+      "totalUsage": {
+        "promptTokens": 49251,
+        "completionTokens": 2192,
+        "cacheReadTokens": 40704,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 803,
+        "totalTokens": 92147
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 37435,
+        "completionTokens": 1170,
+        "cacheReadTokens": 33408,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 610,
+        "totalTokens": 72013
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T11-24-51-880Z_01a12ab5-5f28-79d6-b24a-52811c5057ee.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 11816,
+            "completionTokens": 1022,
+            "cacheReadTokens": 7296,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 193,
+            "totalTokens": 20134
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 11816,
+            "completionTokens": 1022,
+            "cacheReadTokens": 7296,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 193,
+            "totalTokens": 20134
+          }
+        }
+      ],
+      "scoutCount": 1,
+      "scoutSessionIds": [
+        "55e7d2db-e8b3-4d13-bf1f-6c41cdbeea9a"
+      ],
+      "mainToolCalls": 5,
+      "scoutToolCalls": 1,
+      "toolCalls": 6,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 6,
+      "failedModelResponses": 0,
+      "toolFailures": 0,
+      "mainToolFailures": 0,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "09-agnews-64k-A2.json",
+        "nativeRecoveryRoot": "piwin-ab-host-w06xB3",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "ea731bcf59d9213c5fd86579bbd310ac5cdd57c9bb63d1f1ea3b4624e251ba3b",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 10,
+      "taskId": "agnews-64k",
+      "group": "B",
+      "repetition": 2,
+      "status": "completed",
+      "validProtocol": true,
+      "elapsedMs": 23333,
+      "deadlineElapsedMs": null,
+      "correct": true,
+      "officialScore": 1,
+      "acceptanceFailures": [],
+      "mainUsage": {
+        "promptTokens": 33855,
+        "completionTokens": 1054,
+        "cacheReadTokens": 37120,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 552,
+        "totalTokens": 72029
+      },
+      "scoutUsage": {
+        "promptTokens": 7396,
+        "completionTokens": 695,
+        "cacheReadTokens": 7424,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 187,
+        "totalTokens": 15515
+      },
+      "totalUsage": {
+        "promptTokens": 41251,
+        "completionTokens": 1749,
+        "cacheReadTokens": 44544,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 739,
+        "totalTokens": 87544
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 33855,
+        "completionTokens": 1054,
+        "cacheReadTokens": 37120,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 552,
+        "totalTokens": 72029
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T11-25-20-497Z_01a12ab5-cef1-7239-9612-dff999ad5ef3.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 7396,
+            "completionTokens": 695,
+            "cacheReadTokens": 7424,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 187,
+            "totalTokens": 15515
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 7396,
+            "completionTokens": 695,
+            "cacheReadTokens": 7424,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 187,
+            "totalTokens": 15515
+          }
+        }
+      ],
+      "scoutCount": 1,
+      "scoutSessionIds": [
+        "75dbdcf7-30e9-4d90-9cac-281819e86ca5"
+      ],
+      "mainToolCalls": 5,
+      "scoutToolCalls": 2,
+      "toolCalls": 7,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 7,
+      "failedModelResponses": 0,
+      "toolFailures": 0,
+      "mainToolFailures": 0,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "10-agnews-64k-B2.json",
+        "nativeRecoveryRoot": "piwin-ab-host-nuTNu5",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "ea731bcf59d9213c5fd86579bbd310ac5cdd57c9bb63d1f1ea3b4624e251ba3b",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 11,
+      "taskId": "agnews-64k",
+      "group": "A",
+      "repetition": 3,
+      "status": "completed",
+      "validProtocol": true,
+      "elapsedMs": 29176,
+      "deadlineElapsedMs": null,
+      "correct": true,
+      "officialScore": 1,
+      "acceptanceFailures": [],
+      "mainUsage": {
+        "promptTokens": 19231,
+        "completionTokens": 1199,
+        "cacheReadTokens": 28928,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 694,
+        "totalTokens": 49358
+      },
+      "scoutUsage": {
+        "promptTokens": 7319,
+        "completionTokens": 662,
+        "cacheReadTokens": 7168,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 166,
+        "totalTokens": 15149
+      },
+      "totalUsage": {
+        "promptTokens": 26550,
+        "completionTokens": 1861,
+        "cacheReadTokens": 36096,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 860,
+        "totalTokens": 64507
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 19231,
+        "completionTokens": 1199,
+        "cacheReadTokens": 28928,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 694,
+        "totalTokens": 49358
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T11-25-46-522Z_01a12ab6-349a-7862-badb-fc35b12f9ae7.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 7319,
+            "completionTokens": 662,
+            "cacheReadTokens": 7168,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 166,
+            "totalTokens": 15149
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 7319,
+            "completionTokens": 662,
+            "cacheReadTokens": 7168,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 166,
+            "totalTokens": 15149
+          }
+        }
+      ],
+      "scoutCount": 1,
+      "scoutSessionIds": [
+        "67aec885-ac33-4baf-8ec3-33ec1ca97dc4"
+      ],
+      "mainToolCalls": 4,
+      "scoutToolCalls": 2,
+      "toolCalls": 6,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 6,
+      "failedModelResponses": 0,
+      "toolFailures": 0,
+      "mainToolFailures": 0,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "11-agnews-64k-A3.json",
+        "nativeRecoveryRoot": "piwin-ab-host-fzugzy",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "ea731bcf59d9213c5fd86579bbd310ac5cdd57c9bb63d1f1ea3b4624e251ba3b",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 12,
+      "taskId": "agnews-64k",
+      "group": "B",
+      "repetition": 3,
+      "status": "completed",
+      "validProtocol": true,
+      "elapsedMs": 30860,
+      "deadlineElapsedMs": null,
+      "correct": true,
+      "officialScore": 1,
+      "acceptanceFailures": [],
+      "mainUsage": {
+        "promptTokens": 32923,
+        "completionTokens": 1126,
+        "cacheReadTokens": 33792,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 524,
+        "totalTokens": 67841
+      },
+      "scoutUsage": {
+        "promptTokens": 7328,
+        "completionTokens": 683,
+        "cacheReadTokens": 7424,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 159,
+        "totalTokens": 15435
+      },
+      "totalUsage": {
+        "promptTokens": 40251,
+        "completionTokens": 1809,
+        "cacheReadTokens": 41216,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 683,
+        "totalTokens": 83276
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 32923,
+        "completionTokens": 1126,
+        "cacheReadTokens": 33792,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 524,
+        "totalTokens": 67841
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T11-26-16-622Z_01a12ab6-aa2e-7a05-b3db-57346284a232.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 7328,
+            "completionTokens": 683,
+            "cacheReadTokens": 7424,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 159,
+            "totalTokens": 15435
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 7328,
+            "completionTokens": 683,
+            "cacheReadTokens": 7424,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 159,
+            "totalTokens": 15435
+          }
+        }
+      ],
+      "scoutCount": 1,
+      "scoutSessionIds": [
+        "aa1900b8-99b8-4fbd-9168-522066c1f02d"
+      ],
+      "mainToolCalls": 6,
+      "scoutToolCalls": 1,
+      "toolCalls": 7,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 7,
+      "failedModelResponses": 0,
+      "toolFailures": 0,
+      "mainToolFailures": 0,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "12-agnews-64k-B3.json",
+        "nativeRecoveryRoot": "piwin-ab-host-X7SHOq",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "ea731bcf59d9213c5fd86579bbd310ac5cdd57c9bb63d1f1ea3b4624e251ba3b",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 13,
+      "taskId": "yahoo-128k",
+      "group": "A",
+      "repetition": 1,
+      "status": "timeout",
+      "validProtocol": true,
+      "elapsedMs": null,
+      "deadlineElapsedMs": 900038,
+      "correct": false,
+      "officialScore": 0,
+      "acceptanceFailures": [
+        "invalid JSON"
+      ],
+      "mainUsage": {
+        "promptTokens": 35101,
+        "completionTokens": 3671,
+        "cacheReadTokens": 59264,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 453,
+        "totalTokens": 98036
+      },
+      "scoutUsage": {
+        "promptTokens": 50652,
+        "completionTokens": 14712,
+        "cacheReadTokens": 19456,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 9706,
+        "totalTokens": 84820
+      },
+      "totalUsage": {
+        "promptTokens": 85753,
+        "completionTokens": 18383,
+        "cacheReadTokens": 78720,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 10159,
+        "totalTokens": 182856
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 35101,
+        "completionTokens": 3671,
+        "cacheReadTokens": 59264,
+        "cacheWriteTokens": null,
+        "reasoningTokens": null,
+        "totalTokens": 98036
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T11-27-22-521Z_01a12ab7-ab99-7942-a35a-662eda0d5dae.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 16117,
+            "completionTokens": 2184,
+            "cacheReadTokens": 7168,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 41,
+            "totalTokens": 25469
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 16117,
+            "completionTokens": 2184,
+            "cacheReadTokens": 7168,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 41,
+            "totalTokens": 25469
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T11-27-22-537Z_01a12ab7-aba9-7bad-8bc1-0222b7ccbb8a.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 16019,
+            "completionTokens": 6851,
+            "cacheReadTokens": 7168,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 4655,
+            "totalTokens": 30038
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 16019,
+            "completionTokens": 6851,
+            "cacheReadTokens": 7168,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 4655,
+            "totalTokens": 30038
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T11-27-50-800Z_01a12ab8-1a10-7a63-994e-79073f4fb586.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 18516,
+            "completionTokens": 5677,
+            "cacheReadTokens": 5120,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5010,
+            "totalTokens": 29313
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 18516,
+            "completionTokens": 5677,
+            "cacheReadTokens": 5120,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5010,
+            "totalTokens": 29313
+          }
+        }
+      ],
+      "scoutCount": 3,
+      "scoutSessionIds": [
+        "7fa01d89-bf52-4939-a8bf-e5061f7d833a",
+        "2bac1fa8-713d-450d-b159-9bfa67f86ee5",
+        "f2605586-3868-4c66-9b80-87dec61b9cf7"
+      ],
+      "mainToolCalls": 13,
+      "scoutToolCalls": 3,
+      "toolCalls": 16,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 16,
+      "failedModelResponses": 1,
+      "toolFailures": 7,
+      "mainToolFailures": 4,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "13-yahoo-128k-A1.json",
+        "nativeRecoveryRoot": "piwin-ab-host-jrVdhu",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "3532a0778e7aeca7b1082f7d77daba8ed720cd6aaacfb28ee8ce3f58424e6dd9",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 14,
+      "taskId": "yahoo-128k",
+      "group": "B",
+      "repetition": 1,
+      "status": "timeout",
+      "validProtocol": true,
+      "elapsedMs": null,
+      "deadlineElapsedMs": 900081,
+      "correct": false,
+      "officialScore": 0,
+      "acceptanceFailures": [
+        "invalid JSON"
+      ],
+      "mainUsage": {
+        "promptTokens": 19151,
+        "completionTokens": 3536,
+        "cacheReadTokens": 70656,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 439,
+        "totalTokens": 93343
+      },
+      "scoutUsage": {
+        "promptTokens": 96192,
+        "completionTokens": 17044,
+        "cacheReadTokens": 192384,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 9034,
+        "totalTokens": 305620
+      },
+      "totalUsage": {
+        "promptTokens": 115343,
+        "completionTokens": 20580,
+        "cacheReadTokens": 263040,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 9473,
+        "totalTokens": 398963
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 19151,
+        "completionTokens": 3536,
+        "cacheReadTokens": 70656,
+        "cacheWriteTokens": null,
+        "reasoningTokens": null,
+        "totalTokens": 93343
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T11-42-21-027Z_01a12ac5-6163-7cde-8ebc-4ffc370a60e1.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 30932,
+            "completionTokens": 5264,
+            "cacheReadTokens": 73856,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 2705,
+            "totalTokens": 110052
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 30932,
+            "completionTokens": 5264,
+            "cacheReadTokens": 73856,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 2705,
+            "totalTokens": 110052
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T11-42-21-036Z_01a12ac5-616c-7f5b-b79e-ec94e85f20be.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 29237,
+            "completionTokens": 5597,
+            "cacheReadTokens": 74496,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 2545,
+            "totalTokens": 109330
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 29237,
+            "completionTokens": 5597,
+            "cacheReadTokens": 74496,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 2545,
+            "totalTokens": 109330
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T11-43-17-007Z_01a12ac6-3c0f-7e91-976b-8ab790fa19cf.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 36023,
+            "completionTokens": 6183,
+            "cacheReadTokens": 44032,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 3784,
+            "totalTokens": 86238
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 36023,
+            "completionTokens": 6183,
+            "cacheReadTokens": 44032,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 3784,
+            "totalTokens": 86238
+          }
+        }
+      ],
+      "scoutCount": 3,
+      "scoutSessionIds": [
+        "706f9161-7be7-4c31-a505-09628bd8efed",
+        "64071e95-2d30-4392-978e-f47ffea5ce52",
+        "2f48cfdc-8130-4b1c-8645-300d2fafe9d0"
+      ],
+      "mainToolCalls": 13,
+      "scoutToolCalls": 21,
+      "toolCalls": 34,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 19,
+      "codemodeFailures": 5,
+      "nestedCallCount": null,
+      "observedNestedCallCount": 11,
+      "executedToolCalls": null,
+      "failedModelResponses": 1,
+      "toolFailures": 11,
+      "mainToolFailures": 3,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "14-yahoo-128k-B1.json",
+        "nativeRecoveryRoot": "piwin-ab-host-kFc38B",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "3532a0778e7aeca7b1082f7d77daba8ed720cd6aaacfb28ee8ce3f58424e6dd9",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 15,
+      "taskId": "yahoo-128k",
+      "group": "A",
+      "repetition": 2,
+      "status": "completed",
+      "validProtocol": true,
+      "elapsedMs": 623180,
+      "deadlineElapsedMs": null,
+      "correct": true,
+      "officialScore": 1,
+      "acceptanceFailures": [],
+      "mainUsage": {
+        "promptTokens": 79548,
+        "completionTokens": 14931,
+        "cacheReadTokens": 613120,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 3002,
+        "totalTokens": 707599
+      },
+      "scoutUsage": {
+        "promptTokens": 86612,
+        "completionTokens": 36153,
+        "cacheReadTokens": 78208,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 33919,
+        "totalTokens": 200973
+      },
+      "totalUsage": {
+        "promptTokens": 166160,
+        "completionTokens": 51084,
+        "cacheReadTokens": 691328,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 36921,
+        "totalTokens": 908572
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 79548,
+        "completionTokens": 14931,
+        "cacheReadTokens": 613120,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 3002,
+        "totalTokens": 707599
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T11-57-12-414Z_01a12ad2-fb5e-7579-bef4-79b0edcfb5de.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 32192,
+            "completionTokens": 10105,
+            "cacheReadTokens": 21760,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 9313,
+            "totalTokens": 64057
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 32192,
+            "completionTokens": 10105,
+            "cacheReadTokens": 21760,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 9313,
+            "totalTokens": 64057
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T11-57-12-416Z_01a12ad2-fb60-7a94-a336-203e9988a6af.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 27580,
+            "completionTokens": 11903,
+            "cacheReadTokens": 28032,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 11108,
+            "totalTokens": 67515
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 27580,
+            "completionTokens": 11903,
+            "cacheReadTokens": 28032,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 11108,
+            "totalTokens": 67515
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T11-59-46-757Z_01a12ad5-5645-7e6e-83fe-997c77596ed9.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 26840,
+            "completionTokens": 14145,
+            "cacheReadTokens": 28416,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 13498,
+            "totalTokens": 69401
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 26840,
+            "completionTokens": 14145,
+            "cacheReadTokens": 28416,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 13498,
+            "totalTokens": 69401
+          }
+        }
+      ],
+      "scoutCount": 3,
+      "scoutSessionIds": [
+        "a0eb007f-8e72-4b71-83f7-f93de500c161",
+        "d79aaa87-78a7-4d21-a98b-158bac62ad93",
+        "68750dc0-0429-4135-9af2-d953ad206892"
+      ],
+      "mainToolCalls": 24,
+      "scoutToolCalls": 6,
+      "toolCalls": 30,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 30,
+      "failedModelResponses": 0,
+      "toolFailures": 6,
+      "mainToolFailures": 6,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "15-yahoo-128k-A2.json",
+        "nativeRecoveryRoot": "piwin-ab-host-epLvcX",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "3532a0778e7aeca7b1082f7d77daba8ed720cd6aaacfb28ee8ce3f58424e6dd9",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 16,
+      "taskId": "yahoo-128k",
+      "group": "B",
+      "repetition": 2,
+      "status": "completed",
+      "validProtocol": true,
+      "elapsedMs": 723019,
+      "deadlineElapsedMs": null,
+      "correct": false,
+      "officialScore": 0,
+      "acceptanceFailures": [
+        "answer differs from pinned gold"
+      ],
+      "mainUsage": {
+        "promptTokens": 36764,
+        "completionTokens": 2336,
+        "cacheReadTokens": 79744,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 716,
+        "totalTokens": 118844
+      },
+      "scoutUsage": {
+        "promptTokens": 135948,
+        "completionTokens": 43348,
+        "cacheReadTokens": 448768,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 2136,
+        "totalTokens": 628064
+      },
+      "totalUsage": {
+        "promptTokens": 172712,
+        "completionTokens": 45684,
+        "cacheReadTokens": 528512,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 2852,
+        "totalTokens": 746908
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 36764,
+        "completionTokens": 2336,
+        "cacheReadTokens": 79744,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 716,
+        "totalTokens": 118844
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T12-07-20-913Z_01a12adc-4451-7534-9b46-708b3e5fa992.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 135948,
+            "completionTokens": 43348,
+            "cacheReadTokens": 448768,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 2136,
+            "totalTokens": 628064
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 135948,
+            "completionTokens": 43348,
+            "cacheReadTokens": 448768,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 2136,
+            "totalTokens": 628064
+          }
+        }
+      ],
+      "scoutCount": 1,
+      "scoutSessionIds": [
+        "5af0047b-8e51-45a6-b23e-ed83434d8c16"
+      ],
+      "mainToolCalls": 6,
+      "scoutToolCalls": 17,
+      "toolCalls": 23,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 16,
+      "codemodeFailures": 2,
+      "nestedCallCount": null,
+      "observedNestedCallCount": 11,
+      "executedToolCalls": null,
+      "failedModelResponses": 0,
+      "toolFailures": 3,
+      "mainToolFailures": 1,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "16-yahoo-128k-B2.json",
+        "nativeRecoveryRoot": "piwin-ab-host-PLfkC1",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "3532a0778e7aeca7b1082f7d77daba8ed720cd6aaacfb28ee8ce3f58424e6dd9",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 17,
+      "taskId": "yahoo-128k",
+      "group": "A",
+      "repetition": 3,
+      "status": "completed",
+      "validProtocol": true,
+      "elapsedMs": 703714,
+      "deadlineElapsedMs": null,
+      "correct": true,
+      "officialScore": 1,
+      "acceptanceFailures": [],
+      "mainUsage": {
+        "promptTokens": 132319,
+        "completionTokens": 21334,
+        "cacheReadTokens": 774784,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 8757,
+        "totalTokens": 928437
+      },
+      "scoutUsage": {
+        "promptTokens": 113412,
+        "completionTokens": 58027,
+        "cacheReadTokens": 85504,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 30535,
+        "totalTokens": 256943
+      },
+      "totalUsage": {
+        "promptTokens": 245731,
+        "completionTokens": 79361,
+        "cacheReadTokens": 860288,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 39292,
+        "totalTokens": 1185380
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 132319,
+        "completionTokens": 21334,
+        "cacheReadTokens": 774784,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 8757,
+        "totalTokens": 928437
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T12-19-41-004Z_01a12ae7-8f4c-729c-8ebe-8d18c97e8d3d.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 27494,
+            "completionTokens": 19298,
+            "cacheReadTokens": 28288,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 10968,
+            "totalTokens": 75080
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 27494,
+            "completionTokens": 19298,
+            "cacheReadTokens": 28288,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 10968,
+            "totalTokens": 75080
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T12-19-41-008Z_01a12ae7-8f50-7f1b-b6ab-55c2e723ba48.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 26256,
+            "completionTokens": 15270,
+            "cacheReadTokens": 28416,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5716,
+            "totalTokens": 69942
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 26256,
+            "completionTokens": 15270,
+            "cacheReadTokens": 28416,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 5716,
+            "totalTokens": 69942
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T12-22-25-585Z_01a12aea-1231-75cd-aeb3-4d6685644826.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 59662,
+            "completionTokens": 23459,
+            "cacheReadTokens": 28800,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 13851,
+            "totalTokens": 111921
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 59662,
+            "completionTokens": 23459,
+            "cacheReadTokens": 28800,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 13851,
+            "totalTokens": 111921
+          }
+        }
+      ],
+      "scoutCount": 3,
+      "scoutSessionIds": [
+        "85c362cd-33fb-408a-a605-c7610c3f6094",
+        "595e1815-fe8b-4d6b-a56b-f6d9bf9f6b65",
+        "0a73a368-e3c1-4217-846d-b373852a7180"
+      ],
+      "mainToolCalls": 26,
+      "scoutToolCalls": 7,
+      "toolCalls": 33,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 0,
+      "codemodeFailures": 0,
+      "nestedCallCount": 0,
+      "observedNestedCallCount": 0,
+      "executedToolCalls": 33,
+      "failedModelResponses": 0,
+      "toolFailures": 5,
+      "mainToolFailures": 5,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "17-yahoo-128k-A3.json",
+        "nativeRecoveryRoot": "piwin-ab-host-ezFgln",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "3532a0778e7aeca7b1082f7d77daba8ed720cd6aaacfb28ee8ce3f58424e6dd9",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    },
+    {
+      "ordinal": 18,
+      "taskId": "yahoo-128k",
+      "group": "B",
+      "repetition": 3,
+      "status": "completed",
+      "validProtocol": true,
+      "elapsedMs": 680374,
+      "deadlineElapsedMs": null,
+      "correct": true,
+      "officialScore": 1,
+      "acceptanceFailures": [],
+      "mainUsage": {
+        "promptTokens": 126989,
+        "completionTokens": 17188,
+        "cacheReadTokens": 304384,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 12978,
+        "totalTokens": 448561
+      },
+      "scoutUsage": {
+        "promptTokens": 87272,
+        "completionTokens": 38543,
+        "cacheReadTokens": 113024,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 35476,
+        "totalTokens": 238839
+      },
+      "totalUsage": {
+        "promptTokens": 214261,
+        "completionTokens": 55731,
+        "cacheReadTokens": 417408,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 48454,
+        "totalTokens": 687400
+      },
+      "mainRecordedUsageLowerBound": {
+        "promptTokens": 126989,
+        "completionTokens": 17188,
+        "cacheReadTokens": 304384,
+        "cacheWriteTokens": null,
+        "reasoningTokens": 12978,
+        "totalTokens": 448561
+      },
+      "scoutSessions": [
+        {
+          "nativeFile": "2026-10-11T12-31-36-569Z_01a12af2-7a79-7ca0-8fc9-870971cfdab4.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 31931,
+            "completionTokens": 10883,
+            "cacheReadTokens": 55296,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 9840,
+            "totalTokens": 98110
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 31931,
+            "completionTokens": 10883,
+            "cacheReadTokens": 55296,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 9840,
+            "totalTokens": 98110
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T12-31-36-586Z_01a12af2-7a8a-706a-ab44-bb724e446f44.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 27624,
+            "completionTokens": 9996,
+            "cacheReadTokens": 29056,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 9171,
+            "totalTokens": 66676
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 27624,
+            "completionTokens": 9996,
+            "cacheReadTokens": 29056,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 9171,
+            "totalTokens": 66676
+          }
+        },
+        {
+          "nativeFile": "2026-10-11T12-34-02-007Z_01a12af4-b297-7b86-8107-1c19c7a1a200.jsonl",
+          "complete": true,
+          "usage": {
+            "promptTokens": 27717,
+            "completionTokens": 17664,
+            "cacheReadTokens": 28672,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 16465,
+            "totalTokens": 74053
+          },
+          "recordedUsageLowerBound": {
+            "promptTokens": 27717,
+            "completionTokens": 17664,
+            "cacheReadTokens": 28672,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 16465,
+            "totalTokens": 74053
+          }
+        }
+      ],
+      "scoutCount": 3,
+      "scoutSessionIds": [
+        "c41b6851-ad46-4e73-9f14-3c54c71a3c72",
+        "0c89c847-61a3-4dc5-b09c-bd954da95a53",
+        "889adee9-33a2-4ba0-aa68-d9fac25b6fd5"
+      ],
+      "mainToolCalls": 18,
+      "scoutToolCalls": 7,
+      "toolCalls": 25,
+      "mainCodemodeCalls": 0,
+      "codemodeCalls": 1,
+      "codemodeFailures": 0,
+      "nestedCallCount": 1,
+      "observedNestedCallCount": 1,
+      "executedToolCalls": 26,
+      "failedModelResponses": 0,
+      "toolFailures": 4,
+      "mainToolFailures": 4,
+      "mainModelRetryAttempts": 0,
+      "allModelRetryAttempts": 0,
+      "toolRetryAttempts": null,
+      "upstreamInternalRetries": null,
+      "evidence": {
+        "rawFile": "18-yahoo-128k-B3.json",
+        "nativeRecoveryRoot": "piwin-ab-host-pdBFru",
+        "mainSseMatchesNative": true,
+        "scoutUsageComplete": true,
+        "originalChildEventGap": false,
+        "sourceUnchanged": true,
+        "configHash": "1eded1212b4d354d0af72a7f2d993b8669fcc8696552776cda3f786185f62dae",
+        "promptHash": "3532a0778e7aeca7b1082f7d77daba8ed720cd6aaacfb28ee8ce3f58424e6dd9",
+        "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59"
+      }
+    }
+  ]
+}

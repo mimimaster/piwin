@@ -1,0 +1,37 @@
+{
+  "recordedAt": "2026-10-11T12:47:05.281Z",
+  "scriptChecks": {
+    "command": "node --import tsx --test scripts/research/scout-codemode/{tasks,readonly-shell,network-isolation,network-permission}.test.mjs",
+    "passed": 14,
+    "failed": 0
+  },
+  "repositoryTypecheck": {
+    "command": "pnpm typecheck",
+    "passed": true,
+    "scope": "Completed earlier in this worktree; production source unchanged thereafter."
+  },
+  "packageBoundaries": {
+    "command": "pnpm test:architecture",
+    "passed": true
+  },
+  "diffCheck": {
+    "command": "git diff --check",
+    "passed": true
+  },
+  "sourceEvidence": {
+    "attempts": 18,
+    "validProtocol": 14,
+    "uniformFinalPhaseRuns": 12,
+    "allSnapshotHashesEqual": true,
+    "allModelVisibleSourcesUnchanged": true,
+    "finalConfigHashWithoutEnabledEqual": true,
+    "finalSseNativeMatches": 12,
+    "finalScoutUsageComplete": 12
+  },
+  "secretScan": {
+    "filesScanned": 51,
+    "actualSourceXaiAccessRefreshMatches": 0
+  },
+  "moneyKeysObserved": [],
+  "note": "Engineering validation is not evidence of lower tokens, faster completion, or noninferior accuracy. No additional main tasks were run."
+}

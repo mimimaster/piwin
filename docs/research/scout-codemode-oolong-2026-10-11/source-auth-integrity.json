@@ -1,0 +1,12 @@
+{
+  "before": "1c2d59de2d50a708ea3b2f4db4f4e8161f1d2aed0c49af6513df80b505ef10b2",
+  "after": "7ddbd2caaeac3f631a0ce5ff9a26bf7cbda9bc54271e2324d77358eafd4f1052",
+  "unchanged": false,
+  "initialFileHash": "f6c5f15f18ebaa4b3e2de3423ece375d7588d3cd75b8158970499bf8d70f0bd9",
+  "finalFileHash": "dd6992761ebcca19ab1d1174fcfb84e02f7608f33dc8223bbbdcc14536c35988",
+  "fileUnchangedSinceInitial": false,
+  "xaiCredentialHashBefore": "8b8cd27a296b0f58916a3a65166000d7d24b801ca43d90d5c1fb94328f54f66c",
+  "xaiCredentialHashAfter": "8b8cd27a296b0f58916a3a65166000d7d24b801ca43d90d5c1fb94328f54f66c",
+  "xaiCredentialUnchanged": true,
+  "scope": "before/after/unchanged refer to final resume phase. Whole auth file changed earlier; origin unknown. xAI credential object stayed identical. Experiment code only reads source auth."
+}
