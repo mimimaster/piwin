@@ -1,0 +1,110 @@
+/**
+ * Group card for one consecutive run of delegations (Inkstone proto-13 ①②④).
+ *
+ * Header: spinner while any child runs (a pine dot once settled), "N 个子代理",
+ * per-phase counts and the group's wall time. A settled group folds into the
+ * header unless a result still needs the user; a header click always wins.
+ * A lone delegation (③) renders its row without the header.
+ *
+ * The header is memoized on scalars and each row is memoized on its snapshot
+ * (subagent-invocation-block.tsx), so a child's stream delta repaints only
+ * the row whose snapshot changed.
+ */
+import { memo, useCallback, useState, type ReactElement, type ReactNode } from 'react';
+import { IconChevronDown } from './shell-icons';
+import {
+  resolveSubagentGroupExpanded,
+  subagentGroupTitle,
+  type SubagentGroupSummary,
+  type SubagentLocale,
+} from './subagent-card-view';
+import { SubagentElapsed, SubagentSpinner } from './subagent-card-parts';
+
+type SubagentGroupHeaderProps = {
+  title: string;
+  countsLabel: string;
+  active: boolean;
+  startedAt?: string | undefined;
+  endedAt?: string | undefined;
+  expanded: boolean;
+  onToggle: () => void;
+};
+
+const SubagentGroupHeader = memo(function SubagentGroupHeader(
+  props: SubagentGroupHeaderProps,
+): ReactElement {
+  return (
+    <button
+      type="button"
+      className="subagent-group-head"
+      data-testid="subagent-group-header"
+      aria-expanded={props.expanded}
+      onClick={props.onToggle}
+    >
+      {props.active ? <SubagentSpinner /> : <span className="subagent-group-dot" aria-hidden="true" />}
+      <span className="subagent-group-title">{props.title}</span>
+      {props.countsLabel ? (
+        <span className="subagent-group-counts" data-testid="subagent-group-counts">
+          {props.countsLabel}
+        </span>
+      ) : null}
+      <SubagentElapsed
+        startedAt={props.startedAt}
+        endedAt={props.endedAt}
+        active={props.active}
+        className="subagent-group-time"
+        testId="subagent-group-elapsed"
+      />
+      <IconChevronDown className="subagent-group-chev" width={14} height={14} aria-hidden="true" />
+    </button>
+  );
+});
+
+export type SubagentGroupCardProps = {
+  summary: SubagentGroupSummary;
+  locale: SubagentLocale;
+  /** A row's inline session is open — keep the group open around it. */
+  hasOpenRow: boolean;
+  children: ReactNode;
+};
+
+export function SubagentGroupCard(props: SubagentGroupCardProps): ReactElement {
+  const { summary } = props;
+  const [userChoice, setUserChoice] = useState<boolean | null>(null);
+  const expanded = resolveSubagentGroupExpanded({
+    userChoice,
+    summary,
+    hasOpenRow: props.hasOpenRow,
+  });
+  const onToggle = useCallback(() => setUserChoice(!expanded), [expanded]);
+  const single = summary.count <= 1;
+  const title = subagentGroupTitle(summary.count, props.locale);
+  // One element shape for every count: the header slot is null for a lone
+  // delegation, so a second delegation arriving never remounts the rows.
+  return (
+    <div
+      className={single ? 'subagent-group is-single' : 'subagent-group'}
+      data-testid="subagent-group"
+      data-count={summary.count}
+      data-active={summary.active}
+      data-expanded={single || expanded}
+      role="group"
+      aria-label={title}
+    >
+      {single ? null : (
+        <SubagentGroupHeader
+          title={title}
+          countsLabel={summary.countsLabel}
+          active={summary.active}
+          startedAt={summary.startedAt}
+          endedAt={summary.endedAt}
+          expanded={expanded}
+          onToggle={onToggle}
+        />
+      )}
+      <div className="subagent-group-rows" hidden={!single && !expanded}>
+        {props.children}
+      </div>
+    </div>
+  );
+}

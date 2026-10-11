@@ -515,7 +515,11 @@ describe('TurnToolGroup causal tool sequence', () => {
 
     const block = container.querySelector('[data-testid="subagent-invocation-block"]');
     expect(block?.getAttribute('data-status')).toBe('needs-integration');
-    expect(block?.textContent).toContain('Changes need attention');
+    // Finished rows fold to one line; the pending result takes the state column.
+    expect(block?.querySelector('[data-testid="subagent-badge-code-pending"]')?.textContent).toBe(
+      'Code pending',
+    );
+    expect(block?.getAttribute('aria-label')).toContain('Changes need attention');
   });
 
   it('omits plan create, present, and set-step tools from the call chain', () => {

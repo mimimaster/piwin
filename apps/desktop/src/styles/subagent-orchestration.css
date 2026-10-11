@@ -1,17 +1,5 @@
-/* Async subagent lifecycle rows (wait/cancel) and invocation extras.
-   Invocation card typography/chips stay in transcript-ink-wash.css. */
-
-.subagent-invocation-elapsed {
-  font-family: var(--mono, 'JetBrains Mono', monospace);
-  font-size: 11px;
-  line-height: 20px;
-  color: var(--text-4, #8f887d);
-  font-variant-numeric: tabular-nums;
-}
-
-.subagent-invocation-heading .ui-status-badge {
-  flex: 0 0 auto;
-}
+/* Async subagent lifecycle rows (wait/cancel) and the tasks overview.
+   Transcript subagent cards live in subagent-cards.css. */
 
 .subagent-control-row {
   display: flex;
@@ -185,7 +173,6 @@
 @media (prefers-reduced-motion: reduce) {
   .subagent-control-row,
   .subagent-control-row *,
-  .subagent-invocation-elapsed,
   .subagent-tasks-overview,
   .subagent-tasks-overview * {
     transition: none !important;

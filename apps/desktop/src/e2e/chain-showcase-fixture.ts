@@ -16,6 +16,11 @@ import type {
 } from '@piwin/contracts';
 import { KNOWLEDGE_CITATIONS_DETAILS_KIND, WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND } from '@piwin/contracts';
 import type { MockHostBackend } from '../host-client-mock.js';
+import {
+  SUBAGENT_CARDS_SESSION_ID,
+  buildSubagentCardsTranscript,
+  seedSubagentCardsShowcase,
+} from './subagent-cards-fixture.js';
 
 const PROJECT = '/mock/piwin';
 const SESSION_ENDPOINT = 'showcase-endpoint-loop';
@@ -782,6 +787,10 @@ export function seedChainShowcaseHost(host: MockHostBackend, selector = 'all'): 
   }
   if (wanted('shell')) {
     seedSession(SESSION_SHELL, '终端卡片 · bash 各种结局', '2026-09-20T17:30:00.000Z', shellTranscript);
+  }
+  if (wanted('subagents')) {
+    seedSession(SUBAGENT_CARDS_SESSION_ID, '子代理卡片 · 四种状态', '2026-10-11T08:30:00.000Z', buildSubagentCardsTranscript());
+    seedSubagentCardsShowcase(host);
   }
   if (wanted('approval')) {
     host.plans.set(SESSION_APPROVAL, approvalPlan);

@@ -442,9 +442,11 @@ describe('SubagentInvocationBlock component', () => {
       '代码待处理',
     );
     expect(container.querySelector('[data-testid="subagent-execution-badge"]')).toBeNull();
-    expect(container.querySelector('.subagent-activity-text')?.textContent).toContain(
-      'Patch is ready in the worktree',
-    );
+    // A finished row folds to one line; its conclusion stays the accessible label.
+    expect(container.querySelector('.subagent-activity-text')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="subagent-invocation-block"]')?.getAttribute('aria-label'),
+    ).toContain('Patch is ready in the worktree');
 
     const conflictChild: SessionSummary = {
       ...child,
@@ -463,9 +465,8 @@ describe('SubagentInvocationBlock component', () => {
         </PiwinUiProvider>,
       );
     });
-    expect(container.querySelector('[data-testid="subagent-badge-collected"]')?.textContent).toBe(
-      '已收集',
-    );
+    // A merged report is the normal end state: no badge, only the conflict.
+    expect(container.querySelector('[data-testid="subagent-badge-collected"]')).toBeNull();
     expect(container.querySelector('[data-testid="subagent-badge-conflict"]')?.textContent).toBe(
       '冲突',
     );

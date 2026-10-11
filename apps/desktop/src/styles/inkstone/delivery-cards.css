@@ -331,9 +331,7 @@ html[data-theme-id='piwin-inkstone-ink'] .walkthrough-card {
 
 /* S5.16: Cards, subagents, citations, error card */
 html[data-theme-id='piwin-inkstone-paper'] .card.line.az,
-html[data-theme-id='piwin-inkstone-ink'] .card.line.az,
-html[data-theme-id='piwin-inkstone-paper'] .subagent-activity-card,
-html[data-theme-id='piwin-inkstone-ink'] .subagent-activity-card {
+html[data-theme-id='piwin-inkstone-ink'] .card.line.az {
   border-left: 3px solid var(--azure);
   background: var(--s3);
   box-shadow: var(--sh1);

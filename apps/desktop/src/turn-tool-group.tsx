@@ -10,12 +10,23 @@ import type {
 } from '@piwin/contracts';
 import type { SubagentStreamState, ToolCardUi } from './chat-reducer';
 import { ToolCallCard, type DocumentOpenInput } from './tool-call-card';
-import { SubagentInvocationBlock } from './subagent-invocation-block';
+import { SubagentRow } from './subagent-invocation-block';
+import { SubagentGroupCard } from './subagent-group-card';
+import {
+  deriveSubagentGroupSummary,
+  deriveSubagentRowView,
+  segmentSubagentRuns,
+  type SubagentRowView,
+} from './subagent-card-view';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { DiffCardRequest } from './diff-card';
 import type { ToolCallDensity } from './ui-preferences';
 import type { ModelOption } from './model-options';
-import { clusterToolCalls, resolveToolClusterKind } from './tool-group-clustering';
+import {
+  clusterToolCalls,
+  resolveToolClusterKind,
+  type ClusteredToolItem,
+} from './tool-group-clustering';
 import { isPlanProgressTool } from './plan-todo-model.js';
 import { ToolBatchCapsule } from './tool-batch-capsule';
 import { GoalDeliveryCard, GoalBlockedCard, GoalWaitCard, useGoalActions } from './goal';
@@ -95,6 +106,20 @@ function resolveInvocationForTool(
   return undefined;
 }
 
+/** A tool that created (or is creating) a child, as opposed to Host plumbing on one. */
+function isDelegationTool(
+  tool: ToolCardUi,
+  invocations: Record<string, SubagentInvocation> | undefined,
+  children: Record<string, SessionSummary> | undefined,
+): boolean {
+  if (readSubagentControl(tool)?.phase === 'accepted') return true;
+  if (tool.toolName === 'piwin_subagent_run' || tool.toolName === 'piwin_subagent_start') return true;
+  if (resolveInvocationForTool(tool, invocations) !== undefined) return true;
+  return Object.values(children ?? {}).some(
+    (child) => child.subagentParentToolCallId === tool.toolCallId,
+  );
+}
+
 function findOrchestrationItem(
   items: readonly SubagentOrchestrationItem[],
   invocation: SubagentInvocation | undefined,
@@ -166,6 +191,20 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
     [props.tools],
   );
   const clusters = useMemo(() => clusterToolCalls(tools), [tools]);
+  // Consecutive delegations share one group card (Inkstone proto-13). Other
+  // subagent-kind rows (apply, verification, …) stay lone rows so the header
+  // count only names real children.
+  const segments = useMemo(
+    () =>
+      segmentSubagentRuns(
+        clusters,
+        (item) =>
+          item.kind === 'single' &&
+          isSubagentInvocationSurface(item.tool) &&
+          isDelegationTool(item.tool, props.subagentInvocations, props.subagentChildren),
+      ),
+    [clusters, props.subagentInvocations, props.subagentChildren],
+  );
   const inspectorToggle = useSubagentInspectorToggle();
   const goalActions = useGoalActions();
   const reviewLoopBinding = useSubagentReviewLoopBinding();
@@ -249,9 +288,105 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
     return null;
   }
 
+  const locale = props.locale ?? 'zh-CN';
+  const resolveSubagentEntry = (
+    tool: ToolCardUi,
+  ): { view: SubagentRowView; stopRunId?: string; stopStatus?: SubagentInvocation['status'] } => {
+    const invocation = resolveInvocationForTool(tool, props.subagentInvocations);
+    const orchestrationItem = findOrchestrationItem(orchestrationItems, invocation);
+    const child = invocation?.childSessionId
+      ? props.subagentChildren?.[invocation.childSessionId]
+      : Object.values(props.subagentChildren ?? {}).find(
+          (candidate) => candidate.subagentParentToolCallId === tool.toolCallId,
+        );
+    const startControl = readSubagentControl(tool);
+    const invocationId =
+      invocation?.id ??
+      (startControl?.phase === 'accepted' ? startControl.invocationId : undefined);
+    const reviewLoopAttach = reviewLoopEnabled
+      ? attachForInvocation(reviewLoops, invocationId)
+      : undefined;
+    // Only the top-level transcript activates anchors (nested child
+    // transcripts never receive onInspectSubagent), so a nested block
+    // can never claim the single expanded panel.
+    const selection = inspectorToggle?.selection;
+    const expanded =
+      props.onInspectSubagent !== undefined &&
+      child !== undefined &&
+      selection?.childSessionId === child.id &&
+      (selection.anchorId === tool.toolCallId ||
+        selection.anchorId === invocation?.id ||
+        selection.anchorId === undefined);
+    const stream =
+      child &&
+      props.subagentStreams?.[child.id] &&
+      (!invocation ||
+        invocation.status === 'queued' ||
+        invocation.status === 'starting' ||
+        invocation.status === 'running')
+        ? props.subagentStreams[child.id]
+        : undefined;
+    const view = deriveSubagentRowView({
+      tool,
+      locale,
+      expanded,
+      canInspect: props.onInspectSubagent !== undefined,
+      ...(props.modelOptions ? { modelOptions: props.modelOptions } : {}),
+      ...(invocation ? { invocation } : {}),
+      ...(orchestrationItem ? { orchestrationItem } : {}),
+      ...(child ? { child } : {}),
+      ...(stream ? { stream } : {}),
+      ...(reviewLoopAttach !== undefined ? { reviewLoopAttach } : {}),
+    });
+    const stopRunId = orchestrationItem?.runId ?? invocation?.runId;
+    const stopStatus = orchestrationItem?.executionStatus ?? invocation?.status;
+    return {
+      view,
+      ...(stopRunId !== undefined ? { stopRunId } : {}),
+      ...(stopStatus !== undefined ? { stopStatus } : {}),
+    };
+  };
+  const renderSubagentGroup = (items: readonly ClusteredToolItem[]): ReactElement => {
+    const entries = items.flatMap((item) =>
+      item.kind === 'single' ? [resolveSubagentEntry(item.tool)] : [],
+    );
+    const views = entries.map((entry) => entry.view);
+    return (
+      <SubagentGroupCard
+        // Anchor on the first delegation, like batch capsules: a later
+        // delegation joining the run must not remount (and re-fold) the card.
+        key={`subagents-${views[0]?.toolCallId ?? 'empty'}`}
+        summary={deriveSubagentGroupSummary(views, locale)}
+        locale={locale}
+        hasOpenRow={views.some((view) => view.expanded)}
+      >
+        {entries.map(({ view, stopRunId, stopStatus }) => (
+          <div
+            key={view.toolCallId}
+            className="subagent-embed"
+            data-testid="subagent-embed"
+            data-expanded={view.expanded}
+            data-stoppable={stopRunId !== undefined && isStoppableSubagentStatus(stopStatus)}
+            {...(view.invocationId !== undefined
+              ? { id: subagentInvocationDomId(view.invocationId) }
+              : {})}
+          >
+            <SubagentRow view={view} onInspect={props.onInspectSubagent} />
+            <SubagentInvocationStop runId={stopRunId} status={stopStatus} locale={locale} />
+            {view.expanded ? <SubagentInlineSession /> : null}
+          </div>
+        ))}
+      </SubagentGroupCard>
+    );
+  };
+
   return (
     <div className="thread turn-tool-sequence" data-testid="turn-tool-group">
-      {clusters.map((item, index) => {
+      {segments.map((segment, index) => {
+        if (segment.kind === 'subagents') {
+          return renderSubagentGroup(segment.items);
+        }
+        const item = segment.item;
         if (item.kind === 'batch') {
           return (
             <ToolBatchCapsule
@@ -276,73 +411,7 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
 
         const tool = item.tool;
         if (isSubagentInvocationSurface(tool)) {
-          const invocation = resolveInvocationForTool(tool, props.subagentInvocations);
-          const orchestrationItem = findOrchestrationItem(orchestrationItems, invocation);
-          const child = invocation?.childSessionId
-            ? props.subagentChildren?.[invocation.childSessionId]
-            : Object.values(props.subagentChildren ?? {}).find(
-                (candidate) => candidate.subagentParentToolCallId === tool.toolCallId,
-              );
-          const startControl = readSubagentControl(tool);
-          const invocationId =
-            invocation?.id ??
-            (startControl?.phase === 'accepted' ? startControl.invocationId : undefined);
-          const reviewLoopAttach = reviewLoopEnabled
-            ? attachForInvocation(reviewLoops, invocationId)
-            : undefined;
-          // Only the top-level transcript activates anchors (nested child
-          // transcripts never receive onInspectSubagent), so a nested block
-          // can never claim the single expanded panel.
-          const selection = inspectorToggle?.selection;
-          const expanded =
-            props.onInspectSubagent !== undefined &&
-            child !== undefined &&
-            selection?.childSessionId === child.id &&
-            (selection.anchorId === tool.toolCallId ||
-              selection.anchorId === invocation?.id ||
-              selection.anchorId === undefined);
-          const stopRunId = orchestrationItem?.runId ?? invocation?.runId;
-          const stopStatus = orchestrationItem?.executionStatus ?? invocation?.status;
-          return (
-            <div
-              key={tool.toolCallId}
-              className="subagent-embed"
-              data-testid="subagent-embed"
-              data-expanded={expanded}
-              data-stoppable={stopRunId !== undefined && isStoppableSubagentStatus(stopStatus)}
-              {...(invocationId !== undefined
-                ? { id: subagentInvocationDomId(invocationId) }
-                : {})}
-            >
-              <SubagentInvocationBlock
-                tool={tool}
-                locale={props.locale ?? 'zh-CN'}
-                expanded={expanded}
-                {...(props.modelOptions ? { modelOptions: props.modelOptions } : {})}
-                {...(invocation ? { invocation } : {})}
-                {...(orchestrationItem ? { orchestrationItem } : {})}
-                {...(child ? { child } : {})}
-                {...(child &&
-                props.subagentStreams?.[child.id] &&
-                (!invocation ||
-                  invocation.status === 'queued' ||
-                  invocation.status === 'starting' ||
-                  invocation.status === 'running')
-                  ? { stream: props.subagentStreams[child.id] }
-                  : {})}
-                {...(props.onInspectSubagent
-                  ? { onInspect: props.onInspectSubagent }
-                  : {})}
-                {...(reviewLoopAttach !== undefined ? { reviewLoopAttach } : {})}
-              />
-              <SubagentInvocationStop
-                runId={stopRunId}
-                status={stopStatus}
-                locale={props.locale ?? 'zh-CN'}
-              />
-              {expanded ? <SubagentInlineSession /> : null}
-            </div>
-          );
+          return renderSubagentGroup([item]);
         }
 
         // Structured signal first (Host lifted the tool's details onto

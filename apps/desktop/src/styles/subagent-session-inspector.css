@@ -1,6 +1,6 @@
 /* Region: inline subagent session panel (subagent-inline-session.tsx,
    subagent-session-transcript.tsx, embed wrappers in turn-tool-group.tsx and
-   subagent-activity-card.tsx). Owns the accordion embed geometry, panel
+   subagent-activity-card.tsx). Owns the embed wrapper, stop control, panel
    header, transcript scroll region, thinking/tool rows, live tail, and
    worktree action bar. Compact launcher/ticker/dock motion lives in
    run-activity.css; anchor block typography lives in region-transcript.css.
@@ -23,10 +23,6 @@
    control sits beside it in the embed and the heading leaves room for it. */
 .subagent-embed[data-stoppable='true'] {
   position: relative;
-}
-
-.subagent-embed[data-stoppable='true'] .subagent-invocation-heading {
-  padding-right: 28px;
 }
 
 .subagent-invocation-stop {
@@ -64,47 +60,8 @@
   opacity: 0.45;
 }
 
-.subagent-embed[data-expanded='true'] {
-  margin: var(--s-3) 0;
-  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
-  box-shadow:
-    var(--elev-2),
-    inset 0 0 0 1px var(--line-1);
-  overflow: hidden;
-}
-
-.subagent-embed[data-expanded='true'] > .subagent-invocation-block {
-  border-radius: calc(var(--r-card) - 1px) calc(var(--r-card) - 1px) 0 0;
-}
-
-/* The activity card owns its border while collapsed; expanded, the embed
-   frame takes over and the card becomes the flat accordion header. */
-.subagent-embed-card[data-expanded='true'] > .subagent-activity-card {
-  border-color: transparent;
-  border-radius: calc(var(--r-card) - 1px) calc(var(--r-card) - 1px) 0 0;
-  background: transparent;
-}
-
-.subagent-activity-card[data-expanded='true'] .subagent-activity-inspect-hint {
-  transform: translateY(-50%) rotate(90deg);
-}
-
-/* ── Anchor chevron ─────────────────────────────────────────────────── */
-.subagent-invocation-chevron {
-  align-self: center;
-  color: var(--text-4);
-  transition:
-    transform var(--t-2) var(--ease-out),
-    color var(--t-1) var(--ease-out);
-}
-
-.subagent-invocation-block:hover:not(:disabled) .subagent-invocation-chevron {
-  color: var(--iris-lift);
-}
-
-.subagent-invocation-block[data-expanded='true'] .subagent-invocation-chevron {
-  transform: rotate(180deg);
-}
+/* The expanded embed sits inside its subagent group card (subagent-cards.css),
+   which owns the frame; the inline panel is inset beneath the row. */
 
 /* ── Inline session panel ───────────────────────────────────────────── */
 .subagent-inline-session {
@@ -431,7 +388,6 @@
 @media (prefers-reduced-motion: reduce) {
   .subagent-embed,
   .subagent-inline-session,
-  .subagent-invocation-chevron,
   .subagent-session-live-dot,
   .subagent-inspector-tool-status.status-running {
     transition: none !important;

@@ -1,0 +1,361 @@
+/* Region: transcript subagent cards — Inkstone proto-13
+   (apps/docs/public/inkstone/proto-13-subagent-cards.html).
+
+   subagent-group-card.tsx draws one card per consecutive run of delegations
+   (header: spinner/dot · "N 个子代理" · counts · wall time · chevron);
+   subagent-invocation-block.tsx draws each row (seal · title + meta · state,
+   then the "what it is doing now" line while running or failed).
+
+   Values are written against the Inkstone token names (styles/inkstone/
+   tokens.css) so paper and ink read the prototype verbatim; every alias
+   falls back to the Deck ramp, so other themes keep a coherent card. */
+
+.subagent-group {
+  --sa-surface: var(--s3, var(--surface-3, #fffdf8));
+  --sa-shadow: var(--sh1, var(--elev-1, 0 0 0 1px rgba(29, 27, 23, 0.11)));
+  --sa-rule: var(--l1, var(--line-1, rgba(29, 27, 23, 0.06)));
+  --sa-hover: var(--l1, var(--line-1, rgba(29, 27, 23, 0.06)));
+  --sa-ring: var(--l3, var(--line-3, rgba(29, 27, 23, 0.2)));
+  --sa-t1: var(--t1, var(--text-1, #1d1b17));
+  --sa-t2: var(--t2, var(--text-2, #5a554d));
+  --sa-t3: var(--t3, var(--text-3, #726b61));
+  --sa-t4: var(--t4, var(--text-4, #8f887d));
+  --sa-lamp: var(--lamp, var(--ember, #b8801f));
+  --sa-lamp-wash: var(--lamp-wash, color-mix(in srgb, var(--ember, #b8801f) 14%, transparent));
+  --sa-pine: var(--pine, var(--mint, #3d7c5e));
+  --sa-crimson: var(--crimson, var(--coral, #9c2e3d));
+  --sa-crimson-wash: var(--crimson-wash, color-mix(in srgb, var(--coral, #9c2e3d) 12%, transparent));
+  --sa-azure: var(--azure, var(--sky, #3a7797));
+  --sa-code: var(--code, var(--surface-1, #efece4));
+  --sa-focus: var(--zhu, var(--iris, #c6412a));
+  --sa-mono: var(--mono, var(--font-mono, 'JetBrains Mono', ui-monospace, Menlo, monospace));
+  --sa-serif: var(--serif, var(--font-serif, 'Noto Serif SC', 'Songti SC', Georgia, serif));
+
+  min-width: 0;
+  margin: 6px 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--sa-surface);
+  box-shadow: var(--sa-shadow);
+  color: var(--sa-t1);
+}
+
+/* ── Group header ───────────────────────────────────────────────────── */
+.subagent-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.subagent-group-head:hover {
+  background: var(--sa-hover);
+}
+
+.subagent-group-head:focus-visible,
+.subagent-row:focus-visible {
+  outline: 2px solid var(--sa-focus);
+  outline-offset: -2px;
+}
+
+.subagent-group-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 1px;
+  border-radius: 50%;
+  background: var(--sa-pine);
+}
+
+.subagent-group-title {
+  flex: none;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.subagent-group-counts {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sa-t3);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-group-time {
+  flex: none;
+  margin-left: auto;
+  color: var(--sa-t3);
+  font: 11.5px var(--sa-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.subagent-group-chev {
+  flex: none;
+  margin-left: auto;
+  color: var(--sa-t4);
+  transition: transform 0.18s;
+}
+
+.subagent-group-time ~ .subagent-group-chev {
+  margin-left: 0;
+}
+
+.subagent-group-head[aria-expanded='false'] .subagent-group-chev {
+  transform: rotate(-90deg);
+}
+
+.subagent-group-rows {
+  padding: 4px 0 6px;
+  border-top: 1px solid var(--sa-rule);
+}
+
+.subagent-group.is-single .subagent-group-rows {
+  padding: 4px 0;
+  border-top: 0;
+}
+
+.subagent-group-rows[hidden] {
+  display: none;
+}
+
+.subagent-group .subagent-embed {
+  position: relative;
+}
+
+/* ── Row ────────────────────────────────────────────────────────────── */
+.subagent-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  column-gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 5px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.subagent-row:disabled {
+  cursor: default;
+}
+
+.subagent-row:hover {
+  background: var(--sa-hover);
+}
+
+/* A running row carries the stop control beside it (the row is a button). */
+.subagent-embed[data-stoppable='true'] > .subagent-row {
+  padding-right: 42px;
+}
+
+.subagent-group .subagent-invocation-stop {
+  top: 4px;
+  right: 8px;
+}
+
+.subagent-seal {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--sa-azure);
+  color: #fff;
+  font: 600 11px/1 var(--sa-serif);
+  transform: rotate(-1.5deg);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+  user-select: none;
+}
+
+.subagent-seal[data-status='completed'],
+.subagent-seal[data-status='needs-integration'] {
+  background: var(--sa-pine);
+}
+
+.subagent-seal[data-status='failed'] {
+  background: var(--sa-crimson);
+}
+
+.subagent-seal[data-status='queued'],
+.subagent-seal[data-status='starting'],
+.subagent-seal[data-status='cancelled'] {
+  background: var(--sa-t4);
+}
+
+.subagent-row-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.subagent-row-title {
+  flex: 0 1 auto;
+  min-width: 3em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-row[data-phase='done'] .subagent-row-title,
+.subagent-row[data-phase='cancelled'] .subagent-row-title {
+  color: var(--sa-t2);
+}
+
+.subagent-row .subagent-review-loop-attach {
+  flex: none;
+  margin-left: 0;
+}
+
+.subagent-row-meta {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sa-t4);
+  font: 11.5px var(--sa-mono);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-row-meta > * + *::before {
+  content: ' · ';
+}
+
+.subagent-row-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sa-t3);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.subagent-row[data-phase='running'] .subagent-row-state {
+  color: var(--sa-lamp);
+}
+
+.subagent-row[data-phase='done'] .subagent-row-state {
+  color: var(--sa-pine);
+}
+
+.subagent-row[data-phase='failed'] .subagent-row-state {
+  color: var(--sa-crimson);
+}
+
+.subagent-row[data-phase='done'] .subagent-row-state:not(.has-badges)::before {
+  content: '✓ ';
+  white-space: pre;
+}
+
+.subagent-row[data-phase='failed'] .subagent-row-state:not(.has-badges)::before {
+  content: '✗ ';
+  white-space: pre;
+}
+
+.subagent-row-state .ui-status-badge {
+  height: auto;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sa-lamp-wash);
+  box-shadow: none;
+  color: var(--sa-lamp);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.subagent-row-state .ui-status-badge[data-tone='danger'] {
+  background: var(--sa-crimson-wash);
+  color: var(--sa-crimson);
+}
+
+.subagent-row-activity {
+  display: flex;
+  grid-column: 2 / -1;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding-top: 1px;
+  color: var(--sa-t3);
+  font-size: 12.5px;
+}
+
+.subagent-row-activity .subagent-activity-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-row[data-phase='failed'] .subagent-row-activity {
+  color: var(--sa-crimson);
+}
+
+.subagent-group .subagent-grind-spinner {
+  border-color: var(--sa-ring);
+  border-top-color: var(--sa-lamp);
+}
+
+/* ── Inline session (opened on demand, beneath its row) ──────────────── */
+.subagent-group .subagent-inline-session {
+  margin: 2px 12px 8px 44px;
+  overflow: hidden;
+  border-top: 0;
+  border-radius: 8px;
+  background: var(--sa-code);
+  box-shadow: inset 0 0 0 1px var(--sa-rule);
+  color: var(--sa-t2);
+  font-size: 12.5px;
+}
+
+.subagent-group .subagent-inline-header {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--sa-rule);
+  background: transparent;
+}
+
+@media (max-width: 520px) {
+  .subagent-row-main {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .subagent-row-meta {
+    flex: none;
+  }
+
+  .subagent-group-counts {
+    display: none;
+  }
+
+  .subagent-group .subagent-inline-session {
+    margin-left: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subagent-group-chev,
+  .subagent-group .subagent-grind-spinner {
+    transition: none;
+    animation: none;
+  }
+}
