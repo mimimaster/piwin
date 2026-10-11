@@ -12,6 +12,7 @@ import type { RunRegistry } from './run-registry.js';
 import type { RuntimeResourceCoordinator } from './runtime-resource-coordinator.js';
 import type { SchedulerState } from './subagent-scheduler.js';
 import type { SubagentIntegrationCoordinator } from './subagent-integration-coordinator.js';
+import type { SubagentUsageTracker } from './subagent-invocation-usage.js';
 import type {
   PreparedSubagentTask,
   SubagentOrchestratorOptions,
@@ -31,6 +32,8 @@ export interface BatchState {
   leases: Map<string, SubagentWorkspaceLease>;
   taskRunIds: Map<string, string>;
   invocations: Map<string, SubagentInvocation>;
+  /** Host-side tool/token counters per invocation id; die with the batch. */
+  usageTrackers: Map<string, SubagentUsageTracker>;
   errors: Error[];
   /** Set when the user stopped this batch from a shell control. */
   cancelledByUser?: boolean;

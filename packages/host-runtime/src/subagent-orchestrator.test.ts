@@ -1,5 +1,8 @@
 import { readFileSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { createSubagentRunStore } from '@piwin/session';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
@@ -369,6 +372,104 @@ describe('SubagentOrchestrator', () => {
       providerId: 'custom-openai',
       modelId: 'deepseek-v4-flash',
     });
+  });
+
+  it('counts child tool calls and tokens on the Host, persists them, and pushes them', async () => {
+    const runsRoot = await mkdtemp(join(tmpdir(), 'piwin-subagent-usage-'));
+    try {
+      const gate = createDeferred();
+      const backend = makeFakeBackend({ waitFor: gate.promise });
+      const { push, pushes } = makePushCollector();
+      const runStore = createSubagentRunStore({ runsDir: join(runsRoot, 'subagent-runs') });
+      const orchestrator = new SubagentOrchestrator({
+        taskRunner: backend.taskRunner,
+        workspaceService: backend.workspaceService,
+        prepareTask: backend.prepareTask,
+        runRegistry: new RunRegistry(),
+        integrationCoordinator: makeFakeIntegrationCoordinator(),
+        runStore,
+        push,
+        getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+      });
+      const handle = orchestrator.startBatch(
+        makeBatch([makeTask({ id: 'a', invocationId: 'inv-a', parentToolCallId: 'tool-a' })]),
+      );
+      const invocationPushes = () =>
+        pushes.flatMap((candidate) =>
+          candidate.type === 'subagent/invocation-updated' && candidate.invocation.id === 'inv-a'
+            ? [candidate]
+            : [],
+        );
+      await vi.waitFor(() => {
+        expect(invocationPushes().at(-1)?.invocation.status).toBe('running');
+      });
+      const before = invocationPushes().length;
+      const measurement = (id: string, totalTokens: number) => ({
+        type: 'usage/finalized' as const,
+        measurement: {
+          measurementId: id,
+          sessionId: 'child-a',
+          messageId: `msg-${id}`,
+          totalTokens,
+          recordedAt: '2026-10-11T09:00:00.000Z',
+        },
+      });
+      await orchestrator.recordInvocationEvent('inv-a', measurement('m1', 1200));
+      await orchestrator.recordInvocationEvent('inv-a', {
+        type: 'tool/start',
+        toolCallId: 'call-1',
+        toolName: 'read',
+      });
+      // Replays and deltas without a counter or activity change are not new work.
+      await orchestrator.recordInvocationEvent('inv-a', {
+        type: 'tool/start',
+        toolCallId: 'call-1',
+        toolName: 'read',
+      });
+      await orchestrator.recordInvocationEvent('inv-a', measurement('m1', 1200));
+      await orchestrator.recordInvocationEvent('inv-a', {
+        type: 'tool/update',
+        toolCallId: 'call-1',
+        delta: 'x',
+      });
+      await orchestrator.recordInvocationEvent('inv-a', {
+        type: 'tool/start',
+        toolCallId: 'call-2',
+        toolName: 'grep',
+      });
+      await orchestrator.recordInvocationEvent('inv-a', measurement('m2', 800));
+
+      const live = invocationPushes().slice(before).map((candidate) => candidate.invocation);
+      expect(live.map((invocation) => invocation.usage)).toEqual([
+        { toolCalls: 0, totalTokens: 1200, requests: 1 },
+        { toolCalls: 1, totalTokens: 1200, requests: 1 },
+        { toolCalls: 2, totalTokens: 1200, requests: 1 },
+        { toolCalls: 2, totalTokens: 2000, requests: 2 },
+      ]);
+      expect(live[1]?.activity).toEqual({ kind: 'tool', toolName: 'read' });
+      // Revisions stay monotonic so clients drop stale pushes.
+      const revisions = live.map((invocation) => invocation.revision);
+      expect([...revisions].sort((a, b) => a - b)).toEqual(revisions);
+
+      gate.resolve();
+      await handle.completion;
+      const settled = invocationPushes().at(-1)?.invocation;
+      expect(settled?.status).toBe('completed');
+      expect(settled?.usage).toEqual({ toolCalls: 2, totalTokens: 2000, requests: 2 });
+
+      const manifest = await runStore.loadManifest(handle.runId);
+      expect(manifest?.invocations['inv-a']?.usage).toEqual({
+        toolCalls: 2,
+        totalTokens: 2000,
+        requests: 2,
+      });
+      // The batch is gone: late events cannot rewrite the durable record.
+      const settledCount = invocationPushes().length;
+      await orchestrator.recordInvocationEvent('inv-a', measurement('m3', 50));
+      expect(invocationPushes()).toHaveLength(settledCount);
+    } finally {
+      await rm(runsRoot, { recursive: true, force: true });
+    }
   });
 
   it('preflights credentials before allocating a workspace or child identity', async () => {

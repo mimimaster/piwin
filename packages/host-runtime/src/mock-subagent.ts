@@ -32,6 +32,7 @@ type HostReachedMethods = Pick<
   | 'lookupBatchOwner'
   | 'getRunningInvocationActivity'
   | 'updateInvocationActivity'
+  | 'recordInvocationEvent'
 >;
 
 export type MockSubagentOrchestrator = HostReachedMethods & {
@@ -135,6 +136,7 @@ export function createMockSubagentOrchestrator(host: {
     lookupBatchOwner: async () => undefined,
     getRunningInvocationActivity: () => undefined,
     updateInvocationActivity: async () => undefined,
+    recordInvocationEvent: async () => undefined,
     /**
      * Follow-ups keep the instruction as the child's last preview and flip it
      * through the lifecycle. `subagent/updated` is a projection, so a flush

@@ -35,7 +35,7 @@ import { fail, ok } from './response-helpers.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { fallbackPetSnapshot } from './pet-snapshot-fallback.js';
-import { subagentInvocationActivityFromEvent } from './subagent-invocation-activity.js';
+import { isSubagentInvocationEvent } from './subagent-invocation-activity.js';
 
 export async function getNotesServices(deps: HostRuntimeKernel): Promise<{
   store: import('@piwin/notes').NoteStore;
@@ -393,10 +393,10 @@ export function createAgentWorkerSupervisor(deps: HostRuntimeKernel): AgentWorke
         childSessionId: sessionId,
         event,
       });
-      const invocationActivity = subagentInvocationActivityFromEvent(event);
-      if (childContext.invocationId && invocationActivity) {
+      // One call folds activity and the Host-owned tool/token counters.
+      if (childContext.invocationId && isSubagentInvocationEvent(event)) {
         void deps.subagentOrchestrator
-          ?.updateInvocationActivity(childContext.invocationId, invocationActivity)
+          ?.recordInvocationEvent(childContext.invocationId, event)
           .catch((error: unknown) => {
             deps.push({
               type: 'host/log',

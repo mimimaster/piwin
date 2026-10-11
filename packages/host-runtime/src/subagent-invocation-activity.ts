@@ -29,3 +29,12 @@ export function subagentInvocationActivityFromEvent(
       return undefined;
   }
 }
+
+/**
+ * Child events the orchestrator folds into an invocation: activity
+ * transitions plus the two counter sources. Everything else (deltas the
+ * activity map ignores, context telemetry) skips the async hop.
+ */
+export function isSubagentInvocationEvent(event: AgentEvent): boolean {
+  return event.type === 'usage/finalized' || subagentInvocationActivityFromEvent(event) !== undefined;
+}

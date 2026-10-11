@@ -3,6 +3,7 @@ import {
   type SubagentInvocation,
   type SubagentInvocationActivity,
   type SubagentInvocationStatus,
+  type SubagentInvocationUsage,
   type SubagentTaskResult,
   type SubagentTaskSpec,
 } from '@piwin/contracts';
@@ -10,6 +11,7 @@ import {
   invocationActivityForResult,
   invocationStatusForResult,
 } from './subagent-invocation-state.js';
+import { subagentUsageEquals } from './subagent-invocation-usage.js';
 import {
   invocationActivityKey,
   toError,
@@ -53,16 +55,20 @@ export async function updateInvocation(
     status: SubagentInvocationStatus;
     activity: SubagentInvocationActivity;
     childSessionId?: string;
+    /** Host-measured counters; omitted keeps the current ones. */
+    usage?: SubagentInvocationUsage;
   },
 ): Promise<void> {
   const invocationId = task.invocationId;
   if (!invocationId) return;
   const current = batchState.invocations.get(invocationId);
+  const usage = update.usage ?? current?.usage;
   if (
     current &&
     current.status === update.status &&
     invocationActivityKey(current.activity) === invocationActivityKey(update.activity) &&
-    (update.childSessionId === undefined || current.childSessionId === update.childSessionId)
+    (update.childSessionId === undefined || current.childSessionId === update.childSessionId) &&
+    subagentUsageEquals(current.usage, usage)
   ) {
     return;
   }
@@ -91,6 +97,7 @@ export async function updateInvocation(
         : {}),
     status: update.status,
     activity: update.activity,
+    ...(usage ? { usage: { ...usage } } : {}),
     revision: (current?.revision ?? 0) + 1,
     createdAt: current?.createdAt ?? now,
     updatedAt: now,

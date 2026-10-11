@@ -269,6 +269,26 @@ export type SubagentInvocationActivity =
   | { kind: 'failed'; message?: string }
   | { kind: 'cancelled' };
 
+/**
+ * Host-measured work of one invocation's child run. The Host counts these
+ * from the child's own event stream (distinct `tool/start` calls and
+ * finalized provider requests), not from any client-side bounded tail, and
+ * persists them with the invocation so settled and reloaded sessions keep
+ * them. Older Hosts omit the whole object.
+ */
+export type SubagentInvocationUsage = {
+  /** Distinct tool calls the child started during this invocation. */
+  toolCalls: number;
+  /**
+   * Sum of `totalTokens` over the child's finalized provider requests
+   * (prompt + completion as the provider reports them, cache reads included).
+   * Zero until the first request finalizes.
+   */
+  totalTokens: number;
+  /** Finalized provider requests contributing to `totalTokens`. */
+  requests: number;
+};
+
 export type SubagentInvocation = {
   id: string;
   parentSessionId: string;
@@ -294,6 +314,8 @@ export type SubagentInvocation = {
   candidateLineageId?: string;
   candidateGeneration?: number;
   predecessorResult?: SubagentResultRef;
+  /** Host-measured tool calls and tokens; absent on older Hosts. */
+  usage?: SubagentInvocationUsage;
   /** Monotonic within this invocation; consumers ignore stale revisions. */
   revision: number;
   createdAt: string;

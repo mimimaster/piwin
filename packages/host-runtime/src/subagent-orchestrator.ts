@@ -28,6 +28,7 @@
  */
 
 import type {
+  AgentEvent,
   HostPush,
   SubagentBatchProjection,
   SubagentBatchRequest,
@@ -60,6 +61,11 @@ import {
   releaseWorkspaceLeases,
 } from './subagent-orchestrator-finalize.js';
 import { updateInvocation } from './subagent-orchestrator-invocation.js';
+import { subagentInvocationActivityFromEvent } from './subagent-invocation-activity.js';
+import {
+  applySubagentUsageEvent,
+  createSubagentUsageTracker,
+} from './subagent-invocation-usage.js';
 import { dispatchTask } from './subagent-orchestrator-task.js';
 import type {
   PreparedSubagentTask,
@@ -199,6 +205,7 @@ export class SubagentOrchestrator {
       leases: new Map(),
       taskRunIds: new Map(),
       invocations: new Map(),
+      usageTrackers: new Map(),
       errors: [],
       ...acceptedLatch,
       ...completionLatch,
@@ -403,6 +410,37 @@ export class SubagentOrchestrator {
       await updateInvocation(this.context(), batchState, task, {
         status: 'running',
         activity,
+        ...(current.childSessionId ? { childSessionId: current.childSessionId } : {}),
+      });
+      return;
+    }
+  }
+
+  /**
+   * Fold one child event into the invocation's Host-owned work counters and
+   * its running activity, persisting and pushing at most one revision. The
+   * counters keep counting after the execution settles (the last usage
+   * measurement can land after the result) while the batch is still active.
+   */
+  async recordInvocationEvent(invocationId: string, event: AgentEvent): Promise<void> {
+    for (const batchState of this.activeBatches.values()) {
+      const current = batchState.invocations.get(invocationId);
+      if (!current) continue;
+      const task = batchState.schedulerState.tasks.get(current.taskId);
+      if (!task) return;
+      let tracker = batchState.usageTrackers.get(invocationId);
+      if (!tracker) {
+        tracker = createSubagentUsageTracker(current.usage);
+        batchState.usageTrackers.set(invocationId, tracker);
+      }
+      const usageChanged = applySubagentUsageEvent(tracker, event);
+      const activity =
+        current.status === 'running' ? subagentInvocationActivityFromEvent(event) : undefined;
+      if (!usageChanged && !activity) return;
+      await updateInvocation(this.context(), batchState, task, {
+        status: current.status,
+        activity: activity ?? current.activity,
+        usage: tracker.usage,
         ...(current.childSessionId ? { childSessionId: current.childSessionId } : {}),
       });
       return;
