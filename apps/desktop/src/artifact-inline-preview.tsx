@@ -1,12 +1,15 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import type {
   ArtifactActionMessage,
   ArtifactRenderPlan,
   ArtifactThemeVariables,
 } from '@piwin/artifact';
-import { IconButton, IconCode, IconDownload } from '@piwin/ui-kit';
+import { IconButton, IconCanvas, IconCode, IconDownload, IconExpand } from '@piwin/ui-kit';
 import { ArtifactFrame } from './ArtifactFrame.js';
 import { artifactDownloadLabel, downloadArtifactSource } from './artifact-source-export.js';
+import { ArtifactFullscreenOverlay } from './artifact-fullscreen-overlay.js';
+import { artifactViewerCopy, resolveArtifactViewerKey } from './artifact-viewer-model.js';
+import { isMobileTauriRuntime } from './shell-runtime.js';
 
 export type ArtifactInlinePreviewProps = {
   plan: Extract<ArtifactRenderPlan, { kind: 'render' }>;
@@ -17,6 +20,9 @@ export type ArtifactInlinePreviewProps = {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   locale: 'zh-CN' | 'en';
   onShowSource: () => void;
+  /** Promote this fence to the Canvas surface; omitted when Canvas is unavailable. */
+  onOpenCanvas?: () => void;
+  mediaDataUrls?: ReadonlyMap<string, string>;
 };
 
 /**
@@ -29,6 +35,11 @@ export function ArtifactInlinePreview(props: ArtifactInlinePreviewProps): ReactE
   const exportKind = descriptor.type === 'svg' ? 'svg' : 'html';
   const canExportSource = originalSource.trim().length > 0;
   const downloadLabel = artifactDownloadLabel(props.locale, exportKind);
+  const copy = artifactViewerCopy(props.locale);
+  const [fullscreen, setFullscreen] = useState(false);
+  // A growing stream has no final document to show bigger yet.
+  const settled = props.plan.mode !== 'stream-preview';
+  const onOpenCanvas = settled ? props.onOpenCanvas : undefined;
 
   return (
     <>
@@ -42,7 +53,37 @@ export function ArtifactInlinePreview(props: ArtifactInlinePreviewProps): ReactE
           {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
         />
       </div>
-      <div className="artifact-floating-actions">
+      <div
+        className="artifact-floating-actions"
+        onKeyDown={(event) => {
+          const action = resolveArtifactViewerKey(event.nativeEvent, { surface: 'inline', presets: false });
+          if (action?.kind === 'open-canvas' && onOpenCanvas) {
+            event.preventDefault();
+            onOpenCanvas();
+          }
+        }}
+      >
+        {onOpenCanvas ? (
+          <IconButton
+            label={copy.openCanvas}
+            title={`${copy.openCanvas} (⌘⇧O)`}
+            className="artifact-floating-action-button"
+            data-testid="artifact-open-canvas"
+            onClick={onOpenCanvas}
+          >
+            <IconCanvas size={14} />
+          </IconButton>
+        ) : null}
+        <IconButton
+          label={copy.fullscreen}
+          title={`${copy.fullscreen} — ${copy.remountNote}`}
+          className="artifact-floating-action-button"
+          data-testid="artifact-open-fullscreen"
+          disabled={!settled}
+          onClick={() => setFullscreen(true)}
+        >
+          <IconExpand size={14} />
+        </IconButton>
         <IconButton
           label={downloadLabel}
           title={downloadLabel}
@@ -71,6 +112,17 @@ export function ArtifactInlinePreview(props: ArtifactInlinePreviewProps): ReactE
           <IconCode size={14} />
         </IconButton>
       </div>
+      {fullscreen ? (
+        <ArtifactFullscreenOverlay
+          intent={props.plan.intent}
+          source={originalSource}
+          locale={props.locale}
+          presets={!isMobileTauriRuntime()}
+          {...(props.artifactTheme ? { hostTheme: props.artifactTheme } : {})}
+          {...(props.mediaDataUrls ? { mediaDataUrls: props.mediaDataUrls } : {})}
+          onClose={() => setFullscreen(false)}
+        />
+      ) : null}
     </>
   );
 }

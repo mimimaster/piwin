@@ -51,3 +51,18 @@ sessions.
 - The conversation token-budget test (CHT-803, limit 2500) was already red on
   `main` (2572); v14 does not change that and does not raise the limit.
 - Theme packages need no change; overrides are optional.
+
+## Viewer (P2)
+
+7. **Fullscreen, no pop-out.** Inline and Canvas artifacts open in a fixed
+   overlay portaled into the main window (`ArtifactFullscreenOverlay`). The
+   frame remounts in Canvas mode on its own bridge channel
+   (`<id>:fullscreen`); Esc always exits and focus returns to the opener.
+8. **Inline → Canvas.** “Open in Canvas” promotes the same fence (same target
+   id) to the Canvas surface; the Inline copy stays, so the Canvas frame uses
+   channel `<id>:canvas`.
+9. **32px Canvas toolbar**, always visible: title + `Canvas · <style>`, width
+   presets (fit/760/390, fullscreen adds 1200), preview theme
+   (follow/paper/ink; repaints only that frame, never persisted), fullscreen,
+   code, download (moved from the floating button). Keys: F, Esc, 1–4, T;
+   ⌘⇧O on an Inline artifact's actions. The mobile shell shows fullscreen only.

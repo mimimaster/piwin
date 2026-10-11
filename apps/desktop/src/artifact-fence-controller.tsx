@@ -11,7 +11,10 @@ import { Button } from '@piwin/ui-kit';
 import { ArtifactCanvasLauncher } from './artifact-canvas-launcher.js';
 import { ArtifactInlinePreview } from './artifact-inline-preview.js';
 import { artifactIncompleteCopy } from './artifact-incomplete-copy.js';
-import { createArtifactCanvasTarget } from './artifact-canvas-model.js';
+import {
+  createArtifactCanvasTarget,
+  createPromotedArtifactCanvasTarget,
+} from './artifact-canvas-model.js';
 import { isShellLanguage, SourceCodeBlock } from './markdown-code-block.js';
 import type { MarkdownCodeFenceProps } from './markdown-code-fence.js';
 import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
@@ -252,6 +255,24 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     );
   }
 
+  // “Open in Canvas” for an Inline artifact: same fence, Canvas surface.
+  const promoteToCanvas =
+    analysis.kind === 'intent' && mountsInline && canvasEnabled && origin && onOpenCanvas
+      ? () =>
+          onOpenCanvas(
+            createPromotedArtifactCanvasTarget({
+              sessionId: origin.sessionId,
+              messageId: origin.messageId,
+              fenceIndex: boundFenceIndex,
+              intent: analysis.intent,
+            }),
+          )
+      : undefined;
+  const viewerProps = {
+    mediaDataUrls,
+    ...(promoteToCanvas ? { onOpenCanvas: promoteToCanvas } : {}),
+  };
+
   if (willMountInlineFrame && plan === null) {
     // One layout pass to measure typography; nothing paints in between.
     return previewRoot(null, liveFence);
@@ -266,6 +287,8 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
           initPriority={props.initPriority}
           locale={props.locale}
           onShowSource={showArtifactSource}
+        {...viewerProps}
+          {...viewerProps}
           {...(props.artifactThemeKey ? { artifactThemeKey: props.artifactThemeKey } : {})}
           {...(props.artifactTheme ? { artifactTheme: props.artifactTheme } : {})}
           {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
@@ -344,6 +367,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
         initPriority={props.initPriority}
         locale={props.locale}
         onShowSource={showArtifactSource}
+        {...viewerProps}
         {...(props.artifactThemeKey ? { artifactThemeKey: props.artifactThemeKey } : {})}
         {...(props.artifactTheme ? { artifactTheme: props.artifactTheme } : {})}
         {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
