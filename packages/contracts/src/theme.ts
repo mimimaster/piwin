@@ -90,6 +90,15 @@ export type ThemeManifest = {
     border: string;
     radius: string;
     font: string;
+    /** Runtime v14 vocabulary; each defaults to the Deck ramp. */
+    surface2: string;
+    subtle: string;
+    borderStrong: string;
+    ok: string;
+    warn: string;
+    risk: string;
+    info: string;
+    accent2: string;
   }>;
 };
 

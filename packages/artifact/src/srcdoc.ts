@@ -164,7 +164,7 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   <meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(csp)}" />
   <meta name="piwin-artifact-channel" content="${channelAttr}" />
   <style data-piwin-artifact-theme>${css}</style>
-  <style data-piwin-artifact-report-kit>${buildArtifactReportKitCss()}</style>
+  <style data-piwin-artifact-report-kit>${buildArtifactReportKitCss({ rules: input.rules ?? 'legacy' })}</style>
 ${bridge}`;
   const themeGuardStyle = themeGuardCss
     ? `\n  <style data-piwin-artifact-theme-guard>${themeGuardCss}</style>`

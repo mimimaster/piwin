@@ -4,6 +4,7 @@
  * create a second scrollport.
  */
 import { resolveArtifactOnAccent } from './theme.js';
+import { resolveArtifactV14Tokens } from './theme-tokens.js';
 import type { ArtifactRules, ArtifactThemeVariables } from './types.js';
 
 function escapeCssValue(value: string): string {
@@ -26,16 +27,29 @@ export function resolveArtifactOnAccentForRules(
   return resolveArtifactOnAccent(theme);
 }
 
+/**
+ * The CSS variables an artifact document receives: the theme as authored,
+ * the rules-specific `on-accent`, and the complete v14 vocabulary. Shared by
+ * the sandbox srcdoc and the static Shadow DOM renderer.
+ */
+export function resolveArtifactThemeCssVariables(
+  theme: ArtifactThemeVariables,
+  rules: ArtifactRules = 'legacy',
+): Array<[string, string]> {
+  const merged = new Map<string, string>();
+  for (const [name, value] of Object.entries(theme)) {
+    if (typeof value === 'string' && !HOST_ONLY_THEME_INPUTS.has(name)) merged.set(name, value);
+  }
+  merged.set('--piwin-artifact-on-accent', resolveArtifactOnAccentForRules(theme, rules));
+  for (const [name, value] of resolveArtifactV14Tokens(theme)) merged.set(name, value);
+  return [...merged];
+}
+
 export function buildArtifactThemeCss(
   theme: ArtifactThemeVariables,
   options: { rules?: ArtifactRules } = {},
 ): string {
-  const variables = Object.entries({
-    ...theme,
-    '--piwin-artifact-on-accent': resolveArtifactOnAccentForRules(theme, options.rules),
-  })
-    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-    .filter(([name]) => !HOST_ONLY_THEME_INPUTS.has(name))
+  const variables = resolveArtifactThemeCssVariables(theme, options.rules)
     .map(([name, value]) => `  ${name}: ${escapeCssValue(value)};`)
     .join('\n');
   const colorScheme = theme['--piwin-artifact-theme'] === 'dark' ? 'dark' : 'light';

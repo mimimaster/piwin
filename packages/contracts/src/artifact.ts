@@ -131,6 +131,12 @@ export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
 /** Host tool that returns the decision policy + runtime contract on demand. */
 export const ARTIFACT_INSTRUCTIONS_TOOL_NAME = 'artifact_instructions' as const;
 
+/**
+ * Renderer generation a shell advertises on `PromptInput.artifactKit`.
+ * 1 = renders runtime contract v14 (extended tokens, `style`, built-in kit).
+ */
+export const ARTIFACT_KIT_VERSION = 1 as const;
+
 /** Trigger constraint prefixed onto instructions whenever triggerMode is explicit-only. */
 export const ARTIFACT_EXPLICIT_ONLY_HINT =
   'Use an Artifact only when the user explicitly requests an artifact, visualization, interactive page, prototype, or UI.';
@@ -239,7 +245,7 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
  * Users can replace this via `decisionPrompt.mode = 'custom'`.
  */
 export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
-  '[piwin-prompt-meta kind="artifact:decision" version="10" applies="artifacts-enabled"]',
+  '[piwin-prompt-meta kind="artifact:decision" version="11" applies="artifacts-enabled"]',
   '<artifact-decision-policy name="piwin-proactive-surfaces">',
   '## Decision Criteria',
   "Choose the presentation that makes the user's information easiest to scan, understand, search, copy, compare, and reuse.",
@@ -247,6 +253,7 @@ export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
   '',
   'The Canvas trigger is **user intent**, not response shape or length. Ask: would the user benefit from viewing this as its own workspace beside the conversation, in the right-side Canvas panel? If yes, declare `surface="canvas"`.',
   'MUST use Canvas when the primary deliverable is a standalone analytical artifact: architecture reviews, plan reviews, code-base or design reviews, security audits, delivery reports, findings write-ups, quantitative breakdowns, timelines, or large comparison tables. If you catch yourself about to dump a Markdown wall or a large Markdown table as the answer, stop and emit Canvas instead.',
+  'Unprompted artifacts use `style="host"`.',
   '',
   '### 1. Ordinary Markdown (Default for simple text)',
   '- Short answers (1–2 paragraphs), direct code explanations, debugging, or simple snippets.',
@@ -299,18 +306,18 @@ export function resolveArtifactDecisionPrompt(config: ArtifactConfig): string {
  */
 export function formatArtifactProtocol(): string {
   const fenceClose = '```';
-  const inlineOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title"`;
-  const canvasOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" surface="canvas"`;
-  const svgOpen = '```svg title="Short descriptive title"';
+  const inlineOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" style="host"`;
+  const canvasOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" surface="canvas" style="host"`;
+  const svgOpen = '```svg title="Short descriptive title" style="host"';
   return [
-    '[piwin-prompt-meta kind="artifact:runtime" version="13" applies="artifacts-enabled"]',
+    '[piwin-prompt-meta kind="artifact:runtime" version="14" applies="artifacts-enabled"]',
     '## HTML Artifact Runtime Contract',
     '',
     '### Success',
     'A self-contained artifact fence that renders correctly in the chat column sandbox.',
     '',
     '### Fences',
-    'Opening fence starts at column 0 of its own line. Keep `title` and `surface` on that same opening line; do not wrap attributes onto the next line. HTML/SVG body follows. Closing fence alone on its own line. Never append the opening fence to a sentence.',
+    'Opening fence starts at column 0 of its own line. Keep `title`, `surface` and `style` on that same opening line; do not wrap attributes onto the next line. HTML/SVG body follows. Closing fence alone on its own line. Never append the opening fence to a sentence.',
     '',
     'Inline:',
     inlineOpen,
@@ -328,10 +335,12 @@ export function formatArtifactProtocol(): string {
     fenceClose,
     '',
     '### Constraints (break without these)',
-    '- Colors: for proactive artifacts (including reports, reviews, and voice-delegated tasks), use only `--piwin-artifact-*` theme vars (`surface`, `text`, `muted`, `accent`, `on-accent`, `border`, `bg`) to adapt to host theme. These seven are the whole set: never invent other names (e.g. `surface-elevated`), never write `var(--piwin-artifact-x, <fallback>)` with your own palette, and never hard-code hex/rgb colors for text, backgrounds, or borders (no `color: #fff`, no dark slate cards). For states, tint with `color-mix(in srgb, var(--piwin-artifact-accent) 12%, transparent)`. Text is only ever `text`, `muted`, `accent`, or — on a solid `accent` fill such as a selected chip or primary button — `on-accent`. `bg` is transparent and `surface` is a faint tint: never use either as a text color, the label disappears. For the same reason anything that floats over content (sticky bar, toast, popover) takes `surface` as its background, never `bg`. Only when the user explicitly asks for a custom look (e.g. custom SVG, a styled HTML page, or an explicit UI design) may you style freely with custom colors.',
+    '- Style: every fence declares `style="host"`, or `style="expressive"` only when the user asks for a look, prototype, game, or poster. Reports and anything shown unprompted stay `host`.',
+    '- Colors: only `--piwin-artifact-*` vars: `bg surface surface-2 text muted subtle accent accent-2 on-accent border border-strong`, status `ok warn info risk` (`risk` = real problems), charts `series-1`…`series-6`. Never invent names or add fallback palettes; no hex/rgb for text, backgrounds or borders outside expressive illustrations. Text: `text`/`muted`/`subtle`/status, or `on-accent` on a solid fill; never `bg`/`surface*`. Tint: `color-mix(in srgb, var(--piwin-artifact-<c>) 12%, transparent)`. Floating layers (sticky bar, toast, popover) use `surface`.',
     '- Inline code & tokens: inline `<code>` and technical identifiers must use a neutral translucent background `color-mix(in srgb, var(--piwin-artifact-text) 8%, transparent)` with text `var(--piwin-artifact-text)`. Never use reddish, maroon, or brownish backgrounds for code tokens (red is strictly reserved for errors/diff deletions). Badges use muted neutral for inactive/hidden, accent for ready/visible, amber for estimate/progress.',
     '- Host theme: a client may supply the send-time host theme (`light` or `dark`) as advisory context. Match it. On a light host never produce a dark-mode design (dark page, dark stage, dark slate cards, light-on-dark text); on a dark host never produce a glaring white page. This also applies when the user asks for a custom look: pick a palette that sits naturally on the host background unless the user explicitly asks for the opposite mode. Without a hint, stay on the theme vars so either mode works.',
-    '- Proactive visual tone is flat and quiet: no gradients, glows, glassmorphism, or decorative emoji in headings or labels. Hierarchy comes from type size/weight, spacing, borders, and grouping.',
+    '- Host tone: quiet, not flat: `shadow-1` on cards, `shadow-2` on floating layers, `radius-sm`/`radius-lg`; title hierarchy by size and weight in `--piwin-artifact-font` (no serif or display fonts); one hero may use a theme-var gradient; no glows, glass, neon, or emoji in labels.',
+    '- Expressive: an inner stage may paint gradients, illustration, motion, large type; the outer page stays transparent; text keeps 4.5:1 and reads on light and dark hosts.',
     '- Outermost wrapper background: transparent on Inline and Canvas; surface colors on inner cards only. Never paint html/body/the outer stage as a dark full-bleed page — that becomes a black Canvas on a paper host. Dark `pre`/`code` islands may keep their own contrast pair.',
     '- Inline layout is a 360–760px chat column; fluid grids; not a full-page landing. Inline grows with its content: no page-level or nested vertical scroll regions; let the conversation own vertical scrolling; never add horizontal scrolling to Inline. No viewport-filling height (`100vh`/`100%`) or page-level overflow on html/body/outer wrapper for Inline.',
     '- A client may supply a send-time Inline column width as advisory context. Never hardcode it: use width:100%, max-width:100%, min-width:0, border-box sizing and container queries to adapt through resizing and replay. Remain readable at 360px and adapt below that where needed. A width hint does not request artifact generation.',

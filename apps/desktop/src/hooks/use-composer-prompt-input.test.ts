@@ -61,6 +61,9 @@ describe('useComposerPromptInput permissionPreset', () => {
       root.remove();
     }
   });
+  it('advertises the artifact kit generation so Host keeps the v14 rules', () => {
+    expect(readPromptInput({}).artifactKit).toBe(1);
+  });
   it('sends composer Ask on project prompts so Host can gate tools', () => {
     const input = readPromptInput({ permissionPreset: 'ask' });
     expect(input.permissionPreset).toBe('ask');

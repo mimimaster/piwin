@@ -52,7 +52,7 @@ describe('canonical artifact language', () => {
 describe('default artifact decision prompt', () => {
   it('wraps the proactive decision policy in a metadata block', () => {
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '[piwin-prompt-meta kind="artifact:decision" version="10" applies="artifacts-enabled"]',
+      '[piwin-prompt-meta kind="artifact:decision" version="11" applies="artifacts-enabled"]',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
       '<artifact-decision-policy name="piwin-proactive-surfaces">',
@@ -117,7 +117,7 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toContain('```artifact-html title="Short descriptive title" surface="canvas"');
     expect(protocol).toContain('surface="canvas"');
     expect(protocol).toContain('--piwin-artifact-');
-    expect(protocol).toContain('kind="artifact:runtime" version="13"');
+    expect(protocol).toContain('kind="artifact:runtime" version="14"');
     expect(protocol).toContain('On a light host never produce a dark-mode design');
     expect(protocol).toContain('data-piwin-media');
     expect(protocol).toContain('Never `data:image`');
@@ -150,21 +150,32 @@ describe('artifact protocol formatter', () => {
     }
   });
 
+  it('runtime v14 teaches style declaration and the extended vocabulary', () => {
+    const protocol = formatArtifactProtocol();
+    expect(protocol).toContain('`style="host"`');
+    expect(protocol).toContain('`style="expressive"`');
+    for (const token of ['surface-2', 'border-strong', 'ok warn info risk', 'series-1', 'shadow-1', 'radius-lg']) {
+      expect(protocol).toContain(token);
+    }
+    expect(protocol).toContain('no serif or display fonts');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Unprompted artifacts use `style="host"`.');
+  });
+
   it('shows block fences on their own line, not one-line empty fences', () => {
     const protocol = formatArtifactProtocol();
     expect(protocol).toContain('column 0 of its own line');
     expect(protocol).toContain('do not wrap attributes onto the next line');
     expect(protocol).toContain('Never append the opening fence to a sentence');
-    expect(protocol).toContain('```artifact-html title="Short descriptive title"\n');
+    expect(protocol).toContain('```artifact-html title="Short descriptive title" style="host"\n');
     expect(protocol).toContain(
-      '```artifact-html title="Short descriptive title" surface="canvas"\n',
+      '```artifact-html title="Short descriptive title" surface="canvas" style="host"\n',
     );
-    expect(protocol).toContain('```svg title="Short descriptive title"\n');
-    expect(protocol).not.toMatch(/```artifact-html title="Short descriptive title"```/);
+    expect(protocol).toContain('```svg title="Short descriptive title" style="host"\n');
+    expect(protocol).not.toMatch(/```artifact-html title="Short descriptive title" style="host"```/);
     expect(protocol).not.toMatch(
-      /```artifact-html title="Short descriptive title" surface="canvas"```/,
+      /```artifact-html title="Short descriptive title" surface="canvas" style="host"```/,
     );
-    expect(protocol).not.toMatch(/```svg title="Short descriptive title"```/);
+    expect(protocol).not.toMatch(/```svg title="Short descriptive title" style="host"```/);
   });
 
   it('assembles decision policy plus protocol without a second surface-rule copy', () => {

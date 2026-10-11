@@ -5,6 +5,7 @@ import {
   applyInlineArtifactLayout,
   formatArtifactHostTheme,
   formatInlineArtifactLayout,
+  formatLegacyArtifactClient,
 } from './inline-artifact-layout.js';
 
 const BOTH_SURFACES: ResolvedArtifactCapability = { enabled: true, inline: true, canvas: true };
@@ -28,7 +29,7 @@ describe('Artifact rendering context', () => {
     },
   );
   it('tracks layout-only context as one ledger entry', () => {
-    const original: PromptInput = { text: 'Compare phones', inlineArtifactWidthPx: 679.6 };
+    const original: PromptInput = { text: 'Compare phones', inlineArtifactWidthPx: 679.6, artifactKit: 1 };
     const prepared = { ...original };
     const assembly = createModelPromptAssembly();
     applyInlineArtifactLayout(prepared, BOTH_SURFACES, assembly);
@@ -51,7 +52,7 @@ describe('Artifact rendering context', () => {
     expect(contributions[0]?.label).toBe('Inline artifact layout');
   });
   it('tells the model the host background so a light host never gets a dark canvas', () => {
-    const input: PromptInput = { text: 'Write a report', artifactHostTheme: 'light' };
+    const input: PromptInput = { text: 'Write a report', artifactHostTheme: 'light', artifactKit: 1 };
     const assembly = createModelPromptAssembly();
     applyInlineArtifactLayout(input, BOTH_SURFACES, assembly);
     expect(input).not.toHaveProperty('artifactHostTheme');
@@ -69,6 +70,7 @@ describe('Artifact rendering context', () => {
       text: 'Compare phones',
       inlineArtifactWidthPx: 693,
       artifactHostTheme: 'dark',
+      artifactKit: 1,
     };
     const assembly = createModelPromptAssembly();
     applyInlineArtifactLayout(input, BOTH_SURFACES, assembly);
@@ -142,5 +144,40 @@ describe('Artifact hint follows the session surfaces', () => {
     const input: PromptInput = { text: 'Refactor', inlineArtifactWidthPx: 680 };
     applyInlineArtifactLayout(input, undefined, createModelPromptAssembly());
     expect(input).toEqual({ text: 'Refactor' });
+  });
+});
+
+describe('Legacy artifact client note', () => {
+  it.each([undefined, null, 0, '1', NaN, {}])('treats artifactKit %s as a pre-v14 shell', (kit) => {
+    expect(formatLegacyArtifactClient(kit)).toContain('[piwin-artifact-legacy-client]');
+  });
+  it.each([1, 2])('stays silent for artifactKit %s', (kit) => {
+    expect(formatLegacyArtifactClient(kit)).toBeUndefined();
+  });
+  it('downgrades an old Desktop turn to the pre-v14 rules as its own ledger entry', () => {
+    const input: PromptInput = { text: 'Chart it', inlineArtifactWidthPx: 680, artifactHostTheme: 'dark' };
+    const assembly = createModelPromptAssembly();
+    applyInlineArtifactLayout(input, BOTH_SURFACES, assembly);
+    expect(input.text.startsWith('[piwin-artifact-legacy-client]')).toBe(true);
+    expect(input.text).toContain('omit the fence `style` attribute');
+    expect(input.text).toContain('bg surface text muted accent on-accent border');
+    expect(input.text.endsWith('\n\nChart it')).toBe(true);
+    expect(summary(assembly).contributions.map((entry) => entry.label)).toContain('Legacy artifact client');
+  });
+  it('adds no note for a v14 shell and strips the flag', () => {
+    const input: PromptInput = { text: 'Chart it', artifactHostTheme: 'light', artifactKit: 1 };
+    applyInlineArtifactLayout(input, BOTH_SURFACES, createModelPromptAssembly());
+    expect(input.text).not.toContain('legacy-client');
+    expect(input).not.toHaveProperty('artifactKit');
+  });
+  it('adds no note when the turn carries no rendering hint (CLI/TUI)', () => {
+    const input: PromptInput = { text: 'CLI' };
+    applyInlineArtifactLayout(input, BOTH_SURFACES, createModelPromptAssembly());
+    expect(input.text).toBe('CLI');
+  });
+  it('drops the flag when artifacts are disabled', () => {
+    const input: PromptInput = { text: 'hello', artifactHostTheme: 'dark', artifactKit: 1 };
+    applyInlineArtifactLayout(input, DISABLED, createModelPromptAssembly());
+    expect(input).toEqual({ text: 'hello' });
   });
 });

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElemen
 import {
   MIN_ARTIFACT_IFRAME_HEIGHT,
   buildArtifactReportKitCss,
-  resolveArtifactOnAccentForRules,
+  resolveArtifactThemeCssVariables,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
   type ArtifactRules,
@@ -23,17 +23,16 @@ export type ArtifactStaticProps = {
   locale?: 'zh-CN' | 'en';
 };
 
-const ARTIFACT_THEME_VARIABLES = [
-  '--piwin-artifact-theme',
-  '--piwin-artifact-bg',
-  '--piwin-artifact-surface',
-  '--piwin-artifact-text',
-  '--piwin-artifact-muted',
-  '--piwin-artifact-accent',
-  '--piwin-artifact-border',
-  '--piwin-artifact-radius',
-  '--piwin-artifact-font',
-] as const satisfies readonly (keyof ArtifactThemeVariables)[];
+/**
+ * Typography the shadow tree inherits from the transcript instead (see the
+ * `ArtifactThemeVariables` notes); only the sandbox needs them passed in.
+ */
+const INHERITED_TYPOGRAPHY_VARIABLES = new Set([
+  '--piwin-artifact-font-size',
+  '--piwin-artifact-line-height',
+  '--piwin-artifact-letter-spacing',
+  '--piwin-artifact-font-smoothing',
+]);
 
 const STATIC_ARTIFACT_BASE_CSS = `
 :host {
@@ -102,13 +101,15 @@ const STATIC_ARTIFACT_BASE_CSS = `
  * Without this a kit report loses all styling the moment its stream finishes
  * and the static renderer takes over.
  */
-const STATIC_ARTIFACT_REPORT_KIT_CSS = `${buildArtifactReportKitCss()}
+function buildStaticReportKitCss(rules: ArtifactRules): string {
+  return `${buildArtifactReportKitCss({ rules })}
 .piwin-artifact-root > .piwin-report {
   max-width: 100%;
   margin: 0;
   padding: 2px 0 6px;
 }
 `;
+}
 
 function resolveLocalArtifactViewportHeight(element: HTMLElement | null): number {
   const windowHeight = typeof window === 'undefined' ? 640 : window.innerHeight;
@@ -126,13 +127,14 @@ function escapeCssValue(value: string): string {
 
 function buildThemeCss(theme: ArtifactThemeVariables | undefined, rules: ArtifactRules): string {
   if (!theme) return '';
+  const variables = resolveArtifactThemeCssVariables(theme, rules).filter(
+    ([name]) => !INHERITED_TYPOGRAPHY_VARIABLES.has(name),
+  );
   // `color-scheme` keeps system colors (the contract's `Canvas` ink) on the
   // artifact theme rather than whatever the surrounding app resolves to.
-  return `:host {\n${ARTIFACT_THEME_VARIABLES.map(
-    (name) => `  ${name}: ${escapeCssValue(theme[name])};`,
-  ).join('\n')}\n  --piwin-artifact-on-accent: ${escapeCssValue(
-    resolveArtifactOnAccentForRules(theme, rules),
-  )};\n  color-scheme: ${theme['--piwin-artifact-theme']};\n}`;
+  return `:host {\n${variables
+    .map(([name, value]) => `  ${name}: ${escapeCssValue(value)};`)
+    .join('\n')}\n  color-scheme: ${theme['--piwin-artifact-theme']};\n}`;
 }
 
 /**
@@ -158,6 +160,7 @@ export function ArtifactStatic({
   const sanitizedSource =
     sanitizedNow ?? (sanitizedLater?.source === source ? sanitizedLater.value : '');
   const themeCss = useMemo(() => buildThemeCss(theme, rules), [theme, rules]);
+  const reportKitCss = useMemo(() => buildStaticReportKitCss(rules), [rules]);
 
   useEffect(() => {
     if (sanitizedNow !== null) return;
@@ -194,7 +197,7 @@ export function ArtifactStatic({
     const shadowRoot = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
     const baseStyle = document.createElement('style');
     baseStyle.dataset['piwinArtifactStaticBase'] = '';
-    baseStyle.textContent = `${themeCss}\n${STATIC_ARTIFACT_BASE_CSS}\n${STATIC_ARTIFACT_REPORT_KIT_CSS}`;
+    baseStyle.textContent = `${themeCss}\n${STATIC_ARTIFACT_BASE_CSS}\n${reportKitCss}`;
     const content = document.createElement('div');
     content.className = 'piwin-artifact-root';
     content.innerHTML = sanitizedSource;
@@ -209,7 +212,7 @@ export function ArtifactStatic({
     const observer = new ResizeObserver(measure);
     observer.observe(content);
     return () => observer.disconnect();
-  }, [sanitizedSource, themeCss]);
+  }, [sanitizedSource, themeCss, reportKitCss]);
 
   const chrome = localViewportHeight ?? resolveLocalArtifactViewportHeight(hostRef.current);
   const hint = artifactOverflowHintCopy(locale);

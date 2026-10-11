@@ -47,7 +47,9 @@ export { isProjectableStreamingFence } from './fence-syntax.js';
 export { projectArtifactMarkdownForRender } from './markdown-projection.js';
 
 export { createDefaultArtifactTheme, resolveArtifactOnAccent } from './theme.js';
-export { resolveArtifactOnAccentForRules } from './srcdoc-css.js';
+export { resolveArtifactOnAccentForRules, resolveArtifactThemeCssVariables } from './srcdoc-css.js';
+export { ARTIFACT_V14_TOKEN_NAMES, deriveArtifactV14Tokens } from './theme-tokens.js';
+export type { ArtifactV14TokenName } from './theme-tokens.js';
 export { resolveArtifactRules } from './artifact-rules.js';
 
 export { buildArtifactReportKitCss } from './srcdoc-report-kit.js';

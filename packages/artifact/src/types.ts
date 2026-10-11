@@ -92,6 +92,29 @@ export type ArtifactThemeVariables = {
   '--piwin-artifact-radius': string;
   '--piwin-artifact-font': string;
   /**
+   * Runtime v14 vocabulary. Optional so older callers keep compiling; the
+   * srcdoc fills any missing one from the base seven (see theme-tokens.ts).
+   */
+  '--piwin-artifact-surface-2'?: string;
+  '--piwin-artifact-subtle'?: string;
+  '--piwin-artifact-border-strong'?: string;
+  '--piwin-artifact-ok'?: string;
+  '--piwin-artifact-warn'?: string;
+  '--piwin-artifact-risk'?: string;
+  '--piwin-artifact-info'?: string;
+  '--piwin-artifact-accent-2'?: string;
+  '--piwin-artifact-series-1'?: string;
+  '--piwin-artifact-series-2'?: string;
+  '--piwin-artifact-series-3'?: string;
+  '--piwin-artifact-series-4'?: string;
+  '--piwin-artifact-series-5'?: string;
+  '--piwin-artifact-series-6'?: string;
+  '--piwin-artifact-shadow-1'?: string;
+  '--piwin-artifact-shadow-2'?: string;
+  '--piwin-artifact-radius-sm'?: string;
+  '--piwin-artifact-radius-lg'?: string;
+  '--piwin-artifact-font-mono'?: string;
+  /**
    * Reading typography of the transcript that hosts an Inline Artifact.
    * Static Shadow DOM inherits these; a sandbox iframe cannot, so the host
    * measures them and passes them in to keep stream and final paint identical.
