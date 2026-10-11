@@ -75,6 +75,30 @@ describe('deriveSubagentInlineDetail', () => {
     expect(failed).toMatchObject({ conclusion: '失败：web_fetch 超时', tone: 'failed' });
   });
 
+  it('drops a report-contract success verdict that only repeats 已完成', () => {
+    const contract = deriveSubagentInlineDetail({
+      status: 'completed',
+      invocation: invocation({
+        status: 'completed',
+        activity: { kind: 'completed', summary: 'complete\n- MAGIC_NUMBER=17\n- cited alpha.md:3' },
+      }),
+      locale: 'zh-CN',
+    });
+    expect(contract.conclusion).toBe('已完成：MAGIC_NUMBER=17 - cited alpha.md:3');
+    const partial = deriveSubagentInlineDetail({
+      status: 'completed',
+      invocation: invocation({ status: 'completed', activity: { kind: 'completed', summary: 'partial\nonly two files read' } }),
+      locale: 'zh-CN',
+    });
+    expect(partial.conclusion).toBe('已完成：partial only two files read');
+    const prose = deriveSubagentInlineDetail({
+      status: 'completed',
+      invocation: invocation({ status: 'completed', activity: { kind: 'completed', summary: 'completed the scan' } }),
+      locale: 'zh-CN',
+    });
+    expect(prose.conclusion).toBe('已完成：completed the scan');
+  });
+
   it('puts a pending permission ahead of the persisted activity', () => {
     const detail = deriveSubagentInlineDetail({
       status: 'running',

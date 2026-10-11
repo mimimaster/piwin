@@ -69,6 +69,19 @@ function trimmed(value: string | undefined): string | undefined {
   return text ? text : undefined;
 }
 
+/**
+ * A scheme report contract opens the child's last message with a verdict line
+ * (`complete`, `done`, `pass`). After 「已完成」 that word only repeats the
+ * status, so drop it (and the bullet it leaves leading) from the conclusion.
+ * Other verdicts (`partial`, `blocked`, …) carry news and stay.
+ */
+function withoutSuccessVerdict(value: string | undefined): string | undefined {
+  if (!value) return value;
+  const match = /^\s*(?:complete|done|pass)[ \t]*(?:\r?\n|$)/i.exec(value);
+  if (!match) return value;
+  return value.slice(match[0].length).replace(/^\s*[-*•]\s+/, '');
+}
+
 function resolveConclusion(input: SubagentInlineInput): { text: string; tone: SubagentInlineTone } {
   const zh = input.locale === 'zh-CN';
   const activity = input.invocation?.activity;
@@ -86,11 +99,11 @@ function resolveConclusion(input: SubagentInlineInput): { text: string; tone: Su
     }
     case 'completed': {
       const summary =
-        (activity?.kind === 'completed' ? trimmed(activity.summary) : undefined) ??
+        (activity?.kind === 'completed' ? trimmed(withoutSuccessVerdict(activity.summary)) : undefined) ??
         (activity?.kind === 'needs-integration'
           ? trimmed(activity.message) ?? (zh ? '修改待处理' : 'Changes need attention')
           : undefined) ??
-        trimmed(input.child?.summaryPreview);
+        trimmed(withoutSuccessVerdict(input.child?.summaryPreview));
       if (!summary) return { text: zh ? '已完成。' : 'Completed.', tone: 'done' };
       return { text: zh ? `已完成：${summary}` : `Completed: ${summary}`, tone: 'done' };
     }
