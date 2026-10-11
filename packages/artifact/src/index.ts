@@ -103,3 +103,18 @@ export {
   usesArtifactKit,
 } from './kit/index.js';
 export type { ArtifactKitDelivery } from './kit/index.js';
+
+export {
+  artifactPaletteNeedsContrastProbe,
+  artifactPaletteStyleAttribute,
+  resolveArtifactPalette,
+  usesArtifactReportKit,
+} from './artifact-style.js';
+export type { ArtifactPalette, ArtifactStyleModes, ResolveArtifactPaletteInput } from './artifact-style.js';
+export { parseArtifactContrastMessage } from './bridge-protocol.js';
+export {
+  ARTIFACT_BRIDGE_CONTRAST_TYPE,
+  ARTIFACT_CONTRAST_FAILING_SHARE,
+  ARTIFACT_CONTRAST_MAX_SAMPLES,
+} from './constants.js';
+export type { ArtifactContrastMessage } from './types.js';

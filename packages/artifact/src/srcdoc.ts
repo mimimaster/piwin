@@ -6,6 +6,11 @@ import { buildArtifactFrameSrcCsp, createDefaultArtifactIframePolicy } from './i
 import { createDefaultArtifactTheme } from './theme.js';
 import { buildArtifactBridgeBootstrapScript } from './srcdoc-bridge.js';
 import { buildArtifactReportKitCss } from './srcdoc-report-kit.js';
+import {
+  artifactPaletteNeedsContrastProbe,
+  artifactPaletteStyleAttribute,
+  type ArtifactPalette,
+} from './artifact-style.js';
 import { artifactKitScriptSource, buildArtifactKitHead, usesArtifactKit } from './kit/index.js';
 import {
   buildArtifactFrameModePolicyCss,
@@ -18,6 +23,7 @@ import type {
   ArtifactFrameMode,
   ArtifactIframePolicy,
   ArtifactRules,
+  ArtifactStyle,
   ArtifactSurface,
   ArtifactThemeVariables,
 } from './types.js';
@@ -57,18 +63,26 @@ function frameModeFromSurface(surface: ArtifactSurface): ArtifactFrameMode {
   return surface === 'canvas' ? 'canvas' : 'inline-flow';
 }
 
-function applyHtmlFrameMode(source: string, frameMode: ArtifactFrameMode): string {
+function setHtmlAttribute(attrs: string, name: string, value: string): string {
+  const attr = `${name}="${escapeHtmlAttribute(value)}"`;
+  const existing = new RegExp(`\\s${name}\\s*=\\s*(["']).*?\\1`, 'i');
+  return existing.test(attrs) ? attrs.replace(existing, ` ${attr}`) : `${attrs} ${attr}`;
+}
+
+function applyHtmlFrameMode(
+  source: string,
+  frameMode: ArtifactFrameMode,
+  style: ArtifactStyle,
+): string {
   const htmlOpenPattern = /<html\b([^>]*)>/i;
   if (!htmlOpenPattern.test(source)) {
     return source;
   }
-  return source.replace(htmlOpenPattern, (_open, attrs: string) => {
-    const modeAttr = `data-frame-mode="${escapeHtmlAttribute(frameMode)}"`;
-    if (/\bdata-frame-mode\s*=/i.test(attrs)) {
-      return `<html${attrs.replace(/\sdata-frame-mode\s*=\s*(["']).*?\1/i, ` ${modeAttr}`)}>`;
-    }
-    return `<html${attrs} ${modeAttr}>`;
-  });
+  return source.replace(
+    htmlOpenPattern,
+    (_open, attrs: string) =>
+      `<html${setHtmlAttribute(setHtmlAttribute(attrs, 'data-frame-mode', frameMode), 'data-piwin-style', style)}>`,
+  );
 }
 
 function injectArtifactHostIntoDocument(input: {
@@ -76,8 +90,9 @@ function injectArtifactHostIntoDocument(input: {
   headPrefix: string;
   headSuffix: string;
   frameMode: ArtifactFrameMode;
+  style: ArtifactStyle;
 }): string {
-  const framed = applyHtmlFrameMode(input.source, input.frameMode);
+  const framed = applyHtmlFrameMode(input.source, input.frameMode, input.style);
   const headOpenPattern = /<head\b[^>]*>/i;
   const headClosePattern = /<\/head\s*>/i;
   if (headOpenPattern.test(framed)) {
@@ -100,9 +115,9 @@ function injectArtifactHostIntoDocument(input: {
   const sourceDoctype = framed.match(doctypePattern)?.[0] ?? '<!DOCTYPE html>';
   const documentBody = framed.replace(doctypePattern, '').trim();
   if (/<body\b[^>]*>/i.test(documentBody)) {
-    return `${sourceDoctype}\n<html lang="en" data-frame-mode="${escapeHtmlAttribute(input.frameMode)}">\n${hostHead}\n${documentBody}\n</html>`;
+    return `${sourceDoctype}\n<html lang="en" data-frame-mode="${escapeHtmlAttribute(input.frameMode)}" data-piwin-style="${escapeHtmlAttribute(input.style)}">\n${hostHead}\n${documentBody}\n</html>`;
   }
-  return `${sourceDoctype}\n<html lang="en" data-frame-mode="${escapeHtmlAttribute(input.frameMode)}">\n${hostHead}\n<body>\n${documentBody}\n</body>\n</html>`;
+  return `${sourceDoctype}\n<html lang="en" data-frame-mode="${escapeHtmlAttribute(input.frameMode)}" data-piwin-style="${escapeHtmlAttribute(input.style)}">\n${hostHead}\n<body>\n${documentBody}\n</body>\n</html>`;
 }
 
 export type BuildHtmlArtifactSrcdocInput = {
@@ -116,10 +131,10 @@ export type BuildHtmlArtifactSrcdocInput = {
   /** Preserve full HTML documents instead of nesting them inside a fragment root. */
   documentKind?: ArtifactDocumentKind;
   /**
-   * The document paints its own scene: skip the theme guard so its page fill
-   * and text colors stand instead of being forced onto the host surface.
+   * `host` (default) installs the full theme guard. `stage` (expressive)
+   * guards only the page shell. `own` paints its own scene: no guard.
    */
-  ownPalette?: boolean;
+  palette?: ArtifactPalette;
   /** Rules the source was written under (see `resolveArtifactRules`). Default legacy. */
   rules?: ArtifactRules;
   /**
@@ -157,7 +172,9 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
     kitScriptSource: kit ? artifactKitScriptSource() : null,
   });
   const css = buildArtifactThemeCss(theme, { rules: input.rules ?? 'legacy' });
-  const themeGuardCss = input.ownPalette === true ? '' : buildArtifactThemeGuardCss();
+  const palette = input.palette ?? 'host';
+  const themeGuardCss = palette === 'own' ? '' : buildArtifactThemeGuardCss(palette);
+  const styleAttr = artifactPaletteStyleAttribute(palette);
   const frameModePolicyCss = buildArtifactFrameModePolicyCss();
   const motionPolicyCss = buildArtifactMotionPolicyCss();
   const channelId = input.channelId;
@@ -169,6 +186,7 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
         enableRenderCommand,
         frameMode,
         input.freezeSource === true,
+        artifactPaletteNeedsContrastProbe(palette),
       )
     : '';
 
@@ -194,9 +212,10 @@ ${bridge}${kit ? `\n  ${buildArtifactKitHead()}` : ''}`;
           headPrefix: hostHeadPrefix,
           headSuffix: hostHeadSuffix,
           frameMode,
+          style: styleAttr,
         })
       : `<!DOCTYPE html>
-<html lang="en" data-frame-mode="${frameModeAttr}">
+<html lang="en" data-frame-mode="${frameModeAttr}" data-piwin-style="${styleAttr}">
 <head>
 ${hostHeadPrefix}
 </head>

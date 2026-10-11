@@ -221,7 +221,21 @@ export function buildArtifactMotionPolicyCss(): string {
 `;
 }
 
-export function buildArtifactThemeGuardCss(): string {
+export function buildArtifactThemeGuardCss(palette: 'host' | 'stage' = 'host'): string {
+  if (palette === 'stage') {
+    // Expressive: the page stays transparent over the host and keeps the
+    // host color scheme; everything inside the stage is the author's.
+    return `
+html,
+body,
+.piwin-artifact-root,
+.artifact-root,
+.owi-artifact-root {
+  background: transparent !important;
+  color-scheme: var(--piwin-artifact-theme) !important;
+}
+`;
+  }
   return `
 html,
 body,

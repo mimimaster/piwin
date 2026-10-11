@@ -251,6 +251,19 @@ export type ArtifactActionMessage =
  * here came from untrusted HTML: render it as text, never as markup, and never
  * let it drive a decision beyond what the preview shows.
  */
+/** Contrast probe result for an expressive / own-palette document (badge only). */
+export type ArtifactContrastMessage = {
+  type: 'piwin-artifact:contrast';
+  channelId: string;
+  /** More than 5% of sampled text is below WCAG AA. */
+  lowContrast: boolean;
+  /** One opaque fill covers most of the stage on the far side of the host scheme. */
+  themeMismatch: boolean;
+  sampled: number;
+  failing: number;
+  minRatio: number;
+};
+
 export type ArtifactErrorMessage = {
   type: 'piwin-artifact:error';
   channelId: string;
