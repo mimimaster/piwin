@@ -1,3 +1,4 @@
+import type { SessionTuiRenderer } from './use-workbench-cli.js';
 import type { ReactElement, ReactNode } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import type { SessionListItemUi } from './chat-reducer.js';
@@ -35,6 +36,8 @@ export type WorkbenchConversationStageProps = {
   onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   fileBrowseRoot?: string | null;
+  /** Terminal mode is on: render a session as the CLI TUI instead of the GUI chat (null keeps the GUI). */
+  renderSessionTui?: SessionTuiRenderer | undefined;
 };
 
 export function WorkbenchConversationStage(props: WorkbenchConversationStageProps): ReactElement {
@@ -68,6 +71,7 @@ export function WorkbenchConversationStage(props: WorkbenchConversationStageProp
           if (props.dockingEnabled) props.docking.openToolView('canvas');
         }}
         {...(props.fileBrowseRoot !== undefined ? { fileBrowseRoot: props.fileBrowseRoot } : {})}
+        renderSessionTui={props.renderSessionTui}
       />
     );
   }
@@ -97,6 +101,7 @@ export function WorkbenchConversationStage(props: WorkbenchConversationStageProp
           if (props.dockingEnabled) props.docking.openToolView('canvas');
         }}
         {...(props.fileBrowseRoot !== undefined ? { fileBrowseRoot: props.fileBrowseRoot } : {})}
+        renderSessionTui={props.renderSessionTui}
       />
     );
   }

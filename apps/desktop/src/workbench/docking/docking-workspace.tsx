@@ -214,6 +214,7 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
     ...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {}),
     ...(props.onOpenArtifactCanvas ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas } : {}),
     ...(props.fileBrowseRoot !== undefined ? { fileBrowseRoot: props.fileBrowseRoot } : {}),
+    renderSessionTui: props.renderSessionTui,
   };
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;

@@ -1,3 +1,4 @@
+import type { SessionTuiRenderer } from './use-workbench-cli.js';
 import {
   useEffect,
   useMemo,
@@ -60,6 +61,8 @@ export type ConversationPaneWorkspaceProps = {
   onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   fileBrowseRoot?: string | null;
+  /** Terminal mode is on: render a session as the CLI TUI instead of the GUI chat (null keeps the GUI). */
+  renderSessionTui?: SessionTuiRenderer | undefined;
 };
 
 function requiredPresetSize(count: ConversationPanePreset): { width: number; height: number } {
@@ -324,6 +327,11 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
     return props.locale === 'zh-CN' ? '空 Chat' : 'Empty Chat';
   }
 
+  const paneTui = (sessionId: string): ReactElement | null =>
+    props.renderSessionTui?.(
+      sessionId,
+      props.sessions.find((session) => session.id === sessionId)?.backend?.agentId,
+    ) ?? null;
   const maximizedPaneId = controller.layout.maximizedPaneId;
   const phoneActivePaneId = phoneSinglePane
     ? (controller.layout.activePaneId || PRIMARY_CONVERSATION_PANE_ID)
@@ -394,6 +402,8 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
             <div className="conversation-pane-body">
               {leaf.paneId === PRIMARY_CONVERSATION_PANE_ID ? (
                 props.primaryPane
+              ) : sessionId && paneTui(sessionId) ? (
+                paneTui(sessionId)
               ) : sessionId ? (
                 <ConversationPaneSession
                   key={sessionId}

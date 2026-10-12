@@ -10,6 +10,8 @@ import {
 } from './conversation-pane-workspace.js';
 import type { HostClient } from './host-client.js';
 import { useConversationPaneLayout } from './use-conversation-pane-layout.js';
+import type { SessionTuiRenderer } from './use-workbench-cli.js';
+import type { SessionListItemUi } from './chat-ui-types.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -26,6 +28,8 @@ function Probe(props: {
   keyboardEnabled?: boolean;
   phoneSinglePane?: boolean;
   onCreateConversation?: (paneId: string) => Promise<string | null>;
+  renderSessionTui?: SessionTuiRenderer;
+  sessions?: readonly SessionListItemUi[];
 }): React.ReactElement {
   const controller = useConversationPaneLayout({ enabled: true, primarySessionId: 'primary' });
   return (
@@ -35,7 +39,8 @@ function Probe(props: {
         {...(props.phoneSinglePane ? { phoneSinglePane: true } : {})}
         primaryPane={<div data-testid="primary-pane">Primary</div>}
         primarySessionName="Primary Chat"
-        sessions={[]}
+        sessions={props.sessions ?? []}
+        renderSessionTui={props.renderSessionTui}
         hostClient={hostClient}
         activeTheme={PIWIN_APPEARANCE_DARK}
         artifactThemeKey="test"
@@ -162,6 +167,51 @@ describe('ConversationPaneWorkspace', () => {
       container?.querySelector<HTMLElement>('[data-pane-id="conversation-pane-primary"]')?.dataset
         .conversationPaneActive,
     ).toBe('false');
+  });
+
+  it('renders a split pane session in the terminal shell while terminal mode is on', async () => {
+    const sessions = [
+      { id: 'session-secondary', name: 'Second', backend: { agentId: 'grok' } },
+    ] as unknown as SessionListItemUi[];
+    const renderSessionTui = vi.fn<SessionTuiRenderer>((sessionId) => (
+      <div data-testid="pane-tui">{sessionId}</div>
+    ));
+    const onCreateConversation = async (): Promise<string> => 'session-secondary';
+    // Desktop mode first: the secondary pane shows the GUI chat.
+    act(() => {
+      root?.render(<Probe sessions={sessions} onCreateConversation={onCreateConversation} />);
+    });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', metaKey: true }));
+    });
+    const secondaryPane = container?.querySelectorAll<HTMLElement>('[data-pane-id]')[1];
+    await act(async () => {
+      secondaryPane?.querySelector<HTMLButtonElement>('.conversation-pane-picker button')?.click();
+      await Promise.resolve();
+    });
+    expect(secondaryPane?.querySelector('[data-testid="conversation-pane-session"]')).not.toBeNull();
+    expect(secondaryPane?.querySelector('[data-testid="pane-tui"]')).toBeNull();
+
+    // Toggle to terminal: the same pane switches to the TUI for its own session.
+    act(() => {
+      root?.render(
+        <Probe sessions={sessions} onCreateConversation={onCreateConversation}
+          renderSessionTui={renderSessionTui} />,
+      );
+    });
+    expect(secondaryPane?.querySelector('[data-testid="pane-tui"]')?.textContent).toBe('session-secondary');
+    expect(secondaryPane?.querySelector('[data-testid="conversation-pane-session"]')).toBeNull();
+    expect(renderSessionTui).toHaveBeenCalledWith('session-secondary', 'grok');
+
+    // An agent without an embedded TUI keeps the GUI chat.
+    renderSessionTui.mockReturnValue(null);
+    act(() => {
+      root?.render(
+        <Probe sessions={[...sessions]} onCreateConversation={onCreateConversation}
+          renderSessionTui={renderSessionTui} />,
+      );
+    });
+    expect(secondaryPane?.querySelector('[data-testid="conversation-pane-session"]')).not.toBeNull();
   });
 
   it('handles pane shortcuts even when focus is inside the workspace', () => {
