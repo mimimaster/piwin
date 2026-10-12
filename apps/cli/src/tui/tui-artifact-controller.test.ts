@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Component } from '@earendil-works/pi-tui';
@@ -49,13 +49,17 @@ describe('TuiArtifactController', () => {
 
   function setup(transcript: TranscriptState, openFile = vi.fn(async (_file: string) => undefined)) {
     const modals = new FakeModals();
-    const port = { onHint: vi.fn(), onNotice: vi.fn(), onError: vi.fn() };
+    const port = { onHint: vi.fn(), onNotice: vi.fn(), onError: vi.fn(), writeTerminal: vi.fn() };
     const controller = new TuiArtifactController({
       modals: modals as unknown as TuiModalStack,
       getTranscript: () => transcript,
       openFile,
       exportRoot,
-      ...port,
+      getProjectRoot: () => exportRoot,
+      writeTerminal: port.writeTerminal,
+      onHint: port.onHint,
+      onNotice: port.onNotice,
+      onError: port.onError,
     });
     const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20));
     return { controller, modals, port, openFile, settle };
@@ -109,5 +113,31 @@ describe('TuiArtifactController', () => {
     await settle();
     expect(openFile).not.toHaveBeenCalled();
     expect(modals.text()).toContain('example.com');
+  });
+
+  it('saves raw source into the project without overwriting an existing file', async () => {
+    const { controller, modals, settle } = setup(withArtifact('<p>hi</p>'));
+    await writeFile(path.join(exportRoot, '计数器.html'), 'keep');
+    controller.open();
+    modals.press(ENTER, 'w');
+    await settle();
+    expect(await readFile(path.join(exportRoot, '计数器.html'), 'utf8')).toBe('keep');
+    expect(await readFile(path.join(exportRoot, '计数器-2.html'), 'utf8')).toBe('<p>hi</p>');
+  });
+
+  it('copies source through OSC 52', () => {
+    const { controller, modals, port } = setup(withArtifact('<p>hi</p>'));
+    controller.open();
+    modals.press(ENTER, 'c');
+    const written = String(port.writeTerminal.mock.calls[0]?.[0]);
+    expect(written).toContain(Buffer.from('<p>hi</p>').toString('base64'));
+    expect(written.startsWith('\x1b]52;c;') || written.startsWith('\x1bPtmux;')).toBe(true);
+  });
+
+  it('opens the newest renderable artifact straight in the browser', async () => {
+    const { controller, openFile, settle } = setup(withArtifact('<p>hi</p>'));
+    controller.openLatest();
+    await settle();
+    expect(openFile).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { artifactFileName, buildArtifactHostPage, listTranscriptArtifacts } from './artifact-export.js';
+import {
+  artifactFileName,
+  artifactSourceFileName,
+  buildArtifactHostPage,
+  formatByteSize,
+  listTranscriptArtifacts,
+  splitMessageArtifacts,
+} from './artifact-export.js';
 import { EMPTY_TRANSCRIPT, appendLocalUserMessage, applyAgentEvent, type TranscriptState } from './transcript-model.js';
 
 const FENCE = '```';
@@ -75,9 +82,42 @@ describe('buildArtifactHostPage', () => {
 
 describe('artifactFileName', () => {
   it('keeps a readable name and drops what a file system or shell would choke on', () => {
-    const named = (title: string): string => artifactFileName({ key: 'k', title, kind: 'html', source: '' });
+    const named = (title: string): string => artifactFileName({ key: 'k', title, kind: 'html', source: '', byteSize: 0 });
     expect(named('计数器 / demo: v1?')).toBe('计数器 demo v1.html');
     expect(named('///')).toBe('artifact.html');
     expect(named('x'.repeat(200))).toHaveLength(65);
+  });
+});
+
+describe('splitMessageArtifacts', () => {
+  it('cuts finished artifacts out of the prose and keeps ordinary code in it', () => {
+    const text = `前言\n${artifactFence('卡片', '<p>hi</p>')}\n中间\n${FENCE}ts\nconst x = 1;\n${FENCE}\n结尾`;
+    const segments = splitMessageArtifacts('m1', text);
+    expect(segments.map((segment) => segment.kind)).toEqual(['markdown', 'artifact', 'markdown']);
+    expect(segments[0]).toEqual({ kind: 'markdown', text: '前言\n' });
+    const card = segments[1];
+    expect(card?.kind === 'artifact' && card.artifact.title).toBe('卡片');
+    expect(card?.kind === 'artifact' && card.artifact.byteSize).toBe(9);
+    expect(segments[2]?.kind === 'markdown' && segments[2].text).toContain('const x = 1;');
+  });
+
+  it('leaves a fence that is still streaming as Markdown', () => {
+    const text = `开始\n${FENCE}artifact-html title="半截"\n<p>`;
+    expect(splitMessageArtifacts('m1', text)).toEqual([{ kind: 'markdown', text }]);
+  });
+
+  it('keeps blocked artifacts as cards with the reason', () => {
+    const segments = splitMessageArtifacts('m1', artifactFence('外链', '<script src="https://x.test/a.js"></script>'));
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.kind === 'artifact' && segments[0].artifact.blocked).toBe('引用了外部资源');
+  });
+});
+
+describe('artifactSourceFileName / formatByteSize', () => {
+  it('names saved source by kind and numbers retries', () => {
+    expect(artifactSourceFileName({ title: '图 / 1', kind: 'svg' })).toBe('图 1.svg');
+    expect(artifactSourceFileName({ title: 'demo', kind: 'html' }, 1)).toBe('demo-2.html');
+    expect(formatByteSize(812)).toBe('812 B');
+    expect(formatByteSize(12_595)).toBe('12.3 KB');
   });
 });

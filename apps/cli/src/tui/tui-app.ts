@@ -48,7 +48,7 @@ import { QueryListOverlay } from './query-list-overlay.js';
 import { describeHostFailure } from './host-failure-text.js';
 import { editTextExternally } from './external-editor.js';
 import { PromptHistory } from './prompt-history.js';
-import { DEFAULT_KEYBINDINGS, type Keybindings } from './keybindings.js';
+import { DEFAULT_KEYBINDINGS, formatKey, type Keybindings } from './keybindings.js';
 import { DEFAULT_STATUS_TEMPLATE, renderStatusTemplate } from './status-template.js';
 import type { TuiConfig } from './tui-config.js';
 import { TurnNotifier } from './turn-notifier.js';
@@ -63,7 +63,9 @@ import { TuiTurnActions } from './tui-turn-actions.js';
 import { TuiRewindController } from './tui-rewind-controller.js';
 import { TuiUsageController } from './tui-usage-controller.js';
 import { ProjectFiles } from './project-files.js';
-import type { FileOpener } from './tui-artifact-controller.js';
+import type { FileOpener, TuiArtifactController } from './tui-artifact-controller.js';
+import { listTranscriptArtifacts } from './artifact-export.js';
+import { existsSync } from 'node:fs';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiAutocompleteProvider } from './tui-autocomplete.js';
 import { editorTheme, style } from './tui-theme.js';
@@ -135,6 +137,9 @@ export class TuiApp {
   private readonly rewind: TuiRewindController;
   private readonly sender: TuiPromptSender;
   private readonly runCommand: (name: string, argument: string) => Promise<void>;
+  private readonly artifacts: TuiArtifactController;
+  /** Artifact count for the status line, recomputed only when the transcript object changes. */
+  private artifactCount: { transcript: TranscriptState; count: number } | undefined;
   /** `/edit`: the next prompt replaces this user turn as a sibling branch. */
   private editingMessageId: string | undefined;
   private projects: RemoteProjectSummary[] = [];
@@ -193,6 +198,7 @@ export class TuiApp {
       onError: (error) => this.reportError(error),
     });
     const controllers = createTuiControllers({
+      getProjectRoot: () => this.currentProjectRoots().find((root) => existsSync(root)),
       tui: this.tui,
       editor: this.editor,
       link: this.link,
@@ -244,6 +250,7 @@ export class TuiApp {
     this.sender = controllers.sender;
     this.sessionSwitcher = controllers.sessionSwitcher;
     this.runCommand = controllers.runCommand;
+    this.artifacts = controllers.artifacts;
     this.transcriptScroll = mountTuiLayout(this.tui, {
       transcript: this.transcriptView, activity: this.activitySlot, editor: this.editor, status: this.statusLine,
     });
@@ -273,6 +280,7 @@ export class TuiApp {
       openRewind: () => this.rewind.open(),
       editInExternalEditor: () => this.editInExternalEditor(),
       toggleToolOutput: () => this.transcriptView.toggleToolOutput(),
+      openLatestArtifact: () => this.artifacts.openLatest(),
       hint: (text) => this.flashHint(text),
     });
     this.tui.setFocus(this.editor);
@@ -820,6 +828,14 @@ export class TuiApp {
     return [project?.path, project?.gitRootPath].filter((root): root is string => root !== undefined);
   }
 
+  private describeArtifacts(): string | undefined {
+    if (this.artifactCount?.transcript !== this.transcript) {
+      this.artifactCount = { transcript: this.transcript, count: listTranscriptArtifacts(this.transcript).length };
+    }
+    const { count } = this.artifactCount;
+    return count === 0 ? undefined : `◆ ${count} 个 artifact · ${formatKey(this.keybindings.openArtifact)} 打开最新`;
+  }
+
   private describeStatus(): string {
     const scope =
       this.sessionProjectId === undefined
@@ -841,6 +857,7 @@ export class TuiApp {
       this.attachments.describe(),
       this.sideChat.describe(),
       this.editingMessageId === undefined ? undefined : '改写上一条提问 · Ctrl+C 取消',
+      this.describeArtifacts(),
     ];
     const arranged = renderStatusTemplate(this.options.config?.statusTemplate ?? DEFAULT_STATUS_TEMPLATE, {
       session: this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),

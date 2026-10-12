@@ -1,9 +1,11 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, writeFile } from 'node:fs/promises';
+import { osc52Sequence } from './clipboard-text.js';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   artifactFileName,
+  artifactSourceFileName,
   buildArtifactHostPage,
   listTranscriptArtifacts,
   type TranscriptArtifact,
@@ -34,6 +36,10 @@ export type TuiArtifactControllerOptions = {
   onHint: (text: string) => void;
   onNotice: (tone: 'info' | 'error', text: string) => void;
   onError: (error: unknown) => void;
+  /** Directory "保存到项目" writes into: the session's project root, else the working directory. */
+  getProjectRoot?: () => string | undefined;
+  /** Writes raw bytes to the terminal (for the OSC 52 clipboard sequence). */
+  writeTerminal?: (data: string) => void;
   /** Test seams. */
   openFile?: FileOpener;
   exportRoot?: string;
@@ -46,6 +52,17 @@ export type TuiArtifactControllerOptions = {
  */
 export class TuiArtifactController {
   public constructor(private readonly options: TuiArtifactControllerOptions) {}
+
+  /** The shortcut: newest artifact the policy lets render, straight to the browser. */
+  public openLatest(): void {
+    const artifacts = listTranscriptArtifacts(this.options.getTranscript());
+    const latest = artifacts.find((artifact) => artifact.blocked === undefined);
+    if (latest === undefined) {
+      this.options.onHint(artifacts.length === 0 ? '当前这页对话里没有 artifact' : '最新的 artifact 都被拦截了，/artifacts 可以看源码');
+      return;
+    }
+    this.exportToBrowser(latest).catch(this.options.onError);
+  }
 
   public open(): void {
     const artifacts = listTranscriptArtifacts(this.options.getTranscript());
@@ -85,15 +102,20 @@ export class TuiArtifactController {
           : { message: `策略不允许渲染这个 artifact：${artifact.blocked}。桌面端同样不会渲染它。` }),
         items: [
           ...(artifact.blocked === undefined
-            ? [{ value: 'browser', label: '在浏览器里打开', description: '导出为带沙箱的本地页面' }]
+            ? [{ value: 'browser', label: 'o 在浏览器里打开', description: '导出为带沙箱的本地页面' }]
             : []),
-          { value: 'source', label: '查看源码' },
+          { value: 'source', label: 's 查看源码' },
+          { value: 'save', label: 'w 保存到项目', description: `原始源码，.${artifact.kind}` },
+          { value: 'copy', label: 'c 复制源码', description: '经终端（OSC 52）写入剪贴板' },
           { value: 'close', label: '关闭' },
         ],
+        shortcuts: { o: 'browser', s: 'source', w: 'save', c: 'copy' },
         onSelect: (value) => {
           modals.close();
           if (value === 'browser') this.exportToBrowser(artifact).catch(this.options.onError);
           else if (value === 'source') this.showSource(artifact);
+          else if (value === 'save') this.saveToProject(artifact).catch(this.options.onError);
+          else if (value === 'copy') this.copySource(artifact);
         },
         onCancel: () => modals.close(),
       }),
@@ -112,6 +134,31 @@ export class TuiArtifactController {
         },
       }),
     );
+  }
+
+  /** Raw source into the project root; an existing file is never overwritten. */
+  public async saveToProject(artifact: TranscriptArtifact): Promise<string> {
+    const directory = this.options.getProjectRoot?.() ?? process.cwd();
+    for (let attempt = 0; ; attempt += 1) {
+      const filePath = path.join(directory, artifactSourceFileName(artifact, attempt));
+      try {
+        await writeFile(filePath, artifact.source, { encoding: 'utf8', flag: 'wx' });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST' && attempt < 999) continue;
+        throw error;
+      }
+      this.options.onNotice('info', `已保存「${artifact.title}」\n${filePath}`);
+      return filePath;
+    }
+  }
+
+  public copySource(artifact: TranscriptArtifact): void {
+    if (this.options.writeTerminal === undefined) {
+      this.options.onHint('这个终端不能写剪贴板');
+      return;
+    }
+    this.options.writeTerminal(osc52Sequence(artifact.source));
+    this.options.onHint(`已复制「${artifact.title}」源码（终端需支持 OSC 52）`);
   }
 
   private async exportToBrowser(artifact: TranscriptArtifact): Promise<void> {

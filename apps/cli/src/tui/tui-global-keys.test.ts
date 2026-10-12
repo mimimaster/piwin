@@ -35,6 +35,7 @@ function setup(overrides: Partial<TuiGlobalKeysPort> = {}, initial: { text?: str
     openRewind: vi.fn(),
     editInExternalEditor: vi.fn(),
     toggleToolOutput: () => true,
+    openLatestArtifact: vi.fn(),
     hint: vi.fn(),
     ...overrides,
   };
@@ -143,5 +144,11 @@ describe('TuiGlobalKeys', () => {
     const standalone = setup();
     standalone.keys.handle('\x13');
     expect(standalone.port.openSessions).toHaveBeenCalledOnce();
+  });
+
+  it('opens the latest artifact on Ctrl+T without touching tool output', () => {
+    const { keys, port } = setup();
+    expect(keys.handle('\x14')).toEqual({ consume: true });
+    expect(port.openLatestArtifact).toHaveBeenCalledTimes(1);
   });
 });

@@ -39,6 +39,8 @@ export type TuiWiringPort = {
   embedded: boolean;
   keybindings: Keybindings;
   openFile?: FileOpener;
+  /** Root of the session's project on this machine, when it has one. */
+  getProjectRoot: () => string | undefined;
   getSessionId: () => string | undefined;
   getRunId: () => string | undefined;
   getAgentId: () => string | undefined;
@@ -78,6 +80,7 @@ export type TuiControllers = {
   rewind: TuiRewindController;
   sender: TuiPromptSender;
   sessionSwitcher: TuiSessionSwitcher;
+  artifacts: TuiArtifactController;
   runCommand: (name: string, argument: string) => Promise<void>;
 };
 
@@ -238,6 +241,16 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     onHint: port.hint,
   });
   const find = new TuiFindController({ modals: port.modals, getTranscript: port.getTranscript });
+  const artifacts = new TuiArtifactController({
+    modals: port.modals,
+    getTranscript: port.getTranscript,
+    onHint: port.hint,
+    onNotice: notify,
+    onError: port.error,
+    getProjectRoot: port.getProjectRoot,
+    writeTerminal: (data) => port.tui.terminal.write(data),
+    ...(port.openFile === undefined ? {} : { openFile: port.openFile }),
+  });
   const runCommand = createTuiCommandTable({
     embedded: port.embedded,
     keybindings: port.keybindings,
@@ -250,14 +263,7 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     turnChanges: features.turnChanges,
     walkthroughs: features.walkthroughs,
     sideChat,
-    artifacts: new TuiArtifactController({
-      modals: port.modals,
-      getTranscript: port.getTranscript,
-      onHint: port.hint,
-      onNotice: notify,
-      onError: port.error,
-      ...(port.openFile === undefined ? {} : { openFile: port.openFile }),
-    }),
+    artifacts,
     turns,
     usage,
     rewind,
@@ -277,5 +283,5 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     notice: notify,
     exit: port.exit,
   });
-  return { composer, attachments, features, sideChat, turns, usage, rewind, sender, sessionSwitcher, runCommand };
+  return { composer, attachments, features, sideChat, turns, usage, rewind, sender, sessionSwitcher, artifacts, runCommand };
 }
