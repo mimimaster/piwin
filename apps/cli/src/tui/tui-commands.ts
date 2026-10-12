@@ -11,7 +11,8 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'new', description: '开始新会话；/new grok 用外部 agent 开始', standaloneOnly: true },
   { name: 'model', description: '选择模型' },
   { name: 'thinking', description: '选择思考强度' },
-  { name: 'permission', description: '选择权限模式（询问 / 自动 / 放行）' },
+  { name: 'permission', description: '选择权限模式（询问 / 自动 / YOLO）' },
+  { name: 'scheme', description: '选择编排方案，或不使用子代理（/编排 同）' },
   { name: 'prompts', description: '选择提示词模板填入输入框' },
   { name: 'skill', description: '为下一条消息选择技能' },
   { name: 'attach', description: '附加文件或图片：/attach <路径…>' },
@@ -59,6 +60,8 @@ const KNOWN_NAMES = TUI_COMMAND_NAMES;
  * stays a normal prompt and reaches the Host untouched.
  */
 export function parseSlashCommand(text: string): { name: string; argument: string } | undefined {
+  const alias = /^\/编排(?:\s+([\s\S]*))?$/.exec(text.trim());
+  if (alias !== null) return { name: 'scheme', argument: (alias[1] ?? '').trim() };
   const match = /^\/([a-z]+)(?:\s+([\s\S]*))?$/.exec(text.trim());
   const name = match?.[1];
   if (name === undefined || !KNOWN_NAMES.has(name)) return undefined;
