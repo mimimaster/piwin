@@ -24,6 +24,9 @@ import { afterAll } from 'vitest';
 const isolatedRoot = mkdtempSync(join(tmpdir(), 'piwin-test-root-'));
 process.env.PIWIN_ROOT = isolatedRoot;
 process.env.PIWIN_PI_AGENT_DIR = join(isolatedRoot, 'pi-agent');
+// Styling tests assert exact SGR codes; a developer's NO_COLOR or theme must not change them.
+delete process.env.NO_COLOR;
+delete process.env.PIWIN_TUI_THEME;
 
 afterAll(() => {
   try {

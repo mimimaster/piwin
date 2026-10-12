@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import './node-version-guard.js';
 import { formatError } from '@piwin/contracts';
 import { isPrintFlag, printModeArgv } from './print-mode.js';
 
