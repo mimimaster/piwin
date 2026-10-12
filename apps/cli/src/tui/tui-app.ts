@@ -116,6 +116,7 @@ export class TuiApp {
   /** When the in-flight turn began; drives the elapsed counter on the activity line. */
   private turnStartedAt: number | undefined;
   private elapsedTimer: ReturnType<typeof setInterval> | undefined;
+  private subagentTimer: ReturnType<typeof setInterval> | undefined;
 
   private transcript: TranscriptState = EMPTY_TRANSCRIPT;
   private sessionId: string | undefined;
@@ -332,6 +333,8 @@ export class TuiApp {
   public dispose(): void {
     this.statusHint.dispose();
     this.stopElapsedTimer();
+    if (this.subagentTimer !== undefined) clearInterval(this.subagentTimer);
+    this.subagentTimer = undefined;
     this.loader.stop();
     for (const dispose of this.disposers.splice(0)) dispose();
   }
@@ -770,6 +773,7 @@ export class TuiApp {
   private refreshChrome(forceFullRedraw = false): void {
     this.transcriptView.setState(this.transcript);
     this.transcriptView.setPathRoots(this.currentProjectRoots());
+    this.syncSubagentRuns();
     const running = this.foreground.kind === 'active';
     this.notifier.observeRunning(running);
     const hasLoader = this.activitySlot.children.length > 0;
@@ -824,6 +828,21 @@ export class TuiApp {
   private currentProjectRoots(): string[] {
     const project = this.projects.find((candidate) => candidate.projectId === this.sessionProjectId);
     return [project?.path, project?.gitRootPath].filter((root): root is string => root !== undefined);
+  }
+
+  /** Live subagent rows; while any runs, their elapsed counters redraw once a second. */
+  private syncSubagentRuns(): void {
+    const subagents = this.features.subagents;
+    const running = subagents.hasRunningInvocations();
+    const second = running ? Math.floor(Date.now() / 1000) : 0;
+    this.transcriptView.setSubagentRuns(subagents.lookupRun, subagents.liveVersion * 100_000 + (second % 100_000));
+    if (running && this.subagentTimer === undefined) {
+      this.subagentTimer = setInterval(() => this.refreshChrome(), 1000);
+      this.subagentTimer.unref?.();
+    } else if (!running && this.subagentTimer !== undefined) {
+      clearInterval(this.subagentTimer);
+      this.subagentTimer = undefined;
+    }
   }
 
   private describeArtifacts(): string | undefined {

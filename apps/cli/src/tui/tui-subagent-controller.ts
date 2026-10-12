@@ -1,4 +1,5 @@
 import type { HostPush, SessionSummary, SubagentResultSummary } from '@piwin/contracts';
+import { toLiveRun, type LiveSubagentRun } from './subagent-run-view.js';
 import { ChoiceOverlay, TextOverlay } from './choice-overlay.js';
 import {
   childActionItems,
@@ -57,7 +58,30 @@ export class TuiSubagentController {
     return describeSubagents(this.children, this.results);
   }
 
+  /** Live per-invocation state from `subagent/invocation-updated`, keyed by invocation id. */
+  private readonly liveRuns = new Map<string, LiveSubagentRun>();
+  private readonly liveRevisions = new Map<string, number>();
+  /** Bumped whenever live run state changes, so the transcript knows to redraw. */
+  public liveVersion = 0;
+
+  /** The transcript's view of a run: by invocation id, else the newest invocation of the batch run. */
+  public readonly lookupRun = (invocationId: string | undefined, runId: string): LiveSubagentRun | undefined => {
+    if (invocationId !== undefined) return this.liveRuns.get(invocationId);
+    let found: LiveSubagentRun | undefined;
+    for (const run of this.liveRuns.values()) if (run.runId === runId) found = run;
+    return found;
+  };
+
+  /** Whether any invocation is still going (elapsed counters need a tick). */
+  public hasRunningInvocations(): boolean {
+    for (const run of this.liveRuns.values()) if (run.endedAt === undefined) return true;
+    return false;
+  }
+
   public reset(): void {
+    this.liveRuns.clear();
+    this.liveRevisions.clear();
+    this.liveVersion += 1;
     this.children = [];
     this.results = [];
     this.followUps.clear();
@@ -91,6 +115,17 @@ export class TuiSubagentController {
         if (ended !== undefined) ended.announced = true;
         this.options.onNotice(next.subagentStatus === 'failed' ? 'error' : 'info', notice);
       }
+      this.options.onChanged();
+      return true;
+    }
+    if (push.type === 'subagent/invocation-updated') {
+      if (push.parentSessionId !== sessionId) return true;
+      const { invocation } = push;
+      // Revisions are monotonic per invocation; a replayed or late push is ignored.
+      if ((this.liveRevisions.get(invocation.id) ?? -1) >= invocation.revision) return true;
+      this.liveRevisions.set(invocation.id, invocation.revision);
+      this.liveRuns.set(invocation.id, toLiveRun(invocation, this.liveRuns.get(invocation.id)));
+      this.liveVersion += 1;
       this.options.onChanged();
       return true;
     }

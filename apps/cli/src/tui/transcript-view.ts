@@ -12,6 +12,7 @@ import type {
 import { formatByteSize, splitMessageArtifacts, type TranscriptArtifact } from './artifact-export.js';
 import { TranscriptMarkdown } from './transcript-markdown.js';
 import { renderFileChange } from './diff-view.js';
+import { renderSubagentControl, type LiveRunLookup } from './subagent-run-view.js';
 import { describeToolError } from './tool-error-view.js';
 import { shortenPaths } from './tool-path-display.js';
 import { style } from './tui-theme.js';
@@ -23,7 +24,7 @@ const EMPTY_HINT = '输入消息开始对话，/ 查看命令，Ctrl+S 切换会
 /** Embedded: the host application switches sessions, so the shortcut is not offered. */
 const EMBEDDED_EMPTY_HINT = '输入消息开始对话，/ 查看命令';
 
-type CachedEntry = { entry: TranscriptEntry; width: number; expanded: boolean; lines: string[] };
+type CachedEntry = { entry: TranscriptEntry; width: number; expanded: boolean; liveVersion: number; lines: string[] };
 
 /**
  * Renders the transcript document. Lines are cached per entry identity, so a
@@ -36,6 +37,9 @@ export class TranscriptView implements Component {
   /** Markdown renderers per message (one per run between artifacts) keep their parse cache across deltas. */
   private readonly markdownById = new Map<string, TranscriptMarkdown[]>();
   private pathRoots: string[] = [];
+  private subagentLookup: LiveRunLookup = () => undefined;
+  /** Changes when live subagent state (or its elapsed second) changes; entries with subagent rows redraw. */
+  private liveVersion = 0;
 
   public constructor(private readonly embedded = false) {}
 
@@ -48,6 +52,12 @@ export class TranscriptView implements Component {
     if (roots.length === this.pathRoots.length && roots.every((root, index) => root === this.pathRoots[index])) return;
     this.pathRoots = [...roots];
     this.invalidate();
+  }
+
+  /** Live subagent runs for the run tree under subagent tools. `version` changes whenever they do. */
+  public setSubagentRuns(lookup: LiveRunLookup, version: number): void {
+    this.subagentLookup = lookup;
+    this.liveVersion = version;
   }
 
   public toggleToolOutput(): boolean {
@@ -85,13 +95,14 @@ export class TranscriptView implements Component {
       cached !== undefined &&
       cached.entry === entry &&
       cached.width === width &&
-      cached.expanded === this.toolOutputExpanded
+      cached.expanded === this.toolOutputExpanded &&
+      (cached.liveVersion === this.liveVersion || !hasSubagentTool(entry))
     ) {
       return cached.lines;
     }
     const lines =
       entry.kind === 'notice' ? renderNotice(entry.tone, entry.text, width) : this.renderMessage(entry, width);
-    this.cache.set(entry.id, { entry, width, expanded: this.toolOutputExpanded, lines });
+    this.cache.set(entry.id, { entry, width, expanded: this.toolOutputExpanded, liveVersion: this.liveVersion, lines });
     return lines;
   }
 
@@ -106,7 +117,7 @@ export class TranscriptView implements Component {
       lines.push(...this.renderMarkdown(entry, width));
     }
     for (const tool of entry.tools) {
-      lines.push(...renderTool(tool, width, this.toolOutputExpanded, this.pathRoots));
+      lines.push(...renderTool(tool, width, this.toolOutputExpanded, this.pathRoots, this.subagentLookup));
     }
     if (entry.composing !== undefined) {
       const name = entry.composing.toolName ?? '工具';
@@ -185,7 +196,17 @@ function renderNotice(tone: 'info' | 'error', text: string, width: number): stri
   return renderPrefixed(paint(tone === 'error' ? '✗ ' : '· '), paint(text), width);
 }
 
-function renderTool(tool: TranscriptTool, width: number, expanded: boolean, pathRoots: readonly string[]): string[] {
+function hasSubagentTool(entry: TranscriptEntry): boolean {
+  return entry.kind === 'message' && entry.tools.some((tool) => tool.presentation?.subagentControl !== undefined);
+}
+
+function renderTool(
+  tool: TranscriptTool,
+  width: number,
+  expanded: boolean,
+  pathRoots: readonly string[],
+  subagentLookup: LiveRunLookup = () => undefined,
+): string[] {
   const presentation = tool.presentation;
   const glyph =
     tool.status === 'running' ? style.yellow('◌') : tool.status === 'error' ? style.red('✗') : style.green('●');
@@ -198,6 +219,9 @@ function renderTool(tool: TranscriptTool, width: number, expanded: boolean, path
   const lines = [truncateToWidth(head, width)];
   if (presentation?.error !== undefined) {
     lines.push(...renderPrefixed('   ', style.red(describeToolError(presentation.error)), width));
+  }
+  if (presentation?.subagentControl !== undefined) {
+    lines.push(...renderSubagentControl(presentation.subagentControl, width, expanded, subagentLookup));
   }
   if (presentation?.fileChange !== undefined) {
     lines.push(...renderFileChange(presentation.fileChange, width, expanded));
