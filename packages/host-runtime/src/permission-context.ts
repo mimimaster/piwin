@@ -1,12 +1,18 @@
 /**
  * Build normalized PermissionRequestContext from host action/detail strings.
  */
-import type { PermissionRequestContext, PermissionRiskKind } from '@piwin/contracts';
+import type { PermissionProposedChange, PermissionRequestContext, PermissionRiskKind } from '@piwin/contracts';
 
 export function buildPermissionRequestContext(
   action: string,
   detail: string,
-  facts?: { policyReason?: string; cwd?: string; command?: string; paths?: readonly string[] },
+  facts?: {
+    policyReason?: string;
+    cwd?: string;
+    command?: string;
+    paths?: readonly string[];
+    proposedChange?: PermissionProposedChange;
+  },
 ): PermissionRequestContext {
   const lowered = action.toLowerCase();
   const detailText = detail.trim();
@@ -48,6 +54,7 @@ export function buildPermissionRequestContext(
           ? 'Write may touch secrets or credentials'
           : 'File write requires review',
       ...(detailText ? { command: detailText } : {}),
+      ...(facts?.proposedChange ? { proposedChange: facts.proposedChange } : {}),
     };
   }
 

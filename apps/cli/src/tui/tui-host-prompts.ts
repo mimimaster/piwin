@@ -1,4 +1,5 @@
 import type { HostCommand, HostPush, PermissionRequestContext } from '@piwin/contracts';
+import { ViewerOverlay } from './viewer-overlay.js';
 import { describePermissionPrompt } from './permission-prompt-view.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { createExtensionModal, createPermissionModal, type TuiModalStack } from './tui-modals.js';
@@ -32,18 +33,28 @@ export class TuiHostPrompts {
     const { requestId } = request;
     this.options.onAttention('需要你确认');
     const prompt = describePermissionPrompt(request, this.options.getPathRoots());
-    this.options.modals.enqueue(`permission:${requestId}`, () =>
-      this.options.modals.show(
+    const { modals } = this.options;
+    const { fullPatch } = prompt;
+    const showPrompt = (): void =>
+      modals.swap(
         createPermissionModal({
           requestId,
           title: prompt.title,
           message: prompt.message,
           inProject: this.options.isInProject(),
           ...(prompt.backendOptions === undefined ? {} : { backendOptions: prompt.backendOptions }),
+          ...(fullPatch === undefined
+            ? {}
+            : {
+                onViewDiff: () =>
+                  modals.swap(
+                    new ViewerOverlay({ title: `${prompt.title} · diff`, lines: fullPatch.replace(/\n$/, '').split('\n'), onClose: showPrompt }),
+                  ),
+              }),
           resolve: (command) => this.answer(command),
         }),
-      ),
-    );
+      );
+    modals.enqueue(`permission:${requestId}`, showPrompt);
   }
 
   public askExtension(push: Extract<HostPush, { type: 'extension/ui_request' }>): void {

@@ -107,6 +107,23 @@ export type PermissionRequestContext = {
   backendOptions?: import('./agent-backend-capabilities.js').BackendPermissionOption[];
   /** Agent that owns this request when it is not Pi. */
   backendAgentId?: string;
+  /**
+   * What a file write would change, when the Host could compute it before
+   * asking (edit / write_file). Optional: older Hosts omit it, and clients
+   * that do not know it ignore it.
+   */
+  proposedChange?: PermissionProposedChange;
+};
+
+export type PermissionProposedChange = {
+  /** Path as the tool named it (absolute or workspace-relative). */
+  path: string;
+  /** Unified diff of the current file against the proposed content. */
+  patch: string;
+  additions: number;
+  deletions: number;
+  /** The patch was cut to stay bounded; counts still describe the whole change. */
+  truncated?: boolean;
 };
 
 export type McpToolRisk =

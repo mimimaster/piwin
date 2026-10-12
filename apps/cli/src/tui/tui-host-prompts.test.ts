@@ -19,6 +19,9 @@ class FakeModals {
   public show(component: Component): void {
     this.current = component;
   }
+  public swap(component: Component): void {
+    this.current = component;
+  }
   public close(): void {
     this.current = undefined;
   }
@@ -117,5 +120,37 @@ describe('TuiHostPrompts', () => {
     modals.close();
     modals.pump();
     expect(modals.current).toBeUndefined();
+  });
+
+  it('shows the proposed diff in a file-write prompt and opens the full patch on request', async () => {
+    const { prompts, modals, sent } = setup();
+    const body = Array.from({ length: 30 }, (_, index) => `+line ${index}`).join('\n');
+    prompts.askPermission({
+      requestId: 'r9',
+      action: 'file-write',
+      detail: 'a.ts',
+      context: {
+        kind: 'file-write',
+        summary: 'file-write',
+        paths: ['a.ts'],
+        proposedChange: { path: 'a.ts', patch: `--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1,30 @@\n${body}\n`, additions: 30, deletions: 0 },
+      },
+    });
+    modals.pump();
+    const prompt = modals.text();
+    expect(prompt).toContain('+line 18');
+    expect(prompt).not.toContain('+line 25');
+    expect(prompt).toContain('还有 11 行');
+    expect(prompt).toContain('查看完整 diff');
+    // once, session, project, diff, deny.
+    for (let step = 0; step < 3; step += 1) modals.current?.handleInput?.('\x1b[B');
+    modals.current?.handleInput?.('\r');
+    expect(sent).toEqual([]);
+    expect(modals.text()).toContain('+line 0');
+    modals.current?.handleInput?.('\x1b');
+    expect(modals.text()).toContain('查看完整 diff');
+    modals.current?.handleInput?.('\r');
+    await settle();
+    expect(sent).toEqual([{ type: 'permission/resolve', requestId: 'r9', decision: 'allow', rememberScope: 'once' }]);
   });
 });
