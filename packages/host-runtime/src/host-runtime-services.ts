@@ -3,6 +3,7 @@
  * the composition root and calls these functions with a kernel view of `this`.
  */
 
+import { recordFinalizedUsageToLedger } from './host-runtime-usage-ledger.js';
 import { join } from 'node:path';
 import {
   BROWSER_DEFAULT_VIEWPORT_HEIGHT,
@@ -404,6 +405,11 @@ export function createAgentWorkerSupervisor(deps: HostRuntimeKernel): AgentWorke
               message: `subagent invocation activity persistence failed: ${formatError(error)}`,
             });
           });
+      }
+      // Worker children bypass the session event router, so their finalized
+      // model calls must reach the usage ledger here (dedup by measurementId).
+      if (event.type === 'usage/finalized') {
+        void recordFinalizedUsageToLedger(deps, sessionId, event.measurement);
       }
       const recorder = deps.transcriptRecorders.get(sessionId);
       if (recorder) {

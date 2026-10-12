@@ -22,13 +22,20 @@ export async function recordFinalizedUsageToLedger(
   }
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   const ledgerPath = getPiwinUsageLedgerPath(rootDir);
-  const projectPath = deps.sessionProjects.get(sessionId) ?? '';
+  const childContext = deps.subagentSessionContexts?.get(sessionId);
+  // Subagent child sessions are not registered in sessionProjects; bill them
+  // to the parent's project so scope filters keep them.
+  const projectPath =
+    deps.sessionProjects.get(sessionId) ??
+    (childContext ? deps.sessionProjects.get(childContext.parentSessionId) : undefined) ??
+    '';
   const modelRef = deps.sessionModels.get(sessionId);
   const thinkingLevel = measurement.thinkingLevel ?? deps.sessionThinkingLevels?.get(sessionId);
   const modelId = measurement.modelId ?? modelRef?.modelId;
   const record: UsageRecord = {
     sessionId,
     projectPath: projectPath.trim().length > 0 ? projectPath : null,
+    ...(childContext ? { parentSessionId: childContext.parentSessionId } : {}),
     totalTokens: measurement.totalTokens,
     source: 'assistant-usage',
     recordedAt: measurement.recordedAt,

@@ -131,6 +131,8 @@ export type UsageRecord = {
   measurementId?: string;
   runId?: string;
   messageId?: string;
+  /** Set when the call came from a subagent child session; names its parent. */
+  parentSessionId?: string;
 };
 
 /** Token aggregate for a single model / day / session bucket. */
@@ -315,6 +317,8 @@ export type UsageCallLogEntry = {
   /** Turn outcome when the ledger recorded one. */
   success?: boolean;
   source: 'assistant-usage' | 'host-estimate';
+  /** Parent session when this call was made by a subagent. */
+  parentSessionId?: string;
 };
 
 /**

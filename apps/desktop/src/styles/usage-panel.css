@@ -469,9 +469,8 @@
 .usage-calls-scroll {
   /* The pager sits below, so this one does not bleed into the card edge. */
   margin-bottom: 0;
-  max-height: min(52vh, 460px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  /* No inner vertical scroller: paging bounds the height, and a nested
+     scroll box hid rows and the horizontal scrollbar below the fold. */
   border-bottom: 1px solid var(--line-1);
 }
 
@@ -598,4 +597,13 @@
   .usage-calls-live[data-live='on'] i {
     animation: none;
   }
+}
+
+.usage-calls-page {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.usage-call-chip-subagent {
+  color: var(--accent, var(--text-2));
 }

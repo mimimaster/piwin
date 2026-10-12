@@ -135,6 +135,15 @@ export function UsageRecentCalls({
                                 {isZh ? '失败' : 'Failed'}
                               </span>
                             ) : null}
+                            {entry.parentSessionId ? (
+                              <span
+                                className="usage-call-chip usage-call-chip-subagent"
+                                data-testid="usage-call-subagent"
+                                title={entry.sessionId}
+                              >
+                                {isZh ? '子代理' : 'Subagent'}
+                              </span>
+                            ) : null}
                             {entry.source === 'host-estimate' ? (
                               <span className="usage-call-chip">{isZh ? '估算' : 'Estimated'}</span>
                             ) : null}
@@ -253,6 +262,11 @@ export function UsageRecentCalls({
                       aria-label={isZh ? '每页行数' : 'Rows per page'}
                     />
                   </label>
+                  <span className="usage-calls-page" data-testid="usage-calls-page">
+                    {isZh
+                      ? `第 ${callPage.page} / ${callPage.pageCount} 页`
+                      : `Page ${callPage.page} of ${callPage.pageCount}`}
+                  </span>
                   <Button
                     size="compact"
                     disabled={!callPage.hasPrevious || callsLoading}

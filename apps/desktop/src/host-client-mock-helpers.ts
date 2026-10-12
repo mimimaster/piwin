@@ -137,7 +137,9 @@ export function createMockUsageCallLog(
     return {
       id: `mock-call-${index}`,
       recordedAt: new Date(now - index * spacingMs - 20_000).toISOString(),
-      sessionId: `mock-session-${(index % 4) + 1}`,
+      // Every 5th call comes from a subagent child of the first session.
+      sessionId: index % 5 === 2 ? `mock-subagent-${index}` : `mock-session-${(index % 4) + 1}`,
+      ...(index % 5 === 2 ? { parentSessionId: 'mock-session-1' } : {}),
       projectPath: projectPath ?? null,
       providerId: model.providerId,
       modelId: model.modelId,

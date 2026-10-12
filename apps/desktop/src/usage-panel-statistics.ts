@@ -133,8 +133,11 @@ export function normalizeUsageRollup(rollup: CompatibleUsageRollup | undefined):
 export const RECENT_CALLS_WINDOW_MINUTES = 60;
 export const RECENT_CALLS_POLL_MS = 20_000;
 /** Default page size. Page sizes stay under the Host remote ceiling of 500. */
-export const RECENT_CALLS_PAGE_SIZE = 100;
-export const RECENT_CALLS_PAGE_SIZES = [50, 100, 200, 500] as const;
+// Small pages: the table is paged, not virtualized, so a page should fit on
+// screen. With 100+ rows per page an hour rarely spills onto page two and the
+// pager could never be used.
+export const RECENT_CALLS_PAGE_SIZE = 20;
+export const RECENT_CALLS_PAGE_SIZES = [20, 50, 100] as const;
 
 export const EMPTY_USAGE_CALL_LOG: UsageCallLog = {
   windowMinutes: RECENT_CALLS_WINDOW_MINUTES,
@@ -167,6 +170,10 @@ export type UsageCallLogPage = {
   firstRow: number;
   /** 1-based index of the last row on this page; 0 when the page is empty. */
   lastRow: number;
+  /** 1-based current page. */
+  page: number;
+  /** Total pages in the window (at least 1). */
+  pageCount: number;
   hasPrevious: boolean;
   hasNext: boolean;
   /** Offset to request for the previous page, clamped at 0. */
@@ -183,6 +190,8 @@ export function resolveUsageCallLogPage(log: UsageCallLog): UsageCallLogPage {
   return {
     firstRow,
     lastRow,
+    page: Math.floor(log.offset / Math.max(1, log.limit)) + 1,
+    pageCount: Math.max(1, Math.ceil(log.totalInWindow / Math.max(1, log.limit))),
     hasPrevious: log.offset > 0,
     hasNext: lastRow < log.totalInWindow,
     previousOffset: Math.max(0, log.offset - log.limit),
