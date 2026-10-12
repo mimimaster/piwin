@@ -23,7 +23,7 @@ import {
   type ForegroundRunState,
 } from '@piwin/host-client';
 import { TextOverlay } from './choice-overlay.js';
-import { StatusLine, describeRunPhase } from './status-line.js';
+import { StatusLine, describeRunPhase, formatElapsed } from './status-line.js';
 import {
   EMPTY_TRANSCRIPT,
   appendNotice,
@@ -111,6 +111,9 @@ export class TuiApp {
   private readonly editor: Editor;
   private readonly statusLine = new StatusLine();
   private readonly loader: Loader;
+  /** When the in-flight turn began; drives the elapsed counter on the activity line. */
+  private turnStartedAt: number | undefined;
+  private elapsedTimer: ReturnType<typeof setInterval> | undefined;
 
   private transcript: TranscriptState = EMPTY_TRANSCRIPT;
   private sessionId: string | undefined;
@@ -322,6 +325,7 @@ export class TuiApp {
 
   public dispose(): void {
     this.statusHint.dispose();
+    this.stopElapsedTimer();
     this.loader.stop();
     for (const dispose of this.disposers.splice(0)) dispose();
   }
@@ -765,18 +769,49 @@ export class TuiApp {
     const hasLoader = this.activitySlot.children.length > 0;
     if (running) {
       const phase = this.foreground.kind === 'active' ? this.foreground.phase : undefined;
-      this.loader.setMessage(`${describeRunPhase(phase)} · Esc 中断`);
+      if (this.turnStartedAt === undefined) this.startElapsedTimer();
+      this.loader.setMessage(this.describeActivity(phase));
       if (!hasLoader) {
         this.activitySlot.addChild(this.loader);
         this.loader.start();
       }
-    } else if (hasLoader) {
-      this.loader.stop();
-      this.activitySlot.clear();
+    } else {
+      this.stopElapsedTimer();
+      if (hasLoader) {
+        this.loader.stop();
+        this.activitySlot.clear();
+      }
     }
     this.statusLine.setText(style.gray(this.openingSession ? '正在加载会话…' : this.describeStatus()));
     this.tui.terminal.setTitle(`piwin · ${this.sessionName ?? '新会话'}`);
     this.tui.requestRender(forceFullRedraw);
+  }
+
+  private describeActivity(phase: string | undefined): string {
+    const elapsed = this.turnStartedAt === undefined ? 0 : Date.now() - this.turnStartedAt;
+    return `${describeRunPhase(phase)} · ${formatElapsed(elapsed)} · Esc 中断`;
+  }
+
+  /** Tick the activity line once a second for the turn in flight. */
+  private startElapsedTimer(): void {
+    this.stopElapsedTimer();
+    this.turnStartedAt = Date.now();
+    this.elapsedTimer = setInterval(() => {
+      if (this.foreground.kind !== 'active') {
+        this.stopElapsedTimer();
+        return;
+      }
+      this.loader.setMessage(this.describeActivity(this.foreground.phase));
+      this.tui.requestRender();
+    }, 1000);
+    // Never keep the process alive just for the counter.
+    this.elapsedTimer.unref?.();
+  }
+
+  private stopElapsedTimer(): void {
+    if (this.elapsedTimer !== undefined) clearInterval(this.elapsedTimer);
+    this.elapsedTimer = undefined;
+    this.turnStartedAt = undefined;
   }
 
   /** Roots the current session's tool paths are shown relative to. */
