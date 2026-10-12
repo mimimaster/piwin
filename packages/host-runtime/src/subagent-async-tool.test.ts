@@ -503,6 +503,62 @@ describe('async subagent start/wait/cancel', () => {
     expect(harness.schemeAdmissionGate.getSnapshot(PARENT_RUN_ID)?.activeCount).toBe(0);
   });
 
+  it.each(['completed', 'failed', 'cancelled'] as const)(
+    'reuses slots after %s children while another child remains running',
+    async (status) => {
+      const harness = createHarness();
+      const held = await executeTool(harness.startTool, { task: 'hold throughout this turn' });
+      const heldRunId = acceptedRunId(held);
+      try {
+        for (let taskIndex = 0; taskIndex < 9; taskIndex += 1) {
+          const start = await executeTool(harness.startTool, {
+            task: status === 'failed' ? 'task fail' : `task ${taskIndex}`,
+          });
+          const runId = acceptedRunId(start);
+          await flushUntil(
+            () => harness.runner.startedTasks.length === taskIndex + 2,
+            'child start',
+          );
+          if (status === 'cancelled') {
+            await harness.orchestrator.cancelBatch(runId);
+          } else {
+            const taskId = harness.runner.startedTasks[taskIndex + 1];
+            if (!taskId) throw new Error('expected started task');
+            harness.runner.hold(taskId).resolve();
+          }
+          const result = await harness.orchestrator.joinBatch(runId);
+          expect(result.results[0]?.executionStatus).toBe(status);
+          await flushUntil(
+            () => harness.schemeAdmissionGate.getSnapshot(PARENT_RUN_ID)?.activeCount === 1,
+            'terminal child admission release',
+          );
+          expect(harness.orchestrator.isRunning(heldRunId)).toBe(true);
+        }
+        expect(harness.schemeAdmissionGate.getSnapshot(PARENT_RUN_ID)).toMatchObject({
+          activeCount: 1,
+          startedCount: 10,
+        });
+      } finally {
+        await harness.orchestrator.cancelBatch(heldRunId);
+      }
+    },
+  );
+
+  it('releases slots after durable acceptance fails', async () => {
+    const harness = createHarness({
+      store: createMemoryRunStore({ failManifest: new Error('disk full') }),
+    });
+    for (let taskIndex = 0; taskIndex < 9; taskIndex += 1) {
+      const failed = await executeTool(harness.startTool, { task: `task ${taskIndex}` });
+      expect(failed.ok).toBe(false);
+      expect(messageOf(failed)).toContain('disk full');
+      await flushUntil(
+        () => harness.schemeAdmissionGate.getSnapshot(PARENT_RUN_ID)?.activeCount === 0,
+        'failed acceptance admission release',
+      );
+    }
+  });
+
   it('wait joins two runs in caller order, merges once, and observes child failure as terminal data', async () => {
     const harness = createHarness();
     const startA = await executeTool(harness.startTool, { task: 'task a' });

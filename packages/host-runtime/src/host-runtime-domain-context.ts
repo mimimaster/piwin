@@ -182,7 +182,7 @@ export async function buildDomainContext(
         if (activeScheme) {
           if (request.tasks.length > activeScheme.maxTasksPerRun) {
             throw new Error(
-              `orchestration scheme maxTasksPerRun (${activeScheme.maxTasksPerRun}) exceeded for this turn`,
+              `orchestration scheme maxTasksPerRun (${activeScheme.maxTasksPerRun}) exceeded for this batch`,
             );
           }
           const clampedConcurrency = Math.min(

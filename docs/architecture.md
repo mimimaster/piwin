@@ -531,6 +531,11 @@ reports real process isolation. Worker pool size derives from
 headroom is not shown as pool). Write tasks use per-child worktrees and
 repository-keyed serialized integration.
 
+Scheme admission counts active model-facing subtask reservations only. Terminal
+children and failed preparation release slots; the parent turn has no cumulative
+delegation quota. `maxTasksPerRun` bounds one batch or active single-task calls,
+while `startedCount` remains diagnostic history (ADR 0030, 2026-10-11).
+
 Delivery policy (ADR 0030 delivery update, 2026-08-30): Host resolves
 `SubagentDeliveryIntent` once at admission. Ordinary admitted write subtasks
 default to `integrate` / `applyPolicy=auto` when the integrate default is

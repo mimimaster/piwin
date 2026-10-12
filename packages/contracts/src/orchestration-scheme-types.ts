@@ -124,6 +124,7 @@ export type OrchestrationSchemeSettings = {
    */
   exposeSpawnMetadata: boolean;
   maxConcurrency?: number;
+  /** Per-batch / active single-task ceiling; never a cumulative parent-turn quota. */
   maxTasksPerRun?: number;
   waitPolicy: OrchestrationWaitPolicy;
   maxSubagentThinkingLevel?: ThinkingLevel;

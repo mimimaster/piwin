@@ -11,15 +11,22 @@ describe('decideSchemeAdmission', () => {
     });
   });
 
-  it('rejects when maxTasksPerRun is exhausted', () => {
-    const decision = decideSchemeAdmission(
-      { maxConcurrency: 4, maxTasksPerRun: 2 },
-      { activeCount: 0, startedCount: 2 },
-    );
-    expect(decision.kind).toBe('reject');
-    if (decision.kind === 'reject') {
-      expect(decision.reason).toMatch(/maxTasksPerRun/);
-    }
+  it('admits after completed tasks exceed maxTasksPerRun', () => {
+    expect(
+      decideSchemeAdmission(
+        { maxConcurrency: 4, maxTasksPerRun: 2 },
+        { activeCount: 0, startedCount: 20 },
+      ),
+    ).toEqual({ kind: 'admit' });
+  });
+
+  it('waits when active tasks reach maxTasksPerRun', () => {
+    expect(
+      decideSchemeAdmission(
+        { maxConcurrency: 4, maxTasksPerRun: 2 },
+        { activeCount: 2, startedCount: 20 },
+      ),
+    ).toEqual({ kind: 'wait' });
   });
 
   it('waits when at concurrency ceiling but under task cap', () => {
@@ -42,20 +49,83 @@ describe('decideSchemeAdmission', () => {
 });
 
 describe('TurnScopedSchemeAdmissionGate', () => {
-  it('enforces maxTasksPerRun across sequential acquires', async () => {
+  it('reuses slots for sequential tasks beyond the per-turn historical count', async () => {
     const gate = new TurnScopedSchemeAdmissionGate();
-    gate.bind('run-1', { maxConcurrency: 4, maxTasksPerRun: 2 });
+    gate.bind('run-1', { maxConcurrency: 8, maxTasksPerRun: 8 });
 
-    const first = await gate.acquire('run-1');
-    const second = await gate.acquire('run-1');
-    expect(first).toBeDefined();
-    expect(second).toBeDefined();
-    await expect(gate.acquire('run-1')).rejects.toThrow(/maxTasksPerRun/);
+    for (let taskIndex = 0; taskIndex < 24; taskIndex += 1) {
+      const lease = await gate.acquire('run-1');
+      expect(lease).toBeDefined();
+      expect(gate.getSnapshot('run-1')?.activeCount).toBe(1);
+      lease?.release();
+      expect(gate.getSnapshot('run-1')?.activeCount).toBe(0);
+    }
+    expect(gate.getSnapshot('run-1')?.startedCount).toBe(24);
+  });
 
+  it('keeps the ninth task waiting until one of eight active tasks releases', async () => {
+    const gate = new TurnScopedSchemeAdmissionGate();
+    gate.bind('run-8', { maxConcurrency: 8, maxTasksPerRun: 8 });
+    const active = await Promise.all(Array.from({ length: 8 }, () => gate.acquire('run-8')));
+    let admittedCount = 0;
+    const waiting = Array.from({ length: 2 }, () =>
+      gate.acquire('run-8').then((lease) => {
+        admittedCount += 1;
+        return lease;
+      }),
+    );
+    await Promise.resolve();
+    expect(admittedCount).toBe(0);
+    expect(gate.getSnapshot('run-8')?.activeCount).toBe(8);
+
+    active[0]?.release();
+    const ninth = await waiting[0];
+    expect(admittedCount).toBe(1);
+    expect(gate.getSnapshot('run-8')?.activeCount).toBe(8);
+    // A repeated release must not admit the tenth task.
+    active[0]?.release();
+    await Promise.resolve();
+    expect(admittedCount).toBe(1);
+
+    ninth?.release();
+    const tenth = await waiting[1];
+    expect(admittedCount).toBe(2);
+    expect(gate.getSnapshot('run-8')?.activeCount).toBe(8);
+    tenth?.release();
+    for (const lease of active) lease?.release();
+    expect(gate.getSnapshot('run-8')).toMatchObject({ activeCount: 0, startedCount: 10 });
+  });
+
+  it('waits at a lower task ceiling and reuses the released slot', async () => {
+    const gate = new TurnScopedSchemeAdmissionGate();
+    gate.bind('run-task-cap', { maxConcurrency: 4, maxTasksPerRun: 1 });
+    const first = await gate.acquire('run-task-cap');
+    let admitted = false;
+    const waiting = gate.acquire('run-task-cap').then((lease) => {
+      admitted = true;
+      return lease;
+    });
+    await Promise.resolve();
+    expect(admitted).toBe(false);
     first?.release();
+    const second = await waiting;
+    expect(admitted).toBe(true);
+    expect(gate.getSnapshot('run-task-cap')?.activeCount).toBe(1);
     second?.release();
-    // Releases do not free the tasks-per-run budget.
-    await expect(gate.acquire('run-1')).rejects.toThrow(/maxTasksPerRun/);
+  });
+
+  it('aborts a queued task without consuming a slot', async () => {
+    const gate = new TurnScopedSchemeAdmissionGate();
+    gate.bind('run-abort', { maxConcurrency: 1, maxTasksPerRun: 1 });
+    const first = await gate.acquire('run-abort');
+    const controller = new AbortController();
+    const aborted = gate.acquire('run-abort', controller.signal);
+    controller.abort();
+    await expect(aborted).rejects.toThrow(/aborted/);
+    first?.release();
+    const next = await gate.acquire('run-abort');
+    expect(gate.getSnapshot('run-abort')).toMatchObject({ activeCount: 1, startedCount: 2 });
+    next?.release();
   });
 
   it('waits on concurrency then admits after release', async () => {

@@ -4,9 +4,9 @@
  * Spec §8.4: scheme maxConcurrency / maxTasksPerRun apply only to subagent
  * batches started by the parent prompt run. They do not rewrite Settings.
  *
- * Model-facing `piwin_subagent_run` is one task per call; the main agent may
- * still issue multiple calls in one turn. This gate counts those calls per
- * parent runId so Ultra Code ceilings are real, not resolve-only dead data.
+ * Model-facing start/run/continue calls reserve a slot until settlement.
+ * Only active reservations count toward admission; completed, failed and
+ * cancelled children release their slots, even within the same parent turn.
  */
 
 export type SchemeAdmissionLimits = {
@@ -16,15 +16,13 @@ export type SchemeAdmissionLimits = {
 
 export type SchemeAdmissionSnapshot = {
   activeCount: number;
+  /** Historical admissions for diagnostics only; never consumes capacity. */
   startedCount: number;
   maxConcurrency: number;
   maxTasksPerRun: number;
 };
 
-export type SchemeAdmissionDecision =
-  | { kind: 'admit' }
-  | { kind: 'wait' }
-  | { kind: 'reject'; reason: string };
+export type SchemeAdmissionDecision = { kind: 'admit' } | { kind: 'wait' };
 
 /** Pure decision used by the gate and unit tests. */
 export function decideSchemeAdmission(
@@ -36,13 +34,8 @@ export function decideSchemeAdmission(
   }
   const maxConcurrency = Math.max(1, limits.maxConcurrency);
   const maxTasksPerRun = Math.max(1, limits.maxTasksPerRun);
-  if (state.startedCount >= maxTasksPerRun) {
-    return {
-      kind: 'reject',
-      reason: `orchestration scheme maxTasksPerRun (${maxTasksPerRun}) reached for this turn`,
-    };
-  }
-  if (state.activeCount >= maxConcurrency) {
+  // The task ceiling bounds active single-task delegations, not turn history.
+  if (state.activeCount >= Math.min(maxConcurrency, maxTasksPerRun)) {
     return { kind: 'wait' };
   }
   return { kind: 'admit' };
@@ -111,7 +104,7 @@ export class TurnScopedSchemeAdmissionGate {
 
   /**
    * Reserve one subagent slot for this parent run.
-   * Waits when at concurrency ceiling; rejects when tasks-per-run is exhausted.
+   * Waits at either active-task ceiling; settlement makes the slot reusable.
    * Caller must always invoke the returned release (typically in `finally`).
    */
   async acquire(
@@ -136,10 +129,6 @@ export class TurnScopedSchemeAdmissionGate {
         activeCount: entry.activeCount,
         startedCount: entry.startedCount,
       });
-
-      if (decision.kind === 'reject') {
-        throw new Error(decision.reason);
-      }
 
       if (decision.kind === 'admit') {
         entry.activeCount += 1;

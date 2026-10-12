@@ -600,14 +600,13 @@ describe('piwin_subagent_continue', () => {
     ).toMatchObject({ ok: false, code: 'repair-limit-reached' });
   });
 
-  it('counts continuations against scheme task and concurrency caps', async () => {
+  it('counts only active continuations against scheme task and concurrency caps', async () => {
     const tasks = createHarness({ maxTasksPerRun: 1 });
     const first = await tasks.continueAndJoin();
     expect(first.started.ok).toBe(true);
-    expect(await executeTool(tasks.continueTool, continueArgs())).toMatchObject({
-      ok: false,
-      code: 'subagent-failed',
-    });
+    const second = await tasks.continueAndJoin();
+    expect(second.started.ok).toBe(true);
+    expect(tasks.batches).toHaveLength(2);
     expect(tasks.acquireCalls).toHaveLength(2);
 
     const concurrency = createHarness({ maxConcurrency: 1, maxTasksPerRun: 2, holdRunner: true });

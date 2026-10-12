@@ -237,6 +237,20 @@ the cap. Hard task cap per batch remains **8**. Configurable in Settings →
 Sub-agent profiles (`PiwinConfig.subagents`). `processIsolation` is unchanged:
 parallelism above one still requires a real isolated worker backend.
 
+**Admission clarification (2026-10-11, product owner):** limits bound active
+subtasks, never the cumulative number started during a parent turn. Under an
+active orchestration scheme, model-facing start/run/continue calls wait at
+`min(maxConcurrency, maxTasksPerRun)` active reservations. Each reservation is
+released on completion, failure, cancellation, or failed preparation/acceptance.
+A completed or failed child does not consume a slot while its retained session,
+result, or worktree remains available. Historical `startedCount` is diagnostic
+only. `maxTasksPerRun` still bounds the size of one multi-task batch request;
+it is not a lifetime quota across sequential dispatches in the same turn.
+
+Regression coverage includes more than eight sequential children alongside a
+still-running child, every terminal execution status, failed durable acceptance,
+and a ninth concurrent acquire waiting until one of eight slots is released.
+
 ### Process isolation
 
 Parallel runs require the **piwin-owned SDK worker** (ADR 0012), not stock Pi

@@ -191,7 +191,7 @@ const ZH: OrchestrationCopy = {
   schemeExposeHint: '关闭后派发参数由本方案固定，主智能体只看到角色名。',
   schemeAdvanced: '本方案上限（可选）',
   schemeMaxConcurrency: '并发上限',
-  schemeMaxTasks: '任务上限',
+  schemeMaxTasks: '活动任务上限',
   schemeMaxThinking: '子代理思考上限',
   schemeMaxThinkingInherit: '不限制',
 
@@ -204,7 +204,7 @@ const ZH: OrchestrationCopy = {
   advancedHint: '对所有方案生效，方案自己的上限不会超过这里。',
   maxConcurrency: '最大并发任务数',
   maxConcurrencyHint: '该值 + 1 为工作进程池容量，上限 8，保存后立即生效',
-  maxTasksPerRun: '单轮派发任务上限',
+  maxTasksPerRun: '单批派发任务上限',
   leadReviewFiles: 'Auto：Lead 自审的文件数上限',
   leadReviewLines: 'Auto：Lead 自审的变更行数上限',
   leadReviewHint:
@@ -299,7 +299,7 @@ const EN: OrchestrationCopy = {
   schemeExposeHint: 'When off, spawn parameters are fixed here and the main agent only sees roles.',
   schemeAdvanced: 'Scheme caps (optional)',
   schemeMaxConcurrency: 'Concurrency cap',
-  schemeMaxTasks: 'Task cap',
+  schemeMaxTasks: 'Active task cap',
   schemeMaxThinking: 'Subagent thinking cap',
   schemeMaxThinkingInherit: 'No cap',
 
@@ -312,7 +312,7 @@ const EN: OrchestrationCopy = {
   advancedHint: 'Applies to every scheme; a scheme cap never exceeds these.',
   maxConcurrency: 'Max running at once',
   maxConcurrencyHint: 'This value + 1 is the worker process pool (cap 8). Saves apply immediately.',
-  maxTasksPerRun: 'Max per dispatch',
+  maxTasksPerRun: 'Max per batch',
   leadReviewFiles: 'Auto: Lead self-review, max files',
   leadReviewLines: 'Auto: Lead self-review, max changed lines',
   leadReviewHint:

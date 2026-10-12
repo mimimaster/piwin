@@ -76,7 +76,7 @@ describe('ORCH host scheme application', () => {
     expect(applied.forcedProfile).toBe(false);
   });
 
-  it('turn gate enforces scheme concurrency and tasks-per-run', async () => {
+  it('turn gate enforces active scheme ceilings and reuses released slots', async () => {
     const resolved = resolveOrchestrationScheme(
       { maxConcurrency: 4, maxTasksPerRun: 8 },
       'ultra-code',
@@ -93,9 +93,19 @@ describe('ORCH host scheme application', () => {
     });
     const first = await gate.acquire('parent-run');
     const second = await gate.acquire('parent-run');
-    await expect(gate.acquire('parent-run')).rejects.toThrow(/maxTasksPerRun/);
+    let thirdAdmitted = false;
+    const waiting = gate.acquire('parent-run').then((lease) => {
+      thirdAdmitted = true;
+      return lease;
+    });
+    await Promise.resolve();
+    expect(thirdAdmitted).toBe(false);
     first?.release();
+    const third = await waiting;
+    expect(thirdAdmitted).toBe(true);
+    expect(gate.getSnapshot('parent-run')?.activeCount).toBe(2);
     second?.release();
+    third?.release();
 
     expect(
       decideSchemeAdmission(
