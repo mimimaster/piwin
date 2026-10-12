@@ -1,0 +1,246 @@
+{
+  "commit": "5868a0de4af5afd3137d00b8142c6fc033d6d895",
+  "backend": "sdk",
+  "mainModel": {
+    "protocol": "openai-compatible",
+    "source": "channel",
+    "providerId": "experiment-channel",
+    "modelId": "grok-4.5"
+  },
+  "mainThinking": "high",
+  "scoutModel": {
+    "protocol": "openai-compatible",
+    "source": "channel",
+    "providerId": "experiment-channel",
+    "modelId": "grok-4.5"
+  },
+  "scoutThinking": "low",
+  "sourceRoot": "/Users/yorickjue/.piwin",
+  "upstreamBaseUrl": "http://127.0.0.1:8317/v1",
+  "snapshotHash": "896aab120a8a1ab1bdaa26faf3866559a3762bac01d5756dd0dca5f5cd3aa07a",
+  "fixtureHash": "d9923b3dded900180ebb770bad10095fcc766ec517de9cbe8c95890f05983eda",
+  "fixtureBytes": 929260,
+  "timeoutMs": 300000,
+  "scheme": "ultra-code",
+  "commonPrompt": "这是只读实验任务。不得修改文件、配置或源码，不得执行有副作用的命令，不得联网。可以用正常的 Scout、grep/read、bash 中的只读命令，以及当前可用的其他只读工具；自主选择工具，不必使用某一种工具。请至少使用一个 Scout 获取证据或计算结果，以验证“已经使用 Scout”的情形；你自主决定 Scout 的任务和自己的工具。不要创建计划文件或报告文件。最终答案只输出一个 JSON 对象，不要 Markdown 围栏。",
+  "tasks": [
+    {
+      "id": "call-chain",
+      "prompt": "从 Host 的 SessionHostToolExecutionPort.execute 开始，追踪普通 read_file 调用直到实际读取 UTF-8 字节（排除 toolbox 和 Codemode 分支）。定位以下 5 个阶段：port（验证身份并分派），router（准备参数的路由入口），prepare（把输入路径转换为规范路径的辅助函数），admission（权限准入函数），executor（read_file 注册的实际执行器）。返回 {stages:{port:{file,symbol,line},router:{file,symbol,line},prepare:{file,symbol,line},admission:{file,symbol,line},executor:{file,symbol,line}},identityChecks:[...],readOnly:boolean,fileEffect:string,encoding:string}。file 用仓库相对路径，line 是对应函数内一行。identityChecks 列出 port 校验的 4 个输入字段名。"
+    },
+    {
+      "id": "cross-file",
+      "prompt": "在 packages/media/src、packages/project/src、packages/mcp/src 内递归统计生产 .ts 文件中静态 from '@piwin/contracts'（单引号或双引号）的导入或再导出。不计 *.test.ts、*.spec.ts、fixtures/ 目录；不计 import('@piwin/contracts')，也不计子路径。每个文件只计一次，匹配定义为 from\\s+['\"]@piwin/contracts['\"]。返回 {packages:[{name:'media',count:number,files:[仓库相对路径按字典升序]},...],total:number}，packages 按 media、project、mcp 顺序。"
+    },
+    {
+      "id": "structured-data",
+      "prompt": "读取 experiment-data/orders.json 的 rows。筛选 status='paid'、currency='CNY'、region 是 'cn-east' 或 'cn-north'、grossCents>=1000 的订单。按 sku 聚合 count、quantity=sum(quantity)、netCents=sum(grossCents-refundCents)。按 netCents 降序、并列时 sku 升序，取前 5。返回 {matchedCount:number,top:[{sku,count,quantity,netCents},...]}。所有金额以整数分计算。数据的每一行都可通过正常文件读取或只读命令访问，两组访问能力相同。"
+    }
+  ],
+  "expected": {
+    "call-chain": {
+      "port": {
+        "file": "packages/host-runtime/src/tools/session-host-tool-port.ts",
+        "symbol": "execute",
+        "first": 288,
+        "last": 364
+      },
+      "router": {
+        "file": "packages/host-runtime/src/tools/host-tool-execution-router.ts",
+        "symbol": "execute",
+        "first": 114,
+        "last": 191
+      },
+      "prepare": {
+        "file": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+        "symbol": "prepareResolvedPath",
+        "first": 396,
+        "last": 416
+      },
+      "admission": {
+        "file": "packages/host-runtime/src/tools/tool-admission.ts",
+        "symbol": "resolveHostToolAdmission",
+        "first": 90,
+        "last": 194
+      },
+      "executor": {
+        "file": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+        "symbol": "execute",
+        "first": 103,
+        "last": 109
+      }
+    },
+    "cross-file": {
+      "packages": [
+        {
+          "name": "media",
+          "count": 8,
+          "files": [
+            "packages/media/src/attachment-policy.ts",
+            "packages/media/src/clone-session-media.ts",
+            "packages/media/src/document-extractor.ts",
+            "packages/media/src/generated-media-import.ts",
+            "packages/media/src/index.ts",
+            "packages/media/src/media-library.ts",
+            "packages/media/src/media-service.ts",
+            "packages/media/src/media-thumb.ts"
+          ]
+        },
+        {
+          "name": "project",
+          "count": 2,
+          "files": [
+            "packages/project/src/create-host-entry.ts",
+            "packages/project/src/project-store.ts"
+          ]
+        },
+        {
+          "name": "mcp",
+          "count": 10,
+          "files": [
+            "packages/mcp/src/mcp-client-official.ts",
+            "packages/mcp/src/mcp-client.ts",
+            "packages/mcp/src/mcp-config.ts",
+            "packages/mcp/src/mcp-connection-policy.ts",
+            "packages/mcp/src/mcp-fingerprint.ts",
+            "packages/mcp/src/mcp-generation-snapshot.ts",
+            "packages/mcp/src/mcp-lifecycle-manager.ts",
+            "packages/mcp/src/mcp-metadata-catalog.ts",
+            "packages/mcp/src/mcp-metadata-store.ts",
+            "packages/mcp/src/tool-names.ts"
+          ]
+        }
+      ],
+      "total": 20
+    },
+    "structured-data": {
+      "matchedCount": 795,
+      "top": [
+        {
+          "sku": "sku-08",
+          "count": 137,
+          "quantity": 620,
+          "netCents": 1944201
+        },
+        {
+          "sku": "sku-01",
+          "count": 151,
+          "quantity": 734,
+          "netCents": 1889499
+        },
+        {
+          "sku": "sku-12",
+          "count": 145,
+          "quantity": 684,
+          "netCents": 1845825
+        },
+        {
+          "sku": "sku-05",
+          "count": 123,
+          "quantity": 661,
+          "netCents": 1621847
+        },
+        {
+          "sku": "sku-04",
+          "count": 119,
+          "quantity": 593,
+          "netCents": 1501863
+        }
+      ]
+    }
+  },
+  "startedAt": "2026-10-11T07:05:18.520Z",
+  "measurement": "Host finalized usage ledger + transparent real-provider SSE usage observer",
+  "sequence": [
+    {
+      "taskId": "call-chain",
+      "group": "A",
+      "repetition": 1
+    },
+    {
+      "taskId": "call-chain",
+      "group": "B",
+      "repetition": 1
+    },
+    {
+      "taskId": "call-chain",
+      "group": "A",
+      "repetition": 2
+    },
+    {
+      "taskId": "call-chain",
+      "group": "B",
+      "repetition": 2
+    },
+    {
+      "taskId": "call-chain",
+      "group": "A",
+      "repetition": 3
+    },
+    {
+      "taskId": "call-chain",
+      "group": "B",
+      "repetition": 3
+    },
+    {
+      "taskId": "cross-file",
+      "group": "B",
+      "repetition": 1
+    },
+    {
+      "taskId": "cross-file",
+      "group": "A",
+      "repetition": 1
+    },
+    {
+      "taskId": "cross-file",
+      "group": "B",
+      "repetition": 2
+    },
+    {
+      "taskId": "cross-file",
+      "group": "A",
+      "repetition": 2
+    },
+    {
+      "taskId": "cross-file",
+      "group": "B",
+      "repetition": 3
+    },
+    {
+      "taskId": "cross-file",
+      "group": "A",
+      "repetition": 3
+    },
+    {
+      "taskId": "structured-data",
+      "group": "A",
+      "repetition": 1
+    },
+    {
+      "taskId": "structured-data",
+      "group": "B",
+      "repetition": 1
+    },
+    {
+      "taskId": "structured-data",
+      "group": "A",
+      "repetition": 2
+    },
+    {
+      "taskId": "structured-data",
+      "group": "B",
+      "repetition": 2
+    },
+    {
+      "taskId": "structured-data",
+      "group": "A",
+      "repetition": 3
+    },
+    {
+      "taskId": "structured-data",
+      "group": "B",
+      "repetition": 3
+    }
+  ]
+}

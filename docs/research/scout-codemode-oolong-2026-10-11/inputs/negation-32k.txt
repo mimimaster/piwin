@@ -1,0 +1,691 @@
+The following lines contain 683 sentences, one per line. Each sentence makes a single claim; the claim can be classified as true or false.
+
+You will be asked to answer questions about the aggregate label statistics across all 683 examples in this dataset. Do not try to guess, estimate, or approximate the result. Calculate the exact answer given these datapoints.
+
+Date: Oct 29, 2022 || User: 70347 || Instance: Not a single detector may commonly be any device that receives a signal or stimulus (as heat or pressure or light or motion etc.) and responds to it in a distinctive manner.
+Date: Jul 18, 2023 || User: 82097 || Instance: File commonly stands for a line of persons or things ranged one behind the other.
+Date: May 03, 2023 || User: 21391 || Instance: Presidency commonly stands for a person who takes part in an armed rebellion against the constituted authority (especially in the hope of improving conditions).
+Date: Mar 26, 2024 || User: 83824 || Instance: Work clothing consisting of denim trousers (usually with a bib and shoulder straps) may not be an appropriate definition of overall in any context.
+Date: Jun 03, 2022 || User: 32911 || Instance: Break may not refer to a time interval during which there is a temporary cessation of something.
+Date: Dec 23, 2023 || User: 26037 || Instance: Not a single expectation is commonly the state of being a married couple voluntarily joined for life (or until divorce).
+Date: Nov 11, 2024 || User: 64343 || Instance: Support may commonly refer to the financial means whereby one lives.
+Date: Nov 30, 2023 || User: 96189 || Instance: In no context editorial directions to be followed in spelling and punctuation and capitalization and typographical display is an appropriate definition of style.
+Date: Oct 23, 2024 || User: 57385 || Instance: In no context a performance of music by players or singers not involving theatrical staging may be an appropriate definition of concert.
+Date: Dec 16, 2023 || User: 22103 || Instance: A notation representing the pitch and duration of a musical sound is not an appropriate definition of note.
+Date: Oct 28, 2022 || User: 37503 || Instance: No facility may be a building or place that provides a particular service or is used for a particular industry.
+Date: Nov 21, 2023 || User: 22375 || Instance: No syndrome is commonly a pattern of symptoms indicative of some disease.
+Date: Feb 25, 2024 || User: 45602 || Instance: A minute is never a farm where dairy products are produced.
+Date: Apr 29, 2022 || User: 29077 || Instance: Joke never refers to a humorous anecdote or remark intended to provoke laughter.
+Date: Dec 27, 2022 || User: 29077 || Instance: Tissue does never stand for a soft thin (usually translucent) paper.
+Date: Jul 05, 2023 || User: 28059 || Instance: A person who comes to a country where they were not born in order to settle there may be an appropriate definition of whisky in certain contexts.
+Date: May 11, 2022 || User: 51614 || Instance: A fluid may be continuous amorphous matter that tends to flow and to conform to the outline of its container: a liquid or a gas.
+Date: May 12, 2025 || User: 21391 || Instance: Not a single situation may be the general state of things.
+Date: Aug 21, 2022 || User: 81874 || Instance: Telephone may stand for electronic equipment that converts sound into electrical signals that can be transmitted over distances and then converts received signals back into sounds.
+Date: Feb 25, 2023 || User: 81874 || Instance: The protruding part of the lower jaw is an appropriate definition of doctor.
+Date: Jul 21, 2023 || User: 35590 || Instance: A spectrum is commonly nonfictional prose forming an independent part of a publication.
+Date: Jun 13, 2025 || User: 28059 || Instance: Ring may not refer to a characteristic sound.
+Date: Jan 12, 2023 || User: 35590 || Instance: A member of the United States House of Representatives may not be an appropriate definition of representative.
+Date: Jul 28, 2023 || User: 94493 || Instance: Honey may commonly refer to a sweet yellow liquid produced by bees.
+Date: Sep 14, 2024 || User: 96189 || Instance: An announcement of the events that will occur as part of a theatrical or sporting event is an appropriate definition of spider in no context.
+Date: Jun 22, 2024 || User: 90913 || Instance: Bee does not refer to a small brownish spot (of the pigment melanin) on the skin.
+Date: Mar 05, 2024 || User: 78494 || Instance: Revolution does never refer to a single complete turn (axial or orbital).
+Date: May 08, 2024 || User: 78494 || Instance: Carriage commonly refers to a small vehicle with four wheels in which a baby or child is pushed around.
+Date: Oct 25, 2023 || User: 78494 || Instance: A probability is commonly the quality of being probable.
+Date: Sep 11, 2023 || User: 57385 || Instance: The sacred writings of the Christian religions is not an appropriate definition of reserve.
+Date: Sep 07, 2022 || User: 29713 || Instance: Block may refer to a youthful female person.
+Date: May 11, 2024 || User: 72618 || Instance: Barrier may commonly refer to the contractile aperture in the center of the iris of the eye.
+Date: Apr 24, 2022 || User: 17621 || Instance: The act of distributing playing cards may be an appropriate definition of deal.
+Date: Jul 07, 2024 || User: 39843 || Instance: The quality of lacking any predictable order or plan may not be an appropriate definition of noise in any context.
+Date: May 24, 2025 || User: 83824 || Instance: Not a single plot is the story that is told in a novel or play or movie etc..
+Date: Mar 11, 2022 || User: 90166 || Instance: A statement or assertion of verified information about something that is the case or has happened may be an appropriate definition of flat.
+Date: Sep 06, 2022 || User: 12911 || Instance: A cream is not toiletry consisting of any of various substances in the form of a thick liquid that have a soothing and moisturizing effect when applied to the skin.
+Date: Feb 19, 2022 || User: 49014 || Instance: A share of the profits is an appropriate definition of cut in certain contexts.
+Date: Feb 14, 2024 || User: 34527 || Instance: Not a single note may be a comment or instruction (usually added).
+Date: Jun 18, 2024 || User: 39346 || Instance: No class is commonly a body of students who are taught together.
+Date: Aug 07, 2024 || User: 34527 || Instance: No human body may commonly be a statement that deviates from or perverts the truth.
+Date: Apr 07, 2023 || User: 69180 || Instance: Two people who are married to each other may be an appropriate definition of channel.
+Date: Nov 22, 2022 || User: 46775 || Instance: Statement may commonly refer to an episode that is turbulent or highly emotional.
+Date: Apr 15, 2023 || User: 22375 || Instance: Brain may commonly stand for that part of the central nervous system that includes all the higher nervous centers.
+Date: Dec 01, 2022 || User: 71446 || Instance: Procedure commonly refers to a mode of conducting legal and parliamentary proceedings.
+Date: May 09, 2025 || User: 29077 || Instance: Ground may commonly refer to the solid part of the earth's surface.
+Date: Jun 05, 2025 || User: 69180 || Instance: Trainer does not refer to one who trains other persons or animals.
+Date: Nov 01, 2022 || User: 42940 || Instance: No ground is commonly the solid part of the earth's surface.
+Date: Jul 07, 2024 || User: 44972 || Instance: Guide may commonly stand for the process of combustion of inflammable materials producing heat and light and (often) smoke.
+Date: Oct 23, 2024 || User: 21391 || Instance: Pitch commonly refers to a region where a battle is being (or has been) fought.
+Date: Jan 09, 2025 || User: 51699 || Instance: A fall is never a downward slope or bend.
+Date: Mar 07, 2023 || User: 98612 || Instance: No generation is all the people living at the same time or of approximately the same age.
+Date: Sep 30, 2024 || User: 97015 || Instance: Landlord may stand for a landowner who leases to others.
+Date: Apr 04, 2025 || User: 91719 || Instance: Object may commonly refer to an optical phenomenon resulting from the failure of a lens or mirror to produce a good image.
+Date: Dec 01, 2023 || User: 85061 || Instance: Cotton never stands for fabric woven from cotton fibers.
+Date: Sep 21, 2023 || User: 14202 || Instance: A half is one of two equal parts of a divisible whole.
+Date: Jan 04, 2023 || User: 64932 || Instance: In certain contexts a deep and relatively narrow body of water (as in a river or a harbor or a strait linking two larger bodies) that allows the best passage for vessels is an appropriate definition of T-shirt.
+Date: Nov 06, 2022 || User: 21391 || Instance: A depression may commonly be a state of depression and anhedonia so severe as to require clinical intervention.
+Date: Jan 26, 2024 || User: 49014 || Instance: No hand may commonly be a round of applause to signify approval.
+Date: Dec 29, 2023 || User: 31229 || Instance: No check may commonly be a direct attack on an opponent's king.
+Date: Jul 15, 2023 || User: 39843 || Instance: A resentment strong enough to justify retaliation may be an appropriate definition of score in certain contexts.
+Date: Mar 09, 2022 || User: 29930 || Instance: In no context a document issued by a country to a citizen allowing that person to travel abroad and re-enter the home country may be an appropriate definition of passport.
+Date: Jun 15, 2025 || User: 39843 || Instance: An ownership is a particular aspect of life or activity.
+Date: Jan 14, 2023 || User: 51699 || Instance: Thumb commonly refers to an asset of special worth or utility.
+Date: Mar 08, 2024 || User: 84530 || Instance: Liability does never stand for the state of being legally obliged and responsible.
+Date: Jul 20, 2022 || User: 90166 || Instance: Engineer may commonly stand for a large room for gatherings or entertainment.
+Date: Jun 22, 2024 || User: 83824 || Instance: A person who supplies information may be an appropriate definition of source.
+Date: Jul 28, 2023 || User: 34549 || Instance: Van may commonly stand for the upper side of the thighs of a seated person.
+Date: Apr 03, 2024 || User: 51190 || Instance: A way is commonly a course of conduct.
+Date: Apr 05, 2025 || User: 91719 || Instance: Psychology may stand for the science of mental life.
+Date: Aug 29, 2022 || User: 12968 || Instance: No newcomer may commonly be an organization founded and united for a specific purpose.
+Date: May 05, 2024 || User: 22375 || Instance: A lid may commonly be either of two folds of skin that can be moved to cover or open the eye.
+Date: Jan 31, 2025 || User: 50045 || Instance: Sanctuary does never stand for a consecrated place where sacred objects are kept.
+Date: Aug 23, 2024 || User: 59699 || Instance: Sock does not refer to the contestant who wins the contest.
+Date: Mar 05, 2024 || User: 45602 || Instance: A beginning may be a platform usually marked off by ropes in which contestants box or wrestle.
+Date: Aug 03, 2023 || User: 28059 || Instance: Century may not stand for a traveler riding in a vehicle (a boat or bus or car or plane or train etc) who is not operating it.
+Date: Dec 06, 2022 || User: 30393 || Instance: Nature never stands for a causal agent creating and controlling things in the universe.
+Date: Apr 25, 2023 || User: 19817 || Instance: A dozen is not a share of the profits.
+Date: Apr 20, 2025 || User: 85061 || Instance: Blade stands for especially a leaf of grass or the broad portion of a leaf as distinct from the petiole.
+Date: Jan 31, 2023 || User: 46775 || Instance: Any of the equal portions into which the capital stock of a corporation is divided and ownership of which is evidenced by a stock certificate may not be an appropriate definition of sector in any context.
+Date: Jan 31, 2025 || User: 55908 || Instance: In certain contexts an institution supported by an endowment may be an appropriate definition of feeling.
+Date: Jul 07, 2024 || User: 33542 || Instance: Any state or process known through the senses rather than by intuition or reasoning may be an appropriate definition of queue in certain contexts.
+Date: Dec 16, 2023 || User: 86214 || Instance: Button refers to an extended fictional work in prose.
+Date: Jul 18, 2022 || User: 28059 || Instance: No rule may be a rule or law concerning a natural phenomenon or the function of a complex system.
+Date: Jul 03, 2023 || User: 83824 || Instance: Box may refer to a (usually rectangular) container.
+Date: Jan 18, 2024 || User: 29930 || Instance: A pastel is never any of various pale or light colors.
+Date: Feb 24, 2022 || User: 27263 || Instance: Observer stands for a person who becomes aware (of things or events) through the senses.
+Date: May 03, 2023 || User: 97015 || Instance: A caretaker for an apartment house may be an appropriate definition of square in certain contexts.
+Date: Sep 17, 2022 || User: 27263 || Instance: No commitment may be shrewdness as demonstrated by being skilled in deception.
+Date: Jan 01, 2025 || User: 55908 || Instance: The state of being employed or having a job is an appropriate definition of employment in no context.
+Date: Mar 03, 2022 || User: 40030 || Instance: Academy stands for a learned establishment for the advancement of knowledge.
+Date: Jan 03, 2023 || User: 37503 || Instance: Heel never refers to the back part of the human foot.
+Date: Jun 19, 2024 || User: 24328 || Instance: Distance travelled per unit time is an appropriate definition of welfare.
+Date: Jun 16, 2022 || User: 82337 || Instance: A perceptual structure may not be an appropriate definition of form in any context.
+Date: May 01, 2025 || User: 82337 || Instance: Monarchy does not refer to an autocracy governed by a monarch who usually inherits the authority.
+Date: Jun 24, 2023 || User: 45602 || Instance: A flow of electricity through a conductor is not an appropriate definition of current.
+Date: Mar 12, 2023 || User: 16751 || Instance: No labour is commonly productive work (especially physical work done for wages).
+Date: Nov 18, 2023 || User: 59699 || Instance: Relatedness or connection by blood or marriage or adoption may be an appropriate definition of kinship in certain contexts.
+Date: Apr 28, 2023 || User: 44972 || Instance: In no context an episode that is turbulent or highly emotional may be an appropriate definition of drama.
+Date: Sep 13, 2024 || User: 39843 || Instance: Not a single cutting may be an excerpt cut from a newspaper or magazine.
+Date: May 18, 2024 || User: 29713 || Instance: Multimedia may stand for a building where travelers can pay for lodging and meals and other services.
+Date: Oct 12, 2022 || User: 11681 || Instance: A soul is never the immaterial part of a person.
+Date: Jul 19, 2023 || User: 93416 || Instance: Inflation may refer to a general and progressive increase in prices.
+Date: Mar 11, 2025 || User: 78494 || Instance: Import commonly stands for commodities (goods or services) bought from a foreign country.
+Date: Nov 01, 2023 || User: 40030 || Instance: Not a single graph is the furthest or highest degree of something.
+Date: May 25, 2024 || User: 52042 || Instance: A course may be a mode of action.
+Date: Feb 20, 2024 || User: 39346 || Instance: A simple seat without a back or arms may not be an appropriate definition of stool in any context.
+Date: Feb 23, 2025 || User: 86970 || Instance: A pub is commonly the people assembled at a lavish formal dance.
+Date: Dec 31, 2022 || User: 78494 || Instance: A collection of star systems may not be an appropriate definition of sheet.
+Date: Jan 10, 2025 || User: 44972 || Instance: Lemon may stand for binary compound that occurs at room temperature as a clear colorless odorless tasteless liquid.
+Date: Nov 11, 2024 || User: 29027 || Instance: Culture may commonly refer to the process of giving careful thought to something.
+Date: Mar 26, 2024 || User: 51699 || Instance: Not a single umbrella may be a room equipped for preparing meals.
+Date: Feb 27, 2022 || User: 64343 || Instance: A voter is never a citizen who has a legal right to vote.
+Date: Nov 26, 2022 || User: 37503 || Instance: The sense organ for hearing and equilibrium may be an appropriate definition of gravity.
+Date: May 26, 2024 || User: 29713 || Instance: A professor is commonly an abnormal proliferation of tissue (as in a tumor).
+Date: May 29, 2024 || User: 21219 || Instance: Not a single tie may commonly be neckwear consisting of a long narrow piece of material worn (mostly by men) under a collar and tied in knot at the front.
+Date: Jun 25, 2023 || User: 22472 || Instance: Airline may refer to a supplementary part or accessory.
+Date: Feb 15, 2024 || User: 61283 || Instance: A crash may not be a serious accident (usually involving one or more vehicles).
+Date: Apr 14, 2024 || User: 78056 || Instance: A film may be a thin coating or layer.
+Date: Oct 14, 2024 || User: 52042 || Instance: Not a single reference may commonly be a short note recognizing a source of information or of a quoted passage.
+Date: May 04, 2022 || User: 51190 || Instance: An excerpt cut from a newspaper or magazine is an appropriate definition of cutting.
+Date: Apr 26, 2025 || User: 81874 || Instance: Position does not stand for the act of putting something in a certain place.
+Date: Jun 10, 2023 || User: 55734 || Instance: Judiciousness in avoiding harm or danger may be an appropriate definition of haircut in certain contexts.
+Date: Nov 21, 2023 || User: 39843 || Instance: A trunk is not a ride in a car.
+Date: Jan 15, 2023 || User: 63741 || Instance: No number is commonly a symbol used to represent a number.
+Date: Mar 01, 2025 || User: 34549 || Instance: In no context act of raising in rank or position may be an appropriate definition of promotion.
+Date: Jun 29, 2024 || User: 72706 || Instance: A relevance is commonly the relation of something to the matter at hand.
+Date: Nov 11, 2022 || User: 71446 || Instance: A record or narrative description of past events is never an appropriate definition of history in any context.
+Date: Nov 11, 2022 || User: 14202 || Instance: Wake may not stand for a vigil held over a corpse the night before burial.
+Date: Dec 16, 2022 || User: 15657 || Instance: A flesh may commonly be a soft moist part of a fruit.
+Date: Aug 12, 2022 || User: 29930 || Instance: Publisher may commonly refer to any of various fastenings formed by looping and tying a rope (or cord) upon itself or to another rope or to another object.
+Date: Mar 21, 2025 || User: 21391 || Instance: Grace may not refer to a disposition to kindness and compassion.
+Date: Nov 07, 2024 || User: 29077 || Instance: Ticket never stands for impudent aggressiveness.
+Date: Oct 30, 2024 || User: 78494 || Instance: Not a single inspiration may commonly be a sudden intuition as part of solving a problem.
+Date: Jan 27, 2024 || User: 36440 || Instance: A district of a city having some distinguishing character may be an appropriate definition of quarter in no context.
+Date: Apr 21, 2023 || User: 15657 || Instance: A screw that screws into a nut to form a fastener is an appropriate definition of bolt in certain contexts.
+Date: Jan 21, 2023 || User: 21488 || Instance: Curriculum refers to a subtle difference in meaning or opinion or attitude.
+Date: Dec 07, 2024 || User: 24328 || Instance: A detective is never a police officer who investigates crimes.
+Date: May 28, 2025 || User: 37503 || Instance: A friendly nation is an appropriate definition of leg.
+Date: Oct 30, 2022 || User: 78056 || Instance: Chance may not stand for a structure that allows people or vehicles to cross an obstacle such as a river or canal or railway etc..
+Date: Mar 03, 2024 || User: 34608 || Instance: Basket commonly refers to the state of having committed an offense.
+Date: Dec 14, 2024 || User: 80682 || Instance: In certain contexts the act of putting a liquid into the body by means of a syringe is an appropriate definition of shot.
+Date: Feb 20, 2022 || User: 45602 || Instance: A round fastener sewn to shirts and coats etc to fit through buttonholes may not be an appropriate definition of button in any context.
+Date: Jul 21, 2023 || User: 59699 || Instance: Crowd does not stand for the capital raised by a corporation through the issue of shares entitling holders to an ownership interest (equity).
+Date: Jul 22, 2023 || User: 40030 || Instance: A series of actions advancing a principle or tending toward a particular end is an appropriate definition of movement in no context.
+Date: Nov 10, 2024 || User: 39843 || Instance: A way is a course of conduct.
+Date: Nov 02, 2024 || User: 33542 || Instance: A double is a stand-in for movie stars to perform dangerous stunts.
+Date: Feb 28, 2024 || User: 34527 || Instance: Bet stands for the act of gambling.
+Date: Dec 17, 2024 || User: 39346 || Instance: Attack may stand for strong criticism.
+Date: Aug 02, 2023 || User: 81874 || Instance: No plot may commonly be a bathroom sink that is permanently installed and connected to a water supply and drainpipe.
+Date: Jul 17, 2022 || User: 57240 || Instance: Album does never refer to a book of blank pages with pockets or envelopes.
+Date: Jul 15, 2022 || User: 72610 || Instance: Lock may commonly refer to a strand or cluster of hair.
+Date: May 12, 2025 || User: 55107 || Instance: Foodstuff prepared from the starchy grains of cereal grasses is never an appropriate definition of grain in any context.
+Date: Mar 30, 2025 || User: 94982 || Instance: No smoke may commonly be a cloud of fine particles suspended in a gas.
+Date: Mar 21, 2025 || User: 99955 || Instance: Straw never stands for a column of light (as from a beacon).
+Date: Oct 18, 2024 || User: 24328 || Instance: A proposal for an appropriate course of action is an appropriate definition of role.
+Date: Dec 28, 2023 || User: 78494 || Instance: A balance may not be a state of equilibrium.
+Date: May 27, 2023 || User: 78056 || Instance: No test may be a set of questions or exercises evaluating skill or knowledge.
+Date: Sep 25, 2023 || User: 55734 || Instance: A door is something acquired.
+Date: May 17, 2022 || User: 71446 || Instance: A delivery is the road consisting of railroad track and roadbed.
+Date: Sep 29, 2024 || User: 33542 || Instance: No poison may be any substance that causes injury or illness or death of a living organism.
+Date: Jun 12, 2023 || User: 20889 || Instance: A touch is the quality of arousing interest.
+Date: May 20, 2025 || User: 29077 || Instance: Apathy may refer to a formal party of people.
+Date: Jun 07, 2025 || User: 46775 || Instance: In certain contexts outerwear consisting of a long flowing garment used for official or ceremonial occasions is an appropriate definition of constraint.
+Date: Feb 26, 2025 || User: 21219 || Instance: Racism commonly stands for red color or pigment.
+Date: Sep 15, 2024 || User: 72706 || Instance: The ability to speak is not an appropriate definition of selection.
+Date: Dec 29, 2022 || User: 23972 || Instance: A play is the style in which hair has been cut.
+Date: Jun 25, 2024 || User: 21219 || Instance: Key may not refer to any of 24 major or minor diatonic scales that provide the tonal framework for a piece of music.
+Date: Mar 31, 2025 || User: 51699 || Instance: A bow is a weapon for shooting arrows, composed of a curved piece of resilient wood with a taut cord to propel the arrow.
+Date: Dec 24, 2022 || User: 55734 || Instance: Commodities offered for sale may be an appropriate definition of poison in certain contexts.
+Date: Mar 06, 2025 || User: 49605 || Instance: No symmetry is commonly the extreme end of something.
+Date: May 15, 2025 || User: 40030 || Instance: Zero may commonly refer to a collection of precious things.
+Date: Jun 12, 2024 || User: 33528 || Instance: A qualification is a statement that limits or restricts some claim.
+Date: Jul 16, 2022 || User: 63741 || Instance: An heir is the front of the human head from the forehead to the chin and ear to ear.
+Date: Dec 27, 2022 || User: 80682 || Instance: A weight may commonly be a unit used to measure weight.
+Date: May 04, 2025 || User: 59699 || Instance: In no context a natural attraction or feeling of kinship is an appropriate definition of affinity.
+Date: Mar 25, 2022 || User: 27263 || Instance: Cathedral does never stand for any large and important church.
+Date: Apr 01, 2025 || User: 55734 || Instance: In certain contexts a group of people with a common ideology who try together to achieve certain general goals may be an appropriate definition of movement.
+Date: Jun 15, 2023 || User: 22103 || Instance: The operator of a motor vehicle may not be an appropriate definition of driver.
+Date: Jan 24, 2023 || User: 85140 || Instance: The time of person's life when they are a child is never an appropriate definition of childhood in any context.
+Date: Jan 29, 2024 || User: 42628 || Instance: Drain commonly stands for a member of an irregular armed force that fights a stronger force by sabotage and harassment.
+Date: Sep 22, 2024 || User: 64058 || Instance: A sign is commonly structure displaying a board on which advertisements can be posted.
+Date: Jan 09, 2023 || User: 71446 || Instance: A pavement may not be walk consisting of a paved area for pedestrians.
+Date: Jun 28, 2023 || User: 64932 || Instance: Job may stand for a formal party of people.
+Date: May 23, 2022 || User: 17621 || Instance: Not a single surgeon may commonly be a physician who specializes in surgery.
+Date: Jun 25, 2022 || User: 21219 || Instance: A federation may be two people who are married to each other.
+Date: May 02, 2023 || User: 72618 || Instance: Calculation may not stand for problem solving that involves numbers or quantities.
+Date: Apr 19, 2025 || User: 90166 || Instance: Mask may commonly stand for a covering to disguise or conceal the face.
+Date: Mar 16, 2024 || User: 90166 || Instance: Roll may not refer to the sound of a drum (especially a snare drum) beaten rapidly and continuously.
+Date: Jun 27, 2024 || User: 51190 || Instance: A detachment used for security or reconnaissance may be an appropriate definition of patrol in certain contexts.
+Date: Sep 12, 2022 || User: 29574 || Instance: A soft moist part of a fruit may not be an appropriate definition of flesh.
+Date: May 18, 2023 || User: 72706 || Instance: A gallon may commonly be a consequence of someone's efforts or of a particular set of circumstances.
+Date: Sep 09, 2024 || User: 81874 || Instance: A liquor made from fermented mash of grain may not be an appropriate definition of whisky.
+Date: Sep 07, 2023 || User: 21391 || Instance: The process of combustion of inflammable materials producing heat and light and (often) smoke may not be an appropriate definition of tongue in any context.
+Date: Mar 18, 2023 || User: 78056 || Instance: No colour is the general activity of selling.
+Date: Sep 25, 2024 || User: 44972 || Instance: A person who holds Ph.D. degree (or the equivalent) from an academic institution is never an appropriate definition of doctor in any context.
+Date: Jun 24, 2023 || User: 62555 || Instance: Trouser may commonly stand for relation based on similarities and differences.
+Date: Jun 20, 2024 || User: 57385 || Instance: No silver may commonly be a soft white precious univalent metallic element having the highest electrical and thermal conductivity of any metal.
+Date: Sep 10, 2023 || User: 64343 || Instance: Force stands for a small restaurant where drinks and snacks are sold.
+Date: Mar 12, 2025 || User: 64343 || Instance: The person who collects fares on a public conveyance is an appropriate definition of guitar in no context.
+Date: Aug 22, 2024 || User: 37503 || Instance: Either of two bean-shaped excretory organs that filter wastes (especially urea) from the blood and excrete them and water in urine may be an appropriate definition of kidney in certain contexts.
+Date: Jan 13, 2024 || User: 72618 || Instance: 12 o'clock at night may be an appropriate definition of midnight in certain contexts.
+Date: Dec 24, 2023 || User: 63741 || Instance: That which is responsible for one's thoughts and feelings is an appropriate definition of manager in certain contexts.
+Date: Nov 01, 2022 || User: 72706 || Instance: Line does never stand for a formation of people or things one behind another.
+Date: Nov 08, 2022 || User: 52042 || Instance: Quota does not refer to a customary way of operation or behavior.
+Date: Nov 06, 2022 || User: 85061 || Instance: A silver is a person who is entitled by law or by the terms of a will to inherit the estate of another.
+Date: Dec 07, 2023 || User: 90893 || Instance: Not a single professor is an abnormal proliferation of tissue (as in a tumor).
+Date: May 14, 2024 || User: 34549 || Instance: A dust may commonly be fine powdery material such as dry earth or pollen that can be blown about in the air.
+Date: Dec 28, 2022 || User: 96189 || Instance: A state of extreme poverty is an appropriate definition of deprivation in no context.
+Date: Apr 28, 2024 || User: 63741 || Instance: A needle may be something that recommends (or expresses commendation of) a person or thing as worthy or desirable.
+Date: Sep 07, 2023 || User: 52042 || Instance: The state of being physically constrained is an appropriate definition of constraint in no context.
+Date: Mar 10, 2024 || User: 54465 || Instance: An approximate calculation of quantity or degree or worth is an appropriate definition of estimate in certain contexts.
+Date: Mar 13, 2023 || User: 70181 || Instance: The opening through which food is taken in and vocalizations emerge may be an appropriate definition of theme in no context.
+Date: Jul 05, 2023 || User: 63741 || Instance: A hay may commonly be forceful exertion.
+Date: May 26, 2025 || User: 39346 || Instance: A person whose occupation is teaching is never an appropriate definition of vegetation in any context.
+Date: Jan 24, 2023 || User: 57240 || Instance: No assignment is a barrier that serves to enclose an area.
+Date: May 03, 2024 || User: 22103 || Instance: Block does never refer to a rectangular area in a city surrounded by streets and usually containing several buildings.
+Date: May 25, 2023 || User: 44972 || Instance: Hardship may refer to a state of misfortune or affliction.
+Date: Mar 26, 2023 || User: 35590 || Instance: A group of diverse companies under common ownership and run as a single organization is never an appropriate definition of conglomerate in any context.
+Date: Jun 12, 2024 || User: 34527 || Instance: Not a single square may be an open area at the meeting of two or more streets.
+Date: Feb 09, 2023 || User: 91719 || Instance: Not a single laser is commonly an acronym for light amplification by stimulated emission of radiation.
+Date: Oct 09, 2023 || User: 15383 || Instance: No harmony is commonly compatibility in opinion and action.
+Date: Apr 26, 2023 || User: 65217 || Instance: No drawing is players buy (or are given) chances and prizes are distributed by casting lots.
+Date: Mar 13, 2024 || User: 82813 || Instance: Sword does never refer to a cutting or thrusting weapon that has a long metal blade and a hilt with a hand guard.
+Date: Feb 01, 2023 || User: 33542 || Instance: Suburb may stand for a residential district located on the outskirts of a city.
+Date: Oct 26, 2023 || User: 66510 || Instance: In no context a small vehicle with four wheels in which a baby or child is pushed around may be an appropriate definition of carriage.
+Date: Mar 18, 2022 || User: 91719 || Instance: In no context a soft moist part of a fruit may be an appropriate definition of flesh.
+Date: Jul 20, 2024 || User: 46184 || Instance: Shock stands for a band to tie or buckle around the body (usually at the waist).
+Date: Mar 24, 2024 || User: 51699 || Instance: A stand-in for movie stars to perform dangerous stunts may not be an appropriate definition of double in any context.
+Date: Dec 25, 2022 || User: 28059 || Instance: Rebel stands for one of a series of ridges that moves across the surface of a liquid (especially across a large body of water).
+Date: Jan 27, 2024 || User: 85079 || Instance: In no context a crosspiece between the legs of a chair may be an appropriate definition of round.
+Date: Aug 17, 2022 || User: 34549 || Instance: A request for something to be made, supplied, or served may be an appropriate definition of order in no context.
+Date: Feb 18, 2022 || User: 63741 || Instance: Beginning may commonly stand for the first part or section of something.
+Date: Aug 24, 2022 || User: 75560 || Instance: Whisky may commonly refer to a liquor made from fermented mash of grain.
+Date: Feb 25, 2025 || User: 34527 || Instance: A deciduous tree of the genus Quercus is an appropriate definition of oak.
+Date: Jan 03, 2024 || User: 17621 || Instance: An imagination is commonly a section of text.
+Date: Jan 24, 2024 || User: 14202 || Instance: The organic phenomenon of rotting may not be an appropriate definition of decay.
+Date: Oct 12, 2023 || User: 55908 || Instance: Entertainment may stand for an abundant nonmetallic tetravalent element occurring in three allotropic forms: amorphous carbon and graphite and diamond.
+Date: Feb 27, 2023 || User: 20889 || Instance: Tournament may not stand for a sporting competition in which contestants play a series of games to decide the winner.
+Date: Nov 27, 2022 || User: 72618 || Instance: Trade never stands for a site where care and activities are provided for children during the summer months.
+Date: Dec 06, 2024 || User: 81874 || Instance: Smoke stands for a document appraising the value of something (as for insurance or taxation).
+Date: Feb 16, 2025 || User: 80682 || Instance: Sheep may commonly refer to woolly usually horned ruminant mammal related to the goat.
+Date: Mar 15, 2024 || User: 37503 || Instance: A flat may commonly be a statement or assertion of verified information about something that is the case or has happened.
+Date: Sep 12, 2022 || User: 69180 || Instance: In certain contexts a long rod or pole (especially the handle of an implement or the body of a weapon like a spear or arrow) is an appropriate definition of shaft.
+Date: Sep 13, 2024 || User: 34451 || Instance: The process of an individual organism growing organically may be an appropriate definition of ring.
+Date: Oct 06, 2024 || User: 46184 || Instance: A stall is commonly small area set off by walls for special use.
+Date: Dec 04, 2024 || User: 21391 || Instance: Situation may commonly stand for a particular orthography or writing system.
+Date: Nov 19, 2022 || User: 91719 || Instance: Electricity commonly refers to someone who pays taxes.
+Date: Nov 29, 2022 || User: 51190 || Instance: The amount by which something increases may be an appropriate definition of south in certain contexts.
+Date: Dec 21, 2024 || User: 24251 || Instance: Not a single comedy is light and humorous drama with a happy ending.
+Date: Jan 27, 2025 || User: 35590 || Instance: No summit is commonly a meeting of heads of governments.
+Date: Nov 26, 2024 || User: 40030 || Instance: A shot may be the act of putting a liquid into the body by means of a syringe.
+Date: Jul 29, 2023 || User: 33542 || Instance: Not a single limit may commonly be close-fitting trousers of heavy denim for manual work or casual wear.
+Date: Feb 05, 2023 || User: 21391 || Instance: Suspicion commonly refers to a document granting exclusive right to publish and sell literary or musical or artistic work.
+Date: Jun 01, 2025 || User: 11702 || Instance: Commission commonly stands for a tool with a sharp point and cutting edges for making holes in hard materials (usually rotating rapidly or by repeated blows).
+Date: Jan 30, 2025 || User: 29713 || Instance: The action of attacking an enemy may be an appropriate definition of isolation.
+Date: Oct 22, 2023 || User: 39346 || Instance: Not a single roll is commonly the sound of a drum (especially a snare drum) beaten rapidly and continuously.
+Date: Jan 24, 2023 || User: 97015 || Instance: Professional may not stand for product consisting of a paperback periodic publication as a physical object.
+Date: Apr 20, 2024 || User: 39174 || Instance: Spell stands for a psychological state induced by (or as if induced by) a magical incantation.
+Date: Nov 27, 2022 || User: 56122 || Instance: Ball may commonly stand for a fully differentiated structural and functional unit in an animal that is specialized for some particular function.
+Date: Jun 16, 2022 || User: 82337 || Instance: A refusal is commonly the act of refusing.
+Date: Jan 27, 2024 || User: 23261 || Instance: Burial does never stand for a small open container usually used for drinking.
+Date: Nov 17, 2022 || User: 80238 || Instance: A square may not be a plane rectangle with four equal sides and four right angles.
+Date: Sep 24, 2024 || User: 15657 || Instance: The operation of aircraft to provide transportation is not an appropriate definition of aviation in any context.
+Date: Mar 04, 2022 || User: 51190 || Instance: Hardship may stand for a state of misfortune or affliction.
+Date: Feb 19, 2025 || User: 75560 || Instance: A correspondence is commonly communication by the exchange of letters.
+Date: May 13, 2025 || User: 80682 || Instance: Aid may commonly stand for something that should remain hidden from others (especially information that is not to be passed on).
+Date: Jun 24, 2024 || User: 71446 || Instance: Play may not stand for a dramatic work intended for performance by actors on a stage.
+Date: May 05, 2025 || User: 22103 || Instance: Memory never stands for something that is remembered.
+Date: Nov 04, 2022 || User: 59699 || Instance: No contrary is exact opposition.
+Date: Jan 19, 2023 || User: 70181 || Instance: No cafe may be a small restaurant where drinks and snacks are sold.
+Date: Jun 03, 2022 || User: 75560 || Instance: Toe does not stand for social insect living in organized colonies.
+Date: Jul 02, 2024 || User: 71446 || Instance: A message issued in behalf of some product or cause or idea or person or institution may be an appropriate definition of promotion.
+Date: Aug 23, 2023 || User: 24328 || Instance: Proportion commonly stands for the geographical area under the jurisdiction of a sovereign state.
+Date: Nov 20, 2022 || User: 31741 || Instance: A lightweight handheld collapsible canopy is not an appropriate definition of umbrella.
+Date: Jul 18, 2023 || User: 33542 || Instance: No potential may commonly be the inherent capacity for coming into being.
+Date: Jun 02, 2022 || User: 75397 || Instance: A double may not be a stand-in for movie stars to perform dangerous stunts.
+Date: Aug 05, 2023 || User: 78056 || Instance: A tomato may not be an outbuilding (or part of a building) for housing automobiles.
+Date: Jan 02, 2024 || User: 63741 || Instance: Nephew may stand for a mistake resulting from neglect.
+Date: Aug 09, 2022 || User: 64932 || Instance: Not a single recession is commonly a person who is in charge.
+Date: Aug 12, 2023 || User: 55908 || Instance: The general state of things may not be an appropriate definition of situation in any context.
+Date: Apr 13, 2024 || User: 78056 || Instance: Crop may not refer to the yield from plants in a single growing season.
+Date: Feb 03, 2024 || User: 83824 || Instance: A test is the basis on which something is grounded.
+Date: Apr 16, 2024 || User: 21219 || Instance: A horoscope is commonly a prediction of someone's future based on the relative positions of the planets.
+Date: Jul 10, 2023 || User: 78494 || Instance: In no context a rapid active commotion may be an appropriate definition of fuss.
+Date: Jul 11, 2024 || User: 78056 || Instance: Answer may commonly refer to the speech act of replying to a question.
+Date: Mar 11, 2022 || User: 42811 || Instance: The meaning of a word or expression is an appropriate definition of news.
+Date: Jan 09, 2025 || User: 39346 || Instance: Someone who pays rent to use land or a building or a car that is owned by someone else may be an appropriate definition of shell in certain contexts.
+Date: Oct 21, 2024 || User: 17621 || Instance: North never refers to the cardinal compass point that is at 0 or 360 degrees.
+Date: Oct 20, 2023 || User: 66510 || Instance: A remark is never explicit notice.
+Date: Sep 04, 2024 || User: 45602 || Instance: User may refer to the legal dissolution of a marriage.
+Date: Jun 07, 2023 || User: 86280 || Instance: Breaking of hard tissue such as bone may be an appropriate definition of break in certain contexts.
+Date: May 04, 2023 || User: 71446 || Instance: Any of various pale or light colors may be an appropriate definition of pastel in certain contexts.
+Date: May 19, 2022 || User: 57240 || Instance: A proportion may commonly be a material made of cellulose pulp derived mainly from wood or rags or certain grasses.
+Date: May 30, 2023 || User: 45602 || Instance: Good may refer to a software program capable of reproducing itself that can spread from one computer to the next over a network.
+Date: Feb 09, 2023 || User: 51699 || Instance: The sill of a door is an appropriate definition of garden.
+Date: Apr 01, 2023 || User: 15657 || Instance: A traveler who actively rides an animal (as a horse or camel) is an appropriate definition of crystal in no context.
+Date: Jul 16, 2023 || User: 39843 || Instance: Projection commonly stands for the projection of an image from a film onto a screen.
+Date: Dec 21, 2022 || User: 91773 || Instance: The quality of being able to perform may not be an appropriate definition of drill in any context.
+Date: Jun 03, 2025 || User: 29077 || Instance: No view may commonly be a message expressing a belief about something.
+Date: Dec 13, 2023 || User: 39843 || Instance: Not a single apology may be a piece of furniture resembling a cupboard with doors and shelves and drawers.
+Date: Jun 16, 2024 || User: 22103 || Instance: Sector may stand for a particular aspect of life or activity.
+Date: May 24, 2023 || User: 79988 || Instance: In no context a period of time equal to 1/24th of a day is an appropriate definition of education.
+Date: Aug 11, 2024 || User: 24597 || Instance: Not a single recognition may commonly be the state or quality of being recognized or acknowledged.
+Date: Sep 29, 2023 || User: 22103 || Instance: Especially a leaf of grass or the broad portion of a leaf as distinct from the petiole may not be an appropriate definition of blade.
+Date: Jun 03, 2025 || User: 22375 || Instance: Diplomat may commonly refer to the number of wins versus losses and ties a team has had.
+Date: Mar 15, 2023 || User: 13948 || Instance: In certain contexts equipment for taking photographs (usually consisting of a lightproof box with a lens at one end and light-sensitive film at the other) is an appropriate definition of camera.
+Date: Jul 21, 2023 || User: 72706 || Instance: A periodically repeated sequence of events may be an appropriate definition of list in certain contexts.
+Date: Dec 02, 2023 || User: 13220 || Instance: A set of related records (either written or electronic) kept together may be an appropriate definition of model.
+Date: Jul 22, 2023 || User: 72706 || Instance: No crystal is colorless glass made of almost pure silica.
+Date: Apr 04, 2022 || User: 94493 || Instance: A relatively long narrow piece of something is an appropriate definition of strip in no context.
+Date: Apr 01, 2022 || User: 30340 || Instance: Change commonly refers to money received in return for its equivalent in a larger denomination or a different currency.
+Date: May 17, 2024 || User: 17621 || Instance: The discipline dealing with the principles of design and construction and ornamentation of fine buildings may be an appropriate definition of architecture in no context.
+Date: Oct 19, 2024 || User: 37503 || Instance: An engineer is commonly a large room for gatherings or entertainment.
+Date: Apr 07, 2022 || User: 29713 || Instance: Democracy does not refer to an organization of military vessels belonging to a country and available for sea warfare.
+Date: Jul 27, 2024 || User: 70181 || Instance: Race does not stand for people who are believed to belong to the same genetic stock.
+Date: Jun 26, 2023 || User: 24328 || Instance: Union commonly stands for a lively interest.
+Date: Jan 18, 2024 || User: 45602 || Instance: In certain contexts a fourth part of a year may be an appropriate definition of quarter.
+Date: Feb 27, 2023 || User: 11681 || Instance: No spread is commonly a way of acting or behaving.
+Date: Feb 26, 2023 || User: 72618 || Instance: No portion is an individual quantity of food or drink taken as part of a meal.
+Date: Feb 02, 2024 || User: 21391 || Instance: An address of a religious nature (usually delivered during a church service) is never an appropriate definition of discourse in any context.
+Date: Mar 23, 2024 || User: 23393 || Instance: No uncle may be the brother of your father or mother.
+Date: Feb 25, 2023 || User: 34527 || Instance: A book or pamphlet containing an enumeration of things is not an appropriate definition of catalogue in any context.
+Date: Dec 21, 2022 || User: 59699 || Instance: Curve commonly stands for someone who controls resources and expenditures.
+Date: Mar 12, 2023 || User: 72618 || Instance: Case may commonly stand for an occurrence of something.
+Date: Apr 04, 2025 || User: 46184 || Instance: A rumour may be gossip (usually a mixture of truth and untruth) passed around by word of mouth.
+Date: Jun 09, 2025 || User: 86280 || Instance: Morning may stand for the time period between dawn and noon.
+Date: May 19, 2023 || User: 83824 || Instance: No conglomerate is commonly a course of reasoning aimed at demonstrating a truth or falsehood.
+Date: Jun 18, 2025 || User: 78056 || Instance: Device that removes something from whatever passes through it is an appropriate definition of passenger in no context.
+Date: Apr 13, 2023 || User: 17621 || Instance: Calorie may stand for a unit of heat equal to the amount of heat required to raise the temperature of one kilogram of water by one degree at one atmosphere pressure.
+Date: Feb 13, 2024 || User: 66510 || Instance: In no context motion of hands or body to emphasize or help to express a thought or feeling may be an appropriate definition of gesture.
+Date: Jun 15, 2023 || User: 46184 || Instance: A mask is not a covering to disguise or conceal the face.
+Date: Nov 02, 2022 || User: 80238 || Instance: Not a single allocation may commonly be your characteristic style or manner of expressing yourself orally.
+Date: Apr 10, 2025 || User: 28059 || Instance: Reverse commonly refers to a soft moist part of a fruit.
+Date: May 21, 2024 || User: 57240 || Instance: A person who is subjected to experimental or other observational procedures is an appropriate definition of subject.
+Date: Jan 13, 2023 || User: 27539 || Instance: Not a single march is genre of music written for marching.
+Date: Jul 11, 2022 || User: 17621 || Instance: In certain contexts an area of sand sloping down to the water of a sea or lake may be an appropriate definition of flash.
+Date: Dec 23, 2024 || User: 13948 || Instance: A person who is subjected to experimental or other observational procedures may be an appropriate definition of subject in no context.
+Date: Feb 08, 2024 || User: 51699 || Instance: Satisfaction may stand for the contentment one feels when one has fulfilled a desire, need, or expectation.
+Date: Oct 04, 2022 || User: 39346 || Instance: Not a single sign may commonly be an overwhelming feeling of fear and anxiety.
+Date: Aug 03, 2024 || User: 15657 || Instance: A committee having supervisory powers is not an appropriate definition of board.
+Date: Feb 22, 2024 || User: 37288 || Instance: South commonly stands for large gallinaceous bird with fan-shaped tail.
+Date: May 10, 2023 || User: 21391 || Instance: Drill may commonly stand for the quality of being able to perform.
+Date: Jan 03, 2023 || User: 57385 || Instance: A cup is not a small open container usually used for drinking.
+Date: Apr 05, 2024 || User: 29930 || Instance: Not a single airport is commonly an airfield equipped with control tower and hangars as well as accommodations for passengers and cargo.
+Date: Jan 03, 2023 || User: 94718 || Instance: March refers to personal knowledge or information about someone or something.
+Date: Jan 07, 2024 || User: 34527 || Instance: Conspiracy may not stand for a plot to carry out some harmful or illegal act (especially a political plot).
+Date: Mar 28, 2025 || User: 17621 || Instance: A clue is never the state of demanding notice or attention.
+Date: Jun 20, 2023 || User: 75560 || Instance: A consecrated place where sacred objects are kept is not an appropriate definition of sanctuary.
+Date: Jun 29, 2024 || User: 17621 || Instance: In no context a legal document declaring a person's wishes regarding the disposal of their property when they die may be an appropriate definition of will.
+Date: Apr 25, 2025 || User: 42944 || Instance: Medium never refers to someone who serves as an intermediary between the living and the dead.
+Date: Jan 31, 2025 || User: 80682 || Instance: A brake is never a restraint used to slow or stop a vehicle.
+Date: Aug 15, 2024 || User: 29077 || Instance: Not a single sentence is a string of words satisfying the grammatical rules of a language.
+Date: May 03, 2023 || User: 39637 || Instance: In certain contexts a suite of rooms usually on one floor of an apartment house is an appropriate definition of chap.
+Date: Feb 18, 2024 || User: 64343 || Instance: An outbuilding (or part of a building) for housing automobiles may be an appropriate definition of tomato.
+Date: Apr 11, 2022 || User: 91090 || Instance: A financial institution that accepts deposits and channels the money into lending activities may be an appropriate definition of file.
+Date: Apr 23, 2025 || User: 72618 || Instance: No roll may be small rounded bread either plain or sweet.
+Date: Mar 16, 2025 || User: 91090 || Instance: An observation is never an explanation of the cause of some phenomenon.
+Date: Sep 18, 2023 || User: 78056 || Instance: A collection of precious things may not be an appropriate definition of settlement in any context.
+Date: Oct 07, 2023 || User: 21649 || Instance: A thin fog with condensation near the ground is never an appropriate definition of tea in any context.
+Date: Jun 21, 2023 || User: 22375 || Instance: Reason refers to the state of having good sense and sound judgment.
+Date: Dec 31, 2024 || User: 64343 || Instance: In no context the property of being the extent of something from beginning to end may be an appropriate definition of length.
+Date: Oct 19, 2024 || User: 37503 || Instance: Hardship refers to an era of history having some distinctive feature.
+Date: Jan 15, 2023 || User: 29930 || Instance: No tradition may commonly be the state of affairs that a plan is intended to achieve and that (when achieved) terminates behavior intended to achieve it.
+Date: Mar 07, 2023 || User: 86280 || Instance: Prayer may commonly refer to the act of communicating with a deity (especially as a petition or in adoration or contrition or thanksgiving).
+Date: Jun 13, 2024 || User: 11009 || Instance: In certain contexts a supplementary part or accessory is an appropriate definition of airline.
+Date: Apr 30, 2024 || User: 44972 || Instance: A honey may be a sweet yellow liquid produced by bees.
+Date: Mar 01, 2025 || User: 71446 || Instance: No salmon may be any of various large food and game fishes of northern waters.
+Date: Dec 02, 2022 || User: 40030 || Instance: A bar is never a long narrow opening.
+Date: Mar 28, 2023 || User: 27757 || Instance: Report may refer to a written document describing the findings of some individual or group.
+Date: Jun 15, 2022 || User: 59699 || Instance: A cloud of fine particles suspended in a gas is an appropriate definition of smoke in certain contexts.
+Date: Mar 26, 2022 || User: 72706 || Instance: The act of tapping a telephone or telegraph line to get information is never an appropriate definition of genius in any context.
+Date: Apr 09, 2023 || User: 71446 || Instance: The entire structure of an organism (an animal, plant, or human being) may not be an appropriate definition of convention in any context.
+Date: Mar 14, 2025 || User: 81874 || Instance: No favour may be an act of gracious kindness.
+Date: Sep 23, 2023 || User: 34618 || Instance: Taxpayer may stand for someone who pays taxes.
+Date: Jul 04, 2024 || User: 15657 || Instance: Equipment for taking photographs (usually consisting of a lightproof box with a lens at one end and light-sensitive film at the other) is never an appropriate definition of camera in any context.
+Date: Apr 13, 2024 || User: 69180 || Instance: Missile stands for a boat that transports people or vehicles across a body of water and operates on a regular schedule.
+Date: Mar 29, 2023 || User: 94493 || Instance: Insistence may refer to the magnitude of sound (usually in a specified direction).
+Date: May 09, 2023 || User: 59146 || Instance: Oak may not refer to a deciduous tree of the genus Quercus.
+Date: Sep 20, 2022 || User: 78056 || Instance: Reverse refers to a soft moist part of a fruit.
+Date: Jun 19, 2025 || User: 21219 || Instance: Truth refers to conformity to reality or actuality.
+Date: Nov 04, 2024 || User: 90166 || Instance: Week may commonly refer to a military engagement.
+Date: Feb 24, 2024 || User: 11681 || Instance: A footrace of 26 miles 385 yards is not an appropriate definition of speech in any context.
+Date: Apr 21, 2023 || User: 27439 || Instance: A relatively long narrow piece of something is never an appropriate definition of strip in any context.
+Date: Jun 23, 2024 || User: 69064 || Instance: A simple seat without a back or arms may be an appropriate definition of stool in certain contexts.
+Date: Mar 28, 2025 || User: 72618 || Instance: Passion may not stand for a strong feeling or emotion.
+Date: Mar 11, 2022 || User: 51190 || Instance: The attribute of accepting the facts of life and favoring practicality and literal truth is an appropriate definition of realism in no context.
+Date: Feb 19, 2022 || User: 55908 || Instance: A correspondence may be a person qualified to practice dentistry.
+Date: Aug 25, 2023 || User: 49014 || Instance: Clash refers to a state of conflict between persons.
+Date: Nov 08, 2024 || User: 44972 || Instance: Judiciousness in avoiding harm or danger is not an appropriate definition of care in any context.
+Date: Nov 21, 2023 || User: 83186 || Instance: Not a single Bible is the sacred writings of the Christian religions.
+Date: May 05, 2024 || User: 80682 || Instance: Satisfaction with your (or another's) achievements is an appropriate definition of pride.
+Date: Oct 31, 2023 || User: 94982 || Instance: Flood may not refer to the rising of a body of water and its overflowing onto normally dry land.
+Date: Aug 12, 2022 || User: 37503 || Instance: Design commonly refers to a specific practice of long standing.
+Date: Jun 13, 2023 || User: 30081 || Instance: Usually paved outdoor area adjoining a residence may not be an appropriate definition of terrace.
+Date: Nov 30, 2023 || User: 78494 || Instance: Chemical does never refer to material produced by or used in a reaction involving changes in atoms or molecules.
+Date: May 07, 2023 || User: 96190 || Instance: In certain contexts compartment in an automobile that carries luggage or shopping or tools may be an appropriate definition of taxpayer.
+Date: Jan 22, 2023 || User: 69180 || Instance: No sector may be a particular aspect of life or activity.
+Date: Jan 19, 2024 || User: 42980 || Instance: Bow commonly stands for a weapon for shooting arrows, composed of a curved piece of resilient wood with a taut cord to propel the arrow.
+Date: Oct 07, 2024 || User: 22103 || Instance: No clearance is commonly vertical space available to allow easy passage under something.
+Date: Jun 03, 2022 || User: 45602 || Instance: No drift may commonly be a single complete turn (axial or orbital).
+Date: May 19, 2022 || User: 66510 || Instance: A shoulder firearm with a long barrel and a rifled bore is an appropriate definition of excuse in certain contexts.
+Date: Mar 13, 2022 || User: 98842 || Instance: No canvas may commonly be a heavy, closely woven fabric (used for clothing or chairs or sails or tents).
+Date: Jun 30, 2022 || User: 22103 || Instance: Fiction never stands for a literary work based on the imagination and not necessarily on fact.
+Date: Mar 04, 2023 || User: 37503 || Instance: Fool commonly stands for a professional clown employed to entertain a king or nobleman in the Middle Ages.
+Date: Feb 25, 2023 || User: 78056 || Instance: A connection may be shifting from one form of transportation to another.
+Date: Aug 30, 2023 || User: 81874 || Instance: Essence refers to a toiletry that emits and diffuses a fragrant odor.
+Date: Oct 11, 2024 || User: 29930 || Instance: Attack may not stand for an offensive against an enemy (using weapons).
+Date: Feb 14, 2025 || User: 81874 || Instance: Call may not refer to a room equipped for preparing meals.
+Date: Oct 02, 2022 || User: 10916 || Instance: A multimedia may commonly be a building where travelers can pay for lodging and meals and other services.
+Date: Jun 23, 2022 || User: 37114 || Instance: No straw may commonly be a thin paper or plastic tube used to suck liquids into the mouth.
+Date: Jan 27, 2023 || User: 24328 || Instance: In no context a relatively long narrow piece of something may be an appropriate definition of strip.
+Date: Mar 07, 2022 || User: 71719 || Instance: Strip may commonly stand for a relatively long narrow piece of something.
+Date: Aug 30, 2022 || User: 49014 || Instance: A sociology is commonly the study and classification of human societies.
+Date: May 19, 2023 || User: 29574 || Instance: An investigation seeking answers is never an appropriate definition of search.
+Date: Mar 10, 2023 || User: 78494 || Instance: Symbol may refer to an arbitrary sign (written or printed) that has acquired a conventional significance.
+Date: Oct 04, 2023 || User: 34549 || Instance: Safety does never refer to the state of being certain that adverse effects will not be caused by some agent under defined conditions.
+Date: Feb 11, 2024 || User: 63741 || Instance: A safety is never the state of being certain that adverse effects will not be caused by some agent under defined conditions.
+Date: Feb 09, 2025 || User: 44972 || Instance: A brief period of precipitation is never an appropriate definition of shower in any context.
+Date: Dec 30, 2022 || User: 52042 || Instance: No limit is close-fitting trousers of heavy denim for manual work or casual wear.
+Date: Dec 25, 2023 || User: 35590 || Instance: A golf may commonly be a game played on a large open course with 9 or 18 holes.
+Date: Aug 16, 2022 || User: 29713 || Instance: Protest does never stand for the act of protesting.
+Date: Jul 30, 2022 || User: 63741 || Instance: In certain contexts the operator of a motor vehicle is an appropriate definition of driver.
+Date: Jun 01, 2024 || User: 26810 || Instance: A message received and understood is not an appropriate definition of stress.
+Date: Mar 14, 2024 || User: 94982 || Instance: Box in which a corpse is buried or cremated is not an appropriate definition of dough in any context.
+Date: Feb 28, 2025 || User: 59699 || Instance: Any of a group of organic substances essential in small quantities to normal metabolism is not an appropriate definition of chair in any context.
+Date: Apr 28, 2024 || User: 21219 || Instance: The branch of social science that deals with the production and distribution and consumption of goods and services and their management is an appropriate definition of roll in certain contexts.
+Date: Jul 26, 2024 || User: 51699 || Instance: Not a single beer may commonly be a general name for alcoholic beverages made by fermenting a cereal (or mixture of cereals) flavored with hops.
+Date: Jul 03, 2022 || User: 46184 || Instance: Touch refers to the quality of arousing interest.
+Date: Jul 21, 2024 || User: 13948 || Instance: A berry may not be any of numerous small and pulpy edible fruits.
+Date: Mar 12, 2023 || User: 27263 || Instance: Story never refers to a trivial lie.
+Date: Sep 04, 2023 || User: 69180 || Instance: Well may refer to a deep hole or shaft dug or drilled to obtain water or oil or gas or brine.
+Date: Jan 05, 2024 || User: 70181 || Instance: No spectrum may be a broad range of related objects or values or qualities or ideas or activities.
+Date: May 30, 2022 || User: 66510 || Instance: A consideration is kind and considerate regard for others.
+Date: Nov 07, 2022 || User: 11681 || Instance: A notice is commonly advance notification (usually written) of the intention to withdraw from an arrangement of contract.
+Date: Feb 04, 2023 || User: 66510 || Instance: Guide may commonly stand for someone who shows the way by leading or advising.
+Date: Sep 08, 2024 || User: 92277 || Instance: In no context a swinging or sliding barrier that will close the entrance to a room or building or vehicle may be an appropriate definition of door.
+Date: Mar 16, 2025 || User: 31147 || Instance: No scene may be a subdivision of an act of a play.
+Date: Jun 28, 2023 || User: 91719 || Instance: Glory refers to toiletry consisting of any of various substances in the form of a thick liquid that have a soothing and moisturizing effect when applied to the skin.
+Date: Nov 06, 2022 || User: 40030 || Instance: In no context a deep hole or shaft dug or drilled to obtain water or oil or gas or brine may be an appropriate definition of well.
+Date: Sep 11, 2023 || User: 49014 || Instance: Breakfast commonly stands for the first meal of the day (usually in the morning).
+Date: Apr 04, 2024 || User: 97015 || Instance: A platform usually marked off by ropes in which contestants box or wrestle is an appropriate definition of ring in no context.
+Date: Jun 05, 2022 || User: 52396 || Instance: The preservation and careful management of the environment and of natural resources is never an appropriate definition of researcher in any context.
+Date: Sep 24, 2023 || User: 96189 || Instance: In no context a room (as in a hotel or airport) with seating where people can wait may be an appropriate definition of lounge.
+Date: May 01, 2023 || User: 91719 || Instance: No ash may be the residue that remains when something is burned.
+Date: Aug 31, 2023 || User: 59178 || Instance: Flight does never stand for a scheduled trip by plane between designated airports.
+Date: May 18, 2024 || User: 74940 || Instance: Album does not refer to the feel of a surface or a fabric.
+Date: Feb 05, 2025 || User: 34527 || Instance: Not a single black is total absence of light.
+Date: Aug 02, 2024 || User: 29930 || Instance: In no context a vivid mental image may be an appropriate definition of vision.
+Date: Sep 09, 2023 || User: 45504 || Instance: A human body is alternative names for the body of a human being.
+Date: Jun 28, 2024 || User: 96189 || Instance: Coffin may not refer to the state of demanding notice or attention.
+Date: Nov 25, 2024 || User: 91719 || Instance: Roll commonly refers to a piece of furniture resembling a cupboard with doors and shelves and drawers.
+Date: Jan 03, 2023 || User: 80238 || Instance: No harmony may be someone who holds shares of stock in a corporation.
+Date: Dec 09, 2022 || User: 29713 || Instance: Mud may commonly refer to a design or figure that consists of recurring shapes or colors, as in architecture or decoration.
+Date: Nov 22, 2023 || User: 21559 || Instance: Lip does never refer to either of two fleshy folds of tissue that surround the mouth and play a role in speaking.
+Date: Mar 21, 2024 || User: 33542 || Instance: A training is a device that signals the occurrence of some undesirable event.
+Date: Oct 02, 2024 || User: 96189 || Instance: No product may be a beverage consisting of an infusion of ground coffee beans.
+Date: Jan 23, 2025 || User: 29574 || Instance: Tension stands for the physical condition of being stretched or strained.
+Date: Jun 24, 2023 || User: 64932 || Instance: In certain contexts an ardent follower and admirer is an appropriate definition of fan.
+Date: Mar 16, 2023 || User: 51699 || Instance: Assembly may commonly refer to the second nearest planet to the sun.
+Date: Aug 06, 2024 || User: 51699 || Instance: Seller does never stand for someone who promotes or exchanges goods or services for money.
+Date: Aug 27, 2023 || User: 36440 || Instance: Mole may commonly refer to a spy who works against enemy espionage.
+Date: Jun 09, 2024 || User: 63741 || Instance: The warmest season of the year is not an appropriate definition of summer.
+Date: Apr 13, 2024 || User: 46184 || Instance: In no context an upholstered seat for more than one person is an appropriate definition of lounge.
+Date: May 22, 2024 || User: 46775 || Instance: A sock is not hosiery consisting of a cloth covering for the foot.
+Date: Jun 13, 2024 || User: 86280 || Instance: Kitchen appliance used for baking or roasting may be an appropriate definition of oven in certain contexts.
+Date: Jul 01, 2024 || User: 20889 || Instance: Not a single dealer is commonly someone who purchases and maintains an inventory of goods to be sold.
+Date: Nov 24, 2022 || User: 51190 || Instance: A guest is never a visitor to whom hospitality is extended.
+Date: May 13, 2023 || User: 29077 || Instance: Correspondence may stand for communication by the exchange of letters.
+Date: Apr 07, 2023 || User: 29077 || Instance: A detachment used for security or reconnaissance is never an appropriate definition of patrol.
+Date: Jul 09, 2022 || User: 94781 || Instance: No expertise is skillfulness by virtue of possessing special knowledge.
+Date: Dec 06, 2023 || User: 11681 || Instance: Any strong feeling may be an appropriate definition of cheek in certain contexts.
+Date: Jan 14, 2023 || User: 17621 || Instance: A field of cultivated and mowed grass may be an appropriate definition of lawn in certain contexts.
+Date: Mar 02, 2025 || User: 64932 || Instance: Not a single lawn may commonly be a social class comprising those who do manual labor or work for wages.
+Date: Jun 28, 2024 || User: 64343 || Instance: In certain contexts a document granting exclusive right to publish and sell literary or musical or artistic work may be an appropriate definition of tube.
+Date: Apr 12, 2024 || User: 34527 || Instance: Screen commonly stands for a protective covering consisting of netting.
+Date: Jun 06, 2024 || User: 35590 || Instance: A veil may commonly be a garment that covers the head and face.
+Date: Dec 03, 2023 || User: 37503 || Instance: Whip may commonly refer to an instrument with a handle and a flexible lash that is used for whipping.
+Date: Jan 29, 2025 || User: 29077 || Instance: Not a single shopping may be searching for or buying goods or services.
+Date: Apr 22, 2023 || User: 51190 || Instance: In certain contexts a meeting arranged in advance is an appropriate definition of date.
+Date: Dec 31, 2022 || User: 64343 || Instance: The act of conducting a controlled test or investigation may be an appropriate definition of slide in certain contexts.
+Date: May 14, 2024 || User: 10625 || Instance: Bar commonly refers to a rigid piece of metal or wood.
+Date: Aug 26, 2024 || User: 17621 || Instance: A distributor is commonly a company that markets merchandise.
+Date: Feb 14, 2025 || User: 11527 || Instance: A consecrated place where sacred objects are kept is an appropriate definition of demand in certain contexts.
+Date: Nov 03, 2022 || User: 96117 || Instance: A statement or assertion of verified information about something that is the case or has happened may be an appropriate definition of fact in certain contexts.
+Date: Jul 02, 2023 || User: 49348 || Instance: A secret word or phrase known only to a restricted group is not an appropriate definition of password in any context.
+Date: Nov 06, 2023 || User: 14202 || Instance: Theme never refers to the opening through which food is taken in and vocalizations emerge.
+Date: Sep 21, 2022 || User: 81874 || Instance: A park is commonly a piece of open land for recreational use in an urban area.
+Date: May 08, 2022 || User: 72618 || Instance: In certain contexts intense feelings of suffering may be an appropriate definition of princess.
+Date: Jan 22, 2025 || User: 11009 || Instance: In no context a message expressing an opinion based on incomplete evidence may be an appropriate definition of hypothesis.
+Date: Jul 01, 2022 || User: 12051 || Instance: Not a single defeat is commonly the feeling that accompanies an experience of being thwarted in attaining your goals.
+Date: Sep 08, 2023 || User: 55908 || Instance: A zero is commonly a mathematical element that when added to another number yields the same number.
+Date: Aug 10, 2024 || User: 66510 || Instance: In certain contexts the organ of smell and entrance to the respiratory tract may be an appropriate definition of nose.
+Date: Feb 04, 2024 || User: 15657 || Instance: The process of giving careful thought to something may be an appropriate definition of culture.
+Date: Jun 29, 2022 || User: 18591 || Instance: An artifact (especially an automobile) that is defective or unsatisfactory is an appropriate definition of lemon in certain contexts.
+Date: Jun 07, 2024 || User: 29574 || Instance: Decay may refer to one of the digits of the foot.
+Date: Sep 11, 2022 || User: 15657 || Instance: No ankle may commonly be a gliding joint between the distal ends of the tibia and fibula and the proximal end of the talus.
+Date: Oct 24, 2023 || User: 22375 || Instance: Cream may not refer to toiletry consisting of any of various substances in the form of a thick liquid that have a soothing and moisturizing effect when applied to the skin.
+Date: Jul 18, 2023 || User: 71719 || Instance: Workplace consisting of farm buildings and cultivated land as a unit is never an appropriate definition of shortage.
+Date: Aug 23, 2022 || User: 96117 || Instance: In certain contexts a delicate decorative fabric woven in an open web of symmetrical patterns is an appropriate definition of lace.
+Date: Jul 01, 2024 || User: 55734 || Instance: Comet may refer to a relatively small extraterrestrial body consisting of a frozen mass that travels around the sun in a highly elliptical orbit.
+Date: Sep 24, 2023 || User: 91719 || Instance: Not a single ladder may be steps consisting of two parallel members connected by rungs.
+Date: Feb 27, 2023 || User: 97015 || Instance: The quality of lacking any predictable order or plan may be an appropriate definition of noise in no context.
+Date: Aug 05, 2023 || User: 63741 || Instance: Eater of fruits and grains and nuts may not be an appropriate definition of vegetarian in any context.
+Date: Aug 11, 2022 || User: 66510 || Instance: A movement may be the property of sound that varies with variation in the frequency of vibration.
+Date: Feb 23, 2024 || User: 85061 || Instance: A light shade of grey may not be an appropriate definition of participant in any context.
+Date: Feb 09, 2024 || User: 29713 || Instance: Card refers to a sudden desire.
+Date: Apr 22, 2024 || User: 81874 || Instance: Speed may not refer to an abnormal proliferation of tissue (as in a tumor).
+Date: Jun 25, 2022 || User: 39843 || Instance: Civilization may refer to the condition of being free.
+Date: May 04, 2025 || User: 64932 || Instance: No suburb is a residential district located on the outskirts of a city.
+Date: May 30, 2023 || User: 42817 || Instance: Institution refers to an actor's portrayal of someone in a play.
+Date: Oct 09, 2024 || User: 98814 || Instance: In certain contexts restraint consisting of a rope (or light chain) used to restrain an animal is an appropriate definition of edge.
+Date: Jan 07, 2024 || User: 29930 || Instance: Band does not stand for any substance having the consistency of jelly or gelatin.
+Date: Feb 23, 2022 || User: 51190 || Instance: No chorus is an automotive vehicle suitable for hauling.
+Date: Apr 12, 2023 || User: 13948 || Instance: Sweater does never stand for a crocheted or knitted garment covering the upper part of the body.
+Date: Mar 04, 2022 || User: 45602 || Instance: Directions that define the way a game or sport is to be conducted is an appropriate definition of rule in certain contexts.
+Date: Oct 07, 2023 || User: 78056 || Instance: A bubble may be a hollow globule of gas (e.g., air or carbon dioxide).
+Date: Apr 02, 2023 || User: 17621 || Instance: Not a single grandmother is the mother of your father or mother.
+Date: Apr 28, 2025 || User: 83824 || Instance: A thin coating or layer may be an appropriate definition of film in certain contexts.
+Date: Jun 11, 2023 || User: 80682 || Instance: Loan never stands for a drop of the clear salty saline solution secreted by the lacrimal glands.
+Date: Jun 25, 2024 || User: 78494 || Instance: Bar does never stand for a horizontal rod that serves as a support for gymnasts as they perform exercises.
+Date: Sep 07, 2024 || User: 10577 || Instance: Any substance that causes injury or illness or death of a living organism may be an appropriate definition of poison in no context.
+Date: Apr 23, 2022 || User: 59699 || Instance: A post may commonly be the feeling that accompanies an unsatisfied state.
+Date: Jun 06, 2025 || User: 85061 || Instance: Not a single prevalence may be a superiority in numbers or amount.
+Date: Jul 10, 2024 || User: 64343 || Instance: A clue is not evidence that helps to solve a problem.
+Date: Dec 16, 2022 || User: 82337 || Instance: Not a single ticket may commonly be a commercial document showing that the holder is entitled to something (as to ride on public transportation or to enter a public entertainment).
+Date: Apr 04, 2022 || User: 80682 || Instance: A statement intended to inspire confidence is an appropriate definition of assurance in no context.
+Date: Jun 24, 2022 || User: 64343 || Instance: Any strong feeling is an appropriate definition of file in certain contexts.
+Date: Jul 04, 2022 || User: 58439 || Instance: In certain contexts money to support a worthy person or cause may be an appropriate definition of aid.
+Date: Jun 21, 2022 || User: 95800 || Instance: No score is commonly a number that expresses the accomplishment of a team or an individual in a game or contest.
+Date: Sep 12, 2023 || User: 20889 || Instance: Bible commonly refers to lack of success.
+Date: Mar 13, 2024 || User: 14202 || Instance: The part of a scene (or picture) that lies behind objects in the foreground may be an appropriate definition of voice in certain contexts.
+Date: Jan 12, 2024 || User: 10776 || Instance: Not a single summit may commonly be a meeting of heads of governments.
+Date: Dec 02, 2022 || User: 11681 || Instance: In no context an adornment consisting of a strip of a contrasting color or material is an appropriate definition of band.
+Date: Mar 23, 2024 || User: 85061 || Instance: The activity of providing goods and services involving financial and commercial and industrial aspects is an appropriate definition of fraud.
+Date: Aug 26, 2022 || User: 24328 || Instance: Not a single racism is the prejudice that members of one race are intrinsically superior to members of other races.
+Date: May 17, 2025 || User: 55734 || Instance: Myth stands for a traditional story accepted as history.
+Date: Mar 07, 2024 || User: 22103 || Instance: Publisher may not refer to a firm in the publishing business.
+Date: Nov 26, 2022 || User: 72706 || Instance: A bark may not be a silvery soft waxy metallic element of the alkali metal group.
+Date: Dec 24, 2022 || User: 17621 || Instance: A nut is usually large hard-shelled seed.
+Date: Jun 25, 2024 || User: 42196 || Instance: Not a single block is a rectangular area in a city surrounded by streets and usually containing several buildings.
+Date: Jul 07, 2023 || User: 15657 || Instance: Not a single literature may be creative writing of recognized artistic value.
+Date: Dec 17, 2023 || User: 46184 || Instance: In certain contexts a straight line connecting the center of a circle with two points on its perimeter (or the center of a sphere with two points on its surface) is an appropriate definition of coma.
+Date: Mar 19, 2022 || User: 21391 || Instance: A nursery may not be a child's room for a baby.
+Date: Aug 05, 2023 || User: 46775 || Instance: Satisfaction does not refer to the contentment one feels when one has fulfilled a desire, need, or expectation.
+Date: Jan 11, 2023 || User: 78494 || Instance: Sheet may not stand for a collection of star systems.
+Date: Jul 04, 2024 || User: 98414 || Instance: Limitation may not refer to the quality of being limited or restricted.
+Date: Dec 29, 2022 || User: 49014 || Instance: Material produced by or used in a reaction involving changes in atoms or molecules is an appropriate definition of reward in no context.
+Date: Sep 17, 2023 || User: 14202 || Instance: A daughter may be a piece of soft material that covers and protects an injured part of the body.
+Date: Sep 19, 2023 || User: 72618 || Instance: Legend may refer to a story about mythical or supernatural beings or events.
+Date: Mar 08, 2024 || User: 80682 || Instance: In no context an instance that does not conform to a rule or generalization may be an appropriate definition of exception.
+Date: May 03, 2023 || User: 59699 || Instance: No reason may be the state of having good sense and sound judgment.
+Date: Aug 02, 2024 || User: 29713 || Instance: No lift may be the geographical area under the jurisdiction of a sovereign state.
+Date: Apr 04, 2022 || User: 36440 || Instance: Bond may stand for money that must be forfeited by the bondsman if an accused person fails to appear in court for trial.
+Date: Dec 11, 2022 || User: 66510 || Instance: In no context representation consisting of the scenery and other properties used to identify the location of a dramatic production may be an appropriate definition of set.
+Date: Jun 17, 2022 || User: 64932 || Instance: No chart may commonly be one who precedes you in time (as in holding a position or office).
+Date: Dec 31, 2023 || User: 64343 || Instance: No race is people who are believed to belong to the same genetic stock.
+Date: Feb 05, 2024 || User: 69180 || Instance: A lunch is a midday meal.
+Date: Jul 25, 2023 || User: 66510 || Instance: Radical does not stand for a person who has radical ideas or opinions.
+Date: May 12, 2024 || User: 66510 || Instance: Someone whose occupation is catching fish is never an appropriate definition of fisherman in any context.
+Date: Jan 29, 2024 || User: 40030 || Instance: In no context the act of delivering a child is an appropriate definition of delivery.
+Date: Feb 14, 2023 || User: 33542 || Instance: Husband does never refer to a married man.
+Date: Mar 31, 2022 || User: 49606 || Instance: No protest may be the act of protesting.
+Date: Jan 06, 2025 || User: 72618 || Instance: A fan is commonly a series of actions advancing a principle or tending toward a particular end.
+Date: Aug 30, 2022 || User: 54362 || Instance: In certain contexts the quality of being probable may be an appropriate definition of probability.
+Date: May 09, 2023 || User: 55908 || Instance: Power does not stand for the opposition or dissimilarity of things that are compared.
+Date: Mar 05, 2022 || User: 95192 || Instance: Device for converting sound waves into electrical energy may be an appropriate definition of microphone.
+Date: May 22, 2022 || User: 11009 || Instance: A person who supplies information is not an appropriate definition of source in any context.
+Date: Jun 13, 2024 || User: 55734 || Instance: A quantity much larger than is needed is never an appropriate definition of excess.
+Date: May 24, 2022 || User: 21391 || Instance: Massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws may not be an appropriate definition of bear in any context.
+Date: May 29, 2022 || User: 11681 || Instance: Witch does never refer to a female sorcerer or magician.
+Date: Feb 21, 2024 || User: 70181 || Instance: One of a set of small pieces of stiff paper marked in various ways and used for playing games or for telling fortunes may be an appropriate definition of card in no context.
+Date: Jul 26, 2024 || User: 78494 || Instance: Lead commonly stands for a contract between two or more persons who agree to pool talent and money and share profits or losses.
+Date: Feb 28, 2024 || User: 57240 || Instance: A person who is subjected to experimental or other observational procedures may not be an appropriate definition of subject in any context.
+Date: Sep 13, 2024 || User: 56730 || Instance: Development may not refer to the process of an individual organism growing organically.
+Date: Aug 27, 2023 || User: 42267 || Instance: In no context a legally binding command or decision entered on the court record (as if issued by a court or judge) may be an appropriate definition of order.
+Date: Jan 07, 2023 || User: 52042 || Instance: An effort that is inconvenient may be an appropriate definition of difficulty.
+Date: Mar 19, 2024 || User: 38342 || Instance: Something that recommends (or expresses commendation of) a person or thing as worthy or desirable may not be an appropriate definition of needle in any context.
+Date: Aug 01, 2022 || User: 29930 || Instance: Sheep never stands for woolly usually horned ruminant mammal related to the goat.
+Date: Mar 07, 2025 || User: 29574 || Instance: A detective is commonly a police officer who investigates crimes.
+Date: Aug 29, 2024 || User: 44770 || Instance: In certain contexts the attribute of accepting the facts of life and favoring practicality and literal truth is an appropriate definition of realism.
+Date: Jul 21, 2023 || User: 15657 || Instance: An echo is not the repetition of a sound resulting from reflection of the sound waves.
+Date: Jul 05, 2023 || User: 68305 || Instance: Morning may stand for an award conferred by a college or university signifying that the recipient has satisfactorily completed a course of study.
+Date: Jan 03, 2024 || User: 21391 || Instance: Not a single tournament may commonly be a sporting competition in which contestants play a series of games to decide the winner.
+Date: Jan 19, 2024 || User: 50802 || Instance: An edge is not a slight competitive advantage.
+Date: Dec 18, 2022 || User: 17621 || Instance: A monarchy with a king or queen as head of state is not an appropriate definition of kingdom in any context.
+Date: Aug 29, 2024 || User: 72452 || Instance: Not a single constitution may commonly be the way in which someone or something is composed.
+Date: Dec 08, 2023 || User: 97015 || Instance: A barrier may be anything serving to maintain separation by obstructing vision or access.
+Date: Aug 28, 2022 || User: 36582 || Instance: The time at which something is supposed to begin is not an appropriate definition of start in any context.
+Date: Jun 01, 2022 || User: 55734 || Instance: No limitation is the quality of being limited or restricted.
+Date: Jul 31, 2024 || User: 97015 || Instance: Yard does never stand for the enclosed land around a house or other building.
+Date: Oct 22, 2024 || User: 64343 || Instance: Leg does not refer to the limb of an animal used for food.
+Date: Jun 05, 2025 || User: 14202 || Instance: In certain contexts extortion of money by threats to divulge discrediting information is an appropriate definition of growth.
+Date: Jan 13, 2023 || User: 29930 || Instance: In no context a title given to a monk and used as form of address is an appropriate definition of Brother.
+Date: May 14, 2022 || User: 44972 || Instance: Something that remunerates may be an appropriate definition of smell.
+Date: Oct 23, 2022 || User: 29930 || Instance: Not a single monarchy may commonly be an autocracy governed by a monarch who usually inherits the authority.
+Date: Jan 26, 2024 || User: 40030 || Instance: Timetable commonly stands for a small room (or recess) or cabinet used for storage space.
+Date: May 23, 2025 || User: 75560 || Instance: Institution never refers to the quality of being limited or restricted.
+Date: Feb 26, 2024 || User: 29930 || Instance: A prescription may commonly be any obstruction that impedes or is burdensome.
+Date: Sep 25, 2022 || User: 55908 || Instance: A verbal or written request for assistance or employment or admission to a school is an appropriate definition of exception.
+Date: Apr 07, 2023 || User: 64932 || Instance: A radiogram made by exposing photographic film to X rays is not an appropriate definition of X-ray in any context.
+Date: May 31, 2022 || User: 64932 || Instance: Grip stands for the friction between a body and the surface on which it moves (as between an automobile tire and the road).
+Date: Mar 14, 2025 || User: 55734 || Instance: The highest point (of something) may be an appropriate definition of peak in no context.
+Date: Oct 02, 2022 || User: 66510 || Instance: Not a single produce is a loud utterance.
+Date: Aug 28, 2023 || User: 20889 || Instance: Suit does never refer to tender, romantic, or nostalgic feeling or emotion.
+Date: May 11, 2024 || User: 11681 || Instance: Being abnormally tolerant to and dependent on something that is psychologically or physically habit-forming (especially alcohol or narcotic drugs) may be an appropriate definition of monastery.
+Date: Nov 16, 2024 || User: 46184 || Instance: A pleasure may not be an institution where people are cared for.
+Date: Feb 07, 2023 || User: 39346 || Instance: Not a single agent is an amount of money expressed numerically.
+Date: Nov 01, 2023 || User: 33542 || Instance: Not a single contest may be a struggle between rivals.
+Date: Jun 14, 2023 || User: 59699 || Instance: In certain contexts an official engaged in international negotiations may be an appropriate definition of trade.
+Date: Jun 20, 2023 || User: 97015 || Instance: Either of two soft fleshy milk-secreting glandular organs on the chest of a woman is not an appropriate definition of breast.
+Date: Jun 19, 2024 || User: 21251 || Instance: Edge may commonly stand for restraint consisting of a rope (or light chain) used to restrain an animal.
+Date: Sep 03, 2022 || User: 53175 || Instance: In no context a mutual expression of views (especially an unpleasant one) is an appropriate definition of exchange.
+Date: Nov 27, 2022 || User: 13684 || Instance: An echo is a support that consists of a horizontal surface for holding objects.
+Date: Jan 16, 2023 || User: 75560 || Instance: A fully developed person from maturity onward is an appropriate definition of negotiation in no context.
+Date: Oct 11, 2024 || User: 49014 || Instance: Truck does not stand for the center of an object.
+Date: Jun 04, 2025 || User: 35590 || Instance: The act of competing as for profit or a prize is an appropriate definition of blade in no context.
+Date: Sep 29, 2023 || User: 66510 || Instance: Skull does never stand for the bony skeleton of the head of vertebrates.
+Date: Jul 23, 2022 || User: 85061 || Instance: A group of people assembled to sing together is not an appropriate definition of chorus in any context.
+Date: Jun 15, 2022 || User: 28059 || Instance: No afternoon may commonly be the part of the day between noon and evening.
+Date: May 13, 2023 || User: 78494 || Instance: Accident refers to anything that happens suddenly or by chance without an apparent cause.
+Date: Mar 21, 2024 || User: 97015 || Instance: Village commonly stands for a polite name for any woman.
+Date: Feb 12, 2025 || User: 49014 || Instance: A program devoted to current events, often using interviews and commentary may be an appropriate definition of news.
+Date: Sep 09, 2022 || User: 35590 || Instance: Someone who pays rent to use land or a building or a car that is owned by someone else is an appropriate definition of shell in certain contexts.
+Date: Aug 16, 2024 || User: 97015 || Instance: In no context the state or quality of being widely honored and acclaimed is an appropriate definition of consultation.
+Date: Oct 18, 2022 || User: 51190 || Instance: A boxlike container in a piece of furniture is never an appropriate definition of drawer.
+Date: Sep 28, 2024 || User: 80682 || Instance: A foundation may not be an instance of questioning.
+Date: May 19, 2023 || User: 11009 || Instance: Not a single lock is commonly a fastener fitted to a door or drawer to keep it firmly closed.
+Date: Dec 27, 2023 || User: 34549 || Instance: A Brother is commonly a title given to a monk and used as form of address.
+Date: Jun 11, 2024 || User: 40030 || Instance: A discussion in which reasons are advanced for and against some proposition or proposal may be an appropriate definition of argument in certain contexts.
+Date: Sep 20, 2024 || User: 79000 || Instance: Notion stands for a general inclusive concept.
+Date: Mar 20, 2022 || User: 57385 || Instance: A treasurer may be an officer charged with receiving and disbursing funds.
+Date: Aug 18, 2023 || User: 94493 || Instance: A key is a list of words or phrases that explain symbols or abbreviations.
+Date: Apr 22, 2025 || User: 35330 || Instance: Impulse does never refer to a sudden desire.
+Date: Sep 17, 2022 || User: 55908 || Instance: Fortune may not refer to a postulated sequence of possible events.
+Date: May 06, 2023 || User: 80682 || Instance: Not a single march may be genre of music written for marching.
+Date: Jun 08, 2022 || User: 72618 || Instance: Not a single finger is commonly a tract of land used for burials.
+Date: Sep 17, 2023 || User: 18991 || Instance: Prey does never stand for vegetation that has grown.
+Date: Mar 16, 2023 || User: 96117 || Instance: The quality of being loyal is not an appropriate definition of pitch.
+Date: Dec 08, 2022 || User: 67092 || Instance: The advantageous quality of being beneficial may not be an appropriate definition of profit in any context.
+Date: Jul 05, 2022 || User: 28059 || Instance: Flight commonly stands for a stairway (set of steps) between one floor or landing and the next.
+Date: Jan 03, 2023 || User: 29574 || Instance: Attic commonly refers to a particular instance of buying or selling.
+Date: Feb 21, 2022 || User: 95770 || Instance: Question commonly refers to an instance of questioning.
+Date: Sep 30, 2024 || User: 59699 || Instance: Touch does not stand for the faculty by which external objects or forces are perceived through contact with the body (especially the hands).
+Date: Nov 16, 2023 || User: 11009 || Instance: In certain contexts a district where people live is an appropriate definition of community.
+Date: Jan 27, 2025 || User: 86280 || Instance: A fire may not be any of various breeds of small gentle horses usually less than five feet high at the shoulder.
+Date: Apr 08, 2023 || User: 96117 || Instance: One who has lived in a village most of their life is never an appropriate definition of villager in any context.
+Date: Jan 26, 2023 || User: 94493 || Instance: Distributor commonly refers to the act of having and controlling property.
+Date: Apr 25, 2023 || User: 70181 || Instance: A cloth covering for a wound or sore is never an appropriate definition of dressing in any context.
+Date: Feb 26, 2024 || User: 64932 || Instance: No glimpse may be a brief or incomplete view.
+Date: May 31, 2024 || User: 93281 || Instance: Not a single miscarriage is commonly ammunition consisting of a cylindrical metal casing containing an explosive charge and a projectile.
+Date: Sep 12, 2023 || User: 97015 || Instance: The classification of someone or something with respect to its worth is an appropriate definition of scale.
+Date: Feb 26, 2022 || User: 46775 || Instance: A separation is commonly a broad highway designed for high-speed traffic.
+Date: Oct 27, 2024 || User: 51190 || Instance: Feelings of mental or physical pain may be an appropriate definition of suffering.
+Date: Nov 24, 2023 || User: 94454 || Instance: No provision may be the activity of supplying or providing something.
+Date: Jan 13, 2024 || User: 71719 || Instance: Not a single vote is a choice that is made by counting the number of people in favor of each alternative.
+Date: Aug 18, 2022 || User: 29077 || Instance: Gradual improvement or growth or development may not be an appropriate definition of progress in any context.
+Date: Jan 19, 2025 || User: 83824 || Instance: The discipline dealing with the principles of design and construction and ornamentation of fine buildings is never an appropriate definition of architecture.
+Date: Dec 11, 2022 || User: 85061 || Instance: An instance of questioning is an appropriate definition of foundation in no context.
+Date: Apr 05, 2023 || User: 33542 || Instance: A delay is not the act of delaying.
+Date: Jul 23, 2023 || User: 37503 || Instance: Eyebrow may commonly stand for the arch of hair above each eye.
+Date: Apr 14, 2025 || User: 45602 || Instance: In certain contexts a (usually rectangular) container may be an appropriate definition of hall.
+Date: Dec 18, 2022 || User: 29574 || Instance: Promotion does not stand for a message issued in behalf of some product or cause or idea or person or institution.
+Date: Feb 05, 2024 || User: 95764 || Instance: In certain contexts good repute may be an appropriate definition of compliance.
+Date: Oct 09, 2023 || User: 29574 || Instance: All the people living at the same time or of approximately the same age is an appropriate definition of generation.
+Date: Nov 07, 2022 || User: 83824 || Instance: A drama set to music may be an appropriate definition of willpower in certain contexts.
+Date: Jun 14, 2022 || User: 11681 || Instance: Not a single sin may be an act that is regarded by theologians as a transgression of God's will.
+Date: Jan 16, 2023 || User: 61503 || Instance: A person who investigates and reports or edits news stories may be an appropriate definition of password.
+Date: May 16, 2024 || User: 42708 || Instance: The unwritten lore (stories and proverbs and riddles and songs) of a culture is not an appropriate definition of studio in any context.
+Date: Sep 29, 2023 || User: 36440 || Instance: A device that produces electricity may be an appropriate definition of patrol.
+Date: Dec 07, 2024 || User: 13948 || Instance: Publisher may commonly stand for a firm in the publishing business.
+Date: May 11, 2022 || User: 34527 || Instance: In no context any of various burrowing animals of the family Leporidae having long ears and short tails is an appropriate definition of fixture.
+Date: Jun 22, 2023 || User: 45602 || Instance: One possessing or exercising power or influence or authority is an appropriate definition of toll in certain contexts.
+Date: Sep 13, 2023 || User: 34549 || Instance: Drive may refer to the trait of being highly motivated.
+Date: Dec 27, 2024 || User: 72618 || Instance: Guard never refers to a person who keeps watch over something or someone.
+Date: May 18, 2024 || User: 22103 || Instance: A pound may be a public enclosure for stray or unlicensed dogs.
+Date: Oct 17, 2024 || User: 59699 || Instance: No helmet may commonly be a protective headgear made of hard material to resist blows.
+Date: Sep 03, 2023 || User: 22723 || Instance: Not a single folk may be the traditional and typically anonymous music that is an expression of the life of people in a community.
+Date: Jan 17, 2024 || User: 79597 || Instance: Not a single tray may commonly be a person's social heritage: previous experience or training.
+Date: Mar 30, 2024 || User: 29713 || Instance: A shortening or tensing of a part or organ (especially of a muscle or muscle fiber) may be an appropriate definition of contraction.
+Date: Feb 17, 2024 || User: 72618 || Instance: Promotion may commonly stand for a message issued in behalf of some product or cause or idea or person or institution.
+Date: Jul 12, 2024 || User: 86280 || Instance: The ability to form mental images of things or events may be an appropriate definition of imagination.
+Date: May 18, 2022 || User: 53660 || Instance: The state of demanding notice or attention is an appropriate definition of waste in certain contexts.
+Recall: the preceding lines contain 683 sentences, one per line. Each sentence makes a single claim; the claim can be classified as true or false.
+
+You will be asked to answer questions about the aggregate label statistics across all 683 examples in this dataset. Do not try to guess, estimate, or approximate the result. Calculate the exact answer given these datapoints.
+

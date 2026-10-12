@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-11T10:59:55.585Z",
+  "initialSourceFileHash": "f6c5f15f18ebaa4b3e2de3423ece375d7588d3cd75b8158970499bf8d70f0bd9",
+  "xaiCredentialCopyHash": "8b8cd27a296b0f58916a3a65166000d7d24b801ca43d90d5c1fb94328f54f66c",
+  "currentXaiCredentialHash": "8b8cd27a296b0f58916a3a65166000d7d24b801ca43d90d5c1fb94328f54f66c",
+  "xaiCredentialUnchanged": true,
+  "restoredSnapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59",
+  "snapshotMatches": true,
+  "modelCallsInRejectedSetup": 0
+}

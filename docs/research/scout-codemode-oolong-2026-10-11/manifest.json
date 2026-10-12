@@ -1,0 +1,248 @@
+{
+  "commit": "5868a0de4af5afd3137d00b8142c6fc033d6d895",
+  "backend": "sdk",
+  "mainModel": {
+    "protocol": "openai-compatible",
+    "source": "subscription",
+    "providerId": "xai",
+    "modelId": "grok-4.5"
+  },
+  "mainThinking": "high",
+  "scoutModel": {
+    "protocol": "openai-compatible",
+    "source": "subscription",
+    "providerId": "xai",
+    "modelId": "grok-4.5"
+  },
+  "scoutThinking": "low",
+  "sourceRoot": "/Users/yorickjue/.piwin-test",
+  "upstreamBaseUrl": "https://api.x.ai/v1",
+  "credentialMode": "native xai OAuth",
+  "sourceAuthHash": "f6c5f15f18ebaa4b3e2de3423ece375d7588d3cd75b8158970499bf8d70f0bd9",
+  "sourceAuthHashAtResume": "1c2d59de2d50a708ea3b2f4db4f4e8161f1d2aed0c49af6513df80b505ef10b2",
+  "xaiCredentialHash": "8b8cd27a296b0f58916a3a65166000d7d24b801ca43d90d5c1fb94328f54f66c",
+  "snapshotHash": "4021a9ef3779002aa2c63d4898c62be03177e4f32fb1fe0b08696fb152d37d59",
+  "fixtureHash": null,
+  "fixtureBytes": 568978,
+  "timeoutMs": 900000,
+  "scheme": "ultra-code",
+  "commonPrompt": "这是只读实验任务。不得修改文件、配置或源码，不得执行有副作用的命令，不得联网。可以用正常的 Scout、grep/read、bash 中的只读命令，以及当前可用的其他只读工具；自主选择工具，不必使用某一种工具。请至少使用一个 Scout 获取证据或计算结果，以验证“已经使用 Scout”的情形；你自主决定 Scout 的任务和自己的工具。不要创建计划文件或报告文件。最终答案只输出一个 JSON 对象，不要 Markdown 围栏。",
+  "tasks": [
+    {
+      "id": "negation-32k",
+      "prompt": "Read the complete benchmark material in experiment-data/negation-32k.txt.\n\nOriginal OOLONG question:\nIn the above data, how many data points should be classified as label 'True'? Give your final answer in the form 'Answer: number'.\n\nDo the original classification and aggregation on the unlabeled input. Do not guess, estimate, or invent missing labels. Final answer must be exactly one JSON object {\"answer\":VALUE}, where VALUE is an integer for numerical questions or the original exact category string for label questions. Keep any evidence or calculations in tool work; return no extra JSON keys. Only access files inside this project; do not read the runner, configs, credentials, evaluator, or answer files outside it."
+    },
+    {
+      "id": "agnews-64k",
+      "prompt": "Read the complete benchmark material in experiment-data/agnews-64k.txt.\n\nOriginal OOLONG question:\nFor the following question, only consider the subset of instances that are associated with user IDs 91245. Among instances associated with these users, which of the labels is the most common? Give your final answer in the form 'Label: answer' where answer is one of the labels: World, Business, Sci/Tech.\n\nDo the original classification and aggregation on the unlabeled input. Do not guess, estimate, or invent missing labels. Final answer must be exactly one JSON object {\"answer\":VALUE}, where VALUE is an integer for numerical questions or the original exact category string for label questions. Keep any evidence or calculations in tool work; return no extra JSON keys. Only access files inside this project; do not read the runner, configs, credentials, evaluator, or answer files outside it."
+    },
+    {
+      "id": "yahoo-128k",
+      "prompt": "Read the complete benchmark material in experiment-data/yahoo-128k.txt.\n\nOriginal OOLONG question:\nIn the above data, which of the labels is the least common? Give your final answer in the form 'Label: answer' where answer is one of the labels: Society & Culture, Health, Education & Reference, Sports, Family & Relationships, Computers & Internet, Science & Mathematics, Business & Finance, Entertainment & Music, Politics & Government.\n\nDo the original classification and aggregation on the unlabeled input. Do not guess, estimate, or invent missing labels. Final answer must be exactly one JSON object {\"answer\":VALUE}, where VALUE is an integer for numerical questions or the original exact category string for label questions. Keep any evidence or calculations in tool work; return no extra JSON keys. Only access files inside this project; do not read the runner, configs, credentials, evaluator, or answer files outside it."
+    }
+  ],
+  "expected": {
+    "negation-32k": {
+      "answer": 261
+    },
+    "agnews-64k": {
+      "answer": "Business"
+    },
+    "yahoo-128k": {
+      "answer": "Family & Relationships"
+    }
+  },
+  "benchmark": {
+    "dataset": "oolongbench/oolong-synth",
+    "split": "test",
+    "revision": "f0d59eaf0febf130664cfceb710436c8e3216b2b",
+    "officialCodeRevision": "0bb7eabe839218fee7fe8d007f41cfc2fd3ae24c",
+    "variant": "read-only file/tool adaptation of unlabeled OOLONG-synth",
+    "selection": "Explicit IDs frozen before any model calls; different datasets and nominal length tiers 32K/64K/128K. No model performance used for selection.",
+    "shards": [
+      {
+        "file": "test-00003-of-00041.parquet",
+        "url": "https://huggingface.co/datasets/oolongbench/oolong-synth/resolve/f0d59eaf0febf130664cfceb710436c8e3216b2b/data/test-00003-of-00041.parquet",
+        "sha256": "0c97fc0cf2b5a485b6db95b55aa586e067c9be07a36dbdf71a548c74f38a53b3"
+      },
+      {
+        "file": "test-00029-of-00041.parquet",
+        "url": "https://huggingface.co/datasets/oolongbench/oolong-synth/resolve/f0d59eaf0febf130664cfceb710436c8e3216b2b/data/test-00029-of-00041.parquet",
+        "sha256": "2215126d6730a81cea9ec36b9a67e884574a8f8918dad641b68c445e538aecb3"
+      },
+      {
+        "file": "test-00021-of-00041.parquet",
+        "url": "https://huggingface.co/datasets/oolongbench/oolong-synth/resolve/f0d59eaf0febf130664cfceb710436c8e3216b2b/data/test-00021-of-00041.parquet",
+        "sha256": "d7d93e8a281ff3996a819d8292aff9cd18d64e479684771439b0841ffcdd9003"
+      }
+    ],
+    "tasks": [
+      {
+        "id": 415040019,
+        "dataset": "negation",
+        "context_len": 32768,
+        "context_window_id": 40016,
+        "task_group": "counting",
+        "task": "TASK_TYPE.NUMERIC_ONE_CLASS",
+        "answer_type": "ANSWER_TYPE.NUMERIC",
+        "input_subset": "False",
+        "taskId": "negation-32k",
+        "inputFile": "negation-32k.txt",
+        "question": "In the above data, how many data points should be classified as label 'True'? Give your final answer in the form 'Answer: number'.",
+        "expected": {
+          "answer": 261
+        },
+        "inputBytes": 95843,
+        "inputHash": "7f96f57004ec9822b550ed76a50480116cff1ca7ec03459ebf93e0bdda755441",
+        "labelsIncluded": false
+      },
+      {
+        "id": 316030027,
+        "dataset": "agnews",
+        "context_len": 65536,
+        "context_window_id": 30018,
+        "task_group": "user",
+        "task": "TASK_TYPE.MOST_FREQ",
+        "answer_type": "ANSWER_TYPE.LABEL",
+        "input_subset": "True",
+        "taskId": "agnews-64k",
+        "inputFile": "agnews-64k.txt",
+        "question": "For the following question, only consider the subset of instances that are associated with user IDs 91245. Among instances associated with these users, which of the labels is the most common? Give your final answer in the form 'Label: answer' where answer is one of the labels: World, Business, Sci/Tech.",
+        "expected": {
+          "answer": "Business"
+        },
+        "inputBytes": 192445,
+        "inputHash": "8d0a8fdf08a1839821d017756845a09df5e6886305066f602414957e6a80ee7f",
+        "labelsIncluded": false
+      },
+      {
+        "id": 517050022,
+        "dataset": "yahoo",
+        "context_len": 131072,
+        "context_window_id": 50021,
+        "task_group": "counting",
+        "task": "TASK_TYPE.LEAST_FREQ",
+        "answer_type": "ANSWER_TYPE.LABEL",
+        "input_subset": "False",
+        "taskId": "yahoo-128k",
+        "inputFile": "yahoo-128k.txt",
+        "question": "In the above data, which of the labels is the least common? Give your final answer in the form 'Label: answer' where answer is one of the labels: Society & Culture, Health, Education & Reference, Sports, Family & Relationships, Computers & Internet, Science & Mathematics, Business & Finance, Entertainment & Music, Politics & Government.",
+        "expected": {
+          "answer": "Family & Relationships"
+        },
+        "inputBytes": 280690,
+        "inputHash": "920a242da89e7cee86bf3e330fc18ce694cc9b14c7598a0a7fdf45606c7a7033",
+        "labelsIncluded": false
+      }
+    ]
+  },
+  "startedAt": "2026-10-11T10:04:18.667Z",
+  "resumedAt": "2026-10-11T11:23:38.323Z",
+  "readOnlyIsolation": {
+    "shell": "/Users/yorickjue/.codex/worktrees/scout-codemode-experiment/piwin/scripts/research/scout-codemode/readonly-shell.sh",
+    "profile": "readonly-shell.sb",
+    "profileHash": "e2d696e321a8d68e24f9cd575892d57bcfd53cd3e9d03f07005c1a72ed3cffcb",
+    "denies": [
+      "file-write*",
+      "network*"
+    ],
+    "firstProtectedOrdinal": 2,
+    "invalidAttempt": "Safety interruption: auto-mode permission experiment did not complete Scout startup normally. Excluded to avoid weakening tool capability; no replacement.",
+    "networkToolsDeniedFromOrdinal": 7,
+    "permissionMode": "bypass",
+    "networkGuardHash": "e2f573b01e97287eac2cb10a9cdac5d3b4f527c0be2fe2c4934542abb6995e32"
+  },
+  "measurement": "Main Host usage ledger + passive main OAuth SSE metadata + native Pi SDK/RPC assistant usage",
+  "sequence": [
+    {
+      "taskId": "negation-32k",
+      "group": "A",
+      "repetition": 1
+    },
+    {
+      "taskId": "negation-32k",
+      "group": "B",
+      "repetition": 1
+    },
+    {
+      "taskId": "negation-32k",
+      "group": "A",
+      "repetition": 2
+    },
+    {
+      "taskId": "negation-32k",
+      "group": "B",
+      "repetition": 2
+    },
+    {
+      "taskId": "negation-32k",
+      "group": "A",
+      "repetition": 3
+    },
+    {
+      "taskId": "negation-32k",
+      "group": "B",
+      "repetition": 3
+    },
+    {
+      "taskId": "agnews-64k",
+      "group": "A",
+      "repetition": 1
+    },
+    {
+      "taskId": "agnews-64k",
+      "group": "B",
+      "repetition": 1
+    },
+    {
+      "taskId": "agnews-64k",
+      "group": "A",
+      "repetition": 2
+    },
+    {
+      "taskId": "agnews-64k",
+      "group": "B",
+      "repetition": 2
+    },
+    {
+      "taskId": "agnews-64k",
+      "group": "A",
+      "repetition": 3
+    },
+    {
+      "taskId": "agnews-64k",
+      "group": "B",
+      "repetition": 3
+    },
+    {
+      "taskId": "yahoo-128k",
+      "group": "A",
+      "repetition": 1
+    },
+    {
+      "taskId": "yahoo-128k",
+      "group": "B",
+      "repetition": 1
+    },
+    {
+      "taskId": "yahoo-128k",
+      "group": "A",
+      "repetition": 2
+    },
+    {
+      "taskId": "yahoo-128k",
+      "group": "B",
+      "repetition": 2
+    },
+    {
+      "taskId": "yahoo-128k",
+      "group": "A",
+      "repetition": 3
+    },
+    {
+      "taskId": "yahoo-128k",
+      "group": "B",
+      "repetition": 3
+    }
+  ]
+}

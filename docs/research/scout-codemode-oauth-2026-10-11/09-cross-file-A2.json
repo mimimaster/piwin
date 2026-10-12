@@ -1,0 +1,1018 @@
+{
+  "ordinal": 9,
+  "taskId": "cross-file",
+  "group": "A",
+  "repetition": 2,
+  "sessionId": "session-mv3iew2k-3o5khtav",
+  "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00",
+  "status": "completed",
+  "failure": null,
+  "elapsedMs": 55984,
+  "configHashWithoutCodemodeEnabled": "cf8bda9e7b731ca1c1d2767b41b8b3828891113d1540d73d8a4686da4e6d07c2",
+  "promptHash": "c9b5f676f22eb6d9d3d36a052bd2931537b26cea7cc0cc73ffe710080d6c25b5",
+  "snapshotHash": "896aab120a8a1ab1bdaa26faf3866559a3762bac01d5756dd0dca5f5cd3aa07a",
+  "sourceUnchanged": true,
+  "validation": {
+    "passed": true,
+    "failures": [],
+    "parsed": {
+      "packages": [
+        {
+          "name": "media",
+          "count": 8,
+          "files": [
+            "packages/media/src/attachment-policy.ts",
+            "packages/media/src/clone-session-media.ts",
+            "packages/media/src/document-extractor.ts",
+            "packages/media/src/generated-media-import.ts",
+            "packages/media/src/index.ts",
+            "packages/media/src/media-library.ts",
+            "packages/media/src/media-service.ts",
+            "packages/media/src/media-thumb.ts"
+          ]
+        },
+        {
+          "name": "project",
+          "count": 2,
+          "files": [
+            "packages/project/src/create-host-entry.ts",
+            "packages/project/src/project-store.ts"
+          ]
+        },
+        {
+          "name": "mcp",
+          "count": 10,
+          "files": [
+            "packages/mcp/src/mcp-client-official.ts",
+            "packages/mcp/src/mcp-client.ts",
+            "packages/mcp/src/mcp-config.ts",
+            "packages/mcp/src/mcp-connection-policy.ts",
+            "packages/mcp/src/mcp-fingerprint.ts",
+            "packages/mcp/src/mcp-generation-snapshot.ts",
+            "packages/mcp/src/mcp-lifecycle-manager.ts",
+            "packages/mcp/src/mcp-metadata-catalog.ts",
+            "packages/mcp/src/mcp-metadata-store.ts",
+            "packages/mcp/src/tool-names.ts"
+          ]
+        }
+      ],
+      "total": 20
+    }
+  },
+  "answer": "{\"packages\":[{\"name\":\"media\",\"count\":8,\"files\":[\"packages/media/src/attachment-policy.ts\",\"packages/media/src/clone-session-media.ts\",\"packages/media/src/document-extractor.ts\",\"packages/media/src/generated-media-import.ts\",\"packages/media/src/index.ts\",\"packages/media/src/media-library.ts\",\"packages/media/src/media-service.ts\",\"packages/media/src/media-thumb.ts\"]},{\"name\":\"project\",\"count\":2,\"files\":[\"packages/project/src/create-host-entry.ts\",\"packages/project/src/project-store.ts\"]},{\"name\":\"mcp\",\"count\":10,\"files\":[\"packages/mcp/src/mcp-client-official.ts\",\"packages/mcp/src/mcp-client.ts\",\"packages/mcp/src/mcp-config.ts\",\"packages/mcp/src/mcp-connection-policy.ts\",\"packages/mcp/src/mcp-fingerprint.ts\",\"packages/mcp/src/mcp-generation-snapshot.ts\",\"packages/mcp/src/mcp-lifecycle-manager.ts\",\"packages/mcp/src/mcp-metadata-catalog.ts\",\"packages/mcp/src/mcp-metadata-store.ts\",\"packages/mcp/src/tool-names.ts\"]}],\"total\":20}",
+  "scoutSessionIds": [],
+  "scoutCount": 0,
+  "toolCalls": 7,
+  "mainToolCalls": 7,
+  "scoutToolCalls": 0,
+  "codemodeCalls": 0,
+  "codemodeFailures": 0,
+  "nestedCalls": [],
+  "nestedCallCount": 0,
+  "toolFailures": 0,
+  "modelRetryAttempts": 0,
+  "toolRetryAttempts": null,
+  "upstreamInternalRetries": null,
+  "observedUsage": {
+    "promptTokensIncludingCache": 50174,
+    "completionTokens": 1597,
+    "cacheReadTokens": 31360,
+    "cacheWriteTokens": null,
+    "reasoningTokens": 396,
+    "totalTokens": 51771
+  },
+  "mainLedgerUsage": {
+    "promptTokens": 18814,
+    "completionTokens": 1597,
+    "cacheReadTokens": 31360,
+    "cacheWriteTokens": 0,
+    "totalTokens": 51771,
+    "reasoningTokens": 396
+  },
+  "scoutLedgerUsage": null,
+  "mainObservedUsage": {
+    "promptTokensIncludingCache": 50174,
+    "completionTokens": 1597,
+    "cacheReadTokens": 31360,
+    "cacheWriteTokens": null,
+    "reasoningTokens": 396,
+    "totalTokens": 51771
+  },
+  "scoutObservedUsage": null,
+  "providerRequests": [
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:36:29.035Z",
+      "requestBodyHash": "b83434eaa61fcd41f81aaf843dab1dac9553f50c45ac217ec4821e9cd62e4fbe",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 15087,
+        "input_tokens_details": {
+          "cached_tokens": 384
+        },
+        "output_tokens": 780,
+        "output_tokens_details": {
+          "reasoning_tokens": 62
+        },
+        "total_tokens": 15867,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 116284080,
+        "context_details": {
+          "input_tokens": 15087,
+          "output_tokens": 786
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 12092,
+      "completed": true
+    },
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:36:56.111Z",
+      "requestBodyHash": "1771f16432e4a093a42f638a5f41754cb5dce995a3a3e99caa6f1f1b1cbfe91b",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 16105,
+        "input_tokens_details": {
+          "cached_tokens": 14976
+        },
+        "output_tokens": 214,
+        "output_tokens_details": {
+          "reasoning_tokens": 14
+        },
+        "total_tokens": 16319,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 27318320,
+        "context_details": {
+          "input_tokens": 16105,
+          "output_tokens": 220
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 4283,
+      "completed": true
+    },
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:37:16.089Z",
+      "requestBodyHash": "552677481668d6b134f8d1a80c0ea41413c312da9c939196684933a6a03c6bb6",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 18982,
+        "input_tokens_details": {
+          "cached_tokens": 16000
+        },
+        "output_tokens": 603,
+        "output_tokens_details": {
+          "reasoning_tokens": 320
+        },
+        "total_tokens": 19585,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 48898800,
+        "context_details": {
+          "input_tokens": 18982,
+          "output_tokens": 610
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 8733,
+      "completed": true
+    }
+  ],
+  "usageLedger": [
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 15867,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:36:41.129Z",
+      "measurementId": "session-mv3iew2k-3o5khtav:generation-mv3iew35-3f3k5mfk:piw-m-1ea352772f895ffc721f043d",
+      "messageId": "piw-m-1ea352772f895ffc721f043d",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00",
+      "promptTokens": 14703,
+      "completionTokens": 780,
+      "cacheReadTokens": 384,
+      "cacheWriteTokens": 0,
+      "durationMs": 12095,
+      "firstTokenMs": 2455,
+      "reasoningTokens": 62,
+      "firstTokenKind": "content"
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 16319,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:37:00.394Z",
+      "measurementId": "session-mv3iew2k-3o5khtav:generation-mv3iew35-3f3k5mfk:piw-m-9af56d093303c159ec19d54f",
+      "messageId": "piw-m-9af56d093303c159ec19d54f",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00",
+      "promptTokens": 1129,
+      "completionTokens": 214,
+      "cacheReadTokens": 14976,
+      "cacheWriteTokens": 0,
+      "durationMs": 4284,
+      "firstTokenMs": 2120,
+      "reasoningTokens": 14,
+      "firstTokenKind": "content"
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 19585,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:37:24.823Z",
+      "measurementId": "session-mv3iew2k-3o5khtav:generation-mv3iew35-3f3k5mfk:piw-m-4b54c76b44e7683eb9c1a555",
+      "messageId": "piw-m-4b54c76b44e7683eb9c1a555",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00",
+      "promptTokens": 2982,
+      "completionTokens": 603,
+      "cacheReadTokens": 16000,
+      "cacheWriteTokens": 0,
+      "durationMs": 8736,
+      "firstTokenMs": 3029,
+      "reasoningTokens": 320,
+      "firstTokenKind": "reasoning"
+    }
+  ],
+  "events": [
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-4590d0cc028e10d808a20825",
+        "toolName": "piwin_subagent_start",
+        "responseMessageId": "piw-m-1ea352772f895ffc721f043d",
+        "presentation": {
+          "kind": "subagent",
+          "title": "Subagent",
+          "inputPreview": "{\"task\":\"Read-only task. In the workspace, recursively find production .ts files under packages…",
+          "actionVerb": "Delegated",
+          "summary": "scout-media-contracts"
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-0cfe38d8264541ae7a7bfc79",
+        "toolName": "piwin_subagent_start",
+        "responseMessageId": "piw-m-1ea352772f895ffc721f043d",
+        "presentation": {
+          "kind": "subagent",
+          "title": "Subagent",
+          "inputPreview": "{\"task\":\"Read-only task. In the workspace, recursively find production .ts files under packages…",
+          "actionVerb": "Delegated",
+          "summary": "scout-project-contracts"
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-e327dace956544343ce59a42",
+        "toolName": "piwin_subagent_start",
+        "responseMessageId": "piw-m-1ea352772f895ffc721f043d",
+        "presentation": {
+          "kind": "subagent",
+          "title": "Subagent",
+          "inputPreview": "{\"task\":\"Read-only task. In the workspace, recursively find production .ts files under packages…",
+          "actionVerb": "Delegated",
+          "summary": "scout-mcp-contracts"
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-4590d0cc028e10d808a20825",
+        "isError": false,
+        "responseMessageId": "piw-m-1ea352772f895ffc721f043d",
+        "presentation": {
+          "kind": "subagent",
+          "title": "Subagent",
+          "inputPreview": "{\"task\":\"Read-only task. In the workspace, recursively find production .ts files under packages…",
+          "actionVerb": "Delegated",
+          "summary": "scout-media-contracts",
+          "output": {
+            "text": "subagent accepted (runId=646ef7e4-92ff-466b-8362-022797766e9e, invocationId=07f958ed-72a3-41cb-b7bb-56334ea3cc95); continue independent work and call piwin_subagent_wait before using its result"
+          }
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-0cfe38d8264541ae7a7bfc79",
+        "isError": false,
+        "responseMessageId": "piw-m-1ea352772f895ffc721f043d",
+        "presentation": {
+          "kind": "subagent",
+          "title": "Subagent",
+          "inputPreview": "{\"task\":\"Read-only task. In the workspace, recursively find production .ts files under packages…",
+          "actionVerb": "Delegated",
+          "summary": "scout-project-contracts",
+          "output": {
+            "text": "subagent accepted (runId=2dfa5508-5d83-451c-b429-1f2ca4ca440f, invocationId=71c84fe4-4865-4f67-ac62-eefbb23f3da9); continue independent work and call piwin_subagent_wait before using its result"
+          }
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-e327dace956544343ce59a42",
+        "isError": false,
+        "responseMessageId": "piw-m-1ea352772f895ffc721f043d",
+        "presentation": {
+          "kind": "subagent",
+          "title": "Subagent",
+          "inputPreview": "{\"task\":\"Read-only task. In the workspace, recursively find production .ts files under packages…",
+          "actionVerb": "Delegated",
+          "summary": "scout-mcp-contracts",
+          "output": {
+            "text": "subagent accepted (runId=040c7204-e79b-4454-b0a4-bd62e57a2588, invocationId=bee42715-9c0f-445b-8a83-d867eb770712); continue independent work and call piwin_subagent_wait before using its result"
+          }
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-4a579b613b20281c8aed7766",
+        "toolName": "grep",
+        "responseMessageId": "piw-m-9af56d093303c159ec19d54f",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"from\\\\s+['\\\"]@piwin/contracts['\\\"]\",\"path\":\"packages/media/src\",\"glob\":\"*.ts\"}",
+          "targetPaths": [
+            "packages/media/src",
+            "*.ts"
+          ],
+          "actionVerb": "Searched",
+          "summary": "from\\s+['\"]@piwin/contracts['\"]",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/media/src",
+              "displayRef": "packages/media/src"
+            },
+            {
+              "kind": "project-file",
+              "relativePath": "*.ts",
+              "displayRef": "*.ts"
+            }
+          ]
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-d2d52f5e72414cdba072d226",
+        "toolName": "grep",
+        "responseMessageId": "piw-m-9af56d093303c159ec19d54f",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"from\\\\s+['\\\"]@piwin/contracts['\\\"]\",\"path\":\"packages/project/src\",\"glob\":\"*.ts\"}",
+          "targetPaths": [
+            "packages/project/src",
+            "*.ts"
+          ],
+          "actionVerb": "Searched",
+          "summary": "from\\s+['\"]@piwin/contracts['\"]",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/project/src",
+              "displayRef": "packages/project/src"
+            },
+            {
+              "kind": "project-file",
+              "relativePath": "*.ts",
+              "displayRef": "*.ts"
+            }
+          ]
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-966ea768d739d85a0e553c6d",
+        "toolName": "grep",
+        "responseMessageId": "piw-m-9af56d093303c159ec19d54f",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"from\\\\s+['\\\"]@piwin/contracts['\\\"]\",\"path\":\"packages/mcp/src\",\"glob\":\"*.ts\"}",
+          "targetPaths": [
+            "packages/mcp/src",
+            "*.ts"
+          ],
+          "actionVerb": "Searched",
+          "summary": "from\\s+['\"]@piwin/contracts['\"]",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/mcp/src",
+              "displayRef": "packages/mcp/src"
+            },
+            {
+              "kind": "project-file",
+              "relativePath": "*.ts",
+              "displayRef": "*.ts"
+            }
+          ]
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-78a16d9bda077264067508bc",
+        "toolName": "piwin_subagent_wait",
+        "responseMessageId": "piw-m-9af56d093303c159ec19d54f",
+        "presentation": {
+          "kind": "other",
+          "title": "piwin_subagent_wait",
+          "inputPreview": "{\"runIds\":[\"646ef7e4-92ff-466b-8362-022797766e9e\",\"2dfa5508-5d83-451c-b429-1f2ca4ca440f\",\"040c7…",
+          "actionVerb": "Waiting for subagents",
+          "summary": "3 runs pending",
+          "subagentControl": {
+            "phase": "waiting",
+            "total": 3,
+            "completed": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "needsIntegration": 0,
+            "runs": [
+              {
+                "runId": "646ef7e4-92ff-466b-8362-022797766e9e",
+                "executionStatus": "running"
+              },
+              {
+                "runId": "2dfa5508-5d83-451c-b429-1f2ca4ca440f",
+                "executionStatus": "running"
+              },
+              {
+                "runId": "040c7204-e79b-4454-b0a4-bd62e57a2588",
+                "executionStatus": "running"
+              }
+            ]
+          }
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-d2d52f5e72414cdba072d226",
+        "isError": false,
+        "responseMessageId": "piw-m-9af56d093303c159ec19d54f",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"from\\\\s+['\\\"]@piwin/contracts['\\\"]\",\"path\":\"packages/project/src\",\"glob\":\"*.ts\"}",
+          "targetPaths": [
+            "packages/project/src",
+            "*.ts"
+          ],
+          "actionVerb": "Searched",
+          "summary": "from\\s+['\"]@piwin/contracts['\"]",
+          "output": {
+            "text": "create-host-entry.ts:3: import type { HostCreateEntryInput, HostDirEntry, HostEntryProblemCode } from '@piwin/contracts';\ncreate-host-entry.ts:4: import { isValidHostEntryName } from '@piwin/contracts';\nproject-store.ts:9: } from '@piwin/contracts';\nproject-store.ts:10: import { createEmptyNetworkPolicy } from '@piwin/contracts';"
+          },
+          "countTag": "4 matches",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/project/src",
+              "displayRef": "packages/project/src"
+            },
+            {
+              "kind": "project-file",
+              "relativePath": "*.ts",
+              "displayRef": "*.ts"
+            }
+          ]
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-966ea768d739d85a0e553c6d",
+        "isError": false,
+        "responseMessageId": "piw-m-9af56d093303c159ec19d54f",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"from\\\\s+['\\\"]@piwin/contracts['\\\"]\",\"path\":\"packages/mcp/src\",\"glob\":\"*.ts\"}",
+          "targetPaths": [
+            "packages/mcp/src",
+            "*.ts"
+          ],
+          "actionVerb": "Searched",
+          "summary": "from\\s+['\"]@piwin/contracts['\"]",
+          "output": {
+            "text": "mcp-metadata-store.ts:3: import type { McpMetadataDocument } from '@piwin/contracts';\ntool-names.ts:1: import type { McpToolSummary } from '@piwin/contracts';\nmcp-lifecycle-manager.ts:16: } from '@piwin/contracts';\nmcp-client-official.ts:6: import type { McpServerConfig } from '@piwin/contracts';\nmcp-client.ts:2: import type { McpServerConfig, McpToolSummary } from '@piwin/contracts';\nmcp-fingerprint.ts:2: import type { McpServerConfig } from '@piwin/contracts';\nmcp-config.ts:4: import type { McpConfigDocument, McpServerConfig } from '@piwin/contracts';\nmcp-metadata-catalog.ts:5: } from '@piwin/contracts';\nmcp-connection-policy.ts:2: import type { McpServerConfig } from '@piwin/contracts';\nmcp-generation-snapshot.ts:2: import type { McpConfigDocument, McpServerConfig } from '@piwin/contracts';"
+          },
+          "countTag": "10 matches",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/mcp/src",
+              "displayRef": "packages/mcp/src"
+            },
+            {
+              "kind": "project-file",
+              "relativePath": "*.ts",
+              "displayRef": "*.ts"
+            }
+          ]
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-4a579b613b20281c8aed7766",
+        "isError": false,
+        "responseMessageId": "piw-m-9af56d093303c159ec19d54f",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"from\\\\s+['\\\"]@piwin/contracts['\\\"]\",\"path\":\"packages/media/src\",\"glob\":\"*.ts\"}",
+          "targetPaths": [
+            "packages/media/src",
+            "*.ts"
+          ],
+          "actionVerb": "Searched",
+          "summary": "from\\s+['\"]@piwin/contracts['\"]",
+          "output": {
+            "text": "media-thumb.ts:16: } from '@piwin/contracts';\nindex.ts:15: export { formatTextModelImageInjection } from '@piwin/contracts';\nindex.ts:21: } from '@piwin/contracts';\nindex.ts:33: } from '@piwin/contracts';\nmedia-thumb.test.ts:9: } from '@piwin/contracts';\nattachment-policy.ts:5: } from '@piwin/contracts';\nmedia-library.ts:22: } from '@piwin/contracts';\ndocument-extractor.ts:7: } from '@piwin/contracts';\nmedia-service.ts:4: import { contentKindForMimeType } from '@piwin/contracts';\nmedia-service.ts:10: } from '@piwin/contracts';\ngenerated-media-import.ts:4: import { contentKindForMimeType, inferAttachmentMimeType } from '@piwin/contracts';\ngenerated-media-import.ts:5: import type { ImportGeneratedMediaInput, SavedMediaAsset } from '@piwin/contracts';\nclone-session-media.ts:14: import type { SessionTranscriptDocument } from '@piwin/contracts';"
+          },
+          "countTag": "13 matches",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/media/src",
+              "displayRef": "packages/media/src"
+            },
+            {
+              "kind": "project-file",
+              "relativePath": "*.ts",
+              "displayRef": "*.ts"
+            }
+          ]
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    },
+    {
+      "sessionId": "session-mv3iew2k-3o5khtav",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-78a16d9bda077264067508bc",
+        "isError": false,
+        "responseMessageId": "piw-m-9af56d093303c159ec19d54f",
+        "presentation": {
+          "kind": "other",
+          "title": "piwin_subagent_wait",
+          "inputPreview": "{\"runIds\":[\"646ef7e4-92ff-466b-8362-022797766e9e\",\"2dfa5508-5d83-451c-b429-1f2ca4ca440f\",\"040c7…",
+          "actionVerb": "Subagent wait",
+          "summary": "3 runs pending",
+          "subagentControl": {
+            "phase": "waited",
+            "total": 3,
+            "completed": 3,
+            "failed": 0,
+            "cancelled": 0,
+            "needsIntegration": 0,
+            "runs": [
+              {
+                "runId": "646ef7e4-92ff-466b-8362-022797766e9e",
+                "executionStatus": "completed",
+                "invocationId": "07f958ed-72a3-41cb-b7bb-56334ea3cc95",
+                "childSessionId": "fbb5e816-764d-45e9-b961-84a773ccd47f",
+                "summaryPreview": "complete ```json { \"name\": \"media\", \"count\": 8, \"files\": [ \"packages/media/src/attachment-policy.ts\", \"packages/media/src/clone-session-media.ts\", \"packages/media/src/document-extractor.ts\", \"packages/media/src/generated-media-import.ts\",…",
+                "summaryStatus": "pending",
+                "integrationStatus": "not-requested"
+              },
+              {
+                "runId": "2dfa5508-5d83-451c-b429-1f2ca4ca440f",
+                "executionStatus": "completed",
+                "invocationId": "71c84fe4-4865-4f67-ac62-eefbb23f3da9",
+                "childSessionId": "274d97ed-06a6-4c4b-a063-17f49d74c055",
+                "summaryPreview": "complete ```json { \"name\": \"project\", \"count\": 2, \"files\": [ \"packages/project/src/create-host-entry.ts\", \"packages/project/src/project-store.ts\" ], \"matches\": [ { \"file\": \"packages/project/src/create-host-entry.ts\", \"line\": 3, \"text\": \"im…",
+                "summaryStatus": "pending",
+                "integrationStatus": "not-requested"
+              },
+              {
+                "runId": "040c7204-e79b-4454-b0a4-bd62e57a2588",
+                "executionStatus": "completed",
+                "invocationId": "bee42715-9c0f-445b-8a83-d867eb770712",
+                "childSessionId": "a8e316f9-4375-4189-8c07-eef412ea1d4c",
+                "summaryPreview": "complete ```json { \"name\": \"mcp\", \"count\": 10, \"files\": [ \"packages/mcp/src/mcp-client-official.ts\", \"packages/mcp/src/mcp-client.ts\", \"packages/mcp/src/mcp-config.ts\", \"packages/mcp/src/mcp-connection-policy.ts\", \"packages/mcp/src/mcp-fin…",
+                "summaryStatus": "pending",
+                "integrationStatus": "not-requested"
+              }
+            ]
+          },
+          "output": {
+            "text": "subagent wait (3 runs)\n646ef7e4-92ff-466b-8362-022797766e9e:completed/not-requested complete\n```json\n{\n  \"name\": \"media\",\n  \"count\": 8,\n  \"files\": [\n    \"packages/media/src/attachment-policy.ts\",\n    \"packages/media/src/clone-session-media.ts\",\n    \"packages/media/src/document-extractor.ts\",\n    \"packages/media/src/generated-media-import.ts\",\n    \"packages/media/src/index.ts\",\n    \"packages/media/src/media-library.ts\",\n    \"packages/media/src/media-service.ts\",\n    \"packages/media/src/media-thumb.ts\"\n  ],\n  \"matches\": [\n    {\n      \"file\": \"packages/media/src/attachment-policy.ts\",\n      \"line\": 5,\n      \"text\": \"} from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/media/src/clone-session-media.ts\",\n      \"line\": 14,\n      \"text\": \"import type { SessionTranscriptDocument } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/media/src/document-extractor.ts\",\n      \"line\": 7,\n      \"text\": \"} from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/media/src/generated-media-import.ts\",\n      \"line\": 4,\n      \"text\": \"import { contentKindForMimeType, inferAttachmentMimeType } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/media/src/generated-media-import.ts\",\n      \"line\": 5,\n      \"text\": \"import type { ImportGeneratedMediaInput, SavedMediaAsset } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/media/src/index.ts\",\n      \"line\": 15,\n      \"text\": \"export { formatTextModelImageInjection } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/media/src/index.ts\",\n      \"line\": 21,\n      \"text\": \"} from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/media/src/index.ts\",\n      \"line\": 33,\n      \"text\": \"} from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/media/src/media-library.ts\",\n      \"line\": 22,\n      \"text\": \"} from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/media/src/media-service.ts\",\n      \"line\": 4,\n      \"text\": \"import { contentKindForMimeType } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/media/src/media-service.ts\",\n      \"line\": 10,\n      \"text\": \"} from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/media/src/media-thumb.ts\",\n      \"line\": 16,\n      \"text\": \"} from '@piwin/contracts';\"\n    }\n  ]\n}\n```\n\nVerified: grep `from\\s+['\"]@piwin/contracts['\"]` under `packages/media/src` `*.ts`. Excluded `media-thumb.test.ts` (test). No `fixtures/` paths. No dynamic `import()` or `@piwin/contracts/` subpaths found. Each of 8 files counted once.\n2dfa5508-5d83-451c-b429-1f2ca4ca440f:completed/not-requested complete\n```json\n{\n  \"name\": \"project\",\n  \"count\": 2,\n  \"files\": [\n    \"packages/project/src/create-host-entry.ts\",\n    \"packages/project/src/project-store.ts\"\n  ],\n  \"matches\": [\n    {\n      \"file\": \"packages/project/src/create-host-entry.ts\",\n      \"line\": 3,\n      \"text\": \"import type { HostCreateEntryInput, HostDirEntry, HostEntryProblemCode } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/project/src/create-host-entry.ts\",\n      \"line\": 4,\n      \"text\": \"import { isValidHostEntryName } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/project/src/project-store.ts\",\n      \"line\": 9,\n      \"text\": \"} from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/project/src/project-store.ts\",\n      \"line\": 10,\n      \"text\": \"import { createEmptyNetworkPolicy } from '@piwin/contracts';\"\n    }\n  ]\n}\n```\n\nVerified: grepped `packages/project/src` for `@piwin/contracts` and `from\\s+['\"]@piwin/contracts['\"]`. Only those two production `.ts` files match. No re-exports found. Test files (`*.test.ts`) also reference contracts but were excluded per rules. No `fixtures/` paths. No dynamic `import()` or subpath imports found. Tree is flat under `packages/project/src` (allowlist-match, create-host-entry, index, path-traversal, project-id, project-store + tests).\n040c7204-e79b-4454-b0a4-bd62e57a2588:completed/not-requested complete\n```json\n{\n  \"name\": \"mcp\",\n  \"count\": 10,\n  \"files\": [\n    \"packages/mcp/src/mcp-client-official.ts\",\n    \"packages/mcp/src/mcp-client.ts\",\n    \"packages/mcp/src/mcp-config.ts\",\n    \"packages/mcp/src/mcp-connection-policy.ts\",\n    \"packages/mcp/src/mcp-fingerprint.ts\",\n    \"packages/mcp/src/mcp-generation-snapshot.ts\",\n    \"packages/mcp/src/mcp-lifecycle-manager.ts\",\n    \"packages/mcp/src/mcp-metadata-catalog.ts\",\n    \"packages/mcp/src/mcp-metadata-store.ts\",\n    \"packages/mcp/src/tool-names.ts\"\n  ],\n  \"matches\": [\n    {\n      \"file\": \"packages/mcp/src/mcp-client-official.ts\",\n      \"line\": 6,\n      \"text\": \"import type { McpServerConfig } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/mcp/src/mcp-client.ts\",\n      \"line\": 2,\n      \"text\": \"import type { McpServerConfig, McpToolSummary } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/mcp/src/mcp-config.ts\",\n      \"line\": 4,\n      \"text\": \"import type { McpConfigDocument, McpServerConfig } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/mcp/src/mcp-connection-policy.ts\",\n      \"line\": 2,\n      \"text\": \"import type { McpServerConfig } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/mcp/src/mcp-fingerprint.ts\",\n      \"line\": 2,\n      \"text\": \"import type { McpServerConfig } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/mcp/src/mcp-generation-snapshot.ts\",\n      \"line\": 2,\n      \"text\": \"import type { McpConfigDocument, McpServerConfig } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/mcp/src/mcp-lifecycle-manager.ts\",\n      \"line\": 16,\n      \"text\": \"} from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/mcp/src/mcp-metadata-catalog.ts\",\n      \"line\": 5,\n      \"text\": \"} from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/mcp/src/mcp-metadata-store.ts\",\n      \"line\": 3,\n      \"text\": \"import type { McpMetadataDocument } from '@piwin/contracts';\"\n    },\n    {\n      \"file\": \"packages/mcp/src/tool-names.ts\",\n      \"line\": 1,\n      \"text\": \"import type { McpToolSummary } from '@piwin/contracts';\"\n    }\n  ]\n}\n```\n\nVerified: grepped `packages/mcp/src` for `from\\s+['\"]@piwin/contracts['\"]` on `*.ts`. Excluded by rule (no matches in survivors): `*.test.ts` / `*.spec.ts`, paths with `fixtures/`. No dynamic `import('@piwin/contracts')` and no `@piwin/contracts/...` subpath imports among counted files. Each file counted once."
+          }
+        },
+        "runId": "e36510f7-e35e-4dd1-a699-0178d03fca00"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "level": "info",
+      "message": "toolchain PATH extended from the login shell (+2 entries)"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=e36510f7-e35e-4dd1-a699-0178d03fca00): messageId=piw-m-2286fb8c8542872978b942db activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-061c8c1952db6330ed2e2d91 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=75804ed7-79f0-4f0a-857c-89e60bfc892f): messageId=piw-m-74903ccea5936e4d286d54da activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-5e991d7eef8b1c28a3f72406 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=75804ed7-79f0-4f0a-857c-89e60bfc892f): messageId=piw-m-490ae80922adbc24f106d2f5 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-cb51e4abf8adce7a334fb207 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-673ccb5a7d65c84ad77d8f78 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=75804ed7-79f0-4f0a-857c-89e60bfc892f): messageId=piw-m-34ebb03260d1735c8ec6da42 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=75804ed7-79f0-4f0a-857c-89e60bfc892f): messageId=piw-m-051f5ff940338756998a9c05 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=75804ed7-79f0-4f0a-857c-89e60bfc892f): messageId=piw-m-58d2bc2a01cfa4c8760491d5 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=75804ed7-79f0-4f0a-857c-89e60bfc892f): messageId=piw-m-25c8956675fbcc533e2ae3ed activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-b40502d640929f2ae261cd95 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-72c18ed36a4b3f9a30aa73f3 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-3be079d67818373be5da4cc3 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-aa2315f81cbdda4dcdee6c4f activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-a9b75e6b9b2880ed9b52b04a activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-a86c1882d909ff7be922a44a activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-7e279898468812262829af72 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=93af9f0e-b057-48fd-85f8-09a81dc171ee): messageId=piw-m-ed4293251e0e45ffa9e1d7d8 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=e36510f7-e35e-4dd1-a699-0178d03fca00): messageId=piw-m-0b69ea2e71caf04a3aeef6ad activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=e36510f7-e35e-4dd1-a699-0178d03fca00): messageId=piw-m-c53cc0a8c85402dc2e0f5e34 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=e36510f7-e35e-4dd1-a699-0178d03fca00): messageId=piw-m-e6018474e3c36c97201b302a activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=03b13ac4-b4ec-4ba9-8a88-b163d40402a2): messageId=piw-m-5b7e5eaa1c49cfca468de633 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=03b13ac4-b4ec-4ba9-8a88-b163d40402a2): messageId=piw-m-c30656d0c4b24af35d142247 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=03b13ac4-b4ec-4ba9-8a88-b163d40402a2): messageId=piw-m-00c63089a07df18e3ee9bd01 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=03b13ac4-b4ec-4ba9-8a88-b163d40402a2): messageId=piw-m-9e6931b8e34c92ca77783c3c activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=03b13ac4-b4ec-4ba9-8a88-b163d40402a2): messageId=piw-m-40ae88e189470b9a03f014e8 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=03b13ac4-b4ec-4ba9-8a88-b163d40402a2): messageId=piw-m-f13f3db5b5f36718bd2d5f99 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=03b13ac4-b4ec-4ba9-8a88-b163d40402a2): messageId=piw-m-ddbfa584eff934b97efc4df3 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=e36510f7-e35e-4dd1-a699-0178d03fca00): messageId=piw-m-1b343bd0ddc1121b4e3702ab activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=e36510f7-e35e-4dd1-a699-0178d03fca00): messageId=piw-m-5c571d2c057755842c96786c activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=e36510f7-e35e-4dd1-a699-0178d03fca00): messageId=piw-m-48b6fda351016cd91e2bb405 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=e36510f7-e35e-4dd1-a699-0178d03fca00): messageId=piw-m-db4ee8c57297ffa6a01e5cbb activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "auto-name: LLM title failed for session-mv3iew2k-3o5khtav: Provider xai: no API key. Paste a key in the provider form, or leave empty for local no-auth endpoints."
+    }
+  ]
+}

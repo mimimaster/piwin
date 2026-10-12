@@ -1,0 +1,84 @@
+{
+  "dataset": "oolongbench/oolong-synth",
+  "split": "test",
+  "revision": "f0d59eaf0febf130664cfceb710436c8e3216b2b",
+  "officialCodeRevision": "0bb7eabe839218fee7fe8d007f41cfc2fd3ae24c",
+  "variant": "read-only file/tool adaptation of unlabeled OOLONG-synth",
+  "selection": "Explicit IDs frozen before any model calls; different datasets and nominal length tiers 32K/64K/128K. No model performance used for selection.",
+  "shards": [
+    {
+      "file": "test-00003-of-00041.parquet",
+      "url": "https://huggingface.co/datasets/oolongbench/oolong-synth/resolve/f0d59eaf0febf130664cfceb710436c8e3216b2b/data/test-00003-of-00041.parquet",
+      "sha256": "0c97fc0cf2b5a485b6db95b55aa586e067c9be07a36dbdf71a548c74f38a53b3"
+    },
+    {
+      "file": "test-00029-of-00041.parquet",
+      "url": "https://huggingface.co/datasets/oolongbench/oolong-synth/resolve/f0d59eaf0febf130664cfceb710436c8e3216b2b/data/test-00029-of-00041.parquet",
+      "sha256": "2215126d6730a81cea9ec36b9a67e884574a8f8918dad641b68c445e538aecb3"
+    },
+    {
+      "file": "test-00021-of-00041.parquet",
+      "url": "https://huggingface.co/datasets/oolongbench/oolong-synth/resolve/f0d59eaf0febf130664cfceb710436c8e3216b2b/data/test-00021-of-00041.parquet",
+      "sha256": "d7d93e8a281ff3996a819d8292aff9cd18d64e479684771439b0841ffcdd9003"
+    }
+  ],
+  "tasks": [
+    {
+      "id": 415040019,
+      "dataset": "negation",
+      "context_len": 32768,
+      "context_window_id": 40016,
+      "task_group": "counting",
+      "task": "TASK_TYPE.NUMERIC_ONE_CLASS",
+      "answer_type": "ANSWER_TYPE.NUMERIC",
+      "input_subset": "False",
+      "taskId": "negation-32k",
+      "inputFile": "negation-32k.txt",
+      "question": "In the above data, how many data points should be classified as label 'True'? Give your final answer in the form 'Answer: number'.",
+      "expected": {
+        "answer": 261
+      },
+      "inputBytes": 95843,
+      "inputHash": "7f96f57004ec9822b550ed76a50480116cff1ca7ec03459ebf93e0bdda755441",
+      "labelsIncluded": false
+    },
+    {
+      "id": 316030027,
+      "dataset": "agnews",
+      "context_len": 65536,
+      "context_window_id": 30018,
+      "task_group": "user",
+      "task": "TASK_TYPE.MOST_FREQ",
+      "answer_type": "ANSWER_TYPE.LABEL",
+      "input_subset": "True",
+      "taskId": "agnews-64k",
+      "inputFile": "agnews-64k.txt",
+      "question": "For the following question, only consider the subset of instances that are associated with user IDs 91245. Among instances associated with these users, which of the labels is the most common? Give your final answer in the form 'Label: answer' where answer is one of the labels: World, Business, Sci/Tech.",
+      "expected": {
+        "answer": "Business"
+      },
+      "inputBytes": 192445,
+      "inputHash": "8d0a8fdf08a1839821d017756845a09df5e6886305066f602414957e6a80ee7f",
+      "labelsIncluded": false
+    },
+    {
+      "id": 517050022,
+      "dataset": "yahoo",
+      "context_len": 131072,
+      "context_window_id": 50021,
+      "task_group": "counting",
+      "task": "TASK_TYPE.LEAST_FREQ",
+      "answer_type": "ANSWER_TYPE.LABEL",
+      "input_subset": "False",
+      "taskId": "yahoo-128k",
+      "inputFile": "yahoo-128k.txt",
+      "question": "In the above data, which of the labels is the least common? Give your final answer in the form 'Label: answer' where answer is one of the labels: Society & Culture, Health, Education & Reference, Sports, Family & Relationships, Computers & Internet, Science & Mathematics, Business & Finance, Entertainment & Music, Politics & Government.",
+      "expected": {
+        "answer": "Family & Relationships"
+      },
+      "inputBytes": 280690,
+      "inputHash": "920a242da89e7cee86bf3e330fc18ce694cc9b14c7598a0a7fdf45606c7a7033",
+      "labelsIncluded": false
+    }
+  ]
+}

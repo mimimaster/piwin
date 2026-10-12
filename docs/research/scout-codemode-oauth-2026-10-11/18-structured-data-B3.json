@@ -1,0 +1,684 @@
+{
+  "ordinal": 18,
+  "taskId": "structured-data",
+  "group": "B",
+  "repetition": 3,
+  "sessionId": "session-mv3ip7tq-grhce6fa",
+  "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73",
+  "status": "completed",
+  "failure": null,
+  "elapsedMs": 34623,
+  "configHashWithoutCodemodeEnabled": "cf8bda9e7b731ca1c1d2767b41b8b3828891113d1540d73d8a4686da4e6d07c2",
+  "promptHash": "728393e6cd75179f189bf5e4e2a4394fbb9e8dd12a26841dfab78ef7be90c637",
+  "snapshotHash": "896aab120a8a1ab1bdaa26faf3866559a3762bac01d5756dd0dca5f5cd3aa07a",
+  "sourceUnchanged": true,
+  "validation": {
+    "passed": true,
+    "failures": [],
+    "parsed": {
+      "matchedCount": 795,
+      "top": [
+        {
+          "sku": "sku-08",
+          "count": 137,
+          "quantity": 620,
+          "netCents": 1944201
+        },
+        {
+          "sku": "sku-01",
+          "count": 151,
+          "quantity": 734,
+          "netCents": 1889499
+        },
+        {
+          "sku": "sku-12",
+          "count": 145,
+          "quantity": 684,
+          "netCents": 1845825
+        },
+        {
+          "sku": "sku-05",
+          "count": 123,
+          "quantity": 661,
+          "netCents": 1621847
+        },
+        {
+          "sku": "sku-04",
+          "count": 119,
+          "quantity": 593,
+          "netCents": 1501863
+        }
+      ]
+    }
+  },
+  "answer": "{\"matchedCount\":795,\"top\":[{\"sku\":\"sku-08\",\"count\":137,\"quantity\":620,\"netCents\":1944201},{\"sku\":\"sku-01\",\"count\":151,\"quantity\":734,\"netCents\":1889499},{\"sku\":\"sku-12\",\"count\":145,\"quantity\":684,\"netCents\":1845825},{\"sku\":\"sku-05\",\"count\":123,\"quantity\":661,\"netCents\":1621847},{\"sku\":\"sku-04\",\"count\":119,\"quantity\":593,\"netCents\":1501863}]}",
+  "scoutSessionIds": [],
+  "scoutCount": 0,
+  "toolCalls": 4,
+  "mainToolCalls": 4,
+  "scoutToolCalls": 0,
+  "codemodeCalls": 0,
+  "codemodeFailures": 0,
+  "nestedCalls": [],
+  "nestedCallCount": 0,
+  "toolFailures": 0,
+  "modelRetryAttempts": 0,
+  "toolRetryAttempts": null,
+  "upstreamInternalRetries": null,
+  "observedUsage": {
+    "promptTokensIncludingCache": 48048,
+    "completionTokens": 859,
+    "cacheReadTokens": 31488,
+    "cacheWriteTokens": null,
+    "reasoningTokens": 86,
+    "totalTokens": 48907
+  },
+  "mainLedgerUsage": {
+    "promptTokens": 16560,
+    "completionTokens": 859,
+    "cacheReadTokens": 31488,
+    "cacheWriteTokens": 0,
+    "totalTokens": 48907,
+    "reasoningTokens": 86
+  },
+  "scoutLedgerUsage": null,
+  "mainObservedUsage": {
+    "promptTokensIncludingCache": 48048,
+    "completionTokens": 859,
+    "cacheReadTokens": 31488,
+    "cacheWriteTokens": null,
+    "reasoningTokens": 86,
+    "totalTokens": 48907
+  },
+  "scoutObservedUsage": null,
+  "providerRequests": [
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:44:30.827Z",
+      "requestBodyHash": "9c4eed441b8063a32f76bd31742f1235992af9168c04eb0f18134bdbee339feb",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_codemode",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 15259,
+        "input_tokens_details": {
+          "cached_tokens": 384
+        },
+        "output_tokens": 386,
+        "output_tokens_details": {
+          "reasoning_tokens": 44
+        },
+        "total_tokens": 15645,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 109416080,
+        "context_details": {
+          "input_tokens": 15259,
+          "output_tokens": 392
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 8366,
+      "completed": true
+    },
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:44:39.248Z",
+      "requestBodyHash": "067473bfd215e4d80e79c19d2dcd010b52c073a28346c994aed815785c73ff0b",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_codemode",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 15991,
+        "input_tokens_details": {
+          "cached_tokens": 15232
+        },
+        "output_tokens": 327,
+        "output_tokens_details": {
+          "reasoning_tokens": 19
+        },
+        "total_tokens": 16318,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 27368640,
+        "context_details": {
+          "input_tokens": 15991,
+          "output_tokens": 333
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 5359,
+      "completed": true
+    },
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:45:02.450Z",
+      "requestBodyHash": "c0ec53e2c5040434f37509a48d58d49efe15501500bef74dde08487c16f8853b",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_codemode",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 16798,
+        "input_tokens_details": {
+          "cached_tokens": 15872
+        },
+        "output_tokens": 146,
+        "output_tokens_details": {
+          "reasoning_tokens": 23
+        },
+        "total_tokens": 16944,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 25464640,
+        "context_details": {
+          "input_tokens": 16798,
+          "output_tokens": 153
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 2851,
+      "completed": true
+    }
+  ],
+  "usageLedger": [
+    {
+      "sessionId": "session-mv3ip7tq-grhce6fa",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 15645,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:44:39.195Z",
+      "measurementId": "session-mv3ip7tq-grhce6fa:generation-mv3ip7ub-lfavznl1:piw-m-9c3266f28b400531af2d0278",
+      "messageId": "piw-m-9c3266f28b400531af2d0278",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73",
+      "promptTokens": 14875,
+      "completionTokens": 386,
+      "cacheReadTokens": 384,
+      "cacheWriteTokens": 0,
+      "durationMs": 8369,
+      "firstTokenMs": 2410,
+      "reasoningTokens": 44,
+      "firstTokenKind": "reasoning"
+    },
+    {
+      "sessionId": "session-mv3ip7tq-grhce6fa",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 16318,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:44:44.608Z",
+      "measurementId": "session-mv3ip7tq-grhce6fa:generation-mv3ip7ub-lfavznl1:piw-m-e769910f1f87f0390070c7e8",
+      "messageId": "piw-m-e769910f1f87f0390070c7e8",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73",
+      "promptTokens": 759,
+      "completionTokens": 327,
+      "cacheReadTokens": 15232,
+      "cacheWriteTokens": 0,
+      "durationMs": 5361,
+      "firstTokenMs": 1439,
+      "reasoningTokens": 19,
+      "firstTokenKind": "content"
+    },
+    {
+      "sessionId": "session-mv3ip7tq-grhce6fa",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 16944,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:45:05.302Z",
+      "measurementId": "session-mv3ip7tq-grhce6fa:generation-mv3ip7ub-lfavznl1:piw-m-3ddda829e4823d409a00740e",
+      "messageId": "piw-m-3ddda829e4823d409a00740e",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73",
+      "promptTokens": 926,
+      "completionTokens": 146,
+      "cacheReadTokens": 15872,
+      "cacheWriteTokens": 0,
+      "durationMs": 2854,
+      "firstTokenMs": 1940,
+      "reasoningTokens": 23,
+      "firstTokenKind": "content"
+    }
+  ],
+  "events": [
+    {
+      "sessionId": "session-mv3ip7tq-grhce6fa",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-dbce42a4dd382189fb4c0998",
+        "toolName": "piwin_subagent_start",
+        "responseMessageId": "piw-m-9c3266f28b400531af2d0278",
+        "presentation": {
+          "kind": "subagent",
+          "title": "Subagent",
+          "inputPreview": "{\"task\":\"Read-only computation task. Do not modify any files.\\n\\nRead the file experiment-data/…",
+          "actionVerb": "Delegated",
+          "summary": "orders-agg"
+        },
+        "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73"
+      }
+    },
+    {
+      "sessionId": "session-mv3ip7tq-grhce6fa",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-4bbf804d9e0e09ecfc37137e",
+        "toolName": "run_bash",
+        "responseMessageId": "piw-m-9c3266f28b400531af2d0278",
+        "presentation": {
+          "kind": "other",
+          "title": "run_bash",
+          "inputPreview": "{\"command\":\"ls -la experiment-data/ && wc -c experiment-data/orders.json && head -c 500 experim…",
+          "actionVerb": "run_bash",
+          "summary": "{\"command\":\"ls -la experiment-data/ && wc -c experiment-data/orders.json && head -c 500 experim…"
+        },
+        "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73"
+      }
+    },
+    {
+      "sessionId": "session-mv3ip7tq-grhce6fa",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-dbce42a4dd382189fb4c0998",
+        "isError": false,
+        "responseMessageId": "piw-m-9c3266f28b400531af2d0278",
+        "presentation": {
+          "kind": "subagent",
+          "title": "Subagent",
+          "inputPreview": "{\"task\":\"Read-only computation task. Do not modify any files.\\n\\nRead the file experiment-data/…",
+          "actionVerb": "Delegated",
+          "summary": "orders-agg",
+          "output": {
+            "text": "subagent accepted (runId=a5d2f6f4-f5da-4636-9592-a014beb935fa, invocationId=b2c1d267-32e6-4987-a004-0859410897a7); continue independent work and call piwin_subagent_wait before using its result"
+          }
+        },
+        "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73"
+      }
+    },
+    {
+      "sessionId": "session-mv3ip7tq-grhce6fa",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-4bbf804d9e0e09ecfc37137e",
+        "isError": false,
+        "responseMessageId": "piw-m-9c3266f28b400531af2d0278",
+        "presentation": {
+          "kind": "other",
+          "title": "run_bash",
+          "inputPreview": "{\"command\":\"ls -la experiment-data/ && wc -c experiment-data/orders.json && head -c 500 experim…",
+          "actionVerb": "run_bash",
+          "summary": "{\"command\":\"ls -la experiment-data/ && wc -c experiment-data/orders.json && head -c 500 experim…",
+          "output": {
+            "text": "total 1816\ndrwxr-xr-x@  3 yorickjue  staff      96 Oct 11 15:28 .\ndrwx------@ 33 yorickjue  staff    1056 Oct 11 15:28 ..\n-r--r--r--@  1 yorickjue  staff  929260 Oct 11 15:28 orders.json\n  929260 experiment-data/orders.json\n{\"schemaVersion\":1,\"rows\":[{\"id\":\"order-00001\",\"status\":\"pending\",\"currency\":\"CNY\",\"region\":\"cn-east\",\"sku\":\"sku-04\",\"quantity\":2,\"grossCents\":12965,\"refundCents\":140,\"note\":\"Local synthetic read-only order 1; deterministic fixture; no customer data.\"},{\"id\":\"order-00002\",\"status\":\"paid\",\"currency\":\"CNY\",\"region\":\"cn-north\",\"sku\":\"sku-05\",\"quantity\":9,\"grossCents\":20150,\"refundCents\":553,\"note\":\"Local synthetic read-only order 2; deterministic fixture; no customer data.\"},{\"id\":\"order-00003\",\"st"
+          },
+          "queuedMs": 1,
+          "durationMs": 44
+        },
+        "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73"
+      }
+    },
+    {
+      "sessionId": "session-mv3ip7tq-grhce6fa",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-920f283b5b88b0bb7cb4fdd7",
+        "toolName": "run_bash",
+        "responseMessageId": "piw-m-e769910f1f87f0390070c7e8",
+        "presentation": {
+          "kind": "other",
+          "title": "run_bash",
+          "inputPreview": "{\"command\":\"node -e '\\nconst fs=require(\\\"fs\\\");\\nconst data=JSON.parse(fs.readFileSync(\\\"exper…",
+          "actionVerb": "run_bash",
+          "summary": "{\"command\":\"node -e '\\nconst fs=require(\\\"fs\\\");\\nconst data=JSON.parse(fs.readFileSync(\\\"exper…"
+        },
+        "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73"
+      }
+    },
+    {
+      "sessionId": "session-mv3ip7tq-grhce6fa",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-bccf359f8c71e047f05afedc",
+        "toolName": "piwin_subagent_wait",
+        "responseMessageId": "piw-m-e769910f1f87f0390070c7e8",
+        "presentation": {
+          "kind": "other",
+          "title": "piwin_subagent_wait",
+          "inputPreview": "{\"runIds\":[\"a5d2f6f4-f5da-4636-9592-a014beb935fa\"]}",
+          "actionVerb": "Waiting for subagents",
+          "summary": "1 run pending",
+          "subagentControl": {
+            "phase": "waiting",
+            "total": 1,
+            "completed": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "needsIntegration": 0,
+            "runs": [
+              {
+                "runId": "a5d2f6f4-f5da-4636-9592-a014beb935fa",
+                "executionStatus": "running"
+              }
+            ]
+          }
+        },
+        "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73"
+      }
+    },
+    {
+      "sessionId": "session-mv3ip7tq-grhce6fa",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-920f283b5b88b0bb7cb4fdd7",
+        "isError": false,
+        "responseMessageId": "piw-m-e769910f1f87f0390070c7e8",
+        "presentation": {
+          "kind": "other",
+          "title": "run_bash",
+          "inputPreview": "{\"command\":\"node -e '\\nconst fs=require(\\\"fs\\\");\\nconst data=JSON.parse(fs.readFileSync(\\\"exper…",
+          "actionVerb": "run_bash",
+          "summary": "{\"command\":\"node -e '\\nconst fs=require(\\\"fs\\\");\\nconst data=JSON.parse(fs.readFileSync(\\\"exper…",
+          "output": {
+            "text": "{\"matchedCount\":795,\"top\":[{\"sku\":\"sku-08\",\"count\":137,\"quantity\":620,\"netCents\":1944201},{\"sku\":\"sku-01\",\"count\":151,\"quantity\":734,\"netCents\":1889499},{\"sku\":\"sku-12\",\"count\":145,\"quantity\":684,\"netCents\":1845825},{\"sku\":\"sku-05\",\"count\":123,\"quantity\":661,\"netCents\":1621847},{\"sku\":\"sku-04\",\"count\":119,\"quantity\":593,\"netCents\":1501863}]}\n"
+          },
+          "durationMs": 44
+        },
+        "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73"
+      }
+    },
+    {
+      "sessionId": "session-mv3ip7tq-grhce6fa",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-bccf359f8c71e047f05afedc",
+        "isError": false,
+        "responseMessageId": "piw-m-e769910f1f87f0390070c7e8",
+        "presentation": {
+          "kind": "other",
+          "title": "piwin_subagent_wait",
+          "inputPreview": "{\"runIds\":[\"a5d2f6f4-f5da-4636-9592-a014beb935fa\"]}",
+          "actionVerb": "Subagent wait",
+          "summary": "1 run pending",
+          "subagentControl": {
+            "phase": "waited",
+            "total": 1,
+            "completed": 1,
+            "failed": 0,
+            "cancelled": 0,
+            "needsIntegration": 0,
+            "runs": [
+              {
+                "runId": "a5d2f6f4-f5da-4636-9592-a014beb935fa",
+                "executionStatus": "completed",
+                "invocationId": "b2c1d267-32e6-4987-a004-0859410897a7",
+                "childSessionId": "c3053f38-0be7-4c2d-8748-e1a1f7fccbdb",
+                "summaryPreview": "complete 1. Final JSON: {\"matchedCount\":795,\"top\":[{\"sku\":\"sku-08\",\"count\":137,\"quantity\":620,\"netCents\":1944201},{\"sku\":\"sku-01\",\"count\":151,\"quantity\":734,\"netCents\":1889499},{\"sku\":\"sku-12\",\"count\":145,\"quantity\":684,\"netCents\":1845825}…",
+                "summaryStatus": "pending",
+                "integrationStatus": "not-requested"
+              }
+            ]
+          },
+          "output": {
+            "text": "subagent wait (1 runs)\na5d2f6f4-f5da-4636-9592-a014beb935fa:completed/not-requested complete\n1. Final JSON: {\"matchedCount\":795,\"top\":[{\"sku\":\"sku-08\",\"count\":137,\"quantity\":620,\"netCents\":1944201},{\"sku\":\"sku-01\",\"count\":151,\"quantity\":734,\"netCents\":1889499},{\"sku\":\"sku-12\",\"count\":145,\"quantity\":684,\"netCents\":1845825},{\"sku\":\"sku-05\",\"count\":123,\"quantity\":661,\"netCents\":1621847},{\"sku\":\"sku-04\",\"count\":119,\"quantity\":593,\"netCents\":1501863}]}\n2. matchedCount: 795\n3. Method: piwin_codemode — parse full `experiment-data/orders.json` via `read_file`, filter `rows`, Map-aggregate by `sku`, sort `netCents` desc / `sku` asc, slice 5\n4. Citations: `experiment-data/orders.json` schemaVersion 1, `rows[]` fields include `id`,`status`,`currency`,`region`,`sku`,`quantity`,`grossCents`,`refundCents` (sample head: order-00001 pending CNY cn-east sku-04)\n\nVerified: filter status==='paid' && currency==='CNY' && region in {cn-east,cn-north} && grossCents>=1000; netCents=sum(grossCents-refundCents) integer; top5 as above."
+          }
+        },
+        "runId": "cc002424-32b1-4f1b-b554-f20133c5cd73"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "level": "info",
+      "message": "toolchain PATH extended from the login shell (+2 entries)"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=cc002424-32b1-4f1b-b554-f20133c5cd73): messageId=piw-m-cc1e3342f7b2a5b1f2b3e7a7 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=cc002424-32b1-4f1b-b554-f20133c5cd73): messageId=piw-m-78c38e4c014f5aad09b30efe activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=cc002424-32b1-4f1b-b554-f20133c5cd73): messageId=piw-m-8fa17305f6c39b0a2541e33d activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=7ffbe7b7-aca0-4a2b-a345-5e325cb4a63e): messageId=piw-m-407f5c09c867c57ad18fc4f8 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=7ffbe7b7-aca0-4a2b-a345-5e325cb4a63e): messageId=piw-m-254b3b055675258f279b053a activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=7ffbe7b7-aca0-4a2b-a345-5e325cb4a63e): messageId=piw-m-8f2d70ba8785fcf59ce0761c activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=7ffbe7b7-aca0-4a2b-a345-5e325cb4a63e): messageId=piw-m-da2f8aacd5e1b4203b33d658 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=7ffbe7b7-aca0-4a2b-a345-5e325cb4a63e): messageId=piw-m-5718eb24355675b50e36a13c activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=cc002424-32b1-4f1b-b554-f20133c5cd73): messageId=piw-m-d0a70ab20a661a21be20d7bb activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=cc002424-32b1-4f1b-b554-f20133c5cd73): messageId=piw-m-aff75c076eb86b861b30b194 activeRows=0"
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+[
+  {
+    "task": "negation-32k",
+    "A": {
+      "attempts": 3,
+      "validAttempts": 1,
+      "invalidAttempts": 2,
+      "timeouts": 0,
+      "correct": 0,
+      "meanOfficialScore": 0.421875,
+      "meanMs": 505816,
+      "tokenComplete": 0,
+      "meanTokens": null,
+      "codemodeCalls": 0
+    },
+    "B": {
+      "attempts": 3,
+      "validAttempts": 1,
+      "invalidAttempts": 2,
+      "timeouts": 1,
+      "correct": 0,
+      "meanOfficialScore": 0,
+      "meanMs": null,
+      "tokenComplete": 0,
+      "meanTokens": null,
+      "codemodeCalls": 45
+    }
+  },
+  {
+    "task": "agnews-64k",
+    "A": {
+      "attempts": 3,
+      "validAttempts": 3,
+      "invalidAttempts": 0,
+      "timeouts": 0,
+      "correct": 3,
+      "meanOfficialScore": 1,
+      "meanMs": 29482,
+      "tokenComplete": 3,
+      "meanTokens": 81445.66666666667,
+      "codemodeCalls": 0
+    },
+    "B": {
+      "attempts": 3,
+      "validAttempts": 3,
+      "invalidAttempts": 0,
+      "timeouts": 0,
+      "correct": 3,
+      "meanOfficialScore": 1,
+      "meanMs": 28000.333333333332,
+      "tokenComplete": 3,
+      "meanTokens": 78671,
+      "codemodeCalls": 0
+    }
+  },
+  {
+    "task": "yahoo-128k",
+    "A": {
+      "attempts": 3,
+      "validAttempts": 3,
+      "invalidAttempts": 0,
+      "timeouts": 1,
+      "correct": 2,
+      "meanOfficialScore": 0.6666666666666666,
+      "meanMs": null,
+      "tokenComplete": 3,
+      "meanTokens": 758936,
+      "codemodeCalls": 0
+    },
+    "B": {
+      "attempts": 3,
+      "validAttempts": 3,
+      "invalidAttempts": 0,
+      "timeouts": 1,
+      "correct": 1,
+      "meanOfficialScore": 0.3333333333333333,
+      "meanMs": null,
+      "tokenComplete": 3,
+      "meanTokens": 611090.3333333334,
+      "codemodeCalls": 36
+    }
+  }
+]

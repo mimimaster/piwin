@@ -1,0 +1,59 @@
+[
+  {
+    "task": "call-chain",
+    "A": {
+      "attempts": 3,
+      "correct": 3,
+      "meanMs": 56013.333333333336,
+      "tokenComplete": 0,
+      "meanTokens": null,
+      "codemodeCalls": 0
+    },
+    "B": {
+      "attempts": 3,
+      "correct": 2,
+      "meanMs": 67623.33333333333,
+      "tokenComplete": 1,
+      "meanTokens": null,
+      "codemodeCalls": null
+    }
+  },
+  {
+    "task": "cross-file",
+    "A": {
+      "attempts": 3,
+      "correct": 3,
+      "meanMs": 48642.333333333336,
+      "tokenComplete": 3,
+      "meanTokens": 105738.33333333333,
+      "codemodeCalls": 0
+    },
+    "B": {
+      "attempts": 3,
+      "correct": 3,
+      "meanMs": 47388.333333333336,
+      "tokenComplete": 3,
+      "meanTokens": 93011,
+      "codemodeCalls": 1
+    }
+  },
+  {
+    "task": "structured-data",
+    "A": {
+      "attempts": 3,
+      "correct": 3,
+      "meanMs": 62934,
+      "tokenComplete": 3,
+      "meanTokens": 272356.3333333333,
+      "codemodeCalls": 0
+    },
+    "B": {
+      "attempts": 3,
+      "correct": 3,
+      "meanMs": 35837.666666666664,
+      "tokenComplete": 3,
+      "meanTokens": 98202.66666666667,
+      "codemodeCalls": 10
+    }
+  }
+]

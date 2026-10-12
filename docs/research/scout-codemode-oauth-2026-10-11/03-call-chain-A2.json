@@ -1,0 +1,2044 @@
+{
+  "ordinal": 3,
+  "taskId": "call-chain",
+  "group": "A",
+  "repetition": 2,
+  "sessionId": "session-mv3i7ftr-eiy52k4u",
+  "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1",
+  "status": "completed",
+  "failure": null,
+  "elapsedMs": 60864,
+  "configHashWithoutCodemodeEnabled": "cf8bda9e7b731ca1c1d2767b41b8b3828891113d1540d73d8a4686da4e6d07c2",
+  "promptHash": "d6885c524f77d8197acb6d46fb22a5cab832304afbaf5acecb929213ade0de68",
+  "snapshotHash": "896aab120a8a1ab1bdaa26faf3866559a3762bac01d5756dd0dca5f5cd3aa07a",
+  "sourceUnchanged": true,
+  "validation": {
+    "passed": true,
+    "failures": [],
+    "parsed": {
+      "stages": {
+        "port": {
+          "file": "packages/host-runtime/src/tools/session-host-tool-port.ts",
+          "symbol": "SessionHostToolExecutionPort.execute",
+          "line": 288
+        },
+        "router": {
+          "file": "packages/host-runtime/src/tools/host-tool-execution-router.ts",
+          "symbol": "HostToolExecutionRouter.execute",
+          "line": 114
+        },
+        "prepare": {
+          "file": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+          "symbol": "prepareResolvedPath",
+          "line": 396
+        },
+        "admission": {
+          "file": "packages/host-runtime/src/tools/tool-admission.ts",
+          "symbol": "resolveHostToolAdmission",
+          "line": 90
+        },
+        "executor": {
+          "file": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+          "symbol": "readFileTool.execute",
+          "line": 103
+        }
+      },
+      "identityChecks": [
+        "sessionId",
+        "runtimeGenerationId",
+        "runId",
+        "toolName"
+      ],
+      "readOnly": true,
+      "fileEffect": "none",
+      "encoding": "utf-8"
+    }
+  },
+  "answer": "{\"stages\":{\"port\":{\"file\":\"packages/host-runtime/src/tools/session-host-tool-port.ts\",\"symbol\":\"SessionHostToolExecutionPort.execute\",\"line\":288},\"router\":{\"file\":\"packages/host-runtime/src/tools/host-tool-execution-router.ts\",\"symbol\":\"HostToolExecutionRouter.execute\",\"line\":114},\"prepare\":{\"file\":\"packages/host-runtime/src/tools/host-filesystem-tools.ts\",\"symbol\":\"prepareResolvedPath\",\"line\":396},\"admission\":{\"file\":\"packages/host-runtime/src/tools/tool-admission.ts\",\"symbol\":\"resolveHostToolAdmission\",\"line\":90},\"executor\":{\"file\":\"packages/host-runtime/src/tools/host-filesystem-tools.ts\",\"symbol\":\"readFileTool.execute\",\"line\":103}},\"identityChecks\":[\"sessionId\",\"runtimeGenerationId\",\"runId\",\"toolName\"],\"readOnly\":true,\"fileEffect\":\"none\",\"encoding\":\"utf-8\"}",
+  "scoutSessionIds": [],
+  "scoutCount": 0,
+  "toolCalls": 18,
+  "mainToolCalls": 18,
+  "scoutToolCalls": 0,
+  "codemodeCalls": 0,
+  "codemodeFailures": 0,
+  "nestedCalls": [],
+  "nestedCallCount": 0,
+  "toolFailures": 0,
+  "modelRetryAttempts": 0,
+  "toolRetryAttempts": null,
+  "upstreamInternalRetries": null,
+  "observedUsage": {
+    "promptTokensIncludingCache": 189006,
+    "completionTokens": 2330,
+    "cacheReadTokens": 135552,
+    "cacheWriteTokens": null,
+    "reasoningTokens": 990,
+    "totalTokens": 191336
+  },
+  "mainLedgerUsage": {
+    "promptTokens": 53454,
+    "completionTokens": 2330,
+    "cacheReadTokens": 135552,
+    "cacheWriteTokens": 0,
+    "totalTokens": 191336,
+    "reasoningTokens": 990
+  },
+  "scoutLedgerUsage": null,
+  "mainObservedUsage": {
+    "promptTokensIncludingCache": 189006,
+    "completionTokens": 2330,
+    "cacheReadTokens": 135552,
+    "cacheWriteTokens": null,
+    "reasoningTokens": 990,
+    "totalTokens": 191336
+  },
+  "scoutObservedUsage": null,
+  "providerRequests": [
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:30:41.406Z",
+      "requestBodyHash": "f8fc9c4ab6c82868afa2a63b14b0cbccf9226f5f57e07cbc3288ba6e923e9306",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 15177,
+        "input_tokens_details": {
+          "cached_tokens": 384
+        },
+        "output_tokens": 465,
+        "output_tokens_details": {
+          "reasoning_tokens": 72
+        },
+        "total_tokens": 15642,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 110470080,
+        "context_details": {
+          "input_tokens": 15177,
+          "output_tokens": 471
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 9426,
+      "completed": true
+    },
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:30:50.852Z",
+      "requestBodyHash": "1d5f1bbcfbb5ebef23718d1995f564492dea809d83275cf0d51f52b772cd215a",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 15757,
+        "input_tokens_details": {
+          "cached_tokens": 384
+        },
+        "output_tokens": 124,
+        "output_tokens_details": {
+          "reasoning_tokens": 11
+        },
+        "total_tokens": 15881,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 107457680,
+        "context_details": {
+          "input_tokens": 15757,
+          "output_tokens": 130
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 3673,
+      "completed": true
+    },
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:30:54.728Z",
+      "requestBodyHash": "f19ecf52eb2de33e80ec044815ea70a01928b6365bdf25d35d2cd24b50f7e9ca",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 19927,
+        "input_tokens_details": {
+          "cached_tokens": 15744
+        },
+        "output_tokens": 170,
+        "output_tokens_details": {
+          "reasoning_tokens": 40
+        },
+        "total_tokens": 20097,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 47971280,
+        "context_details": {
+          "input_tokens": 19927,
+          "output_tokens": 176
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 3853,
+      "completed": true
+    },
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:30:58.603Z",
+      "requestBodyHash": "134a48d61409f7f3a58b66644c5b618a8c527718f5aeb028dc313c9f8a1c6a3c",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 27245,
+        "input_tokens_details": {
+          "cached_tokens": 19840
+        },
+        "output_tokens": 219,
+        "output_tokens_details": {
+          "reasoning_tokens": 29
+        },
+        "total_tokens": 27464,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 75058400,
+        "context_details": {
+          "input_tokens": 27245,
+          "output_tokens": 225
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 5167,
+      "completed": true
+    },
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:31:03.830Z",
+      "requestBodyHash": "a9b5454000dc37158ce73f79688c063b20e18c1b1b9287f1f05a3de822428acb",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 33936,
+        "input_tokens_details": {
+          "cached_tokens": 27136
+        },
+        "output_tokens": 239,
+        "output_tokens_details": {
+          "reasoning_tokens": 22
+        },
+        "total_tokens": 34175,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 78794320,
+        "context_details": {
+          "input_tokens": 33936,
+          "output_tokens": 245
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 4345,
+      "completed": true
+    },
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:31:23.653Z",
+      "requestBodyHash": "fcdb892fef15d40de21ee9feabddd69d13d74264ee9206338cb4043f5fb7e984",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 38179,
+        "input_tokens_details": {
+          "cached_tokens": 33920
+        },
+        "output_tokens": 507,
+        "output_tokens_details": {
+          "reasoning_tokens": 430
+        },
+        "total_tokens": 38686,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 73902400,
+        "context_details": {
+          "input_tokens": 38179,
+          "output_tokens": 513
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 9628,
+      "completed": true
+    },
+    {
+      "pid": 77274,
+      "endpoint": "https://api.x.ai/v1/responses",
+      "model": "grok-4.5",
+      "reasoningEffort": "high",
+      "startedAt": "2026-10-11T07:31:33.314Z",
+      "requestBodyHash": "c2a11473f93c4030288e6867176f18cb271512e151695b4055b9d95e086039b0",
+      "tools": [
+        "read",
+        "bash",
+        "edit",
+        "goal_complete",
+        "goal_blocked",
+        "goal_wait",
+        "wiki_read",
+        "wiki_write",
+        "wiki_lint",
+        "questionnaire",
+        "browser_back",
+        "browser_click",
+        "browser_console",
+        "browser_dialog",
+        "browser_fill_form",
+        "browser_find",
+        "browser_forward",
+        "browser_hover",
+        "browser_navigate",
+        "browser_network",
+        "browser_press_key",
+        "browser_reload",
+        "browser_restart",
+        "browser_screenshot",
+        "browser_scroll",
+        "browser_select_option",
+        "browser_set_checked",
+        "browser_snapshot",
+        "browser_status",
+        "browser_tabs",
+        "browser_type",
+        "browser_upload",
+        "browser_viewport",
+        "browser_wait",
+        "browser_wait_for",
+        "capability_install",
+        "capability_search",
+        "delete_file",
+        "extension_install",
+        "extension_list",
+        "list_directory",
+        "move_file",
+        "move_lines",
+        "piwin_plan_create",
+        "piwin_plan_present",
+        "piwin_plan_set_step",
+        "piwin_scheme_playbook",
+        "piwin_subagent_cancel",
+        "piwin_subagent_continue",
+        "piwin_subagent_result_apply",
+        "piwin_subagent_result_discard",
+        "piwin_subagent_review_submit",
+        "piwin_subagent_run",
+        "piwin_subagent_start",
+        "piwin_subagent_verification_submit",
+        "piwin_subagent_wait",
+        "piwin_toolbox",
+        "read_file",
+        "run_bash",
+        "web_fetch",
+        "web_search",
+        "write_file",
+        "grep",
+        "ls"
+      ],
+      "usage": {
+        "input_tokens": 38785,
+        "input_tokens_details": {
+          "cached_tokens": 38144
+        },
+        "output_tokens": 606,
+        "output_tokens_details": {
+          "reasoning_tokens": 386
+        },
+        "total_tokens": 39391,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 55628080,
+        "context_details": {
+          "input_tokens": 38785,
+          "output_tokens": 613
+        }
+      },
+      "responseModel": "grok-4.5",
+      "status": 200,
+      "durationMs": 8688,
+      "completed": true
+    }
+  ],
+  "usageLedger": [
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 15642,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:30:50.833Z",
+      "measurementId": "session-mv3i7ftr-eiy52k4u:generation-mv3i7fua-gbhlvgt2:piw-m-bc72f7d89d257fdcf79f645b",
+      "messageId": "piw-m-bc72f7d89d257fdcf79f645b",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1",
+      "promptTokens": 14793,
+      "completionTokens": 465,
+      "cacheReadTokens": 384,
+      "cacheWriteTokens": 0,
+      "durationMs": 9428,
+      "firstTokenMs": 2945,
+      "reasoningTokens": 72,
+      "firstTokenKind": "reasoning"
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 15881,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:30:54.526Z",
+      "measurementId": "session-mv3i7ftr-eiy52k4u:generation-mv3i7fua-gbhlvgt2:piw-m-72651241e63c3f864ff48749",
+      "messageId": "piw-m-72651241e63c3f864ff48749",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1",
+      "promptTokens": 15373,
+      "completionTokens": 124,
+      "cacheReadTokens": 384,
+      "cacheWriteTokens": 0,
+      "durationMs": 3676,
+      "firstTokenMs": 1881,
+      "reasoningTokens": 11,
+      "firstTokenKind": "content"
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 20097,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:30:58.582Z",
+      "measurementId": "session-mv3i7ftr-eiy52k4u:generation-mv3i7fua-gbhlvgt2:piw-m-5a691083811e06258342b556",
+      "messageId": "piw-m-5a691083811e06258342b556",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1",
+      "promptTokens": 4183,
+      "completionTokens": 170,
+      "cacheReadTokens": 15744,
+      "cacheWriteTokens": 0,
+      "durationMs": 3855,
+      "firstTokenMs": 1876,
+      "reasoningTokens": 40,
+      "firstTokenKind": "content"
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 27464,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:31:03.771Z",
+      "measurementId": "session-mv3i7ftr-eiy52k4u:generation-mv3i7fua-gbhlvgt2:piw-m-16ee902b842b7efdffc56db0",
+      "messageId": "piw-m-16ee902b842b7efdffc56db0",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1",
+      "promptTokens": 7405,
+      "completionTokens": 219,
+      "cacheReadTokens": 19840,
+      "cacheWriteTokens": 0,
+      "durationMs": 5170,
+      "firstTokenMs": 1911,
+      "reasoningTokens": 29,
+      "firstTokenKind": "content"
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 34175,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:31:08.177Z",
+      "measurementId": "session-mv3i7ftr-eiy52k4u:generation-mv3i7fua-gbhlvgt2:piw-m-24a8eebc99644921f083152e",
+      "messageId": "piw-m-24a8eebc99644921f083152e",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1",
+      "promptTokens": 6800,
+      "completionTokens": 239,
+      "cacheReadTokens": 27136,
+      "cacheWriteTokens": 0,
+      "durationMs": 4348,
+      "firstTokenMs": 2729,
+      "reasoningTokens": 22,
+      "firstTokenKind": "content"
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 38686,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:31:33.282Z",
+      "measurementId": "session-mv3i7ftr-eiy52k4u:generation-mv3i7fua-gbhlvgt2:piw-m-3d13faa92ca5306eb2d5177f",
+      "messageId": "piw-m-3d13faa92ca5306eb2d5177f",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1",
+      "promptTokens": 4259,
+      "completionTokens": 507,
+      "cacheReadTokens": 33920,
+      "cacheWriteTokens": 0,
+      "durationMs": 9632,
+      "firstTokenMs": 3462,
+      "reasoningTokens": 430,
+      "firstTokenKind": "reasoning"
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "projectPath": "/var/folders/1l/hllny8z96cg3xgcx1grk3r3h0000gn/T/piwin-ab-snapshot-slj6oc",
+      "totalTokens": 39391,
+      "source": "assistant-usage",
+      "recordedAt": "2026-10-11T07:31:42.004Z",
+      "measurementId": "session-mv3i7ftr-eiy52k4u:generation-mv3i7fua-gbhlvgt2:piw-m-f119dce4a3d8f8e74da86ddf",
+      "messageId": "piw-m-f119dce4a3d8f8e74da86ddf",
+      "providerId": "xai",
+      "modelId": "grok-4.5",
+      "thinkingLevel": "high",
+      "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1",
+      "promptTokens": 641,
+      "completionTokens": 606,
+      "cacheReadTokens": 38144,
+      "cacheWriteTokens": 0,
+      "durationMs": 8692,
+      "firstTokenMs": 2741,
+      "reasoningTokens": 386,
+      "firstTokenKind": "reasoning"
+    }
+  ],
+  "events": [
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-14c131181f8866a631d67745",
+        "toolName": "piwin_scheme_playbook",
+        "responseMessageId": "piw-m-bc72f7d89d257fdcf79f645b",
+        "presentation": {
+          "kind": "other",
+          "title": "piwin_scheme_playbook",
+          "inputPreview": "{\"role\":\"composer\"}",
+          "actionVerb": "piwin_scheme_playbook",
+          "summary": "{\"role\":\"composer\"}"
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-7b9526121402ee3517b3fe70",
+        "toolName": "piwin_subagent_start",
+        "responseMessageId": "piw-m-bc72f7d89d257fdcf79f645b",
+        "presentation": {
+          "kind": "subagent",
+          "title": "Subagent",
+          "inputPreview": "{\"task\":\"Read-only investigation. Trace ordinary read_file from Host SessionHostToolExecutionPo…",
+          "actionVerb": "Delegated",
+          "summary": "trace-read-file"
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-14c131181f8866a631d67745",
+        "isError": false,
+        "responseMessageId": "piw-m-bc72f7d89d257fdcf79f645b",
+        "presentation": {
+          "kind": "other",
+          "title": "piwin_scheme_playbook",
+          "inputPreview": "{\"role\":\"composer\"}",
+          "actionVerb": "piwin_scheme_playbook",
+          "summary": "{\"role\":\"composer\"}",
+          "output": {
+            "text": "Scheme \"ultra-code\" has no separate playbooks; its discipline block already holds the full loop."
+          }
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-7b9526121402ee3517b3fe70",
+        "isError": false,
+        "responseMessageId": "piw-m-bc72f7d89d257fdcf79f645b",
+        "presentation": {
+          "kind": "subagent",
+          "title": "Subagent",
+          "inputPreview": "{\"task\":\"Read-only investigation. Trace ordinary read_file from Host SessionHostToolExecutionPo…",
+          "actionVerb": "Delegated",
+          "summary": "trace-read-file",
+          "output": {
+            "text": "subagent accepted (runId=c091b3ff-8d93-4916-8087-b8b8b3005e5f, invocationId=49492a50-6796-425e-a2e9-33c2bf4aa2d4); continue independent work and call piwin_subagent_wait before using its result"
+          }
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-170134b714ac77d84daaa54a",
+        "toolName": "grep",
+        "responseMessageId": "piw-m-72651241e63c3f864ff48749",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"SessionHostToolExecutionPort\",\"glob\":\"*.{ts,tsx,js,mjs,cjs}\"}",
+          "targetPaths": [
+            "*.{ts,tsx,js,mjs,cjs}"
+          ],
+          "actionVerb": "Searched",
+          "summary": "SessionHostToolExecutionPort",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "*.{ts,tsx,js,mjs,cjs}",
+              "displayRef": "*.{ts,tsx,js,mjs,cjs}"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-2cd3032df6c8b4635a6927f3",
+        "toolName": "grep",
+        "responseMessageId": "piw-m-72651241e63c3f864ff48749",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"read_file\",\"glob\":\"*.{ts,tsx,js,mjs,cjs}\",\"limit\":50}",
+          "targetPaths": [
+            "*.{ts,tsx,js,mjs,cjs}"
+          ],
+          "actionVerb": "Searched",
+          "summary": "read_file",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "*.{ts,tsx,js,mjs,cjs}",
+              "displayRef": "*.{ts,tsx,js,mjs,cjs}"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-0127e47694e662ed4f24dfd5",
+        "toolName": "bash",
+        "responseMessageId": "piw-m-72651241e63c3f864ff48749",
+        "presentation": {
+          "kind": "shell",
+          "title": "bash",
+          "inputPreview": "{\"command\":\"ls -la && find . -name '*SessionHost*' -o -name '*ToolExecution*' 2>/dev/null | hea…",
+          "command": "ls -la && find . -name '*SessionHost*' -o -name '*ToolExecution*' 2>/dev/null | head -50",
+          "actionVerb": "Ran command",
+          "summary": "ls -la && find . -name '*SessionHost*' -o -name '*ToolExecution*' 2>/dev/null | head -50"
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-0127e47694e662ed4f24dfd5",
+        "isError": false,
+        "responseMessageId": "piw-m-72651241e63c3f864ff48749",
+        "presentation": {
+          "kind": "shell",
+          "title": "bash",
+          "inputPreview": "{\"command\":\"ls -la && find . -name '*SessionHost*' -o -name '*ToolExecution*' 2>/dev/null | hea…",
+          "command": "ls -la && find . -name '*SessionHost*' -o -name '*ToolExecution*' 2>/dev/null | head -50",
+          "actionVerb": "Ran command",
+          "summary": "ls -la && find . -name '*SessionHost*' -o -name '*ToolExecution*' 2>/dev/null | head -50",
+          "exitCode": 0,
+          "output": {
+            "text": "total 952\ndrwx------@    33 yorickjue  staff    1056 Oct 11 15:28 .\ndrwx------@ 11473 yorickjue  staff  367136 Oct 11 15:30 ..\n-r--r--r--@     1 yorickjue  staff    4772 Oct 11 14:49 .cursorignore\ndrwxr-xr-x@     3 yorickjue  staff      96 Oct 11 14:49 .design\n-r--r--r--@     1 yorickjue  staff      90 Oct 11 14:49 .env.example\ndrwxr-xr-x@     3 yorickjue  staff      96 Oct 11 14:49 .github\n-r--r--r--@     1 yorickjue  staff    1771 Oct 11 14:49 .gitignore\n-r--r--r--@     1 yorickjue  staff      78 Oct 11 14:49 .npmrc\n-r--r--r--@     1 yorickjue  staff      90 Oct 11 14:49 .prettierignore\n-r--r--r--@     1 yorickjue  staff     106 Oct 11 14:49 .prettierrc\ndrwxr-xr-x@     4 yorickjue  staff     128 Oct 11 14:49 .vscode\n-r--r--r--@     1 yorickjue  staff    5015 Oct 11 14:49 ARCHITECTURE.md\n-r--r--r--@     1 yorickjue  staff    2000 Oct 11 14:49 CHANGELOG.md\n-r--r--r--@     1 yorickjue  staff    1075 Oct 11 14:49 LICENSE\n-r--r--r--@     1 yorickjue  staff   20859 Oct 11 14:49 README.en.md\n-r--r--r--@     1 yorickjue  staff   21428 Oct 11 14:49 README.md\ndrwxr-xr-x@     7 yorickjue  staff     224 Oct 11 14:49 apps\ndrwxr-xr-x@     3 yorickjue  staff      96 Oct 11 14:49 crates\ndrwxr-xr-x@    52 yorickjue  staff    1664 Oct 11 14:49 docs\n-r--r--r--@     1 yorickjue  staff     139 Oct 11 14:49 eslint.config.js\ndrwxr-xr-x@     3 yorickjue  staff      96 Oct 11 15:28 experiment-data\ndrwxr-xr-x@     3 yorickjue  staff      96 Oct 11 14:49 fixtures\n-r--r--r--@     1 yorickjue  staff    4071 Oct 11 14:49 package.json\ndrwxr-xr-x@    31 yorickjue  staff     992 Oct 11 14:49 packages\ndrwxr-xr-x@     9 yorickjue  staff     288 Oct 11 14:49 plans\n-r--r--r--@     1 yorickjue  staff  364515 Oct 11 14:49 pnpm-lock.yaml\n-r--r--r--@     1 yorickjue  staff      40 Oct 11 14:49 pnpm-workspace.yaml\ndrwxr-xr-x@    33 yorickjue  staff    1056 Oct 11 14:49 scripts\ndrwxr-xr-x@    18 yorickjue  staff     576 Oct 11 14:49 skills\n-r--r--r--@     1 yorickjue  staff     486 Oct 11 14:49 tsconfig.base.json\n-r--r--r--@     1 yorickjue  staff    1125 Oct 11 14:49 tsconfig.json\n-r--r--r--@     1 yorickjue  staff    1579 Oct 11 14:49 vitest.piwin-root-isolation.ts\n-r--r--r--@     1 yorickjue  staff     108 Oct 11 14:49 vitest.workspace.ts\n"
+          },
+          "durationMs": 151
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-2cd3032df6c8b4635a6927f3",
+        "isError": false,
+        "responseMessageId": "piw-m-72651241e63c3f864ff48749",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"read_file\",\"glob\":\"*.{ts,tsx,js,mjs,cjs}\",\"limit\":50}",
+          "targetPaths": [
+            "*.{ts,tsx,js,mjs,cjs}"
+          ],
+          "actionVerb": "Searched",
+          "summary": "read_file",
+          "output": {
+            "text": "packages/session/src/tool-output-snapshot.test.ts:22:   it('returns a ready tool-snapshot for a read_file tool', () => {\npackages/session/src/tool-output-snapshot.test.ts:27:           toolName: 'read_file',\npackages/session/src/tool-output-snapshot.test.ts:207:     for (const name of ['read', 'read_file', 'view', 'view_file', 'open_file', 'read_multi', 'list_read']) {\npackages/session/src/tool-output-snapshot.ts:24:   { test: (name) => name === 'read_file' },\napps/desktop/src/turn-work-disclosure-model.test.ts:52:             toolName: 'read_file',\napps/desktop/src/turn-tool-group.test.tsx:74:       toolName: 'read_file',\napps/desktop/src/turn-tool-group.test.tsx:235:                     toolName: 'read_file',\napps/desktop/src/turn-tool-group.test.tsx:254:     expect(container.textContent).toContain('Running read_file');\napps/desktop/src/activity-timeline.test.ts:168:           toolName: 'read_file',\napps/desktop/src/activity-timeline.test.ts:230:     const read = makeTool({ toolCallId: 'read', toolName: 'read_file' });\npackages/tools-web/src/web-fetch-output.ts:55:     lines.push('note: full extracted text is on disk; use read_file or grep on spillPath');\npackages/tools-web/src/tool-definitions.ts:133:           'Fetch an http(s) URL and return readable text (not raw HTML). Pass query to extract about 4000 characters relevant to that question when a fetch delegate is configured; otherwise the start of the page is returned. For long pages use outline:true, offset/nextOffset, or spillPath with read_file/grep. PDFs are extracted when the Host document extractor is available.',\npackages/tools-web/src/web-fetch.ts:68:   /** Host-injected full-text spill for grep / read_file. */\npackages/tools-web/src/web-fetch-output.test.ts:59:     expect(output).toContain('read_file or grep');\npackages/contracts/src/web.ts:392: /** Host-injected write of the full extracted text for grep / read_file. */\napps/desktop/src/run-activity-strings.ts:138:  * (\"Read src/foo.ts\") over bare tool names (\"Running read_file\").\npackages/contracts/src/pet.ts:76:  * (\"Running read_file…\", \"规划下一步\", etc.) next to the pet.\npackages/pet/src/agent-state-map.test.ts:40:       toolName: 'read_file',\npackages/pet/src/agent-state-map.test.ts:42:     expect(ctx.activeToolName).toBe('read_file');\napps/desktop/src/run-activity-icon.ts:57:     tool.includes('read_file') ||\napps/desktop/src/context-bar.test.tsx:33:     summary: 'Running read_file',\napps/desktop/src/context-bar.test.tsx:34:     activeToolName: 'read_file',\napps/desktop/src/context-bar.test.tsx:272:     expect(container.textContent).not.toContain('read_file');\napps/desktop/src/activity-timeline.ts:144:     toolName === 'read_file' ||\napps/desktop/src/activity-timeline.ts:159:     toolName.includes('read_file') ||\napps/desktop/src/subagent-session-projection.test.ts:112:             { toolCallId: 't1', toolName: 'read_file', status: 'done', output: 'file body' },\npackages/agent-host/src/knowledge-presentation.test.ts:36:     expect(buildToolPresentation({ toolName: 'read_file', details }).knowledge).toBeUndefined();\npackages/agent-host/src/tool-presentation-classification.ts:123:     n === 'read_file' ||\npackages/host-runtime/src/session-tools.ts:38:   /** Host-injected full-text spill for grep / read_file. */\napps/mobile/src/mobile-tool-chain.test.tsx:78:                 name: 'read_file',\napps/desktop/src/pet-activity-mapper.test.ts:29:       activity: { toolName: 'read_file', phase: 'tool-running' },\napps/desktop/src/pet-activity-mapper.test.ts:33:     expect(result?.activeToolName).toBe('read_file');\npackages/host-runtime/src/commands/session-live-commands.test.ts:2711:           toolName: 'read_file',\napps/desktop/src/chat-reducer-envelope-walkthrough.test.ts:225:         toolName: 'read_file',\napps/desktop/src/chat-reducer-envelope-walkthrough.test.ts:266:         toolName: 'read_file',\napps/desktop/src/chat-thread-work-disclosure.test.tsx:376:             toolName: 'read_file',\napps/desktop/src/chat-thread-work-disclosure.test.tsx:757:             toolName: 'read_file',\npackages/host-runtime/src/fetch-spill-store.ts:1: /** Session-disk spill of a full `web_fetch` extract for grep / read_file. */\napps/desktop/src/tool-call-head.test.ts:278:     expect(kindVerb('filesystem', 'read_file')).toBe('Read');\napps/desktop/src/run-status.test.ts:55:         { toolCallId: 't1', toolName: 'read_file', status: 'running', output: '' },\napps/desktop/src/run-status.test.ts:62:     expect(status.activeToolName).toBe('read_file');\napps/desktop/src/components/PetBubble.test.tsx:57:       activity: { toolName: 'read_file', phase: 'tool-running' },\napps/desktop/src/components/PetBubble.test.tsx:66:     expect(bubble?.textContent).toContain('read_file');\npackages/host-runtime/src/pet-state-store.test.ts:70:     store.reduce({ type: 'tool/start', toolCallId: 't1', toolName: 'read_file' } as AgentEvent);\npackages/host-runtime/src/pet-state-store.test.ts:73:     expect(snap.pet.activity?.toolName).toBe('read_file');\npackages/host-runtime/src/pet-state-store.test.ts:129:     store.reduce({ type: 'tool/start', toolCallId: 't1', toolName: 'read_file' } as AgentEvent);\npackages/host-runtime/src/pet-state-store.test.ts:132:     expect(tools).toEqual(['read_file', '', 'write_file']);\napps/desktop/src/knowledge/knowledge-citations.test.ts:80:     const plain: ToolCardUi = { toolCallId: 'c', toolName: 'read_file', status: 'done', output: '' };\napps/desktop/src/e2e/chain-showcase-fixture.ts:593:     'read_file',\napps/desktop/src/e2e/chain-showcase-fixture.ts:596:       title: 'read_file',\n\n[50 matches limit reached. Use limit=100 for more, or refine pattern]"
+          },
+          "countTag": "51 matches",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "*.{ts,tsx,js,mjs,cjs}",
+              "displayRef": "*.{ts,tsx,js,mjs,cjs}"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-170134b714ac77d84daaa54a",
+        "isError": false,
+        "responseMessageId": "piw-m-72651241e63c3f864ff48749",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"SessionHostToolExecutionPort\",\"glob\":\"*.{ts,tsx,js,mjs,cjs}\"}",
+          "targetPaths": [
+            "*.{ts,tsx,js,mjs,cjs}"
+          ],
+          "actionVerb": "Searched",
+          "summary": "SessionHostToolExecutionPort",
+          "output": {
+            "text": "packages/host-runtime/src/tools/host-filesystem-tools.ts:5:  * in the parent process through the `SessionHostToolExecutionPort`. The\npackages/host-runtime/src/tools/session-host-tool-port.ts:50: export type SessionHostToolExecutionPortOptions = {\npackages/host-runtime/src/tools/session-host-tool-port.ts:101: export class SessionHostToolExecutionPort implements HostToolExecutionPort {\npackages/host-runtime/src/tools/session-host-tool-port.ts:102:   private readonly options: SessionHostToolExecutionPortOptions;\npackages/host-runtime/src/tools/session-host-tool-port.ts:105:   constructor(options: SessionHostToolExecutionPortOptions) {\npackages/host-runtime/src/tools/session-host-tool-port.ts:745: export function createSessionHostToolExecutionPort(\npackages/host-runtime/src/tools/session-host-tool-port.ts:746:   options: SessionHostToolExecutionPortOptions,\npackages/host-runtime/src/tools/session-host-tool-port.ts:747: ): SessionHostToolExecutionPort {\npackages/host-runtime/src/tools/session-host-tool-port.ts:748:   return new SessionHostToolExecutionPort(options);\npackages/host-runtime/src/host-runtime-tool-surfaces.test.ts:24: import { SessionHostToolExecutionPort } from './tools/session-host-tool-port.js';\npackages/host-runtime/src/host-runtime-tool-surfaces.test.ts:368:         const port = new SessionHostToolExecutionPort({\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:4:   SessionHostToolExecutionPort,\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:5:   createSessionHostToolExecutionPort,\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:53: ): SessionHostToolExecutionPort {\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:54:   const port = createSessionHostToolExecutionPort({\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:69: describe('SessionHostToolExecutionPort', () => {\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:72:     const port = createSessionHostToolExecutionPort({\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:272:     const port = createSessionHostToolExecutionPort({\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:339:     const port = createSessionHostToolExecutionPort({\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:497:     const port = createSessionHostToolExecutionPort({\npackages/host-runtime/src/host-runtime-fields.ts:57: import { type SessionHostToolExecutionPort } from './tools/session-host-tool-port.js';\npackages/host-runtime/src/host-runtime-fields.ts:327:   sessionHostToolPort: SessionHostToolExecutionPort | null = null;\npackages/host-runtime/src/host-runtime-init.ts:54: import { createSessionHostToolExecutionPort } from './tools/session-host-tool-port.js';\npackages/host-runtime/src/host-runtime-init.ts:609:       deps.sessionHostToolPort = createSessionHostToolExecutionPort({\npackages/host-runtime/src/codemode/codemode-backend-test-harness.ts:24: import { createSessionHostToolExecutionPort } from '../tools/session-host-tool-port.js';\npackages/host-runtime/src/codemode/codemode-backend-test-harness.ts:121:   const port = createSessionHostToolExecutionPort({\npackages/host-runtime/src/codemode/codemode-backend-test-harness.ts:134:   // both delegate to this exact registered/restricted SessionHostToolExecutionPort.\npackages/host-runtime/src/codemode/codemode-limits.integration.test.ts:4: import { createSessionHostToolExecutionPort } from '../tools/session-host-tool-port.js';\npackages/host-runtime/src/codemode/codemode-limits.integration.test.ts:50:   const port = createSessionHostToolExecutionPort({\npackages/host-runtime/src/codemode/codemode-execution.integration.test.ts:16: import { createSessionHostToolExecutionPort } from '../tools/session-host-tool-port.js';\npackages/host-runtime/src/codemode/codemode-execution.integration.test.ts:71:     const port = createSessionHostToolExecutionPort({\npackages/host-runtime/src/codemode/codemode-execution.integration.test.ts:110:     const port = createSessionHostToolExecutionPort({\npackages/host-runtime/src/codemode/codemode-execution.integration.test.ts:234:   port: ReturnType<typeof createSessionHostToolExecutionPort>,\npackages/host-runtime/src/codemode/codemode-mcp.integration.test.ts:9: import { createSessionHostToolExecutionPort } from '../tools/session-host-tool-port.js';\npackages/host-runtime/src/codemode/codemode-mcp.integration.test.ts:39:       const port = createSessionHostToolExecutionPort({\npackages/host-runtime/src/codemode/codemode-mcp.integration.test.ts:114:   port: ReturnType<typeof createSessionHostToolExecutionPort>,"
+          },
+          "countTag": "36 matches",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "*.{ts,tsx,js,mjs,cjs}",
+              "displayRef": "*.{ts,tsx,js,mjs,cjs}"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-f5c414f560335694cbd739c1",
+        "toolName": "read",
+        "responseMessageId": "piw-m-5a691083811e06258342b556",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/session-host-tool-port.ts\",\"limit\":200}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/session-host-tool-port.ts"
+          ],
+          "actionVerb": "Read",
+          "summary": "packages/host-runtime/src/tools/session-host-tool-port.ts",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/session-host-tool-port.ts",
+              "displayRef": "packages/host-runtime/src/tools/session-host-tool-port.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-13c6d6e04912824055c70403",
+        "toolName": "read",
+        "responseMessageId": "piw-m-5a691083811e06258342b556",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/host-filesystem-tools.ts\",\"limit\":200}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+          ],
+          "actionVerb": "Read",
+          "summary": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+              "displayRef": "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-1732c22c50a76950d2974be8",
+        "toolName": "grep",
+        "responseMessageId": "piw-m-5a691083811e06258342b556",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"read_file|preparePath|admission|admit|canonical|utf-?8|fileEffect|readOnly\",\"glob\":…",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/**/*.{ts,tsx}"
+          ],
+          "actionVerb": "Searched",
+          "summary": "read_file|preparePath|admission|admit|canonical|utf-?8|fileEffect|readOnly",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/**/*.{ts,tsx}",
+              "displayRef": "packages/host-runtime/src/tools/**/*.{ts,tsx}"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-13c6d6e04912824055c70403",
+        "isError": false,
+        "responseMessageId": "piw-m-5a691083811e06258342b556",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/host-filesystem-tools.ts\",\"limit\":200}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+          ],
+          "actionVerb": "Read",
+          "summary": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+          "output": {
+            "text": "/**\n * Host-owned filesystem + bash tools for worker sessions.\n *\n * These are Host registrations (not Pi-native customTools) that execute\n * in the parent process through the `SessionHostToolExecutionPort`. The\n * worker calls them via the tool proxy; the parent validates identity and\n * generation before routing to the concrete executor here.\n *\n * Pi built-ins remain owned by the Pi backend. These registrations are the\n * parent-owned surface used by both SDK and worker/RPC paths; the worker never\n * executes filesystem or process side effects locally.\n *\n * Authority: @piwin/host-runtime (product composition root).\n * Invariant: every side effect goes through the permission gate.\n */\n\nimport { readFile, writeFile, readdir, mkdir, unlink } from 'node:fs/promises';\nimport { join, resolve, isAbsolute } from 'node:path';\nimport type { HostToolRegistration, JobController, ToolResult } from '@piwin/contracts';\nimport {\n  deleteTurnChangeFile,\n  writeTurnChangeFile,\n  type TurnChangeObjectStore,\n  type TurnChangeWriteReceipt,\n} from '@piwin/git';\nimport type { CommandChangeCapturer } from '../turn-changes/command-capture.js';\nimport type { ShellAuditReport } from '../turn-changes/tool-capture.js';\nimport type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';\nimport { runWithWorkspaceWriteGate } from './run-with-workspace-write-gate.js';\nimport { describeFileChange, withFileChange } from './file-change-details.js';\nimport { buildHostEditTool } from './host-edit-tool.js';\nimport { buildHostMoveFileTool, buildHostMoveLinesTool } from './host-move-tools.js';\nimport { runHostShell } from './run-host-shell.js';\nimport { toTurnChangeRelativePath } from './turn-change-path.js';\nconst utf8 = new TextEncoder();\n\nexport type BuildHostFilesystemToolsOptions = {\n  /** Session working directory (project root or general workspace). */\n  cwd: string;\n  piwinRoot?: string;\n  /** Host-owned Job authority for shell process-tree lifecycle. */\n  jobController?: JobController;\n  turnChange?: {\n    workspaceRoot: string;\n    store: TurnChangeObjectStore;\n    onReceipt?: (receipt: TurnChangeWriteReceipt) => void;\n    /** Records what each shell command changed, for sealing the turn. */\n    onShellAudit?: (audit: ShellAuditReport) => void;\n    /** Images the files a shell command changed, so undo can restore them. */\n    commandCapture?: CommandChangeCapturer;\n  };\n  workspaceWrite?: {\n    gate: WorkspaceWriteGate;\n    workspaceId: string;\n    rootPath: string;\n  };\n};\n\n/**\n * Build Host-owned filesystem tools: `read_file`, `write_file`, `edit`,\n * `move_lines`, `move_file`, `delete_file`, `list_directory`, and\n * `bash` / `run_bash`.\n *\n * Permission admission is performed by the Host router before execution.\n * Read-only tools still use the same router path, while executors only\n * validate arguments and perform the filesystem operation.\n *\n * Paths are resolved relative to `cwd`. Writes that escape the project root\n * are flagged by the evaluator.\n */\nexport function buildHostFilesystemTools(\n  options: BuildHostFilesystemToolsOptions,\n): HostToolRegistration[] {\n  const { cwd, jobController, turnChange, workspaceWrite, piwinRoot } = options;\n\n  function resolvePath(path: string): string {\n    return isAbsolute(path) ? resolve(path) : resolve(cwd, path);\n  }\n\n  const readFileTool: HostToolRegistration = {\n    descriptor: {\n      name: 'read_file',\n      description:\n        'Read the contents of a file. Paths are relative to the session working directory.',\n      parameters: {\n        type: 'object',\n        properties: {\n          path: { type: 'string', description: 'File path (relative or absolute)' },\n        },\n        required: ['path'],\n      },\n    },\n    family: 'filesystem-read',\n    permissionSpec: {\n      action: 'filesystem:read',\n      risk: 'unknown',\n      rememberable: false,\n      readOnly: true,\n    },\n    fileEffect: { kind: 'none' },\n    prepareArgs: (rawArguments, _context, signal) =>\n      prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),\n    async execute(args) {\n      const filePath = String(args.path ?? '');\n      const content = await readFile(filePath, 'utf-8');\n      return { ok: true, output: content };\n    },\n  };\n\n  const writeFileTool: HostToolRegistration = {\n    descriptor: {\n      name: 'write_file',\n      description:\n        'Write a whole file (creates or overwrites). Creating a file or replacing its whole content MUST go through this tool so Host records it for undo. To change part of an existing file use `edit` instead (it keeps other sessions\\' concurrent changes); to move or rename use `move_file`. Paths are relative to the session working directory. Subject to permission policy.',\n      parameters: {\n        type: 'object',\n        properties: {\n          path: { type: 'string', description: 'File path (relative or absolute)' },\n          content: { type: 'string', description: 'Content to write' },\n        },\n        required: ['path', 'content'],\n      },\n    },\n    family: 'filesystem-write',\n    permissionSpec: {\n      action: 'file-write',\n      risk: 'file-write',\n      rememberable: true,\n      subjectBuilder: (args) => ({\n        kind: 'file-write',\n        path: String(args.path ?? ''),\n      }),\n    },\n    fileEffect: {\n      kind: 'exact-paths',\n      pathsFromArgs: (args) => [String(args.path)],\n    },\n    prepareArgs: (rawArguments, _context, signal) =>\n      prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),\n    async execute(args, signal, context) {\n      const filePath = String(args.path ?? '');\n      return runWithWorkspaceWriteGate({\n        workspaceWrite,\n        runId: context.runId,\n        ownerId: context.sessionId,\n        signal,\n        mode: 'shared',\n        wait: true,\n        filePath,\n        run: async () => {\n          if (!turnChange) {\n            const dir = join(filePath, '..');\n            await mkdir(dir, { recursive: true });\n            await writeFile(filePath, String(args.content ?? ''), 'utf-8');\n            return { ok: true, output: `Wrote ${filePath}` };\n          }\n          const relativePath = toTurnChangeRelativePath(filePath, turnChange.workspaceRoot);\n          const receipt = await writeTurnChangeFile({\n            workspaceRoot: turnChange.workspaceRoot,\n            relativePath,\n            bytes: utf8.encode(String(args.content ?? '')),\n            store: turnChange.store,\n          });\n          turnChange.onReceipt?.(receipt);\n          return withFileChange(\n            { ok: true, output: `Wrote ${filePath}` },\n            await describeFileChange(receipt, turnChange.store),\n          );\n        },\n      });\n    },\n  };\n\n  const deleteFileTool: HostToolRegistration = {\n    descriptor: {\n      name: 'delete_file',\n      description:\n        'Delete a file. Deleting a workspace file MUST go through this tool so Host records it for undo. Paths are relative to the session working directory. Subject to permission policy.',\n      parameters: {\n        type: 'object',\n        properties: {\n          path: { type: 'string', description: 'File path (relative or absolute)' },\n        },\n        required: ['path'],\n      },\n    },\n    family: 'filesystem-write',\n    permissionSpec: {\n      action: 'file-write',\n      risk: 'file-write',\n      rememberable: true,\n      subjectBuilder: (args) => ({\n        kind: 'file-write',\n        path: String(args.path ?? ''),\n      }),\n    },\n    fileEffect: {\n      kind: 'exact-paths',\n      pathsFromArgs: (args) => [String(args.path)],\n    },\n\n[236 more lines in file. Use offset=201 to continue.]"
+          },
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+              "displayRef": "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-f5c414f560335694cbd739c1",
+        "isError": false,
+        "responseMessageId": "piw-m-5a691083811e06258342b556",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/session-host-tool-port.ts\",\"limit\":200}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/session-host-tool-port.ts"
+          ],
+          "actionVerb": "Read",
+          "summary": "packages/host-runtime/src/tools/session-host-tool-port.ts",
+          "output": {
+            "text": "/**\n * Parent-owned session tool execution port.\n *\n * This is the authority boundary that validates `(sessionId,\n * runtimeGenerationId)` before executing any Host-owned tool side effect.\n * Both SDK and worker backends route through this port — the worker via\n * JSONL proxy, the SDK via `toPiBackendCustomTools`.\n *\n * Repair spec WP1: the port keeps an **active** generation surface and a\n * **pending** candidate surface per session. Candidate compilation registers\n * into `pending` only; external tool calls always resolve the active\n * generation. Commit atomically promotes pending → active; abort removes the\n * pending surface without touching the active one.\n *\n * Authority: @piwin/host-runtime (product composition root).\n */\n\nimport type {\n  HostToolExecutionContext,\n  HostToolExecutionInput,\n  HostToolExecutionPort,\n  HostToolExecutionResult,\n  HostToolRegistration,\n} from '@piwin/contracts';\nimport type { HostToolAdmission } from './tool-admission.js';\nimport {\n  HostToolExecutionRouter,\n  type ToolAuthorityRevalidation,\n  type ToolDisablePredicate,\n} from './host-tool-execution-router.js';\nimport type { ExecutionTracker } from '../turn-changes/execution-tracker.js';\nimport type { ToolCapturePort } from '../turn-changes/tool-capture.js';\nimport { CODEMODE_TOOL_NAME } from '@piwin/contracts';\nimport { scriptReadonlyDenial } from '../codemode/script-readonly-admission.js';\nimport { HOST_TOOLBOX_NAME } from '../host-toolbox.js';\nimport { getAttachedToolCatalog } from '../tool-catalog/catalog-tool.js';\nimport {\n  applyCatalogSearchBudget,\n  isMcpCatalogTarget,\n  searchHostCatalog,\n  suggestCatalogIds,\n} from '../tool-catalog/catalog-index.js';\nimport { compactModelToolDescriptor } from '../model-tool-descriptor.js';\nimport type { ToolCatalogService } from '../tool-catalog/catalog-service.js';\nimport { ToolInvocationLedger } from './tool-invocation-ledger.js';\n\n/**\n * Callbacks the port needs from the HostRuntime to validate and dispatch.\n */\nexport type SessionHostToolExecutionPortOptions = {\n  /** Whether a session is known (live or registered). */\n  isSessionKnown: (sessionId: string) => boolean;\n  /** Get the active runtime generation id for a session, if any. */\n  getRuntimeGenerationId: (sessionId: string) => string | undefined;\n  /** Verify that the Run is still admitted to execute side effects. */\n  isRunAdmitted?: (runId: string, sessionId: string, runtimeGenerationId: string) => boolean;\n  /**\n   * Immediate safety predicate (repair spec WP2). The HostRuntime supplies\n   * the live gate that reads the current pending tightening domains; the\n   * port passes it into every generation router.\n   */\n  isToolDisabled?: ToolDisablePredicate;\n  capture?: ToolCapturePort;\n  tracker?: ExecutionTracker;\n};\n\ntype GenerationToolSurface = {\n  generationId: string;\n  /** Active generation observed when this candidate was prepared. */\n  baseActiveGenerationId?: string;\n  router: HostToolExecutionRouter;\n  ledger: ToolInvocationLedger;\n  tools: readonly HostToolRegistration[];\n  admission: HostToolAdmission;\n  toolNames: Set<string>;\n  toolboxTargets: ReadonlyMap<string, HostToolRegistration>;\n  catalog?: ToolCatalogService;\n  mcpCatalogEnabled: boolean;\n};\n\ntype SessionSurfaces = {\n  active?: GenerationToolSurface;\n  pending: Map<string, GenerationToolSurface>;\n  /** Previous active surface retained until the replacement is finalized. */\n  committedPrevious?: GenerationToolSurface;\n};\n\n/**\n * Parent-owned port that validates session identity, runtime generation,\n * and descriptor membership before routing to a concrete executor.\n *\n * Stale-generation tool calls are rejected: if the input's\n * `runtimeGenerationId` does not match the session's active generation,\n * the port returns `tool-not-available`. This prevents a late worker\n * frame from an old generation from executing a side effect.\n *\n * Pending candidate surfaces are never executable from the port: only the\n * active surface is consulted, so a candidate that has not been committed\n * cannot run a side effect.\n */\nexport class SessionHostToolExecutionPort implements HostToolExecutionPort {\n  private readonly options: SessionHostToolExecutionPortOptions;\n  private readonly surfacesBySession = new Map<string, SessionSurfaces>();\n\n  constructor(options: SessionHostToolExecutionPortOptions) {\n    this.options = options;\n  }\n\n  /**\n   * Register the already-composed surface as the **active** generation.\n   * Tool execution never composes or reloads a surface lazily.\n   */\n  registerActiveGeneration(\n    sessionId: string,\n    runtimeGenerationId: string,\n    tools: readonly HostToolRegistration[],\n    admission: HostToolAdmission,\n  ): void {\n    const surfaces = this.getOrCreateSessionSurfaces(sessionId);\n    // A direct active registration supersedes a same-id pending candidate;\n    // keeping both would allow a later stale commit to resurrect it.\n    surfaces.pending.delete(runtimeGenerationId);\n    surfaces.active = this.createCachedTools(runtimeGenerationId, tools, admission);\n    this.surfacesBySession.set(sessionId, surfaces);\n  }\n\n  /**\n   * Register the already-composed surface as a **pending candidate**. The\n   * candidate cannot execute any tool call until it is committed.\n   */\n  registerPendingGeneration(\n    sessionId: string,\n    runtimeGenerationId: string,\n    tools: readonly HostToolRegistration[],\n    admission: HostToolAdmission,\n  ): void {\n    const surfaces = this.getOrCreateSessionSurfaces(sessionId);\n    surfaces.pending.set(\n      runtimeGenerationId,\n      this.createCachedTools(\n        runtimeGenerationId,\n        tools,\n        admission,\n        surfaces.active?.generationId,\n      ),\n    );\n    this.surfacesBySession.set(sessionId, surfaces);\n  }\n\n  /**\n   * Restrict a prepared surface to the exact model-visible Host tool\n   * manifest. Composition may build a superset so the compiler can resolve\n   * policy, but the execution port must never retain tools filtered out by\n   * trust, capability ceilings, or config.\n   */\n  restrictGeneration(\n    sessionId: string,\n    runtimeGenerationId: string,\n    allowedToolNames: readonly string[],\n    toolboxTargetNames: readonly string[] = [],\n    mcpCatalogEnabled = false,\n  ): boolean {\n    const surfaces = this.surfacesBySession.get(sessionId);\n    const cached =\n      surfaces?.active?.generationId === runtimeGenerationId\n        ? surfaces.active\n        : surfaces?.pending.get(runtimeGenerationId);\n    if (!cached) {\n      return false;\n    }\n\n    const allowed = new Set(allowedToolNames);\n    const availableNames = new Set(cached.tools.map((tool) => tool.descriptor.name));\n    for (const name of allowed) {\n      if (!availableNames.has(name)) {\n        throw new Error(\n          `compiled Host tool manifest contains an unregistered tool: ${sessionId}/${runtimeGenerationId}/${name}`,\n        );\n      }\n    }\n    const toolboxTargets = new Map<string, HostToolRegistration>();\n    for (const name of toolboxTargetNames) {\n      const registration = cached.tools.find((tool) => tool.descriptor.name === name);\n      if (!registration) {\n        throw new Error(\n          `compiled Host toolbox target is unregistered: ${sessionId}/${runtimeGenerationId}/${name}`,\n        );\n      }\n      if (allowed.has(name)) {\n        throw new Error(`Host tool cannot be direct and toolbox-only in one generation: ${name}`);\n      }\n      toolboxTargets.set(name, registration);\n    }\n\n    const filteredTools = cached.tools.filter((tool) => allowed.has(tool.descriptor.name));\n    cached.tools = Object.freeze(filteredTools);\n    cached.toolNames = new Set(filteredTools.map((tool) => tool.descriptor.name));\n    cached.toolboxTargets = toolboxTargets;\n    cached.mcpCatalogEnabled = mcpCatalogEnabled;\n    cached.router = this.createRouter(cached, [...filteredTools, ...toolboxTargets.values()]);\n\n[550 more lines in file. Use offset=201 to continue.]"
+          },
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/session-host-tool-port.ts",
+              "displayRef": "packages/host-runtime/src/tools/session-host-tool-port.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-1732c22c50a76950d2974be8",
+        "isError": false,
+        "responseMessageId": "piw-m-5a691083811e06258342b556",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"read_file|preparePath|admission|admit|canonical|utf-?8|fileEffect|readOnly\",\"glob\":…",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/**/*.{ts,tsx}"
+          ],
+          "actionVerb": "Searched",
+          "summary": "read_file|preparePath|admission|admit|canonical|utf-?8|fileEffect|readOnly",
+          "output": {
+            "text": "packages/host-runtime/src/tools/run-with-workspace-write-gate.ts:3:  * Permission admission happens before this helper; abort is rechecked after wait.\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:7: import { createPermissiveToolAdmission, type HostToolAdmission } from './tool-admission.js';\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:36:       readOnly: true,\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:70:   it('revalidates run admission after a long permission wait', async () => {\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:71:     let admitted = true;\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:75:       isRunAdmitted: () => admitted,\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:81:           admitted = false;\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:109:       message: 'run is not admitted for tool execution: run-1',\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:317:     target.permissionSpec.readOnly = false;\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:321:     const admittedNames: string[] = [];\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:326:           admittedNames.push(registration.descriptor.name);\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:372:     expect(admittedNames).toEqual([]);\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:389:     expect(admittedNames).toEqual(['process_start']);\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:392:   it('searches frozen Host catalog targets without admitting them', async () => {\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:467:   it('routes MCP catalog calls as trusted without Host permission admission', async () => {\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:468:     const admittedNames: string[] = [];\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:476:     target.permissionSpec.readOnly = false;\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:484:           admittedNames.push(registration.descriptor.name);\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:527:     expect(admittedNames).toEqual([]);\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:530:   it('rejects a hidden target that was not admitted for the compiled generation', async () => {\npackages/host-runtime/src/tools/host-edit-tool.ts:21: const utf8 = new TextEncoder();\npackages/host-runtime/src/tools/host-edit-tool.ts:33:         'Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes. Every change to a workspace file MUST go through this tool (or `write_file`, `move_lines`, `move_file`, `delete_file`): Host records those changes exactly so the us... [truncated]\npackages/host-runtime/src/tools/host-edit-tool.ts:66:     fileEffect: {\npackages/host-runtime/src/tools/host-edit-tool.ts:101:             raw = await readFile(filePath, 'utf-8');\npackages/host-runtime/src/tools/host-edit-tool.ts:129:             await writeFile(filePath, next, 'utf-8');\npackages/host-runtime/src/tools/host-edit-tool.ts:135:             bytes: utf8.encode(next),\npackages/host-runtime/src/tools/build-session-host-tools.ts:295:   // --- Filesystem + bash tools (read_file, write_file, list_directory, bash, run_bash) ---\npackages/host-runtime/src/tools/canonical-tool-args.test.ts:2: import { validateCanonicalArguments } from './canonical-tool-args.js';\npackages/host-runtime/src/tools/tool-invocation-ledger.ts:2:  * Generation-scoped at-most-once runner admission for Host tool calls.\npackages/host-runtime/src/tools/tool-invocation-ledger.ts:7: import { stableCanonicalJson } from './stable-canonical-json.js';\npackages/host-runtime/src/tools/tool-invocation-ledger.ts:346:   canonicalArgs: Record<string, unknown>,\npackages/host-runtime/src/tools/tool-invocation-ledger.ts:349:     .update(`${toolName}\\n${stableCanonicalJson(canonicalArgs)}`, 'utf8')\npackages/host-runtime/src/tools/tool-invocation-ledger.ts:367:   const details = result.details ? Buffer.byteLength(JSON.stringify(result.details), 'utf8') : 0;\npackages/host-runtime/src/tools/tool-invocation-ledger.ts:368:   return Buffer.byteLength(text, 'utf8') + details;\npackages/host-runtime/src/tools/run-idle-loop-detector.ts:42:   /** Stable identity of the call (tool + canonical args). */\npackages/host-runtime/src/tools/host-tool-execution-router.ts:4:  * Repair spec WP0/WP2/WP3: the router is the mandatory admission point for\npackages/host-runtime/src/tools/host-tool-execution-router.ts:6:  * safety predicate and a permission admission gate; tests may inject fakes,\npackages/host-runtime/src/tools/host-tool-execution-router.ts:19: import { scriptReadonlyDenial } from '../codemode/script-readonly-admission.js';\npackages/host-runtime/src/tools/host-tool-execution-router.ts:21: import { resolveHostToolAdmission, type HostToolAdmission } from './tool-admission.js';\npackages/host-runtime/src/tools/host-tool-execution-router.ts:22: import { validateCanonicalArguments } from './canonical-tool-args.js';\npackages/host-runtime/src/tools/host-tool-execution-router.ts:51: export type { HostToolAdmissionDecision } from './tool-admission.js';\npackages/host-runtime/src/tools/host-tool-execution-router.ts:63:    * admission; they must not skip this object.\npackages/host-runtime/src/tools/host-tool-execution-router.ts:65:   admission: HostToolAdmission;\npackages/host-runtime/src/tools/host-tool-execution-router.ts:79:  * invocation passes the immediate safety gate and the permission admission\npackages/host-runtime/src/tools/host-tool-execution-router.ts:85:   private readonly admission: HostToolAdmission;\npackages/host-runtime/src/tools/host-tool-execution-router.ts:99:     this.admission = options.admission;\npackages/host-runtime/src/tools/host-tool-execution-router.ts:133:       if (!context.scriptInvocation.admittedToolNames.includes(tool.descriptor.name)) {\npackages/host-runtime/src/tools/host-tool-execution-router.ts:142:     let canonicalArgs = args;\npackages/host-runtime/src/tools/host-tool-execution-router.ts:159:       canonicalArgs = prepared.arguments;\npackages/host-runtime/src/tools/host-tool-execution-router.ts:165:     const canonical = validateCanonicalArguments(canonicalArgs);\npackages/host-runtime/src/tools/host-tool-execution-router.ts:166:     if (!canonical.ok) {\npackages/host-runtime/src/tools/host-tool-execution-router.ts:167:       return canonical.result;\npackages/host-runtime/src/tools/host-tool-execution-router.ts:178:               fingerprint: fingerprintToolInvocation(tool.descriptor.name, canonicalArgs),\npackages/host-runtime/src/tools/host-tool-execution-router.ts:182:               await this.continuePreparedExecution(tool, canonicalArgs, context, attempt),\npackages/host-runtime/src/tools/host-tool-execution-router.ts:184:         : await this.continuePreparedExecution(tool, canonicalArgs, context, {\npackages/host-runtime/src/tools/host-tool-execution-router.ts:194:     canonicalArgs: Record<string, unknown>,\npackages/host-runtime/src/tools/host-tool-execution-router.ts:199:     const disabled = this.isToolDisabled?.(tool, canonicalArgs, context);\npackages/host-runtime/src/tools/host-tool-execution-router.ts:209:       admission: this.admission,\npackages/host-runtime/src/tools/host-tool-execution-router.ts:211:       args: canonicalArgs,\npackages/host-runtime/src/tools/host-tool-execution-router.ts:220:     // aborts, the Run closes admission, or safety tightens.\npackages/host-runtime/src/tools/host-tool-execution-router.ts:228:     const postDisabled = this.isToolDisabled?.(tool, canonicalArgs, context);\n\n[output truncated]",
+            "truncated": true
+          },
+          "countTag": "62 matches",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/**/*.{ts,tsx}",
+              "displayRef": "packages/host-runtime/src/tools/**/*.{ts,tsx}"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-909ae5ba27301fcc86f66e19",
+        "toolName": "grep",
+        "responseMessageId": "piw-m-16ee902b842b7efdffc56db0",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"async execute\\\\(|prepareResolvedPath|function resolveHostToolAdmission|export (asyn…",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/**/*.{ts,tsx}"
+          ],
+          "actionVerb": "Searched",
+          "summary": "async execute\\(|prepareResolvedPath|function resolveHostToolAdmission|export (async )?function|…",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/**/*.{ts,tsx}",
+              "displayRef": "packages/host-runtime/src/tools/**/*.{ts,tsx}"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-0e9dd730d9369ec6e7f7b7bd",
+        "toolName": "bash",
+        "responseMessageId": "piw-m-16ee902b842b7efdffc56db0",
+        "presentation": {
+          "kind": "shell",
+          "title": "bash",
+          "inputPreview": "{\"command\":\"rg -n \\\"async execute\\\\(|identity|sessionId|runtimeGenerationId|toolName|runId|prep…",
+          "command": "rg -n \"async execute\\(|identity|sessionId|runtimeGenerationId|toolName|runId|prepareResolvedPath|resolveHostToolAdmission|continuePreparedExecution|execute\\(\" packages/host-runtime/src/tools/session-host-tool-port.ts packages/host-runtime/src/tools/host-tool-execution-router.ts packages/host-runtime/src/tools/tool-admission.ts packages/host-runtime/src/tools/host-filesystem-tools.ts | head -120",
+          "actionVerb": "Ran command",
+          "summary": "rg -n \"async execute\\(|identity|sessionId|runtimeGenerationId|toolName|runId|prepareResolvedPath|resolveHostToolAdmissi…"
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-909ae5ba27301fcc86f66e19",
+        "isError": false,
+        "responseMessageId": "piw-m-16ee902b842b7efdffc56db0",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"async execute\\\\(|prepareResolvedPath|function resolveHostToolAdmission|export (asyn…",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/**/*.{ts,tsx}"
+          ],
+          "actionVerb": "Searched",
+          "summary": "async execute\\(|prepareResolvedPath|function resolveHostToolAdmission|export (async )?function|…",
+          "output": {
+            "text": "packages/host-runtime/src/tools/windows-bash-shell.ts:125: export function findGitBash(piwinRoot?: string): string | undefined {\npackages/host-runtime/src/tools/windows-bash-shell.ts:177: export function resolveWindowsShellKind(piwinRoot?: string): ResolvedWindowsShell {\npackages/host-runtime/src/tools/windows-bash-shell.ts:181: export function resolveWindowsBashShell(command: string, piwinRoot?: string): ShellInvocation {\npackages/host-runtime/src/tools/windows-bash-shell.ts:188: export function resolveAgentShell(command: string, piwinRoot?: string): ShellInvocation {\npackages/host-runtime/src/tools/tool-loop-progress.ts:142: export function createDefaultToolLoopLimits(): ToolLoopLimits {\npackages/host-runtime/src/tools/tool-loop-progress.ts:146: export function classifyToolLoopClass(toolName: string): ToolLoopClass {\npackages/host-runtime/src/tools/tool-loop-progress.ts:160: export function fingerprintToolLoopCall(observation: ToolLoopObservation): string {\npackages/host-runtime/src/tools/tool-loop-progress.ts:181: export function formatToolLoopStopMessage(input: {\npackages/host-runtime/src/tools/canonical-tool-args.ts:9: export function validateCanonicalArguments(\npackages/host-runtime/src/tools/host-move-tools.test.ts:134:   const SOURCE = ['import a', '', 'export function one() {', '  return 1;', '}', '', 'export function two() {', '  return 2;', '}', ''].join('\\n');\npackages/host-runtime/src/tools/host-move-tools.test.ts:147:     startText: 'export function one() {',\npackages/host-runtime/src/tools/host-move-tools.test.ts:159:     expect(await read('one.ts')).toBe('// split from big.ts\\nexport function one() {\\n  return 1;\\n}\\n');\npackages/host-runtime/src/tools/host-move-tools.test.ts:161:       ['import a', '', \"export { one } from './one.js';\", '', 'export function two() {', '  return 2;', '}', ''].join('\\n'),\npackages/host-runtime/src/tools/host-move-tools.test.ts:168:     expect(await read('more.ts')).toBe('existing\\nexport function one() {\\n  return 1;\\n}\\n');\npackages/host-runtime/src/tools/host-move-tools.test.ts:173:     expect(await read('big.ts')).toBe(['import a', '', '', 'export function two() {', '  return 2;', '}', ''].join('\\n'));\npackages/host-runtime/src/tools/tool-policy-evaluator.ts:97: export function evaluateHostToolPolicy(input: {\npackages/host-runtime/src/tools/tool-policy-evaluator.ts:194: export function evaluateHostToolDomainPolicy(input: {\npackages/host-runtime/src/tools/run-with-workspace-write-gate.ts:45: export async function runWithWorkspaceWriteGate(input: {\npackages/host-runtime/src/tools/line-range-cut.ts:70: export function cutLineRange(input: LineRangeCutInput): LineRangeCut {\npackages/host-runtime/src/tools/stable-canonical-json.ts:3: export function stableCanonicalJson(value: unknown): string {\npackages/host-runtime/src/tools/session-host-tool-port.test.ts:38:     async execute(args) {\npackages/host-runtime/src/tools/build-session-host-tools.ts:223: export async function buildSessionHostTools(\npackages/host-runtime/src/tools/build-session-host-tools.ts:681: export function descriptorsFromTools(\npackages/host-runtime/src/tools/tool-invocation-ledger.ts:344: export function fingerprintToolInvocation(\npackages/host-runtime/src/tools/tool-invocation-ledger.ts:353: export function untrackedInvocationId(): string {\npackages/host-runtime/src/tools/run-managed-bash.ts:36: export async function runManagedBash(input: ManagedBashInput): Promise<ToolResult> {\npackages/host-runtime/src/tools/text-edits.ts:32: export function normalizeEditArguments(raw: Record<string, unknown>): NormalizedEditArguments {\npackages/host-runtime/src/tools/text-edits.ts:97: export function applyTextEditsToNormalized(\npackages/host-runtime/src/tools/text-edits.ts:156: export function applyTextEditsToFileText(\npackages/host-runtime/src/tools/turn-change-path.ts:8: export function toTurnChangeRelativePath(absolutePath: string, workspaceRoot: string): string {\npackages/host-runtime/src/tools/file-change-details.ts:18: export async function describeFileChange(\npackages/host-runtime/src/tools/file-change-details.ts:55: export function withFileChange(result: ToolResult, fileChange: ToolFileChange | undefined): ToolResult {\npackages/host-runtime/src/tools/session-host-tool-port.ts:288:   async execute(\npackages/host-runtime/src/tools/session-host-tool-port.ts:745: export function createSessionHostToolExecutionPort(\npackages/host-runtime/src/tools/host-edit-tool.ts:23: export function buildHostEditTool(options: {\npackages/host-runtime/src/tools/host-edit-tool.ts:83:     async execute(args, signal, context) {\npackages/host-runtime/src/tools/tool-loop-breaker.ts:14: export function failRunForToolLoopStall(\npackages/host-runtime/src/tools/host-tool-execution-router.ts:82: export class HostToolExecutionRouter {\npackages/host-runtime/src/tools/host-tool-execution-router.ts:114:   async execute(\npackages/host-runtime/src/tools/text-repetition.ts:33: export function findTrailingRepetition(text: string): TrailingRepetition | undefined {\npackages/host-runtime/src/tools/workspace-fingerprint.ts:49: export function parsePorcelainZPaths(stdout: string): string[] {\npackages/host-runtime/src/tools/workspace-fingerprint.ts:71: export function stampOfStats(stats: { size: number; mtimeMs: number }): string {\npackages/host-runtime/src/tools/workspace-fingerprint.ts:86: export async function captureWorkspaceFingerprint(\npackages/host-runtime/src/tools/workspace-fingerprint.ts:163: export function diffWorkspaceFingerprints(\npackages/host-runtime/src/tools/workspace-fingerprint.ts:181: export function resetWorkspaceFingerprintCooldownsForTests(): void {\npackages/host-runtime/src/tools/run-host-shell.ts:71: export async function runHostShell(input: RunHostShellInput): Promise<ToolResult> {\npackages/host-runtime/src/tools/run-host-shell.ts:271: export function formatConcurrentChangeNote(changes: {\npackages/host-runtime/src/tools/tool-approval-broker.ts:66: export function createToolApprovalBroker(options: ToolApprovalBrokerOptions): ToolApprovalBroker {\npackages/host-runtime/src/tools/shell-write-policy.ts:251: export function resolveShellWriteLock(command: string): ShellWriteLockDecision {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:71: export function buildHostFilesystemTools(\npackages/host-runtime/src/tools/host-filesystem-tools.ts:102:       prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),\npackages/host-runtime/src/tools/host-filesystem-tools.ts:103:     async execute(args) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:139:       prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),\npackages/host-runtime/src/tools/host-filesystem-tools.ts:140:     async execute(args, signal, context) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:202:       prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),\npackages/host-runtime/src/tools/host-filesystem-tools.ts:203:     async execute(args, signal, context) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:258:       prepareResolvedPath(rawArguments, resolvePath, signal, {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:262:     async execute(args) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:299:     async execute(args, signal, context) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:347:     async execute(args, signal, context) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:396: function prepareResolvedPath(\npackages/host-runtime/src/tools/windows-shell-prompt.ts:21: export function windowsShellPrompt(piwinRoot?: string): string | undefined {\npackages/host-runtime/src/tools/pass-through-prepare-args.ts:4: export function passThroughPrepareArgs(\npackages/host-runtime/src/tools/tool-family-index.ts:21: export function toolFamilyIndex(\npackages/host-runtime/src/tools/host-move-tools.ts:104: export function buildHostMoveFileTool(options: MoveToolOptions): HostToolRegist\n[output truncated]",
+            "truncated": true
+          },
+          "countTag": "66 matches",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/**/*.{ts,tsx}",
+              "displayRef": "packages/host-runtime/src/tools/**/*.{ts,tsx}"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-0e9dd730d9369ec6e7f7b7bd",
+        "isError": false,
+        "responseMessageId": "piw-m-16ee902b842b7efdffc56db0",
+        "presentation": {
+          "kind": "shell",
+          "title": "bash",
+          "inputPreview": "{\"command\":\"rg -n \\\"async execute\\\\(|identity|sessionId|runtimeGenerationId|toolName|runId|prep…",
+          "command": "rg -n \"async execute\\(|identity|sessionId|runtimeGenerationId|toolName|runId|prepareResolvedPath|resolveHostToolAdmission|continuePreparedExecution|execute\\(\" packages/host-runtime/src/tools/session-host-tool-port.ts packages/host-runtime/src/tools/host-tool-execution-router.ts packages/host-runtime/src/tools/tool-admission.ts packages/host-runtime/src/tools/host-filesystem-tools.ts | head -120",
+          "actionVerb": "Ran command",
+          "summary": "rg -n \"async execute\\(|identity|sessionId|runtimeGenerationId|toolName|runId|prepareResolvedPath|resolveHostToolAdmissi…",
+          "exitCode": 0,
+          "output": {
+            "text": "packages/host-runtime/src/tools/tool-admission.ts:90:export async function resolveHostToolAdmission(input: {\npackages/host-runtime/src/tools/tool-admission.ts:121:    // Router identity/schema/cancellation and resource integrity remain separate.\npackages/host-runtime/src/tools/tool-admission.ts:159:        invocationId: input.context.toolCallId ?? input.context.runId,\npackages/host-runtime/src/tools/tool-admission.ts:202:  toolName: string,\npackages/host-runtime/src/tools/tool-admission.ts:228:        ? `${PERMISSION_DENIED_MESSAGE_PREFIX}${toolName}: ${explanation} (${reason})`\npackages/host-runtime/src/tools/tool-admission.ts:230:          ? `${PERMISSION_DENIED_MESSAGE_PREFIX}${toolName}: approval was required and the user did not grant it (${reason})`\npackages/host-runtime/src/tools/tool-admission.ts:231:          : `${PERMISSION_DENIED_MESSAGE_PREFIX}${toolName}: ${reason}`,\npackages/host-runtime/src/tools/host-filesystem-tools.ts:6: * worker calls them via the tool proxy; the parent validates identity and\npackages/host-runtime/src/tools/host-filesystem-tools.ts:102:      prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),\npackages/host-runtime/src/tools/host-filesystem-tools.ts:103:    async execute(args) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:139:      prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),\npackages/host-runtime/src/tools/host-filesystem-tools.ts:140:    async execute(args, signal, context) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:144:        runId: context.runId,\npackages/host-runtime/src/tools/host-filesystem-tools.ts:145:        ownerId: context.sessionId,\npackages/host-runtime/src/tools/host-filesystem-tools.ts:202:      prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),\npackages/host-runtime/src/tools/host-filesystem-tools.ts:203:    async execute(args, signal, context) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:207:        runId: context.runId,\npackages/host-runtime/src/tools/host-filesystem-tools.ts:208:        ownerId: context.sessionId,\npackages/host-runtime/src/tools/host-filesystem-tools.ts:258:      prepareResolvedPath(rawArguments, resolvePath, signal, {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:262:    async execute(args) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:299:    async execute(args, signal, context) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:305:        runId: context.runId,\npackages/host-runtime/src/tools/host-filesystem-tools.ts:306:        sessionId: context.sessionId,\npackages/host-runtime/src/tools/host-filesystem-tools.ts:347:    async execute(args, signal, context) {\npackages/host-runtime/src/tools/host-filesystem-tools.ts:353:        runId: context.runId,\npackages/host-runtime/src/tools/host-filesystem-tools.ts:354:        sessionId: context.sessionId,\npackages/host-runtime/src/tools/host-filesystem-tools.ts:396:function prepareResolvedPath(\npackages/host-runtime/src/tools/host-tool-execution-router.ts:21:import { resolveHostToolAdmission, type HostToolAdmission } from './tool-admission.js';\npackages/host-runtime/src/tools/host-tool-execution-router.ts:106:  has(toolName: string): boolean {\npackages/host-runtime/src/tools/host-tool-execution-router.ts:107:    return this.toolsByName.has(toolName);\npackages/host-runtime/src/tools/host-tool-execution-router.ts:110:  toolNames(): string[] {\npackages/host-runtime/src/tools/host-tool-execution-router.ts:114:  async execute(\npackages/host-runtime/src/tools/host-tool-execution-router.ts:115:    toolName: string,\npackages/host-runtime/src/tools/host-tool-execution-router.ts:124:    const tool = this.toolsByName.get(toolName);\npackages/host-runtime/src/tools/host-tool-execution-router.ts:126:      return { ok: false, code: 'tool-not-available', message: `tool not available: ${toolName}` };\npackages/host-runtime/src/tools/host-tool-execution-router.ts:175:              runId: context.runId,\npackages/host-runtime/src/tools/host-tool-execution-router.ts:177:              toolName: tool.descriptor.name,\npackages/host-runtime/src/tools/host-tool-execution-router.ts:182:              await this.continuePreparedExecution(tool, canonicalArgs, context, attempt),\npackages/host-runtime/src/tools/host-tool-execution-router.ts:184:        : await this.continuePreparedExecution(tool, canonicalArgs, context, {\npackages/host-runtime/src/tools/host-tool-execution-router.ts:192:  private async continuePreparedExecution(\npackages/host-runtime/src/tools/host-tool-execution-router.ts:204:        runtimeGenerationId: context.runtimeGenerationId,\npackages/host-runtime/src/tools/host-tool-execution-router.ts:208:    const decision = await resolveHostToolAdmission({\npackages/host-runtime/src/tools/host-tool-execution-router.ts:233:        runtimeGenerationId: context.runtimeGenerationId,\npackages/host-runtime/src/tools/host-tool-execution-router.ts:238:      runId: context.runId,\npackages/host-runtime/src/tools/host-tool-execution-router.ts:240:      toolName: tool.descriptor.name,\npackages/host-runtime/src/tools/host-tool-execution-router.ts:267:      const runnerPromise = tool.execute(canonicalArgs, runnerSignal, context);\npackages/host-runtime/src/tools/session-host-tool-port.ts:4: * This is the authority boundary that validates `(sessionId,\npackages/host-runtime/src/tools/session-host-tool-port.ts:5: * runtimeGenerationId)` before executing any Host-owned tool side effect.\npackages/host-runtime/src/tools/session-host-tool-port.ts:52:  isSessionKnown: (sessionId: string) => boolean;\npackages/host-runtime/src/tools/session-host-tool-port.ts:54:  getRuntimeGenerationId: (sessionId: string) => string | undefined;\npackages/host-runtime/src/tools/session-host-tool-port.ts:56:  isRunAdmitted?: (runId: string, sessionId: string, runtimeGenerationId: string) => boolean;\npackages/host-runtime/src/tools/session-host-tool-port.ts:75:  toolNames: Set<string>;\npackages/host-runtime/src/tools/session-host-tool-port.ts:89: * Parent-owned port that validates session identity, runtime generation,\npackages/host-runtime/src/tools/session-host-tool-port.ts:93: * `runtimeGenerationId` does not match the session's active generation,\npackages/host-runtime/src/tools/session-host-tool-port.ts:114:    sessionId: string,\npackages/host-runtime/src/tools/session-host-tool-port.ts:115:    runtimeGenerationId: string,\npackages/host-runtime/src/tools/session-host-tool-port.ts:119:    const surfaces = this.getOrCreateSessionSurfaces(sessionId);\npackages/host-runtime/src/tools/session-host-tool-port.ts:122:    surfaces.pending.delete(runtimeGenerationId);\npackages/host-runtime/src/tools/session-host-tool-port.ts:123:    surfaces.active = this.createCachedTools(runtimeGenerationId, tools, admission);\npackages/host-runtime/src/tools/session-host-tool-port.ts:124:    this.surfacesBySession.set(sessionId, surfaces);\npackages/host-runtime/src/tools/session-host-tool-port.ts:132:    sessionId: string,\npackages/host-runtime/src/tools/session-host-tool-port.ts:133:    runtimeGenerationId: string,\npackages/host-runtime/src/tools/session-host-tool-port.ts:137:    const surfaces = this.getOrCreateSessionSurfaces(sessionId);\npackages/host-runtime/src/tools/session-host-tool-port.ts:139:      runtimeGenerationId,\npackages/host-runtime/src/tools/session-host-tool-port.ts:141:        runtimeGenerationId,\npackages/host-runtime/src/tools/session-host-tool-port.ts:147:    this.surfacesBySession.set(sessionId, surfaces);\npackages/host-runtime/src/tools/session-host-tool-port.ts:157:    sessionId: string,\npackages/host-runtime/src/tools/session-host-tool-port.ts:158:    runtimeGenerationId: string,\npackages/host-runtime/src/tools/session-host-tool-port.ts:163:    const surfaces = this.surfacesBySession.get(sessionId);\npackages/host-runtime/src/tools/session-host-tool-port.ts:165:      surfaces?.active?.generationId === runtimeGenerationId\npackages/host-runtime/\n[output truncated]",
+            "truncated": true
+          },
+          "queuedMs": 1,
+          "durationMs": 53
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-33bb69d344861cb6fde1c7ed",
+        "toolName": "read",
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/session-host-tool-port.ts\",\"offset\":288,\"limit\":80}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/session-host-tool-port.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L288-367",
+          "summary": "packages/host-runtime/src/tools/session-host-tool-port.ts",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/session-host-tool-port.ts",
+              "displayRef": "packages/host-runtime/src/tools/session-host-tool-port.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-fb05e371f985ddc7f04fc032",
+        "toolName": "read",
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/host-tool-execution-router.ts\",\"offset\":110,\"limit\":10…",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/host-tool-execution-router.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L110-209",
+          "summary": "packages/host-runtime/src/tools/host-tool-execution-router.ts",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/host-tool-execution-router.ts",
+              "displayRef": "packages/host-runtime/src/tools/host-tool-execution-router.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-47de41df3a10bdeb67669ce2",
+        "toolName": "read",
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/host-filesystem-tools.ts\",\"offset\":75,\"limit\":40}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L75-114",
+          "summary": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+              "displayRef": "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-9381973bb27876cb1cf34ae2",
+        "toolName": "read",
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/host-filesystem-tools.ts\",\"offset\":390,\"limit\":50}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L390-439",
+          "summary": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+              "displayRef": "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-fc1b56ce8e3d4322ec12076e",
+        "toolName": "read",
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/tool-admission.ts\",\"offset\":85,\"limit\":30}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/tool-admission.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L85-114",
+          "summary": "packages/host-runtime/src/tools/tool-admission.ts",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/tool-admission.ts",
+              "displayRef": "packages/host-runtime/src/tools/tool-admission.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-33f69f716a5b7fa8e6a8fa68",
+        "toolName": "piwin_subagent_wait",
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "other",
+          "title": "piwin_subagent_wait",
+          "inputPreview": "{\"runIds\":[\"c091b3ff-8d93-4916-8087-b8b8b3005e5f\"]}",
+          "actionVerb": "Waiting for subagents",
+          "summary": "1 run pending",
+          "subagentControl": {
+            "phase": "waiting",
+            "total": 1,
+            "completed": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "needsIntegration": 0,
+            "runs": [
+              {
+                "runId": "c091b3ff-8d93-4916-8087-b8b8b3005e5f",
+                "executionStatus": "running"
+              }
+            ]
+          }
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-33bb69d344861cb6fde1c7ed",
+        "isError": false,
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/session-host-tool-port.ts\",\"offset\":288,\"limit\":80}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/session-host-tool-port.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L288-367",
+          "summary": "packages/host-runtime/src/tools/session-host-tool-port.ts",
+          "output": {
+            "text": "  async execute(\n    input: HostToolExecutionInput,\n    signal: AbortSignal,\n  ): Promise<HostToolExecutionResult> {\n    if (signal.aborted) {\n      return { ok: false, code: 'aborted', message: 'tool execution aborted' };\n    }\n\n    // 1. Reject unknown session.\n    if (!this.options.isSessionKnown(input.sessionId)) {\n      return {\n        ok: false,\n        code: 'tool-not-available',\n        message: `session not found: ${input.sessionId}`,\n      };\n    }\n\n    // 2. Reject stale generation.\n    const activeGeneration = this.options.getRuntimeGenerationId(input.sessionId);\n    if (activeGeneration === undefined || input.runtimeGenerationId !== activeGeneration) {\n      return {\n        ok: false,\n        code: 'tool-not-available',\n        message: `stale runtime generation: expected ${activeGeneration ?? 'none'}, got ${input.runtimeGenerationId}`,\n      };\n    }\n\n    // A worker frame must carry the child task Run, not only the session id.\n    // Reject late frames after cancellation or after a Run owner has joined.\n    if (\n      this.options.isRunAdmitted &&\n      !this.options.isRunAdmitted(input.runId, input.sessionId, input.runtimeGenerationId)\n    ) {\n      return {\n        ok: false,\n        code: 'tool-not-available',\n        message: `run is not admitted for tool execution: ${input.runId}`,\n      };\n    }\n\n    // 3. Read the **active** router registered during generation compilation.\n    // The port never loads config or composes tools as a side effect of a\n    // tool call, and pending candidates are not executable.\n    const surfaces = this.surfacesBySession.get(input.sessionId);\n    const cached = surfaces?.active;\n    if (!cached || cached.generationId !== input.runtimeGenerationId) {\n      return {\n        ok: false,\n        code: 'tool-not-available',\n        message: `runtime generation surface is not registered: ${input.sessionId}/${input.runtimeGenerationId}`,\n      };\n    }\n    const router = cached.router;\n    const toolNames = cached.toolNames;\n\n    // 4. Reject descriptor absent from the active tool set.\n    if (!toolNames.has(input.toolName)) {\n      return {\n        ok: false,\n        code: 'tool-not-available',\n        message: `tool not in session manifest: ${input.toolName}`,\n      };\n    }\n\n    const scriptDenied = denyScriptDispatch(input.toolName, input.scriptInvocation);\n    if (scriptDenied) {\n      return scriptDenied;\n    }\n\n    if (input.toolName === HOST_TOOLBOX_NAME) {\n      return await this.executeCatalog(cached, input, signal);\n    }\n\n    // 5. Execute through the router. Run identity travels in the Host-only\n    // execution context, never through model-visible arguments.\n    return await router.execute(input.toolName, input.arguments, signal, executionContext(input));\n  }\n\n  readActiveRegistrations(\n    sessionId: string,\n\n[383 more lines in file. Use offset=368 to continue.]"
+          },
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/session-host-tool-port.ts",
+              "displayRef": "packages/host-runtime/src/tools/session-host-tool-port.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-47de41df3a10bdeb67669ce2",
+        "isError": false,
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/host-filesystem-tools.ts\",\"offset\":75,\"limit\":40}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L75-114",
+          "summary": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+          "output": {
+            "text": "\n  function resolvePath(path: string): string {\n    return isAbsolute(path) ? resolve(path) : resolve(cwd, path);\n  }\n\n  const readFileTool: HostToolRegistration = {\n    descriptor: {\n      name: 'read_file',\n      description:\n        'Read the contents of a file. Paths are relative to the session working directory.',\n      parameters: {\n        type: 'object',\n        properties: {\n          path: { type: 'string', description: 'File path (relative or absolute)' },\n        },\n        required: ['path'],\n      },\n    },\n    family: 'filesystem-read',\n    permissionSpec: {\n      action: 'filesystem:read',\n      risk: 'unknown',\n      rememberable: false,\n      readOnly: true,\n    },\n    fileEffect: { kind: 'none' },\n    prepareArgs: (rawArguments, _context, signal) =>\n      prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),\n    async execute(args) {\n      const filePath = String(args.path ?? '');\n      const content = await readFile(filePath, 'utf-8');\n      return { ok: true, output: content };\n    },\n  };\n\n  const writeFileTool: HostToolRegistration = {\n    descriptor: {\n      name: 'write_file',\n      description:\n        'Write a whole file (creates or overwrites). Creating a file or replacing its whole content MUST go through this tool so Host records it for undo. To change part of an existing file use `edit` instead (it keeps other sessions\\' concurrent changes); to move or rename use `move_file`. Paths are relative to the session working directory. Subject to permission policy.',\n\n[322 more lines in file. Use offset=115 to continue.]"
+          },
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+              "displayRef": "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-fb05e371f985ddc7f04fc032",
+        "isError": false,
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/host-tool-execution-router.ts\",\"offset\":110,\"limit\":10…",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/host-tool-execution-router.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L110-209",
+          "summary": "packages/host-runtime/src/tools/host-tool-execution-router.ts",
+          "output": {
+            "text": "  toolNames(): string[] {\n    return [...this.toolsByName.keys()].sort();\n  }\n\n  async execute(\n    toolName: string,\n    args: Record<string, unknown>,\n    signal: AbortSignal,\n    context: HostToolExecutionContext,\n  ): Promise<ToolExecutionResult> {\n    if (signal.aborted) {\n      return { ok: false, code: 'aborted', message: 'tool execution aborted before start' };\n    }\n\n    const tool = this.toolsByName.get(toolName);\n    if (!tool) {\n      return { ok: false, code: 'tool-not-available', message: `tool not available: ${toolName}` };\n    }\n    if (context.scriptInvocation) {\n      const denied = scriptReadonlyDenial(tool);\n      if (denied) {\n        return { ok: false, code: denied.code, message: denied.message };\n      }\n      if (!context.scriptInvocation.admittedToolNames.includes(tool.descriptor.name)) {\n        return {\n          ok: false,\n          code: 'tool-not-available',\n          message: `script cannot call ${tool.descriptor.name}`,\n        };\n      }\n    }\n\n    let canonicalArgs = args;\n    if (tool.prepareArgs) {\n      let prepared;\n      try {\n        prepared = await tool.prepareArgs(args, context, signal);\n      } catch (error) {\n        return signal.aborted\n          ? { ok: false, code: 'aborted', message: 'tool preparation aborted' }\n          : {\n              ok: false,\n              code: 'execution-failed',\n              message: `tool argument preparation failed for ${tool.descriptor.name}: ${formatError(error)}`,\n            };\n      }\n      if (!prepared.ok) {\n        return prepared.result;\n      }\n      canonicalArgs = prepared.arguments;\n    }\n    if (signal.aborted) {\n      return { ok: false, code: 'aborted', message: 'tool preparation aborted' };\n    }\n\n    const canonical = validateCanonicalArguments(canonicalArgs);\n    if (!canonical.ok) {\n      return canonical.result;\n    }\n\n    const toolCallId = context.toolCallId;\n    const result =\n      this.invocationLedger && toolCallId\n        ? await this.invocationLedger.run(\n            {\n              runId: context.runId,\n              toolCallId,\n              toolName: tool.descriptor.name,\n              fingerprint: fingerprintToolInvocation(tool.descriptor.name, canonicalArgs),\n              callerSignal: signal,\n            },\n            async (attempt) =>\n              await this.continuePreparedExecution(tool, canonicalArgs, context, attempt),\n          )\n        : await this.continuePreparedExecution(tool, canonicalArgs, context, {\n            invocationId: context.toolCallId ?? randomUUID(),\n            signal,\n            markRunnerStarted: () => undefined,\n          });\n    return result;\n  }\n\n  private async continuePreparedExecution(\n    tool: HostToolRegistration,\n    canonicalArgs: Record<string, unknown>,\n    context: HostToolExecutionContext,\n    attempt: LedgerAttempt,\n  ): Promise<ToolExecutionResult> {\n    const signal = attempt.signal;\n    const disabled = this.isToolDisabled?.(tool, canonicalArgs, context);\n    if (disabled) {\n      return toolDisabledResult({\n        message: disabled.message,\n        domain: disabled.domain,\n        runtimeGenerationId: context.runtimeGenerationId,\n      });\n    }\n\n    const decision = await resolveHostToolAdmission({\n      admission: this.admission,\n\n[149 more lines in file. Use offset=210 to continue.]"
+          },
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/host-tool-execution-router.ts",
+              "displayRef": "packages/host-runtime/src/tools/host-tool-execution-router.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-9381973bb27876cb1cf34ae2",
+        "isError": false,
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/host-filesystem-tools.ts\",\"offset\":390,\"limit\":50}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L390-439",
+          "summary": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+          "output": {
+            "text": "    bashTool,\n    runBashTool,\n  ];\n}\n\n\nfunction prepareResolvedPath(\n  rawArguments: Record<string, unknown>,\n  resolvePath: (path: string) => string,\n  signal: AbortSignal,\n  options: { required: boolean; defaultPath?: string },\n): { ok: true; arguments: Record<string, unknown> } | { ok: false; result: ToolResult } {\n  if (signal.aborted) {\n    return { ok: false, result: { ok: false, code: 'aborted', message: 'tool preparation aborted' } };\n  }\n  const rawPath = rawArguments.path;\n  if (rawPath === undefined || rawPath === null || rawPath === '') {\n    if (!options.required && options.defaultPath !== undefined) {\n      return { ok: true, arguments: { ...rawArguments, path: options.defaultPath } };\n    }\n    return { ok: false, result: { ok: false, code: 'invalid-input', message: 'path is required' } };\n  }\n  if (typeof rawPath !== 'string' || rawPath.trim().length === 0) {\n    return { ok: false, result: { ok: false, code: 'invalid-input', message: 'path is required' } };\n  }\n  return { ok: true, arguments: { ...rawArguments, path: resolvePath(rawPath.trim()) } };\n}\n\nfunction prepareBashArgs(\n  rawArguments: Record<string, unknown>,\n  signal: AbortSignal,\n): { ok: true; arguments: Record<string, unknown> } | { ok: false; result: ToolResult } {\n  if (signal.aborted) {\n    return { ok: false, result: { ok: false, code: 'aborted', message: 'tool preparation aborted' } };\n  }\n  if (typeof rawArguments.command !== 'string' || rawArguments.command.trim().length === 0) {\n    return {\n      ok: false,\n      result: { ok: false, code: 'invalid-input', message: 'command is required' },\n    };\n  }\n  return {\n    ok: true,\n    arguments: { ...rawArguments, command: rawArguments.command.trim() },\n  };\n}\n"
+          },
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/host-filesystem-tools.ts",
+              "displayRef": "packages/host-runtime/src/tools/host-filesystem-tools.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-fc1b56ce8e3d4322ec12076e",
+        "isError": false,
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/tool-admission.ts\",\"offset\":85,\"limit\":30}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/tool-admission.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L85-114",
+          "summary": "packages/host-runtime/src/tools/tool-admission.ts",
+          "output": {
+            "text": "    rules: createEmptyRuleSet(),\n    projectRoot: '/tmp',\n  };\n}\n\nexport async function resolveHostToolAdmission(input: {\n  admission: HostToolAdmission;\n  registration: HostToolRegistration;\n  args: Record<string, unknown>;\n  context: HostToolExecutionContext;\n  signal: AbortSignal;\n}): Promise<HostToolAdmissionDecision> {\n  try {\n    // Resource admission precedes policy on purpose: a command the Host will\n    // not run must not raise a permission prompt the user then approves for\n    // nothing. Read-only tools are never gated (see actionSpawnsSubprocesses).\n    const resource = input.admission.resourceGate?.({\n      action: input.registration.permissionSpec.action,\n    });\n    if (resource?.refuse) {\n      input.admission.onDiagnostic?.(\n        `resource admission refused ${input.registration.descriptor.name}: ` +\n          `${resource.availableMiB} MiB available, floor ${resource.requiredMiB} MiB`,\n      );\n      return {\n        allowed: false,\n        result: {\n          ok: false,\n          code: 'execution-failed',\n          message: resource.message,\n\n[121 more lines in file. Use offset=115 to continue.]"
+          },
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/tool-admission.ts",
+              "displayRef": "packages/host-runtime/src/tools/tool-admission.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-33f69f716a5b7fa8e6a8fa68",
+        "isError": false,
+        "responseMessageId": "piw-m-24a8eebc99644921f083152e",
+        "presentation": {
+          "kind": "other",
+          "title": "piwin_subagent_wait",
+          "inputPreview": "{\"runIds\":[\"c091b3ff-8d93-4916-8087-b8b8b3005e5f\"]}",
+          "actionVerb": "Subagent wait",
+          "summary": "1 run pending",
+          "subagentControl": {
+            "phase": "waited",
+            "total": 1,
+            "completed": 1,
+            "failed": 0,
+            "cancelled": 0,
+            "needsIntegration": 0,
+            "runs": [
+              {
+                "runId": "c091b3ff-8d93-4916-8087-b8b8b3005e5f",
+                "executionStatus": "completed",
+                "invocationId": "49492a50-6796-425e-a2e9-33c2bf4aa2d4",
+                "childSessionId": "9e1d91b9-2f0b-4694-915a-c53afc9a94d4",
+                "summaryPreview": "complete ``` port: packages/host-runtime/src/tools/session-host-tool-port.ts:288 SessionHostToolExecutionPort.execute router: packages/host-runtime/src/tools/host-tool-execution-router.ts:112 HostToolExecutionRouter.execute prepare: packag…",
+                "summaryStatus": "pending",
+                "integrationStatus": "not-requested"
+              }
+            ]
+          },
+          "output": {
+            "text": "subagent wait (1 runs)\nc091b3ff-8d93-4916-8087-b8b8b3005e5f:completed/not-requested complete\n```\nport: packages/host-runtime/src/tools/session-host-tool-port.ts:288 SessionHostToolExecutionPort.execute\nrouter: packages/host-runtime/src/tools/host-tool-execution-router.ts:112 HostToolExecutionRouter.execute\nprepare: packages/host-runtime/src/tools/host-filesystem-tools.ts:100-101 prepareArgs → prepareResolvedPath; packages/host-runtime/src/tools/host-filesystem-tools.ts:75-77 resolvePath; packages/host-runtime/src/tools/host-filesystem-tools.ts:375-398 prepareResolvedPath\nadmission: packages/host-runtime/src/tools/host-tool-execution-router.ts:194-201 resolveHostToolAdmission; packages/host-runtime/src/tools/tool-admission.ts:91 resolveHostToolAdmission\nexecutor: packages/host-runtime/src/tools/host-filesystem-tools.ts:102-106 readFileTool.execute\nidentityChecks: [sessionId, runtimeGenerationId, runId, toolName]\nreadOnly: true\nfileEffect: none  (fileEffect: { kind: 'none' })\nencoding: utf-8\n```\n\n### 1. port — identity + dispatch\n`packages/host-runtime/src/tools/session-host-tool-port.ts:288-361`\n```ts\nasync execute(\n  input: HostToolExecutionInput,\n  signal: AbortSignal,\n): Promise<HostToolExecutionResult> {\n  // 1. isSessionKnown(input.sessionId)\n  // 2. input.runtimeGenerationId !== activeGeneration → reject\n  // isRunAdmitted(input.runId, input.sessionId, input.runtimeGenerationId)\n  // 4. !toolNames.has(input.toolName) → reject\n  return await router.execute(input.toolName, input.arguments, signal, executionContext(input));\n}\n```\nInput shape (`packages/contracts/src/host-tool.ts:14-27`): `sessionId`, `runtimeGenerationId`, `runId`, `toolCallId?`, `toolName`, `arguments`, `scriptInvocation?`.  \n**Verified:** four identity fields gated in `execute` are **sessionId**, **runtimeGenerationId**, **runId**, **toolName**. (`toolCallId` is optional and not used for the availability gates above.)\n\n### 2. router — prepare parameters for `read_file`\n`packages/host-runtime/src/tools/host-tool-execution-router.ts:112-181`\n```ts\nasync execute(toolName, args, signal, context) {\n  const tool = this.toolsByName.get(toolName);\n  // …\n  if (tool.prepareArgs) {\n    prepared = await tool.prepareArgs(args, context, signal);\n    canonicalArgs = prepared.arguments;\n  }\n  // … ledger → continuePreparedExecution\n}\n```\n**Verified:** ordinary path (not toolbox/codemode) is `port.execute` → `router.execute(toolName, …)`.\n\n### 3. prepare — path → canonical absolute path\nRegistration (`host-filesystem-tools.ts:100-101`):\n```ts\nprepareArgs: (rawArguments, _context, signal) =>\n  prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),\n```\nResolver (`:75-77`):\n```ts\nfunction resolvePath(path: string): string {\n  return isAbsolute(path) ? resolve(path) : resolve(cwd, path);\n}\n```\nHelper (`:375-398`):\n```ts\nfunction prepareResolvedPath(...) {\n  // validates path string\n  return { ok: true, arguments: { ...rawArguments, path: resolvePath(rawPath.trim()) } };\n}\n```\n**Verified:** input `path` is trimmed and replaced with `node:path` `resolve` absolute path relative to session `cwd`.\n\n### 4. admission — permission gate after prepare\n`host-tool-execution-router.ts:194-201`:\n```ts\nconst decision = await resolveHostToolAdmission({\n  admission: this.admission,\n  registration: tool,\n  args: canonicalArgs,\n  context,\n  signal,\n});\n```\nImplementation: `packages/host-runtime/src/tools/tool-admission.ts:91` `resolveHostToolAdmission` (resource gate → permission mode → `policyEvaluator.evaluate` → optional `approvalBroker.resolve`).\n\n### 5. executor — UTF-8 byte/string read\n`packages/host-runtime/src/tools/host-filesystem-tools.ts:79-106`:\n```ts\nconst readFileTool: HostToolRegistration = {\n  descriptor: { name: 'read_file', … },\n  permissionSpec: { action: 'filesystem:read', …, readOnly: true },\n  fileEffect: { kind: 'none' },\n  async execute(args) {\n    const filePath = String(args.path ?? '');\n    const content = await readFile(filePath, 'utf-8');  // node:fs/promises\n    return { ok: true, output: content };\n  },\n};\n```\nInvoked from router `continuePreparedExecution` via `tool.execute(canonicalArgs, runnerSignal, context)` (`host-tool-execution-router.ts:238`).\n\n### Metadata (verified)\n| key | value | cite |\n|-----|--------|------|\n| identityChecks | sessionId, runtimeGenerationId, runId, toolName | session-host-tool-port.ts:296-356 |\n| readOnly | `true` | host-filesystem-tools.ts:96 |\n| fileEffect | `{ kind: 'none' }` (label kind **none**) | host-filesystem-tools.ts:99 |\n| encoding | `'utf-8'` | host-filesystem-tools.ts:104 (`import { readFile } from 'node:fs/promises'`) |\n\n**Excluded (per request):** toolbox branch `executeCatalog` / `HOST_TOOLBOX_NAME` (`session-host-tool-port.ts:357-358`); Codemode/script-only paths (`denyScriptDispatch`, `scriptReadonlyDenial`) not required for ordinary model `read_file`."
+          }
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-57a3dc3892bc9d2dea84829d",
+        "toolName": "read",
+        "responseMessageId": "piw-m-3d13faa92ca5306eb2d5177f",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/host-tool-execution-router.ts\",\"offset\":110,\"limit\":8}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/host-tool-execution-router.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L110-117",
+          "summary": "packages/host-runtime/src/tools/host-tool-execution-router.ts",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/host-tool-execution-router.ts",
+              "displayRef": "packages/host-runtime/src/tools/host-tool-execution-router.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/start",
+        "toolCallId": "piw-t-a5bc93ab0b305b6028c81c6f",
+        "toolName": "grep",
+        "responseMessageId": "piw-m-3d13faa92ca5306eb2d5177f",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"fileEffect\",\"glob\":\"packages/contracts/src/**/*.{ts,tsx}\",\"limit\":30}",
+          "targetPaths": [
+            "packages/contracts/src/**/*.{ts,tsx}"
+          ],
+          "actionVerb": "Searched",
+          "summary": "fileEffect",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/contracts/src/**/*.{ts,tsx}",
+              "displayRef": "packages/contracts/src/**/*.{ts,tsx}"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-57a3dc3892bc9d2dea84829d",
+        "isError": false,
+        "responseMessageId": "piw-m-3d13faa92ca5306eb2d5177f",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "read",
+          "inputPreview": "{\"path\":\"packages/host-runtime/src/tools/host-tool-execution-router.ts\",\"offset\":110,\"limit\":8}",
+          "targetPaths": [
+            "packages/host-runtime/src/tools/host-tool-execution-router.ts"
+          ],
+          "actionVerb": "Read",
+          "lineRange": "L110-117",
+          "summary": "packages/host-runtime/src/tools/host-tool-execution-router.ts",
+          "output": {
+            "text": "  toolNames(): string[] {\n    return [...this.toolsByName.keys()].sort();\n  }\n\n  async execute(\n    toolName: string,\n    args: Record<string, unknown>,\n    signal: AbortSignal,\n\n[241 more lines in file. Use offset=118 to continue.]"
+          },
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/host-runtime/src/tools/host-tool-execution-router.ts",
+              "displayRef": "packages/host-runtime/src/tools/host-tool-execution-router.ts"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    },
+    {
+      "sessionId": "session-mv3i7ftr-eiy52k4u",
+      "event": {
+        "type": "tool/end",
+        "toolCallId": "piw-t-a5bc93ab0b305b6028c81c6f",
+        "isError": false,
+        "responseMessageId": "piw-m-3d13faa92ca5306eb2d5177f",
+        "presentation": {
+          "kind": "filesystem",
+          "title": "grep",
+          "inputPreview": "{\"pattern\":\"fileEffect\",\"glob\":\"packages/contracts/src/**/*.{ts,tsx}\",\"limit\":30}",
+          "targetPaths": [
+            "packages/contracts/src/**/*.{ts,tsx}"
+          ],
+          "actionVerb": "Searched",
+          "summary": "fileEffect",
+          "output": {
+            "text": "packages/contracts/src/tool-registration.ts:187:   fileEffect?: HostToolFileEffect;"
+          },
+          "countTag": "1 matches",
+          "documentTargets": [
+            {
+              "kind": "project-file",
+              "relativePath": "packages/contracts/src/**/*.{ts,tsx}",
+              "displayRef": "packages/contracts/src/**/*.{ts,tsx}"
+            }
+          ]
+        },
+        "runId": "46c40372-4f50-4ed4-81a3-ad9b7eb82ed1"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "level": "info",
+      "message": "toolchain PATH extended from the login shell (+2 entries)"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-eb884c89689e3c9bb3a28bff activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-0ab47bfdabe704c7b4f228b7 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-9d78b370d61b789fcef86ae3 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-0850a656135971b4febfc9b7 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-76ce80d9eb6733a393d61db6 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-98689ff2155bfcabbcef91cc activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-7d5dead096a3f9e14530c480 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-7d727b9d080159a894cbe9bc activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-40af0e6fbe5599de234c40a9 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-e2b9cc72d630e33152ed5b1a activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-99edf526fe8d2066cb52c7bf activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-77f5af31102a5d22e8b9abf4 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-be9ff9d4a18b7de0c0338a99 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-48cd677b8ed5ae2b59329a84 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-015baa42a7d0b633289deb86 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-f9e5b8a32a955d262e7d78fe activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-57d49000635cb907be836c12 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-e9656b7f3df50014238aae41 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-67f34a47b525f8f20d15b09b activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-d240a50148a13702365ca2f4 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-fdce7f89df613de5e98dfbd4 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-364e091e0f1ec411736d198e activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=dd3b6bde-4185-4a14-9d5b-90c9e899fe9d): messageId=piw-m-a57ea7427fe2496f6f1fbe88 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-1fb7c897ec71ebdece23221b activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-25607bd82c51501df993d6a8 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-89b1fce9375b449625acc688 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-5dd1389cec46a514e1c9da5c activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-9e9f8ce6356af66240773072 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-e372240f697916547d959abf activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-c7ed2e53c8352892446357e9 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "[transcript] transcript delta dropped (message_end runId=46c40372-4f50-4ed4-81a3-ad9b7eb82ed1): messageId=piw-m-d82df39afd283e9119d2bcd0 activeRows=0"
+    },
+    {
+      "level": "warn",
+      "message": "auto-name: LLM title failed for session-mv3i7ftr-eiy52k4u: Provider xai: no API key. Paste a key in the provider form, or leave empty for local no-auth endpoints."
+    }
+  ]
+}
