@@ -44,6 +44,13 @@ export type SessionBackendOperationSupport =
 export type SessionBackendCapabilities = {
   agentId: string;
   operations: Record<SessionBackendOperation, SessionBackendOperationSupport>;
+  /**
+   * Optional native interactive CLI surface for this backend session.
+   * Absent means unsupported. Not a `SESSION_BACKEND_OPERATIONS` entry so legacy
+   * full-Record fixtures keep compiling. Pi's embedded TUI is separate and must
+   * not be implied by this field.
+   */
+  nativeCli?: SessionBackendOperationSupport;
 };
 
 /** One entry of a backend-provided select list (model, effort, mode). */
@@ -145,5 +152,23 @@ export function sessionOperationUnsupportedReason(
     return undefined;
   }
   const support = capabilities.operations[operation];
+  return support.supported ? undefined : support.reason;
+}
+
+/** Absent `nativeCli` is unsupported; never invent Pi native-CLI support. */
+export function isNativeCliSupported(
+  capabilities: SessionBackendCapabilities | undefined,
+): boolean {
+  return capabilities?.nativeCli?.supported === true;
+}
+
+/** Reason when native CLI is absent or explicitly unsupported. */
+export function nativeCliUnsupportedReason(
+  capabilities: SessionBackendCapabilities | undefined,
+): string | undefined {
+  const support = capabilities?.nativeCli;
+  if (support === undefined) {
+    return 'Native CLI is not available for this backend.';
+  }
   return support.supported ? undefined : support.reason;
 }

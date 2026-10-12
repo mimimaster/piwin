@@ -570,3 +570,54 @@ The native addon stays external in Host packaging, including its executable
 spawn helper. node-pty is pinned to `1.2.0-beta.12` because the stable `1.1.0`
 macOS tarball ships that helper without execute permission (upstream #919).
 The bundled ESM/pruned-dependency smoke exercises a real PTY after packaging.
+
+### Amendment: Generic native CLI + bounded user-input contracts (staged, additive)
+
+**Status: contracts only — not shipped Host runtime / Desktop UI.** This
+subsection records the additive `@piwin/contracts` surface that later Host and
+plugin steps implement. It does not claim launch, ownership handoff, input UI,
+or Claude/Codex adapters are live.
+
+1. **`agents/cli-open` agent id is a bounded external slug.**
+   `AgentCliOpenInput.agentId` is a string validated by `isAgentPluginId` (Pi
+   remains a distinct built-in route and is never a native-CLI agent id).
+   The open payload is strict: no client-supplied `executable` / `argv` /
+   `env` / `cwd`. Terminal `cols`/`rows` keep existing bounds. Syntactic
+   validity is not Host install/trust/readiness. Existing `agents/cli-open`
+   and `agents/cli-sync` command family is unchanged; Grok-shaped inputs stay
+   accepted.
+
+2. **Optional `nativeCli` capability.** `SessionBackendCapabilities.nativeCli`
+   and ready/unauthenticated `ExternalAgentStatus.nativeCli` reuse
+   `SessionBackendOperationSupport`. Absent means unsupported. Helpers treat
+   absent as false; agent-level use also requires `state: 'ready'`. This is
+   **not** added to `SESSION_BACKEND_OPERATIONS` (legacy full-Record fixtures).
+   Pi must not implicitly claim native CLI; Pi's embedded TUI is separate.
+
+3. **Optional plugin method `session/cli-launch`.** Params are
+   `AgentPluginOpenInput` (cwd + binding with stored native id). Result is only
+   `{ backendSessionId, args }` — never executable/cwd/env. The Host pairs the
+   descriptor with the binary already verified via `initialize.runtime.binaryPath`
+   and a trusted cwd. Pure decoder
+   `parseAgentPluginCliLaunchResult` rejects unknown keys, empty/mismatched ids,
+   control characters in argv, and oversize args; exact `args` must contain the
+   native id as a separate element and may be checked against a trusted expected
+   id. Call only when `hostCapabilities.nativeCliLaunch` was negotiated.
+   Protocol version stays `1`; extension declaration schema is not bumped.
+
+4. **Host-managed ownership contract types.** `AgentCliOwnership`
+   (`desktop` | `native` | `switching`) and `AgentCliFailureCode`
+   (`cli-unsupported` | `not-ready` | `session-unavailable` | `writer-busy` |
+   `transition-failed`) describe one product-session writer handoff inside the
+   Host, not an OS-wide CLI lease. No lifecycle implementation in this stage.
+   `AgentCliOpenData` remains `{ ptyId, sessionId }`.
+
+5. **Bounded native user input.** `backend-user-input` defines request/answer
+   validators (title, ≤8 questions, text|select, unique ids, choice bounds,
+   required defaults, cancelled XOR answers, 64 KiB aggregate). Plugin callback
+   `input/request` carries `{ request, runId? }` → cancelled/answers. Call only
+   when `hostCapabilities.nativeUserInput` is negotiated. Pending-request id and
+   cancel stay on the outer plugin frame correlation; no duplicate run authority.
+
+Later steps own Host launch/history one-writer handoff, Desktop mapping, and
+independent local Claude/Codex plugins. Plugin repositories remain external.

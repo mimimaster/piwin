@@ -5,6 +5,8 @@ import type { SessionBackendCapabilities, SessionBackendOptions, BackendPermissi
 import type { ExternalAgentStatus, ExternalAgentMcpServerStatus } from './external-agent-status.js';
 import type { BackendWorkflowSnapshot } from './backend-workflow.js';
 import type { BackendRunIntervention, BackendRunInterventionEvent, BackendRunInterventionEventResult } from './run-intervention.js';
+import type { AgentPluginCliLaunchResult } from './agent-plugin-cli-launch.js';
+import type { BackendUserInputRequest, BackendUserInputResult } from './backend-user-input.js';
 
 export const AGENT_PLUGIN_PROTOCOL_VERSION = 1;
 export const AGENT_PLUGIN_MAX_FRAME_BYTES = 2 * 1024 * 1024;
@@ -28,6 +30,10 @@ export type AgentPluginOpenInput = { cwd: string; binding: SessionBackendBinding
 export type AgentPluginHostCapabilities = {
   /** Accept ordered agent emissions as history while session/load is pending. */
   replayStreaming?: boolean;
+  /** Host will call `session/cli-launch` only when this is true. */
+  nativeCliLaunch?: boolean;
+  /** Host answers `input/request` only when this is true. */
+  nativeUserInput?: boolean;
 };
 export type AgentPluginOpenedSession = {
   backendSessionId: string;
@@ -103,14 +109,28 @@ export type AgentPluginRequestMap = {
   'session/mcp-status': { params: Record<string, never>; result: { servers: ExternalAgentMcpServerStatus[]; observed: boolean } };
   'session/workflows': { params: AgentPluginOpenInput; result: BackendWorkflowSnapshot[] };
   'session/workflow-report': { params: AgentPluginOpenInput & { workflowId: string }; result: { workflowId: string; text: string } };
+  /**
+   * Optional native CLI argv descriptor for a bound session. Call only when
+   * `hostCapabilities.nativeCliLaunch` was negotiated. Result carries no
+   * executable/cwd/env; Host supplies the verified binary and trusted cwd.
+   */
+  'session/cli-launch': { params: AgentPluginOpenInput; result: AgentPluginCliLaunchResult };
   'session/release': { params: Record<string, never>; result: null };
   'plugin/dispose': { params: Record<string, never>; result: null };
 };
 
-/** Reverse calls bridge existing permission/intervention channels, never arbitrary Host calls. */
+/** Reverse calls bridge existing permission/intervention/input channels, never arbitrary Host calls. */
 export type AgentPluginCallbackMap = {
   'permission/request': { params: AgentPluginPermissionPrompt; result: AgentPluginPermissionDecision };
   'intervention/event': { params: BackendRunInterventionEvent; result: BackendRunInterventionEventResult };
+  /**
+   * Bounded native user-input prompt. Call only when `hostCapabilities.nativeUserInput`
+   * was negotiated. Pending-request id and cancel stay on the outer frame correlation.
+   */
+  'input/request': {
+    params: { request: BackendUserInputRequest; runId?: string };
+    result: BackendUserInputResult;
+  };
 };
 export type AgentPluginMethodMap = AgentPluginRequestMap & AgentPluginCallbackMap;
 export type AgentPluginMethod = keyof AgentPluginMethodMap;
@@ -120,8 +140,8 @@ export const AGENT_PLUGIN_METHODS = [
   'session/new', 'session/load', 'session/resume', 'session/prompt', 'session/cancel',
   'session/options', 'session/model', 'session/effort', 'session/mode', 'session/commands',
   'session/interject', 'session/interject-cancel', 'session/mcp-status',
-  'session/workflows', 'session/workflow-report', 'session/release', 'plugin/dispose',
-  'permission/request', 'intervention/event',
+  'session/workflows', 'session/workflow-report', 'session/cli-launch', 'session/release', 'plugin/dispose',
+  'permission/request', 'intervention/event', 'input/request',
 ] as const satisfies readonly AgentPluginMethod[];
 
 export type AgentPluginProtocolFailure = {

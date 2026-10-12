@@ -4,12 +4,16 @@ import {
   isAgentBackendId,
   isAllowPermissionOptionKind,
   isBackendPermissionOptionKind,
+  isExternalAgentNativeCliReady,
   isExternalBackendBinding,
+  isNativeCliSupported,
   isSessionOperationSupported,
+  nativeCliUnsupportedReason,
   parseSessionBackendBinding,
   resolveSessionAgentId,
   SESSION_BACKEND_OPERATIONS,
   sessionOperationUnsupportedReason,
+  type ExternalAgentStatus,
   type SessionBackendCapabilities,
 } from './index.js';
 
@@ -78,6 +82,56 @@ describe('session backend capabilities', () => {
     capabilities.operations.images = { supported: false, reason: 'no images' };
     expect(isSessionOperationSupported(capabilities, 'images')).toBe(false);
     expect(sessionOperationUnsupportedReason(capabilities, 'images')).toBe('no images');
+  });
+
+  it('treats absent nativeCli as unsupported without claiming Pi native CLI', () => {
+    const capabilities = createPiSessionCapabilities();
+    expect(isNativeCliSupported(undefined)).toBe(false);
+    expect(isNativeCliSupported(capabilities)).toBe(false);
+    expect(nativeCliUnsupportedReason(capabilities)).toMatch(/not available/i);
+    expect(SESSION_BACKEND_OPERATIONS.includes('nativeCli' as never)).toBe(false);
+
+    const withCli: SessionBackendCapabilities = {
+      ...capabilities,
+      nativeCli: { supported: true },
+    };
+    expect(isNativeCliSupported(withCli)).toBe(true);
+    expect(nativeCliUnsupportedReason(withCli)).toBeUndefined();
+
+    const denied: SessionBackendCapabilities = {
+      ...capabilities,
+      nativeCli: { supported: false, reason: 'no native TUI' },
+    };
+    expect(isNativeCliSupported(denied)).toBe(false);
+    expect(nativeCliUnsupportedReason(denied)).toBe('no native TUI');
+  });
+});
+
+describe('external agent native CLI readiness', () => {
+  const base = {
+    agentId: 'grok',
+    binaryPath: '/usr/bin/grok',
+    version: '1.0.0',
+    supportStatus: 'verified' as const,
+    checkedAt: '2026-10-12T00:00:00.000Z',
+  };
+
+  it('requires ready state even when unauthenticated advertises nativeCli', () => {
+    const unauthenticated: ExternalAgentStatus = {
+      ...base,
+      state: 'unauthenticated',
+      nativeCli: { supported: true },
+    };
+    const ready: ExternalAgentStatus = {
+      ...base,
+      state: 'ready',
+      nativeCli: { supported: true },
+    };
+    const readyAbsent: ExternalAgentStatus = { ...base, state: 'ready' };
+    expect(isExternalAgentNativeCliReady(unauthenticated)).toBe(false);
+    expect(isExternalAgentNativeCliReady(ready)).toBe(true);
+    expect(isExternalAgentNativeCliReady(readyAbsent)).toBe(false);
+    expect(isExternalAgentNativeCliReady(undefined)).toBe(false);
   });
 });
 

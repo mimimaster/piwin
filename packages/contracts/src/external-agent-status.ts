@@ -33,11 +33,24 @@ export type ExternalAgentStatus =
       permissionMode?: string;
       /** Agent-level defaults for a new session (models, commands, modes). */
       options?: import('./agent-backend-capabilities.js').SessionBackendOptions;
+      /**
+       * Optional agent-level native CLI advertisement. May appear while
+       * `unauthenticated`; callers must still require `state: 'ready'` before use.
+       */
+      nativeCli?: import('./agent-backend-capabilities.js').SessionBackendOperationSupport;
       checkedAt: string;
     };
 
 export function isExternalAgentReady(status: ExternalAgentStatus | undefined): boolean {
   return status?.state === 'ready';
+}
+
+/**
+ * Native CLI is usable only when the agent is ready and explicitly advertises
+ * support. Absent capability or non-ready states are false.
+ */
+export function isExternalAgentNativeCliReady(status: ExternalAgentStatus | undefined): boolean {
+  return status?.state === 'ready' && status.nativeCli?.supported === true;
 }
 
 /** Bounded MCP server status projected from the agent; never carries env or headers. */

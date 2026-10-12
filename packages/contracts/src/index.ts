@@ -168,3 +168,5 @@ export * from './live-system-activity.js';
 export type { HostAttachTarget } from './host-attach-target.js';
 
 export * from './agent-cli.js';
+export * from './agent-plugin-cli-launch.js';
+export * from './backend-user-input.js';

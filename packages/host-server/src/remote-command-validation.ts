@@ -2,6 +2,7 @@ import type { HostCommand, PromptAttachment } from '@piwin/contracts';
 import {
   ACTIVITY_SUMMARY_MAX_ITEMS,
   AGENT_CLI_MAX_INPUT_CHARS,
+  isAgentCliOpenInput,
   isValidTerminalSize,
   isValidHostEntryName,
   isFlashcardStudyCommandType,
@@ -75,9 +76,11 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
   switch (command.type) {
     case 'agents/cli-open': {
       const input: unknown = command.input;
-      return isRecord(input) && input.agentId === 'grok' &&
-        (input.sessionId === undefined || (typeof input.sessionId === 'string' && isSafeRemoteId(input.sessionId))) &&
-        isSafeRemoteProjectLocator(input.projectPath) && isValidTerminalSize(input.cols, input.rows);
+      // Shape/spawn-override rejection is shared with contracts; remote still
+      // applies opaque project-id policy and session-id length bounds.
+      return isAgentCliOpenInput(input) &&
+        (input.sessionId === undefined || isSafeRemoteId(input.sessionId)) &&
+        isSafeRemoteProjectLocator(input.projectPath);
     }
     case 'agents/cli-sync': return isSafeRemoteId(command.sessionId);
     case 'pty/write': return isSafeRemoteId(command.ptyId) && typeof command.data === 'string' && command.data.length <= AGENT_CLI_MAX_INPUT_CHARS;

@@ -14,7 +14,13 @@ import {
   parseAgentPluginPromptOutcome,
 } from './agent-plugin-frame.js';
 import type { AgentPluginInstallation, ExecutableAgentPluginManifest } from './agent-plugin.js';
-import { AGENT_PLUGIN_MAX_FRAME_BYTES, type AgentPluginRequestMap } from './agent-plugin-protocol.js';
+import {
+  AGENT_PLUGIN_MAX_FRAME_BYTES,
+  AGENT_PLUGIN_METHODS,
+  type AgentPluginRequestMap,
+} from './agent-plugin-protocol.js';
+import { parseAgentPluginCliLaunchResult } from './agent-plugin-cli-launch.js';
+import { parseBackendUserInputRequest } from './backend-user-input.js';
 
 const SHA = 'a'.repeat(64);
 const OLD = 'b'.repeat(64);
@@ -126,7 +132,11 @@ describe('agent plugin frames', () => {
   it('keeps capability negotiation additive and the 2 MiB frame limit unchanged', () => {
     const legacy = { agentId: 'grok', pluginRevision: SHA, hostProtocolVersion: 1, runtime: {} } satisfies AgentPluginRequestMap['plugin/initialize']['params'];
     const streaming = { ...legacy, hostCapabilities: { replayStreaming: true } } satisfies AgentPluginRequestMap['plugin/initialize']['params'];
-    for (const params of [legacy, streaming]) {
+    const native = {
+      ...legacy,
+      hostCapabilities: { replayStreaming: true, nativeCliLaunch: true, nativeUserInput: true },
+    } satisfies AgentPluginRequestMap['plugin/initialize']['params'];
+    for (const params of [legacy, streaming, native]) {
       expect(parseAgentPluginFrame(JSON.stringify({
         protocolVersion: 1, kind: 'request', scope: { kind: 'plugin' }, requestId: 'init', method: 'plugin/initialize', params,
       })).kind).toBe('request');
@@ -136,6 +146,31 @@ describe('agent plugin frames', () => {
       protocolVersion: 1, kind: 'event', scope,
       emission: { type: 'agent', event: { type: 'message/text_delta', messageId: 'history', delta: '界'.repeat(700000) } },
     }))).toThrow('frame size');
+  });
+
+  it('recognizes optional session/cli-launch and input/request without bumping protocol version', () => {
+    expect(AGENT_PLUGIN_METHODS).toContain('session/cli-launch');
+    expect(AGENT_PLUGIN_METHODS).toContain('input/request');
+    const launchLine = JSON.stringify({
+      protocolVersion: 1, kind: 'response', scope, requestId: 'cli-1', method: 'session/cli-launch', ok: true,
+      result: { backendSessionId: 'native-1', args: ['--resume', 'native-1'] },
+    });
+    const launchFrame = parseAgentPluginFrame(launchLine, { scope, method: 'session/cli-launch', kind: 'response' });
+    expect(launchFrame.kind === 'response' && launchFrame.ok
+      ? parseAgentPluginCliLaunchResult(launchFrame.result, 'native-1')
+      : undefined).toEqual({ backendSessionId: 'native-1', args: ['--resume', 'native-1'] });
+
+    const inputParams = {
+      request: parseBackendUserInputRequest({
+        title: 'Confirm',
+        questions: [{ id: 'q1', prompt: 'Go?', type: 'text' }],
+      }),
+      runId: 'run-1',
+    };
+    expect(inputParams.request).toBeDefined();
+    expect(parseAgentPluginFrame(JSON.stringify({
+      protocolVersion: 1, kind: 'request', scope, requestId: 'in-1', method: 'input/request', params: inputParams,
+    })).kind).toBe('request');
   });
 
   it('carries streamed replay completion in a small load response', () => {
