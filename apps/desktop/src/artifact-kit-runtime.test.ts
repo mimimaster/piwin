@@ -91,6 +91,38 @@ describe('artifact kit runtime', () => {
     ]);
   });
 
+  it('colors status series by tone, by name, and donut slices by tones', () => {
+    loadKit(
+      chartFigure('bar', {
+        labels: ['a'],
+        series: [
+          { name: '成功', values: [3] },
+          { name: '失败', values: [1] },
+          { name: 'Flaky', values: [1] },
+          { name: 'p95', values: [2], tone: 'info' },
+          { name: 'neutral', values: [2] },
+          { name: 'bogus', values: [2], tone: 'javascript:alert(1)' },
+        ],
+      }) +
+        chartFigure('donut', { labels: ['通过', '建议', 'other'], series: [{ values: [18, 4, 1] }], tones: [null, null, 'risk'] }),
+    );
+    const [bar, donut] = [...document.querySelectorAll('figure')];
+    expect([...bar!.querySelectorAll('rect')].map((r) => r.getAttribute('fill'))).toEqual([
+      'var(--piwin-artifact-ok)',
+      'var(--piwin-artifact-risk)',
+      'var(--piwin-artifact-warn)',
+      'var(--piwin-artifact-info)',
+      'var(--piwin-artifact-series-5)',
+      'var(--piwin-artifact-series-6)',
+    ]);
+    const slices = [...donut!.querySelectorAll('circle')].slice(1).map((c) => c.getAttribute('stroke'));
+    expect(slices).toEqual([
+      'var(--piwin-artifact-ok)',
+      'var(--piwin-artifact-warn)',
+      'var(--piwin-artifact-risk)',
+    ]);
+  });
+
   it('leaves a figure with broken JSON untouched', () => {
     document.body.innerHTML = '';
     loadKit('<figure data-piwin-chart="bar"><script type="application/json">{nope</script><figcaption>Still here</figcaption></figure>');

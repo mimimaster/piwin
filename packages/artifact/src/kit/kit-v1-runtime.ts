@@ -15,6 +15,23 @@ var VERSION = '1.0.0';
 var NS = 'http://www.w3.org/2000/svg';
 var COLOR = /^var\(--piwin-artifact-[a-z0-9-]+\)$/;
 var KINDS = { bar: 1, line: 1, donut: 1, spark: 1 };
+var TONES = { ok: 1, warn: 1, risk: 1, info: 1, accent: 1, 'accent-2': 1, muted: 1 };
+// Status names color themselves when the author gave no tone or color, so a
+// "失败" series is never painted in a cheerful accent.
+var TONE_WORDS = [
+  ['ok', /^(?:ok|success(?:ful)?|succeeded|pass(?:ed|ing)?|done|healthy|成功|通过|完成|正常|健康)$/i],
+  ['risk', /^(?:fail(?:ed|s|ure|ures)?|error(?:s)?|blocked|blocker(?:s)?|critical|失败|错误|阻塞|异常|严重)$/i],
+  ['warn', /^(?:warn(?:ing|ings)?|flaky|suggest(?:ion|ions)?|skipped|警告|建议|不稳定|跳过)$/i],
+  ['info', /^(?:info|note|notes|提示|信息)$/i]
+];
+function inferTone(name) {
+  var text = String(name == null ? '' : name).trim();
+  for (var i = 0; i < TONE_WORDS.length; i++) if (TONE_WORDS[i][1].test(text)) return TONE_WORDS[i][0];
+  return null;
+}
+function toneColor(tone) {
+  return typeof tone === 'string' && TONES[tone] ? 'var(--piwin-artifact-' + tone + ')' : null;
+}
 
 function svgEl(tag, attrs, into) {
   var node = document.createElementNS(NS, tag);
@@ -23,8 +40,10 @@ function svgEl(tag, attrs, into) {
   return node;
 }
 function num(value) { var n = Number(value); return isFinite(n) ? n : 0; }
-function seriesColor(color, index) {
+function seriesColor(color, index, tone, name) {
   if (typeof color === 'string' && COLOR.test(color.trim())) return color.trim();
+  var toned = toneColor(tone) || toneColor(inferTone(name));
+  if (toned) return toned;
   return 'var(--piwin-artifact-series-' + ((index % 6) + 1) + ')';
 }
 function fmt(value) {
@@ -42,8 +61,11 @@ function normalize(spec, kindHint) {
   var series = rawSeries.slice(0, 8).map(function (s, i) {
     s = s && typeof s === 'object' ? s : {};
     var values = Array.isArray(s.values) ? s.values.slice(0, 500).map(num) : [];
-    return { name: s.name == null ? '' : String(s.name), values: values, color: seriesColor(s.color, i) };
+    return { name: s.name == null ? '' : String(s.name), values: values, color: seriesColor(s.color, i, s.tone, s.name) };
   });
+  var tones = Array.isArray(spec.tones) ? spec.tones.slice(0, 200) : [];
+  // Donut slices are labels, not series: color each from tones[i] or its label.
+  var sliceColors = labels.map(function (label, i) { return seriesColor(null, i, tones[i], label); });
   var count = labels.length;
   series.forEach(function (s) { if (s.values.length > count) count = s.values.length; });
   var height = num(spec.height) || (kind === 'spark' ? 28 : kind === 'donut' ? 160 : 150);
@@ -51,7 +73,7 @@ function normalize(spec, kindHint) {
   var max = num(spec.max);
   if (!max) series.forEach(function (s) { s.values.forEach(function (v) { if (v > max) max = v; }); });
   return {
-    kind: kind, labels: labels, series: series, count: count, height: height, max: max || 1,
+    kind: kind, labels: labels, series: series, sliceColors: sliceColors, count: count, height: height, max: max || 1,
     center: spec.center == null ? '' : String(spec.center).slice(0, 24),
     legend: spec.legend === false ? false : (series.length > 1 || kind === 'donut')
   };
@@ -126,7 +148,7 @@ function drawDonut(svg, c, width) {
   values.forEach(function (v, i) {
     var part = total > 0 ? Math.max(0, v) / total : 0;
     var arc = svgEl('circle', {
-      cx: cx, cy: cy, r: r, fill: 'none', stroke: (c.series.length > 1 && c.series[i]) ? c.series[i].color : seriesColor(null, i),
+      cx: cx, cy: cy, r: r, fill: 'none', stroke: (c.series.length > 1 && c.series[i]) ? c.series[i].color : (c.sliceColors[i] || seriesColor(null, i)),
       'stroke-width': stroke, 'stroke-dasharray': (part * circumference).toFixed(2) + ' ' + circumference.toFixed(2),
       'stroke-dashoffset': (-offset * circumference).toFixed(2), transform: 'rotate(-90 ' + cx + ' ' + cy + ')'
     }, svg);
@@ -144,7 +166,7 @@ function drawLegend(host, c) {
   var legend = document.createElement('div');
   legend.className = 'piwin-chart-legend';
   var items = c.kind === 'donut' && c.series.length <= 1
-    ? c.labels.map(function (label, i) { return { name: label, color: seriesColor(null, i) }; })
+    ? c.labels.map(function (label, i) { return { name: label, color: c.sliceColors[i] || seriesColor(null, i) }; })
     : c.series.map(function (s) { return { name: s.name, color: s.color }; });
   items.forEach(function (item) {
     if (!item.name) return;

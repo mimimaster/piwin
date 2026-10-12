@@ -28,6 +28,12 @@ describe('Artifact rendering context', () => {
       expect(formatArtifactHostTheme(mode)).toBeUndefined();
     },
   );
+  it('keeps expressive stages on the host side of light/dark', () => {
+    const light = formatArtifactHostTheme('light') ?? '';
+    expect(light).toContain('This includes style="expressive": its stage, hero and cards stay on the light side');
+    expect(light).toContain('A dark stage is flagged as off-theme.');
+    expect(formatArtifactHostTheme('dark')).toContain('stay on the dark side');
+  });
   it('tracks layout-only context as one ledger entry', () => {
     const original: PromptInput = { text: 'Compare phones', inlineArtifactWidthPx: 679.6, artifactKit: 1 };
     const prepared = { ...original };

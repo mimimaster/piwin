@@ -75,13 +75,23 @@ describe('mapThemeToArtifactVariables', () => {
       expect(vars['--piwin-artifact-warn']).toBe(deck.amber);
       expect(vars['--piwin-artifact-risk']).toBe(deck.coral);
       expect(vars['--piwin-artifact-info']).toBe(deck.sky);
-      expect(vars['--piwin-artifact-series-1']).toBe(deck.iris);
+      expect(vars['--piwin-artifact-series-1']).toBe(deck.sky);
+      expect(vars['--piwin-artifact-series-2']).toBe(deck.iris);
       expect(vars['--piwin-artifact-surface-2']).toBe(
         theme.mode === 'dark' ? deck.surface4 : deck.surface2,
       );
       expect(vars['--piwin-artifact-surface-2']).not.toBe(vars['--piwin-artifact-surface']);
     },
   );
+
+  it('never starts Inkstone chart series on the accent or a status red', () => {
+    for (const id of ['piwin-inkstone-ink', 'piwin-inkstone-paper']) {
+      const vars = mapThemeToArtifactVariables(bundledTheme(id));
+      expect(vars['--piwin-artifact-series-1']).toBe(vars['--piwin-artifact-info']);
+      expect(vars['--piwin-artifact-series-1']).not.toBe(vars['--piwin-artifact-accent']);
+      expect(vars['--piwin-artifact-series-6']).toBe(vars['--piwin-artifact-risk']);
+    }
+  });
 
   it('lets a theme author override v14 tokens', () => {
     const vars = mapThemeToArtifactVariables({

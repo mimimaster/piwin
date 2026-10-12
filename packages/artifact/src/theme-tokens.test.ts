@@ -12,6 +12,13 @@ describe('v14 artifact vocabulary', () => {
     }
   });
 
+  it('starts chart series on a neutral hue and keeps status hues last', () => {
+    const vars = new Map(resolveArtifactThemeCssVariables(createDefaultArtifactTheme('dark')));
+    expect(vars.get('--piwin-artifact-series-1')).toBe('var(--piwin-artifact-info)');
+    expect(vars.get('--piwin-artifact-series-5')).toBe('var(--piwin-artifact-ok)');
+    expect(vars.get('--piwin-artifact-series-6')).toBe('var(--piwin-artifact-risk)');
+  });
+
   it('prefers authored values over derived fallbacks', () => {
     const theme = { ...createDefaultArtifactTheme('dark'), '--piwin-artifact-ok': '#00ff88' };
     expect(new Map(resolveArtifactThemeCssVariables(theme)).get('--piwin-artifact-ok')).toBe('#00ff88');

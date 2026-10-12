@@ -61,6 +61,32 @@ export function buildArtifactContrastProbeRuntime(): string {
     var la = probeLuminance(a), lb = probeLuminance(b);
     return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
   };
+  // Every color stop in a gradient, so a full-bleed gradient stage counts as
+  // a fill for the theme-side check.
+  var probeGradientStops = function (image) {
+    if (!image || image === 'none' || /url\\(/i.test(image)) return [];
+    var tokens = image.match(/(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\\([^()]*(?:\\([^()]*\\)[^()]*)*\\)|#[0-9a-f]{3,8}\\b/gi) || [];
+    var stops = [];
+    for (var i = 0; i < tokens.length && i < 12; i += 1) {
+      var stop = probeRgba(tokens[i]);
+      if (stop && stop.a > 0) stops.push(stop);
+    }
+    return stops;
+  };
+  var probeElementFill = function (element) {
+    var style = getComputedStyle(element);
+    var stops = probeGradientStops(style.backgroundImage);
+    if (stops.length > 0) {
+      var opaque = 0, lum = 0;
+      for (var i = 0; i < stops.length; i += 1) {
+        opaque += stops[i].a;
+        lum += probeLuminance(stops[i]);
+      }
+      if (opaque / stops.length >= 0.9) return lum / stops.length;
+    }
+    var fill = probeRgba(style.backgroundColor);
+    return fill && fill.a >= 0.9 ? probeLuminance(fill) : null;
+  };
   var probeGradientColor = function (image) {
     if (!image || image === 'none') return null;
     if (/url\\(/i.test(image)) return 'image';
@@ -128,21 +154,20 @@ export function buildArtifactContrastProbeRuntime(): string {
     // Theme mismatch: one opaque fill covers most of the stage and sits on
     // the far side of the host scheme (a white page on ink, black on paper).
     var stageArea = Math.max(1, document.documentElement.scrollWidth * document.documentElement.scrollHeight);
-    var largest = null, largestArea = 0;
+    var largestLum = null, largestArea = 0;
     var candidates = document.body.querySelectorAll('*');
     for (var j = 0; j < candidates.length && j < 400; j += 1) {
       var box = candidates[j].getBoundingClientRect();
       var area = box.width * box.height;
       if (area <= largestArea) continue;
-      var fill = probeRgba(getComputedStyle(candidates[j]).backgroundColor);
-      if (!fill || fill.a < 0.9) continue;
-      largest = fill;
+      var fillLum = probeElementFill(candidates[j]);
+      if (fillLum === null) continue;
+      largestLum = fillLum;
       largestArea = area;
     }
     var mismatch = false;
-    if (largest && largestArea / stageArea > 0.6) {
-      var lum = probeLuminance(largest);
-      mismatch = hostDark ? lum > 0.7 : lum < 0.05;
+    if (largestLum !== null && largestArea / stageArea > 0.6) {
+      mismatch = hostDark ? largestLum > 0.6 : largestLum < 0.12;
     }
     var lowContrast = sampled > 0 && failing / sampled > ${ARTIFACT_CONTRAST_FAILING_SHARE};
     if (!lowContrast && !mismatch) return;

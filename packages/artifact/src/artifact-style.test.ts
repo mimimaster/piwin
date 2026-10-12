@@ -63,6 +63,13 @@ describe('style modes', () => {
     expect(own).not.toContain('<style data-piwin-artifact-theme-guard>');
   });
 
+  it('emits a bridge script with the probe that parses as JavaScript', () => {
+    const srcdoc = buildHtmlArtifactSrcdoc({ source: '<p>x</p>', channelId: 'c', palette: 'stage', freezeSource: true }).srcdoc;
+    const match = /<script data-piwin-artifact-bridge-bootstrap>([\s\S]*?)<\/script>/.exec(srcdoc);
+    expect(match?.[1]).toContain('probeGradientStops');
+    expect(() => new Function(match![1]!)).not.toThrow();
+  });
+
   it('skips the probe while streaming', () => {
     const stream = buildHtmlArtifactSrcdoc({
       source: '<p>x</p>',

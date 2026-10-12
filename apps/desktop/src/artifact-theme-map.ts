@@ -54,12 +54,13 @@ function mapThemeToArtifactV14Tokens(theme: ThemeManifest): Partial<ArtifactThem
     '--piwin-artifact-risk': artifact?.risk ?? deck.coral,
     '--piwin-artifact-info': artifact?.info ?? deck.sky,
     '--piwin-artifact-accent-2': artifact?.accent2 ?? deck.ember,
-    '--piwin-artifact-series-1': deck.iris,
-    '--piwin-artifact-series-2': deck.sky,
-    '--piwin-artifact-series-3': deck.mint,
-    '--piwin-artifact-series-4': deck.ember,
-    '--piwin-artifact-series-5': deck.coral,
-    '--piwin-artifact-series-6': deck.text2,
+    // Neutral first (see theme-tokens.ts); status hues last.
+    '--piwin-artifact-series-1': artifact?.info ?? deck.sky,
+    '--piwin-artifact-series-2': deck.iris,
+    '--piwin-artifact-series-3': artifact?.accent2 ?? deck.ember,
+    '--piwin-artifact-series-4': deck.text2,
+    '--piwin-artifact-series-5': artifact?.ok ?? deck.mint,
+    '--piwin-artifact-series-6': artifact?.risk ?? deck.coral,
     '--piwin-artifact-shadow-1': dark
       ? `0 1px 0 color-mix(in srgb, ${text} 4%, transparent) inset, 0 1px 2px rgba(0, 0, 0, 0.35)`
       : `0 1px 2px color-mix(in srgb, ${text} 6%, transparent)`,

@@ -156,9 +156,9 @@ export function formatArtifactKitReference(): string {
     '[piwin-artifact-kit version="1"]',
     'Local built-ins, no network. Use only when they help; plain HTML/SVG stays fine.',
     `Icons: \`<i data-piwin-icon="NAME" data-size="16"></i>\` (stroke = currentColor; size 8–96). Names: ${ARTIFACT_KIT_V1_ICONS.join(' ')}.`,
-    'Charts: `<figure data-piwin-chart="bar|line|donut|spark">` holding `<script type="application/json">` with {"labels": [..], "series": [{"name": "..", "values": [..], "color": "var(--piwin-artifact-series-2)"}], "max": n, "height": px, "center": "96%"}. Always add a `<figcaption>` that states the takeaway in words; it stays readable if the chart cannot draw.',
+    'Charts: `<figure data-piwin-chart="bar|line|donut|spark">` holding `<script type="application/json">` with {"labels": [..], "series": [{"name": "..", "values": [..], "tone": "ok"}], "tones": [..], "max": n, "height": px, "center": "96%"}. Always add a `<figcaption>` that states the takeaway in words; it stays readable if the chart cannot draw.',
     '- bar: grouped bars per label. line: one line per series. donut: first series as parts of `labels`, optional `center` text. spark: tiny inline trend, no labels.',
-    '- Colors: omit for `series-1`…`series-6` in order; `color` accepts only `var(--piwin-artifact-*)`. Charts redraw with the container width.',
+    '- Colors: status data says so with `tone` (ok=green, warn=amber, risk=red, info=blue; also accent, accent-2, muted): pass/fail, success/error, blocked, flaky. Donut slices take `tones` in label order. Series and slices named like 成功/通过/失败/阻塞/建议 (success/pass/fail/blocked/warning) get that tone automatically. Neutral data omits tone and uses `series-1`…`series-6` in order (blue first; status hues last). `color` accepts only `var(--piwin-artifact-*)`. Charts redraw with the container width.',
     'Script API for interactive artifacts: `piwin.chart(el, {kind, labels, series, height})`, `piwin.icon(name, size)` → SVG string, `piwin.hydrate(root)` after inserting kit markup, `piwin.version`.',
     '[/piwin-artifact-kit]',
   ].join('\n');

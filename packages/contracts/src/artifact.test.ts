@@ -3,6 +3,7 @@ import {
   ARTIFACT_CANVAS_ONLY_HINT,
   ARTIFACT_EXPLICIT_ONLY_HINT,
   ARTIFACT_HOST_STYLE_ONLY_HINT,
+  formatArtifactKitReference,
   ARTIFACT_INLINE_ONLY_HINT,
   ARTIFACT_LANGUAGE_ALIASES,
   ARTIFACT_RUNTIME_CONTRACT,
@@ -160,6 +161,8 @@ describe('artifact protocol formatter', () => {
     }
     expect(protocol).toContain('no serif or display fonts');
     expect(protocol).toContain('data-piwin-chart="bar|line|donut|spark"');
+    expect(formatArtifactKitReference()).toContain('"tone": "ok"');
+    expect(formatArtifactKitReference()).toContain('Donut slices take `tones` in label order.');
     expect(protocol).toContain('Call `artifact_instructions` for the icon list and chart options.');
     expect(protocol).not.toContain('trend-up');
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Unprompted artifacts use `style="host"`.');

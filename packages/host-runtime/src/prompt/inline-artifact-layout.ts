@@ -32,6 +32,7 @@ export function formatArtifactHostTheme(mode: unknown): string | undefined {
     `Sending client theme: ${mode} background at send time.`,
     'The `--piwin-artifact-*` vars already resolve to this theme; prefer them over literal colors.',
     `Any color you do choose (custom looks, SVG fills, chart series, code islands aside) must read well on a ${mode} background. Never design a ${opposite}-mode page, full-bleed ${opposite} stage, or ${opposite} cards for this host.`,
+    `This includes style="expressive": its stage, hero and cards stay on the ${mode} side (a ${mode} base; saturated color for accents, not for the whole fill). A ${opposite} stage is flagged as off-theme.`,
     'Viewers can switch theme later, so theme vars remain the default. This is advisory context, not an instruction to create an artifact.',
     '[/piwin-artifact-host-theme]',
   ].join('\n');

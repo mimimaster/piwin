@@ -52,12 +52,14 @@ export function deriveArtifactV14Tokens(
     risk: mix('#d5483f', 84, v('text')),
     info: mix('#3a86c8', 82, v('text')),
     'accent-2': mix('#d29a2c', 84, v('text')),
-    'series-1': v('accent'),
-    'series-2': v('info'),
-    'series-3': v('ok'),
-    'series-4': v('accent-2'),
-    'series-5': v('risk'),
-    'series-6': v('muted'),
+    // Neutral data first: a red/green first series reads as fail/pass. Status
+    // hues come last; status series should say so with `tone`.
+    'series-1': v('info'),
+    'series-2': v('accent'),
+    'series-3': v('accent-2'),
+    'series-4': v('muted'),
+    'series-5': v('ok'),
+    'series-6': v('risk'),
     'shadow-1': dark
       ? '0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 1px 2px rgba(0, 0, 0, 0.35)'
       : '0 1px 2px rgba(0, 0, 0, 0.06)',
