@@ -464,7 +464,7 @@ describe('ConversationPaneSession', () => {
           .contextRing,
       ).toBe('visible'),
     );
-    expect(container?.querySelector('[data-testid="context-usage-ring"]')).not.toBeNull();
+    expect(container?.querySelector('[data-testid="context-usage-bar"]')).not.toBeNull();
   });
 
   it('keeps a legacy idle runtime-mismatch snapshot visible as stale', async () => {
@@ -506,7 +506,7 @@ describe('ConversationPaneSession', () => {
           .contextRing,
       ).toBe('visible'),
     );
-    expect(container?.querySelector('[data-testid="context-usage-ring"]')).not.toBeNull();
+    expect(container?.querySelector('[data-testid="context-usage-bar"]')).not.toBeNull();
   });
 
   it('hides occupancy when resume fails', async () => {
@@ -540,7 +540,7 @@ describe('ConversationPaneSession', () => {
       container?.querySelector<HTMLElement>('[data-testid="conversation-pane-session"]')?.dataset
         .contextRing,
     ).toBe('hidden');
-    expect(container?.querySelector('[data-testid="context-usage-ring"]')).toBeNull();
+    expect(container?.querySelector('[data-testid="context-usage-bar"]')).toBeNull();
   });
 
   it('parses live session/context-updated onto the shared selector', async () => {
@@ -613,12 +613,12 @@ describe('ConversationPaneSession', () => {
     };
     ({ container, root } = renderSession(host));
     await vi.waitFor(() =>
-      expect(container?.querySelector('[data-testid="composer-stats-activity"]')?.textContent)
-        .toContain('2'),
+      expect(container?.querySelector('[data-testid="composer-stats-tokens"]')?.getAttribute('title'))
+        .toContain('2 turns'),
     );
     expect(host.requests).toContainEqual({ type: 'usage/get-session', sessionId: 'session-aux' });
     expect(container?.querySelector('[data-testid="composer-stats-tokens"]')?.textContent)
-      .toContain('1K');
+      .toBe('↑800 ↓200');
   });
 
   it('reuses the workbench composer card and model picker', async () => {

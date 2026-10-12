@@ -5,6 +5,7 @@ import {
   Loader,
   type TUI,
   type ScrollView,
+  visibleWidth,
 } from '@earendil-works/pi-tui';
 import { formatTuiSessionAnnouncement } from '@piwin/contracts';
 import type {
@@ -23,7 +24,7 @@ import {
   type ForegroundRunState,
 } from '@piwin/host-client';
 import { TextOverlay } from './choice-overlay.js';
-import { StatusLine, describeRunPhase, formatElapsed } from './status-line.js';
+import { StatusLine, describeRunPhase, formatElapsed, type StatusLineContent } from './status-line.js';
 import {
   EMPTY_TRANSCRIPT,
   appendNotice,
@@ -54,7 +55,15 @@ import { TuiImageStore, openLatestImage } from './image-view.js';
 import { openWithSystemBrowser } from './tui-artifact-controller.js';
 import { PromptHistory } from './prompt-history.js';
 import { DEFAULT_KEYBINDINGS, formatKey, type Keybindings } from './keybindings.js';
-import { DEFAULT_STATUS_TEMPLATE, renderStatusTemplate } from './status-template.js';
+import {
+  DEFAULT_STATUS_TEMPLATES,
+  STATUS_GROUP_SEPARATOR,
+  STATUS_PIECE_SEPARATOR,
+  renderStatusLine,
+  type StatusValues,
+} from './status-template.js';
+import { buildStatusMetricValues } from './status-values.js';
+import { TuiGitBranch } from './tui-git-branch.js';
 import type { TuiConfig } from './tui-config.js';
 import { TurnNotifier } from './turn-notifier.js';
 import { TuiGlobalKeys } from './tui-global-keys.js';
@@ -95,7 +104,7 @@ export type TuiAppOptions = {
   startNotice?: string;
   onExit: () => void;
   /** Keys and status line from the person's own settings; defaults when absent. */
-  config?: Pick<TuiConfig, 'keybindings' | 'statusTemplate'>;
+  config?: Partial<Pick<TuiConfig, 'keybindings' | 'statusTemplates' | 'showCost'>>;
   /** External agent for new sessions (`--agent`); Pi when absent. */
   agentId?: string;
   /** Where this project's sent prompts are kept; absent keeps them for this run only. */
@@ -159,6 +168,8 @@ export class TuiApp {
   private sessionEpoch = 0;
   private connected = true;
   private readonly statusHint = new StatusHint(() => this.refreshChrome());
+  private readonly gitBranch = new TuiGitBranch(() => this.refreshChrome());
+  private gitBranchRoot: string | undefined;
 
   private readonly modals: TuiModalStack;
   private readonly prompts: TuiHostPrompts;
@@ -378,6 +389,7 @@ export class TuiApp {
 
   public dispose(): void {
     this.statusHint.dispose();
+    this.usage.dispose();
     this.stopElapsedTimer();
     if (this.subagentTimer !== undefined) clearInterval(this.subagentTimer);
     this.subagentTimer = undefined;
@@ -854,7 +866,10 @@ export class TuiApp {
         this.activitySlot.clear();
       }
     }
-    this.statusLine.setText(style.gray(this.openingSession ? '正在加载会话…' : this.describeStatus()));
+    // A turn may have switched branches; a new session may be another repo.
+    this.syncGitBranch(hasLoader && !running);
+    if (this.openingSession) this.statusLine.setText(style.gray('正在加载会话…'));
+    else this.statusLine.setContent(this.describeStatus());
     this.tui.terminal.setTitle(`piwin · ${this.sessionName ?? '新会话'}`);
     this.tui.requestRender(forceFullRedraw);
   }
@@ -874,6 +889,7 @@ export class TuiApp {
         return;
       }
       this.loader.setMessage(this.describeActivity(this.foreground.phase));
+      if (!this.openingSession) this.statusLine.setContent(this.describeStatus());
       this.tui.requestRender();
     }, 1000);
     // Never keep the process alive just for the counter.
@@ -884,6 +900,13 @@ export class TuiApp {
     if (this.elapsedTimer !== undefined) clearInterval(this.elapsedTimer);
     this.elapsedTimer = undefined;
     this.turnStartedAt = undefined;
+  }
+
+  private syncGitBranch(force: boolean): void {
+    const root = this.currentProjectRoots()[0];
+    if (!force && root === this.gitBranchRoot) return;
+    this.gitBranchRoot = root;
+    void this.gitBranch.refresh(root);
   }
 
   /** Roots the current session's tool paths are shown relative to. */
@@ -912,44 +935,53 @@ export class TuiApp {
     return count === 0 ? undefined : `◆ ${count} 个 artifact · ${formatKey(this.keybindings.openArtifact)} 打开最新`;
   }
 
-  private describeStatus(): string {
+  private describeStatus(): StatusLineContent {
     const scope =
       this.sessionProjectId === undefined
         ? '对话'
         : (this.projects.find((project) => project.projectId === this.sessionProjectId)?.displayName ?? '项目');
-    const occupancy = this.context?.occupancy;
-    const usage =
-      occupancy?.kind === 'known' && occupancy.tokensLimit !== undefined
-        ? `上下文 ${Math.round((occupancy.tokensUsed / occupancy.tokensLimit) * 100)}%`
-        : undefined;
     const [model, thinking, permission, skill, scheme] = this.composer.describe();
     const activity = this.features.describe().filter((part): part is string => part !== undefined);
-    // What needs attention is always shown; the template only arranges the rest.
+    // What needs attention gets its own line; the template only arranges the rest.
     const alerts = [
       this.statusHint.text,
       this.sender.describe(),
-      this.connected ? undefined : '重连中…',
+      this.connected ? undefined : style.yellow('⚠ 重连中…'),
       this.sessionArchived ? '已归档 · /unarchive 恢复' : undefined,
       this.attachments.describe(),
       this.sideChat.describe(),
       this.editingMessageId === undefined ? undefined : '改写上一条提问 · Ctrl+C 取消',
       this.describeArtifacts(),
-    ];
-    const arranged = renderStatusTemplate(this.options.config?.statusTemplate ?? DEFAULT_STATUS_TEMPLATE, {
+    ].filter((part): part is string => part !== undefined && part.length > 0);
+    const native = this.sessionAgentId === undefined;
+    const running = this.foreground.kind === 'active'
+      ? { phase: this.foreground.phase, elapsedMs: this.turnStartedAt === undefined ? 0 : Date.now() - this.turnStartedAt }
+      : undefined;
+    const values: StatusValues = {
       session: this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),
       project: scope,
+      branch: this.gitBranch.current() === undefined ? undefined : style.gray(`⎇ ${this.gitBranch.current()}`),
       agent: this.sessionAgentId,
-      model: this.sessionAgentId === undefined ? model : undefined,
-      thinking: this.sessionAgentId === undefined ? thinking : undefined,
-      permission: this.sessionAgentId === undefined ? permission : undefined,
-      scheme: this.sessionAgentId === undefined ? scheme : undefined,
+      model: native ? model : undefined,
+      thinking: native ? thinking : undefined,
+      permission: native ? (permission === 'YOLO' ? style.bold(style.yellow(permission)) : permission) : undefined,
+      scheme: native ? scheme : undefined,
       skill,
       activity: activity.length === 0 ? undefined : activity.join(' · '),
-      context: usage,
-      mock: this.options.mock ? 'mock' : undefined,
-    });
-    return [...alerts, arranged.length === 0 ? undefined : arranged]
-      .filter((part): part is string => part !== undefined)
-      .join(' · ');
+      mock: this.options.mock ? style.gray('mock') : undefined,
+      ...buildStatusMetricValues({
+        metrics: this.usage.metrics(),
+        style,
+        running,
+        compacting: this.context?.phase === 'compacting',
+        showCost: this.options.config?.showCost === true,
+      }),
+    };
+    const templates = this.options.config?.statusTemplates ?? DEFAULT_STATUS_TEMPLATES;
+    const separators = { piece: style.gray(STATUS_PIECE_SEPARATOR), group: style.gray(STATUS_GROUP_SEPARATOR) };
+    return {
+      alerts,
+      line: (width) => renderStatusLine({ templates, values, width, measure: visibleWidth, separators }),
+    };
   }
 }

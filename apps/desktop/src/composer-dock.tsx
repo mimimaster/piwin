@@ -102,6 +102,9 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
         lastRequest={props.contextRingView?.lastRequest}
         extensionSurface={props.extensionSurface}
         locale={locale}
+        contextView={props.contextRingView}
+        isRunning={isStreamingRun}
+        onOpenModelSettings={props.onOpenModelSettings}
       />
     </footer>
   );

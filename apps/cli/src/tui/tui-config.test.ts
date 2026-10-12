@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DEFAULT_KEYBINDINGS } from './keybindings.js';
-import { DEFAULT_STATUS_TEMPLATE } from './status-template.js';
+import { DEFAULT_STATUS_TEMPLATES } from './status-template.js';
 import { loadTuiConfig } from './tui-config.js';
 
 const roots: string[] = [];
@@ -21,7 +21,8 @@ describe('loadTuiConfig', () => {
   it('uses defaults when no file exists', () => {
     expect(loadTuiConfig(root())).toEqual({
       keybindings: DEFAULT_KEYBINDINGS,
-      statusTemplate: DEFAULT_STATUS_TEMPLATE,
+      statusTemplates: DEFAULT_STATUS_TEMPLATES,
+      showCost: false,
       problems: [],
     });
   });
@@ -31,7 +32,7 @@ describe('loadTuiConfig', () => {
       root({ 'keybindings.json': '{"sessions":"alt+s"}', 'tui.json': '{"statusLine":"{model} · {context}"}' }),
     );
     expect(config.keybindings.sessions).toBe('alt+s');
-    expect(config.statusTemplate).toBe('{model} · {context}');
+    expect(config.statusTemplates).toEqual({ wide: '{model} · {context}', medium: '{model} · {context}', narrow: '{model} · {context}' });
     expect(config.problems).toEqual([]);
   });
 
@@ -44,7 +45,7 @@ describe('loadTuiConfig', () => {
 
   it('reports a misspelled status field and keeps the default line', () => {
     const config = loadTuiConfig(root({ 'tui.json': '{"statusLine":"{modle}"}' }));
-    expect(config.statusTemplate).toBe(DEFAULT_STATUS_TEMPLATE);
+    expect(config.statusTemplates).toEqual(DEFAULT_STATUS_TEMPLATES);
     expect(config.problems).toEqual(['tui.json 的 statusLine 里没有 {modle}，已使用默认状态栏']);
   });
 
@@ -53,5 +54,19 @@ describe('loadTuiConfig', () => {
     expect(config.keybindings.sessions).toBe('ctrl+s');
     expect(config.keybindings.history).toBe('alt+h');
     expect(config.problems).toHaveLength(1);
+  });
+
+  it('reads per-width templates and showCost', () => {
+    const config = loadTuiConfig(root({ 'tui.json': '{"statusLine":{"narrow":"{model} · {ctx}"},"showCost":true}' }));
+    expect(config.statusTemplates.narrow).toBe('{model} · {ctx}');
+    expect(config.statusTemplates.wide).toBe(DEFAULT_STATUS_TEMPLATES.wide);
+    expect(config.showCost).toBe(true);
+    expect(config.problems).toEqual([]);
+  });
+
+  it('reports a non-boolean showCost', () => {
+    const config = loadTuiConfig(root({ 'tui.json': '{"showCost":"yes"}' }));
+    expect(config.showCost).toBe(false);
+    expect(config.problems).toEqual(['tui.json 的 showCost 要写成 true 或 false，已隐藏费用']);
   });
 });

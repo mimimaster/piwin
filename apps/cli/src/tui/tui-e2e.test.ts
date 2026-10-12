@@ -442,7 +442,7 @@ describe('TUI end to end against a mock Host', () => {
       tui = await startTuiHarness({
         config: {
           keybindings: { ...DEFAULT_KEYBINDINGS, history: 'alt+r' },
-          statusTemplate: '范围={project} · {mock}',
+          statusTemplates: { wide: '范围={project} · {mock}', medium: '范围={project} · {mock}', narrow: '范围={project} · {mock}' },
         },
       });
       await tui.waitFor('范围=对话 · mock');
@@ -894,7 +894,7 @@ describe('TUI end to end against a mock Host', () => {
     it('keeps the project and the context usage across a side chat and back', async () => {
       tui = await startTuiHarness({ project: true });
       await converse(tui, '主会话的问题');
-      await tui.waitFor('上下文 0%');
+      await tui.waitFor('ctx ~0%');
       tui.mark();
       await tui.submit('/side 调研');
       await tui.waitFor('这是侧聊');
@@ -905,7 +905,7 @@ describe('TUI end to end against a mock Host', () => {
       await tui.submit('/back');
       await tui.waitFor('主会话的问题 · fixture');
       // No turn ran since reopening: the usage comes from the reopened session itself.
-      expect(await redrawnStatus(tui)).toContain('上下文 0%');
+      expect(await redrawnStatus(tui)).toContain('ctx ~0%');
     });
 
     it('shows what the launch had to say', async () => {

@@ -1,6 +1,6 @@
 import type { Component } from '@earendil-works/pi-tui';
 import type { HostPush, SessionContextSnapshot } from '@piwin/contracts';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { TuiModalStack } from './tui-modals.js';
 import { TuiUsageController } from './tui-usage-controller.js';
 
@@ -79,5 +79,37 @@ describe('TuiUsageController', () => {
     controller.open();
     modals.current?.handleInput?.('\x1b');
     expect(modals.current).toBeUndefined();
+  });
+
+  it('loads session totals for the status line and refreshes after an update', async () => {
+    vi.useFakeTimers();
+    try {
+      let tokens = 1_000;
+      const request = vi.fn(async () => ({
+        success: true as const,
+        data: { totals: { sessionId: 's1', userTurnCount: 1, entryCount: 1, promptTokens: tokens, completionTokens: 10, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: tokens + 10, latestRequest: { messageId: 'm', completionTokens: 10, durationMs: 1000, firstTokenMs: 500 } } },
+      }));
+      const onChanged = vi.fn();
+      const controller = new TuiUsageController({
+        modals: new FakeModals() as unknown as TuiModalStack,
+        getSessionId: () => 's1',
+        getContext: () => SNAPSHOT,
+        describeModel: () => ({ model: 'm' }),
+        request: request as never,
+        onChanged,
+      });
+      controller.reset(null);
+      await vi.waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+      expect(request).toHaveBeenCalledWith({ type: 'usage/get-session', sessionId: 's1' });
+      expect(controller.metrics()).toMatchObject({ inputTokens: 1_000, ttftMs: 500, context: { ratio: 0.5, estimated: false } });
+      tokens = 5_000;
+      controller.handlePush(usageUpdate('s1', 1));
+      await vi.advanceTimersByTimeAsync(300);
+      await vi.waitFor(() => expect(onChanged).toHaveBeenCalledTimes(2));
+      expect(controller.metrics().inputTokens).toBe(5_000);
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
