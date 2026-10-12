@@ -237,9 +237,20 @@ describe('Host-side Agent plugin bridge', () => {
   }, 12000);
 
   it('bounds a request that the plugin never answers', async () => {
-    const { bridge } = await harness('hang', { requestTimeoutMs: 50 });
+    // initialize() shares the request deadline, so a tiny real-time budget made a slow
+    // plugin spawn under load time out before the request under test. Use the default
+    // budget for the handshake and drive only the hung request's deadline with fake timers.
+    const { bridge } = await harness('hang');
     await bridge.initialize();
-    await expect(bridge.request('session/mcp-status', {}, { kind: 'session', ...SCOPE })).rejects.toThrow('timed out');
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const request = bridge.request('session/mcp-status', {}, { kind: 'session', ...SCOPE });
+    const outcome = request.then(() => 'resolved', (error: Error) => error);
+    await vi.advanceTimersByTimeAsync(29_999);
+    await expect(Promise.race([outcome, Promise.resolve('pending')])).resolves.toBe('pending');
+    await vi.advanceTimersByTimeAsync(1);
+    const error = await outcome;
+    expect(error).toMatchObject({ code: 'plugin-timeout' });
+    expect(String((error as Error).message)).toContain('session/mcp-status timed out after 30000ms');
   });
 
   it('keeps a streaming prompt pending past the control request deadline until its outcome', async () => {
