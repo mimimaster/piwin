@@ -19,6 +19,7 @@ import { listenForTuiSession } from './xterm-tui-session';
 import { readDeckXtermFontFamily, readDeckXtermTheme } from './xterm-theme';
 import { attachXtermWebglRenderer, type XtermRenderer } from './xterm-webgl-renderer';
 import { attachXtermImageLinks } from './xterm-image-links.js';
+import { attachXtermImageAddon, type XtermImages } from './xterm-image-addon';
 import {
   tauriPtyOpen,
   tauriPtyOpenTui,
@@ -90,6 +91,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     let resizeObserver: ResizeObserver | null = null;
     let resizeDebounce: ReturnType<typeof setTimeout> | null = null;
     let renderer: XtermRenderer | null = null;
+    let images: XtermImages | null = null;
 
     const terminal = new Terminal({
       cursorBlink: true,
@@ -172,6 +174,9 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
         terminal.open(containerRef.current);
         renderer = attachXtermWebglRenderer(terminal);
         containerRef.current.dataset.renderer = renderer.kind;
+        // After the renderer: the image layer sits above whichever renderer is active.
+        images = attachXtermImageAddon(terminal);
+        containerRef.current.dataset.images = images.enabled ? 'on' : 'off';
         terminalRef.current = terminal;
         fitAddonRef.current = fitAddon;
         bootingRef.current = false;
@@ -283,6 +288,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       ptyIdRef.current = null;
       stopListeningForTuiSession();
       detachImageLinks?.();
+      images?.dispose();
       renderer?.dispose();
       terminal.dispose();
       terminalRef.current = null;
