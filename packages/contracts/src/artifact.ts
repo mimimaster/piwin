@@ -239,13 +239,13 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
  * Users can replace this via `decisionPrompt.mode = 'custom'`.
  */
 export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
-  '[piwin-prompt-meta kind="artifact:decision" version="10" applies="artifacts-enabled"]',
+  '[piwin-prompt-meta kind="artifact:decision" version="11" applies="artifacts-enabled"]',
   '<artifact-decision-policy name="piwin-proactive-surfaces">',
   '## Decision Criteria',
-  "Choose the presentation that makes the user's information easiest to scan, understand, search, copy, compare, and reuse.",
-  'Proactively use Artifacts for structured or information-dense content even without an explicit UI request. Prefer a compact interactive or visually grouped Artifact over a long Markdown wall of text.',
+  'Choose presentation to scan, understand, search, copy, compare, and reuse information.',
+  'Use Artifacts for structured or information-dense content even without an explicit UI request; prefer compact interactive/grouped content over a Markdown wall of text.',
   '',
-  'The Canvas trigger is **user intent**, not response shape or length. Ask: would the user benefit from viewing this as its own workspace beside the conversation, in the right-side Canvas panel? If yes, declare `surface="canvas"`.',
+  'Choose Canvas by **user intent**, not response length: declare `surface="canvas"` for a workspace beside the conversation.',
   'MUST use Canvas when the primary deliverable is a standalone analytical artifact: architecture reviews, plan reviews, code-base or design reviews, security audits, delivery reports, findings write-ups, quantitative breakdowns, timelines, or large comparison tables. If you catch yourself about to dump a Markdown wall or a large Markdown table as the answer, stop and emit Canvas instead.',
   '',
   '### 1. Ordinary Markdown (Default for simple text)',
@@ -258,10 +258,8 @@ export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
   '### 2. Inline Artifact (`artifact-html` without surface attr)',
   'Default Artifact surface when the result fits in the conversation.',
   '- Cheatsheets, command summaries, reference guides, comparisons, comparative tables, matrices, timelines, catalogs, checklists, or categorized overviews.',
-  '- Many items, categories, commands, options, examples, or reference entries.',
-  '- Content benefiting from search, filtering, copying, sorting, tabs, accordions, or grouping within the chat stream.',
-  '- A dense table, list, or long explanation that would be difficult to scan as ordinary Markdown.',
-  '- Answers the user is likely to save, revisit, compare, or reuse.',
+  '- Many items or content needing search, filtering, copying, sorting, tabs, accordions, or grouping.',
+  '- Dense content hard to scan in Markdown; answers users will save, revisit, compare, or reuse.',
   'If the answer is between a long Markdown block and a compact searchable Artifact, choose the Artifact.',
   '',
   '### 3. Canvas Artifact (`artifact-html` with `surface="canvas"`)',
@@ -270,7 +268,7 @@ export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
   '- A coordinated workspace or result that should remain beside the conversation, or a layout whose utility requires sustained width.',
   '- Standalone reports and reviews (MUST): architecture / plan / design / code-base reviews, audits, delivery reports, findings. Design a scannable hierarchy — status, grouped findings, comparisons — not a Markdown document pasted into a single `<pre>` or article. Use the Report Kit. Ordinary in-thread comments on a specific snippet stay Markdown.',
   '- Already written to a file this turn: do not repeat the file in a Canvas. A Canvas still earns its place when it shows what the text cannot at a glance — conclusions, status, key comparisons — and points to the file for the full text.',
-  'Declare Canvas explicitly with `surface="canvas"`. A completed Canvas opens the right workspace automatically; do not ask the user to click a second launcher before using it.',
+  'Declare `surface="canvas"` explicitly; it opens the right workspace automatically. Never require a second launcher.',
   '</artifact-decision-policy>',
 ].join('\n');
 

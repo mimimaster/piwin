@@ -52,7 +52,7 @@ describe('canonical artifact language', () => {
 describe('default artifact decision prompt', () => {
   it('wraps the proactive decision policy in a metadata block', () => {
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '[piwin-prompt-meta kind="artifact:decision" version="10" applies="artifacts-enabled"]',
+      '[piwin-prompt-meta kind="artifact:decision" version="11" applies="artifacts-enabled"]',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
       '<artifact-decision-policy name="piwin-proactive-surfaces">',
