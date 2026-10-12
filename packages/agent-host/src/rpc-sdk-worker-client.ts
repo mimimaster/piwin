@@ -417,6 +417,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
     options?: {
       images?: Array<{ mimeType: string; dataBase64: string }>;
       streamingBehavior?: 'steer' | 'followUp';
+      extensionCommandText?: string;
       thinkingLevel?: string;
       model?: { providerId: string; modelId: string };
       runId?: string;
@@ -429,6 +430,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
         text,
         ...(options?.images ? { images: options.images } : {}),
         ...(options?.streamingBehavior ? { streamingBehavior: options.streamingBehavior } : {}),
+        ...(options?.extensionCommandText ? { extensionCommandText: options.extensionCommandText } : {}),
         ...(options?.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
         ...(options?.model ? { model: options.model } : {}),
       },

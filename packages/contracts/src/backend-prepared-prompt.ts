@@ -2,6 +2,8 @@ import type { ModelRef, ThinkingLevel } from './host.js';
 
 type BackendPreparedPromptFields = {
   text: string;
+  /** Host-derived bare user command. Backend uses it only for a currently registered extension command. */
+  extensionCommandText?: string;
   images?: Array<{ dataBase64: string; mimeType: string }>;
   streamingBehavior?: 'steer' | 'followUp';
   model?: ModelRef;

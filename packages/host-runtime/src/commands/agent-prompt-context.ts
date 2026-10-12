@@ -204,9 +204,11 @@ export async function applyAgentPromptContext(
   }
   throwIfPromptPreparationAborted(context, run.runId);
 
-  // Composer and card share this path: only an explicit one-mode reply
-  // (inline / subagent / 当前会话执行 / 使用子代理执行) approves a draft.
-  // Later turns reuse the stored mode. "执行一下" is not a mode.
+  // A mode is an optional hint, never a precondition. An explicit one-mode
+  // reply (inline / subagent / 当前会话执行 / 使用子代理执行) is recorded here
+  // and reused by later turns. Any other go-ahead ("执行一下", "只做前两步")
+  // runs however the user described; the first piwin_plan_set_step approves
+  // the draft.
   const explicitPlanMode = resolveExplicitPlanExecutionMode(promptText);
   const selectedPlanMode =
     explicitPlanMode ??

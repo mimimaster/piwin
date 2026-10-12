@@ -652,7 +652,7 @@ function createProductSessionHandle(
   const subscribeRunInterventions = backendHandle.subscribeRunInterventions;
   return {
     id: backendHandle.id,
-    async prompt(input: PromptInput) {
+    async prompt(input: PromptInput, options) {
       const images = await loadPromptImages(input.attachments);
       const runId = getCurrentRunId?.();
       if (runId === undefined) {
@@ -661,6 +661,7 @@ function createProductSessionHandle(
       return backendHandle.prompt({
         text: input.text,
         runId,
+        ...(options?.extensionCommandText ? { extensionCommandText: options.extensionCommandText } : {}),
         ...(images.length > 0
           ? {
               images: images.map((image) => ({

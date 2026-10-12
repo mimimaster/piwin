@@ -107,14 +107,14 @@ export function createProductShellSession(options: ProductShellSessionOptions): 
 
   return {
     id: options.sessionId,
-    async prompt(input: PromptInput) {
+    async prompt(input: PromptInput, promptOptions) {
       aborted = false;
       const handle = await ensureLive();
       if (aborted) {
         await handle.abort();
         return ABORTED_PROMPT_OUTCOME;
       }
-      return handle.prompt(input);
+      return promptOptions ? handle.prompt(input, promptOptions) : handle.prompt(input);
     },
     async steer(message: string): Promise<void> {
       const handle = await ensureLive();

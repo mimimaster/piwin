@@ -3,6 +3,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { readExtensionCommandText } from './extension-command-input.js';
 /**
  * Live session IPC: create/spawn/prompt/compact/export and sub-agent lifecycle.
  * HostRuntime provides SessionLiveContext (maps + ensureLiveSession/bindSession/…).
@@ -168,7 +169,7 @@ export async function preparePromptInput(
     desiredModel: ModelRef | undefined;
     desiredThinkingLevel: ThinkingLevel | undefined;
   },
-): Promise<{ promptInput: PromptInput; previewText: string; userMessageId?: string }> {
+): Promise<{ promptInput: PromptInput; previewText: string; userMessageId?: string; extensionCommandText?: string }> {
   throwIfPromptPreparationAborted(context, run.runId);
 
   // Persist ordinary user text + attachments before path-injection rewrite.
@@ -463,9 +464,12 @@ export async function preparePromptInput(
   }
   throwIfPromptPreparationAborted(context, run.runId);
   const previewText = extractUserFacingBody(promptSource.text).trim() || promptSource.text.trim();
-  return userMessageId === undefined
-    ? { promptInput, previewText }
-    : { promptInput, previewText, userMessageId };
+  const extensionCommandText = readExtensionCommandText(promptSource);
+  return {
+    promptInput, previewText,
+    ...(userMessageId === undefined ? {} : { userMessageId }),
+    ...(extensionCommandText === undefined ? {} : { extensionCommandText }),
+  };
 }
 
 /**

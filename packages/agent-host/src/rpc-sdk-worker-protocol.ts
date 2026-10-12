@@ -247,6 +247,7 @@ export type WorkerRequestPayload =
       /** Native image content parts (base64 over stdio). */
       images?: Array<{ mimeType: string; dataBase64: string }>;
       streamingBehavior?: 'steer' | 'followUp';
+      extensionCommandText?: string;
       thinkingLevel?: string;
       model?: { providerId: string; modelId: string };
     }

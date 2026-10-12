@@ -69,6 +69,7 @@ export type WorkerPiSessionLike = {
     options?: {
       images?: PiImageContent[];
       streamingBehavior?: 'steer' | 'followUp';
+      extensionCommandText?: string;
       thinkingLevel?: string;
       model?: { providerId: string; modelId: string };
     },
@@ -429,6 +430,7 @@ export class WorkerSessionRuntime {
     const promptOptions = {
       ...(options ?? {}),
       ...(payload.streamingBehavior ? { streamingBehavior: payload.streamingBehavior } : {}),
+      ...(payload.extensionCommandText ? { extensionCommandText: payload.extensionCommandText } : {}),
       ...(payload.thinkingLevel ? { thinkingLevel: payload.thinkingLevel } : {}),
       ...(payload.model ? { model: payload.model } : {}),
     };

@@ -14,6 +14,7 @@
  */
 
 import { join } from 'node:path';
+import { selectPiPromptText, type PiExtensionCommandSession } from '../pi-extension-command.js';
 import { readFile } from 'node:fs/promises';
 import type {
   AgentFailure,
@@ -560,7 +561,7 @@ function createWorkerRequestId(): string {
 }
 
 /** Pi session shape we need from `createAgentSession` inside the worker. */
-type WorkerPiSessionHandle = {
+type WorkerPiSessionHandle = PiExtensionCommandSession & {
   agent?: PiRunInterventionSession['agent'];
   readonly isStreaming?: boolean;
   sessionId?: string;
@@ -652,7 +653,7 @@ function adaptPiSessionForWorker(
               : undefined),
         ),
         timeoutMs: streamProgressTimeoutMs,
-        prompt: () => piSession.prompt(text, options),
+        prompt: () => piSession.prompt(selectPiPromptText(piSession, text, options?.extensionCommandText, Boolean(options?.images?.length)), options),
         abort: () => piSession.abort?.() ?? Promise.resolve(),
         subscribe: (listener) => piSession.subscribe(listener),
       });

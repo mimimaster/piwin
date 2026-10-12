@@ -65,7 +65,7 @@ export async function executeSessionTurn(input: {
     // compact may be slow or fail, so it must not gate applying the requested
     // target model. The selected runtime owns its normal Pi compaction path.
     const assembly = createModelPromptAssembly();
-    const { promptInput, previewText, userMessageId } = await preparePromptInput(
+    const { promptInput, previewText, userMessageId, extensionCommandText } = await preparePromptInput(
       context,
       command,
       run,
@@ -190,7 +190,9 @@ export async function executeSessionTurn(input: {
         return;
       }
     }
-    const outcome = await liveSession.prompt(promptInput);
+    const outcome = extensionCommandText === undefined
+      ? await liveSession.prompt(promptInput)
+      : await liveSession.prompt(promptInput, { extensionCommandText });
     const applied = await applyAgentPromptOutcome({
       context,
       sessionId: command.sessionId,

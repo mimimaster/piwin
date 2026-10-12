@@ -124,6 +124,7 @@ export class WorkerSessionBackend implements PiSessionBackend {
       async prompt(preparedPrompt) {
         return client.prompt(created.sessionId, preparedPrompt.text, {
           runId: preparedPrompt.runId,
+          ...(preparedPrompt.extensionCommandText ? { extensionCommandText: preparedPrompt.extensionCommandText } : {}),
           ...(preparedPrompt.images && preparedPrompt.images.length > 0
             ? {
                 images: preparedPrompt.images.map((image) => ({

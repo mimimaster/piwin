@@ -1,6 +1,7 @@
 /** Backend-only Pi SDK session creation from exact contracts and ports. */
 
 import { join } from 'node:path';
+import { selectPiPromptText, type PiExtensionCommandSession } from '../pi-extension-command.js';
 import type { AgentEvent, BackendPreparedPrompt } from '@piwin/contracts';
 import {
   assertValidBackendSessionBlueprint,
@@ -353,6 +354,7 @@ function wrapBackendPiSession(
         const selectedModel = preparedPrompt.model
           ? modelRuntime.getModel(preparedPrompt.model.providerId, preparedPrompt.model.modelId)
           : undefined;
+        const promptText = selectPiPromptText(piSession, preparedPrompt.text, preparedPrompt.extensionCommandText, Boolean(preparedPrompt.images?.length));
         return await runTrackedGuardedPiPrompt({
           enabled: isOpenAiCompletionsStreamProtocol(
             selectedModel?.api ?? preparedPrompt.model?.protocol,
@@ -361,8 +363,8 @@ function wrapBackendPiSession(
           subscribe: (listener) => piSession.subscribe(listener),
           prompt: () =>
             Object.keys(promptOptions).length > 0
-              ? piSession.prompt(preparedPrompt.text, promptOptions)
-              : piSession.prompt(preparedPrompt.text),
+              ? piSession.prompt(promptText, promptOptions)
+              : piSession.prompt(promptText),
           abort: () => piSession.abort?.() ?? Promise.resolve(),
         });
       } finally {
@@ -452,7 +454,7 @@ function wrapBackendPiSession(
   };
 }
 
-type PiLikeSession = {
+type PiLikeSession = PiExtensionCommandSession & {
   agent?: PiRunInterventionSession['agent'];
   readonly isStreaming?: boolean;
   prompt: (

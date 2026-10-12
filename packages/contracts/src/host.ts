@@ -775,7 +775,8 @@ export type SessionCompactResult = {
 
 export interface SessionHandle {
   readonly id: string;
-  prompt(input: PromptInput): Promise<AgentPromptOutcome>;
+  /** Options are Host-only; raw command identity never comes from client PromptInput fields. */
+  prompt(input: PromptInput, options?: { extensionCommandText?: string }): Promise<AgentPromptOutcome>;
   steer(message: string): Promise<void>;
   followUp(message: string): Promise<void>;
   /** Arm a literal instruction for this exact active Run's next safe checkpoint. */
