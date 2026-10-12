@@ -19,6 +19,7 @@ function createDeps(embedded = false): TuiCommandTableDeps {
     embedded,
     keybindings: DEFAULT_KEYBINDINGS,
     composer: recorder(),
+    toggleImages: vi.fn(),
     attachments: recorder(),
     plans: recorder(),
     queue: recorder(),

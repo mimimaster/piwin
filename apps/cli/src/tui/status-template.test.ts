@@ -33,4 +33,10 @@ describe('unknownStatusFields', () => {
     expect(unknownStatusFields('{model} · {modle} · {cost}')).toEqual(['modle', 'cost']);
     expect(unknownStatusFields(DEFAULT_STATUS_TEMPLATE)).toEqual([]);
   });
+
+  it('places the scheme right after the permission', () => {
+    expect(renderStatusTemplate(DEFAULT_STATUS_TEMPLATE, { session: '新会话', permission: 'YOLO', scheme: '编排 Ultra Code' })).toBe(
+      '新会话 · YOLO · 编排 Ultra Code',
+    );
+  });
 });

@@ -1,6 +1,7 @@
 import type { PermissionPreset, PromptTemplateSummary, SkillSummary, ThinkingLevel } from '@piwin/contracts';
 import type { SelectItem } from '@earendil-works/pi-tui';
 import type { TranscriptState } from './transcript-model.js';
+import { style } from './tui-style.js';
 
 /**
  * Composer choices the TUI offers beyond the model: thinking level, the skill
@@ -42,7 +43,7 @@ export function describeThinkingLevel(level: ThinkingLevel | undefined): string 
 const PERMISSION_PRESETS: ReadonlyArray<{ preset: PermissionPreset; label: string; description: string }> = [
   { preset: 'ask', label: '询问', description: '几乎每个操作都先问' },
   { preset: 'auto', label: '自动', description: '沙箱内直接做，越界才问' },
-  { preset: 'yolo', label: '放行', description: '不询问，不设沙箱' },
+  { preset: 'yolo', label: 'YOLO', description: '放行：不询问，不设沙箱' },
 ];
 
 export const HOST_PERMISSION_VALUE = 'host';
@@ -71,16 +72,52 @@ export function nextPermissionPreset(current: PermissionPreset | undefined): Per
   return PERMISSION_PRESETS[index + 1]?.preset;
 }
 
-/** Always shown: which mode the next turn runs in is never left implicit. */
+/**
+ * Always shown: which mode the next turn runs in is never left implicit. The
+ * footer keeps it short (`询问` / `自动` / `YOLO`); following the Host shows the
+ * Host's mode plainly. YOLO is coloured so running without guard rails stands out.
+ */
 export function describePermissionPreset(
   chosen: PermissionPreset | undefined,
   hostDefault: PermissionPreset | undefined,
 ): string | undefined {
-  const label = (preset: PermissionPreset | undefined): string | undefined =>
-    PERMISSION_PRESETS.find((entry) => entry.preset === preset)?.label;
-  if (chosen !== undefined) return `权限 ${label(chosen) ?? chosen}`;
-  const hostLabel = label(hostDefault);
-  return hostLabel === undefined ? undefined : `权限 ${hostLabel}（Host）`;
+  const preset = chosen ?? hostDefault;
+  if (preset === undefined) return undefined;
+  const label = PERMISSION_PRESETS.find((entry) => entry.preset === preset)?.label ?? preset;
+  return preset === 'yolo' ? style.bold(style.yellow(label)) : label;
+}
+
+/** Orchestration scheme the picker offers; `off` is freehand. */
+export type SchemeChoice = { id: string; name: string; description?: string };
+
+export const SCHEME_OFF_VALUE = 'off';
+export const NO_DELEGATION_VALUE = '__no-delegation__';
+
+/** 自由, then the Host's schemes (builtin and user), then a way to turn subagents off. */
+export function schemeItems(schemes: readonly SchemeChoice[]): SelectItem[] {
+  return [
+    { value: SCHEME_OFF_VALUE, label: '自由', description: '不注入编排规则，模型按需使用子代理' },
+    ...schemes
+      .filter((scheme) => scheme.id !== SCHEME_OFF_VALUE)
+      .map((scheme) => ({
+        value: scheme.id,
+        label: scheme.name,
+        ...(scheme.description ? { description: scheme.description.replace(/\s+/g, ' ').trim() } : {}),
+      })),
+    { value: NO_DELEGATION_VALUE, label: '不使用子代理', description: '这个会话的消息不让模型委派子代理' },
+  ];
+}
+
+/** Badge / footer name of an active scheme; undefined when freehand. */
+export function activeSchemeName(schemeId: string, schemes: readonly SchemeChoice[]): string | undefined {
+  if (schemeId === SCHEME_OFF_VALUE || schemeId === '') return undefined;
+  return schemes.find((scheme) => scheme.id === schemeId)?.name ?? schemeId;
+}
+
+/** Footer segment: `编排 <name>`, or `子代理 关` when delegation is disabled. */
+export function describeScheme(schemeName: string | undefined, delegationDisabled: boolean): string | undefined {
+  if (delegationDisabled) return '子代理 关';
+  return schemeName === undefined ? undefined : `编排 ${schemeName}`;
 }
 
 export const NO_SKILL_VALUE = '';

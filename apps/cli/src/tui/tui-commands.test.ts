@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { parseSlashCommand } from './tui-commands.js';
 
 describe('parseSlashCommand', () => {
+  it('maps /编排 to the scheme picker', () => {
+    expect(parseSlashCommand('/编排')).toEqual({ name: 'scheme', argument: '' });
+    expect(parseSlashCommand('/scheme')).toEqual({ name: 'scheme', argument: '' });
+  });
+
   it('parses a known command and its argument', () => {
     expect(parseSlashCommand('/rename  新名字 ')).toEqual({ name: 'rename', argument: '新名字' });
     expect(parseSlashCommand('/pin')).toEqual({ name: 'pin', argument: '' });

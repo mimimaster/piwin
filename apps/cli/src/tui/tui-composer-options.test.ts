@@ -1,11 +1,18 @@
 import type { PromptTemplateSummary, SkillSummary } from '@piwin/contracts';
 import { describe, expect, it } from 'vitest';
+
+const stripAnsi = (text: string): string => text.replace(/\x1b\[[0-9;]*m/g, '');
 import { EMPTY_TRANSCRIPT, appendLocalUserMessage, applyAgentEvent } from './transcript-model.js';
 import {
   DEFAULT_THINKING_VALUE,
   HOST_PERMISSION_VALUE,
+  NO_DELEGATION_VALUE,
   NO_SKILL_VALUE,
+  SCHEME_OFF_VALUE,
+  activeSchemeName,
   describePermissionPreset,
+  describeScheme,
+  schemeItems,
   describeThinkingLevel,
   findLastUserMessageId,
   nextPermissionPreset,
@@ -58,10 +65,38 @@ describe('permission preset choices', () => {
     expect(seen).toEqual(['ask', 'auto', 'yolo']);
   });
 
-  it('says which mode applies, marking a value that comes from the Host', () => {
-    expect(describePermissionPreset('ask', 'yolo')).toBe('权限 询问');
-    expect(describePermissionPreset(undefined, 'yolo')).toBe('权限 放行（Host）');
+  it('says which mode applies with a short label, the Host default shown plainly', () => {
+    expect(describePermissionPreset('ask', 'yolo')).toBe('询问');
+    expect(describePermissionPreset('auto', undefined)).toBe('自动');
+    expect(stripAnsi(describePermissionPreset(undefined, 'yolo') ?? '')).toBe('YOLO');
+    expect(describePermissionPreset('yolo', undefined)).toContain('\x1b[33m');
     expect(describePermissionPreset(undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe('orchestration scheme choices', () => {
+  const schemes = [
+    { id: 'ultra-code', name: 'Ultra Code', description: 'scout  first' },
+    { id: 'mine', name: '我的方案' },
+  ];
+
+  it('offers freehand, every scheme, then turning subagents off', () => {
+    const items = schemeItems(schemes);
+    expect(items.map((item) => item.value)).toEqual([SCHEME_OFF_VALUE, 'ultra-code', 'mine', NO_DELEGATION_VALUE]);
+    expect(items.map((item) => item.label)).toEqual(['自由', 'Ultra Code', '我的方案', '不使用子代理']);
+    expect(items[1]?.description).toBe('scout first');
+  });
+
+  it('names only an active scheme', () => {
+    expect(activeSchemeName('off', schemes)).toBeUndefined();
+    expect(activeSchemeName('ultra-code', schemes)).toBe('Ultra Code');
+    expect(activeSchemeName('gone', schemes)).toBe('gone');
+  });
+
+  it('describes the footer segment', () => {
+    expect(describeScheme(undefined, false)).toBeUndefined();
+    expect(describeScheme('Ultra Code', false)).toBe('编排 Ultra Code');
+    expect(describeScheme(undefined, true)).toBe('子代理 关');
   });
 });
 

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { HostPush, HostResponse, PromptInput, QueuedTurnRecord } from '@piwin/contracts';
+import type { HostPush, HostResponse, PromptInput, QueuedTurnRecord, RunInterventionRecord } from '@piwin/contracts';
 import { ChoiceOverlay } from './choice-overlay.js';
 import {
   applyQueuedTurn,
@@ -22,8 +22,8 @@ export type TuiQueueControllerOptions = {
   onHint: (text: string) => void;
   /** A queued turn became a run: its prompt belongs in the transcript now. */
   onStarted: (turn: QueuedTurnRecord) => void;
-  /** A queued turn was moved into the running turn instead of waiting. */
-  onSteered: (turn: QueuedTurnRecord) => void;
+  /** A queued turn was moved into the running turn instead of waiting; it now tracks as a steer. */
+  onSteered: (turn: QueuedTurnRecord, intervention: RunInterventionRecord | undefined) => void;
   /** Put a withdrawn turn's text back in the composer. */
   onEdit: (text: string) => void;
   onError: (error: unknown) => void;
@@ -40,6 +40,17 @@ export class TuiQueueController {
 
   public describe(): string | undefined {
     return describeQueue(this.pending);
+  }
+
+  /** Waiting turns in Host order, for the strip above the composer. */
+  public pendingTurns(): readonly QueuedTurnRecord[] {
+    return this.pending;
+  }
+
+  /** Withdraw a turn and put its text back in the composer. */
+  public async editTurn(turn: QueuedTurnRecord): Promise<void> {
+    await this.cancel(turn);
+    this.options.onEdit(turn.input.text);
   }
 
   public reset(): void {
@@ -151,8 +162,7 @@ export class TuiQueueController {
         await this.move(turn, action);
         return;
       case 'edit':
-        await this.cancel(turn);
-        this.options.onEdit(turn.input.text);
+        await this.editTurn(turn);
         return;
       case 'cancel':
         await this.cancel(turn);
@@ -166,14 +176,14 @@ export class TuiQueueController {
    * cancels the queued turn and creates the intervention in one transaction,
    * so it is never both queued and steered.
    */
-  private async steerNow(turn: QueuedTurnRecord): Promise<void> {
+  public async steerNow(turn: QueuedTurnRecord): Promise<void> {
     const runId = this.options.getRunId();
     if (runId === undefined) {
       this.options.onHint('没有正在运行的回合，它会自动开始');
       return;
     }
     const { text, attachments, contextRefs } = turn.input;
-    hostData(
+    const data = hostData<{ intervention?: RunInterventionRecord }>(
       await this.options.link.request({
         type: 'run/intervention-submit',
         sessionId: turn.sessionId,
@@ -189,7 +199,7 @@ export class TuiQueueController {
       }),
     );
     this.pending = this.pending.filter((entry) => entry.queuedTurnId !== turn.queuedTurnId);
-    this.options.onSteered(turn);
+    this.options.onSteered(turn, data.intervention);
     this.options.onChanged();
   }
 
@@ -220,7 +230,7 @@ export class TuiQueueController {
   }
 
   /** `expectedRevision` makes the Host refuse if the turn started or changed meanwhile. */
-  private async cancel(turn: QueuedTurnRecord): Promise<void> {
+  public async cancel(turn: QueuedTurnRecord): Promise<void> {
     hostData(
       await this.options.link.request({
         type: 'session/queued-turn-cancel',

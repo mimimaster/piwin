@@ -1,4 +1,5 @@
 import type {
+  OrchestrationSchemeConfigSlice,
   ModelRef,
   PermissionConfig,
   PermissionPreset,
@@ -6,12 +7,22 @@ import type {
   SkillSummary,
   ThinkingLevel,
 } from '@piwin/contracts';
-import { resolvePermissionPreset } from '@piwin/contracts';
+import {
+  listOrchestrationSchemes,
+  resolveNewSessionOrchestrationSchemeId,
+  resolvePermissionPreset,
+} from '@piwin/contracts';
 import { ChoiceOverlay } from './choice-overlay.js';
 import {
   DEFAULT_THINKING_VALUE,
   HOST_PERMISSION_VALUE,
+  NO_DELEGATION_VALUE,
   NO_SKILL_VALUE,
+  SCHEME_OFF_VALUE,
+  activeSchemeName,
+  describeScheme,
+  schemeItems,
+  type SchemeChoice,
   describePermissionPreset,
   describeThinkingLevel,
   nextPermissionPreset,
@@ -57,6 +68,14 @@ export class TuiComposerProfile {
   private hostPermissionPreset: PermissionPreset | undefined;
   private hostDefaultModelKey: string | undefined;
   private promptTemplates: PromptTemplateSummary[] = [];
+  /** Orchestration schemes the Host knows (builtin and user), for the picker. */
+  private schemes: SchemeChoice[] = [];
+  /** What a new session starts with (Host `subagents.defaultSchemeId`). */
+  private defaultSchemeId: string = SCHEME_OFF_VALUE;
+  /** Session-sticky orchestration scheme; `off` is freehand. */
+  private schemeId: string = SCHEME_OFF_VALUE;
+  /** Session-sticky: the model may not delegate to subagents. */
+  private delegationDisabled = false;
 
   public constructor(private readonly options: TuiComposerProfileOptions) {}
 
@@ -113,14 +132,47 @@ export class TuiComposerProfile {
     if (!response.success) return;
     const config = (
       response.data as
-        | { config?: { permissions?: PermissionConfig; defaultProviderId?: string; defaultModelId?: string } }
+        | {
+            config?: {
+              permissions?: PermissionConfig;
+              defaultProviderId?: string;
+              defaultModelId?: string;
+              subagents?: OrchestrationSchemeConfigSlice & { defaultSchemeId?: string };
+            };
+          }
         | undefined
     )?.config;
+    this.adoptSchemeConfig(config?.subagents);
     this.hostPermissionPreset = resolvePermissionPreset(config?.permissions);
     this.hostDefaultModelKey =
       config?.defaultProviderId !== undefined && config.defaultModelId !== undefined
         ? modelKey({ providerId: config.defaultProviderId, modelId: config.defaultModelId })
         : undefined;
+  }
+
+  /** Scheme list and new-session default from the Host's `subagents` config. */
+  public adoptSchemeConfig(subagents: (OrchestrationSchemeConfigSlice & { defaultSchemeId?: string }) | undefined): void {
+    const hadDefault = this.schemeId === this.defaultSchemeId && !this.delegationDisabled;
+    this.schemes = listOrchestrationSchemes(subagents ?? {}).map((scheme) => ({
+      id: scheme.id,
+      name: scheme.name,
+      ...(scheme.description ? { description: scheme.description } : {}),
+    }));
+    this.defaultSchemeId = resolveNewSessionOrchestrationSchemeId(subagents);
+    // Config can arrive after the first session opened; an untouched choice follows it.
+    if (hadDefault) this.schemeId = this.defaultSchemeId;
+  }
+
+  /** A new or different session starts from the configured default scheme. */
+  public resetSchemeForNewSession(): void {
+    this.schemeId = this.defaultSchemeId;
+    this.delegationDisabled = false;
+  }
+
+  /** Name for the composer badge; undefined when freehand or delegation is off. */
+  public activeSchemeName(): string | undefined {
+    if (this.delegationDisabled) return undefined;
+    return activeSchemeName(this.schemeId, this.schemes);
   }
 
   /** The model a turn uses when none is chosen: the Host's default, when it names one this Host lists. */
@@ -142,6 +194,8 @@ export class TuiComposerProfile {
     model?: ModelRef;
     thinkingLevel?: ThinkingLevel;
     permissionPreset?: PermissionPreset;
+    orchestrationSchemeId?: string;
+    delegationMode?: 'auto' | 'disabled';
   } {
     const model = this.modelRef();
     const thinkingLevel = this.thinkingLevel ?? this.model?.thinkingLevel;
@@ -149,6 +203,13 @@ export class TuiComposerProfile {
       ...(model === undefined ? {} : { model }),
       ...(thinkingLevel === undefined ? {} : { thinkingLevel }),
       ...(this.permissionPreset === undefined ? {} : { permissionPreset: this.permissionPreset }),
+      // External agents run their own delegation; piwin's schemes do not apply.
+      ...(this.options.getAgentId() === undefined
+        ? {
+            orchestrationSchemeId: this.delegationDisabled ? SCHEME_OFF_VALUE : this.schemeId,
+            delegationMode: this.delegationDisabled ? ('disabled' as const) : ('auto' as const),
+          }
+        : {}),
     };
   }
 
@@ -186,6 +247,7 @@ export class TuiComposerProfile {
       describeThinkingLevel(this.thinkingLevel),
       describePermissionPreset(this.permissionPreset, this.hostPermissionPreset),
       this.nextSkill === undefined ? undefined : `技能 ${this.nextSkill.name}`,
+      describeScheme(this.activeSchemeName(), this.delegationDisabled),
     ];
   }
 
@@ -250,6 +312,26 @@ export class TuiComposerProfile {
         onSelect: (value) => {
           modals.close();
           this.permissionPreset = parsePermissionPreset(value);
+          this.options.onChanged();
+        },
+        onCancel: () => modals.close(),
+      }),
+    );
+  }
+
+  public openSchemePicker(): void {
+    const { modals } = this.options;
+    if (this.refuseForBackend('子代理编排')) return;
+    modals.show(
+      new ChoiceOverlay({
+        title: '编排方案',
+        message: '对这个会话接下来发出的消息生效。',
+        items: schemeItems(this.schemes),
+        initialValue: this.delegationDisabled ? NO_DELEGATION_VALUE : this.schemeId,
+        onSelect: (value) => {
+          modals.close();
+          this.delegationDisabled = value === NO_DELEGATION_VALUE;
+          this.schemeId = this.delegationDisabled ? SCHEME_OFF_VALUE : value;
           this.options.onChanged();
         },
         onCancel: () => modals.close(),

@@ -1,7 +1,7 @@
 import type { KeyId } from '@earendil-works/pi-tui';
 
 /** The shortcuts the TUI owns, ahead of the editor. Everything else is the editor's. */
-export const KEYBINDING_ACTIONS = ['sessions', 'history', 'editor', 'pasteImage', 'permission', 'toolOutput', 'openArtifact'] as const;
+export const KEYBINDING_ACTIONS = ['sessions', 'history', 'editor', 'pasteImage', 'permission', 'toolOutput', 'openArtifact', 'openImage'] as const;
 export type KeybindingAction = (typeof KEYBINDING_ACTIONS)[number];
 export type Keybindings = Readonly<Record<KeybindingAction, KeyId>>;
 
@@ -14,6 +14,8 @@ export const DEFAULT_KEYBINDINGS: Keybindings = {
   toolOutput: 'ctrl+o',
   // Ctrl+O is taken by toolOutput; Ctrl+T is free in pi-tui's editor and in raw mode.
   openArtifact: 'ctrl+t',
+  // Ctrl+I is Tab in a terminal; Alt+I is free in pi-tui's editor.
+  openImage: 'alt+i',
 };
 
 export const KEYBINDING_DESCRIPTIONS: Readonly<Record<KeybindingAction, string>> = {
@@ -24,6 +26,7 @@ export const KEYBINDING_DESCRIPTIONS: Readonly<Record<KeybindingAction, string>>
   permission: '权限模式',
   toolOutput: '展开工具输出和思考',
   openArtifact: '打开最新 artifact',
+  openImage: '打开最新图片',
 };
 
 /** Keys the editor or the terminal needs, or that the TUI handles itself: not rebindable. */
@@ -101,5 +104,5 @@ export function formatKey(key: KeyId): string {
 /** The one-line shortcut summary `/help` ends with, using the keys actually bound. */
 export function shortcutHelp(bindings: Keybindings): string {
   const bound = KEYBINDING_ACTIONS.map((action) => `${formatKey(bindings[action])} ${KEYBINDING_DESCRIPTIONS[action]}`);
-  return [...bound, '@ 引用文件', '运行中发送即排队', 'Esc 中断', 'Esc Esc 回到更早的提问', 'Ctrl+C 两次退出', 'Shift+Enter 换行'].join(' · ');
+  return [...bound, '@ 引用文件', '运行中发送即排队', 'Alt+↑ 管理排队和插入', 'Esc 中断', 'Esc Esc 回到更早的提问', 'Ctrl+C 两次退出', 'Shift+Enter 换行'].join(' · ');
 }

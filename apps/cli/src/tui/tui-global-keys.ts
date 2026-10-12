@@ -27,7 +27,10 @@ export type TuiGlobalKeysPort = {
   /** Returns whether tool output and thinking are now shown in full. */
   toggleToolOutput: () => boolean;
   openLatestArtifact: () => void;
+  openLatestImage: () => void;
   hint: (text: string) => void;
+  /** The queue/steer strip: Alt+↑ focuses it, then it owns the keys. True when consumed. */
+  handleStripKey: (data: string, focusRequested: boolean) => boolean;
 };
 
 /** Shortcuts that work wherever the cursor is, ahead of the editor. */
@@ -41,6 +44,7 @@ export class TuiGlobalKeys {
     const { port } = this;
     if (port.isModalOpen()) return undefined;
     const { editor } = port;
+    if (port.handleStripKey(data, matchesKey(data, Key.alt('up')))) return { consume: true };
     if (matchesKey(data, Key.ctrl('c'))) {
       this.interrupt();
       return { consume: true };
@@ -93,6 +97,10 @@ export class TuiGlobalKeys {
     }
     if (matchesKey(data, port.keybindings.toolOutput)) {
       port.hint(port.toggleToolOutput() ? '工具输出与思考：完整' : '工具输出与思考：摘要');
+      return { consume: true };
+    }
+    if (matchesKey(data, port.keybindings.openImage)) {
+      port.openLatestImage();
       return { consume: true };
     }
     if (matchesKey(data, port.keybindings.openArtifact)) {

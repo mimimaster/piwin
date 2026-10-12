@@ -66,12 +66,25 @@ describe('TUI end to end against a mock Host', () => {
 
     it('cycles the Run Mode with Shift+Tab and names the Host default', async () => {
       tui = await startTuiHarness();
-      await tui.waitFor('权限 放行（Host）');
+      await tui.waitFor('YOLO');
+      expect(tui.seen()).not.toContain('（Host）');
       tui.mark();
       await tui.press(KEY.shiftTab);
-      await tui.waitFor('权限 询问');
+      await tui.waitFor('询问');
       await tui.press(KEY.shiftTab);
-      await tui.waitFor('权限 自动');
+      await tui.waitFor('自动');
+    });
+
+    it('picks an orchestration scheme with /编排 and badges the composer', async () => {
+      tui = await startTuiHarness();
+      await tui.waitFor('YOLO');
+      tui.mark();
+      await tui.submit('/编排');
+      await tui.waitFor('不使用子代理');
+      tui.mark();
+      await tui.press(KEY.down, KEY.enter);
+      await tui.waitFor('◆编排 Ultra Code │');
+      expect(tui.statusText()).toContain('YOLO · 编排 Ultra Code');
     });
 
     it('exits on Ctrl+D with an empty composer', async () => {
@@ -636,8 +649,16 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('Esc 中断');
       tui.mark();
       await tui.submit('/steer 顺便说一句');
-      await tui.waitFor('› 顺便说一句');
-      await tui.waitFor('⎿ 插入当前回合');
+      // It waits in the strip above the composer until the Host applies it.
+      await tui.waitFor('↳ 插入中: 顺便说一句');
+      expect(tui.seen()).not.toContain('› 顺便说一句');
+      // The mock backend cannot apply steers: the row turns failed and can be re-queued.
+      await tui.waitFor('(失败)');
+      tui.mark();
+      await tui.press('\x1b[1;3A');
+      await tui.waitFor('Enter 重发为排队');
+      await tui.press(KEY.enter);
+      await tui.waitFor('⏳ 已排队 1: 顺便说一句');
     });
 
     it('replaces the running turn with new text', async () => {
@@ -723,7 +744,7 @@ describe('TUI end to end against a mock Host', () => {
       listing.fail('branch-list-failed: injected');
       tui.mark();
       await tui.press(KEY.shiftTab);
-      await tui.waitFor('权限 ');
+      await tui.waitFor('询问');
       expect(tui.seen()).toContain('分支 1');
     });
 
@@ -859,10 +880,14 @@ describe('TUI end to end against a mock Host', () => {
 
   describe('status bar', () => {
     /** Redraw the status bar and return what it shows now. */
+    // Shift+Tab walks Host (YOLO) → 询问 → 自动 → YOLO → Host (YOLO).
+    const cycle = new WeakMap<TuiHarness, number>();
     async function redrawnStatus(harness: TuiHarness): Promise<string> {
+      const presses = cycle.get(harness) ?? 0;
+      cycle.set(harness, presses + 1);
       harness.mark();
       await harness.press(KEY.shiftTab);
-      await harness.waitFor('权限 ');
+      await harness.waitFor(['询问', '自动', 'YOLO', 'YOLO'][presses % 4] ?? 'YOLO');
       return harness.seen();
     }
 

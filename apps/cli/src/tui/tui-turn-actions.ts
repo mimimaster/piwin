@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type { HostCommand, HostResponse, PromptInput } from '@piwin/contracts';
 import type { TranscriptState } from './transcript-model.js';
 import { findLastUserMessage } from './tui-composer-options.js';
@@ -17,6 +16,8 @@ export type TuiTurnPort = {
   transcript: () => TranscriptState;
   /** Model, thinking level and Run Mode for a prompt sent now. */
   promptFields: () => Partial<PromptInput>;
+  /** Send an instruction into the running turn (tracked in the strip until applied). */
+  steerIntoRun: (text: string) => Promise<boolean>;
   hint: (text: string) => void;
   notice: (tone: 'info' | 'error', text: string) => void;
   echoUser: (messageId: string, text: string, annotations: string[]) => void;
@@ -55,9 +56,8 @@ export class TuiTurnActions {
       this.port.hint('用法：/steer <要插入的话>');
       return;
     }
-    const clientMessageId = randomUUID();
-    this.port.echoUser(clientMessageId, text, ['插入当前回合']);
-    hostData(await this.port.request({ type: 'session/steer', sessionId, message: text, runId, clientMessageId }));
+    // Shown in the strip above the composer; written to the transcript once applied.
+    await this.port.steerIntoRun(text);
   }
 
   public async compact(customInstructions: string): Promise<void> {
