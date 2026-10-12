@@ -103,6 +103,18 @@ fn tui_host_environment(target: TuiRemoteTarget) -> Result<Vec<(String, OsString
     ])
 }
 
+/// Desktop's xterm.js surface loads `@xterm/addon-image`, which decodes the
+/// iTerm2 inline-image protocol (not kitty). pi-tui cannot detect that from
+/// inside a PTY, so the embedded CLI is told explicitly. A value the user
+/// already exported (for example `off`) wins. TERM_PROGRAM is left alone: other
+/// programs key unrelated behaviour off it.
+fn tui_image_environment(inherited: Option<OsString>) -> Vec<(String, OsString)> {
+    match inherited {
+        Some(value) if !value.is_empty() => Vec::new(),
+        _ => vec![("PIWIN_IMAGES".to_string(), OsString::from("iterm2"))],
+    }
+}
+
 /// A remote target bypasses the sidecar entirely. The local entrance token
 /// remains native-only; remote admission is already held by Desktop's client.
 async fn open_tui_pty(
@@ -167,6 +179,7 @@ async fn open_tui_pty(
         .map(|(key, value)| (key.to_string(), value))
         .collect();
     environment.extend(host_environment);
+    environment.extend(tui_image_environment(std::env::var_os("PIWIN_IMAGES")));
     let launch = PtyLaunch {
         program: invocation.program,
         args: invocation.args,
@@ -241,6 +254,19 @@ pub async fn pty_open_remote_tui(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn embedded_tui_draws_images_with_the_iterm2_protocol_unless_the_user_chose() {
+        assert_eq!(
+            tui_image_environment(None),
+            vec![("PIWIN_IMAGES".to_string(), OsString::from("iterm2"))]
+        );
+        assert_eq!(
+            tui_image_environment(Some(OsString::new())),
+            vec![("PIWIN_IMAGES".to_string(), OsString::from("iterm2"))]
+        );
+        assert!(tui_image_environment(Some(OsString::from("off"))).is_empty());
+    }
 
     #[test]
     fn launch_arguments_follow_session_then_project() {

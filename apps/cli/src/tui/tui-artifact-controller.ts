@@ -18,16 +18,18 @@ import { ViewerOverlay } from './viewer-overlay.js';
 /** Hand a local file to the system's default browser. */
 export type FileOpener = (filePath: string) => Promise<void>;
 
+/** The OS opener for a file: `open` (macOS), `start` via cmd (Windows), `xdg-open` elsewhere. */
+export function systemOpenCommand(platform: NodeJS.Platform, filePath: string): [string, string[]] {
+  if (platform === 'darwin') return ['open', [filePath]];
+  // `start` takes its first quoted argument as a window title, hence the empty one.
+  if (platform === 'win32') return ['cmd', ['/c', 'start', '', filePath]];
+  return ['xdg-open', [filePath]];
+}
+
 export const openWithSystemBrowser: FileOpener = (filePath) =>
   new Promise((resolve, reject) => {
-    const [command, args] =
-      process.platform === 'darwin'
-        ? (['open', [filePath]] as const)
-        : process.platform === 'win32'
-          ? // `start` takes its first quoted argument as a window title.
-            (['cmd', ['/c', 'start', '', filePath]] as const)
-          : (['xdg-open', [filePath]] as const);
-    execFile(command, [...args], { windowsHide: true }, (error) => (error === null ? resolve() : reject(error)));
+    const [command, args] = systemOpenCommand(process.platform, filePath);
+    execFile(command, args, { windowsHide: true }, (error) => (error === null ? resolve() : reject(error)));
   });
 
 export type TuiArtifactControllerOptions = {
