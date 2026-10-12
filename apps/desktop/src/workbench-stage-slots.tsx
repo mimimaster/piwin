@@ -1,3 +1,4 @@
+import type { SessionTuiRenderer } from './use-workbench-cli.js';
 /**
  * The workbench's stackable layers around the shell chrome: the stage content
  * `WorkspaceShell` renders in its stage region, the in-shell floating layers
@@ -46,6 +47,8 @@ export type WorkbenchStageLayerProps = {
   conversationPaneController: ReturnType<typeof useConversationPaneLayout>;
   openSessionFromShell: ReturnType<typeof useShellSessionOpen>;
   handleCreatePaneConversation: (paneId: string) => Promise<string | null>;
+  /** Terminal mode is on: render a session as the CLI TUI instead of the GUI chat (null keeps the GUI). */
+  renderSessionTui?: SessionTuiRenderer | undefined;
 };
 
 export function WorkbenchStageLayer(props: WorkbenchStageLayerProps) {
@@ -108,6 +111,7 @@ export function WorkbenchStageLayer(props: WorkbenchStageLayerProps) {
           onOpenDocument={handleOpenDocument}
           onOpenArtifactCanvas={handleOpenArtifactCanvas}
           fileBrowseRoot={fileBrowseRoot}
+          renderSessionTui={props.renderSessionTui}
         />
       </DesktopAttentionLayer>
     </>

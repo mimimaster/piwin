@@ -10,6 +10,14 @@ import { prefetchTuiPane } from './deferred-desktop-surfaces.js';
 import { isTauriPtyAvailable } from './tauri-pty.js';
 import { useCliImagePreview } from './cli-image-preview.js';
 
+/**
+ * Renders a split pane's session as the terminal shell. Terminal mode is one
+ * toggle per window: while it is on, every pane showing a piwin or grok session
+ * shows that session in the TUI, not only the primary (focused-session) pane.
+ * Returns null when the session's agent has no embedded TUI.
+ */
+export type SessionTuiRenderer = (sessionId: string, agentId: string | undefined) => ReactElement | null;
+
 /** Owns shell selection and native-agent routing; the shell frame only places slots. */
 export function useWorkbenchCli(input: {
   state: ChatUiState;
@@ -20,7 +28,7 @@ export function useWorkbenchCli(input: {
   appearanceMode: 'light' | 'dark';
   onResumeSession: (sessionId: string, options?: { refresh: boolean }) => void | Promise<void>;
   onError: (error: unknown) => void;
-}): { active: boolean; stage: ReactElement | null; control: ReactElement | null; reset: () => void } {
+}): { active: boolean; stage: ReactElement | null; control: ReactElement | null; reset: () => void; renderSessionTui: SessionTuiRenderer | null } {
   const { hostClient, state } = input;
   const [syncing, setSyncing] = useState(false);
   const latest = useRef(input);
@@ -87,8 +95,20 @@ export function useWorkbenchCli(input: {
   };
   const imagePreview = useCliImagePreview({ hostClient, sessionId: state.activeSessionId, locale: input.locale });
   const visible = !input.studioOpen && !input.subpageOpen;
+  const projectPath = state.activeScope.kind === 'project' ? state.activeScope.projectPath : null;
+  const renderSessionTui: SessionTuiRenderer | null = tui.active && visible
+    ? (sessionId, paneAgentId) => {
+      const engine = paneAgentId ?? 'pi';
+      if (!['pi', 'grok'].includes(engine)) return null;
+      // The pane is bound to its session; it keeps the process it started.
+      return <WorkbenchTuiStage visible sessionId={sessionId} projectPath={projectPath} agentId={engine}
+        hostClient={hostClient} hostKey={hostKey} remoteTarget={remoteTarget} locale={input.locale}
+        onSessionChange={() => undefined} />;
+    }
+    : null;
   return {
     active: tui.active && visible,
+    renderSessionTui,
     reset,
     control: available && visible ? <ConversationShellSwitch cli={tui.active} locale={input.locale}
       appearanceMode={input.appearanceMode} busy={syncing} onDesktop={close}

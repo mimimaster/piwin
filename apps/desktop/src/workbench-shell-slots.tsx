@@ -259,6 +259,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             conversationPaneController={conversationPaneController}
             openSessionFromShell={openSessionFromShell}
             handleCreatePaneConversation={handleCreatePaneConversation}
+            renderSessionTui={cli.renderSessionTui ?? undefined}
           />
         )}
         conversationOverride={cli.stage}

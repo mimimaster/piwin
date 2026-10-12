@@ -1,3 +1,4 @@
+import type { SessionTuiRenderer } from '../../use-workbench-cli.js';
 import type { ReactElement } from 'react';
 import type { SessionListItemUi } from '../../chat-ui-types.js';
 import type { HostClient } from '../../host-client.js';
@@ -25,6 +26,8 @@ export type DockViewRenderContext = {
   onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   fileBrowseRoot?: string | null;
+  /** Terminal mode is on: render a session as the CLI TUI instead of the GUI chat (null keeps the GUI). */
+  renderSessionTui?: SessionTuiRenderer | undefined;
 };
 
 const TOOL_LABEL: Record<string, { zh: string; en: string }> = {
@@ -41,6 +44,11 @@ export function DockViewContent(props: {
 }): ReactElement {
   const { view, ctx } = props;
   if (view.kind === 'session' && view.sessionId) {
+    const tui = ctx.renderSessionTui?.(
+      view.sessionId,
+      ctx.sessions.find((session) => session.id === view.sessionId)?.backend?.agentId,
+    );
+    if (tui) return tui;
     return (
       <ConversationPaneSession
         sessionId={view.sessionId}
