@@ -768,17 +768,11 @@ describe('TUI end to end against a mock Host', () => {
       await shell.waitFor('先用 /unarchive 恢复再发送');
       shell.mark();
       await shell.asOtherShell({ type: 'session/unarchive', sessionId });
-      // The unarchive push lands asynchronously: redraw until a frame reflects it.
-      let cleared = false;
-      for (let attempt = 0; attempt < 40 && !cleared; attempt += 1) {
-        shell.mark();
-        await shell.press(KEY.ctrlU);
-        await shell.press('x');
-        await shell.waitFor('会被别处归档');
-        cleared = !shell.seen().includes('已归档 · /unarchive 恢复');
-        if (!cleared) await new Promise((resolve) => setTimeout(resolve, 25));
-      }
-      expect(cleared).toBe(true);
+      // Wait for the unarchive push to reach the TUI's state, then check the next frame.
+      await shell.waitUntil(() => !shell.sessionArchived(), 'the session is no longer archived');
+      // The renderer only redraws changed lines, so read the status line itself.
+      expect(shell.statusText()).toContain('会被别处归档');
+      expect(shell.statusText()).not.toContain('已归档 · /unarchive 恢复');
     });
 
     it('goes back to a new conversation when the open session is deleted elsewhere', async () => {

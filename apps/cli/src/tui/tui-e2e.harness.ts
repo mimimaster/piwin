@@ -90,6 +90,12 @@ export type TuiHarness = {
   asOtherShell: (command: HostCommand) => Promise<HostResponse>;
   /** Id of the session the TUI shows; throws while it has none. */
   sessionId: () => string;
+  /** The status line's current text, without escape sequences (not what was last drawn). */
+  statusText: () => string;
+  /** Whether the TUI's state says the open session is archived. */
+  sessionArchived: () => boolean;
+  /** Resolve once `predicate` holds for the TUI's state (polled; times out like waitFor). */
+  waitUntil: (predicate: () => boolean, what: string) => Promise<void>;
   /** Whether a turn is running in the TUI's view right now. */
   isRunning: () => boolean;
   /** Resolve once no turn is running in the TUI's view. */
@@ -272,6 +278,15 @@ export async function startTuiHarness(options: TuiHarnessOptions = {}): Promise<
       const sessionId = app.currentSessionId();
       if (sessionId === undefined) throw new Error('The TUI has no session yet');
       return sessionId;
+    },
+    statusText: () => app.statusText().replace(/\x1b\[[0-9;]*m/g, ''),
+    sessionArchived: () => app.isSessionArchived(),
+    waitUntil: async (predicate, what) => {
+      const deadline = Date.now() + WAIT_TIMEOUT_MS;
+      while (!predicate()) {
+        if (Date.now() > deadline) throw new Error(`Timed out waiting until ${what}`);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
     },
     isRunning: () => app.isRunning(),
     waitForIdle: async () => {

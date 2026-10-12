@@ -649,6 +649,16 @@ export class TuiApp {
     return this.sessionId;
   }
 
+  /** Whether the Host reports the open session as archived (read by tests and status). */
+  public isSessionArchived(): boolean {
+    return this.sessionArchived;
+  }
+
+  /** The status line as last set (styled). */
+  public statusText(): string {
+    return this.statusLine.getText();
+  }
+
   /** Whether a turn is in flight. Read fresh each time: pushes change it across every await. */
   public isRunning(): boolean {
     return this.foreground.kind === 'active';

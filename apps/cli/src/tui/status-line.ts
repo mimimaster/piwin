@@ -9,6 +9,10 @@ export class StatusLine implements Component {
     this.text = text;
   }
 
+  public getText(): string {
+    return this.text;
+  }
+
   public invalidate(): void {
     // Stateless between frames: nothing cached.
   }
