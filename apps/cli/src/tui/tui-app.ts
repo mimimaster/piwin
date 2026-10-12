@@ -48,6 +48,8 @@ import { QueryListOverlay } from './query-list-overlay.js';
 import { describeHostFailure } from './host-failure-text.js';
 import { editTextExternally } from './external-editor.js';
 import { ComposerBadgeFrame } from './composer-badge-frame.js';
+import { QueueStrip, stripRows } from './queue-strip.js';
+import { handleQueueStripKey } from './queue-strip-keys.js';
 import { PromptHistory } from './prompt-history.js';
 import { DEFAULT_KEYBINDINGS, formatKey, type Keybindings } from './keybindings.js';
 import { DEFAULT_STATUS_TEMPLATE, renderStatusTemplate } from './status-template.js';
@@ -112,6 +114,9 @@ export class TuiApp {
   private openingSession = false;
   private readonly activitySlot = new Container();
   private readonly editor: Editor;
+  private readonly queueStrip = new QueueStrip(() =>
+    stripRows(this.features.queue.pendingTurns(), this.features.interventions.list()),
+  );
   private readonly statusLine = new StatusLine();
   private readonly loader: Loader;
   /** When the in-flight turn began; drives the elapsed counter on the activity line. */
@@ -252,7 +257,7 @@ export class TuiApp {
     this.runCommand = controllers.runCommand;
     this.artifacts = controllers.artifacts;
     this.transcriptScroll = mountTuiLayout(this.tui, {
-      transcript: this.transcriptView, activity: this.activitySlot,
+      transcript: this.transcriptView, activity: this.activitySlot, strip: this.queueStrip,
       editor: new ComposerBadgeFrame(this.editor, () => (this.sessionAgentId === undefined ? this.composer.activeSchemeName() : undefined)),
       status: this.statusLine,
     });
@@ -283,6 +288,13 @@ export class TuiApp {
       editInExternalEditor: () => this.editInExternalEditor(),
       toggleToolOutput: () => this.transcriptView.toggleToolOutput(),
       openLatestArtifact: () => this.artifacts.openLatest(),
+      handleStripKey: (data, focusRequested) =>
+        handleQueueStripKey(this.queueStrip, data, focusRequested, {
+          queue: this.features.queue,
+          interventions: this.features.interventions,
+          refresh: () => this.refreshChrome(),
+          onError: (error) => this.reportError(error),
+        }),
       hint: (text) => this.flashHint(text),
     });
     this.tui.setFocus(this.editor);

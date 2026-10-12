@@ -649,8 +649,16 @@ describe('TUI end to end against a mock Host', () => {
       await tui.waitFor('Esc 中断');
       tui.mark();
       await tui.submit('/steer 顺便说一句');
-      await tui.waitFor('› 顺便说一句');
-      await tui.waitFor('⎿ 插入当前回合');
+      // It waits in the strip above the composer until the Host applies it.
+      await tui.waitFor('↳ 插入中: 顺便说一句');
+      expect(tui.seen()).not.toContain('› 顺便说一句');
+      // The mock backend cannot apply steers: the row turns failed and can be re-queued.
+      await tui.waitFor('(失败)');
+      tui.mark();
+      await tui.press('\x1b[1;3A');
+      await tui.waitFor('Enter 重发为排队');
+      await tui.press(KEY.enter);
+      await tui.waitFor('⏳ 已排队 1: 顺便说一句');
     });
 
     it('replaces the running turn with new text', async () => {

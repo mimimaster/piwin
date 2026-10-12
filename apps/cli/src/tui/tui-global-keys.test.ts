@@ -37,6 +37,7 @@ function setup(overrides: Partial<TuiGlobalKeysPort> = {}, initial: { text?: str
     toggleToolOutput: () => true,
     openLatestArtifact: vi.fn(),
     hint: vi.fn(),
+    handleStripKey: (_data: string, _focus: boolean) => false,
     ...overrides,
   };
   return { keys: new TuiGlobalKeys(port), port, editor, text: () => text };

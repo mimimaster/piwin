@@ -28,6 +28,8 @@ export type TuiGlobalKeysPort = {
   toggleToolOutput: () => boolean;
   openLatestArtifact: () => void;
   hint: (text: string) => void;
+  /** The queue/steer strip: Alt+↑ focuses it, then it owns the keys. True when consumed. */
+  handleStripKey: (data: string, focusRequested: boolean) => boolean;
 };
 
 /** Shortcuts that work wherever the cursor is, ahead of the editor. */
@@ -41,6 +43,7 @@ export class TuiGlobalKeys {
     const { port } = this;
     if (port.isModalOpen()) return undefined;
     const { editor } = port;
+    if (port.handleStripKey(data, matchesKey(data, Key.alt('up')))) return { consume: true };
     if (matchesKey(data, Key.ctrl('c'))) {
       this.interrupt();
       return { consume: true };

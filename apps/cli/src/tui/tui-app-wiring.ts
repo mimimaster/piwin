@@ -157,6 +157,7 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     isRunning: port.isRunning,
     transcript: port.getTranscript,
     promptFields: () => composer.promptFields(),
+    steerIntoRun: (text) => features.interventions.submit({ text }),
     hint: port.hint,
     notice: notify,
     echoUser: (messageId, text, annotations) => {
