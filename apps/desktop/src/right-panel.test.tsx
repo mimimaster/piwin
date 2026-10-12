@@ -84,33 +84,6 @@ describe('RightPanel multi-tab', () => {
     }
   });
 
-  it('hides the terminal launcher and refuses restored or requested terminal tabs when disabled', () => {
-    writeStoredRightPanelState({ openTabs: ['terminal-1'], activeTab: 'terminal-1' });
-    const rendered = renderPanel({ open: true, activeTab: 'terminal-1', terminalEnabled: false });
-    root = rendered.root;
-    container = rendered.container;
-    expect(container.querySelector('[data-testid="terminal-body"]')).toBeNull();
-    expect(container.querySelector('[data-testid="right-panel-open-tab-terminal-1"]')).toBeNull();
-    expect(container.querySelector('[data-testid="right-panel-home-terminal"]')).toBeNull();
-    expect(container.querySelector('[data-testid="right-panel-home-files"]')).not.toBeNull();
-  });
-
-  it('omits terminal from the add menu when disabled', async () => {
-    writeStoredRightPanelState({ openTabs: ['files'], activeTab: 'files' });
-    const rendered = renderPanel({ open: true, activeTab: 'files', terminalEnabled: false });
-    root = rendered.root;
-    container = rendered.container;
-    act(() => {
-      const plus = container?.querySelector<HTMLButtonElement>('[data-testid="right-panel-tab-add"]');
-      plus?.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
-      plus?.dispatchEvent(new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }));
-      plus?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-    });
-    expect(document.querySelector('[data-testid="right-panel-plus-menu"]')).not.toBeNull();
-    expect(document.querySelector('[data-testid="right-panel-plus-terminal"]')).toBeNull();
-    expect(document.querySelector('[data-testid="right-panel-plus-browser"]')).not.toBeNull();
-  });
-
   it('exposes resize handle and tab strip', () => {
     const rendered = renderPanel({ open: false });
     root = rendered.root;

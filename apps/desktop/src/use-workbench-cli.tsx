@@ -5,7 +5,7 @@ import type { HostClient } from './host-client.js';
 import { resolveActiveComposerAgentId } from './composer-dock-assembly.js';
 import { ConversationShellSwitch } from './conversation-shell-switch.js';
 import { WorkbenchTuiStage, useWorkbenchTui } from './workbench-tui.js';
-import { canOpenEmbeddedTui, isTerminalFeatureEnabled } from './terminal-feature.js';
+import { canOpenEmbeddedTui } from './terminal-feature.js';
 import { prefetchTuiPane } from './deferred-desktop-surfaces.js';
 import { isTauriPtyAvailable } from './tauri-pty.js';
 import { useCliImagePreview } from './cli-image-preview.js';
@@ -14,7 +14,6 @@ import { useCliImagePreview } from './cli-image-preview.js';
 export function useWorkbenchCli(input: {
   state: ChatUiState;
   hostClient: HostClient;
-  terminalEnabled: boolean | undefined;
   studioOpen: boolean;
   subpageOpen: boolean;
   locale: DesktopLocale;
@@ -33,7 +32,6 @@ export function useWorkbenchCli(input: {
   const agentId = adoptedEngine.current?.sessionId === state.activeSessionId && adoptedEngine.current?.hostKey === hostKey
     ? adoptedEngine.current.agentId : resolveActiveComposerAgentId(state) ?? state.draftAgentId ?? 'pi';
   const available = ['pi', 'grok'].includes(agentId) && canOpenEmbeddedTui({
-    terminalEnabled: isTerminalFeatureEnabled(input.terminalEnabled),
     nativePtyAvailable: isTauriPtyAvailable(), transport: hostClient.getTransport(),
     remoteTargetAvailable: hostClient.getRemoteTarget() !== undefined,
   });

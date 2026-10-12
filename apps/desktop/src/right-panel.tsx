@@ -78,7 +78,6 @@ export type RightPanelProps = {
   filesContent: ReactNode;
   /** Terminal panel body (no context-window chrome). */
   terminalContent: ReactNode;
-  terminalEnabled?: boolean | undefined;
   /** Browser session panel body (ADR 0020 §6 mirrored frame + pick). */
   browserContent?: ReactNode;
   reviewContent: ReactNode;
@@ -177,7 +176,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const handedOffTabs = props.handedOffTabs ?? NO_HANDED_OFF_TABS;
   const handedOffKey = handedOffTabs.join('|');
   const keepsTab = (tab: RightPanelTab): boolean =>
-    (props.terminalEnabled !== false || !isTerminalTab(tab)) &&
     !handedOffTabs.some((owned) => rightPanelTabKind(owned) === rightPanelTabKind(tab));
   const dockedTools = props.dockedTools;
   const dockedTabs = dockedTools?.tabs ?? NO_HANDED_OFF_TABS;
@@ -258,7 +256,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       current.some((tab) => !keepsTab(tab)) ? current.filter(keepsTab) : current,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by handedOffKey
-  }, [handedOffKey, openTabs, props.terminalEnabled]);
+  }, [handedOffKey, openTabs]);
 
   // Migrate legacy 'terminal' in openTabs to concrete active session id
   useEffect(() => {
@@ -302,7 +300,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   }, [terminalSessions?.sessions]);
 
   const revealTab = useCallback((tab: RightPanelTab, place: 'after-active' | 'end' = 'end'): void => {
-    if (isTerminalTab(tab) && props.terminalEnabled === false) return;
     if (isTerminalTab(tab) && terminalSessions && tab !== 'terminal') {
       terminalSessions.setActiveSessionId(tab);
     }
@@ -321,7 +318,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
 
   /** + menu and the empty-state launcher: always another instance. */
   const openKind = useCallback((kind: RightPanelToolKind): void => {
-    if (kind === 'terminal' && props.terminalEnabled === false) return;
     if (kind === 'terminal' && terminalSessions) {
       if (allTabs.length === 0 && terminalSessions.sessions.length > 0) {
         const firstId = terminalSessions.sessions[0]?.id as RightPanelTab;
@@ -477,7 +473,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             onOpenChange={setPickerOpen}
             locale={locale}
             onSelect={openKind}
-            terminalEnabled={props.terminalEnabled}
             active={pickerOpen}
           />
         ) : null}
@@ -637,7 +632,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         <RightPanelHome
           locale={locale}
           onSelect={openKind}
-          terminalEnabled={props.terminalEnabled}
           tasksActiveCount={tasksActiveCount}
         />
       ) : (

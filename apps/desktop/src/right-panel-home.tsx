@@ -11,15 +11,13 @@ export type RightPanelHomeProps = {
   locale: DesktopLocale;
   onSelect: (kind: RightPanelToolKind) => void;
   tasksActiveCount?: number;
-  terminalEnabled?: boolean | undefined;
 };
 
 export function RightPanelHome(props: RightPanelHomeProps): ReactElement {
   return (
     <div className="right-panel-home blank-tool" data-testid="right-panel-home">
       <div className="right-panel-home-list" role="list">
-        {SECTION_META.filter((entry) => isHomeLauncherSection(entry) &&
-          (entry.id !== 'terminal' || props.terminalEnabled !== false)).map((tab) => {
+        {SECTION_META.filter((entry) => isHomeLauncherSection(entry)).map((tab) => {
           const label = sectionLabel(tab.id, props.locale);
           return (
             <button

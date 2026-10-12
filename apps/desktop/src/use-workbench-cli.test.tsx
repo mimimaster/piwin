@@ -25,7 +25,7 @@ const error = vi.fn();
 let finish: (response: HostResponse) => void;
 
 function Harness() {
-  const cli = useWorkbenchCli({ state, hostClient: host, terminalEnabled: true, studioOpen: false,
+  const cli = useWorkbenchCli({ state, hostClient: host, studioOpen: false,
     subpageOpen: false, locale: 'zh-CN', appearanceMode: 'dark', onResumeSession: resume, onError: error });
   return <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>{cli.control}{cli.stage}<span data-active={cli.active} /></PiwinUiProvider>;
 }

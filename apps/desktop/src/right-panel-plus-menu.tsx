@@ -23,7 +23,6 @@ export type RightPanelPlusMenuProps = {
   locale: DesktopLocale;
   onSelect: (kind: RightPanelToolKind) => void;
   active?: boolean;
-  terminalEnabled?: boolean | undefined;
 };
 
 export function RightPanelPlusMenu(props: RightPanelPlusMenuProps): ReactElement {
@@ -61,8 +60,7 @@ export function RightPanelPlusMenu(props: RightPanelPlusMenuProps): ReactElement
       <DropdownMenuLabel className="right-panel-plus-caption muted">
         {props.locale === 'zh-CN' ? '打开' : 'Open'}
       </DropdownMenuLabel>
-      {SECTION_META.filter((entry) => isPlusMenuSection(entry) &&
-          (entry.id !== 'terminal' || props.terminalEnabled !== false)).map((tab) => {
+      {SECTION_META.filter((entry) => isPlusMenuSection(entry)).map((tab) => {
         const labelText = sectionLabel(tab.id, props.locale);
         return (
           <DropdownMenuItem

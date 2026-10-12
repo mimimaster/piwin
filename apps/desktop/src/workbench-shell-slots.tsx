@@ -19,7 +19,6 @@ import type { useConversationPaneLayout } from './use-conversation-pane-layout';
 import type { useDockingWorkspace } from './workbench/docking/use-docking-workspace';
 import { WorkbenchContextBar } from './workbench-context-bar';
 import { useWorkbenchCli } from './use-workbench-cli.js';
-import { isTerminalFeatureEnabled } from './terminal-feature.js';
 import { formatError } from '@piwin/contracts';
 import { WorkbenchPermissionBar, WorkbenchTranscript } from './workbench-conversation';
 import { WorkbenchInspector } from './workbench-inspector';
@@ -117,9 +116,8 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
   const { setComposer, switchBranch, terminalJobMonitor, transcriptHistoryLoading } = model;
   const { visibleRunRecordsById, visibleTranscriptMessages, worktrees } = model;
 
-  const terminalEnabled = isTerminalFeatureEnabled(preferences.terminalEnabled);
   const cli = useWorkbenchCli({
-    state, hostClient, terminalEnabled, studioOpen, subpageOpen: activeSubPage !== null,
+    state, hostClient, studioOpen, subpageOpen: activeSubPage !== null,
     locale: desktopLocale, appearanceMode: activeTheme.mode === 'light' ? 'light' : 'dark',
     onResumeSession: handleResumeSession,
     onError: (error) => dispatch({ type: 'error', message: formatError(error) }),
@@ -396,7 +394,6 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             ptyOutput={ptyOutput}
             setPtyOutput={setPtyOutput}
             terminalCwd={terminalCwd}
-            terminalEnabled={terminalEnabled}
             handleTerminalCwdChange={handleTerminalCwdChange}
             terminalRecentDirs={terminalRecentDirs}
             terminalJobMonitor={terminalJobMonitor}
