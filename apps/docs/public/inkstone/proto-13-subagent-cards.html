@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Inkstone（砚）· 增量 13 · 子代理摘要卡</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+      .app {
+        --sans: Inter, 'PingFang SC', 'Noto Sans SC', -apple-system, system-ui, sans-serif;
+        --serif: 'Noto Serif SC', 'Songti SC', 'STSong', 'Source Han Serif SC', Georgia, serif;
+        --mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+        min-height: 100dvh;
+        background: var(--void);
+        color: var(--t1);
+        font: 13.5px/1.5 var(--sans);
+        -webkit-font-smoothing: antialiased;
+        padding: 0 16px 64px;
+      }
+      .app[data-face='paper'] {
+        color-scheme: light;
+        --void: #e6e1d7; --s2: #f8f6f0; --s3: #fffdf8;
+        --t1: #1d1b17; --t2: #5a554d; --t3: #726b61; --t4: #8f887d;
+        --l1: rgba(29, 27, 23, 0.06); --l2: rgba(29, 27, 23, 0.11); --l3: rgba(29, 27, 23, 0.2);
+        --zhu: #c6412a; --lamp: #b8801f; --lamp-wash: rgba(184, 128, 31, 0.14);
+        --pine: #3d7c5e; --crimson: #9c2e3d; --crimson-wash: rgba(156, 46, 61, 0.1);
+        --azure: #3a7797; --code: #efece4;
+        --sh1: 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--l2);
+      }
+      .app[data-face='ink'] {
+        color-scheme: dark;
+        --void: #0b0a09; --s2: #191714; --s3: #201d19;
+        --t1: #ebe5da; --t2: #a59d92; --t3: #8b8378; --t4: #6a6259;
+        --l1: rgba(235, 229, 218, 0.06); --l2: rgba(235, 229, 218, 0.1); --l3: rgba(235, 229, 218, 0.17);
+        --zhu: #e25a3d; --lamp: #e7b352; --lamp-wash: rgba(231, 179, 82, 0.12);
+        --pine: #5fad85; --crimson: #d95f6e; --crimson-wash: rgba(217, 95, 110, 0.14);
+        --azure: #6ba4c3; --code: #0f0e0c;
+        --sh1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(235, 229, 218, 0.1);
+      }
+
+      /* ── prototype chrome ── */
+      .bar {
+        position: sticky; top: 0; z-index: 2;
+        display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+        max-width: 720px; margin: 0 auto; padding: 12px 0;
+        background: var(--void);
+      }
+      .bar h1 { font: 600 14px/1.3 var(--serif); margin-right: auto; }
+      .seg { display: inline-flex; border-radius: 7px; box-shadow: var(--sh1); background: var(--s2); overflow: hidden; }
+      .seg button { padding: 4px 11px; font-size: 12px; color: var(--t3); }
+      .seg button[aria-pressed='true'] { background: var(--s3); color: var(--t1); font-weight: 600; }
+      .ghost { padding: 4px 11px; font-size: 12px; border-radius: 7px; box-shadow: var(--sh1); background: var(--s2); }
+      .col { max-width: 720px; margin: 0 auto; }
+      .label {
+        margin: 26px 0 8px; font-size: 11px; letter-spacing: 0.08em;
+        color: var(--t4); text-transform: uppercase;
+      }
+      .prose { color: var(--t2); margin-bottom: 10px; }
+      .meter {
+        margin-left: 8px; font: 11px var(--mono); color: var(--t3);
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* ── seal ── */
+      .seal {
+        display: grid; place-items: center; flex: none;
+        width: 22px; height: 22px; border-radius: 4px;
+        background: var(--azure); color: #fff;
+        font: 600 11px/1 var(--serif);
+        transform: rotate(-1.5deg);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+        user-select: none;
+      }
+      [data-phase='done'] > .seal { background: var(--pine); }
+      [data-phase='failed'] > .seal { background: var(--crimson); }
+      [data-phase='queued'] > .seal { background: var(--t4); }
+
+      .spin {
+        width: 10px; height: 10px; border-radius: 50%; flex: none;
+        border: 1.5px solid var(--l3); border-top-color: var(--lamp);
+        animation: spin 1.2s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+      /* ── group card ── */
+      .group { background: var(--s3); border-radius: 10px; box-shadow: var(--sh1); overflow: hidden; }
+      .ghead {
+        display: flex; align-items: center; gap: 8px; width: 100%;
+        padding: 9px 12px; text-align: left;
+      }
+      .ghead .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pine); flex: none; margin: 1px; }
+      .gtitle { font-weight: 600; white-space: nowrap; flex: none; }
+      .gcounts { color: var(--t3); font-size: 12.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .gtime { margin-left: auto; font: 11.5px var(--mono); color: var(--t3); font-variant-numeric: tabular-nums; flex: none; }
+      .chev { width: 14px; height: 14px; flex: none; color: var(--t4); transition: transform 0.18s; }
+      [aria-expanded='false'] .chev { transform: rotate(-90deg); }
+      .rows { border-top: 1px solid var(--l1); padding: 4px 0 6px; }
+      .rows[hidden] { display: none; }
+
+      .row {
+        display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 10px;
+        align-items: center; width: 100%; padding: 5px 12px; text-align: left;
+        position: relative;
+      }
+      .row:hover { background: var(--l1); }
+      .row .main { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+      .row .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 3em; flex: 0 1 auto; }
+      .row .meta { font: 11.5px var(--mono); color: var(--t4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 0; font-variant-numeric: tabular-nums; }
+      @media (max-width: 520px) {
+        .row .main { flex-direction: column; align-items: stretch; gap: 0; }
+        .row .meta { flex: none; }
+        .gcounts { display: none; }
+      }
+      .row .state { font-size: 12px; color: var(--t3); white-space: nowrap; }
+      .row[data-phase='running'] .state { color: var(--lamp); }
+      .row[data-phase='done'] .state { color: var(--pine); }
+      .row[data-phase='failed'] .state { color: var(--crimson); }
+      .row[data-phase='done'] .title { color: var(--t2); }
+      .row .act {
+        grid-column: 2 / -1; display: flex; align-items: center; gap: 7px;
+        font-size: 12.5px; color: var(--t3); min-width: 0; padding-top: 1px;
+      }
+      .row .act span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .row[data-phase='failed'] .act { color: var(--crimson); }
+      .badge {
+        font-size: 11px; padding: 0 6px; border-radius: 999px; white-space: nowrap;
+        background: var(--lamp-wash); color: var(--lamp);
+      }
+      .badge.bad { background: var(--crimson-wash); color: var(--crimson); }
+
+      /* ── inline session (opened on demand) ── */
+      .inline {
+        margin: 2px 12px 8px 44px; padding: 9px 11px; border-radius: 8px;
+        background: var(--code); box-shadow: inset 0 0 0 1px var(--l1);
+        font-size: 12.5px; color: var(--t2);
+      }
+      .inline .step { font: 11px var(--mono); color: var(--t4); margin-bottom: 3px; }
+      .inline .tool { font: 12px var(--mono); color: var(--t3); }
+      .inline p + .tool, .inline .tool + p { margin-top: 5px; }
+      .inline .foot { margin-top: 7px; font-size: 11.5px; color: var(--t4); }
+
+      /* ── legacy (current) cards, for comparison ── */
+      .legacy { display: grid; gap: 8px; }
+      .lcard {
+        display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: 10px;
+        padding: 10px 12px; background: var(--s3); border-radius: 10px; box-shadow: var(--sh1);
+      }
+      .lcard .seal { margin-top: 2px; }
+      .lcard .head { display: flex; align-items: center; gap: 8px; }
+      .lcard .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .lcard .act { display: flex; align-items: center; gap: 7px; color: var(--t3); font-size: 12.5px; min-width: 0; }
+      .lcard .act span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .lcard .tags { display: flex; gap: 8px; font: 11.5px var(--mono); color: var(--t4); margin-top: 2px; }
+    </style>
+  </head>
+  <body>
+    <div class="app" data-face="paper" id="app">
+      <div class="bar">
+        <h1>子代理摘要卡 · 提案</h1>
+        <div class="seg" id="mode">
+          <button data-mode="proposal" aria-pressed="true">提案</button>
+          <button data-mode="legacy" aria-pressed="false">当前</button>
+        </div>
+        <div class="seg" id="face">
+          <button data-face="paper" aria-pressed="true">纸</button>
+          <button data-face="ink" aria-pressed="false">墨</button>
+        </div>
+        <button class="ghost" id="replay">重播</button>
+      </div>
+
+      <div class="col">
+        <div class="label">① 并行运行（模拟实时）<span class="meter" id="meter"></span></div>
+        <p class="prose">运行中两行，结束收成一行；点任意一行展开过程。</p>
+        <div id="live"></div>
+
+        <div class="label">② 全部结束后</div>
+        <div id="settled"></div>
+
+        <div class="label">③ 单个子代理</div>
+        <div id="single"></div>
+
+        <div class="label">④ 需要处理的结果</div>
+        <div id="attention"></div>
+      </div>
+    </div>
+
+    <script>
+      const CHEVRON =
+        '<svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>';
+
+      // Each agent replays a scripted timeline: [second, activity, tools, tokens].
+      const SCRIPT = [
+        {
+          seal: '铸', title: '实现导出接口', model: 'sonnet', startAt: 0, endAt: 14,
+          steps: [
+            [0, '正在启动', 0, 0],
+            [1, '正在执行 read (session-export.ts)', 1, 2100],
+            [3, '正在执行 grep (exportSession)', 2, 4800],
+            [5, '正在执行 edit (session-export.ts)', 4, 9300],
+            [8, '导出路径改为走 media 目录，补上越界校验', 5, 12600],
+            [10, '正在执行 bash (pnpm test session)', 7, 16900],
+          ],
+        },
+        {
+          seal: '校', title: '审查权限改动', model: 'opus', startAt: 0, endAt: 24,
+          steps: [
+            [0, '正在启动', 0, 0],
+            [2, '正在执行 grep (permission-policy)', 1, 1900],
+            [6, '正在执行 read (permission-policy.ts)', 2, 5200],
+            [11, '文件写入闸门在 bypass 模式下仍然生效，符合 ADR 0019', 3, 8800],
+            [16, '正在执行 read (permissions.md)', 4, 11400],
+            [20, '整理审查结论', 4, 13900],
+          ],
+        },
+        {
+          seal: '斥', title: '调研缓存策略', model: 'haiku', startAt: 3, endAt: 30, fail: true,
+          steps: [
+            [3, '正在启动', 0, 0],
+            [5, '正在执行 read (docs/adr/0053…)', 1, 1500],
+            [9, '正在执行 web_fetch (prompt caching)', 2, 3900],
+            [15, '等待权限确认：web_fetch', 2, 4100],
+            [22, '正在执行 web_fetch (prompt caching)', 3, 6200],
+          ],
+          error: 'web_fetch 超时（30s），未取得文档',
+        },
+      ];
+      const LOOP_SECONDS = 36;
+
+      function formatElapsed(seconds) {
+        const s = Math.max(0, Math.floor(seconds));
+        return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+      }
+      function formatTokens(n) {
+        return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k tok` : `${n} tok`;
+      }
+
+      // The whole card reads only this small snapshot — never the stream.
+      function snapshotAt(agent, t) {
+        if (t < agent.startAt) {
+          return { ...agent, phase: 'queued', activity: '等待调度', tools: 0, tokens: 0, elapsed: 0 };
+        }
+        let current = agent.steps[0];
+        for (const step of agent.steps) if (step[0] <= t) current = step;
+        const ended = t >= agent.endAt;
+        const phase = ended ? (agent.fail ? 'failed' : 'done') : 'running';
+        return {
+          ...agent,
+          phase,
+          activity: ended ? (agent.fail ? agent.error : '') : current[1],
+          tools: current[2],
+          tokens: current[3],
+          elapsed: Math.min(t, agent.endAt) - agent.startAt,
+        };
+      }
+
+      const STATE_TEXT = { queued: '排队中', running: '运行中', done: '✓ 已完成', failed: '✗ 失败' };
+
+      function rowHtml(snap, index, openIndex) {
+        const meta = [snap.model, `${snap.tools} 工具`];
+        if (snap.tokens > 0) meta.push(formatTokens(snap.tokens));
+        if (snap.phase !== 'queued') meta.push(formatElapsed(snap.elapsed));
+        const showActivity = snap.phase === 'running' || snap.phase === 'failed' || snap.phase === 'queued';
+        const badge = snap.badge ? `<span class="badge ${snap.badgeBad ? 'bad' : ''}">${snap.badge}</span>` : '';
+        const open = index === openIndex;
+        return `
+          <button class="row" data-row="${index}" data-phase="${snap.phase}" aria-expanded="${open}">
+            <span class="seal">${snap.seal}</span>
+            <span class="main"><span class="title">${snap.title}</span><span class="meta">${meta.join(' · ')}</span></span>
+            <span class="state">${badge || STATE_TEXT[snap.phase]}</span>
+            ${showActivity && snap.activity
+              ? `<span class="act">${snap.phase === 'running' ? '<span class="spin"></span>' : ''}<span>${snap.activity}</span></span>`
+              : ''}
+          </button>
+          ${open ? inlineHtml(snap) : ''}`;
+      }
+
+      function inlineHtml(snap) {
+        return `
+          <div class="inline">
+            <div class="step">step ${Math.max(1, snap.tools)} · 仅在展开时订阅完整流</div>
+            <p>${snap.activity || '已完成：结论已合并回主对话。'}</p>
+            <div class="tool">▸ ${snap.tools} 次工具调用 · 保留最近 20 步</div>
+            <div class="foot">打开完整会话 →</div>
+          </div>`;
+      }
+
+      function groupHtml(snaps, state) {
+        const counts = { done: 0, failed: 0, running: 0, queued: 0 };
+        for (const snap of snaps) counts[snap.phase] += 1;
+        const settled = counts.running + counts.queued === 0;
+        const parts = [];
+        if (counts.done) parts.push(`${counts.done} 完成`);
+        if (counts.failed) parts.push(`${counts.failed} 失败`);
+        if (counts.running) parts.push(`${counts.running} 运行中`);
+        if (counts.queued) parts.push(`${counts.queued} 排队`);
+        const elapsed = Math.max(...snaps.map((snap) => snap.elapsed));
+        const tools = snaps.reduce((sum, snap) => sum + snap.tools, 0);
+        const tokens = snaps.reduce((sum, snap) => sum + snap.tokens, 0);
+        const tail = settled ? `${tools} 工具 · ${formatTokens(tokens)} · ${formatElapsed(elapsed)}` : formatElapsed(elapsed);
+        return `
+          <div class="group">
+            <button class="ghead" data-toggle aria-expanded="${state.expanded}">
+              ${settled ? '<span class="dot"></span>' : '<span class="spin"></span>'}
+              <span class="gtitle">${snaps.length} 个子代理</span>
+              <span class="gcounts">${parts.join(' · ')}</span>
+              <span class="gtime">${tail}</span>
+              ${CHEVRON}
+            </button>
+            <div class="rows" ${state.expanded ? '' : 'hidden'}>
+              ${snaps.map((snap, index) => rowHtml(snap, index, state.open)).join('')}
+            </div>
+          </div>`;
+      }
+
+      function legacyHtml(snaps) {
+        return `<div class="legacy">${snaps
+          .map(
+            (snap) => `
+            <div class="lcard" data-phase="${snap.phase}">
+              <span class="seal">${snap.seal}</span>
+              <div>
+                <div class="head"><span class="title">${snap.title}</span><span class="badge">${STATE_TEXT[snap.phase]}</span></div>
+                <div class="act">${snap.phase === 'running' ? '<span class="spin"></span>' : ''}<span>${snap.activity || '已完成'}</span></div>
+                <div class="tags"><span>${snap.model}</span><span>${formatElapsed(snap.elapsed)}</span></div>
+              </div>
+            </div>`,
+          )
+          .join('')}</div>`;
+      }
+
+      const app = document.getElementById('app');
+      const views = {
+        live: { el: document.getElementById('live'), state: { expanded: true, open: -1 } },
+        settled: { el: document.getElementById('settled'), state: { expanded: false, open: -1 } },
+        single: { el: document.getElementById('single'), state: { expanded: true, open: -1 } },
+        attention: { el: document.getElementById('attention'), state: { expanded: true, open: -1 } },
+      };
+      let mode = 'proposal';
+      let startedAt = performance.now();
+      let lastSignature = '';
+      let paints = 0;
+      let ticks = 0;
+
+      function paint(view, snaps) {
+        view.el.innerHTML = mode === 'legacy' ? legacyHtml(snaps) : groupHtml(snaps, view.state);
+      }
+
+      function paintStatic() {
+        paint(views.settled, SCRIPT.map((agent) => snapshotAt(agent, LOOP_SECONDS)));
+        const single = snapshotAt(SCRIPT[1], 7);
+        views.single.el.innerHTML =
+          mode === 'legacy'
+            ? legacyHtml([single])
+            : `<div class="group"><div class="rows" style="border-top:0">${rowHtml(single, 0, views.single.state.open)}</div></div>`;
+        const pending = { ...snapshotAt(SCRIPT[0], LOOP_SECONDS), badge: '代码待处理' };
+        const conflict = { ...snapshotAt(SCRIPT[1], LOOP_SECONDS), badge: '冲突', badgeBad: true };
+        paint(views.attention, [pending, conflict]);
+      }
+
+      // One shared clock; the DOM is only touched when a snapshot actually changed.
+      function tick() {
+        const t = ((performance.now() - startedAt) / 1000) % LOOP_SECONDS;
+        const snaps = SCRIPT.map((agent) => snapshotAt(agent, t));
+        const signature = JSON.stringify(
+          snaps.map((snap) => [snap.phase, snap.activity, snap.tools, snap.tokens, Math.floor(snap.elapsed)]),
+        );
+        ticks += 1;
+        if (signature !== lastSignature) {
+          lastSignature = signature;
+          paints += 1;
+          paint(views.live, snaps);
+        }
+        document.getElementById('meter').textContent = `检查 ${ticks} 次 · 实际重绘 ${paints} 次`;
+      }
+
+      function repaintAll() {
+        lastSignature = '';
+        paintStatic();
+        tick();
+      }
+
+      for (const view of Object.values(views)) {
+        view.el.addEventListener('click', (event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          if (target?.closest('[data-toggle]')) {
+            view.state.expanded = !view.state.expanded;
+          } else {
+            const row = target?.closest('[data-row]');
+            if (!row) return;
+            const index = Number(row.dataset.row);
+            view.state.open = view.state.open === index ? -1 : index;
+          }
+          repaintAll();
+        });
+      }
+
+      function bindSegment(id, apply) {
+        const segment = document.getElementById(id);
+        segment.addEventListener('click', (event) => {
+          const button = event.target instanceof Element ? event.target.closest('button') : null;
+          if (!button) return;
+          for (const item of segment.querySelectorAll('button')) {
+            item.setAttribute('aria-pressed', String(item === button));
+          }
+          apply(button);
+          repaintAll();
+        });
+      }
+      bindSegment('mode', (button) => { mode = button.dataset.mode; });
+      bindSegment('face', (button) => { app.dataset.face = button.dataset.face; });
+      document.getElementById('replay').addEventListener('click', () => {
+        startedAt = performance.now();
+        ticks = 0;
+        paints = 0;
+        repaintAll();
+      });
+
+      paintStatic();
+      tick();
+      setInterval(tick, 200);
+    </script>
+  </body>
+</html>
