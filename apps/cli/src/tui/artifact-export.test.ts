@@ -3,6 +3,7 @@ import {
   artifactFileName,
   artifactSourceFileName,
   buildArtifactHostPage,
+  countTranscriptArtifacts,
   formatByteSize,
   listTranscriptArtifacts,
   splitMessageArtifacts,
@@ -119,5 +120,39 @@ describe('artifactSourceFileName / formatByteSize', () => {
     expect(artifactSourceFileName({ title: 'demo', kind: 'html' }, 1)).toBe('demo-2.html');
     expect(formatByteSize(812)).toBe('812 B');
     expect(formatByteSize(12_595)).toBe('12.3 KB');
+  });
+});
+
+describe('countTranscriptArtifacts', () => {
+  it('agrees with the list for finished messages and skips one still streaming', () => {
+    let state = assistant(EMPTY_TRANSCRIPT, 'a1', `${artifactFence('一', '<p>1</p>')}\n${FENCE}ts\nx\n${FENCE}`);
+    state = applyAgentEvent(state, { type: 'message/end', messageId: 'a1' } as never);
+    state = assistant(state, 'a2', artifactFence('二', '<p>2</p>'));
+    const streaming = state.entries.find((entry) => entry.id === 'a2');
+    expect(streaming?.kind === 'message' && streaming.status).toBe('streaming');
+    expect(countTranscriptArtifacts(state)).toBe(1);
+    const done = {
+      ...state,
+      entries: state.entries.map((entry) => (entry.kind === 'message' ? { ...entry, status: 'done' as const } : entry)),
+    };
+    expect(countTranscriptArtifacts(done)).toBe(listTranscriptArtifacts(done).length);
+    expect(countTranscriptArtifacts(done)).toBe(2);
+  });
+
+  it('stays fast over a long conversation while one message streams', () => {
+    const entries = Array.from({ length: 400 }, (_, index) => ({
+      kind: 'message' as const,
+      id: `m${index}`,
+      role: 'assistant' as const,
+      text: artifactFence(`第${index}个`, '<p>x</p>'.repeat(50)),
+      thinking: '',
+      status: 'done' as const,
+      tools: [],
+    }));
+    const state = { entries, noticeCount: 0 } as unknown as TranscriptState;
+    countTranscriptArtifacts(state);
+    const started = performance.now();
+    for (let frame = 0; frame < 200; frame += 1) countTranscriptArtifacts({ ...state, entries: [...entries] });
+    expect(performance.now() - started).toBeLessThan(200);
   });
 });

@@ -64,7 +64,7 @@ import { TuiRewindController } from './tui-rewind-controller.js';
 import { TuiUsageController } from './tui-usage-controller.js';
 import { ProjectFiles } from './project-files.js';
 import type { FileOpener, TuiArtifactController } from './tui-artifact-controller.js';
-import { listTranscriptArtifacts } from './artifact-export.js';
+import { countTranscriptArtifacts } from './artifact-export.js';
 import { existsSync } from 'node:fs';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiAutocompleteProvider } from './tui-autocomplete.js';
@@ -138,8 +138,6 @@ export class TuiApp {
   private readonly sender: TuiPromptSender;
   private readonly runCommand: (name: string, argument: string) => Promise<void>;
   private readonly artifacts: TuiArtifactController;
-  /** Artifact count for the status line, recomputed only when the transcript object changes. */
-  private artifactCount: { transcript: TranscriptState; count: number } | undefined;
   /** `/edit`: the next prompt replaces this user turn as a sibling branch. */
   private editingMessageId: string | undefined;
   private projects: RemoteProjectSummary[] = [];
@@ -829,10 +827,7 @@ export class TuiApp {
   }
 
   private describeArtifacts(): string | undefined {
-    if (this.artifactCount?.transcript !== this.transcript) {
-      this.artifactCount = { transcript: this.transcript, count: listTranscriptArtifacts(this.transcript).length };
-    }
-    const { count } = this.artifactCount;
+    const count = countTranscriptArtifacts(this.transcript);
     return count === 0 ? undefined : `◆ ${count} 个 artifact · ${formatKey(this.keybindings.openArtifact)} 打开最新`;
   }
 

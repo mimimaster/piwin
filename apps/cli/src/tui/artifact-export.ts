@@ -74,6 +74,32 @@ export function listTranscriptArtifacts(transcript: TranscriptState): Transcript
   return artifacts.reverse();
 }
 
+const artifactCountByEntry = new WeakMap<object, number>();
+
+/**
+ * How many artifacts the status line advertises. Cheap enough to call on every
+ * frame: a finished message is counted once (entries are immutable, so the
+ * object is the cache key), a message still streaming is not counted yet, and
+ * counting only classifies fences — it never builds the sandbox document.
+ */
+export function countTranscriptArtifacts(transcript: TranscriptState): number {
+  let total = 0;
+  for (const entry of transcript.entries) {
+    if (entry.kind !== 'message' || entry.role !== 'assistant' || entry.status === 'streaming') continue;
+    let count = artifactCountByEntry.get(entry);
+    if (count === undefined) {
+      count = 0;
+      for (const fence of indexArtifactFences(entry.text)) {
+        if (fence.open) continue;
+        if (analyzeArtifactFence(fence, { id: `${entry.id}-${fence.ordinal}` }).kind !== 'code') count += 1;
+      }
+      artifactCountByEntry.set(entry, count);
+    }
+    total += count;
+  }
+  return total;
+}
+
 export type MessageSegment = { kind: 'markdown'; text: string } | { kind: 'artifact'; artifact: TranscriptArtifact };
 
 /**
