@@ -12,12 +12,14 @@ export function mountTuiLayout(
   slots: {
     transcript: Component;
     activity: Component;
+    /** Queued messages and steers above the composer; empty when there are none. */
+    strip?: Component;
     editor: Component;
     status: Component;
   },
 ): ScrollView | undefined {
   if (!isViewportTUI(tui)) {
-    for (const component of [slots.transcript, slots.activity, slots.editor, slots.status])
+    for (const component of [slots.transcript, slots.activity, ...(slots.strip ? [slots.strip] : []), slots.editor, slots.status])
       tui.addChild(component);
     return undefined;
   }
@@ -30,6 +32,7 @@ export function mountTuiLayout(
     new VStack([
       { component: transcript, basis: 0, grow: 1, minSize: 0 },
       { component: slots.activity, shrink: 0, visible: (viewport) => viewport.height >= 6 },
+      ...(slots.strip ? [{ component: slots.strip, shrink: 0, visible: (viewport: { height: number }) => viewport.height >= 10 }] : []),
       // On very short terminals pi-tui crops around the editor's cursor.
       { component: slots.editor, shrink: 1, minSize: 1 },
       { component: slots.status, shrink: 0, visible: (viewport) => viewport.height >= 4 },

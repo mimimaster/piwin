@@ -6,6 +6,8 @@ import type { TuiHostLink } from './tui-host-link.js';
 import type { TuiModalStack } from './tui-modals.js';
 import { TuiPlanController } from './tui-plan-controller.js';
 import { TuiQueueController } from './tui-queue-controller.js';
+import { TuiInterventionTracker } from './tui-intervention-tracker.js';
+import { randomUUID } from 'node:crypto';
 import { TuiSubagentController } from './tui-subagent-controller.js';
 import { TuiTurnChangeController } from './tui-turn-change-controller.js';
 import { TuiWalkthroughController } from './tui-walkthrough-controller.js';
@@ -39,6 +41,7 @@ export type TuiSessionFeaturesPort = {
 export class TuiSessionFeatures {
   public readonly plans: TuiPlanController;
   public readonly queue: TuiQueueController;
+  public readonly interventions: TuiInterventionTracker;
   public readonly branches: TuiBranchController;
   public readonly subagents: TuiSubagentController;
   public readonly turnChanges: TuiTurnChangeController;
@@ -51,10 +54,17 @@ export class TuiSessionFeatures {
     this.queue = new TuiQueueController({
       ...base,
       getRunId: port.getRunId,
-      onSteered: (turn) =>
-        port.echoUser(turn.userMessageId, turn.input.text, [...describePromptExtras(turn.input), '插入当前回合']),
+      // The steer waits in the strip; it reaches the transcript once applied.
+      onSteered: (_turn, intervention) => this.interventions.adopt(intervention),
       onStarted: (turn) => port.echoUser(turn.userMessageId, turn.input.text, describePromptExtras(turn.input)),
       onEdit: port.setComposerText,
+    });
+    this.interventions = new TuiInterventionTracker({
+      ...base,
+      getRunId: port.getRunId,
+      onApplied: (intervention, annotations) =>
+        port.echoUser(intervention.userMessageId, intervention.input.text, annotations),
+      requeue: (sessionId, input) => this.queue.submit(sessionId, { ...input }, randomUUID()),
     });
     this.branches = new TuiBranchController({ ...base, reloadSession: port.openSession });
     this.subagents = new TuiSubagentController({
@@ -90,6 +100,7 @@ export class TuiSessionFeatures {
   public reset(): void {
     this.plans.reset();
     this.queue.reset();
+    this.interventions.reset();
     this.branches.reset();
     this.subagents.reset();
     this.turnChanges.reset();
@@ -101,6 +112,7 @@ export class TuiSessionFeatures {
     return (
       this.plans.handlePush(push) ||
       this.queue.handlePush(push) ||
+      this.interventions.handlePush(push) ||
       this.branches.handlePush(push) ||
       this.subagents.handlePush(push) ||
       this.turnChanges.handlePush(push) ||

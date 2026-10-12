@@ -8,6 +8,7 @@ import type {
   TranscriptMessageEntry,
   TranscriptState,
   TranscriptTool,
+  TranscriptImage,
 } from './transcript-model.js';
 import { formatByteSize, splitMessageArtifacts, type TranscriptArtifact } from './artifact-export.js';
 import { TranscriptMarkdown } from './transcript-markdown.js';
@@ -40,6 +41,7 @@ export class TranscriptView implements Component {
   private subagentLookup: LiveRunLookup = () => undefined;
   /** Changes when live subagent state (or its elapsed second) changes; entries with subagent rows redraw. */
   private liveVersion = 0;
+  private imageLines: (images: readonly TranscriptImage[], width: number) => string[] = () => [];
 
   public constructor(private readonly embedded = false) {}
 
@@ -58,6 +60,12 @@ export class TranscriptView implements Component {
   public setSubagentRuns(lookup: LiveRunLookup, version: number): void {
     this.subagentLookup = lookup;
     this.liveVersion = version;
+  }
+
+  /** How images are drawn (inline or placeholder); the store redraws via invalidate when bytes arrive. */
+  public setImageRenderer(render: (images: readonly TranscriptImage[], width: number) => string[]): void {
+    this.imageLines = render;
+    this.invalidate();
   }
 
   public toggleToolOutput(): boolean {
@@ -107,7 +115,10 @@ export class TranscriptView implements Component {
   }
 
   private renderMessage(entry: TranscriptMessageEntry, width: number): string[] {
-    if (entry.role === 'user') return renderUser(entry.text, entry.annotations ?? [], width);
+    if (entry.role === 'user') {
+      const user = renderUser(entry.text, entry.annotations ?? [], width);
+      return entry.images === undefined ? user : [...user, ...this.imageLines(entry.images, width)];
+    }
     const lines: string[] = [];
     if (entry.thinking.trim().length > 0) {
       lines.push(...previewThinking(entry.thinking.trim(), width, this.toolOutputExpanded));
@@ -118,7 +129,9 @@ export class TranscriptView implements Component {
     }
     for (const tool of entry.tools) {
       lines.push(...renderTool(tool, width, this.toolOutputExpanded, this.pathRoots, this.subagentLookup));
+      if (tool.images !== undefined) lines.push(...this.imageLines(tool.images, width));
     }
+    if (entry.images !== undefined) lines.push(...this.imageLines(entry.images, width));
     if (entry.composing !== undefined) {
       const name = entry.composing.toolName ?? '工具';
       lines.push(

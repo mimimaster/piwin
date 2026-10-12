@@ -26,7 +26,7 @@ export type TuiPromptSenderOptions = {
   runId: () => string | undefined;
   editingMessageId: () => string | undefined;
   clearEditing: () => void;
-  echoUser: (messageId: string, text: string, annotations: string[]) => void;
+  echoUser: (messageId: string, text: string, annotations: string[], attachments?: readonly unknown[]) => void;
   removeEcho: (messageId: string) => void;
   /** Put text back in front of whatever the composer holds now. */
   returnToComposer: (text: string) => void;
@@ -192,7 +192,7 @@ export class TuiPromptSender {
         this.options.onHint(`已排队（第 ${place} 条），/queue 查看`);
         return;
       }
-      this.options.echoUser(clientMessageId, text, describePromptExtras(input));
+      this.options.echoUser(clientMessageId, text, describePromptExtras(input), input.attachments);
       echoed = true;
       const response =
         replacedRunId === undefined

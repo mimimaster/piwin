@@ -37,6 +37,7 @@ export type TuiCommandTableDeps = {
   walkthroughs: TuiWalkthroughController;
   sideChat: TuiSideChatController;
   artifacts: TuiArtifactController;
+  toggleImages: () => void;
   turns: TuiTurnActions;
   usage: TuiUsageController;
   rewind: TuiRewindController;
@@ -98,6 +99,7 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     find: () => deps.find.open(),
     walkthrough: (argument) => deps.walkthroughs.open(argument === 'new'),
     artifacts: () => deps.artifacts.open(),
+    images: () => deps.toggleImages(),
     changes: () => deps.turnChanges.open(),
     undo: () => deps.turnChanges.undoLatest(),
     branches: () => branches.open(),

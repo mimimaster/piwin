@@ -48,6 +48,10 @@ import { QueryListOverlay } from './query-list-overlay.js';
 import { describeHostFailure } from './host-failure-text.js';
 import { editTextExternally } from './external-editor.js';
 import { ComposerBadgeFrame } from './composer-badge-frame.js';
+import { QueueStrip, stripRows } from './queue-strip.js';
+import { handleQueueStripKey } from './queue-strip-keys.js';
+import { TuiImageStore, openLatestImage } from './image-view.js';
+import { openWithSystemBrowser } from './tui-artifact-controller.js';
 import { PromptHistory } from './prompt-history.js';
 import { DEFAULT_KEYBINDINGS, formatKey, type Keybindings } from './keybindings.js';
 import { DEFAULT_STATUS_TEMPLATE, renderStatusTemplate } from './status-template.js';
@@ -108,10 +112,14 @@ export class TuiApp {
   private readonly tui: TUI;
   private readonly link: TuiHostLink;
   private readonly transcriptView: TranscriptView;
+  private readonly images: TuiImageStore;
   private readonly transcriptScroll: ScrollView | undefined;
   private openingSession = false;
   private readonly activitySlot = new Container();
   private readonly editor: Editor;
+  private readonly queueStrip = new QueueStrip(() =>
+    stripRows(this.features.queue.pendingTurns(), this.features.interventions.list()),
+  );
   private readonly statusLine = new StatusLine();
   private readonly loader: Loader;
   /** When the in-flight turn began; drives the elapsed counter on the activity line. */
@@ -173,6 +181,18 @@ export class TuiApp {
     this.openingSession = options.sessionId !== undefined;
     this.projectId = options.projectId;
     this.transcriptView = new TranscriptView(options.embedded);
+    this.images = new TuiImageStore({
+      link: options.link,
+      getSessionId: () => this.sessionId,
+      onLoaded: () => {
+        this.transcriptView.invalidate();
+        this.tui.requestRender();
+      },
+      write: (data) => this.tui.terminal.write(data),
+    });
+    this.transcriptView.setImageRenderer((images, width) => this.images.render(images, width));
+    // Kitty pictures stay where they were placed; drop them before a resize reflows the screen.
+    if (process.stdout.isTTY) process.stdout.on('resize', () => this.images.clearScreenImages());
     this.editor = new Editor(this.tui, editorTheme, { paddingX: 1 });
     this.editor.onSubmit = (text) => {
       this.submit(text).catch((error: unknown) => this.reportError(error));
@@ -198,6 +218,7 @@ export class TuiApp {
       onError: (error) => this.reportError(error),
     });
     const controllers = createTuiControllers({
+      images: this.images,
       getProjectRoot: () => this.currentProjectRoots().find((root) => existsSync(root)),
       tui: this.tui,
       editor: this.editor,
@@ -252,7 +273,7 @@ export class TuiApp {
     this.runCommand = controllers.runCommand;
     this.artifacts = controllers.artifacts;
     this.transcriptScroll = mountTuiLayout(this.tui, {
-      transcript: this.transcriptView, activity: this.activitySlot,
+      transcript: this.transcriptView, activity: this.activitySlot, strip: this.queueStrip,
       editor: new ComposerBadgeFrame(this.editor, () => (this.sessionAgentId === undefined ? this.composer.activeSchemeName() : undefined)),
       status: this.statusLine,
     });
@@ -283,6 +304,28 @@ export class TuiApp {
       editInExternalEditor: () => this.editInExternalEditor(),
       toggleToolOutput: () => this.transcriptView.toggleToolOutput(),
       openLatestArtifact: () => this.artifacts.openLatest(),
+      openLatestImage: () => {
+        openLatestImage({
+          store: this.images,
+          transcript: this.transcript,
+          open: this.options.openFile ?? openWithSystemBrowser,
+          hint: (text) => {
+            this.flashHint(text);
+            this.refreshChrome();
+          },
+          notice: (tone, text) => {
+            this.transcript = appendNotice(this.transcript, tone, text);
+            this.refreshChrome();
+          },
+        }).catch((error: unknown) => this.reportError(error));
+      },
+      handleStripKey: (data, focusRequested) =>
+        handleQueueStripKey(this.queueStrip, data, focusRequested, {
+          queue: this.features.queue,
+          interventions: this.features.interventions,
+          refresh: () => this.refreshChrome(),
+          onError: (error) => this.reportError(error),
+        }),
       hint: (text) => this.flashHint(text),
     });
     this.tui.setFocus(this.editor);
@@ -365,6 +408,7 @@ export class TuiApp {
     if (previous.sessionId !== sessionId) {
       this.features.reset();
       this.composer.resetSchemeForNewSession();
+      this.images.reset();
     }
     try {
       await this.link.client.updateSubscriptions([sessionId]);
@@ -489,6 +533,7 @@ export class TuiApp {
     this.sessionProjectId = this.projectId;
     this.features.reset();
     this.composer.resetSchemeForNewSession();
+    this.images.reset();
     this.usage.reset(null);
     this.editingMessageId = undefined;
     this.transcript = EMPTY_TRANSCRIPT;

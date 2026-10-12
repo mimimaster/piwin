@@ -3,6 +3,7 @@ import { describeHostFailure } from './host-failure-text.js';
 import type {
   AgentEvent,
   AgentMessageRole,
+  MediaAttachmentRef,
   ModelRef,
   RemoteTranscriptMessage,
   RemoteTranscriptTool,
@@ -17,7 +18,42 @@ import type {
  * entry identity.
  */
 
+/** An image a turn carried (user attachment or tool output); bytes are read lazily via `media/read`. */
+export type TranscriptImage = {
+  id: string;
+  mimeType: string;
+  name?: string;
+  byteSize?: number;
+  width?: number;
+  height?: number;
+  /** Host path, when the Host shares it; used for a clickable link. */
+  path?: string;
+};
+
+/** Image attachments among a turn's media; documents and web elements are not images. */
+export function imagesFromAttachments(attachments: readonly unknown[] | undefined): TranscriptImage[] {
+  const images: TranscriptImage[] = [];
+  for (const raw of attachments ?? []) {
+    const attachment = raw as Partial<MediaAttachmentRef> & { kind?: string };
+    if (attachment.kind !== 'media' || typeof attachment.id !== 'string') continue;
+    const mimeType = attachment.mimeType ?? '';
+    if (!mimeType.startsWith('image/') && attachment.contentKind !== 'image') continue;
+    images.push({
+      id: attachment.id,
+      mimeType,
+      ...(attachment.name === undefined ? {} : { name: attachment.name }),
+      ...(attachment.byteSize === undefined ? {} : { byteSize: attachment.byteSize }),
+      ...(attachment.width === undefined ? {} : { width: attachment.width }),
+      ...(attachment.height === undefined ? {} : { height: attachment.height }),
+      ...(attachment.path === undefined ? {} : { path: attachment.path }),
+    });
+  }
+  return images;
+}
+
 export type TranscriptTool = {
+  /** Images the tool produced. */
+  images?: TranscriptImage[];
   toolCallId: string;
   toolName: string;
   status: 'running' | 'done' | 'error';
@@ -37,6 +73,8 @@ export type TranscriptMessageEntry = {
   runId?: string;
   /** What a user turn carried besides text: file refs, attachments. */
   annotations?: string[];
+  /** Image attachments, drawn inline or as a placeholder line. */
+  images?: TranscriptImage[];
   model?: ModelRef;
   /** Host-authored terminal line for a failed or cancelled response. */
   terminalMessage?: string;
@@ -103,10 +141,12 @@ export function appendLocalUserMessage(
   id: string,
   text: string,
   annotations: readonly string[] = [],
+  images: readonly TranscriptImage[] = [],
 ): TranscriptState {
   if (state.entries.some((entry) => entry.id === id)) return state;
   const entry = newMessage(id, 'user', { text, status: 'done' });
   if (annotations.length > 0) entry.annotations = [...annotations];
+  if (images.length > 0) entry.images = [...images];
   return { ...state, entries: [...state.entries, entry] };
 }
 
@@ -217,6 +257,9 @@ export function applyAgentEvent(state: TranscriptState, event: AgentEvent): Tran
         ...(tool ?? { toolCallId: event.toolCallId, toolName: 'tool', output: '' }),
         status: event.isError ? 'error' : 'done',
         ...presentationPatch(event.presentation),
+        ...(imagesFromAttachments(event.attachments).length === 0
+          ? {}
+          : { images: imagesFromAttachments(event.attachments) }),
       }));
     case 'session/aborted':
       return appendNoticeOnce(settleStreaming(state), 'info', '已中断');
@@ -261,7 +304,10 @@ function entryFromMessage(message: RemoteTranscriptMessage): TranscriptMessageEn
   });
   if (message.model !== undefined) entry.model = message.model;
   if (message.runId !== undefined) entry.runId = message.runId;
-  const attachmentCount = message.attachments?.length ?? message.attachmentCount ?? 0;
+  const images = imagesFromAttachments(message.attachments);
+  if (images.length > 0) entry.images = images;
+  // Older turns carry only a count; images already drawn are not counted twice.
+  const attachmentCount = (message.attachments?.length ?? message.attachmentCount ?? 0) - images.length;
   // History keeps attachment rows, not the file refs a turn was sent with.
   if (attachmentCount > 0) entry.annotations = [`${attachmentCount} 个附件`];
   if (message.terminalMessage !== undefined) entry.terminalMessage = message.terminalMessage;
