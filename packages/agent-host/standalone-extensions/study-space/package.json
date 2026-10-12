@@ -1,0 +1,22 @@
+{
+  "name": "piwin-study-space",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Optional, explicitly activated teaching extension for piwin native cards",
+  "license": "MIT",
+  "engines": { "node": ">=22.19.0" },
+  "pi": { "extensions": ["./index.ts"] },
+  "files": ["index.ts", "model.ts", "store.ts", "prompt.ts", "local.ts", "native.ts", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "test": "vitest run --config vitest.config.ts --configLoader runner",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.84.2",
+    "typebox": "1.1.38",
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.7",
+    "tsx": "^4.19.2"
+  }
+}

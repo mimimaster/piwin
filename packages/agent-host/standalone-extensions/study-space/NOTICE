@@ -1,0 +1,12 @@
+Study Space 0.1.0
+
+Original implementation for piwin. The learning / review / teaching-assistant
+workflow takes inspiration from Pi-Teacher/skills:
+https://github.com/Pi-Teacher/skills
+No upstream source files or prompt text are redistributed in this package.
+
+The package runs against the host-supplied Pi coding-agent Extension API
+(verified with 0.84.2) and typebox (1.1.38). Those dependencies are not bundled;
+their licensing remains with the host distribution and their upstream projects.
+Native card storage, deduplication and FSRS scheduling remain piwin Host
+capabilities; this package contains neither a second scheduler nor a server.
