@@ -5,6 +5,7 @@
 import { getUtf8ByteSize } from './security.js';
 import {
   ARTIFACT_BRIDGE_ACTION_TYPE,
+  ARTIFACT_BRIDGE_CONTRAST_TYPE,
   ARTIFACT_BRIDGE_ERROR_TYPE,
   ARTIFACT_BRIDGE_SCROLL_TYPE,
   ARTIFACT_BRIDGE_SIZE_TYPE,
@@ -16,6 +17,7 @@ import {
 import type {
   ArtifactActionMessage,
   ArtifactBridgeMessage,
+  ArtifactContrastMessage,
   ArtifactErrorMessage,
   ArtifactFrameMode,
   ArtifactRenderSnapshot,
@@ -253,5 +255,36 @@ export function parseArtifactScrollMessage(data: unknown): ArtifactScrollMessage
     channelId,
     top: Math.round(top),
     restored: data['restored'] === true,
+  };
+}
+
+/** Parse a contrast probe report. Counts are clamped; nothing here is trusted. */
+export function parseArtifactContrastMessage(data: unknown): ArtifactContrastMessage | null {
+  if (!isRecord(data)) return null;
+  if (data['type'] !== ARTIFACT_BRIDGE_CONTRAST_TYPE) return null;
+  const channelId = data['channelId'];
+  if (typeof channelId !== 'string' || channelId.length === 0 || channelId.length > 200) {
+    return null;
+  }
+  const lowContrast = data['lowContrast'] === true;
+  const themeMismatch = data['themeMismatch'] === true;
+  if (!lowContrast && !themeMismatch) return null;
+  const count = (value: unknown): number =>
+    typeof value === 'number' && Number.isFinite(value)
+      ? Math.max(0, Math.min(10_000, Math.round(value)))
+      : 0;
+  const rawRatio = data['minRatio'];
+  const minRatio =
+    typeof rawRatio === 'number' && Number.isFinite(rawRatio)
+      ? Math.max(1, Math.min(21, rawRatio))
+      : 1;
+  return {
+    type: ARTIFACT_BRIDGE_CONTRAST_TYPE,
+    channelId,
+    lowContrast,
+    themeMismatch,
+    sampled: count(data['sampled']),
+    failing: count(data['failing']),
+    minRatio,
   };
 }

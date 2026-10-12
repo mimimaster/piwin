@@ -20,6 +20,7 @@ import {
   type ThinkingLevel,
   type ThemeManifest,
 } from '@piwin/contracts';
+import { ARTIFACT_KIT_VERSION } from '@piwin/contracts';
 import type { PendingContextRefItem } from './hooks/use-composer-context-refs.js';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer.js';
 import {
@@ -475,6 +476,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           clientMessageId,
           ...(inlineArtifactWidthPx === undefined ? {} : { inlineArtifactWidthPx }),
           ...(artifactHostTheme === undefined ? {} : { artifactHostTheme }),
+          artifactKit: ARTIFACT_KIT_VERSION,
           ...(outgoingAttachments.length > 0 ? { attachments: outgoingAttachments } : {}),
           ...(promptRefs.length > 0 ? { contextRefs: promptRefs } : {}),
           ...sessionComposer.promptFields,

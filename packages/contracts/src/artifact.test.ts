@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   ARTIFACT_CANVAS_ONLY_HINT,
   ARTIFACT_EXPLICIT_ONLY_HINT,
+  ARTIFACT_HOST_STYLE_ONLY_HINT,
+  formatArtifactKitReference,
   ARTIFACT_INLINE_ONLY_HINT,
   ARTIFACT_LANGUAGE_ALIASES,
   ARTIFACT_RUNTIME_CONTRACT,
@@ -117,7 +119,7 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toContain('```artifact-html title="Short descriptive title" surface="canvas"');
     expect(protocol).toContain('surface="canvas"');
     expect(protocol).toContain('--piwin-artifact-');
-    expect(protocol).toContain('kind="artifact:runtime" version="13"');
+    expect(protocol).toContain('kind="artifact:runtime" version="14"');
     expect(protocol).toContain('On a light host never produce a dark-mode design');
     expect(protocol).toContain('data-piwin-media');
     expect(protocol).toContain('Never `data:image`');
@@ -150,21 +152,37 @@ describe('artifact protocol formatter', () => {
     }
   });
 
+  it('runtime v14 teaches style declaration and the extended vocabulary', () => {
+    const protocol = formatArtifactProtocol();
+    expect(protocol).toContain('`style="host"`');
+    expect(protocol).toContain('`style="expressive"`');
+    for (const token of ['surface-2', 'border-strong', 'ok warn info risk', 'series-1', 'shadow-1', 'radius-lg']) {
+      expect(protocol).toContain(token);
+    }
+    expect(protocol).toContain('no serif or display fonts');
+    expect(protocol).toContain('data-piwin-chart="bar|line|donut|spark"');
+    expect(formatArtifactKitReference()).toContain('"tone": "ok"');
+    expect(formatArtifactKitReference()).toContain('Donut slices take `tones` in label order.');
+    expect(protocol).toContain('Call `artifact_instructions` for the icon list and chart options.');
+    expect(protocol).not.toContain('trend-up');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Unprompted artifacts use `style="host"`.');
+  });
+
   it('shows block fences on their own line, not one-line empty fences', () => {
     const protocol = formatArtifactProtocol();
     expect(protocol).toContain('column 0 of its own line');
     expect(protocol).toContain('do not wrap attributes onto the next line');
     expect(protocol).toContain('Never append the opening fence to a sentence');
-    expect(protocol).toContain('```artifact-html title="Short descriptive title"\n');
+    expect(protocol).toContain('```artifact-html title="Short descriptive title" style="host"\n');
     expect(protocol).toContain(
-      '```artifact-html title="Short descriptive title" surface="canvas"\n',
+      '```artifact-html title="Short descriptive title" surface="canvas" style="host"\n',
     );
-    expect(protocol).toContain('```svg title="Short descriptive title"\n');
-    expect(protocol).not.toMatch(/```artifact-html title="Short descriptive title"```/);
+    expect(protocol).toContain('```svg title="Short descriptive title" style="host"\n');
+    expect(protocol).not.toMatch(/```artifact-html title="Short descriptive title" style="host"```/);
     expect(protocol).not.toMatch(
-      /```artifact-html title="Short descriptive title" surface="canvas"```/,
+      /```artifact-html title="Short descriptive title" surface="canvas" style="host"```/,
     );
-    expect(protocol).not.toMatch(/```svg title="Short descriptive title"```/);
+    expect(protocol).not.toMatch(/```svg title="Short descriptive title" style="host"```/);
   });
 
   it('assembles decision policy plus protocol without a second surface-rule copy', () => {
@@ -186,6 +204,15 @@ describe('artifact protocol formatter', () => {
     expect(instructions).toContain(formatArtifactProtocol());
     expect(instructions).not.toContain('## Artifact Decision Policy');
     expect(instructions).not.toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
+  });
+
+  it('adds the host-style-only hint only for the internal host-only switch', () => {
+    const config = createDefaultArtifactConfig();
+    expect(formatArtifactInstructions(config)).not.toContain(ARTIFACT_HOST_STYLE_ONLY_HINT);
+    config.styleModes = 'host-only';
+    const instructions = formatArtifactInstructions(config);
+    expect(instructions.startsWith(ARTIFACT_HOST_STYLE_ONLY_HINT)).toBe(true);
+    expect(instructions).toContain(formatArtifactProtocol());
   });
 
   it('prefixes the explicit-only constraint onto default and custom decision prompts', () => {

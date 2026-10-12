@@ -144,6 +144,12 @@ export type PromptInput = {
   /** Sending shell's resolved light/dark mode; advisory so artifacts match the host background. */
   artifactHostTheme?: 'light' | 'dark';
   /**
+   * Artifact renderer generation of the sending shell (`ARTIFACT_KIT_VERSION`).
+   * Absent on shells that predate runtime contract v14; Host then tells the
+   * model to keep to the older rules for that turn.
+   */
+  artifactKit?: number;
+  /**
    * Explicit installed Skill selected for this turn. This is structured Host
    * intent, not a value inferred from model-facing prompt text.
    */

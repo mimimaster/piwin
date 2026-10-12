@@ -4,18 +4,52 @@
  * create a second scrollport.
  */
 import { resolveArtifactOnAccent } from './theme.js';
-import type { ArtifactThemeVariables } from './types.js';
+import { resolveArtifactV14Tokens } from './theme-tokens.js';
+import type { ArtifactRules, ArtifactThemeVariables } from './types.js';
 
 function escapeCssValue(value: string): string {
   return value.replace(/[;{}]/g, '').trim();
 }
 
-export function buildArtifactThemeCss(theme: ArtifactThemeVariables): string {
-  const variables = Object.entries({
-    ...theme,
-    '--piwin-artifact-on-accent': resolveArtifactOnAccent(theme),
-  })
-    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+/** Internal theme inputs that select a value but are never CSS variables. */
+const HOST_ONLY_THEME_INPUTS = new Set<string>(['--piwin-artifact-on-accent-themed']);
+
+/**
+ * `on-accent` for the rules an artifact was written under: v14 uses the
+ * theme's authored ink when it has one; legacy keeps the derived ink.
+ */
+export function resolveArtifactOnAccentForRules(
+  theme: ArtifactThemeVariables,
+  rules: ArtifactRules = 'legacy',
+): string {
+  const themed = theme['--piwin-artifact-on-accent-themed']?.trim();
+  if (rules === 'v14' && themed) return themed;
+  return resolveArtifactOnAccent(theme);
+}
+
+/**
+ * The CSS variables an artifact document receives: the theme as authored,
+ * the rules-specific `on-accent`, and the complete v14 vocabulary. Shared by
+ * the sandbox srcdoc and the static Shadow DOM renderer.
+ */
+export function resolveArtifactThemeCssVariables(
+  theme: ArtifactThemeVariables,
+  rules: ArtifactRules = 'legacy',
+): Array<[string, string]> {
+  const merged = new Map<string, string>();
+  for (const [name, value] of Object.entries(theme)) {
+    if (typeof value === 'string' && !HOST_ONLY_THEME_INPUTS.has(name)) merged.set(name, value);
+  }
+  merged.set('--piwin-artifact-on-accent', resolveArtifactOnAccentForRules(theme, rules));
+  for (const [name, value] of resolveArtifactV14Tokens(theme)) merged.set(name, value);
+  return [...merged];
+}
+
+export function buildArtifactThemeCss(
+  theme: ArtifactThemeVariables,
+  options: { rules?: ArtifactRules } = {},
+): string {
+  const variables = resolveArtifactThemeCssVariables(theme, options.rules)
     .map(([name, value]) => `  ${name}: ${escapeCssValue(value)};`)
     .join('\n');
   const colorScheme = theme['--piwin-artifact-theme'] === 'dark' ? 'dark' : 'light';
@@ -152,13 +186,16 @@ html[data-frame-mode="inline-flow"] .piwin-artifact-root code {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+/* Tables size columns from content and wrap at word boundaries, as the
+   runtime contract tells the model. "anywhere" would collapse every column's
+   min-content to one glyph and split labels mid-word. */
 html[data-frame-mode="inline-flow"] .piwin-artifact-root table {
   width: 100% !important;
-  table-layout: fixed;
+  table-layout: auto;
 }
 html[data-frame-mode="inline-flow"] .piwin-artifact-root th,
 html[data-frame-mode="inline-flow"] .piwin-artifact-root td {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 `;
 }
@@ -184,7 +221,21 @@ export function buildArtifactMotionPolicyCss(): string {
 `;
 }
 
-export function buildArtifactThemeGuardCss(): string {
+export function buildArtifactThemeGuardCss(palette: 'host' | 'stage' = 'host'): string {
+  if (palette === 'stage') {
+    // Expressive: the page stays transparent over the host and keeps the
+    // host color scheme; everything inside the stage is the author's.
+    return `
+html,
+body,
+.piwin-artifact-root,
+.artifact-root,
+.owi-artifact-root {
+  background: transparent !important;
+  color-scheme: var(--piwin-artifact-theme) !important;
+}
+`;
+  }
   return `
 html,
 body,

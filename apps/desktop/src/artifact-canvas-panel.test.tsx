@@ -440,4 +440,85 @@ describe('ArtifactCanvasPanel', () => {
     });
     expect(container.querySelector('[data-testid="artifact-canvas-proposal"]')).toBeNull();
   });
+
+  describe('viewer toolbar', () => {
+    async function settle(): Promise<void> {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    }
+
+    it('always shows the 32px toolbar with title and style mode', async () => {
+      const { container, root } = renderPanel({ activeTarget: makeTarget(), viewerPresets: true });
+      instances.push({ container, root });
+      await settle();
+      expect(container.querySelector('[data-testid="artifact-canvas-toolbar"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="artifact-canvas-mode"]')?.textContent).toContain('host');
+      expect(container.querySelector('[data-testid="artifact-canvas-width"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="artifact-canvas-theme"]')).not.toBeNull();
+    });
+
+    it('hides width and theme presets when presets are off (iOS)', async () => {
+      const { container, root } = renderPanel({ activeTarget: makeTarget(), viewerPresets: false });
+      instances.push({ container, root });
+      await settle();
+      expect(container.querySelector('[data-testid="artifact-canvas-width"]')).toBeNull();
+      expect(container.querySelector('[data-testid="artifact-canvas-theme"]')).toBeNull();
+      expect(container.querySelector('[data-testid="artifact-canvas-fullscreen"]')).not.toBeNull();
+    });
+
+    it('applies width presets and preview themes from the keyboard', async () => {
+      const { container, root } = renderPanel({ activeTarget: makeTarget(), viewerPresets: true });
+      instances.push({ container, root });
+      await settle();
+      const toolbar = container.querySelector<HTMLElement>('[data-testid="artifact-canvas-fullscreen"]')!;
+      const stage = () => container.querySelector('[data-testid="artifact-canvas-stage"]');
+      expect(stage()?.getAttribute('data-width')).toBe('fit');
+      act(() => {
+        toolbar.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true }));
+      });
+      expect(stage()?.getAttribute('data-width')).toBe('mobile');
+      const materialize = vi.spyOn(artifact, 'materializeArtifact');
+      act(() => {
+        toolbar.dispatchEvent(new KeyboardEvent('keydown', { key: 't', bubbles: true }));
+      });
+      await settle();
+      const theme = materialize.mock.calls.at(-1)?.[1]?.theme;
+      expect(theme?.['--piwin-artifact-theme']).toBe('light');
+      expect(container.querySelector('[data-testid="artifact-canvas-stage"]')).not.toBeNull();
+    });
+
+    it('opens fullscreen in an overlay and closes on Esc with focus restored', async () => {
+      const { container, root } = renderPanel({ activeTarget: makeTarget(), viewerPresets: true });
+      instances.push({ container, root });
+      await settle();
+      const button = container.querySelector<HTMLButtonElement>('[data-testid="artifact-canvas-fullscreen"]')!;
+      button.focus();
+      act(() => {
+        button.click();
+      });
+      await settle();
+      const overlay = document.querySelector('[data-testid="artifact-fullscreen-overlay"]');
+      expect(overlay).not.toBeNull();
+      expect(overlay?.querySelector('iframe')).not.toBeNull();
+      expect(overlay?.querySelector('[data-testid="artifact-fullscreen-width"]')?.textContent).toContain('1200');
+      act(() => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      });
+      expect(document.querySelector('[data-testid="artifact-fullscreen-overlay"]')).toBeNull();
+      expect(document.activeElement).toBe(button);
+    });
+
+    it('toggles between preview and original source', async () => {
+      const { container, root } = renderPanel({ activeTarget: makeTarget(), viewerPresets: true });
+      instances.push({ container, root });
+      await settle();
+      act(() => {
+        container.querySelector<HTMLButtonElement>('[data-testid="artifact-canvas-code"]')!.click();
+      });
+      expect(container.querySelector('[data-testid="artifact-canvas-code"][aria-pressed="true"]')).not.toBeNull();
+      expect(container.querySelector('.artifact-canvas-code')?.textContent).toContain('stack');
+      expect(container.querySelector('iframe')).toBeNull();
+    });
+  });
 });

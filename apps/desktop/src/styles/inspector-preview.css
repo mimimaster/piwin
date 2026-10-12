@@ -38,12 +38,120 @@
   border-bottom: 1px solid var(--line-1);
 }
 
-/* Canvas has no on-disk HTML (ADR 0029: message-backed). Export is Save As. */
-.artifact-canvas-panel > .artifact-canvas-export {
-  opacity: 1;
+/* ── Artifact viewer: 32px Canvas toolbar, width stage, fullscreen ──────
+   design.md §7. The toolbar is always visible; Download moved into it
+   (Canvas has no on-disk HTML, ADR 0029: export is Save As). */
+
+.artifact-viewer-toolbar {
+  display: flex;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  height: 32px;
+  padding: 0 var(--s-2) 0 var(--s-4);
+  border-bottom: 1px solid var(--line-1);
+  background: var(--surface-1);
+  min-width: 0;
 }
 
-.artifact-canvas-panel > .artifact-frame {
+.artifact-viewer-toolbar-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.artifact-viewer-toolbar-name {
+  overflow: hidden;
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.artifact-viewer-toolbar-mode {
+  flex: 0 0 auto;
+  color: var(--text-4);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.artifact-viewer-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.artifact-viewer-segment.piwin-segmented-control {
+  --sc-font-size: 11px;
+  font-size: 11px;
+}
+
+.artifact-viewer-button.piwin-icon-button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  color: var(--text-3);
+}
+
+.artifact-viewer-stage {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* A fixed width shows the gutter as hatching: “outside the canvas”. */
+.artifact-viewer-stage:not([data-width="fit"]) {
+  padding: var(--s-4) 0;
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    color-mix(in srgb, var(--text-1) 5%, transparent) 6px 7px
+  );
+}
+
+.artifact-viewer-stage-frame {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.artifact-viewer-stage:not([data-width="fit"]) .artifact-viewer-stage-frame {
+  flex: 0 0 auto;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-card, 10px);
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.artifact-canvas-code {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-3) var(--s-4);
+}
+
+.artifact-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--void, var(--surface-1));
+  outline: none;
+}
+
+.artifact-canvas-panel > .artifact-frame,
+.artifact-viewer-stage-frame > .artifact-frame {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -57,7 +165,9 @@
 }
 
 .artifact-canvas-panel .artifact-iframe-stage,
-.artifact-canvas-panel .artifact-iframe {
+.artifact-canvas-panel .artifact-iframe,
+.artifact-fullscreen-overlay .artifact-iframe-stage,
+.artifact-fullscreen-overlay .artifact-iframe {
   flex: 1;
   min-height: 0;
   height: 100%;

@@ -6,6 +6,7 @@
  */
 import { useCallback } from 'react';
 import { toModelRef } from '@piwin/contracts';
+import { ARTIFACT_KIT_VERSION } from '@piwin/contracts';
 import type {
   AgentModeId,
   ModelRef,
@@ -24,6 +25,7 @@ export type ComposerPromptRequestInput = {
   text: string;
   inlineArtifactWidthPx?: number;
   artifactHostTheme?: 'light' | 'dark';
+  artifactKit?: number;
   attachments?: PromptAttachment[];
   contextRefs?: PromptContextRef[];
   model?: ModelRef;
@@ -85,6 +87,7 @@ export function useComposerPromptInput(args: UseComposerMediaArgs) {
       if (inlineWidth !== undefined) input.inlineArtifactWidthPx = inlineWidth;
       const hostTheme = readArtifactHostTheme();
       if (hostTheme !== undefined) input.artifactHostTheme = hostTheme;
+      input.artifactKit = ARTIFACT_KIT_VERSION;
       if (args.conversationChat !== true) {
         input.agentMode = params.agentMode;
         if (args.permissionPreset) {

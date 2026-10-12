@@ -11,7 +11,10 @@ import { Button } from '@piwin/ui-kit';
 import { ArtifactCanvasLauncher } from './artifact-canvas-launcher.js';
 import { ArtifactInlinePreview } from './artifact-inline-preview.js';
 import { artifactIncompleteCopy } from './artifact-incomplete-copy.js';
-import { createArtifactCanvasTarget } from './artifact-canvas-model.js';
+import {
+  createArtifactCanvasTarget,
+  createPromotedArtifactCanvasTarget,
+} from './artifact-canvas-model.js';
 import { isShellLanguage, SourceCodeBlock } from './markdown-code-block.js';
 import type { MarkdownCodeFenceProps } from './markdown-code-fence.js';
 import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
@@ -20,6 +23,7 @@ import {
   sameArtifactTypography,
   type ArtifactTypography,
 } from './artifact-typography.js';
+import { useArtifactStyleModes } from './artifact-style-modes.js';
 
 /**
  * Bound-fence source/preview/Canvas controller.
@@ -132,6 +136,12 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     setTypography((current) => (sameArtifactTypography(current, next) ? current : next));
   }, [willMountInlineFrame, props.artifactThemeKey]);
 
+  const styleModes = useArtifactStyleModes();
+  const [hostView, setHostView] = useState(false);
+  const styleOverride = useMemo(
+    () => ({ active: hostView, onToggle: () => setHostView((value) => !value) }),
+    [hostView],
+  );
   const plan = useMemo((): Extract<ArtifactRenderPlan, { kind: 'render' }> | null => {
     if (!willMountInlineFrame || typography === null || analysis?.kind !== 'intent') return null;
     try {
@@ -140,6 +150,8 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
         source: props.source,
         presentation: 'inline',
         mediaDataUrls,
+        styleModes,
+        ...(hostView ? { forceHostStyle: true } : {}),
         theme: { ...(props.artifactTheme ?? createDefaultArtifactTheme('dark')), ...typography },
       });
     } catch (error) {
@@ -154,6 +166,8 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     props.source,
     props.artifactTheme,
     mediaDataUrls,
+    styleModes,
+    hostView,
   ]);
 
   const incompleteNotice = settledIncompleteArtifact ? (
@@ -252,6 +266,24 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     );
   }
 
+  // “Open in Canvas” for an Inline artifact: same fence, Canvas surface.
+  const promoteToCanvas =
+    analysis.kind === 'intent' && mountsInline && canvasEnabled && origin && onOpenCanvas
+      ? () =>
+          onOpenCanvas(
+            createPromotedArtifactCanvasTarget({
+              sessionId: origin.sessionId,
+              messageId: origin.messageId,
+              fenceIndex: boundFenceIndex,
+              intent: analysis.intent,
+            }),
+          )
+      : undefined;
+  const viewerProps = {
+    mediaDataUrls,
+    ...(promoteToCanvas ? { onOpenCanvas: promoteToCanvas } : {}),
+  };
+
   if (willMountInlineFrame && plan === null) {
     // One layout pass to measure typography; nothing paints in between.
     return previewRoot(null, liveFence);
@@ -261,11 +293,14 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     if (willMountInlineFrame && plan) {
       return previewRoot(
         <ArtifactInlinePreview
+          styleOverride={styleOverride}
           plan={plan}
           fenceId={stickyFenceId}
           initPriority={props.initPriority}
           locale={props.locale}
           onShowSource={showArtifactSource}
+        {...viewerProps}
+          {...viewerProps}
           {...(props.artifactThemeKey ? { artifactThemeKey: props.artifactThemeKey } : {})}
           {...(props.artifactTheme ? { artifactTheme: props.artifactTheme } : {})}
           {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
@@ -339,11 +374,13 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   if (willMountInlineFrame && plan) {
     return previewRoot(
       <ArtifactInlinePreview
+          styleOverride={styleOverride}
         plan={plan}
         fenceId={stickyFenceId}
         initPriority={props.initPriority}
         locale={props.locale}
         onShowSource={showArtifactSource}
+        {...viewerProps}
         {...(props.artifactThemeKey ? { artifactThemeKey: props.artifactThemeKey } : {})}
         {...(props.artifactTheme ? { artifactTheme: props.artifactTheme } : {})}
         {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}

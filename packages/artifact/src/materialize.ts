@@ -5,7 +5,9 @@
  * Does not re-classify security or layout.
  */
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
-import { paintsOwnScene } from './scene-palette.js';
+import { resolveArtifactPalette, type ArtifactStyleModes } from './artifact-style.js';
+import { resolveArtifactRules } from './artifact-rules.js';
+import { usesArtifactKit } from './kit/index.js';
 import { buildHtmlArtifactSrcdoc } from './srcdoc.js';
 import {
   buildStreamableArtifactPreview,
@@ -42,6 +44,10 @@ export type MaterializeArtifactOptions = {
    * rewritten.
    */
   mediaDataUrls?: ReadonlyMap<string, string>;
+  /** Internal style switch from the Host config. Default `model`. */
+  styleModes?: ArtifactStyleModes;
+  /** The user chose "view as host" for this artifact. */
+  forceHostStyle?: boolean;
 };
 
 function frameModeFor(
@@ -81,20 +87,27 @@ export function materializeArtifact(
     bodySource = projectHtmlSourceForStreamRoot(bodySource);
   }
 
-  // Canvas is the one surface an artifact can fill edge to edge; a scene
-  // painted there keeps its own palette instead of the host's.
-  const ownPalette = presentation === 'canvas' && paintsOwnScene(bodySource);
-  const contract = applyArtifactThemeContract(bodySource, {
-    palette: ownPalette ? 'own' : 'host',
+  // Fence style decides; legacy Canvas cover scenes keep their own palette.
+  const palette = resolveArtifactPalette({
+    descriptor: intent.descriptor,
+    presentation,
+    source: bodySource,
+    ...(options.styleModes !== undefined ? { styleModes: options.styleModes } : {}),
+    ...(options.forceHostStyle === true ? { forceHost: true } : {}),
   });
+  const contract = applyArtifactThemeContract(bodySource, { palette });
   if (contract.changed) {
     bodySource = contract.source;
   }
   bodySource = bindArtifactSessionMedia(bodySource, options.mediaDataUrls ?? new Map());
 
   const frameMode = frameModeFor(intent, presentation);
+  // Shadow DOM cannot scope an expressive stage's colors; sandbox it.
   const useStatic =
-    intent.renderer === 'static' && mode === 'interactive' && presentation !== 'canvas';
+    intent.renderer === 'static' &&
+    mode === 'interactive' &&
+    presentation !== 'canvas' &&
+    palette === 'host';
   if (useStatic) {
     return {
       kind: 'render',
@@ -118,7 +131,12 @@ export function materializeArtifact(
     includeBridge: true,
     enableStreamUpdates: true,
     freezeSource: mode !== 'stream-preview',
-    ownPalette,
+    palette,
+    rules: resolveArtifactRules(intent.descriptor),
+    kit:
+      mode === 'stream-preview'
+        ? resolveArtifactRules(intent.descriptor) === 'v14'
+        : usesArtifactKit(bodySource),
     documentKind: streamFragmentShell ? 'fragment' : intent.descriptor.documentKind,
   });
 

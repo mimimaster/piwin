@@ -6,6 +6,7 @@ import {
   advanceArtifactFrameMode,
   estimateSvgFenceHeight,
   type ArtifactActionMessage,
+  type ArtifactContrastMessage,
   type ArtifactErrorMessage,
   type ArtifactFrameMode,
   type ArtifactRenderPlan,
@@ -23,6 +24,7 @@ import {
 } from './artifact-frame-stream.js';
 import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
 import { artifactScriptErrorCopy } from './artifact-script-error-copy.js';
+import { ArtifactContrastBadge, type ArtifactStyleOverride } from './artifact-style-override.js';
 import { useTranscriptScrollPort } from './transcript-scroll-port.js';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
@@ -111,6 +113,7 @@ export function ArtifactSandboxFrame(props: {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onComposerProposal?: (payload: { text: string; label?: string }) => void;
   extraHeaderAction?: ReactElement;
+  styleOverride?: ArtifactStyleOverride;
 }): ReactElement {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -159,10 +162,12 @@ export function ArtifactSandboxFrame(props: {
   // show whatever placeholder its author left behind ("enable JavaScript"),
   // which reads as a platform block rather than the author's own bug.
   const [scriptError, setScriptError] = useState<ArtifactErrorMessage | null>(null);
+  const [contrastIssue, setContrastIssue] = useState<ArtifactContrastMessage | null>(null);
   const scriptErrorDocumentRef = useRef<string | null>(null);
   if (scriptErrorDocumentRef.current !== document.documentKey) {
     scriptErrorDocumentRef.current = document.documentKey;
     if (scriptError !== null) setScriptError(null);
+    if (contrastIssue !== null) setContrastIssue(null);
   }
   const bridge = useArtifactFrameBridge({
     channelId,
@@ -178,6 +183,7 @@ export function ArtifactSandboxFrame(props: {
     ...(props.onComposerProposal ? { onComposerProposal: props.onComposerProposal } : {}),
     ...(scrollPort ? { onContentGrew: scrollPort.notifyContentGrew } : {}),
     onScriptError: (error) => setScriptError((current) => current ?? error),
+    onContrastIssue: (issue) => setContrastIssue((current) => current ?? issue),
   });
   const appliedFrameMode = bridge.overflowsInlineFlow
     ? advanceArtifactFrameMode(plannedFrameMode, 'inline-overflow')
@@ -276,6 +282,11 @@ export function ArtifactSandboxFrame(props: {
           {/* The artifact's own script failed. Say so plainly: otherwise the
               only thing on screen is whatever fallback the author left, which
               users read as the platform blocking JavaScript. */}
+          <ArtifactContrastBadge
+            issue={contrastIssue}
+            override={props.styleOverride}
+            locale={props.locale}
+          />
           {scriptError ? (
             <p
               className="artifact-script-error"

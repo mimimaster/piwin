@@ -14,6 +14,7 @@ import {
   DEFAULT_MAX_ARTIFACT_BYTES,
 } from './constants.js';
 import { buildCanvasStageFitRuntime } from './srcdoc-canvas-fit.js';
+import { buildArtifactContrastProbeRuntime } from './srcdoc-contrast-probe.js';
 import { buildScrollContinuityRuntime } from './srcdoc-scroll-continuity.js';
 import type { ArtifactFrameMode } from './types.js';
 
@@ -22,6 +23,7 @@ export function buildArtifactBridgeBootstrapScript(
   enableRenderCommand = true,
   initialFrameMode: ArtifactFrameMode = 'inline-flow',
   freezeSource = false,
+  contrastProbe = false,
 ): string {
   const serializedChannelId = JSON.stringify(channelId);
   const serializedFrameMode = JSON.stringify(initialFrameMode);
@@ -432,6 +434,7 @@ export function buildArtifactBridgeBootstrapScript(
       : ''
   }
 
+  ${contrastProbe && freezeSource ? buildArtifactContrastProbeRuntime() : ''}
   applyFrameMode(currentFrameMode);
   if (document.readyState === 'complete') {
     if (currentFrameMode === 'inline-flow') startHeightObserver();

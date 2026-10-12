@@ -19,7 +19,7 @@ import {
   type ArtifactThemeVariables,
   type ComposerProposeTextActionPayload,
 } from '@piwin/artifact';
-import { Button, IconButton, IconDownload } from '@piwin/ui-kit';
+import { Button } from '@piwin/ui-kit';
 import { ArtifactFrame } from './ArtifactFrame';
 import { artifactIncompleteCopy } from './artifact-incomplete-copy.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
@@ -28,6 +28,18 @@ import { useDesktopLocale } from './desktop-locale-context';
 import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
 import { useStableArtifactTheme } from './artifact-stable-theme.js';
 import { RenderErrorBoundary } from './render-error-boundary.js';
+import { ArtifactFullscreenOverlay } from './artifact-fullscreen-overlay.js';
+import { ArtifactViewerStage, ArtifactViewerToolbar } from './artifact-viewer-controls.js';
+import {
+  nextArtifactPreviewTheme,
+  resolveArtifactPreviewTheme,
+  resolveArtifactViewerKey,
+  type ArtifactPreviewTheme,
+  type ArtifactViewerWidth,
+} from './artifact-viewer-model.js';
+import { SourceCodeBlock } from './markdown-code-block.js';
+import { isMobileTauriRuntime } from './shell-runtime.js';
+import { useArtifactStyleModes } from './artifact-style-modes';
 
 export type ArtifactCanvasProposal = ComposerProposeTextActionPayload;
 
@@ -46,8 +58,10 @@ export type ArtifactCanvasPanelProps = {
    * `appendComposerProposal` and never auto-sends.
    */
   onInsertProposal?: (proposal: ArtifactCanvasProposal) => void;
-  /** The surrounding header renders Download, so no button floats over the artwork. */
+  /** The surrounding header renders Download, so the toolbar omits its own. */
   hideFloatingDownload?: boolean;
+  /** Width/theme presets; defaults off on the mobile shell (fullscreen only). */
+  viewerPresets?: boolean;
 };
 
 function canvasPanelResetKey(target: ArtifactCanvasTarget | null): string {
@@ -73,12 +87,26 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const [pendingProposal, setPendingProposal] = useState<ArtifactCanvasProposal | null>(null);
+  const [width, setWidth] = useState<ArtifactViewerWidth>('fit');
+  const [previewTheme, setPreviewTheme] = useState<ArtifactPreviewTheme>('follow');
+  const [fullscreen, setFullscreen] = useState(false);
+  const [showingCode, setShowingCode] = useState(false);
+  // "View with theme" applies to one artifact; another target starts in its own style.
+  const [hostViewTargetId, setHostViewTargetId] = useState<string | null>(null);
+  const styleModes = useArtifactStyleModes();
+  const presets = props.viewerPresets ?? !isMobileTauriRuntime();
   const mediaDataUrls = useArtifactSessionMediaDataUrls({
     source: activeTarget?.source ?? '',
     ...(activeTarget ? { originSessionId: activeTarget.sessionId } : {}),
   });
 
-  const artifactTheme = useStableArtifactTheme(props.artifactTheme);
+  const hostTheme = useStableArtifactTheme(props.artifactTheme);
+  const previewVariables = useMemo(
+    () => resolveArtifactPreviewTheme(previewTheme, hostTheme),
+    [previewTheme, hostTheme],
+  );
+  const artifactTheme = previewTheme === 'follow' ? hostTheme : previewVariables;
+  const hostView = activeTarget !== null && activeTarget !== undefined && hostViewTargetId === activeTarget.id;
   const plan = useMemo(() => {
     if (!activeTarget) return null;
     return materializeArtifact(activeTarget.intent, {
@@ -86,9 +114,11 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
       source: activeTarget.source,
       presentation: 'canvas',
       mediaDataUrls,
+      styleModes,
+      ...(hostView ? { forceHostStyle: true } : {}),
       ...(artifactTheme ? { theme: artifactTheme } : {}),
     });
-  }, [activeTarget, artifactTheme, mediaDataUrls]);
+  }, [activeTarget, artifactTheme, mediaDataUrls, styleModes, hostView]);
 
   function handleInsert(): void {
     if (pendingProposal && props.onInsertProposal) {
@@ -129,7 +159,19 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
   }
 
   return (
-    <div className="artifact-canvas-panel" data-testid="artifact-canvas-panel">
+    <div
+      className="artifact-canvas-panel"
+      data-testid="artifact-canvas-panel"
+      onKeyDown={(event) => {
+        if (fullscreen) return;
+        const action = resolveArtifactViewerKey(event.nativeEvent, { surface: 'canvas', presets });
+        if (!action) return;
+        event.preventDefault();
+        if (action.kind === 'toggle-fullscreen') setFullscreen(true);
+        else if (action.kind === 'width') setWidth(action.width);
+        else if (action.kind === 'cycle-theme') setPreviewTheme(nextArtifactPreviewTheme);
+      }}
+    >
       {pendingProposal ? (
         <div className="artifact-canvas-proposal" data-testid="artifact-canvas-proposal">
           <div className="artifact-canvas-proposal-head">
@@ -167,33 +209,65 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
           </p>
         </div>
       ) : null}
-      {plan && (plan.kind === 'render' || plan.kind === 'blocked') ? (
-        <ArtifactFrame
-          key={`${props.artifactThemeKey ?? 'default'}:${activeTarget.id}`}
-          plan={plan}
-          presentation="canvas"
-          locale={locale}
-          initPriority={0}
-          onComposerProposal={setPendingProposal}
-        />
+      <ArtifactViewerToolbar
+        title={activeTarget.title}
+        style={activeTarget.intent.descriptor.style}
+        locale={locale}
+        fullscreen={false}
+        presets={presets}
+        width={width}
+        onWidthChange={setWidth}
+        previewTheme={previewTheme}
+        onPreviewThemeChange={setPreviewTheme}
+        onToggleFullscreen={() => setFullscreen(true)}
+        showingCode={showingCode}
+        onToggleCode={() => setShowingCode((value) => !value)}
+        {...(canExportSource && props.hideFloatingDownload !== true
+          ? { onDownload: handleDownloadSource, downloadLabel }
+          : {})}
+        downloadTestId="artifact-canvas-panel-download"
+        testIdPrefix="artifact-canvas"
+      />
+      {showingCode ? (
+        <div className="artifact-canvas-code" data-testid="artifact-canvas-code">
+          <SourceCodeBlock
+            language={activeTarget.type === 'svg' ? 'svg' : 'html'}
+            source={activeTarget.source}
+            isShell={false}
+          />
+        </div>
+      ) : plan && (plan.kind === 'render' || plan.kind === 'blocked') ? (
+        <ArtifactViewerStage width={width} testId="artifact-canvas-stage">
+          <ArtifactFrame
+            key={`${props.artifactThemeKey ?? 'default'}:${previewTheme}:${activeTarget.id}`}
+            plan={plan}
+            presentation="canvas"
+            locale={locale}
+            initPriority={0}
+            onComposerProposal={setPendingProposal}
+            styleOverride={{
+              active: hostView,
+              onToggle: () => setHostViewTargetId(hostView ? null : activeTarget.id),
+            }}
+          />
+        </ArtifactViewerStage>
       ) : (
         <div className="artifact-canvas-empty muted">
           {isZh ? `正在准备「${activeTarget.title}」…` : `Preparing “${activeTarget.title}”…`}
         </div>
       )}
-      {canExportSource && props.hideFloatingDownload !== true ? (
-        <div className="artifact-floating-actions artifact-canvas-export">
-          <IconButton
-            label={downloadLabel}
-            title={downloadLabel}
-            size="sm"
-            className="artifact-floating-action-button artifact-canvas-download"
-            data-testid="artifact-canvas-panel-download"
-            onClick={handleDownloadSource}
-          >
-            <IconDownload size={14} />
-          </IconButton>
-        </div>
+      {fullscreen ? (
+        <ArtifactFullscreenOverlay
+          intent={activeTarget.intent}
+          source={activeTarget.source}
+          locale={locale}
+          presets={presets}
+          initialWidth={width}
+          initialPreviewTheme={previewTheme}
+          mediaDataUrls={mediaDataUrls}
+          {...(hostTheme ? { hostTheme } : {})}
+          onClose={() => setFullscreen(false)}
+        />
       ) : null}
     </div>
   );

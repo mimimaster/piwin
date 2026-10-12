@@ -105,7 +105,14 @@ export type ArtifactConfig = {
   blockExternalScripts?: boolean;
   /** When true (default), any external resource blocks render. */
   blockExternalResources?: boolean;
+  /**
+   * Internal switch, not in Settings. `model` (default) lets the model pick
+   * `style="expressive"`; `host-only` renders everything under host style.
+   */
+  styleModes?: ArtifactStyleModes;
 };
+
+export type ArtifactStyleModes = 'model' | 'host-only';
 
 // ---------------------------------------------------------------------------
 // Artifact language aliases and runtime constants
@@ -131,7 +138,37 @@ export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
 /** Host tool that returns the decision policy + runtime contract on demand. */
 export const ARTIFACT_INSTRUCTIONS_TOOL_NAME = 'artifact_instructions' as const;
 
+/**
+ * Renderer generation a shell advertises on `PromptInput.artifactKit`.
+ * 1 = renders runtime contract v14 (extended tokens, `style`, built-in kit).
+ */
+export const ARTIFACT_KIT_VERSION = 1 as const;
+
+/** Kit v1 icon names; `@piwin/artifact` draws exactly this set (checked by test). */
+export const ARTIFACT_KIT_V1_ICONS = ['activity', 'alert', 'arrow-down', 'arrow-left', 'arrow-right', 'arrow-up', 'book', 'bookmark', 'brain', 'bug', 'calendar', 'chart', 'check', 'check-circle', 'clock', 'cloud', 'code', 'coffee', 'database', 'doc', 'download', 'external', 'eye', 'file', 'flame', 'folder', 'fork', 'git', 'globe', 'heart', 'image', 'info', 'leaf', 'link', 'lock', 'minus', 'moon', 'pause', 'pin', 'play', 'plus', 'refresh', 'search', 'server', 'settings', 'shield', 'star', 'sun', 'table', 'target', 'terminal', 'trend-down', 'trend-up', 'user', 'users', 'warn', 'x', 'x-circle', 'zap'] as const;
+
+/**
+ * Kit reference returned by `artifact_instructions` (not resident: the
+ * resident contract only carries the one-line pointer).
+ */
+export function formatArtifactKitReference(): string {
+  return [
+    '[piwin-artifact-kit version="1"]',
+    'Local built-ins, no network. Use only when they help; plain HTML/SVG stays fine.',
+    `Icons: \`<i data-piwin-icon="NAME" data-size="16"></i>\` (stroke = currentColor; size 8–96). Names: ${ARTIFACT_KIT_V1_ICONS.join(' ')}.`,
+    'Charts: `<figure data-piwin-chart="bar|line|donut|spark">` holding `<script type="application/json">` with {"labels": [..], "series": [{"name": "..", "values": [..], "tone": "ok"}], "tones": [..], "max": n, "height": px, "center": "96%"}. Always add a `<figcaption>` that states the takeaway in words; it stays readable if the chart cannot draw.',
+    '- bar: grouped bars per label. line: one line per series. donut: first series as parts of `labels`, optional `center` text. spark: tiny inline trend, no labels.',
+    '- Colors: status data says so with `tone` (ok=green, warn=amber, risk=red, info=blue; also accent, accent-2, muted): pass/fail, success/error, blocked, flaky. Donut slices take `tones` in label order. Series and slices named like 成功/通过/失败/阻塞/建议 (success/pass/fail/blocked/warning) get that tone automatically. Neutral data omits tone and uses `series-1`…`series-6` in order (blue first; status hues last). `color` accepts only `var(--piwin-artifact-*)`. Charts redraw with the container width.',
+    'Script API for interactive artifacts: `piwin.chart(el, {kind, labels, series, height})`, `piwin.icon(name, size)` → SVG string, `piwin.hydrate(root)` after inserting kit markup, `piwin.version`.',
+    '[/piwin-artifact-kit]',
+  ].join('\n');
+}
+
 /** Trigger constraint prefixed onto instructions whenever triggerMode is explicit-only. */
+/** Prefixed onto instructions when `artifact.styleModes` is `host-only`. */
+export const ARTIFACT_HOST_STYLE_ONLY_HINT =
+  'Expressive style is off for this Host: every artifact fence uses `style="host"`.';
+
 export const ARTIFACT_EXPLICIT_ONLY_HINT =
   'Use an Artifact only when the user explicitly requests an artifact, visualization, interactive page, prototype, or UI.';
 
@@ -247,6 +284,7 @@ export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
   '',
   'Choose Canvas by **user intent**, not response length: declare `surface="canvas"` for a workspace beside the conversation.',
   'MUST use Canvas when the primary deliverable is a standalone analytical artifact: architecture reviews, plan reviews, code-base or design reviews, security audits, delivery reports, findings write-ups, quantitative breakdowns, timelines, or large comparison tables. If you catch yourself about to dump a Markdown wall or a large Markdown table as the answer, stop and emit Canvas instead.',
+  'Unprompted artifacts use `style="host"`.',
   '',
   '### 1. Ordinary Markdown (Default for simple text)',
   '- Short answers (1–2 paragraphs), direct code explanations, debugging, or simple snippets.',
@@ -297,18 +335,18 @@ export function resolveArtifactDecisionPrompt(config: ArtifactConfig): string {
  */
 export function formatArtifactProtocol(): string {
   const fenceClose = '```';
-  const inlineOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title"`;
-  const canvasOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" surface="canvas"`;
-  const svgOpen = '```svg title="Short descriptive title"';
+  const inlineOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" style="host"`;
+  const canvasOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" surface="canvas" style="host"`;
+  const svgOpen = '```svg title="Short descriptive title" style="host"';
   return [
-    '[piwin-prompt-meta kind="artifact:runtime" version="13" applies="artifacts-enabled"]',
+    '[piwin-prompt-meta kind="artifact:runtime" version="14" applies="artifacts-enabled"]',
     '## HTML Artifact Runtime Contract',
     '',
     '### Success',
     'A self-contained artifact fence that renders correctly in the chat column sandbox.',
     '',
     '### Fences',
-    'Opening fence starts at column 0 of its own line. Keep `title` and `surface` on that same opening line; do not wrap attributes onto the next line. HTML/SVG body follows. Closing fence alone on its own line. Never append the opening fence to a sentence.',
+    'Opening fence starts at column 0 of its own line. Keep `title`, `surface` and `style` on that same opening line; do not wrap attributes onto the next line. HTML/SVG body follows. Closing fence alone on its own line. Never append the opening fence to a sentence.',
     '',
     'Inline:',
     inlineOpen,
@@ -326,13 +364,16 @@ export function formatArtifactProtocol(): string {
     fenceClose,
     '',
     '### Constraints (break without these)',
-    '- Colors: for proactive artifacts (including reports, reviews, and voice-delegated tasks), use only `--piwin-artifact-*` theme vars (`surface`, `text`, `muted`, `accent`, `on-accent`, `border`, `bg`) to adapt to host theme. These seven are the whole set: never invent other names (e.g. `surface-elevated`), never write `var(--piwin-artifact-x, <fallback>)` with your own palette, and never hard-code hex/rgb colors for text, backgrounds, or borders (no `color: #fff`, no dark slate cards). For states, tint with `color-mix(in srgb, var(--piwin-artifact-accent) 12%, transparent)`. Text is only ever `text`, `muted`, `accent`, or — on a solid `accent` fill such as a selected chip or primary button — `on-accent`. `bg` is transparent and `surface` is a faint tint: never use either as a text color, the label disappears. For the same reason anything that floats over content (sticky bar, toast, popover) takes `surface` as its background, never `bg`. Only when the user explicitly asks for a custom look (e.g. custom SVG, a styled HTML page, or an explicit UI design) may you style freely with custom colors.',
-    '- Inline code & tokens: inline `<code>` and technical identifiers must use a neutral translucent background `color-mix(in srgb, var(--piwin-artifact-text) 8%, transparent)` with text `var(--piwin-artifact-text)`. Never use reddish, maroon, or brownish backgrounds for code tokens (red is strictly reserved for errors/diff deletions). Badges use muted neutral for inactive/hidden, accent for ready/visible, amber for estimate/progress.',
-    '- Host theme: a client may supply the send-time host theme (`light` or `dark`) as advisory context. Match it. On a light host never produce a dark-mode design (dark page, dark stage, dark slate cards, light-on-dark text); on a dark host never produce a glaring white page. This also applies when the user asks for a custom look: pick a palette that sits naturally on the host background unless the user explicitly asks for the opposite mode. Without a hint, stay on the theme vars so either mode works.',
-    '- Proactive visual tone is flat and quiet: no gradients, glows, glassmorphism, or decorative emoji in headings or labels. Hierarchy comes from type size/weight, spacing, borders, and grouping.',
-    '- Outermost wrapper background: transparent on Inline and Canvas; surface colors on inner cards only. Never paint html/body/the outer stage as a dark full-bleed page — that becomes a black Canvas on a paper host. Dark `pre`/`code` islands may keep their own contrast pair.',
+    '- Style: every fence declares `style="host"`, or `style="expressive"` only when the user asks for a look, prototype, game, or poster. Reports and anything shown unprompted stay `host`.',
+    '- Colors: only `--piwin-artifact-*` vars: `bg surface surface-2 text muted subtle accent accent-2 on-accent border border-strong`, status `ok warn info risk` (`risk` = real problems), charts `series-1`…`series-6`. Never invent names or add fallback palettes; no hex/rgb for text, backgrounds or borders outside expressive illustrations. Text: `text`/`muted`/`subtle`/status, or `on-accent` on a solid fill; never `bg`/`surface*`. Tint: `color-mix(in srgb, var(--piwin-artifact-<c>) 12%, transparent)`. Floating layers (sticky bar, toast, popover) use `surface`.',
+    '- Inline code & tokens: neutral `color-mix(in srgb, var(--piwin-artifact-text) 8%, transparent)` background and `var(--piwin-artifact-text)` text; no reddish/maroon/brown backgrounds (red is for errors/diff deletions). Badges: muted for inactive/hidden, accent for ready/visible, amber for estimate/progress.',
+    '- Host theme: match the advisory send-time `light`/`dark` hint, including expressive stages and cards. On a light host never produce a dark-mode design; on a dark host no glaring white page unless the user explicitly requests the opposite mode. Without a hint, use theme vars for both modes.',
+    '- Host tone: quiet, not flat: `shadow-1` on cards, `shadow-2` on floating layers, `radius-sm`/`radius-lg`; title hierarchy by size and weight in `--piwin-artifact-font` (no serif or display fonts); one hero may use a theme-var gradient; no glows, glass, neon, or emoji in labels.',
+    '- Expressive: an inner stage may paint gradients, illustration, motion, large type; the outer page stays transparent; text keeps 4.5:1 and reads on light and dark hosts.',
+    '- Outermost wrapper background: transparent on Inline/Canvas; surface only on inner cards. No dark full-bleed html/body/outer wrapper (black Canvas on paper). Dark `pre`/`code` islands may keep their contrast pair.',
     '- Inline layout is a 360–760px chat column; fluid grids; not a full-page landing. Inline grows with its content: no page-level or nested vertical scroll regions; let the conversation own vertical scrolling; never add horizontal scrolling to Inline. No viewport-filling height (`100vh`/`100%`) or page-level overflow on html/body/outer wrapper for Inline.',
-    '- A client may supply a send-time Inline column width as advisory context. Never hardcode it: use width:100%, max-width:100%, min-width:0, border-box sizing and container queries to adapt through resizing and replay. Remain readable at 360px and adapt below that where needed. A width hint does not request artifact generation.',
+    '- Advisory Inline width never fixes the viewport: width:100%, max-width:100%, min-width:0, border-box/container queries for resizing/replay; readable at 360px and below. Hints do not request artifacts.',
+    '- Built-ins (no network): `data-piwin-icon` icons; `data-piwin-chart="bar|line|donut|spark"` charts. Call `artifact_instructions` for the icon list and chart options.',
     '- Tables: wrap long data cells with `overflow-wrap: break-word` only. Never `word-break: break-word`, `word-break: break-all`, or `overflow-wrap: anywhere` — they collapse column min-content to 1ch. Row/column labels may `white-space: nowrap` or `width: max-content`. `min-width: 0` is for the outer stage, not table columns. Inline: no page-level horizontal scroll; stack with `@container` before wrapping labels. Canvas: dense comparisons keep label min-content; table `overflow-x: auto` is allowed. Dense wide comparisons belong on Canvas.',
     '- **Canvas Viewport**: The Canvas iframe is the design viewport. Root layout (and the primary stage) uses `width: 100%` and `height: 100%` / `100dvh` of that iframe. Do not lock a phone/poster width or an `aspect-ratio` that letterboxes empty bars; extra panel width is scene/layout space. If the UI needs a wide workspace or horizontal scrolling, declare `surface="canvas"`.',
     '- Repeated cards/items are siblings — no card-in-card.',
@@ -376,6 +417,7 @@ export function formatArtifactInstructions(
   }
   const parts = [
     config.triggerMode === 'explicit-only' ? ARTIFACT_EXPLICIT_ONLY_HINT : undefined,
+    config.styleModes === 'host-only' ? ARTIFACT_HOST_STYLE_ONLY_HINT : undefined,
     resolveArtifactSurfaceHint(capability),
     resolveArtifactDecisionPrompt(config),
     formatArtifactProtocol(),

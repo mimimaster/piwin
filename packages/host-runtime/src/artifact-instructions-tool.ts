@@ -4,6 +4,7 @@ import {
   ARTIFACT_INSTRUCTIONS_TOOL_NAME,
   FULL_ARTIFACT_CAPABILITY,
   formatArtifactInstructions,
+  formatArtifactKitReference,
   type ArtifactConfig,
   type HostToolDescriptor,
   type HostToolRegistration,
@@ -54,7 +55,7 @@ export function buildArtifactInstructionsTool(
     descriptor: {
       name: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
       description:
-        'Artifact decision policy and HTML/SVG output contract are already in the system prompt. Do not call this tool. For reviews, reports, audits, and other standalone analytical write-ups, emit artifact-html with surface="canvas" directly; do not dump a Markdown wall.',
+        'Artifact decision policy and HTML/SVG output contract are already in the system prompt. Call this tool only for the built-in chart/icon kit reference (icon names, chart options). For reviews, reports, audits, and other standalone analytical write-ups, emit artifact-html with surface="canvas" directly; do not dump a Markdown wall.',
       parameters: {
         type: 'object',
         properties: {},
@@ -84,7 +85,7 @@ export function buildArtifactInstructionsTool(
 
       return {
         ok: true,
-        output: formatArtifactInstructions(config, capability),
+        output: `${formatArtifactKitReference()}\n\n${formatArtifactInstructions(config, capability)}`,
       };
     },
   };

@@ -27,6 +27,16 @@ export type ArtifactSecurityResult = {
 /** Whether the model deliberately emitted an Artifact fence or ordinary code. */
 export type ArtifactDeclaration = 'explicit' | 'native';
 
+/**
+ * Visual style an artifact declared on its fence (`style="host" | "expressive"`).
+ * Runtime contract v14 asks for it on every fence, so its presence is also the
+ * marker that the artifact was written under the v14 rules.
+ */
+export type ArtifactStyle = 'host' | 'expressive';
+
+/** Which artifact runtime rules the source was written for. */
+export type ArtifactRules = 'legacy' | 'v14';
+
 /** Full documents require a viewport; fragments may participate in Inline flow. */
 export type ArtifactDocumentKind = 'fragment' | 'document';
 
@@ -41,6 +51,8 @@ export type ArtifactDescriptorBase = {
   documentKind: ArtifactDocumentKind;
   /** Where the artifact is rendered in the product UI. */
   surface: ArtifactSurface;
+  /** Declared style; absent on fences written before runtime contract v14. */
+  style?: ArtifactStyle;
 };
 
 export type HtmlArtifactDescriptor = ArtifactDescriptorBase & {
@@ -70,9 +82,38 @@ export type ArtifactThemeVariables = {
   '--piwin-artifact-accent': string;
   /** Text on a solid accent fill. Derived from `accent` when a theme omits it. */
   '--piwin-artifact-on-accent'?: string;
+  /**
+   * Theme-authored ink for a solid accent fill (Deck `onIris`). Host input only,
+   * never emitted as a CSS variable: v14 artifacts get it as `on-accent`, while
+   * legacy artifacts keep the derived ink they were designed against.
+   */
+  '--piwin-artifact-on-accent-themed'?: string;
   '--piwin-artifact-border': string;
   '--piwin-artifact-radius': string;
   '--piwin-artifact-font': string;
+  /**
+   * Runtime v14 vocabulary. Optional so older callers keep compiling; the
+   * srcdoc fills any missing one from the base seven (see theme-tokens.ts).
+   */
+  '--piwin-artifact-surface-2'?: string;
+  '--piwin-artifact-subtle'?: string;
+  '--piwin-artifact-border-strong'?: string;
+  '--piwin-artifact-ok'?: string;
+  '--piwin-artifact-warn'?: string;
+  '--piwin-artifact-risk'?: string;
+  '--piwin-artifact-info'?: string;
+  '--piwin-artifact-accent-2'?: string;
+  '--piwin-artifact-series-1'?: string;
+  '--piwin-artifact-series-2'?: string;
+  '--piwin-artifact-series-3'?: string;
+  '--piwin-artifact-series-4'?: string;
+  '--piwin-artifact-series-5'?: string;
+  '--piwin-artifact-series-6'?: string;
+  '--piwin-artifact-shadow-1'?: string;
+  '--piwin-artifact-shadow-2'?: string;
+  '--piwin-artifact-radius-sm'?: string;
+  '--piwin-artifact-radius-lg'?: string;
+  '--piwin-artifact-font-mono'?: string;
   /**
    * Reading typography of the transcript that hosts an Inline Artifact.
    * Static Shadow DOM inherits these; a sandbox iframe cannot, so the host
@@ -210,6 +251,19 @@ export type ArtifactActionMessage =
  * here came from untrusted HTML: render it as text, never as markup, and never
  * let it drive a decision beyond what the preview shows.
  */
+/** Contrast probe result for an expressive / own-palette document (badge only). */
+export type ArtifactContrastMessage = {
+  type: 'piwin-artifact:contrast';
+  channelId: string;
+  /** More than 5% of sampled text is below WCAG AA. */
+  lowContrast: boolean;
+  /** One opaque fill covers most of the stage on the far side of the host scheme. */
+  themeMismatch: boolean;
+  sampled: number;
+  failing: number;
+  minRatio: number;
+};
+
 export type ArtifactErrorMessage = {
   type: 'piwin-artifact:error';
   channelId: string;

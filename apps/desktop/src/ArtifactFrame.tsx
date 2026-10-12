@@ -1,4 +1,5 @@
 import { useEffect, type ReactElement } from 'react';
+import { resolveArtifactRules } from '@piwin/artifact';
 import type {
   ArtifactActionMessage,
   ArtifactRenderPlan,
@@ -10,6 +11,7 @@ import {
   type ArtifactSandboxPlan,
 } from './artifact-sandbox-frame.js';
 import { ArtifactStatic } from './ArtifactStatic.js';
+import { ArtifactContrastBadge, type ArtifactStyleOverride } from './artifact-style-override';
 import { preloadStaticArtifactSanitizer } from './artifact-static-sanitizer.js';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
@@ -25,6 +27,8 @@ export type ArtifactFrameProps = {
   extraHeaderAction?: ReactElement;
   theme?: ArtifactThemeVariables;
   locale?: 'zh-CN' | 'en';
+  /** "View with theme" for expressive artifacts (badge in the frame). */
+  styleOverride?: ArtifactStyleOverride;
 };
 
 export function ArtifactFrame({
@@ -36,6 +40,7 @@ export function ArtifactFrame({
   extraHeaderAction,
   theme,
   locale = 'en',
+  styleOverride,
 }: ArtifactFrameProps): ReactElement {
   // A stream preview hands over to the static renderer when it completes; the
   // sanitizer must already be there or that first static frame paints empty.
@@ -81,9 +86,13 @@ export function ArtifactFrame({
         {extraHeaderAction ? (
           <div className="artifact-frame-actions">{extraHeaderAction}</div>
         ) : null}
+        {styleOverride?.active ? (
+          <ArtifactContrastBadge issue={null} override={styleOverride} locale={locale} />
+        ) : null}
         <ArtifactStatic
           source={document.source}
           type={plan.intent.descriptor.type}
+          rules={resolveArtifactRules(plan.intent.descriptor)}
           locale={locale}
           {...(theme ? { theme } : {})}
         />
@@ -102,6 +111,7 @@ export function ArtifactFrame({
       {...(onArtifactAction ? { onArtifactAction } : {})}
       {...(onComposerProposal ? { onComposerProposal } : {})}
       {...(extraHeaderAction ? { extraHeaderAction } : {})}
+      {...(styleOverride ? { styleOverride } : {})}
     />
   );
 }

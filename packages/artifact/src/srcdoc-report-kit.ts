@@ -8,6 +8,7 @@
  * text color so they stay legible on paper and on ink.
  */
 import { ARTIFACT_REPORT_KIT_ROOT_CLASS } from '@piwin/contracts';
+import type { ArtifactRules } from './types.js';
 
 const ROOT = `.${ARTIFACT_REPORT_KIT_ROOT_CLASS}`;
 
@@ -19,7 +20,45 @@ function within(selector: string): string {
     .join(',\n');
 }
 
-export function buildArtifactReportKitCss(): string {
+export function buildArtifactReportKitCss(options: { rules?: ArtifactRules } = {}): string {
+  return `${buildArtifactReportKitBaseCss()}${options.rules === 'v14' ? buildArtifactReportKitV14Css() : ''}`;
+}
+
+/**
+ * Runtime v14 kit: tones come from the host's status tokens, `info` joins the
+ * tone set, the title and stat tiles get hierarchy from weight and the light
+ * shadow token. Only v14 fences receive it, so legacy reports replay as they
+ * were drawn.
+ */
+function buildArtifactReportKitV14Css(): string {
+  return `
+:where(${ROOT}) {
+  --piwin-kit-ok: var(--piwin-artifact-ok);
+  --piwin-kit-warn: var(--piwin-artifact-warn);
+  --piwin-kit-risk: var(--piwin-artifact-risk);
+  --piwin-kit-info: var(--piwin-artifact-info);
+}
+:where([data-tone="info"]) { --piwin-kit-tone: var(--piwin-kit-info); }
+${within('h1')} {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+${within('.piwin-stat')} {
+  box-shadow: var(--piwin-artifact-shadow-1);
+}
+${within('.piwin-stat > span, .piwin-meta')} {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+${within('.piwin-meta')} {
+  display: flex;
+}
+`;
+}
+
+function buildArtifactReportKitBaseCss(): string {
   return `
 :where(${ROOT}) {
   --piwin-kit-rule: color-mix(in srgb, var(--piwin-artifact-text) 9%, transparent);
@@ -27,6 +66,7 @@ export function buildArtifactReportKitCss(): string {
   --piwin-kit-ok: color-mix(in srgb, #1f9d6b 80%, var(--piwin-artifact-text));
   --piwin-kit-warn: color-mix(in srgb, #c7860f 82%, var(--piwin-artifact-text));
   --piwin-kit-risk: color-mix(in srgb, #d5483f 84%, var(--piwin-artifact-text));
+  --piwin-kit-info: color-mix(in srgb, #3a86c8 82%, var(--piwin-artifact-text));
   --piwin-kit-tone: var(--piwin-artifact-muted);
   box-sizing: border-box;
   display: block;
@@ -53,6 +93,7 @@ export function buildArtifactReportKitCss(): string {
 :where([data-tone="ok"]) { --piwin-kit-tone: var(--piwin-kit-ok); }
 :where([data-tone="warn"]) { --piwin-kit-tone: var(--piwin-kit-warn); }
 :where([data-tone="risk"]) { --piwin-kit-tone: var(--piwin-kit-risk); }
+:where([data-tone="info"]) { --piwin-kit-tone: var(--piwin-kit-info); }
 :where([data-tone="accent"]) { --piwin-kit-tone: var(--piwin-artifact-accent); }
 
 ${within('h1, h2, h3, h4')} {

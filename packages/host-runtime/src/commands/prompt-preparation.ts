@@ -263,6 +263,8 @@ export async function preparePromptInput(
     });
   }
   collectPreparedAttachmentContributions(assembly, promptSource, preparedFromHost);
+  // Only a shell that sends artifact layout hints renders artifacts; CLI/TUI
+  // turns carry none and get no artifact context, legacy notice included.
   if (
     promptInput.inlineArtifactWidthPx !== undefined ||
     promptInput.artifactHostTheme !== undefined
@@ -273,6 +275,8 @@ export async function preparePromptInput(
       await resolvePromptArtifactCapability(context, command.sessionId, config.artifact),
       assembly,
     );
+  } else {
+    delete promptInput.artifactKit;
   }
   throwIfPromptPreparationAborted(context, run.runId);
 

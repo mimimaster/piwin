@@ -79,6 +79,41 @@ describe('ArtifactStatic', () => {
     expect(content?.innerHTML).toBe('<p>one</p><p>two</p>');
   });
 
+  it('wraps table cells at word boundaries with content-sized columns', () => {
+    act(() => {
+      root.render(<ArtifactStatic type="html" source="<table><tr><td>allowExternalIframes</td></tr></table>" />);
+    });
+    const shadow = container.querySelector<HTMLElement>('[data-testid="artifact-static"]')?.shadowRoot;
+    const css = shadow?.querySelector('style')?.textContent ?? '';
+    expect(css).toContain('.piwin-artifact-root td { overflow-wrap: break-word; }');
+    expect(css).toContain('table-layout: auto;');
+    expect(css).not.toContain('td { overflow-wrap: anywhere; }');
+  });
+
+  it('picks the on-accent ink for the rules the artifact was written under', () => {
+    const theme = {
+      '--piwin-artifact-theme': 'dark',
+      '--piwin-artifact-bg': 'transparent',
+      '--piwin-artifact-surface': '#201d19',
+      '--piwin-artifact-text': '#ebe5da',
+      '--piwin-artifact-muted': '#a59d92',
+      '--piwin-artifact-accent': '#e25a3d',
+      '--piwin-artifact-on-accent-themed': '#1c0b07',
+      '--piwin-artifact-border': 'rgba(235, 229, 218, 0.1)',
+      '--piwin-artifact-radius': '10px',
+      '--piwin-artifact-font': 'system-ui',
+    } as const;
+    const cssFor = (rules: 'legacy' | 'v14'): string => {
+      act(() => {
+        root.render(<ArtifactStatic type="html" source="<p>x</p>" theme={theme} rules={rules} />);
+      });
+      const shadow = container.querySelector<HTMLElement>('[data-testid="artifact-static"]')?.shadowRoot;
+      return [...(shadow?.querySelectorAll('style') ?? [])].map((node) => node.textContent).join('\n');
+    };
+    expect(cssFor('legacy')).toContain('--piwin-artifact-on-accent: #ffffff;');
+    expect(cssFor('v14')).toContain('--piwin-artifact-on-accent: #1c0b07;');
+  });
+
   it('styles a Report Kit document the way the sandbox does, at the Inline measure', () => {
     act(() => {
       root.render(

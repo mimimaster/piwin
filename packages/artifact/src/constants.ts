@@ -101,3 +101,10 @@ export const DEFAULT_ARTIFACT_IFRAME_ALLOWED_URL_PREFIXES = [
   'https://www.google.com/maps/',
   'https://maps.google.com/',
 ] as const;
+
+/** Frame → host: an expressive artifact failed the contrast probe. */
+export const ARTIFACT_BRIDGE_CONTRAST_TYPE = 'piwin-artifact:contrast' as const;
+/** Text elements sampled per document. */
+export const ARTIFACT_CONTRAST_MAX_SAMPLES = 200;
+/** Share of sampled text below WCAG AA that raises the badge. */
+export const ARTIFACT_CONTRAST_FAILING_SHARE = 0.05;

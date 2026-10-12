@@ -25,6 +25,8 @@ export type {
   ArtifactDescriptor,
   ArtifactDeclaration,
   ArtifactDocumentKind,
+  ArtifactRules,
+  ArtifactStyle,
   ArtifactThemeVariables,
   ArtifactActionMessage,
   ArtifactErrorMessage,
@@ -45,6 +47,10 @@ export { isProjectableStreamingFence } from './fence-syntax.js';
 export { projectArtifactMarkdownForRender } from './markdown-projection.js';
 
 export { createDefaultArtifactTheme, resolveArtifactOnAccent } from './theme.js';
+export { resolveArtifactOnAccentForRules, resolveArtifactThemeCssVariables } from './srcdoc-css.js';
+export { ARTIFACT_V14_TOKEN_NAMES, deriveArtifactV14Tokens } from './theme-tokens.js';
+export type { ArtifactV14TokenName } from './theme-tokens.js';
+export { resolveArtifactRules } from './artifact-rules.js';
 
 export { buildArtifactReportKitCss } from './srcdoc-report-kit.js';
 
@@ -81,3 +87,34 @@ export {
   buildStreamableArtifactPreview,
   projectHtmlSourceForStreamRoot,
 } from './streamable-preview.js';
+
+export {
+  ARTIFACT_KIT_CHART_KINDS,
+  ARTIFACT_KIT_MAJOR,
+  ARTIFACT_KIT_V1_ICON_NAMES,
+  ARTIFACT_KIT_V1_PATH,
+  ARTIFACT_KIT_VERSION_STRING,
+  artifactKitScriptSource,
+  buildArtifactKitCss,
+  buildArtifactKitHead,
+  buildArtifactKitV1Script,
+  configureArtifactKitDelivery,
+  getArtifactKitDelivery,
+  usesArtifactKit,
+} from './kit/index.js';
+export type { ArtifactKitDelivery } from './kit/index.js';
+
+export {
+  artifactPaletteNeedsContrastProbe,
+  artifactPaletteStyleAttribute,
+  resolveArtifactPalette,
+  usesArtifactReportKit,
+} from './artifact-style.js';
+export type { ArtifactPalette, ArtifactStyleModes, ResolveArtifactPaletteInput } from './artifact-style.js';
+export { parseArtifactContrastMessage } from './bridge-protocol.js';
+export {
+  ARTIFACT_BRIDGE_CONTRAST_TYPE,
+  ARTIFACT_CONTRAST_FAILING_SHARE,
+  ARTIFACT_CONTRAST_MAX_SAMPLES,
+} from './constants.js';
+export type { ArtifactContrastMessage } from './types.js';

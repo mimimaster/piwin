@@ -543,3 +543,38 @@
   max-height: 240px;
   overflow: auto;
 }
+
+/* Expressive artifact the host could not vouch for (contrast probe), or one
+   the user switched to theme style. A quiet note above the frame, never a
+   rewrite. */
+.artifact-style-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-2);
+  padding: 2px var(--s-2);
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
+  border-radius: var(--r-chip);
+  color: var(--amber);
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+}
+.artifact-style-badge.is-host-view {
+  border-color: var(--border-soft);
+  color: var(--text-3);
+}
+.artifact-style-badge button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--iris);
+  font: inherit;
+  cursor: pointer;
+}
+.artifact-style-badge button:hover {
+  text-decoration: underline;
+}
+.artifact-style-badge button:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 2px;
+}

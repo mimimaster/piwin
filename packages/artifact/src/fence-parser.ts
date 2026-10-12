@@ -11,6 +11,7 @@ import {
   isExplicitArtifactAlias,
   isNativeHtmlLanguage,
   isNativeSvgLanguage,
+  parseFenceStyle,
   parseFenceSurface,
   parseFenceTitle,
   stripFenceInfo,
@@ -54,6 +55,8 @@ function parseArtifactFence(input: ParseArtifactFenceInput): ArtifactDescriptor 
   const alias = getFenceAlias(rawLanguage);
   const source = input.source;
   const surface = parseFenceSurface(rawLanguage);
+  const style = parseFenceStyle(rawLanguage);
+  const declaredStyle = style === undefined ? {} : { style };
 
   if (isExplicitArtifactAlias(rawLanguage)) {
     return {
@@ -66,6 +69,7 @@ function parseArtifactFence(input: ParseArtifactFenceInput): ArtifactDescriptor 
       declaration: 'explicit',
       documentKind: isFullHtmlDocument(source) ? 'document' : 'fragment',
       surface,
+      ...declaredStyle,
     };
   }
 
@@ -86,6 +90,7 @@ function parseArtifactFence(input: ParseArtifactFenceInput): ArtifactDescriptor 
       declaration: 'native',
       documentKind: 'fragment',
       surface,
+      ...declaredStyle,
     };
   }
 
@@ -104,6 +109,7 @@ function parseArtifactFence(input: ParseArtifactFenceInput): ArtifactDescriptor 
       declaration: 'native',
       documentKind: isFullHtmlDocument(source) ? 'document' : 'fragment',
       surface,
+      ...declaredStyle,
     };
   }
 

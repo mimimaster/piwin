@@ -103,6 +103,30 @@ export function createArtifactCanvasTarget(input: {
 }
 
 /**
+ * “Open in Canvas” from an Inline artifact (design.md §7.2): the same fence,
+ * same target id and source, re-routed to the Canvas surface. The Inline copy
+ * stays in the transcript, so the Canvas frame takes its own bridge channel.
+ */
+export function createPromotedArtifactCanvasTarget(input: {
+  sessionId: string;
+  messageId: string;
+  fenceIndex: number;
+  intent: ArtifactRenderIntent;
+}): ArtifactCanvasTarget {
+  const promoted: ArtifactRenderIntent = {
+    ...input.intent,
+    surface: 'canvas',
+    layout: 'canvas',
+    descriptor: {
+      ...input.intent.descriptor,
+      id: `${input.intent.descriptor.id}:canvas`,
+      surface: 'canvas',
+    },
+  };
+  return createArtifactCanvasTarget({ ...input, intent: promoted });
+}
+
+/**
  * Recover renderable Canvas declarations from an Assistant message.
  * Uses the same fence index, security policy, surface router, and ordinal as
  * MarkdownCodeFence so automatic reveal cannot create a second interpretation

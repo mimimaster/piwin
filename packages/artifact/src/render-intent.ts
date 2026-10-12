@@ -4,6 +4,7 @@
  */
 import type { ArtifactFenceRecord } from './fence-index.js';
 import { parseArtifactFenceRecord } from './fence-parser.js';
+import { usesArtifactKit } from './kit/index.js';
 import {
   capabilitiesNeedSandbox,
   inspectArtifactCapabilities,
@@ -100,7 +101,11 @@ export function analyzeArtifactFence(
     descriptor.documentKind === 'document' || capabilities.viewportDependency;
   const layout = resolveLayout(surface, viewport);
   const renderer: ArtifactRenderIntent['renderer'] =
-    mode === 'stream-preview' || layout !== 'flow' || capabilitiesNeedSandbox(capabilities)
+    mode === 'stream-preview' ||
+    layout !== 'flow' ||
+    capabilitiesNeedSandbox(capabilities) ||
+    // Kit charts and icons are drawn by a script; Shadow DOM runs none.
+    usesArtifactKit(descriptor.source)
       ? 'sandbox'
       : 'static';
 

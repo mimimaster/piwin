@@ -54,11 +54,25 @@ function createIssue(
 
 export type ArtifactThemeContractOptions = {
   /**
+   * `host` (default): fixed colors are repaired toward the theme.
+   * `stage` (style="expressive"): only the outer shell (html / body / :root /
+   * the artifact root) is repaired; cards and panels keep their own colors.
    * `own`: the artifact paints its own scene, so fixed colors stay as drawn.
-   * Invented theme variable names are still mapped. Default `host`.
+   * Invented theme variable names are mapped in every mode.
    */
-  palette?: 'host' | 'own';
+  palette?: 'host' | 'stage' | 'own';
 };
+
+const OUTER_SHELL_COMPOUND_PATTERN = /^(?:html|body|:root|\.piwin-artifact-root)(?:$|[.:#[])/i;
+const OUTER_SHELL_TAGS = new Set(['html', 'body']);
+
+/** True when a selector in the list styles the page shell itself (not `body .card`). */
+function isOuterShellSelector(selector: string): boolean {
+  return selector.split(',').some((part) => {
+    const compounds = part.trim().split(/\s*[>+~]\s*|\s+/).filter(Boolean);
+    return compounds.length === 1 && OUTER_SHELL_COMPOUND_PATTERN.test(compounds[0]!);
+  });
+}
 
 /**
  * Soft-repair hard-coded surfaces in model HTML for preview.
@@ -70,9 +84,16 @@ export function applyArtifactThemeContract(
 ): ArtifactThemeContractResult {
   const issues: ArtifactThemeContractIssue[] = [];
   const repairs: ArtifactThemeContractRepair[] = [];
-  const repairColors = options.palette !== 'own';
+  const palette = options.palette ?? 'host';
+  const repairColors: (selector: string) => boolean =
+    palette === 'host'
+      ? () => true
+      : palette === 'stage'
+        ? (selector) =>
+            OUTER_SHELL_TAGS.has(selector.toLowerCase()) || isOuterShellSelector(selector)
+        : () => false;
 
-  let output = repairColors ? repairLightSurfaces(source, issues, repairs) : source;
+  let output = palette === 'host' ? repairLightSurfaces(source, issues, repairs) : source;
 
   output = output.replace(
     THEME_VARIABLE_REFERENCE_PATTERN,
@@ -185,14 +206,12 @@ function repairRuleColorPairs(
   source: string,
   issues: ArtifactThemeContractIssue[],
   repairs: ArtifactThemeContractRepair[],
-  repairFixedColors: boolean,
+  repairFixedColors: (selector: string) => boolean,
 ): string {
-  const repairBlock = (body: string, selector: string): string =>
-    repairFillInk(
-      repairFixedColors ? repairDeclarationBlock(body, issues, repairs, selector) : body,
-      issues,
-      repairs,
-    );
+  const repairBlock = (body: string, selector: string): string => {
+    if (!repairFixedColors(selector)) return repairFillInk(body, issues, repairs);
+    return repairFillInk(repairDeclarationBlock(body, issues, repairs, selector), issues, repairs);
+  };
   let output = source;
   output = output.replace(
     STYLE_ELEMENT_PATTERN,
@@ -225,6 +244,26 @@ const KNOWN_THEME_VARIABLES = new Set([
   'accent',
   'on-accent',
   'border',
+  // Runtime v14 vocabulary (theme-tokens.ts).
+  'surface-2',
+  'subtle',
+  'border-strong',
+  'ok',
+  'warn',
+  'risk',
+  'info',
+  'accent-2',
+  'series-1',
+  'series-2',
+  'series-3',
+  'series-4',
+  'series-5',
+  'series-6',
+  'shadow-1',
+  'shadow-2',
+  'radius-sm',
+  'radius-lg',
+  'font-mono',
   'radius',
   'font',
   'font-size',

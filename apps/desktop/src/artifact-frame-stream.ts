@@ -138,6 +138,17 @@ export function buildArtifactDocumentUrl(documentId: string, srcdoc: string): st
   return `${ARTIFACT_DOCUMENT_SCHEME}://localhost/${documentId}`;
 }
 
+/**
+ * Origin the artifact documents load from under Tauri, or null in a browser
+ * build. The kit is served from the same origin (`/lib/v1/kit.js`).
+ */
+export function resolveArtifactSchemeOrigin(): string | null {
+  if (!hasTauriBridge()) return null;
+  const probe = 'piwin-kit-origin-probe';
+  const url = buildArtifactDocumentUrl(probe, '');
+  return url.endsWith(`/${probe}`) ? url.slice(0, -(probe.length + 1)) : null;
+}
+
 export async function publishArtifactDocument(documentId: string, srcdoc: string): Promise<void> {
   const { invoke } = await import('@tauri-apps/api/core');
   await invoke(ARTIFACT_DOCUMENT_PUT_COMMAND, { id: documentId, html: srcdoc });

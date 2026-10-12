@@ -101,6 +101,14 @@ mod webkit {
                 "composer/propose-text" | "artifact/download-unsupported" => {}
                 _ => return None,
             },
+            // Expressive contrast probe: booleans and counts only (badge).
+            "piwin-artifact:contrast" => {
+                let low = payload.get("lowContrast")?.as_bool()?;
+                let mismatch = payload.get("themeMismatch")?.as_bool()?;
+                if !low && !mismatch {
+                    return None;
+                }
+            }
             _ => return None,
         }
         Some(payload)
@@ -142,6 +150,18 @@ mod webkit {
             .is_none());
             assert!(parse_artifact_bridge_message(
                 r#"{"type":"piwin-artifact:action","channelId":"artifact-1","action":"flashcard/open-source","payload":{"cardId":"card-abc12345-xyz"}}"#
+            )
+            .is_none());
+            assert!(parse_artifact_bridge_message(
+                r#"{"type":"piwin-artifact:contrast","channelId":"artifact-1","lowContrast":true,"themeMismatch":false,"sampled":10,"failing":2,"minRatio":2.1}"#
+            )
+            .is_some());
+            assert!(parse_artifact_bridge_message(
+                r#"{"type":"piwin-artifact:contrast","channelId":"artifact-1","lowContrast":false,"themeMismatch":false}"#
+            )
+            .is_none());
+            assert!(parse_artifact_bridge_message(
+                r#"{"type":"piwin-artifact:contrast","channelId":"artifact-1","lowContrast":"yes","themeMismatch":false}"#
             )
             .is_none());
         }

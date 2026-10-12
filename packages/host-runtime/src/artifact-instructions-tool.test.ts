@@ -4,6 +4,7 @@ import {
   ARTIFACT_INSTRUCTIONS_TOOL_NAME,
   createDefaultArtifactConfig,
   formatArtifactInstructions,
+  formatArtifactKitReference,
   formatArtifactProtocol,
   type ArtifactConfig,
 } from '@piwin/contracts';
@@ -27,6 +28,12 @@ const SOURCE_OR_UI_STATE_MARKERS = [
   'sessionId',
   'runtimeGenerationId',
 ] as const;
+
+
+/** The tool prepends the kit reference to the resident contract. */
+function withKitReference(instructions: string): string {
+  return `${formatArtifactKitReference()}\n\n${instructions}`;
+}
 
 describe('Artifact instruction loading', () => {
   it('injects the full decision policy and runtime contract when enabled', () => {
@@ -105,12 +112,14 @@ describe('artifact_instructions golden', () => {
     if (!result.ok) {
       throw new Error(result.message);
     }
-    expect(result.output).toBe(formatArtifactInstructions(artifactConfig));
+    expect(result.output).toBe(withKitReference(formatArtifactInstructions(artifactConfig)));
     expect(result.output).toContain(formatArtifactProtocol());
     expect(result.output).toContain('## Decision Criteria');
     expect(result.output).toContain('## HTML Artifact Runtime Contract');
     expect(result.output).toContain('```artifact-html');
     expect(result.output.split('## HTML Artifact Runtime Contract')).toHaveLength(2);
+    expect(result.output).toContain('[piwin-artifact-kit version="1"]');
+    expect(result.output).toContain('trend-up');
     for (const alias of PARSER_ONLY_ALIASES) {
       expect(result.output).not.toContain(alias);
     }
@@ -161,7 +170,7 @@ describe('artifact_instructions golden', () => {
     if (!first.ok || !repeated.ok) {
       throw new Error('expected successful Artifact instruction results');
     }
-    expect(first.output).toBe(formatArtifactInstructions(config()));
+    expect(first.output).toBe(withKitReference(formatArtifactInstructions(config())));
     expect(repeated.output).not.toContain('## HTML Artifact Runtime Contract');
     expect(repeated.output).toContain('already loaded for this run');
     expect(repeated.output.length).toBeLessThan(200);
@@ -184,7 +193,7 @@ describe('artifact_instructions golden', () => {
     if (!result.ok) {
       throw new Error(result.message);
     }
-    expect(result.output).toBe(formatArtifactInstructions(artifactConfig));
+    expect(result.output).toBe(withKitReference(formatArtifactInstructions(artifactConfig)));
     expect(result.output).toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
     expect(result.output).toContain('private custom sentinel');
     expect(result.output).toContain(formatArtifactProtocol());
@@ -212,7 +221,7 @@ describe('artifact_instructions golden', () => {
       if (!result.ok) {
         throw new Error(result.message);
       }
-      expect(result.output).toBe(formatArtifactInstructions(config()));
+      expect(result.output).toBe(withKitReference(formatArtifactInstructions(config())));
     }
   });
 });

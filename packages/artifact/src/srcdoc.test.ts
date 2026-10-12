@@ -143,7 +143,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
       documentKind: 'document',
     });
 
-    expect(srcdoc).toContain('<html class="app" data-frame-mode="canvas">');
+    expect(srcdoc).toContain('<html class="app" data-frame-mode="canvas" data-piwin-style="host">');
     expect(srcdoc).toContain('<body data-app="ink"><main>Workspace</main></body>');
     expect(srcdoc.match(/<html\b/gi)).toHaveLength(1);
     expect(srcdoc).toContain('html[data-frame-mode="canvas"]');

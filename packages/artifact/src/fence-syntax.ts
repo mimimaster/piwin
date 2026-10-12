@@ -8,7 +8,7 @@ import {
   NATIVE_SVG_ARTIFACT_LANGUAGES,
   STREAMING_ARTIFACT_FENCE_MARKER,
 } from './constants.js';
-import type { ArtifactSurface } from './types.js';
+import type { ArtifactStyle, ArtifactSurface } from './types.js';
 
 export { STREAMING_ARTIFACT_FENCE_MARKER };
 
@@ -72,6 +72,12 @@ export function parseFenceTitle(rawLanguage: string): string | null {
 export function parseFenceSurface(rawLanguage: string): ArtifactSurface {
   const value = parseFenceAttributes(rawLanguage).get('surface')?.toLowerCase();
   return value === 'canvas' ? 'canvas' : 'inline';
+}
+
+/** `style="host" | "expressive"`; undefined when the fence does not declare one. */
+export function parseFenceStyle(rawLanguage: string): ArtifactStyle | undefined {
+  const value = parseFenceAttributes(rawLanguage).get('style')?.trim().toLowerCase();
+  return value === 'host' || value === 'expressive' ? value : undefined;
 }
 
 export function isExplicitArtifactAlias(rawLanguage: string): boolean {

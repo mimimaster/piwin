@@ -242,6 +242,58 @@ describe('MarkdownView artifact preview policy', () => {
     expect(onOpenArtifactCanvas).toHaveBeenCalledWith(expect.objectContaining({ sourceIncomplete: true }));
   });
 
+  it('promotes an Inline artifact to Canvas as the same fence on its own channel', async () => {
+    const onOpenArtifactCanvas = vi.fn();
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={ARTIFACT_HTML_FENCE}
+        renderingPhase="completed"
+        artifactOrigin={{ sessionId: 'session-promote', messageId: 'message-promote' }}
+        onOpenArtifactCanvas={onOpenArtifactCanvas}
+      />,
+    );
+    await flushMarkdownEffects();
+    const open = container.querySelector<HTMLButtonElement>('[data-testid="artifact-open-canvas"]');
+    expect(open).not.toBeNull();
+    act(() => open?.click());
+    expect(onOpenArtifactCanvas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'canvas:session-promote:message-promote:0',
+        surface: 'canvas',
+        channelId: 'message-promote-artifact-0:canvas',
+      }),
+    );
+    const target = onOpenArtifactCanvas.mock.calls[0]?.[0];
+    expect(target.intent.layout).toBe('canvas');
+    // The Inline copy stays in the transcript.
+    expect(container.querySelector('[data-artifact-id="message-promote-artifact-0"]')).not.toBeNull();
+  });
+
+  it('offers no Canvas promotion without an origin or Canvas handler', async () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
+    );
+    await flushMarkdownEffects();
+    expect(container.querySelector('[data-testid="artifact-open-canvas"]')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-open-fullscreen"]')).not.toBeNull();
+  });
+
+  it('opens an Inline artifact fullscreen and exits with Esc', async () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
+    );
+    await flushMarkdownEffects();
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="artifact-open-fullscreen"]')?.click());
+    await flushMarkdownEffects();
+    const overlay = document.querySelector('[data-testid="artifact-fullscreen-overlay"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.querySelector('.artifact-frame')?.getAttribute('data-artifact-layout')).toBe('canvas');
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(document.querySelector('[data-testid="artifact-fullscreen-overlay"]')).toBeNull();
+  });
+
   it('preview overlay downloads original model HTML, never srcdoc', async () => {
     const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:artifact-source');
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
