@@ -467,7 +467,7 @@ describe('UsagePanel', () => {
   });
 
   it('pages the call log and pauses the live poll while paging', async () => {
-    const pageSize = 100;
+    const pageSize = 20;
     const requested: Array<{ offset: number | undefined; limit: number | undefined }> = [];
     const request = async (command: UsageRequestCommand): Promise<HostResponse> => {
       if (command.type === 'usage/list-recent') {
@@ -493,6 +493,9 @@ describe('UsagePanel', () => {
     expect(container?.querySelector('[data-testid="usage-calls-range"]')?.textContent).toBe(
       '1–2 / 250',
     );
+    expect(container?.querySelector('[data-testid="usage-calls-page"]')?.textContent).toBe(
+      '第 1 / 13 页',
+    );
     const previous = container?.querySelector(
       '[data-testid="usage-calls-prev"]',
     ) as HTMLButtonElement | null;
@@ -512,7 +515,10 @@ describe('UsagePanel', () => {
 
     expect(requested.at(-1)?.offset).toBe(pageSize);
     expect(container?.querySelector('[data-testid="usage-calls-range"]')?.textContent).toBe(
-      '101–102 / 250',
+      '21–22 / 250',
+    );
+    expect(container?.querySelector('[data-testid="usage-calls-page"]')?.textContent).toBe(
+      '第 2 / 13 页',
     );
     expect(
       (container?.querySelector('[data-testid="usage-calls-prev"]') as HTMLButtonElement | null)
@@ -522,6 +528,27 @@ describe('UsagePanel', () => {
     expect(container?.querySelector('[data-testid="usage-calls-live-label"]')?.textContent).toBe(
       '翻页时暂停刷新',
     );
+  });
+
+  it('marks subagent calls in the call log', async () => {
+    const request = async (command: UsageRequestCommand): Promise<HostResponse> => {
+      if (command.type === 'usage/list-recent') {
+        const [first, second] = SAMPLE_CALL_LOG.entries;
+        return okResponse({
+          log: {
+            ...SAMPLE_CALL_LOG,
+            entries: [{ ...first!, parentSessionId: 'parent-1' }, second!],
+          },
+        });
+      }
+      return okResponse({ rollup: SAMPLE_ROLLUP });
+    };
+    ({ root, container } = renderPanel({ request }));
+    await flushLoad();
+
+    const chips = container?.querySelectorAll('[data-testid="usage-call-subagent"]');
+    expect(chips?.length).toBe(1);
+    expect(chips?.[0]?.textContent).toBe('子代理');
   });
 
   it('restarts at the first page when the page size changes', async () => {
@@ -548,7 +575,7 @@ describe('UsagePanel', () => {
       (container?.querySelector('[data-testid="usage-calls-next"]') as HTMLButtonElement)?.click();
     });
     await flushLoad();
-    expect(requested.at(-1)?.offset).toBe(100);
+    expect(requested.at(-1)?.offset).toBe(20);
 
     const pageSizeSelect = container?.querySelector(
       'select[data-testid="usage-calls-page-size"]',

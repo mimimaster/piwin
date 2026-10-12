@@ -190,10 +190,15 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
 
   // A new page starts at its first row, not wherever the previous page was
   // scrolled to.
+  // The table grows with the page (no nested vertical scroller), so bring the
+  // card's top back into view instead of resetting an inner scrollTop.
+  const callPagingMounted = useRef(false);
   useEffect(() => {
-    if (callScrollRef.current) {
-      callScrollRef.current.scrollTop = 0;
+    if (!callPagingMounted.current) {
+      callPagingMounted.current = true;
+      return;
     }
+    callScrollRef.current?.scrollIntoView?.({ block: 'nearest' });
   }, [callOffset, callPageSize]);
 
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);

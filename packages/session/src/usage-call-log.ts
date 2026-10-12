@@ -126,6 +126,7 @@ function toCallLogEntry(record: UsageRecord): UsageCallLogEntry {
     entry.reasoningTokens = record.reasoningTokens;
   }
   if (record.firstTokenKind !== undefined) entry.firstTokenKind = record.firstTokenKind;
+  if (record.parentSessionId) entry.parentSessionId = record.parentSessionId;
   return entry;
 }
 
