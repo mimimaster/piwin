@@ -32,8 +32,10 @@ sessions.
    emitted as CSS.
 4. **Report kit v2.** For v14 fences only: tones read the status tokens,
    `info` tone, stat tiles take `shadow-1`, titles gain weight.
-5. **Prompts.** Runtime prompt v14, decision prompt v11. Net resident cost is
-   neutral (conversation static estimate 2572 → 2570 tokens).
+5. **Prompts.** Runtime prompt v14, decision prompt v11. The resident contract
+   retains the rendering constraints and a short kit pointer; chart specs and
+   icon names are loaded through `artifact_instructions`. Conversation static
+   overhead passes the existing 2500-token CHT-803 limit.
 6. **Capability gate.** The resident prompt is compiled once per runtime
    generation and shared by every shell, so it cannot be versioned per
    client. Instead the shell advertises `PromptInput.artifactKit`
@@ -46,10 +48,11 @@ sessions.
 
 ## Consequences
 
-- An expressive fence renders under host guard CSS until the per-mode guard
-  lands (later phase of the same design).
-- The conversation token-budget test (CHT-803, limit 2500) was already red on
-  `main` (2572); v14 does not change that and does not raise the limit.
+- Expressive fences use the stage guard described in P4; report-kit documents
+  and the internal host-only switch keep the host guard.
+- The inherited CHT-803 failure was resolved by shortening redundant runtime
+  prose and keeping kit examples in the on-demand reference. Its limit remains
+  2500; no tests were relaxed.
 - Theme packages need no change; overrides are optional.
 
 ## Viewer (P2)
@@ -84,8 +87,7 @@ sessions.
     Browser/e2e builds inline the same bytes. Injected only when the source
     uses the kit (and for v14 stream previews). Kit CSS is always inline.
     Kit artifacts always take the sandbox renderer.
-12. **Prompt.** The resident contract carries one pointer line (+~80 tokens
-    on the conversation estimate, 2570 → 2650; CHT-803 was already red). The
+12. **Prompt.** The resident contract carries one short pointer line. The
     full reference (icon names, chart options, API) is returned by
     `artifact_instructions`, whose description now says to call it only for
     that reference.
@@ -119,3 +121,21 @@ sessions.
     prompt hint (every fence uses `style="host"`) and Desktop downgrades any
     expressive fence to host. Per-session-type forcing (voice, automation,
     subagents) from design §6.3 is not implemented.
+
+## Follow-up corrections (2026-10-12)
+
+18. **Chart semantics.** Series can declare `tone`, donut slices can declare
+    `tones` in label order, and exact status names in Chinese/English infer a
+    tone when one is absent. Success/pass is green, failures/blockers red,
+    warnings/suggestions amber. Explicit theme-variable colors take precedence.
+    Neutral series start blue; success/risk palette entries come last. Legends
+    use the same resolved colors as the marks.
+19. **Theme-side checks.** Expressive cards still follow the host's light/dark
+    side. The probe includes opaque gradients when detecting a large fill on
+    the opposite side; it shows a badge and never rewrites automatically.
+20. **Fullscreen focus.** Pointer activation focuses the Inline/Canvas opener
+    before mounting the overlay, because WebKit does not focus clicked buttons
+    by default. Escape on viewer chrome restores that opener in both engines.
+
+Verification and remaining packaged/mobile checks:
+[2026-10-12 continuation evidence](../evidence/2026-10-12-artifact-v14-continuation.md).
