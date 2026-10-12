@@ -1,3 +1,4 @@
+import { replaceAttachedImageMarkup } from './attached-image-markup.js';
 import {
   truncateToWidth,
   wrapTextWithAnsi,
@@ -116,7 +117,7 @@ export class TranscriptView implements Component {
 
   private renderMessage(entry: TranscriptMessageEntry, width: number): string[] {
     if (entry.role === 'user') {
-      const user = renderUser(entry.text, entry.annotations ?? [], width);
+      const user = renderUser(replaceAttachedImageMarkup(entry.text), entry.annotations ?? [], width);
       return entry.images === undefined ? user : [...user, ...this.imageLines(entry.images, width)];
     }
     const lines: string[] = [];
@@ -150,7 +151,7 @@ export class TranscriptView implements Component {
 
   private renderMarkdown(entry: TranscriptMessageEntry, width: number): string[] {
     // Finished artifacts become cards; `/artifacts` (or the shortcut) shows them.
-    const segments = splitMessageArtifacts(entry.id, entry.text);
+    const segments = splitMessageArtifacts(entry.id, replaceAttachedImageMarkup(entry.text));
     const renderers = this.markdownById.get(entry.id) ?? [];
     this.markdownById.set(entry.id, renderers);
     const lines: string[] = [];
