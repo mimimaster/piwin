@@ -104,7 +104,12 @@ export function ArtifactViewerToolbar(props: ArtifactViewerToolbarProps): ReactE
           label={props.fullscreen ? copy.exitFullscreen : copy.fullscreen}
           title={props.fullscreen ? copy.exitFullscreen : `${copy.fullscreen} — ${copy.remountNote}`}
           data-testid={`${props.testIdPrefix}-fullscreen`}
-          onClick={props.onToggleFullscreen}
+          onClick={(event) => {
+            // WebKit does not focus buttons on pointer clicks. Capture the
+            // opener explicitly before the overlay takes focus.
+            event.currentTarget.focus();
+            props.onToggleFullscreen();
+          }}
         >
           {props.fullscreen ? <IconCompress size={14} /> : <IconExpand size={14} />}
         </IconButton>

@@ -84,7 +84,10 @@ export function ArtifactInlinePreview(props: ArtifactInlinePreviewProps): ReactE
           className="artifact-floating-action-button"
           data-testid="artifact-open-fullscreen"
           disabled={!settled}
-          onClick={() => setFullscreen(true)}
+          onClick={(event) => {
+            event.currentTarget.focus();
+            setFullscreen(true);
+          }}
         >
           <IconExpand size={14} />
         </IconButton>
