@@ -123,4 +123,19 @@ describe('parseArtifactActionMessage', () => {
       }),
     ).toBeNull();
   });
+
+  it('accepts artifact/open-link only for absolute http(s) and mailto URLs', () => {
+    const open = (url: unknown) =>
+      parseArtifactActionMessage({ type: ARTIFACT_BRIDGE_ACTION_TYPE, channelId: 'fence-1', action: 'artifact/open-link', payload: { url } });
+    expect(open('https://github.com/x/y ')).toEqual({
+      type: ARTIFACT_BRIDGE_ACTION_TYPE,
+      channelId: 'fence-1',
+      action: 'artifact/open-link',
+      payload: { url: 'https://github.com/x/y' },
+    });
+    expect(open('mailto:a@b.c')?.payload).toEqual({ url: 'mailto:a@b.c' });
+    for (const bad of ['javascript:alert(1)', 'data:text/html,x', 'file:///etc/passwd', '/relative', 'https://u:p@x.com', 42, `https://x.com/${'a'.repeat(3000)}`]) {
+      expect(open(bad)).toBeNull();
+    }
+  });
 });

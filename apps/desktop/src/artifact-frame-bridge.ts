@@ -245,7 +245,10 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
         action.action === 'composer/propose-text'
       ) {
         current.onComposerProposal(action.payload);
-      } else if (current.onArtifactAction && action.action === 'artifact/download-unsupported') {
+      } else if (
+        current.onArtifactAction &&
+        (action.action === 'artifact/download-unsupported' || action.action === 'artifact/open-link')
+      ) {
         current.onArtifactAction(action);
       }
       return;

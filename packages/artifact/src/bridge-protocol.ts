@@ -156,12 +156,16 @@ export function parseArtifactActionMessage(data: unknown): ArtifactActionMessage
     return null;
   }
   const action = data['action'];
-  if (action !== 'composer/propose-text' && action !== 'artifact/download-unsupported') {
+  if (action !== 'composer/propose-text' && action !== 'artifact/download-unsupported' && action !== 'artifact/open-link') {
     return null;
   }
   const payload = data['payload'];
   if (!isRecord(payload)) {
     return null;
+  }
+  if (action === 'artifact/open-link') {
+    const url = normalizeArtifactLinkUrl(payload['url']);
+    return url === null ? null : { type: ARTIFACT_BRIDGE_ACTION_TYPE, channelId, action, payload: { url } };
   }
   if (action === 'artifact/download-unsupported') {
     const filename = payload['filename'];
@@ -287,4 +291,28 @@ export function parseArtifactContrastMessage(data: unknown): ArtifactContrastMes
     failing: count(data['failing']),
     minRatio,
   };
+}
+
+/** Longest link an artifact may ask the host to open. */
+export const ARTIFACT_LINK_MAX_CHARS = 2048;
+
+/**
+ * An absolute http(s) or mailto URL, normalized, or null. Everything else —
+ * javascript:, data:, blob:, file:, relative paths, credentials in the URL —
+ * is refused: the sandbox is untrusted and this decides what leaves it.
+ */
+export function normalizeArtifactLinkUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > ARTIFACT_LINK_MAX_CHARS) return null;
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (url.protocol === 'mailto:') return url.href;
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  if (url.username !== '' || url.password !== '' || url.hostname === '') return null;
+  return url.href;
 }

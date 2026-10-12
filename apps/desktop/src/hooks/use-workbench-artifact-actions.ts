@@ -2,6 +2,8 @@
  * Artifact flip-card actions and walkthrough generate/cancel/hydrate.
  * Host commands stay here so App does not own flashcard/walkthrough wiring.
  */
+import { normalizeArtifactLinkUrl } from '@piwin/artifact';
+import { openExternalLink } from '../open-external-url.js';
 import { useCallback, useEffect, type Dispatch } from 'react';
 import { formatError, type WalkthroughArtifact } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
@@ -67,6 +69,15 @@ export function useWorkbenchArtifactActions(args: UseWorkbenchArtifactActionsArg
             tone: 'info',
           });
         }
+        return;
+      }
+      if (action.action === 'artifact/open-link') {
+        // Re-validated here as well: the payload came from untrusted HTML.
+        const url = normalizeArtifactLinkUrl(action.payload.url);
+        if (url === null) return;
+        void openExternalLink(url).then((opened) => {
+          if (!opened) showUiNotification({ message: `没能打开链接：${url}`, tone: 'warning' });
+        });
         return;
       }
       if (action.action === 'artifact/download-unsupported') {

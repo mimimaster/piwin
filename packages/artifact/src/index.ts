@@ -57,6 +57,8 @@ export { buildArtifactReportKitCss } from './srcdoc-report-kit.js';
 export {
   parseArtifactBridgeMessage,
   parseArtifactActionMessage,
+  normalizeArtifactLinkUrl,
+  ARTIFACT_LINK_MAX_CHARS,
   parseArtifactErrorMessage,
   parseArtifactRenderSnapshot,
   parseArtifactScrollMessage,
@@ -118,3 +120,4 @@ export {
   ARTIFACT_CONTRAST_MAX_SAMPLES,
 } from './constants.js';
 export type { ArtifactContrastMessage } from './types.js';
+export { buildArtifactBridgeBootstrapScript } from './srcdoc-bridge.js';

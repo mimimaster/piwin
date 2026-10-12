@@ -244,7 +244,20 @@ export type ArtifactActionMessage =
       channelId: string;
       action: 'artifact/download-unsupported';
       payload: ArtifactDownloadUnsupportedPayload;
+    }
+  | {
+      type: 'piwin-artifact:action';
+      channelId: string;
+      action: 'artifact/open-link';
+      payload: ArtifactOpenLinkPayload;
     };
+
+/**
+ * A link the user activated inside the sandbox. The frame has no
+ * allow-popups / allow-top-navigation, so it cannot open anything itself; the
+ * host opens the URL in the system browser after re-validating it.
+ */
+export type ArtifactOpenLinkPayload = { url: string };
 
 /**
  * A script failure inside the sandbox, reported for display only. Everything

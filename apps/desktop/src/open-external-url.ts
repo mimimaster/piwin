@@ -33,3 +33,28 @@ export async function openExternalUrl(url: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * A link from untrusted content (artifact sandbox): http(s) in the system
+ * browser, mailto in the mail client. Nothing else, and never in-app.
+ */
+export async function openExternalLink(url: string): Promise<boolean> {
+  const trimmed = url.trim();
+  if (/^https?:\/\//i.test(trimmed)) return openExternalUrl(trimmed);
+  if (!/^mailto:/i.test(trimmed)) return false;
+  try {
+    if (isMobileTauriRuntime()) {
+      await openWithMobileShell(trimmed);
+      return true;
+    }
+    if (isTauriRuntime()) {
+      const { open } = await import('@tauri-apps/plugin-shell');
+      await open(trimmed);
+      return true;
+    }
+    window.location.assign(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
