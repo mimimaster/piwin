@@ -95,11 +95,17 @@ export async function uploadObject(input) {
  * @param {string} url
  * @param {number} expectedSize
  */
+/** Cache-busting query so a prior CDN-cached 404 cannot block verify/resume. */
+function uncachedUrl(url) {
+  const join = url.includes('?') ? '&' : '?';
+  return `${url}${join}t=${Date.now()}`;
+}
+
 export async function assertPublishedSize(url, expectedSize) {
   let seen = 'no response';
   for (let attempt = 1; attempt <= SIZE_CHECK_ATTEMPTS; attempt += 1) {
     try {
-      const response = await fetch(url, { method: 'HEAD' });
+      const response = await fetch(uncachedUrl(url), { method: 'HEAD' });
       seen = `${response.status} content-length=${response.headers.get('content-length')}`;
       if (response.ok && Number(response.headers.get('content-length')) === expectedSize) return;
     } catch (error) {
@@ -139,9 +145,9 @@ export async function fetchPublishedManifest(publicBase, manifestKey) {
  */
 async function isInstallerPublished(url, installer) {
   try {
-    const head = await fetch(url, { method: 'HEAD' });
+    const head = await fetch(uncachedUrl(url), { method: 'HEAD' });
     if (!head.ok || Number(head.headers.get('content-length')) !== installer.size) return false;
-    const published = await fetch(`${url}.sha256`);
+    const published = await fetch(uncachedUrl(`${url}.sha256`));
     return published.ok && (await published.text()).startsWith(installer.sha256);
   } catch {
     // Unreachable CDN is treated as "not published"; the upload will surface real errors.
