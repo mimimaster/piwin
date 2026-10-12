@@ -274,4 +274,26 @@ describe('TuiSubagentController', () => {
     modals.press(ENTER);
     expect(modals.text()).not.toContain('打开子代理的对话');
   });
+
+  it('tracks live invocation activity, ignoring stale revisions and other sessions', () => {
+    const { controller, port } = setup();
+    const base = {
+      id: 'i1', parentSessionId: 'parent', runId: 'b1', taskId: 't', task: 'x', revision: 2,
+      status: 'running', activity: { kind: 'tool', toolName: 'bash' },
+      createdAt: '2026-10-12T07:00:00Z', updatedAt: '2026-10-12T07:00:05Z',
+    };
+    expect(controller.handlePush({ type: 'subagent/invocation-updated', parentSessionId: 'parent', invocation: base } as never)).toBe(true);
+    expect(controller.lookupRun('i1', 'b1')?.activity).toBe('执行工具 bash');
+    expect(controller.lookupRun(undefined, 'b1')?.invocationId).toBe('i1');
+    expect(controller.hasRunningInvocations()).toBe(true);
+    const version = controller.liveVersion;
+    controller.handlePush({ type: 'subagent/invocation-updated', parentSessionId: 'parent', invocation: { ...base, revision: 1, activity: { kind: 'thinking' } } } as never);
+    expect(controller.lookupRun('i1', 'b1')?.activity).toBe('执行工具 bash');
+    expect(controller.liveVersion).toBe(version);
+    controller.handlePush({ type: 'subagent/invocation-updated', parentSessionId: 'other', invocation: { ...base, id: 'i9' } } as never);
+    expect(controller.lookupRun('i9', 'b1')).toBeUndefined();
+    controller.handlePush({ type: 'subagent/invocation-updated', parentSessionId: 'parent', invocation: { ...base, revision: 3, status: 'completed', activity: { kind: 'completed' } } } as never);
+    expect(controller.hasRunningInvocations()).toBe(false);
+    expect(port.onChanged).toHaveBeenCalledTimes(2);
+  });
 });

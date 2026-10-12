@@ -8,6 +8,7 @@ import {
   formatError,
   type PermissionDecision,
   type PermissionMode,
+  type PermissionProposedChange,
   type SubagentInvocationActivity,
 } from '@piwin/contracts';
 import { type ExtensionUiKind, type ExtensionUiResponse } from '@piwin/agent-host';
@@ -85,6 +86,7 @@ export function requestPermission(
     command?: string;
     paths?: readonly string[];
     sessionGrant?: SessionWorkspaceGrant;
+    proposedChange?: PermissionProposedChange;
     signal?: AbortSignal;
   },
 ): Promise<PermissionDecision> {
@@ -109,6 +111,7 @@ export function requestPermission(
     ...(input.cwd ? { cwd: input.cwd } : {}),
     ...(input.command ? { command: input.command } : {}),
     ...(input.paths ? { paths: input.paths } : {}),
+    ...(input.proposedChange ? { proposedChange: input.proposedChange } : {}),
   });
   return new Promise((resolve) => {
     const activeRun = deps.runRegistry.getForegroundRun(input.sessionId);

@@ -1,4 +1,6 @@
 import type { BackendPermissionOption, PermissionRequestContext, PermissionRiskKind } from '@piwin/contracts';
+import { formatDiffStat, paintDiffLine, patchBody } from './diff-view.js';
+import { style } from './tui-style.js';
 import { shortenPaths } from './tool-path-display.js';
 
 const KIND_LABEL: Record<PermissionRiskKind, string> = {
@@ -15,7 +17,12 @@ export type PermissionPromptView = {
   message: string;
   /** Choices an external agent supplied; shown as given. */
   backendOptions?: readonly BackendPermissionOption[];
+  /** The whole proposed patch, for "查看完整 diff". */
+  fullPatch?: string;
 };
+
+/** Diff lines shown inside the permission dialog itself. */
+export const PERMISSION_DIFF_PREVIEW_LINES = 20;
 
 /**
  * What a permission question says. The Host's `detail` is a log line for
@@ -47,9 +54,20 @@ export function describePermissionPrompt(
   const backendOptions = context.backendOptions;
   const hasBackendOptions = backendOptions !== undefined && backendOptions.length > 0;
   if (hasBackendOptions) lines.push(`由 ${context.backendAgentId ?? '外部 agent'} 决定并记住，不写入 piwin 权限规则`);
+  const change = context.proposedChange;
+  if (change !== undefined && change.patch.length > 0) {
+    const body = patchBody(change.patch);
+    lines.push('', `改动 ${formatDiffStat(change.additions, change.deletions)}`);
+    for (const line of body.slice(0, PERMISSION_DIFF_PREVIEW_LINES)) lines.push(paintDiffLine(line));
+    const hidden = body.length - PERMISSION_DIFF_PREVIEW_LINES;
+    if (hidden > 0 || change.truncated === true) {
+      lines.push(style.gray(`… ${hidden > 0 ? `还有 ${hidden} 行，` : ''}选「查看完整 diff」${change.truncated === true ? '（Host 已截断过长的部分）' : ''}`));
+    }
+  }
   return {
     title: `需要确认：${KIND_LABEL[context.kind]}`,
     message: lines.join('\n'),
     ...(hasBackendOptions ? { backendOptions } : {}),
+    ...(change !== undefined && change.patch.length > 0 ? { fullPatch: change.patch } : {}),
   };
 }

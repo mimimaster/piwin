@@ -32,6 +32,13 @@ export class TuiModalStack {
     this.tui.requestRender();
   }
 
+  /** Replace the open dialog but keep answering the same queued request (e.g. a diff opened from a prompt). */
+  public swap(component: Component): void {
+    const key = this.shownKey;
+    this.show(component);
+    this.shownKey = key;
+  }
+
   public close(pump = true): void {
     if (this.overlay === undefined) return;
     this.overlay.hide();
@@ -84,6 +91,8 @@ export type PermissionModalInput = {
    * and answered by option id; piwin's own remember scopes do not apply.
    */
   backendOptions?: readonly BackendPermissionOption[];
+  /** Offered when the Host sent the proposed file change: opens the whole diff. */
+  onViewDiff?: () => void;
   resolve: (command: HostCommand) => void;
 };
 
@@ -132,10 +141,11 @@ export function createPermissionModal(input: PermissionModalInput): Component {
       { value: 'once', label: '允许一次' },
       { value: 'session', label: '本会话内始终允许' },
       ...(input.inProject ? [{ value: 'project', label: '本项目内始终允许' }] : []),
+      ...(input.onViewDiff === undefined ? [] : [{ value: 'diff', label: '查看完整 diff' }]),
       { value: 'deny', label: '拒绝' },
     ],
     onSelect: (value) =>
-      resolve(
+      value === 'diff' ? input.onViewDiff?.() : resolve(
         value === 'deny'
           ? denyOnce
           : {

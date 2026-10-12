@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { artifactFileName, buildArtifactHostPage, listTranscriptArtifacts } from './artifact-export.js';
+import {
+  artifactFileName,
+  artifactSourceFileName,
+  buildArtifactHostPage,
+  countTranscriptArtifacts,
+  formatByteSize,
+  listTranscriptArtifacts,
+  splitMessageArtifacts,
+} from './artifact-export.js';
 import { EMPTY_TRANSCRIPT, appendLocalUserMessage, applyAgentEvent, type TranscriptState } from './transcript-model.js';
 
 const FENCE = '```';
@@ -75,9 +83,76 @@ describe('buildArtifactHostPage', () => {
 
 describe('artifactFileName', () => {
   it('keeps a readable name and drops what a file system or shell would choke on', () => {
-    const named = (title: string): string => artifactFileName({ key: 'k', title, kind: 'html', source: '' });
+    const named = (title: string): string => artifactFileName({ key: 'k', title, kind: 'html', source: '', byteSize: 0 });
     expect(named('计数器 / demo: v1?')).toBe('计数器 demo v1.html');
     expect(named('///')).toBe('artifact.html');
     expect(named('x'.repeat(200))).toHaveLength(65);
+  });
+});
+
+describe('splitMessageArtifacts', () => {
+  it('cuts finished artifacts out of the prose and keeps ordinary code in it', () => {
+    const text = `前言\n${artifactFence('卡片', '<p>hi</p>')}\n中间\n${FENCE}ts\nconst x = 1;\n${FENCE}\n结尾`;
+    const segments = splitMessageArtifacts('m1', text);
+    expect(segments.map((segment) => segment.kind)).toEqual(['markdown', 'artifact', 'markdown']);
+    expect(segments[0]).toEqual({ kind: 'markdown', text: '前言\n' });
+    const card = segments[1];
+    expect(card?.kind === 'artifact' && card.artifact.title).toBe('卡片');
+    expect(card?.kind === 'artifact' && card.artifact.byteSize).toBe(9);
+    expect(segments[2]?.kind === 'markdown' && segments[2].text).toContain('const x = 1;');
+  });
+
+  it('leaves a fence that is still streaming as Markdown', () => {
+    const text = `开始\n${FENCE}artifact-html title="半截"\n<p>`;
+    expect(splitMessageArtifacts('m1', text)).toEqual([{ kind: 'markdown', text }]);
+  });
+
+  it('keeps blocked artifacts as cards with the reason', () => {
+    const segments = splitMessageArtifacts('m1', artifactFence('外链', '<script src="https://x.test/a.js"></script>'));
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.kind === 'artifact' && segments[0].artifact.blocked).toBe('引用了外部资源');
+  });
+});
+
+describe('artifactSourceFileName / formatByteSize', () => {
+  it('names saved source by kind and numbers retries', () => {
+    expect(artifactSourceFileName({ title: '图 / 1', kind: 'svg' })).toBe('图 1.svg');
+    expect(artifactSourceFileName({ title: 'demo', kind: 'html' }, 1)).toBe('demo-2.html');
+    expect(formatByteSize(812)).toBe('812 B');
+    expect(formatByteSize(12_595)).toBe('12.3 KB');
+  });
+});
+
+describe('countTranscriptArtifacts', () => {
+  it('agrees with the list for finished messages and skips one still streaming', () => {
+    let state = assistant(EMPTY_TRANSCRIPT, 'a1', `${artifactFence('一', '<p>1</p>')}\n${FENCE}ts\nx\n${FENCE}`);
+    state = applyAgentEvent(state, { type: 'message/end', messageId: 'a1' } as never);
+    state = assistant(state, 'a2', artifactFence('二', '<p>2</p>'));
+    const streaming = state.entries.find((entry) => entry.id === 'a2');
+    expect(streaming?.kind === 'message' && streaming.status).toBe('streaming');
+    expect(countTranscriptArtifacts(state)).toBe(1);
+    const done = {
+      ...state,
+      entries: state.entries.map((entry) => (entry.kind === 'message' ? { ...entry, status: 'done' as const } : entry)),
+    };
+    expect(countTranscriptArtifacts(done)).toBe(listTranscriptArtifacts(done).length);
+    expect(countTranscriptArtifacts(done)).toBe(2);
+  });
+
+  it('stays fast over a long conversation while one message streams', () => {
+    const entries = Array.from({ length: 400 }, (_, index) => ({
+      kind: 'message' as const,
+      id: `m${index}`,
+      role: 'assistant' as const,
+      text: artifactFence(`第${index}个`, '<p>x</p>'.repeat(50)),
+      thinking: '',
+      status: 'done' as const,
+      tools: [],
+    }));
+    const state = { entries, noticeCount: 0 } as unknown as TranscriptState;
+    countTranscriptArtifacts(state);
+    const started = performance.now();
+    for (let frame = 0; frame < 200; frame += 1) countTranscriptArtifacts({ ...state, entries: [...entries] });
+    expect(performance.now() - started).toBeLessThan(200);
   });
 });

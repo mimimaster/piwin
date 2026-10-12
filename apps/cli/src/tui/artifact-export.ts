@@ -1,4 +1,4 @@
-import { analyzeArtifactFence, indexArtifactFences, materializeArtifact } from '@piwin/artifact';
+import { analyzeArtifactFence, indexArtifactFences, materializeArtifact, type ArtifactFenceRecord } from '@piwin/artifact';
 import type { TranscriptState } from './transcript-model.js';
 
 /**
@@ -16,6 +16,8 @@ export type TranscriptArtifact = {
   kind: 'html' | 'svg';
   /** Raw model source. */
   source: string;
+  /** UTF-8 size of the source. */
+  byteSize: number;
   /** Self-contained sandbox document and the CSP it declares; absent when blocked. */
   document?: { srcdoc: string; csp: string };
   /** Why the artifact policy refuses to render it. Its source can still be read. */
@@ -28,36 +30,108 @@ const BLOCK_REASON: Record<string, string> = {
   'blocked-external-resource': '引用了外部资源',
 };
 
+/** A finished artifact fence as the TUI presents it; undefined for plain code or a fence still streaming. */
+function describeFence(
+  entryId: string,
+  fence: ArtifactFenceRecord,
+  fallbackTitle: () => string,
+): TranscriptArtifact | undefined {
+  // A fence still being streamed has no complete document to export.
+  if (fence.open) return undefined;
+  const analysis = analyzeArtifactFence(fence, { id: `${entryId}-${fence.ordinal}` });
+  // Plain code fences are not artifacts.
+  if (analysis.kind === 'code') return undefined;
+  const descriptor = analysis.kind === 'intent' ? analysis.intent.descriptor : analysis.descriptor;
+  const title = descriptor.title.trim();
+  const artifact: TranscriptArtifact = {
+    key: `${entryId}:${fence.ordinal}`,
+    title: title.length > 0 ? title : fallbackTitle(),
+    kind: descriptor.type,
+    source: descriptor.source,
+    byteSize: Buffer.byteLength(descriptor.source, 'utf8'),
+  };
+  if (analysis.kind === 'blocked') {
+    artifact.blocked = BLOCK_REASON[analysis.reason] ?? analysis.reason;
+  } else {
+    // The canvas presentation always yields a sandbox document, never raw source.
+    const plan = materializeArtifact(analysis.intent, { mode: 'interactive', presentation: 'canvas' });
+    if (plan.document.kind !== 'sandbox') return undefined;
+    artifact.document = { srcdoc: plan.document.srcdoc, csp: plan.document.csp };
+  }
+  return artifact;
+}
+
 /** Every finished artifact in assistant messages, newest first. */
 export function listTranscriptArtifacts(transcript: TranscriptState): TranscriptArtifact[] {
   const artifacts: TranscriptArtifact[] = [];
   for (const entry of transcript.entries) {
     if (entry.kind !== 'message' || entry.role !== 'assistant') continue;
     for (const fence of indexArtifactFences(entry.text)) {
-      // A fence still being streamed has no complete document to export.
-      if (fence.open) continue;
-      const analysis = analyzeArtifactFence(fence, { id: `${entry.id}-${fence.ordinal}` });
-      // Plain code fences are not artifacts.
-      if (analysis.kind === 'code') continue;
-      const descriptor = analysis.kind === 'intent' ? analysis.intent.descriptor : analysis.descriptor;
-      const artifact: TranscriptArtifact = {
-        key: `${entry.id}:${fence.ordinal}`,
-        title: descriptor.title.trim().length > 0 ? descriptor.title.trim() : `Artifact ${artifacts.length + 1}`,
-        kind: descriptor.type,
-        source: descriptor.source,
-      };
-      if (analysis.kind === 'blocked') {
-        artifact.blocked = BLOCK_REASON[analysis.reason] ?? analysis.reason;
-      } else {
-        // The canvas presentation always yields a sandbox document, never raw source.
-        const plan = materializeArtifact(analysis.intent, { mode: 'interactive', presentation: 'canvas' });
-        if (plan.document.kind !== 'sandbox') continue;
-        artifact.document = { srcdoc: plan.document.srcdoc, csp: plan.document.csp };
-      }
-      artifacts.push(artifact);
+      const artifact = describeFence(entry.id, fence, () => `Artifact ${artifacts.length + 1}`);
+      if (artifact !== undefined) artifacts.push(artifact);
     }
   }
   return artifacts.reverse();
+}
+
+const artifactCountByEntry = new WeakMap<object, number>();
+
+/**
+ * How many artifacts the status line advertises. Cheap enough to call on every
+ * frame: a finished message is counted once (entries are immutable, so the
+ * object is the cache key), a message still streaming is not counted yet, and
+ * counting only classifies fences — it never builds the sandbox document.
+ */
+export function countTranscriptArtifacts(transcript: TranscriptState): number {
+  let total = 0;
+  for (const entry of transcript.entries) {
+    if (entry.kind !== 'message' || entry.role !== 'assistant' || entry.status === 'streaming') continue;
+    let count = artifactCountByEntry.get(entry);
+    if (count === undefined) {
+      count = 0;
+      for (const fence of indexArtifactFences(entry.text)) {
+        if (fence.open) continue;
+        if (analyzeArtifactFence(fence, { id: `${entry.id}-${fence.ordinal}` }).kind !== 'code') count += 1;
+      }
+      artifactCountByEntry.set(entry, count);
+    }
+    total += count;
+  }
+  return total;
+}
+
+export type MessageSegment = { kind: 'markdown'; text: string } | { kind: 'artifact'; artifact: TranscriptArtifact };
+
+/**
+ * An assistant message cut into Markdown runs and finished artifacts, so the
+ * transcript can show a compact card instead of pages of HTML. Fences inside
+ * quotes or lists, and fences still streaming, stay in the Markdown.
+ */
+export function splitMessageArtifacts(entryId: string, text: string): MessageSegment[] {
+  const segments: MessageSegment[] = [];
+  let cursor = 0;
+  let count = 0;
+  for (const fence of indexArtifactFences(text)) {
+    if (fence.endOffset === null || fence.recoveredOpening === true) continue;
+    const lineStart = text.lastIndexOf('\n', fence.startOffset - 1) + 1;
+    if (text.slice(lineStart, fence.startOffset).trim().length > 0) continue;
+    const artifact = describeFence(entryId, fence, () => `Artifact ${count + 1}`);
+    if (artifact === undefined) continue;
+    count += 1;
+    const before = text.slice(cursor, lineStart);
+    if (before.trim().length > 0) segments.push({ kind: 'markdown', text: before });
+    segments.push({ kind: 'artifact', artifact });
+    cursor = fence.endOffset;
+  }
+  const rest = text.slice(cursor);
+  if (rest.trim().length > 0 || segments.length === 0) segments.push({ kind: 'markdown', text: rest });
+  return segments;
+}
+
+/** `812 B`, `12.3 KB`. */
+export function formatByteSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
 function escapeAttribute(value: string): string {
@@ -99,4 +173,10 @@ export function artifactFileName(artifact: TranscriptArtifact): string {
     .trim()
     .slice(0, 60);
   return `${base.length === 0 ? 'artifact' : base}.html`;
+}
+
+/** Name for the raw source saved into a project: `.html` or `.svg`, by kind. */
+export function artifactSourceFileName(artifact: Pick<TranscriptArtifact, 'title' | 'kind'>, attempt = 0): string {
+  const base = artifactFileName({ title: artifact.title } as TranscriptArtifact).replace(/\.html$/, '');
+  return `${base}${attempt === 0 ? '' : `-${attempt + 1}`}.${artifact.kind}`;
 }

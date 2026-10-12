@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+import './node-version-guard.js';
 import { formatError } from '@piwin/contracts';
-import { isPrintFlag, printModeArgv } from './print-mode.js';
+import { isPrintFlag, printModeArgv, readPrintStdin, takeStdinMode } from './print-mode.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -39,7 +40,7 @@ Usage:
   piwin session cold reconcile [--mock]
   piwin session lifecycle apply --plan <plan-id> [--mock]
   piwin status [--project <path>] [--session <id>] [--mock]
-  piwin -p <text> [chat options]    (same as chat; stdin is appended to the prompt)
+  piwin -p <text> [chat options] [-|--no-stdin]   (same as chat; piped stdin is appended to the prompt if it arrives within 200ms; '-' waits for all of stdin, --no-stdin ignores it)
   piwin chat <text> [--project <path>] [--mode sdk|rpc] [--agent pi|grok] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass|unrestricted] [--scheme <id>] [--ref <path>…] [--output-format text|json|stream-json]
   piwin tui [--session <id>] [--continue|-c] [--resume|-r [id]] [--project <projectId> | --project-path <dir>] [--embedded] [--agent <id>] [--mock]
   piwin scheme list [--mock]
@@ -123,17 +124,11 @@ test fixture: harness-only delayed session; rejected outside NODE_ENV=test
 `);
 }
 
-async function readPipedStdin(): Promise<string | undefined> {
-  if (process.stdin.isTTY) return undefined;
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk as Uint8Array));
-  return Buffer.concat(chunks).toString('utf8');
-}
-
 async function main(argv: string[]): Promise<void> {
   if (isPrintFlag(argv[0])) {
     // `piwin -p <text>`: the script-friendly spelling of `piwin chat`.
-    argv = printModeArgv(argv, await readPipedStdin());
+    const { argv: printArgv, mode } = takeStdinMode(argv);
+    argv = printModeArgv(printArgv, await readPrintStdin(process.stdin, mode));
   }
   const command = argv[0] ?? 'help';
 

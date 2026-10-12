@@ -23,7 +23,7 @@ import {
   type ForegroundRunState,
 } from '@piwin/host-client';
 import { TextOverlay } from './choice-overlay.js';
-import { StatusLine, describeRunPhase } from './status-line.js';
+import { StatusLine, describeRunPhase, formatElapsed } from './status-line.js';
 import {
   EMPTY_TRANSCRIPT,
   appendNotice,
@@ -48,7 +48,7 @@ import { QueryListOverlay } from './query-list-overlay.js';
 import { describeHostFailure } from './host-failure-text.js';
 import { editTextExternally } from './external-editor.js';
 import { PromptHistory } from './prompt-history.js';
-import { DEFAULT_KEYBINDINGS, type Keybindings } from './keybindings.js';
+import { DEFAULT_KEYBINDINGS, formatKey, type Keybindings } from './keybindings.js';
 import { DEFAULT_STATUS_TEMPLATE, renderStatusTemplate } from './status-template.js';
 import type { TuiConfig } from './tui-config.js';
 import { TurnNotifier } from './turn-notifier.js';
@@ -63,7 +63,9 @@ import { TuiTurnActions } from './tui-turn-actions.js';
 import { TuiRewindController } from './tui-rewind-controller.js';
 import { TuiUsageController } from './tui-usage-controller.js';
 import { ProjectFiles } from './project-files.js';
-import type { FileOpener } from './tui-artifact-controller.js';
+import type { FileOpener, TuiArtifactController } from './tui-artifact-controller.js';
+import { countTranscriptArtifacts } from './artifact-export.js';
+import { existsSync } from 'node:fs';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiAutocompleteProvider } from './tui-autocomplete.js';
 import { editorTheme, style } from './tui-theme.js';
@@ -111,6 +113,10 @@ export class TuiApp {
   private readonly editor: Editor;
   private readonly statusLine = new StatusLine();
   private readonly loader: Loader;
+  /** When the in-flight turn began; drives the elapsed counter on the activity line. */
+  private turnStartedAt: number | undefined;
+  private elapsedTimer: ReturnType<typeof setInterval> | undefined;
+  private subagentTimer: ReturnType<typeof setInterval> | undefined;
 
   private transcript: TranscriptState = EMPTY_TRANSCRIPT;
   private sessionId: string | undefined;
@@ -132,6 +138,7 @@ export class TuiApp {
   private readonly rewind: TuiRewindController;
   private readonly sender: TuiPromptSender;
   private readonly runCommand: (name: string, argument: string) => Promise<void>;
+  private readonly artifacts: TuiArtifactController;
   /** `/edit`: the next prompt replaces this user turn as a sibling branch. */
   private editingMessageId: string | undefined;
   private projects: RemoteProjectSummary[] = [];
@@ -190,6 +197,7 @@ export class TuiApp {
       onError: (error) => this.reportError(error),
     });
     const controllers = createTuiControllers({
+      getProjectRoot: () => this.currentProjectRoots().find((root) => existsSync(root)),
       tui: this.tui,
       editor: this.editor,
       link: this.link,
@@ -241,6 +249,7 @@ export class TuiApp {
     this.sender = controllers.sender;
     this.sessionSwitcher = controllers.sessionSwitcher;
     this.runCommand = controllers.runCommand;
+    this.artifacts = controllers.artifacts;
     this.transcriptScroll = mountTuiLayout(this.tui, {
       transcript: this.transcriptView, activity: this.activitySlot, editor: this.editor, status: this.statusLine,
     });
@@ -270,6 +279,7 @@ export class TuiApp {
       openRewind: () => this.rewind.open(),
       editInExternalEditor: () => this.editInExternalEditor(),
       toggleToolOutput: () => this.transcriptView.toggleToolOutput(),
+      openLatestArtifact: () => this.artifacts.openLatest(),
       hint: (text) => this.flashHint(text),
     });
     this.tui.setFocus(this.editor);
@@ -322,6 +332,9 @@ export class TuiApp {
 
   public dispose(): void {
     this.statusHint.dispose();
+    this.stopElapsedTimer();
+    if (this.subagentTimer !== undefined) clearInterval(this.subagentTimer);
+    this.subagentTimer = undefined;
     this.loader.stop();
     for (const dispose of this.disposers.splice(0)) dispose();
   }
@@ -636,6 +649,16 @@ export class TuiApp {
     return this.sessionId;
   }
 
+  /** Whether the Host reports the open session as archived (read by tests and status). */
+  public isSessionArchived(): boolean {
+    return this.sessionArchived;
+  }
+
+  /** The status line as last set (styled). */
+  public statusText(): string {
+    return this.statusLine.getText();
+  }
+
   /** Whether a turn is in flight. Read fresh each time: pushes change it across every await. */
   public isRunning(): boolean {
     return this.foreground.kind === 'active';
@@ -760,29 +783,81 @@ export class TuiApp {
   private refreshChrome(forceFullRedraw = false): void {
     this.transcriptView.setState(this.transcript);
     this.transcriptView.setPathRoots(this.currentProjectRoots());
+    this.syncSubagentRuns();
     const running = this.foreground.kind === 'active';
     this.notifier.observeRunning(running);
     const hasLoader = this.activitySlot.children.length > 0;
     if (running) {
       const phase = this.foreground.kind === 'active' ? this.foreground.phase : undefined;
-      this.loader.setMessage(`${describeRunPhase(phase)} · Esc 中断`);
+      if (this.turnStartedAt === undefined) this.startElapsedTimer();
+      this.loader.setMessage(this.describeActivity(phase));
       if (!hasLoader) {
         this.activitySlot.addChild(this.loader);
         this.loader.start();
       }
-    } else if (hasLoader) {
-      this.loader.stop();
-      this.activitySlot.clear();
+    } else {
+      this.stopElapsedTimer();
+      if (hasLoader) {
+        this.loader.stop();
+        this.activitySlot.clear();
+      }
     }
     this.statusLine.setText(style.gray(this.openingSession ? '正在加载会话…' : this.describeStatus()));
     this.tui.terminal.setTitle(`piwin · ${this.sessionName ?? '新会话'}`);
     this.tui.requestRender(forceFullRedraw);
   }
 
+  private describeActivity(phase: string | undefined): string {
+    const elapsed = this.turnStartedAt === undefined ? 0 : Date.now() - this.turnStartedAt;
+    return `${describeRunPhase(phase)} · ${formatElapsed(elapsed)} · Esc 中断`;
+  }
+
+  /** Tick the activity line once a second for the turn in flight. */
+  private startElapsedTimer(): void {
+    this.stopElapsedTimer();
+    this.turnStartedAt = Date.now();
+    this.elapsedTimer = setInterval(() => {
+      if (this.foreground.kind !== 'active') {
+        this.stopElapsedTimer();
+        return;
+      }
+      this.loader.setMessage(this.describeActivity(this.foreground.phase));
+      this.tui.requestRender();
+    }, 1000);
+    // Never keep the process alive just for the counter.
+    this.elapsedTimer.unref?.();
+  }
+
+  private stopElapsedTimer(): void {
+    if (this.elapsedTimer !== undefined) clearInterval(this.elapsedTimer);
+    this.elapsedTimer = undefined;
+    this.turnStartedAt = undefined;
+  }
+
   /** Roots the current session's tool paths are shown relative to. */
   private currentProjectRoots(): string[] {
     const project = this.projects.find((candidate) => candidate.projectId === this.sessionProjectId);
     return [project?.path, project?.gitRootPath].filter((root): root is string => root !== undefined);
+  }
+
+  /** Live subagent rows; while any runs, their elapsed counters redraw once a second. */
+  private syncSubagentRuns(): void {
+    const subagents = this.features.subagents;
+    const running = subagents.hasRunningInvocations();
+    const second = running ? Math.floor(Date.now() / 1000) : 0;
+    this.transcriptView.setSubagentRuns(subagents.lookupRun, subagents.liveVersion * 100_000 + (second % 100_000));
+    if (running && this.subagentTimer === undefined) {
+      this.subagentTimer = setInterval(() => this.refreshChrome(), 1000);
+      this.subagentTimer.unref?.();
+    } else if (!running && this.subagentTimer !== undefined) {
+      clearInterval(this.subagentTimer);
+      this.subagentTimer = undefined;
+    }
+  }
+
+  private describeArtifacts(): string | undefined {
+    const count = countTranscriptArtifacts(this.transcript);
+    return count === 0 ? undefined : `◆ ${count} 个 artifact · ${formatKey(this.keybindings.openArtifact)} 打开最新`;
   }
 
   private describeStatus(): string {
@@ -806,6 +881,7 @@ export class TuiApp {
       this.attachments.describe(),
       this.sideChat.describe(),
       this.editingMessageId === undefined ? undefined : '改写上一条提问 · Ctrl+C 取消',
+      this.describeArtifacts(),
     ];
     const arranged = renderStatusTemplate(this.options.config?.statusTemplate ?? DEFAULT_STATUS_TEMPLATE, {
       session: this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),

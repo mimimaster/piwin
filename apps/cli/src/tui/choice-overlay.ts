@@ -19,6 +19,8 @@ export type ChoiceOverlayOptions = {
   /** Value preselected when the overlay opens. */
   initialValue?: string;
   footer?: string;
+  /** Single keys that pick an item directly, e.g. `{ o: 'browser' }`. */
+  shortcuts?: Readonly<Record<string, string>>;
   onSelect: (value: string) => void;
   onCancel: () => void;
 };
@@ -40,6 +42,11 @@ export class ChoiceOverlay implements Component {
   }
 
   public handleInput(data: string): void {
+    const shortcut = this.options.shortcuts?.[data];
+    if (shortcut !== undefined && this.options.items.some((item) => item.value === shortcut)) {
+      this.options.onSelect(shortcut);
+      return;
+    }
     this.list.handleInput(data);
   }
 

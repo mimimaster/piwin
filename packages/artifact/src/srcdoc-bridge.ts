@@ -136,26 +136,61 @@ export function buildArtifactBridgeBootstrapScript(
     var href = anchor.getAttribute('href') || '';
     return /^(blob:|data:)/i.test(href);
   };
-  document.addEventListener(
-    'click',
-    function (event) {
-      var node = event.target;
-      while (node && node !== document && node !== document.documentElement) {
-        if (node.tagName === 'A' && looksLikeDownloadAnchor(node)) {
+  // The frame is sandboxed without allow-popups / allow-top-navigation, so a
+  // link cannot open anything by itself (target=_blank is silently dropped).
+  // Absolute http(s)/mailto links are handed to the host instead, which
+  // re-validates them and opens the system browser. In-page anchors (#x) keep
+  // their native behaviour.
+  var externalLinkUrl = function (raw) {
+    if (typeof raw !== 'string') return null;
+    var text = raw.trim();
+    if (!/^(https?:|mailto:)/i.test(text)) return null;
+    return text.length > 2048 ? null : text;
+  };
+  var openExternalLink = function (url) {
+    post(actionType, { action: 'artifact/open-link', payload: { url: url } });
+  };
+  var onLinkActivate = function (event) {
+    if (event.type === 'auxclick' && event.button !== 1) return;
+    var node = event.target;
+    while (node && node !== document && node !== document.documentElement) {
+      if (node.tagName === 'A') {
+        if (looksLikeDownloadAnchor(node)) {
           event.preventDefault();
           event.stopPropagation();
           reportDownloadUnsupported(node.getAttribute('download') || node.download || '');
           return;
         }
-        node = node.parentElement;
+        var url = externalLinkUrl(node.getAttribute('href'));
+        if (url !== null) {
+          event.preventDefault();
+          openExternalLink(url);
+        }
+        return;
       }
-    },
-    true,
-  );
+      node = node.parentElement;
+    }
+  };
+  document.addEventListener('click', onLinkActivate, true);
+  document.addEventListener('auxclick', onLinkActivate, true);
+  var originalWindowOpen = window.open;
+  window.open = function (target) {
+    var url = externalLinkUrl(target == null ? '' : String(target));
+    if (url !== null) {
+      openExternalLink(url);
+      return null;
+    }
+    return originalWindowOpen ? originalWindowOpen.apply(window, arguments) : null;
+  };
   var originalAnchorClick = HTMLAnchorElement.prototype.click;
   HTMLAnchorElement.prototype.click = function () {
     if (looksLikeDownloadAnchor(this)) {
       reportDownloadUnsupported(this.getAttribute('download') || this.download || '');
+      return;
+    }
+    var scriptedUrl = externalLinkUrl(this.getAttribute('href'));
+    if (scriptedUrl !== null) {
+      openExternalLink(scriptedUrl);
       return;
     }
     return originalAnchorClick.apply(this, arguments);

@@ -26,6 +26,7 @@ export type TuiGlobalKeysPort = {
   editInExternalEditor: () => void;
   /** Returns whether tool output and thinking are now shown in full. */
   toggleToolOutput: () => boolean;
+  openLatestArtifact: () => void;
   hint: (text: string) => void;
 };
 
@@ -92,6 +93,10 @@ export class TuiGlobalKeys {
     }
     if (matchesKey(data, port.keybindings.toolOutput)) {
       port.hint(port.toggleToolOutput() ? '工具输出与思考：完整' : '工具输出与思考：摘要');
+      return { consume: true };
+    }
+    if (matchesKey(data, port.keybindings.openArtifact)) {
+      port.openLatestArtifact();
       return { consume: true };
     }
     return undefined;

@@ -2,6 +2,8 @@
  * Session/project memory and interactive approval. Does not write memory.
  */
 
+import type { PermissionProposedChange } from '@piwin/contracts';
+import { buildProposedChange } from './permission-preview.js';
 import type {
   HostToolExecutionContext,
   HostToolRegistration,
@@ -51,6 +53,8 @@ export type ToolApprovalBrokerOptions = {
     paths?: readonly string[];
     /** What "Allow for session" grants: the directory joins the session boundary. */
     sessionGrant?: SessionWorkspaceGrant;
+    /** Diff of the pending file write, when it could be computed. */
+    proposedChange?: PermissionProposedChange;
     signal?: AbortSignal;
   }) => Promise<PermissionDecision>;
   /**
@@ -114,6 +118,14 @@ export function createToolApprovalBroker(options: ToolApprovalBrokerOptions): To
 
       if (options.requestPermission && !input.signal.aborted) {
         const sessionGrant = resolveSessionGrant(input.policy.action, input.policy.subject);
+        const proposedChange =
+          input.policy.action === 'file-write'
+            ? await buildProposedChange({
+                toolName: input.context.toolName,
+                arguments: input.arguments,
+                ...(options.projectPath ? { projectPath: options.projectPath } : {}),
+              })
+            : undefined;
         const decision = await options.requestPermission({
           action: input.policy.action,
           detail: buildPermissionDetail(
@@ -140,6 +152,7 @@ export function createToolApprovalBroker(options: ToolApprovalBrokerOptions): To
               ? { paths: [input.policy.subject.path] }
               : {}),
           ...(sessionGrant ? { sessionGrant } : {}),
+          ...(proposedChange ? { proposedChange } : {}),
           ...(input.signal ? { signal: input.signal } : {}),
         });
         return decision === 'allow'

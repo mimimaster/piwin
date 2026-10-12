@@ -1,3 +1,4 @@
+import { paintDiffLine } from './diff-view.js';
 import { Key, matchesKey, truncateToWidth, type Component } from '@earendil-works/pi-tui';
 import { frameOverlay } from './overlay-frame.js';
 import { style } from './tui-theme.js';
@@ -45,14 +46,4 @@ export class ViewerOverlay implements Component {
     const position = lines.length === 0 ? '空' : `${this.top + 1}–${end} / ${lines.length}`;
     return frameOverlay(this.options.title, shown, `${position} · ↑↓ PgUp PgDn 滚动 · Esc 关闭`, width);
   }
-}
-
-/** Unified-diff colouring; text that is not a diff passes through. */
-function paintDiffLine(line: string): string {
-  const text = line.replace(/\t/g, '  ');
-  if (text.startsWith('+++') || text.startsWith('---')) return style.bold(text);
-  if (text.startsWith('@@')) return style.cyan(text);
-  if (text.startsWith('+')) return style.green(text);
-  if (text.startsWith('-')) return style.red(text);
-  return text;
 }

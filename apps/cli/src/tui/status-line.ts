@@ -9,6 +9,10 @@ export class StatusLine implements Component {
     this.text = text;
   }
 
+  public getText(): string {
+    return this.text;
+  }
+
   public invalidate(): void {
     // Stateless between frames: nothing cached.
   }
@@ -36,4 +40,13 @@ const RUN_PHASE_LABEL: Record<SessionRunPhase, string> = {
 export function describeRunPhase(phase: string | undefined): string {
   // A newer Host may report a phase this shell has no word for yet.
   return (RUN_PHASE_LABEL as Record<string, string | undefined>)[phase ?? ''] ?? '运行中';
+}
+
+/** Elapsed time of a running turn: `12s`, then `1m 05s`, then `1h 02m`. */
+export function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  if (total < 60) return `${total}s`;
+  const minutes = Math.floor(total / 60);
+  if (minutes < 60) return `${minutes}m ${String(total % 60).padStart(2, '0')}s`;
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
 }

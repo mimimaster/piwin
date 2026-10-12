@@ -141,7 +141,13 @@ describe('auth commands', () => {
       label: 'GPT-5.4 Codex',
     });
     expect(config.providers[0]?.models.some((model) => model.id === 'gpt-image-2')).toBe(true);
-    const merged = await service.mergeConfiguredModels({ models: [] });
+    // Login finishes in the background; the account the merge reads can land
+    // a few ticks after the config. Wait for the real result, not a fixed tick.
+    let merged = await service.mergeConfiguredModels({ models: [] });
+    for (const deadline = Date.now() + 5_000; merged.models.length === 0 && Date.now() < deadline; ) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      merged = await service.mergeConfiguredModels({ models: [] });
+    }
     expect(merged.models).toEqual([
       {
         providerId: 'openai-codex',

@@ -417,6 +417,7 @@ export async function composeSessionHostToolsForSession(
         ...(input.command ? { command: input.command } : {}),
         ...(input.paths ? { paths: input.paths } : {}),
         ...(input.sessionGrant ? { sessionGrant: input.sessionGrant } : {}),
+        ...(input.proposedChange ? { proposedChange: input.proposedChange } : {}),
         ...(input.signal ? { signal: input.signal } : {}),
       }),
     projectRoot: resolvePermissionProjectRoot(projectPath, getPiwinGeneralWorkspacePath(rootDir)),

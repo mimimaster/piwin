@@ -1,5 +1,4 @@
 import {
-  Markdown,
   truncateToWidth,
   wrapTextWithAnsi,
   type Component,
@@ -10,9 +9,13 @@ import type {
   TranscriptState,
   TranscriptTool,
 } from './transcript-model.js';
+import { formatByteSize, splitMessageArtifacts, type TranscriptArtifact } from './artifact-export.js';
+import { TranscriptMarkdown } from './transcript-markdown.js';
+import { renderFileChange } from './diff-view.js';
+import { renderSubagentControl, type LiveRunLookup } from './subagent-run-view.js';
 import { describeToolError } from './tool-error-view.js';
 import { shortenPaths } from './tool-path-display.js';
-import { markdownTheme, style } from './tui-theme.js';
+import { style } from './tui-theme.js';
 
 const TOOL_OUTPUT_PREVIEW_LINES = 8;
 /** Reasoning can run to pages; the answer is what the reader came for. */
@@ -21,7 +24,7 @@ const EMPTY_HINT = '输入消息开始对话，/ 查看命令，Ctrl+S 切换会
 /** Embedded: the host application switches sessions, so the shortcut is not offered. */
 const EMBEDDED_EMPTY_HINT = '输入消息开始对话，/ 查看命令';
 
-type CachedEntry = { entry: TranscriptEntry; width: number; expanded: boolean; lines: string[] };
+type CachedEntry = { entry: TranscriptEntry; width: number; expanded: boolean; liveVersion: number; lines: string[] };
 
 /**
  * Renders the transcript document. Lines are cached per entry identity, so a
@@ -31,9 +34,12 @@ export class TranscriptView implements Component {
   private state: TranscriptState = { entries: [], noticeCount: 0 };
   private toolOutputExpanded = false;
   private readonly cache = new Map<string, CachedEntry>();
-  /** One Markdown renderer per message keeps its own parse cache across deltas. */
-  private readonly markdownById = new Map<string, Markdown>();
+  /** Markdown renderers per message (one per run between artifacts) keep their parse cache across deltas. */
+  private readonly markdownById = new Map<string, TranscriptMarkdown[]>();
   private pathRoots: string[] = [];
+  private subagentLookup: LiveRunLookup = () => undefined;
+  /** Changes when live subagent state (or its elapsed second) changes; entries with subagent rows redraw. */
+  private liveVersion = 0;
 
   public constructor(private readonly embedded = false) {}
 
@@ -48,6 +54,12 @@ export class TranscriptView implements Component {
     this.invalidate();
   }
 
+  /** Live subagent runs for the run tree under subagent tools. `version` changes whenever they do. */
+  public setSubagentRuns(lookup: LiveRunLookup, version: number): void {
+    this.subagentLookup = lookup;
+    this.liveVersion = version;
+  }
+
   public toggleToolOutput(): boolean {
     this.toolOutputExpanded = !this.toolOutputExpanded;
     return this.toolOutputExpanded;
@@ -55,7 +67,7 @@ export class TranscriptView implements Component {
 
   public invalidate(): void {
     this.cache.clear();
-    for (const markdown of this.markdownById.values()) markdown.invalidate();
+    for (const renderers of this.markdownById.values()) for (const markdown of renderers) markdown.invalidate();
   }
 
   public render(width: number): string[] {
@@ -83,13 +95,14 @@ export class TranscriptView implements Component {
       cached !== undefined &&
       cached.entry === entry &&
       cached.width === width &&
-      cached.expanded === this.toolOutputExpanded
+      cached.expanded === this.toolOutputExpanded &&
+      (cached.liveVersion === this.liveVersion || !hasSubagentTool(entry))
     ) {
       return cached.lines;
     }
     const lines =
       entry.kind === 'notice' ? renderNotice(entry.tone, entry.text, width) : this.renderMessage(entry, width);
-    this.cache.set(entry.id, { entry, width, expanded: this.toolOutputExpanded, lines });
+    this.cache.set(entry.id, { entry, width, expanded: this.toolOutputExpanded, liveVersion: this.liveVersion, lines });
     return lines;
   }
 
@@ -104,7 +117,7 @@ export class TranscriptView implements Component {
       lines.push(...this.renderMarkdown(entry, width));
     }
     for (const tool of entry.tools) {
-      lines.push(...renderTool(tool, width, this.toolOutputExpanded, this.pathRoots));
+      lines.push(...renderTool(tool, width, this.toolOutputExpanded, this.pathRoots, this.subagentLookup));
     }
     if (entry.composing !== undefined) {
       const name = entry.composing.toolName ?? '工具';
@@ -123,15 +136,40 @@ export class TranscriptView implements Component {
   }
 
   private renderMarkdown(entry: TranscriptMessageEntry, width: number): string[] {
-    let markdown = this.markdownById.get(entry.id);
-    if (markdown === undefined) {
-      markdown = new Markdown(entry.text, 1, 0, markdownTheme);
-      this.markdownById.set(entry.id, markdown);
-    } else {
-      markdown.setText(entry.text);
+    // Finished artifacts become cards; `/artifacts` (or the shortcut) shows them.
+    const segments = splitMessageArtifacts(entry.id, entry.text);
+    const renderers = this.markdownById.get(entry.id) ?? [];
+    this.markdownById.set(entry.id, renderers);
+    const lines: string[] = [];
+    let markdownIndex = 0;
+    for (const segment of segments) {
+      if (segment.kind === 'artifact') {
+        lines.push(...renderArtifactCard(segment.artifact, width));
+        continue;
+      }
+      let markdown = renderers[markdownIndex];
+      if (markdown === undefined) {
+        markdown = new TranscriptMarkdown(segment.text, 1);
+        renderers[markdownIndex] = markdown;
+      } else {
+        markdown.setText(segment.text);
+      }
+      markdownIndex += 1;
+      lines.push(...markdown.render(width));
     }
-    return markdown.render(width);
+    renderers.length = markdownIndex;
+    return lines;
   }
+}
+
+/** A finished artifact, folded to two lines: what it is, and how to reach it. */
+export function renderArtifactCard(artifact: TranscriptArtifact, width: number): string[] {
+  const head = `${style.cyan('◆')} ${style.bold(artifact.title)} ${style.gray(`· ${artifact.kind.toUpperCase()} · ${formatByteSize(artifact.byteSize)}`)}`;
+  const detail =
+    artifact.blocked === undefined
+      ? style.gray('/artifacts：o 打开 · s 源码 · w 保存 · c 复制')
+      : style.yellow(`⚠ 已拦截：${artifact.blocked}`);
+  return ['', truncateToWidth(` ${head}`, width), truncateToWidth(`   ${detail}`, width), ''];
 }
 
 /** The tail of the reasoning while it streams and after; Ctrl+O shows all of it. */
@@ -158,7 +196,17 @@ function renderNotice(tone: 'info' | 'error', text: string, width: number): stri
   return renderPrefixed(paint(tone === 'error' ? '✗ ' : '· '), paint(text), width);
 }
 
-function renderTool(tool: TranscriptTool, width: number, expanded: boolean, pathRoots: readonly string[]): string[] {
+function hasSubagentTool(entry: TranscriptEntry): boolean {
+  return entry.kind === 'message' && entry.tools.some((tool) => tool.presentation?.subagentControl !== undefined);
+}
+
+function renderTool(
+  tool: TranscriptTool,
+  width: number,
+  expanded: boolean,
+  pathRoots: readonly string[],
+  subagentLookup: LiveRunLookup = () => undefined,
+): string[] {
   const presentation = tool.presentation;
   const glyph =
     tool.status === 'running' ? style.yellow('◌') : tool.status === 'error' ? style.red('✗') : style.green('●');
@@ -171,6 +219,12 @@ function renderTool(tool: TranscriptTool, width: number, expanded: boolean, path
   const lines = [truncateToWidth(head, width)];
   if (presentation?.error !== undefined) {
     lines.push(...renderPrefixed('   ', style.red(describeToolError(presentation.error)), width));
+  }
+  if (presentation?.subagentControl !== undefined) {
+    lines.push(...renderSubagentControl(presentation.subagentControl, width, expanded, subagentLookup));
+  }
+  if (presentation?.fileChange !== undefined) {
+    lines.push(...renderFileChange(presentation.fileChange, width, expanded));
   }
   const output = presentation?.output?.text ?? tool.output;
   if (output.trim().length > 0 && (expanded || tool.status === 'running')) {

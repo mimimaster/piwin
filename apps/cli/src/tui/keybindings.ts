@@ -1,7 +1,7 @@
 import type { KeyId } from '@earendil-works/pi-tui';
 
 /** The shortcuts the TUI owns, ahead of the editor. Everything else is the editor's. */
-export const KEYBINDING_ACTIONS = ['sessions', 'history', 'editor', 'pasteImage', 'permission', 'toolOutput'] as const;
+export const KEYBINDING_ACTIONS = ['sessions', 'history', 'editor', 'pasteImage', 'permission', 'toolOutput', 'openArtifact'] as const;
 export type KeybindingAction = (typeof KEYBINDING_ACTIONS)[number];
 export type Keybindings = Readonly<Record<KeybindingAction, KeyId>>;
 
@@ -12,6 +12,8 @@ export const DEFAULT_KEYBINDINGS: Keybindings = {
   pasteImage: 'ctrl+v',
   permission: 'shift+tab',
   toolOutput: 'ctrl+o',
+  // Ctrl+O is taken by toolOutput; Ctrl+T is free in pi-tui's editor and in raw mode.
+  openArtifact: 'ctrl+t',
 };
 
 export const KEYBINDING_DESCRIPTIONS: Readonly<Record<KeybindingAction, string>> = {
@@ -21,6 +23,7 @@ export const KEYBINDING_DESCRIPTIONS: Readonly<Record<KeybindingAction, string>>
   pasteImage: '粘贴图片',
   permission: '权限模式',
   toolOutput: '展开工具输出和思考',
+  openArtifact: '打开最新 artifact',
 };
 
 /** Keys the editor or the terminal needs, or that the TUI handles itself: not rebindable. */
