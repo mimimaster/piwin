@@ -32,6 +32,7 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'find', description: '在这段对话里查找：/find' },
   { name: 'rewind', description: '回到更早的一条提问，从那里改写（Esc Esc 同）' },
   { name: 'edit', description: '改写上一条提问并作为新分支发送' },
+  { name: 'images', description: '切换图片显示：内联 / 只显示占位行' },
   { name: 'artifacts', description: '列出对话里的 artifact，看源码或在浏览器里打开' },
   { name: 'walkthrough', description: '查看或生成最近一次回答的交付报告（/walkthrough new 重写）' },
   { name: 'changes', description: '查看各轮改了哪些文件，撤销或恢复' },

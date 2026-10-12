@@ -9,6 +9,8 @@ import {
 import type { Keybindings } from './keybindings.js';
 import type { ProjectFiles } from './project-files.js';
 import { createTuiCommandTable } from './tui-command-table.js';
+import { imagesFromAttachments } from './transcript-model.js';
+import type { TuiImageStore } from './image-view.js';
 import { TuiArtifactController, type FileOpener } from './tui-artifact-controller.js';
 import { TuiAttachmentController } from './tui-attachment-controller.js';
 import { TuiComposerProfile } from './tui-composer-profile.js';
@@ -39,6 +41,7 @@ export type TuiWiringPort = {
   embedded: boolean;
   keybindings: Keybindings;
   openFile?: FileOpener;
+  images: TuiImageStore;
   /** Root of the session's project on this machine, when it has one. */
   getProjectRoot: () => string | undefined;
   getSessionId: () => string | undefined;
@@ -90,8 +93,10 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     port.updateTranscript((transcript) => appendNotice(transcript, tone, text));
     port.refresh();
   };
-  const echoUser = (messageId: string, text: string, annotations: string[]): void => {
-    port.updateTranscript((transcript) => appendLocalUserMessage(transcript, messageId, text, annotations));
+  const echoUser = (messageId: string, text: string, annotations: string[], attachments?: readonly unknown[]): void => {
+    port.updateTranscript((transcript) =>
+      appendLocalUserMessage(transcript, messageId, text, annotations, imagesFromAttachments(attachments)),
+    );
   };
   const setComposerText = (text: string): void => {
     port.editor.setText(text);
@@ -253,6 +258,10 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     ...(port.openFile === undefined ? {} : { openFile: port.openFile }),
   });
   const runCommand = createTuiCommandTable({
+    toggleImages: () => {
+      port.hint(port.images.toggle());
+      port.refresh();
+    },
     embedded: port.embedded,
     keybindings: port.keybindings,
     composer,

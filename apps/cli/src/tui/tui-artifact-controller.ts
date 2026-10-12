@@ -18,7 +18,7 @@ import { ViewerOverlay } from './viewer-overlay.js';
 /** Hand a local file to the system's default browser. */
 export type FileOpener = (filePath: string) => Promise<void>;
 
-const openWithSystemBrowser: FileOpener = (filePath) =>
+export const openWithSystemBrowser: FileOpener = (filePath) =>
   new Promise((resolve, reject) => {
     const [command, args] =
       process.platform === 'darwin'
