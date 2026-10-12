@@ -16,6 +16,7 @@ import type {
   ToolResult,
 } from '@piwin/contracts';
 import { MAX_PLAN_INDEPENDENT_STEPS, MAX_PLAN_STEPS } from '@piwin/contracts';
+import { DRAFT_PLAN_GO_AHEAD_NOTICE } from './plan-go-ahead.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import {
   classifyPlanComplexity,
@@ -274,7 +275,7 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
         output:
           `draft plan created with ${steps.length} steps (complexity=${complexity}); ` +
           `saved at ${options.planPath}. Open in Piwin as ${displayPath}. ` +
-          '尚未选择执行方式。',
+          DRAFT_PLAN_GO_AHEAD_NOTICE,
         details: {
           planId: created.id,
           revision: created.revision,

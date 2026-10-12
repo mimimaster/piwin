@@ -4,7 +4,9 @@
  * Shown under a turn's final reply after that turn's Run completed, using
  * the last successful `piwin_plan_present` payload in the same turn. Create
  * only persists the draft and does not show the card. The card never owns
- * plan state or blocks the composer. Buttons use the ordinary prompt path.
+ * plan state or blocks the composer. Buttons use the ordinary prompt path;
+ * they are shortcuts, and a typed go-ahead in any other form starts the plan
+ * just the same.
  */
 import {
   useCallback,
@@ -226,7 +228,7 @@ const COPY_ZH: GateCopy = {
   subagent: '子代理逐步隔离执行',
   executed: '已执行',
   stale: '已过期',
-  kb: '按 A / B 键快速执行 · 也可以直接在输入框继续提问',
+  kb: '按 A / B 键快速执行 · 也可以在输入框用任何其他方式说明如何执行',
 };
 
 const COPY_EN: GateCopy = {
@@ -237,7 +239,7 @@ const COPY_EN: GateCopy = {
   subagent: 'Isolated subagent slices',
   executed: 'Executed',
   stale: 'Expired',
-  kb: 'Press A / B to run · Or continue typing in the prompt bar',
+  kb: 'Press A / B to run · Or describe any other way to run it in the prompt bar',
 };
 
 export function formatPlanDescription(

@@ -53,7 +53,7 @@ describe('createPlanPresentTool', () => {
     const tool = createPlanPresentTool({ sessionId: 's1', planPath });
     const result = await executeTool(tool);
     expect(messageOf(result)).toContain('Plan display ready');
-    expect(messageOf(result)).toContain('尚未选择执行方式');
+    expect(messageOf(result)).toContain('用户可以用任意方式执行');
     expect(messageOf(result)).not.toContain('END this turn');
     if (!result.ok) throw new Error(result.message);
     expect(result.details?.planDisplay).toMatchObject({
@@ -64,12 +64,12 @@ describe('createPlanPresentTool', () => {
     });
   });
 
-  it('does not claim a mode is missing after the plan is approved', async () => {
+  it('drops the go-ahead notice after the plan is approved', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-present-approved-'));
     const planPath = join(rootDir, 'plan.json');
     await writeFile(planPath, JSON.stringify(draftPlan({ status: 'approved' })), 'utf8');
     const tool = createPlanPresentTool({ sessionId: 's1', planPath });
-    expect(messageOf(await executeTool(tool))).not.toContain('尚未选择执行方式');
+    expect(messageOf(await executeTool(tool))).not.toContain('等待用户确认');
   });
 
   it('refuses an executing plan that is not stuck', async () => {

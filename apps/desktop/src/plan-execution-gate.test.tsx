@@ -687,7 +687,7 @@ describe('PlanExecutionGate', () => {
 
     const kb = gate?.querySelector('.kb');
     expect(kb?.textContent).toBe(
-      '按 A / B 键快速执行 · 也可以直接在输入框继续提问',
+      '按 A / B 键快速执行 · 也可以在输入框用任何其他方式说明如何执行',
     );
 
     act(() => root.unmount());

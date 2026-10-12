@@ -76,8 +76,9 @@ Prefer one thin seam over a new subsystem. Restore the same SessionPlan with
   card visible.
 - The card is an enhancement, not a gate. If present is skipped, the model
   ends in text with `plans/<sessionId>.md` and asks how to execute. The user
-  can reply with an explicit mode in the composer
-  (`resolveExplicitPlanExecutionMode`) or click the card when it is shown.
+  can click the card when it is shown, name a mode in the composer
+  (`resolveExplicitPlanExecutionMode`), or describe any other way to run the
+  plan; inline and subagent-driven are shortcuts, not the only choices.
 - Clicking the card opens the existing right-side document preview with the
   current `SessionPlan` rendered as Markdown at the virtual path
   `plans/<sessionId>.md`; it does not require a Host file read.
@@ -87,9 +88,15 @@ Prefer one thin seam over a new subsystem. Restore the same SessionPlan with
   Old cards keep their snapshot; their buttons show 已执行 / 已过期 once the
   live plan has moved on. Click-time `plan/get` validation still rejects a
   stale card.
-- Host prompt preparation approves a draft only from an explicit one-mode
-  reply, persists `execution.mode`, and later turns reuse that stored mode.
-  「执行一下」 is not a mode and never auto-approves a draft.
+- An execution mode is an optional hint, not a precondition (owner decision,
+  2026-10-11; replaces the earlier "explicit one-mode reply only" rule). Host
+  prompt preparation still records an explicit one-mode reply as
+  `execution.mode` and later turns reuse it. Any other go-ahead (「执行一下」,
+  「只做前两步」, a custom delegation scheme) runs the way the user described:
+  the first `piwin_plan_set_step` approves the draft with no stored mode. The
+  tool contract tells the model not to start a draft in the turn that created
+  or revised it; this is guidance, not a security boundary (file writes stay
+  behind the permission layer).
 
 ## Consequences
 

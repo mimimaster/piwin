@@ -2,11 +2,12 @@
  * Host custom tool: piwin_plan_present — display payload for the execution card.
  *
  * Create persists the draft. This tool only lifts the saved plan into a
- * plan-display payload so Desktop can render the A/B picker. It does not
+ * plan-display payload so Desktop can render its execution shortcuts. It does not
  * change plan status or execution rights.
  */
 import type { HostToolRegistration, SessionPlan, ToolResult } from '@piwin/contracts';
 import { loadSessionPlan } from '@piwin/session';
+import { DRAFT_PLAN_GO_AHEAD_NOTICE } from './plan-go-ahead.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 
 export type PlanPresentToolOptions = {
@@ -29,8 +30,8 @@ export function createPlanPresentTool(options: PlanPresentToolOptions): HostTool
     descriptor: {
       name: 'piwin_plan_present',
       description:
-        'Show the current draft or approved plan as execution-choice display data. ' +
-        'This does not change plan status or execution rights. Desktop may render a picker card from the payload.',
+        'Show the current draft or approved plan as display data. ' +
+        'This does not change plan status or execution rights. Desktop may render a card with execution shortcuts; the user may also start the plan any other way.',
       parameters: {
         type: 'object',
         properties: {},
@@ -60,7 +61,7 @@ export function createPlanPresentTool(options: PlanPresentToolOptions): HostTool
         output:
           `Plan display ready (${plan.steps.length} steps). ` +
           `Open in Piwin as ${displayPath}. Plan status is unchanged.` +
-          (plan.status === 'draft' ? ' 尚未选择执行方式。' : ''),
+          (plan.status === 'draft' ? ` ${DRAFT_PLAN_GO_AHEAD_NOTICE}` : ''),
         details: {
           planId: plan.id,
           revision: plan.revision,

@@ -8,6 +8,7 @@ import type {
   SessionPlan,
   ToolResult,
 } from '@piwin/contracts';
+import { approveDraftPlanForExecution } from './plan-go-ahead.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import {
   applyPlanStepUpdate,
@@ -34,8 +35,9 @@ export function createPlanStepTool(options: PlanStepToolOptions): HostToolRegist
       name: 'piwin_plan_set_step',
       description:
         'Update execution status of a plan step (pending | active | done | skipped). ' +
-        'The plan must already be approved or executing. If the tool says the ' +
-        'execution mode is not chosen, ask the user and do not retry. ' +
+        'Call it once the user has asked to carry the plan out, in whatever way ' +
+        'they describe; the first update approves a draft plan. Never start a ' +
+        'draft in the same turn that created or revised it. ' +
         'Mark done ONLY after verifying concrete evidence (test/build passing). ' +
         'Document empirical verification results in note.',
       parameters: {
@@ -80,18 +82,17 @@ export function createPlanStepTool(options: PlanStepToolOptions): HostToolRegist
           if (!current) {
             throw new PlanMutationError('no plan for this session');
           }
-          if (current.status === 'draft') {
+          if (
+            current.status !== 'draft' &&
+            current.status !== 'approved' &&
+            current.status !== 'executing'
+          ) {
             throw new PlanMutationError(
-              '尚未选择执行方式；请先确认当前会话执行还是子代理执行，不要重试本工具。',
-            );
-          }
-          if (current.status !== 'approved' && current.status !== 'executing') {
-            throw new PlanMutationError(
-              `plan status is ${current.status}; only approved|executing allow tool updates`,
+              `plan status is ${current.status}; only draft|approved|executing allow tool updates`,
             );
           }
           const result = applyPlanStepUpdate({
-            plan: current,
+            plan: approveDraftPlanForExecution(current),
             stepId,
             status,
             ...(detail !== undefined ? { detail } : {}),

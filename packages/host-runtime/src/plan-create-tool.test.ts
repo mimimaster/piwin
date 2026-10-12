@@ -103,7 +103,7 @@ describe('createPlanCreateTool', () => {
     expect(messageOf(result)).toContain('complexity=long');
     expect(messageOf(result)).toContain(`saved at ${planPath}`);
     expect(messageOf(result)).toContain('plans/s1.md');
-    expect(messageOf(result)).toContain('尚未选择执行方式');
+    expect(messageOf(result)).toContain('用户可以用任意方式执行');
     expect(messageOf(result)).not.toContain('piwin_plan_present');
     expect(messageOf(result)).not.toContain('Do not implement');
     if (!result.ok) throw new Error(result.message);

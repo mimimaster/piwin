@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -58,7 +58,7 @@ describe('createPlanStepTool', () => {
     expect(outputOf(result)).toContain('done');
   });
 
-  it('tells the model to confirm a mode instead of retrying a draft', async () => {
+  it('approves a draft on the first step update without requiring a mode', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-tool-draft-'));
     const planPath = join(rootDir, 'plan.json');
     await mkdir(rootDir, { recursive: true });
@@ -81,11 +81,15 @@ describe('createPlanStepTool', () => {
       'utf8',
     );
     const tool = createPlanStepTool({ sessionId: 's1', planPath });
-    const result = await executeTool(tool, { stepId: '1', status: 'done' });
-    expect(result.ok).toBe(false);
-    expect(outputOf(result)).toContain('尚未选择执行方式');
-    expect(outputOf(result)).toContain('请先确认');
-    expect(outputOf(result)).toContain('不要重试');
+    const result = await executeTool(tool, { stepId: '1', status: 'active' });
+    expect(result.ok).toBe(true);
+    expect(outputOf(result)).toContain('plan status executing');
+    const stored = JSON.parse(await readFile(planPath, 'utf8')) as {
+      status: string;
+      execution?: unknown;
+    };
+    expect(stored.status).toBe('executing');
+    expect(stored.execution).toBeUndefined();
   });
 
   it('calls onUpdated after a successful step update', async () => {
