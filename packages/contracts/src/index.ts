@@ -101,6 +101,8 @@ export * from './goal.js';
 export * from './flashcard-study.js';
 export * from './flashcard-study-commands.js';
 export * from './flashcard-study-events.js';
+export * from './flashcard-study-tools.js';
+export * from './flashcard-study-tool-schemas.js';
 export * from './doc-card-surface.js';
 export * from './doc-rag.js';
 export * from './doc-rag-v2.js';

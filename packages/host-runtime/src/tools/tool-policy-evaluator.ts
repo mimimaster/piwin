@@ -294,6 +294,7 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'flashcards:create':
     case 'flashcards:batch-create':
     case 'flashcards:delete':
+    case 'flashcards:study-write':
       return {
         decision: input.mode === 'bypass' ? 'allow' : 'ask',
         reason: `${input.action} mutation requires review`,
@@ -386,6 +387,7 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'browser:console':
     case 'browser:network':
     case 'flashcards:list':
+    case 'flashcards:study-read':
     case 'extensions:list':
     case 'capabilities:search':
     case 'artifact:instructions':

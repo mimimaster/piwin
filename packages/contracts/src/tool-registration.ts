@@ -70,6 +70,8 @@ export const HOST_TOOL_PERMISSION_ACTIONS = [
   'flashcards:batch-create',
   'flashcards:list',
   'flashcards:delete',
+  'flashcards:study-read',
+  'flashcards:study-write',
   'extensions:install',
   'extensions:list',
   'capabilities:install',

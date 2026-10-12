@@ -112,11 +112,12 @@ async function mutate(
     context.idempotencyKey,
   );
   if (typeof idempotencyKey !== 'string') return idempotencyKey;
-  const snapshot = await runMutation(command, study, identity, idempotencyKey);
+  const snapshot = await runFlashcardStudyMutation(command, study, identity, idempotencyKey);
   return ok(requestId, command.type, sanitizeSnapshot(snapshot));
 }
 
-function runMutation(
+/** Shared native mutation path; model tools admit a closed subset before calling it. */
+export function runFlashcardStudyMutation(
   command: Extract<FlashcardStudyHostCommand, { type: FlashcardStudyMutationType }>,
   study: StudyService,
   identity: string,

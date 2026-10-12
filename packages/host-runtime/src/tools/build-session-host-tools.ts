@@ -36,6 +36,7 @@ import { buildCodemodeTool } from '../codemode/codemode-tool.js';
 import { createDefaultPiwinConfig } from '../config-store.js';
 import { normalizeCodemodeConfig } from '@piwin/contracts';
 import { buildFlashcardTools } from '../flashcard-tools.js';
+import { buildFlashcardStudyTools } from '../flashcard-study-tools.js';
 import { buildExtensionTools, type ExtensionApplyOutcome } from '../extension-tools.js';
 import { buildCapabilityTools } from '../capability-tools.js';
 import { createPlanCreateTool } from '../plan-create-tool.js';
@@ -88,7 +89,7 @@ import {
 } from '../capabilities/search-route-resolver.js';
 import type { BrowserSession } from '@piwin/browser';
 import type { NoteStore } from '@piwin/notes';
-import type { CardStore } from '@piwin/flashcards';
+import type { CardStore, StudyService } from '@piwin/flashcards';
 import type { JobController } from '@piwin/contracts';
 import type { ModelProviderConfig, ModelRef, PiwinConfig } from '@piwin/contracts';
 import { getPiwinSessionDir, getPiwinSessionPlanPath, getPiwinRoot } from '../paths.js';
@@ -140,6 +141,7 @@ export type BuildSessionHostToolsOptions = {
   getBrowserSession?: BrowserSessionProvider;
   getNotesServices?: NotesServicesProvider;
   getCardStore?: CardStoreProvider;
+  getStudyService?: () => Promise<StudyService>;
   getFolderRag?: () => Promise<FolderRag>;
   isIndexing?: (folderKey: string) => boolean;
 
@@ -430,6 +432,9 @@ export async function buildSessionHostTools(
         enabled: true,
       });
       tools.push(...flashcardTools);
+      if (options.getStudyService) {
+        tools.push(...buildFlashcardStudyTools({ getStudyService: options.getStudyService }));
+      }
     } catch (error) {
       reportCompositionDiagnostic(options, 'flashcards', error);
       // Flashcard store unavailable — omit flashcard tools.

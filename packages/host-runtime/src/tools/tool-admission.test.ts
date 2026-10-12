@@ -460,6 +460,7 @@ describe('host tool admission composition', () => {
       'knowledge:knowledge_search',
       'knowledge:knowledge_read',
       'flashcards:list',
+      'flashcards:study-read',
       'extensions:list',
       'capabilities:search',
       'artifact:instructions',

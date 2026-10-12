@@ -101,4 +101,70 @@ describe('evaluateHostToolPolicy', () => {
       policy: { decision: 'ask', subject: { paths: ['/repo/in.txt', '/other/out.txt'] } },
     });
   });
+
+  it('asks for flashcards:study-write unless bypass; study-read is readOnly-gated', () => {
+    const writeAsk = evaluateHostToolPolicy({
+      registration: registration('flashcards:study-write', {
+        subjectBuilder: () => ({ kind: 'tool', action: 'flashcards:study-write' }),
+      }),
+      arguments: { action: 'rate' },
+      context,
+      rules: createEmptyRuleSet(),
+      mode: 'auto',
+      projectRoot: '/tmp',
+    });
+    expect(writeAsk).toMatchObject({
+      kind: 'decision',
+      policy: {
+        decision: 'ask',
+        reason: 'flashcards:study-write mutation requires review',
+      },
+    });
+
+    const writeBypass = evaluateHostToolPolicy({
+      registration: registration('flashcards:study-write', {
+        subjectBuilder: () => ({ kind: 'tool', action: 'flashcards:study-write' }),
+      }),
+      arguments: { action: 'rate' },
+      context,
+      rules: createEmptyRuleSet(),
+      mode: 'bypass',
+      projectRoot: '/tmp',
+    });
+    expect(writeBypass).toMatchObject({
+      kind: 'decision',
+      policy: {
+        decision: 'allow',
+        reason: 'flashcards:study-write mutation requires review',
+      },
+    });
+
+    // Domain evaluator denies unclassified side-effect if study-read is not marked
+    // readOnly (production registration must set readOnly: true so admission short-circuits).
+    const readWithoutReadOnly = evaluateHostToolPolicy({
+      registration: registration('flashcards:study-read'),
+      arguments: { action: 'catalog' },
+      context,
+      rules: createEmptyRuleSet(),
+      mode: 'auto',
+      projectRoot: '/tmp',
+    });
+    expect(readWithoutReadOnly).toMatchObject({
+      kind: 'decision',
+      policy: { decision: 'deny', reason: 'unclassified-side-effect' },
+    });
+
+    const readOnly = evaluateHostToolPolicy({
+      registration: registration('flashcards:study-read', { readOnly: true }),
+      arguments: { action: 'catalog' },
+      context,
+      rules: createEmptyRuleSet(),
+      mode: 'auto',
+      projectRoot: '/tmp',
+    });
+    expect(readOnly).toMatchObject({
+      kind: 'decision',
+      policy: { decision: 'allow', reason: 'read-only' },
+    });
+  });
 });

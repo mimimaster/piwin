@@ -274,6 +274,7 @@ export async function composeSessionHostToolsForSession(
     getBrowserSession: () => deps.browserSession ?? undefined,
     getNotesServices: () => deps.getNotesServices(),
     getCardStore: () => deps.getCardStore(),
+    getStudyService: () => deps.getStudyService(),
     getFolderRag: () => deps.getFolderRag(),
     isIndexing: (folderKey) => deps.doccardsIngestion.isRunning(folderKey),
     // Root sessions only: a subagent generation carries a childContext and must

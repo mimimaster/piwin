@@ -10,6 +10,9 @@ describe('HOST_TOOL_PERMISSION_ACTIONS', () => {
     expect(isHostToolPermissionAction('network:video-gen')).toBe(true);
     expect(isHostToolPermissionAction('planning:create')).toBe(true);
     expect(isHostToolPermissionAction('mcp:trusted')).toBe(true);
+    expect(isHostToolPermissionAction('flashcards:study-read')).toBe(true);
+    expect(isHostToolPermissionAction('flashcards:study-write')).toBe(true);
+    expect(isHostToolPermissionAction('flashcards:study')).toBe(false);
     expect(isHostToolPermissionAction('planning:write')).toBe(false);
     expect(isHostToolPermissionAction('notes:mutate')).toBe(false);
     expect(isHostToolPermissionAction('browser:lock')).toBe(true);
