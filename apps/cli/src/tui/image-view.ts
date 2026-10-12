@@ -87,6 +87,13 @@ export class TuiImageStore {
 
   public constructor(private readonly options: TuiImageStoreOptions) {
     this.setting = parseImageSetting((options.env ?? process.env).PIWIN_IMAGES);
+    // A forced protocol (Desktop's embedded xterm sets PIWIN_IMAGES=iterm2) must be in
+    // pi-tui's capabilities before the TUI starts: that is when it asks the terminal for
+    // its cell size (CSI 16 t), which sizes every picture. pi-tui's own detection
+    // returns nothing inside xterm.js.
+    if ((this.setting === 'kitty' || this.setting === 'iterm2') && options.detect === undefined) {
+      setCapabilities({ ...getCapabilities(), images: this.setting });
+    }
   }
 
   public mode(): ImageMode {

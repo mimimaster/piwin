@@ -1,6 +1,8 @@
 import type { HostCommand, HostResponse } from '@piwin/contracts';
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
+import { getCapabilities, setCapabilities } from '@earendil-works/pi-tui';
+import { systemOpenCommand } from './tui-artifact-controller.js';
 import {
   TuiImageStore,
   imagePlaceholder,
@@ -128,5 +130,33 @@ describe('transcript images', () => {
     const filePath = open.mock.calls[0]?.[0] ?? '';
     expect(filePath).toMatch(/piwin-images\/m1\.png$/);
     expect((await readFile(filePath)).toString('base64')).toBe(PNG);
+  });
+});
+
+describe('embedded in Desktop (PIWIN_IMAGES=iterm2)', () => {
+  it('forces the iTerm2 protocol into pi-tui before start, even where detection finds nothing or tmux is set', () => {
+    const before = getCapabilities();
+    try {
+      setCapabilities({ ...before, images: null });
+      const images = new TuiImageStore({
+        link: {} as TuiHostLink,
+        getSessionId: () => undefined,
+        onLoaded: () => {},
+        write: () => {},
+        env: { PIWIN_IMAGES: 'iterm2', TMUX: '/tmp/tmux-1/default' },
+      });
+      expect(getCapabilities().images).toBe('iterm2');
+      expect(images.mode()).toBe('iterm2');
+    } finally {
+      setCapabilities(before);
+    }
+  });
+
+  it('opens images with the OS opener, including Windows start', () => {
+    expect(systemOpenCommand('win32', 'C:\\Users\\me\\AppData\\Local\\Temp\\piwin-images\\m1.png')).toEqual([
+      'cmd', ['/c', 'start', '', 'C:\\Users\\me\\AppData\\Local\\Temp\\piwin-images\\m1.png'],
+    ]);
+    expect(systemOpenCommand('darwin', '/tmp/a.png')).toEqual(['open', ['/tmp/a.png']]);
+    expect(systemOpenCommand('linux', '/tmp/a.png')).toEqual(['xdg-open', ['/tmp/a.png']]);
   });
 });
