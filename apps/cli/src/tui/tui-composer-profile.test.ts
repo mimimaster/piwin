@@ -96,3 +96,55 @@ describe('TUI profile arriving after resume', () => {
     expect(profile.modelRef()).toEqual({ providerId: 'xai', modelId: 'grok-4.5' });
   });
 });
+
+describe('TuiComposerProfile orchestration scheme', () => {
+  const USER_SCHEME = { id: 'mine', name: '我的方案', description: '自己的编排', systemPreamble: '先调研' };
+  const UP = '\x1b[A';
+  const DOWN = '\x1b[B';
+
+  it('starts freehand, sends that on every prompt, and shows no badge', async () => {
+    const { profile } = await loadedProfile({});
+    expect(profile.activeSchemeName()).toBeUndefined();
+    expect(profile.describe()[4]).toBeUndefined();
+    expect(profile.promptFields()).toMatchObject({ orchestrationSchemeId: 'off', delegationMode: 'auto' });
+  });
+
+  it('starts a new session from the configured default scheme', async () => {
+    const { profile } = await loadedProfile({ subagents: { defaultSchemeId: 'ultra-code' } });
+    expect(profile.activeSchemeName()).toBe('Ultra Code');
+    expect(profile.describe()[4]).toBe('编排 Ultra Code');
+    expect(profile.promptFields()).toMatchObject({ orchestrationSchemeId: 'ultra-code', delegationMode: 'auto' });
+  });
+
+  it('lists user schemes in the picker and keeps a choice until the session changes', async () => {
+    const { profile, modals } = await loadedProfile({ subagents: { schemes: [USER_SCHEME] } });
+    profile.openSchemePicker();
+    expect(modals.text()).toContain('我的方案');
+    expect(modals.text()).toContain('不使用子代理');
+    modals.current?.handleInput?.(DOWN);
+    modals.current?.handleInput?.('\r');
+    expect(profile.activeSchemeName()).toBe('Ultra Code');
+    expect(profile.promptFields().orchestrationSchemeId).toBe('ultra-code');
+    profile.resetSchemeForNewSession();
+    expect(profile.activeSchemeName()).toBeUndefined();
+  });
+
+  it('turns subagents off for the session', async () => {
+    const { profile, modals } = await loadedProfile({ subagents: { defaultSchemeId: 'ultra-code' } });
+    profile.openSchemePicker();
+    // From Ultra Code, up twice wraps past 自由 to the last entry.
+    modals.current?.handleInput?.(UP);
+    modals.current?.handleInput?.(UP);
+    modals.current?.handleInput?.('\r');
+    expect(profile.activeSchemeName()).toBeUndefined();
+    expect(profile.describe()[4]).toBe('子代理 关');
+    expect(profile.promptFields()).toMatchObject({ orchestrationSchemeId: 'off', delegationMode: 'disabled' });
+  });
+
+  it('leaves schemes out for an external agent', async () => {
+    const { profile, onHint } = await loadedProfile({ subagents: { defaultSchemeId: 'ultra-code' } }, 'grok');
+    expect(profile.promptFields()).not.toHaveProperty('orchestrationSchemeId');
+    profile.openSchemePicker();
+    expect(onHint).toHaveBeenCalledWith('「grok」会话的子代理编排由该 agent 自己管理，这里不能改');
+  });
+});

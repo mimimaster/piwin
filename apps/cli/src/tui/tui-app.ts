@@ -47,6 +47,7 @@ import { StatusHint } from './status-hint.js';
 import { QueryListOverlay } from './query-list-overlay.js';
 import { describeHostFailure } from './host-failure-text.js';
 import { editTextExternally } from './external-editor.js';
+import { ComposerBadgeFrame } from './composer-badge-frame.js';
 import { PromptHistory } from './prompt-history.js';
 import { DEFAULT_KEYBINDINGS, formatKey, type Keybindings } from './keybindings.js';
 import { DEFAULT_STATUS_TEMPLATE, renderStatusTemplate } from './status-template.js';
@@ -251,7 +252,9 @@ export class TuiApp {
     this.runCommand = controllers.runCommand;
     this.artifacts = controllers.artifacts;
     this.transcriptScroll = mountTuiLayout(this.tui, {
-      transcript: this.transcriptView, activity: this.activitySlot, editor: this.editor, status: this.statusLine,
+      transcript: this.transcriptView, activity: this.activitySlot,
+      editor: new ComposerBadgeFrame(this.editor, () => (this.sessionAgentId === undefined ? this.composer.activeSchemeName() : undefined)),
+      status: this.statusLine,
     });
     this.globalKeys = new TuiGlobalKeys({
       editor: this.editor,
@@ -359,7 +362,10 @@ export class TuiApp {
     const previous = { sessionId: this.sessionId, projectId: this.sessionProjectId };
     this.openingSession = true;
     this.foreground = { kind: 'reconciling', generation: (this.foregroundGeneration += 1) };
-    if (previous.sessionId !== sessionId) this.features.reset();
+    if (previous.sessionId !== sessionId) {
+      this.features.reset();
+      this.composer.resetSchemeForNewSession();
+    }
     try {
       await this.link.client.updateSubscriptions([sessionId]);
       // Subscribe first, then resume and look up metadata together. The history
@@ -482,6 +488,7 @@ export class TuiApp {
     this.sessionName = undefined;
     this.sessionProjectId = this.projectId;
     this.features.reset();
+    this.composer.resetSchemeForNewSession();
     this.usage.reset(null);
     this.editingMessageId = undefined;
     this.transcript = EMPTY_TRANSCRIPT;
@@ -870,7 +877,7 @@ export class TuiApp {
       occupancy?.kind === 'known' && occupancy.tokensLimit !== undefined
         ? `上下文 ${Math.round((occupancy.tokensUsed / occupancy.tokensLimit) * 100)}%`
         : undefined;
-    const [model, thinking, permission, skill] = this.composer.describe();
+    const [model, thinking, permission, skill, scheme] = this.composer.describe();
     const activity = this.features.describe().filter((part): part is string => part !== undefined);
     // What needs attention is always shown; the template only arranges the rest.
     const alerts = [
@@ -890,6 +897,7 @@ export class TuiApp {
       model: this.sessionAgentId === undefined ? model : undefined,
       thinking: this.sessionAgentId === undefined ? thinking : undefined,
       permission: this.sessionAgentId === undefined ? permission : undefined,
+      scheme: this.sessionAgentId === undefined ? scheme : undefined,
       skill,
       activity: activity.length === 0 ? undefined : activity.join(' · '),
       context: usage,
