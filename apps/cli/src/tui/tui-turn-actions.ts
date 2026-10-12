@@ -20,7 +20,7 @@ export type TuiTurnPort = {
   steerIntoRun: (text: string) => Promise<boolean>;
   hint: (text: string) => void;
   notice: (tone: 'info' | 'error', text: string) => void;
-  echoUser: (messageId: string, text: string, annotations: string[]) => void;
+  echoUser: (messageId: string, text: string, annotations: string[], attachments?: readonly unknown[]) => void;
   /** Reload the session's transcript from the Host. */
   openSession: (sessionId: string) => Promise<void>;
   /** Put a turn in the composer so the next prompt replaces it as a branch. */

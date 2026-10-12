@@ -165,8 +165,8 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     steerIntoRun: (text) => features.interventions.submit({ text }),
     hint: port.hint,
     notice: notify,
-    echoUser: (messageId, text, annotations) => {
-      echoUser(messageId, text, annotations);
+    echoUser: (messageId, text, annotations, attachments) => {
+      echoUser(messageId, text, annotations, attachments);
       port.refresh();
     },
     openSession: port.openSession,
@@ -189,8 +189,8 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     runId: port.getRunId,
     editingMessageId: port.getEditingMessageId,
     clearEditing: () => port.setEditingMessageId(undefined),
-    echoUser: (messageId, text, annotations) => {
-      echoUser(messageId, text, annotations);
+    echoUser: (messageId, text, annotations, attachments) => {
+      echoUser(messageId, text, annotations, attachments);
       port.refresh();
     },
     removeEcho: (messageId) => {

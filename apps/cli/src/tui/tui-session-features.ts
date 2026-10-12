@@ -29,7 +29,7 @@ export type TuiSessionFeaturesPort = {
   onNotice: (tone: 'info' | 'error', text: string) => void;
   onError: (error: unknown) => void;
   /** Show a user turn this shell did not type just now (a queued turn starting). */
-  echoUser: (messageId: string, text: string, annotations: string[]) => void;
+  echoUser: (messageId: string, text: string, annotations: string[], attachments?: readonly unknown[]) => void;
   setComposerText: (text: string) => void;
 };
 
@@ -56,14 +56,14 @@ export class TuiSessionFeatures {
       getRunId: port.getRunId,
       // The steer waits in the strip; it reaches the transcript once applied.
       onSteered: (_turn, intervention) => this.interventions.adopt(intervention),
-      onStarted: (turn) => port.echoUser(turn.userMessageId, turn.input.text, describePromptExtras(turn.input)),
+      onStarted: (turn) => port.echoUser(turn.userMessageId, turn.input.text, describePromptExtras(turn.input), turn.input.attachments),
       onEdit: port.setComposerText,
     });
     this.interventions = new TuiInterventionTracker({
       ...base,
       getRunId: port.getRunId,
       onApplied: (intervention, annotations) =>
-        port.echoUser(intervention.userMessageId, intervention.input.text, annotations),
+        port.echoUser(intervention.userMessageId, intervention.input.text, annotations, intervention.input.attachments),
       requeue: (sessionId, input) => this.queue.submit(sessionId, { ...input }, randomUUID()),
     });
     this.branches = new TuiBranchController({ ...base, reloadSession: port.openSession });
