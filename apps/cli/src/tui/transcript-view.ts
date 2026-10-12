@@ -11,6 +11,7 @@ import type {
 } from './transcript-model.js';
 import { formatByteSize, splitMessageArtifacts, type TranscriptArtifact } from './artifact-export.js';
 import { TranscriptMarkdown } from './transcript-markdown.js';
+import { renderFileChange } from './diff-view.js';
 import { describeToolError } from './tool-error-view.js';
 import { shortenPaths } from './tool-path-display.js';
 import { style } from './tui-theme.js';
@@ -197,6 +198,9 @@ function renderTool(tool: TranscriptTool, width: number, expanded: boolean, path
   const lines = [truncateToWidth(head, width)];
   if (presentation?.error !== undefined) {
     lines.push(...renderPrefixed('   ', style.red(describeToolError(presentation.error)), width));
+  }
+  if (presentation?.fileChange !== undefined) {
+    lines.push(...renderFileChange(presentation.fileChange, width, expanded));
   }
   const output = presentation?.output?.text ?? tool.output;
   if (output.trim().length > 0 && (expanded || tool.status === 'running')) {

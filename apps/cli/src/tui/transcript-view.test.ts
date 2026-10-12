@@ -71,3 +71,40 @@ describe('TranscriptView artifacts', () => {
     expect(text).not.toContain('secret-body');
   });
 });
+
+describe('TranscriptView edit diffs', () => {
+  it('shows the diff under an edit tool, folded until tool output is expanded', () => {
+    const view = new TranscriptView();
+    const state = assistantWithThinking(0);
+    const entry = state.entries[0] as TranscriptMessageEntry;
+    const patch = `@@ -1 +1,9 @@\n-a\n${Array.from({ length: 9 }, (_, index) => `+b${index}`).join('\n')}\n`;
+    view.setState({
+      ...state,
+      entries: [
+        {
+          ...entry,
+          tools: [
+            {
+              toolCallId: 't1',
+              toolName: 'edit',
+              status: 'done',
+              output: '',
+              presentation: {
+                kind: 'filesystem',
+                title: 'Edit',
+                fileChange: { path: 'x.ts', status: 'modified', additions: 9, deletions: 1, binary: false, patch },
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const folded = render(view);
+    expect(folded).toContain('修改 x.ts +9 −1');
+    expect(folded).toContain('还有 5 行 · Ctrl+O 展开');
+    expect(folded).not.toContain('+b8');
+    view.toggleToolOutput();
+    view.invalidate();
+    expect(render(view)).toContain('+b8');
+  });
+});
