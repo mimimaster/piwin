@@ -1,5 +1,4 @@
 import {
-  Markdown,
   truncateToWidth,
   wrapTextWithAnsi,
   type Component,
@@ -11,9 +10,10 @@ import type {
   TranscriptTool,
 } from './transcript-model.js';
 import { formatByteSize, splitMessageArtifacts, type TranscriptArtifact } from './artifact-export.js';
+import { TranscriptMarkdown } from './transcript-markdown.js';
 import { describeToolError } from './tool-error-view.js';
 import { shortenPaths } from './tool-path-display.js';
-import { markdownTheme, style } from './tui-theme.js';
+import { style } from './tui-theme.js';
 
 const TOOL_OUTPUT_PREVIEW_LINES = 8;
 /** Reasoning can run to pages; the answer is what the reader came for. */
@@ -33,7 +33,7 @@ export class TranscriptView implements Component {
   private toolOutputExpanded = false;
   private readonly cache = new Map<string, CachedEntry>();
   /** Markdown renderers per message (one per run between artifacts) keep their parse cache across deltas. */
-  private readonly markdownById = new Map<string, Markdown[]>();
+  private readonly markdownById = new Map<string, TranscriptMarkdown[]>();
   private pathRoots: string[] = [];
 
   public constructor(private readonly embedded = false) {}
@@ -137,7 +137,7 @@ export class TranscriptView implements Component {
       }
       let markdown = renderers[markdownIndex];
       if (markdown === undefined) {
-        markdown = new Markdown(segment.text, 1, 0, markdownTheme);
+        markdown = new TranscriptMarkdown(segment.text, 1);
         renderers[markdownIndex] = markdown;
       } else {
         markdown.setText(segment.text);
