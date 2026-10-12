@@ -1,16 +1,31 @@
 import type { SessionRunPhase } from '@piwin/contracts';
 import { truncateToWidth, type Component } from '@earendil-works/pi-tui';
 
-/** One-line footer under the editor; clipped, never wrapped. */
+const ANSI = /\x1b\[[0-9;]*m/g;
+
+export type StatusLineContent = {
+  /** What needs attention; drawn on its own line above the status line. */
+  alerts: readonly string[];
+  /** The status line for a width (it picks its tier and drops fields to fit). */
+  line: (width: number) => string;
+};
+
+/** Footer under the editor: an optional alerts line, then the status line. Clipped, never wrapped. */
 export class StatusLine implements Component {
-  private text = '';
+  private content: StatusLineContent = { alerts: [], line: () => '' };
+  private lastWidth = 120;
 
   public setText(text: string): void {
-    this.text = text;
+    this.content = { alerts: [], line: () => text };
   }
 
+  public setContent(content: StatusLineContent): void {
+    this.content = content;
+  }
+
+  /** Both lines as plain text, at the last drawn width. */
   public getText(): string {
-    return this.text;
+    return [...this.content.alerts, this.content.line(this.lastWidth - 1)].filter((part) => part.length > 0).join(' · ').replace(ANSI, '');
   }
 
   public invalidate(): void {
@@ -18,7 +33,11 @@ export class StatusLine implements Component {
   }
 
   public render(width: number): string[] {
-    return [truncateToWidth(` ${this.text}`, width)];
+    this.lastWidth = width;
+    const lines: string[] = [];
+    if (this.content.alerts.length > 0) lines.push(truncateToWidth(` ${this.content.alerts.join(' · ')}`, width));
+    lines.push(truncateToWidth(` ${this.content.line(Math.max(1, width - 1))}`, width));
+    return lines;
   }
 }
 

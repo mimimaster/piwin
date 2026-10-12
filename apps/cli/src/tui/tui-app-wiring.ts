@@ -239,6 +239,8 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     getSessionId: port.getSessionId,
     getContext: port.getContext,
     describeModel: () => composer.describeModelAndThinking(),
+    request: (command) => port.link.request(command),
+    onChanged: port.refresh,
   });
   const rewind = new TuiRewindController({
     modals: port.modals,

@@ -677,7 +677,13 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
                 : {}),
             })}
           />
-          <ComposerStatsLine totals={sessionUsageTotals} locale={props.locale} />
+          <ComposerStatsLine
+            totals={sessionUsageTotals}
+            lastRequest={contextRingView.lastRequest}
+            locale={props.locale}
+            contextView={contextRingView}
+            isRunning={state.streaming}
+          />
         </div>
         {!state.hostReady ? (
           <div className="conversation-pane-connection" role="status">

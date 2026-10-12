@@ -1,7 +1,8 @@
 /**
  * Context occupancy ring. Renders selector output only — no occupancy math.
  */
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { formatCompactTokens } from '@piwin/contracts';
 import { IconButton, Popover } from '@piwin/ui-kit';
 import { IconChevronRight, IconClose } from './shell-icons';
 import { ConversationUsageDetails, contextUsageTone } from './conversation-usage-details.js';
@@ -37,7 +38,37 @@ export function formatCacheCountdown(totalSeconds: number): string {
 export type ContextUsageRingProps = {
   view: ContextRingViewModel;
   onOpenModelSettings?: () => void;
+  /** `bar`: the status bar's thin bar with numbers; same popover. */
+  variant?: 'ring' | 'bar';
+  /** Extra controls at the bottom of the popover. */
+  footerExtra?: ReactNode;
 };
+
+function ContextUsageBarTrigger(props: { view: ContextRingViewModel }): ReactElement {
+  const { view } = props;
+  const zh = view.locale === 'zh-CN';
+  if (view.compacting) {
+    return <span className="context-usage-bar-status">{zh ? '⟳ 压缩中' : '⟳ compacting'}</span>;
+  }
+  if (view.numericHidden || view.percentText === undefined) {
+    return <span className="context-usage-bar-status">ctx …</span>;
+  }
+  const estimated = view.quality !== 'measured' || view.occupancySource === 'last-confirmed';
+  return (
+    <>
+      <span className="context-usage-bar-label">ctx</span>
+      <span className="context-usage-bar-track" aria-hidden>
+        <span className="context-usage-bar-fill" style={{ width: `${Math.min(100, Math.max(0, view.arcRatio * 100))}%` }} />
+      </span>
+      <span className="context-usage-bar-percent">{`${estimated ? '~' : ''}${view.percentText}%`}</span>
+      {view.tokensUsed !== undefined && view.tokensLimit !== undefined ? (
+        <span className="context-usage-bar-amount">
+          {`${formatCompactTokens(view.tokensUsed)}/${formatCompactTokens(view.tokensLimit)}`}
+        </span>
+      ) : null}
+    </>
+  );
+}
 
 export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | null {
   const { view } = props;
@@ -82,7 +113,7 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
 
   return (
     <div
-      className="context-usage-ring-root"
+      className={`context-usage-ring-root${props.variant === 'bar' ? ' is-bar' : ''}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -95,6 +126,18 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
         testId="context-usage-popover"
         contentClassName="context-usage-popover"
         trigger={
+          props.variant === 'bar' ? (
+            <button
+              type="button"
+              className={`context-usage-bar tone-${tone}${open ? ' open' : ''}`}
+              data-testid="context-usage-bar"
+              aria-label={view.labels.accessibleLabel}
+              onFocus={() => setHovered(true)}
+              onBlur={() => setHovered(false)}
+            >
+              <ContextUsageBarTrigger view={view} />
+            </button>
+          ) : (
           <button
             type="button"
             className={`context-usage-ring tone-${tone}${open ? ' open' : ''}`}
@@ -132,6 +175,7 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
               </svg>
             )}
           </button>
+          )
         }
       >
         <header className="context-usage-popover-header">
@@ -144,6 +188,7 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
           view={view}
           {...(cacheEstimate !== undefined ? { cacheEstimate } : {})}
         />
+        {props.footerExtra}
         {props.onOpenModelSettings ? (
           <footer className="context-usage-popover-footer">
             <button

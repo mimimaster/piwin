@@ -1,12 +1,14 @@
-/* Composer stats line — one muted row under the composer card:
-   Pi extension status on the left, session stats on the right (ADR 0080). */
+/* Composer status bar — one muted row under the composer card, three sections:
+   extension status │ this turn │ resources (context bar first). Container
+   queries hide lower-priority items as the pane narrows (ADR 0080). */
 
 .composer-stats-line {
+  container-type: inline-size;
+  container-name: composer-status;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
   align-items: center;
-  gap: var(--s-3);
+  gap: var(--s-4);
+  min-height: 22px;
   margin-block-start: var(--s-2);
   padding-inline: calc(var(--s-4) + 1px);
   color: var(--text-3);
@@ -23,27 +25,71 @@
 }
 
 .composer-stats-extensions,
-.composer-stats-metrics {
+.composer-stats-turn,
+.composer-stats-resources {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
   min-width: 0;
-  flex-wrap: wrap;
+  white-space: nowrap;
 }
 
-.composer-stats-metrics {
-  margin-inline-start: auto;
+.composer-stats-extensions {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.composer-stats-turn,
+.composer-stats-resources {
+  flex: 0 0 auto;
+}
+
+/* Section divider: a hairline before the turn and the resources. */
+.composer-stats-turn::before,
+.composer-stats-resources::before {
+  content: '';
+  width: 1px;
+  height: 11px;
+  margin-inline-end: var(--s-2);
+  background: var(--line-2, var(--text-3));
+  opacity: 0.5;
+}
+
+.composer-stats-extensions:empty + .composer-stats-turn::before,
+.composer-stats-extensions:empty + .composer-stats-resources::before {
+  display: none;
 }
 
 .composer-stats-item {
   display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
+  align-items: baseline;
+  gap: 4px;
   min-width: 0;
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.composer-stats-label {
+  opacity: 0.75;
+}
+
+.composer-stats-value {
+  color: var(--text-2);
+}
+
+.composer-stats-item.tone-warn .composer-stats-value {
+  color: var(--amber);
+}
+
+.composer-stats-item.tone-critical .composer-stats-value {
+  color: var(--coral);
+  font-weight: 600;
+}
+
+.composer-stats-item.is-running {
+  align-items: center;
 }
 
 .composer-stats-separator {
@@ -53,6 +99,73 @@
 
 .composer-stats-item.is-extension {
   color: var(--text-2);
+}
+
+/* Context bar: the status bar's context indicator, opening the usage popover. */
+.context-usage-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 6px;
+  margin-inline: -6px 0;
+  border: 0;
+  border-radius: var(--r-control, 6px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.context-usage-bar:hover,
+.context-usage-bar.open {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.context-usage-bar-track {
+  position: relative;
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-1, rgba(127, 127, 127, 0.25));
+  overflow: hidden;
+}
+
+.context-usage-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--text-2);
+}
+
+.context-usage-bar-percent {
+  color: var(--text-2);
+}
+
+.context-usage-bar.tone-warn .context-usage-bar-fill { background: var(--amber); }
+.context-usage-bar.tone-warn .context-usage-bar-percent { color: var(--amber); }
+.context-usage-bar.tone-critical .context-usage-bar-fill { background: var(--coral); }
+.context-usage-bar.tone-critical .context-usage-bar-percent { color: var(--coral); font-weight: 600; }
+
+.composer-stats-cost-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-5) var(--s-4);
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  cursor: pointer;
+}
+
+/* Medium: drop tokens, cache and cost. Narrow: also the turn, and the bar's amounts. */
+@container composer-status (max-width: 560px) {
+  .composer-stats-line .priority-3 { display: none; }
+}
+
+@container composer-status (max-width: 400px) {
+  .composer-stats-line .priority-2,
+  .composer-stats-turn,
+  .context-usage-bar-amount { display: none; }
 }
 
 .composer-stats-pulse-dot {

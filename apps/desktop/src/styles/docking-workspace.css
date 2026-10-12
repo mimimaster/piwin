@@ -137,16 +137,9 @@
 }
 
 .docking-workspace:not(.is-single-pane) .conversation-pane-composer .composer-stats-extensions,
-.docking-workspace:not(.is-single-pane) .conversation-pane-composer .composer-stats-metrics,
-.docking-workspace:not(.is-single-pane) .composer-dock.layout-docked .composer-stats-extensions,
-.docking-workspace:not(.is-single-pane) .composer-dock.layout-docked .composer-stats-metrics {
+.docking-workspace:not(.is-single-pane) .composer-dock.layout-docked .composer-stats-extensions {
   flex-wrap: nowrap;
   overflow: hidden;
-}
-
-.docking-workspace:not(.is-single-pane) .conversation-pane-composer .composer-stats-item,
-.docking-workspace:not(.is-single-pane) .composer-dock.layout-docked .composer-stats-item {
-  display: block;
 }
 
 .docking-workspace:not(.is-single-pane) .conversation-pane-composer .composer-stats-pulse-dot,

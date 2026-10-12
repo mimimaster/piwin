@@ -49,7 +49,7 @@ export type TuiHarnessOptions = {
   /** Register a throwaway project and start the TUI inside it. */
   project?: boolean;
   /** The person's own keys and status line. */
-  config?: Pick<TuiConfig, 'keybindings' | 'statusTemplate'>;
+  config?: Partial<Pick<TuiConfig, 'keybindings' | 'statusTemplates' | 'showCost'>>;
   /** Mock runs that never finish until interrupted. */
   hangingRuns?: boolean;
   embedded?: boolean;

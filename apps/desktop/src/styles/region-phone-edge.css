@@ -52,9 +52,12 @@ html:has(.app-shell[data-layout='phone']) body,
   padding: 4px 10px 6px;
 }
 
-/* Turn/step/token counters are an operator read-out; on a phone that line
-   costs a row of transcript. The context ring in the toolbar stays. */
-.app-shell[data-layout='phone'] .composer-dock.layout-docked > .composer-stats-line {
+/* Turn and token counters are an operator read-out; on a phone only the
+   context bar stays, so the line costs as little transcript as possible. */
+.app-shell[data-layout='phone'] .composer-dock.layout-docked > .composer-stats-line .composer-stats-extensions,
+.app-shell[data-layout='phone'] .composer-dock.layout-docked > .composer-stats-line .composer-stats-turn,
+.app-shell[data-layout='phone'] .composer-dock.layout-docked > .composer-stats-line .composer-stats-item,
+.app-shell[data-layout='phone'] .composer-dock.layout-docked > .composer-stats-line .composer-stats-separator {
   display: none;
 }
 

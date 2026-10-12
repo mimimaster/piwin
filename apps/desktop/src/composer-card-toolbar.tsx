@@ -10,7 +10,6 @@ import { OrchestrationSchemeControl } from './OrchestrationSchemeControl';
 import { IconMic, IconPlus } from './shell-icons';
 import { LiveComposerButton } from './live/LiveComposerButton.js';
 import { ComposerActionSlot } from './composer-run-actions';
-import { ComposerContextUsageControl } from './composer-context-controls';
 import type { ComposerDockProps } from './composer-dock-types';
 import type { getDesktopCopy } from './desktop-locale';
 import type { useSpeechInput } from './hooks/use-speech-input.js';
@@ -274,15 +273,7 @@ export function ComposerCardToolbar({
           />
         ) : null}
 
-        {/* Context usage ring */}
-        {props.contextRingView ? (
-          <ComposerContextUsageControl
-            view={props.contextRingView}
-            {...(props.onOpenModelSettings
-              ? { onOpenModelSettings: props.onOpenModelSettings }
-              : {})}
-          />
-        ) : null}
+        {/* Context usage lives in the status bar under the composer card. */}
 
         <ComposerActionSlot
           copy={copy}
