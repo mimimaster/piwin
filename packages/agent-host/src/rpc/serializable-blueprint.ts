@@ -62,11 +62,19 @@ export type SerializableBlueprint = {
 /** Provider runtime envelope (Phase 7 plan §6): worker must not resolve secrets itself. */
 export type SerializableProviderRuntime = {
   providerId: string;
-  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock';
   /** Pi chat transport; omitted means the protocol default (Chat Completions for OpenAI). */
   chatApi?: import('@piwin/contracts').ProviderChatApi;
   baseUrl?: string;
   headers?: Record<string, string>;
+  /** Vertex project/location/credentialsFile or Bedrock region/profile (no secrets). */
+  cloud?: {
+    project?: string;
+    location?: string;
+    credentialsFile?: string;
+    region?: string;
+    profile?: string;
+  };
   models: Array<{
     id: string;
     label?: string;
@@ -81,7 +89,7 @@ export type SerializableProviderRuntime = {
      * protocol. Both are present together; the worker never re-derives them,
      * and the provider `chatApi` does not apply to such a model.
      */
-    protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+    protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock';
     baseUrl?: string;
     /**
      * ADR 0082: Host-resolved `developer` vs `system` role for the system

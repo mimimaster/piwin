@@ -145,6 +145,9 @@ export async function delegateImageToVisionModel(request: VisionDelegateRequest)
           signal: timeoutController.signal,
           fetchImpl,
         });
+      case 'google-vertex':
+      case 'amazon-bedrock':
+        throw new Error(`vision delegation is not available for ${protocol}; use a native image-capable model`);
       default: {
         const exhaustive: never = protocol;
         throw new Error(`vision delegation unsupported protocol: ${String(exhaustive)}`);

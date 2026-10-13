@@ -6,7 +6,8 @@
  * test means Pi's runtime request goes to the same place.
  */
 import type { ModelProviderConfig, ProviderChatApi } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import { formatError, isCloudCredentialProtocol } from '@piwin/contracts';
+import { completeModelText } from '@piwin/agent-host';
 import {
   ProviderModelDiscoveryError,
   buildProviderRequestHeaders,
@@ -24,6 +25,8 @@ const RESPONSES_MIN_OUTPUT_TOKENS = 16;
 
 export type ProviderModelTestDependencies = {
   fetch?: typeof globalThis.fetch;
+  /** Pi SDK completion used for Vertex / Bedrock (no plain HTTP endpoint). */
+  completeModelText?: typeof completeModelText;
   resolveSecret: (provider: ModelProviderConfig) => Promise<string | null>;
 };
 
@@ -45,6 +48,10 @@ export async function testProviderModel(
   const normalizedModelId = modelId.trim();
   if (!normalizedModelId) {
     throw new ProviderModelDiscoveryError('Model test requires a model ID');
+  }
+
+  if (isCloudCredentialProtocol(provider.protocol)) {
+    return testCloudProviderModel(provider, normalizedModelId, dependencies);
   }
 
   const fetchImplementation = dependencies.fetch ?? globalThis.fetch;
@@ -113,6 +120,9 @@ function buildModelTestRequest(
   }
 
   switch (chatApi) {
+    case 'google-vertex':
+    case 'bedrock-converse-stream':
+      throw new ProviderModelDiscoveryError(`Model test: ${chatApi} is tested through Pi`);
     case 'google-generative-ai':
       return {
         endpoint,
@@ -151,4 +161,53 @@ function buildModelTestRequest(
         },
       };
   }
+}
+
+/**
+ * Vertex / Bedrock: one tiny completion through Pi's own transport, so ADC /
+ * AWS-chain auth, project/location and region are exercised exactly as in chat.
+ */
+async function testCloudProviderModel(
+  provider: ModelProviderConfig,
+  modelId: string,
+  dependencies: ProviderModelTestDependencies,
+): Promise<ProviderModelTestResult> {
+  const complete = dependencies.completeModelText ?? completeModelText;
+  const apiKey = (await dependencies.resolveSecret(provider)) ?? undefined;
+  const signal = AbortSignal.timeout(MODEL_TEST_TIMEOUT_MS);
+  const startedAt = Date.now();
+  const chatApi = resolveEffectiveChatApi(provider);
+  try {
+    await complete(
+      {
+        model: { providerId: provider.id, modelId },
+        systemPrompt: 'Reply with the single word: pong',
+        userPrompt: 'ping',
+        maxOutputTokens: 256,
+        signal,
+      },
+      { provider, ...(apiKey ? { apiKey } : {}) },
+    );
+  } catch (error) {
+    if (signal.aborted) {
+      throw new ProviderModelDiscoveryError('Model test timed out after 20 seconds', {
+        kind: 'timeout',
+      });
+    }
+    throw new ProviderModelDiscoveryError(
+      `Model test failed: ${formatError(error)} (check ${
+        provider.protocol === 'google-vertex'
+          ? 'gcloud ADC login, project and location'
+          : 'AWS credentials, region and model access'
+      })`,
+      { kind: 'network' },
+    );
+  }
+  return {
+    providerId: provider.id,
+    modelId,
+    durationMs: Date.now() - startedAt,
+    chatApi,
+    endpoint: provider.protocol,
+  };
 }

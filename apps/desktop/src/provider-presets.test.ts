@@ -84,7 +84,7 @@ describe('provider-presets', () => {
 
   it('only uses supported protocol adapters', () => {
     for (const preset of PROVIDER_PRESETS) {
-      expect(['openai-compatible', 'anthropic-compatible', 'google-gemini']).toContain(
+      expect(['openai-compatible', 'anthropic-compatible', 'google-gemini', 'google-vertex', 'amazon-bedrock']).toContain(
         preset.protocol,
       );
     }

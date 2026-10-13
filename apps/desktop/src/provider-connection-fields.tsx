@@ -123,7 +123,44 @@ export function ProviderConnectionFields({
     });
   }
 
-  const keyHint = hasStoredKey
+  const isVertex = draft.protocol === 'google-vertex';
+  const isBedrock = draft.protocol === 'amazon-bedrock';
+  const isCloud = isVertex || isBedrock;
+
+  function cloudField(
+    key: 'project' | 'location' | 'credentialsFile' | 'region' | 'profile',
+    label: string,
+    placeholder: string,
+    hint?: string,
+  ): ReactElement {
+    return (
+      <FieldRow label={label} htmlFor={`${fieldId}-${key}`} {...(hint ? { hint } : {})}>
+        <TextInput
+          id={`${fieldId}-${key}`}
+          testId={`provider-${key}-input`}
+          value={draft[key] ?? ''}
+          onChange={(event) => onDraftChange({ ...draft, [key]: event.currentTarget.value })}
+          placeholder={placeholder}
+          spellCheck={false}
+          autoComplete="off"
+          disabled={saving}
+          className="pconn-mono"
+        />
+      </FieldRow>
+    );
+  }
+
+  const cloudKeyHint = isVertex
+    ? isChinese
+      ? '可选。留空使用 gcloud 登录（ADC），令牌自动刷新；填入则用 Vertex API 密钥。'
+      : 'Optional. Empty uses gcloud ADC with auto refresh; a key uses Vertex express mode.'
+    : isChinese
+      ? '可选。留空使用 AWS 凭证链（环境变量、Profile、SSO）；填入则用 Bedrock API 密钥。'
+      : 'Optional. Empty uses the AWS credential chain (env, profile, SSO); a key uses a Bedrock API key.';
+
+  const keyHint = isCloud && !hasStoredKey
+    ? cloudKeyHint
+    : hasStoredKey
     ? isChinese
       ? '密钥保存在 Host 钥匙串，不写入配置文件。留空保持不变，填入新值会覆盖。'
       : 'Stored in the Host keychain, never in config. Leave blank to keep it, or paste a new key to replace it.'
@@ -157,7 +194,11 @@ export function ProviderConnectionFields({
               placeholder={
                 hasStoredKey
                   ? '••••••••••••'
-                  : isChinese
+                  : isCloud
+                    ? isChinese
+                      ? '可选'
+                      : 'Optional'
+                    : isChinese
                     ? 'sk-…（本地服务可留空）'
                     : 'sk-… (local servers may leave empty)'
               }
@@ -202,18 +243,48 @@ export function ProviderConnectionFields({
         </div>
       </FieldRow>
 
-      <FieldRow label={copy.apiAddress} htmlFor={`${fieldId}-url`}>
-        <TextInput
-          id={`${fieldId}-url`}
-          testId="provider-baseurl-input"
-          value={draft.baseUrl}
-          onChange={(event) => onDraftChange({ ...draft, baseUrl: event.currentTarget.value })}
-          spellCheck={false}
-          placeholder="https://api.example.com/v1"
-          disabled={saving}
-          className="pconn-mono"
-        />
-      </FieldRow>
+      {isVertex ? (
+        <>
+          {cloudField('project', isChinese ? '项目' : 'Project', 'my-gcp-project')}
+          {cloudField(
+            'location',
+            isChinese ? '区域' : 'Location',
+            'global',
+            isChinese ? '留空为 global；也可填 us-central1 等。' : 'Empty = global, or e.g. us-central1.',
+          )}
+        </>
+      ) : null}
+      {isBedrock ? (
+        <>
+          {cloudField(
+            'region',
+            isChinese ? '区域' : 'Region',
+            'us-east-1',
+            isChinese ? '留空用 AWS_REGION，否则 us-east-1。' : 'Empty = AWS_REGION, else us-east-1.',
+          )}
+          {cloudField(
+            'profile',
+            'Profile',
+            'default',
+            isChinese ? '~/.aws/config 中的配置名，支持 SSO；留空用默认凭证链。' : 'Named profile in ~/.aws/config (SSO ok). Empty = default chain.',
+          )}
+        </>
+      ) : null}
+
+      {isCloud ? null : (
+        <FieldRow label={copy.apiAddress} htmlFor={`${fieldId}-url`}>
+          <TextInput
+            id={`${fieldId}-url`}
+            testId="provider-baseurl-input"
+            value={draft.baseUrl}
+            onChange={(event) => onDraftChange({ ...draft, baseUrl: event.currentTarget.value })}
+            spellCheck={false}
+            placeholder="https://api.example.com/v1"
+            disabled={saving}
+            className="pconn-mono"
+          />
+        </FieldRow>
+      )}
 
       <div className="pconn-row">
         <span className="pconn-label" />
@@ -233,6 +304,32 @@ export function ProviderConnectionFields({
 
       {advancedOpen ? (
         <div className="pconn-advanced-body" data-testid="provider-headers">
+          {isVertex
+            ? cloudField(
+                'credentialsFile',
+                isChinese ? '服务账号 JSON' : 'Service account JSON',
+                '~/key.json',
+                isChinese ? '可选。留空用 gcloud ADC / GOOGLE_APPLICATION_CREDENTIALS。' : 'Optional. Empty = gcloud ADC / GOOGLE_APPLICATION_CREDENTIALS.',
+              )
+            : null}
+          {isCloud ? (
+            <FieldRow
+              label={copy.apiAddress}
+              htmlFor={`${fieldId}-url`}
+              hint={isChinese ? '可选，自定义端点（VPC / 代理）。留空用官方端点。' : 'Optional custom endpoint (VPC / proxy). Empty = official.'}
+            >
+              <TextInput
+                id={`${fieldId}-url`}
+                testId="provider-baseurl-input"
+                value={draft.baseUrl}
+                onChange={(event) => onDraftChange({ ...draft, baseUrl: event.currentTarget.value })}
+                spellCheck={false}
+                placeholder={isVertex ? 'https://aiplatform.googleapis.com' : 'https://bedrock-runtime.us-east-1.amazonaws.com'}
+                disabled={saving}
+                className="pconn-mono"
+              />
+            </FieldRow>
+          ) : null}
           {chatApiChoicesForProtocol(draft.protocol).length > 1 ? (
             <FieldRow
               label={isChinese ? '对话协议' : 'Chat API'}

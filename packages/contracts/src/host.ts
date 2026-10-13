@@ -329,7 +329,7 @@ export type SessionPresentation = {
   cardIds: string[];
 };
 
-export type ModelProtocol = 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+export type ModelProtocol = 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock';
 
 export type ModelRef = {
   providerId: string;

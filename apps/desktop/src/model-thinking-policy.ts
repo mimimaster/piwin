@@ -18,6 +18,8 @@ export const DEFAULT_THINKING_LEVELS_BY_PROTOCOL: Record<
   'openai-compatible': ['low', 'medium', 'high', 'xhigh'],
   'anthropic-compatible': ['low', 'medium', 'high', 'max'],
   'google-gemini': ['low', 'medium', 'high'],
+  'google-vertex': ['low', 'medium', 'high'],
+  'amazon-bedrock': ['low', 'medium', 'high'],
 };
 
 export function inferProtocolForThinking(

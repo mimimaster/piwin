@@ -95,6 +95,8 @@ const SUPPORTED_WALKTHROUGH_PROTOCOLS: readonly NonNullable<ModelRef['protocol']
   'openai-compatible',
   'anthropic-compatible',
   'google-gemini',
+  'google-vertex',
+  'amazon-bedrock',
 ];
 
 export function createDefaultWalkthroughConfig(): WalkthroughConfig {

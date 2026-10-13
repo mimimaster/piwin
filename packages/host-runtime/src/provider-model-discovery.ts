@@ -110,6 +110,13 @@ export async function discoverProviderModels(
   provider: ModelProviderConfig,
   dependencies: ProviderModelDiscoveryDependencies,
 ): Promise<ModelDiscoveryResult> {
+  if (provider.protocol === 'google-vertex' || provider.protocol === 'amazon-bedrock') {
+    // Listing needs ADC / SigV4; models are added by ID (catalog-unavailable, not an error).
+    throw new ProviderModelDiscoveryError(
+      `${provider.protocol === 'google-vertex' ? 'Vertex AI' : 'Amazon Bedrock'} has no model list here; add model IDs manually`,
+      { kind: 'invalid-response' },
+    );
+  }
   const fetchImplementation = dependencies.fetch ?? globalThis.fetch;
   if (!fetchImplementation) {
     throw new ProviderModelDiscoveryError('Model discovery is unavailable: fetch is not supported');
