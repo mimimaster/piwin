@@ -13,6 +13,10 @@
  * `piBuiltinToolNames` when present).
  */
 
+import {
+  resolveCloudStreamOptions,
+  wrapStreamSimpleWithCloudOptions,
+} from '../cloud-provider-stream.js';
 import { join } from 'node:path';
 import { selectPiPromptText, type PiExtensionCommandSession } from '../pi-extension-command.js';
 import { readFile } from 'node:fs/promises';
@@ -289,11 +293,15 @@ export function buildWorkerProviderRegistration(
       ...(provider.headers ? { headers: provider.headers } : {}),
     };
   });
+  const cloud = resolveCloudStreamOptions(
+    { ...(provider.protocol ? { protocol: provider.protocol } : {}), ...provider.cloud },
+    apiKey,
+  );
   const registration: ReturnType<typeof buildPiProviderRegistration> = {
     name: provider.providerId,
     baseUrl: provider.baseUrl ?? '',
     api,
-    authHeader: Boolean(apiKey || provider.auth.kind !== 'none'),
+    authHeader: cloud ? false : Boolean(apiKey || provider.auth.kind !== 'none'),
     models,
   };
   if (apiKey) {
@@ -310,7 +318,9 @@ export function buildWorkerProviderRegistration(
     ...(streamSimple === undefined ? {} : { streamSimple }),
   });
   if (resolvedStream) {
-    registration.streamSimple = resolvedStream;
+    registration.streamSimple = cloud
+      ? wrapStreamSimpleWithCloudOptions(resolvedStream, cloud)
+      : resolvedStream;
   }
   return registration;
 }

@@ -360,7 +360,9 @@ function parseModelRef(value: unknown): ModelRef | null {
     if (
       value.protocol !== 'openai-compatible' &&
       value.protocol !== 'anthropic-compatible' &&
-      value.protocol !== 'google-gemini'
+      value.protocol !== 'google-gemini' &&
+      value.protocol !== 'google-vertex' &&
+      value.protocol !== 'amazon-bedrock'
     ) {
       return null;
     }

@@ -67,6 +67,8 @@ function addressOf(url: string): string {
 function protocolLabel(protocol: ProviderDraft['protocol'], isChinese: boolean): string {
   if (protocol === 'anthropic-compatible') return isChinese ? 'Anthropic 兼容' : 'Anthropic-compatible';
   if (protocol === 'google-gemini') return 'Gemini';
+  if (protocol === 'google-vertex') return 'Vertex AI';
+  if (protocol === 'amazon-bedrock') return 'Bedrock';
   return isChinese ? 'OpenAI 兼容' : 'OpenAI-compatible';
 }
 
@@ -110,7 +112,11 @@ export function ProviderDetail({
               <>
                 <span className="pdetail-chip">{protocolLabel(draft.protocol, isChinese)}</span>
                 <span className="pdetail-host" title={draft.baseUrl}>
-                  {addressOf(draft.baseUrl)}
+                  {draft.protocol === 'google-vertex'
+                    ? [draft.project, draft.location || 'global'].filter(Boolean).join(' · ')
+                    : draft.protocol === 'amazon-bedrock'
+                      ? [draft.region || 'us-east-1', draft.profile].filter(Boolean).join(' · ')
+                      : addressOf(draft.baseUrl)}
                 </span>
                 {isNew ? null : (
                   <span

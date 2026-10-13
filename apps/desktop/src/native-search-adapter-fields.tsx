@@ -52,6 +52,10 @@ function protocolName(protocol: ModelProviderConfig['protocol']): string {
       return 'Anthropic';
     case 'google-gemini':
       return 'Gemini';
+    case 'google-vertex':
+      return 'Vertex AI';
+    case 'amazon-bedrock':
+      return 'Bedrock';
   }
 }
 

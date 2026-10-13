@@ -339,7 +339,7 @@ function toStringArrayMap(
  */
 export type VideoGenerationRegistryEntry = {
   /** Optional protocol filter; omit means any protocol. */
-  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock';
   /** Canonical model id. */
   modelId: string;
   /** Case-insensitive aliases matched against discovered / configured ids. */
@@ -355,7 +355,7 @@ export type VideoGenerationRegistryEntry = {
 };
 
 export type ImageGenerationRegistryEntry = {
-  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock';
   modelId: string;
   aliases?: readonly string[];
   prefix?: boolean;
@@ -538,7 +538,7 @@ export type ImageGenerationLookupResult = {
 };
 
 type GenerationRegistryEntry = {
-  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock';
   modelId: string;
   aliases?: readonly string[];
   prefix?: boolean;
@@ -579,7 +579,7 @@ function matchRegistryCandidate(
 function lookupGenerationRegistry<T extends GenerationRegistryEntry>(
   registry: readonly T[],
   modelId: string,
-  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini',
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock',
 ): { entry: T; matchedId: string; matchKind: 'exact' | 'alias' | 'prefix' } | undefined {
   const trimmed = modelId.trim();
   if (!trimmed) return undefined;
@@ -614,7 +614,7 @@ function lookupGenerationRegistry<T extends GenerationRegistryEntry>(
  */
 export function lookupVideoGenerationRegistry(
   modelId: string,
-  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini',
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock',
 ): VideoGenerationLookupResult | undefined {
   return lookupGenerationRegistry(VIDEO_GENERATION_MODEL_REGISTRY, modelId, protocol);
 }
@@ -622,7 +622,7 @@ export function lookupVideoGenerationRegistry(
 /** Look up the working image wire format by model id, not channel protocol. */
 export function lookupImageGenerationRegistry(
   modelId: string,
-  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini',
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock',
 ): ImageGenerationLookupResult | undefined {
   return lookupGenerationRegistry(IMAGE_GENERATION_MODEL_REGISTRY, modelId, protocol);
 }

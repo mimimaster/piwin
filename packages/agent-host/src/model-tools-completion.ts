@@ -6,6 +6,7 @@
  */
 import { join } from 'node:path';
 import type { ModelProviderConfig } from '@piwin/contracts';
+import { isCloudCredentialProtocol } from '@piwin/contracts';
 import { buildPiProviderRegistration } from './pi-model-runtime.js';
 import { resolvePiRuntimeAgentDir } from './pi-runtime-agent-dir.js';
 
@@ -70,12 +71,16 @@ export async function completeModelTools(
   });
   input.signal.throwIfAborted();
   const provider = options.provider;
-  if (provider && isHttpBaseUrl(provider.baseUrl)) {
-    const { streamSimple: _stream, ...registration } = buildPiProviderRegistration(
+  const cloudProvider = isCloudCredentialProtocol(provider?.protocol);
+  if (provider && (cloudProvider || isHttpBaseUrl(provider.baseUrl))) {
+    const { streamSimple, ...registration } = buildPiProviderRegistration(
       provider,
       options.apiKey,
     );
-    runtime.registerProvider(provider.id, registration);
+    runtime.registerProvider(
+      provider.id,
+      cloudProvider && streamSimple ? ({ ...registration, streamSimple } as never) : registration,
+    );
   }
   const model = runtime.getModel(input.model.providerId, input.model.modelId);
   if (!model) {

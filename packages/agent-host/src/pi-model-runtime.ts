@@ -18,12 +18,18 @@ import {
   type RegistrationModelStreamFlags,
 } from './attach-provider-stream-simple.js';
 import type { NativeSearchStreamSimple } from './native-web-search.js';
+import {
+  resolveCloudStreamOptions,
+  wrapStreamSimpleWithCloudOptions,
+} from './cloud-provider-stream.js';
 
 export type PiProviderApi =
   | 'openai-completions'
   | 'openai-responses'
   | 'anthropic-messages'
-  | 'google-generative-ai';
+  | 'google-generative-ai'
+  | 'google-vertex'
+  | 'bedrock-converse-stream';
 
 export type PiModelCompat = {
   supportsStore?: boolean;
@@ -178,6 +184,10 @@ export function resolvePiApiForProvider(
       return 'anthropic-messages';
     case 'google-gemini':
       return 'google-generative-ai';
+    case 'google-vertex':
+      return 'google-vertex';
+    case 'amazon-bedrock':
+      return 'bedrock-converse-stream';
     case 'openai-compatible':
     case undefined:
       return chatApi === 'openai-responses' ? 'openai-responses' : 'openai-completions';
@@ -259,11 +269,15 @@ export function buildPiProviderRegistration(
       return registration;
     });
 
+  const cloud = resolveCloudStreamOptions(provider, apiKey);
   const registration: PiProviderRegistration = {
     name: provider.name,
     baseUrl: provider.baseUrl,
     api,
-    authHeader: Boolean(apiKey || provider.apiKeyEnv?.trim() || provider.apiKeyRef?.trim()),
+    // Cloud rows authenticate through ADC / the AWS chain; a key is optional.
+    authHeader: cloud
+      ? false
+      : Boolean(apiKey || provider.apiKeyEnv?.trim() || provider.apiKeyRef?.trim()),
     models,
   };
   if (apiKey) {
@@ -288,7 +302,9 @@ export function buildPiProviderRegistration(
     ...(options.injectNativeSearch ? { injectNativeSearch: true } : {}),
   });
   if (streamSimple) {
-    registration.streamSimple = streamSimple;
+    registration.streamSimple = cloud
+      ? wrapStreamSimpleWithCloudOptions(streamSimple, cloud)
+      : streamSimple;
   }
 
   return registration;

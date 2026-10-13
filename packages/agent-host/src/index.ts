@@ -81,6 +81,13 @@ export type {
   PiProviderRegistration,
 } from './pi-model-runtime.js';
 export {
+  pickCloudProviderFields,
+  resolveCloudStreamOptions,
+  wrapStreamSimpleWithCloudOptions,
+  type CloudProviderFields,
+  type CloudStreamOptions,
+} from './cloud-provider-stream.js';
+export {
   createSubscriptionAuthPort,
   defaultPiAuthPaths,
   isOauthProviderAuth,

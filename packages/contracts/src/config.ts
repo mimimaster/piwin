@@ -73,7 +73,9 @@ export type ProviderChatApi =
   | 'openai-completions'
   | 'openai-responses'
   | 'anthropic-messages'
-  | 'google-generative-ai';
+  | 'google-generative-ai'
+  | 'google-vertex'
+  | 'bedrock-converse-stream';
 
 export type AnthropicWebSearchToolType =
   | 'web_search_20250305'
@@ -286,8 +288,75 @@ export type GoogleGeminiProviderConfig = {
   models: ModelConfigEntry[];
 };
 
+/**
+ * Google Vertex AI provider (Pi `google-vertex`). Auth is Google ADC
+ * (`gcloud auth application-default login`, service account JSON via
+ * `credentialsFile` / GOOGLE_APPLICATION_CREDENTIALS) with automatic token
+ * refresh, or an optional Vertex API key (express mode) via apiKeyRef/apiKeyEnv.
+ * `baseUrl` is optional (empty = Google default endpoint for `location`).
+ */
+export type GoogleVertexProviderConfig = {
+  id: string;
+  protocol: 'google-vertex';
+  chatApi?: ProviderChatApi;
+  name: string;
+  category?: ModelCategory;
+  source?: ModelSource;
+  baseUrl: string;
+  apiKeyEnv?: string;
+  apiKeyRef?: string;
+  enabled?: boolean;
+  headers?: Record<string, string>;
+  /** GCP project id (falls back to GOOGLE_CLOUD_PROJECT). Also sent as x-goog-user-project. */
+  project?: string;
+  /** Vertex location, e.g. `global` or `us-central1` (default `global`). */
+  location?: string;
+  /** Optional service-account JSON path (else ADC default chain). */
+  credentialsFile?: string;
+  models: ModelConfigEntry[];
+};
+
+/**
+ * Amazon Bedrock provider (Pi `bedrock-converse-stream`, Converse/ConverseStream).
+ * Auth is the AWS default credential chain (env, profile, SSO, IMDS) or an
+ * optional Bedrock API key (bearer, AWS_BEARER_TOKEN_BEDROCK) via apiKeyRef/apiKeyEnv.
+ * `baseUrl` is optional (empty = standard bedrock-runtime endpoint for `region`).
+ */
+export type AmazonBedrockProviderConfig = {
+  id: string;
+  protocol: 'amazon-bedrock';
+  chatApi?: ProviderChatApi;
+  name: string;
+  category?: ModelCategory;
+  source?: ModelSource;
+  baseUrl: string;
+  apiKeyEnv?: string;
+  apiKeyRef?: string;
+  enabled?: boolean;
+  headers?: Record<string, string>;
+  /** AWS region (falls back to AWS_REGION / AWS_DEFAULT_REGION, then us-east-1). */
+  region?: string;
+  /** Named AWS profile from ~/.aws/config (SSO profiles supported). */
+  profile?: string;
+  models: ModelConfigEntry[];
+};
+
 export type ModelProviderConfig =
-  OpenAiCompatibleProviderConfig | AnthropicCompatibleProviderConfig | GoogleGeminiProviderConfig;
+  | OpenAiCompatibleProviderConfig
+  | AnthropicCompatibleProviderConfig
+  | GoogleGeminiProviderConfig
+  | GoogleVertexProviderConfig
+  | AmazonBedrockProviderConfig;
+
+/** Default Vertex location when the provider row leaves it blank. */
+export const DEFAULT_VERTEX_LOCATION = 'global';
+/** Default Bedrock region when neither the row nor the environment sets one. */
+export const DEFAULT_BEDROCK_REGION = 'us-east-1';
+
+/** Cloud protocols whose auth is a platform credential chain, not a required API key. */
+export function isCloudCredentialProtocol(protocol: ModelProviderConfig['protocol'] | undefined): boolean {
+  return protocol === 'google-vertex' || protocol === 'amazon-bedrock';
+}
 
 /** Canonical transport for configs written before `chatApi` existed. */
 export function defaultChatApiForProtocol(
@@ -300,6 +369,10 @@ export function defaultChatApiForProtocol(
       return 'anthropic-messages';
     case 'google-gemini':
       return 'google-generative-ai';
+    case 'google-vertex':
+      return 'google-vertex';
+    case 'amazon-bedrock':
+      return 'bedrock-converse-stream';
   }
 }
 

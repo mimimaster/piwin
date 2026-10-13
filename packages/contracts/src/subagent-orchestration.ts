@@ -24,7 +24,7 @@ import type { EphemeralProviderSecret, WorkerProviderAuthDescriptor } from './pr
 import type { ProviderChatApi } from './config.js';
 export type SubagentProviderEnvelope = {
   readonly providerId: string;
-  readonly protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  readonly protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock';
   /** Pi chat transport (e.g. `openai-responses`); omitted = protocol default. */
   readonly chatApi?: ProviderChatApi;
   readonly baseUrl?: string;

@@ -237,6 +237,10 @@ export async function handleMockSettingsCommands(
             { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
             { id: 'custom-reasoning-model', label: 'Custom Reasoning Model' },
           ],
+          'google-vertex': [{ id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' }],
+          'amazon-bedrock': [
+            { id: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5' },
+          ],
           'anthropic-compatible': [
             { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
             { id: 'claude-opus-4-6', label: 'Claude Opus 4.6' },

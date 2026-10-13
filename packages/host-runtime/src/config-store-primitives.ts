@@ -51,9 +51,13 @@ export function isThinkingLevel(value: unknown): value is ThinkingLevel {
 
 export function isModelProtocol(
   value: unknown,
-): value is 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' {
+): value is 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock' {
   return (
-    value === 'openai-compatible' || value === 'anthropic-compatible' || value === 'google-gemini'
+    value === 'openai-compatible' ||
+    value === 'anthropic-compatible' ||
+    value === 'google-gemini' ||
+    value === 'google-vertex' ||
+    value === 'amazon-bedrock'
   );
 }
 
@@ -61,11 +65,7 @@ export function normalizeModelRef(value: unknown): SubagentProfileSettings['mode
   const record = asRecord(value);
   if (!record) return undefined;
   const protocol = record.protocol;
-  if (
-    protocol !== 'openai-compatible' &&
-    protocol !== 'anthropic-compatible' &&
-    protocol !== 'google-gemini'
-  ) {
+  if (!isModelProtocol(protocol)) {
     return undefined;
   }
   const providerId = typeof record.providerId === 'string' ? record.providerId.trim() : '';

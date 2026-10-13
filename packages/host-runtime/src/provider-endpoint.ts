@@ -63,6 +63,10 @@ export function resolveEffectiveChatApi(
       return 'anthropic-messages';
     case 'google-gemini':
       return 'google-generative-ai';
+    case 'google-vertex':
+      return 'google-vertex';
+    case 'amazon-bedrock':
+      return 'bedrock-converse-stream';
   }
 }
 
@@ -72,6 +76,12 @@ export function resolveProviderChatEndpoint(
   modelId: string,
   chatApi: ProviderChatApi = resolveEffectiveChatApi(provider),
 ): string {
+  if (chatApi === 'google-vertex' || chatApi === 'bedrock-converse-stream') {
+    // Vertex/Bedrock need platform auth (ADC / SigV4); only Pi's SDK transport talks to them.
+    throw new ProviderEndpointError(
+      `${provider.protocol} has no plain HTTP endpoint; it is served by the Pi SDK transport only`,
+    );
+  }
   const baseUrl = normalizeProviderBaseUrl(provider.baseUrl);
   switch (chatApi) {
     case 'openai-completions':

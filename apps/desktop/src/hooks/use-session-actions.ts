@@ -45,7 +45,7 @@ import { isNoRepoProjectPath } from '../file-browse-root.js';
 
 export type ModelOption = {
   providerId: string;
-  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock';
   modelId: string;
   label: string;
   thinkingLevels?: readonly import('@piwin/contracts').ThinkingLevel[];

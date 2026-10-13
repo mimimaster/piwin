@@ -15,6 +15,8 @@ const PROVIDER_PROTOCOLS: readonly ProviderProtocol[] = [
   'openai-compatible',
   'anthropic-compatible',
   'google-gemini',
+  'google-vertex',
+  'amazon-bedrock',
 ];
 
 export function isProviderProtocol(value: unknown): value is ProviderProtocol {
@@ -44,6 +46,16 @@ export function resolveModelEndpoint(
 ): ModelProviderConfig {
   const protocol = resolveModelProtocol(provider, model);
   if (protocol === provider.protocol) {
+    return provider;
+  }
+  // Cloud platforms carry their own auth/endpoint; a per-model hop into or out
+  // of them through a shared gateway URL is not meaningful.
+  if (
+    protocol === 'google-vertex' ||
+    protocol === 'amazon-bedrock' ||
+    provider.protocol === 'google-vertex' ||
+    provider.protocol === 'amazon-bedrock'
+  ) {
     return provider;
   }
   const { chatApi: _providerChatApi, ...rest } = provider;
@@ -92,6 +104,8 @@ export function rebaseForProtocol(baseUrl: string, protocol: ProviderProtocol): 
     case 'google-gemini':
       return `${root}/v1beta`;
     case 'anthropic-compatible':
+    case 'google-vertex':
+    case 'amazon-bedrock':
       return root;
   }
 }

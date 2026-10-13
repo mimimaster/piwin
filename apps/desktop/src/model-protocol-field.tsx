@@ -23,6 +23,10 @@ function protocolLabel(protocol: ProviderProtocol, zh: boolean): string {
       return zh ? 'Anthropic Messages' : 'Anthropic Messages';
     case 'google-gemini':
       return zh ? 'Google Gemini' : 'Google Gemini';
+    case 'google-vertex':
+      return 'Vertex AI';
+    case 'amazon-bedrock':
+      return 'Amazon Bedrock';
   }
 }
 

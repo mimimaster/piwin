@@ -67,7 +67,7 @@ export type UseComposerMediaArgs = {
   /** Authoritative composer prompt model fallback. */
   promptModel?: import('@piwin/contracts').ModelRef | null;
   modelOptions?: Array<{
-    protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+    protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock';
     providerId: string;
     modelId: string;
     source?: import('@piwin/contracts').ModelSource;

@@ -9,7 +9,10 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
+  DEFAULT_BEDROCK_REGION,
+  DEFAULT_VERTEX_LOCATION,
   formatError,
+  isCloudCredentialProtocol,
   isSubscriptionProvider,
   resolveProviderCategory,
   subscriptionUsesThirdPartyExtraUsage,
@@ -268,7 +271,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
       onError(isChinese ? '请填写提供商名称。' : 'Provider name is required.');
       return;
     }
-    if (!draft.baseUrl.trim()) {
+    if (!draft.baseUrl.trim() && !isCloudCredentialProtocol(draft.protocol)) {
       onError(isChinese ? '请填写 API 地址。' : 'API address is required.');
       return;
     }
@@ -347,6 +350,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
       ),
       baseUrl: preset.baseUrl,
       enabled: true,
+      ...(preset.protocol === 'google-vertex' ? { location: DEFAULT_VERTEX_LOCATION } : {}),
       models: preset.models.map((model) => ({
         id: model.id,
         ...(model.label ? { label: model.label } : {}),
@@ -357,6 +361,12 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   }
 
   function subtitleOf(provider: ModelProviderConfig): string {
+    if (provider.protocol === 'google-vertex') {
+      return [provider.project, provider.location ?? DEFAULT_VERTEX_LOCATION].filter(Boolean).join(' · ');
+    }
+    if (provider.protocol === 'amazon-bedrock') {
+      return [provider.region ?? DEFAULT_BEDROCK_REGION, provider.profile].filter(Boolean).join(' · ');
+    }
     if (!isSubscriptionProvider(provider)) return hostOf(provider.baseUrl);
     if (subscriptionUsesThirdPartyExtraUsage(provider.id)) {
       return isChinese ? 'OAuth · extra 计费' : 'OAuth · extra usage';

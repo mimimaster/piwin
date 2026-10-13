@@ -5,7 +5,7 @@
  * Presets are convenience only. Custom providers use one of the protocol adapters.
  */
 
-export type ProviderProtocol = 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+export type ProviderProtocol = 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock';
 
 export type ProviderPreset = {
   /** Stable preset key (not necessarily config id). */
@@ -76,6 +76,41 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     desc: 'Gemini series',
     group: 'cloud',
     docsHint: 'Google Generative Language API endpoint',
+  },
+  {
+    presetId: 'vertex',
+    id: 'vertex',
+    name: 'Vertex AI',
+    protocol: 'google-vertex',
+    // Empty = Google default endpoint for the location.
+    baseUrl: '',
+    apiKeyEnv: '',
+    models: [
+      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    ],
+    badge: 'VX',
+    desc: 'Gemini on Google Cloud · gcloud ADC',
+    group: 'cloud',
+    docsHint: 'gcloud auth application-default login',
+  },
+  {
+    presetId: 'bedrock',
+    id: 'bedrock',
+    name: 'Amazon Bedrock',
+    protocol: 'amazon-bedrock',
+    // Empty = bedrock-runtime endpoint for the region.
+    baseUrl: '',
+    apiKeyEnv: '',
+    models: [
+      { id: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5' },
+      { id: 'us.anthropic.claude-opus-4-1-20250805-v1:0', label: 'Claude Opus 4.1' },
+      { id: 'us.amazon.nova-pro-v1:0', label: 'Nova Pro' },
+    ],
+    badge: 'BR',
+    desc: 'Claude · Nova on AWS · AWS credentials',
+    group: 'cloud',
+    docsHint: 'AWS profile / SSO / env credentials',
   },
   {
     presetId: 'azure',
@@ -392,6 +427,8 @@ export function presetDesc(preset: ProviderPreset, isChinese: boolean): string {
     openai: 'GPT · o 系列',
     anthropic: 'Claude 系列',
     gemini: 'Gemini 系列',
+    vertex: '谷歌云 Gemini · gcloud 登录',
+    bedrock: 'AWS 上的 Claude · Nova · AWS 凭证',
     azure: '企业级 OpenAI',
     deepseek: 'V3 · R1 系列',
     moonshot: 'Kimi 系列',

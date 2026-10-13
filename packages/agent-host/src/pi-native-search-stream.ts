@@ -8,7 +8,9 @@ import type {
   SimpleStreamOptions,
 } from '@earendil-works/pi-ai';
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy';
+import { bedrockConverseStreamApi } from '@earendil-works/pi-ai/api/bedrock-converse-stream.lazy';
 import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generative-ai.lazy';
+import { googleVertexApi } from '@earendil-works/pi-ai/api/google-vertex.lazy';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import type { NativeSearchStreamSimple } from './native-web-search.js';
@@ -17,7 +19,9 @@ export type PiNativeSearchApi =
   | 'openai-completions'
   | 'openai-responses'
   | 'anthropic-messages'
-  | 'google-generative-ai';
+  | 'google-generative-ai'
+  | 'google-vertex'
+  | 'bedrock-converse-stream';
 
 /**
  * Return the real Pi stream used by a product provider protocol.
@@ -36,6 +40,10 @@ export function resolvePiNativeSearchStream(api: PiNativeSearchApi): NativeSearc
       return adaptPiApiStreamSimple(anthropicMessagesApi().streamSimple);
     case 'google-generative-ai':
       return adaptPiApiStreamSimple(googleGenerativeAIApi().streamSimple);
+    case 'google-vertex':
+      return adaptPiApiStreamSimple(googleVertexApi().streamSimple);
+    case 'bedrock-converse-stream':
+      return adaptPiApiStreamSimple(bedrockConverseStreamApi().streamSimple);
   }
 }
 

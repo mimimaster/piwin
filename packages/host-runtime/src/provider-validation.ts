@@ -51,11 +51,14 @@ export function validateProviders(
     if (
       provider.protocol !== 'openai-compatible' &&
       provider.protocol !== 'anthropic-compatible' &&
-      provider.protocol !== 'google-gemini'
+      provider.protocol !== 'google-gemini' &&
+      provider.protocol !== 'google-vertex' &&
+      provider.protocol !== 'amazon-bedrock'
     ) {
       issues.push({
         path: `${base}.protocol`,
-        message: 'protocol must be openai-compatible, anthropic-compatible, or google-gemini',
+        message:
+          'protocol must be openai-compatible, anthropic-compatible, google-gemini, google-vertex, or amazon-bedrock',
       });
     }
 
@@ -68,7 +71,10 @@ export function validateProviders(
         issues.push({ path: `${base}.baseUrl`, message: 'baseUrl is required' });
       }
     } else if (!provider.baseUrl?.trim()) {
-      issues.push({ path: `${base}.baseUrl`, message: 'baseUrl is required' });
+      // Cloud platforms derive the endpoint from project/location or region.
+      if (provider.protocol !== 'google-vertex' && provider.protocol !== 'amazon-bedrock') {
+        issues.push({ path: `${base}.baseUrl`, message: 'baseUrl is required' });
+      }
     } else {
       try {
         const parsed = new URL(provider.baseUrl);

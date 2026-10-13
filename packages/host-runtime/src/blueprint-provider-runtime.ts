@@ -11,6 +11,7 @@ import {
   resolveSupportsDeveloperRole,
 } from '@piwin/contracts';
 import type { SerializableProviderRuntime } from '@piwin/agent-host';
+import { pickCloudProviderFields } from '@piwin/agent-host';
 import { getEnabledProviders } from './provider-helpers.js';
 import { createSecretResolver, type SecretResolver } from './secret-resolver.js';
 
@@ -272,12 +273,14 @@ function buildProviderRuntime(
   provider: ModelProviderConfig,
   auth: SerializableProviderRuntime['auth'],
 ): SerializableProviderRuntime {
+  const cloud = pickCloudProviderFields(provider);
   return {
     providerId: provider.id,
     protocol: provider.protocol,
     ...(provider.chatApi ? { chatApi: provider.chatApi } : {}),
     baseUrl: provider.baseUrl,
     ...(provider.headers ? { headers: provider.headers } : {}),
+    ...(cloud ? { cloud } : {}),
     models: provider.models
       .filter((model) => modelSupportsCapability(model, 'chat'))
       .map((model) => {

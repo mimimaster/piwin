@@ -141,7 +141,9 @@ export function readConfiguredChatModel(item: unknown): ConfiguredChatModel | un
   const isChannelProtocol =
     protocol === 'openai-compatible' ||
     protocol === 'anthropic-compatible' ||
-    protocol === 'google-gemini';
+    protocol === 'google-gemini' ||
+    protocol === 'google-vertex' ||
+    protocol === 'amazon-bedrock';
   const isSubscription = item.source === 'subscription';
   if (!isChannelProtocol && !isSubscription) {
     return undefined;

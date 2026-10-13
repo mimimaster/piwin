@@ -52,8 +52,26 @@ export type ProviderDraft = {
    * the default and is not written back; only an opted-in `system` is.
    */
   systemPromptRole?: SystemPromptRoleMode;
+  /** Vertex AI: GCP project / location / optional service-account JSON path. */
+  project?: string;
+  location?: string;
+  credentialsFile?: string;
+  /** Amazon Bedrock: AWS region / named profile. */
+  region?: string;
+  profile?: string;
   models: ModelConfigEntry[];
 };
+
+const CLOUD_DRAFT_FIELDS = ['project', 'location', 'credentialsFile', 'region', 'profile'] as const;
+
+/** Cloud fields that belong to a protocol (others are dropped on save). */
+export function cloudFieldsForProtocol(
+  protocol: ProviderProtocol,
+): ReadonlyArray<(typeof CLOUD_DRAFT_FIELDS)[number]> {
+  if (protocol === 'google-vertex') return ['project', 'location', 'credentialsFile'];
+  if (protocol === 'amazon-bedrock') return ['region', 'profile'];
+  return [];
+}
 
 export function createHeaderRow(name = '', value = ''): HeaderDraftRow {
   return {
@@ -103,8 +121,19 @@ export function providerToDraft(provider: ModelProviderConfig): ProviderDraft {
     ...(provider.protocol === 'openai-compatible' && provider.systemPromptRole
       ? { systemPromptRole: provider.systemPromptRole }
       : {}),
+    ...pickCloudDraftFields(provider),
     models: provider.models,
   };
+}
+
+function pickCloudDraftFields(source: object): Partial<Record<(typeof CLOUD_DRAFT_FIELDS)[number], string>> {
+  const record = source as Partial<Record<(typeof CLOUD_DRAFT_FIELDS)[number], unknown>>;
+  const out: Partial<Record<(typeof CLOUD_DRAFT_FIELDS)[number], string>> = {};
+  for (const key of CLOUD_DRAFT_FIELDS) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) out[key] = value;
+  }
+  return out;
 }
 
 export function draftToProvider(draft: ProviderDraft): ModelProviderConfig {
@@ -133,6 +162,13 @@ export function draftToProvider(draft: ProviderDraft): ModelProviderConfig {
   const systemPromptRole = normalizeDraftSystemPromptRole(draft);
   if (systemPromptRole && config.protocol === 'openai-compatible') {
     config.systemPromptRole = systemPromptRole;
+  }
+  if (config.protocol === 'google-vertex' || config.protocol === 'amazon-bedrock') {
+    const cloud = config as Record<string, unknown>;
+    for (const key of cloudFieldsForProtocol(config.protocol)) {
+      const value = draft[key]?.trim();
+      if (value) cloud[key] = value;
+    }
   }
   if (draft.storedApiKeyRef) {
     config.apiKeyRef = draft.storedApiKeyRef;
@@ -230,6 +266,7 @@ function connectionSignature(provider: ModelProviderConfig): string {
     // Resolved, so an explicit default and an omitted field compare equal.
     resolveProviderChatApi(provider),
     provider.protocol === 'openai-compatible' && provider.systemPromptRole === 'system',
+    pickCloudDraftFields(provider),
   ]);
 }
 
