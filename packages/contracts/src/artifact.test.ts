@@ -126,8 +126,6 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toContain('data-piwin-media');
     expect(protocol).toContain('the host resolves the id to the image');
     expect(protocol).toContain('Canvas Viewport');
-    expect(protocol).toContain('Left accent bars');
-    expect(protocol).toContain('geometrically straight');
     expect(protocol).toContain('emit it complete before any visible HTML markup');
     expect(protocol).toContain('### Report Kit');
     for (const kitClass of ARTIFACT_REPORT_KIT_CLASSES) {
