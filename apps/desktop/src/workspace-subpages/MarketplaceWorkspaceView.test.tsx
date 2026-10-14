@@ -183,7 +183,7 @@ describe('MarketplaceWorkspaceView', () => {
     });
   }
 
-  it('renders the Host catalog in localized cards, with no carousel or simulated runtime badge', async () => {
+  it('renders the Host catalog in localized cards with the hero carousel, and no simulated runtime badge', async () => {
     const host = createFakeHost({
       'marketplace/catalog-list': (command) =>
         ok(command.type, {
@@ -202,7 +202,7 @@ describe('MarketplaceWorkspaceView', () => {
     });
     expect(container.querySelector('[data-testid="marketplace-catalog"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="marketplace-featured"]')).toBeNull();
-    expect(container.querySelector('.market-hero-carousel')).toBeNull();
+    expect(container.querySelector('.market-hero-carousel')).not.toBeNull();
     expect(
       container
         .querySelector('[data-testid="marketplace-search-input"]')
@@ -222,6 +222,43 @@ describe('MarketplaceWorkspaceView', () => {
     // Kinds with no entries get no chip.
     expect(findButton(container, 'Agent')).toBeUndefined();
     expect(container.textContent).not.toContain('Runtime Gen');
+  });
+
+  it('hides the hero carousel while searching or filtering piwin extensions', async () => {
+    const host = createFakeHost({
+      'marketplace/catalog-list': (command) =>
+        ok(command.type, {
+          entries: [
+            { ...EXTENSION_ENTRY, featured: false },
+            COMMAND_CODE_ENTRY,
+          ],
+        }),
+    });
+    render(host);
+    await flush();
+
+    expect(container.querySelector('.market-hero-carousel')).not.toBeNull();
+
+    act(() => {
+      setInputValue(
+        container.querySelector('[data-testid="marketplace-search-input"]'),
+        'lens',
+      );
+    });
+    expect(container.querySelector('.market-hero-carousel')).toBeNull();
+
+    act(() => {
+      setInputValue(
+        container.querySelector('[data-testid="marketplace-search-input"]'),
+        '',
+      );
+    });
+    expect(container.querySelector('.market-hero-carousel')).not.toBeNull();
+
+    act(() => {
+      findButton(container, 'piwin 扩展')?.click();
+    });
+    expect(container.querySelector('.market-hero-carousel')).toBeNull();
   });
 
   it('shows only registry entries in the piwin extension filter', async () => {
