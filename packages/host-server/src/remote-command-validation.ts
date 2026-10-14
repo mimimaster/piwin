@@ -3,6 +3,7 @@ import {
   ACTIVITY_SUMMARY_MAX_ITEMS,
   AGENT_CLI_MAX_INPUT_CHARS,
   isAgentCliOpenInput,
+  isBackendUserInputRespondCommand,
   isValidTerminalSize,
   isValidHostEntryName,
   isFlashcardStudyCommandType,
@@ -82,7 +83,14 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
         (input.sessionId === undefined || isSafeRemoteId(input.sessionId)) &&
         isSafeRemoteProjectLocator(input.projectPath);
     }
-    case 'agents/cli-sync': return isSafeRemoteId(command.sessionId);
+    case 'agents/cli-sync': return isSafeRemoteId(command.sessionId) &&
+      (command.preserveNative === undefined || typeof command.preserveNative === 'boolean');
+    case 'agents/cli-snapshot': return isSafeRemoteId(command.sessionId);
+    case 'agents/cli-status': return isSafeRemoteId(command.sessionId);
+    case 'session/backend-input-respond':
+      return isBackendUserInputRespondCommand(command) && isSafeRemoteId(command.sessionId) &&
+        isSafeRemoteId(command.requestId) && isSafeRemoteId(command.generationId) &&
+        (command.runId === undefined || isSafeRemoteId(command.runId));
     case 'pty/write': return isSafeRemoteId(command.ptyId) && typeof command.data === 'string' && command.data.length <= AGENT_CLI_MAX_INPUT_CHARS;
     case 'pty/resize': return isSafeRemoteId(command.ptyId) && isValidTerminalSize(command.cols, command.rows);
     case 'pty/close': return isSafeRemoteId(command.ptyId);

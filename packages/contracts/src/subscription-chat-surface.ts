@@ -8,6 +8,7 @@
  * Code, extension subscriptions such as Kiro — has no Host-reachable surface,
  * so it can never run a native `web_search` sub-request.
  */
+import type { ModelProviderConfig } from './config.js';
 import type { NativeSearchVendor } from './native-search-adapters.js';
 import { isSubscriptionProvider, isV1SubscriptionProviderId } from './subscription-oauth.js';
 
@@ -35,7 +36,12 @@ export function providerUsesSubscriptionChat(provider: { id: string; source?: st
 export function nativeSearchProviderBlocker(provider: {
   id: string;
   source?: string;
+  protocol?: ModelProviderConfig['protocol'];
 }): string | undefined {
+  // Bedrock Converse exposes no hosted web search (Vertex grounds through Google Search).
+  if (provider.protocol === 'amazon-bedrock') {
+    return `amazon-bedrock provider ${provider.id} has no hosted web search`;
+  }
   if (!isSubscriptionProvider(provider) || subscriptionChatBaseUrl(provider.id) !== undefined) {
     return undefined;
   }

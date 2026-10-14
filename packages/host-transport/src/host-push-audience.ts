@@ -41,10 +41,13 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'automation/cron_finished':
     case 'pty/output':
     case 'pty/exit':
+    case 'agents/cli-ownership':
       return { kind: 'global' };
     case 'permission/request':
     case 'permission/resolved':
     case 'extension/ui_request':
+    case 'session/backend-input-request':
+    case 'session/backend-input-settled':
     case 'auth/prompt':
     case 'auth/login-finished':
       return { kind: 'inbox' };

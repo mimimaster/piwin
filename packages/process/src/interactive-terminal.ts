@@ -16,25 +16,33 @@ export class InteractiveTerminalError extends Error {
 
 type TerminalEntry = { terminal: IPty; exited: Promise<void>; closing?: Promise<void> };
 
+/** Test seam only: never used by production Host composition. */
+export type InteractiveTerminalSpawn = (
+  input: InteractiveTerminalInput,
+) => Pick<IPty, 'write' | 'resize' | 'kill' | 'onData' | 'onExit'>;
+
 /** Owns OS terminals; agent/session policy is injected by host-runtime. */
 export class InteractiveTerminalManager {
   private readonly entries = new Map<string, TerminalEntry>();
+  private readonly spawnTerminal: InteractiveTerminalSpawn | undefined;
 
   public constructor(private readonly events: {
     onData: (ptyId: string, data: string) => void;
     onExit: (ptyId: string, exitCode: number) => void;
-  }) {}
+    /** Fake PTY factory for unit tests — production omits this. */
+    spawnTerminal?: InteractiveTerminalSpawn;
+  }) {
+    this.spawnTerminal = events.spawnTerminal;
+  }
 
   public async open(input: InteractiveTerminalInput): Promise<string> {
     if (!isValidTerminalSize(input.cols, input.rows)) throw new InteractiveTerminalError('invalid-terminal-size');
     if (this.entries.size >= 8) throw new InteractiveTerminalError('terminal-limit: close an existing terminal');
-    const { spawn } = await import('node-pty');
+    const terminal = this.spawnTerminal !== undefined
+      ? this.spawnTerminal(input) as IPty
+      : await this.spawnOs(input);
     // Another open may have completed while the native module loaded.
     if (this.entries.size >= 8) throw new InteractiveTerminalError('terminal-limit: close an existing terminal');
-    const terminal = spawn(input.executable, input.args, {
-      name: 'xterm-256color', cwd: input.cwd, cols: input.cols, rows: input.rows,
-      env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
-    });
     const ptyId = randomUUID();
     let finish: () => void = () => undefined;
     const exited = new Promise<void>((resolve) => { finish = resolve; });
@@ -56,6 +64,14 @@ export class InteractiveTerminalManager {
       this.events.onExit(ptyId, exitCode);
     });
     return ptyId;
+  }
+
+  private async spawnOs(input: InteractiveTerminalInput): Promise<IPty> {
+    const { spawn } = await import('node-pty');
+    return spawn(input.executable, input.args, {
+      name: 'xterm-256color', cwd: input.cwd, cols: input.cols, rows: input.rows,
+      env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+    });
   }
 
   public write(ptyId: string, data: string): void {
@@ -86,9 +102,31 @@ export class InteractiveTerminalManager {
     } finally {
       if (timeout !== undefined) clearTimeout(timeout);
     }
-    if (this.entries.has(ptyId)) {
-      entry.terminal.kill('SIGKILL');
-      this.entries.delete(ptyId);
+    if (!this.entries.has(ptyId)) {
+      return;
+    }
+    // Process owns OS signals; Host owns release policy. After SIGKILL still
+    // wait for the real onExit so a missing exit never claims the slot free.
+    entry.terminal.kill('SIGKILL');
+    let killTimeout: ReturnType<typeof setTimeout> | undefined;
+    let timedOut = false;
+    try {
+      await Promise.race([
+        entry.exited,
+        new Promise<void>((resolve) => {
+          killTimeout = setTimeout(() => {
+            timedOut = true;
+            resolve();
+          }, 2500);
+        }),
+      ]);
+    } finally {
+      if (killTimeout !== undefined) clearTimeout(killTimeout);
+    }
+    if (timedOut && this.entries.has(ptyId)) {
+      throw new InteractiveTerminalError(
+        `terminal-exit-unconfirmed: process ${ptyId} did not exit after SIGKILL`,
+      );
     }
   }
 

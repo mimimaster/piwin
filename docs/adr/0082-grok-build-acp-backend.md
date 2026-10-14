@@ -609,8 +609,8 @@ or Claude/Codex adapters are live.
    (`desktop` | `native` | `switching`) and `AgentCliFailureCode`
    (`cli-unsupported` | `not-ready` | `session-unavailable` | `writer-busy` |
    `transition-failed`) describe one product-session writer handoff inside the
-   Host, not an OS-wide CLI lease. No lifecycle implementation in this stage.
-   `AgentCliOpenData` remains `{ ptyId, sessionId }`.
+   Host, not an OS-wide CLI lease. `AgentCliOpenData` remains
+   `{ ptyId, sessionId }` and may echo `ownership` metadata.
 
 5. **Bounded native user input.** `backend-user-input` defines request/answer
    validators (title, ≤8 questions, text|select, unique ids, choice bounds,
@@ -619,5 +619,95 @@ or Claude/Codex adapters are live.
    when `hostCapabilities.nativeUserInput` is negotiated. Pending-request id and
    cancel stay on the outer plugin frame correlation; no duplicate run authority.
 
-Later steps own Host launch/history one-writer handoff, Desktop mapping, and
-independent local Claude/Codex plugins. Plugin repositories remain external.
+### Staged runtime (step 2): launch, history sync, single writer, input bridge
+
+Host runtime now owns the lifecycle that the contracts above describe:
+
+- **Ownership controller.** Per product session, Desktop vs native vs switching
+  is reserved synchronously once the session id is known. Desktop
+  normal/explicit/queued prompts early-reject and recheck with no awaits before
+  `register`/`replaceForegroundRun`. Queue drain pauses before
+  `pending→starting` while native owns the writer; a `writer-busy` admission is
+  retryable without spin. `requestDrain` runs only after a successful Desktop
+  return. Active Run handoff rejects; it is never cancelled as a hidden parallel
+  actor. Remote client disconnect / `pty/close` hide the terminal only and
+  **never** release write ownership (existing transport has no disconnect hook;
+  this retain-across-reconnect behaviour is intentional and safe).
+
+- **Generic launch.** `agents/cli-open` validates `isAgentCliOpenInput`, requires
+  an enabled installed extension + ready agent + trusted cwd, creates/activates
+  the product session for a stored native id, calls session-scoped
+  `session/cli-launch`, parses with `parseAgentPluginCliLaunchResult(expectedId)`,
+  and spawns only `ready.binaryPath` + trusted record cwd + validated argv.
+  Structured idle runtime is suspended and disposed before PTY spawn. Grok's
+  `buildGrokCliLaunch` remains a compatibility path **only** for old Grok
+  adapters without the new method; no other backend and never Pi. Missing
+  capability / disabled / unknown / error stay explicit. Spawning rollback unlocks
+  Desktop only when no native actor was confirmed.
+
+- **`agents/cli-sync` handoff.** Close the owned native PTY, await the real
+  process exit (process package: SIGTERM → wait → SIGKILL → await `onExit`; if
+  exit is unconfirmed the entry is retained and close throws), retire the
+  structured observer, import history on the **exact** stored native id (never a
+  “latest” reopen on failed load), then unlock Desktop and `requestDrain`.
+  Failed load / unexpected exit leave `switching` until a successful sync.
+  Close/dispose are idempotent; failure keeps the lock.
+
+- **Minimal status wire.** `agents/cli-status` and push `agents/cli-ownership`
+  expose Host-managed ownership only (no binary/env). Clients cannot set it.
+
+- **Native human input bridge.** Host pending controller binds
+  session/generation/Host `requestId`/active run + validated snapshot. Plugin
+  frame correlation remains the bridge detail. Host command
+  `session/backend-input-respond` and pushes `session/backend-input-request` /
+  `session/backend-input-settled` carry typed result + scope. The bridge answers
+  `input/request` only when a real handler is wired and `nativeUserInput` was
+  advertised; answers wait for respond/lifecycle cancel (not the generic 5s
+  callback timer). Stale/foreign generation/run answers never reach a new
+  generation. Cancel-once on run cancel, release, generation replacement,
+  process close, and Host dispose. Native permission approvals remain native
+  pending permissions, not Host remembered rules.
+
+Later steps own Desktop/CLI UI mapping and independent local Claude/Codex
+plugins. Plugin repositories remain external. No vendor real-binary or native
+UI verification is claimed by this Host stage alone.
+
+### Amendment: Native view changes preserve the active actor (2026-10-12)
+
+The product owner reported that changing sessions or returning to Desktop
+interrupts an active Grok turn. View navigation must preserve the actor and
+must not imply a writer handoff. For an owned native PTY, `pty/close` detaches
+the view; re-open reuses the same PTY with bounded replay returned only to the
+attaching client. Host disposal still terminates its processes.
+
+`agents/cli-sync` accepts optional `preserveNative`. Desktop view, native
+history and image refresh use it. With an attached actor this reads an adapter
+snapshot without `session/load` or runtime activation, keeps native ownership,
+and never drains the Desktop queue. An explicit handoff retains the existing
+close/import/unlock ordering. A Desktop prompt may hand off only after a fresh
+native observation reports idle; running and human-waiting actors remain
+protected by the writer gate.
+
+The plugin-scope optional `catalog/native-observe` capability is negotiated by
+`nativeObservation: true` in initialization. It returns the exact requested
+native id, normalized unknown/idle/running/waiting activity, optional title and
+change time, and optionally bounded replay emissions. Older plugins never
+receive the unknown method. Vendor file parsing remains inside the external
+adapter. Grok uses its session telemetry and existing replay projector, since
+ACP catalog activity reflects the querying process and can report dormant
+while a different native actor is running. Host imports media proposals using
+the same reviewed directory and vault rules as ordinary replay.
+
+Host observes only its attached native bindings for activity and index
+metadata, uses the existing index/ownership pushes, and stops observations at
+actor exit or handoff. No missing entry reconciles/deletes a running binding.
+Desktop preserves these transient observations across list hydration and uses
+them for activity indicators and ordering. Native process presence alone is
+never interpreted as an active turn. See the [repair plan](../plans/2026-10-12-grok-native-session-continuity.md).
+
+Desktop sends the distinct `agents/cli-snapshot` command for view/history/image
+reads. It routes to the preserved-writer snapshot path above. A legacy Host
+rejects this unknown command rather than interpreting a new optional flag on
+its old handoff request and silently terminating the turn. The existing
+`agents/cli-sync` and its optional preservation flag remain compatible for
+other callers; the UI does not use its ambiguous legacy default.

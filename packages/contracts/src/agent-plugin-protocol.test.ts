@@ -243,3 +243,7 @@ describe('binding migration', () => {
     });
   });
 });
+
+it('accepts a data-only native observation at plugin scope', () => {
+  expect(parseAgentPluginFrame(JSON.stringify({ protocolVersion: 1, kind: 'request', scope: { kind: 'plugin' }, requestId: 'observe-1', method: 'catalog/native-observe', params: { backendSessionId: 'native-1', workingDirectory: '/project' } }))).toMatchObject({ method: 'catalog/native-observe' });
+});

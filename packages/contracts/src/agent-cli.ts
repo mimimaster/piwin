@@ -8,6 +8,8 @@
  */
 import { isAgentPluginId } from './agent-plugin-manifest.js';
 
+export type AgentCliActivity = 'unknown' | 'idle' | 'running' | 'waiting';
+
 export type AgentCliOpenInput = {
   /** External backend id (`isAgentPluginId`). Pi is not a native-CLI agent id. */
   agentId: string;
@@ -19,7 +21,25 @@ export type AgentCliOpenInput = {
 };
 
 /** Open response stays backward compatible with the Grok-era shape. */
-export type AgentCliOpenData = { ptyId: string; sessionId: string };
+export type AgentCliOpenData = {
+  ptyId: string;
+  sessionId: string;
+  /** Bounded terminal replay for this attaching client only. */
+  initialOutput?: string;
+  initialOutputThrough?: number;
+  /** Host-managed writer ownership; clients never set this. */
+  ownership?: AgentCliOwnership;
+};
+
+/** Sync / status responses may echo ownership without disclosing binary/env. */
+export type AgentCliSyncData = {
+  sessionId: string;
+  ownership?: AgentCliOwnership;
+};
+
+export type AgentCliStatusData = {
+  ownership: AgentCliOwnership;
+};
 
 /**
  * Host-managed writer ownership for one product session.
@@ -27,7 +47,7 @@ export type AgentCliOpenData = { ptyId: string; sessionId: string };
  */
 export type AgentCliOwnership =
   | { kind: 'desktop'; sessionId: string }
-  | { kind: 'native'; sessionId: string; ptyId: string }
+  | { kind: 'native'; sessionId: string; ptyId: string; activity?: AgentCliActivity }
   | { kind: 'switching'; sessionId: string; target: 'desktop' | 'native'; ptyId?: string };
 
 export const AGENT_CLI_FAILURE_CODES = [
@@ -42,8 +62,12 @@ export type AgentCliFailureCode = (typeof AGENT_CLI_FAILURE_CODES)[number];
 
 export type AgentCliHostCommand =
   | { id?: string; type: 'agents/cli-open'; input: AgentCliOpenInput }
-  /** Refresh the native history projection without closing interactive terminals. */
-  | { id?: string; type: 'agents/cli-sync'; sessionId: string };
+  /** Read a native snapshot when preserving the writer; otherwise hand off to Desktop. */
+  | { id?: string; type: 'agents/cli-sync'; sessionId: string; preserveNative?: boolean }
+  /** Explicit read-only view refresh; older Hosts must reject rather than perform a handoff. */
+  | { id?: string; type: 'agents/cli-snapshot'; sessionId: string }
+  /** Read Host-managed writer ownership for one product session. */
+  | { id?: string; type: 'agents/cli-status'; sessionId: string };
 
 export const AGENT_CLI_MAX_INPUT_CHARS = 64 * 1024;
 export const AGENT_CLI_MAX_SESSION_ID_CHARS = 256;
@@ -103,7 +127,8 @@ export function isAgentCliOwnership(value: unknown): value is AgentCliOwnership 
     return hasOnlyKeys(value, ['kind', 'sessionId']);
   }
   if (value.kind === 'native') {
-    return hasOnlyKeys(value, ['kind', 'sessionId', 'ptyId']) &&
+    return hasOnlyKeys(value, ['kind', 'sessionId', 'ptyId', 'activity']) &&
+      (value.activity === undefined || value.activity === 'unknown' || value.activity === 'idle' || value.activity === 'running' || value.activity === 'waiting') &&
       typeof value.ptyId === 'string' && value.ptyId.length > 0 &&
       value.ptyId.length <= AGENT_CLI_MAX_SESSION_ID_CHARS && !value.ptyId.includes('\0');
   }
@@ -119,4 +144,9 @@ export function isAgentCliOwnership(value: unknown): value is AgentCliOwnership 
       value.ptyId.length <= AGENT_CLI_MAX_SESSION_ID_CHARS && !value.ptyId.includes('\0');
   }
   return false;
+}
+
+/** Desktop prompt admission is blocked while native owns the session or a handoff is in flight. */
+export function isAgentCliDesktopWriterBlocked(ownership: AgentCliOwnership): boolean {
+  return ownership.kind === 'native' || ownership.kind === 'switching';
 }

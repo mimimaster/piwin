@@ -60,8 +60,14 @@ describe('native agent terminal contracts', () => {
 
   it('advertises agent terminal control for remote operators', () => {
     expect(remoteCommandRequiresIdempotencyKey('agents/cli-open')).toBe(true);
-    for (const type of ['agents/cli-open', 'agents/cli-sync', 'pty/write', 'pty/resize', 'pty/close'] as const) {
+    for (const type of ['agents/cli-open', 'agents/cli-sync', 'agents/cli-snapshot', 'agents/cli-status', 'pty/write', 'pty/resize', 'pty/close'] as const) {
       expect(remoteHostSupportsCommand(FALLBACK_REMOTE_ALLOWED_COMMANDS, type)).toBe(true);
     }
   });
+});
+
+it('validates native activity observations without accepting fabricated state', () => {
+  expect(isAgentCliOwnership({ kind: 'native', sessionId: 'session', ptyId: 'pty', activity: 'running' })).toBe(true);
+  expect(isAgentCliOwnership({ kind: 'native', sessionId: 'session', ptyId: 'pty', activity: 'waiting' })).toBe(true);
+  expect(isAgentCliOwnership({ kind: 'native', sessionId: 'session', ptyId: 'pty', activity: 'made-up' })).toBe(false);
 });

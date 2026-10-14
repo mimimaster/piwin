@@ -100,3 +100,15 @@ describe('syncExternalSessionCatalog', () => {
     ).toEqual({ eligible: false, reason: 'not-main' });
   });
 });
+
+it('preserves a missing catalog entry while its native actor is protected, then reconciles after release', async () => {
+  const record = createSessionRecord({ id: 'protected', projectPath: '/project' });
+  record.backend = { agentId: 'grok', backendSessionId: 'native-1' };
+  await upsertSessionRecord(indexPath, record);
+  const input = { indexPath, agentId: 'grok', entries: [], createProductSessionId: () => 'unused', resolveProjectPath: () => '/project' };
+  const protectedSync = await syncExternalSessionCatalog({ ...input, preserveMissingSession: (session) => session.id === 'protected' });
+  expect(protectedSync.removed).toEqual([]);
+  expect(await getSessionRecord(indexPath, 'protected')).toBeDefined();
+  const released = await syncExternalSessionCatalog(input);
+  expect(released.removed.map((session) => session.id)).toEqual(['protected']);
+});

@@ -198,7 +198,7 @@ export type SessionResumeData = {
   /**
    * ADR 0082: the external agent holds history this transcript does not show
    * yet (a session imported from its catalog, or continued in its own TUI).
-   * A client that wants it requests `agents/cli-sync`, then resumes again.
+   * A client that wants it requests `agents/cli-snapshot`, then resumes again.
    */
   nativeHistory?: 'unsynced';
 };

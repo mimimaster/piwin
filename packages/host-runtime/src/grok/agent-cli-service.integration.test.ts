@@ -34,16 +34,19 @@ describe('Host native Grok terminal routing', () => {
     const first = await host.runtime.handleCommand({ type: 'agents/cli-open', input: { agentId: 'grok', cols: 80, rows: 24 } });
     if (!first.success) throw new Error(first.error);
     const opened = first.data as AgentCliOpenData;
-    expect(opened).toEqual({ ptyId: 'pty-fixture', sessionId: expect.any(String) });
+    expect(opened).toMatchObject({ ptyId: 'pty-fixture', sessionId: expect.any(String), ownership: { kind: 'native', ptyId: 'pty-fixture' } });
     expect(host.open.mock.calls[0]?.[0]).toMatchObject({ executable: '/fixture/grok', args: ['--fullscreen', '--cwd', expect.any(String), '--resume', 'native-grok-id'] });
     expect(opened.sessionId).not.toBe('native-grok-id');
     const second = await host.runtime.handleCommand({ type: 'agents/cli-open', input: { agentId: 'grok', sessionId: opened.sessionId, projectPath: '/ignored', cols: 100, rows: 30 } });
     expect(second.success).toBe(true);
     if (!second.success) throw new Error(second.error);
-    expect(second.data).toEqual(opened);
+    expect(second.data).toMatchObject({ ptyId: opened.ptyId, sessionId: opened.sessionId });
     const synced = await host.runtime.handleCommand({ type: 'agents/cli-sync', sessionId: opened.sessionId });
     expect(synced.success, synced.success ? '' : synced.error).toBe(true);
-    expect(host.close).not.toHaveBeenCalled();
+    // Handoff closes the owned native PTY, then imports history on the exact native id.
+    expect(host.close).toHaveBeenCalledWith('pty-fixture');
+    if (!synced.success) throw new Error(synced.error);
+    expect(synced.data).toMatchObject({ ownership: { kind: 'desktop', sessionId: opened.sessionId } });
     const messages = await host.runtime.handleCommand({ type: 'session/messages', sessionId: opened.sessionId });
     if (!messages.success) throw new Error(messages.error);
     expect(messages.data).toMatchObject({ messages: [expect.objectContaining({ text: '来自原生 CLI 的回答' })] });
@@ -61,44 +64,35 @@ describe('Host native Grok terminal routing', () => {
   });
 });
 
-it('shares concurrent history refreshes without closing the retained terminal', async () => {
+it('dedupes concurrent handoff syncs and closes the owned terminal once', async () => {
   const host = await setup();
   const opened = await host.runtime.handleCommand({ type: 'agents/cli-open', input: { agentId: 'grok', cols: 80, rows: 24 } });
   if (!opened.success) throw new Error(opened.error);
   const { sessionId } = opened.data as AgentCliOpenData;
-  const kernel = host.runtime as unknown as Pick<HostRuntimeKernel, 'residencyController'>;
-  const original = kernel.residencyController.requestSuspend.bind(kernel.residencyController);
-  let release: (() => void) | undefined;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
-  const suspend = vi.spyOn(kernel.residencyController, 'requestSuspend').mockImplementation(async (...args) => {
-    await gate;
-    return original(...args);
-  });
+  let releaseClose: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => { releaseClose = resolve; });
+  host.close.mockImplementation(async () => { await gate; });
   const first = host.runtime.handleCommand({ type: 'agents/cli-sync', sessionId });
-  await vi.waitFor(() => expect(suspend).toHaveBeenCalledOnce());
+  await vi.waitFor(() => expect(host.close).toHaveBeenCalledOnce());
   const second = host.runtime.handleCommand({ type: 'agents/cli-sync', sessionId });
-  release?.();
+  releaseClose?.();
   const results = await Promise.all([first, second]);
   expect(results.every((response) => response.success)).toBe(true);
-  expect(suspend).toHaveBeenCalledOnce();
-  expect(host.close).not.toHaveBeenCalled();
+  expect(host.close).toHaveBeenCalledOnce();
 });
 
-it('preserves a Host turn admitted while history refresh was reading the index', async () => {
+it('skips history reload when a Desktop turn is already foreground during handoff import', async () => {
   const host = await setup();
   const opened = await host.runtime.handleCommand({ type: 'agents/cli-open', input: { agentId: 'grok', cols: 80, rows: 24 } });
   if (!opened.success) throw new Error(opened.error);
   const { sessionId } = opened.data as AgentCliOpenData;
-  const kernel = host.runtime as unknown as Pick<HostRuntimeKernel, 'residencyController' | 'runRegistry'>;
-  const original = kernel.residencyController.requestSuspend.bind(kernel.residencyController);
-  vi.spyOn(kernel.residencyController, 'requestSuspend').mockImplementationOnce(async (...args) => {
-    kernel.runRegistry.createForegroundRun(sessionId, args[1]);
-    return original(...args);
-  });
+  const kernel = host.runtime as unknown as Pick<HostRuntimeKernel, 'runRegistry'>;
+  // A Desktop Run that won the writer race before import must not be cancelled by cli-sync.
+  kernel.runRegistry.createForegroundRun(sessionId, 'gen-desktop');
   const synced = await host.runtime.handleCommand({ type: 'agents/cli-sync', sessionId });
   expect(synced.success).toBe(true);
+  expect(host.close).toHaveBeenCalledWith('pty-fixture');
   expect(kernel.runRegistry.getForegroundRun(sessionId)?.status).toBe('running');
-  expect(host.close).not.toHaveBeenCalled();
 });
 
 it('marks an imported session whose history was never replayed, until it is synced', async () => {
@@ -121,4 +115,31 @@ it('marks an imported session whose history was never replayed, until it is sync
   const after = await resume();
   expect(after.nativeHistory).toBeUndefined();
   expect(after.messages).toEqual([expect.objectContaining({ text: '来自原生 CLI 的回答' })]);
+});
+
+it('falls back to the incremental refresh when the extension cannot snapshot native history', async () => {
+  // The fixture adapter does not advertise nativeObservation, like older extensions.
+  const host = await setup([{ backendSessionId: 'native-grok-id', title: 'Vendor session', cwd: '/tmp/vendor', lastChangeUnixMs: 1 }]);
+  let sessionId = '';
+  host.runtime.attachPushSink({ id: 'legacy-snapshot', push: (push) => {
+    if (push.type === 'session/index-updated' && push.op === 'created') sessionId = push.sessionId;
+  } });
+  const imported = await host.runtime.handleCommand({ type: 'agents/sessions-sync', agentId: 'grok' });
+  expect(imported.success, imported.success ? '' : imported.error).toBe(true);
+  const snapshot = await host.runtime.handleCommand({ type: 'agents/cli-snapshot', sessionId });
+  expect(snapshot.success, snapshot.success ? '' : snapshot.error).toBe(true);
+  const messages = await host.runtime.handleCommand({ type: 'session/messages', sessionId });
+  if (!messages.success) throw new Error(messages.error);
+  expect(messages.data).toMatchObject({ messages: [expect.objectContaining({ text: '来自原生 CLI 的回答' })] });
+});
+
+it('leaves a running native CLI alone when snapshots are unsupported', async () => {
+  const host = await setup();
+  const opened = await host.runtime.handleCommand({ type: 'agents/cli-open', input: { agentId: 'grok', cols: 80, rows: 24 } });
+  if (!opened.success) throw new Error(opened.error);
+  const { sessionId } = opened.data as AgentCliOpenData;
+  const snapshot = await host.runtime.handleCommand({ type: 'agents/cli-snapshot', sessionId });
+  expect(snapshot.success, snapshot.success ? '' : snapshot.error).toBe(true);
+  expect(host.close).not.toHaveBeenCalled();
+  expect(snapshot.success && snapshot.data).toMatchObject({ ownership: { kind: 'native' } });
 });

@@ -12,6 +12,8 @@ import { ExternalAgentBackend, type ExternalPendingPermission } from '../externa
 import { applyExternalAgentTitle } from './grok-catalog-sync.js';
 import { requireExtensionBackendLaunch } from '../extension-session-backends.js';
 import { getPiwinRoot } from '../paths.js';
+import { BackendUserInputPendingController } from '../backend-user-input-pending.js';
+import { AgentCliOwnershipController, ownershipPush } from '../native-cli-ownership.js';
 
 export function composeExternalAgentBackend(deps: HostRuntimeKernel, options: HostRuntimeOptions): void {
   const agents = options.externalAgents;
@@ -20,11 +22,20 @@ export function composeExternalAgentBackend(deps: HostRuntimeKernel, options: Ho
     deps.externalAgents = undefined;
     return;
   }
+  deps.agentCliOwnership ??= new AgentCliOwnershipController({
+    onChange: (ownership) => deps.push(ownershipPush(ownership)),
+  });
+  deps.backendUserInputPending ??= new BackendUserInputPendingController({
+    push: (message) => deps.push(message),
+    getForegroundRunId: (sessionId) => deps.runRegistry.getForegroundRun(sessionId)?.runId,
+    createRequestId: () => randomUUID(),
+  });
   deps.externalAgents = new ExternalAgentBackend({
     push: (message) => deps.push(message),
     // HostRuntime's map carries Pi-only fields too; adapters use the shared subset.
     pendingPermissions: deps.pendingPermissions as unknown as Map<string, ExternalPendingPermission>,
     getForegroundRunId: (sessionId) => deps.runRegistry.getForegroundRun(sessionId)?.runId,
+    backendUserInput: deps.backendUserInputPending,
     onSessionTitle: (sessionId, title) => {
       void applyExternalAgentTitle(deps, sessionId, title).catch((error: unknown) => {
         deps.push({ type: 'host/log', level: 'warn', message: `agent title update failed: ${formatError(error)}` });
@@ -32,6 +43,8 @@ export function composeExternalAgentBackend(deps: HostRuntimeKernel, options: Ho
     },
     onSessionTransportClosed: (sessionId, reason) => {
       deps.push({ type: 'host/log', level: 'warn', message: `agent process for ${sessionId} exited: ${reason}` });
+      // Ownership is retained across transport death until agents/cli-sync succeeds.
+      deps.backendUserInputPending?.cancelSession(sessionId);
       // The resident handle is dead; drop it so the next prompt reopens.
       // An in-flight prompt already resolved as a backend-worker-crash failure.
       void deps.disposeLiveSession(sessionId, 'manual').catch((error: unknown) => {

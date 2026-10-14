@@ -23,10 +23,12 @@ import type {
   SessionBackendCapabilities,
   SessionBackendOptions,
   SavedMediaAsset,
+  AgentPluginSessionScope,
 } from '@piwin/contracts';
 import { AgentPluginControlClient } from './agent-plugin-control.js';
 import { AgentPluginSession } from './agent-plugin-session.js';
 import { importAgentPluginEventMedia, importAgentPluginMedia } from './agent-plugin-media.js';
+import type { BackendUserInputPendingController } from './backend-user-input-pending.js';
 
 /** Pending permission entry shape shared with HostRuntime (`pendingPermissions`). */
 export type ExternalPendingPermission = {
@@ -63,6 +65,8 @@ export type ExternalAgentBackendDeps = {
   /** Resolves the installed + enabled adapter for an agent id. */
   requireInstall: (agentId: string) => Promise<ExternalAgentInstall>;
   createRequestId: () => string;
+  /** Optional Host pending native user-input controller. */
+  backendUserInput?: BackendUserInputPendingController;
   /** Product data root; media imports must land in the Host's own vault. */
   piwinRoot?: string;
   env?: NodeJS.ProcessEnv;
@@ -160,6 +164,20 @@ export class ExternalAgentBackend {
     this.mcpStatuses.delete(sessionId);
   }
 
+  async observeNativeSession(agentId: string, query: import('@piwin/contracts').AgentPluginNativeObservationQuery, productSessionId?: string): Promise<import('@piwin/contracts').AgentPluginNativeObservation | undefined> {
+    const observed = await (await this.control(agentId)).observeNativeSession(query);
+    if (observed?.replayEvents !== undefined && productSessionId !== undefined) {
+      const install = await this.deps.requireInstall(agentId);
+      for (const emission of observed.replayEvents) {
+        emission.event = await importAgentPluginEventMedia(emission.event, emission.media ?? [], (proposal) => importAgentPluginMedia({
+          proposal, context: { agentId, sessionId: productSessionId, backendSessionId: query.backendSessionId, cwd: query.workingDirectory, outputDirectories: install.outputDirectories },
+          push: this.deps.push, ...(this.deps.piwinRoot !== undefined ? { piwinRoot: this.deps.piwinRoot } : {}),
+        }));
+      }
+    }
+    return observed;
+  }
+
   async listCatalog(agentId: string): Promise<Awaited<ReturnType<AgentPluginControlClient['listCatalog']>>> {
     return await (await this.control(agentId)).listCatalog();
   }
@@ -217,12 +235,21 @@ export class ExternalAgentBackend {
           sessionId: input.productSessionId,
           prompt,
         }),
+        ...(this.deps.backendUserInput !== undefined
+          ? {
+              requestUserInput: (params: unknown, scope: AgentPluginSessionScope) =>
+                this.deps.backendUserInput!.requestFromPlugin(params, scope),
+            }
+          : {}),
         onOptionsChanged: (options) => this.publishSessionOptions(input.productSessionId, options),
         onTitle: (title) => this.deps.onSessionTitle(input.productSessionId, title),
         onMcpStatus: (servers, observed) => {
           this.mcpStatuses.set(input.productSessionId, { agentId: input.agentId, servers: [...servers], observed });
         },
-        onTransportClosed: (reason) => this.deps.onSessionTransportClosed(input.productSessionId, reason),
+        onTransportClosed: (reason) => {
+          this.deps.backendUserInput?.cancelSession(input.productSessionId);
+          this.deps.onSessionTransportClosed(input.productSessionId, reason);
+        },
         importMedia,
         getCurrentRunId: () => this.deps.getForegroundRunId(input.productSessionId),
       },

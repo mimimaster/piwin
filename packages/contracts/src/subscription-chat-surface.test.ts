@@ -18,4 +18,10 @@ describe('subscription chat surface', () => {
     expect(nativeSearchProviderBlocker({ id: 'xai', source: 'subscription' })).toBeUndefined();
     expect(nativeSearchProviderBlocker({ id: 'custom-openai' })).toBeUndefined();
   });
+
+  it('blocks native search on Bedrock only; Vertex grounds through Google Search', () => {
+    expect(nativeSearchProviderBlocker({ id: 'bedrock', protocol: 'amazon-bedrock' })).toMatch(/no hosted web search/);
+    expect(nativeSearchProviderBlocker({ id: 'vertex', protocol: 'google-vertex' })).toBeUndefined();
+    expect(nativeSearchProviderBlocker({ id: 'gemini', protocol: 'google-gemini' })).toBeUndefined();
+  });
 });

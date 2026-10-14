@@ -4,14 +4,15 @@
  * they are called.
  */
 
-import type { HostResponse } from '@piwin/contracts';
+import type { AgentPluginNativeObservation, HostResponse } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { listProjects } from '@piwin/project';
 import {
   deleteSessionRecord,
   getSessionRecord,
   syncExternalSessionCatalog,
-  upsertSessionRecord,
+  updateSessionRecord,
+  isPlaceholderSessionName,
 } from '@piwin/session';
 import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
 import {
@@ -62,6 +63,8 @@ export async function syncExternalAgentCatalog(
         ...(entry.lastChangeUnixMs !== undefined ? { lastChangeUnixMs: entry.lastChangeUnixMs } : {}),
       })),
       createProductSessionId,
+      preserveMissingSession: (record) => deps.agentCliOwnership?.isDesktopWriterBlocked(record.id) === true ||
+        deps.runRegistry.getForegroundRun(record.id) !== undefined,
       resolveProjectPath: (cwd) => {
         if (cwd !== undefined) {
           const matched = roots.find((root) => cwd === root || cwd.startsWith(`${root}/`));
@@ -95,18 +98,40 @@ export async function syncExternalAgentCatalog(
   }
 }
 
-/** The adapter reported a title: adopt it unless the user renamed the session. */
-export async function applyExternalAgentTitle(
+/** Apply observed metadata under the index lock; local user fields remain authoritative. */
+export async function applyExternalAgentMetadata(
   deps: HostRuntimeKernel,
   sessionId: string,
-  title: string,
+  patch: Partial<Pick<AgentPluginNativeObservation, 'title' | 'lastChangeUnixMs' | 'backendSessionId'>>,
+  isCurrent: () => boolean = () => true,
 ): Promise<void> {
-  const record = await getSessionRecord(indexPath(deps), sessionId);
-  if (record === undefined || record.nameSource === 'user' || record.name === title) {
-    return;
+  const needsChange = (record: Awaited<ReturnType<typeof getSessionRecord>>): boolean => record !== undefined &&
+    isCurrent() && (patch.backendSessionId === undefined || record.backend?.backendSessionId === patch.backendSessionId) &&
+    ((patch.title !== undefined && !isPlaceholderSessionName(patch.title) && record.nameSource !== 'user' && record.name !== patch.title) ||
+      (patch.lastChangeUnixMs !== undefined && patch.lastChangeUnixMs > Date.parse(record.updatedAt)));
+  if (!needsChange(await getSessionRecord(indexPath(deps), sessionId))) return;
+  let changed = false;
+  let titleChanged = false;
+  const updated = await updateSessionRecord(indexPath(deps), sessionId, (record) => {
+    if (!needsChange(record)) return;
+    if (patch.title !== undefined && !isPlaceholderSessionName(patch.title) && record.nameSource !== 'user' && record.name !== patch.title) {
+      record.name = patch.title;
+      record.nameSource = 'llm';
+      titleChanged = true;
+    }
+    if (patch.lastChangeUnixMs !== undefined && patch.lastChangeUnixMs > Date.parse(record.updatedAt)) {
+      record.updatedAt = new Date(patch.lastChangeUnixMs).toISOString();
+    }
+    changed = true;
+  });
+  if (updated === undefined || !changed || !isCurrent()) return;
+  deps.push(sessionIndexUpdatedPush({ op: 'updated', sessionId, session: indexRecordToSummary(updated) }));
+  if (titleChanged && updated.name !== undefined) {
+    deps.push({ type: 'session/name-updated', sessionId, name: updated.name, nameSource: 'llm' });
   }
-  record.name = title;
-  record.nameSource = 'llm';
-  await upsertSessionRecord(indexPath(deps), record);
-  deps.push({ type: 'session/name-updated', sessionId, name: title, nameSource: 'llm' });
+}
+
+/** The adapter reported a title: adopt it unless the user renamed the session. */
+export async function applyExternalAgentTitle(deps: HostRuntimeKernel, sessionId: string, title: string): Promise<void> {
+  await applyExternalAgentMetadata(deps, sessionId, { title });
 }

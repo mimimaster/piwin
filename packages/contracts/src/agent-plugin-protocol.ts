@@ -24,6 +24,21 @@ export type AgentPluginCatalogEntry = {
   originKind?: string;
 };
 
+export type AgentPluginNativeObservationQuery = {
+  backendSessionId: string;
+  workingDirectory: string;
+  includeHistory?: boolean;
+};
+
+/** Data-only observation: never opens a native agent session or takes its writer. */
+export type AgentPluginNativeObservation = {
+  backendSessionId: string;
+  activity: import('./agent-cli.js').AgentCliActivity;
+  title?: string;
+  lastChangeUnixMs?: number;
+  replayEvents?: AgentPluginAgentEmission[];
+};
+
 export type AgentPluginSessionScope = { sessionId: string; runtimeGenerationId: string };
 export type AgentPluginScope = { kind: 'plugin' } | ({ kind: 'session' } & AgentPluginSessionScope);
 export type AgentPluginOpenInput = { cwd: string; binding: SessionBackendBinding };
@@ -83,10 +98,11 @@ export type AgentPluginRequestMap = {
       runtime: { binaryPath?: string };
       hostCapabilities?: AgentPluginHostCapabilities;
     };
-    result: { agentId: string; protocolVersion: 1; requestUsage?: boolean };
+    result: { agentId: string; protocolVersion: 1; requestUsage?: boolean; nativeObservation?: boolean };
   };
   'check': { params: { refresh: boolean }; result: ExternalAgentStatus };
   'catalog/list': { params: Record<string, never>; result: AgentPluginCatalogEntry[] };
+  'catalog/native-observe': { params: AgentPluginNativeObservationQuery; result: AgentPluginNativeObservation };
   'catalog/usage': {
     params: import('./agent-plugin-request-usage.js').AgentPluginRequestUsageQuery;
     result: import('./agent-plugin-request-usage.js').AgentPluginRequestUsage[];
@@ -136,7 +152,7 @@ export type AgentPluginMethodMap = AgentPluginRequestMap & AgentPluginCallbackMa
 export type AgentPluginMethod = keyof AgentPluginMethodMap;
 
 export const AGENT_PLUGIN_METHODS = [
-  'plugin/initialize', 'check', 'catalog/list', 'catalog/usage', 'catalog/rename', 'catalog/delete',
+  'plugin/initialize', 'check', 'catalog/list', 'catalog/usage', 'catalog/native-observe', 'catalog/rename', 'catalog/delete',
   'session/new', 'session/load', 'session/resume', 'session/prompt', 'session/cancel',
   'session/options', 'session/model', 'session/effort', 'session/mode', 'session/commands',
   'session/interject', 'session/interject-cancel', 'session/mcp-status',

@@ -24,6 +24,8 @@ export type ExternalCatalogSyncInput = {
   /** Map an external cwd onto a product project path ('' = general scope). */
   resolveProjectPath: (cwd: string | undefined) => string;
   now?: () => Date;
+  /** A live native writer / Run can be absent from a catalog read without being deleted. */
+  preserveMissingSession?: (record: SessionIndexRecord) => boolean;
 };
 
 export type ExternalCatalogSyncResult = {
@@ -100,7 +102,8 @@ export async function syncExternalSessionCatalog(
       if (
         record.backend?.agentId === input.agentId &&
         backendSessionId !== undefined &&
-        !seen.has(backendSessionId)
+        !seen.has(backendSessionId) &&
+        input.preserveMissingSession?.(record) !== true
       ) {
         result.removed.push(record);
         continue;

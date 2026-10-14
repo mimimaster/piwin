@@ -9,6 +9,23 @@ describe('remote agent terminal admission', () => {
     expect(isSafeRemoteCommand({ type: 'agents/cli-open', input: { agentId: 'grok', projectPath: 'project-'+'a'.repeat(24), cols: 80, rows: 24 } })).toBe(true);
     expect(isSafeRemoteCommand({ type: 'pty/write', ptyId: 'pty-1', data: '\x03你好' })).toBe(true);
     expect(isSafeRemoteCommand({ type: 'agents/cli-sync', sessionId: 'session-1' })).toBe(true);
+    expect(isSafeRemoteCommand({ type: 'agents/cli-snapshot', sessionId: 'session-1' })).toBe(true);
+    expect(isSafeRemoteCommand({ type: 'agents/cli-snapshot', sessionId: '../escape' })).toBe(false);
+    expect(isSafeRemoteCommand({ type: 'agents/cli-status', sessionId: 'session-1' })).toBe(true);
+    expect(isSafeRemoteCommand({
+      type: 'session/backend-input-respond',
+      sessionId: 'session-1',
+      requestId: 'req-1',
+      generationId: 'gen-1',
+      result: { cancelled: true },
+    })).toBe(true);
+    expect(isSafeRemoteCommand({
+      type: 'session/backend-input-respond',
+      sessionId: 'session-1',
+      requestId: 'req-1',
+      generationId: 'gen-1',
+      result: { cancelled: true, answers: [] },
+    } as never)).toBe(false);
   });
   it('blocks host paths, unknown agents, spawn overrides, malformed ids and unbounded I/O', () => {
     for (const input of [

@@ -38,10 +38,12 @@ Step 1 marked done only after these parent checks. Background tester run `ca0a5f
 
 Tester noted a non-blocking coverage gap: duplicate choice IDs and duplicate selected-option IDs are rejected by the parser but lack direct test assertions. Track these cases for the next native-input test slice rather than claiming direct coverage. Runtime launcher, callbacks/UI and vendor adapters remain unimplemented. No repeat test run was needed to incorporate this report.
 
-## Step 2 blocker
+## Step 2 baseline blocker and resolution
 
-Writer run `df6b7cee-3c82-4554-9ee3-b51e43e489bb` stopped with no changed files. Its isolated worktree is based on Git tip `0175d70bab4d1a2a044a673f283a560248319ccf`, which does not contain the applied-but-uncommitted step 1 contracts in the parent worktree. It cannot safely implement dependent step 2 without that baseline.
+After the user authorized a local checkpoint, step 1 was committed alone as `09149618` (`feat(contracts): define native agent CLI and input interfaces`). No push was performed; the two unrelated local transport-probe files were excluded. New writer run `443f3571-aa82-434d-b503-5b7e81f9918d` was explicitly delegated from `main` with the committed prerequisites. Step 2 subsequently passed review after one repair, was applied and verified in the current parent; see `docs/evidence/cc-codex-step2-host-handoff.md` for exact evidence and the initial default-worker timing-sensitive test failure.
 
-Step 2 returned to pending with this blocker recorded. No silent retry, duplicate contracts, commits, stashes, dependency installation or out-of-scope edits were performed. Proposed unblock: a user-authorized local checkpoint commit containing only step 1 (no push), or an available Host snapshot baseline that includes the applied tree.
+Historical blocker: writer run `df6b7cee-3c82-4554-9ee3-b51e43e489bb` stopped with no changed files. Its isolated worktree is based on Git tip `0175d70bab4d1a2a044a673f283a560248319ccf`, which does not contain the applied-but-uncommitted step 1 contracts in the parent worktree. It cannot safely implement dependent step 2 without that baseline.
+
+At that time, step 2 returned to pending with the blocker recorded; no silent retry or duplicate contracts were performed. The subsequent user-authorized checkpoint resolved the missing-baseline prerequisite, and step 2 is active again. No stashes, dependency installation, pushes or out-of-scope edits were performed.
 
 Steps 3/4 also require user-confirmed external plugin repository locations. Codex real-machine acceptance additionally requires a working native executable; its existing ENOENT was not repaired.

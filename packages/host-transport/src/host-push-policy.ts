@@ -106,6 +106,12 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return append(deliveryKey('pty', push.ptyId, 'output'));
     case 'pty/exit':
       return control([deliveryKey('pty', push.ptyId, 'output'), deliveryKey('pty', push.ptyId)]);
+    case 'agents/cli-ownership':
+      return projection(deliveryKey('session', push.ownership.sessionId, 'cli-ownership'));
+    case 'session/backend-input-request':
+      return control([deliveryKey('session', push.sessionId, 'backend-input', push.requestId)]);
+    case 'session/backend-input-settled':
+      return control([deliveryKey('session', push.sessionId, 'backend-input', push.requestId)]);
     case 'todo/updated':
       return projection(deliveryKey('session', push.sessionId, 'todo'));
     case 'automation/cron_finished':
