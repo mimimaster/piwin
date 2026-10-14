@@ -79,6 +79,22 @@ describe('DesktopPreferences loading', () => {
     });
   });
 
+  it('round-trips window material opacity through storage', () => {
+    const prefs = loadDesktopPreferences();
+    // Unset means "use the built-in material"; consumers resolve the default.
+    expect(prefs.windowMaterial).toBeUndefined();
+    saveDesktopPreferences({
+      ...prefs,
+      windowMaterial: { backdrop: 70, sidebar: 10, stage: 95, rightPanel: 80 },
+    });
+    expect(loadDesktopPreferences().windowMaterial).toEqual({
+      backdrop: 70,
+      sidebar: 10,
+      stage: 95,
+      rightPanel: 80,
+    });
+  });
+
   it('parses stored values correctly', () => {
     setLocalStorage('assistantTextSize', 'large');
     setLocalStorage('codeTextSize', 'small');

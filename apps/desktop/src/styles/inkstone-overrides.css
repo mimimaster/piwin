@@ -2,7 +2,7 @@
    visualStyle (both `piwin-inkstone-paper` and `piwin-inkstone-ink` set
    `visualStyle: 'paper'` on their manifest — see deck-palette.ts). Every
    rule here is additive: it narrows an existing generic selector to this one
-   visual style, so Obsidian/Bone/ink-wash render exactly as before.
+   visual style, so installed theme packages render exactly as before.
 
    Increment 7 (`08-motion-and-components.md` §2 row 07): switches read "on"
    as zhu (vermillion), not green — green/pine is reserved for "completed /

@@ -298,6 +298,10 @@ export function WorkbenchStageMounts(props: WorkbenchStageMountsProps) {
           closeSubPage();
           openSettingsSection('knowledge');
         }}
+        onOpenMcpSettings={() => {
+          closeSubPage();
+          openSettingsSection('extensions');
+        }}
         subscribePush={(listener) =>
           hostClient.subscribe((message) => {
             if (message.type === 'flashcards/study/changed') listener(message);

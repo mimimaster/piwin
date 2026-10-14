@@ -10,7 +10,7 @@
    transcript-message, transcript-files-changed, transcript-walkthrough,
    transcript-tool-card, transcript-tool-file-pill, transcript-tool-chain,
    transcript-markdown,
-   transcript-cards, transcript-ink-wash, transcript-empty-stage.
+   transcript-cards, transcript-empty-stage.
 
    --chat-font-size / --code-font-size are user preferences set inline by App. */
 
@@ -30,10 +30,10 @@
   --transcript-edge-fade-bottom: 56px;
 }
 
-/* Edge fades live on this non-scrolling shell — never as a mask on
-   `.chat-stream`. Masking the scroller also fades the native scrollbar and
-   composites the overflow box; keep the fade on the shell. Overlay is
-   pointer-transparent so it cannot eat wheel / trackpad. */
+/* Edge fades on a solid stage paint the stage colour from this
+   non-scrolling shell, pointer-transparent so they cannot eat wheel /
+   trackpad. A translucent stage (window-material.css) masks `.chat-stream`
+   instead, because a colour paint would read as a band there. */
 .transcript-viewport::before,
 .transcript-viewport::after {
   content: '';
@@ -63,11 +63,8 @@
     transparent 100%
   );
 }
-
 .chat-column-empty .transcript-viewport::before,
-.chat-column-empty .transcript-viewport::after,
-html[data-theme-visual-style='ink-wash'] .transcript-viewport::before,
-html[data-theme-visual-style='ink-wash'] .transcript-viewport::after {
+.chat-column-empty .transcript-viewport::after {
   display: none;
 }
 
@@ -143,7 +140,7 @@ html[data-theme-visual-style='ink-wash'] .transcript-viewport::after {
   top: var(--s-4);
   bottom: var(--s-4);
   right: var(--s-2);
-  width: 6px;
+  width: 4px;
   z-index: 6;
   pointer-events: none;
   cursor: pointer;
@@ -897,7 +894,6 @@ html[data-theme-visual-style='ink-wash'] .transcript-viewport::after {
   opacity: 0.4;
   cursor: not-allowed;
 }
-
 
 .voice-handover-card {
   display: flex;

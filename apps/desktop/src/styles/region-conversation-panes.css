@@ -362,12 +362,6 @@
 .conversation-pane-workspace[data-pane-count='8'] .conversation-pane-actions > .is-split-action {
   display: none;
 }
-
-html[data-theme-visual-style='ink-wash'] .conversation-pane-workspace,
-html[data-theme-visual-style='ink-wash'] .conversation-pane {
-  background: transparent;
-}
-
 @media (max-width: 900px) {
   .conversation-pane-active-label,
   .conversation-pane-actions > .is-split-action {

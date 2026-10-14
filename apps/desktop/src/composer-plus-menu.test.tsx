@@ -230,6 +230,7 @@ describe('ComposerPlusMenu', () => {
         extensionCommands: [
           { name: 'git-status', extensionName: 'Git Activity Guard' },
           { name: 'todo', extensionName: 'Task Focus Checklist' },
+          { name: 'teacher-ta', extensionName: 'Study Space', description: '助教答疑 · Answer questions' },
         ],
         onSelectExtensionCommand,
         onOpenMarketplace,
@@ -241,6 +242,7 @@ describe('ComposerPlusMenu', () => {
     expect(extensionsContent).not.toBeNull();
     expect(extensionsContent?.textContent).toContain('/git-status');
     expect(extensionsContent?.textContent).toContain('/todo');
+    expect(extensionsContent?.textContent).toContain('助教答疑 · Answer questions');
     expect(extensionsContent?.textContent).toContain('浏览扩展市场…');
 
     clickItem('plus-menu-extension-git-status');

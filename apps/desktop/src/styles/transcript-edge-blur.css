@@ -1,0 +1,52 @@
+/* Region: transcript bottom edge blur (transcript-viewport.tsx).
+
+   Progressive blur where the transcript meets the composer: text scrolling
+   toward the dock goes soft as well as faint. Three stacked backdrop layers
+   with rising radius, each masked to its own slice of the band, so blur
+   ramps from none to full without a visible clear/blurred seam. Each later
+   layer samples the earlier ones, so the radii compound.
+
+   The top edge stays a plain fade (region-transcript.css / window-material.css);
+   the strip under the header is too thin to be worth a blur surface.
+
+   Memory diet: this is whitelisted product glass (renderer-resource-boundaries
+   test). It is a 24px strip — about one line, inside the 56px colour fade —
+   and memory-degradation.css strips every backdrop-filter under pressure or
+   parking, leaving the colour/mask fade.
+   It sits below the colour fade (z 5), floating scrollbar (6) and
+   jump-to-latest (7). */
+
+.transcript-edge-blur {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 24px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.transcript-edge-blur > span {
+  position: absolute;
+  inset: 0;
+  -webkit-backdrop-filter: blur(var(--transcript-edge-blur-radius));
+  backdrop-filter: blur(var(--transcript-edge-blur-radius));
+}
+
+.transcript-edge-blur > span:nth-child(1) {
+  --transcript-edge-blur-radius: 1px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 33%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 33%);
+}
+
+.transcript-edge-blur > span:nth-child(2) {
+  --transcript-edge-blur-radius: 1.5px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 33%, #000 66%);
+  mask-image: linear-gradient(to bottom, transparent 33%, #000 66%);
+}
+
+.transcript-edge-blur > span:nth-child(3) {
+  --transcript-edge-blur-radius: 3px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 66%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 66%, #000 100%);
+}

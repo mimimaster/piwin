@@ -30,6 +30,8 @@ export type NotificationPushInput = {
   message: string;
   /** Override default TTL for level; omit to use level defaults. */
   ttlMs?: number;
+  /** One follow-up button rendered inside the toast. */
+  action?: { label: string; onClick: () => void };
 };
 
 export type NotificationAction =
@@ -71,6 +73,7 @@ export function emitDesktopNotification(input: NotificationPushInput): string {
       tone: level as UiNotificationTone,
       message: input.message,
       autoClose: ttlMs > 0 ? ttlMs : false,
+      ...(input.action ? { action: input.action } : {}),
     });
   } catch {
     return stableId;

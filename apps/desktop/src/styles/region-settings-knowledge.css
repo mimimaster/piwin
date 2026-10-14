@@ -6,8 +6,7 @@
    The old per-theme-id blocks (piwin-light / piwin-dark / piwin-orange-white)
    are gone: they hardcoded surface colors for the pre-Deck palettes, and the
    token ramp is now mode-aware, so forcing #ffffff here would actively fight
-   Bone. Ink-wash keeps its overrides because it paints artwork behind the
-   whole window and genuinely needs the surfaces to drop out. */
+   the active face. */
 
 .knowledge-workspace-page {
   min-width: 0;
@@ -125,7 +124,6 @@
   }
 }
 
-
 .knowledge-tab-panel .ui-field-row .ui-field-row-control {
   flex: 0 1 360px;
   min-width: 240px;
@@ -183,11 +181,4 @@
   justify-content: flex-end;
   gap: var(--s-5);
   padding: var(--s-5) 0 0;
-}
-
-/* ── Ink-wash theme package ───────────────────────────────────────────── */
-
-html[data-theme-visual-style='ink-wash'] .knowledge-tab-panel {
-  background: rgba(22, 24, 29, 0.9) !important;
-  border-color: rgba(214, 205, 190, 0.1) !important;
 }

@@ -72,6 +72,7 @@ export async function handleMockSessionReadCommands(
             if (value.isArchived === true) summary.isArchived = true;
             if (value.archivedAt) summary.archivedAt = value.archivedAt;
             if (value.origin) summary.origin = value.origin;
+            if (value.backend) summary.backend = value.backend;
             return summary;
           })
           .filter((session) => {

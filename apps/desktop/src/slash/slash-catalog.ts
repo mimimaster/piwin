@@ -28,6 +28,7 @@ export function isConversationSlashSkillSource(source: SkillSource | undefined):
 export type SlashExtensionCommandInput = {
   name: string;
   extensionName: string;
+  description?: string;
 };
 
 /**
@@ -245,10 +246,13 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
   }
 
   // --- Modes ---
-  // The slash menu is the only mode entry point in either session kind: there
-  // is no toolbar picker, so `/goal` has to be discoverable here.
-  // A backend session selects modes from its own backend options instead.
+  // Agent is the resting mode (no slash entry). `/goal` is the only mode
+  // command in the menu; exit Goal via GoalModeChip. Backend sessions pick
+  // modes from their own backend options instead.
   for (const mode of backendSession ? [] : AGENT_MODES) {
+    if (mode.id === 'agent') {
+      continue;
+    }
     const isGoalDisabled = mode.id === 'goal' && options.goalExtensionEnabled === false;
     items.push({
       id: `mode:${mode.id}`,
@@ -327,8 +331,8 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       id: `extension:${command.name}`,
       kind: 'extension',
       name: command.name,
-      label: command.name,
-      description: `From extension ${command.extensionName}`,
+      label: command.description ?? command.name,
+      description: command.description ?? `From extension ${command.extensionName}`,
       keywords: [command.name, command.extensionName],
       groupLabel: 'Extension',
       acceptsArgs: true,

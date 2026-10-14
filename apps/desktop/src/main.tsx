@@ -17,6 +17,7 @@ import { loadDesktopRemoteHostTarget } from './remote-host-session';
 import { isMobileTauriRuntime } from './shell-runtime';
 import { configureArtifactKitDelivery } from '@piwin/artifact';
 import { resolveArtifactSchemeOrigin } from './artifact-frame-stream';
+import { applyWindowMaterialToDocument } from './window-material-preferences';
 import './styles.css';
 
 // Pre-paint: use last known built-in theme (or Appearance prefs) so the first
@@ -25,6 +26,7 @@ import './styles.css';
 applyWindowChromeToDocument(document.documentElement);
 const startupPreferences = loadDesktopPreferences();
 applyAppearanceToDocument(resolveStartupAppearance(), startupPreferences.customFonts);
+applyWindowMaterialToDocument(document.documentElement, startupPreferences.windowMaterial);
 // Registers the shipped faces, then re-applies so their sanitized families
 // replace the Inter / JetBrains / Noto stacks unless a custom role is set.
 void loadAndRegisterAllCustomFonts(startupPreferences.customFonts);

@@ -2,7 +2,7 @@
  * Transcript virtualizer height policy.
  *
  * Default estimates that are far above real short replies leave absolute-positioned
- * gaps of ink-wash texture between bubbles. Estimates and cache entries are
+ * blank gaps between bubbles. Estimates and cache entries are
  * bounded; a fresh mounted-row measurement must remain exact.
  */
 import type { TranscriptTurn } from './transcript-turns';

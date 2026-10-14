@@ -4,7 +4,14 @@ import {
 } from './host-client-mock-helpers.js';
 import { isInkstoneThemeId, PIWIN_INKSTONE_THEME_ID } from './appearance-tokens.js';
 import type { MockHostBackend } from './host-client-mock.js';
-import { mockMarketplaceCatalog, mockMarketplaceInventory } from './host-client-mock-marketplace.js';
+import {
+  mockMarketplaceBrowseHits,
+  mockMarketplaceCatalog,
+  mockMarketplaceInventory,
+  mockMarketplacePackageDetail,
+  mockMarketplaceRequirementsCheck,
+  mockPackageSourceString,
+} from './host-client-mock-marketplace.js';
 import type {
   HostCommand,
   HostResponse,
@@ -832,7 +839,7 @@ export async function handleMockCatalogCommands(
                   publisher: 'amosblomqvist',
                 },
               ]
-            : [];
+            : query === '' ? mockMarketplaceBrowseHits(command.limit) : [];
         return {
           id,
           type: 'response',
@@ -847,13 +854,12 @@ export async function handleMockCatalogCommands(
           type: 'response',
           command: 'marketplace/package-install',
           success: true,
-          data: {
-            source:
-              command.source.kind === 'npm'
-                ? `npm:${command.source.packageName}`
-                : `git:${command.source.repositoryUrl}`,
-          },
+          data: { source: mockPackageSourceString(command.source) },
         };
+      case 'marketplace/package-detail':
+        return { id, type: 'response', command: command.type, success: true, data: mockMarketplacePackageDetail(command.entryId) };
+      case 'marketplace/requirements-check':
+        return { id, type: 'response', command: command.type, success: true, data: mockMarketplaceRequirementsCheck(command.entryId) };
       case 'marketplace/catalog-list':
         return { id, type: 'response', command: command.type, success: true, data: mockMarketplaceCatalog() };
       case 'marketplace/installed-list':

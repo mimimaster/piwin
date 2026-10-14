@@ -15,6 +15,7 @@ export type ComposerExtensionCommand = {
   name: string;
   extensionId: string;
   extensionName: string;
+  description?: string;
 };
 
 export type ExtensionSlashCommandsHostPort = {
@@ -68,7 +69,9 @@ export function listExtensionSlashCommands(
       const key = name.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      commands.push({ name, extensionId: extension.id, extensionName: extension.name });
+      const description = extension.compatibility?.capabilities?.commandDescriptions?.[name];
+      commands.push({ name, extensionId: extension.id, extensionName: extension.name,
+        ...(description ? { description } : {}) });
     }
   }
   return commands;

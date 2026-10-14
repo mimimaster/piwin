@@ -34,6 +34,8 @@ export type WorkbenchSubpageStageProps = {
   projectPath?: string | null | undefined;
   sessionId?: string | null | undefined;
   onConfigureEmbedding?: (() => void) | undefined;
+  /** Marketplace → Settings → Extensions, where MCP servers are configured. */
+  onOpenMcpSettings?: (() => void) | undefined;
   subscribePush?: (listener: (push: HostPush) => void) => () => void;
   subscribeKnowledgePush?: (listener: (push: HostPush) => void) => () => void;
   subscribeConnected?: (listener: (connected: boolean) => void) => () => void;
@@ -127,6 +129,7 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
           sessionId={props.sessionId}
           subscribeHostMessages={props.subscribeHostMessages}
           onUseExample={(text) => props.onRemixToComposer?.({ text })}
+          onOpenMcpSettings={props.onOpenMcpSettings}
         />
       </DeferredSurfaceBoundary>
     );

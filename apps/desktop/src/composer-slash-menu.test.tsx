@@ -175,4 +175,15 @@ describe('composer slash menu skills', () => {
     expect(onAgentModeChange).not.toHaveBeenCalled();
     expect(onComposerChange).toHaveBeenCalledWith('/review ');
   });
+  it('discovers an extension by Chinese purpose and fills its exact shortcut on click', () => {
+    const onComposerChange = vi.fn();
+    const rendered = renderDock(<ComposerDock {...baseProps} composer="/助教" onComposerChange={onComposerChange}
+      menuExtensionCommands={[{ name: 'teacher-ta', extensionName: 'Study Space', description: '助教答疑 · Answer code questions' }]} />);
+    root = rendered.root; container = rendered.container;
+    const item = container.querySelector('[data-testid="slash-item-extension:teacher-ta"]');
+    expect(item?.textContent).toContain('助教答疑');
+    act(() => item?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(onComposerChange).toHaveBeenCalledWith('/teacher-ta ');
+  });
+
 });

@@ -104,6 +104,8 @@ export function getHostRequestTimeoutMs(
     case 'models/image-test':
       return HOST_REQUEST_IMAGE_GENERATION_TIMEOUT_MS;
     case 'pet/store-query':
+    // npm then GitHub, each bounded at 8s on the Host.
+    case 'marketplace/package-detail':
       return HOST_REQUEST_NETWORK_QUERY_TIMEOUT_MS;
     default:
       return HOST_REQUEST_QUERY_TIMEOUT_MS;

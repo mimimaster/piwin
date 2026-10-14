@@ -273,22 +273,15 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   scrollbar-color: var(--line-2) transparent;
 }
 
-.settings-nav-list::-webkit-scrollbar {
-  width: 5px;
-}
-
-.settings-nav-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+/* Size comes from base.css; the nav only hides the thumb until hover. */
 .settings-nav-list::-webkit-scrollbar-thumb {
   background: transparent;
-  border-radius: var(--r-pill);
 }
 
 .settings-nav-list:hover::-webkit-scrollbar-thumb,
 .settings-nav-list:focus-within::-webkit-scrollbar-thumb {
   background: var(--line-2);
+  background-clip: content-box;
 }
 
 .settings-nav-group {

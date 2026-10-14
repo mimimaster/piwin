@@ -14,7 +14,7 @@ type NativeHistoryHost = { request: (command: HostCommand) => Promise<HostRespon
 /** Ask the Host to replay the agent's history into the transcript. Never rejects. */
 export async function syncNativeHistory(host: NativeHistoryHost, sessionId: string): Promise<NativeHistorySync> {
   try {
-    const synced = await host.request({ type: 'agents/cli-sync', sessionId });
+    const synced = await host.request({ type: 'agents/cli-snapshot', sessionId });
     return synced.success ? { ok: true } : { ok: false, error: synced.error };
   } catch (error) {
     // A replay that outlives the request timeout rejects; the caller must still settle.

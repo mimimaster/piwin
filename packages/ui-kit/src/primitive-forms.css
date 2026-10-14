@@ -89,12 +89,6 @@
   padding: var(--space-3) var(--space-4);
 }
 
-/* Combobox dropdowns inside modals (e.g. add-model catalog) must not be clipped. */
-.piwin-modal-content.add-model-dialog,
-.piwin-modal-content.add-model-dialog .piwin-modal-body {
-  overflow: visible;
-}
-
 .piwin-modal-header {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--line-soft);

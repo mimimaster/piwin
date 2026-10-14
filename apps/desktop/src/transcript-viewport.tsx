@@ -7,8 +7,10 @@
  *   hidden) so its content width matches `.composer-dock` with no gutter.
  * - History ticks + floating scrollbar are absolute children of the shell,
  *   never of the scrollport, so they stay pinned while content scrolls.
- * - Edge fades are pointer-transparent overlays on `.transcript-viewport`.
- *   Do not mask `.chat-stream` (it also fades the native scrollbar).
+ * - Edge fades are pointer-transparent overlays on `.transcript-viewport`;
+ *   the translucent window material masks `.chat-stream` instead
+ *   (styles/window-material.css). The bottom edge also gets a progressive
+ *   blur strip (styles/transcript-edge-blur.css).
  *
  * Scroll metrics come from `useTranscriptScroll` (ResizeObserver + activity),
  * not mount/unmount of the floating track.
@@ -279,6 +281,11 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           aria-busy={opening || props.activitySignal.includes('streaming')}
         >
           {props.children}
+        </div>
+        <div className="transcript-edge-blur" aria-hidden="true">
+          <span />
+          <span />
+          <span />
         </div>
         {showJumpToLatest ? (
           <JumpToLatestButton label={jumpToLatestLabel} onClick={handleJumpToLatest} />

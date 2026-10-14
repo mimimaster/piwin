@@ -6,13 +6,12 @@ import type { BrowserViewportMode, ThemeManifest } from '@piwin/contracts';
 import type { BrowserDisplayZoom } from './browser-display-box';
 
 import {
-  PIWIN_APPEARANCE_BONE,
   PIWIN_APPEARANCE_INKSTONE_INK,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
-  PIWIN_APPEARANCE_OBSIDIAN,
 } from './theme/deck-palette.js';
 import type { CustomFontPreferences } from './theme/font-manager.js';
 import { sanitizeFontFamilyName } from './theme/font-parser.js';
+import { parseWindowMaterialOpacity, type WindowMaterialOpacity } from './window-material-preferences.js';
 
 export type { CustomFontPreferences } from './theme/font-manager.js';
 
@@ -89,6 +88,21 @@ const LEGACY_DARK_APPEARANCE: AppearanceThemeSettings = {
   accent: '#007ACC',
 };
 
+/** Defaults of the retired Bone / Obsidian faces (void, text1, iris). */
+const RETIRED_DECK_LIGHT_APPEARANCE: AppearanceThemeSettings = {
+  preset: 'default',
+  background: '#E5E2DC',
+  foreground: '#17161B',
+  accent: '#5B4BD6',
+};
+
+const RETIRED_DECK_DARK_APPEARANCE: AppearanceThemeSettings = {
+  preset: 'default',
+  background: '#08080B',
+  foreground: '#EDEDF2',
+  accent: '#6E5DFF',
+};
+
 /**
  * Inkstone paper defaults before the contrast pass retinted iris
  * `#c6412a` → `#b03a24`. A stored triple with the old accent is still the
@@ -130,9 +144,8 @@ export function migrateStoredAppearanceTheme(
 ): AppearanceThemeSettings {
   const normalized = normalizeAppearanceTheme(settings);
   const legacy = mode === 'light' ? LEGACY_LIGHT_APPEARANCE : LEGACY_DARK_APPEARANCE;
-  const deckDefault = appearanceDefaults(
-    mode === 'light' ? PIWIN_APPEARANCE_BONE : PIWIN_APPEARANCE_OBSIDIAN,
-  );
+  const deckDefault =
+    mode === 'light' ? RETIRED_DECK_LIGHT_APPEARANCE : RETIRED_DECK_DARK_APPEARANCE;
   const retiredInkstonePaper =
     mode === 'light' && appearanceThemesEqual(normalized, RETIRED_INKSTONE_PAPER_APPEARANCE);
   if (
@@ -177,6 +190,8 @@ export type DesktopPreferences = {
   agentLocatorAnimation?: AgentLocatorAnimation;
   /** Custom typography preferences (Sans, Mono, Serif). */
   customFonts?: CustomFontPreferences | undefined;
+  /** Per-region opacity over the native window material (macOS desktop). */
+  windowMaterial?: WindowMaterialOpacity;
 };
 
 const TOOL_DENSITY_KEY = 'piwin.desktop.toolCallDensity';
@@ -195,6 +210,7 @@ const TERMINAL_RECENT_DIRS_KEY = 'piwin.desktop.terminalRecentDirs';
 const AGENT_LOCATOR_ANIMATION_KEY = 'piwin.desktop.agentLocatorAnimation';
 const BROWSER_VIEWPORT_KEY = 'piwin.desktop.browserViewport';
 const CUSTOM_FONTS_KEY = 'piwin.desktop.customFonts';
+const WINDOW_MATERIAL_KEY = 'piwin.desktop.windowMaterial';
 /** Last successfully applied theme id — used for pre-paint bootstrap (no FOUC). */
 const LAST_THEME_ID_KEY = 'piwin.desktop.lastThemeId';
 
@@ -347,6 +363,7 @@ export function loadDesktopPreferences(): DesktopPreferences {
   const lastCwd = readString(TERMINAL_LAST_CWD_KEY);
   const recentDirsRaw = readString(TERMINAL_RECENT_DIRS_KEY);
   const locatorAnimationRaw = readString(AGENT_LOCATOR_ANIMATION_KEY);
+  const windowMaterialRaw = readString(WINDOW_MATERIAL_KEY);
   return {
     assistantTextSize: parseSizeOption(readString(ASSISTANT_TEXT_SIZE_KEY), 'default'),
     codeTextSize: parseSizeOption(readString(CODE_TEXT_SIZE_KEY), 'default'),
@@ -373,6 +390,9 @@ export function loadDesktopPreferences(): DesktopPreferences {
     ...(parseCustomFonts(readString(CUSTOM_FONTS_KEY)) !== undefined
       ? { customFonts: parseCustomFonts(readString(CUSTOM_FONTS_KEY)) }
       : {}),
+    ...(windowMaterialRaw
+      ? { windowMaterial: parseWindowMaterialOpacity(windowMaterialRaw) }
+      : {}),
   };
 }
 
@@ -396,6 +416,9 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   }
   if (prefs.terminalRecentDirs) {
     writeString(TERMINAL_RECENT_DIRS_KEY, JSON.stringify(prefs.terminalRecentDirs));
+  }
+  if (prefs.windowMaterial) {
+    writeString(WINDOW_MATERIAL_KEY, JSON.stringify(prefs.windowMaterial));
   }
   if (prefs.customFonts && Object.keys(prefs.customFonts).length > 0) {
     writeString(CUSTOM_FONTS_KEY, JSON.stringify(prefs.customFonts));

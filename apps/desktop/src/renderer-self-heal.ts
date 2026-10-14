@@ -12,8 +12,8 @@
  * 2026-08-22 packaged-app sample: main WebContent climbed 164 → 900+ MB over
  * ~3 h of a quiet session (gfx 32 → 500+). Governor moderate (768) stripped
  * glass and did not move the IOSurface ledger. Self-heal must not wait for the
- * visual-critical ceiling (1536) — that tier also sheds highlighting / ink-wash
- * while the user is looking. Reclaim is therefore a separate byte floor, and
+ * visual-critical ceiling (1536) — that tier also sheds highlighting while the
+ * user is looking. Reclaim is therefore a separate byte floor, and
  * only fires when the user is not looking (hidden, or unfocused long enough).
  *
  * Policy lives here (unit-tested, injectable clock); the Rust command

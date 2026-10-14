@@ -32,6 +32,16 @@
   visibility: hidden;
 }
 
+/* WebKit drag regions (the desktop titleband) take clicks from portaled
+   menus that overlap them unless the menu opts out. The wrapper is what
+   hit-testing sees; the content is the menu itself. */
+[data-radix-popper-content-wrapper],
+.ui-menu-content,
+.ui-popover-content {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 .ui-menu-content,
 .ui-popover-content {
   min-width: 180px;

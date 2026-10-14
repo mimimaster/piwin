@@ -1,7 +1,7 @@
 /* Inkstone (砚) shell skeleton — the `.app` frame of proto-00-shell.html,
    ported onto the app's real containers (.app-shell grid, .context-bar,
    .sidebar/.workspace/.right-panel). Scoped to the two Inkstone theme ids so
-   Obsidian/Bone/ink-wash keep their Deck frame untouched.
+   installed theme packages keep their Deck frame untouched.
 
    Frame structure (proto-00-shell.html rendered, the accepted look):
      .app = grid rows [ titleband | .deck 1fr ]
@@ -41,9 +41,12 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell {
   /* Layout tokens (tokens.css "Shell layout tokens"): a layout that has no
      window frame retargets these instead of out-weighing this rule. */
   padding: var(--shell-frame-padding, 0 8px 8px) !important;
-  gap: var(--shell-frame-gap, 8px) !important;
+  /* Column seam is half the window margin so the stage reads as one field
+     with its rails; --deck-gap follows so the resize handles stay centred. */
+  --deck-gap: var(--shell-frame-gap, 4px);
+  gap: var(--deck-gap) !important;
   row-gap: 0 !important;
-  column-gap: var(--shell-frame-gap, 8px) !important;
+  column-gap: var(--deck-gap) !important;
   grid-template-rows: var(--shell-titleband-row, var(--titleband-height)) minmax(0, 1fr) !important;
   grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr) !important;
   grid-template-areas:

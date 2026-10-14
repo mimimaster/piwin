@@ -2,7 +2,15 @@
  * Shell chrome: layout, panel resize, session-list query, locale, and
  * foreground-run confirms. Host commands stay with App / session hooks.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+} from 'react';
 import {
   ORCHESTRATION_SCHEME_OFF_ID,
   type ForegroundRunMismatchProblem,
@@ -27,6 +35,7 @@ import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from '../right-panel-width';
 import { useConfirmDialog } from '../use-confirm-dialog';
 import { loadDesktopPreferences, type DesktopPreferences } from '../ui-preferences';
 import { appShellCssVars, desktopPreferencesCssVars } from '../workbench-preferences-style';
+import { applyWindowMaterialToDocument } from '../window-material-preferences';
 
 export type UseWorkbenchShellChromeArgs = {
   hostClient: HostClient;
@@ -187,6 +196,9 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     setPreferences,
   });
   const preferencesStyle = useMemo(() => desktopPreferencesCssVars(preferences), [preferences]);
+  useLayoutEffect(() => {
+    applyWindowMaterialToDocument(document.documentElement, preferences.windowMaterial);
+  }, [preferences.windowMaterial]);
   const appShellStyle = useMemo(
     () =>
       appShellCssVars({

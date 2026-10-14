@@ -119,7 +119,9 @@ export type DesktopCopy = {
     flatList: string;
     filters: string;
     openWorkspaceFolder: string;
-    repoWorktreeGroup: (repoName: string, worktreeCount: number) => string;
+    sessionInWorktree: (worktreeName: string, branch: string | null) => string;
+    unavailableWorkspaces: string;
+    unavailableWorkspace: string;
     newConversationInProject: (projectName: string) => string;
     removeProjectFromSidebar: string;
     collapseProjects: string;
@@ -296,6 +298,12 @@ export type DesktopCopy = {
     background: string;
     foreground: string;
     accent: string;
+    windowMaterial: string;
+    windowMaterialDescription: string;
+    windowMaterialBackdrop: string;
+    windowMaterialSidebar: string;
+    windowMaterialStage: string;
+    windowMaterialRightPanel: string;
     typography: string;
     typographyDescription: string;
     assistantTextSize: string;

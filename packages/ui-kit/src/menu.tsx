@@ -1,6 +1,11 @@
 import * as ContextMenuPrimitive from '@radix-ui/react-context-menu';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
-import { useRef, type ReactElement, type ReactNode } from 'react';
+import {
+  useRef,
+  type PointerEvent as ReactPointerEvent,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { IconChevronRight } from './icons/shell-icons.js';
 import { restoreSelectionRanges, snapshotSelectionRanges } from './selection-ranges.js';
 
@@ -319,17 +324,34 @@ export type ContextMenuItemProps = {
 };
 
 export function ContextMenuItem(props: ContextMenuItemProps): ReactElement {
+  // Radix commits a menu item on click. A non-modal context menu dismisses
+  // from the document pointerdown that follows this handler, which unmounts
+  // the item before that click. Commit here, and ignore the click if it
+  // still arrives so the action does not run twice.
+  const selectFromPointerRef = useRef(false);
   const itemProps: {
     className: string;
     disabled?: boolean;
     'data-testid'?: string;
     title?: string;
+    onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
     onSelect: (event: Event) => void;
   } = {
     className: props.danger ? 'ui-menu-item danger' : 'ui-menu-item',
+    onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
+      if (props.disabled || event.button !== 0) {
+        return;
+      }
+      selectFromPointerRef.current = true;
+      props.onSelect?.();
+    },
     onSelect: (event: Event) => {
       if (props.disabled) {
         event.preventDefault();
+        return;
+      }
+      if (selectFromPointerRef.current) {
+        selectFromPointerRef.current = false;
         return;
       }
       props.onSelect?.();

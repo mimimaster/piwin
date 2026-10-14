@@ -1,21 +1,29 @@
-/* Composer status bar — one muted row under the composer card, three sections:
-   extension status │ this turn │ resources (context bar first). Container
-   queries hide lower-priority items as the pane narrows (ADR 0080). */
+/* Composer status bar — one muted row centered under the composer card,
+   three sections: extension status │ this turn │ resources (context bar first).
+   Container queries hide lower-priority items as the pane narrows (ADR 0080). */
 
 .composer-stats-line {
   container-type: inline-size;
   container-name: composer-status;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--s-4);
-  min-height: 22px;
-  margin-block-start: var(--s-2);
+  min-height: 18px;
+  margin-block-start: var(--s-1);
   padding-inline: calc(var(--s-4) + 1px);
   color: var(--text-3);
   font-size: 11.5px;
-  line-height: 1.5;
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
   min-width: 0;
+}
+
+/* The status row is the dock's last line; it needs only a hairline of bottom
+   breathing room, not the full gap reserved under a bare composer card. */
+.composer-dock:not(.layout-centered):has(> .composer-stats-line:not(.is-empty)),
+.conversation-pane-composer:has(> .composer-stats-line:not(.is-empty)) {
+  padding-block-end: var(--s-2);
 }
 
 /* Empty status is decoration, not an empty live region. Docking opts into
@@ -35,8 +43,12 @@
 }
 
 .composer-stats-extensions {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   overflow: hidden;
+}
+
+.composer-stats-extensions:empty {
+  display: none;
 }
 
 .composer-stats-turn,
@@ -55,6 +67,7 @@
   opacity: 0.5;
 }
 
+.composer-stats-line > :first-child::before,
 .composer-stats-extensions:empty + .composer-stats-turn::before,
 .composer-stats-extensions:empty + .composer-stats-resources::before {
   display: none;
@@ -106,7 +119,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 1px 6px;
+  padding: 0 6px;
   margin-inline: -6px 0;
   border: 0;
   border-radius: var(--r-control, 6px);
@@ -166,6 +179,7 @@
   .composer-stats-line .priority-2,
   .composer-stats-turn,
   .context-usage-bar-amount { display: none; }
+  .composer-stats-extensions:empty ~ .composer-stats-resources::before { display: none; }
 }
 
 .composer-stats-pulse-dot {

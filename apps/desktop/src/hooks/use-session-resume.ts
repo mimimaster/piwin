@@ -62,9 +62,9 @@ export function useSessionResume(input: {
     onSessionComposerProfileRestored,
   } = input;
   const selectionGuardRef = useRef(createSessionSelectionGuard(hostClient.getHostInstanceId()));
-  const nativeHistoryAttemptsRef = useRef(new Set<string>());
+  const nativeHistoryAttemptsRef = useRef(new Map<string, string>());
   const resumeSessionRef = useRef<
-    ((sessionId: string, context?: { refresh?: boolean }) => Promise<void>) | null
+    ((sessionId: string, context?: { refresh?: boolean; nativeHistorySynced?: true }) => Promise<void>) | null
   >(null);
   const [coldRestorePrompt, setColdRestorePrompt] = useState<{
     sessionId: string;
@@ -76,6 +76,7 @@ export function useSessionResume(input: {
     const next = resetGuardHostInstance(selectionGuardRef.current, hostInstanceId);
     if (next !== selectionGuardRef.current) {
       selectionGuardRef.current = next;
+      nativeHistoryAttemptsRef.current.clear();
       dispatch({ type: 'context-telemetry/host-instance', hostInstanceId });
     }
     return selectionGuardRef.current;
@@ -117,6 +118,8 @@ export function useSessionResume(input: {
         projectAlreadyActivated?: boolean;
         /** Reconnect / cold-restore / other explicit refresh. */
         refresh?: boolean;
+        /** This reload follows an already completed native snapshot. */
+        nativeHistorySynced?: true;
       },
     ): Promise<void> => {
       if (shouldBlockRemoteHostGesture(hostClient)) {
@@ -243,16 +246,18 @@ export function useSessionResume(input: {
         contextUsage?: import('@piwin/contracts').ContextUsageSnapshot;
       };
       const nativeHistoryKey = `${started.ticket.hostInstanceId ?? ''}:${sessionId}`;
-      if (data.nativeHistory === 'unsynced' && !nativeHistoryAttemptsRef.current.has(nativeHistoryKey)) {
-        // Once per session and Host instance: a replay the adapter cannot
-        // deliver must not be retried by every later refresh of this session.
-        nativeHistoryAttemptsRef.current.add(nativeHistoryKey);
+      const nativeHistoryVersion = state.sessionEntitiesById[sessionId]?.updatedAt ?? '';
+      if (data.nativeHistory === 'unsynced' && context?.nativeHistorySynced !== true &&
+          nativeHistoryAttemptsRef.current.get(nativeHistoryKey) !== nativeHistoryVersion) {
+        // Retry when native work advances, but never recurse from a snapshot's
+        // own refresh while the native actor continues writing.
+        nativeHistoryAttemptsRef.current.set(nativeHistoryKey, nativeHistoryVersion);
         // Never gate the paint on the agent: the transcript below settles
         // first, then a successful replay reloads it.
         void syncNativeHistory(hostClient, sessionId).then(async (result) => {
           if (!ticketMatches()) return;
           if (result.ok) {
-            await resumeSessionRef.current?.(sessionId, { refresh: true });
+            await resumeSessionRef.current?.(sessionId, { refresh: true, nativeHistorySynced: true });
           } else if (context?.quiet !== true) {
             dispatchNotification(pushError(nativeHistorySyncFailure(locale, result.error)));
           }
@@ -445,6 +450,7 @@ export function useSessionResume(input: {
       state.awaitingTranscript,
       state.generalSessions,
       state.projectSessionsByPath,
+      state.sessionEntitiesById,
       state.sessions,
       state.transcriptOwnerSessionId,
       syncHostInstance,

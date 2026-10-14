@@ -80,6 +80,7 @@ export class MockHostBackend {
       isArchived?: boolean;
       archivedAt?: string;
       origin?: ProductSessionOrigin;
+      backend?: import('@piwin/contracts').SessionBackendBinding;
       storage?: import('@piwin/contracts').SessionStorageInfo;
       knowledgeBaseIds?: string[];
     }

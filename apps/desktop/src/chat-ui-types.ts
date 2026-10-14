@@ -280,6 +280,8 @@ export type SkillActivityView = {
 };
 
 export type SessionListItemUi = {
+  /** Transient Host observation; never persisted into the session index. */
+  nativeCli?: import('@piwin/contracts').AgentCliOwnership;
   id: string;
   name: string;
   lastPreview?: string;
@@ -416,6 +418,8 @@ export type ChatUiState = {
    * unknown or reconciling so a false idle cannot issue if-idle.
    */
   foregroundAdmission: 'unknown' | 'reconciling' | 'ready';
+  /** True while a Host-advertised native CLI owns the writer (open or handing back). */
+  nativeCliWriterBusy: boolean;
   activeRunId: string | null;
   activeRunPhase: SessionRunPhase | null;
   /** Optional detail from latest run/phase (e.g. "Describing image…"). */
@@ -796,4 +800,5 @@ export type ChatUiAction =
   | { type: 'session/backend-updated'; sessionId: string; options: SessionBackendOptions }
   | { type: 'agents/status-updated'; status: ExternalAgentStatus }
   | { type: 'agents/set-all'; agents: ExternalAgentStatus[] }
-  | { type: 'draft/set-agent'; agentId: string };
+  | { type: 'draft/set-agent'; agentId: string }
+  | { type: 'native-cli/writer-busy'; busy: boolean };

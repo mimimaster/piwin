@@ -5,6 +5,7 @@ import { seedLongSessionHost } from './long-session-fixture.js';
 import { seedLiveChainHost } from './live-chain-fixture.js';
 import { seedTurnChangesHost } from './turn-changes-fixture.js';
 import { seedHugeTurnHost } from './huge-turn-fixture.js';
+import { seedSidebarTreeHost } from './sidebar-tree-fixture.js';
 
 export function installMockRendererHarness(host: MockHostBackend): void {
   if (typeof window === 'undefined') {
@@ -32,6 +33,9 @@ export function installMockRendererHarness(host: MockHostBackend): void {
   }
   if (import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true' && params.get('e2eTurnChanges') === '1') {
     seedTurnChangesHost(host);
+  }
+  if (import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true' && params.get('e2eSidebarTree') === '1') {
+    seedSidebarTreeHost(host);
   }
   const seedCount = Number(params.get('e2eSeedSessions'));
   if (Number.isSafeInteger(seedCount) && seedCount > 0) {

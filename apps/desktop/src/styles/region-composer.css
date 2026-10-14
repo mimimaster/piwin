@@ -27,7 +27,7 @@
   width: 100%;
   max-width: none;
   margin-inline: 0;
-  padding: 0 var(--chat-inline-pad) var(--s-6);
+  padding: 0 var(--chat-inline-pad) var(--s-4);
   box-sizing: border-box;
   border: none;
   background: transparent;

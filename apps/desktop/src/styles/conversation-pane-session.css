@@ -159,7 +159,7 @@
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
-  padding: var(--s-4) clamp(var(--s-5), 3vw, var(--s-8)) var(--s-5);
+  padding: var(--s-4) clamp(var(--s-5), 3vw, var(--s-8)) var(--s-3);
   scrollbar-gutter: stable both-edges;
   background: transparent;
   box-shadow: none;
@@ -167,7 +167,8 @@
 
 /* The composer sits in the same reading column as the messages above it
    (outranks the compact card's own full-width rule). */
-.conversation-pane-session .conversation-pane-composer > .composer-card-v2 {
+.conversation-pane-session .conversation-pane-composer > .composer-card-v2,
+.conversation-pane-session .conversation-pane-composer > .composer-stats-line {
   width: 100%;
   max-width: var(--chat-max, 720px);
   margin-inline: auto;
@@ -348,8 +349,4 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-}
-
-html[data-theme-visual-style='ink-wash'] .conversation-pane-session {
-  background: transparent;
 }

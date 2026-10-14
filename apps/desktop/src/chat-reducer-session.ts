@@ -522,7 +522,7 @@ export function reduceChatSession(
       const kept = action.sessions.filter(
         (session) => !isSessionTombstoned(state.sessionTombstonesById, session.id),
       );
-      const listable = listableSessionItems(kept);
+      const listable = listableSessionItems(kept, state.sessionEntitiesById);
       const activeProjectPath =
         state.activeScope.kind === 'project' ? state.activeScope.projectPath : null;
       return {
@@ -563,7 +563,7 @@ export function reduceChatSession(
       const kept = action.sessions.filter(
         (session) => !isSessionTombstoned(state.sessionTombstonesById, session.id),
       );
-      const listable = dedupeSessionsById(listableSessionItems(kept));
+      const listable = dedupeSessionsById(listableSessionItems(kept, state.sessionEntitiesById));
       const meta = {
         totalCount: action.totalCount,
         truncated: action.truncated,
@@ -615,7 +615,7 @@ export function reduceChatSession(
       const kept = action.sessions.filter(
         (session) => !isSessionTombstoned(state.sessionTombstonesById, session.id),
       );
-      const listable = listableSessionItems(kept);
+      const listable = listableSessionItems(kept, state.sessionEntitiesById);
       return {
         ...state,
         sessionEntitiesById: upsertSessionEntities(state.sessionEntitiesById, kept),
@@ -643,7 +643,7 @@ export function reduceChatSession(
       const kept = action.sessions.filter(
         (session) => !isSessionTombstoned(state.sessionTombstonesById, session.id),
       );
-      const listable = listableSessionItems(kept);
+      const listable = listableSessionItems(kept, state.sessionEntitiesById);
       return {
         ...state,
         sessionEntitiesById: upsertSessionEntities(state.sessionEntitiesById, kept),

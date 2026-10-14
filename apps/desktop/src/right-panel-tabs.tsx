@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { IconButton, IconClose, Tabs, TabsList, TabsTrigger } from '@piwin/ui-kit';
 import type { DesktopLocale } from './desktop-locale.js';
 import {
@@ -25,6 +26,14 @@ export function RightPanelTabs(props: {
   onSelect: (tab: RightPanelTab) => void;
   onClose: (tab: RightPanelTab) => void;
 }) {
+  // The strip scrolls without a scrollbar, so a tab activated from elsewhere
+  // (shortcut, agent reveal) has to bring itself into view.
+  const activeTabRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    // Optional call: test DOMs may not implement scrollIntoView.
+    activeTabRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [props.active, props.tabs.length]);
+
   return (
     <Tabs
       className="right-panel-tabs-root"
@@ -65,9 +74,20 @@ export function RightPanelTabs(props: {
           return (
             <div
               key={tab}
+              ref={active ? activeTabRef : null}
               className={`right-panel-tab itab${active ? ' active act' : ''}`}
               data-right-panel-kind={kind ?? undefined}
               {...dockedAttributes}
+              // Middle click closes, as in a browser; mousedown is cancelled so
+              // the webview does not start its autoscroll instead.
+              onMouseDown={(event) => {
+                if (event.button === 1) event.preventDefault();
+              }}
+              onAuxClick={(event) => {
+                if (event.button !== 1) return;
+                event.preventDefault();
+                props.onClose(tab);
+              }}
             >
               <TabsTrigger
                 value={tab}

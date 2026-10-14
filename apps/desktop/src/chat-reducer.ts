@@ -93,6 +93,7 @@ export function createInitialChatUiState(): ChatUiState {
      * unknown or reconciling so a false idle cannot issue if-idle.
      */
     foregroundAdmission: 'unknown' as const,
+    nativeCliWriterBusy: false,
     activeRunId: null,
     activeRunPhase: null,
     activeRunPhaseDetail: null,
@@ -408,6 +409,10 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         ...state,
         draftAgentId: action.agentId,
       };
+    case 'native-cli/writer-busy':
+      return state.nativeCliWriterBusy === action.busy
+        ? state
+        : { ...state, nativeCliWriterBusy: action.busy };
     default:
       return state;
   }

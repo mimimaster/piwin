@@ -25,7 +25,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   min-height: var(--card-header-height, 30px) !important;
   max-height: var(--card-header-height, 30px) !important;
   padding: 0 5px 0 6px !important;
-  border-bottom: 1px solid var(--l1) !important;
+  /* No rule under the strip: the tool's own toolbar or surface tone separates
+     it, and a rule here doubles the toolbar hairline right below. */
+  border-bottom: 0 !important;
   background: transparent !important;
   box-sizing: border-box !important;
   flex: none !important;
@@ -335,72 +337,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--azure);
 }
 
-/* ── Terminal session sidebar / CWD pill ───────────────────────────── */
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .term-sb,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .terminal-sessions-sidebar.term-sb {
-  background: var(--s1);
-  border-right: 1px solid var(--l1);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .term-sb-h,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .terminal-sessions-sidebar-header.term-sb-h {
-  display: flex;
-  align-items: center;
-  height: 26px;
-  padding: 0 8px;
-  font: 11px var(--mono);
-  color: var(--t3);
-  border-bottom: 1px solid var(--l1);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .term-item,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .terminal-session-item.term-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 8px;
-  font: 11.5px var(--mono);
-  color: var(--t2);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .term-item.act,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .terminal-session-item.active.term-item {
-  background: var(--s2);
-  color: var(--t1);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .term-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--l3);
-  flex: none;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .term-dot.starting {
-  background: var(--azure);
-  animation: breath 2.4s ease-in-out infinite;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .term-dirpill,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .terminal-dir-btn.term-dirpill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 6px;
-  background: var(--s2);
-  font: 11.5px var(--mono);
-  color: var(--t2);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .terminal-dock-panel .terminal-dock-body {
-  background: var(--code);
-}
-
 /* ── Review subtabs / split-diff toggle ────────────────────────────── */
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .subtab,
@@ -631,7 +567,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     max-height: var(--card-header-height, 30px) !important;
     gap: 2px;
     padding: 0 5px 0 6px;
-    border-bottom: 1px solid var(--l1);
+    border-bottom: 0;
     box-sizing: border-box;
     position: relative;
   }
@@ -843,9 +779,3 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 /* Tabs also retain a bounded horizontal strip in the alternative themes. */
 .right-panel-tabs-root { min-width: 0; flex: 0 1 auto; }
-
-/* ── .tool-context: redundant in single-session shell ───────────────── */
-.right-panel-tool-context,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-tool-context {
-  display: none !important;
-}

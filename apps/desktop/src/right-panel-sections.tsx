@@ -44,7 +44,7 @@ export const SECTION_META: Array<{
   icon: ReactElement;
   labelEn: string;
   labelZh: string;
-  /** Optional keyboard shortcut string for display in launcher (e.g. ⌥⌘S). */
+  /** Shortcut shown in the launcher; must match a binding in use-desktop-shortcuts. */
   shortcut?: string;
   /** When true, the tab is reachable but not shown in the home list or + menu. */
   hidden?: boolean;
@@ -53,13 +53,13 @@ export const SECTION_META: Array<{
   /** Shown in the home launcher, not the + menu. */
   homeOnly?: boolean;
 }> = [
-  { id: 'sideChat', icon: <IconSideChat />, labelEn: 'Side chat', labelZh: '侧聊', shortcut: '⌥⌘S' },
-  { id: 'browser', icon: <IconBrowser />, labelEn: 'Browser', labelZh: '浏览器', shortcut: '⌘T' },
-  { id: 'files', icon: <IconFile />, labelEn: 'Files', labelZh: '文件', shortcut: '⌘P' },
+  { id: 'sideChat', icon: <IconSideChat />, labelEn: 'Side chat', labelZh: '侧聊' },
+  { id: 'browser', icon: <IconBrowser />, labelEn: 'Browser', labelZh: '浏览器', shortcut: '⌘4' },
+  { id: 'files', icon: <IconFile />, labelEn: 'Files', labelZh: '文件', shortcut: '⌘1' },
   { id: 'terminal', icon: <IconTerminal />, labelEn: 'zsh', labelZh: 'zsh', shortcut: '⌘J' },
   { id: 'tasks', icon: <IconActivity />, labelEn: 'Tasks', labelZh: '任务' },
   // Changes is one view of the workspace; the + menu does not open another.
-  { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更', shortcut: '⌥⌘G', homeOnly: true },
+  { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更', shortcut: '⌘3', homeOnly: true },
   { id: 'notes', icon: <IconNote />, labelEn: 'Notes', labelZh: '笔记', plusOnly: true },
   { id: 'cards', icon: <IconCards />, labelEn: 'Flashcards', labelZh: '知识卡片', plusOnly: true },
   { id: 'canvas', icon: <IconDocument />, labelEn: 'Canvas', labelZh: '画布', hidden: true },

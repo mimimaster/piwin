@@ -102,3 +102,14 @@ describe('listExtensionSlashCommands', () => {
     ]);
   });
 });
+
+
+it('preserves static command descriptions only for listed enabled commands', () => {
+  const extension: ExtensionSummary = { id: 'study', name: 'Study Space', description: '', source: 'user', path: '/x/study', enabled: true,
+    compatibility: { tier: 'compatible', capabilities: { tools: [], hooks: [], commands: ['teacher-ta', 'teacher-off'],
+      commandDescriptions: { 'teacher-ta': '助教答疑', 'unregistered': 'Must not appear' } } } };
+  expect(listExtensionSlashCommands([extension])).toEqual([
+    { name: 'teacher-ta', extensionId: 'study', extensionName: 'Study Space', description: '助教答疑' },
+    { name: 'teacher-off', extensionId: 'study', extensionName: 'Study Space' },
+  ]);
+});

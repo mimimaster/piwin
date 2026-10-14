@@ -20,9 +20,9 @@ describe('findGeneratedImage', () => {
 describe('lookupCliImage', () => {
   it('replays the agent history before reading attachments', async () => {
     const request = vi.fn(async (command: HostCommand): Promise<HostResponse> =>
-      command.type === 'agents/cli-sync' ? ok(command.type, {}) : ok(command.type, { messages: [message('a', [image('x', '1.jpg')])] }));
+      command.type === 'agents/cli-snapshot' ? ok(command.type, {}) : ok(command.type, { messages: [message('a', [image('x', '1.jpg')])] }));
     await expect(lookupCliImage({ request }, 's1', '1.jpg')).resolves.toMatchObject({ status: 'found', attachment: { id: 'x' } });
-    expect(request.mock.calls.map(([command]) => command.type)).toEqual(['agents/cli-sync', 'session/messages']);
+    expect(request.mock.calls.map(([command]) => command.type)).toEqual(['agents/cli-snapshot', 'session/messages']);
   });
 
   it('distinguishes an unknown file from a failed sync', async () => {

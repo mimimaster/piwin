@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { IconCompress, IconExpand, IconRefresh, IconPanelRight } from './shell-icons';
+import { IconCompress, IconExpand, IconRefresh } from './shell-icons';
 import { getDesktopCopy } from './desktop-locale';
 import type { DesktopLocale } from './desktop-locale';
 import { IconButton, IconClose } from '@piwin/ui-kit';
@@ -23,6 +23,7 @@ import {
   type RightPanelTab,
   type RightPanelToolKind,
 } from './right-panel-sections';
+import { terminalTabLabel } from './terminal-tab-label.js';
 import { RightPanelPlusMenu } from './right-panel-plus-menu';
 import { RightPanelHome } from './right-panel-home';
 import { RightPanelTabs } from './right-panel-tabs.js';
@@ -383,7 +384,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     const labels: Record<string, string> = {};
     if (terminalSessions) {
       for (const session of terminalSessions.sessions) {
-        labels[session.id as RightPanelTab] = session.name;
+        labels[session.id as RightPanelTab] = terminalTabLabel(session.title, session.name);
       }
     }
     return labels;
@@ -521,76 +522,63 @@ export function RightPanel(props: RightPanelProps): ReactElement {
           />
 
           {isTerminalActive && terminalSessions ? (
-            <>
-              <IconButton
-                className="right-panel-action-btn ib"
-                data-testid="pty-restart-btn"
-                size={22}
-                label={locale === 'zh-CN' ? '重启当前终端' : 'Restart active terminal'}
-                title={locale === 'zh-CN' ? '重启当前终端' : 'Restart active terminal'}
-                onClick={() => {
-                  if (activeTerminalSessionId) {
-                    terminalSessions.restartSession(activeTerminalSessionId);
-                  }
-                }}
-              >
-                <IconRefresh width={14} height={14} />
-              </IconButton>
-              <IconButton
-                className={`right-panel-action-btn ib${terminalSessions.sidebarOpen ? ' active' : ''}`}
-                data-testid="terminal-sidebar-toggle"
-                size={22}
-                label={terminalSessions.sidebarOpen ? 'Hide terminal sessions' : 'Manage terminal sessions'}
-                title={terminalSessions.sidebarOpen ? 'Hide terminal sessions' : 'Manage terminal sessions'}
-                aria-pressed={terminalSessions.sidebarOpen}
-                onClick={() => terminalSessions.setSidebarOpen((prev) => !prev)}
-              >
-                <IconPanelRight width={14} height={14} />
-              </IconButton>
-            </>
+            <IconButton
+              className="right-panel-action-btn ib"
+              data-testid="pty-restart-btn"
+              size={22}
+              label={locale === 'zh-CN' ? '重启当前终端' : 'Restart active terminal'}
+              title={locale === 'zh-CN' ? '重启当前终端' : 'Restart active terminal'}
+              onClick={() => {
+                if (activeTerminalSessionId) {
+                  terminalSessions.restartSession(activeTerminalSessionId);
+                }
+              }}
+            >
+              <IconRefresh width={14} height={14} />
+            </IconButton>
           ) : null}
 
-          <IconButton
-            className={`right-panel-action-btn ib${props.isExpanded ? ' active' : ''}`}
-            data-testid="right-panel-expand-btn"
-            data-app-shell-workspace-layout-toggle="right-panel"
-            size={22}
-            label={
-              props.isExpanded
-                ? locale === 'zh-CN'
-                  ? '退出全屏'
-                  : 'Exit full screen'
-                : locale === 'zh-CN'
-                  ? '进入全屏'
-                  : 'Enter full screen'
-            }
-            title={
-              props.isExpanded
-                ? locale === 'zh-CN'
-                  ? '退出全屏'
-                  : 'Exit full screen'
-                : locale === 'zh-CN'
-                  ? '进入全屏'
-                  : 'Enter full screen'
-            }
-            aria-pressed={props.isExpanded ?? false}
-            onClick={() => {
-              if (allTabs.length === 0) {
-                return;
+          {/* An empty panel cannot cover the conversation, so it offers no expand. */}
+          {allTabs.length > 0 ? (
+            <IconButton
+              className={`right-panel-action-btn ib${props.isExpanded ? ' active' : ''}`}
+              data-testid="right-panel-expand-btn"
+              data-app-shell-workspace-layout-toggle="right-panel"
+              size={22}
+              label={
+                props.isExpanded
+                  ? locale === 'zh-CN'
+                    ? '退出全屏'
+                    : 'Exit full screen'
+                  : locale === 'zh-CN'
+                    ? '进入全屏'
+                    : 'Enter full screen'
               }
-              if (props.onToggleExpand) {
-                props.onToggleExpand();
-              } else {
-                props.onResizeReset();
+              title={
+                props.isExpanded
+                  ? locale === 'zh-CN'
+                    ? '退出全屏'
+                    : 'Exit full screen'
+                  : locale === 'zh-CN'
+                    ? '进入全屏'
+                    : 'Enter full screen'
               }
-            }}
-          >
-            {props.isExpanded ? (
-              <IconCompress width={14} height={14} />
-            ) : (
-              <IconExpand width={14} height={14} />
-            )}
-          </IconButton>
+              aria-pressed={props.isExpanded ?? false}
+              onClick={() => {
+                if (props.onToggleExpand) {
+                  props.onToggleExpand();
+                } else {
+                  props.onResizeReset();
+                }
+              }}
+            >
+              {props.isExpanded ? (
+                <IconCompress width={14} height={14} />
+              ) : (
+                <IconExpand width={14} height={14} />
+              )}
+            </IconButton>
+          ) : null}
 
           {browserTitlebar && !props.isOverlayPresentation && browserPageTabCount === 0 && active ? (
             <IconButton
@@ -618,14 +606,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             </IconButton>
           ) : null}
         </div>
-      </div>
-
-      {/* Proto-00 .tool-context: which session these tools follow. The tab
-          strip keeps expand (and overlay close) controls, so this row is
-          label-only and stays hidden outside the Inkstone themes. */}
-      <div className="right-panel-tool-context tool-context" data-testid="right-panel-tool-context">
-        <span className="follow-dot" aria-hidden />
-        <span className="tool-scope">{locale === 'zh-CN' ? '本次会话' : 'This session'}</span>
       </div>
 
       {allTabs.length === 0 ? (

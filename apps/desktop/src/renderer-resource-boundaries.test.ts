@@ -30,12 +30,30 @@ const PRODUCT_GLASS_WHITELIST = [
   '.settings-feedback-host .ui-notice',
   '.collapsible-content-toggle',
   '.media-lightbox-close',
-  '.sidebar-footer-fade',
+  '.transcript-edge-blur > span',
   ".app-shell[data-layout='compact'].nav-open > .sidebar",
   ".app-shell[data-layout='phone'].nav-open > .sidebar",
   ".app-shell[data-layout='compact'].has-right-panel > .right-panel.outward-column:not(.is-collapsed)",
   ".app-shell[data-layout='phone'].has-right-panel > .right-panel.outward-column:not(.is-collapsed)",
   ".app-shell[data-inspector='overlay'].has-right-panel > .right-panel.outward-column:not(.is-collapsed)",
+  // Floating overlays on the macOS window material (window-material-overlays.css).
+  'html[data-window-material] .ui-menu-content',
+  'html[data-window-material] .ui-popover-content',
+  'html[data-window-material] .ui-menu-content.plus-menu',
+  'html[data-window-material] .ui-menu-content.plus-submenu',
+  'html[data-window-material] .slash-menu',
+  'html[data-window-material] .at-menu',
+  'html[data-window-material] .line-comment-popover',
+  'html[data-window-material] .add-model-catalog-suggestions',
+  'html[data-window-material] .fc-source-popover',
+  'html[data-window-material] .mantine-Notification-root',
+  'html[data-window-material] .ui-toast',
+  'html[data-window-material] .modal.ui-dialog-content',
+  'html[data-window-material] .piwin-modal-content.piwin-modal-content',
+  'html[data-window-material] .composer-modal-editor',
+  'html[data-window-material] .knowledge-modal-dialog',
+  'html[data-window-material] .drawer-panel',
+  'html[data-window-material] .source-drawer',
 ] as const;
 
 const ALLOWED_PRODUCT_GLASS = new Set<string>(PRODUCT_GLASS_WHITELIST);
@@ -150,17 +168,10 @@ describe('Desktop renderer resource boundaries', () => {
       expect(declarations).toContain('backdrop-filter: none !important');
       expect(declarations).toContain('-webkit-backdrop-filter: none !important');
     }
-    // Critical additionally sheds decoded decorative textures.
-    expect(ruleDeclarations(degradation, "html[data-memory-pressure='critical']")).toContain(
-      '--ink-wash-hero: none !important',
-    );
-
-    // Parking may strip blur with the pressure rules, but must keep textures
-    // so waking the window does not flash white while JPEGs re-decode.
+    // Parking strips blur with the pressure rules.
     expect(ruleDeclarations(degradation, 'html[data-memory-parked] *')).toContain(
       'backdrop-filter: none !important',
     );
-    expect(degradation).not.toMatch(/html\[data-memory-parked\]\s*\{[^}]*--ink-wash-/);
   });
 
   it('keeps settings CSS and feature modules out of the cold main entries', () => {

@@ -323,7 +323,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
                       <IconExtension width={14} height={14} />
                     </span>
                     <span className="plus-menu-label">/{command.name}</span>
-                    <span className="plus-menu-meta muted">{command.extensionName}</span>
+                    <span className="plus-menu-meta muted">{command.description ?? command.extensionName}</span>
                   </DropdownMenuItem>
                 ))
               ) : (

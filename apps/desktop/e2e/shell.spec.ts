@@ -603,7 +603,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await composer.fill('/');
     await expect(page.getByTestId('composer-slash-menu')).toBeVisible();
     await expect(page.getByTestId('slash-item-cmd:compact')).toBeVisible();
-    await expect(page.getByTestId('slash-item-mode:agent')).toBeVisible();
+    await expect(page.getByTestId('slash-item-mode:agent')).toHaveCount(0);
     await expect(page.getByTestId('slash-item-mode:goal')).toBeVisible();
     await expect(page.getByTestId('slash-item-skill:create-skill')).toBeVisible();
 

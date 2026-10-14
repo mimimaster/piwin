@@ -15,6 +15,8 @@ export async function handleMockWorkspaceCommands(
         const openedAt = new Date().toISOString();
         const existingProject = host.mockProjects.get(command.path);
         host.mockProjects.set(command.path, {
+          // Reopening must not forget git identity, or a worktree group dissolves.
+          ...existingProject,
           path: command.path,
           trust: existingProject?.trust ?? 'untrusted',
           lastOpenedAt: openedAt,

@@ -67,8 +67,12 @@ export function isSessionTombstoned(
 
 export function listableSessionItems(
   sessions: readonly SessionListItemUi[],
+  entities?: Readonly<Record<string, SessionListItemUi>>,
 ): SessionListItemUi[] {
-  return sessions.filter((session) => !isPlaceholderSessionName(session.name));
+  return sessions.filter((session) => !isPlaceholderSessionName(session.name)).map((session) => {
+    const nativeCli = entities?.[session.id]?.nativeCli;
+    return nativeCli === undefined ? session : { ...session, nativeCli };
+  });
 }
 
 export function resolveEntityScope(

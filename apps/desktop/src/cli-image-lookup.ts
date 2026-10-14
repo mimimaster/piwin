@@ -39,7 +39,7 @@ export async function lookupCliImage(
   fileName: string,
 ): Promise<CliImageLookup> {
   try {
-    const synced = await host.request({ type: 'agents/cli-sync', sessionId });
+    const synced = await host.request({ type: 'agents/cli-snapshot', sessionId });
     if (!synced.success) return { status: 'failed', error: synced.error };
     const listed = await host.request({ type: 'session/messages', sessionId });
     if (!listed.success) return { status: 'failed', error: listed.error };

@@ -79,6 +79,29 @@ function cleanupMountedMarkdownRenders(): void {
   }
 }
 
+/** Open an Inline artifact's overflow menu; Radix opens it on pointerdown. */
+function openArtifactMoreMenu(container: HTMLElement): void {
+  const trigger = container.querySelector<HTMLButtonElement>('[data-testid="artifact-more-actions"]');
+  expect(trigger).not.toBeNull();
+  act(() => {
+    trigger?.dispatchEvent(
+      new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }),
+    );
+  });
+}
+
+/** The menu content portals to document.body, outside the render container. */
+function artifactMenuItem(testId: string): HTMLElement | null {
+  return document.body.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+}
+
+function chooseArtifactMenuItem(container: HTMLElement, testId: string): void {
+  openArtifactMoreMenu(container);
+  const item = artifactMenuItem(testId);
+  expect(item).not.toBeNull();
+  act(() => item?.click());
+}
+
 async function flushMarkdownEffects(): Promise<void> {
   await act(async () => {
     await Promise.resolve();
@@ -188,8 +211,10 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('.artifact-frame')).not.toBeNull();
     const wrapper = container.querySelector('.artifact-with-source');
     expect(wrapper?.classList.contains('artifact-with-source--preview')).toBe(true);
-    // "Show code" action is rendered as floating actions overlay.
-    expect(wrapper?.querySelector('.artifact-floating-actions')).not.toBeNull();
+    // Actions sit in a row below the artifact, not over it.
+    const actions = wrapper?.querySelector('.artifact-floating-actions');
+    expect(actions).not.toBeNull();
+    expect(actions?.previousElementSibling?.classList.contains('artifact-preview-surface')).toBe(true);
     expect(wrapper?.querySelector('.artifact-preview-surface .artifact-frame')).not.toBeNull();
     expect(wrapper?.querySelector('.artifact-frame .artifact-frame-actions')).toBeNull();
     expect(wrapper?.querySelector('.artifact-frame')?.getAttribute('data-artifact-renderer')).toBe(
@@ -217,9 +242,7 @@ describe('MarkdownView artifact preview policy', () => {
     if (plan?.document.kind === 'sandbox') {
       expect(plan.document.srcdoc).toContain('Visible portion');
     }
-    const sourceToggle = container.querySelector<HTMLButtonElement>('[data-testid="artifact-preview-toggle"]');
-    expect(sourceToggle).not.toBeNull();
-    act(() => sourceToggle?.click());
+    chooseArtifactMenuItem(container, 'artifact-show-code');
     expect(container.querySelector('[data-testid="code-fence-source"]')?.textContent).toContain('const broken');
     expect(container.querySelector('[data-testid="artifact-source-incomplete"]')).not.toBeNull();
   });
@@ -304,12 +327,12 @@ describe('MarkdownView artifact preview policy', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
     );
-    const download = container.querySelector<HTMLButtonElement>(
-      '[data-testid="artifact-download-source"]',
-    );
+    expect(container.querySelector('[data-testid="artifact-download-source"]')).toBeNull();
+    openArtifactMoreMenu(container);
+    const download = artifactMenuItem('artifact-download-source');
     expect(download).not.toBeNull();
-    expect(download?.getAttribute('aria-label')).toBe('Download HTML');
-    expect(download?.disabled).toBe(false);
+    expect(download?.textContent).toContain('Download HTML');
+    expect(download?.hasAttribute('data-disabled')).toBe(false);
 
     act(() => {
       download?.click();
@@ -852,16 +875,15 @@ describe('MarkdownView artifact preview policy', () => {
     const artifactFrame = container.querySelector<HTMLElement>('.artifact-frame');
     expect(artifactFrame).not.toBeNull();
     expect(wrapper?.classList.contains('artifact-with-source--preview')).toBe(true);
-    // "Show code" is a floating overlay action button.
-    const showCode = container.querySelector<HTMLButtonElement>(
-      '[data-testid="artifact-preview-toggle"]',
-    );
-    expect(showCode).not.toBeNull();
-    expect(showCode?.getAttribute('aria-label')).toBe('Show code');
-    expect(showCode?.classList.contains('artifact-floating-action-button')).toBe(true);
-    expect(wrapper?.querySelector('.artifact-floating-actions')?.contains(showCode)).toBe(true);
+    // "Show code" lives in the overflow menu of the row below the artifact.
+    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
+    const more = container.querySelector('[data-testid="artifact-more-actions"]');
+    expect(wrapper?.querySelector('.artifact-floating-actions')?.contains(more)).toBe(true);
     expect(artifactFrame?.querySelector('.artifact-frame-actions')).toBeNull();
     expect(artifactFrame?.classList.contains('has-artifact-action')).toBe(false);
+    openArtifactMoreMenu(container);
+    const showCode = artifactMenuItem('artifact-show-code');
+    expect(showCode?.textContent).toContain('Show code');
     // Switch back to source.
     act(() => {
       showCode?.click();
@@ -887,13 +909,7 @@ describe('MarkdownView artifact preview policy', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
     );
-    const showCode = container.querySelector<HTMLButtonElement>(
-      '[data-testid="artifact-preview-toggle"]',
-    );
-    expect(showCode?.getAttribute('aria-label')).toBe('Show code');
-    act(() => {
-      showCode?.click();
-    });
+    chooseArtifactMenuItem(container, 'artifact-show-code');
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
     const preview = container.querySelector<HTMLButtonElement>(
@@ -912,13 +928,7 @@ describe('MarkdownView artifact preview policy', () => {
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="streaming" />,
     );
     await flushMarkdownEffects();
-    const showCode = container.querySelector<HTMLButtonElement>(
-      '[data-testid="artifact-preview-toggle"]',
-    );
-    expect(showCode?.getAttribute('aria-label')).toBe('Show code');
-    act(() => {
-      showCode?.click();
-    });
+    chooseArtifactMenuItem(container, 'artifact-show-code');
     expect(container.querySelector('.artifact-frame')).toBeNull();
     const preview = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-preview-toggle"]',

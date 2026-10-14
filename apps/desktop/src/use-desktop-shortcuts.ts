@@ -15,6 +15,11 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
+/** xterm takes keys through a hidden textarea inside its `.xterm` root. */
+function isTerminalTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.closest('.xterm') !== null;
+}
+
 export function useDesktopShortcuts(options: {
   enabled?: boolean;
   onCommand: (commandId: DesktopCommandId) => void;
@@ -31,7 +36,14 @@ export function useDesktopShortcuts(options: {
         return;
       }
       const key = event.key.toLowerCase();
-      const editable = isEditableTarget(event.target);
+      // A terminal owns every Ctrl chord (Ctrl+K, Ctrl+J, Ctrl+L are shell
+      // keys), but ⌘ never reaches the PTY, so ⌘ shortcuts stay live there —
+      // otherwise the panel cannot be closed or switched from its own shell.
+      const terminal = isTerminalTarget(event.target);
+      if (terminal && !event.metaKey) {
+        return;
+      }
+      const editable = !terminal && isEditableTarget(event.target);
 
       // Always-available shortcuts (work even while typing in text fields).
       if (key === 'k') {

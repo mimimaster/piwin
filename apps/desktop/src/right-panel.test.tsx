@@ -133,7 +133,13 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('.insp-h')).not.toBeNull();
     expect(container.querySelector('[data-testid="right-panel-home-tasks"]')).not.toBeNull();
     expect(container.querySelectorAll('[data-testid^="right-panel-home-"]').length).toBe(6);
-    expect(container.querySelectorAll('.right-panel-home-shortcut').length).toBe(5);
+    // Only shortcuts the shell really binds are advertised.
+    const hints = [...container.querySelectorAll('.right-panel-home-shortcut')].map(
+      (node) => node.textContent,
+    );
+    expect(hints).toEqual(['⌘4', '⌘1', '⌘J', '⌘3']);
+    // Nothing to expand over the conversation yet.
+    expect(container.querySelector('[data-testid="right-panel-expand-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="right-panel-tab-add"]')).toBeNull();
   });
 
@@ -397,6 +403,24 @@ describe('RightPanel multi-tab', () => {
     const body = container.querySelector('#inspector-panel-canvas');
     expect(body?.getAttribute('data-right-panel-tab')).toBe('canvas');
     expect(container.querySelector('[data-testid="canvas-body"]')).not.toBeNull();
+  });
+
+  it('closes a tab on middle click', () => {
+    writeStoredRightPanelState({ openTabs: ['files', 'review'], activeTab: 'files' });
+    const rendered = renderPanel({ activeTab: 'files' });
+    root = rendered.root;
+    container = rendered.container;
+
+    const reviewTab = container
+      .querySelector('[data-testid="right-panel-open-tab-review"]')
+      ?.closest('.right-panel-tab');
+    expect(reviewTab).not.toBeNull();
+    act(() => {
+      reviewTab?.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 1 }));
+    });
+
+    expect(container.querySelector('[data-testid="right-panel-open-tab-review"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).not.toBeNull();
   });
 
   it('renders expand button and positions + button before tabs', () => {

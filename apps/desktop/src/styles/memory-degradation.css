@@ -13,35 +13,17 @@
    plain-text highlight fallback (Plan D).
 
    Tier map:
-   - moderate (≥768 MiB): every glass blur off; translucent fills remain.
-   - critical (≥1536 MiB): also shed ink-wash decorative textures (each
-     decoded JPEG/PNG holds width×height×4 bytes of cache). Custom-property
-     `none` overrides the inline var() written by applyAppearanceToDocument
-     and beats the url() fallbacks in region sheets. */
+   - moderate (≥768 MiB) and critical (≥1536 MiB): every glass blur off;
+     translucent fills remain. */
 
 /* data-memory-parked (memory-parking.ts) is occlusion-only: engaged after
    the window has been hidden long enough and removed on the same turn that
-   restores visibility. It may strip blur (cheap to rebuild) but must NOT
-   unload --ink-wash-* textures — re-decoding those on wake flashes white.
-   Critical pressure still sheds textures below. */
+   restores visibility. It may strip blur (cheap to rebuild). */
 html[data-memory-pressure='moderate'] *,
 html[data-memory-pressure='critical'] *,
 html[data-memory-parked] * {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
-}
-
-html[data-memory-pressure='critical'] {
-  --ink-wash-hero: none !important;
-  --ink-wash-conversation-texture: none !important;
-  --ink-wash-sidebar-bg: none !important;
-  --ink-wash-right-panel-bg: none !important;
-  --ink-wash-agent-seal: none !important;
-  --ink-wash-dry-brush-divider: none !important;
-  --ink-wash-empty-session: none !important;
-  --ink-wash-empty-files: none !important;
-  --ink-wash-empty-failure: none !important;
-  --ink-wash-empty-complete: none !important;
 }
 
 /* Strip 3D perspective, preserve-3d layers, and transient transform will-change

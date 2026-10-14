@@ -471,6 +471,10 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (handleExternalAgentPush(hostClient, dispatch, message, syncedReadyAgents)) return;
+      if (message.type === 'agents/cli-ownership') {
+        dispatch({ type: 'session/update', session: { id: message.ownership.sessionId, name: '', nativeCli: message.ownership } });
+        return;
+      }
       if (message.type === 'session/index-updated') {
         if (message.op === 'deleted') {
           dispatch({ type: 'session/remove', sessionId: message.sessionId });

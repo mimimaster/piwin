@@ -548,11 +548,21 @@ input.project-path-input {
 /* ── ui-kit menu / popover surfaces ───────────────────────────────────
    Appearance + entrance animation live in @piwin/ui-kit/styles.css. Radix
    portals render above everything; desktop keeps only the z-layer so menus
-   opened from dialogs stay clickable. */
+   opened from dialogs stay clickable. no-drag is required on the portaled
+   surface and its popper wrapper: a window drag region steals clicks from
+   overlapping fixed layers that do not opt out, so a visible menu item
+   never receives the press. */
 
 .ui-menu-content,
 .ui-popover-content {
   z-index: var(--layer-popover);
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+[data-radix-popper-content-wrapper] {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 /* ── Session lineage popover ──────────────────────────────────────────

@@ -121,6 +121,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
     locale: desktopLocale, appearanceMode: activeTheme.mode === 'light' ? 'light' : 'dark',
     onResumeSession: handleResumeSession,
     onError: (error) => dispatch({ type: 'error', message: formatError(error) }),
+    onWriterBusy: (busy) => dispatch({ type: 'native-cli/writer-busy', busy }),
   });
   return (
     <div
@@ -235,14 +236,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             isInkstone={inkstoneStage}
           />
         }
-        chatColumnClassName={
-          [
-            composerLayoutMode === 'centered' ? 'chat-column-empty' : '',
-            activeTheme.visualStyle === 'ink-wash' ? 'theme-visual-ink-wash' : '',
-          ]
-            .filter(Boolean)
-            .join(' ') || undefined
-        }
+        chatColumnClassName={composerLayoutMode === 'centered' ? 'chat-column-empty' : undefined}
         renderStage={(primaryPane) => (
           <WorkbenchStageLayer
             primaryPane={primaryPane}

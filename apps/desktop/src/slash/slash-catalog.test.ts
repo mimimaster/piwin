@@ -64,19 +64,19 @@ describe('buildSlashCatalog — optimize-prompt aliases', () => {
 });
 
 describe('buildSlashCatalog — composer modes', () => {
-  it('lists Agent and Goal only — not Plan or Ask', () => {
+  it('lists Goal only — Agent is resting mode, not Plan or Ask', () => {
     const catalog = buildSlashCatalog({
       skills,
       hasActiveSession: true,
       projectTrusted: true,
     });
     const modeIds = catalog.filter((item) => item.kind === 'mode').map((item) => item.name);
-    expect(modeIds).toEqual(['agent', 'goal']);
+    expect(modeIds).toEqual(['goal']);
   });
 });
 
 describe('buildSlashCatalog — Conversation chat', () => {
-  it('keeps compact plus Agent/Goal/skills, and omits orchestration', () => {
+  it('keeps compact plus Goal/skills, and omits orchestration', () => {
     const catalog = buildSlashCatalog({
       skills,
       hasActiveSession: true,
@@ -85,7 +85,6 @@ describe('buildSlashCatalog — Conversation chat', () => {
     });
     expect(catalog.map((item) => item.id)).toEqual([
       'cmd:compact',
-      'mode:agent',
       'mode:goal',
       'skill:writing-plans',
       'skill:optimize-prompt',
@@ -278,5 +277,21 @@ describe('buildSlashCatalog — backend commands (ADR 0082)', () => {
     });
     expect(catalog.some((item) => item.kind === 'backend')).toBe(false);
     expect(catalog.find((item) => item.id === 'cmd:compact')).toBeTruthy();
+  });
+});
+
+
+describe('extension command purpose discovery', () => {
+  it('shows registered descriptions and supports Chinese purpose searches', () => {
+    const catalog = buildSlashCatalog({ skills: [], hasActiveSession: true, projectTrusted: true,
+      extensionCommands: [
+        { name: 'teacher-ta', extensionName: 'Study Space', description: '助教答疑 · Answer code questions' },
+        { name: 'teacher-learn', extensionName: 'Study Space', description: '开始学习 · Learn a topic' },
+        { name: 'teacher-review', extensionName: 'Study Space', description: '到期复习 · Review scheduled cards' },
+      ] });
+    expect(catalog.find(item => item.name === 'teacher-ta')?.label).toBe('助教答疑 · Answer code questions');
+    for (const [query, name] of [['助教', 'teacher-ta'], ['学习', 'teacher-learn'], ['复习', 'teacher-review']]) {
+      expect(filterSlashItems(catalog, query ?? '').map(item => item.name)).toContain(name);
+    }
   });
 });

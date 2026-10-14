@@ -98,10 +98,11 @@ progress {
   accent-color: var(--iris);
 }
 
-/* Scrollbars read as part of the surface, not as chrome bolted onto it. */
+/* Scrollbars read as part of the surface, not as chrome bolted onto it.
+   One thin bar for every theme: 6px track, 1px clear border → 4px thumb. */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -109,7 +110,7 @@ progress {
 ::-webkit-scrollbar-thumb {
   background: var(--line-2);
   border-radius: var(--r-pill);
-  border: 3px solid transparent;
+  border: 1px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {

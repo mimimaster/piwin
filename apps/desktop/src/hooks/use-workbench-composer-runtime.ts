@@ -16,6 +16,7 @@ import {
 import type { HostClient } from '../host-client';
 import { resolveActiveComposerAgentId, resolveActiveComposerBackendBinding } from '../composer-dock-assembly.js';
 import { isConversationSessionChrome } from '../is-conversation-session';
+import { useSyncSidebarModeForAgent } from './use-sync-sidebar-mode-for-agent';
 import { useComposerContextRefs } from './use-composer-context-refs';
 import { useComposerMedia } from './use-composer-media';
 import { useComposerModelController } from './use-composer-model';
@@ -344,11 +345,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
   });
   const draftAgentId = state.draftAgentId ?? 'pi';
   const activeAgentId = resolveActiveComposerAgentId(state);
-  useEffect(() => {
-    if (chrome.sidebarMode === 'chat' && activeAgentId !== undefined && activeAgentId !== 'pi') {
-      chrome.setSidebarMode('code');
-    }
-  }, [activeAgentId, chrome.sidebarMode, chrome.setSidebarMode]);
+  useSyncSidebarModeForAgent(activeAgentId, chrome.setSidebarMode);
   useEffect(() => {
     if (chrome.sidebarMode === 'chat' && draftAgentId !== 'pi') {
       dispatch({ type: 'draft/set-agent', agentId: 'pi' });

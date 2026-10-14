@@ -523,3 +523,32 @@ describe('useSessionResume continue-in-project', () => {
     );
   });
 });
+
+it('refreshes newer native history after navigation and does not loop after its own reload', async () => {
+  const container = document.createElement('div'); document.body.append(container);
+  const root = createRoot(container);
+  let state = chatState();
+  state.sessionEntitiesById['session-old'] = { ...sessionItem('session-old'), updatedAt: 'version-1' };
+  const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => command.type === 'session/resume'
+    ? ok(command, { ...resumeSuccessData('session-old'), nativeHistory: 'unsynced' }) : ok(command));
+  const hostClient = { getHostInstanceId: () => 'host-1', getTransport: () => 'live', isReady: () => true, request } as unknown as HostClient;
+  let captured: ResumeHook | undefined;
+  const dispatch = vi.fn();
+  function Harness() {
+    captured = useSessionResume({ hostClient, state, dispatch, dispatchNotification: vi.fn(), locale: 'en', showArchivedSessions: false, hydrateSessions: async () => [] });
+    return null;
+  }
+  const render = () => act(() => root.render(<Harness />));
+  const resume = async () => {
+    if (captured === undefined) throw new Error('Hook not rendered');
+    await act(async () => { await captured?.handleResumeSession('session-old', { refresh: true }); });
+  };
+  const snapshots = () => request.mock.calls.filter(([command]) => command.type === 'agents/cli-snapshot').length;
+  try {
+    render(); await resume();
+    expect(snapshots()).toBe(1);
+    await resume(); expect(snapshots()).toBe(1);
+    state = { ...state, sessionEntitiesById: { 'session-old': { ...sessionItem('session-old'), updatedAt: 'version-2' } } };
+    render(); await resume(); expect(snapshots()).toBe(2);
+  } finally { act(() => root.unmount()); container.remove(); }
+});

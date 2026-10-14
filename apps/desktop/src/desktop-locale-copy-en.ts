@@ -132,8 +132,10 @@ export const DESKTOP_COPY_EN: DesktopCopy = {
       flatList: 'Flat list',
       filters: 'Filters',
       openWorkspaceFolder: 'Open workspace folder',
-      repoWorktreeGroup: (repoName, worktreeCount) =>
-        `${repoName} (repo · ${worktreeCount} worktrees)`,
+      sessionInWorktree: (worktreeName, branch) =>
+        branch ? `Worktree ${worktreeName} · ${branch}` : `Worktree ${worktreeName}`,
+      unavailableWorkspaces: 'Unavailable workspaces',
+      unavailableWorkspace: 'Unavailable',
       newConversationInProject: (projectName) => `New conversation in ${projectName}`,
       removeProjectFromSidebar: 'Remove from sidebar',
       collapseProjects: 'Collapse project list',
@@ -326,6 +328,13 @@ export const DESKTOP_COPY_EN: DesktopCopy = {
       background: 'Background',
       foreground: 'Foreground',
       accent: 'Accent',
+      windowMaterial: 'Window Translucency',
+      windowMaterialDescription:
+        'Opacity of each region. Lower values show more of the desktop behind the window; 100% is solid.',
+      windowMaterialBackdrop: 'Window backdrop',
+      windowMaterialSidebar: 'Sidebar',
+      windowMaterialStage: 'Conversation',
+      windowMaterialRightPanel: 'Right panel',
       typography: 'Typography',
       typographyDescription: '',
       assistantTextSize: 'Assistant text size',

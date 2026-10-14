@@ -7,8 +7,7 @@
 
    Sibling files (same region, split per AGENTS.md 3.2): inspector-sections,
    inspector-files, inspector-terminal, inspector-diff, inspector-panels,
-   inspector-preview, inspector-code-preview, inspector-doc-shell,
-   inspector-ink-wash. The .app-shell grid-template rules live in
+   inspector-preview, inspector-code-preview, inspector-doc-shell. The .app-shell grid-template rules live in
    region-shell.css. */
 
 /* ── Panel frame ──────────────────────────────────────────────────────
@@ -153,7 +152,7 @@
 }
 
 .right-panel-tabstrip.has-terminal-actions {
-  padding-right: 116px;
+  padding-right: 92px;
 }
 
 .right-panel-titlebar-box {
@@ -417,28 +416,6 @@
 .right-panel-body * {
   scrollbar-width: thin;
   scrollbar-color: var(--line-2) transparent;
-}
-
-.right-panel-body::-webkit-scrollbar,
-.right-panel-body *::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.right-panel-body::-webkit-scrollbar-track,
-.right-panel-body *::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.right-panel-body::-webkit-scrollbar-thumb,
-.right-panel-body *::-webkit-scrollbar-thumb {
-  background: var(--line-2);
-  border-radius: var(--r-pill);
-}
-
-.right-panel-body::-webkit-scrollbar-thumb:hover,
-.right-panel-body *::-webkit-scrollbar-thumb:hover {
-  background: var(--line-3);
 }
 
 /* ── Tool picker ──────────────────────────────────────────────────────── */

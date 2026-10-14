@@ -118,7 +118,7 @@
    Centered empty-state composers and ordinary single-pane chat are unchanged. */
 .docking-workspace:not(.is-single-pane) .conversation-pane-composer,
 .docking-workspace:not(.is-single-pane) .composer-dock.layout-docked {
-  padding-block-end: var(--s-6);
+  padding-block-end: var(--s-4);
 }
 
 .docking-workspace:not(.is-single-pane) .conversation-pane-composer > .composer-stats-line {

@@ -13,7 +13,7 @@ describe('syncNativeHistory', () => {
   it('asks the Host to replay the agent history', async () => {
     const target = host({ type: 'response', command: 'agents/cli-sync', success: true, data: {} } as HostResponse);
     await expect(syncNativeHistory(target, 'grok-1')).resolves.toEqual({ ok: true });
-    expect(target.request).toHaveBeenCalledWith({ type: 'agents/cli-sync', sessionId: 'grok-1' });
+    expect(target.request).toHaveBeenCalledWith({ type: 'agents/cli-snapshot', sessionId: 'grok-1' });
   });
 
   it('reports a refused replay', async () => {
