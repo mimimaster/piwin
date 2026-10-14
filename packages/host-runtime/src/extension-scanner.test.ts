@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { readFile, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -155,3 +155,16 @@ describe('extensionIdFromPath', () => {
     expect(hit?.name).toBe('pi-deepseek-cache');
     expect(hit?.bundledFrom).toBe('npm:@rohaquinlop/pi-deepseek-cache');
   });
+
+
+it('discovers all Study Space shortcut descriptions without executing its source', async () => {
+  const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-study-command-scan-'));
+  const directory = join(piwinRoot, 'extensions'); await mkdir(directory);
+  const source = await readFile(new URL('../../agent-host/standalone-extensions/study-space/index.ts', import.meta.url), 'utf8');
+  await writeFile(join(directory, 'study-space.ts'), source + '\nthrow new Error("Scanning must not execute extensions");');
+  const [extension] = await scanExtensions({ piwinRoot, extensionsConfig: { disabledIds: [], extraPaths: [] } });
+  expect(extension?.compatibility?.tier).toBe('compatible');
+  expect(extension?.compatibility?.capabilities?.commands).toEqual(['study', 'learn', 'review']);
+  expect(extension?.compatibility?.capabilities?.commandDescriptions?.learn).toContain('学习主题');
+  expect(extension?.compatibility?.capabilities?.commandDescriptions?.review).toContain('到期复习');
+});

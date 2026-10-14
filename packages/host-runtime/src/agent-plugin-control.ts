@@ -12,11 +12,13 @@ import { isDeepStrictEqual } from 'node:util';
 import {
   formatError,
   type AgentPluginCatalogEntry,
+  type AgentPluginNativeObservation,
+  type AgentPluginNativeObservationQuery,
   type AgentPluginRequestUsageQuery,
   type ExternalAgentStatus,
   type ExternalAgentSupportStatus,
 } from '@piwin/contracts';
-import { AgentPluginBridge, AgentPluginBridgeError } from './agent-plugin-bridge.js';
+import { AgentPluginBridge, AgentPluginBridgeError, normalizeEmission } from './agent-plugin-bridge.js';
 
 const DEFAULT_STATUS_TTL_MS = 60_000;
 
@@ -104,6 +106,29 @@ export class AgentPluginControlClient {
     return entries;
   }
 
+  async observeNativeSession(query: AgentPluginNativeObservationQuery): Promise<AgentPluginNativeObservation | undefined> {
+    if (!(await this.ensureBridge()).supportsNativeObservation) return undefined;
+    const value = await this.call('catalog/native-observe', query);
+    if (typeof value !== 'object' || value === null) throw new AgentPluginBridgeError('backend-error', 'Invalid native observation');
+    const result = value as Record<string, unknown>;
+    if (result.backendSessionId !== query.backendSessionId ||
+        !['unknown', 'idle', 'running', 'waiting'].includes(String(result.activity))) {
+      throw new AgentPluginBridgeError('backend-error', 'Invalid native observation identity or activity');
+    }
+    const replayEvents = Array.isArray(result.replayEvents) ? result.replayEvents.map((emission: unknown) => {
+      const normalized = normalizeEmission(emission);
+      if (normalized?.type !== 'agent') throw new AgentPluginBridgeError('backend-error', 'Invalid native history emission');
+      return normalized;
+    }) : undefined;
+    return {
+      backendSessionId: query.backendSessionId,
+      activity: result.activity as AgentPluginNativeObservation['activity'],
+      ...(typeof result.title === 'string' ? { title: result.title } : {}),
+      ...(typeof result.lastChangeUnixMs === 'number' && Number.isFinite(result.lastChangeUnixMs) ? { lastChangeUnixMs: result.lastChangeUnixMs } : {}),
+      ...(replayEvents !== undefined ? { replayEvents } : {}),
+    };
+  }
+
   async renameCatalogSession(backendSessionId: string, title: string): Promise<void> {
     await this.call('catalog/rename', { backendSessionId, title });
   }
@@ -155,7 +180,7 @@ export class AgentPluginControlClient {
     };
   }
 
-  private async call<Method extends 'check' | 'catalog/list' | 'catalog/usage' | 'catalog/rename' | 'catalog/delete'>(
+  private async call<Method extends 'check' | 'catalog/list' | 'catalog/usage' | 'catalog/native-observe' | 'catalog/rename' | 'catalog/delete'>(
     method: Method,
     params: unknown,
   ): Promise<unknown> {
@@ -234,6 +259,7 @@ export function parseExternalAgentStatus(value: unknown, agentId: string): Exter
     if (typeof status.binaryPath !== 'string' || typeof status.version !== 'string' || supportStatus === undefined) {
       return undefined;
     }
+    const nativeCli = parseNativeCliSupport(status.nativeCli);
     return {
       agentId,
       state: status.state,
@@ -246,6 +272,7 @@ export function parseExternalAgentStatus(value: unknown, agentId: string): Exter
       ...(typeof status.options === 'object' && status.options !== null
         ? { options: status.options as NonNullable<Extract<ExternalAgentStatus, { state: 'ready' }>['options']> }
         : {}),
+      ...(nativeCli !== undefined ? { nativeCli } : {}),
     };
   }
   if (status.state === 'not-installed') {
@@ -255,6 +282,18 @@ export function parseExternalAgentStatus(value: unknown, agentId: string): Exter
   if (status.state === 'unavailable') {
     if (typeof status.binaryPath !== 'string' || typeof status.reason !== 'string') return undefined;
     return { agentId, state: 'unavailable', binaryPath: status.binaryPath, reason: status.reason, checkedAt };
+  }
+  return undefined;
+}
+
+function parseNativeCliSupport(value: unknown): import('@piwin/contracts').SessionBackendOperationSupport | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const support = value as Record<string, unknown>;
+  if (support.supported === true) {
+    return { supported: true };
+  }
+  if (support.supported === false && typeof support.reason === 'string') {
+    return { supported: false, reason: support.reason };
   }
   return undefined;
 }

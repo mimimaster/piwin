@@ -28,6 +28,9 @@ import {
   type SessionHandle,
   type SessionTreeView,
   type SavedMediaAsset,
+  type AgentPluginCliLaunchResult,
+  type BackendUserInputResult,
+  parseAgentPluginCliLaunchResult,
 } from '@piwin/contracts';
 import { AgentPluginBridge } from './agent-plugin-bridge.js';
 import { importAgentPluginEventMedia } from './agent-plugin-media.js';
@@ -39,6 +42,8 @@ const CANCEL_GRACE_MS = 3_000;
 export type AgentPluginSessionPorts = {
   /** Bridged onto the Host pending-permission map; never an OS prompt. */
   requestPermission: (prompt: AgentPluginPermissionPrompt) => Promise<AgentPluginPermissionDecision>;
+  /** Optional Host pending user-input; only wired when a real handler exists. */
+  requestUserInput?: (params: unknown, scope: AgentPluginSessionScope) => Promise<BackendUserInputResult>;
   onOptionsChanged?: (options: SessionBackendOptions) => void;
   onTitle?: (title: string) => void;
   onMcpStatus?: (servers: readonly ExternalAgentMcpServerStatus[], observed: boolean) => void;
@@ -125,6 +130,24 @@ export class AgentPluginSession implements SessionHandle {
     );
   }
 
+  /**
+   * Native CLI argv descriptor for this bound session. Host supplies the verified
+   * binary and trusted cwd; the result never carries executable/cwd/env.
+   */
+  async cliLaunch(expectedBackendSessionId: string): Promise<AgentPluginCliLaunchResult> {
+    if (this.released) throw new Error('agent-plugin-session-released');
+    const raw = await this.bridge.request(
+      'session/cli-launch',
+      { cwd: this.openCwd, binding: this.openBinding },
+      this.scope(),
+    );
+    const parsed = parseAgentPluginCliLaunchResult(raw, expectedBackendSessionId);
+    if (parsed === undefined) {
+      throw new Error('cli-launch-invalid: plugin returned an untrusted launch descriptor');
+    }
+    return parsed;
+  }
+
   async readWorkflowReport(workflowId: string): Promise<string | undefined> {
     if (this.released) return undefined;
     const result = await this.bridge.request(
@@ -144,12 +167,17 @@ export class AgentPluginSession implements SessionHandle {
     let session: AgentPluginSession | undefined;
     const replay = new AgentPluginReplayCollector();
     let loadingReplay = false;
+    const nativeUserInput = options.ports.requestUserInput !== undefined;
     const bridge = start({
       entrypoint: options.entrypoint,
       agentId: options.agentId,
       pluginRevision: options.pluginRevision,
       runtime: options.runtime,
-      hostCapabilities: { replayStreaming: true },
+      hostCapabilities: {
+        replayStreaming: true,
+        nativeCliLaunch: true,
+        ...(nativeUserInput ? { nativeUserInput: true } : {}),
+      },
       resolveSessionScope: (scope) =>
         scope.sessionId === options.scope.sessionId &&
         scope.runtimeGenerationId === options.scope.runtimeGenerationId,
@@ -160,6 +188,12 @@ export class AgentPluginSession implements SessionHandle {
       callbacks: {
         requestPermission: (prompt) => options.ports.requestPermission(prompt),
         interventionEvent: (event) => session?.emitIntervention(event) ?? Promise.resolve({ accepted: false }),
+        ...(options.ports.requestUserInput !== undefined
+          ? {
+              requestUserInput: (params: unknown, scope: AgentPluginSessionScope) =>
+                options.ports.requestUserInput!(params, scope),
+            }
+          : {}),
       },
       onClosed: (reason) => options.ports.onTransportClosed?.(reason),
       ...(options.env !== undefined ? { env: options.env } : {}),

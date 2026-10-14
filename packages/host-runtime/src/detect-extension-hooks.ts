@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ExtensionCapabilities, ExtensionCompatibility } from '@piwin/contracts';
+import { detectExtensionCommandDescriptions } from './extension-command-descriptions.js';
 
 const PI_ON_EVENT = /\bpi\.on\(\s*['"]([A-Za-z_][\w-]*)['"]/g;
 /** `pi.registerCommand("name", …)` — Pi's current signature. */
@@ -84,7 +85,11 @@ function detectCapabilities(source: string): ExtensionCapabilities | undefined {
   const hooks = detectExtensionHookEvents(source);
   const commands = detectExtensionCommands(source);
   if (tools.length === 0 && hooks.length === 0 && commands.length === 0) return undefined;
-  return { tools, hooks, ...(commands.length > 0 ? { commands } : {}) };
+  const descriptions = detectExtensionCommandDescriptions(source);
+  const commandDescriptions = Object.fromEntries(commands.flatMap(name =>
+    descriptions[name] ? [[name, descriptions[name]]] : []));
+  return { tools, hooks, ...(commands.length > 0 ? { commands } : {}),
+    ...(Object.keys(commandDescriptions).length > 0 ? { commandDescriptions } : {}) };
 }
 
 function collectMatches(source: string, patterns: readonly RegExp[]): string[] {

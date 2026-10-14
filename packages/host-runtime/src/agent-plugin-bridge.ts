@@ -32,6 +32,7 @@ import {
   type SessionBackendOptions,
   type AgentPluginPermissionDecision,
   type AgentPluginPermissionPrompt,
+  type BackendUserInputResult,
 } from '@piwin/contracts';
 import { disposeAgentPluginProcess } from './agent-plugin-process-disposal.js';
 
@@ -48,6 +49,11 @@ type AgentPluginFailureCode = AgentPluginProtocolFailure['code'] | 'plugin-exite
 export type AgentPluginCallbackHandlers = {
   requestPermission: (prompt: AgentPluginPermissionPrompt, scope: AgentPluginSessionScope) => Promise<AgentPluginPermissionDecision>;
   interventionEvent: (event: BackendRunInterventionEvent, scope: AgentPluginSessionScope) => Promise<BackendRunInterventionEventResult>;
+  /**
+   * Optional bounded native user-input. Advertise `hostCapabilities.nativeUserInput`
+   * only when this handler is real. Must not use the generic callback timer.
+   */
+  requestUserInput?: (params: unknown, scope: AgentPluginSessionScope) => Promise<BackendUserInputResult>;
 };
 
 export type AgentPluginBridgeOptions = {
@@ -93,6 +99,7 @@ export class AgentPluginBridge {
   /** Set after dispose so a late plugin notification cannot reach the Host. */
   private disposed = false;
   private requestUsageSupported = false;
+  private nativeObservationSupported = false;
   private disposal: Promise<void> | undefined;
 
   private constructor(options: AgentPluginBridgeOptions, child: ChildProcessWithoutNullStreams) {
@@ -126,6 +133,8 @@ export class AgentPluginBridge {
     return this.requestUsageSupported;
   }
 
+  get supportsNativeObservation(): boolean { return this.nativeObservationSupported; }
+
   async initialize(): Promise<void> {
     const result = await this.request('plugin/initialize', {
       agentId: this.options.agentId,
@@ -138,6 +147,7 @@ export class AgentPluginBridge {
       throw new AgentPluginBridgeError('invalid-request', `plugin initialized as ${result.agentId}`);
     }
     this.requestUsageSupported = result.requestUsage === true;
+    this.nativeObservationSupported = result.nativeObservation === true;
   }
 
   /** Typed request. Scope is derived from the method so a caller cannot mis-scope one. */
@@ -282,6 +292,17 @@ export class AgentPluginBridge {
         respond({ ok: true, result });
         return;
       }
+      if (method === 'input/request') {
+        const handler = this.options.callbacks.requestUserInput;
+        if (handler === undefined || this.options.hostCapabilities?.nativeUserInput !== true) {
+          respond({ ok: false, error: { code: 'unsupported', message: 'native user input is not available' } });
+          return;
+        }
+        // Human answers wait for respond / lifecycle cancel — never the 5s callback timer.
+        const result = await handler(params, scope);
+        respond({ ok: true, result });
+        return;
+      }
       respond({ ok: false, error: { code: 'unsupported', message: `unsupported callback ${method}` } });
     } catch (error) {
       respond({ ok: false, error: { code: 'backend-error', message: formatError(error) } });
@@ -319,7 +340,7 @@ function sessionScope(scope: AgentPluginSessionScope): AgentPluginScope {
   return { kind: 'session', sessionId: scope.sessionId, runtimeGenerationId: scope.runtimeGenerationId };
 }
 
-function normalizeEmission(value: unknown): AgentPluginEmission | undefined {
+export function normalizeEmission(value: unknown): AgentPluginEmission | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const emission = value as Record<string, unknown>;
   if (emission.type === 'agent') {

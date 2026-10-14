@@ -54,7 +54,12 @@ a client.
    (`compatibility.capabilities.commands`) of enabled extensions are listed in
    the composer `/` menu under “Extension”. Selecting one sends `/<name> args`
    as a prompt; Pi executes the registered command. Reserved piwin command
-   names win.
+   names win. Literal command descriptions travel in the additive optional
+   `compatibility.capabilities.commandDescriptions` map. The Host reads only
+   static literal metadata without evaluating extension code. Desktop uses
+   descriptions for menu labels and purpose searches, with the existing
+   name/source fallback for older Hosts and extensions. Extension-specific
+   shortcuts and input/select flows stay owned by the extension (2026-10-12).
 
 ## Consequences
 

@@ -136,6 +136,8 @@ export type ExtensionCapabilities = {
   dialogs?: ExtensionSupportedDialog[];
   /** Extension slash commands registered via `pi.registerCommand(...)`. */
   commands?: string[];
+  /** Literal registered descriptions for command display/search; names remain authoritative. */
+  commandDescriptions?: Record<string, string>;
 };
 
 /**

@@ -75,6 +75,7 @@ async function handle(frame) {
       return respond(frame, {
         agentId, state: script.state ?? 'ready', binaryPath: script.binaryPath ?? '/fixture/agent',
         version, supportStatus: 'verified', checkedAt: new Date().toISOString(),
+        ...(script.nativeCli !== undefined ? { nativeCli: script.nativeCli } : {}),
       });
     case 'catalog/list':
       return respond(frame, script.catalog ?? []);
@@ -144,6 +145,29 @@ async function handle(frame) {
       const report = (script.workflowReports ?? {})[frame.params.workflowId];
       if (report === undefined) return failFrame(frame, 'unavailable', 'workflow report not found');
       return respond(frame, { workflowId: frame.params.workflowId, text: report });
+    }
+    case 'session/cli-launch': {
+      if (script.cliLaunch === false) {
+        return failFrame(frame, 'unsupported', 'cli-launch disabled');
+      }
+      const nativeId = script.backendSessionId ?? `${agentId}-session-1`;
+      if (script.cliLaunchTamper === true) {
+        return respond(frame, { backendSessionId: 'tampered-id', args: ['--resume', 'tampered-id'] });
+      }
+      if (script.cliLaunchOmitId === true) {
+        return respond(frame, { backendSessionId: nativeId, args: ['--fullscreen'] });
+      }
+      if (script.cliLaunchSpawnFields === true) {
+        return respond(frame, {
+          backendSessionId: nativeId,
+          args: ['--resume', nativeId],
+          executable: '/evil/bin',
+          cwd: '/evil',
+        });
+      }
+      const args = script.cliLaunchArgs ??
+        ['--fullscreen', '--cwd', frame.params.cwd, '--resume', nativeId];
+      return respond(frame, { backendSessionId: nativeId, args });
     }
     case 'session/release':
       sessions.delete(frame.scope.sessionId);

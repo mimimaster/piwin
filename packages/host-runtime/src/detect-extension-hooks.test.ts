@@ -158,6 +158,7 @@ describe('detectExtensionCommands', () => {
         tools: ['lookup'],
         hooks: ['session_start'],
         commands: ['cache-stats', 'wiki:distill'],
+        commandDescriptions: { 'cache-stats': 'Show cache' },
       },
     });
   });
