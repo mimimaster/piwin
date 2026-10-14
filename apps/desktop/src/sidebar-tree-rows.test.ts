@@ -5,7 +5,8 @@ import { createSessionListScopeState, setSessionListScopeMeta } from './session-
 import {
   buildSidebarTreeRows,
   resolveSidebarProjectCollapsed,
-  sidebarTreeRowInWorktreeCluster,
+  countSidebarProjectFolders,
+  sidebarTreeRowDepth,
   sidebarTreeRowKey,
   type SidebarTreeRow,
 } from './sidebar-tree-rows';
@@ -33,9 +34,7 @@ function draft(id: string, name: string, scope: DraftSessionItemUi['scope']): Dr
 function kinds(rows: SidebarTreeRow[]): string[] {
   return rows.filter((row) => row.kind !== 'no-repo-folder').map((row) => {
     if (row.kind === 'section-header') return `header:${row.sectionId}`;
-    if (row.kind === 'repo-group') return `repo:${row.title}`;
     if (row.kind === 'unavailable-group') return 'unavailable-group';
-    if (row.kind === 'unregistered-worktree') return `worktree:${row.worktreePath}`;
     if (row.kind === 'project-folder') return `folder:${row.projectPath}:${row.collapsed}`;
     if (row.kind === 'session') return `session:${row.session.id}`;
     if (row.kind === 'project-show-more') return `show-more:${row.projectPath}:${row.batchSize}`;
@@ -724,30 +723,25 @@ describe('buildSidebarTreeRows', () => {
       collapsedProjects: { '/piwin': true, '/piwin-cc': true, '/notes': true },
       sessionListScopes: createSessionListScopeState(),
     });
+    // Both worktrees of repo1 are one folder, anchored on the primary checkout.
     expect(kinds(rows)).toEqual([
       'header:projects',
-      'repo:piwin',
       'folder:/piwin:true',
-      'folder:/piwin-cc:true',
       'folder:/notes:true',
       'header:conversations',
       'empty:general',
     ]);
-    const grouped = rows.filter(
+    const folders = rows.filter(
       (row): row is Extract<SidebarTreeRow, { kind: 'project-folder' }> =>
-        row.kind === 'project-folder' && row.grouped,
+        row.kind === 'project-folder',
     );
-    expect(grouped.map((row) => row.projectPath)).toEqual(['/piwin', '/piwin-cc']);
-    const repoGroup = rows.find(
-      (row): row is Extract<SidebarTreeRow, { kind: 'repo-group' }> => row.kind === 'repo-group',
-    );
-    expect(repoGroup?.title).toBe('piwin');
-    expect(repoGroup?.memberCount).toBe(2);
-    const notes = rows.find(
-      (row): row is Extract<SidebarTreeRow, { kind: 'project-folder' }> =>
-        row.kind === 'project-folder' && row.projectPath === '/notes',
-    );
-    expect(notes?.grouped).toBe(false);
+    expect(folders.every((row) => row.depth === 0)).toBe(true);
+    expect(folders[0]).toMatchObject({
+      projectPath: '/piwin',
+      aliasPaths: ['/piwin-cc'],
+      repository: { title: 'piwin', collapseKey: 'repo:repo1' },
+    });
+    expect(folders[1]?.repository).toBeUndefined();
   });
 
   it('shows one folder for a symlink alias pair and lists the sessions of both paths', () => {
@@ -777,10 +771,13 @@ describe('buildSidebarTreeRows', () => {
       sessionListOrder: 'updated',
       projectsSectionExpanded: true,
       conversationsSectionExpanded: true,
-      collapsedProjects: { '/Users/me/piwin': false },
+      collapsedProjects: { 'repo:repo1': false },
       sessionListScopes: createSessionListScopeState(),
     });
-    const folders = rows.filter((row) => row.kind === 'project-folder');
+    const folders = rows.filter(
+      (row): row is Extract<SidebarTreeRow, { kind: 'project-folder' }> =>
+        row.kind === 'project-folder',
+    );
     expect(folders).toHaveLength(1);
     expect(folders[0]).toMatchObject({
       projectPath: '/Users/me/piwin',
@@ -788,16 +785,14 @@ describe('buildSidebarTreeRows', () => {
     });
     expect(kinds(rows)).toEqual([
       'header:projects',
-      'repo:piwin',
       'folder:/Users/me/piwin:false',
       'session:smoke',
       'session:imported',
-      'worktree:/tmp/piwin-head',
       'header:conversations',
       'empty:general',
     ]);
-    const repoGroup = rows.find((row) => row.kind === 'repo-group');
-    expect(repoGroup).toMatchObject({ memberCount: 2 });
+    // A worktree nobody opened has no sessions, so it has no row of its own.
+    expect(folders[0]?.repository).toEqual({ title: 'piwin', collapseKey: 'repo:repo1' });
   });
 
   it('treats a session opened under the alias path as the folder being active', () => {
@@ -839,27 +834,27 @@ describe('buildSidebarTreeRows', () => {
       worktrees: [
         { gitRepositoryId: 'repo1', path: '/new-worktree', branch: 'feature', isPrimary: false },
       ],
-      projectSessionsByPath: { '/repo': [session('repo-session', 'Find me')] },
+      projectSessionsByPath: {
+        '/repo': [session('repo-session', 'Find me')],
+        '/linked': [session('linked-session', 'Find me too')],
+      },
       generalSessions: [],
       sessionListOrder: 'updated' as const,
       projectsSectionExpanded: true,
       conversationsSectionExpanded: true,
-      collapsedProjects: { '/repo': false, '/linked': true, '/notes': true },
-      collapsedRepositories: { repo1: true },
+      collapsedProjects: { 'repo:repo1': true, '/notes': true },
       sessionListScopes: createSessionListScopeState(),
     };
     const collapsed = buildSidebarTreeRows({ ...input, sessionSearch: '' });
-    expect(collapsed.find((row) => row.kind === 'repo-group')).toMatchObject({ collapsed: true });
-    expect(kinds(collapsed)).not.toContain('folder:/repo:false');
-    expect(kinds(collapsed)).not.toContain('folder:/linked:true');
-    expect(kinds(collapsed)).not.toContain('worktree:/new-worktree');
+    expect(kinds(collapsed)).toContain('folder:/repo:true');
+    expect(kinds(collapsed)).not.toContain('session:repo-session');
+    expect(kinds(collapsed)).not.toContain('session:linked-session');
     expect(kinds(collapsed)).toContain('folder:/notes:true');
 
     const searching = buildSidebarTreeRows({ ...input, sessionSearch: 'Find me' });
-    expect(searching.find((row) => row.kind === 'repo-group')).toMatchObject({ collapsed: false });
     expect(kinds(searching)).toContain('folder:/repo:false');
-    expect(kinds(searching)).toContain('worktree:/new-worktree');
     expect(kinds(searching)).toContain('session:repo-session');
+    expect(kinds(searching)).toContain('session:linked-session');
   });
 
   it('shows discovered worktrees and keeps missing project sessions under an unavailable heading', () => {
@@ -881,8 +876,8 @@ describe('buildSidebarTreeRows', () => {
       collapsedProjects: { '/repo': true, '/old-worker': false },
       sessionListScopes: createSessionListScopeState(),
     });
-    expect(kinds(rows)).toContain('repo:repo');
-    expect(kinds(rows)).toContain('worktree:/linked');
+    expect(kinds(rows)).toContain('folder:/repo:true');
+    expect(kinds(rows).some((kind) => kind.includes('/linked'))).toBe(false);
     expect(kinds(rows)).toContain('unavailable-group');
     expect(kinds(rows)).toContain('session:old-session');
     expect(rows.find((row) => row.kind === 'project-folder' && row.projectPath === '/old-worker'))
@@ -980,12 +975,12 @@ describe('buildSidebarTreeRows', () => {
       'header:conversations',
       'empty:general',
     ]);
-    expect(rows.some((row) => row.kind === 'repo-group')).toBe(false);
+    expect(rows.some((row) => row.kind === 'project-folder' && row.repository)).toBe(false);
     const appsFolder = rows.find(
       (row): row is Extract<SidebarTreeRow, { kind: 'project-folder' }> =>
         row.kind === 'project-folder' && row.projectPath === '/Users/me/piwin/apps',
     );
-    expect(appsFolder?.grouped).toBe(true);
+    expect(appsFolder?.depth).toBe(1);
   });
 
   it('nests a subdirectory when the remembered parent path is a symlink alias', () => {
@@ -1017,7 +1012,7 @@ describe('buildSidebarTreeRows', () => {
       collapsedProjects: { '/Volumes/disk/piwin': true, '/Users/me/piwin/apps': true },
       sessionListScopes: createSessionListScopeState(),
     });
-    expect(rows.some((row) => row.kind === 'repo-group')).toBe(false);
+    expect(rows.some((row) => row.kind === 'project-folder' && row.repository)).toBe(false);
     expect(
       rows
         .filter(
@@ -1041,7 +1036,8 @@ describe('buildSidebarTreeRows', () => {
         { path: '/notes', displayName: 'notes' },
       ],
       projectSessionsByPath: {
-        '/piwin': [session('clustered', 'Clustered')],
+        '/piwin': [session('clustered', 'Clustered', { updatedAt: '2026-09-02T00:00:00.000Z' })],
+        '/piwin-v2': [session('linked', 'Linked', { updatedAt: '2026-09-03T00:00:00.000Z' })],
         '/notes': [session('solo', 'Solo')],
       },
       generalSessions: [],
@@ -1049,7 +1045,7 @@ describe('buildSidebarTreeRows', () => {
       sessionListOrder: 'updated',
       projectsSectionExpanded: true,
       conversationsSectionExpanded: true,
-      collapsedProjects: { '/piwin': false, '/piwin-v2': true, '/notes': false },
+      collapsedProjects: { 'repo:repo1': false, '/notes': false },
       sessionListScopes: createSessionListScopeState(),
     });
     const clustered = rows.find(
@@ -1060,16 +1056,27 @@ describe('buildSidebarTreeRows', () => {
       (row): row is Extract<SidebarTreeRow, { kind: 'session' }> =>
         row.kind === 'session' && row.session.id === 'solo',
     );
-    expect(clustered?.grouped).toBe(true);
-    expect(solo?.grouped).toBeUndefined();
-    expect(clustered ? sidebarTreeRowInWorktreeCluster(clustered) : false).toBe(true);
-    expect(solo ? sidebarTreeRowInWorktreeCluster(solo) : true).toBe(false);
-    expect(
-      rows.some(
-        (row) =>
-          row.kind === 'project-folder' && row.projectPath === '/piwin' && row.grouped,
-      ),
-    ).toBe(true);
+    const linked = rows.find(
+      (row): row is Extract<SidebarTreeRow, { kind: 'session' }> =>
+        row.kind === 'session' && row.session.id === 'linked',
+    );
+    // Two levels everywhere: a repository's sessions sit as deep as a solo project's.
+    expect(clustered ? sidebarTreeRowDepth(clustered) : -1).toBe(1);
+    expect(solo ? sidebarTreeRowDepth(solo) : -1).toBe(1);
+    // Worktrees share one list ordered by recency, each row resuming in its own checkout.
+    expect(kinds(rows).filter((kind) => kind.startsWith('session:'))).toEqual([
+      'session:linked',
+      'session:clustered',
+      'session:solo',
+    ]);
+    expect(clustered?.scope).toEqual({ kind: 'project', projectPath: '/piwin' });
+    expect(linked?.scope).toEqual({ kind: 'project', projectPath: '/piwin-v2' });
+    // Only the linked worktree's session carries the mark.
+    expect(clustered?.worktree).toBeUndefined();
+    expect(linked?.worktree).toEqual({ name: 'piwin-v2', branch: null });
+    expect(solo?.worktree).toBeUndefined();
+    const header = rows.find((row) => row.kind === 'section-header');
+    expect(header ? sidebarTreeRowDepth(header) : -1).toBe(0);
   });
 
   it('aggregates pinned sessions at the top and attaches projectSubtitle for project sessions', () => {
@@ -1232,5 +1239,63 @@ describe('buildSidebarTreeRows', () => {
     });
     const ids = rows.flatMap((row) => (row.kind === 'session' ? [row.session.id] : []));
     expect(ids).toEqual(['a', 'b']);
+  });
+});
+
+describe('sidebar tree grouping and counts', () => {
+  const baseInput = {
+    generalSessions: [],
+    sessionSearch: '',
+    sessionListOrder: 'updated' as const,
+    projectsSectionExpanded: true,
+    conversationsSectionExpanded: true,
+    sessionListScopes: createSessionListScopeState(),
+  };
+
+  it('reports how many sessions a show-more row still hides', () => {
+    const rows = buildSidebarTreeRows({
+      ...baseInput,
+      recentProjects: [{ path: '/alpha' }],
+      projectSessionsByPath: {
+        '/alpha': Array.from({ length: 12 }, (_unused, index) =>
+          session(`s${index}`, `Session ${index}`),
+        ),
+      },
+      collapsedProjects: { '/alpha': false },
+    });
+    expect(rows.find((row) => row.kind === 'project-show-more')).toMatchObject({
+      batchSize: 5,
+      hiddenCount: 7,
+    });
+  });
+
+  it('counts a repository once however many worktrees it has', () => {
+    expect(
+      countSidebarProjectFolders({
+        recentProjects: [
+          { path: '/piwin', gitRepositoryId: 'repo1', isPrimaryWorktree: true },
+          { path: '/piwin-release', gitRepositoryId: 'repo1' },
+          { path: '/notes' },
+          { path: '/gone', workspaceAvailability: 'missing' },
+          { path: '/general' },
+        ],
+        noRepoProjectPath: '/general',
+      }),
+      // No Repo + piwin + notes + one unavailable workspace.
+    ).toBe(4);
+  });
+
+  it('carries the number of unavailable workspaces on their group row', () => {
+    const rows = buildSidebarTreeRows({
+      ...baseInput,
+      recentProjects: [
+        { path: '/alpha' },
+        { path: '/gone', workspaceAvailability: 'missing' },
+        { path: '/lost', workspaceAvailability: 'missing' },
+      ],
+      projectSessionsByPath: {},
+      collapsedProjects: {},
+    });
+    expect(rows.find((row) => row.kind === 'unavailable-group')).toMatchObject({ count: 2 });
   });
 });

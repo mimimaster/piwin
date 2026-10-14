@@ -20,6 +20,8 @@ function renderSessionRow(props: {
   projectSubtitle?: string;
   activeSessionId?: string | null;
   isPinnedSection?: boolean;
+  treeLead?: boolean;
+  worktree?: { name: string; branch: string | null };
 }) {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -31,6 +33,8 @@ function renderSessionRow(props: {
         session={props.session}
         projectSubtitle={props.projectSubtitle}
         isPinnedSection={props.isPinnedSection}
+        treeLead={props.treeLead}
+        worktree={props.worktree}
         activeSessionId={props.activeSessionId ?? null}
         onResumeSession={vi.fn()}
         onOpenSessionMenu={vi.fn()}
@@ -202,7 +206,7 @@ describe('SessionRowItem', () => {
     expect(button?.getAttribute('data-pinned-section')).toBe('true');
   });
 
-  it('badges a non-Pi backend session with the agent name', () => {
+  it('badges a non-Pi backend session with the agent name', async () => {
     const session: SessionListItemUi = {
       id: 'sess-grok-1',
       name: 'Grok session',
@@ -214,7 +218,29 @@ describe('SessionRowItem', () => {
     activeContainers.push(container);
 
     const badge = container.querySelector('[data-testid="session-backend-badge"]');
-    expect(badge?.textContent).toBe('grok');
+    // Let the lazily loaded brand icons settle before the environment tears down.
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
+    // Grok shows the shared xAI logo instead of the text pill.
+    expect(badge?.getAttribute('data-backend-logo')).toBe('xai');
+    expect(badge?.getAttribute('aria-label')).toBe('grok');
+    expect(badge?.querySelector('[data-provider-icon="xai"]')).not.toBeNull();
+    expect(badge?.textContent).not.toBe('grok');
+  });
+
+  it('keeps the text badge for an agent without a brand mark', () => {
+    const session: SessionListItemUi = {
+      id: 'sess-other-1',
+      name: 'Other session',
+      backend: { agentId: 'codex' },
+      updatedAt: new Date().toISOString(),
+    };
+    const { container } = renderSessionRow({ session });
+    activeContainers.push(container);
+    const badge = container.querySelector('[data-testid="session-backend-badge"]');
+    expect(badge?.getAttribute('data-backend-logo')).toBeNull();
+    expect(badge?.textContent).not.toBe('');
   });
 
   it('leaves a Pi session unlabelled', () => {
@@ -230,5 +256,84 @@ describe('SessionRowItem', () => {
     // Pi is the product default, so an explicit badge would be noise.
     expect(container.querySelector('[data-testid="session-backend-badge"]')).toBeNull();
   });
+
+  it('opens a project-tree row with the neutral ring for a plain piwin session', () => {
+    const { container } = renderSessionRow({
+      session: { id: 'sess-native', name: 'Native', updatedAt: new Date().toISOString() },
+      treeLead: true,
+    });
+    activeContainers.push(container);
+    const lead = container.querySelector('.session-lead');
+    expect(lead?.querySelector('[data-testid="session-native-mark"]')).not.toBeNull();
+    expect(lead?.nextElementSibling?.textContent).toBe('Native');
+  });
+
+  it('puts an external agent logo in the lead slot instead of the ring', () => {
+    const { container } = renderSessionRow({
+      session: {
+        id: 'sess-grok-lead',
+        name: 'Grok session',
+        backend: { agentId: 'grok' },
+        updatedAt: new Date().toISOString(),
+      },
+      treeLead: true,
+    });
+    activeContainers.push(container);
+    const lead = container.querySelector('.session-lead');
+    expect(lead?.querySelector('[data-backend-logo="xai"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="session-native-mark"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="session-backend-badge"]')).toHaveLength(1);
+  });
+
+  it('replaces the ring with the worktree mark for a piwin session in a linked worktree', () => {
+    const { container } = renderSessionRow({
+      session: { id: 'sess-linked', name: 'Linked', updatedAt: new Date().toISOString() },
+      treeLead: true,
+      worktree: { name: 'piwin-release', branch: 'release/1.2' },
+    });
+    activeContainers.push(container);
+    const lead = container.querySelector('.session-lead');
+    const mark = lead?.querySelector('[data-testid="session-worktree-mark"]');
+    expect(mark?.getAttribute('title')).toBe('工作树 piwin-release · release/1.2');
+    expect(container.querySelector('[data-testid="session-native-mark"]')).toBeNull();
+  });
+
+  it('keeps an external agent on its own logo even in a linked worktree', () => {
+    // An external agent reports a working directory, not a checkout piwin can
+    // vouch for, so its row never claims a worktree.
+    const { container } = renderSessionRow({
+      session: {
+        id: 'sess-grok-linked',
+        name: 'Linked Grok',
+        backend: { agentId: 'grok' },
+        updatedAt: new Date().toISOString(),
+      },
+      treeLead: true,
+      worktree: { name: 'piwin-release', branch: 'release/1.2' },
+    });
+    activeContainers.push(container);
+    const lead = container.querySelector('.session-lead');
+    expect(lead?.querySelector('[data-backend-logo="xai"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="session-worktree-mark"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="session-backend-badge"]')).toHaveLength(1);
+  });
+
+  it('adds no lead slot to flat lists', () => {
+    const { container } = renderSessionRow({
+      session: { id: 'sess-flat', name: 'Flat', updatedAt: new Date().toISOString() },
+    });
+    activeContainers.push(container);
+    expect(container.querySelector('.session-lead')).toBeNull();
+  });
 });
 
+
+it('shows native Grok execution even when Desktop has no foreground Run', () => {
+  const { container, root } = renderSessionRow({
+    session: { id: 'grok', name: 'Native work', nativeCli: { kind: 'native', sessionId: 'grok', ptyId: 'pty', activity: 'running' } },
+    activeSessionId: 'grok',
+  });
+  expect(container.querySelector('.session-row--working')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-working-indicator"]')).not.toBeNull();
+  act(() => root.unmount()); container.remove();
+});

@@ -123,3 +123,19 @@ describe('sessionRowHasOrderingActivity', () => {
     ).toBe(true);
   });
 });
+
+it('shows and orders real native work in both foreground and background without a Host Run', () => {
+  for (const activeSessionId of ['s1', 'another']) {
+    const input = { sessionId: 's1', isDraft: false, activeSessionId, runPhase: 'idle' as const, nativeActivity: 'running' as const };
+    expect(sessionRowIsWorking(input)).toBe(true);
+    expect(sessionRowHasOrderingActivity(input)).toBe(true);
+    expect(sessionRowIsWorking({ ...input, nativeActivity: 'idle' })).toBe(false);
+    expect(sessionRowHasLiveActivity({ ...input, nativeActivity: 'waiting' })).toBe(true);
+  }
+});
+
+it('does not keep a settled native turn spinning from an old Desktop projection', () => {
+  const input = { sessionId: 'native', isDraft: false, activeSessionId: 'native', runPhase: 'streaming' as const, workingSessionIds: { native: true as const }, nativeActivity: 'idle' as const };
+  expect(sessionRowIsWorking(input)).toBe(false);
+  expect(sessionRowHasOrderingActivity(input)).toBe(false);
+});

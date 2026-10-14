@@ -96,7 +96,6 @@ export function SidebarShelfFooter(props: SidebarShelfFooterProps) {
           non-Inkstone theme (see styles/inkstone/sidebar.css). Kept for that
           fallback; not reachable under the shipped Inkstone theme. */}
       <div className="sidebar-footer">
-        <div className="sidebar-footer-fade" aria-hidden="true" />
         <button
           type="button"
           className={

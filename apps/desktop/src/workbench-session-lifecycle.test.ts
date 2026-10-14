@@ -7,6 +7,8 @@ import {
   planLastSessionRestore,
   planProjectListRetryDelay,
   resolveSessionScopeHintFromSearchHits,
+  shouldApplySidebarProjectList,
+  withoutPendingSidebarRemovals,
   planRecentProjectSessionHydration,
   planRemoteSessionCatchUp,
   shouldHydrateInitialGeneralSessions,
@@ -399,5 +401,33 @@ describe('planProjectListRetryDelay', () => {
 
   it('stops once a list comes back complete', () => {
     expect(planProjectListRetryDelay({ outcome: 'complete', retriesSoFar: 0 })).toBeNull();
+  });
+});
+
+describe('shouldApplySidebarProjectList', () => {
+  it('drops a list that started before the removal was stored', () => {
+    expect(shouldApplySidebarProjectList({ requestCommitEpoch: 0, currentCommitEpoch: 1 })).toBe(
+      false,
+    );
+  });
+
+  it('applies a list that started after the removal was stored', () => {
+    expect(shouldApplySidebarProjectList({ requestCommitEpoch: 1, currentCommitEpoch: 1 })).toBe(
+      true,
+    );
+  });
+});
+
+describe('withoutPendingSidebarRemovals', () => {
+  const projects = [{ path: '/piwin' }, { path: '/planora' }];
+
+  it('leaves the list alone when nothing is being removed', () => {
+    expect(withoutPendingSidebarRemovals(projects, new Set())).toBe(projects);
+  });
+
+  it('hides only the folder whose removal is still in flight', () => {
+    expect(withoutPendingSidebarRemovals(projects, new Set(['/piwin']))).toEqual([
+      { path: '/planora' },
+    ]);
   });
 });

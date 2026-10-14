@@ -1,139 +1,64 @@
-import type { ProjectWorktreeListing, SessionListOrder, SessionScope } from '@piwin/contracts';
+import type { SessionScope } from '@piwin/contracts';
 import type { SessionListItemUi } from './chat-reducer';
 import type { DraftSessionItemUi } from './draft-session';
-import { draftSessionMatchesQuery, sortDraftSessions } from './draft-session';
 import { projectDisplayName } from './project-display-name.js';
 import { groupSessionsByRecency } from './session-groups.js';
 import type { SessionListScopeState } from './session-list-scope';
 import { sessionScopeKey } from './session-scope-key';
 import {
-  sessionRowHasOrderingActivity,
-  type SessionRowRunPhase,
-} from './session-row-working';
-import {
   clusterProjectsByRepository,
   sidebarProjectAllPaths,
+  type SidebarProjectCluster,
   type SidebarProjectRef,
 } from './sidebar-repo-groups';
+import { mergeScopeRows, mergeSessionRows } from './sidebar-session-row-merge';
+import {
+  DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+  NO_REPO_SIDEBAR_KEY,
+  PROJECT_SESSION_VISIBLE_INCREMENT,
+  type SidebarTreeRow,
+  type SidebarTreeRowsInput,
+} from './sidebar-tree-row-types';
 
 export type { SidebarProjectRef } from './sidebar-repo-groups';
-
-export type SidebarTreeRow =
-  | { kind: 'no-repo-folder'; key: string; collapsed: boolean }
-  | { kind: 'section-header'; sectionId: 'pinned' | 'projects' | 'conversations'; key: string }
-  | { kind: 'unavailable-group'; key: string; collapsed: boolean }
-  | {
-      kind: 'repo-group';
-      gitRepositoryId: string;
-      title: string;
-      memberCount: number;
-      collapsed: boolean;
-      key: string;
-    }
-  | {
-      kind: 'time-group';
-      id: string;
-      title: string;
-      key: string;
-    }
-  | {
-      kind: 'project-folder';
-      projectPath: string;
-      /** Symlink aliases of the same directory folded into this folder. */
-      aliasPaths?: string[];
-      collapsed: boolean;
-      grouped: boolean;
-      currentBranch: string | null;
-      unavailable?: boolean;
-      key: string;
-    }
-  | {
-      kind: 'unregistered-worktree';
-      worktreePath: string;
-      branch: string | null;
-      key: string;
-    }
-  | {
-      kind: 'session';
-      scope: SessionScope;
-      session: SessionListItemUi | DraftSessionItemUi;
-      projectSubtitle?: string;
-      grouped?: true;
-      folderChild?: true;
-      isPinnedSection?: true;
-      key: string;
-    }
-  | {
-      kind: 'project-show-more';
-      projectPath: string;
-      batchSize: number;
-      nextVisibleCount: number;
-      grouped?: true;
-      key: string;
-    }
-  | { kind: 'empty-hint'; scope: SessionScope; grouped?: true; key: string }
-  | { kind: 'query-error'; scope: SessionScope; grouped?: true; key: string }
-  | {
-      kind: 'truncation-hint';
-      scope: SessionScope;
-      hiddenCount: number;
-      grouped?: true;
-      key: string;
-    };
-
-export const DEFAULT_PROJECT_SESSION_VISIBLE_COUNT = 5;
-export const PROJECT_SESSION_VISIBLE_INCREMENT = 5;
-/** Collapse / show-more key for the No Repo agent-chat folder. */
-export const NO_REPO_SIDEBAR_KEY = 'no-repo';
-
-export type SidebarTreeRowsInput = {
-  recentProjects: readonly SidebarProjectRef[];
-  worktrees?: readonly ProjectWorktreeListing[];
-  /** Built-in No Repo key: Host workspace path, or the opaque remote locator. */
-  noRepoProjectPath?: string;
-  projectSessionsByPath: Record<string, SessionListItemUi[]>;
-  generalSessions: SessionListItemUi[];
-  draftSessions?: readonly DraftSessionItemUi[];
-  sessionSearch: string;
-  sessionListOrder: SessionListOrder;
-  pinnedSectionExpanded?: boolean;
-  projectsSectionExpanded: boolean;
-  conversationsSectionExpanded: boolean;
-  collapsedProjects: Record<string, boolean>;
-  collapsedRepositories?: Readonly<Record<string, boolean>>;
-  unavailableGroupCollapsed?: boolean;
-  projectSessionVisibleCounts?: Readonly<Record<string, number>>;
-  sessionListScopes: SessionListScopeState;
-  activeProjectPath?: string | null;
-  activeProjectSessions?: SessionListItemUi[];
-  revealSessionId?: string | null;
-  revealDraftId?: string | null;
-  groupBy?: 'time' | 'none';
-  workingSessionIds?: Record<string, true>;
-  backendServiceSessionIds?: Record<string, true>;
-  waitingPermissionSessionIds?: Record<string, true>;
-  runPhase?: SessionRowRunPhase;
-};
+export {
+  DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+  NO_REPO_SIDEBAR_KEY,
+  PROJECT_SESSION_VISIBLE_INCREMENT,
+} from './sidebar-tree-row-types';
+export type {
+  SidebarSessionWorktree,
+  SidebarTreeRow,
+  SidebarTreeRowsInput,
+} from './sidebar-tree-row-types';
 
 export function sidebarTreeRowKey(row: SidebarTreeRow): string {
   return row.key;
 }
 
-/** Worktree-cluster members share one indent so the ink line stays on the folder icon. */
-export function sidebarTreeRowInWorktreeCluster(row: SidebarTreeRow): boolean {
-  if (row.kind === 'project-folder') {
-    return row.grouped;
-  }
-  if (row.kind === 'unregistered-worktree') {
-    return true;
-  }
-  return row.kind === 'session' ||
-    row.kind === 'project-show-more' ||
-    row.kind === 'empty-hint' ||
-    row.kind === 'query-error' ||
-    row.kind === 'truncation-hint'
-    ? row.grouped === true
-    : false;
+/**
+ * Indent level of a row. Every tree row carries its own depth, so the view
+ * multiplies one step instead of special-casing which parent it sits under.
+ */
+export function sidebarTreeRowDepth(row: SidebarTreeRow): number {
+  return 'depth' in row && row.depth !== undefined ? row.depth : 0;
+}
+
+/**
+ * How many folders the Projects section holds: No Repo, one per repository or
+ * standalone project, and every unavailable workspace. Worktrees of one
+ * repository count once, the same way they are listed.
+ */
+export function countSidebarProjectFolders(
+  input: Pick<SidebarTreeRowsInput, 'recentProjects' | 'worktrees' | 'noRepoProjectPath'>,
+): number {
+  const noRepoPath = input.noRepoProjectPath?.trim() ?? '';
+  const listed = noRepoPath
+    ? input.recentProjects.filter((project) => project.path !== noRepoPath)
+    : input.recentProjects;
+  const unavailable = listed.filter((project) => project.workspaceAvailability === 'missing');
+  const available = listed.filter((project) => project.workspaceAvailability !== 'missing');
+  return 1 + clusterProjectsByRepository(available, input.worktrees).length + unavailable.length;
 }
 
 function revealIndexInRows(
@@ -281,7 +206,7 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
     unpinnedGeneralSessions,
     input.sessionSearch,
     input.sessionListOrder,
-    false,
+    undefined,
     input,
   );
   // Section collapse is an explicit user gesture. Reveal (active session)
@@ -305,38 +230,23 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
     appendNoRepoFolderRows(rows, input, drafts, searching);
     for (const cluster of clusterProjectsByRepository(availableProjects, input.worktrees)) {
       if (cluster.kind === 'group') {
-        const collapsed = !searching &&
-          input.collapsedRepositories?.[cluster.gitRepositoryId] === true;
-        rows.push({
-          kind: 'repo-group',
-          gitRepositoryId: cluster.gitRepositoryId,
-          title: cluster.title,
-          memberCount: cluster.members.length + (cluster.unregistered?.length ?? 0),
-          collapsed,
-          key: `repo:${cluster.gitRepositoryId}`,
-        });
-        if (collapsed) continue;
-        for (const project of cluster.members) {
-          appendProjectFolderRows(rows, input, project, drafts, searching, true);
-        }
-        for (const worktree of cluster.unregistered ?? []) {
-          rows.push({
-            kind: 'unregistered-worktree',
-            worktreePath: worktree.path,
-            branch: worktree.branch,
-            key: `worktree:${worktree.path}`,
-          });
-        }
+        appendRepositoryFolderRows(rows, input, cluster, drafts, searching);
         continue;
       }
-      appendProjectFolderRows(rows, input, cluster.project, drafts, searching, false);
+      appendProjectFolderRows(rows, input, cluster.project, drafts, searching, 0);
     }
     if (unavailableProjects.length > 0) {
       const collapsed = !searching && input.unavailableGroupCollapsed === true;
-      rows.push({ kind: 'unavailable-group', key: 'unavailable-workspaces', collapsed });
+      rows.push({
+        kind: 'unavailable-group',
+        key: 'unavailable-workspaces',
+        collapsed,
+        count: unavailableProjects.length,
+        depth: 0,
+      });
       if (!collapsed) {
         for (const project of unavailableProjects) {
-          appendProjectFolderRows(rows, input, project, drafts, searching, true);
+          appendProjectFolderRows(rows, input, project, drafts, searching, 1);
         }
       }
     }
@@ -429,7 +339,7 @@ function appendNoRepoFolderRows(
         folderSessions,
         input.sessionSearch,
         input.sessionListOrder,
-        false,
+        1,
         input,
       ).map((row) => ({
         ...row,
@@ -454,37 +364,20 @@ function appendNoRepoFolderRows(
   rows.push({
     kind: 'no-repo-folder',
     collapsed,
+    depth: 0,
     key: 'no-repo-folder',
   });
   if (collapsed || scope === null) {
     return;
   }
-  const visibleCount = Math.max(
-    input.projectSessionVisibleCounts?.[collapseKey] ?? DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
-    DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
-    selectedIndex + 1,
-  );
-  const visible = searching ? merged : merged.slice(0, visibleCount);
-  rows.push(...visible);
-  if (!searching && visible.length < merged.length) {
-    const batchSize = Math.min(
-      PROJECT_SESSION_VISIBLE_INCREMENT,
-      merged.length - visible.length,
-    );
-    rows.push({
-      kind: 'project-show-more',
-      projectPath: collapseKey,
-      batchSize,
-      nextVisibleCount: visible.length + batchSize,
-      key: `project-show-more:${collapseKey}`,
-    });
-  }
+  appendPagedSessionRows(rows, input, merged, collapseKey, selectedIndex, 1, searching);
   appendScopeHints(rows, {
     scope,
     merged,
     searching,
     sessionListScopes: input.sessionListScopes,
     allowEmptyHint: false,
+    depth: 1,
   });
 }
 
@@ -628,7 +521,7 @@ function nestedTreeHasReveal(
       childSessions,
       input.sessionSearch,
       input.sessionListOrder,
-      false,
+      undefined,
       input,
     );
     if (
@@ -649,7 +542,7 @@ function appendProjectFolderRows(
   project: SidebarProjectRef,
   drafts: readonly DraftSessionItemUi[],
   searching: boolean,
-  grouped: boolean,
+  depth: number,
 ): void {
   const scope: SessionScope = { kind: 'project', projectPath: project.path };
   const rawSessions = resolveFolderSessionsAcrossAliases(input, project, searching);
@@ -660,7 +553,7 @@ function appendProjectFolderRows(
     hostSessions,
     input.sessionSearch,
     input.sessionListOrder,
-    grouped,
+    depth + 1,
     input,
   );
   const selectedIndex = revealIndexInRows(
@@ -692,7 +585,7 @@ function appendProjectFolderRows(
       ? { aliasPaths: project.aliasPaths }
       : {}),
     collapsed,
-    grouped,
+    depth,
     currentBranch: project.currentBranch ?? null,
     ...(project.workspaceAvailability === 'missing' ? { unavailable: true } : {}),
     key: `project:${project.path}`,
@@ -701,69 +594,122 @@ function appendProjectFolderRows(
     return;
   }
   for (const child of project.nested ?? []) {
-    appendProjectFolderRows(rows, input, child, drafts, searching, true);
+    appendProjectFolderRows(rows, input, child, drafts, searching, depth + 1);
   }
+  appendPagedSessionRows(rows, input, merged, project.path, selectedIndex, depth + 1, searching);
+}
+
+/**
+ * A repository with several checkouts is one project in the tree: one folder,
+ * every worktree's sessions in a single list. Which worktree a session runs in
+ * is the session's own business (its row mark, and the stage header).
+ */
+function appendRepositoryFolderRows(
+  rows: SidebarTreeRow[],
+  input: SidebarTreeRowsInput,
+  cluster: Extract<SidebarProjectCluster, { kind: 'group' }>,
+  drafts: readonly DraftSessionItemUi[],
+  searching: boolean,
+): void {
+  const home = cluster.members[0];
+  if (home === undefined) {
+    return;
+  }
+  const collapseKey = `repo:${cluster.gitRepositoryId}`;
+  const memberPaths = cluster.members.flatMap((member) => sidebarProjectAllPaths(member));
+  const merged = mergeSessionRows(
+    cluster.members.map((member) => ({
+      scope: { kind: 'project' as const, projectPath: member.path },
+      sessions: resolveFolderSessionsAcrossAliases(input, member, searching).filter(
+        (session) => session.isPinned !== true,
+      ),
+      ...(member.isPrimaryWorktree === true
+        ? {}
+        : {
+            worktree: {
+              name: member.displayName ?? projectDisplayName(member.path),
+              branch: member.currentBranch ?? null,
+            },
+          }),
+    })),
+    drafts,
+    input.sessionSearch,
+    input.sessionListOrder,
+    1,
+    input,
+  );
+  const selectedIndex = revealIndexInRows(
+    merged,
+    input.revealSessionId ?? null,
+    input.revealDraftId ?? null,
+  );
+  const activeIsMember =
+    typeof input.activeProjectPath === 'string' && memberPaths.includes(input.activeProjectPath);
+  const collapsed = resolveSidebarProjectCollapsed({
+    projectPath: collapseKey,
+    collapsedProjects: input.collapsedProjects,
+    ...(input.activeProjectPath !== undefined
+      ? { activeProjectPath: activeIsMember ? collapseKey : input.activeProjectPath }
+      : {}),
+    searching,
+    revealInside:
+      selectedIndex >= 0 ||
+      cluster.members.some(
+        (member) =>
+          (!activeIsMember && projectTreeContainsPath(member, input.activeProjectPath)) ||
+          nestedTreeHasReveal(member, input, drafts, searching),
+      ),
+  });
+  rows.push({
+    kind: 'project-folder',
+    projectPath: home.path,
+    aliasPaths: memberPaths.filter((path) => path !== home.path),
+    repository: { title: cluster.title, collapseKey },
+    collapsed,
+    depth: 0,
+    currentBranch: null,
+    key: collapseKey,
+  });
+  if (collapsed) {
+    return;
+  }
+  for (const member of cluster.members) {
+    for (const child of member.nested ?? []) {
+      appendProjectFolderRows(rows, input, child, drafts, searching, 1);
+    }
+  }
+  appendPagedSessionRows(rows, input, merged, collapseKey, selectedIndex, 1, searching);
+}
+
+/** The first page of a folder's sessions, then a show-more row for the rest. */
+function appendPagedSessionRows(
+  rows: SidebarTreeRow[],
+  input: SidebarTreeRowsInput,
+  merged: readonly Extract<SidebarTreeRow, { kind: 'session' }>[],
+  pagingKey: string,
+  selectedIndex: number,
+  depth: number,
+  searching: boolean,
+): void {
   const visibleCount = Math.max(
-    input.projectSessionVisibleCounts?.[project.path] ?? DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+    input.projectSessionVisibleCounts?.[pagingKey] ?? DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
     DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
     selectedIndex + 1,
   );
   const visible = searching ? merged : merged.slice(0, visibleCount);
   rows.push(...visible);
   if (!searching && visible.length < merged.length) {
-    const batchSize = Math.min(
-      PROJECT_SESSION_VISIBLE_INCREMENT,
-      merged.length - visible.length,
-    );
+    const batchSize = Math.min(PROJECT_SESSION_VISIBLE_INCREMENT, merged.length - visible.length);
     rows.push({
       kind: 'project-show-more',
-      projectPath: project.path,
+      projectPath: pagingKey,
       batchSize,
       nextVisibleCount: visible.length + batchSize,
-      key: `project-show-more:${project.path}`,
-      ...(grouped ? { grouped: true as const } : {}),
+      hiddenCount: merged.length - visible.length,
+      depth,
+      key: `project-show-more:${pagingKey}`,
     });
   }
-}
-
-function mergeScopeRows(
-  scope: SessionScope,
-  drafts: readonly DraftSessionItemUi[],
-  sessions: readonly SessionListItemUi[],
-  sessionSearch: string,
-  order: SessionListOrder,
-  grouped = false,
-  activityInput?: Pick<
-    SidebarTreeRowsInput,
-    | 'revealSessionId'
-    | 'runPhase'
-    | 'workingSessionIds'
-    | 'backendServiceSessionIds'
-    | 'waitingPermissionSessionIds'
-  >,
-): Extract<SidebarTreeRow, { kind: 'session' }>[] {
-  const scopeDrafts = sortDraftSessions(
-    drafts.filter(
-      (draft) => sameScope(draft.scope, scope) && draftSessionMatchesQuery(draft, sessionSearch),
-    ),
-  );
-  const durableIds = new Set(sessions.map((session) => session.id));
-  const uniqueDrafts = scopeDrafts.filter((draft) => !durableIds.has(draft.id));
-  const sortedSessions =
-    order === 'alphabetical'
-      ? [...sessions].sort((left, right) => {
-          const byName = left.name.localeCompare(right.name);
-          return byName !== 0 ? byName : left.id.localeCompare(right.id);
-        })
-      : sortPinnedThenUpdated(sessions, activityInput);
-  const scopeKey = sessionScopeKey(scope);
-  return [...uniqueDrafts, ...sortedSessions].map((session) => ({
-    kind: 'session' as const,
-    scope,
-    session,
-    key: `session:${scopeKey}:${session.id}`,
-    ...(grouped ? { grouped: true as const } : {}),
-  }));
 }
 
 function appendScopeHints(
@@ -774,11 +720,11 @@ function appendScopeHints(
     searching: boolean;
     sessionListScopes: SessionListScopeState;
     allowEmptyHint: boolean;
-    grouped?: boolean;
+    depth?: number;
   },
 ): void {
   const scopeKey = sessionScopeKey(options.scope);
-  const groupedFields = options.grouped === true ? { grouped: true as const } : {};
+  const depthFields = options.depth !== undefined ? { depth: options.depth } : {};
   const meta =
     options.scope.kind === 'general'
       ? options.sessionListScopes.general
@@ -790,7 +736,7 @@ function appendScopeHints(
       kind: 'empty-hint',
       scope: options.scope,
       key: `empty:${scopeKey}`,
-      ...groupedFields,
+      ...depthFields,
     });
     return;
   }
@@ -814,82 +760,6 @@ function appendScopeHints(
     scope: options.scope,
     hiddenCount,
     key: `truncation:${scopeKey}`,
-    ...groupedFields,
-  });
-}
-
-function sameScope(left: SessionScope, right: SessionScope): boolean {
-  if (left.kind === 'general' || right.kind === 'general') {
-    return left.kind === 'general' && right.kind === 'general';
-  }
-  return left.projectPath === right.projectPath;
-}
-
-function sortPinnedThenUpdated(
-  list: readonly SessionListItemUi[],
-  activityInput?: Pick<
-    SidebarTreeRowsInput,
-    | 'revealSessionId'
-    | 'runPhase'
-    | 'workingSessionIds'
-    | 'backendServiceSessionIds'
-    | 'waitingPermissionSessionIds'
-  >,
-): SessionListItemUi[] {
-  return [...list].sort((left, right) => {
-    const leftPinned = left.isPinned === true;
-    const rightPinned = right.isPinned === true;
-    if (leftPinned !== rightPinned) {
-      return leftPinned ? -1 : 1;
-    }
-    if (leftPinned && rightPinned) {
-      const byPinnedAt = (right.pinnedAt ?? '').localeCompare(left.pinnedAt ?? '');
-      if (byPinnedAt !== 0) {
-        return byPinnedAt;
-      }
-    }
-    if (activityInput) {
-      const leftLive = sessionIsLiveActivity(left.id, activityInput);
-      const rightLive = sessionIsLiveActivity(right.id, activityInput);
-      if (leftLive !== rightLive) {
-        return leftLive ? -1 : 1;
-      }
-    }
-    const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : Number.POSITIVE_INFINITY;
-    const rightTime = right.updatedAt ? Date.parse(right.updatedAt) : Number.POSITIVE_INFINITY;
-    const leftSafe = Number.isFinite(leftTime) ? leftTime : 0;
-    const rightSafe = Number.isFinite(rightTime) ? rightTime : 0;
-    if (rightSafe !== leftSafe) {
-      return rightSafe - leftSafe;
-    }
-    return left.id.localeCompare(right.id);
-  });
-}
-
-function sessionIsLiveActivity(
-  sessionId: string,
-  input: Pick<
-    SidebarTreeRowsInput,
-    | 'revealSessionId'
-    | 'runPhase'
-    | 'workingSessionIds'
-    | 'backendServiceSessionIds'
-    | 'waitingPermissionSessionIds'
-  >,
-): boolean {
-  return sessionRowHasOrderingActivity({
-    sessionId,
-    isDraft: false,
-    activeSessionId: input.revealSessionId ?? null,
-    runPhase: input.runPhase ?? 'idle',
-    ...(input.workingSessionIds !== undefined
-      ? { workingSessionIds: input.workingSessionIds }
-      : {}),
-    ...(input.backendServiceSessionIds !== undefined
-      ? { backendServiceSessionIds: input.backendServiceSessionIds }
-      : {}),
-    ...(input.waitingPermissionSessionIds !== undefined
-      ? { waitingPermissionSessionIds: input.waitingPermissionSessionIds }
-      : {}),
+    ...depthFields,
   });
 }

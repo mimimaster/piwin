@@ -42,10 +42,12 @@ html[data-theme-id='piwin-inkstone-ink'] .session-row .session-item {
   min-height: 28px;
   max-height: 28px;
   padding: 0 8px;
-  /* proto-03 `.row .end` is 70px; 8px inset + 94px cluster (menu/pin/archive
-     + close) keeps the title ellipsis stable when time yields to the buttons.
-     Completed/failed rows add seal clearance so actions sit left of the seal. */
-  padding-right: calc(102px + var(--session-status-seal-clearance, 0px));
+  /* The title runs up to the timestamp; only that much is reserved. The
+     hover actions are wider than the timestamp, so they paint over the
+     title's tail (see `.session-row-actions` below) instead of reserving
+     their width on every row at rest. The ellipsis therefore never moves.
+     Completed/failed rows add seal clearance so the seal keeps its own slot. */
+  padding-right: calc(44px + var(--session-status-seal-clearance, 0px));
   border-radius: 6px;
   font-size: 12.5px;
   font-family: var(--sans);
@@ -62,8 +64,8 @@ html[data-theme-id='piwin-inkstone-ink'] .session-row .session-item:hover {
 
 html[data-theme-id='piwin-inkstone-paper'] .session-row .session-item.active,
 html[data-theme-id='piwin-inkstone-ink'] .session-row .session-item.active {
+  /* Selection is a fill on the same row skeleton, not a raised card. */
   background: var(--s3);
-  box-shadow: var(--sh1);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .tree-folder-summary,
@@ -71,10 +73,14 @@ html[data-theme-id='piwin-inkstone-ink'] .tree-folder-summary {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 26px;
+  /* Same height as a session row: one rhythm down the whole tree. */
+  height: 28px;
   padding: 0 2px 0 8px;
   font-size: 12.5px;
-  color: var(--t2);
+  /* A project name is full ink, one weight above its sessions. Open or
+     closed it keeps the same size and weight; only its folder glyph and the
+     sessions it shows change on a click. */
+  color: var(--t1);
   border-radius: 6px;
   transition: background var(--t-1) var(--ease-out);
 }
@@ -98,31 +104,38 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   flex: none;
 }
 
-/* Repo-group caption must outrank the folder padding reset above, or every
-   later project looks nested under the first worktree cluster. */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-repo-group {
-  min-height: 18px;
-  padding: 4px 8px 0;
-  color: var(--t4);
-  font: 11px var(--mono);
-  font-weight: 400;
-  letter-spacing: 0;
-}
-
-/* Folder icon center is 8px pad + 7px half-icon = 15px. The ink line/node
-   already sit on that origin; clustered worktrees add one shared shift so
-   the spine stays under the folder instead of the ungrouped gutter. */
+/* Depth geometry (see region-sidebar-tree.css). Every row opens with a 16px
+   icon slot at the 8px row inset and its text 8px after it: a folder's glyph
+   and its sessions' marks share one column, names and titles share the next.
+   There are no chevrons and no guide lines. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-folder-tree {
-  --tree-cluster-shift: 0px;
+  --tree-indent-step: 24px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-flow-item.is-grouped,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-virtual-item.is-grouped {
-  --tree-cluster-shift: 12px;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary {
+  padding-left: calc(8px + var(--tree-indent));
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary.is-grouped {
-  padding-left: calc(8px + var(--tree-cluster-shift));
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--group .tree-folder-title {
+  padding: 0;
+  font: 500 12.5px var(--sans);
+}
+
+/* The unavailable group is a drawer at the foot of the list, not a project. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--muted,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--muted:hover {
+  color: var(--t3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--muted .tree-folder-title,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--muted .tree-folder-main {
+  font-weight: 400;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-count {
+  padding-right: 6px;
+  font: 11px var(--mono);
+  color: var(--t4);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .tree-folder-summary:hover,
@@ -133,22 +146,36 @@ html[data-theme-id='piwin-inkstone-ink'] .tree-folder-summary:hover {
 /* The tree is a flat virtualized list; spacing belongs to each row, rather
    than a second flex gap which enlarged every prototype 28px row. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-main {
-  height: 26px;
+  gap: 8px;
+  height: 28px;
   padding: 0;
   font: 500 12.5px var(--sans);
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-main:hover,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-main:focus-visible,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle:hover,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle:focus-visible {
-  background: transparent;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--group {
+  gap: 8px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle-spacer {
-  width: 14px;
-  flex-basis: 14px;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--t3);
+  stroke-width: 1.4;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary:hover .tree-folder-icon,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary.active .tree-folder-icon {
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--muted .tree-folder-icon,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--muted:hover .tree-folder-icon {
+  color: var(--t4);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-main:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-main:focus-visible {
+  background: transparent;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-item-body {
@@ -199,37 +226,67 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session {
-  position: relative;
-  padding-left: calc(28px + var(--tree-cluster-shift));
+  padding-left: calc(var(--tree-indent) - var(--tree-indent-step));
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session::before {
-  content: '';
-  position: absolute;
-  left: calc(14.25px + var(--tree-cluster-shift));
-  top: 0;
-  bottom: 0;
-  width: 1.5px;
-  background: var(--l3);
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session .session-item-name {
+  gap: 8px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session::after {
-  content: '';
-  position: absolute;
-  left: calc(11px + var(--tree-cluster-shift));
-  top: 10px;
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid var(--l3);
-  border-radius: 50%;
-  background: var(--s1);
-  pointer-events: none;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-lead {
+  color: var(--t3);
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session:has(.session-item.active)::after {
-  background: var(--zhu);
-  border-color: var(--zhu);
-  box-shadow: 0 0 0 3px var(--zhu-wash);
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-row:hover .session-lead,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-row--active .session-lead {
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-lead .session-backend-badge--logo {
+  color: var(--t1);
+}
+
+/* The one mark that reports an exception (not the repository's own checkout)
+   sits a step above the others at rest so it is not read as just another ring. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-worktree-mark {
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-row:hover .session-worktree-mark,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-row--active .session-worktree-mark {
+  color: var(--t1);
+}
+
+/* Hover actions cover the title's tail with the row's own fill, feathered on
+   the leading edge so the text fades out under them rather than being cut. */
+@media (hover: hover) {
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session .session-row:hover .session-row-actions {
+    background: var(--s2);
+    box-shadow: -10px 0 8px var(--s2);
+  }
+
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session .session-row--active:hover .session-row-actions {
+    background: var(--s3);
+    box-shadow: -10px 0 8px var(--s3);
+  }
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session .session-row:focus-within .session-row-actions {
+  background: var(--s2);
+  box-shadow: -10px 0 8px var(--s2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session .session-row--active:focus-within .session-row-actions {
+  background: var(--s3);
+  box-shadow: -10px 0 8px var(--s3);
+}
+
+/* Touch keeps the selected row's actions up with no hover fill to hide the
+   title under them, so that one row reserves their full width instead. */
+@media (hover: none) {
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session .session-row--active:not(.session-row--working) .session-item {
+    padding-right: calc(78px + var(--session-status-seal-clearance, 0px));
+  }
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-item.active::before {
@@ -245,18 +302,18 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .project-session-show-more {
   display: flex;
   align-items: center;
+  gap: 8px;
   width: 100%;
-  height: 26px;
-  min-height: 26px;
+  height: 28px;
+  min-height: 28px;
   margin: 0;
-  padding: 0 8px;
-  padding-left: calc(8px + var(--tree-cluster-shift));
+  /* Lead slot under the session marks, count under the timestamps. */
+  padding: 0 4px 0 calc(8px + var(--tree-indent) - var(--tree-indent-step));
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--t3);
-  font: 500 12px var(--sans);
-  letter-spacing: 0.01em;
+  font: 400 12.5px var(--sans);
   line-height: 1;
   text-align: left;
   cursor: pointer;
@@ -264,6 +321,19 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   transition:
     background var(--t-1) var(--ease-out),
     color var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .project-session-show-more .session-lead {
+  color: var(--t4);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .project-session-show-more-count {
+  font: 11px var(--mono);
+  color: var(--t4);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .project-session-show-more:hover .session-lead {
+  color: var(--t2);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .project-session-show-more:hover {

@@ -391,6 +391,79 @@
   background: var(--iris-wash);
 }
 
+/* Brand mark instead of the text pill (Grok → shared xAI logo). */
+/* ── Lead slot ────────────────────────────────────────────────────────
+   Project-tree rows open with one fixed-width slot under the project name's
+   left edge. It holds exactly one mark saying what kind of session this is:
+   an external agent's logo, a linked worktree, a draft, or the neutral ring
+   of a plain piwin session. Every mark is centred in the slot, so marks of
+   different widths still share one axis down the column.
+
+   piwin's own marks (ring, draft, worktree) are quiet ink that steps up on
+   the row under the pointer or the selected row. Nothing in this slot ever
+   changes a row's size: opening or selecting a row moves no other row. */
+.session-lead {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: var(--text-3);
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.session-row:hover .session-lead,
+.session-row--active .session-lead {
+  color: var(--text-1);
+}
+
+/* An agent's logo is its own mark, shown at full ink like anywhere else. */
+.session-lead .session-backend-badge--logo {
+  color: var(--text-1);
+}
+
+/* The one mark that reports an exception (not the repository's own checkout)
+   sits a step above the others at rest so it is not read as just another ring. */
+.session-worktree-mark {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-2);
+}
+
+.session-row:hover .session-worktree-mark,
+.session-row--active .session-worktree-mark {
+  color: var(--text-1);
+}
+
+.session-native-mark,
+.session-lead .session-draft-mark {
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.62;
+}
+
+.session-row:hover .session-native-mark,
+.session-row--active .session-native-mark {
+  opacity: 1;
+}
+
+/* A draft shares the ring's shape, so it is told apart by a broken outline. */
+.session-lead .session-draft-mark {
+  border-style: dashed;
+  opacity: 0.8;
+}
+
+.session-backend-badge--logo {
+  /* The name's own flex gap already separates the mark from the title. */
+  margin-right: 0;
+  padding: 0;
+  color: var(--text-1);
+  background: none;
+}
+
 /* ── Run and completion markers ───────────────────────────────────────
    A session that is working is the only place in the sidebar allowed to use
    ember, and it uses the shell breath so it pulses in phase with the stage. */
@@ -784,36 +857,4 @@
 
 .sidebar-display-menu .ui-menu-separator {
   margin: var(--s-3) var(--s-1);
-}
-
-/* ── Ink wash ─────────────────────────────────────────────────────────
-   Selection becomes a jade brush stroke; completion becomes a cinnabar seal. */
-
-html[data-theme-visual-style='ink-wash'] .session-item.active::before {
-  background: #70919c;
-  box-shadow: 0 0 8px rgba(112, 145, 156, 0.6);
-  width: 3px;
-}
-
-html[data-theme-visual-style='ink-wash'] .session-item-completed-mark,
-html[data-theme-visual-style='ink-wash'] .session-item-completed-dismiss {
-  border-radius: 3px;
-  background: #c24d43;
-  color: #f8f6f0;
-  box-shadow: 0 2px 8px rgba(194, 77, 67, 0.5);
-}
-
-html[data-theme-visual-style='ink-wash'] .session-item-completed-mark svg {
-  display: none;
-}
-
-html[data-theme-visual-style='ink-wash']
-  .session-item-completed-mark
-  [data-testid='session-completed-indicator']::after {
-  content: '訖';
-  font-family: STKaiti, KaiTi, serif;
-  font-size: 11px;
-  font-weight: 700;
-  color: #f8f6f0;
-  line-height: 1;
 }

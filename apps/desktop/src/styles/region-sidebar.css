@@ -206,9 +206,8 @@
 }
 
 /* ── Footer ───────────────────────────────────────────────────────────
-   Anchored below the scroll region. The solid footer still hides rows that
-   pass under the buttons; `.sidebar-footer-fade` softens the seam above so
-   Conversations ease into Knowledge Center instead of a hard cut. */
+   Anchored below the scroll region. The tree's own bottom edge fade
+   (sidebar-tree-edge-fade.css) softens the seam above it. */
 
 .sidebar-footer {
   flex-shrink: 0;
@@ -221,36 +220,6 @@
   position: relative;
   z-index: 2;
   background: var(--surface-1);
-}
-
-/* Frosted scroll edge — matches the chat-composer fade: blur + opacity
-   ramp, masked so the top of the band is fully transparent. */
-.sidebar-footer-fade {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  height: 36px;
-  pointer-events: none;
-  z-index: 1;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    color-mix(in srgb, var(--surface-1) 42%, transparent) 45%,
-    color-mix(in srgb, var(--surface-1) 88%, transparent) 78%,
-    var(--surface-1) 100%
-  );
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 55%, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 55%, #000 100%);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sidebar-footer-fade {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
 }
 
 .sidebar-footer-button {
@@ -331,38 +300,4 @@
   border-radius: 50%;
   background: var(--ember);
   animation: breath var(--breath) var(--ease-in-out) infinite;
-}
-
-/* ── Ink wash ─────────────────────────────────────────────────────────
-   Theme package overrides: the panel goes translucent over the Xuan paper
-   and the section marks pick up cinnabar. */
-
-html[data-theme-visual-style='ink-wash'] .sidebar-footer {
-  background: transparent;
-}
-
-html[data-theme-visual-style='ink-wash'] .sidebar-footer-fade {
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    color-mix(in srgb, var(--surface-1) 28%, transparent) 50%,
-    color-mix(in srgb, var(--surface-1) 55%, transparent) 100%
-  );
-}
-
-html[data-theme-visual-style='ink-wash'] .sidebar-footer::before {
-  content: '';
-  display: block;
-  width: 85%;
-  height: 6px;
-  margin: 0 auto var(--s-3);
-  background-image: var(--ink-wash-dry-brush-divider, none);
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-  opacity: 0.45;
-}
-
-html[data-theme-visual-style='ink-wash'] .sidebar-footer-button:active {
-  transform: scale(0.97);
 }

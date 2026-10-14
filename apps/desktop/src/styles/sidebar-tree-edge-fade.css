@@ -1,0 +1,32 @@
+/* Region: sidebar tree edge fades (project-session-sidebar.tsx), every theme.
+
+   Shown only on an edge that is hiding rows (hooks/use-scroll-edge-fade.ts),
+   so the first/last row is never dimmed at rest. A mask, not a colour paint:
+   the sidebar may sit on translucent window material,
+   where a surface-coloured overlay reads as a band. No blur — titles are
+   scanned, not read, and blur would cost a backdrop surface (memory diet). */
+
+.sidebar-folder-tree[data-overflow-above] {
+  --sidebar-tree-fade-top: 16px;
+}
+
+.sidebar-folder-tree[data-overflow-below] {
+  --sidebar-tree-fade-bottom: 24px;
+}
+
+.sidebar-folder-tree:is([data-overflow-above], [data-overflow-below]) {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--sidebar-tree-fade-top, 0px),
+    #000 calc(100% - var(--sidebar-tree-fade-bottom, 0px)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--sidebar-tree-fade-top, 0px),
+    #000 calc(100% - var(--sidebar-tree-fade-bottom, 0px)),
+    transparent 100%
+  );
+}

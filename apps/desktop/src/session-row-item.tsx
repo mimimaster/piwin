@@ -7,6 +7,7 @@ import {
   IconCheck,
   IconDocument,
   IconFolder,
+  IconGit,
   IconMoreVertical,
   IconBookmark,
   IconTrash,
@@ -21,6 +22,7 @@ import {
 } from './session-row-working';
 import { sessionScopeKey } from './session-scope-key';
 import { agentDisplayName } from './agent-backend-state';
+import { ProviderIcon } from '@piwin/ui-kit';
 import { useSessionRowDragGesture } from './workbench/docking/use-session-row-drag-gesture.js';
 
 /** proto-03 `.i.s12` inside `.ib.s22` hit targets. */
@@ -139,6 +141,8 @@ export function SessionRowItem({
   failedAttentionSessionIds,
   waitingPermissionSessionIds,
   onDismissCompletedAttention,
+  worktree,
+  treeLead,
   onTogglePin,
   onArchiveSession,
   onUnarchiveSession,
@@ -171,6 +175,13 @@ export function SessionRowItem({
   failedAttentionSessionIds?: Record<string, true> | undefined;
   waitingPermissionSessionIds?: Record<string, true> | undefined;
   onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
+  /** Set when the session runs in a linked worktree rather than the repository's own checkout. */
+  worktree?: { name: string; branch: string | null } | undefined;
+  /**
+   * Project-tree rows open with one fixed slot that says what kind of session
+   * this is. Flat lists (pinned, conversations) have no such column.
+   */
+  treeLead?: boolean | undefined;
 }): ReactElement {
   const isDraft = 'isDraft' in session && session.isDraft === true;
   const isPinned = 'isPinned' in session && session.isPinned === true;
@@ -181,6 +192,9 @@ export function SessionRowItem({
   const backendAgentId =
     !isDraft && 'backend' in session ? session.backend?.agentId : undefined;
   const backendBadge = backendAgentId !== undefined ? agentDisplayName(backendAgentId) : null;
+  // Agents with a brand mark show it instead of the text pill; Grok reuses the
+  // shared xAI provider logo.
+  const backendLogoId = backendAgentId === 'grok' ? 'xai' : null;
   const isActive = isDraft ? session.id === activeDraftId : session.id === activeSessionId;
   const sessionScope = 'scope' in session ? session.scope : undefined;
   const dragScopeKey = sessionScope ? sessionScopeKey(sessionScope) : undefined;
@@ -190,22 +204,26 @@ export function SessionRowItem({
     label: session.name,
     ...(dragScopeKey ? { projectScopeKey: dragScopeKey } : {}),
   });
+  const nativeOwner = 'nativeCli' in session ? session.nativeCli : undefined;
+  const nativeActivity = nativeOwner?.kind === 'native' ? nativeOwner.activity : undefined;
   const isWorking = sessionRowIsWorking({
     sessionId: session.id,
     isDraft,
     activeSessionId,
     runPhase: runPhase ?? 'idle',
+    nativeActivity,
     ...(workingSessionIds !== undefined ? { workingSessionIds } : {}),
   });
   const hasActiveBackendService =
     !isDraft && backendServiceSessionIds != null && session.id in backendServiceSessionIds;
   const isWaitingOnPermission =
-    !isDraft && waitingPermissionSessionIds != null && session.id in waitingPermissionSessionIds;
+    nativeActivity === 'waiting' || !isDraft && waitingPermissionSessionIds != null && session.id in waitingPermissionSessionIds;
   const hasActiveSessionWork = sessionRowHasLiveActivity({
     sessionId: session.id,
     isDraft,
     activeSessionId,
     runPhase: runPhase ?? 'idle',
+    nativeActivity,
     ...(workingSessionIds !== undefined ? { workingSessionIds } : {}),
     ...(backendServiceSessionIds !== undefined
       ? { backendServiceSessionIds }
@@ -228,6 +246,45 @@ export function SessionRowItem({
   const cleanedPreview = sanitizePreviewSnippet(rawPreview);
   const unquoted = cleanedPreview.replace(/^[“"']+|[”"']+$/g, '').trim();
   const formattedPreview = unquoted ? `“${unquoted}”` : null;
+
+  const logoBadge =
+    backendBadge !== null && backendLogoId !== null ? (
+      <span
+        className="session-backend-badge session-backend-badge--logo"
+        data-testid="session-backend-badge"
+        data-backend-logo={backendLogoId}
+        role="img"
+        aria-label={backendBadge}
+        title={backendBadge}
+      >
+        <ProviderIcon id={backendLogoId} name={backendBadge} variant="glyph" size={12} />
+      </span>
+    ) : null;
+  // piwin only knows the checkout of sessions it runs itself. An external
+  // agent reports a working directory, not a worktree, so it never gets this
+  // mark and always keeps its own.
+  const worktreeLabel =
+    worktree !== undefined && backendBadge === null
+      ? copy.sessionInWorktree(worktree.name, worktree.branch)
+      : null;
+  // One slot, one mark: what kind of session this is, read down the column.
+  const leadMark = isDraft ? (
+    <span className="session-draft-mark" aria-hidden />
+  ) : logoBadge !== null ? (
+    logoBadge
+  ) : worktreeLabel !== null ? (
+    <span
+      className="session-worktree-mark"
+      data-testid="session-worktree-mark"
+      role="img"
+      aria-label={worktreeLabel}
+      title={worktreeLabel}
+    >
+      <IconGit width={13} height={13} />
+    </span>
+  ) : backendBadge === null ? (
+    <span className="session-native-mark" data-testid="session-native-mark" aria-hidden />
+  ) : null;
 
   return (
     <div
@@ -297,7 +354,11 @@ export function SessionRowItem({
           }
         >
           <span className="session-item-name" {...dragGesture.handleProps}>
-            {isDraft ? <span className="session-draft-mark" aria-hidden /> : null}
+            {treeLead === true ? (
+              <span className="session-lead">{leadMark}</span>
+            ) : isDraft ? (
+              <span className="session-draft-mark" aria-hidden />
+            ) : null}
             {isArchived ? (
               <span className="session-archived-mark" aria-hidden title={copy.archived}>
                 <IconDocument width={13} height={13} />
@@ -321,7 +382,9 @@ export function SessionRowItem({
                 {copy.missingPack}
               </span>
             ) : null}
-            {backendBadge !== null ? (
+            {logoBadge !== null && treeLead !== true ? (
+              logoBadge
+            ) : backendBadge !== null && backendLogoId === null ? (
               <span
                 className="session-backend-badge"
                 data-testid="session-backend-badge"

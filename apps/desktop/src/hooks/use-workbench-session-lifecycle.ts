@@ -24,11 +24,21 @@ import {
 import { PROJECT_SIDEBAR_GIT_CHANGED } from '../project-sidebar-events';
 import { checkoutAliasPaths } from '../sidebar-repo-groups';
 import {
+  applyRegisteredProjectsToHiddenSuppressions,
+  filterPathsAgainstSuppression,
+  markPendingSidebarRemoval,
+  pathSetHas,
+  releasePendingSidebarRemoval,
+  rememberHiddenSidebarPath,
+  suppressedSidebarPaths,
+} from '../sidebar-project-removal-suppression';
+import {
   mapWithConcurrency,
   planLastSessionRestore,
   planProjectListRetryDelay,
   planRecentProjectSessionHydration,
   planRemoteSessionCatchUp,
+  shouldApplySidebarProjectList,
   shouldHydrateInitialGeneralSessions,
 } from '../workbench-session-lifecycle';
 
@@ -96,11 +106,20 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
   const hasHydratedInitialGeneralSessions = useRef(false);
   const hasRestoredDesktopSession = useRef(false);
   const hydratedProjectKeyRef = useRef('');
+  // Increments after project/remove is stored, so a list that started earlier
+  // cannot paint the folder back. Paths still in flight stay hidden even when
+  // that list is from the same epoch.
+  const sidebarRemovalCommitEpochRef = useRef(0);
+  const pendingSidebarRemovalsRef = useRef(new Set<string>());
+  const hiddenSidebarPathsRef = useRef(new Set<string>());
 
   useEffect(() => {
     hasHydratedInitialGeneralSessions.current = false;
     hasRestoredDesktopSession.current = false;
     hydratedProjectKeyRef.current = '';
+    sidebarRemovalCommitEpochRef.current = 0;
+    pendingSidebarRemovalsRef.current = new Set();
+    hiddenSidebarPathsRef.current = new Set();
   }, [hostClient]);
 
   useEffect(() => {
@@ -114,17 +133,39 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
     async function loadRecentProjects(): Promise<void> {
       clearTimeout(retryTimer);
       const generation = ++requestGeneration;
+      const requestCommitEpoch = sidebarRemovalCommitEpochRef.current;
       const response = await hostClient.request({ type: 'project/list' });
-      if (cancelled || generation !== requestGeneration) {
+      if (
+        cancelled ||
+        generation !== requestGeneration ||
+        !shouldApplySidebarProjectList({
+          requestCommitEpoch,
+          currentCommitEpoch: sidebarRemovalCommitEpochRef.current,
+        })
+      ) {
         return;
       }
       let outcome: 'failed' | 'git-pending' | 'complete';
       if (response.success) {
         const fetched = mapListedProjects(response.data);
-        setRecentProjects((prev) =>
-          mergeRecentProjects(prev, fetched, projectPath ? [projectPath] : []),
+        // Only a list started after the last removal commit can prove a re-open.
+        // Pending removals are never cleared by a list snapshot.
+        applyRegisteredProjectsToHiddenSuppressions(
+          hiddenSidebarPathsRef.current,
+          fetched.map((project) => project.path),
         );
-        setWorktrees(mapListedWorktrees(response.data));
+        const suppressed = suppressedSidebarPaths(
+          pendingSidebarRemovalsRef.current,
+          hiddenSidebarPathsRef.current,
+        );
+        const visibleProjects = filterPathsAgainstSuppression(fetched, suppressed);
+        setRecentProjects((prev) =>
+          filterPathsAgainstSuppression(
+            mergeRecentProjects(prev, visibleProjects, projectPath ? [projectPath] : []),
+            suppressed,
+          ),
+        );
+        setWorktrees(filterPathsAgainstSuppression(mapListedWorktrees(response.data), suppressed));
         const data = response.data as { gitWorkspacePending?: unknown } | undefined;
         outcome = data?.gitWorkspacePending === true ? 'git-pending' : 'complete';
       } else {
@@ -289,35 +330,65 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
       // A folded folder stands for every alias record of that directory;
       // removing only the visible one would make an alias pop back up.
       const aliasPaths = checkoutAliasPaths(recentProjects, path);
-      const response = await hostClient.request({
-        type: 'project/remove',
-        path,
-      });
-      if (!response.success) {
-        dispatchNotification(pushError(response.error));
-        return;
+      const candidatePaths = [path, ...aliasPaths];
+      const previousProjects = recentProjects;
+      const previousWorktrees = worktrees;
+      for (const candidate of candidatePaths) {
+        markPendingSidebarRemoval(pendingSidebarRemovalsRef.current, candidate);
       }
-      const removedPaths = new Set([path]);
-      for (const aliasPath of aliasPaths) {
-        const aliasResponse = await hostClient.request({
-          type: 'project/remove',
-          path: aliasPath,
-        });
-        if (aliasResponse.success) {
-          removedPaths.add(aliasPath);
+      const suppressedNow = suppressedSidebarPaths(
+        pendingSidebarRemovalsRef.current,
+        hiddenSidebarPathsRef.current,
+      );
+      setRecentProjects((projects) => filterPathsAgainstSuppression(projects, suppressedNow));
+      setWorktrees((listed) => filterPathsAgainstSuppression(listed, suppressedNow));
+
+      const removedPaths = new Set<string>();
+      let anyFailure = false;
+      for (const candidate of candidatePaths) {
+        const response = await hostClient.request({ type: 'project/remove', path: candidate });
+        if (response.success) {
+          removedPaths.add(candidate);
+          const removedPath =
+            response.data &&
+            typeof response.data === 'object' &&
+            'path' in response.data &&
+            typeof (response.data as { path?: unknown }).path === 'string'
+              ? (response.data as { path: string }).path
+              : candidate;
+          removedPaths.add(removedPath);
+          rememberHiddenSidebarPath(hiddenSidebarPathsRef.current, candidate);
+          rememberHiddenSidebarPath(hiddenSidebarPathsRef.current, removedPath);
+          releasePendingSidebarRemoval(pendingSidebarRemovalsRef.current, candidate);
+          releasePendingSidebarRemoval(pendingSidebarRemovalsRef.current, removedPath);
         } else {
-          dispatchNotification(pushError(aliasResponse.error));
+          anyFailure = true;
+          releasePendingSidebarRemoval(pendingSidebarRemovalsRef.current, candidate);
+          dispatchNotification(pushError(response.error));
         }
       }
 
-      setRecentProjects((projects) => projects.filter((project) => !removedPaths.has(project.path)));
-      if (projectPath === null || !removedPaths.has(projectPath)) {
+      // Keep the existing epoch guard: a pre-commit list cannot prove a re-open.
+      sidebarRemovalCommitEpochRef.current += 1;
+      const suppressed = suppressedSidebarPaths(
+        pendingSidebarRemovalsRef.current,
+        hiddenSidebarPathsRef.current,
+      );
+      if (anyFailure) {
+        setRecentProjects(() => filterPathsAgainstSuppression(previousProjects, suppressed));
+        setWorktrees(() => filterPathsAgainstSuppression(previousWorktrees, suppressed));
+      } else {
+        setRecentProjects((projects) => filterPathsAgainstSuppression(projects, suppressed));
+        setWorktrees((listed) => filterPathsAgainstSuppression(listed, suppressed));
+      }
+      if (projectPath === null || !pathSetHas(removedPaths, projectPath)) {
+        window.dispatchEvent(new Event(PROJECT_SIDEBAR_GIT_CHANGED));
         return;
       }
 
       if (
         config?.desktop?.lastSession?.scope.kind === 'project' &&
-        removedPaths.has(config.desktop.lastSession.scope.projectPath)
+        pathSetHas(removedPaths, config.desktop.lastSession.scope.projectPath)
       ) {
         const nextDesktop = config.desktop ? { ...config.desktop } : {};
         delete nextDesktop.lastSession;
@@ -350,6 +421,7 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
       saveSettingsInOrder,
       setConfig,
       showArchivedSessions,
+      worktrees,
     ],
   );
 

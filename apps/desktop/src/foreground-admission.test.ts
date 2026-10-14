@@ -26,4 +26,17 @@ describe('desktopForegroundMutationsEnabled', () => {
     expect(state.foregroundAdmission).toBe('unknown');
     expect(desktopForegroundMutationsEnabled(state)).toBe(false);
   });
+
+  it('disables Send while native CLI still owns the writer, including drafts', () => {
+    let state = createInitialChatUiState();
+    expect(desktopForegroundMutationsEnabled(state)).toBe(true);
+    state = chatUiReducer(state, { type: 'native-cli/writer-busy', busy: true });
+    expect(state.nativeCliWriterBusy).toBe(true);
+    expect(desktopForegroundMutationsEnabled(state)).toBe(false);
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'foreground/admission', admission: 'ready' });
+    expect(desktopForegroundMutationsEnabled(state)).toBe(false);
+    state = chatUiReducer(state, { type: 'native-cli/writer-busy', busy: false });
+    expect(desktopForegroundMutationsEnabled(state)).toBe(true);
+  });
 });

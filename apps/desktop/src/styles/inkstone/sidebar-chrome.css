@@ -366,7 +366,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html[data-theme-id='piwin-inkstone-paper'] .shelf,
 html[data-theme-id='piwin-inkstone-ink'] .shelf {
   margin-top: auto;
-  border-top: 1px solid var(--l1);
+  /* No top rule: the tree's bottom edge fade already separates the shelf. */
   padding: 4px 8px;
   display: flex;
   align-items: center;

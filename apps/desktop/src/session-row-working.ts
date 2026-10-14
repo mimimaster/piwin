@@ -1,3 +1,5 @@
+import type { AgentCliActivity } from '@piwin/contracts';
+
 /**
  * Sidebar working spinner: the open session follows runPhase so an idle
  * composer cannot keep spinning; background rows follow the run map.
@@ -9,11 +11,13 @@ export function sessionRowIsWorking(input: {
   isDraft: boolean;
   activeSessionId: string | null;
   runPhase: SessionRowRunPhase;
+  nativeActivity?: AgentCliActivity | undefined;
   workingSessionIds?: Record<string, true> | undefined;
 }): boolean {
   if (input.isDraft) {
     return false;
   }
+  if (input.nativeActivity !== undefined) return input.nativeActivity === 'running';
   if (input.sessionId === input.activeSessionId) {
     return input.runPhase === 'streaming';
   }
@@ -30,6 +34,7 @@ export function sessionRowHasOrderingActivity(input: {
   isDraft?: boolean;
   activeSessionId: string | null;
   runPhase: SessionRowRunPhase;
+  nativeActivity?: AgentCliActivity | undefined;
   workingSessionIds?: Record<string, true> | undefined;
   backendServiceSessionIds?: Record<string, true> | undefined;
   waitingPermissionSessionIds?: Record<string, true> | undefined;
@@ -37,9 +42,10 @@ export function sessionRowHasOrderingActivity(input: {
   if (input.isDraft === true) {
     return false;
   }
+  if (input.nativeActivity === 'running' || input.nativeActivity === 'waiting') return true;
   // Selection temporarily resets the foreground run projection while resume
   // reconciles. The global run marker must keep the row in the same sort slot.
-  if (input.workingSessionIds != null && input.sessionId in input.workingSessionIds) {
+  if (input.nativeActivity === undefined && input.workingSessionIds != null && input.sessionId in input.workingSessionIds) {
     return true;
   }
   return sessionRowHasLiveActivity(input);
@@ -50,6 +56,7 @@ export function sessionRowHasLiveActivity(input: {
   isDraft?: boolean;
   activeSessionId: string | null;
   runPhase: SessionRowRunPhase;
+  nativeActivity?: AgentCliActivity | undefined;
   workingSessionIds?: Record<string, true> | undefined;
   backendServiceSessionIds?: Record<string, true> | undefined;
   waitingPermissionSessionIds?: Record<string, true> | undefined;
@@ -63,6 +70,7 @@ export function sessionRowHasLiveActivity(input: {
       isDraft: false,
       activeSessionId: input.activeSessionId,
       runPhase: input.runPhase,
+      nativeActivity: input.nativeActivity,
       ...(input.workingSessionIds !== undefined
         ? { workingSessionIds: input.workingSessionIds }
         : {}),
@@ -70,6 +78,7 @@ export function sessionRowHasLiveActivity(input: {
   ) {
     return true;
   }
+  if (input.nativeActivity === 'waiting') return true;
   if (
     input.backendServiceSessionIds != null &&
     input.sessionId in input.backendServiceSessionIds

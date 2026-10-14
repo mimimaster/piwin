@@ -32,7 +32,7 @@ const ROWS: SidebarTreeRow[] = [
   session('pinned-chat', 'general'),
   session('pinned-proj', '/w/piwin'),
   header('projects'),
-  { kind: 'project-folder', projectPath: '/w/piwin', collapsed: false, grouped: false, currentBranch: 'main', key: 'folder:/w/piwin' },
+  { kind: 'project-folder', projectPath: '/w/piwin', collapsed: false, depth: 0, currentBranch: 'main', key: 'folder:/w/piwin' },
   session('proj-a', '/w/piwin'),
   header('conversations'),
   { kind: 'time-group', id: 'today', title: '今天', key: 'time:today' },
@@ -100,7 +100,7 @@ describe('filterSidebarRowsByMode', () => {
   });
 
   it('leaves rows before any section header alone in both panes', () => {
-    const rows: SidebarTreeRow[] = [{ kind: 'no-repo-folder', key: 'no-repo', collapsed: true }, ...ROWS];
+    const rows: SidebarTreeRow[] = [{ kind: 'no-repo-folder', key: 'no-repo', collapsed: true, depth: 0 }, ...ROWS];
     expect(keys(filterSidebarRowsByMode(rows, 'chat'))[0]).toBe('no-repo');
     expect(keys(filterSidebarRowsByMode(rows, 'code'))[0]).toBe('no-repo');
   });

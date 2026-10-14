@@ -127,7 +127,11 @@ describe('ProjectSessionSidebar resident session lists', () => {
     const showMore = container.querySelector<HTMLButtonElement>(
       '[data-testid="project-session-show-more"]',
     );
-    expect(showMore?.textContent).toBe('Show more');
+    // Label under the titles, the number still folded away under the timestamps.
+    expect(showMore?.querySelector('.project-session-show-more-label')?.textContent).toBe(
+      'Show more',
+    );
+    expect(showMore?.querySelector('.project-session-show-more-count')?.textContent).toBe('+8');
     expect(showMore?.getAttribute('aria-label')).toBe('Show 5 more sessions');
 
     act(() => showMore?.click());
@@ -204,9 +208,10 @@ describe('ProjectSessionSidebar resident session lists', () => {
     });
 
     expect(container.textContent).toContain('项目');
-    expect(container.querySelector('[data-testid="project-session-show-more"]')?.textContent).toBe(
-      '显示更多',
-    );
+    expect(
+      container.querySelector('[data-testid="project-session-show-more"] .project-session-show-more-label')
+        ?.textContent,
+    ).toBe('显示更多');
     expect(
       container
         .querySelector('[data-testid="project-session-show-more"]')
@@ -319,7 +324,7 @@ describe('ProjectSessionSidebar resident session lists', () => {
     expect(container.textContent).not.toContain('View all projects');
   });
 
-  it('renders a fold toggle for every project folder', () => {
+  it('folds every project folder from its own row, with no separate toggle', () => {
     const projects = createMockProjects(8);
     const { container } = renderSidebar({
       recentProjects: projects,
@@ -329,7 +334,11 @@ describe('ProjectSessionSidebar resident session lists', () => {
 
     // Every project remains rendered; only a project's child list folds.
     expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(8);
-    expect(container.querySelectorAll('[data-testid="project-fold-toggle"]')).toHaveLength(8);
+    expect(
+      container.querySelectorAll('[data-testid="repository-item"][aria-expanded]'),
+    ).toHaveLength(8);
+    expect(container.querySelector('.tree-folder-toggle')).toBeNull();
+    // Eight projects plus the built-in No Repo folder each carry a folder glyph.
     expect(container.querySelectorAll('.tree-folder-icon')).toHaveLength(9);
     expect(container.querySelector('[data-testid="projects-section-title"]')).not.toBeNull();
   });
@@ -341,13 +350,12 @@ describe('ProjectSessionSidebar resident session lists', () => {
 
     expect(container.querySelector('[data-testid="sidebar-empty-hint"]')).toBeNull();
     expect(container.textContent).not.toContain('No general conversations');
-    expect(container.querySelector('[data-testid="tree-folder-icon-open"]')).not.toBeNull();
+    const folder = container.querySelector<HTMLButtonElement>('[data-testid="repository-item"]');
+    expect(folder?.getAttribute('aria-expanded')).toBe('true');
 
-    act(() =>
-      container.querySelector<HTMLButtonElement>('[data-testid="project-fold-toggle"]')?.click(),
-    );
-    expect(container.querySelector('[data-testid="tree-folder-icon-closed"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="tree-folder-icon-open"]')).toBeNull();
+    act(() => folder?.click());
+    expect(folder?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-testid="sidebar-empty-hint"]')).toBeNull();
   });
 
   it('swaps the project folder glyph between open and closed', () => {
@@ -356,16 +364,18 @@ describe('ProjectSessionSidebar resident session lists', () => {
     });
 
     const toggle = container.querySelector<HTMLButtonElement>(
-      '[data-testid="project-fold-toggle"]',
+      '[data-testid="repository-item"]',
     );
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
     expect(toggle?.querySelector('[data-testid="tree-folder-icon-open"]')).not.toBeNull();
     expect(toggle?.querySelector('[data-testid="tree-folder-icon-closed"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(1);
 
     act(() => toggle?.click());
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     expect(toggle?.querySelector('[data-testid="tree-folder-icon-closed"]')).not.toBeNull();
     expect(toggle?.querySelector('[data-testid="tree-folder-icon-open"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(0);
   });
 
   it('renders the full Conversations list without See all', () => {
@@ -886,10 +896,20 @@ describe('ProjectSessionSidebar project row behavior', () => {
       '[data-testid="project-remove-from-sidebar"]',
     );
     expect(removeItem).not.toBeNull();
+    // A non-modal context menu can unmount on pointerdown, before the click
+    // Radix uses for onSelect. The item has to commit on pointerdown, and the
+    // click that still arrives must not remove the project twice.
+    act(() => {
+      removeItem?.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }),
+      );
+    });
+    expect(onRemoveProject).toHaveBeenCalledTimes(1);
+    expect(onRemoveProject).toHaveBeenCalledWith(projects[0]?.path);
     act(() => {
       removeItem?.click();
     });
-    expect(onRemoveProject).toHaveBeenCalledWith(projects[0]?.path);
+    expect(onRemoveProject).toHaveBeenCalledTimes(1);
   });
 
   it('folds the project when its row is clicked without switching projects', () => {
@@ -970,10 +990,9 @@ describe('ProjectSessionSidebar project row behavior', () => {
     expect(onOpenProject).not.toHaveBeenCalled();
   });
 
-  it('keeps the footer fade above settings and opens knowledge bases from the sidebar', () => {
+  it('opens knowledge bases from the sidebar', () => {
     const onOpenKnowledge = vi.fn();
     const { container } = renderSidebar({ onOpenKnowledge });
-    expect(container.querySelector('.sidebar-footer-fade')).not.toBeNull();
     const knowledgeButton = container.querySelector<HTMLButtonElement>(
       '[data-testid="sidebar-knowledge-btn"]',
     );
@@ -1107,7 +1126,7 @@ describe('ProjectSessionSidebar project row behavior', () => {
     expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(8);
 
     const foldToggle = container.querySelector<HTMLButtonElement>(
-      '[data-testid="project-fold-toggle"]',
+      '[data-testid="repository-item"]',
     );
     act(() => foldToggle?.click());
     expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(0);
@@ -1149,7 +1168,7 @@ describe('ProjectSessionSidebar project row behavior', () => {
 
     expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(2);
     const foldButtons = container.querySelectorAll<HTMLButtonElement>(
-      '[data-testid="project-fold-toggle"]',
+      '[data-testid="repository-item"]',
     );
     expect(foldButtons).toHaveLength(2);
 
@@ -1347,8 +1366,7 @@ describe('ProjectSessionSidebar settings prefetch', () => {
 });
 
 describe('ProjectSessionSidebar repo grouping', () => {
-  it('opens a discovered worktree using the existing folder row design', () => {
-    const onOpenProject = vi.fn();
+  it('gives a worktree nobody opened no row of its own', () => {
     const now = new Date().toISOString();
     const { container } = renderSidebar({
       projectPath: '/repo',
@@ -1360,12 +1378,40 @@ describe('ProjectSessionSidebar repo grouping', () => {
         { gitRepositoryId: 'repo1', path: '/repo', branch: 'main', isPrimary: true },
         { gitRepositoryId: 'repo1', path: '/linked', branch: 'feat/x', isPrimary: false },
       ],
-      onOpenProject,
     });
-    const row = container.querySelector<HTMLButtonElement>('[data-testid="unregistered-worktree-item"]');
-    expect(row?.textContent).toContain('feat/x');
-    act(() => row?.click());
-    expect(onOpenProject).toHaveBeenCalledWith('/linked');
+    expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="sessions-list"]')?.textContent).not.toContain('linked');
+  });
+
+  it('removes every worktree of a repository folder from the sidebar together', () => {
+    const onRemoveProject = vi.fn();
+    const now = new Date().toISOString();
+    const { container } = renderSidebar({
+      projectPath: '/repo',
+      recentProjects: [
+        { path: '/repo', trust: 'trusted', lastOpenedAt: now, createdAt: now,
+          gitRepositoryId: 'repo1', isPrimaryWorktree: true, currentBranch: 'main' },
+        { path: '/linked', trust: 'trusted', lastOpenedAt: now, createdAt: now,
+          gitRepositoryId: 'repo1', currentBranch: 'feature' },
+      ],
+      onRemoveProject,
+    });
+    const row = container.querySelector<HTMLButtonElement>('[data-testid="repository-item"]');
+    expect(row).not.toBeNull();
+    act(() => {
+      row?.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true, cancelable: true, clientX: 80, clientY: 80,
+      }));
+    });
+    const removeItem = document.querySelector<HTMLElement>('[data-testid="project-remove-from-sidebar"]');
+    expect(removeItem).not.toBeNull();
+    act(() => {
+      removeItem?.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, cancelable: true, button: 0,
+      }));
+      removeItem?.click();
+    });
+    expect(onRemoveProject.mock.calls.map((call) => call[0])).toEqual(['/repo', '/linked']);
   });
 
   it('labels a missing worktree while keeping its session row', () => {
@@ -1385,7 +1431,10 @@ describe('ProjectSessionSidebar repo grouping', () => {
     });
     expect(container.querySelector('[data-testid="sidebar-unavailable-group"]')).not.toBeNull();
     act(() => container.querySelector<HTMLButtonElement>('[data-testid="sidebar-unavailable-group"]')?.click());
-    expect(container.querySelector('[data-project-path="/old-worker"]')?.textContent).toContain('Unavailable');
+    // The group heading already says "unavailable"; the row keeps it for the tooltip only.
+    const missing = container.querySelector('[data-project-path="/old-worker"]');
+    expect(missing?.textContent).toBe('old-worker');
+    expect(missing?.getAttribute('title')).toContain('Unavailable');
     expect(container.querySelector('[data-session-id="old-session"]')).not.toBeNull();
   });
 
@@ -1412,10 +1461,18 @@ describe('ProjectSessionSidebar repo grouping', () => {
     expect(container.querySelector('[data-project-path="/removed"]')).toBeNull();
   });
 
-  it('renders a repo group label and branch names for linked worktrees', () => {
+  it('lists a repository once and marks only the sessions of its linked worktrees', () => {
     const now = new Date().toISOString();
     const { container } = renderSidebar({
       projectPath: '/Users/me/piwin',
+      projectSessionsByPath: {
+        '/Users/me/piwin': [
+          { id: 'home-session', name: 'Home session', updatedAt: now, isPinned: false, isArchived: false },
+        ],
+        '/Volumes/disk/piwin-cc': [
+          { id: 'linked-session', name: 'Linked session', updatedAt: now, isPinned: false, isArchived: false },
+        ],
+      },
       recentProjects: [
         {
           path: '/Volumes/disk/piwin-cc',
@@ -1438,20 +1495,28 @@ describe('ProjectSessionSidebar repo grouping', () => {
         },
       ],
     });
-    expect(container.querySelector('[data-testid="sidebar-repo-group"]')?.textContent).toBe(
-      'piwin (repo · 2 worktrees)',
-    );
     const names = Array.from(container.querySelectorAll('[data-testid="repository-item"]')).map(
       (item) => item.textContent,
     );
-    expect(names.some((text) => text?.includes('piwin') && text.includes('main'))).toBe(true);
-    expect(names.some((text) => text?.includes('piwin-cc') && text.includes('plan/x'))).toBe(true);
+    // One folder, named after the repository, with no branch text on it.
+    expect(names).toEqual(['piwin']);
+    const home = container.querySelector('[data-session-id="home-session"]');
+    const linked = container.querySelector('[data-session-id="linked-session"]');
+    expect(home?.querySelector('[data-testid="session-worktree-mark"]')).toBeNull();
+    expect(
+      linked?.querySelector('[data-testid="session-worktree-mark"]')?.getAttribute('title'),
+    ).toBe('Worktree piwin-cc · plan/x');
   });
 
-  it('toggles a repository group while keeping its label visible', () => {
+  it('folds a repository folder and every worktree session under it at once', () => {
     const now = new Date().toISOString();
     const { container } = renderSidebar({
       projectPath: '/repo',
+      projectSessionsByPath: {
+        '/linked': [
+          { id: 'linked-session', name: 'Linked session', updatedAt: now, isPinned: false, isArchived: false },
+        ],
+      },
       recentProjects: [
         { path: '/repo', trust: 'trusted', lastOpenedAt: now, createdAt: now,
           gitRepositoryId: 'repo1', isPrimaryWorktree: true, currentBranch: 'main' },
@@ -1459,21 +1524,22 @@ describe('ProjectSessionSidebar repo grouping', () => {
           gitRepositoryId: 'repo1', currentBranch: 'feature' },
       ],
     });
-    const group = container.querySelector<HTMLButtonElement>('[data-testid="sidebar-repo-group"]');
-    expect(group?.getAttribute('aria-expanded')).toBe('true');
-    expect(container.querySelector('[data-project-path="/linked"]')).not.toBeNull();
+    const folder = (): HTMLButtonElement | null =>
+      container.querySelector<HTMLButtonElement>('[data-testid="repository-item"]');
+    expect(folder()?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-session-id="linked-session"]')).not.toBeNull();
 
-    act(() => group?.click());
-    expect(group?.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('[data-project-path="/linked"]')).toBeNull();
-    expect(group?.textContent).toContain('repo');
+    act(() => folder()?.click());
+    expect(folder()?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-session-id="linked-session"]')).toBeNull();
+    expect(folder()?.textContent).toBe('repo');
 
-    act(() => group?.click());
-    expect(group?.getAttribute('aria-expanded')).toBe('true');
-    expect(container.querySelector('[data-project-path="/linked"]')).not.toBeNull();
+    act(() => folder()?.click());
+    expect(folder()?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-session-id="linked-session"]')).not.toBeNull();
   });
 
-  it('does not nest unrelated projects under a worktree group', () => {
+  it('keeps unrelated projects beside a repository folder, not under it', () => {
     const now = new Date().toISOString();
     const { container } = renderSidebar({
       projectPath: '/Users/me/piwin',
@@ -1527,30 +1593,24 @@ describe('ProjectSessionSidebar repo grouping', () => {
         },
       ],
     });
-    expect(container.querySelector('[data-testid="sidebar-repo-group"]')?.textContent).toBe(
-      'piwin (repo · 2 worktrees)',
-    );
-    const folders = Array.from(container.querySelectorAll('.tree-folder-summary'));
-    const groupedNames = folders
-      .filter((folder) => folder.classList.contains('is-grouped'))
-      .map((folder) => folder.querySelector('[data-testid="repository-item"]')?.textContent ?? '');
-    const soloNames = folders
-      .filter((folder) => !folder.classList.contains('is-grouped'))
-      .map((folder) => folder.querySelector('[data-testid="repository-item"]')?.textContent ?? '');
-    expect(groupedNames.some((text) => text.includes('piwin') && text.includes('main'))).toBe(true);
-    expect(groupedNames.some((text) => text.includes('piwin-inkstone-v2'))).toBe(true);
-    expect(soloNames.some((text) => text.includes('grok_reg_clean'))).toBe(true);
-    expect(soloNames.some((text) => text.includes('planora'))).toBe(true);
-    expect(groupedNames.some((text) => text.includes('grok_reg_clean'))).toBe(false);
-    expect(groupedNames.some((text) => text.includes('planora'))).toBe(false);
+    const treeDepth = (element: Element | null | undefined): number =>
+      Number(
+        element
+          ?.closest<HTMLElement>('.sidebar-tree-flow-item, .sidebar-tree-virtual-item')
+          ?.style.getPropertyValue('--tree-depth') ?? Number.NaN,
+      );
+    const folders = Array.from(container.querySelectorAll('[data-testid="repository-item"]'));
+    // Every project is a top-level folder; the worktree group is just one of them.
+    expect(folders.every((folder) => treeDepth(folder) === 0)).toBe(true);
+    const names = folders.map((folder) => folder.textContent ?? '');
+    expect(names.filter((text) => text === 'piwin')).toHaveLength(1);
+    expect(names.some((text) => text.includes('piwin-inkstone-v2'))).toBe(false);
+    expect(names.some((text) => text.includes('grok_reg_clean'))).toBe(true);
+    expect(names.some((text) => text.includes('planora'))).toBe(true);
+    expect(treeDepth(container.querySelector('[data-session-id="piwin-session"]'))).toBe(1);
     expect(
-      container.querySelector('[data-session-id="piwin-session"]')?.closest('.is-grouped'),
-    ).not.toBeNull();
-    expect(
-      container
-        .querySelector('[data-project-path="/Volumes/disk/grok_reg_clean"]')
-        ?.closest('.is-grouped'),
-    ).toBeNull();
+      treeDepth(container.querySelector('[data-project-path="/Volumes/disk/grok_reg_clean"]')),
+    ).toBe(0);
   });
 });
 

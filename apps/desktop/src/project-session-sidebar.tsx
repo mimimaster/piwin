@@ -23,13 +23,15 @@ import {
   collectPinnedSessionRows,
   DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
   sidebarSearchHidesReveal,
-  sidebarTreeRowInWorktreeCluster,
+  countSidebarProjectFolders,
+  sidebarTreeRowDepth,
   sidebarTreeRowKey,
   type SidebarTreeRow,
 } from './sidebar-tree-rows';
 import { resolveNoRepoWorkspaceKey } from './file-browse-root';
 import { getProjectSessionDisclosureCopy } from './project-session-disclosure-copy';
 import { SidebarTreeRowView } from './sidebar-tree-row-view';
+import { sidebarTreeDepthStyle } from './sidebar-tree-depth-style';
 import {
   filterSidebarRowsByMode,
   loadSidebarMode,
@@ -49,10 +51,11 @@ import {
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 import { handleNativeWindowDragMouseDown } from './native-window-drag';
+import { useScrollEdgeFade } from './hooks/use-scroll-edge-fade';
 
 const SIDEBAR_SESSION_ROW_ESTIMATE_PX = 28;
 const SIDEBAR_SECTION_ROW_ESTIMATE_PX = 22;
-const SIDEBAR_FOLDER_ROW_ESTIMATE_PX = 26;
+const SIDEBAR_FOLDER_ROW_ESTIMATE_PX = 28;
 const SIDEBAR_HINT_ROW_ESTIMATE_PX = 22;
 const SIDEBAR_VIRTUAL_OVERSCAN = 8;
 
@@ -63,12 +66,10 @@ function estimateSidebarTreeRowSize(row: SidebarTreeRow | undefined): number {
   switch (row.kind) {
     case 'section-header':
       return SIDEBAR_SECTION_ROW_ESTIMATE_PX;
-    case 'repo-group':
-    case 'unavailable-group':
     case 'time-group':
       return SIDEBAR_HINT_ROW_ESTIMATE_PX;
+    case 'unavailable-group':
     case 'project-folder':
-    case 'unregistered-worktree':
     case 'no-repo-folder':
       return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
     case 'session':
@@ -215,7 +216,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const [projectsSectionExpanded, setProjectsSectionExpanded] = useState(true);
   const [conversationsSectionExpanded, setConversationsSectionExpanded] = useState(true);
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
-  const [collapsedRepositories, setCollapsedRepositories] = useState<Record<string, boolean>>({});
   const [unavailableGroupCollapsed, setUnavailableGroupCollapsed] = useState(true);
   const [projectSessionVisibleCounts, setProjectSessionVisibleCounts] = useState<
     Record<string, number>
@@ -227,6 +227,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     folderTreeRef.current = node;
     setFolderTreeElement(node);
   }, []);
+  useScrollEdgeFade(folderTreeElement);
   const virtualizerRef = useRef<{ scrollToIndex: (index: number) => void } | null>(null);
   const changeSortBy = (order: SessionListOrder): void => {
     setLocalSortBy(order);
@@ -288,6 +289,15 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     },
     [props.sidebarMode, props.onSidebarModeChange],
   );
+  const projectFolderCount = useMemo(
+    () =>
+      countSidebarProjectFolders({
+        recentProjects: props.recentProjects,
+        ...(props.worktrees ? { worktrees: props.worktrees } : {}),
+        ...(noRepoWorkspaceKey ? { noRepoProjectPath: noRepoWorkspaceKey } : {}),
+      }),
+    [noRepoWorkspaceKey, props.recentProjects, props.worktrees],
+  );
 
   const allTreeRows = useMemo(
     () =>
@@ -304,7 +314,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         projectsSectionExpanded,
         conversationsSectionExpanded,
         collapsedProjects,
-        collapsedRepositories,
         unavailableGroupCollapsed,
         projectSessionVisibleCounts,
         sessionListScopes: props.sessionListScopes ?? createSessionListScopeState(),
@@ -324,7 +333,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       }),
     [
       collapsedProjects,
-      collapsedRepositories,
       unavailableGroupCollapsed,
       conversationsSectionExpanded,
       groupBy,
@@ -513,16 +521,12 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         pinnedCount={pinnedCount}
         projectsSectionExpanded={projectsSectionExpanded}
         onToggleProjectsSection={() => setProjectsSectionExpanded((expanded) => !expanded)}
-        recentProjectsCount={props.recentProjects.length + 1}
+        recentProjectsCount={projectFolderCount}
         recentProjects={props.recentProjects}
-        onOpenWorktree={props.onOpenWorktreeProject ?? props.onOpenProject}
         projectPath={props.projectPath}
         filteredSessions={props.filteredSessions}
         projectSessionsByPath={props.projectSessionsByPath}
         collapsedProjects={collapsedProjects}
-        onToggleRepositoryCollapsed={(repositoryId, collapsed) => {
-          setCollapsedRepositories((previous) => ({ ...previous, [repositoryId]: !collapsed }));
-        }}
         onToggleUnavailableGroup={() => setUnavailableGroupCollapsed((collapsed) => !collapsed)}
         onToggleProjectCollapsed={(projectPath, collapsed) => {
           if (!collapsed) {
@@ -789,12 +793,11 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                   key={virtualRow.key}
                   data-index={virtualRow.index}
                   ref={virtualizer.measureElement}
-                  className={
-                    sidebarTreeRowInWorktreeCluster(row)
-                      ? 'sidebar-tree-virtual-item is-grouped'
-                      : 'sidebar-tree-virtual-item'
-                  }
-                  style={{ transform: `translateY(${virtualRow.start}px)` }}
+                  className="sidebar-tree-virtual-item"
+                  style={{
+                    transform: `translateY(${virtualRow.start}px)`,
+                    ...sidebarTreeDepthStyle(sidebarTreeRowDepth(row)),
+                  }}
                 >
                   {renderSidebarTreeRow(row)}
                 </div>
@@ -805,11 +808,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           treeRows.map((row) => (
             <div
               key={sidebarTreeRowKey(row)}
-              className={
-                sidebarTreeRowInWorktreeCluster(row)
-                  ? 'sidebar-tree-flow-item is-grouped'
-                  : 'sidebar-tree-flow-item'
-              }
+              className="sidebar-tree-flow-item"
+              style={sidebarTreeDepthStyle(sidebarTreeRowDepth(row))}
             >
               {renderSidebarTreeRow(row)}
             </div>

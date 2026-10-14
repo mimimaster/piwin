@@ -74,6 +74,35 @@ export function planProjectListRetryDelay(input: {
   return null;
 }
 
+/**
+ * A `project/list` that started before "remove from sidebar" finished must
+ * not paint. Git enrichment makes that request slow; applying it afterwards
+ * puts the folder back. `currentCommitEpoch` increments only after the host
+ * has stored the removal.
+ */
+export function shouldApplySidebarProjectList(input: {
+  requestCommitEpoch: number;
+  currentCommitEpoch: number;
+}): boolean {
+  return input.requestCommitEpoch === input.currentCommitEpoch;
+}
+
+/**
+ * A list that started in the same epoch as an in-flight removal still
+ * contains the folder. Keep those paths out until the host has stored the
+ * removal (the epoch check) or the removal fails and the path is dropped
+ * from `pendingPaths`.
+ */
+export function withoutPendingSidebarRemovals<T extends { path: string }>(
+  projects: readonly T[],
+  pendingPaths: ReadonlySet<string>,
+): T[] {
+  if (pendingPaths.size === 0) {
+    return projects as T[];
+  }
+  return projects.filter((project) => !pendingPaths.has(project.path));
+}
+
 export type RecentProjectHydrationPlan =
   | { kind: 'skip' }
   | { kind: 'retain-only'; projectPaths: string[] }
