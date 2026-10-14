@@ -3,7 +3,11 @@
  * Safe incremental preview while the model is still streaming an unfinished fence.
  * Ported from openwebui_m artifactStreamablePreview — no script tails executed.
  */
-import { ARTIFACT_REPORT_KIT_CLASSES } from '@piwin/contracts';
+import {
+  ARTIFACT_COMPONENT_KIT_CLASSES,
+  ARTIFACT_DIAGRAM_KIT_CLASSES,
+  ARTIFACT_REPORT_KIT_CLASSES,
+} from '@piwin/contracts';
 import type { StreamablePreviewResult } from './types.js';
 
 const VOID_TAGS = new Set([
@@ -217,6 +221,8 @@ function hasClassName(tag: string): boolean {
 /** Classes the sandbox styles itself; their look does not wait for author CSS. */
 const HOST_STYLED_CLASSES: ReadonlySet<string> = new Set<string>([
   ...ARTIFACT_REPORT_KIT_CLASSES,
+  ...ARTIFACT_DIAGRAM_KIT_CLASSES,
+  ...ARTIFACT_COMPONENT_KIT_CLASSES,
   'piwin-artifact-surface',
 ]);
 
@@ -231,7 +237,8 @@ function hasOnlyHostStyledClasses(tag: string): boolean {
  * meaning. Models sometimes emit the whole DOM and append CSS afterwards;
  * exposing that prefix paints a raw document flow that later collapses into
  * an unrelated scene. Inline-styled nodes remain independently renderable,
- * and so do report-kit classes: the sandbox ships their stylesheet.
+ * and so do report-kit and diagram-kit classes: the sandbox ships their
+ * stylesheets.
  */
 function findMissingStyleFoundationIndex(source: string): number | null {
   if (COMPLETE_STYLE_PATTERN.test(source)) {

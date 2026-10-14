@@ -43,9 +43,9 @@ describe('Artifact rendering context', () => {
     expect(prepared.inlineArtifactWidthPx).toBeUndefined();
     expect(prepared.text).toContain('[piwin-inline-artifact-layout]');
     expect(prepared.text).toContain('approximately 680 CSS px');
-    expect(prepared.text).toContain('Never hardcode');
+    expect(prepared.text).toContain('so the layout follows whatever width it gets');
     expect(prepared.text).toContain('360 CSS px');
-    expect(prepared.text).toContain('overflow-wrap:break-word only');
+    expect(prepared.text).toContain('overflow-wrap:break-word, the wrapping property that keeps columns readable');
     expect(prepared.text).toContain('keep label min-content');
     expect(prepared.text).not.toContain('avoid nowrap on data cells');
     expect(prepared.text).not.toContain('allow table data to wrap');
@@ -64,7 +64,7 @@ describe('Artifact rendering context', () => {
     expect(input).not.toHaveProperty('artifactHostTheme');
     expect(input.text).toContain('[piwin-artifact-host-theme]');
     expect(input.text).toContain('Sending client theme: light background');
-    expect(input.text).toContain('Never design a dark-mode page');
+    expect(input.text).toContain('pages, full-bleed stages and cards are all light-mode for this host');
     expect(input.text).not.toContain('[piwin-artifact-context]');
     expect(input.text.endsWith('\n\nWrite a report')).toBe(true);
     const contributions = summary(assembly).contributions;
@@ -89,9 +89,9 @@ describe('Artifact rendering context', () => {
       input.text.indexOf('Sending client chat column'),
     );
     expect(input.text).toContain(
-      'This is advisory layout context, not a fixed width or an instruction to create an artifact.',
+      'This is advisory layout context: it describes the column, and the artifact decision stays with the existing policy.',
     );
-    expect(input.text).toContain('This is advisory context, not an instruction to create an artifact.');
+    expect(input.text).toContain('This is advisory context; the artifact decision stays with the existing policy.');
     expect(input.text.match(/Existing artifact trigger and surface policies still apply/g)).toHaveLength(1);
     expect(input.text.endsWith('\n\nCompare phones')).toBe(true);
     const contributions = summary(assembly).contributions;
@@ -165,7 +165,7 @@ describe('Legacy artifact client note', () => {
     const assembly = createModelPromptAssembly();
     applyInlineArtifactLayout(input, BOTH_SURFACES, assembly);
     expect(input.text.startsWith('[piwin-artifact-legacy-client]')).toBe(true);
-    expect(input.text).toContain('omit the fence `style` attribute');
+    expect(input.text).toContain('write fences without a `style` attribute');
     expect(input.text).toContain('bg surface text muted accent on-accent border');
     expect(input.text.endsWith('\n\nChart it')).toBe(true);
     expect(summary(assembly).contributions.map((entry) => entry.label)).toContain('Legacy artifact client');

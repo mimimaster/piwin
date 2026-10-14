@@ -5,6 +5,8 @@
 import { buildArtifactFrameSrcCsp, createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import { createDefaultArtifactTheme } from './theme.js';
 import { buildArtifactBridgeBootstrapScript } from './srcdoc-bridge.js';
+import { buildArtifactComponentKitCss } from './srcdoc-component-kit.js';
+import { buildArtifactDiagramKitCss } from './srcdoc-diagram-kit.js';
 import { buildArtifactReportKitCss } from './srcdoc-report-kit.js';
 import {
   artifactPaletteNeedsContrastProbe,
@@ -15,6 +17,7 @@ import { artifactKitScriptSource, buildArtifactKitHead, usesArtifactKit } from '
 import {
   buildArtifactFrameModePolicyCss,
   buildArtifactMotionPolicyCss,
+  buildArtifactScrollbarCss,
   buildArtifactThemeCss,
   buildArtifactThemeGuardCss,
 } from './srcdoc-css.js';
@@ -197,13 +200,16 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   <meta name="piwin-artifact-channel" content="${channelAttr}" />
   <style data-piwin-artifact-theme>${css}</style>
   <style data-piwin-artifact-report-kit>${buildArtifactReportKitCss({ rules: input.rules ?? 'legacy' })}</style>
+  <style data-piwin-artifact-diagram-kit>${buildArtifactDiagramKitCss()}</style>
+  <style data-piwin-artifact-component-kit>${buildArtifactComponentKitCss()}</style>
 ${bridge}${kit ? `\n  ${buildArtifactKitHead()}` : ''}`;
   const themeGuardStyle = themeGuardCss
     ? `\n  <style data-piwin-artifact-theme-guard>${themeGuardCss}</style>`
     : '';
   const hostHeadSuffix = `${themeGuardStyle}
   <style data-piwin-artifact-frame-mode-policy>${frameModePolicyCss}</style>
-  <style data-piwin-artifact-motion-policy>${motionPolicyCss}</style>`;
+  <style data-piwin-artifact-motion-policy>${motionPolicyCss}</style>
+  <style data-piwin-artifact-scrollbar>${buildArtifactScrollbarCss()}</style>`;
 
   const srcdoc =
     input.documentKind === 'document'

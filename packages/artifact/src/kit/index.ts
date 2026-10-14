@@ -2,19 +2,26 @@
  * Artifact kit v1: local chart + icon primitives (design.md §8).
  *
  * Delivery: the packaged desktop serves `kit.js` from the artifact scheme
- * (`/lib/v1/kit.js`, compiled into the binary); everywhere else (browser,
+ * (`ARTIFACT_KIT_V1_PATH`, compiled into the binary); everywhere else (browser,
  * e2e, tests) the same bytes are inlined. Either way the kit is injected only
  * when the source uses it, and the CSS is always inlined (it is tiny and
  * `style-src` already allows inline).
  */
 import { ARTIFACT_KIT_V1_ICONS } from './icons-v1.js';
+import { ARTIFACT_KIT_V1_CHARTS } from './kit-v1-charts.js';
 import { ARTIFACT_KIT_V1_RUNTIME } from './kit-v1-runtime.js';
 
 export const ARTIFACT_KIT_MAJOR = 1 as const;
-export const ARTIFACT_KIT_VERSION_STRING = '1.0.0' as const;
-export const ARTIFACT_KIT_V1_PATH = '/lib/v1/kit.js' as const;
+export const ARTIFACT_KIT_VERSION_STRING = '1.1.0' as const;
+/**
+ * The served URL carries the kit version because the scheme answers with an
+ * immutable cache header: new bytes need a new URL, or an upgraded shell keeps
+ * running the kit its webview cached. Keep in step with
+ * `crates/artifact-webview/src/protocol.rs`.
+ */
+export const ARTIFACT_KIT_V1_PATH = '/lib/v1/kit-1.1.0.js' as const;
 export const ARTIFACT_KIT_V1_ICON_NAMES: readonly string[] = Object.keys(ARTIFACT_KIT_V1_ICONS);
-export const ARTIFACT_KIT_CHART_KINDS = ['bar', 'line', 'donut', 'spark'] as const;
+export const ARTIFACT_KIT_CHART_KINDS = ['bar', 'hbar', 'line', 'donut', 'stack', 'spark'] as const;
 
 const USES_KIT = /data-piwin-(?:chart|icon)\b|\bpiwin\.(?:chart|icon|hydrate)\s*\(/;
 
@@ -29,24 +36,56 @@ export function buildArtifactKitV1Script(): string {
 (function (ICONS) {
 'use strict';
 if (window.piwin && window.piwin.version) return;
-${ARTIFACT_KIT_V1_RUNTIME}
+${ARTIFACT_KIT_V1_RUNTIME}${ARTIFACT_KIT_V1_CHARTS}
 })(${JSON.stringify(ARTIFACT_KIT_V1_ICONS)});
 `;
 }
 
 /** Zero-specificity kit styles; colors only from theme tokens. */
 export function buildArtifactKitCss(): string {
+  const line = (strength: number) => `color-mix(in srgb, var(--piwin-artifact-text) ${strength}%, transparent)`;
   return `
-:where(figure[data-piwin-chart]) { margin: 0 0 12px; min-width: 0; }
+:where(figure[data-piwin-chart]) { margin: 0 0 14px; min-width: 0; }
 :where([data-piwin-chart] .piwin-chart-plot) { width: 100%; min-width: 0; }
 :where([data-piwin-chart] svg) { display: block; max-width: 100%; height: auto; overflow: visible; }
 :where([data-piwin-chart] > script) { display: none; }
-:where([data-piwin-chart] .piwin-chart-axis) { stroke: var(--piwin-artifact-border); stroke-width: 1; }
-:where([data-piwin-chart] text) { fill: var(--piwin-artifact-muted); font: 11px var(--piwin-artifact-font); }
-:where([data-piwin-chart] text.piwin-chart-center) { fill: var(--piwin-artifact-text); font-size: 20px; font-weight: 700; }
-:where([data-piwin-chart] figcaption) { margin-top: 6px; color: var(--piwin-artifact-muted); font-size: 12px; }
-:where(.piwin-chart-legend) { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; color: var(--piwin-artifact-muted); font-size: 12px; }
-:where(.piwin-chart-legend) i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 2px; }
+/* While a chart streams its figure has no data yet (the preview withholds the
+   script), so hold its place: the page must not jump when the chart draws. A
+   final figure always has its script, drawn or not, and gets no placeholder. */
+:where(figure[data-piwin-chart]:not([data-piwin-chart-ready]):not(:has(> script)))::before {
+  content: "";
+  display: block;
+  height: 180px;
+  border-radius: 10px;
+  background: repeating-linear-gradient(to bottom, transparent 0 40px, ${line(8)} 40px 41px), ${line(3)};
+}
+:where(figure[data-piwin-chart="donut"]:not([data-piwin-chart-ready]):not(:has(> script)))::before { width: 168px; height: 168px; border-radius: 50%; background: ${line(5)}; }
+:where(figure[data-piwin-chart="hbar"]:not([data-piwin-chart-ready]):not(:has(> script)))::before { height: 120px; }
+:where(figure[data-piwin-chart="stack"]:not([data-piwin-chart-ready]):not(:has(> script)))::before { height: 14px; border-radius: 5px; background: ${line(7)}; }
+:where(figure[data-piwin-chart="spark"]:not([data-piwin-chart-ready]):not(:has(> script)))::before { height: 28px; border-radius: 4px; background: ${line(5)}; }
+:where([data-piwin-chart] .piwin-chart-axis) { stroke: ${line(26)}; stroke-width: 1; }
+:where([data-piwin-chart] .piwin-chart-grid) { stroke: ${line(9)}; stroke-width: 1; }
+:where([data-piwin-chart] .piwin-chart-track) { fill: ${line(7)}; }
+:where([data-piwin-chart] .piwin-chart-bar) { transition: opacity 0.12s ease; }
+:where([data-piwin-chart] .piwin-chart-bar:hover) { opacity: 0.78; }
+/* The fill under a line must not swallow the hover that reveals a point's value. */
+:where([data-piwin-chart] .piwin-chart-area) { pointer-events: none; }
+:where([data-piwin-chart] .piwin-chart-dot) { stroke: var(--piwin-artifact-surface); stroke-width: 1.5; }
+:where([data-piwin-chart] text) { fill: var(--piwin-artifact-muted); font: 11px var(--piwin-artifact-font); font-variant-numeric: tabular-nums; }
+:where([data-piwin-chart] text.piwin-chart-tick, [data-piwin-chart] text.piwin-chart-label) { fill: var(--piwin-artifact-muted); }
+:where([data-piwin-chart] text.piwin-chart-value) { fill: var(--piwin-artifact-text); font-weight: 600; }
+:where([data-piwin-chart] [data-kind="hbar"] text.piwin-chart-label) { fill: var(--piwin-artifact-text); font-size: 12px; }
+:where([data-piwin-chart] text.piwin-chart-center) { fill: var(--piwin-artifact-text); font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+:where([data-piwin-chart] figcaption) { margin-top: 8px; color: var(--piwin-artifact-muted); font-size: 12px; line-height: 1.5; }
+:where(.piwin-chart-legend) { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; color: var(--piwin-artifact-muted); font: 12px var(--piwin-artifact-font); }
+:where(.piwin-chart-legend span) { display: inline-flex; align-items: center; gap: 6px; }
+:where(.piwin-chart-legend i) { flex: none; width: 9px; height: 9px; border-radius: 3px; }
+:where(.piwin-chart-legend b) { margin-left: 2px; color: var(--piwin-artifact-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* A donut sits beside its legend, which then reads as a small table. */
+:where(.piwin-chart-plot[data-kind="donut"]) { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; }
+:where(.piwin-chart-plot[data-kind="donut"] svg) { flex: none; }
+:where(.piwin-chart-plot[data-kind="donut"] .piwin-chart-legend) { flex: 1 1 8rem; flex-direction: column; gap: 7px; margin-top: 0; }
+:where(.piwin-chart-plot[data-kind="donut"] .piwin-chart-legend b) { margin-left: auto; }
 :where(figure[data-piwin-chart="spark"]) { display: inline-block; width: 96px; margin: 0; vertical-align: middle; }
 :where([data-piwin-icon]) { display: inline-flex; width: 1em; height: 1em; line-height: 0; vertical-align: -0.15em; }
 :where([data-piwin-icon] svg) { width: 100%; height: 100%; }

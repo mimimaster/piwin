@@ -40,6 +40,14 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
   style foundation. CSS-dependent prefixes otherwise show a preparing state;
   a large CSS-late unlock uses a bounded stable-prefix replay, never raw
   unstyled DOM.
+- **Packaged static styles (2026-10-12):** Tauri adds a nonce to the boot
+  stylesheet and host `style-src`; `'unsafe-inline'` then no longer permits
+  arbitrary style blocks. After sanitization, Desktop applies the trusted
+  boot stylesheet's nonce to both base and authored Shadow DOM styles.
+  Sanitized HTML/SVG inline declarations use individual CSSOM properties,
+  since a nonce does not authorize `style` attributes. Source/export and CSP
+  restrictions remain unchanged. Browser regressions include the packaged
+  nonce policy, rather than relying solely on Vite's CSP-free page.
 - **16 384 px overflow:** Inline flow that exceeds the defensive ceiling
   enters `inline-overflow` (host-owned viewport + hint). No silent crop.
 - **Height recovery (2026-09-16):** load confirmation and explicit measurement

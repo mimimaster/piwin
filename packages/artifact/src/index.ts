@@ -53,6 +53,8 @@ export type { ArtifactV14TokenName } from './theme-tokens.js';
 export { resolveArtifactRules } from './artifact-rules.js';
 
 export { buildArtifactReportKitCss } from './srcdoc-report-kit.js';
+export { buildArtifactDiagramKitCss } from './srcdoc-diagram-kit.js';
+export { buildArtifactComponentKitCss } from './srcdoc-component-kit.js';
 
 export {
   parseArtifactBridgeMessage,
@@ -113,11 +115,13 @@ export {
   usesArtifactReportKit,
 } from './artifact-style.js';
 export type { ArtifactPalette, ArtifactStyleModes, ResolveArtifactPaletteInput } from './artifact-style.js';
-export { parseArtifactContrastMessage } from './bridge-protocol.js';
+export { parseArtifactContrastMessage, parseArtifactLayoutMessage } from './bridge-protocol.js';
+export { countShatteredText } from './layout-probe.js';
 export {
   ARTIFACT_BRIDGE_CONTRAST_TYPE,
+  ARTIFACT_BRIDGE_LAYOUT_TYPE,
   ARTIFACT_CONTRAST_FAILING_SHARE,
   ARTIFACT_CONTRAST_MAX_SAMPLES,
 } from './constants.js';
-export type { ArtifactContrastMessage } from './types.js';
+export type { ArtifactContrastMessage, ArtifactLayoutMessage } from './types.js';
 export { buildArtifactBridgeBootstrapScript } from './srcdoc-bridge.js';

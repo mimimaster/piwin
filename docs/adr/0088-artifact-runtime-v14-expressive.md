@@ -137,5 +137,151 @@ sessions.
     before mounting the overlay, because WebKit does not focus clicked buttons
     by default. Escape on viewer chrome restores that opener in both engines.
 
+## Form freedom and diagram kit (2026-10-13)
+
+Owner feedback: artifacts came back as grids of cards even when the content
+was a process, a handoff between actors or a timeline. The prompts made the
+Report Kit mandatory for reports ("no `<style>` block", "add CSS only for
+what the kit lacks") and the kit only offered boxes. The owner wants the
+model free to pick its rendering, with built-ins kept as the stable option.
+
+21. **The model chooses the form.** Decision prompt v13: content decides the
+    form (flow, swimlane, timeline, tree, matrix, chart, SVG diagram, or a
+    layout of its own); cards are for a few parallel independent items. The
+    Report Kit is "by default", and its section now says it is a fast
+    default, not a limit: own `<style>`, layout or inline SVG are allowed.
+22. **What stays fixed.** Only rules whose breach breaks rendering: theme-var
+    colors, host light/dark side, Inline width and scrolling, fence format,
+    `style="host"` by default, no external resources. Costs accepted with the
+    freedom: less uniform reports, a later first paint when the model writes
+    its own stylesheet, occasional layout slips in freehand SVG. The contrast
+    probe and "view with theme" remain the safety net.
+23. **Diagram built-ins (optional).** `ol.piwin-flow` (`data-dir="down"`,
+    `data-kind="decision"`), `table.piwin-lanes` (phases in `thead`, numbered
+    by the host; one row per actor; each step a `p` in its phase cell),
+    `ol.piwin-timeline`, `ul.piwin-tree`. Vocabulary in `@piwin/contracts`
+    `artifact-diagram-kit`, stylesheet in `@piwin/artifact`
+    `srcdoc-diagram-kit`. CSS only: no kit script, no CSP change, streams as
+    written, and the static (shadow) renderer ships the same sheet. Zero
+    specificity, so author CSS restyles it. Not scoped to `.piwin-report`;
+    emitted after the report kit so the lanes table wins over the report's
+    `table` rules at equal weight.
+24. **No capability bump.** Each shape sits on semantic markup, so a shell
+    without the stylesheet shows a plain list or table. `ARTIFACT_KIT_VERSION`
+    stays 1 and the runtime prompt stays v14.
+25. **Prompt budget raised.** The owner raised the CHT-803 conversation
+    limit from 2500 to 5000 tokens (2026-10-13). Artifact instructions are
+    nearly all of that overhead (about 2.5k after the rewrite below), and the
+    old limit forced wording to be cut for space rather than for clarity.
+    Markup examples still live in the `artifact_instructions` reference.
+26. **Not covered.** The kit draws no arrows between lanes and lays out no
+    arbitrary graphs; the model uses inline SVG for those. A host-laid-out
+    node/edge diagram (kit script) is the follow-up if freehand SVG proves
+    unreliable.
+
+27. **Positive phrasing.** At the owner's request every model-facing
+    artifact prompt (decision policy, runtime contract, report/diagram kit
+    lines, surface hints, the per-turn width / theme / legacy-client blocks)
+    now states the wanted behavior instead of a prohibition, and gives the
+    reason where the rule is not obvious. No rule was dropped; each "never X"
+    became the positive form of the same constraint. Basis:
+    - Anthropic, *Prompting best practices*: "Tell Claude what to do instead
+      of what not to do"; "Providing context or motivation behind your
+      instructions ... can help Claude better understand your goals"; newer
+      models "may now overtrigger", so "dial back any aggressive language"
+      ("CRITICAL: You MUST ..." → "Use this tool when ...").
+      <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
+    - OpenAI, *GPT-5 prompting guide*: "contradictory or vague instructions
+      can be more damaging to GPT-5 than to other models"; Cursor's emphatic
+      "Be THOROUGH" caused tool overuse until softened.
+      <https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide>
+    Applied: "MUST use Canvas" became a plain statement of where such
+    deliverables belong; "CSS First" now applies only when a `<style>` block
+    is written, which removes its conflict with the Report Kit's
+    stylesheet-free path. Not verified: no A/B run against a live model was
+    done, so the effect on output is expected from the cited guidance, not
+    measured.
+
+## Kit 1.1 and component kit (2026-10-13)
+
+Owner request: improve the built-in charts and add more themed built-in UI
+components, as the stable route beside free-form output.
+
+28. **Charts (kit 1.1.0).** `bar` and `line` gain a value axis with gridlines
+    and tick labels on a rounded maximum, bars are rounded on the value end
+    and capped in width, few bars print their values, a single line gets a
+    soft area fill and its latest value. `donut` separates its slices, sits
+    beside a legend that lists shares, and takes `centerLabel`. `spark` gets
+    a fill and an end dot. New kinds: `hbar` (ranked rows, label left, value
+    right) and `stack` (one bar split into shares). New options: `unit`,
+    `min`, `values`, `area`. An older shell draws an unknown kind as `bar`.
+    Chart drawing moved to `kit/kit-v1-charts.ts`; the runtime keeps tones,
+    icons and hydration.
+29. **Kit size and URL.** `kit.js` is now about 29 KB raw (budget raised
+    from 24 KB to 32 KB). The scheme answers with an immutable cache header,
+    so the served path now names the version: `/lib/v1/kit-1.1.0.js`
+    (TS `ARTIFACT_KIT_V1_PATH` and `protocol.rs` move together; the old path
+    returns 404). The CSP source `…/lib/v1/` is unchanged.
+30. **Component kit.** `header.piwin-hero`, `ol.piwin-steps`,
+    `ul.piwin-checklist` (`data-state="done" | "current" | "blocked"`),
+    `label.piwin-progress` on a native `progress`, `section.piwin-compare`
+    (`data-pick`), `table.piwin-matrix` (toned cells), plus `data-trend` for
+    deltas. Vocabulary in `@piwin/contracts` `artifact-component-kit`,
+    stylesheet in `@piwin/artifact` `srcdoc-component-kit`. Same rules as the
+    diagram kit: CSS only, zero specificity, theme tokens only, semantic
+    markup that degrades to a plain list or table, shipped to the sandbox and
+    the static renderer, emitted last.
+31. **Prompt.** One resident line names the components; markup and chart
+    options are in the `artifact_instructions` reference.
+32. **Owed.** Rendering was checked in a browser for light and dark default
+    themes. Not checked: a packaged build loading the kit from the new
+    scheme path, WebKit rendering of the `progress` bar, mobile.
+
+## Layout probe, chart placeholder, kit showcase (2026-10-13)
+
+33. **Layout probe.** Free-form layout can squeeze text into a column one
+    glyph wide (a sentence written straight into a flex/grid row puts each
+    inline `code` in the marker track). `countShatteredText` in
+    `@piwin/artifact` `layout-probe` counts elements whose own text (four or
+    more characters) is about one glyph wide and four or more lines tall,
+    skipping SVG, hidden and vertical-writing text. One function serves both
+    renderers: the static renderer calls it on its shadow root; the sandbox
+    embeds its source text (so it must stay self-contained — a test evaluates
+    the embedded copy standalone) and posts `piwin-artifact:layout`
+    `{ shatteredText }`, whitelisted on the WebKit native bridge. Final
+    documents only, every palette.
+34. **Badge, never a rewrite.** Desktop shows 「部分文字被挤成了窄列」. Where a
+    composer is wired, 「让模型修复」 drafts a fix request that names the usual
+    cause; it is a draft, not a send. An automatic DOM repair was rejected:
+    it cannot tell this mistake from a deliberate two-cell row such as a
+    label with a right-aligned value.
+35. **Chart placeholder.** The stream preview withholds a chart's data script,
+    so a streaming figure was empty and the page jumped when the final
+    document drew it. Kit CSS now holds the place of a figure that has no
+    script and is not ready, per chart kind. A final figure always has its
+    script, so a chart with broken JSON gets no permanent placeholder.
+36. **Kit showcase.** `#/e2e/artifacts?id=kit-showcase&theme=ink|paper` shows
+    all six chart kinds, the diagram and component kits, and one squeezed row
+    per renderer; `e2e/artifact-kit-showcase.spec.ts` asserts on it. The spec
+    has not been run: Playwright's browser is not installed on this machine.
+    The page itself was checked by hand in both themes, including both layout
+    badges. Screenshot baselines are not included for the same reason.
+
 Verification and remaining packaged/mobile checks:
 [2026-10-12 continuation evidence](../evidence/2026-10-12-artifact-v14-continuation.md).
+
+## Canvas toolbar trimmed (2026-10-13)
+
+Owner direction: the Canvas toolbar carried too many controls. This
+supersedes the control list in item 9 for the Canvas surface.
+
+26. **Canvas toolbar.** Title + `Canvas · <style>`, a compact `760 | 390`
+    width toggle, code (eye icon, pressed while source is shown) and download.
+    The fit segment is gone: no width pressed means fit, and pressing the
+    active width again returns to it. Preview theme and the fullscreen button
+    are removed from Canvas; the pane's own maximize covers the latter.
+27. **Keys.** Canvas keeps F and 1–3; T now works in fullscreen only, since
+    Canvas shows no theme state. The fullscreen overlay keeps theme preview
+    and its exit button and uses the same width toggle with 1200 added.
+28. **Mobile shell.** Still fullscreen only; it keeps the button because it
+    has no keyboard for F.

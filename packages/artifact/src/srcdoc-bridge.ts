@@ -14,6 +14,7 @@ import {
   DEFAULT_MAX_ARTIFACT_BYTES,
 } from './constants.js';
 import { buildCanvasStageFitRuntime } from './srcdoc-canvas-fit.js';
+import { buildArtifactLayoutProbeRuntime } from './layout-probe.js';
 import { buildArtifactContrastProbeRuntime } from './srcdoc-contrast-probe.js';
 import { buildScrollContinuityRuntime } from './srcdoc-scroll-continuity.js';
 import type { ArtifactFrameMode } from './types.js';
@@ -470,6 +471,7 @@ export function buildArtifactBridgeBootstrapScript(
   }
 
   ${contrastProbe && freezeSource ? buildArtifactContrastProbeRuntime() : ''}
+  ${freezeSource ? buildArtifactLayoutProbeRuntime() : ''}
   applyFrameMode(currentFrameMode);
   if (document.readyState === 'complete') {
     if (currentFrameMode === 'inline-flow') startHeightObserver();

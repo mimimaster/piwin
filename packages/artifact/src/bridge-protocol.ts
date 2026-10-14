@@ -6,6 +6,7 @@ import { getUtf8ByteSize } from './security.js';
 import {
   ARTIFACT_BRIDGE_ACTION_TYPE,
   ARTIFACT_BRIDGE_CONTRAST_TYPE,
+  ARTIFACT_BRIDGE_LAYOUT_TYPE,
   ARTIFACT_BRIDGE_ERROR_TYPE,
   ARTIFACT_BRIDGE_SCROLL_TYPE,
   ARTIFACT_BRIDGE_SIZE_TYPE,
@@ -18,6 +19,7 @@ import type {
   ArtifactActionMessage,
   ArtifactBridgeMessage,
   ArtifactContrastMessage,
+  ArtifactLayoutMessage,
   ArtifactErrorMessage,
   ArtifactFrameMode,
   ArtifactRenderSnapshot,
@@ -290,6 +292,23 @@ export function parseArtifactContrastMessage(data: unknown): ArtifactContrastMes
     sampled: count(data['sampled']),
     failing: count(data['failing']),
     minRatio,
+  };
+}
+
+/** Parse a layout probe report. The count is clamped; nothing here is trusted. */
+export function parseArtifactLayoutMessage(data: unknown): ArtifactLayoutMessage | null {
+  if (!isRecord(data)) return null;
+  if (data['type'] !== ARTIFACT_BRIDGE_LAYOUT_TYPE) return null;
+  const channelId = data['channelId'];
+  if (typeof channelId !== 'string' || channelId.length === 0 || channelId.length > 200) {
+    return null;
+  }
+  const raw = data['shatteredText'];
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 1) return null;
+  return {
+    type: ARTIFACT_BRIDGE_LAYOUT_TYPE,
+    channelId,
+    shatteredText: Math.min(800, Math.round(raw)),
   };
 }
 

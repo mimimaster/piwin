@@ -102,6 +102,8 @@ export const DEFAULT_ARTIFACT_IFRAME_ALLOWED_URL_PREFIXES = [
   'https://maps.google.com/',
 ] as const;
 
+/** Frame → host: the layout probe found text squeezed one glyph wide. */
+export const ARTIFACT_BRIDGE_LAYOUT_TYPE = 'piwin-artifact:layout' as const;
 /** Frame → host: an expressive artifact failed the contrast probe. */
 export const ARTIFACT_BRIDGE_CONTRAST_TYPE = 'piwin-artifact:contrast' as const;
 /** Text elements sampled per document. */

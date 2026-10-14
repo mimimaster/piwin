@@ -109,6 +109,12 @@ mod webkit {
                     return None;
                 }
             }
+            // Layout probe: a positive count only (badge).
+            "piwin-artifact:layout" => {
+                if payload.get("shatteredText")?.as_u64()? == 0 {
+                    return None;
+                }
+            }
             _ => return None,
         }
         Some(payload)
@@ -162,6 +168,14 @@ mod webkit {
             .is_none());
             assert!(parse_artifact_bridge_message(
                 r#"{"type":"piwin-artifact:contrast","channelId":"artifact-1","lowContrast":"yes","themeMismatch":false}"#
+            )
+            .is_none());
+            assert!(parse_artifact_bridge_message(
+                r#"{"type":"piwin-artifact:layout","channelId":"artifact-1","shatteredText":3}"#
+            )
+            .is_some());
+            assert!(parse_artifact_bridge_message(
+                r#"{"type":"piwin-artifact:layout","channelId":"artifact-1","shatteredText":0}"#
             )
             .is_none());
         }

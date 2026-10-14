@@ -277,6 +277,14 @@ export type ArtifactContrastMessage = {
   minRatio: number;
 };
 
+/** Layout probe result (badge only): text laid out about one glyph per line. */
+export type ArtifactLayoutMessage = {
+  type: 'piwin-artifact:layout';
+  channelId: string;
+  /** Elements affected, clamped; at least 1. */
+  shatteredText: number;
+};
+
 export type ArtifactErrorMessage = {
   type: 'piwin-artifact:error';
   channelId: string;

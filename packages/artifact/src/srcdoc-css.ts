@@ -221,6 +221,35 @@ export function buildArtifactMotionPolicyCss(): string {
 `;
 }
 
+/**
+ * Host-sized scrollbars inside the sandbox: the desktop stylesheet cannot
+ * reach the iframe, so without this the canvas paints a native ~15px bar.
+ * Matches the shell (6px track, 1px clear border → 4px thumb). Placed after
+ * model source so a model's own scrollbar styling cannot widen it.
+ */
+export function buildArtifactScrollbarCss(): string {
+  return `
+::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--piwin-artifact-text, currentColor) 22%, transparent) !important;
+  background-clip: content-box !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--piwin-artifact-text, currentColor) 38%, transparent) !important;
+  background-clip: content-box !important;
+}
+`;
+}
+
 export function buildArtifactThemeGuardCss(palette: 'host' | 'stage' = 'host'): string {
   if (palette === 'stage') {
     // Expressive: the page stays transparent over the host and keeps the

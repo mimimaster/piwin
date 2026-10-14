@@ -29,46 +29,52 @@
 A self-contained artifact fence that renders correctly in the chat column sandbox.
 
 ### Fences
-Opening fence starts at column 0 of its own line. Keep `title` and `surface` on that same opening line; do not wrap attributes onto the next line. HTML/SVG body follows. Closing fence alone on its own line. Never append the opening fence to a sentence.
+The opening fence starts at column 0 of its own line and carries `title`, `surface` and `style` together on that one line. The HTML/SVG body follows. The closing fence sits alone on its own line. Put a line break between a sentence and the opening fence, because the parser only recognizes a fence that begins a line.
 
 Inline:
-
-```artifact-html title="Short descriptive title"
+```artifact-html title="Short descriptive title" style="host"
 <!-- body fragment: HTML/CSS + optional small inline JS -->
 ```
 
 Canvas:
-
-```artifact-html title="Short descriptive title" surface="canvas"
+```artifact-html title="Short descriptive title" surface="canvas" style="host"
 <!-- self-contained HTML/CSS + optional small inline JS -->
 ```
 
 SVG:
-
-```svg title="Short descriptive title"
-<!-- self-contained SVG, no external refs -->
+```svg title="Short descriptive title" style="host"
+<!-- self-contained SVG, all assets inline -->
 ```
 
-### Constraints (break without these)
-- Colors: for proactive artifacts (including reports, reviews, and voice-delegated tasks), use only `--piwin-artifact-*` theme vars (`surface`, `text`, `muted`, `accent`, `on-accent`, `border`, `bg`) to adapt to host theme. These seven are the whole set: never invent other names (e.g. `surface-elevated`), never write `var(--piwin-artifact-x, <fallback>)` with your own palette, and never hard-code hex/rgb colors for text, backgrounds, or borders (no `color: #fff`, no dark slate cards). For states, tint with `color-mix(in srgb, var(--piwin-artifact-accent) 12%, transparent)`. Text is only ever `text`, `muted`, `accent`, or — on a solid `accent` fill such as a selected chip or primary button — `on-accent`. `bg` is transparent and `surface` is a faint tint: never use either as a text color, the label disappears. For the same reason anything that floats over content (sticky bar, toast, popover) takes `surface` as its background, never `bg`. Only when the user explicitly asks for a custom look (e.g. custom SVG, a styled HTML page, or an explicit UI design) may you style freely with custom colors.
-- Proactive visual tone is flat and quiet: no gradients, glows, glassmorphism, or decorative emoji in headings or labels. Hierarchy comes from type size/weight, spacing, borders, and grouping.
-- Outermost wrapper background: transparent; surface colors on inner cards only.
-- Inline layout is a 360–760px chat column; fluid grids; not a full-page landing. Inline grows with its content: no page-level or nested vertical scroll regions; let the conversation own vertical scrolling; never add horizontal scrolling to Inline. No viewport-filling height (`100vh`/`100%`) or page-level overflow on html/body/outer wrapper for Inline.
-- Tables: wrap long data cells with `overflow-wrap: break-word` only. Never `word-break: break-word`, `word-break: break-all`, or `overflow-wrap: anywhere` — they collapse column min-content to 1ch. Row/column labels may `white-space: nowrap` or `width: max-content`. `min-width: 0` is for the outer stage, not table columns. Inline: no page-level horizontal scroll; stack with `@container` before wrapping labels. Canvas: dense comparisons keep label min-content; table `overflow-x: auto` is allowed. Dense wide comparisons belong on Canvas.
-- **Canvas Viewport**: The Canvas iframe is the design viewport. Root layout (and the primary stage) uses `width: 100%` and `height: 100%` / `100dvh` of that iframe. Do not lock a phone/poster width or an `aspect-ratio` that letterboxes empty bars; extra panel width is scene/layout space. If the UI needs a wide workspace or horizontal scrolling, declare `surface="canvas"`. Never cover-crop the design box (`preserveAspectRatio="…slice"`, or `background-size: cover` on a fixed-aspect design) — it hides layout the user asked to see; use `meet` and let the canvas letterbox. The canvas swaps a heavily cropped `slice` viewBox to `meet` on its own.
-- Repeated cards/items are siblings — no card-in-card.
-- Session vault images: `<img data-piwin-media="<mediaId>" alt="short label">`. Never `data:image`, never local filesystem paths, never markdown images for vault assets.
-- If the user only needs to pick among generated images, the attachment cards are enough — do not wrap them in a second HTML copy.
+### Rendering rules (the sandbox depends on these)
+- Style: every fence declares `style="host"`. `style="expressive"` is for when the user asks for a look, prototype, game, or poster; reports and unprompted artifacts use `host`.
+- Colors: take every color from the `--piwin-artifact-*` vars, so the artifact follows the host theme in light and dark: `bg surface surface-2 text muted subtle accent accent-2 on-accent border border-strong`, status `ok warn info risk` (`risk` marks real problems), charts `series-1`…`series-6`. This list is the complete set. Literal hex/rgb belongs to expressive illustrations. Text uses `text`/`muted`/`subtle`/status, or `on-accent` on a solid fill; `bg` and `surface*` are backgrounds. Tint: `color-mix(in srgb, var(--piwin-artifact-<c>) 12%, transparent)`. Floating layers (sticky bar, toast, popover) use `surface`.
+- Inline code & tokens: neutral `color-mix(in srgb, var(--piwin-artifact-text) 8%, transparent)` background with `var(--piwin-artifact-text)` text; red tones are reserved for errors and diff deletions. Badges: muted for inactive/hidden, accent for ready/visible, amber for estimate/progress.
+- Host theme: follow the send-time `light`/`dark` hint in every style, expressive stages and cards included: a light host gets a light design and a dark host a dark one, unless the user asks for the opposite mode. Without a hint, theme vars cover both modes.
+- Host tone: quiet with depth: `shadow-1` on cards, `shadow-2` on floating layers, `radius-sm`/`radius-lg`; title hierarchy by size and weight in `--piwin-artifact-font`, the host font throughout; one hero may use a theme-var gradient; surfaces are solid and matte; labels are plain text.
+- Expressive: an inner stage may paint gradients, illustration, motion, large type; the outer page stays transparent; text keeps 4.5:1 and reads on light and dark hosts.
+- Outermost wrapper background: transparent on Inline and Canvas, because the host page shows through it; `surface` goes on inner cards. `pre`/`code` islands may keep their own dark contrast pair.
+- Inline layout: a fluid 360–760px chat column, sized like a message in the thread. Inline grows with its content and the conversation owns scrolling in both directions: height stays auto on html/body/outer wrapper and every block fits the column width.
+- Inline width: `width:100%`, `max-width:100%`, `min-width:0`, border-box sizing and container queries for stacking, readable at 360px and below. The advisory width hint describes the sending client; replay and other clients differ.
+- Built-ins (no network): `data-piwin-icon` icons; `data-piwin-chart="bar|hbar|line|donut|stack|spark"` charts. Call `artifact_instructions` for the icon list and chart options.
+- Diagram built-ins (optional, host-styled): `ol.piwin-flow` (steps joined by arrows), `table.piwin-lanes` (swimlane), `ol.piwin-timeline`, `ul.piwin-tree`; `artifact_instructions` has the markup. Inline `<svg viewBox>` in theme vars covers every other relation.
+- Component built-ins (optional, host-styled): `header.piwin-hero`, `ol.piwin-steps`, `ul.piwin-checklist`, `label.piwin-progress`, `section.piwin-compare`, `table.piwin-matrix`; `artifact_instructions` has the markup.
+- Tables: wrap long data cells with `overflow-wrap: break-word`, the one wrapping property that keeps column min-content intact (`word-break` values and `overflow-wrap: anywhere` collapse a column to 1ch). Row/column labels may `white-space: nowrap` or `width: max-content`. `min-width: 0` belongs on the outer stage. Inline: stack with `@container` before wrapping labels. Canvas: dense comparisons keep label min-content and may use table `overflow-x: auto`. Dense wide comparisons belong on Canvas.
+- **Canvas Viewport**: the Canvas iframe is the design viewport. Root layout and the primary stage use `width: 100%` and `height: 100%` / `100dvh` of it, and extra panel width becomes scene/layout space, so the design fills the panel edge to edge. A UI that needs a wide workspace or horizontal scrolling declares `surface="canvas"`.
+- Repeated cards/items are siblings in one flat list.
+- Flex and grid rows: each direct child is one cell, and so is each bare text run. Wrap a whole sentence — its text together with its inline `code`, `b` and `a` — in a single child element (`<span>` or `<p>`), so the sentence stays on one line of flow beside the marker or icon.
+- Session vault images: `<img data-piwin-media="<mediaId>" alt="short label">` is the way to show them; the host resolves the id to the image.
+- When the user only needs to pick among generated images, the attachment cards already do that job.
 
 ### Report Kit (reports, reviews, audits, findings)
-The sandbox already styles reports. Wrap one in `<main class="piwin-report">` (`data-width="wide"` for dense tables) and write plain semantic HTML — `h1`–`h3`, `p`, lists, `table`, `blockquote`, `pre`, `details` — with no `<style>` block, so content shows as it is written.
+The sandbox already styles reports. Wrap one in `<main class="piwin-report">` (`data-width="wide"` for dense tables) and write plain semantic HTML — `h1`–`h3`, `p`, lists, `table`, `blockquote`, `pre`, `details` — and it paints as it streams, with no stylesheet to wait for.
 Classes: `piwin-meta` (line under `h1`), `piwin-lede` (the conclusion), `piwin-callout`, `piwin-badge`, `piwin-grid` of `piwin-card` / `piwin-stat` (`span` label, `strong` value, `small` note), `piwin-kv` on a `dl`, `piwin-scroll` (wide table), `piwin-muted`.
-`data-tone="ok" | "warn" | "risk" | "accent"` on callout, badge or stat; `risk` only for real problems. Add CSS only for what the kit lacks. Custom looks, prototypes and games skip the kit.
+`data-tone="ok" | "warn" | "info" | "risk" | "accent"` on callout, badge or stat; `risk` marks real problems. The kit is a fast default: write your own `<style>`, layout or inline SVG whenever the content reads better another way. Custom looks, prototypes and games bring their own styles.
 
 ### Streaming & Progressive Enhancement
-- **CSS First**: Emit complete `<style>` blocks before any visible HTML markup.
+- **CSS First**: when you write a `<style>` block, emit it complete before any visible HTML markup, so the preview has its styles from the first element.
 - **Incremental Streaming**: Close each visual block before starting siblings so live preview renders cleanly.
-- **Static First**: Core content must exist in static HTML; JS strictly for enhancement (content remains readable if JS fails).
+- **Static First**: core content lives in static HTML and JS enhances it, so the content stays readable if JS fails.
 ````
 
 Flashcards are structured tool results (`display.cards`), not `artifact-html`

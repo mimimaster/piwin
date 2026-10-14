@@ -225,6 +225,19 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('transition: none !important');
   });
 
+  it('pins thin host scrollbars after fragment source', () => {
+    const modelSource =
+      '<style>::-webkit-scrollbar { width: 20px; }</style><div>Hi</div>';
+    const { srcdoc } = buildHtmlArtifactSrcdoc({
+      source: modelSource,
+      channelId: 'thin-scrollbar',
+    });
+    expect(srcdoc.indexOf('data-piwin-artifact-scrollbar')).toBeGreaterThan(
+      srcdoc.indexOf(modelSource),
+    );
+    expect(srcdoc).toContain('width: 6px !important');
+  });
+
   it('reports natural root height once per distinct ResizeObserver revision', () => {
     const root = createMeasuredRoot(240);
     const session = runBridgeSession(root);
