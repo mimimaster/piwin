@@ -16,10 +16,9 @@ import { createSessionHostToolExecutionPort } from './tools/session-host-tool-po
 import { createPermissiveToolAdmission } from './tools/tool-admission.js';
 
 type Step = { name: string; args: Record<string, unknown> } | { text: string };
-export type SavedCourse = {
-  courseId: string; deck: string; revision: number;
-  evidence: Array<{ id: string; userAnswer: string }>;
-  intentions: Array<{ attempts: Array<{ state: string; cardIds: string[] }> }>;
+export type SavedTopic = {
+  topicId: string; topic: string; deck: string; revision: number;
+  concepts: Array<{ name: string; status: string; wiki: string | null; weak: string[] }>;
 };
 export async function openStudySpaceFixture(mode: 'sdk' | 'rpc') {
   const root = await mkdtemp(join(tmpdir(), 'study-space-real-'));
@@ -139,10 +138,10 @@ export async function openStudySpaceFixture(mode: 'sdk' | 'rpc') {
     root, requests, dialogs, services, prompt, tool,
     native: (target: string, args: Record<string, unknown>) => tool('piwin_toolbox', { action: 'call', target, arguments: args }),
     snapshot() { if (!lastSnapshot) throw new Error('No native snapshot'); return lastSnapshot; },
-    async course(): Promise<SavedCourse> {
+    async topic(): Promise<SavedTopic> {
       const names = (await readdir(join(root, 'study-space'))).filter(name => name.endsWith('.json') && name !== 'preferences.json');
-      if (names.length !== 1 || !names[0]) throw new Error('Expected one saved course');
-      return JSON.parse(await readFile(join(root, 'study-space', names[0]), 'utf8')) as SavedCourse;
+      if (names.length !== 1 || !names[0]) throw new Error('Expected one saved topic');
+      return JSON.parse(await readFile(join(root, 'study-space', names[0]), 'utf8')) as SavedTopic;
     },
     async replace() { await backend.dropSession('study-session'); generation = 'gen-2'; register(); session = await backend.createSession(input()); },
     close,

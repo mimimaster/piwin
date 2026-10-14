@@ -1,58 +1,70 @@
-# Study Space：可选教学扩展
+# Study Space：接在知识飞轮上的陪练
 
-Study Space 是一个主动启用的 Extension，不是新的卡库、FSRS 算法或外部服务。课程、练习证据和偏好属于扩展；原生卡片、到期队列、评分和 undo 属于 Host。普通编码会话不会因为加载扩展自动变成课堂。
+Study Space 是一个主动启用的 Extension。它不是新的卡库、调度算法或外部服务：学习的单位是 wiki 概念，三个仓各管一件事。
 
-## 安装前提与边界
+| 仓 | 职责 | 学习中的角色 |
+| --- | --- | --- |
+| 知识库（RAG） | 原料 | 讲解的依据，带 `[n]` 引用 |
+| Wiki | 我理解了什么 | 每学完一个概念，落成一页概念 |
+| 闪卡 | 我需要记住什么 | 只为答错的点制卡，来源指向 wiki 概念页 |
+| Study Space | 学到哪了 | 每个主题一份薄进度 |
 
-独立源码仓库：[mimimaster/piwin-study-space](https://github.com/mimimaster/piwin-study-space)。市场条目 id：`mimimaster/piwin-study-space`（[目录 PR](https://github.com/mimimaster/piwin-extensions/pull/8)）。主仓 `packages/agent-host/standalone-extensions/study-space/` 只给 Host 集成测试用，不随产品自动安装。测试过的 Pi API 是 0.84.2，typebox 由宿主提供。
+普通编码会话不会因为加载扩展变成课堂。
 
-必须先运行包含 `flashcard_study_read/write` 的新版 Host，并启用原生闪卡能力。只把扩展放进旧安装版不会凭空增加复习接口。模型可能只能看到 `piwin_toolbox`；这时先 search/describe，再调用发现的原生目标。真正缺少接口时明确降级为文本教学/原生 UI 手动复习，不安装影子服务器。
+## 安装
 
-目录 PR 合并后，从桌面端「扩展市场」搜索 Study Space 安装并启用。未合并前不要把它当成已上架。不要直接复制文件到运行中的不可变 revision。新会话中 `/teacher` 才是教学入口。停用/卸载不会删除学习数据或原生卡片。
+独立源码仓库：[mimimaster/piwin-study-space](https://github.com/mimimaster/piwin-study-space)，市场条目 id `mimimaster/piwin-study-space`。主仓 `packages/agent-host/standalone-extensions/study-space/` 只是 Host 集成测试用的副本，不随产品安装。当前版本 0.2.0，测试过的 Pi API 是 0.84.2。
+
+讲解依赖 Host 的 `knowledge_search`、`wiki_read/write` 和闪卡工具。模型可能只能看到 `piwin_toolbox`，这时先 search/describe 再调用。缺少某个工具时陪练会说明一次并降级：没有 wiki 工具就把总结写在回复里，没有闪卡工具就不制卡。
 
 ## 使用
 
-- `/teacher ta`：直接解答当前疑问，不要求主题、弹窗或课程，也不写入课程文件。
-- `/teacher learn Rust`：创建课程，诊断水平，按短阶段解释、练习、反馈、记录证据。
-- `/teacher ta Rust`：显式创建带主题的助教课程，但不强制完整学习路径。
-- `/teacher status`：查看角色、课程 ID、偏好、能力及不确定的制卡结果。
-- `/teacher review <courseId>`：载入课程，使用原生 scheduled 到期复习；不创建自己的队列。
-- `/teacher resume <courseId>`：读取实际保存的课程/证据；不是重新执行原生变更的许可。
-- `/teacher off`：退出教学，清除自己的状态；保留数据及普通编码规则。
+- `/learn [主题]`：开始一个主题，或按名称继续已有主题。不填主题时列出已有主题（最近的在前）和“新主题”。
+- `/review`：到期复习与回炉。
+- `/study`：看板，显示各主题已写入 wiki 的概念数、薄弱点和下一个概念。
+- `/study save`：仅对下一轮生效，把刚才的对话整理成一页 wiki 概念。
+- `/study off`：退出，保留进度、wiki 和卡片。
 
-角色变更等待 idle。session/runtime 重建后默认 off，必须显式 resume；不从聊天历史或 appendEntry 偷偷恢复角色。只有主动教学时追加角色规则，不切换模型、预算、权限或全局工具集合。
+命令只选择模式，下一条消息开始这一轮；输入框上方会提示该发什么。0.1 的 `/teacher*` 命令已移除。
 
-## 制卡与复习确认
+### 学习循环
 
-课程使用稳定 `courseId` 和 `study-space:<courseId>` deck，重命名主题不搬迁卡片。没有实际卡点、用户只想了解、或偏好 `cards=never` 时不制卡。不会因为用户说“懂了”就宣布掌握。
+1. 还没有路径时：检索知识库、读 wiki 索引，给出 3–7 个概念，标注“wiki 已有 / 待建 / 无资料”，保存路径并开始第一个概念。
+2. 每个概念：依据资料短讲，只提一个问题，然后针对你实际写的回答给反馈。资料里没有的部分用通用知识讲，并明说不是来自你的资料。
+3. 概念收尾：写入 wiki 概念页（只有真的答错过才有“曾经的误解”一节），再把概念标记为完成。
+4. 制卡：每个概念最多 3 张，只针对答错的点；deck 用主题名，来源指向概念页。
 
-制卡前保存具体用户回答/反馈及精确的卡片意图，弹窗展示真实内容并征求同意；之后仍走 Host admission。首版仅支持原生卡片的 model/content/deck 字段，不静默忽略额外来源字段。课程文件保留卡点与原生 ID 的关联。
+### 复习
 
-当前题先向用户抽问，模型评判后建议评分。原生 rate 和 claim 都要求扩展确认弹窗，即使 Host 是 bypass；没有交互 UI 时明确拒绝，不把一句模型生成的“已同意”当授权。claim 不会自动抢占其他端控制权。
+评分和调度留在原生闪卡面板。`/review` 报告各 deck 的到期数量；你把评为 Again/Hard 的卡贴出来或说出名字，陪练回到对应概念换个角度重讲并再问一次。学习模式开启期间，模型对 `flashcard_study_write` 的调用会被拦截。
 
-工具身份由当前 Host product session 派生，模型不能填 principal/session/generation。每次调用仍经过 Run/generation admission。写入保留 revision/epoch/content/ReviewState CAS。幂等键在 Host 内按该身份隔离：查询 operation 时仍传模型最初使用的 key；undo 的 targetOperationId 使用原生快照提供的值。
+## 确认与底线
 
-未知提交结果先查原 key，不生成新 key 重试；冲突重新获取快照并重新询问。sequence/next/goto 不在此工具首版范围；sequence 写入在变更前拒绝。
+- 制卡只确认一次：Host 对每次制卡调用弹出自己的权限确认（Host 处于 bypass 模式时除外）。扩展不再叠加弹窗。
+- 说过不要卡片后（`cards: never`），学习模式下的制卡调用一律被拦截；重新开启需要弹窗确认。
+- 看板只统计已写入的概念和记录的薄弱点，没有掌握度百分比。
+- 扩展不改变可用工具集合，不在 Host 背后发起对话轮次，不读写 wiki 和卡库。
 
-## 数据和恢复
+## 数据
 
-只使用 `${PIWIN_ROOT}/study-space`（默认 `~/.piwin/study-space`）。`preferences.json` 保存版本化偏好，每个 `<courseId>.json` 将课程、路径、证据、制卡意图/结果放在同一原子文档，避免多文件半提交。UUID、schemaVersion、revision CAS、后代符号链接检查和跨进程写锁防止误覆盖；它不是对恶意本地进程的 OS 沙箱。
+只使用 `${PIWIN_ROOT}/study-space`（默认 `~/.piwin/study-space`）。每个主题一个 `<topicId>.json`：主题名、deck、有序的概念列表（名称、状态、wiki 页标题、薄弱点）。`preferences.json` 保存制卡偏好。
 
-部分批量成功只关联真实返回的卡片 ID，不用计数器伪造结果；丢失结果或写入冲突仍明确 pending/partial/unknown。resume 后先列出原生 deck 对账，不重放整批。列表预览只能提供候选 ID，不能证明答案完全相同；歧义保留给原生检查/用户后续处理，不假装已完成。
+写入使用跨进程写锁、revision CAS 和原子替换。损坏的 JSON、未知版本、符号链接都会报错而不是被重置。崩溃留下的 `.write-lock` 不会被自动夺取：确认没有写进程并备份后，手动移除。
 
-崩溃留下的 `.write-lock` 不自动夺取。先确认所有写进程已停止并备份数据，再人工移除遗留锁/临时文件；重新读取 revision 后才能继续。
+0.1 的课程文件保留在磁盘上但不再读取，不做迁移。
 
-## 验证范围
+## 已知限制
+
+- 运行时重建后学习模式会关闭：Host 每次重建都给 Pi 会话一个新身份，扩展无法认出同一个会话。用 `/learn` 按名称继续。
+- 命令不能自己发起这一轮，需要 Host 提供能力。
+- `/review` 不能替你打开闪卡面板。
+
+## 验证
 
 ```sh
 pnpm --dir packages/agent-host/standalone-extensions/study-space test
 pnpm --dir packages/agent-host/standalone-extensions/study-space typecheck
-pnpm --filter @piwin/host-runtime exec vitest run src/flashcard-study-tools.test.ts src/study-space.integration.test.ts
-pnpm --filter @piwin/flashcards test
-pnpm typecheck
-pnpm test:architecture
+pnpm --filter @piwin/host-runtime exec vitest run src/study-space.integration.test.ts src/extension-scanner.test.ts
 ```
 
-`study-space.integration.test.ts` 使用真实 Pi SDK、真实 spawned RPC worker、同一扩展、正常 Toolbox/Host port、实际原生卡片/FSRS 数据，模型响应由本地 HTTP SSE fixture 脚本提供，不调用付费服务或模拟 Pi 引擎。覆盖练习证据→同意制卡→到期抽问→确认评分→undo→运行时替换 off→显式 resume。
-
-这证明协议、钩子、持久状态链路，不证明真实模型教学质量或 Desktop 视觉体验。命令菜单、状态面板、确认弹窗和已打开原生卡片 UI 的 DOM/截图验收仍需用户批准安装及可运行的新版 Desktop；自动测试通过不替代这部分。
+扩展目录不带 node_modules，前两条需要先提供它声明的开发依赖。集成测试使用真实 Pi SDK 和 spawned RPC worker、同一份扩展、正常的 Toolbox/Host port 和真实原生卡片，模型响应由本地脚本提供。它证明协议和持久状态链路，不证明真实模型的教学质量和 Desktop 视觉效果。

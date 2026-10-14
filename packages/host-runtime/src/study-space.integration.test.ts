@@ -1,80 +1,72 @@
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { openStudySpaceFixture } from './study-space.test-fixture.js';
 
-const cards = [
-  { model: 'basic', front: 'Why close a file?', back: 'Release descriptors.' },
-  { model: 'basic', front: 'Why use finally?', back: 'Release even after errors.' },
-];
-function systemOf(request: Record<string, unknown>): string {
+function systemOf(request: Record<string, unknown> | undefined): string {
+  if (!request) throw new Error('No real provider request');
   const messages = request.messages as Array<{ role: string; content: unknown }>;
   return messages.filter(message => message.role === 'system' || message.role === 'developer').map(message => String(message.content)).join('\n');
 }
 
 describe('Study Space with real Pi transports and native Host tools', () => {
-  it.each(['sdk', 'rpc'] as const)('%s: teaching -> consented native cards -> rating/undo -> replacement/resume', async mode => {
+  it.each(['sdk', 'rpc'] as const)('%s: learn -> progress -> sourced native cards -> review stays native -> replacement -> resume by name -> off', async mode => {
     const f = await openStudySpaceFixture(mode);
     try {
-      await f.prompt('/teacher ta');
-      await f.prompt('Explain closing a file briefly.');
-      const taRequest = f.requests.at(-1);
-      if (!taRequest) throw new Error('No real provider request');
-      expect(systemOf(taRequest)).toContain('<study-space role="ta">');
+      await f.prompt('Ordinary coding before any study command.');
+      expect(systemOf(f.requests.at(-1))).not.toContain('<study-space');
       await f.prompt('/unregistered-command is ordinary text');
       expect(JSON.stringify(f.requests.at(-1))).toContain('Host instructions and history.');
-      await f.prompt('/teacher learn file lifecycle');
-      let course = await f.course();
-      await f.prompt('Diagnose what I know about resource cleanup.');
-      await f.tool('study_space', { action: 'profile', expectedRevision: course.revision, profile: 'Beginner who understands opening files', path: ['diagnose', 'cleanup attempt', 'finally exercise'] });
-      course = await f.course();
-      await f.tool('study_space', { action: 'evidence', expectedRevision: course.revision, prompt: 'Why close a file?', userAnswer: 'It is optional.', assessment: 'Closing releases descriptors; answer misses resource cleanup.', nextPractice: 'Explain finally cleanup.', gap: 'Resource lifetime misunderstood.' }, 'My answer: closing is optional.');
-      course = await f.course();
-      const evidence = course.evidence.at(-1);
-      if (!evidence) throw new Error('Real local evidence tool did not persist');
-      await f.tool('study_space', { action: 'intention', expectedRevision: course.revision, evidenceId: evidence.id, cards });
-      course = await f.course();
-      await f.native('flashcard_batch_create', { cards: cards.map(card => ({ ...card, deck: course.deck })) });
-      const nativeItems = await f.services.cardStore.list({ deck: course.deck });
-      expect(nativeItems).toHaveLength(2);
-      course = await f.course();
-      expect(course.intentions[0]?.attempts[0]?.state).toBe('resolved');
-      expect(course.intentions[0]?.attempts[0]?.cardIds.sort()).toEqual(nativeItems.map(item => item.id).sort());
-      expect(f.dialogs.some(dialog => dialog.kind === 'confirm' && dialog.title.includes('create native cards'))).toBe(true);
-      await f.prompt(`/teacher review ${course.courseId}`);
-      await f.native('flashcard_study_write', { action: 'start', mode: 'scheduled', scope: { kind: 'deck', deck: course.deck }, resumeExisting: true, idempotencyKey: 'review-start' });
-      let snapshot = f.snapshot();
-      expect(snapshot.round.controllerIdentity).toBe('agent:study-session');
-      expect(snapshot).not.toHaveProperty('nextShell'); expect(snapshot).not.toHaveProperty('roster');
-      const current = snapshot.current;
-      if (!current?.cardId) throw new Error('No native scheduled card');
-      const before = await f.services.coordinator.reviewStates.read(current.cardId);
-      await f.prompt(`Ask me only the current question: ${current.front}`);
-      course = await f.course();
-      await f.tool('study_space', { action: 'evidence', expectedRevision: course.revision, prompt: current.front, userAnswer: 'Release descriptors even on errors.', assessment: 'Correct resource cleanup answer; suggest good.', nextPractice: 'Apply finally in code.', gap: null }, 'My attempt: release descriptors even on errors.');
-      await f.native('flashcard_study_write', { action: 'checkpoint', roundId: snapshot.round.roundId, expectedRevision: snapshot.round.revision, controlEpoch: snapshot.round.controlEpoch, entryId: current.entryId, contentVersion: current.contentVersion, face: 'answer', idempotencyKey: 'reveal' });
-      snapshot = f.snapshot();
-      await f.native('flashcard_study_write', { action: 'rate', roundId: snapshot.round.roundId, expectedRevision: snapshot.round.revision, controlEpoch: snapshot.round.controlEpoch, entryId: current.entryId, contentVersion: current.contentVersion, expectedReviewStateRevision: current.reviewStateRevision ?? 0, rating: 'good', idempotencyKey: 'rating' });
-      snapshot = f.snapshot();
-      expect((await f.services.coordinator.reviewStates.read(current.cardId))?.reps).toBe((before?.reps ?? 0) + 1);
-      expect(f.dialogs.some(dialog => dialog.kind === 'confirm' && dialog.title.endsWith('rate'))).toBe(true);
-      await f.native('flashcard_study_write', { action: 'undo', roundId: snapshot.round.roundId, expectedRevision: snapshot.round.revision, controlEpoch: snapshot.round.controlEpoch, targetOperationId: snapshot.round.lastAdvanceOperationId, idempotencyKey: 'undo' });
-      expect((await f.services.coordinator.reviewStates.read(current.cardId))?.reps).toBe(before?.reps);
+
+      const requestsBefore = f.requests.length;
+      await f.prompt('/learn file lifecycle');
+      expect(f.requests).toHaveLength(requestsBefore);
+      let topic = await f.topic();
+      expect(topic).toMatchObject({ topic: 'file lifecycle', deck: 'file lifecycle', concepts: [] });
+      await f.prompt('开始');
+      const learning = systemOf(f.requests.at(-1));
+      expect(learning).toContain('<study-space mode="learn">');
+      expect(learning).toContain('"topic":"file lifecycle"');
+
+      await f.tool('study_space', { action: 'plan', concepts: [{ name: 'descriptors' }, { name: 'finally cleanup' }] });
+      await f.tool('study_space', { action: 'concept', name: 'descriptors', status: 'done', wiki: 'File descriptors', weak: ['thought close was optional'] }, 'My answer: closing is optional.');
+      topic = await f.topic();
+      expect(topic.concepts).toEqual([
+        { name: 'descriptors', status: 'done', wiki: 'File descriptors', weak: ['thought close was optional'] },
+        { name: 'finally cleanup', status: 'planned', wiki: null, weak: [] },
+      ]);
+
+      const source = { deck: topic.deck, tags: ['file lifecycle'], sourceExcerpt: 'Closing releases the descriptor.', sourceFolder: join(f.root, 'wiki'), sourceFile: 'concepts/file-descriptors.md' };
+      await f.native('flashcard_batch_create', { cards: [
+        { model: 'basic', front: 'Why close a file?', back: 'Release descriptors.', ...source },
+        { model: 'basic', front: 'Why use finally?', back: 'Release even after errors.', ...source },
+      ] });
+      const cards = await f.services.cardStore.list({ deck: 'file lifecycle' });
+      expect(cards).toHaveLength(2);
+      expect(cards[0]).toMatchObject({ sourceExcerpt: 'Closing releases the descriptor.', sourceFile: 'concepts/file-descriptors.md' });
+      // Consent is the Host's approval prompt; the extension adds no dialog of its own.
+      expect(f.dialogs).toEqual([]);
+
+      await f.prompt('/review');
+      await f.native('flashcard_study_write', { action: 'start', mode: 'scheduled', scope: { kind: 'deck', deck: topic.deck }, resumeExisting: true, idempotencyKey: 'review-start' });
+      expect(JSON.stringify(f.requests.at(-1))).toContain('闪卡面板');
+      expect(() => f.snapshot()).toThrow('No native snapshot');
+      expect(systemOf(f.requests.at(-1))).toContain('<study-space mode="review">');
+
+      // The Host rebuilds Pi with a new session identity: study mode starts off and is resumed by name.
       await f.replace();
       await f.prompt('Ordinary coding after runtime replacement.');
-      const replacement = f.requests.at(-1);
-      if (!replacement) throw new Error('No replacement provider request');
-      expect(systemOf(replacement)).not.toContain('<study-space role=');
-      await f.prompt(`/teacher resume ${course.courseId}`);
-      await f.prompt('Continue from my saved evidence without replaying native writes.');
-      const resumed = f.requests.at(-1);
-      if (!resumed) throw new Error('No resumed provider request');
-      expect(systemOf(resumed)).toContain('<study-space role="learn">');
-      expect(systemOf(resumed)).toContain('Release descriptors even on errors.');
-      expect(await f.services.cardStore.list({ deck: course.deck })).toHaveLength(2);
-      await f.prompt('/teacher off');
+      expect(systemOf(f.requests.at(-1))).not.toContain('<study-space');
+      await f.prompt('/learn File Lifecycle');
+      await f.prompt('继续');
+      const resumed = systemOf(f.requests.at(-1));
+      expect(resumed).toContain('<study-space mode="learn">');
+      expect(resumed).toContain('thought close was optional');
+      expect((await f.topic()).topicId).toBe(topic.topicId);
+      expect(await f.services.cardStore.list({ deck: 'file lifecycle' })).toHaveLength(2);
+
+      await f.prompt('/study off');
       await f.prompt('Return to ordinary coding.');
-      const off = f.requests.at(-1);
-      if (!off) throw new Error('No off provider request');
-      expect(systemOf(off)).not.toContain('<study-space role=');
+      expect(systemOf(f.requests.at(-1))).not.toContain('<study-space');
     } finally { await f.close(); }
   }, 90000);
 });

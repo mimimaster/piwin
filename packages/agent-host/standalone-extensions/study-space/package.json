@@ -1,12 +1,29 @@
 {
   "name": "piwin-study-space",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Optional, explicitly activated teaching extension for piwin native cards",
+  "description": "Optional tutor for piwin: learn a topic from your knowledge bases, write it into the wiki, keep cards for what you got wrong",
   "license": "MIT",
-  "engines": { "node": ">=22.19.0" },
-  "pi": { "extensions": ["./index.ts"] },
-  "files": ["index.ts", "model.ts", "store.ts", "prompt.ts", "local.ts", "native.ts", "README.md", "LICENSE", "NOTICE"],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "files": [
+    "index.ts",
+    "model.ts",
+    "store.ts",
+    "prompt.ts",
+    "status.ts",
+    "local.ts",
+    "native.ts",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
   "scripts": {
     "test": "vitest run --config vitest.config.ts --configLoader runner",
     "typecheck": "tsc --noEmit -p tsconfig.json"

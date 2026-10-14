@@ -14,7 +14,7 @@ describe('standalone source contract', () => {
     expect(pkg.devDependencies.typebox).toBe('1.1.38');
     expect(pkg.pi.extensions).toEqual(['./index.ts']);
     expect(JSON.parse(await readFile(join(root, 'tsconfig.json'), 'utf8')).extends).toBeUndefined();
-    expect(pkg.files).toEqual(['index.ts', 'model.ts', 'store.ts', 'prompt.ts', 'local.ts', 'native.ts', 'README.md', 'LICENSE', 'NOTICE']);
+    expect(pkg.files).toEqual(['index.ts', 'model.ts', 'store.ts', 'prompt.ts', 'status.ts', 'local.ts', 'native.ts', 'README.md', 'LICENSE', 'NOTICE']);
     for (const document of ['LICENSE', 'NOTICE']) expect((await readFile(join(root, document), 'utf8')).length).toBeGreaterThan(100);
     for (const forbidden of ['vendor', 'pnpm-lock.yaml', 'package-lock.json', 'AGENTS.md']) expect(await readdir(root)).not.toContain(forbidden);
   });

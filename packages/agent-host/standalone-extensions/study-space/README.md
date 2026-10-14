@@ -4,56 +4,68 @@ Canonical source: [mimimaster/piwin-study-space](https://github.com/mimimaster/p
 
 Original, dependency-free-at-runtime teaching extension for **Pi 0.84.2** in piwin. The Host supplies Pi's Extension API and `typebox` 1.1.38. There is no server, custom scheduler/FSRS, native-store access, application import, install script, or automatic enablement.
 
-## Commands and lifecycle
+## What it is
 
-- `/teacher learn [topic]`: create a course and opt into locally diagnosed, staged learning.
-- `/teacher ta`: answer the current code doubt without any course, topic prompt, or disk writes. An explicit topic (`/teacher ta files`) creates a course; neither form imposes a curriculum.
-- `/teacher review [courseId]`: explicitly load a saved course for **native scheduled** review.
-- `/teacher resume [courseId]`: explicitly reload the saved profile, path, evidence and intentions in learn mode. Never replay native mutations.
-- `/teacher status`: textual mode, capabilities, preferences and saved course IDs.
-- `/teacher off`: clear this extension's status and mode; preserve files and ordinary coding rules.
+A tutor that sits on the knowledge flywheel piwin already has. The unit of learning is a **wiki concept**, and each store keeps one job:
 
-Topic/ID arguments work without UI. With dialog UI, omitted learn/review/resume arguments use only basic input/select; topicless ta needs no dialog or course. Role changes wait for idle, rather than replacing a live exercise. In no-UI mode, status is a displayed textual message, not a fictional dialog. No custom TUI/webview callback is required. Load, session start/switch, shutdown and replacement all default to **off**. No transcript/appendEntry state activates teaching. Off `before_agent_start` performs no IO and returns nothing. Active prompts are additive, and never change the active toolset.
+| Store | Job | Role while studying |
+| --- | --- | --- |
+| Knowledge bases (RAG) | raw sources | grounds explanations, cited as `[n]` |
+| Wiki | what I have understood | every finished concept becomes a concept page |
+| Flashcards | what I must retain | cards only for points actually answered wrong, pointing back at the concept page |
+| Study Space | where I am | one thin progress file per topic |
 
-Learning uses short explanation → actual user attempt → feedback → concrete evidence → next practice. No medical/learner condition is assumed, no unsupported mastery flag exists, and no default lesson card is made.
+The extension itself only selects a mode, adds mode rules to the system prompt, and keeps the progress file. The model does the work with the Host's own tools (`knowledge_search`, `wiki_read`, `wiki_write`, `flashcard_batch_create`, `flashcard_study_read`), directly or through `piwin_toolbox`.
 
-## Own data and local tool
+## Commands
 
-Only `${PIWIN_ROOT}/study-space` (fallback `~/.piwin/study-space`) is accessed. `flashcards` is never accessed by the extension. Each UUID course uses one versioned JSON document: stable `courseId`, deterministic `study-space:<courseId>` deck, profile, staged path, evidence and card intentions/attempts. Renaming a topic never changes its ID/deck. `preferences.json` contains the versioned persistent `cards: ask|never` preference. Uninstall/off does not delete data.
+- `/learn [topic]`: start a topic, or continue a saved one with the same name. Without a topic it offers saved topics (most recent first) and "new topic".
+- `/review`: due cards and re-teaching. Rating stays in the native flashcards panel; here the tutor re-explains cards rated Again/Hard.
+- `/study`: dashboard above the composer: per topic, concepts written to the wiki, weak points, next concept.
+- `/study save`: for the next turn only, distil the conversation so far into one wiki concept page.
+- `/study off`: leave study mode. Progress, wiki pages and cards are kept.
 
-`study_space` rejects **every** action while off; it cannot activate/switch roles or take a path/deck/root parameter. Actions:
+A command selects the mode; the next message starts the turn (the widget above the composer says what to send). The 0.1 `/teacher*` commands are gone.
 
-- `status`, `list`, `get` (current course; status includes preference storage revision).
-- `rename` (`topic`), `profile` (`profile`, `path`: learning stages).
-- `evidence` (`prompt`, actual `userAnswer`, `assessment`, `nextPractice`, `gap`: concrete string or null).
-- `intention` (`evidenceId`, `cards`: exact basic front/back or cloze text).
-- `preference` (`cards`: `never` or `ask`). Re-enabling `ask` requires user confirmation.
+### The learn loop
 
-Every write takes `expectedRevision`; a missing preference document uses **-1**, a new course starts at **0**. The action schema and runtime parser reject extra/unknown fields. Evidence gets its own schemaVersion/revision/UUID. An intention requires recorded evidence of a gap; no-gap diagnostic results cannot yield cards. `never` blocks intentions and creation, including after resume.
+1. No path yet: search the knowledge bases and read the wiki index, propose 3-7 concepts marked "wiki 已有 / 待建 / 无资料", save the path, begin the first concept.
+2. Per concept: short grounded explanation, exactly one question, then feedback on what the user actually wrote. Where the sources have nothing, the tutor teaches from general knowledge and says so.
+3. Closing a concept: `wiki_write` the page (with a "曾经的误解" section only for real mistakes), then mark it done with its page title and weak points.
+4. Cards: at most 3 per concept, only for points answered wrong, with `deck` = topic name and `sourceFolder`/`sourceFile`/`sourceExcerpt` pointing at the concept page.
 
-The exclusive cross-process `.write-lock` directory protects revision CAS; competing writes fail rather than losing updates. Writes use an exclusive same-directory temporary file, file fsync, atomic rename, directory fsync, abort checks before commit, and finally cleanup. Malformed JSON, unknown versions, symlink descendants, injected IDs/paths and unexpected values fail; they are not silently reset. A legitimately chosen PIWIN_ROOT symlink is canonicalized as a trusted root. This is not a sandbox against a malicious local process swapping directories between OS operations (Node stdlib has no portable openat transaction).
+## Rules the extension enforces
 
-**Manual crash recovery:** if a process died with `.write-lock` or `.tmp-<UUID>` present, first stop/verify **all writers** are absent and back up the data. Only then manually remove the abandoned lock/temp. There are no stale-lock timers or automatic takeovers. Refetch documents after any revision conflict. Do not modify course/deck identity to repair a topic name.
+- **Off by default.** Loading never activates anything; `study_space` rejects every call while off.
+- **One confirmation for cards.** The Host asks for approval on every card-creating call (unless the user put the Host in bypass mode). The extension adds no dialog of its own.
+- **`cards: never` is a hard stop.** After the user turns cards off, card-creating calls are blocked while study mode is on. Turning them back on needs a confirmation dialog.
+- **Review is native.** `flashcard_study_write` is blocked while study mode is on; the flashcards panel owns rating and scheduling.
+- **No mastery claims.** The dashboard counts concepts written and weak points recorded; there is no percentage.
+- Everything else (reads, wiki, knowledge, unrelated tools, all tools while off) is untouched. The active toolset is never changed and no turn is started behind the Host.
 
-## Native routing, consent and uncertainty
+## Own data
 
-The model calls native Host tools in its **current Run**; this extension neither calls them nor grants Host permissions. Direct tools and Toolbox `action:call` targets `flashcard_create`, `flashcard_batch_create`, `flashcard_study_write` are gated only while teaching is active. Unrelated tools and all existing tools while off are untouched.
+Only `${PIWIN_ROOT}/study-space` (fallback `~/.piwin/study-space`). One JSON file per topic: `topicId` (UUID), `topic`, `deck` (the topic name), ordered `concepts` (`name`, `status: planned|learning|done`, `wiki` page title, `weak` points) and `updatedAt`. `preferences.json` holds `cards: ask|never`. The extension never reads or writes the wiki or the card library.
 
-Toolbox-only visibility is **discoverable**, not unavailable. Prompts/status instruct `piwin_toolbox search(query="flashcard")`, then describe/call the exact targets. If discovery does not expose a suitable tool, report that honestly and teach text-only. Never guess native schemas/identity/CAS/idempotency fields. Native scheduled tools use read catalog/get/operation and write start(scheduled scope all|deck)/claim/checkpoint/rate/undo/pause/resume/end; no goto/next/sequence. Stale snapshot → refetch; uncertain mutation → query its **original** operation key. Never automatically claim another client's control.
+`study_space` actions: `get`, `plan` (`concepts`), `concept` (`name`, optional `status`/`wiki`/`weak`), `preference` (`cards`). The schema is one flat top-level object, and unknown fields are rejected. A concept cannot be marked done without its wiki page title. Re-planning keeps concepts already in progress or done.
 
-Creation requires an unattempted durable intention, exact content/deck match, a recorded demonstrated gap, enabled preference, and a dialog showing **actual content and user evidence**. For this first version, proposed native card inputs are restricted to model/content/deck; additional attribution fields are rejected, not silently dropped. Before allowing Host execution, the hook atomically saves a pending attempt. Host admission still follows. Native **claim and rate** are separately user-confirmed in the hook even if Host permissions are bypassed; the dialog shows the full actual native fields (round/rating/CAS) and current recorded assessment/attempt. Without UI these confirmations fail closed; plain textual consent is not treated as a native mutation grant.
+Writes take an exclusive cross-process `.write-lock` directory plus revision CAS, an exclusive temp file, fsync, atomic rename and directory fsync. Malformed JSON, unknown versions, symlinks and injected ids fail instead of being reset. A lock left by a crashed process is never taken over: confirm no writer is running, back up, then remove `.write-lock` / `.tmp-*` by hand.
 
-The result hook reads full result JSON from content, not summary details. Single `{card,duplicate,display}` and batch `{created: [...],skipped: [...],display}` link only actual returned IDs whose deck/content matches. `details.created` is a count, never an ID list. Partial/unknown outcomes remain explicit; no guessed IDs or fabricated completion. Result persistence conflicts leave the durable attempt uncertain.
+0.1 course files (schemaVersion 1) are left on disk and ignored; nothing is migrated. A 0.1 `preferences.json` is treated as `ask` until rewritten.
 
-If a result is lost or runtime is replaced, the attempt remains pending. Resume requires listing the native course deck before reconciliation and never replays the batch. Listing can add **observed candidate IDs** to an uncertain attempt but previews do not prove the full answer; state stays partial/unknown, even if all fronts appear. Known successes are retained. There is deliberately no model-supplied "mark complete", manual ID injection or uncertain-card retry escape hatch. Resolving ambiguous preview-only identity requires native inspection/user follow-up; the package does not falsely settle it or retry the original content.
+## Known limits
+
+- Study mode does not survive a rebuilt runtime: the Host gives each rebuilt Pi session a new identity, so the mode starts off and `/learn` resumes the topic by name.
+- A command cannot start the turn itself; that needs a Host capability.
+- `/review` cannot open the flashcards panel for the user.
 
 ## Development / verification
 
-With the declared compatible dev tools available independently:
+With the declared dev tools available:
 
 ```sh
 pnpm test
 pnpm typecheck
 ```
 
-No parent tsconfig, main-repo runtime imports, vendor code, node_modules or lockfile is part of this directory. Tests use a mock Pi API and disposable own-data roots, including real parallel child-process lock/CAS writers. The host-runtime tests separately exercise real Pi SDK and spawned RPC sessions with this same extension, a local scripted OpenAI wire, admitted Toolbox calls, actual native cards/FSRS rating/undo, and replacement/resume. They verify the transport and persisted state, not real-model teaching quality or Desktop visual behavior. Package unit tests are **not** native UI confirmation/visual verification or complete step4 acceptance. Installing/running personal extensions is outside this step.
+No parent tsconfig, main-repo runtime import, vendor code, node_modules or lockfile is part of this directory. Unit tests use a mock Pi API and disposable data roots, including real parallel child-process lock/CAS writers. piwin's host-runtime integration test runs this same extension under the real Pi SDK and a spawned RPC worker with a scripted local model wire and real native cards. Neither proves real-model teaching quality or Desktop visuals.

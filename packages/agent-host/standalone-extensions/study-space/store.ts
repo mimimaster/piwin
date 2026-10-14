@@ -3,7 +3,7 @@ import { lstat, mkdir, open, realpath, rename, rmdir, unlink, readdir } from 'no
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { id, validate, type Document, type Course, type Preferences } from './model.js';
+import { id, validate, LegacyDocumentError, type Document, type Topic, type Preferences } from './model.js';
 
 function missing(error: unknown): boolean { return (error as NodeJS.ErrnoException).code === 'ENOENT'; }
 export function checkAbort(signal?: AbortSignal): void { signal?.throwIfAborted(); }
@@ -33,27 +33,38 @@ export class Store {
     } finally { await handle.close(); }
   }
   async read(key: string): Promise<Document | null> { this.filename(key); return this.readAt(await this.root(), key); }
-  async course(key: string): Promise<Course> {
-    id(key); const course = await this.read(key);
-    if (!course) throw new Error('Unknown course');
-    return course as Course;
+  async topic(key: string): Promise<Topic> {
+    id(key); const topic = await this.read(key);
+    if (!topic) throw new Error('Unknown topic');
+    return topic as Topic;
   }
   async preferences(): Promise<Preferences> {
-    return (await this.read('preferences') as Preferences | null) ?? { schemaVersion: 1, revision: 0, cards: 'ask' };
+    try { return (await this.read('preferences') as Preferences | null) ?? { schemaVersion: 2, revision: 0, cards: 'ask' }; }
+    catch (e) { if (e instanceof LegacyDocumentError) return { schemaVersion: 2, revision: 0, cards: 'ask' }; throw e; }
   }
-  async list(): Promise<Course[]> {
+  /** Most recently touched first. 0.1 course files stay on disk but are not topics. */
+  async list(): Promise<Topic[]> {
     const root = await this.root();
     const names = await readdir(root);
-    const result: Course[] = [];
+    const result: Topic[] = [];
     for (const name of names) {
       if ((await lstat(join(root, name))).isSymbolicLink()) throw new Error('Unsafe entry in data root');
       if (name === 'preferences.json' || name === '.write-lock' || /^\.tmp-[0-9a-f-]+$/.test(name)) continue;
       if (!name.endsWith('.json')) throw new Error('Unexpected entry in data root');
       const key = name.slice(0, -5); id(key);
-      const course = await this.readAt(root, key);
-      if (course) result.push(course as Course);
+      try {
+        const topic = await this.readAt(root, key);
+        if (topic) result.push(topic as Topic);
+      } catch (e) { if (!(e instanceof LegacyDocumentError)) throw e; }
     }
-    return result;
+    return result.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }
+  /** Read-modify-write for a single local user; a concurrent writer still fails on the lock/CAS rather than losing data. */
+  async mutate<T extends Document>(key: string, change: (current: T | null) => T | Promise<T>, signal?: AbortSignal): Promise<T> {
+    let current: Document | null;
+    try { current = await this.read(key); }
+    catch (e) { if (!(e instanceof LegacyDocumentError) || key !== 'preferences') throw e; current = null; }
+    return this.update<T>(key, current?.revision ?? -1, change, signal);
   }
   /** Exclusive cross-process lock + revision CAS; no waiting or stale-lock takeover. */
   async update<T extends Document>(key: string, expected: number, change: (current: T | null) => T | Promise<T>, signal?: AbortSignal): Promise<T> {
@@ -66,7 +77,10 @@ export class Store {
     let temp: string | undefined;
     try {
       checkAbort(signal);
-      const current = await this.readAt(root, key) as T | null;
+      let current: T | null;
+      try { current = await this.readAt(root, key) as T | null; }
+      // A 0.1 preference file carries one enum; replacing it loses nothing, unlike a 0.1 course.
+      catch (e) { if (!(e instanceof LegacyDocumentError) || key !== 'preferences') throw e; current = null; }
       if ((current?.revision ?? -1) !== expected) throw new Error('Revision conflict; refetch before retry');
       const next = await change(current === null ? null : structuredClone(current));
       next.revision = expected + 1;
