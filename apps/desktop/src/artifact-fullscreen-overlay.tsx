@@ -31,15 +31,12 @@ export type ArtifactFullscreenOverlayProps = {
   mediaDataUrls?: ReadonlyMap<string, string>;
   presets: boolean;
   initialWidth?: ArtifactViewerWidth;
-  initialPreviewTheme?: ArtifactPreviewTheme;
   onClose: () => void;
 };
 
 export function ArtifactFullscreenOverlay(props: ArtifactFullscreenOverlayProps): ReactElement | null {
   const [width, setWidth] = useState<ArtifactViewerWidth>(props.initialWidth ?? 'fit');
-  const [previewTheme, setPreviewTheme] = useState<ArtifactPreviewTheme>(
-    props.initialPreviewTheme ?? 'follow',
-  );
+  const [previewTheme, setPreviewTheme] = useState<ArtifactPreviewTheme>('follow');
   const rootRef = useRef<HTMLDivElement | null>(null);
   const onClose = props.onClose;
 
@@ -109,8 +106,7 @@ export function ArtifactFullscreenOverlay(props: ArtifactFullscreenOverlayProps)
         presets={props.presets}
         width={width}
         onWidthChange={setWidth}
-        previewTheme={previewTheme}
-        onPreviewThemeChange={setPreviewTheme}
+        themePreview={{ value: previewTheme, onChange: setPreviewTheme }}
         onToggleFullscreen={onClose}
         testIdPrefix="artifact-fullscreen"
       />

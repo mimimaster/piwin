@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { ThemeManifest } from '@piwin/contracts';
-import { readFileSync } from 'node:fs';
 import { ARTIFACT_V14_TOKEN_NAMES } from '@piwin/artifact';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { resolveDeckTokens } from './theme/deck-derive';
+import {
+  PIWIN_APPEARANCE_INKSTONE_INK,
+  PIWIN_APPEARANCE_INKSTONE_PAPER,
+} from './theme/deck-palette';
 
-function bundledTheme(id: string): ThemeManifest {
-  const url = new URL(`../../../packages/theme/bundled/${id}/theme.json`, import.meta.url);
-  return JSON.parse(readFileSync(url, 'utf8')) as ThemeManifest;
+/** The two Inkstone faces as the desktop paints them. */
+function inkstoneFace(id: string): ThemeManifest {
+  return id === PIWIN_APPEARANCE_INKSTONE_PAPER.id
+    ? PIWIN_APPEARANCE_INKSTONE_PAPER
+    : PIWIN_APPEARANCE_INKSTONE_INK;
 }
 
 const sampleTheme: ThemeManifest = {
@@ -65,7 +70,7 @@ describe('mapThemeToArtifactVariables', () => {
   it.each(['piwin-inkstone-ink', 'piwin-inkstone-paper'])(
     'maps the full v14 vocabulary from the %s Deck ramp',
     (id) => {
-      const theme = bundledTheme(id);
+      const theme = inkstoneFace(id);
       const deck = resolveDeckTokens(theme);
       const vars = mapThemeToArtifactVariables(theme) as Record<string, string | undefined>;
       for (const name of ARTIFACT_V14_TOKEN_NAMES) {
@@ -86,7 +91,7 @@ describe('mapThemeToArtifactVariables', () => {
 
   it('never starts Inkstone chart series on the accent or a status red', () => {
     for (const id of ['piwin-inkstone-ink', 'piwin-inkstone-paper']) {
-      const vars = mapThemeToArtifactVariables(bundledTheme(id));
+      const vars = mapThemeToArtifactVariables(inkstoneFace(id));
       expect(vars['--piwin-artifact-series-1']).toBe(vars['--piwin-artifact-info']);
       expect(vars['--piwin-artifact-series-1']).not.toBe(vars['--piwin-artifact-accent']);
       expect(vars['--piwin-artifact-series-6']).toBe(vars['--piwin-artifact-risk']);

@@ -4,12 +4,21 @@ import type {
   ArtifactRenderPlan,
   ArtifactThemeVariables,
 } from '@piwin/artifact';
-import { IconButton, IconCanvas, IconCode, IconDownload, IconExpand } from '@piwin/ui-kit';
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  IconButton,
+  IconCanvas,
+  IconCode,
+  IconDownload,
+  IconExpand,
+} from '@piwin/ui-kit';
 import { ArtifactFrame } from './ArtifactFrame.js';
 import { artifactDownloadLabel, downloadArtifactSource } from './artifact-source-export.js';
 import { ArtifactFullscreenOverlay } from './artifact-fullscreen-overlay.js';
 import { artifactViewerCopy, resolveArtifactViewerKey } from './artifact-viewer-model.js';
 import { isMobileTauriRuntime } from './shell-runtime.js';
+import { IconMore } from './shell-icons.js';
 import type { ArtifactStyleOverride } from './artifact-style-override.js';
 
 export type ArtifactInlinePreviewProps = {
@@ -30,7 +39,10 @@ export type ArtifactInlinePreviewProps = {
 
 /**
  * Mount a materialized Inline plan (static Shadow DOM or sandbox iframe).
- * Overlay actions inspect source and export original model source — never srcdoc.
+ * The action row sits below the artifact, never over it: model-authored
+ * headers favour the top-right corner. Canvas/fullscreen stay one click away;
+ * download and source live in the overflow menu. Download exports original
+ * model source — never srcdoc.
  */
 export function ArtifactInlinePreview(props: ArtifactInlinePreviewProps): ReactElement {
   const descriptor = props.plan.intent.descriptor;
@@ -91,33 +103,42 @@ export function ArtifactInlinePreview(props: ArtifactInlinePreviewProps): ReactE
         >
           <IconExpand size={14} />
         </IconButton>
-        <IconButton
-          label={downloadLabel}
-          title={downloadLabel}
-          className="artifact-floating-action-button"
-          data-testid="artifact-download-source"
-          disabled={!canExportSource}
-            onClick={() => {
-              if (!canExportSource) return;
+        <DropdownMenu
+          align="end"
+          label={copy.moreActions}
+          trigger={
+            <IconButton
+              label={copy.moreActions}
+              title={copy.moreActions}
+              className="artifact-floating-action-button"
+              data-testid="artifact-more-actions"
+            >
+              <IconMore size={14} />
+            </IconButton>
+          }
+        >
+          <DropdownMenuItem
+            icon={<IconDownload size={14} />}
+            testId="artifact-download-source"
+            disabled={!canExportSource}
+            onSelect={() => {
               void downloadArtifactSource({
                 source: originalSource,
                 title: descriptor.title,
                 kind: exportKind,
               });
             }}
-        >
-          <IconDownload size={14} />
-        </IconButton>
-        <IconButton
-          label="Show code"
-          title="Show code"
-          className="artifact-floating-action-button"
-          data-testid="artifact-preview-toggle"
-          aria-expanded
-          onClick={props.onShowSource}
-        >
-          <IconCode size={14} />
-        </IconButton>
+          >
+            {downloadLabel}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            icon={<IconCode size={14} />}
+            testId="artifact-show-code"
+            onSelect={props.onShowSource}
+          >
+            {copy.showCode}
+          </DropdownMenuItem>
+        </DropdownMenu>
       </div>
       {fullscreen ? (
         <ArtifactFullscreenOverlay

@@ -10,12 +10,14 @@ import {
   parseArtifactActionMessage,
   parseArtifactBridgeMessage,
   parseArtifactContrastMessage,
+  parseArtifactLayoutMessage,
   parseArtifactErrorMessage,
   readArtifactPostSeq,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
   type ArtifactActionMessage,
   type ArtifactContrastMessage,
+  type ArtifactLayoutMessage,
   type ArtifactErrorMessage,
   type ArtifactFrameMode,
 } from '@piwin/artifact';
@@ -50,6 +52,8 @@ type BridgeInput = {
   onScriptError?: (error: ArtifactErrorMessage) => void;
   /** Expressive contrast probe found a problem (badge only). */
   onContrastIssue?: (issue: ArtifactContrastMessage) => void;
+  /** Layout probe found text squeezed one glyph wide (badge only). */
+  onLayoutIssue?: (issue: ArtifactLayoutMessage) => void;
 };
 
 function hostOwnsViewport(frameMode: ArtifactFrameMode): boolean {
@@ -228,6 +232,18 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
         lastPostSeqRef.current = postSeq;
       }
       current.onContrastIssue?.(contrast);
+      return;
+    }
+
+    const layout = parseArtifactLayoutMessage(data);
+    if (layout) {
+      if (!trustedSource || layout.channelId !== current.channelId) {
+        return;
+      }
+      if (postSeq !== null) {
+        lastPostSeqRef.current = postSeq;
+      }
+      current.onLayoutIssue?.(layout);
       return;
     }
 

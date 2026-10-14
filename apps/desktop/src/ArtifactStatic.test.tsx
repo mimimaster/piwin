@@ -152,6 +152,33 @@ describe('ArtifactStatic', () => {
     expect(host?.style.height).toBe('');
   });
 
+  it('authorizes static styles with the host nonce rather than an authored nonce', () => {
+    const bootStyle = document.createElement('style');
+    bootStyle.id = 'boot-splash-style';
+    bootStyle.nonce = 'trusted-host-style';
+    document.head.append(bootStyle);
+    try {
+      act(() => {
+        root.render(
+          <ArtifactStatic
+            type="html"
+            source='<style nonce="authored-style">.card{display:grid}</style><section class="card">Ready</section>'
+          />,
+        );
+      });
+      const shadow = container.querySelector<HTMLElement>('[data-testid="artifact-static"]')?.shadowRoot;
+      const styles = [...(shadow?.querySelectorAll('style') ?? [])];
+      expect(styles).toHaveLength(2);
+      expect(styles.map((style) => style.nonce)).toEqual([
+        'trusted-host-style',
+        'trusted-host-style',
+      ]);
+      expect(shadow?.querySelector('.card')?.textContent).toBe('Ready');
+    } finally {
+      bootStyle.remove();
+    }
+  });
+
   it('removes executable markup as defense in depth', async () => {
     act(() => {
       root.render(

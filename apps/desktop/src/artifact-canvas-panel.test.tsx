@@ -454,11 +454,17 @@ describe('ArtifactCanvasPanel', () => {
       await settle();
       expect(container.querySelector('[data-testid="artifact-canvas-toolbar"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="artifact-canvas-mode"]')?.textContent).toContain('host');
-      expect(container.querySelector('[data-testid="artifact-canvas-width"]')).not.toBeNull();
-      expect(container.querySelector('[data-testid="artifact-canvas-theme"]')).not.toBeNull();
+      const widths = container.querySelector('[data-testid="artifact-canvas-width"]');
+      expect([...(widths?.querySelectorAll('button') ?? [])].map((button) => button.textContent)).toEqual([
+        '760',
+        '390',
+      ]);
+      // Desktop Canvas keeps only width, code and download: the pane maximizes itself.
+      expect(container.querySelector('[data-testid="artifact-canvas-theme"]')).toBeNull();
+      expect(container.querySelector('[data-testid="artifact-canvas-fullscreen"]')).toBeNull();
     });
 
-    it('hides width and theme presets when presets are off (iOS)', async () => {
+    it('keeps only fullscreen when presets are off (iOS)', async () => {
       const { container, root } = renderPanel({ activeTarget: makeTarget(), viewerPresets: false });
       instances.push({ container, root });
       await settle();
@@ -467,13 +473,31 @@ describe('ArtifactCanvasPanel', () => {
       expect(container.querySelector('[data-testid="artifact-canvas-fullscreen"]')).not.toBeNull();
     });
 
-    it('applies width presets and preview themes from the keyboard', async () => {
+    it('toggles a fixed width on click and returns to fit on a second click', async () => {
       const { container, root } = renderPanel({ activeTarget: makeTarget(), viewerPresets: true });
       instances.push({ container, root });
       await settle();
-      const toolbar = container.querySelector<HTMLElement>('[data-testid="artifact-canvas-fullscreen"]')!;
+      const mobile = container.querySelector<HTMLButtonElement>('[data-testid="artifact-canvas-width-mobile"]')!;
       const stage = () => container.querySelector('[data-testid="artifact-canvas-stage"]');
       expect(stage()?.getAttribute('data-width')).toBe('fit');
+      act(() => {
+        mobile.click();
+      });
+      expect(stage()?.getAttribute('data-width')).toBe('mobile');
+      expect(mobile.getAttribute('aria-pressed')).toBe('true');
+      act(() => {
+        mobile.click();
+      });
+      expect(stage()?.getAttribute('data-width')).toBe('fit');
+      expect(mobile.getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('applies width presets from the keyboard and ignores T', async () => {
+      const { container, root } = renderPanel({ activeTarget: makeTarget(), viewerPresets: true });
+      instances.push({ container, root });
+      await settle();
+      const toolbar = container.querySelector<HTMLElement>('[data-testid="artifact-canvas-code"]')!;
+      const stage = () => container.querySelector('[data-testid="artifact-canvas-stage"]');
       act(() => {
         toolbar.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true }));
       });
@@ -483,25 +507,24 @@ describe('ArtifactCanvasPanel', () => {
         toolbar.dispatchEvent(new KeyboardEvent('keydown', { key: 't', bubbles: true }));
       });
       await settle();
-      const theme = materialize.mock.calls.at(-1)?.[1]?.theme;
-      expect(theme?.['--piwin-artifact-theme']).toBe('light');
-      expect(container.querySelector('[data-testid="artifact-canvas-stage"]')).not.toBeNull();
+      expect(materialize).not.toHaveBeenCalled();
     });
 
-    it('opens fullscreen in an overlay and closes on Esc with focus restored', async () => {
+    it('opens fullscreen from F in an overlay and closes on Esc with focus restored', async () => {
       const { container, root } = renderPanel({ activeTarget: makeTarget(), viewerPresets: true });
       instances.push({ container, root });
       await settle();
-      const button = container.querySelector<HTMLButtonElement>('[data-testid="artifact-canvas-fullscreen"]')!;
+      const button = container.querySelector<HTMLButtonElement>('[data-testid="artifact-canvas-code"]')!;
       button.focus();
       act(() => {
-        button.click();
+        button.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true }));
       });
       await settle();
       const overlay = document.querySelector('[data-testid="artifact-fullscreen-overlay"]');
       expect(overlay).not.toBeNull();
       expect(overlay?.querySelector('iframe')).not.toBeNull();
       expect(overlay?.querySelector('[data-testid="artifact-fullscreen-width"]')?.textContent).toContain('1200');
+      expect(overlay?.querySelector('[data-testid="artifact-fullscreen-theme"]')).not.toBeNull();
       act(() => {
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       });

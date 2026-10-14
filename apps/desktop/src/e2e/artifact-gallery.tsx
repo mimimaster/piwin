@@ -26,6 +26,7 @@ import {
 import { MarkdownView } from '../MarkdownView';
 import { CodePreviewGallery } from './code-preview-gallery.js';
 import { DocSelectionGallery } from './doc-selection-gallery.js';
+import { ArtifactKitShowcase } from './artifact-kit-showcase.js';
 import { ArtifactV14Showcase } from './artifact-v14-showcase.js';
 
 const GALLERY_ROOT_STYLE: CSSProperties = {
@@ -462,6 +463,14 @@ export function ArtifactGallery(): ReactElement {
     return (
       <div style={GALLERY_ROOT_STYLE} data-testid="artifact-gallery">
         <ArtifactV14Showcase paper={params.get('theme') === 'paper'} />
+      </div>
+    );
+  }
+  if (selection === 'kit-showcase') {
+    const params = new URLSearchParams(window.location.hash.slice(window.location.hash.indexOf('?') + 1));
+    return (
+      <div style={GALLERY_ROOT_STYLE} data-testid="artifact-gallery">
+        <ArtifactKitShowcase paper={params.get('theme') === 'paper'} />
       </div>
     );
   }

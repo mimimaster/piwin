@@ -18,7 +18,7 @@ for (const theme of ['paper', 'ink'] as const) {
     const preview = page.getByTestId('v14-inline').getByTestId('artifact-frame').first();
     await resumePreview(preview);
     const dashboard = page.frameLocator('iframe[title="构建健康度"]');
-    const bars = dashboard.locator('figure[data-piwin-chart="bar"] rect');
+    const bars = dashboard.locator('figure[data-piwin-chart="bar"] .piwin-chart-bar');
     await expect(bars).toHaveCount(14);
     expect(await bars.evaluateAll((elements) => elements.map((element) => element.getAttribute('fill'))))
       .toEqual(Array.from({ length: 7 }, () => [
@@ -58,8 +58,10 @@ for (const theme of ['paper', 'ink'] as const) {
   test(`${theme}: fullscreen width and preview controls preserve the host and restore focus`, async ({ page }) => {
     await openShowcase(page, theme);
     const hostBackground = await page.locator('body').evaluate((element) => getComputedStyle(element).backgroundColor);
-    const opener = page.getByTestId('artifact-canvas-fullscreen');
-    await opener.click();
+    // Desktop Canvas has no fullscreen button; F on its chrome opens the overlay.
+    const opener = page.getByTestId('artifact-canvas-code');
+    await opener.focus();
+    await page.keyboard.press('f');
     const overlay = page.getByTestId('artifact-fullscreen-overlay');
     await expect(overlay).toBeVisible();
     await page.keyboard.press('3');

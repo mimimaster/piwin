@@ -1,14 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   MIN_ARTIFACT_IFRAME_HEIGHT,
+  buildArtifactComponentKitCss,
+  buildArtifactDiagramKitCss,
   buildArtifactReportKitCss,
+  countShatteredText,
   resolveArtifactThemeCssVariables,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
   type ArtifactRules,
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
+import { ArtifactLayoutBadge } from './artifact-layout-badge.js';
 import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
+import { authorizeStaticArtifactStyles } from './artifact-static-styles.js';
 import {
   sanitizeStaticArtifactSource,
   sanitizeStaticArtifactSourceNow,
@@ -21,6 +26,8 @@ export type ArtifactStaticProps = {
   /** Rules the source was written under; selects the `on-accent` ink. */
   rules?: ArtifactRules;
   locale?: 'zh-CN' | 'en';
+  /** Lets the layout badge draft a fix request; absent means label only. */
+  onComposerProposal?: (payload: { text: string; label?: string }) => void;
 };
 
 /**
@@ -95,14 +102,14 @@ const STATIC_ARTIFACT_BASE_CSS = `
 `;
 
 /**
- * The Report Kit, as the sandbox ships it, plus the Inline measure: the chat
+ * The Report Kit and Diagram Kit, as the sandbox ships them, plus the Inline measure: the chat
  * column already supplies the gutter. The kit's own Inline rule keys off the
  * sandbox document's `<html data-frame-mode>`, which a shadow tree has not.
  * Without this a kit report loses all styling the moment its stream finishes
  * and the static renderer takes over.
  */
 function buildStaticReportKitCss(rules: ArtifactRules): string {
-  return `${buildArtifactReportKitCss({ rules })}
+  return `${buildArtifactReportKitCss({ rules })}${buildArtifactDiagramKitCss()}${buildArtifactComponentKitCss()}
 .piwin-artifact-root > .piwin-report {
   max-width: 100%;
   margin: 0;
@@ -147,9 +154,11 @@ export function ArtifactStatic({
   theme,
   rules = 'legacy',
   locale = 'en',
+  onComposerProposal,
 }: ArtifactStaticProps): ReactElement {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [overflows, setOverflows] = useState(false);
+  const [shatteredText, setShatteredText] = useState(0);
   const [localViewportHeight, setLocalViewportHeight] = useState<number | null>(null);
   // Sanitized in render once the sanitizer is loaded, so the first commit
   // already carries the content and the Artifact never paints empty.
@@ -201,9 +210,12 @@ export function ArtifactStatic({
     const content = document.createElement('div');
     content.className = 'piwin-artifact-root';
     content.innerHTML = sanitizedSource;
+    authorizeStaticArtifactStyles(baseStyle, content);
     shadowRoot.replaceChildren(baseStyle, content);
     const measure = (): void => {
       setOverflows(shouldEnterArtifactInlineOverflow(content.getBoundingClientRect().height));
+      // Same probe the sandbox runs in its frame; here the host owns the tree.
+      setShatteredText(countShatteredText(shadowRoot, window));
     };
     measure();
     if (typeof ResizeObserver === 'undefined') {
@@ -246,6 +258,11 @@ export function ArtifactStatic({
           {hint}
         </p>
       ) : null}
+      <ArtifactLayoutBadge
+        shatteredText={shatteredText}
+        locale={locale}
+        onComposerProposal={onComposerProposal}
+      />
       <div
         ref={hostRef}
         className="artifact-static"

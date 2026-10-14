@@ -5,8 +5,8 @@
 import type { ReactElement, ReactNode } from 'react';
 import type { ArtifactStyle } from '@piwin/artifact';
 import {
+  Button,
   IconButton,
-  IconCode,
   IconCompress,
   IconDownload,
   IconExpand,
@@ -15,10 +15,12 @@ import {
 } from '@piwin/ui-kit';
 import {
   ARTIFACT_PREVIEW_THEMES,
+  ARTIFACT_VIEWER_WIDTH_PX,
   artifactStyleLabel,
   artifactViewerCopy,
+  artifactViewerFixedWidths,
   artifactViewerWidthPx,
-  artifactViewerWidths,
+  toggleArtifactViewerWidth,
   type ArtifactPreviewTheme,
   type ArtifactViewerLocale,
   type ArtifactViewerWidth,
@@ -29,13 +31,17 @@ export type ArtifactViewerToolbarProps = {
   style: ArtifactStyle | undefined;
   locale: ArtifactViewerLocale;
   fullscreen: boolean;
-  /** Width and theme presets; iOS shows fullscreen only (design §13). */
+  /** Width (and fullscreen theme) presets; iOS shows fullscreen only (design §13). */
   presets: boolean;
   width: ArtifactViewerWidth;
   onWidthChange: (width: ArtifactViewerWidth) => void;
-  previewTheme: ArtifactPreviewTheme;
-  onPreviewThemeChange: (theme: ArtifactPreviewTheme) => void;
-  onToggleFullscreen: () => void;
+  /** Theme preview lives in the fullscreen overlay only; Canvas omits it. */
+  themePreview?: {
+    value: ArtifactPreviewTheme;
+    onChange: (theme: ArtifactPreviewTheme) => void;
+  };
+  /** Omitted where the surrounding pane already has its own maximize. */
+  onToggleFullscreen?: () => void;
   showingCode?: boolean;
   onToggleCode?: () => void;
   onDownload?: () => void;
@@ -47,6 +53,7 @@ export type ArtifactViewerToolbarProps = {
 
 export function ArtifactViewerToolbar(props: ArtifactViewerToolbarProps): ReactElement {
   const copy = artifactViewerCopy(props.locale);
+  const { themePreview, onToggleFullscreen } = props;
   const surfaceLabel = props.fullscreen
     ? props.locale === 'en'
       ? 'Fullscreen'
@@ -71,48 +78,62 @@ export function ArtifactViewerToolbar(props: ArtifactViewerToolbarProps): ReactE
       </div>
       <div className="artifact-viewer-toolbar-actions">
         {props.presets ? (
-          <>
-            <SegmentedControl
-              size="xs"
-              className="artifact-viewer-segment"
-              testId={`${props.testIdPrefix}-width`}
-              aria-label={copy.widthGroup}
-              value={props.width}
-              onChange={(value) => props.onWidthChange(value as ArtifactViewerWidth)}
-              data={artifactViewerWidths(props.fullscreen).map((width) => ({
-                value: width,
-                label: copy.width[width],
-              }))}
-            />
-            <SegmentedControl
-              size="xs"
-              className="artifact-viewer-segment"
-              testId={`${props.testIdPrefix}-theme`}
-              aria-label={copy.themeGroup}
-              value={props.previewTheme}
-              onChange={(value) => props.onPreviewThemeChange(value as ArtifactPreviewTheme)}
-              data={ARTIFACT_PREVIEW_THEMES.map((theme) => ({
-                value: theme,
-                label: copy.theme[theme],
-              }))}
-            />
-          </>
+          <div
+            className="artifact-viewer-widths"
+            role="group"
+            aria-label={copy.widthGroup}
+            data-testid={`${props.testIdPrefix}-width`}
+          >
+            {artifactViewerFixedWidths(props.fullscreen).map((width) => {
+              const px = ARTIFACT_VIEWER_WIDTH_PX[width];
+              return (
+                <Button
+                  key={width}
+                  variant="ghost"
+                  size="compact"
+                  className="artifact-viewer-width"
+                  title={copy.widthPreset(px)}
+                  aria-pressed={props.width === width}
+                  data-testid={`${props.testIdPrefix}-width-${width}`}
+                  onClick={() => props.onWidthChange(toggleArtifactViewerWidth(props.width, width))}
+                >
+                  {px}
+                </Button>
+              );
+            })}
+          </div>
         ) : null}
-        <IconButton
-          size="sm"
-          className="artifact-viewer-button"
-          label={props.fullscreen ? copy.exitFullscreen : copy.fullscreen}
-          title={props.fullscreen ? copy.exitFullscreen : `${copy.fullscreen} — ${copy.remountNote}`}
-          data-testid={`${props.testIdPrefix}-fullscreen`}
-          onClick={(event) => {
-            // WebKit does not focus buttons on pointer clicks. Capture the
-            // opener explicitly before the overlay takes focus.
-            event.currentTarget.focus();
-            props.onToggleFullscreen();
-          }}
-        >
-          {props.fullscreen ? <IconCompress size={14} /> : <IconExpand size={14} />}
-        </IconButton>
+        {props.presets && themePreview ? (
+          <SegmentedControl
+            size="xs"
+            className="artifact-viewer-segment"
+            testId={`${props.testIdPrefix}-theme`}
+            aria-label={copy.themeGroup}
+            value={themePreview.value}
+            onChange={(value) => themePreview.onChange(value as ArtifactPreviewTheme)}
+            data={ARTIFACT_PREVIEW_THEMES.map((theme) => ({
+              value: theme,
+              label: copy.theme[theme],
+            }))}
+          />
+        ) : null}
+        {onToggleFullscreen ? (
+          <IconButton
+            size="sm"
+            className="artifact-viewer-button"
+            label={props.fullscreen ? copy.exitFullscreen : copy.fullscreen}
+            title={props.fullscreen ? copy.exitFullscreen : `${copy.fullscreen} — ${copy.remountNote}`}
+            data-testid={`${props.testIdPrefix}-fullscreen`}
+            onClick={(event) => {
+              // WebKit does not focus buttons on pointer clicks. Capture the
+              // opener explicitly before the overlay takes focus.
+              event.currentTarget.focus();
+              onToggleFullscreen();
+            }}
+          >
+            {props.fullscreen ? <IconCompress size={14} /> : <IconExpand size={14} />}
+          </IconButton>
+        ) : null}
         {props.onToggleCode ? (
           <IconButton
             size="sm"
@@ -123,7 +144,7 @@ export function ArtifactViewerToolbar(props: ArtifactViewerToolbarProps): ReactE
             data-testid={`${props.testIdPrefix}-code`}
             onClick={props.onToggleCode}
           >
-            {props.showingCode ? <IconEye size={14} /> : <IconCode size={14} />}
+            <IconEye size={14} />
           </IconButton>
         ) : null}
         {props.onDownload ? (

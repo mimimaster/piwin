@@ -1,10 +1,11 @@
 /* Artifact frames (ArtifactFrame.tsx / MarkdownView.tsx).
    Rendered inline in transcript markdown.
 
-   Deck rule: floating controls are a flyout — surface-4, elev-4, no border.
-   Placeholder surfaces recess to void with inset hairlines. Canvas launchers
-   are transcript objects: elevated card, recessed description well, full
-   conversation-column width (not a 2-up grid cell). */
+   Deck rule: Inline actions are a row below the artifact, never an overlay —
+   model-authored headers favour the top-right corner. Placeholder surfaces
+   recess to void with inset hairlines. Canvas launchers are transcript
+   objects: elevated card, recessed description well, full conversation-column
+   width (not a 2-up grid cell). */
 
 .artifact-with-source {
   position: relative;
@@ -20,8 +21,6 @@
   max-width: 100%;
   margin: 0;
   box-sizing: border-box;
-  /* Two 24px icons + flyout padding + inset + gaps so chrome cannot sit under the overlay. */
-  --artifact-flyout-reserve: calc(24px * 2 + var(--s-2) + var(--s-1) * 2 + var(--s-4) + var(--s-3));
 }
 
 .artifact-preview-surface {
@@ -32,29 +31,27 @@
 }
 
 .artifact-floating-actions {
-  position: absolute;
-  top: var(--s-4);
-  right: var(--s-4);
-  z-index: 10;
-  display: inline-flex;
+  /* The row keeps its height while hidden so hover never shifts the transcript. */
+  display: flex;
+  justify-content: flex-end;
   align-items: center;
-  gap: var(--s-2);
-  padding: var(--s-1);
-  border: 0;
-  border-radius: var(--r-control);
-  background: var(--surface-4);
-  box-shadow: var(--elev-4);
-  opacity: 0.35;
-  pointer-events: auto;
-  transition:
-    opacity var(--t-2) var(--ease-out),
-    background var(--t-1) var(--ease-out);
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+  opacity: 0;
+  transition: opacity var(--t-1) var(--ease-out);
 }
 
 .artifact-with-source--preview:hover .artifact-floating-actions,
 .artifact-with-source--preview:focus-within .artifact-floating-actions,
-.artifact-floating-actions:hover {
+.artifact-floating-actions:has([data-state='open']) {
   opacity: 1;
+}
+
+/* No hover on touch: keep the row visible. */
+@media (hover: none) {
+  .artifact-floating-actions {
+    opacity: 1;
+  }
 }
 
 .artifact-floating-action-button.piwin-icon-button {
@@ -111,7 +108,6 @@
   flex-wrap: wrap;
   gap: var(--s-3);
   margin-bottom: var(--s-2);
-  padding-right: var(--artifact-flyout-reserve, 0);
   color: var(--text-3);
   font-size: var(--fs-chrome);
 }
@@ -222,11 +218,6 @@
 @media (max-width: 640px) {
   .artifact-with-source--preview {
     display: block;
-  }
-
-  .artifact-floating-actions {
-    top: var(--s-3);
-    right: var(--s-3);
   }
 
   .artifact-frame.has-artifact-action {
@@ -385,7 +376,6 @@
 
 .artifact-overflow-hint {
   margin: 0 0 var(--s-3);
-  padding: 0 var(--artifact-flyout-reserve, 0) 0 0;
   color: var(--text-3);
   font-size: var(--fs-chrome);
   line-height: 1.45;
@@ -396,7 +386,6 @@
 .artifact-script-error,
 .artifact-source-incomplete {
   margin: var(--s-2) 0 0;
-  padding: 0 var(--artifact-flyout-reserve, 0) 0 0;
   color: var(--coral);
   font-family: var(--mono);
   font-size: var(--fs-micro);

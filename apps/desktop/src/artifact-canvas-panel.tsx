@@ -30,13 +30,7 @@ import { useStableArtifactTheme } from './artifact-stable-theme.js';
 import { RenderErrorBoundary } from './render-error-boundary.js';
 import { ArtifactFullscreenOverlay } from './artifact-fullscreen-overlay.js';
 import { ArtifactViewerStage, ArtifactViewerToolbar } from './artifact-viewer-controls.js';
-import {
-  nextArtifactPreviewTheme,
-  resolveArtifactPreviewTheme,
-  resolveArtifactViewerKey,
-  type ArtifactPreviewTheme,
-  type ArtifactViewerWidth,
-} from './artifact-viewer-model.js';
+import { resolveArtifactViewerKey, type ArtifactViewerWidth } from './artifact-viewer-model.js';
 import { SourceCodeBlock } from './markdown-code-block.js';
 import { isMobileTauriRuntime } from './shell-runtime.js';
 import { useArtifactStyleModes } from './artifact-style-modes';
@@ -60,7 +54,7 @@ export type ArtifactCanvasPanelProps = {
   onInsertProposal?: (proposal: ArtifactCanvasProposal) => void;
   /** The surrounding header renders Download, so the toolbar omits its own. */
   hideFloatingDownload?: boolean;
-  /** Width/theme presets; defaults off on the mobile shell (fullscreen only). */
+  /** Width presets; defaults off on the mobile shell (fullscreen only). */
   viewerPresets?: boolean;
 };
 
@@ -88,7 +82,6 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
   const isZh = locale === 'zh-CN';
   const [pendingProposal, setPendingProposal] = useState<ArtifactCanvasProposal | null>(null);
   const [width, setWidth] = useState<ArtifactViewerWidth>('fit');
-  const [previewTheme, setPreviewTheme] = useState<ArtifactPreviewTheme>('follow');
   const [fullscreen, setFullscreen] = useState(false);
   const [showingCode, setShowingCode] = useState(false);
   // "View with theme" applies to one artifact; another target starts in its own style.
@@ -100,12 +93,7 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
     ...(activeTarget ? { originSessionId: activeTarget.sessionId } : {}),
   });
 
-  const hostTheme = useStableArtifactTheme(props.artifactTheme);
-  const previewVariables = useMemo(
-    () => resolveArtifactPreviewTheme(previewTheme, hostTheme),
-    [previewTheme, hostTheme],
-  );
-  const artifactTheme = previewTheme === 'follow' ? hostTheme : previewVariables;
+  const artifactTheme = useStableArtifactTheme(props.artifactTheme);
   const hostView = activeTarget !== null && activeTarget !== undefined && hostViewTargetId === activeTarget.id;
   const plan = useMemo(() => {
     if (!activeTarget) return null;
@@ -169,7 +157,6 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
         event.preventDefault();
         if (action.kind === 'toggle-fullscreen') setFullscreen(true);
         else if (action.kind === 'width') setWidth(action.width);
-        else if (action.kind === 'cycle-theme') setPreviewTheme(nextArtifactPreviewTheme);
       }}
     >
       {pendingProposal ? (
@@ -217,9 +204,9 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
         presets={presets}
         width={width}
         onWidthChange={setWidth}
-        previewTheme={previewTheme}
-        onPreviewThemeChange={setPreviewTheme}
-        onToggleFullscreen={() => setFullscreen(true)}
+        // The desktop pane has its own maximize; the mobile shell has no
+        // keyboard for F, so it keeps the button.
+        {...(presets ? {} : { onToggleFullscreen: () => setFullscreen(true) })}
         showingCode={showingCode}
         onToggleCode={() => setShowingCode((value) => !value)}
         {...(canExportSource && props.hideFloatingDownload !== true
@@ -239,7 +226,7 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
       ) : plan && (plan.kind === 'render' || plan.kind === 'blocked') ? (
         <ArtifactViewerStage width={width} testId="artifact-canvas-stage">
           <ArtifactFrame
-            key={`${props.artifactThemeKey ?? 'default'}:${previewTheme}:${activeTarget.id}`}
+            key={`${props.artifactThemeKey ?? 'default'}:${activeTarget.id}`}
             plan={plan}
             presentation="canvas"
             locale={locale}
@@ -263,9 +250,8 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
           locale={locale}
           presets={presets}
           initialWidth={width}
-          initialPreviewTheme={previewTheme}
           mediaDataUrls={mediaDataUrls}
-          {...(hostTheme ? { hostTheme } : {})}
+          {...(artifactTheme ? { hostTheme: artifactTheme } : {})}
           onClose={() => setFullscreen(false)}
         />
       ) : null}

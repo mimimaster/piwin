@@ -14,9 +14,10 @@ import {
 export type ArtifactViewerWidth = 'fit' | 'desktop' | 'mobile' | 'wide';
 export type ArtifactPreviewTheme = 'follow' | 'paper' | 'ink';
 export type ArtifactViewerLocale = 'zh-CN' | 'en';
+export type ArtifactViewerFixedWidth = Exclude<ArtifactViewerWidth, 'fit'>;
 
 /** Stage width in CSS px; `fit` follows the container. */
-export const ARTIFACT_VIEWER_WIDTH_PX: Record<Exclude<ArtifactViewerWidth, 'fit'>, number> = {
+export const ARTIFACT_VIEWER_WIDTH_PX: Record<ArtifactViewerFixedWidth, number> = {
   desktop: 760,
   mobile: 390,
   wide: 1200,
@@ -24,7 +25,20 @@ export const ARTIFACT_VIEWER_WIDTH_PX: Record<Exclude<ArtifactViewerWidth, 'fit'
 
 /** Canvas offers three widths; fullscreen adds the wide one. */
 export function artifactViewerWidths(fullscreen: boolean): ArtifactViewerWidth[] {
-  return fullscreen ? ['fit', 'wide', 'desktop', 'mobile'] : ['fit', 'desktop', 'mobile'];
+  return ['fit', ...artifactViewerFixedWidths(fullscreen)];
+}
+
+/** Fixed widths the toolbar shows; `fit` is the state with none pressed. */
+export function artifactViewerFixedWidths(fullscreen: boolean): ArtifactViewerFixedWidth[] {
+  return fullscreen ? ['wide', 'desktop', 'mobile'] : ['desktop', 'mobile'];
+}
+
+/** Pressing the active width again returns to `fit`. */
+export function toggleArtifactViewerWidth(
+  current: ArtifactViewerWidth,
+  pressed: ArtifactViewerFixedWidth,
+): ArtifactViewerWidth {
+  return current === pressed ? 'fit' : pressed;
 }
 
 export function artifactViewerWidthPx(width: ArtifactViewerWidth): number | undefined {
@@ -109,7 +123,10 @@ export function resolveArtifactViewerKey(
   if (key === 'Escape') return context.surface === 'fullscreen' ? { kind: 'exit-fullscreen' } : null;
   if (key === 'f' || key === 'F') return { kind: 'toggle-fullscreen' };
   if (!context.presets) return null;
-  if (key === 't' || key === 'T') return { kind: 'cycle-theme' };
+  // Canvas has no theme control, so T would change state nobody can see.
+  if (context.surface === 'fullscreen' && (key === 't' || key === 'T')) {
+    return { kind: 'cycle-theme' };
+  }
   const widths = artifactViewerWidths(context.surface === 'fullscreen');
   const order: ArtifactViewerWidth[] =
     context.surface === 'fullscreen' ? ['fit', 'desktop', 'mobile', 'wide'] : widths;
@@ -139,12 +156,15 @@ export type ArtifactViewerCopy = {
   openCanvas: string;
   fullscreen: string;
   exitFullscreen: string;
-  width: Record<ArtifactViewerWidth, string>;
+  /** Tooltip for one fixed-width button. */
+  widthPreset: (px: number) => string;
   theme: Record<ArtifactPreviewTheme, string>;
   widthGroup: string;
   themeGroup: string;
   showCode: string;
   showPreview: string;
+  /** Overflow menu holding the less frequent Inline actions. */
+  moreActions: string;
   remountNote: string;
 };
 
@@ -154,12 +174,13 @@ export function artifactViewerCopy(locale: ArtifactViewerLocale): ArtifactViewer
       openCanvas: 'Open in Canvas',
       fullscreen: 'Fullscreen (F)',
       exitFullscreen: 'Exit fullscreen (Esc)',
-      width: { fit: 'Fit', desktop: '760', mobile: '390', wide: '1200' },
+      widthPreset: (px) => `Preview at ${px}px; press again to fit`,
       theme: { follow: 'Follow', paper: 'Paper', ink: 'Ink' },
       widthGroup: 'Preview width',
       themeGroup: 'Preview theme',
       showCode: 'Show code',
       showPreview: 'Show preview',
+      moreActions: 'More actions',
       remountNote: 'Fullscreen reloads the artifact; its state is not kept.',
     };
   }
@@ -167,12 +188,13 @@ export function artifactViewerCopy(locale: ArtifactViewerLocale): ArtifactViewer
     openCanvas: '在画布中打开',
     fullscreen: '全屏（F）',
     exitFullscreen: '退出全屏（Esc）',
-    width: { fit: '自适应', desktop: '760', mobile: '390', wide: '1200' },
+    widthPreset: (px) => `按 ${px}px 宽度预览，再点一次恢复自适应`,
     theme: { follow: '跟随', paper: '纸', ink: '墨' },
     widthGroup: '预览宽度',
     themeGroup: '预览主题',
     showCode: '显示代码',
     showPreview: '显示预览',
+    moreActions: '更多操作',
     remountNote: '全屏会重新加载 artifact，不保留当前状态。',
   };
 }

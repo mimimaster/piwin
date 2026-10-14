@@ -95,6 +95,7 @@ export function ArtifactFrame({
           rules={resolveArtifactRules(plan.intent.descriptor)}
           locale={locale}
           {...(theme ? { theme } : {})}
+          {...(onComposerProposal ? { onComposerProposal } : {})}
         />
       </div>
     );

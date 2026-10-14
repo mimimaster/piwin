@@ -36,11 +36,14 @@ describe('artifact kit runtime', () => {
 
   it('hydrates a declarative bar chart and keeps the caption readable', () => {
     const kit = loadKit(chartFigure('bar', { labels: ['一', '二'], series: [{ name: '耗时', values: [212, 198] }] }));
-    expect(kit.version).toBe('1.0.0');
+    expect(kit.version).toBe('1.1.0');
     const figure = document.querySelector('figure')!;
     expect(figure.hasAttribute('data-piwin-chart-ready')).toBe(true);
-    expect(figure.querySelectorAll('svg rect')).toHaveLength(2);
-    expect([...figure.querySelectorAll('svg text')].map((t) => t.textContent)).toEqual(['一', '二']);
+    expect(figure.querySelectorAll('svg .piwin-chart-bar')).toHaveLength(2);
+    expect([...figure.querySelectorAll('svg .piwin-chart-label')].map((t) => t.textContent)).toEqual(['一', '二']);
+    // Few bars: each prints its value, and the axis is rounded up to a readable maximum.
+    expect([...figure.querySelectorAll('svg .piwin-chart-value')].map((t) => t.textContent)).toEqual(['212', '198']);
+    expect([...figure.querySelectorAll('svg .piwin-chart-tick')].map((t) => t.textContent)).toEqual(['0', '50', '100', '150', '200', '250']);
     expect(figure.querySelector('figcaption')?.textContent).toBe('Caption');
     expect(figure.querySelector('svg')?.getAttribute('aria-label')).toBe('Caption');
   });
@@ -54,9 +57,29 @@ describe('artifact kit runtime', () => {
     const [line, donut, spark] = [...document.querySelectorAll('figure')];
     expect(line!.querySelectorAll('polyline')).toHaveLength(2);
     expect(donut!.querySelector('.piwin-chart-center')?.textContent).toBe('75%');
-    expect([...donut!.querySelectorAll('.piwin-chart-legend span')].map((s) => s.textContent)).toEqual(['x', 'y']);
+    expect([...donut!.querySelectorAll('.piwin-chart-legend span')].map((s) => s.textContent)).toEqual(['x75%', 'y25%']);
     expect(spark!.querySelectorAll('polyline')).toHaveLength(1);
     expect(spark!.querySelector('text')).toBeNull();
+  });
+
+  it('draws ranked rows and a share bar, and falls back to bar for an unknown kind', () => {
+    loadKit(
+      chartFigure('hbar', { labels: ['packages/host-runtime', '失败'], series: [{ values: [40, 10] }], unit: 'ms' }) +
+        chartFigure('stack', { labels: ['a', 'b', 'none'], series: [{ values: [3, 1, 0] }] }) +
+        chartFigure('radar', { labels: ['a'], series: [{ values: [1] }] }),
+    );
+    const [hbar, stack, unknown] = [...document.querySelectorAll('figure')];
+    expect([...hbar!.querySelectorAll('.piwin-chart-label')].map((t) => t.textContent)).toEqual(['packages/host-runtime', '失败']);
+    expect([...hbar!.querySelectorAll('.piwin-chart-value')].map((t) => t.textContent)).toEqual(['40ms', '10ms']);
+    // A row named like a status takes that tone; the rest share the series color.
+    expect([...hbar!.querySelectorAll('.piwin-chart-bar')].map((r) => r.getAttribute('fill'))).toEqual([
+      'var(--piwin-artifact-series-1)',
+      'var(--piwin-artifact-risk)',
+    ]);
+    expect(hbar!.querySelector('svg')?.getAttribute('height')).toBe('60');
+    expect(stack!.querySelectorAll('.piwin-chart-bar')).toHaveLength(2);
+    expect([...stack!.querySelectorAll('.piwin-chart-legend span')].map((s) => s.textContent)).toEqual(['a75%', 'b25%', 'none0%']);
+    expect(unknown!.querySelectorAll('path.piwin-chart-bar')).toHaveLength(1);
   });
 
   it('treats labels and names as text, never markup', () => {
@@ -69,7 +92,7 @@ describe('artifact kit runtime', () => {
     const figure = document.querySelector('figure')!;
     expect(figure.querySelector('img')).toBeNull();
     expect(figure.querySelector('b')).toBeNull();
-    expect(figure.querySelector('svg text')?.textContent).toBe('<img src=x onerror=alert(1)>');
+    expect(figure.querySelector('svg .piwin-chart-label')?.textContent).toBe('<img src=x onerror=alert(1)>');
   });
 
   it('accepts only theme-variable colors', () => {
@@ -83,7 +106,7 @@ describe('artifact kit runtime', () => {
         ],
       }),
     );
-    const fills = [...document.querySelectorAll('figure rect')].map((r) => r.getAttribute('fill'));
+    const fills = [...document.querySelectorAll('figure .piwin-chart-bar')].map((r) => r.getAttribute('fill'));
     expect(fills).toEqual([
       'var(--piwin-artifact-risk)',
       'var(--piwin-artifact-series-2)',
@@ -107,7 +130,7 @@ describe('artifact kit runtime', () => {
         chartFigure('donut', { labels: ['通过', '建议', 'other'], series: [{ values: [18, 4, 1] }], tones: [null, null, 'risk'] }),
     );
     const [bar, donut] = [...document.querySelectorAll('figure')];
-    expect([...bar!.querySelectorAll('rect')].map((r) => r.getAttribute('fill'))).toEqual([
+    expect([...bar!.querySelectorAll('.piwin-chart-bar')].map((r) => r.getAttribute('fill'))).toEqual([
       'var(--piwin-artifact-ok)',
       'var(--piwin-artifact-risk)',
       'var(--piwin-artifact-warn)',

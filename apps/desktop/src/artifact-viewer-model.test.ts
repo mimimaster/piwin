@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultArtifactTheme } from '@piwin/artifact';
 import {
   artifactStyleLabel,
+  artifactViewerFixedWidths,
   artifactViewerWidthPx,
   artifactViewerWidths,
   nextArtifactPreviewTheme,
   resolveArtifactPreviewTheme,
   resolveArtifactViewerKey,
+  toggleArtifactViewerWidth,
 } from './artifact-viewer-model';
 
 function key(k: string, extra: Partial<KeyboardEvent> = {}) {
@@ -21,6 +23,14 @@ describe('artifact viewer model', () => {
     expect(artifactViewerWidthPx('desktop')).toBe(760);
     expect(artifactViewerWidthPx('mobile')).toBe(390);
     expect(artifactViewerWidthPx('wide')).toBe(1200);
+  });
+
+  it('shows only fixed widths and treats a second press as fit', () => {
+    expect(artifactViewerFixedWidths(false)).toEqual(['desktop', 'mobile']);
+    expect(artifactViewerFixedWidths(true)).toEqual(['wide', 'desktop', 'mobile']);
+    expect(toggleArtifactViewerWidth('fit', 'mobile')).toBe('mobile');
+    expect(toggleArtifactViewerWidth('desktop', 'mobile')).toBe('mobile');
+    expect(toggleArtifactViewerWidth('mobile', 'mobile')).toBe('fit');
   });
 
   it('cycles follow → paper → ink → follow', () => {
@@ -43,13 +53,13 @@ describe('artifact viewer model', () => {
     expect(artifactStyleLabel('expressive')).toBe('expressive');
   });
 
-  it('maps Canvas keys F, 1/2/3, T and ignores modified keys', () => {
+  it('maps Canvas keys F, 1/2/3 and ignores T and modified keys', () => {
     const canvas = { surface: 'canvas' as const, presets: true };
     expect(resolveArtifactViewerKey(key('f'), canvas)).toEqual({ kind: 'toggle-fullscreen' });
     expect(resolveArtifactViewerKey(key('2'), canvas)).toEqual({ kind: 'width', width: 'desktop' });
     expect(resolveArtifactViewerKey(key('3'), canvas)).toEqual({ kind: 'width', width: 'mobile' });
     expect(resolveArtifactViewerKey(key('4'), canvas)).toBeNull();
-    expect(resolveArtifactViewerKey(key('t'), canvas)).toEqual({ kind: 'cycle-theme' });
+    expect(resolveArtifactViewerKey(key('t'), canvas)).toBeNull();
     expect(resolveArtifactViewerKey(key('f', { metaKey: true }), canvas)).toBeNull();
     expect(resolveArtifactViewerKey(key('Escape'), canvas)).toBeNull();
   });
@@ -58,6 +68,7 @@ describe('artifact viewer model', () => {
     const full = { surface: 'fullscreen' as const, presets: true };
     expect(resolveArtifactViewerKey(key('Escape'), full)).toEqual({ kind: 'exit-fullscreen' });
     expect(resolveArtifactViewerKey(key('4'), full)).toEqual({ kind: 'width', width: 'wide' });
+    expect(resolveArtifactViewerKey(key('t'), full)).toEqual({ kind: 'cycle-theme' });
   });
 
   it('drops presets on the mobile shell but keeps fullscreen', () => {

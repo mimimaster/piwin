@@ -24,6 +24,7 @@ import {
 } from './artifact-frame-stream.js';
 import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
 import { artifactScriptErrorCopy } from './artifact-script-error-copy.js';
+import { ArtifactLayoutBadge } from './artifact-layout-badge.js';
 import { ArtifactContrastBadge, type ArtifactStyleOverride } from './artifact-style-override.js';
 import { useTranscriptScrollPort } from './transcript-scroll-port.js';
 
@@ -163,11 +164,13 @@ export function ArtifactSandboxFrame(props: {
   // which reads as a platform block rather than the author's own bug.
   const [scriptError, setScriptError] = useState<ArtifactErrorMessage | null>(null);
   const [contrastIssue, setContrastIssue] = useState<ArtifactContrastMessage | null>(null);
+  const [shatteredText, setShatteredText] = useState(0);
   const scriptErrorDocumentRef = useRef<string | null>(null);
   if (scriptErrorDocumentRef.current !== document.documentKey) {
     scriptErrorDocumentRef.current = document.documentKey;
     if (scriptError !== null) setScriptError(null);
     if (contrastIssue !== null) setContrastIssue(null);
+    if (shatteredText !== 0) setShatteredText(0);
   }
   const bridge = useArtifactFrameBridge({
     channelId,
@@ -184,6 +187,7 @@ export function ArtifactSandboxFrame(props: {
     ...(scrollPort ? { onContentGrew: scrollPort.notifyContentGrew } : {}),
     onScriptError: (error) => setScriptError((current) => current ?? error),
     onContrastIssue: (issue) => setContrastIssue((current) => current ?? issue),
+    onLayoutIssue: (issue) => setShatteredText(issue.shatteredText),
   });
   const appliedFrameMode = bridge.overflowsInlineFlow
     ? advanceArtifactFrameMode(plannedFrameMode, 'inline-overflow')
@@ -286,6 +290,11 @@ export function ArtifactSandboxFrame(props: {
             issue={contrastIssue}
             override={props.styleOverride}
             locale={props.locale}
+          />
+          <ArtifactLayoutBadge
+            shatteredText={shatteredText}
+            locale={props.locale}
+            onComposerProposal={props.onComposerProposal}
           />
           {scriptError ? (
             <p

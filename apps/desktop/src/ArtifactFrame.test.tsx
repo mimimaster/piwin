@@ -222,6 +222,31 @@ describe('ArtifactFrame chrome', () => {
     );
   });
 
+  it('shows the layout badge from its own iframe only, without a fix action when no composer is wired', async () => {
+    const decision = makeRenderPlan();
+    const { container, root } = renderFrame(decision, 'inline', undefined, 'zh-CN');
+    instances.push({ container, root });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe:not(.artifact-iframe--outgoing)');
+    const report = { type: 'piwin-artifact:layout', channelId: decision.intent.descriptor.id, shatteredText: 3 };
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', { source: window, data: report }));
+    });
+    expect(container.querySelector('[data-testid="artifact-layout-badge"]')).toBeNull();
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', { source: iframe?.contentWindow ?? null, data: report }),
+      );
+    });
+    const badge = container.querySelector('[data-testid="artifact-layout-badge"]');
+    expect(badge?.textContent).toContain('部分文字被挤成了窄列');
+    expect(badge?.getAttribute('data-shattered-text')).toBe('3');
+    expect(container.querySelector('[data-testid="artifact-layout-fix"]')).toBeNull();
+  });
+
   it('shows the contrast badge from its own iframe and offers the theme view', async () => {
     const decision = makeRenderPlan();
     const onToggle = vi.fn();
