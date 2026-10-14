@@ -46,6 +46,7 @@ const PRODUCT_GLASS_WHITELIST = [
   'html[data-window-material] .line-comment-popover',
   'html[data-window-material] .add-model-catalog-suggestions',
   'html[data-window-material] .fc-source-popover',
+  'html[data-window-material] .ui-popover-content.transcript-selection-toolbar',
   'html[data-window-material] .mantine-Notification-root',
   'html[data-window-material] .ui-toast',
   'html[data-window-material] .modal.ui-dialog-content',
