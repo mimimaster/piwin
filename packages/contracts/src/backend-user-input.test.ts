@@ -56,6 +56,34 @@ describe('backend user input', () => {
     })).toBeUndefined();
     expect(parseBackendUserInputRequest({
       title: 'x',
+      questions: [{
+        id: 'q1',
+        prompt: 'Pick',
+        type: 'select',
+        choices: [
+          { id: 'same', label: 'A' },
+          { id: 'same', label: 'B' },
+        ],
+      }],
+    })).toBeUndefined();
+    const dupChoice = parseBackendUserInputRequest({
+      title: 'x',
+      questions: [{
+        id: 'q1',
+        prompt: 'Pick',
+        type: 'select',
+        multiple: true,
+        choices: [
+          { id: 'a', label: 'A' },
+          { id: 'b', label: 'B' },
+        ],
+      }],
+    })!;
+    expect(parseBackendUserInputResult({
+      answers: [{ questionId: 'q1', optionIds: ['a', 'a'] }],
+    }, dupChoice)).toBeUndefined();
+    expect(parseBackendUserInputRequest({
+      title: 'x',
       questions: Array.from({ length: BACKEND_USER_INPUT_MAX_QUESTIONS + 1 }, (_, index) => ({
         id: `q${index}`,
         prompt: `Q${index}`,
