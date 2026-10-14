@@ -39,8 +39,13 @@ describe('validateThemeManifest', () => {
   });
 
   it('accepts the optional visual style without making it executable', () => {
+    const result = validateThemeManifest({ ...valid, visualStyle: 'paper' });
+    expect(result).toMatchObject({ ok: true, manifest: { visualStyle: 'paper' } });
+  });
+
+  it('rejects the retired ink-wash visual style', () => {
     const result = validateThemeManifest({ ...valid, visualStyle: 'ink-wash' });
-    expect(result).toMatchObject({ ok: true, manifest: { visualStyle: 'ink-wash' } });
+    expect(result.ok).toBe(false);
   });
 
   it('rejects unknown visual styles', () => {

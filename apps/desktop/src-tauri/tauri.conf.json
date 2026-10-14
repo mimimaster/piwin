@@ -28,6 +28,11 @@
         "minHeight": 700,
         "decorations": true,
         "shadow": true,
+        "transparent": true,
+        "windowEffects": {
+          "effects": ["sidebar"],
+          "state": "followsWindowActiveState"
+        },
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "trafficLightPosition": {

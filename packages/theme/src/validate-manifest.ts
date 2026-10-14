@@ -57,14 +57,13 @@ export function validateThemeManifest(value: unknown): ThemeValidationResult {
   }
   const visualStyle =
     record.visualStyle === 'flat' ||
-    record.visualStyle === 'paper' ||
-    record.visualStyle === 'ink-wash'
+    record.visualStyle === 'paper'
       ? record.visualStyle
       : record.visualStyle === undefined
         ? undefined
         : null;
   if (visualStyle === null) {
-    issues.push({ path: 'visualStyle', message: 'visualStyle must be flat|paper|ink-wash' });
+    issues.push({ path: 'visualStyle', message: 'visualStyle must be flat|paper' });
   }
 
   const tokensRaw = record.tokens;

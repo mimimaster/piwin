@@ -1,0 +1,111 @@
+/* Full-window pages on the native window material — Settings and the studio
+   jumps (library, flashcards, knowledge, marketplace). They mount as fixed
+   siblings of `.app-shell` and used to repaint an opaque void over the whole
+   window, so opening one dropped the glass until it closed.
+
+   Each page reuses the shell's region opacities (written on the document
+   root by window-material-preferences.ts): its own field is the backdrop,
+   navigation columns are the sidebar, reading/browsing surfaces are the
+   stage. While a page is open the shell's field steps aside so the two
+   fields do not stack into a denser tint. */
+html[data-window-material]:has(.app-shell:not([data-layout='phone']))
+  .app-shell:is(.settings-open, .studio-open) {
+  background: transparent;
+}
+
+/* The marketplace opens over a live shell (no studio-open): with a
+   translucent page on top, the shell's panels would ghost through. */
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])):has(.vault-stage) .app-shell {
+  background: transparent;
+}
+
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])):has(.vault-stage)
+  .app-shell
+  > :not(.notification-region, .shell-overlay-scrim) {
+  visibility: hidden;
+}
+
+/* Settings does not hide the shell titleband (studio-open does); with a
+   translucent host it would ghost through behind the settings titlebar. */
+html[data-window-material]:has(.app-shell:not([data-layout='phone']))
+  .app-shell.settings-open
+  > .context-bar {
+  visibility: hidden;
+}
+
+/* ── Settings: field · nav (sidebar) · main (stage) ─────────────────── */
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .settings-overlay-host {
+  background: color-mix(
+    in srgb,
+    var(--void) var(--window-material-backdrop-opacity, 60%),
+    transparent
+  );
+}
+
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .settings-page {
+  background: transparent;
+}
+
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .settings-nav {
+  background: color-mix(
+    in srgb,
+    var(--s1) var(--window-material-sidebar-opacity, 30%),
+    transparent
+  );
+}
+
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .settings-main {
+  background: color-mix(
+    in srgb,
+    var(--s2) var(--window-material-stage-opacity, 90%),
+    transparent
+  );
+}
+
+/* ── Studio pages ────────────────────────────────────────────────────
+   Library / flashcards / marketplace are one browsing surface: stage.
+   region-library-workspace.css and inkstone/subpages.css pin the library
+   fill with !important, so this layer has to as well. */
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .vault-stage,
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .vault-stage.lib-page {
+  background: color-mix(
+    in srgb,
+    var(--s2) var(--window-material-stage-opacity, 90%),
+    transparent
+  ) !important;
+}
+
+/* region-marketplace.css pins the Inkstone fill with !important. */
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .vault-stage.marketplace-stage {
+  background: color-mix(
+    in srgb,
+    var(--s1) var(--window-material-stage-opacity, 90%),
+    transparent
+  ) !important;
+}
+
+/* Knowledge mirrors the shell: field · nav/copilot columns · content canvas. */
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .vault-stage.ink-window {
+  background: color-mix(
+    in srgb,
+    var(--void) var(--window-material-backdrop-opacity, 60%),
+    transparent
+  ) !important;
+}
+
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .wiki-layout {
+  background: color-mix(
+    in srgb,
+    var(--s1) var(--window-material-sidebar-opacity, 30%),
+    transparent
+  );
+}
+
+/* region-knowledge-wiki-article.css pins the canvas fill with !important. */
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .wiki-content-canvas {
+  background: color-mix(
+    in srgb,
+    var(--s2) var(--window-material-stage-opacity, 90%),
+    transparent
+  ) !important;
+}

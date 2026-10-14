@@ -7,13 +7,11 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import type { ThemeManifest } from '@piwin/contracts';
 import {
   BUILTIN_APPEARANCES,
-  PIWIN_APPEARANCE_BONE,
   PIWIN_APPEARANCE_DARK,
   PIWIN_APPEARANCE_INKSTONE_INK,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
   PIWIN_INKSTONE_THEME_ID,
   PIWIN_APPEARANCE_LIGHT,
-  PIWIN_APPEARANCE_OBSIDIAN,
   applyAppearanceToDocument,
   beginThemeSwitch,
   buildAppearanceTheme,
@@ -23,9 +21,9 @@ import {
   isInkstoneThemeId,
   migrateThemeId,
   resolveBuiltinAppearance,
-  toHostCatalogThemeId,
   resolveDesktopAppearance,
 } from './appearance-tokens';
+import { INSTALLED_DARK_THEME, INSTALLED_LIGHT_THEME } from './theme/installed-theme-fixtures.js';
 import type { AppearanceThemeSettings } from './ui-preferences';
 
 /**
@@ -227,7 +225,7 @@ describe('applyAppearanceToDocument', () => {
   });
 
   it('emits the full documented variable set for Obsidian', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+    applyAppearanceToDocument(INSTALLED_DARK_THEME);
 
     expect(emittedVariableNames(document.documentElement.style)).toEqual([
       ...DOCUMENTED_APPEARANCE_VARIABLES,
@@ -238,7 +236,7 @@ describe('applyAppearanceToDocument', () => {
   });
 
   it('emits the full documented variable set for Bone', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_BONE);
+    applyAppearanceToDocument(INSTALLED_LIGHT_THEME);
 
     expect(emittedVariableNames(document.documentElement.style)).toEqual([
       ...DOCUMENTED_APPEARANCE_VARIABLES,
@@ -249,11 +247,11 @@ describe('applyAppearanceToDocument', () => {
   });
 
   it('makes theme switching a value swap only — identical variable-name sets', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+    applyAppearanceToDocument(INSTALLED_DARK_THEME);
     const darkNames = emittedVariableNames(document.documentElement.style);
     const darkField = read('--void');
 
-    applyAppearanceToDocument(PIWIN_APPEARANCE_BONE);
+    applyAppearanceToDocument(INSTALLED_LIGHT_THEME);
 
     expect(emittedVariableNames(document.documentElement.style)).toEqual(darkNames);
     expect(read('--void')).not.toBe(darkField);
@@ -269,14 +267,14 @@ describe('applyAppearanceToDocument', () => {
   });
 
   it('leaves Inkstone slab tokens to the stylesheet, not Deck surface-3', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+    applyAppearanceToDocument(INSTALLED_DARK_THEME);
     expect(read('--slab')).toBe(read('--surface-3'));
 
     applyAppearanceToDocument(PIWIN_APPEARANCE_INKSTONE_PAPER);
     expect(read('--slab')).toBe('');
     expect(read('--slab-placeholder')).toBe('');
 
-    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+    applyAppearanceToDocument(INSTALLED_DARK_THEME);
     expect(read('--slab')).toBe(read('--surface-3'));
   });
 
@@ -285,7 +283,7 @@ describe('applyAppearanceToDocument', () => {
       document.documentElement.style.setProperty(name, '999px');
     }
 
-    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+    applyAppearanceToDocument(INSTALLED_DARK_THEME);
 
     for (const name of GEOMETRY_VARIABLES) {
       expect(read(name), name).toBe('');
@@ -314,15 +312,15 @@ describe('applyAppearanceToDocument', () => {
     expect(document.documentElement.dataset.themeId).toBe('piwin-inkstone-ink');
   });
 
-  it('sets theme identity attributes for every built-in', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+  it('sets theme identity attributes for installed themes', () => {
+    applyAppearanceToDocument(INSTALLED_DARK_THEME);
     expect(document.documentElement.dataset.themeMode).toBe('dark');
-    expect(document.documentElement.dataset.themeId).toBe('piwin-obsidian');
+    expect(document.documentElement.dataset.themeId).toBe('test-installed-dark');
     expect(document.documentElement.style.colorScheme).toBe('dark');
 
-    applyAppearanceToDocument(PIWIN_APPEARANCE_BONE);
+    applyAppearanceToDocument(INSTALLED_LIGHT_THEME);
     expect(document.documentElement.dataset.themeMode).toBe('light');
-    expect(document.documentElement.dataset.themeId).toBe('piwin-bone');
+    expect(document.documentElement.dataset.themeId).toBe('test-installed-light');
     expect(document.documentElement.style.colorScheme).toBe('light');
   });
 });
@@ -333,7 +331,7 @@ describe('Deck ramp projection', () => {
   });
 
   it('projects the authored Obsidian ramp', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+    applyAppearanceToDocument(INSTALLED_DARK_THEME);
 
     expect(read('--void')).toBe('#08080b');
     expect(read('--surface-1')).toBe('#101014');
@@ -347,7 +345,7 @@ describe('Deck ramp projection', () => {
   });
 
   it('projects the authored Bone ramp with a field darker than every surface', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_BONE);
+    applyAppearanceToDocument(INSTALLED_LIGHT_THEME);
 
     expect(read('--void')).toBe('#e5e2dc');
     expect(read('--surface-1')).toBe('#f3f1ed');
@@ -392,7 +390,7 @@ describe('Deck ramp projection', () => {
   });
 
   it('maps every legacy surface name onto a Deck role', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+    applyAppearanceToDocument(INSTALLED_DARK_THEME);
 
     // Chrome columns share surface 1; the stage is surface 2; raised cards are 3.
     expect(read('--sidebar')).toBe(read('--surface-1'));
@@ -406,14 +404,14 @@ describe('Deck ramp projection', () => {
   });
 
   it('routes the running state to ember, not the accent', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+    applyAppearanceToDocument(INSTALLED_DARK_THEME);
 
     expect(read('--state-running')).toBe(read('--ember'));
     expect(read('--state-running')).not.toBe(read('--accent'));
   });
 
   it('keeps elevation as a rim light plus a hairline, never a plain border', () => {
-    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+    applyAppearanceToDocument(INSTALLED_DARK_THEME);
 
     expect(read('--elev-1')).toContain('inset 0 1px 0');
     expect(read('--elev-3')).toContain('inset 0 1px 0');
@@ -485,13 +483,6 @@ describe('deriveDeckTokens', () => {
 });
 
 describe('theme identity and migration', () => {
-  it('keeps builtin ids stable for stored settings', () => {
-    expect(PIWIN_APPEARANCE_OBSIDIAN.id).toBe('piwin-obsidian');
-    expect(PIWIN_APPEARANCE_BONE.id).toBe('piwin-bone');
-    expect(PIWIN_APPEARANCE_OBSIDIAN.name).toBe('Obsidian');
-    expect(PIWIN_APPEARANCE_BONE.name).toBe('Bone');
-  });
-
   it('aliases the mode-named exports onto the Deck built-ins', () => {
     expect(PIWIN_APPEARANCE_DARK).toBe(PIWIN_APPEARANCE_INKSTONE_INK);
     expect(PIWIN_APPEARANCE_LIGHT).toBe(PIWIN_APPEARANCE_INKSTONE_PAPER);
@@ -505,12 +496,6 @@ describe('theme identity and migration', () => {
     expect(migrateThemeId('piwin-orange-white')).toBe('piwin-inkstone-paper');
     expect(migrateThemeId('piwin-ink-wash')).toBe('piwin-inkstone-ink');
     expect(migrateThemeId('some-installed-theme')).toBe('some-installed-theme');
-  });
-
-  it('sends Host catalog ids so Deck faces do not ENOENT missing theme folders', () => {
-    expect(toHostCatalogThemeId('piwin-obsidian')).toBe('piwin-dark');
-    expect(toHostCatalogThemeId('piwin-bone')).toBe('piwin-light');
-    expect(toHostCatalogThemeId('piwin-dark')).toBe('piwin-dark');
   });
 
   it('resolves retired ids to their replacement manifest', () => {
@@ -545,10 +530,10 @@ describe('theme identity and migration', () => {
   });
 
   it('prefers the desktop manifest for built-ins and passes installed themes through', () => {
-    const stale: ThemeManifest = { ...PIWIN_APPEARANCE_OBSIDIAN, version: '0.0.1' };
+    const stale: ThemeManifest = { ...INSTALLED_DARK_THEME, id: 'piwin-obsidian', version: '0.0.1' };
     expect(resolveDesktopAppearance(stale)).toBe(PIWIN_APPEARANCE_INKSTONE_INK);
 
-    const installed: ThemeManifest = { ...PIWIN_APPEARANCE_OBSIDIAN, id: 'installed-theme' };
+    const installed: ThemeManifest = { ...INSTALLED_DARK_THEME, id: 'installed-theme' };
     expect(resolveDesktopAppearance(installed)).toBe(installed);
   });
 });

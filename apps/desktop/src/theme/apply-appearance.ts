@@ -168,7 +168,7 @@ function deckVariables(d: ThemeDeckTokens, isLight: boolean): Vars {
      * (Inkstone increment 2 §5, prototype `proto-02-composer.html`). Each
      * variable defaults to the exact ambient role it substitutes inside the
      * composer card (text1..4, surface3/4, line1, hover, active), so every
-     * non-Inkstone theme (Obsidian, Bone, ink-wash) renders byte-identical to
+     * non-Inkstone theme (installed packages) renders byte-identical to
      * before this was introduced. That guarantee outranks the prototype's
      * neutral `data-slab=paper` mapping, which points `--slab-chip`→s1 and
      * `--slab-line`→l2 while the app's own chip fill / shelf divider sit on
@@ -393,6 +393,13 @@ export function applyAppearanceToDocument(
   root.dataset.themeMode = theme.mode;
   root.dataset.themeVisualStyle = theme.visualStyle ?? 'flat';
   root.style.colorScheme = theme.mode;
+  // The native window material (styles/window-material*.css) is tuned for the
+  // Inkstone faces behind the macOS window only; everything else stays opaque.
+  if (root.dataset.windowChrome === 'macos-overlay' && INKSTONE_DOCUMENT_THEME_IDS.has(theme.id)) {
+    root.dataset.windowMaterial = 'on';
+  } else {
+    delete root.dataset.windowMaterial;
+  }
   if (INKSTONE_DOCUMENT_THEME_IDS.has(theme.id)) {
     for (const name of INKSTONE_STYLESHEET_SLAB_VARS) {
       root.style.removeProperty(name);

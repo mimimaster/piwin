@@ -30,6 +30,7 @@ import { isDocumentThemeId, rememberAppliedTheme, resolveStartupAppearance } fro
 import { loadDesktopPreferences } from './ui-preferences';
 import { useWebViewport } from './hooks/use-web-viewport';
 import { useWindowResizeActivity } from './hooks/use-window-resize-activity.js';
+import { syncNativeWindowAppearance } from './native-window-appearance';
 import { applyWindowChromeToDocument } from './window-chrome';
 
 /**
@@ -130,7 +131,7 @@ export function DesktopThemeRoot() {
     applyWindowChromeToDocument(document.documentElement);
   }, []);
   // Same resolver as main.tsx pre-paint so React's first commit matches the
-  // document tokens already on <html> (no Noir → ink-wash jump).
+  // document tokens already on <html> (no legacy-face → Inkstone jump).
   const [activeTheme, setActiveTheme] = useState<ThemeManifest>(() => resolveStartupAppearance());
 
   useEffect(() => {
@@ -162,6 +163,10 @@ export function DesktopThemeRoot() {
     applyAppearanceToDocument(activeTheme, preferences.customFonts);
     rememberAppliedTheme(activeTheme);
   }, [activeTheme]);
+
+  useEffect(() => {
+    syncNativeWindowAppearance(activeTheme.mode);
+  }, [activeTheme.mode]);
 
   useEffect(() => {
     const preferences = loadDesktopPreferences();

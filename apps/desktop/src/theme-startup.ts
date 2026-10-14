@@ -3,7 +3,7 @@
  *
  * Host is the long-term authority (`theme/get-active`), but connecting is
  * async. Without a local last-theme cache the shell would otherwise paint a
- * legacy face first, then jump to Inkstone / ink-wash / custom once Host
+ * legacy face first, then jump to Inkstone / custom once Host
  * responds — FOUC.
  *
  * Strategy:

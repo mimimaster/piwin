@@ -188,6 +188,26 @@ describe('AppearancePage', () => {
     expect(modeControl?.textContent).toContain('墨面');
   });
 
+  it('offers window material sliders only behind the macOS window', async () => {
+    const contextValue = createContextValue();
+    await renderPage(contextValue);
+    expect(container.querySelector('[data-testid="appearance-window-material"]')).toBeNull();
+
+    act(() => {
+      root.unmount();
+    });
+    root = createRoot(container);
+    document.documentElement.dataset.windowChrome = 'macos-overlay';
+    try {
+      await renderPage(contextValue);
+      const section = container.querySelector('[data-testid="appearance-window-material"]');
+      expect(section?.textContent).toContain('侧边栏');
+      expect(section?.querySelectorAll('[role="slider"]')).toHaveLength(4);
+    } finally {
+      delete document.documentElement.dataset.windowChrome;
+    }
+  });
+
   it('updates appearance mode and applies corresponding theme when not locked by theme package', async () => {
     const contextValue = createContextValue({
       activeTheme: PIWIN_APPEARANCE_DARK,

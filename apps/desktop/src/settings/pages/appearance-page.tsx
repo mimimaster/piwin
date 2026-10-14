@@ -14,7 +14,10 @@ import { PageTitle } from '../page-title.js';
 import { useSettings } from '../settings-context.js';
 import { AppearanceCustomFonts } from './appearance-custom-fonts.js';
 import { AppearanceModeControl, getAppearanceThemeSettings } from './appearance-theme-controls.js';
+import { AppearanceWindowMaterial } from './appearance-window-material.js';
 import { applyCustomFontsToDocument } from '../../theme/font-manager.js';
+import { readWindowChromeFromEnvironment } from '../../window-chrome.js';
+import { DEFAULT_WINDOW_MATERIAL_OPACITY } from '../../window-material-preferences.js';
 
 function updatePreference<K extends keyof DesktopPreferences>(
   prefs: DesktopPreferences,
@@ -55,6 +58,7 @@ export function AppearancePage(): ReactElement {
       appearanceMode: 'system',
       lightTheme: { ...DEFAULT_LIGHT_THEME_SETTINGS },
       darkTheme: { ...DEFAULT_DARK_THEME_SETTINGS },
+      windowMaterial: { ...DEFAULT_WINDOW_MATERIAL_OPACITY },
     };
     delete nextPreferences.customFonts;
     onPreferencesChange(nextPreferences);
@@ -120,6 +124,15 @@ export function AppearancePage(): ReactElement {
         </FieldRow>
       </section>
 
+      {/* The material only exists behind the macOS window; elsewhere these
+          sliders would move nothing. */}
+      {readWindowChromeFromEnvironment() === 'macos-overlay' && !themePackageActive ? (
+        <AppearanceWindowMaterial
+          preferences={preferences}
+          onChange={onPreferencesChange}
+          copy={copy}
+        />
+      ) : null}
 
       <div className="settings-section settings-section-card">
         <PageTitle title={copy.typography} description={copy.typographyDescription} />

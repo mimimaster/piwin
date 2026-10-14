@@ -1,0 +1,60 @@
+/* Floating overlays on the native window material — menus, popovers,
+   pickers, toasts, dialogs and drawers. On a translucent window a solid slab reads heavier than the glass
+   panel it floats over; macOS layers the other way round, with the menu as
+   the lightest, most material surface. So every overlay shares one frosted
+   fill instead of the ~14 local `--surface-4` / `--s4` fills.
+
+   Overlays are small and short-lived, which keeps their backdrop-filter
+   cheap; renderer-resource-boundaries.test.ts whitelists exactly these
+   selectors. memory-degradation.css still strips the blur under pressure, so
+   the fill turns solid there to stay legible without it. */
+html[data-window-material] {
+  --overlay-glass-fill: color-mix(in srgb, var(--s4) 72%, transparent);
+  /* Dialogs and drawers carry forms and longer reading: denser glass. */
+  --overlay-glass-fill-dense: color-mix(in srgb, var(--s4) 88%, transparent);
+  --overlay-glass-filter: blur(24px) saturate(1.6);
+}
+
+html[data-window-material]:is([data-memory-pressure], [data-memory-parked]) {
+  --overlay-glass-fill: var(--s4);
+  --overlay-glass-fill-dense: var(--s4);
+}
+
+html[data-window-material] .ui-menu-content,
+html[data-window-material] .ui-popover-content,
+/* inkstone/composer.css pins the plus menus with a heavier selector. */
+html[data-window-material] .ui-menu-content.plus-menu,
+html[data-window-material] .ui-menu-content.plus-submenu,
+html[data-window-material] .slash-menu,
+html[data-window-material] .at-menu,
+html[data-window-material] .line-comment-popover,
+html[data-window-material] .add-model-catalog-suggestions,
+html[data-window-material] .fc-source-popover {
+  background: var(--overlay-glass-fill);
+  -webkit-backdrop-filter: var(--overlay-glass-filter);
+  backdrop-filter: var(--overlay-glass-filter);
+}
+
+/* Toasts float over the transcript like a menu does. The Inkstone rule in
+   ui-kit paints both the Mantine root and the toast body, so both clear. */
+html[data-window-material] .mantine-Notification-root,
+html[data-window-material] .ui-toast {
+  background: var(--overlay-glass-fill);
+  -webkit-backdrop-filter: var(--overlay-glass-filter);
+  backdrop-filter: var(--overlay-glass-filter);
+}
+
+/* ── Dialogs and drawers ──────────────────────────────────────────────
+   One elevated surface for every dialog instead of per-dialog --s3/--s1/
+   --surface-4 fills. `.modal.ui-dialog-content` out-weighs the app-level
+   dialog overrides (workspace picker, cherry dialogs). */
+html[data-window-material] .modal.ui-dialog-content,
+html[data-window-material] .piwin-modal-content.piwin-modal-content,
+html[data-window-material] .composer-modal-editor,
+html[data-window-material] .knowledge-modal-dialog,
+html[data-window-material] .drawer-panel,
+html[data-window-material] .source-drawer {
+  background: var(--overlay-glass-fill-dense);
+  -webkit-backdrop-filter: var(--overlay-glass-filter);
+  backdrop-filter: var(--overlay-glass-filter);
+}

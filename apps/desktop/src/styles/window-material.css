@@ -1,0 +1,114 @@
+/* Native window material — macOS desktop, Inkstone faces only
+   (`html[data-window-material]`, set by theme/apply-appearance.ts).
+
+   The main window is created transparent with an NSVisualEffectView behind
+   the WebView (tauri.conf.json `windowEffects`). The blur is composited by
+   the system, so it costs no WebContent IOSurfaces — unlike CSS
+   backdrop-filter, which memory-degradation.css has to strip under pressure
+   and renderer-resource-boundaries.test.ts whitelists.
+
+   Each region mixes its own surface colour over that material. The
+   --window-material-*-opacity values come from Settings → Appearance
+   (window-material-preferences.ts) and are written on `.app-shell`; the
+   fallbacks here are the same defaults. The conversation defaults to mostly
+   solid so transcript/code contrast barely depends on the desktop behind
+   the window; cards inside it (bubbles, code, artifacts) stay solid.
+
+   Docked panels follow the region opacities on the desktop layout; in
+   compact (and the overlay inspector) the same panels become drawers over
+   the stage and take the denser dialog glass from
+   window-material-overlays.css instead. Phone layout stays opaque.
+
+   The document canvas is only released while the shell is mounted.
+   Pre-shell screens (host gate, pairing) have no surface of their own and
+   rely on the html/body void, so they must stay opaque. */
+html[data-window-material]:has(.app-shell:not([data-layout='phone'])),
+html[data-window-material]:has(.app-shell:not([data-layout='phone']))
+  :is(body, #root) {
+  background: transparent;
+}
+
+html[data-window-material]
+  .app-shell:not([data-layout='phone']) {
+  background: color-mix(
+    in srgb,
+    var(--void) var(--window-material-backdrop-opacity, 60%),
+    transparent
+  );
+}
+
+html[data-window-material]
+  .app-shell[data-layout='desktop']
+  > .sidebar {
+  background: color-mix(
+    in srgb,
+    var(--s1) var(--window-material-sidebar-opacity, 30%),
+    transparent
+  );
+}
+
+html[data-window-material]
+  .app-shell:not([data-layout='phone'])
+  > .workspace {
+  background: color-mix(
+    in srgb,
+    var(--s2) var(--window-material-stage-opacity, 90%),
+    transparent
+  );
+}
+
+html[data-window-material]
+  .app-shell[data-layout='desktop']:not([data-inspector='overlay'])
+  > .right-panel {
+  background: color-mix(
+    in srgb,
+    var(--s1) var(--window-material-right-panel-opacity, 45%),
+    transparent
+  );
+}
+
+/* Transcript edge fades. On a solid stage region-transcript.css paints the
+   stage colour over the scroller edges. Over a translucent stage that paint
+   reads as a band (surface-over-surface is more opaque than the surface
+   around it), so here the scroller itself is masked instead: content fades
+   to transparent and the material shows through unchanged at every opacity.
+   The native scrollbar is hidden (floating chrome lives on the shell), so the
+   mask touches only transcript content. */
+html[data-window-material]
+  .app-shell:not([data-layout='phone'])
+  .chat-column:not(.chat-column-empty)
+  .transcript-viewport
+  > .chat-stream {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--transcript-edge-fade-top),
+    #000 calc(100% - var(--transcript-edge-fade-bottom)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--transcript-edge-fade-top),
+    #000 calc(100% - var(--transcript-edge-fade-bottom)),
+    transparent 100%
+  );
+}
+
+html[data-window-material]
+  .app-shell:not([data-layout='phone'])
+  .transcript-viewport::before,
+html[data-window-material]
+  .app-shell:not([data-layout='phone'])
+  .transcript-viewport::after {
+  display: none;
+}
+
+/* Drawers over the stage (compact layout, overlay inspector): region-sidebar
+   and region-inspector already blur them; give them a dialog-dense fill so
+   transcript text under the drawer cannot read through. */
+html[data-window-material] .app-shell[data-layout='compact'] > .sidebar,
+html[data-window-material] .app-shell[data-layout='compact'] > .right-panel,
+html[data-window-material] .app-shell[data-inspector='overlay'] > .right-panel {
+  background: var(--overlay-glass-fill-dense);
+}

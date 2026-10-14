@@ -172,3 +172,23 @@ to users during upgrades.
 
 This keeps the product vocabulary aligned with the visual model while making
 upgrades safe for existing `~/.piwin` theme preferences.
+
+## Amendment (2026-10-14): Inkstone is the only built-in theme
+
+Owner direction: delete every non-Inkstone theme.
+
+- Removed the bundled `piwin-dark`, `piwin-light`, `piwin-orange-white` packages and the
+  unused `piwin-inkstone-paper` / `piwin-inkstone-ink` package copies; `piwin-inkstone`
+  is the only bundled theme. The paper/ink *faces* remain desktop-authored manifests.
+- Removed the Obsidian / Bone manifests from `deck-palette.ts`; their ramps survive only
+  as test fixtures (`theme/installed-theme-fixtures.ts`) for the generic installed-theme path.
+- Removed the `ink-wash` visual style from `ThemeManifest.visualStyle` and the validator,
+  and deleted all ink-wash desktop CSS (`shell-/transcript-/inspector-ink-wash.css` and
+  scoped rules elsewhere).
+- Retired ids keep aliasing onto Inkstone (Host `THEME_ID_ALIASES`, desktop
+  `migrateThemeId`) so stored preferences and stale `~/.piwin/themes` copies still resolve.
+- User-installed theme packages still render through the Deck base styles.
+- Not covered: the mobile app's own `ink-wash` mode (`apps/mobile`) is a separate surface.
+
+Inkstone column seam is 4px (`--deck-gap`, `inkstone/shell.css`); scrollbars are 6px
+tracks with a 4px thumb in the shell and inside artifact iframes.

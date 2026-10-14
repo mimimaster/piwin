@@ -31,10 +31,8 @@ export {
 export { beginThemeSwitch } from './theme/theme-switch';
 export { deriveDeckTokens, resolveDeckTokens } from './theme/deck-derive';
 export {
-  PIWIN_APPEARANCE_BONE,
   PIWIN_APPEARANCE_INKSTONE_INK,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
-  PIWIN_APPEARANCE_OBSIDIAN,
 } from './theme/deck-palette';
 
 export const PIWIN_INKSTONE_THEME_ID = 'piwin-inkstone';
@@ -86,22 +84,6 @@ export function resolveInkstoneFaceThemeId(mode: 'light' | 'dark'): string {
   return mode === 'light' ? 'piwin-inkstone-paper' : 'piwin-inkstone-ink';
 }
 
-/**
- * Host still installs bundled dirs as `piwin-dark` / `piwin-light`. Send those
- * on `theme/set-active` so an older Host (or a Host that has not remapped Deck
- * faces) does not `open` a folder that is not on disk.
- */
-export function toHostCatalogThemeId(themeId: string): string {
-  switch (themeId) {
-    case 'piwin-obsidian':
-      return 'piwin-dark';
-    case 'piwin-bone':
-      return 'piwin-light';
-    default:
-      return themeId;
-  }
-}
-
 /** True when the id names a theme the desktop bundle can paint without Host. */
 export function isBuiltinAppearanceId(themeId: string): boolean {
   const id = migrateThemeId(themeId);
@@ -111,8 +93,8 @@ export function isBuiltinAppearanceId(themeId: string): boolean {
 /**
  * Inkstone's day/night faces and the three-color Appearance overrides. Host
  * bootstrap must not re-apply these —
- * they would stomp the user's Appearance prefs. Ink-wash and installed
- * packages are not faces: they are library themes and should flow through.
+ * they would stomp the user's Appearance prefs. Installed packages are not
+ * faces: they are library themes and should flow through.
  */
 export function isAppearanceFaceId(themeId: string): boolean {
   if (themeId.endsWith('-appearance')) {

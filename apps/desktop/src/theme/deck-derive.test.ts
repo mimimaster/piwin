@@ -4,7 +4,7 @@ import type { ThemeDeckTokens, ThemeManifest } from '@piwin/contracts';
 
 import { contrastRatio } from './color.js';
 import { deriveDeckTokens } from './deck-derive.js';
-import { PIWIN_APPEARANCE_BONE, PIWIN_APPEARANCE_OBSIDIAN } from './deck-palette.js';
+import { INSTALLED_DARK_THEME, INSTALLED_LIGHT_THEME } from './installed-theme-fixtures.js';
 
 /** Strip the authored ramp so the manifest looks like an installed theme. */
 function withoutDeck(manifest: ThemeManifest): ThemeManifest {
@@ -25,7 +25,7 @@ function maxChannelDelta(a: string, b: string): number {
 }
 
 describe('deriveDeckTokens', () => {
-  for (const authored of [PIWIN_APPEARANCE_OBSIDIAN, PIWIN_APPEARANCE_BONE]) {
+  for (const authored of [INSTALLED_DARK_THEME, INSTALLED_LIGHT_THEME]) {
     const deck = authored.deck;
     if (!deck) throw new Error(`${authored.id} must author a deck ramp`);
 
@@ -84,10 +84,10 @@ describe('deriveDeckTokens', () => {
 
   it('lifts a muted ramp that an installed theme left invisible', () => {
     const washedOut: ThemeManifest = {
-      ...withoutDeck(PIWIN_APPEARANCE_OBSIDIAN),
+      ...withoutDeck(INSTALLED_DARK_THEME),
       id: 'washed-out',
       tokens: {
-        ...PIWIN_APPEARANCE_OBSIDIAN.tokens,
+        ...INSTALLED_DARK_THEME.tokens,
         // Muted only a hair off the field: the unclamped interpolation used to
         // land text3/text4 inside a couple of RGB steps of the background.
         muted: '#131318',

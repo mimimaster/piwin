@@ -5,6 +5,10 @@
   gap: 6px;
 }
 
+.appearance-window-material-slider {
+  width: 200px;
+}
+
 .appearance-reset-actions {
   display: flex;
   justify-content: flex-end;

@@ -7,15 +7,13 @@ import type { ThemeManifest, ThemePreference, ThemeSummary } from '@piwin/contra
 import { validateThemeManifest } from './validate-manifest.js';
 import { resolveBundledAssetsRoot } from './bundled-assets-root.js';
 
-const BUNDLED_THEME_IDS = new Set([
-  'piwin-inkstone',
-  'piwin-dark',
-  'piwin-light',
-  'piwin-orange-white',
-  'piwin-inkstone-paper',
-  'piwin-inkstone-ink',
-]);
+const BUNDLED_THEME_IDS = new Set(['piwin-inkstone']);
 
+/**
+ * Retired built-ins. Older installs still have these copied under
+ * ~/.piwin/themes and stored as the active id, so they stay hidden from the
+ * catalog and alias onto Inkstone instead of resurfacing.
+ */
 const HIDDEN_THEME_IDS = new Set([
   'piwin-dark',
   'piwin-light',

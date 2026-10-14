@@ -40,7 +40,8 @@ describe('planAppearanceToggle', () => {
   it('blocks the flip when a theme package owns appearance', () => {
     expect(
       planAppearanceToggle({
-        visualStyle: 'ink-wash',
+        themeId: 'community-flat',
+        visualStyle: 'flat',
         mode: 'dark',
         preferences,
       }),
