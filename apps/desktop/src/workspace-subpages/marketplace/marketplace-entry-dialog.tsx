@@ -1,10 +1,18 @@
 /**
- * Catalog entry detail: what it does, exact version and source, Host
- * prerequisites, evidence, runtime risk, example requests — and the install
- * action. Install always goes through this dialog so the risk is seen first.
+ * Catalog entry detail drawer: what it does, exact version and source, Host
+ * prerequisites (checked live on the Host), evidence, runtime risk, example
+ * requests — and the install action. Install always goes through here so the
+ * risk is seen first.
  */
-import type { ReactElement } from 'react';
-import type { MarketplaceCatalogEntry, MarketplaceInstalledItem } from '@piwin/contracts';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
+import type {
+  HostCommand,
+  HostResponse,
+  MarketplaceCatalogEntry,
+  MarketplaceInstalledItem,
+  MarketplaceRequirementCheck,
+  MarketplaceRequirementsCheckData,
+} from '@piwin/contracts';
 import { Button, Dialog, IconButton, Notice, ProgressBar } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../../desktop-locale.js';
 import { openExternalUrl } from '../../open-external-url.js';
@@ -12,12 +20,17 @@ import { IconClose, IconExternalLink } from '../../shell-icons.js';
 import {
   availabilityLabel,
   categoryLabel,
+  entryName,
   installRiskNotice,
+  inventoryMessage,
+  isPiwinTested,
   kindLabel,
   localizedText,
   operationLabel,
+  requirementStatusLabel,
   verificationLabel,
 } from './marketplace-copy.js';
+import { hasCatalogUpdate } from './marketplace-catalog-card.js';
 import { MarketplaceKindSeal } from './marketplace-kind-seal.js';
 import type { MarketOperation } from './marketplace-types.js';
 
@@ -27,11 +40,58 @@ export type MarketplaceEntryDialogProps = {
   operation: MarketOperation | undefined;
   locale?: DesktopLocale | undefined;
   onInstall: (entry: MarketplaceCatalogEntry) => void;
-  onUpdate?: ((entry: MarketplaceCatalogEntry, installed: MarketplaceInstalledItem) => void) | undefined;
+  onUpdate?:
+    ((entry: MarketplaceCatalogEntry, installed: MarketplaceInstalledItem) => void) | undefined;
   onRemove?: ((item: MarketplaceInstalledItem) => void) | undefined;
   onUseExample?: ((prompt: string) => void) | undefined;
+  /** Opens another entry, e.g. the replacement of a withdrawn one. */
+  onOpenEntry?: ((entryId: string) => void) | undefined;
+  replacementName?: string | undefined;
+  /** Host requests; when present, requirements are checked on the Host. */
+  request?: ((command: HostCommand) => Promise<HostResponse>) | undefined;
   onClose: () => void;
 };
+
+/** States in which the capability can actually be tried from a prompt. */
+const TRYABLE = new Set<MarketplaceInstalledItem['availability']>([
+  'available',
+  'installed',
+  'pending-apply',
+]);
+
+function useRequirementChecks(
+  entry: MarketplaceCatalogEntry | null,
+  request: MarketplaceEntryDialogProps['request'],
+): ReadonlyMap<string, MarketplaceRequirementCheck> {
+  const [checks, setChecks] = useState<ReadonlyMap<string, MarketplaceRequirementCheck>>(new Map());
+  // Parents pass a fresh closure each render; only a new entry should re-check.
+  const requestRef = useRef(request);
+  requestRef.current = request;
+  const entryId = entry?.entryId;
+  const hasRequirements = (entry?.requirements.length ?? 0) > 0;
+  useEffect(() => {
+    setChecks(new Map());
+    const send = requestRef.current;
+    if (!entryId || !hasRequirements || !send) return undefined;
+    let cancelled = false;
+    void send({ type: 'marketplace/requirements-check', entryId }).then(
+      (response) => {
+        if (cancelled || !response.success) return;
+        const data = response.data as MarketplaceRequirementsCheckData;
+        setChecks(
+          new Map(data.results.map((result) => [`${result.kind}:${result.value}`, result])),
+        );
+      },
+      () => {
+        // The static list still renders; a failed probe only loses the live status.
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [entryId, hasRequirements]);
+  return checks;
+}
 
 function shortVersion(version: string): string {
   return /^[0-9a-f]{40}$/.test(version) ? version.slice(0, 12) : `v${version}`;
@@ -41,24 +101,29 @@ export function MarketplaceEntryDialog(props: MarketplaceEntryDialogProps): Reac
   const { entry, locale } = props;
   const zh = locale === 'zh-CN';
   const t = (en: string, zhText: string) => (zh ? zhText : en);
+  const checks = useRequirementChecks(entry, props.request);
   if (!entry) return null;
-  const tested = entry.verification.some((evidence) => evidence.level === 'piwin-tested');
+  const tested = isPiwinTested(entry.verification);
+  const name = entryName(entry, locale);
+  const installedMessage = props.installed ? inventoryMessage(props.installed, locale) : undefined;
+  const canTry = props.installed !== undefined && TRYABLE.has(props.installed.availability);
 
   return (
     <Dialog
-      label={entry.name.en}
+      label={name}
       open={true}
+      closeOnInteractOutside={true}
       onOpenChange={(open) => {
         if (!open) props.onClose();
       }}
       testId="marketplace-entry-dialog"
-      contentClassName="market-entry-modal"
+      contentClassName="market-entry-modal market-drawer"
     >
       <div className="market-entry">
         <header className="market-entry-head">
           <MarketplaceKindSeal kind={entry.kind} size="lg" />
           <div className="market-entry-heading">
-            <h3 className="market-entry-title">{entry.name.en}</h3>
+            <h3 className="market-entry-title">{name}</h3>
             <p className="market-entry-kicker">
               {kindLabel(entry.kind, locale)}
               <span aria-hidden="true"> · </span>
@@ -76,6 +141,28 @@ export function MarketplaceEntryDialog(props: MarketplaceEntryDialogProps): Reac
         </header>
 
         <div className="market-entry-scroll">
+          {entry.withdrawn ? (
+            <div className="market-entry-status">
+              <Notice tone="warning" testId="marketplace-entry-withdrawn">
+                {t('Withdrawn from the catalog: ', '已从目录下架：')}
+                {localizedText(entry.withdrawn.reason, locale)}
+                {entry.withdrawn.replacementEntryId && props.onOpenEntry ? (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      className="market-inline-link"
+                      onClick={() => props.onOpenEntry?.(entry.withdrawn?.replacementEntryId ?? '')}
+                    >
+                      {t('See replacement', '查看替代项')}
+                      {props.replacementName ? ` · ${props.replacementName}` : ''}
+                    </button>
+                  </>
+                ) : null}
+              </Notice>
+            </div>
+          ) : null}
+
           <p className="market-entry-desc">{localizedText(entry.description, locale)}</p>
 
           {/* Provenance as a ledger, not a wrapping dot-list: four fixed cells
@@ -113,15 +200,26 @@ export function MarketplaceEntryDialog(props: MarketplaceEntryDialogProps): Reac
             <section className="market-entry-section">
               <h4 className="market-entry-section-title">{t('Before you install', '前提条件')}</h4>
               <ul className="market-entry-requirements">
-                {entry.requirements.map((requirement) => (
-                  <li key={`${requirement.kind}:${requirement.value}`}>
-                    <code className="market-code-tag">{requirement.value}</code>
-                    <span>
-                      {requirement.required ? '' : t('(optional) ', '（可选）')}
-                      {localizedText(requirement.description, locale)}
-                    </span>
-                  </li>
-                ))}
+                {entry.requirements.map((requirement) => {
+                  const check = checks.get(`${requirement.kind}:${requirement.value}`);
+                  return (
+                    <li key={`${requirement.kind}:${requirement.value}`}>
+                      <code className="market-code-tag">{requirement.value}</code>
+                      <span>
+                        {requirement.required ? '' : t('(optional) ', '（可选）')}
+                        {localizedText(requirement.description, locale)}
+                      </span>
+                      {check ? (
+                        <span
+                          className={`market-requirement-status is-${check.status}`}
+                          data-testid={`marketplace-requirement-${check.status}`}
+                        >
+                          {requirementStatusLabel(check.status, locale)}
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ) : null}
@@ -144,7 +242,7 @@ export function MarketplaceEntryDialog(props: MarketplaceEntryDialogProps): Reac
                         {localizedText(example.expectedResult, locale)}
                       </p>
                     ) : null}
-                    {props.installed?.availability === 'available' && props.onUseExample ? (
+                    {canTry && props.onUseExample ? (
                       <Button
                         variant="ghost"
                         size="compact"
@@ -164,7 +262,7 @@ export function MarketplaceEntryDialog(props: MarketplaceEntryDialogProps): Reac
             {props.installed ? (
               <Notice tone={props.installed.availability === 'failed' ? 'warning' : 'info'}>
                 {availabilityLabel(props.installed.availability, locale)}
-                {props.installed.message ? ` — ${props.installed.message}` : ''}
+                {installedMessage ? ` — ${installedMessage}` : ''}
               </Notice>
             ) : (
               <Notice tone="warning">{installRiskNotice(entry, locale)}</Notice>
@@ -208,7 +306,7 @@ export function MarketplaceEntryDialog(props: MarketplaceEntryDialogProps): Reac
                   {t('Uninstall', '卸载')}
                 </Button>
               ) : null}
-              {props.installed.version && entry.version && props.installed.version !== entry.version ? (
+              {hasCatalogUpdate(entry, props.installed) ? (
                 <Button
                   variant="primary"
                   size="compact"
@@ -227,7 +325,7 @@ export function MarketplaceEntryDialog(props: MarketplaceEntryDialogProps): Reac
                     ? operationLabel(props.operation, locale)
                     : t(`Update to v${entry.version}`, `更新至 v${entry.version}`)}
                 </Button>
-              ) : (
+              ) : entry.withdrawn ? null : (
                 <Button
                   variant="secondary"
                   size="compact"
@@ -242,11 +340,13 @@ export function MarketplaceEntryDialog(props: MarketplaceEntryDialogProps): Reac
                   }}
                   data-testid="marketplace-entry-reinstall"
                 >
-                  {props.operation ? operationLabel(props.operation, locale) : t('Reinstall', '重新安装')}
+                  {props.operation
+                    ? operationLabel(props.operation, locale)
+                    : t('Reinstall', '重新安装')}
                 </Button>
               )}
             </>
-          ) : (
+          ) : entry.withdrawn ? null : (
             <Button
               variant="primary"
               size="compact"

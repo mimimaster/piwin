@@ -7,7 +7,10 @@ import type {
   MarketplaceCapabilityKind,
   MarketplaceCatalogEntry,
   MarketplaceCategory,
+  MarketplaceInstalledItem,
+  MarketplaceInventoryMessageCode,
   MarketplaceLocalizedText,
+  MarketplaceRequirementStatus,
   MarketplaceVerification,
 } from '@piwin/contracts';
 import type { DesktopLocale } from '../../desktop-locale.js';
@@ -26,11 +29,19 @@ export function localizedText(
   return locale === 'zh-CN' ? text.zhCN : text.en;
 }
 
+/** Display name in the viewer's language; catalog names are bilingual. */
+export function entryName(
+  entry: Pick<MarketplaceCatalogEntry, 'name'>,
+  locale: DesktopLocale | undefined,
+): string {
+  return localizedText(entry.name, locale) || entry.name.en;
+}
+
 const KIND_LABELS: Record<MarketplaceCapabilityKind | 'piwin-extension', Pair> = {
-  extension: ['extension', 'extension'],
+  extension: ['Extension', '扩展'],
   'piwin-extension': ['piwin extensions', 'piwin 扩展'],
-  skill: ['skill', 'skill'],
-  mcp: ['mcp', 'mcp'],
+  skill: ['Skill', '技能'],
+  mcp: ['MCP server', 'MCP 服务'],
   agent: ['Agent', 'Agent'],
 };
 
@@ -81,6 +92,65 @@ const OPERATION_LABELS: Record<MarketOperation, Pair> = {
 
 export function operationLabel(operation: MarketOperation, locale: DesktopLocale | undefined): string {
   return pick(locale, OPERATION_LABELS[operation]);
+}
+
+/**
+ * Localized Host status line. Unknown codes fall back to the Host's English
+ * `message`, so a newer Host never renders blank.
+ */
+export function inventoryMessage(
+  item: Pick<MarketplaceInstalledItem, 'message' | 'messageCode' | 'messageDetail'>,
+  locale: DesktopLocale | undefined,
+): string | undefined {
+  const detail = item.messageDetail;
+  const code: MarketplaceInventoryMessageCode | undefined = item.messageCode;
+  switch (code) {
+    case 'pending-removal':
+      return pick(locale, ['Removal finishes once no live session still loads it.', '没有会话再加载它后完成移除。']);
+    case 'incompatible':
+      return pick(locale, ['Not compatible with the piwin Agent Runtime; it will not load.', '与 piwin Agent Runtime 不兼容，不会加载。']);
+    case 'conversation-only':
+      return pick(locale, ['Chat conversations do not load extensions; project sessions do.', '普通对话不加载扩展，项目会话会加载。']);
+    case 'apply-failed':
+      return detail
+        ? pick(locale, [`Could not apply to this session: ${detail}`, `未能应用到当前会话：${detail}`])
+        : pick(locale, ['Could not apply to this session.', '未能应用到当前会话。']);
+    case 'pending-apply':
+      return pick(locale, ['Applies at the next run boundary.', '下一轮运行开始时生效。']);
+    case 'mcp-missing-env':
+      return pick(locale, [`Missing value for ${detail ?? ''}`, `缺少配置值：${detail ?? ''}`]);
+    case 'mcp-start-failed':
+      return detail
+        ? pick(locale, [`Failed to start: ${detail}`, `启动失败：${detail}`])
+        : pick(locale, ['Server failed to start.', '服务启动失败。']);
+    case 'mcp-idle':
+      return pick(locale, ['Configured; starts when a session needs it.', '已配置，会话需要时启动。']);
+    case 'agent-adapter-installed':
+      return pick(locale, [
+        'Adapter installed; CLI dependency and login are checked separately in Agent Backends.',
+        '适配插件已安装；CLI 依赖与登录在 Agent 后端设置中单独检查。',
+      ]);
+    case undefined:
+      return item.message;
+  }
+}
+
+const REQUIREMENT_STATUS_LABELS: Record<MarketplaceRequirementStatus, Pair> = {
+  met: ['Found on Host', 'Host 已满足'],
+  missing: ['Missing on Host', 'Host 缺少'],
+  unknown: ['Check yourself', '需自行确认'],
+};
+
+export function requirementStatusLabel(
+  status: MarketplaceRequirementStatus,
+  locale: DesktopLocale | undefined,
+): string {
+  return pick(locale, REQUIREMENT_STATUS_LABELS[status]);
+}
+
+/** True when the strongest evidence is a piwin run — the only claim worth a badge. */
+export function isPiwinTested(evidence: readonly MarketplaceVerification[]): boolean {
+  return evidence.some((item) => item.level === 'piwin-tested');
 }
 
 /** Strongest evidence first; the UI never upgrades author claims to "tested". */

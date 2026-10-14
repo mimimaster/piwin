@@ -3,7 +3,12 @@
  * community-code risk. Shares the session-apply outcome with curated installs.
  */
 import { useRef, useState } from 'react';
-import type { HostCommand, HostResponse, MarketplaceSearchHit } from '@piwin/contracts';
+import type {
+  HostCommand,
+  HostResponse,
+  MarketplacePiPackageSource,
+  MarketplaceSearchHit,
+} from '@piwin/contracts';
 import type { DesktopLocale } from '../../desktop-locale.js';
 import { applyExtensionsToSession, describeExtensionChange } from './marketplace-session-apply.js';
 import type { MarketplaceToast } from './marketplace-types.js';
@@ -16,6 +21,8 @@ export type MarketplacePackageInstall = {
   select: (hit: MarketplaceSearchHit) => void;
   cancel: () => void;
   confirm: (hit: MarketplaceSearchHit) => Promise<void>;
+  /** "Install from address": a user-typed npm / GitHub / Host-path source. Resolves true on success. */
+  installSource: (source: MarketplacePiPackageSource, label: string) => Promise<boolean>;
 };
 
 export function useMarketplacePackageInstall(options: {
@@ -104,11 +111,33 @@ export function useMarketplacePackageInstall(options: {
     }
   }
 
+  async function installSource(source: MarketplacePiPackageSource, label: string): Promise<boolean> {
+    const { request, sessionId, locale, showToast, onInstalled } = optionsRef.current;
+    const zh = locale === 'zh-CN';
+    try {
+      const response = await request({ type: 'marketplace/package-install', source });
+      if (!response.success) throw new Error(response.error);
+      showToast(describeExtensionChange(label, 'installed', await applyExtensionsToSession(request, sessionId), locale));
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      showToast({
+        type: 'error',
+        title: zh ? '安装失败' : 'Installation Failed',
+        text: zh ? `安装 [${label}] 失败：${message}` : `Could not install [${label}]: ${message}`,
+      });
+      return false;
+    } finally {
+      await onInstalled?.();
+    }
+  }
+
   return {
     target,
     states,
     select: setTarget,
     cancel: () => setTarget(null),
     confirm,
+    installSource,
   };
 }

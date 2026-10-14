@@ -15,6 +15,7 @@ import type {
   McpServerHealth,
 } from '@piwin/contracts';
 import type { DesktopLocale } from '../../desktop-locale.js';
+import { entryName } from './marketplace-copy.js';
 import { applyExtensionsToSession, describeExtensionChange } from './marketplace-session-apply.js';
 import type { MarketOperation, MarketplaceToast } from './marketplace-types.js';
 
@@ -63,6 +64,8 @@ export function useMarketplaceActions(options: {
   refreshInventory: () => Promise<void>;
   showToast: (toast: MarketplaceToast) => void;
   confirmMigration?: (entryName: string) => Promise<boolean>;
+  /** Follow-up offered on a successful install, e.g. "Try it" with the first example. */
+  installFollowUp?: (entry: MarketplaceCatalogEntry) => MarketplaceToast['action'];
 }): MarketplaceActions {
   const zh = options.locale === 'zh-CN';
   const [operations, setOperations] = useState<Record<string, MarketOperation>>({});
@@ -82,11 +85,12 @@ export function useMarketplaceActions(options: {
     key: string,
     name: string,
     body: (phase: (operation: MarketOperation) => void) => Promise<MarketplaceToast>,
+    followUp?: MarketplaceToast['action'],
   ): Promise<void> {
     const { refreshInventory, showToast } = optionsRef.current;
     try {
       const toast = await body((operation) => setOperation(key, operation));
-      showToast(toast);
+      showToast(toast.type === 'success' && followUp ? { ...toast, action: followUp } : toast);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       showToast({
@@ -102,7 +106,7 @@ export function useMarketplaceActions(options: {
 
   async function install(entry: MarketplaceCatalogEntry): Promise<void> {
     const { request, sessionId, locale } = optionsRef.current;
-    const name = entry.name.en;
+    const name = entryName(entry, locale);
     const descriptor = entry.install;
     await run(entry.entryId, name, async (phase) => {
       phase('installing');
@@ -186,7 +190,7 @@ export function useMarketplaceActions(options: {
           };
         }
       }
-    });
+    }, optionsRef.current.installFollowUp?.(entry));
   }
 
   async function update(
@@ -194,7 +198,7 @@ export function useMarketplaceActions(options: {
     installed?: MarketplaceInstalledItem,
   ): Promise<void> {
     const { request, sessionId, locale } = optionsRef.current;
-    const name = entry.name.en;
+    const name = entryName(entry, locale);
     const descriptor = entry.install;
     await run(entry.entryId, name, async (phase) => {
       phase('updating');

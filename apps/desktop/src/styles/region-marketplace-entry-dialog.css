@@ -209,6 +209,86 @@
   flex: none;
 }
 
+.market-requirement-status {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.market-requirement-status.is-met {
+  background: var(--pine-wash);
+  color: var(--me-pine);
+}
+
+.market-requirement-status.is-missing {
+  background: var(--crimson-wash, var(--zhu-wash));
+  color: var(--crimson, var(--me-zhu));
+}
+
+.market-requirement-status.is-unknown {
+  color: var(--me-t3);
+}
+
+.market-inline-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.market-entry-head-plain {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.market-entry-kicker .market-community-unverified {
+  margin-left: 8px;
+}
+
+.market-readme {
+  max-width: 100%;
+  overflow-x: auto;
+  color: var(--me-t2);
+  font-size: 13px;
+}
+
+/* Detail opens as a right-hand sheet so the list stays in view behind it. */
+.modal.ui-dialog-content.market-entry-modal.market-drawer {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  left: auto;
+  width: min(560px, calc(100vw - 16px));
+  max-height: none;
+  margin: 0;
+  transform: none;
+  border-radius: 12px;
+  animation: market-drawer-in var(--t-2, 200ms) var(--ease-out, ease-out);
+}
+
+@keyframes market-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal.ui-dialog-content.market-entry-modal.market-drawer {
+    animation: none;
+  }
+}
+
 .market-entry-examples {
   gap: 8px;
 }

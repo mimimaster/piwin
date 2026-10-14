@@ -7,10 +7,20 @@ export type MarketplaceEcosystemSearch = {
   loading: boolean;
   error: string | null;
   searchedQuery: string;
+  /** True while a larger page may exist (the last page filled its limit). */
+  hasMore: boolean;
   browse: (limit?: number) => Promise<void>;
-  search: (query: string) => Promise<void>;
+  search: (query: string, limit?: number) => Promise<void>;
+  /** Re-reads the current browse or query with a larger page. */
+  loadMore: () => Promise<void>;
   reset: () => void;
 };
+
+/** Host clamps per-source results to 50. */
+export const ECOSYSTEM_MAX_LIMIT = 50;
+const BROWSE_PREVIEW_LIMIT = 4;
+const SEARCH_LIMIT = 20;
+const PAGE_STEP = 20;
 
 export type UseMarketplaceEcosystemSearchOptions = {
   request: (command: HostCommand) => Promise<HostResponse>;
@@ -28,16 +38,20 @@ export function useMarketplaceEcosystemSearch(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchedQuery, setSearchedQuery] = useState('');
+  const [limit, setLimit] = useState(BROWSE_PREVIEW_LIMIT);
+  const [browseLimit, setBrowseLimit] = useState(BROWSE_PREVIEW_LIMIT);
   const requestSequence = useRef(0);
 
-  const browse = useCallback(async (limit = 4): Promise<void> => {
+  const browse = useCallback(async (nextLimit = BROWSE_PREVIEW_LIMIT): Promise<void> => {
     const sequence = ++requestSequence.current;
     setLoading(true);
+    setLimit(nextLimit);
+    setBrowseLimit(nextLimit);
     try {
       const response = await optionsRef.current.request({
         type: 'marketplace/search',
         query: '',
-        limit,
+        limit: nextLimit,
       });
       if (sequence !== requestSequence.current) return;
       if (!response.success) {
@@ -60,18 +74,20 @@ export function useMarketplaceEcosystemSearch(
   }, []);
 
   const search = useCallback(
-    async (rawQuery: string): Promise<void> => {
+    async (rawQuery: string, nextLimit = SEARCH_LIMIT): Promise<void> => {
       const trimmed = rawQuery.trim();
       if (!trimmed) {
         setHits(browseHits);
         setError(null);
         setLoading(false);
         setSearchedQuery('');
+        setLimit(browseLimit);
         return;
       }
 
       const sequence = ++requestSequence.current;
       setSearchedQuery(trimmed);
+      setLimit(nextLimit);
       setLoading(true);
       setError(null);
 
@@ -79,6 +95,7 @@ export function useMarketplaceEcosystemSearch(
         const response = await optionsRef.current.request({
           type: 'marketplace/search',
           query: trimmed,
+          limit: nextLimit,
         });
         if (sequence !== requestSequence.current) return;
         if (!response.success) {
@@ -107,7 +124,7 @@ export function useMarketplaceEcosystemSearch(
         if (sequence === requestSequence.current) setLoading(false);
       }
     },
-    [browseHits],
+    [browseHits, browseLimit],
   );
 
   const reset = useCallback((): void => {
@@ -116,7 +133,17 @@ export function useMarketplaceEcosystemSearch(
     setError(null);
     setLoading(false);
     setSearchedQuery('');
-  }, [browseHits]);
+    setLimit(browseLimit);
+  }, [browseHits, browseLimit]);
 
-  return { hits, loading, error, searchedQuery, browse, search, reset };
+  const loadMore = useCallback(async (): Promise<void> => {
+    const nextLimit = Math.min(ECOSYSTEM_MAX_LIMIT, limit < PAGE_STEP ? PAGE_STEP : limit + PAGE_STEP);
+    if (searchedQuery) await search(searchedQuery, nextLimit);
+    else await browse(nextLimit);
+  }, [browse, limit, search, searchedQuery]);
+
+  // A page that came back short of its limit is the whole result set.
+  const hasMore = limit < ECOSYSTEM_MAX_LIMIT && hits.length >= limit;
+
+  return { hits, loading, error, searchedQuery, hasMore, browse, search, loadMore, reset };
 }

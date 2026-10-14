@@ -183,34 +183,36 @@ describe('MarketplaceWorkspaceView', () => {
     });
   }
 
-  it('renders the Host catalog in one full-width discovery grid, with no simulated runtime badge', async () => {
-    const host = createFakeHost();
+  it('renders the Host catalog in localized cards, with no carousel or simulated runtime badge', async () => {
+    const host = createFakeHost({
+      'marketplace/catalog-list': (command) =>
+        ok(command.type, { entries: [{ ...EXTENSION_ENTRY, featured: false }, { ...SKILL_ENTRY, featured: false }] }),
+    });
     render(host);
     await flush();
 
-    expect(host.commands().map((command) => command.type)).toEqual(
-      expect.arrayContaining(['marketplace/catalog-list', 'marketplace/installed-list']),
-    );
+    expect(host.commands()).toContainEqual({ type: 'marketplace/catalog-list', includeWithdrawn: true });
     expect(container.querySelector('[data-testid="marketplace-catalog"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="marketplace-featured"]')).toBeNull();
+    expect(container.querySelector('.market-hero-carousel')).toBeNull();
     expect(
       container
         .querySelector('[data-testid="marketplace-search-input"]')
-        ?.closest('.market-filter-row'),
+        ?.closest('.market-discover-controls'),
     ).not.toBeNull();
     expect(
       Array.from(container.querySelectorAll('[data-testid^="market-entry-"]')).map((node) =>
         node.getAttribute('data-testid'),
       ),
     ).toEqual(['market-entry-extension:pi-lens', 'market-entry-skill:doc-coauthoring']);
-    expect(container.querySelector('.market-card-source')?.textContent).toContain('作者声明');
     expect(
       Array.from(container.querySelectorAll('.market-category-section .market-card-title')).map(
         (node) => node.textContent,
       ),
-    ).toEqual(['pi-lens', 'doc-coauthoring']);
-    expect(container.querySelector('[data-testid="marketplace-catalog"]')?.textContent).toContain(
-      '固定来源',
-    );
+    ).toEqual(['pi-lens 代码反馈', '文档协作写作']);
+    expect(container.querySelector('.market-card-kind')?.textContent).toContain('扩展');
+    // Kinds with no entries get no chip.
+    expect(findButton(container, 'Agent')).toBeUndefined();
     expect(container.textContent).not.toContain('Runtime Gen');
   });
 
@@ -250,6 +252,23 @@ describe('MarketplaceWorkspaceView', () => {
               source: 'github',
               installCommand: 'pi install git:missing-source',
             },
+            {
+              entryId: 'npm:pi-third',
+              name: 'pi-third',
+              version: '1.0.0',
+              description: 'Third',
+              source: 'npm-pi-package',
+              installCommand: 'pi install npm:pi-third',
+            },
+            {
+              // Already curated: the community list must not repeat it.
+              entryId: 'npm:pi-lens',
+              name: 'pi-lens',
+              version: '4.2.1',
+              description: 'Duplicate',
+              source: 'npm-pi-package',
+              installCommand: 'pi install npm:pi-lens',
+            },
           ],
         }),
     });
@@ -257,6 +276,7 @@ describe('MarketplaceWorkspaceView', () => {
     await flush();
 
     expect(host.commands()).toContainEqual({ type: 'marketplace/search', query: '', limit: 4 });
+    expect(container.querySelector('[data-testid="market-npm-pi-lens"]')).toBeNull();
     expect(container.querySelector('[data-testid="marketplace-ecosystem"]')?.textContent).toContain(
       'pi-example',
     );
@@ -267,18 +287,16 @@ describe('MarketplaceWorkspaceView', () => {
         '[data-testid="market-github-missing-source-install"]',
       )?.disabled,
     ).toBe(true);
+    // Curated entries come before unreviewed community results.
     expect(
       (container
         .querySelector('[data-testid="marketplace-ecosystem"]')
         ?.compareDocumentPosition(
-          container.querySelector('[data-testid="marketplace-catalog"]') ?? container,
-        ) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING,
+          container.querySelector('[data-testid="marketplace-featured"]') ?? container,
+        ) ?? 0) & Node.DOCUMENT_POSITION_PRECEDING,
     ).toBeTruthy();
     act(() => {
-      findButton(
-        container.querySelector('[data-testid="marketplace-ecosystem"]') ?? container,
-        '查看全部',
-      )?.click();
+      container.querySelector<HTMLButtonElement>('[data-testid="marketplace-ecosystem-more"]')?.click();
     });
     await flush();
     expect(host.commands()).toContainEqual({ type: 'marketplace/search', query: '', limit: 20 });
@@ -458,11 +476,9 @@ describe('MarketplaceWorkspaceView', () => {
     render(host, { onUseExample });
     await flush();
     act(() => {
-      findButton(
-        container.querySelector('[data-testid="market-entry-skill:doc-coauthoring"]') ?? container,
-        '已安装',
-      )?.click();
+      container.querySelector<HTMLElement>('[data-testid="market-entry-skill:doc-coauthoring"]')?.click();
     });
+    await flush();
     act(() => {
       findButton(
         document.querySelector('[data-testid="marketplace-entry-dialog"]') ?? document.body,
@@ -560,9 +576,9 @@ describe('MarketplaceWorkspaceView', () => {
     });
     await flush();
 
-    // Submit via clickable search button:
+    // Submit via the explicit "search the ecosystem" row:
     const submitBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="vault-search-submit-btn"]',
+      '[data-testid="marketplace-search-ecosystem"]',
     );
     expect(submitBtn).not.toBeNull();
     act(() => {
@@ -666,7 +682,7 @@ describe('MarketplaceWorkspaceView', () => {
     expect(document.body.textContent).toContain('下一条消息起即可使用');
   });
 
-  it('renders exactly 5 featured native capabilities when present, separated from catalog', async () => {
+  it('shows Host-flagged featured entries first, separated from the rest of the catalog', async () => {
     const featuredItems: MarketplaceCatalogEntry[] = [
       {
         ...SKILL_ENTRY,
@@ -709,6 +725,16 @@ describe('MarketplaceWorkspaceView', () => {
         capabilityId: 'skill-creator',
         kind: 'skill',
         name: { en: 'skill-creator', zhCN: 'skill-creator' },
+        featured: false,
+      },
+      {
+        ...SKILL_ENTRY,
+        entryId: 'skill:retired',
+        capabilityId: 'retired',
+        kind: 'skill',
+        name: { en: 'retired', zhCN: 'retired' },
+        featured: false,
+        withdrawn: { reason: { en: 'gone', zhCN: '下架' } },
       },
     ];
     const host = createFakeHost({
@@ -719,8 +745,7 @@ describe('MarketplaceWorkspaceView', () => {
 
     const featuredSection = container.querySelector('[data-testid="marketplace-featured"]');
     expect(featuredSection).not.toBeNull();
-    expect(featuredSection?.textContent).toContain('精选推荐');
-    expect(featuredSection?.textContent).toContain('实测可用 · 原生支持');
+    expect(featuredSection?.textContent).toContain('精选');
 
     const featuredCards = featuredSection?.querySelectorAll('.market-card');
     expect(featuredCards?.length).toBe(5);
@@ -745,7 +770,9 @@ describe('MarketplaceWorkspaceView', () => {
 
     const catalogSection = container.querySelector('[data-testid="marketplace-catalog"]');
     expect(catalogSection).not.toBeNull();
-    expect(catalogSection?.textContent).toContain('全域能力库');
+    expect(catalogSection?.textContent).toContain('全部');
+    // Withdrawn entries are not offered for new installs.
+    expect(container.querySelector('[data-testid="market-entry-skill:retired"]')).toBeNull();
     const catalogCards = catalogSection?.querySelectorAll('.market-card');
     expect(catalogCards?.length).toBe(1);
     expect(catalogCards?.[0]?.textContent).toContain('skill-creator');
@@ -801,4 +828,163 @@ describe('MarketplaceWorkspaceView', () => {
     );
   });
 
+
+  it('puts items needing attention first, localizes Host messages, and updates all pinned versions', async () => {
+    const host = createFakeHost({
+      'marketplace/catalog-list': (command) =>
+        ok(command.type, {
+          entries: [
+            SKILL_ENTRY,
+            {
+              ...SKILL_ENTRY,
+              entryId: 'skill:retired',
+              capabilityId: 'retired',
+              name: { en: 'retired', zhCN: '旧技能' },
+              withdrawn: { reason: { en: 'gone', zhCN: '下架' } },
+            },
+          ],
+        }),
+    });
+    host.setItems([
+      installedItem({ version: 'b'.repeat(40) }),
+      installedItem({
+        installationKey: 'skill:retired',
+        capabilityId: 'retired',
+        name: 'retired',
+        catalogEntryId: 'skill:retired',
+        version: '0.1.0',
+      }),
+      {
+        installationKey: 'extension:goal',
+        capabilityId: 'goal',
+        kind: 'extension',
+        name: 'goal',
+        availability: 'pending-apply',
+        enabled: true,
+        source: 'bundled',
+        canToggle: true,
+        message: 'Applies at the next run boundary.',
+        messageCode: 'pending-apply',
+      },
+    ]);
+    render(host);
+    await flush();
+
+    expect(container.querySelector('[data-testid="marketplace-tab-updates"]')?.textContent).toContain('1');
+    act(() => {
+      findButton(container, '已安装')?.click();
+    });
+    await flush();
+
+    const attention = container.querySelector('[data-testid="marketplace-installed-attention"]');
+    expect(attention?.textContent).toContain('goal');
+    expect(attention?.textContent).toContain('下一轮运行开始时生效');
+    expect(
+      container.querySelector('[data-testid="market-installed-skill:retired"] [data-testid="market-installed-withdrawn"]'),
+    ).not.toBeNull();
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="marketplace-update-all"]')?.click();
+    });
+    await flush();
+    // Only the still-listed entry with a different pinned version is updated.
+    expect(host.commands().filter((command) => command.type === 'skills/install')).toEqual([
+      expect.objectContaining({ type: 'skills/install', source: SKILL_ENTRY.install.kind === 'skill' ? SKILL_ENTRY.install.source : undefined }),
+    ]);
+  });
+
+  it('opens a community package in a drawer with its README, without remote images', async () => {
+    const host = createFakeHost({
+      'marketplace/search': (command) =>
+        ok(command.type, {
+          query: '',
+          hits: [
+            {
+              entryId: 'npm:pi-example',
+              name: 'pi-example',
+              version: '1.0.0',
+              description: 'Example package',
+              source: 'npm-pi-package',
+              installCommand: 'pi install npm:pi-example',
+            },
+          ],
+        }),
+      'marketplace/package-detail': (command) =>
+        ok(command.type, {
+          entryId: 'npm:pi-example',
+          license: 'MIT',
+          readme: '# Example\n\n![tracker](https://tracker.example/pixel.png)\n\nUse it well.',
+        }),
+    });
+    render(host);
+    await flush();
+
+    act(() => {
+      container.querySelector<HTMLElement>('[data-testid="market-npm-pi-example"]')?.click();
+    });
+    await flush();
+    await flush();
+
+    expect(host.commands()).toContainEqual({
+      type: 'marketplace/package-detail',
+      entryId: 'npm:pi-example',
+      npmPackageName: 'pi-example',
+    });
+    const drawer = document.querySelector('[data-testid="marketplace-package-drawer"]');
+    expect(drawer?.textContent).toContain('MIT');
+    expect(drawer?.textContent).toContain('Use it well.');
+    expect(drawer?.querySelector('img[src*="tracker.example"]')).toBeNull();
+  });
+
+  it('installs from a typed GitHub address through the Pi package command', async () => {
+    const host = createFakeHost();
+    render(host);
+    await flush();
+
+    act(() => {
+      findButton(container, '从地址安装…')?.click();
+    });
+    const input = document.querySelector<HTMLInputElement>('[data-testid="marketplace-source-install-dialog"] input');
+    act(() => {
+      setInputValue(input, 'https://github.com/owner/pi-tools.git');
+    });
+    act(() => {
+      document.querySelector<HTMLButtonElement>('[data-testid="marketplace-source-install-confirm"]')?.click();
+    });
+    await flush();
+
+    expect(host.commands()).toContainEqual({
+      type: 'marketplace/package-install',
+      source: { kind: 'git', repositoryUrl: 'https://github.com/owner/pi-tools' },
+    });
+    expect(document.querySelector('[data-testid="marketplace-source-install-dialog"]')).toBeNull();
+  });
+
+  it('shows the Host requirement check in the entry drawer', async () => {
+    const entry: MarketplaceCatalogEntry = {
+      ...SKILL_ENTRY,
+      featured: false,
+      requirements: [
+        { kind: 'command', value: 'uvx', required: true, description: { en: 'uv', zhCN: '需要 uv' } },
+      ],
+    };
+    const host = createFakeHost({
+      'marketplace/catalog-list': (command) => ok(command.type, { entries: [entry] }),
+      'marketplace/requirements-check': (command) =>
+        ok(command.type, {
+          entryId: entry.entryId,
+          results: [{ kind: 'command', value: 'uvx', required: true, status: 'missing' }],
+        }),
+    });
+    render(host);
+    await flush();
+
+    act(() => {
+      container.querySelector<HTMLElement>('[data-testid="market-entry-skill:doc-coauthoring"]')?.click();
+    });
+    await flush();
+
+    expect(host.commands()).toContainEqual({ type: 'marketplace/requirements-check', entryId: entry.entryId });
+    expect(document.querySelector('[data-testid="marketplace-requirement-missing"]')?.textContent).toBe('Host 缺少');
+  });
 });

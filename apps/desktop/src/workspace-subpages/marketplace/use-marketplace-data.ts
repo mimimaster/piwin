@@ -71,7 +71,8 @@ export function useMarketplaceData(options: {
     setLoading(true);
     void (async () => {
       const [catalog] = await Promise.all([
-        requestRef.current({ type: 'marketplace/catalog-list' }),
+        // Withdrawn entries are kept so Installed can explain why an item left the catalog.
+        requestRef.current({ type: 'marketplace/catalog-list', includeWithdrawn: true }),
         refreshInventory(),
       ]);
       if (!mountedRef.current) return;

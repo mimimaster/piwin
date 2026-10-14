@@ -7,6 +7,10 @@ import type {
   MarketplaceCatalogEntry,
   MarketplaceCatalogListData,
   MarketplaceInstalledListData,
+  MarketplacePackageDetailData,
+  MarketplacePiPackageSource,
+  MarketplaceRequirementsCheckData,
+  MarketplaceSearchHit,
 } from '@piwin/contracts';
 
 const MOCK_ENTRIES: MarketplaceCatalogEntry[] = [
@@ -97,6 +101,66 @@ const MOCK_ENTRIES: MarketplaceCatalogEntry[] = [
     verification: [{ level: 'author-declared' }],
     featured: false,
   },
+  {
+    entryId: 'skill:webapp-testing',
+    capabilityId: 'webapp-testing',
+    kind: 'skill',
+    category: 'code-development',
+    name: { en: 'Web app testing', zhCN: 'Web 应用测试' },
+    summary: { en: 'Drive a local web app with Playwright and report what broke.', zhCN: '用 Playwright 驱动本地 Web 应用并报告问题。' },
+    description: { en: 'Mock entry.', zhCN: '模拟条目。' },
+    version: '34040c9c568585f6929bedeaad110ad08f079624',
+    author: 'Anthropic',
+    sourceLabel: 'GitHub',
+    install: { kind: 'skill', source: { kind: 'git', url: 'https://github.com/anthropics/skills.git' } },
+    requirements: [
+      {
+        kind: 'command',
+        value: 'python3 + playwright',
+        required: true,
+        description: { en: 'Python 3 with Playwright on the Host.', zhCN: 'Host 上需有 Python 3 与 Playwright。' },
+      },
+    ],
+    examples: [
+      {
+        title: { en: 'Smoke test', zhCN: '冒烟测试' },
+        prompt: { en: 'Open localhost:3000 and check the login flow.', zhCN: '打开 localhost:3000 检查登录流程。' },
+      },
+    ],
+    verification: [
+      {
+        level: 'piwin-tested',
+        testedVersion: '34040c9c568585f6929bedeaad110ad08f079624',
+        piwinVersion: '0.9.0',
+        piVersion: '0.84.0',
+        hostOs: 'macos',
+        backend: 'sdk',
+        testedAt: '2026-10-01',
+      },
+    ],
+    featured: true,
+  },
+  {
+    entryId: 'skill:legacy-notes',
+    capabilityId: 'legacy-notes',
+    kind: 'skill',
+    category: 'docs-research',
+    name: { en: 'Legacy notes', zhCN: '旧版笔记' },
+    summary: { en: 'Superseded note-taking workflow.', zhCN: '已被替代的笔记流程。' },
+    description: { en: 'Mock withdrawn entry.', zhCN: '模拟下架条目。' },
+    version: '1.0.0',
+    author: 'piwin',
+    sourceLabel: 'GitHub',
+    install: { kind: 'skill', source: { kind: 'git', url: 'https://github.com/example/legacy-notes.git' } },
+    requirements: [],
+    examples: [],
+    verification: [{ level: 'author-declared' }],
+    featured: false,
+    withdrawn: {
+      reason: { en: 'Superseded by Doc Co-authoring.', zhCN: '已由“文档协作写作”替代。' },
+      replacementEntryId: 'skill:doc-coauthoring',
+    },
+  },
 ];
 
 export function mockMarketplaceCatalog(): MarketplaceCatalogListData {
@@ -120,6 +184,35 @@ export function mockMarketplaceInventory(): MarketplaceInstalledListData {
         removal: { command: 'skills/uninstall' },
       },
       {
+        installationKey: 'skill:legacy-notes',
+        capabilityId: 'legacy-notes',
+        kind: 'skill',
+        name: 'legacy-notes',
+        catalogEntryId: 'skill:legacy-notes',
+        version: '1.0.0',
+        availability: 'available',
+        enabled: true,
+        source: 'user',
+        canToggle: true,
+        removal: { command: 'skills/uninstall' },
+      },
+      {
+        installationKey: 'mcp:time',
+        capabilityId: 'time',
+        kind: 'mcp',
+        name: 'time',
+        catalogEntryId: 'mcp:time',
+        version: '2026.7.1',
+        availability: 'configuration-required',
+        enabled: true,
+        source: 'mcp-config',
+        message: 'Missing value for TZ',
+        messageCode: 'mcp-missing-env',
+        messageDetail: 'TZ',
+        canToggle: false,
+        removal: { command: 'mcp/remove' },
+      },
+      {
         installationKey: 'extension:goal',
         capabilityId: 'goal',
         kind: 'extension',
@@ -128,8 +221,108 @@ export function mockMarketplaceInventory(): MarketplaceInstalledListData {
         enabled: true,
         source: 'bundled',
         message: 'Applies at the next run boundary.',
+        messageCode: 'pending-apply',
         canToggle: true,
       },
     ],
   };
+}
+
+const MOCK_BROWSE_HITS: MarketplaceSearchHit[] = [
+  {
+    entryId: 'npm:pi-lens',
+    name: 'pi-lens',
+    version: '4.2.1',
+    description: 'Duplicate of a curated entry; the page hides it.',
+    source: 'npm-pi-package',
+    installCommand: 'pi install npm:pi-lens',
+    npmUrl: 'https://www.npmjs.com/package/pi-lens',
+    monthlyDownloads: 9100,
+    updatedAt: '2026-10-02T00:00:00.000Z',
+  },
+  {
+    entryId: 'npm:pi-web-access',
+    name: 'pi-web-access',
+    version: '1.8.0',
+    description: 'Web search and fetch tools for Pi agents.',
+    source: 'npm-pi-package',
+    installCommand: 'pi install npm:pi-web-access',
+    npmUrl: 'https://www.npmjs.com/package/pi-web-access',
+    repositoryUrl: 'https://github.com/example/pi-web-access',
+    publisher: 'example',
+    monthlyDownloads: 4210,
+    updatedAt: '2026-09-20T00:00:00.000Z',
+  },
+  {
+    entryId: 'npm:pi-todo',
+    name: 'pi-todo',
+    version: '0.4.2',
+    description: 'A persistent todo list tool the agent can read and update.',
+    source: 'npm-pi-package',
+    installCommand: 'pi install npm:pi-todo',
+    npmUrl: 'https://www.npmjs.com/package/pi-todo',
+    publisher: 'someone',
+    monthlyDownloads: 1320,
+    updatedAt: '2026-10-11T00:00:00.000Z',
+  },
+  {
+    entryId: 'github:example/pi-review',
+    name: 'pi-review',
+    version: 'main',
+    description: 'Git-only review helper (mock).',
+    source: 'github',
+    installCommand: 'pi install git:github.com/example/pi-review',
+    repositoryUrl: 'https://github.com/example/pi-review',
+    publisher: 'example',
+    stars: 87,
+    updatedAt: '2026-06-01T00:00:00Z',
+  },
+];
+
+export function mockMarketplaceBrowseHits(limit: number | undefined): MarketplaceSearchHit[] {
+  return MOCK_BROWSE_HITS.slice(0, limit ?? MOCK_BROWSE_HITS.length);
+}
+
+export function mockMarketplacePackageDetail(entryId: string): MarketplacePackageDetailData {
+  return {
+    entryId,
+    license: 'MIT',
+    updatedAt: '2026-09-20T00:00:00.000Z',
+    readme: [
+      '# Mock package',
+      '[![npm](https://img.shields.io/npm/v/mock.svg)](https://npmjs.com/mock)',
+      '',
+      'Adds **mock** tools to the agent.',
+      '',
+      '## Usage',
+      '',
+      '```bash',
+      'pi install npm:mock',
+      '```',
+    ].join('\n'),
+  };
+}
+
+export function mockMarketplaceRequirementsCheck(entryId: string): MarketplaceRequirementsCheckData {
+  const entry = MOCK_ENTRIES.find((item) => item.entryId === entryId);
+  return {
+    entryId,
+    results: (entry?.requirements ?? []).map((requirement, index) => ({
+      kind: requirement.kind,
+      value: requirement.value,
+      required: requirement.required,
+      status: index === 0 && requirement.value.includes('+') ? 'unknown' : 'met',
+    })),
+  };
+}
+
+export function mockPackageSourceString(source: MarketplacePiPackageSource): string {
+  switch (source.kind) {
+    case 'npm':
+      return `npm:${source.packageName}`;
+    case 'git':
+      return `git:${source.repositoryUrl}`;
+    case 'local':
+      return source.path;
+  }
 }

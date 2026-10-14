@@ -9,4 +9,5 @@ export * from './use-marketplace-data.js';
 export * from './use-marketplace-actions.js';
 export * from './use-marketplace-ecosystem-search.js';
 export * from './use-marketplace-package-install.js';
-export * from './marketplace-hero-carousel.js';
+export * from './marketplace-view-model.js';
+export * from './marketplace-package-meta.js';

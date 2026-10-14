@@ -1,18 +1,19 @@
 /**
- * Discover-tab card: name, one-line purpose, kind, evidence, real Host state
- * and one primary action. Details and install consent live in the dialog.
+ * Discover-tab card: name, one-line purpose, kind, real Host state and one
+ * primary action. The whole card opens the detail drawer, where install
+ * consent, examples and provenance live.
  */
-import type { ReactElement } from 'react';
+import type { KeyboardEvent, ReactElement } from 'react';
 import type { MarketplaceCatalogEntry, MarketplaceInstalledItem } from '@piwin/contracts';
-import { Button, ProgressBar, ProgressRing } from '@piwin/ui-kit';
+import { Button, ProgressBar } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../../desktop-locale.js';
-import { IconCheck } from '../../shell-icons.js';
 import {
   availabilityLabel,
+  entryName,
+  isPiwinTested,
   kindLabel,
   localizedText,
   operationLabel,
-  verificationLabel,
 } from './marketplace-copy.js';
 import { MarketplaceKindSeal } from './marketplace-kind-seal.js';
 import type { MarketOperation } from './marketplace-types.js';
@@ -26,28 +27,59 @@ export type MarketplaceCatalogCardProps = {
   onUpdate?: ((entry: MarketplaceCatalogEntry, installed: MarketplaceInstalledItem) => void) | undefined;
 };
 
+export function hasCatalogUpdate(
+  entry: Pick<MarketplaceCatalogEntry, 'version' | 'withdrawn'> | undefined,
+  installed: Pick<MarketplaceInstalledItem, 'version'>,
+): boolean {
+  return Boolean(
+    entry && !entry.withdrawn && entry.version && installed.version && entry.version !== installed.version,
+  );
+}
+
+/** Enter / Space on a focused card behaves like a click, as on a button. */
+export function activateOnKey(event: KeyboardEvent<HTMLElement>, activate: () => void): void {
+  if (event.target !== event.currentTarget) return;
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    activate();
+  }
+}
 
 export function MarketplaceCatalogCard(props: MarketplaceCatalogCardProps): ReactElement {
   const { entry, installed, operation, locale } = props;
   const zh = locale === 'zh-CN';
+  const name = entryName(entry, locale);
+  const open = () => props.onOpen(entry);
+  const updatable = installed !== undefined && hasCatalogUpdate(entry, installed);
+
   return (
-    <div className="market-card" data-testid={`market-entry-${entry.entryId}`}>
+    <div
+      className="market-card is-clickable"
+      role="button"
+      tabIndex={0}
+      aria-label={name}
+      onClick={open}
+      onKeyDown={(event) => activateOnKey(event, open)}
+      data-testid={`market-entry-${entry.entryId}`}
+    >
       <div className="market-card-content">
         <div className="market-card-top">
           <MarketplaceKindSeal kind={entry.kind} />
           <div className="market-card-header-texts">
-            <strong className="market-card-title" title={entry.name.en}>
-              {entry.name.en}
+            <strong className="market-card-title" title={name}>
+              {name}
             </strong>
-            <span className="market-card-kind">{kindLabel(entry.kind, locale)}</span>
+            <span className="market-card-kind">
+              {kindLabel(entry.kind, locale)}
+              <span aria-hidden="true"> · </span>
+              {entry.author}
+            </span>
           </div>
+          {isPiwinTested(entry.verification) ? (
+            <span className="market-tested-badge">{zh ? 'piwin 实测' : 'piwin tested'}</span>
+          ) : null}
         </div>
         <p className="market-card-desc">{localizedText(entry.summary, locale)}</p>
-        {entry.examples[0] ? (
-          <p className="market-card-example">
-            <span>{zh ? '试试' : 'Try'}</span> {localizedText(entry.examples[0].prompt, locale)}
-          </p>
-        ) : null}
         {operation ? (
           // Installs report no byte progress, so the bar sweeps instead of guessing a percentage.
           <ProgressBar
@@ -59,60 +91,43 @@ export function MarketplaceCatalogCard(props: MarketplaceCatalogCardProps): Reac
       </div>
       <div className="market-card-footer">
         <span className="market-card-source">
-          {entry.author} · {entry.sourceLabel} · {verificationLabel(entry.verification, locale)}
           {entry.requirements.some((requirement) => requirement.required)
             ? zh
-              ? ' · 需前提条件'
-              : ' · Prerequisites'
-            : ''}
+              ? '需前提条件'
+              : 'Has prerequisites'
+            : null}
         </span>
         <div className="market-card-actions">
-          {operation ? (
-            <Button variant="primary" size="compact" disabled aria-busy={true}>
-              <span className="market-btn-inner market-btn-installing">
-                <ProgressRing size={13} strokeWidth={2.2} tone="pine" />
-                <span className="market-btn-progress-label">
-                  {operationLabel(operation, locale)}
-                </span>
-              </span>
-            </Button>
-          ) : installed && entry.version && installed.version && entry.version !== installed.version ? (
+          {operation ? null : updatable && installed ? (
             <Button
               variant="primary"
               size="compact"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (props.onUpdate && installed) {
-                  props.onUpdate(entry, installed);
-                } else {
-                  props.onOpen(entry);
-                }
+              onClick={(event) => {
+                event.stopPropagation();
+                if (props.onUpdate) props.onUpdate(entry, installed);
+                else open();
               }}
-              title={zh ? `可更新至 v${entry.version}` : `Update available: v${entry.version}`}
             >
               {zh ? `更新至 v${entry.version}` : `Update to v${entry.version}`}
             </Button>
+          ) : installed ? (
+            <span className={`market-status-pill is-${installed.availability}`}>
+              {installed.availability === 'available'
+                ? zh
+                  ? '已安装'
+                  : 'Installed'
+                : availabilityLabel(installed.availability, locale)}
+            </span>
           ) : (
             <Button
               variant="secondary"
               size="compact"
-              title={installed ? availabilityLabel(installed.availability, locale) : undefined}
-              onClick={() => props.onOpen(entry)}
+              onClick={(event) => {
+                event.stopPropagation();
+                open();
+              }}
             >
-              {installed ? (
-                <span className="market-btn-inner">
-                  <IconCheck width={12} height={12} aria-hidden="true" />
-                  {installed.availability === 'available'
-                    ? zh
-                      ? '已安装'
-                      : 'Installed'
-                    : availabilityLabel(installed.availability, locale)}
-                </span>
-              ) : zh ? (
-                '查看安装'
-              ) : (
-                'View install'
-              )}
+              {zh ? '安装' : 'Install'}
             </Button>
           )}
         </div>
