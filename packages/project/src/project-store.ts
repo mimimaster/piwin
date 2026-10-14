@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type {
   ProjectNetworkPolicy,
@@ -17,6 +17,34 @@ function emptyDoc(): ProjectStoreDocument {
   return { version: 1, projects: [] };
 }
 
+function normalizeHiddenProjectPaths(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const paths: string[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    const absolute = resolve(trimmed);
+    if (seen.has(absolute)) continue;
+    seen.add(absolute);
+    paths.push(absolute);
+  }
+  return paths.length > 0 ? paths : undefined;
+}
+
+/** Resolve to realpath when the folder exists; otherwise lexical resolve. */
+export async function resolveSidebarProjectPath(projectPath: string): Promise<string> {
+  const absolute = resolve(projectPath.trim());
+  try {
+    return await realpath(absolute);
+  } catch {
+    return absolute;
+  }
+}
+
 export async function loadProjectStore(filePath: string): Promise<ProjectStoreDocument> {
   try {
     const raw = await readFile(filePath, 'utf8');
@@ -26,6 +54,7 @@ export async function loadProjectStore(filePath: string): Promise<ProjectStoreDo
     }
     const record = parsed as Record<string, unknown>;
     const projects = Array.isArray(record.projects) ? record.projects : [];
+    const hiddenProjectPaths = normalizeHiddenProjectPaths(record.hiddenProjectPaths);
     return {
       version: 1,
       projects: projects.filter(
@@ -34,6 +63,7 @@ export async function loadProjectStore(filePath: string): Promise<ProjectStoreDo
           typeof item === 'object' &&
           typeof (item as ProjectRecord).path === 'string',
       ),
+      ...(hiddenProjectPaths ? { hiddenProjectPaths } : {}),
     };
   } catch (error) {
     if (isNotFound(error)) {
@@ -161,6 +191,86 @@ export async function removeProject(
   const [removed] = document.projects.splice(index, 1);
   await saveProjectStore(filePath, document);
   return removed;
+}
+
+/**
+ * True when `candidatePath` is the same directory as a sidebar removal tombstone.
+ * Compares lexical resolve first, then realpath aliases of existing folders.
+ */
+export async function isHiddenSidebarProjectPath(
+  hiddenProjectPaths: readonly string[] | undefined,
+  candidatePath: string,
+): Promise<boolean> {
+  if (!hiddenProjectPaths || hiddenProjectPaths.length === 0) {
+    return false;
+  }
+  const candidateAbsolute = resolve(candidatePath.trim());
+  if (!candidateAbsolute) {
+    return false;
+  }
+  const candidateReal = await resolveSidebarProjectPath(candidateAbsolute);
+  for (const hidden of hiddenProjectPaths) {
+    const hiddenAbsolute = resolve(hidden);
+    if (hiddenAbsolute === candidateAbsolute || hiddenAbsolute === candidateReal) {
+      return true;
+    }
+    const hiddenReal = await resolveSidebarProjectPath(hiddenAbsolute);
+    if (
+      hiddenReal === candidateAbsolute ||
+      hiddenReal === candidateReal ||
+      hiddenAbsolute === candidateReal
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Persist a sidebar removal tombstone for one checkout path (canonical when possible). */
+export async function hideSidebarProjectPath(
+  filePath: string,
+  projectPath: string,
+): Promise<string> {
+  const canonical = await resolveSidebarProjectPath(projectPath);
+  const document = await loadProjectStore(filePath);
+  const existing = document.hiddenProjectPaths ?? [];
+  if (await isHiddenSidebarProjectPath(existing, canonical)) {
+    return canonical;
+  }
+  document.hiddenProjectPaths = [...existing, canonical];
+  await saveProjectStore(filePath, document);
+  return canonical;
+}
+
+/**
+ * Drop tombstones that refer to the same directory as `projectPath`.
+ * Does not clear unrelated hidden paths.
+ */
+export async function clearHiddenSidebarProjectPath(
+  filePath: string,
+  projectPath: string,
+): Promise<void> {
+  const document = await loadProjectStore(filePath);
+  const existing = document.hiddenProjectPaths;
+  if (!existing || existing.length === 0) {
+    return;
+  }
+  const remaining: string[] = [];
+  for (const hidden of existing) {
+    if (await isHiddenSidebarProjectPath([hidden], projectPath)) {
+      continue;
+    }
+    remaining.push(hidden);
+  }
+  if (remaining.length === existing.length) {
+    return;
+  }
+  if (remaining.length === 0) {
+    delete document.hiddenProjectPaths;
+  } else {
+    document.hiddenProjectPaths = remaining;
+  }
+  await saveProjectStore(filePath, document);
 }
 
 function isNotFound(error: unknown): boolean {

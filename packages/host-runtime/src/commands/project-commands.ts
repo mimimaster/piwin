@@ -26,12 +26,17 @@ import {
   rememberProjectCheckoutIdentities,
   openOrCreateProject,
   removeProject,
+  hideSidebarProjectPath,
+  clearHiddenSidebarProjectPath,
+  isHiddenSidebarProjectPath,
+  resolveSidebarProjectPath,
   findRegisteredProjectRoot,
   normalizeProjectRootPath,
   resolveInsideRootWithRealpath,
   resolveProjectPathById,
   revokeRememberedPermission,
   setProjectTrust,
+  projectIdForPath,
 } from '@piwin/project';
 import {
   findTrustedSameRepositoryRoot,
@@ -78,13 +83,21 @@ export async function handleProjectCommand(
 
   switch (command.type) {
     case 'project/list': {
+      const document = await loadProjectStore(projectsPath);
       const projects = await listProjects(projectsPath);
       const listed = await enrichProjectsWithGitWorkspace(projects);
       await rememberProjectCheckoutIdentities(projectsPath, listed.projects);
       const sidebar = await listProjectSidebarWorktrees(listed.projects, rootDir);
+      const worktrees = [];
+      for (const worktree of sidebar.worktrees) {
+        if (await isHiddenSidebarProjectPath(document.hiddenProjectPaths, worktree.path)) {
+          continue;
+        }
+        worktrees.push(worktree);
+      }
       return ok(requestId, 'project/list', {
         projects: sidebar.projects,
-        worktrees: sidebar.worktrees,
+        worktrees,
         ...(listed.gitWorkspacePending || sidebar.pending ? { gitWorkspacePending: true } : {}),
       });
     }
@@ -113,6 +126,7 @@ export async function handleProjectCommand(
           ? await openOrCreateProject(projectsPath, targetPath, { trust: 'trusted' })
           : await openOrCreateProject(projectsPath, targetPath);
       }
+      await clearHiddenSidebarProjectPath(projectsPath, project.path);
       const workspace = await readGitWorkspaceListing(project.path);
       if (workspace) {
         project = applyGitWorkspaceListing(project, workspace);
@@ -127,18 +141,48 @@ export async function handleProjectCommand(
       });
     }
     case 'project/remove': {
-      const bound = bindProjectLocator(command.path, (await loadProjectStore(projectsPath)).projects, {
-        generalWorkspacePath: getPiwinGeneralWorkspacePath(rootDir),
-      });
-      if (!bound.ok) {
-        return fail(requestId, 'project/remove', bound.error);
+      const document = await loadProjectStore(projectsPath);
+      const generalWorkspacePath = getPiwinGeneralWorkspacePath(rootDir);
+      const bound = bindProjectLocator(command.path, document.projects, { generalWorkspacePath });
+      let targetPath: string | undefined = bound.ok ? bound.path : undefined;
+      if (!bound.ok && bound.error === 'unknown-project') {
+        // Opaque remote ids can name a discovered worktree that was never registered.
+        targetPath = await resolveDiscoveredWorktreePath(
+          command.path,
+          document.projects,
+          rootDir,
+        );
       }
-      const project = await removeProject(projectsPath, bound.path);
-      if (!project) {
-        return fail(requestId, 'project/remove', `Project not found: ${command.path}`);
+      if (!targetPath) {
+        return fail(
+          requestId,
+          'project/remove',
+          bound.ok ? `Project not found: ${command.path}` : bound.error,
+        );
       }
+      // Prefer the remembered store path when the locator is a realpath alias.
+      const registeredMatch = await findRegisteredProjectRoot(
+        document.projects.map((item) => item.path),
+        targetPath,
+      );
+      const removed = await removeProject(projectsPath, registeredMatch ?? targetPath);
+      if (!removed) {
+        const remaining = await listProjects(projectsPath);
+        const listed = await enrichProjectsWithGitWorkspace(remaining);
+        const visible = await listProjectSidebarWorktrees(listed.projects, rootDir);
+        const matched = await matchDiscoveredWorktreePath(visible.worktrees, targetPath);
+        if (!matched) {
+          return fail(requestId, 'project/remove', `Project not found: ${command.path}`);
+        }
+        const hiddenPath = await hideSidebarProjectPath(projectsPath, matched);
+        return ok(requestId, 'project/remove', {
+          path: hiddenPath,
+          removed: true,
+        });
+      }
+      const hiddenPath = await hideSidebarProjectPath(projectsPath, removed.path);
       return ok(requestId, 'project/remove', {
-        path: project.path,
+        path: hiddenPath,
         removed: true,
       });
     }
@@ -230,6 +274,41 @@ export async function handleProjectCommand(
  * and the response says so, letting the client re-list once git settles.
  */
 export const PROJECT_LIST_GIT_BUDGET_MS = 2_500;
+
+async function matchDiscoveredWorktreePath(
+  worktrees: readonly { path: string }[],
+  candidatePath: string,
+): Promise<string | undefined> {
+  const candidate = await resolveSidebarProjectPath(candidatePath);
+  for (const worktree of worktrees) {
+    const worktreePath = await resolveSidebarProjectPath(worktree.path);
+    if (
+      worktreePath === candidate ||
+      path.resolve(worktree.path) === path.resolve(candidatePath) ||
+      worktreePath === path.resolve(candidatePath) ||
+      path.resolve(worktree.path) === candidate
+    ) {
+      return worktreePath;
+    }
+  }
+  return undefined;
+}
+
+/** Resolve an opaque project id against registered projects or live worktree inventory. */
+async function resolveDiscoveredWorktreePath(
+  locator: string,
+  projects: readonly ProjectRecord[],
+  rootDir: string,
+): Promise<string | undefined> {
+  const listed = await enrichProjectsWithGitWorkspace(projects);
+  const visible = await listProjectSidebarWorktrees(listed.projects, rootDir);
+  for (const worktree of visible.worktrees) {
+    if (projectIdForPath(worktree.path) === locator) {
+      return worktree.path;
+    }
+  }
+  return undefined;
+}
 
 export async function enrichProjectsWithGitWorkspace(
   projects: readonly ProjectRecord[],

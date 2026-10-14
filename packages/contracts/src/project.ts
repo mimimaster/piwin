@@ -57,6 +57,12 @@ export type ProjectWorktreeListing = {
 export type ProjectStoreDocument = {
   version: 1;
   projects: ProjectRecord[];
+  /**
+   * Sidebar-only removal tombstones. Paths the user explicitly removed stay
+   * out of `project/list` discovered worktrees until reopened. Optional for
+   * legacy `projects.json` documents; never deletes files or Git worktrees.
+   */
+  hiddenProjectPaths?: string[];
 };
 
 /** Response for `project/list`; ordered by most recently opened first. */

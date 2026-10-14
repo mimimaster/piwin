@@ -67,7 +67,7 @@ describe('project commands', () => {
       type: 'response',
       command: 'project/remove',
       success: true,
-      data: { path: projectPath, removed: true },
+      data: { path: await realpath(projectPath), removed: true },
     });
 
     const listed = await handleProjectCommand({ type: 'project/list' }, 'list-request', rootDir);
@@ -76,6 +76,64 @@ describe('project commands', () => {
       data: { projects: [] },
     });
     await expect(access(projectPath)).resolves.toBeUndefined();
+  });
+
+  it('persistently hides removed worktrees, preserves siblings, and restores explicit reopens', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-remove-wt-'));
+    const projectPath = join(rootDir, 'repo');
+    const linkedPath = join(rootDir, 'linked');
+    const siblingPath = join(rootDir, 'sibling');
+    const aliasPath = join(rootDir, 'linked-alias');
+    try {
+      await mkdir(projectPath);
+      await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectPath });
+      await execFileAsync('git', ['config', 'user.email', 'piwin-test@example.com'], { cwd: projectPath });
+      await execFileAsync('git', ['config', 'user.name', 'piwin test'], { cwd: projectPath });
+      await writeFile(join(projectPath, 'README.md'), 'base\n');
+      await execFileAsync('git', ['add', '--all'], { cwd: projectPath });
+      await execFileAsync('git', ['commit', '-m', 'base'], { cwd: projectPath });
+      await execFileAsync('git', ['worktree', 'add', '-b', 'feat/removed', linkedPath], { cwd: projectPath });
+      await execFileAsync('git', ['worktree', 'add', '-b', 'feat/kept', siblingPath], { cwd: projectPath });
+      await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open-main', rootDir);
+      await handleProjectCommand({ type: 'project/open', path: linkedPath }, 'open-linked', rootDir);
+      async function inventory() {
+        const listed = await handleProjectCommand({ type: 'project/list' }, 'list', rootDir);
+        if (!listed?.success) throw new Error('project/list failed');
+        const data = listed.data as { projects: ProjectRecord[]; worktrees: { path: string }[] };
+        return {
+          projects: await Promise.all(data.projects.map((item) => realpath(item.path))),
+          worktrees: await Promise.all(data.worktrees.map((item) => realpath(item.path))),
+        };
+      }
+      const linkedReal = await realpath(linkedPath);
+      const siblingReal = await realpath(siblingPath);
+      expect((await inventory()).worktrees).toContain(linkedReal);
+      expect((await handleProjectCommand({ type: 'project/remove', path: linkedPath }, 'remove', rootDir))?.success).toBe(true);
+      for (let repeat = 0; repeat < 2; repeat += 1) {
+        const listed = await inventory();
+        expect(listed.projects).not.toContain(linkedReal);
+        expect(listed.worktrees).not.toContain(linkedReal);
+        expect(listed.worktrees).toContain(siblingReal);
+      }
+      await expect(access(join(linkedPath, 'README.md'))).resolves.toBeUndefined();
+      await handleProjectCommand({ type: 'project/open', path: linkedPath }, 'reopen', rootDir);
+      expect((await inventory()).projects).toContain(linkedReal);
+      expect((await inventory()).worktrees).toContain(linkedReal);
+      // Sibling has never been registered: the discovery row must also be removable.
+      expect((await handleProjectCommand({ type: 'project/remove', path: siblingPath }, 'remove-discovered', rootDir))?.success).toBe(true);
+      expect((await inventory()).worktrees).not.toContain(siblingReal);
+      await expect(access(siblingPath)).resolves.toBeUndefined();
+      expect(await handleProjectCommand({ type: 'project/remove', path: join(rootDir, 'unknown') }, 'unknown', rootDir)).toMatchObject({ success: false });
+      await symlink(linkedPath, aliasPath);
+      expect((await handleProjectCommand({ type: 'project/remove', path: aliasPath }, 'remove-alias', rootDir))?.success).toBe(true);
+      expect((await inventory()).worktrees).not.toContain(linkedReal);
+      expect((await inventory()).worktrees).toContain(await realpath(projectPath));
+      await handleProjectCommand({ type: 'project/open', path: aliasPath }, 'reopen-alias', rootDir);
+      expect((await inventory()).projects).toContain(linkedReal);
+      expect((await inventory()).worktrees).toContain(linkedReal);
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
   });
 
   it('splits image previews that would overflow one Host wire frame into ranged slices', async () => {

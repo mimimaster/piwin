@@ -10,6 +10,10 @@ import {
   getBashAllowlist,
   getFileWriteAllowlist,
   getProjectNetworkPolicy,
+  clearHiddenSidebarProjectPath,
+  hideSidebarProjectPath,
+  isHiddenSidebarProjectPath,
+  loadProjectStore,
   listProjects,
   listRememberedPermissions,
   openOrCreateProject,
@@ -78,6 +82,22 @@ describe('project-store', () => {
     expect((await listProjects(filePath)).map((project) => project.path)).toEqual([
       '/tmp/keep-project',
     ]);
+  });
+
+  it('loads legacy stores and persists only explicit sidebar tombstones', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-project-hidden-'));
+    const filePath = join(dir, 'projects.json');
+    await openOrCreateProject(filePath, '/tmp/legacy-project');
+    expect((await loadProjectStore(filePath)).hiddenProjectPaths).toBeUndefined();
+    const hidden = await hideSidebarProjectPath(filePath, '/tmp/removed-worktree');
+    expect((await loadProjectStore(filePath)).hiddenProjectPaths).toEqual([hidden]);
+    expect(await isHiddenSidebarProjectPath([hidden], '/tmp/removed-worktree')).toBe(true);
+    expect(await isHiddenSidebarProjectPath([hidden], '/tmp/removed-worktree/subdir')).toBe(false);
+    await hideSidebarProjectPath(filePath, '/tmp/kept-hidden');
+    await clearHiddenSidebarProjectPath(filePath, '/tmp/removed-worktree');
+    expect((await loadProjectStore(filePath)).hiddenProjectPaths).toEqual(['/tmp/kept-hidden']);
+    await clearHiddenSidebarProjectPath(filePath, '/tmp/kept-hidden');
+    expect((await loadProjectStore(filePath)).hiddenProjectPaths).toBeUndefined();
   });
 
   it('remembers network allow policy per project', async () => {
