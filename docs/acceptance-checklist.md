@@ -117,7 +117,7 @@
 - [ ] **不得同时**运行 all-in-one Desktop 与独立 Host 于同一个 `~/.piwin`
 - [ ] 干净机器冒烟（S5）通过 —— 未通过前只做内部/开发分发
 - [ ] Windows 版本在 Windows 上构建（不跨编译），WebView2 实机复测
-- [ ] Linux `lancedb` 原生只带当前平台一个，FTS 使用 ICU tokenizer
+- [ ] Linux 包里 `node-pty` / `sharp` 原生只带当前平台一个；知识库中文检索（`node:sqlite` FTS5 + `Intl.Segmenter`）可命中
 - [ ] 签名/公证：有证书时执行；无证书记录为 D-ENG-03b 残留
 
 ## 6. 文档同步门禁（规范 §12.1）
