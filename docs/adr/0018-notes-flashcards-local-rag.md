@@ -247,7 +247,9 @@ Desktop can reveal an existing key through the explicit `secrets/get` action;
 simply viewing it does not modify settings. Saving still writes the key to the
 Host secret store and persists only its reference.
 
-## Appendix: LanceDB for Doc Cards V2 (2026-08-16)
+## Appendix: LanceDB for Doc Cards V2 (2026-08-16) — superseded 2026-10-13
+
+> Superseded by the next appendix. Kept as the record of why LanceDB was tried.
 
 **Decision:** A
 **Sidecar Node:** v24.11.1
@@ -257,3 +259,45 @@ Host secret store and persists only its reference.
 **Packaging impact on ADR 0018 §3:** accepted for Doc Cards V2 only. Sidecar must include the matching platform `.node` and must not pull every optional native package into one bundle. Notes RAG stays on `node:sqlite` + optional brute-force vectors.
 
 Process notes: `docs/notes/2026-08-16-lancedb-sidecar-spike.md`.
+
+## Appendix: doc-rag chunk index back on `node:sqlite` (2026-10-13)
+
+**Decision:** replace the LanceDB `DocIndexStore` with
+`packages/doc-rag/src/indexing/sqlite-index.ts`. `@lancedb/lancedb` is no longer a
+dependency or a Host bundle external.
+
+**Why:** the installed `piwin.app` had grown from 344 MB to 843 MB. The 2026-08-16
+appendix accepted the ~216 MiB native as a packaging cost, but `npm install` also
+pulled LanceDB's optional `@huggingface/transformers` + `onnxruntime-*` (~290 MB)
+into `dist-host`. Owner call: the size is not worth it for a store whose two
+requirements — CJK full-text and hybrid retrieval — the stdlib already covers.
+
+**What replaces each LanceDB capability**
+
+| Need | LanceDB | Now |
+|------|---------|-----|
+| CJK full-text | `Index.fts({ baseTokenizer: "icu" })` | FTS5 `unicode61` over text pre-segmented with `Intl.Segmenter` (`@piwin/notes` `tokenize`, the §4 approach) |
+| Query semantics | match any term, BM25 | OR of quoted tokens, `bm25()` |
+| Vector search | native ANN | brute-force cosine over the folder's chunks (§5 approach; a folder is capped at 2 000 files / 32 MiB of text) |
+| Hybrid | built-in RRF | `reciprocalRankFusion` over the text and vector rankings |
+
+**Trade-offs accepted:** vector search is O(chunks in folder) per query, and
+chunks whose stored dimension differs from the query vector are skipped rather
+than erroring. Segmentation is dictionary-based on both sides, so a query can
+split differently from the indexed text; OR semantics keep that a ranking
+problem, not a miss.
+
+**Storage:** `~/.piwin/doc-rag/<folderKey>/chunk-index.sqlite3` next to
+`state.sqlite3`. Still a rebuildable cache.
+
+**Migration:** a leftover `<folderKey>/lancedb/` marks a folder whose
+`state.sqlite3` says READY but whose chunks are unreadable. `FolderRag` re-indexes
+such a folder before its next retrieve (ingestion re-reads every document with
+no chunks), and a completed full index deletes the directory. Folders with an
+embedding provider are re-embedded once.
+
+**Measured (darwin-arm64):** `dist-host/node_modules` 671 MB → 102 MB after
+`pnpm bundle:host`. `.app` / `.dmg` sizes are not re-measured yet.
+
+**Also unblocked:** LanceDB had no `darwin-x64` prebuild; nothing in the Host
+bundle now rules out an Intel Mac build.

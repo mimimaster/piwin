@@ -32,7 +32,7 @@ export { createTextParser } from './parsers/text-parser.js';
 export { chunkParsedDocument } from './chunking/chunk-service.js';
 export { mapUnstructuredElements } from './parsers/unstructured-adapter.js';
 export { mapMineruContentList } from './parsers/mineru-adapter.js';
-export { openLanceDocIndex } from './indexing/lancedb-index.js';
+export { openSqliteDocIndex } from './indexing/sqlite-index.js';
 export type { DocIndexStore } from './indexing/doc-index-store.js';
 export { retrieveV2 } from './retrieval/retrieval-service.js';
 export { createHttpReranker } from './retrieval/http-reranker.js';
@@ -64,8 +64,7 @@ export {
   canonicalizeFolderPathSync,
   folderKey,
   getDocRagRoot,
-  getDocIndexPath,
-  getLanceDbPath,
+  getChunkIndexPath,
   documentIdFor,
   getSourcePathSidecar,
   listSourcePathSidecars,

@@ -32,11 +32,6 @@ export function folderKey(canonicalAbsPath: string): string {
   return sha256Hex(canonicalAbsPath).slice(0, 16);
 }
 
-/** `~/.piwin/doc-rag/<folder-key>/doc-index.sqlite3`. */
-export function getDocIndexPath(canonicalAbsPath: string, piwinRoot?: string): string {
-  return resolve(getDocRagRoot(piwinRoot), folderKey(canonicalAbsPath), 'doc-index.sqlite3');
-}
-
 /** `~/.piwin/doc-rag/<folder-key>/.source-path` sidecar (canonical path for cleanup/debug). */
 export function getSourcePathSidecar(canonicalAbsPath: string, piwinRoot?: string): string {
   return resolve(getDocRagRoot(piwinRoot), folderKey(canonicalAbsPath), '.source-path');
@@ -85,8 +80,16 @@ function isNotFoundError(error: unknown): boolean {
   );
 }
 
-/** `~/.piwin/doc-rag/<folder-key>/lancedb`. */
-export function getLanceDbPath(canonicalAbsPath: string, piwinRoot?: string): string {
+/** `~/.piwin/doc-rag/<folder-key>/chunk-index.sqlite3`. */
+export function getChunkIndexPath(canonicalAbsPath: string, piwinRoot?: string): string {
+  return resolve(getDocRagRoot(piwinRoot), folderKey(canonicalAbsPath), 'chunk-index.sqlite3');
+}
+
+/**
+ * `~/.piwin/doc-rag/<folder-key>/lancedb` — where the pre-sqlite chunk index
+ * lived. Only read to detect a folder that still needs its one-time rebuild.
+ */
+export function getLegacyLanceDbPath(canonicalAbsPath: string, piwinRoot?: string): string {
   return resolve(getDocRagRoot(piwinRoot), folderKey(canonicalAbsPath), 'lancedb');
 }
 

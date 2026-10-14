@@ -1,6 +1,5 @@
 /**
- * Document + job state for a folder. The only new `node:sqlite` module in
- * doc-rag (legacy chunk cache remains in doc-index.ts until P7).
+ * Document + job state for a folder. Chunks live beside it in sqlite-index.ts.
  */
 import { DatabaseSync } from 'node:sqlite';
 import { mkdir } from 'node:fs/promises';

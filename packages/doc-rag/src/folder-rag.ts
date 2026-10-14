@@ -1,8 +1,8 @@
 /**
  * Folder RAG orchestration: scan → ingest → retrieve.
  *
- * Index writes LanceDB only. Legacy sqlite / recursive chunker stay unused
- * on this path.
+ * Chunks are indexed in sqlite (FTS5 + vectors). A folder last indexed by the
+ * LanceDB store is rebuilt once, on its next index or retrieve.
  */
 import { writeFile, readFile, rm, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
@@ -22,7 +22,7 @@ import { createParserRegistry, type ParserRegistry } from './parsers/registry.js
 import { scanFolderFiles } from './scanner.js';
 import { adaptNotesEmbedding } from './embedding-adapter.js';
 import type { DocIndexStore } from './indexing/doc-index-store.js';
-import { openLanceDocIndex } from './indexing/lancedb-index.js';
+import { openSqliteDocIndex } from './indexing/sqlite-index.js';
 import { ingestSelectedFiles, type IngestFileResult } from './indexing/ingestion-service.js';
 import { openFolderStateStore, type FolderStateStore } from './indexing/state-store.js';
 import {
@@ -31,7 +31,8 @@ import {
   documentIdFor,
   folderKey,
   getDocRagRoot,
-  getLanceDbPath,
+  getChunkIndexPath,
+  getLegacyLanceDbPath,
   getStateStorePath,
   getSourcePathSidecar,
   isSafeRelativePath,
@@ -57,10 +58,10 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
   const reranker = options.reranker;
   const piwinRoot = options.piwinRoot;
   const parserRegistry = options.parserRegistry ?? createParserRegistry();
-  const lanceCache = new Map<string, DocIndexStore>();
+  const storeCache = new Map<string, DocIndexStore>();
   const stateCache = new Map<string, FolderStateStore>();
   // Serialize write access per folder so concurrent Index jobs do not
-  // interleave LanceDB upserts.
+  // interleave chunk upserts.
   const indexLocks = new Map<string, Promise<void>>();
 
   async function withIndexLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -78,11 +79,11 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     }
   }
 
-  async function getLance(canonicalPath: string): Promise<DocIndexStore> {
-    const cached = lanceCache.get(canonicalPath);
+  async function getStore(canonicalPath: string): Promise<DocIndexStore> {
+    const cached = storeCache.get(canonicalPath);
     if (cached) return cached;
-    const store = await openLanceDocIndex(getLanceDbPath(canonicalPath, piwinRoot));
-    lanceCache.set(canonicalPath, store);
+    const store = await openSqliteDocIndex(getChunkIndexPath(canonicalPath, piwinRoot));
+    storeCache.set(canonicalPath, store);
     try {
       await writeFile(getSourcePathSidecar(canonicalPath, piwinRoot), canonicalPath, 'utf8');
     } catch {
@@ -157,7 +158,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
           warnings.push(`Skipped (read error): ${file.relativePath}: ${(error as Error).message}`);
         }
       }
-      const lance = await getLance(canonical);
+      const store = await getStore(canonical);
       const state = await getState(canonical);
       const ingest =
         acceptedPaths.length > 0
@@ -165,7 +166,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
               canonicalPath: canonical,
               relativePaths: acceptedPaths,
               registry: parserRegistry,
-              store: lance,
+              store,
               state,
               ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
               ...(indexOptions?.signal ? { signal: indexOptions.signal } : {}),
@@ -174,10 +175,13 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
           : [];
       if (!includeFiles) {
         await removeOrphanDocuments(
-          lance,
+          store,
           state,
           new Set(scanned.files.map((file) => file.relativePath)),
         );
+        if (!indexOptions?.signal?.aborted) {
+          await rm(getLegacyLanceDbPath(canonical, piwinRoot), { recursive: true, force: true });
+        }
       }
       const failed = ingest.filter((item) => item.status === 'FAILED');
       const skippedIngest = ingest.filter((item) => item.status === 'SKIPPED').length;
@@ -193,6 +197,21 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
         ],
       };
     });
+  }
+
+  /**
+   * A leftover LanceDB directory means state.sqlite3 still reports READY for
+   * documents the sqlite index has never seen, so retrieval would come back
+   * empty. Ingestion re-reads every file whose chunks are missing; a completed
+   * full index then removes the directory, so this runs once per folder.
+   */
+  async function rebuildLegacyIndex(canonical: string): Promise<void> {
+    try {
+      await stat(getLegacyLanceDbPath(canonical, piwinRoot));
+    } catch {
+      return;
+    }
+    await indexFolder(canonical);
   }
 
   async function retrievePack(
@@ -218,9 +237,10 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
         }
       }
     }
-    const lance = await getLance(canonical);
+    await rebuildLegacyIndex(canonical);
+    const store = await getStore(canonical);
     const result = await retrieveV2({
-      store: lance,
+      store,
       folderKey: folderKey(canonical),
       query,
       ...(fileAllowlist ? { fileAllowlist } : {}),
@@ -280,13 +300,13 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     }
     await assertRelativePath(canonical, relativePath);
     return withIndexLock(canonical, async () => {
-      const lance = await getLance(canonical);
+      const store = await getStore(canonical);
       const state = await getState(canonical);
       const ingest = await ingestSelectedFiles({
         canonicalPath: canonical,
         relativePaths: [relativePath],
         registry: parserRegistry,
-        store: lance,
+        store,
         state,
         ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
       });
@@ -303,10 +323,10 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     if (!canonical) return;
     await assertRelativePath(canonical, relativePath);
     await withIndexLock(canonical, async () => {
-      const lance = await getLance(canonical);
+      const store = await getStore(canonical);
       const state = await getState(canonical);
       const documentId = documentIdFor(folderKey(canonical), relativePath);
-      await lance.deleteByDocumentId(documentId);
+      await store.deleteByDocumentId(documentId);
       state.delete(documentId);
     });
   }
@@ -318,10 +338,10 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     }
     const canonical = (await canonicalizeFolderPath(trimmed)) ?? canonicalizeFolderPathSync(trimmed);
     const key = folderKey(canonical);
-    const lance = lanceCache.get(canonical);
-    if (lance) {
-      lanceCache.delete(canonical);
-      await lance.close();
+    const store = storeCache.get(canonical);
+    if (store) {
+      storeCache.delete(canonical);
+      await store.close();
     }
     const state = stateCache.get(canonical);
     if (state) {
@@ -346,10 +366,10 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     forgetFile,
     forgetFolder,
     close: () => {
-      for (const store of lanceCache.values()) {
+      for (const store of storeCache.values()) {
         void store.close();
       }
-      lanceCache.clear();
+      storeCache.clear();
       for (const store of stateCache.values()) {
         store.close();
       }
@@ -360,13 +380,13 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
 }
 
 async function removeOrphanDocuments(
-  lance: DocIndexStore,
+  store: DocIndexStore,
   state: FolderStateStore,
   livePaths: Set<string>,
 ): Promise<void> {
   for (const row of state.list()) {
     if (livePaths.has(row.relativePath)) continue;
-    await lance.deleteByDocumentId(row.documentId);
+    await store.deleteByDocumentId(row.documentId);
     state.delete(row.documentId);
   }
 }

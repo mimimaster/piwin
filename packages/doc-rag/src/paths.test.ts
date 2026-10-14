@@ -8,7 +8,7 @@ import {
   folderKey,
   isPathConfined,
   isSafeRelativePath,
-  getDocIndexPath,
+  getChunkIndexPath,
 } from './paths.js';
 
 describe('paths', () => {
@@ -21,10 +21,10 @@ describe('paths', () => {
     });
   });
 
-  describe('getDocIndexPath', () => {
+  describe('getChunkIndexPath', () => {
     it('places sqlite under doc-rag/<key>/', () => {
-      const path = getDocIndexPath('/home/user/docs');
-      expect(path).toMatch(/doc-rag\/[0-9a-f]{16}\/doc-index\.sqlite3$/);
+      const path = getChunkIndexPath('/home/user/docs');
+      expect(path).toMatch(/doc-rag\/[0-9a-f]{16}\/chunk-index\.sqlite3$/);
     });
   });
 

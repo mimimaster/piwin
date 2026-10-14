@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createParserRegistry } from '../parsers/registry.js';
-import { openLanceDocIndex } from './lancedb-index.js';
+import { openSqliteDocIndex } from './sqlite-index.js';
 import { ingestSelectedFiles } from './ingestion-service.js';
 import { openFolderStateStore } from './state-store.js';
 
@@ -19,7 +19,7 @@ describe('ingestSelectedFiles', () => {
     const folder = join(dir, 'docs');
     await mkdir(folder);
     await writeFile(join(folder, 'a.md'), '# Hello\n\nWorld.');
-    const store = await openLanceDocIndex(join(dir, 'lance'));
+    const store = await openSqliteDocIndex(join(dir, 'chunk-index.sqlite3'));
     const state = await openFolderStateStore(join(dir, 'state.sqlite3'));
     const registry = createParserRegistry();
     const first = await ingestSelectedFiles({
@@ -56,7 +56,7 @@ describe('ingestSelectedFiles', () => {
     const folder = join(dir, 'docs');
     await mkdir(folder);
     await writeFile(join(folder, 'a.md'), '# Hello\n\nOld searchable content.');
-    const store = await openLanceDocIndex(join(dir, 'lance'));
+    const store = await openSqliteDocIndex(join(dir, 'chunk-index.sqlite3'));
     const state = await openFolderStateStore(join(dir, 'state.sqlite3'));
     const registry = createParserRegistry();
     const first = await ingestSelectedFiles({

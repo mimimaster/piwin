@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createFolderRag } from './folder-rag.js';
+import { canonicalizeFolderPath, getChunkIndexPath, getLegacyLanceDbPath } from './paths.js';
 
 let piwinRoot: string;
 let sourceFolder: string;
@@ -224,5 +225,27 @@ describe('folder-rag', () => {
     expect(pack.sources.every((source) => source.relativePath !== 'gone.md')).toBe(true);
     rag.close();
   });
-});
 
+  it('rebuilds a folder last indexed by the LanceDB store on its next retrieve', async () => {
+    await writeFile(join(sourceFolder, 'a.md'), '# Otters\n\nOtters hold hands while sleeping.');
+    const first = createFolderRag({ piwinRoot });
+    await first.indexFolder(sourceFolder);
+    first.close();
+
+    // Upgrade shape: state.sqlite3 says READY, the LanceDB directory is still
+    // on disk, and the sqlite chunk index has never been written.
+    const canonical = (await canonicalizeFolderPath(sourceFolder)) ?? sourceFolder;
+    const chunkIndex = getChunkIndexPath(canonical, piwinRoot);
+    for (const suffix of ['', '-wal', '-shm']) {
+      await rm(`${chunkIndex}${suffix}`, { force: true });
+    }
+    const legacy = getLegacyLanceDbPath(canonical, piwinRoot);
+    await mkdir(join(legacy, 'doc_chunks_v2.lance'), { recursive: true });
+
+    const upgraded = createFolderRag({ piwinRoot });
+    const chunks = await upgraded.retrieve(sourceFolder, 'otters sleeping');
+    expect(chunks.map((chunk) => chunk.filePath)).toEqual(['a.md']);
+    await expect(access(legacy)).rejects.toThrow();
+    upgraded.close();
+  });
+});
