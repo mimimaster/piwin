@@ -5,7 +5,8 @@ import {
   type ArtifactActionMessage,
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
-import { Streamdown, type Components } from 'streamdown';
+import { Streamdown, defaultRehypePlugins, type Components } from 'streamdown';
+import { rehypeEmojiIcons } from './rehype-emoji-icons.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { MarkdownRenderingPhase } from './markdown-code-fence.js';
 import {
@@ -99,6 +100,8 @@ type MarkdownViewProps = {
 };
 
 const STREAMDOWN_BASE_PLUGINS = { cjk } as const;
+// ADR 0090: emoji → icons after Streamdown's own raw/sanitize/harden passes.
+const STREAMDOWN_REHYPE_PLUGINS = [...Object.values(defaultRehypePlugins), rehypeEmojiIcons];
 const MARKDOWN_LINK_SAFETY = { enabled: false };
 /**
  * Streamdown 2.5: `mode="streaming"` + `animated={false}` defers block
@@ -286,6 +289,7 @@ export function MarkdownView({
           isAnimating={false}
           animated={STREAMDOWN_IMMEDIATE_STREAMING}
           plugins={streamdownPlugins}
+          rehypePlugins={STREAMDOWN_REHYPE_PLUGINS}
           components={streamdownComponents}
           controls={false}
           lineNumbers={false}

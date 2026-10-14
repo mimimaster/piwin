@@ -13,6 +13,7 @@ import {
   artifactPaletteStyleAttribute,
   type ArtifactPalette,
 } from './artifact-style.js';
+import { buildEmojiIconSrcdocHead, collectEmojiIcons } from './emoji-icons/emoji-icon-render.js';
 import { artifactKitScriptSource, buildArtifactKitHead, usesArtifactKit } from './kit/index.js';
 import {
   buildArtifactFrameModePolicyCss,
@@ -154,6 +155,11 @@ export type BuildHtmlArtifactSrcdocInput = {
    * later render commands only change frameMode.
    */
   freezeSource?: boolean;
+  /**
+   * Emoji → Tabler icon runtime (ADR 0090). Default: glyphs the source uses;
+   * a stream preview (`freezeSource: false`) ships all of them. False: off.
+   */
+  emojiIcons?: boolean;
 };
 
 /**
@@ -193,6 +199,12 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
       )
     : '';
 
+  const emojiIconHead =
+    input.emojiIcons === false
+      ? ''
+      : buildEmojiIconSrcdocHead(
+          input.freezeSource === false && enableRenderCommand ? 'all' : collectEmojiIcons(input.source),
+        );
   const hostHeadPrefix = `
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -202,7 +214,7 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   <style data-piwin-artifact-report-kit>${buildArtifactReportKitCss({ rules: input.rules ?? 'legacy' })}</style>
   <style data-piwin-artifact-diagram-kit>${buildArtifactDiagramKitCss()}</style>
   <style data-piwin-artifact-component-kit>${buildArtifactComponentKitCss()}</style>
-${bridge}${kit ? `\n  ${buildArtifactKitHead()}` : ''}`;
+${bridge}${kit ? `\n  ${buildArtifactKitHead()}` : ''}${emojiIconHead ? `\n  ${emojiIconHead}` : ''}`;
   const themeGuardStyle = themeGuardCss
     ? `\n  <style data-piwin-artifact-theme-guard>${themeGuardCss}</style>`
     : '';
