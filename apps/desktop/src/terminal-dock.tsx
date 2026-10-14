@@ -13,12 +13,6 @@ import { Button, Notice } from '@piwin/ui-kit';
 import { isTauriPtyAvailable } from './tauri-pty';
 import { XtermSurface } from './xterm-surface';
 import {
-  IconClose,
-  IconPlus,
-  IconTerminal,
-} from './shell-icons';
-import {
-  MAX_TERMINAL_SESSIONS,
   useTerminalSessions,
   type TerminalSession,
   type TerminalSessionsApi,
@@ -64,7 +58,6 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
   const [ptyStatus, setPtyStatus] = useState<TerminalSession['status']>('idle');
   const [ptyError, setPtyError] = useState<string | null>(null);
   const ptyEndRef = useRef<HTMLDivElement | null>(null);
-  const [sessionCapNotice, setSessionCapNotice] = useState<string | null>(null);
 
   const localSessionsApi = useTerminalSessions(
     props.projectPath,
@@ -77,11 +70,8 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
   const {
     sessions,
     activeSessionId,
-    setActiveSessionId,
-    addSession,
-    closeSession,
     onSessionStatus,
-    sidebarOpen,
+    onSessionTitle,
   } = terminalSessions;
 
   // Keep the single-host (browser preview) pty scroll pinned to the bottom.
@@ -135,25 +125,21 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
     >
       <div className="terminal-dock-body">
         <div
-          className={`terminal-dock-content${sidebarOpen ? ' has-sidebar' : ''}`}
+          className="terminal-dock-content"
           data-testid="terminal-dock-content"
         >
           <div className="terminal-surface-main">
             <div className="pty-panel" data-testid="pty-panel">
               {!props.projectTrusted && props.projectPath ? (
                 <div className="muted terminal-empty" data-testid="pty-untrusted">
-                  Trust this project to open a shell (PTY requires trusted cwd).
+                  {isZh
+                    ? '信任此项目后才能打开终端。'
+                    : 'Trust this project to open a shell (PTY requires trusted cwd).'}
                 </div>
               ) : useInteractivePty ? (
                 <div className="pty-xterm-wrap" data-testid="pty-xterm-wrap">
                   {sessions.length > 0 ? (
                     <>
-                      {sessionCapNotice ? (
-                        <Notice tone="warning" testId="terminal-session-cap-notice">
-                          {sessionCapNotice}
-                        </Notice>
-                      ) : null}
-
                       <div className="terminal-dock-surfaces" data-testid="terminal-dock-surfaces">
                         {sessions.map((session) => (
                           <div
@@ -167,7 +153,9 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                               <Notice tone="error">{session.error}</Notice>
                             ) : null}
                             {session.status === 'starting' ? (
-                              <div className="muted terminal-empty">Starting interactive terminal…</div>
+                              <div className="muted terminal-empty">
+                                {isZh ? '正在启动终端…' : 'Starting interactive terminal…'}
+                              </div>
                             ) : null}
                             <XtermSurface
                               key={`${session.id}:${session.generation}`}
@@ -176,19 +164,24 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                               onStatus={(status, ptyId, message) => {
                                 onSessionStatus(session.id, status, ptyId, message);
                               }}
+                              onTitle={(title) => onSessionTitle(session.id, title)}
                             />
                           </div>
                         ))}
                       </div>
                     </>
                   ) : (
-                    <div className="muted terminal-empty">No terminal session open.</div>
+                    <div className="muted terminal-empty">
+                      {isZh ? '没有打开的终端会话。' : 'No terminal session open.'}
+                    </div>
                   )}
                 </div>
               ) : (
                 <>
                   <div className="pty-stream" data-testid="pty-output" aria-live="polite">
-                    {ptyStatus === 'starting' ? <div className="muted">Starting shell…</div> : null}
+                    {ptyStatus === 'starting' ? (
+                      <div className="muted">{isZh ? '正在启动 Shell…' : 'Starting shell…'}</div>
+                    ) : null}
                     {ptyError ? <Notice tone="error">{ptyError}</Notice> : null}
                     {props.ptyOutput.length === 0 && ptyStatus === 'open' ? (
                       <div className="muted terminal-empty">
@@ -230,87 +223,6 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
             </div>
           </div>
 
-          {useInteractivePty && sidebarOpen ? (
-            <aside
-              className="terminal-sessions-sidebar term-sb"
-              data-testid="terminal-sessions-sidebar"
-              aria-label={isZh ? '终端会话' : 'Terminal sessions'}
-            >
-              <div className="terminal-sessions-sidebar-header term-sb-h">
-                <span className="terminal-sessions-count">
-                  {isZh
-                    ? `${sessions.length} 个终端`
-                    : `${sessions.length} Terminal${sessions.length > 1 ? 's' : ''}`}
-                </span>
-                <button
-                  type="button"
-                  className="terminal-icon-button"
-                  data-testid="terminal-session-add"
-                  aria-label={isZh ? '新建终端会话' : 'New terminal session'}
-                  title={isZh ? '新建终端会话' : 'New terminal session'}
-                  onClick={() => {
-                    const session = addSession();
-                    if (session) {
-                      setSessionCapNotice(null);
-                      return;
-                    }
-                    setSessionCapNotice(
-                      isZh
-                        ? `最多同时打开 ${MAX_TERMINAL_SESSIONS} 个终端会话。`
-                        : `At most ${MAX_TERMINAL_SESSIONS} terminal sessions can stay open.`,
-                    );
-                  }}
-                >
-                  <IconPlus width={12} height={12} />
-                </button>
-              </div>
-              <div
-                className="terminal-sessions-list"
-                role="tablist"
-                aria-label="Terminal sessions list"
-              >
-                {sessions.map((session) => {
-                  const isActive = session.id === activeSessionId;
-                  return (
-                    <div
-                      key={session.id}
-                      className={
-                        isActive ? 'terminal-session-item term-item act active' : 'terminal-session-item term-item'
-                      }
-                      role="tab"
-                      aria-selected={isActive}
-                      data-testid={`terminal-session-tab-${session.id}`}
-                      onClick={() => setActiveSessionId(session.id)}
-                    >
-                      <span className="terminal-session-item-icon" aria-hidden>
-                        <IconTerminal width={12} height={12} />
-                      </span>
-                      <span className="terminal-session-item-name">{session.name}</span>
-                      {session.status === 'error' ? (
-                        <span className="terminal-dock-session-dot error term-dot" aria-hidden />
-                      ) : session.status === 'starting' ? (
-                        <span className="terminal-dock-session-dot term-dot starting" aria-hidden />
-                      ) : null}
-                      {sessions.length > 1 ? (
-                        <button
-                          type="button"
-                          className="terminal-session-item-close"
-                          aria-label={`Close ${session.name}`}
-                          data-testid={`terminal-session-close-${session.id}`}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            closeSession(session.id);
-                          }}
-                        >
-                          <IconClose width={10} height={10} />
-                        </button>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            </aside>
-          ) : null}
         </div>
       </div>
     </section>

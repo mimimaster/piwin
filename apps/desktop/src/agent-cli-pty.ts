@@ -23,11 +23,11 @@ export function createAgentCliPty(
       const data = await request({ type: 'agents/cli-open', input: { ...input, ...size } });
       if (data === null || typeof data !== 'object' || !('ptyId' in data) || !('sessionId' in data) || typeof data.ptyId !== 'string' || typeof data.sessionId !== 'string') throw new Error('Invalid agent terminal response');
       onSession(data.sessionId);
-      return { pty_id: data.ptyId };
+      return { pty_id: data.ptyId, ...('initialOutput' in data && typeof data.initialOutput === 'string' ? { initial_output: data.initialOutput, ...('initialOutputThrough' in data && typeof data.initialOutputThrough === 'number' ? { output_through: data.initialOutputThrough } : {}) } : {}) };
     },
     transport: {
       listenData: async (handler) => host.subscribe((push) => {
-        if (push.type === 'pty/output') handler({ pty_id: push.ptyId, data: push.data });
+        if (push.type === 'pty/output') handler({ pty_id: push.ptyId, data: push.data, ...(push.sequence === undefined ? {} : { sequence: push.sequence }) });
       }),
       listenExit: async (handler) => host.subscribe((push) => {
         if (push.type === 'pty/exit') handler({ pty_id: push.ptyId, ...(push.exitCode === undefined ? {} : { exit_code: push.exitCode }) });

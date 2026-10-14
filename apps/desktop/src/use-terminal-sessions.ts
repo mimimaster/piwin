@@ -3,7 +3,7 @@
  * Now supports general-scope terminals (no project required).
  */
 
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { tauriPtyClose, tauriPtyCloseAll } from './tauri-pty';
 import type { PtyStatus } from './xterm-surface';
 
@@ -13,6 +13,8 @@ export const MAX_TERMINAL_SESSIONS = 10;
 export type TerminalSession = {
   id: string;
   name: string;
+  /** Title the running shell last reported; absent until it reports one. */
+  title?: string;
   /** Actual working directory for this terminal session. */
   cwd: string;
   /** Project root for authorization (empty = general-scope terminal). */
@@ -31,8 +33,8 @@ export type TerminalSessionsApi = {
   closeSession: (id: string) => void;
   restartSession: (id: string) => void;
   onSessionStatus: (id: string, status: PtyStatus, ptyId: string | null, message?: string) => void;
-  sidebarOpen: boolean;
-  setSidebarOpen: Dispatch<SetStateAction<boolean>>;
+  /** The shell renamed its window (OSC 0/2); an empty title clears it. */
+  onSessionTitle: (id: string, title: string) => void;
 };
 
 export function useTerminalSessions(
@@ -46,7 +48,6 @@ export function useTerminalSessions(
   // Closing the last session must stay empty. The effect below only seeds the
   // first session once per enable, never in response to length dropping to 0.
   const seededRef = useRef(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const sessionsRef = useRef<TerminalSession[]>([]);
   sessionsRef.current = sessions;
   const counterRef = useRef(1);
@@ -157,6 +158,18 @@ export function useTerminalSessions(
     [],
   );
 
+  const onSessionTitle = useCallback((id: string, title: string) => {
+    setSessions((current) => {
+      const session = current.find((s) => s.id === id);
+      if (!session || (session.title ?? '') === title) return current;
+      return current.map((s) => {
+        if (s.id !== id) return s;
+        const { title: _previous, ...rest } = s;
+        return title ? { ...rest, title } : rest;
+      });
+    });
+  }, []);
+
   // Seed one session the first time the terminal is enabled. Closing the last
   // session leaves the list empty: length dropping to 0 must not recreate it.
   // A session created before the cwd resolves keeps an empty directory, and
@@ -220,7 +233,6 @@ export function useTerminalSessions(
     closeSession,
     restartSession,
     onSessionStatus,
-    sidebarOpen,
-    setSidebarOpen,
+    onSessionTitle,
   };
 }

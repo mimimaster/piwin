@@ -3,13 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAgentCliPty, type AgentCliHost } from './agent-cli-pty.js';
 import { connectXtermPty } from './xterm-pty-connection.js';
 
-function setup(fail = false) {
+function setup(fail = false, initialOutput?: string) {
   const listeners = new Set<(push: HostServerMessage) => void>();
   const request = vi.fn(async (command: HostCommand) => {
     if (fail) return { type: 'response' as const, command: command.type, success: false as const, error: 'CLI missing' };
     if (command.type === 'agents/cli-open') {
       for (const listener of listeners) listener({ type: 'pty/output', ptyId: 'remote-pty', data: 'Grok Build', at: '' });
-      return { type: 'response' as const, command: command.type, success: true as const, data: { ptyId: 'remote-pty', sessionId: 'product-id' } };
+      return { type: 'response' as const, command: command.type, success: true as const, data: { ptyId: 'remote-pty', sessionId: 'product-id', ...(initialOutput === undefined ? {} : { initialOutput }) } };
     }
     return { type: 'response' as const, command: command.type, success: true as const, data: {} };
   });
@@ -42,4 +42,14 @@ describe('Host-native Grok xterm transport', () => {
       open: () => pty.open({ cols: 80, rows: 24 }), onOpen: vi.fn(), onData: vi.fn(), onExit: vi.fn() })).rejects.toThrow('CLI missing');
     expect(session).not.toHaveBeenCalled(); expect(port.listeners.size).toBe(0);
   });
+});
+
+it('paints cached native output before live data buffered during reconnect', async () => {
+  const port = setup(false, 'cached screen');
+  const pty = createAgentCliPty(port.host, { agentId: 'grok', sessionId: 'product-id' }, vi.fn());
+  const data = vi.fn();
+  const abort = new AbortController();
+  await connectXtermPty({ signal: abort.signal, transport: pty.transport, open: () => pty.open({ cols: 80, rows: 24 }), onOpen: vi.fn(), onData: data, onExit: vi.fn() });
+  expect(data.mock.calls.map((call) => call[0])).toEqual(['cached screen', 'Grok Build']);
+  abort.abort();
 });

@@ -6,11 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import type { ThemeManifest } from '@piwin/contracts';
 import {
-  PIWIN_APPEARANCE_BONE,
   PIWIN_APPEARANCE_INKSTONE_INK,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
-  PIWIN_APPEARANCE_OBSIDIAN,
 } from './appearance-tokens.js';
+import { INSTALLED_DARK_THEME, INSTALLED_LIGHT_THEME } from './theme/installed-theme-fixtures.js';
 import { FilePanelEmptyFallback } from './file-panel-empty-fallback.js';
 
 declare global {
@@ -37,7 +36,7 @@ describe('FilePanelEmptyFallback', () => {
     delete document.documentElement.dataset.themeVisualStyle;
   });
 
-  function renderFallback(element: ReactElement, theme: ThemeManifest = PIWIN_APPEARANCE_OBSIDIAN) {
+  function renderFallback(element: ReactElement, theme: ThemeManifest = INSTALLED_DARK_THEME) {
     act(() => {
       root.render(<PiwinUiProvider manifest={theme}>{element}</PiwinUiProvider>);
     });
@@ -91,13 +90,13 @@ describe('FilePanelEmptyFallback', () => {
     expect(title?.textContent).toBe('砚案静候新章');
   });
 
-  it('renders modern Obsidian theme with geometric SVG icon instead of seal', () => {
+  it('renders an installed dark theme with geometric SVG icon instead of seal', () => {
     renderFallback(
       <FilePanelEmptyFallback
         locale="zh-CN"
-        activeTheme={PIWIN_APPEARANCE_OBSIDIAN}
+        activeTheme={INSTALLED_DARK_THEME}
       />,
-      PIWIN_APPEARANCE_OBSIDIAN,
+      INSTALLED_DARK_THEME,
     );
 
     const seal = container.querySelector('[data-testid="file-tree-empty-seal"]');
@@ -110,14 +109,14 @@ describe('FilePanelEmptyFallback', () => {
     expect(title?.textContent).toBe('暂无文件');
   });
 
-  it('renders English copy properly for Bone theme', () => {
+  it('renders English copy properly for an installed light theme', () => {
     renderFallback(
       <FilePanelEmptyFallback
         locale="en"
-        activeTheme={PIWIN_APPEARANCE_BONE}
+        activeTheme={INSTALLED_LIGHT_THEME}
         onOpenWorkspace={vi.fn()}
       />,
-      PIWIN_APPEARANCE_BONE,
+      INSTALLED_LIGHT_THEME,
     );
 
     const title = container.querySelector('[data-testid="file-tree-empty-title"]');

@@ -49,6 +49,8 @@ export type XtermSurfaceProps = {
   onStatus: (status: PtyStatus, ptyId: string | null, message?: string) => void;
   /** The terminal shell announced the session it shows (see `parseTuiSessionAnnouncement`). */
   onTuiSession?: (sessionId: string) => void;
+  /** The program set the window title (OSC 0/2). */
+  onTitle?: ((title: string) => void) | undefined;
   /** The program's `[Open Image]` button was clicked; Desktop shows the file itself. */
   onOpenImage?: ((fileName: string) => void) | undefined;
 };
@@ -68,6 +70,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   const showRef = useRef<(() => void) | null>(null);
   const onStatusRef = useRef(props.onStatus);
   const onTuiSessionRef = useRef(props.onTuiSession);
+  const onTitleRef = useRef(props.onTitle);
   const onOpenImageRef = useRef(props.onOpenImage);
   const contextMenu = useDesktopContextMenu();
   // CM-13: terminal-selection menu target, captured on right-click.
@@ -77,6 +80,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   const lastSelectionRef = useRef<ContextMenuTarget | null>(null);
   onStatusRef.current = props.onStatus;
   onTuiSessionRef.current = props.onTuiSession;
+  onTitleRef.current = props.onTitle;
   onOpenImageRef.current = props.onOpenImage;
 
   useEffect(() => {
@@ -105,6 +109,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
+    const titleSubscription = terminal.onTitleChange((title) => onTitleRef.current?.(title));
     const stopListeningForTuiSession = listenForTuiSession(terminal, (sessionId) =>
       onTuiSessionRef.current?.(sessionId),
     );
@@ -287,6 +292,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       connection.abort();
       ptyIdRef.current = null;
       stopListeningForTuiSession();
+      titleSubscription.dispose();
       detachImageLinks?.();
       images?.dispose();
       renderer?.dispose();

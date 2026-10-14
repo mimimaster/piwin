@@ -7,6 +7,7 @@ import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import type { HostAttachTarget } from '@piwin/contracts';
 import type { TuiPaneProps } from './tui-pane';
 import type { DesktopLocale } from './desktop-locale';
+import type { AgentCliHost } from './agent-cli-pty.js';
 
 const pty = vi.hoisted(() => ({
   available: true,
@@ -178,5 +179,23 @@ describe('TuiPane', () => {
     renderPane('session-1', 'en');
     expect(surface()).toBeNull();
     expect(container.textContent).toContain('runs in the desktop app');
+  });
+
+  it('opens a Host native PTY for advertised backends, not only Grok', () => {
+    const hostClient: AgentCliHost = {
+      request: vi.fn(),
+      subscribe: vi.fn(() => () => undefined),
+    };
+    for (const agentId of ['claude-code', 'codex', 'grok'] as const) {
+      act(() => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <TuiPane sessionId={`${agentId}-session`} locale="en" agentId={agentId} hostClient={hostClient} />
+          </PiwinUiProvider>,
+        );
+      });
+      expect(surface()).not.toBeNull();
+      expect(container.textContent).not.toContain('runs in the desktop app');
+    }
   });
 });

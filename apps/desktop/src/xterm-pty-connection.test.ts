@@ -98,3 +98,27 @@ describe('PTY startup lifecycle', () => {
     expect(bridge.unlistenData).toHaveBeenCalledOnce();
   });
 });
+
+it('does not replay live chunks already present in the reconnect snapshot', async () => {
+  const handlers: Array<(event: { pty_id: string; data: string; sequence?: number }) => void> = [];
+  const data = vi.fn();
+  const abort = new AbortController();
+  await connectXtermPty({
+    signal: abort.signal,
+    transport: {
+      listenData: async (handler) => { handlers.push(handler); return () => undefined; },
+      listenExit: async () => () => undefined,
+      write: async () => undefined, resize: async () => undefined, close: async () => undefined,
+    },
+    open: async () => {
+      for (const handler of handlers) {
+        handler({ pty_id: 'same', data: 'already cached', sequence: 2 });
+        handler({ pty_id: 'same', data: 'new output', sequence: 4 });
+      }
+      return { pty_id: 'same', initial_output: 'cached screen', output_through: 3 };
+    },
+    onOpen: vi.fn(), onData: data, onExit: vi.fn(),
+  });
+  expect(data.mock.calls.map((call) => call[0])).toEqual(['cached screen', 'new output']);
+  abort.abort();
+});

@@ -91,9 +91,9 @@ export function TuiPane(props: TuiPaneProps): ReactElement {
   onSessionRef.current = props.onSessionChange;
   const snapshot = shown.current;
   const agentPty = useMemo(() => {
-    if (agentId !== 'grok' || props.hostClient === undefined) return undefined;
+    if (agentId === 'pi' || props.hostClient === undefined) return undefined;
     return createAgentCliPty(props.hostClient, {
-      agentId: 'grok',
+      agentId,
       ...(snapshot.sessionId === null ? {} : { sessionId: snapshot.sessionId }),
       ...(snapshot.projectPath === null ? {} : { projectPath: snapshot.projectPath }),
     }, (sessionId) => {
@@ -108,7 +108,7 @@ export function TuiPane(props: TuiPaneProps): ReactElement {
 
   const stopped = status.kind === 'exited' || status.kind === 'error';
   return (
-    <div className="tui-pane" data-testid="tui-pane">
+    <div className="tui-pane" data-testid="tui-pane" data-agent={agentId}>
       {stopped ? (
         <Notice tone={status.kind === 'error' ? 'error' : 'info'} testId="tui-pane-stopped">
           {status.kind === 'error' ? (status.message ?? copy.exited) : copy.exited}{' '}

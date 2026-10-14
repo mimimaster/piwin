@@ -1,10 +1,10 @@
 import {
-  type TauriPtyDataEvent, type TauriPtyExitEvent, type TauriPtyOpenResult,
+  type TauriPtyExitEvent,
 } from './tauri-pty.js';
-import { TAURI_PTY_TRANSPORT, type XtermPtyTransport } from './xterm-pty-transport.js';
+import { TAURI_PTY_TRANSPORT, type XtermPtyTransport, type XtermPtyOpenResult, type XtermPtyDataEvent } from './xterm-pty-transport.js';
 
 type StartupEvent =
-  | { kind: 'data'; payload: TauriPtyDataEvent }
+  | { kind: 'data'; payload: XtermPtyDataEvent }
   | { kind: 'exit'; payload: TauriPtyExitEvent };
 
 /** Startup events may arrive before invoke resolves with the PTY id. */
@@ -14,7 +14,7 @@ const MAX_STARTUP_EVENTS = 1024;
 export async function connectXtermPty(input: {
   signal: AbortSignal;
   transport?: XtermPtyTransport;
-  open: () => Promise<TauriPtyOpenResult>;
+  open: () => Promise<XtermPtyOpenResult>;
   onOpen: (ptyId: string) => void;
   onData: (data: string) => void;
   onExit: (event: TauriPtyExitEvent) => void;
@@ -79,7 +79,12 @@ export async function connectXtermPty(input: {
     }
     ptyId = opened.pty_id;
     input.onOpen(ptyId);
-    for (const event of pending) receive(event);
+    if (opened.initial_output !== undefined) input.onData(opened.initial_output);
+    for (const event of pending) {
+      if (event.kind === 'data' && event.payload.pty_id === ptyId && event.payload.sequence !== undefined &&
+          opened.initial_output !== undefined && opened.output_through !== undefined && event.payload.sequence <= opened.output_through) continue;
+      receive(event);
+    }
     pending.length = 0;
   } catch (error) {
     dispose();

@@ -30,7 +30,6 @@ function createMockTerminalSessions(
 ): TerminalSessionsApi {
   let sessions = [...initialSessions];
   let activeId: string | null = sessions[0]?.id ?? null;
-  let sidebarOpen = false;
 
   const api: TerminalSessionsApi = {
     get sessions() {
@@ -42,11 +41,8 @@ function createMockTerminalSessions(
     setActiveSessionId: (id) => {
       activeId = id;
     },
-    get sidebarOpen() {
-      return sidebarOpen;
-    },
-    setSidebarOpen: (action) => {
-      sidebarOpen = typeof action === 'function' ? action(sidebarOpen) : action;
+    onSessionTitle: (id, title) => {
+      sessions = sessions.map((s) => (s.id === id ? { ...s, title } : s));
     },
     addSession: () => {
       const num = sessions.length + 1;
@@ -173,7 +169,47 @@ describe('Terminal Multi-Tab & Cursor-Style Coexistence', () => {
 
     // Verify top action icons are rendered when terminal is active
     expect(container.querySelector('[data-testid="pty-restart-btn"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="terminal-sidebar-toggle"]')).not.toBeNull();
+    // Sessions are the tabs themselves; there is no second session list.
+    expect(container.querySelector('[data-testid="terminal-sidebar-toggle"]')).toBeNull();
+  });
+
+  it('names a terminal tab after the title its shell reports', () => {
+    writeStoredRightPanelState({
+      openTabs: ['terminal-1'],
+      activeTab: 'terminal-1',
+    });
+    const mockSessions = createMockTerminalSessions();
+    mockSessions.onSessionTitle('terminal-1', 'yorick@mac:~/Developer/piwin');
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <RightPanel
+            open
+            onOpen={() => {}}
+            onClose={() => {}}
+            activeTab="terminal-1"
+            onTabChange={() => {}}
+            panelWidthPx={400}
+            isResizing={false}
+            onResizePointerDown={() => {}}
+            onResizeReset={() => {}}
+            terminalSessions={mockSessions}
+            filesContent={<div data-testid="files-body">files</div>}
+            terminalContent={<div data-testid="terminal-body">terminal</div>}
+            reviewContent={<div data-testid="review-body">review</div>}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const tab = container.querySelector('[data-testid="right-panel-open-tab-terminal-1"]');
+    expect(tab?.textContent).toContain('piwin');
+    expect(tab?.textContent).not.toContain('zsh1');
   });
 
   it('hides terminal action icons when switching to non-terminal tab', () => {
@@ -209,9 +245,8 @@ describe('Terminal Multi-Tab & Cursor-Style Coexistence', () => {
       );
     });
 
-    // When files tab is active, terminal restart and sidebar buttons are hidden
+    // When files tab is active, the terminal restart button is hidden
     expect(container.querySelector('[data-testid="pty-restart-btn"]')).toBeNull();
-    expect(container.querySelector('[data-testid="terminal-sidebar-toggle"]')).toBeNull();
   });
 
   it('has no secondary toolbar row inside TerminalDock', () => {
