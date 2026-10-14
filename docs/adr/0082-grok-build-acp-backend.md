@@ -711,3 +711,30 @@ rejects this unknown command rather than interpreting a new optional flag on
 its old handoff request and silently terminating the turn. The existing
 `agents/cli-sync` and its optional preservation flag remain compatible for
 other callers; the UI does not use its ambiguous legacy default.
+
+### Amendment: Agent sessions stay on their agent (2026-10-14, accepted)
+
+A Grok session mid-turn showed an approval card. Five seconds later the turn
+failed with "Pi prompt aborted without a Host abort reason". The next turn,
+including Continue, then ran on a fresh Pi runtime with no context. Three
+Host defects caused this:
+
+1. **Approval waits are human waits.** The bridge put `permission/request`
+   behind the same 5-second bound as machine callbacks. When the timer expired
+   it answered `cancelled`, the agent dropped the whole turn, and the card
+   stayed open. Permission callbacks now wait like `input/request`: for
+   `permission/resolve`, Stop or supersede (`settlePendingPermissionsForSession`),
+   or the agent process closing, which now settles that session's open cards.
+   `intervention/event` keeps the bound.
+2. **Pi Settings never replace an agent runtime.** An agent generation is
+   attached with `EXTERNAL_AGENT_SETTINGS_REVISION`. A runtime-affecting
+   Settings save (MCP, Web, …) used to queue a Pi `after-current-run`
+   replacement for every live session. When the agent turn ended, that
+   replacement compiled a Pi candidate in place of the agent. Now
+   `recordSettingsChange` ignores agent generations, `planReload` refuses them
+   (`external-agent`), `applySettingsRuntimeImpact` skips them, and
+   `compileRuntimeCandidate` throws for an external binding as a backstop. The
+   agent owns its own configuration (§1).
+3. **Continue is a continuation prompt.** A `source: 'continuation'` turn sends
+   the Host continuation instruction to the agent. Like the Pi path, it writes
+   no empty user row.

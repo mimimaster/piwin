@@ -4,7 +4,9 @@
    subagent-group-card.tsx draws one card per consecutive run of delegations
    (header: spinner/dot · "N 个子代理" · counts · wall time · chevron);
    subagent-invocation-block.tsx draws each row (seal · title + meta · state,
-   then the "what it is doing now" line while running or failed).
+   then the activity / conclusion / error line in every phase). Two or more
+   rows draw as a fan-out and the open row's dense preview sits at the card
+   bottom: subagent-fanout.css (proto-14).
 
    Values are written against the Inkstone token names (styles/inkstone/
    tokens.css) so paper and ink read the prototype verbatim; every alias
@@ -15,6 +17,7 @@
   --sa-shadow: var(--sh1, var(--elev-1, 0 0 0 1px rgba(29, 27, 23, 0.11)));
   --sa-rule: var(--l1, var(--line-1, rgba(29, 27, 23, 0.06)));
   --sa-hover: var(--l1, var(--line-1, rgba(29, 27, 23, 0.06)));
+  --sa-select: var(--l2, var(--line-2, rgba(29, 27, 23, 0.11)));
   --sa-ring: var(--l3, var(--line-3, rgba(29, 27, 23, 0.2)));
   --sa-t1: var(--t1, var(--text-1, #1d1b17));
   --sa-t2: var(--t2, var(--text-2, #5a554d));
@@ -318,97 +321,6 @@
   border-top-color: var(--sa-lamp);
 }
 
-/* ── Inline session (opened on demand, beneath its row) ──────────────── */
-/* Proto-13 inline box: step line, conclusion, tool calls, open full session. */
-.subagent-group .subagent-inline-session {
-  margin: 2px 12px 8px 44px;
-  padding: 9px 11px;
-  overflow: hidden;
-  border-top: 0;
-  border-radius: 8px;
-  background: var(--sa-code);
-  box-shadow: inset 0 0 0 1px var(--sa-rule);
-  color: var(--sa-t2);
-  font-size: 12.5px;
-}
-
-.subagent-inline-step {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 3px;
-  color: var(--sa-t4);
-  font: 11px var(--sa-mono);
-}
-
-.subagent-inline-step .subagent-session-live-dot {
-  width: 6px;
-  height: 6px;
-  background: var(--sa-lamp);
-}
-
-.subagent-inline-conclusion {
-  margin: 0;
-  color: var(--sa-t2);
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-}
-
-.subagent-inline-conclusion[data-tone='failed'] {
-  color: var(--sa-crimson);
-}
-
-.subagent-inline-steps-toggle,
-.subagent-inline-foot {
-  display: block;
-  padding: 0;
-  border: 0;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-}
-
-.subagent-inline-steps-toggle {
-  margin-top: 5px;
-  color: var(--sa-t3);
-  font: 12px var(--sa-mono);
-}
-
-.subagent-inline-steps-caret {
-  display: inline-block;
-  margin-right: 4px;
-  vertical-align: -1px;
-  transition: transform 0.15s;
-}
-
-.subagent-inline-steps-toggle[aria-expanded='true'] .subagent-inline-steps-caret {
-  transform: rotate(90deg);
-}
-
-.subagent-inline-steps {
-  margin: 6px -11px 0;
-  border-top: 1px solid var(--sa-rule);
-  border-bottom: 1px solid var(--sa-rule);
-}
-
-.subagent-inline-foot {
-  margin-top: 7px;
-  color: var(--sa-t4);
-  font-size: 11.5px;
-}
-
-.subagent-inline-steps-toggle:hover,
-.subagent-inline-foot:hover {
-  color: var(--sa-t1);
-}
-
-.subagent-inline-steps-toggle:focus-visible,
-.subagent-inline-foot:focus-visible {
-  outline: 2px solid var(--sa-focus);
-  outline-offset: 2px;
-  border-radius: 3px;
-}
-
 @media (max-width: 520px) {
   .subagent-row-main {
     flex-direction: column;
@@ -423,14 +335,9 @@
   .subagent-group-counts {
     display: none;
   }
-
-  .subagent-group .subagent-inline-session {
-    margin-left: 12px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .subagent-inline-steps-caret,
   .subagent-group-chev,
   .subagent-group .subagent-grind-spinner {
     transition: none;

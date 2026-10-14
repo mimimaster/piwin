@@ -159,3 +159,70 @@ Tasks panel (F2). It does not parse raw tool text for decisions or lineage.
   topology cards. Continuation is the same worker identity with a new Run /
   generation.
 - CLI still ignores subagent push surfaces; rich nesting remains Desktop-only.
+
+## Fan-out and dense preview (2026-10-14, `feat/subagent-fanout-preview`)
+
+Owner direction: users never jump into a child session, and the preview
+should be dense and plain rather than a second copy of the main transcript.
+This supersedes the "child-session window reuses the main normalized
+transcript and tool-card rendering" decision and its acceptance criterion
+("the child modal renders the same normalized message/tool sequence as the
+main transcript").
+
+- **No navigation into child sessions.** The inline preview no longer offers
+  "Open full session"; the `openFullSession` plumbing is removed. Child
+  records still persist and remain reachable through
+  `session/list-children` for hydration — only the Desktop entry is gone.
+- **Dense preview, own renderer.** `SubagentPreview`
+  (`subagent-preview-model.ts` + `subagent-preview.tsx`) lists one plain line
+  per child step — `time · verb · target · result` from Host-normalized
+  `ToolPresentation` — followed by the final report as plain text. No
+  Markdown, tool cards, diffs, file-change bars or artifacts. The child's
+  pending permission gate is the only control and is never folded. The
+  retained tail grows from 20 messages to 200 lines because a line is cheap.
+- **Fan-out for parallel delegations.** A group with two or more delegations
+  draws a display-only main-agent node, one phase-coloured wire per child,
+  and fixed-height rows (`SUBAGENT_FANOUT_ROW_HEIGHT`). Rows keep two lines in
+  every phase (a finished row shows its conclusion's first line) so wire
+  geometry is pure arithmetic and rows never change height. Narrow cards swap
+  curves for a tree rail via a container query. A lone delegation keeps the
+  single-row card.
+
+Prototype: `apps/docs/public/inkstone/proto-14-subagent-fanout.html`.
+
+New acceptance criteria:
+
+- no Desktop affordance navigates the active session to a child session;
+- the preview lists each child tool call as one line in causal order (persisted
+  history, then the live tail), and shows the final report without Markdown
+  rendering;
+- a pending child permission prompt is actionable from the preview;
+- ≥ 2 delegations in one group render as a fan-out whose wire endpoints depend
+  only on the row index.
+
+### TUI parity (2026-10-14)
+
+The TUI follows the same three rules; the "CLI ignores the pushes" note
+above is superseded (it already consumed `subagent/invocation-updated` and
+`subagent/result-updated`).
+
+- **Fan-out in the transcript.** Two or more consecutive delegation tools in
+  one assistant message render as one block: header with counts, a
+  display-only `主代理` label on the origin row, one box-drawing branch and
+  one line per child, coloured by phase. Below 72 columns it falls back to a
+  plain `├ └` tree. A lone delegation keeps its tool line plus one `└` row;
+  synchronous `piwin_subagent_run` rows are now live too (matched through
+  `SubagentInvocation.parentToolCallId`).
+- **Dense preview, shared projection.** `/subagents` → Enter opens the
+  preview. The line projection lives in `@piwin/host-client`
+  (`subagent-preview-projection.ts`, `subagent-report-text.ts`) and is used by
+  both Desktop and the TUI; each shell only paints it.
+- **`subagent/stream` is consumed.** A small tail per child gives the running
+  step on fan-out rows and live lines in an open preview; a finished message
+  triggers a throttled `session/messages` refetch. Child
+  `permission/request` events now queue the regular permission dialog
+  (titled with the child) — previously a child waiting for approval was
+  invisible in the TUI — and can also be answered from the preview.
+- **Removed:** "open the child's conversation" and "send the child a
+  follow-up" (`subagent/continue`) from the TUI. Delegation and follow-ups
+  belong to the parent agent. The Host command itself is unchanged.

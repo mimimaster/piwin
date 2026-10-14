@@ -14,7 +14,13 @@ import type {
 import { formatByteSize, splitMessageArtifacts, type TranscriptArtifact } from './artifact-export.js';
 import { TranscriptMarkdown } from './transcript-markdown.js';
 import { renderFileChange } from './diff-view.js';
-import { renderSubagentControl, type LiveRunLookup } from './subagent-run-view.js';
+import {
+  renderSubagentControl,
+  renderSubagentSingleRow,
+  type LiveRunLookup,
+  type LiveSubagentRun,
+} from './subagent-run-view.js';
+import { renderSubagentFanout, type SubagentFanoutRow } from './subagent-fanout-view.js';
 import { describeToolError } from './tool-error-view.js';
 import { shortenPaths } from './tool-path-display.js';
 import { style } from './tui-theme.js';
@@ -40,6 +46,7 @@ export class TranscriptView implements Component {
   private readonly markdownById = new Map<string, TranscriptMarkdown[]>();
   private pathRoots: string[] = [];
   private subagentLookup: LiveRunLookup = () => undefined;
+  private subagentByToolCall: RunByToolCall = () => undefined;
   /** Changes when live subagent state (or its elapsed second) changes; entries with subagent rows redraw. */
   private liveVersion = 0;
   private imageLines: (images: readonly TranscriptImage[], width: number) => string[] = () => [];
@@ -57,9 +64,10 @@ export class TranscriptView implements Component {
     this.invalidate();
   }
 
-  /** Live subagent runs for the run tree under subagent tools. `version` changes whenever they do. */
-  public setSubagentRuns(lookup: LiveRunLookup, version: number): void {
+  /** Live subagent runs for the rows under delegation tools. `version` changes whenever they do. */
+  public setSubagentRuns(lookup: LiveRunLookup, version: number, byToolCall: RunByToolCall = () => undefined): void {
     this.subagentLookup = lookup;
+    this.subagentByToolCall = byToolCall;
     this.liveVersion = version;
   }
 
@@ -128,10 +136,7 @@ export class TranscriptView implements Component {
       if (lines.length > 0) lines.push('');
       lines.push(...this.renderMarkdown(entry, width));
     }
-    for (const tool of entry.tools) {
-      lines.push(...renderTool(tool, width, this.toolOutputExpanded, this.pathRoots, this.subagentLookup));
-      if (tool.images !== undefined) lines.push(...this.imageLines(tool.images, width));
-    }
+    lines.push(...this.renderTools(entry.tools, width));
     if (entry.images !== undefined) lines.push(...this.imageLines(entry.images, width));
     if (entry.composing !== undefined) {
       const name = entry.composing.toolName ?? '工具';
@@ -147,6 +152,42 @@ export class TranscriptView implements Component {
     }
     if (lines.length === 0) return [];
     return ['', ...lines];
+  }
+
+  /**
+   * Consecutive delegations (two or more) draw as one fan-out; everything else,
+   * including a lone delegation, keeps its own tool line.
+   */
+  private renderTools(tools: readonly TranscriptTool[], width: number): string[] {
+    const lines: string[] = [];
+    let run: SubagentFanoutRow[] = [];
+    const flush = (): void => {
+      if (run.length > 1) lines.push(...renderSubagentFanout(run, width, this.toolOutputExpanded));
+      else for (const row of run) lines.push(...this.renderOneTool(tools.find((tool) => tool.toolCallId === row.key), width, row));
+      run = [];
+    };
+    for (const tool of tools) {
+      const delegation = resolveDelegation(tool, this.subagentLookup, this.subagentByToolCall);
+      if (delegation !== undefined) {
+        run.push({ key: tool.toolCallId, ...delegation });
+        continue;
+      }
+      flush();
+      lines.push(...this.renderOneTool(tool, width));
+    }
+    flush();
+    return lines;
+  }
+
+  private renderOneTool(tool: TranscriptTool | undefined, width: number, delegation?: SubagentFanoutRow): string[] {
+    if (tool === undefined) return [];
+    const lines = renderTool(tool, width, this.toolOutputExpanded, this.pathRoots, this.subagentLookup);
+    // A synchronous `run` has no control display: its live row hangs off the tool call.
+    if (delegation !== undefined && tool.presentation?.subagentControl === undefined) {
+      lines.push(...renderSubagentSingleRow(delegation.live, delegation.task, width, this.toolOutputExpanded));
+    }
+    if (tool.images !== undefined) lines.push(...this.imageLines(tool.images, width));
+    return lines;
   }
 
   private renderMarkdown(entry: TranscriptMessageEntry, width: number): string[] {
@@ -210,8 +251,40 @@ function renderNotice(tone: 'info' | 'error', text: string, width: number): stri
   return renderPrefixed(paint(tone === 'error' ? '✗ ' : '· '), paint(text), width);
 }
 
+export type RunByToolCall = (toolCallId: string) => LiveSubagentRun | undefined;
+
+const DELEGATION_TOOLS = new Set(['piwin_subagent_run', 'piwin_subagent_start']);
+
 function hasSubagentTool(entry: TranscriptEntry): boolean {
-  return entry.kind === 'message' && entry.tools.some((tool) => tool.presentation?.subagentControl !== undefined);
+  return (
+    entry.kind === 'message' &&
+    entry.tools.some(
+      (tool) =>
+        tool.presentation?.subagentControl !== undefined ||
+        tool.presentation?.kind === 'subagent' ||
+        DELEGATION_TOOLS.has(tool.toolName),
+    )
+  );
+}
+
+/**
+ * A tool that created a child (as opposed to wait/cancel or Host plumbing on
+ * one), with the live run it became. A failed start that never became a run
+ * stays an ordinary tool line with its error.
+ */
+function resolveDelegation(
+  tool: TranscriptTool,
+  lookup: LiveRunLookup,
+  byToolCall: RunByToolCall,
+): Omit<SubagentFanoutRow, 'key'> | undefined {
+  const control = tool.presentation?.subagentControl;
+  if (control?.phase === 'accepted') {
+    return { task: control.task, live: lookup(control.invocationId, control.runId) ?? byToolCall(tool.toolCallId) };
+  }
+  if (control !== undefined) return undefined;
+  const live = byToolCall(tool.toolCallId);
+  if (live === undefined && (!DELEGATION_TOOLS.has(tool.toolName) || tool.status === 'error')) return undefined;
+  return { task: tool.presentation?.summary ?? live?.task ?? '', live };
 }
 
 function renderTool(

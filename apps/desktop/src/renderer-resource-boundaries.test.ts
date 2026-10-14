@@ -218,7 +218,8 @@ describe('Desktop renderer resource boundaries', () => {
       'region-notes.css',
       'region-knowledge.css',
       'browser-session.css',
-      'subagent-session-inspector.css',
+      'subagent-embed.css',
+      'subagent-fanout.css',
     ]) {
       expect(mainStyles).toContain(sharedSheet);
     }

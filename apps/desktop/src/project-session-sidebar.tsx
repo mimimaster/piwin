@@ -27,6 +27,7 @@ import {
   sidebarTreeRowDepth,
   sidebarTreeRowKey,
   type SidebarTreeRow,
+  type SidebarTreeRowsInput,
 } from './sidebar-tree-rows';
 import { resolveNoRepoWorkspaceKey } from './file-browse-root';
 import { getProjectSessionDisclosureCopy } from './project-session-disclosure-copy';
@@ -52,6 +53,7 @@ import {
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 import { handleNativeWindowDragMouseDown } from './native-window-drag';
 import { useScrollEdgeFade } from './hooks/use-scroll-edge-fade';
+import { useSidebarRevealRequest } from './hooks/use-sidebar-reveal-request';
 
 const SIDEBAR_SESSION_ROW_ESTIMATE_PX = 28;
 const SIDEBAR_SECTION_ROW_ESTIMATE_PX = 22;
@@ -201,6 +203,8 @@ export type ProjectSessionSidebarProps = {
   onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
   sessionListScopes?: SessionListScopeState;
   onRetrySessionList?: (scope: SessionScope) => void;
+  /** Bumped by the titlebar locate button: unfold to and focus the open session. */
+  revealRequest?: number;
 };
 
 export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactElement {
@@ -299,38 +303,37 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     [noRepoWorkspaceKey, props.recentProjects, props.worktrees],
   );
 
-  const allTreeRows = useMemo(
-    () =>
-      buildSidebarTreeRows({
-        recentProjects: props.recentProjects,
-        ...(props.worktrees ? { worktrees: props.worktrees } : {}),
-        ...(noRepoWorkspaceKey ? { noRepoProjectPath: noRepoWorkspaceKey } : {}),
-        projectSessionsByPath: props.projectSessionsByPath ?? {},
-        generalSessions: props.generalSessions,
-        ...(props.draftSessions ? { draftSessions: props.draftSessions } : {}),
-        sessionSearch: props.sessionSearch,
-        sessionListOrder: sortBy,
-        pinnedSectionExpanded,
-        projectsSectionExpanded,
-        conversationsSectionExpanded,
-        collapsedProjects,
-        unavailableGroupCollapsed,
-        projectSessionVisibleCounts,
-        sessionListScopes: props.sessionListScopes ?? createSessionListScopeState(),
-        activeProjectPath: props.projectPath,
-        activeProjectSessions: props.filteredSessions,
-        revealSessionId: props.activeSessionId,
-        revealDraftId: props.activeDraftId ?? null,
-        groupBy,
-        ...(props.workingSessionIds ? { workingSessionIds: props.workingSessionIds } : {}),
-        ...(props.backendServiceSessionIds
-          ? { backendServiceSessionIds: props.backendServiceSessionIds }
-          : {}),
-        ...(props.waitingPermissionSessionIds
-          ? { waitingPermissionSessionIds: props.waitingPermissionSessionIds }
-          : {}),
-        ...(props.runPhase ? { runPhase: props.runPhase } : {}),
-      }),
+  const treeInput = useMemo(
+    (): SidebarTreeRowsInput => ({
+      recentProjects: props.recentProjects,
+      ...(props.worktrees ? { worktrees: props.worktrees } : {}),
+      ...(noRepoWorkspaceKey ? { noRepoProjectPath: noRepoWorkspaceKey } : {}),
+      projectSessionsByPath: props.projectSessionsByPath ?? {},
+      generalSessions: props.generalSessions,
+      ...(props.draftSessions ? { draftSessions: props.draftSessions } : {}),
+      sessionSearch: props.sessionSearch,
+      sessionListOrder: sortBy,
+      pinnedSectionExpanded,
+      projectsSectionExpanded,
+      conversationsSectionExpanded,
+      collapsedProjects,
+      unavailableGroupCollapsed,
+      projectSessionVisibleCounts,
+      sessionListScopes: props.sessionListScopes ?? createSessionListScopeState(),
+      activeProjectPath: props.projectPath,
+      activeProjectSessions: props.filteredSessions,
+      revealSessionId: props.activeSessionId,
+      revealDraftId: props.activeDraftId ?? null,
+      groupBy,
+      ...(props.workingSessionIds ? { workingSessionIds: props.workingSessionIds } : {}),
+      ...(props.backendServiceSessionIds
+        ? { backendServiceSessionIds: props.backendServiceSessionIds }
+        : {}),
+      ...(props.waitingPermissionSessionIds
+        ? { waitingPermissionSessionIds: props.waitingPermissionSessionIds }
+        : {}),
+      ...(props.runPhase ? { runPhase: props.runPhase } : {}),
+    }),
     [
       collapsedProjects,
       unavailableGroupCollapsed,
@@ -357,6 +360,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       sortBy,
     ],
   );
+  const allTreeRows = useMemo(() => buildSidebarTreeRows(treeInput), [treeInput]);
 
   /* One builder, two panes. Filtering here keeps sidebar-tree-rows.ts (and its
      tests) untouched — the split is presentation, not a different query. */
@@ -427,6 +431,20 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     },
     [treeRows, virtualizeTree, virtualizer],
   );
+
+  useSidebarRevealRequest({
+    request: props.revealRequest,
+    treeInput,
+    treeRows,
+    sidebarMode,
+    selectSidebarMode,
+    setPinnedSectionExpanded,
+    setProjectsSectionExpanded,
+    setConversationsSectionExpanded,
+    setCollapsedProjects,
+    setUnavailableGroupCollapsed,
+    focusSessionRow,
+  });
 
   useEffect(() => {
     const targetId = props.activeSessionId ?? props.activeDraftId ?? null;

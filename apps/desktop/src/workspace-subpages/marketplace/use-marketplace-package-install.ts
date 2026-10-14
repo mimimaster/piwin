@@ -88,7 +88,9 @@ export function useMarketplacePackageInstall(options: {
             : null
           : { kind: 'npm' as const, packageName: hit.name };
       if (!source) {
-        throw new Error(zh ? '该条目缺少可安装的仓库地址。' : 'This result has no installable repository URL.');
+        throw new Error(
+          zh ? '该条目缺少可安装的仓库地址。' : 'This result has no installable repository URL.',
+        );
       }
       const response = await request({ type: 'marketplace/package-install', source });
       if (!response.success) {
@@ -96,7 +98,12 @@ export function useMarketplacePackageInstall(options: {
       }
       setStates((current) => ({ ...current, [hit.entryId]: 'installed' }));
       showToast(
-        describeExtensionChange(hit.name, 'installed', await applyExtensionsToSession(request, sessionId), locale),
+        describeExtensionChange(
+          hit.name,
+          'installed',
+          await applyExtensionsToSession(request, sessionId),
+          locale,
+        ),
       );
     } catch (error) {
       setStates((current) => ({ ...current, [hit.entryId]: 'failed' }));
@@ -104,20 +111,32 @@ export function useMarketplacePackageInstall(options: {
       showToast({
         type: 'error',
         title: zh ? '安装失败' : 'Installation Failed',
-        text: zh ? `安装 [${hit.name}] 失败：${message}` : `Could not install [${hit.name}]: ${message}`,
+        text: zh
+          ? `安装 [${hit.name}] 失败：${message}`
+          : `Could not install [${hit.name}]: ${message}`,
       });
     } finally {
       await onInstalled?.();
     }
   }
 
-  async function installSource(source: MarketplacePiPackageSource, label: string): Promise<boolean> {
+  async function installSource(
+    source: MarketplacePiPackageSource,
+    label: string,
+  ): Promise<boolean> {
     const { request, sessionId, locale, showToast, onInstalled } = optionsRef.current;
     const zh = locale === 'zh-CN';
     try {
       const response = await request({ type: 'marketplace/package-install', source });
       if (!response.success) throw new Error(response.error);
-      showToast(describeExtensionChange(label, 'installed', await applyExtensionsToSession(request, sessionId), locale));
+      showToast(
+        describeExtensionChange(
+          label,
+          'installed',
+          await applyExtensionsToSession(request, sessionId),
+          locale,
+        ),
+      );
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -59,6 +59,7 @@ export {
   IconListDots,
   IconListFilter,
   IconListTree,
+  IconLocate,
   IconMcp,
   IconMenuList,
   IconMic,

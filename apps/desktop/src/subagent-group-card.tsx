@@ -4,7 +4,9 @@
  * Header: spinner while any child runs (a pine dot once settled), "N 个子代理",
  * per-phase counts and the group's wall time. A settled group folds into the
  * header unless a result still needs the user; a header click always wins.
- * A lone delegation (③) renders its row without the header.
+ * A lone delegation (③) renders its row without the header. Two or more
+ * draw as a fan-out (proto-14): main node, wires, rows. The open child's
+ * dense preview sits at the bottom of the card, never between rows.
  *
  * The header is memoized on scalars and each row is memoized on its snapshot
  * (subagent-invocation-block.tsx), so a child's stream delta repaints only
@@ -19,6 +21,7 @@ import {
   type SubagentLocale,
 } from './subagent-card-view';
 import { SubagentElapsed, SubagentSpinner } from './subagent-card-parts';
+import { SubagentFanout, type SubagentFanoutNode } from './subagent-fanout';
 
 type SubagentGroupHeaderProps = {
   title: string;
@@ -71,8 +74,12 @@ const SubagentGroupHeader = memo(function SubagentGroupHeader(
 export type SubagentGroupCardProps = {
   summary: SubagentGroupSummary;
   locale: SubagentLocale;
-  /** A row's inline session is open — keep the group open around it. */
+  /** A row's preview is open — keep the group open around it. */
   hasOpenRow: boolean;
+  /** One node per row, in row order; drawn as a fan-out when there are ≥ 2. */
+  fanout?: readonly SubagentFanoutNode[];
+  /** Dense preview of the open row, below all rows. */
+  preview?: ReactNode;
   children: ReactNode;
 };
 
@@ -112,7 +119,14 @@ export function SubagentGroupCard(props: SubagentGroupCardProps): ReactElement {
         />
       )}
       <div className="subagent-group-rows" hidden={!single && !expanded}>
-        {props.children}
+        {!single && props.fanout !== undefined && props.fanout.length > 1 ? (
+          <SubagentFanout nodes={props.fanout} locale={props.locale}>
+            {props.children}
+          </SubagentFanout>
+        ) : (
+          props.children
+        )}
+        {props.preview}
       </div>
     </div>
   );

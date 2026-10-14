@@ -4,12 +4,22 @@
  * The row opens the catalog detail when one exists.
  */
 import type { KeyboardEvent, ReactElement } from 'react';
-import type { MarketplaceCatalogEntry, MarketplaceInstalledItem, SkillSource } from '@piwin/contracts';
+import type {
+  MarketplaceCatalogEntry,
+  MarketplaceInstalledItem,
+  SkillSource,
+} from '@piwin/contracts';
 import { SKILL_SOURCE_DISPLAY_ORDER, resourceSourceLabel } from '@piwin/contracts';
 import { Button, ProgressRing } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../../desktop-locale.js';
 import { activateOnKey, hasCatalogUpdate } from './marketplace-catalog-card.js';
-import { availabilityLabel, entryName, inventoryMessage, kindLabel, operationLabel } from './marketplace-copy.js';
+import {
+  availabilityLabel,
+  entryName,
+  inventoryMessage,
+  kindLabel,
+  operationLabel,
+} from './marketplace-copy.js';
 import type { MarketOperation } from './marketplace-types.js';
 
 function isResourceSource(source: string): source is SkillSource {
@@ -32,7 +42,8 @@ export type MarketplaceInstalledRowProps = {
   onOpen?: ((entry: MarketplaceCatalogEntry) => void) | undefined;
   onToggle: (item: MarketplaceInstalledItem) => void;
   onRemove: (item: MarketplaceInstalledItem) => void;
-  onUpdate?: ((entry: MarketplaceCatalogEntry, installed: MarketplaceInstalledItem) => void) | undefined;
+  onUpdate?:
+    ((entry: MarketplaceCatalogEntry, installed: MarketplaceInstalledItem) => void) | undefined;
   onConfigureMcp?: (() => void) | undefined;
 };
 
@@ -42,10 +53,14 @@ export function MarketplaceInstalledRow(props: MarketplaceInstalledRowProps): Re
   const message = inventoryMessage(item, locale);
   const name = catalogEntry ? entryName(catalogEntry, locale) : item.name;
   const openEntry = catalogEntry && props.onOpen ? () => props.onOpen?.(catalogEntry) : undefined;
-  const updatable = catalogEntry !== undefined && props.onUpdate !== undefined && hasCatalogUpdate(catalogEntry, item);
-  const tier = item.compatibilityTier === 'degraded' || item.compatibilityTier === 'incompatible'
-    ? item.compatibilityTier
-    : undefined;
+  const updatable =
+    catalogEntry !== undefined &&
+    props.onUpdate !== undefined &&
+    hasCatalogUpdate(catalogEntry, item);
+  const tier =
+    item.compatibilityTier === 'degraded' || item.compatibilityTier === 'incompatible'
+      ? item.compatibilityTier
+      : undefined;
 
   return (
     <div
@@ -72,11 +87,20 @@ export function MarketplaceInstalledRow(props: MarketplaceInstalledRowProps): Re
             ) : null}
             {tier ? (
               <span className={`market-tier-badge is-${tier}`}>
-                {tier === 'degraded' ? (zh ? '部分兼容' : 'Partly compatible') : zh ? '不兼容' : 'Incompatible'}
+                {tier === 'degraded'
+                  ? zh
+                    ? '部分兼容'
+                    : 'Partly compatible'
+                  : zh
+                    ? '不兼容'
+                    : 'Incompatible'}
               </span>
             ) : null}
             {catalogEntry?.withdrawn ? (
-              <span className="market-tier-badge is-degraded" data-testid="market-installed-withdrawn">
+              <span
+                className="market-tier-badge is-degraded"
+                data-testid="market-installed-withdrawn"
+              >
                 {zh ? '已下架' : 'Withdrawn'}
               </span>
             ) : null}
@@ -102,7 +126,11 @@ export function MarketplaceInstalledRow(props: MarketplaceInstalledRowProps): Re
         ) : (
           <>
             {updatable && catalogEntry ? (
-              <Button variant="primary" size="compact" onClick={() => props.onUpdate?.(catalogEntry, item)}>
+              <Button
+                variant="primary"
+                size="compact"
+                onClick={() => props.onUpdate?.(catalogEntry, item)}
+              >
                 {zh ? `更新至 v${catalogEntry.version}` : `Update to v${catalogEntry.version}`}
               </Button>
             ) : null}

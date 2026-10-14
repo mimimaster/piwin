@@ -10,8 +10,8 @@
  * components never re-implement message-id deduplication.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { SessionSummary, SessionTranscriptMessage } from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
+import type { SessionSummary, SessionTranscriptMessage } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatMessageUi, SubagentStreamState } from '../chat-reducer';
 import type { SubagentInspectorSelection } from '../subagent-activity-model';
@@ -28,8 +28,6 @@ export type SubagentInspectorOptions = {
   streamFor: (childSessionId: string) => SubagentStreamState | undefined;
   /** Read the latest child summary from the reducer-owned children map. */
   childFor: (childSessionId: string) => SessionSummary | undefined;
-  /** Called when the user promotes the preview to the full session view. */
-  onOpenFullSession: (sessionId: string) => void;
 };
 
 export type SubagentInspectorController = {
@@ -45,23 +43,19 @@ export type SubagentInspectorController = {
   error: string | null;
   openInspector: (selection: SubagentInspectorSelection) => void;
   closeInspector: () => void;
-  /** Promote the preview to the existing full session view. */
-  openFullSession: () => void;
   retryLoad: () => void;
 };
 
 export function useSubagentSessionInspector(
   options: SubagentInspectorOptions,
 ): SubagentInspectorController {
-  const { hostClient, streamFor, childFor, onOpenFullSession } = options;
+  const { hostClient, streamFor, childFor } = options;
 
-  // Latest lookups/navigation without forcing controller method identity churn.
+  // Latest lookups without forcing controller method identity churn.
   const streamForRef = useRef(streamFor);
   const childForRef = useRef(childFor);
-  const onOpenFullSessionRef = useRef(onOpenFullSession);
   streamForRef.current = streamFor;
   childForRef.current = childFor;
-  onOpenFullSessionRef.current = onOpenFullSession;
 
   const [selection, setSelection] = useState<SubagentInspectorSelection | null>(null);
   const [historicalMessages, setHistoricalMessages] = useState<SessionTranscriptMessage[]>([]);
@@ -148,15 +142,6 @@ export function useSubagentSessionInspector(
     void loadMessages(childSessionId, requestSeqRef.current);
   }, [childSessionId, loadMessages]);
 
-  const openFullSession = useCallback((): void => {
-    if (childSessionId === null) {
-      return;
-    }
-    const targetSessionId = childSessionId;
-    closeInspector();
-    onOpenFullSessionRef.current(targetSessionId);
-  }, [childSessionId, closeInspector]);
-
   // Absorb finished live content into persisted history: refresh once per
   // completed message (and once for a terminal stream that never finished a
   // message, e.g. an abort). The hook keeps the last loaded view visible
@@ -200,7 +185,6 @@ export function useSubagentSessionInspector(
     error,
     openInspector,
     closeInspector,
-    openFullSession,
     retryLoad,
   };
 }

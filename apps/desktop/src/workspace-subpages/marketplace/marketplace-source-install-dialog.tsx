@@ -27,7 +27,9 @@ function sourceKindLabel(source: MarketplacePiPackageSource, zh: boolean): strin
   }
 }
 
-export function MarketplaceSourceInstallDialog(props: MarketplaceSourceInstallDialogProps): ReactElement | null {
+export function MarketplaceSourceInstallDialog(
+  props: MarketplaceSourceInstallDialogProps,
+): ReactElement | null {
   const zh = props.locale === 'zh-CN';
   const t = (en: string, zhText: string) => (zh ? zhText : en);
   const [value, setValue] = useState('');
@@ -72,7 +74,10 @@ export function MarketplaceSourceInstallDialog(props: MarketplaceSourceInstallDi
           autoFocus
           value={value}
           onChange={(event) => setValue(event.currentTarget.value)}
-          placeholder={t('npm package, GitHub URL, or /absolute/path', 'npm 包名、GitHub 地址或 /绝对路径')}
+          placeholder={t(
+            'npm package, GitHub URL, or /absolute/path',
+            'npm 包名、GitHub 地址或 /绝对路径',
+          )}
           aria-label={t('Package address', '包地址')}
           testId="marketplace-source-input"
         />
@@ -80,8 +85,14 @@ export function MarketplaceSourceInstallDialog(props: MarketplaceSourceInstallDi
           {parsed.ok
             ? `${sourceKindLabel(parsed.source, zh)} · ${parsed.label}`
             : parsed.reason === 'unrecognized'
-              ? t('Not a recognized npm name, GitHub repository or absolute path.', '无法识别为 npm 包名、GitHub 仓库或绝对路径。')
-              : t('Examples: pi-lens · pi-lens@4.2.1 · github.com/owner/repo', '示例：pi-lens · pi-lens@4.2.1 · github.com/owner/repo')}
+              ? t(
+                  'Not a recognized npm name, GitHub repository or absolute path.',
+                  '无法识别为 npm 包名、GitHub 仓库或绝对路径。',
+                )
+              : t(
+                  'Examples: pi-lens · pi-lens@4.2.1 · github.com/owner/repo',
+                  '示例：pi-lens · pi-lens@4.2.1 · github.com/owner/repo',
+                )}
         </p>
         <Notice tone="warning">
           {t(

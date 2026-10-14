@@ -104,13 +104,16 @@ describe('deriveSubagentRowView', () => {
     ).toBe('等待权限确认：web_fetch');
   });
 
-  it('folds a finished row to one line and keeps the error line of a failed one', () => {
+  it('keeps a second line in every phase: conclusion when finished, error when failed', () => {
     const done = deriveSubagentRowView({
       tool,
-      invocation: invocation({ status: 'completed', activity: { kind: 'completed', summary: '符合 ADR 0019' } }),
+      invocation: invocation({
+        status: 'completed',
+        activity: { kind: 'completed', summary: 'done\n- 符合 ADR 0019\n- 无回归' },
+      }),
       locale: 'zh-CN',
     });
-    expect(done).toMatchObject({ phase: 'done', stateLabel: '已完成', showActivity: false, activity: '符合 ADR 0019' });
+    expect(done).toMatchObject({ phase: 'done', stateLabel: '已完成', showActivity: true, activity: '符合 ADR 0019' });
     const failed = deriveSubagentRowView({
       tool,
       invocation: invocation({ status: 'failed', activity: { kind: 'failed', message: 'web_fetch 超时（30s）' } }),
@@ -212,7 +215,7 @@ describe('deriveSubagentRowView', () => {
       canInspect: true,
       expanded: false,
     });
-    expect(view).toMatchObject({ phase: 'done', seal: '双', anchorId: 'card:child-9', showActivity: false });
+    expect(view).toMatchObject({ phase: 'done', seal: '双', anchorId: 'card:child-9', showActivity: true });
   });
 });
 

@@ -1,0 +1,370 @@
+/* Region: subagent fan-out body + dense preview — Inkstone proto-14
+   (apps/docs/public/inkstone/proto-14-subagent-fanout.html).
+
+   subagent-fanout.tsx: main node (display only) · wires · rows.
+   subagent-preview.tsx: one plain line per child step, no transcript chrome.
+
+   Uses the `--sa-*` aliases declared on `.subagent-group` in
+   subagent-cards.css. Row height is fixed (`--sa-fan-row-h`, set inline from
+   SUBAGENT_FANOUT_ROW_HEIGHT) so wire geometry stays pure arithmetic. */
+
+.subagent-group-rows {
+  container: subagent-group / inline-size;
+}
+
+/* ── Fan-out ────────────────────────────────────────────────────────── */
+.subagent-fanout {
+  display: grid;
+  grid-template-columns: 138px 52px minmax(0, 1fr);
+  align-items: start;
+  padding: 2px 0;
+}
+
+.subagent-fanout-main {
+  grid-row: 1;
+  grid-column: 1;
+  align-self: center;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: center;
+  margin-left: 12px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: var(--sa-code);
+  box-shadow: inset 0 0 0 1px var(--sa-rule);
+  cursor: default;
+  user-select: none;
+}
+
+.subagent-fanout-main-seal {
+  grid-row: 1 / span 2;
+  background: var(--sa-t2);
+}
+
+.subagent-fanout-main-name {
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-fanout-main-sub {
+  grid-column: 2;
+  overflow: hidden;
+  color: var(--sa-t4);
+  font: 11px var(--sa-mono);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-fanout-wires {
+  grid-row: 1;
+  grid-column: 2;
+  overflow: visible;
+}
+
+.subagent-fanout-wires.is-rail {
+  display: none;
+}
+
+.subagent-fanout-rows {
+  grid-row: 1;
+  grid-column: 3;
+  min-width: 0;
+}
+
+.subagent-fanout-wire {
+  fill: none;
+  stroke: var(--sa-ring);
+  stroke-width: 1.25;
+}
+
+.subagent-fanout-wire[data-phase='running'] {
+  stroke: var(--sa-lamp);
+  stroke-dasharray: 3 4;
+  animation: subagent-fanout-flow 0.9s linear infinite;
+}
+
+.subagent-fanout-wire[data-phase='queued'] {
+  stroke: var(--sa-t4);
+  stroke-dasharray: 1 4;
+}
+
+.subagent-fanout-wire[data-phase='done'] {
+  stroke: var(--sa-pine);
+  opacity: 0.7;
+}
+
+.subagent-fanout-wire[data-phase='failed'] {
+  stroke: var(--sa-crimson);
+}
+
+.subagent-fanout-wire[data-selected='true'] {
+  stroke-width: 2.25;
+  opacity: 1;
+}
+
+.subagent-fanout-origin {
+  fill: var(--sa-t3);
+}
+
+@keyframes subagent-fanout-flow {
+  to {
+    stroke-dashoffset: -7;
+  }
+}
+
+/* Fixed-height rows: the same two lines in every phase. */
+.subagent-fanout .subagent-row {
+  height: var(--sa-fan-row-h);
+  padding: 0 12px 0 8px;
+  align-content: center;
+  row-gap: 1px;
+  overflow: hidden;
+  border-radius: 7px 0 0 7px;
+}
+
+.subagent-fanout .subagent-row-main {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.subagent-fanout .subagent-row-meta {
+  flex: 1 1 0;
+}
+
+.subagent-fanout .subagent-row-activity {
+  padding-top: 0;
+  font: 11.5px var(--sa-mono);
+}
+
+.subagent-fanout .subagent-embed[data-stoppable='true'] > .subagent-row {
+  padding-right: 40px;
+}
+
+.subagent-fanout .subagent-invocation-stop {
+  top: calc((var(--sa-fan-row-h) - 24px) / 2);
+}
+
+.subagent-group .subagent-row[aria-expanded='true'] {
+  background: var(--sa-select);
+}
+
+/* Narrow card: the main node folds away and the wires become a tree rail;
+   rows keep their content and height. */
+@container subagent-group (max-width: 520px) {
+  .subagent-fanout {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .subagent-fanout-main,
+  .subagent-fanout-wires.is-curve {
+    display: none;
+  }
+
+  .subagent-fanout-wires.is-rail {
+    display: block;
+    grid-column: 1;
+  }
+
+  .subagent-fanout-rows {
+    grid-column: 2;
+  }
+
+  .subagent-fanout .subagent-row-meta {
+    display: none;
+  }
+}
+
+/* ── Dense preview ──────────────────────────────────────────────────── */
+.subagent-preview {
+  margin: 2px 12px 8px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--sa-code);
+  box-shadow: inset 0 0 0 1px var(--sa-rule);
+  color: var(--sa-t2);
+  font: 11.5px/1.6 var(--sa-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.subagent-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--sa-rule);
+  color: var(--sa-t4);
+}
+
+.subagent-preview-meta > :first-child {
+  color: var(--sa-t2);
+}
+
+.subagent-preview-status[data-live='true'] {
+  color: var(--sa-lamp);
+}
+
+.subagent-preview[data-status='completed'] .subagent-preview-status {
+  color: var(--sa-pine);
+}
+
+.subagent-preview[data-status='failed'] .subagent-preview-status {
+  color: var(--sa-crimson);
+}
+
+.subagent-preview-key {
+  margin-right: 6px;
+  color: var(--sa-t4);
+  font: 11px var(--sa-mono);
+}
+
+.subagent-preview-task {
+  margin: 0;
+  padding: 5px 10px 3px;
+  color: var(--sa-t2);
+  font: 12.5px/1.5 var(--sans, var(--font-sans, inherit));
+  overflow-wrap: anywhere;
+}
+
+/* One grid for the whole log so the columns line up across lines. */
+.subagent-preview-log {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  column-gap: 8px;
+  max-height: 236px;
+  padding: 2px 10px 6px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.subagent-preview-line {
+  display: contents;
+  white-space: nowrap;
+}
+
+.subagent-preview-time {
+  min-width: 4ch;
+  color: var(--sa-t4);
+  text-align: right;
+}
+
+.subagent-preview-verb {
+  max-width: 14ch;
+  overflow: hidden;
+  color: var(--sa-t3);
+  text-overflow: ellipsis;
+}
+
+.subagent-preview-text {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sa-t1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-preview-result {
+  color: var(--sa-t4);
+  text-align: right;
+}
+
+.subagent-preview-line[data-status='done'] .subagent-preview-result::before {
+  content: '✓ ';
+  white-space: pre;
+}
+
+.subagent-preview-line[data-status='error'] .subagent-preview-result::before {
+  content: '✗ ';
+  white-space: pre;
+}
+
+.subagent-preview-line[data-status='running'] .subagent-preview-result::before {
+  content: '…';
+}
+
+.subagent-preview-line[data-status='error'] .subagent-preview-verb,
+.subagent-preview-line[data-status='error'] .subagent-preview-result {
+  color: var(--sa-crimson);
+}
+
+.subagent-preview-line[data-status='running'] .subagent-preview-result {
+  color: var(--sa-lamp);
+}
+
+.subagent-preview-line[data-kind='say'] .subagent-preview-text {
+  color: var(--sa-t2);
+}
+
+.subagent-preview-line[data-kind='think'] .subagent-preview-text {
+  color: var(--sa-t4);
+  font-style: italic;
+}
+
+.subagent-preview-note {
+  grid-column: 1 / -1;
+  padding-left: calc(4ch + 8px);
+  color: var(--sa-t4);
+}
+
+.subagent-preview-note.is-error {
+  color: var(--sa-crimson);
+  white-space: normal;
+}
+
+.subagent-preview-retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sa-t2);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.subagent-preview-permission {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--sa-rule);
+  background: var(--sa-lamp-wash);
+}
+
+.subagent-preview-permission .subagent-preview-key {
+  color: var(--sa-lamp);
+}
+
+.subagent-preview-permission .subagent-preview-text {
+  flex: 1 1 auto;
+}
+
+.subagent-preview-outcome {
+  max-height: 180px;
+  padding: 5px 10px 8px;
+  overflow: auto;
+  border-top: 1px solid var(--sa-rule);
+  color: var(--sa-t1);
+  font: 12.5px/1.55 var(--sans, var(--font-sans, inherit));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.subagent-preview-outcome .subagent-preview-key {
+  display: block;
+  color: var(--sa-pine);
+}
+
+.subagent-preview-outcome[data-tone='failed'] .subagent-preview-key {
+  color: var(--sa-crimson);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subagent-fanout-wire[data-phase='running'] {
+    animation: none;
+  }
+}

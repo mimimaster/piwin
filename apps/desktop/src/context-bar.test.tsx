@@ -158,6 +158,24 @@ describe('ContextBar', () => {
     }
   });
 
+  it('shows the locate-session button only when a reveal handler is wired', () => {
+    const selector = '[data-testid="titlebar-reveal-session-btn"]';
+    renderContextBar(createBaseProps({ runState: createIdleRunStatus() }), root);
+    expect(container.querySelector(selector)).toBeNull();
+
+    const onRevealActiveSession = vi.fn();
+    renderContextBar(
+      createBaseProps({ runState: createIdleRunStatus(), onRevealActiveSession }),
+      root,
+    );
+    const button = container.querySelector<HTMLButtonElement>(selector);
+    expect(button?.getAttribute('aria-label')).toBe('Locate current session in sidebar');
+    act(() => {
+      button?.click();
+    });
+    expect(onRevealActiveSession).toHaveBeenCalledTimes(1);
+  });
+
   it('hosts shell chrome controls when titleband props are provided', () => {
     const onToggleSessions = vi.fn();
     const onToggleWorkPanel = vi.fn();

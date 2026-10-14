@@ -8,20 +8,10 @@ import type { SessionSummary, SubagentResultSummary } from '@piwin/contracts';
 
 export type SubagentChild = Pick<
   SessionSummary,
-  'name' | 'subagentStatus' | 'subagentTaskId' | 'subagentBatchRunId'
+  'name' | 'subagentStatus' | 'subagentTaskId'
 > & {
   sessionId: string;
 };
-
-export type ResultAction =
-  | 'files'
-  | 'apply'
-  | 'resolve'
-  | 'retain'
-  | 'discard'
-  | 'continue'
-  | 'open-child'
-  | 'close';
 
 const CHILD_STATUS: Record<NonNullable<SessionSummary['subagentStatus']>, string> = {
   running: '运行中',
@@ -47,7 +37,6 @@ export function toSubagentChild(summary: SessionSummary & { sessionId?: string }
     ...(summary.name === undefined ? {} : { name: summary.name }),
     ...(summary.subagentStatus === undefined ? {} : { subagentStatus: summary.subagentStatus }),
     ...(summary.subagentTaskId === undefined ? {} : { subagentTaskId: summary.subagentTaskId }),
-    ...(summary.subagentBatchRunId === undefined ? {} : { subagentBatchRunId: summary.subagentBatchRunId }),
   };
 }
 
@@ -107,50 +96,11 @@ export function latestResultFor(
     .sort((left, right) => (right.candidateGeneration ?? 0) - (left.candidateGeneration ?? 0) || right.revision - left.revision)[0];
 }
 
-/**
- * What can be done with a child now. Actions the Host refuses are listed
- * with its reason rather than hidden, so "why can't I apply this" has an answer.
- */
-export function childActionItems(
-  result: SubagentResultSummary | undefined,
-  canOpenChild: boolean,
-  childStatus?: SubagentChild['subagentStatus'],
-): SelectItem[] {
-  const items: SelectItem[] = [];
-  const gated = (action: ResultAction, label: string, allowed: boolean, reason: string | undefined, hint?: string): void => {
-    if (allowed) items.push({ value: action, label, ...(hint === undefined ? {} : { description: hint }) });
-    else if (reason !== undefined) items.push({ value: 'close', label: `${label}（不可用）`, description: reason });
-  };
-  if (result !== undefined) {
-    const { availability } = result;
-    gated('files', '查看改动的文件', availability.view.allowed, availability.view.reason);
-    gated('apply', '应用到工作区', availability.apply.allowed, availability.apply.reason, '把这份改动合进当前项目');
-    gated('resolve', '让主会话处理冲突', availability.resolve.allowed, availability.resolve.reason);
-    if (needsDecision(result)) items.push({ value: 'retain', label: '先保留，不应用', description: '改动留在子代理的副本里' });
-    gated('discard', '丢弃副本', availability.cleanup.allowed, availability.cleanup.reason, '删除子代理的工作副本');
-  }
-  // A running child takes instructions from its parent turn, not from the side.
-  if (childStatus !== undefined && childStatus !== 'running') {
-    items.push({ value: 'continue', label: '给它追加指令', description: '让这个子代理接着做' });
-  }
-  if (canOpenChild) items.push({ value: 'open-child', label: '打开子代理的对话' });
-  items.push({ value: 'close', label: '关闭' });
-  return items;
-}
-
-/**
- * A line for the transcript when a child ends. Same-child updates are
- * projections, so a follow-up this shell sent can settle without a visible
- * `running` in between; the caller says when one was outstanding.
- */
-export function describeChildChange(
-  previous: SubagentChild | undefined,
-  next: SubagentChild,
-  followUpSettled = false,
-): string | undefined {
+/** A line for the transcript when a child ends; repeated updates of a finished child stay quiet. */
+export function describeChildChange(previous: SubagentChild | undefined, next: SubagentChild): string | undefined {
   const before = previous?.subagentStatus;
   const after = next.subagentStatus;
   if (after === undefined || after === 'running') return undefined;
-  if (after === before && !followUpSettled) return undefined;
+  if (after === before) return undefined;
   return `子代理「${childLabel(next, next.sessionId)}」${CHILD_STATUS[after]} · /subagents 查看`;
 }

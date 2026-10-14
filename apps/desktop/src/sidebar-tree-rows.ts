@@ -7,6 +7,7 @@ import type { SessionListScopeState } from './session-list-scope';
 import { sessionScopeKey } from './session-scope-key';
 import {
   clusterProjectsByRepository,
+  orderSidebarProjectsByCreation,
   sidebarProjectAllPaths,
   type SidebarProjectCluster,
   type SidebarProjectRef,
@@ -216,9 +217,11 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   const showConversations = searching || input.conversationsSectionExpanded;
 
   const noRepoPath = input.noRepoProjectPath?.trim() ?? '';
-  const listedProjects = noRepoPath
-    ? input.recentProjects.filter((project) => project.path !== noRepoPath)
-    : input.recentProjects;
+  const listedProjects = orderSidebarProjectsByCreation(
+    noRepoPath
+      ? input.recentProjects.filter((project) => project.path !== noRepoPath)
+      : input.recentProjects,
+  );
   const unavailableProjects = listedProjects.filter(
     (project) => project.workspaceAvailability === 'missing',
   );

@@ -12,6 +12,8 @@ export {
   ARTIFACT_LIVE_PRIORITY_STREAM,
   ARTIFACT_LIVE_PRIORITY_CANVAS,
   ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE,
+  ARTIFACT_BRIDGE_SELECTION_CLEAR_TYPE,
+  ARTIFACT_SELECTION_MAX_CHARS,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   ARTIFACT_BRIDGE_ACTION_TYPE,
   ARTIFACT_BRIDGE_ERROR_TYPE,
@@ -31,6 +33,8 @@ export type {
   ArtifactActionMessage,
   ArtifactErrorMessage,
   ArtifactScrollMessage,
+  ArtifactSelectionMessage,
+  ArtifactSelectionRect,
   ComposerProposeTextActionPayload,
   ArtifactFrameMode,
   ArtifactCapabilityReport,
@@ -64,6 +68,7 @@ export {
   parseArtifactErrorMessage,
   parseArtifactRenderSnapshot,
   parseArtifactScrollMessage,
+  parseArtifactSelectionMessage,
   readArtifactPostSeq,
 } from './bridge-protocol.js';
 

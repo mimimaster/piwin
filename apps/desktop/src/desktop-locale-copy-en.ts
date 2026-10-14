@@ -79,6 +79,7 @@ export const DESKTOP_COPY_EN: DesktopCopy = {
       shellNavigation: 'Shell navigation',
       back: 'Back',
       forward: 'Forward',
+      revealActiveSession: 'Locate current session in sidebar',
       dragWindow: 'Drag window',
       tools: 'Tools',
       more: 'More',

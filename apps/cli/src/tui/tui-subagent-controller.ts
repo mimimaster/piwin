@@ -1,35 +1,63 @@
-import type { HostPush, SessionSummary, SubagentResultSummary } from '@piwin/contracts';
+import type { HostPush, SessionSummary, SubagentInvocation, SubagentResultSummary } from '@piwin/contracts';
+import { projectSubagentToolLine, type SubagentPreviewStatus } from '@piwin/host-client';
 import { toLiveRun, type LiveSubagentRun } from './subagent-run-view.js';
-import { ChoiceOverlay, TextOverlay } from './choice-overlay.js';
+import { ChoiceOverlay } from './choice-overlay.js';
 import {
-  childActionItems,
   childLabel,
   describeChildChange,
   describeSubagents,
   latestResultFor,
+  needsDecision,
   subagentItems,
   toSubagentChild,
-  type ResultAction,
   type SubagentChild,
 } from './subagent-view.js';
+import {
+  applySubagentStreamEvent,
+  EMPTY_SUBAGENT_TAIL,
+  runningSubagentTool,
+  type SubagentLiveTail,
+  type SubagentPendingPermission,
+} from './subagent-live-tail.js';
+import { TuiSubagentPreview, type SubagentPreviewData, type SubagentResultAction } from './tui-subagent-preview.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
 import type { TuiModalStack } from './tui-modals.js';
 import { ViewerOverlay } from './viewer-overlay.js';
 
 const RESULT_PAGE_LIMIT = 100;
 const FILE_PAGE_LIMIT = 200;
+/** Step lines kept per child for Ctrl+O under a running fan-out row. */
+const RECENT_STEPS = 3;
 
 type ResultFile = { fileId: string; relativePath: string; kind: 'added' | 'modified' | 'deleted' };
 
 const FILE_KIND: Record<ResultFile['kind'], string> = { added: '新增', modified: '修改', deleted: '删除' };
 
+const PREVIEW_STATUS: Record<SubagentInvocation['status'], SubagentPreviewStatus> = {
+  queued: 'queued',
+  starting: 'running',
+  running: 'running',
+  completed: 'completed',
+  'needs-integration': 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+};
+
+const CHILD_PREVIEW_STATUS: Record<NonNullable<SessionSummary['subagentStatus']>, SubagentPreviewStatus> = {
+  running: 'running',
+  done: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+};
+
 export type TuiSubagentControllerOptions = {
   link: TuiHostLink;
   modals: TuiModalStack;
-  /** Desktop owns which session is on screen when embedded. */
-  embedded: boolean;
   getSessionId: () => string | undefined;
-  openSession: (sessionId: string) => Promise<void>;
+  /** A child asks for permission: queue the regular permission dialog, naming the child. */
+  askChildPermission: (request: SubagentPendingPermission, childLabel: string) => void;
+  /** A permission was answered (here or elsewhere): drop its queued dialog. */
+  dropPermission: (requestId: string) => void;
   onChanged: () => void;
   onHint: (text: string) => void;
   onNotice: (tone: 'info' | 'error', text: string) => void;
@@ -37,32 +65,42 @@ export type TuiSubagentControllerOptions = {
 };
 
 /**
- * Child sessions of the session on screen and what to do with their results.
- * Whether a result may be applied, resolved or cleaned up is the Host's call;
- * this shell shows the Host's `availability` and sends the chosen action.
+ * Children of the session on screen: live rows for the transcript, a dense
+ * preview per child, and what to do with their results. Whether a result may
+ * be applied, resolved or cleaned up is the Host's call; this shell shows the
+ * Host's `availability` and sends the chosen action. Observation only: there
+ * is no way into a child session and no message to a child.
  */
-/** `unanswered`: sent, the Host has not said which batch it became. `runIds`: batches still running. */
-type FollowUps = { unanswered: number; runIds: Set<string> };
-
 export class TuiSubagentController {
   private children: SubagentChild[] = [];
+  private readonly summaries = new Map<string, SessionSummary>();
   private results: SubagentResultSummary[] = [];
-  /** Follow-ups this shell sent per child that have not ended yet. */
-  private readonly followUps = new Map<string, FollowUps>();
-  /** The batch each child last ended in: a follow-up can end before its answer arrives. */
-  private readonly endedBatches = new Map<string, { runId: string; announced: boolean }>();
+  /** Live per-invocation state from `subagent/invocation-updated`, keyed by invocation id. */
+  private readonly liveRuns = new Map<string, LiveSubagentRun>();
+  private readonly invocations = new Map<string, SubagentInvocation>();
+  /** What `subagent/stream` said per child since its last message. */
+  private readonly tails = new Map<string, SubagentLiveTail>();
+  private readonly preview: TuiSubagentPreview;
+  /** Bumped whenever live run state changes, so the transcript knows to redraw. */
+  public liveVersion = 0;
 
-  public constructor(private readonly options: TuiSubagentControllerOptions) {}
+  public constructor(private readonly options: TuiSubagentControllerOptions) {
+    this.preview = new TuiSubagentPreview({
+      link: options.link,
+      modals: options.modals,
+      data: (childSessionId) => this.previewData(childSessionId),
+      act: (action, childSessionId, result) => this.run(action, childSessionId, result),
+      dropPermission: options.dropPermission,
+      back: () => this.open(),
+      onChanged: options.onChanged,
+      onHint: options.onHint,
+      onError: options.onError,
+    });
+  }
 
   public describe(): string | undefined {
     return describeSubagents(this.children, this.results);
   }
-
-  /** Live per-invocation state from `subagent/invocation-updated`, keyed by invocation id. */
-  private readonly liveRuns = new Map<string, LiveSubagentRun>();
-  private readonly liveRevisions = new Map<string, number>();
-  /** Bumped whenever live run state changes, so the transcript knows to redraw. */
-  public liveVersion = 0;
 
   /** The transcript's view of a run: by invocation id, else the newest invocation of the batch run. */
   public readonly lookupRun = (invocationId: string | undefined, runId: string): LiveSubagentRun | undefined => {
@@ -70,6 +108,12 @@ export class TuiSubagentController {
     let found: LiveSubagentRun | undefined;
     for (const run of this.liveRuns.values()) if (run.runId === runId) found = run;
     return found;
+  };
+
+  /** A synchronous `piwin_subagent_run` row: the invocation its tool call created. */
+  public readonly lookupRunByToolCall = (toolCallId: string): LiveSubagentRun | undefined => {
+    for (const run of this.liveRuns.values()) if (run.parentToolCallId === toolCallId) return run;
+    return undefined;
   };
 
   /** Whether any invocation is still going (elapsed counters need a tick). */
@@ -80,12 +124,13 @@ export class TuiSubagentController {
 
   public reset(): void {
     this.liveRuns.clear();
-    this.liveRevisions.clear();
+    this.invocations.clear();
+    this.tails.clear();
+    this.preview.close();
     this.liveVersion += 1;
     this.children = [];
+    this.summaries.clear();
     this.results = [];
-    this.followUps.clear();
-    this.endedBatches.clear();
   }
 
   /** Best effort: a Host without subagent orchestration simply has none to show. */
@@ -95,49 +140,48 @@ export class TuiSubagentController {
       this.options.link.request({ type: 'subagent/results', parentSessionId: sessionId, limit: RESULT_PAGE_LIMIT }),
     ]);
     if (this.options.getSessionId() !== sessionId) return;
-    this.children = children.success
-      ? ((children.data as { sessions?: SessionSummary[] }).sessions ?? []).map(toSubagentChild)
-      : [];
+    const data = children.success
+      ? (children.data as { sessions?: SessionSummary[]; invocations?: SubagentInvocation[] })
+      : {};
+    for (const summary of data.sessions ?? []) this.remember(summary);
+    this.children = (data.sessions ?? []).map(toSubagentChild);
+    for (const invocation of data.invocations ?? []) this.applyInvocation(invocation);
     this.results = results.success ? ((results.data as { items?: SubagentResultSummary[] }).items ?? []) : [];
   }
 
   /** Returns true when the push was about this session's children. */
   public handlePush(push: HostPush): boolean {
     const sessionId = this.options.getSessionId();
-    if (push.type === 'subagent/updated') {
-      if (push.parentSessionId !== sessionId) return true;
-      const next = toSubagentChild(push.child);
-      const previous = this.children.find((child) => child.sessionId === next.sessionId);
-      this.children = [...this.children.filter((child) => child.sessionId !== next.sessionId), next];
-      const notice = describeChildChange(previous, next, this.settleFollowUp(next));
-      if (notice !== undefined) {
-        const ended = this.endedBatches.get(next.sessionId);
-        if (ended !== undefined) ended.announced = true;
-        this.options.onNotice(next.subagentStatus === 'failed' ? 'error' : 'info', notice);
+    switch (push.type) {
+      case 'subagent/updated': {
+        if (push.parentSessionId !== sessionId) return true;
+        this.remember(push.child);
+        const next = toSubagentChild(push.child);
+        const previous = this.children.find((child) => child.sessionId === next.sessionId);
+        this.children = [...this.children.filter((child) => child.sessionId !== next.sessionId), next];
+        const notice = describeChildChange(previous, next);
+        if (notice !== undefined) this.options.onNotice(next.subagentStatus === 'failed' ? 'error' : 'info', notice);
+        this.options.onChanged();
+        return true;
       }
-      this.options.onChanged();
-      return true;
+      case 'subagent/invocation-updated':
+        if (push.parentSessionId !== sessionId) return true;
+        if (this.applyInvocation(push.invocation)) this.options.onChanged();
+        return true;
+      case 'subagent/result-updated':
+        if (push.parentSessionId !== sessionId) return true;
+        this.results = [...this.results.filter((result) => result.resultId !== push.result.resultId), push.result];
+        this.options.onChanged();
+        return true;
+      case 'subagent/stream':
+        if (push.parentSessionId === sessionId) this.applyStream(push.childSessionId, push.event);
+        return true;
+      default:
+        return false;
     }
-    if (push.type === 'subagent/invocation-updated') {
-      if (push.parentSessionId !== sessionId) return true;
-      const { invocation } = push;
-      // Revisions are monotonic per invocation; a replayed or late push is ignored.
-      if ((this.liveRevisions.get(invocation.id) ?? -1) >= invocation.revision) return true;
-      this.liveRevisions.set(invocation.id, invocation.revision);
-      this.liveRuns.set(invocation.id, toLiveRun(invocation, this.liveRuns.get(invocation.id)));
-      this.liveVersion += 1;
-      this.options.onChanged();
-      return true;
-    }
-    if (push.type === 'subagent/result-updated') {
-      if (push.parentSessionId !== sessionId) return true;
-      this.results = [...this.results.filter((result) => result.resultId !== push.result.resultId), push.result];
-      this.options.onChanged();
-      return true;
-    }
-    return false;
   }
 
+  /** `/subagents`: pick a child, see its preview. */
   public open(): void {
     if (this.children.length === 0) {
       this.options.onHint('这个会话没有子代理');
@@ -148,48 +192,101 @@ export class TuiSubagentController {
       new ChoiceOverlay({
         title: '子代理',
         items: subagentItems(this.children, this.results),
-        onSelect: (childSessionId) => {
-          modals.close();
-          this.openChild(childSessionId);
-        },
+        footer: '↑↓ 选择 · Enter 预览 · Esc 关闭',
+        onSelect: (childSessionId) => this.preview.open(childSessionId),
         onCancel: () => modals.close(),
       }),
     );
   }
 
-  private openChild(childSessionId: string): void {
-    const { modals } = this.options;
-    const child = this.children.find((entry) => entry.sessionId === childSessionId);
+  private remember(summary: SessionSummary & { sessionId?: string }): void {
+    this.summaries.set(summary.sessionId ?? summary.id, summary);
+  }
+
+  /** Revisions are monotonic per invocation; a replayed or late push is ignored. */
+  private applyInvocation(invocation: SubagentInvocation): boolean {
+    const known = this.invocations.get(invocation.id);
+    if (known !== undefined && known.revision >= invocation.revision) return false;
+    this.invocations.set(invocation.id, invocation);
+    this.liveRuns.set(invocation.id, toLiveRun(invocation, this.liveRuns.get(invocation.id)));
+    this.liveVersion += 1;
+    return true;
+  }
+
+  private applyStream(childSessionId: string, event: Extract<HostPush, { type: 'subagent/stream' }>['event']): void {
+    const before = this.tails.get(childSessionId) ?? EMPTY_SUBAGENT_TAIL;
+    const after = applySubagentStreamEvent(before, event);
+    if (after === before) return;
+    this.tails.set(childSessionId, after);
+    if (event.type === 'permission/request' && after.permission !== null) {
+      this.options.askChildPermission(after.permission, `子代理「${this.labelOf(childSessionId)}」`);
+    } else if (event.type === 'permission/resolved') {
+      this.options.dropPermission(event.requestId);
+    }
+    const stepChanged = event.type === 'tool/start' || event.type === 'tool/end' || event.type === 'message/start';
+    if (stepChanged) this.updateStep(childSessionId, after);
+    this.preview.childUpdated(childSessionId, after);
+    if (stepChanged && !this.preview.isOpenFor(childSessionId)) this.options.onChanged();
+  }
+
+  /** The fan-out row shows the call a child is running now, worded like the preview. */
+  private updateStep(childSessionId: string, tail: SubagentLiveTail): void {
+    const entry = [...this.liveRuns.entries()].find(([, run]) => run.childSessionId === childSessionId);
+    if (entry === undefined) return;
+    const [invocationId, run] = entry;
+    const root = this.summaries.get(childSessionId)?.workingDirectory;
+    const describe = (tool: SubagentLiveTail['tools'][number]): string => {
+      const line = projectSubagentToolLine(tool, Number.NaN, root);
+      return `${line.verb} ${line.target}`.trim();
+    };
+    const running = runningSubagentTool(tail);
+    const recent = tail.tools.slice(-RECENT_STEPS).map((tool) => {
+      const mark = tool.status === 'running' ? '…' : tool.status === 'error' ? '✗' : '✓';
+      return `${mark} ${describe(tool)}`;
+    });
+    const { step: _previousStep, ...rest } = run;
+    this.liveRuns.set(invocationId, {
+      ...rest,
+      ...(running === undefined ? {} : { step: describe(running) }),
+      ...(recent.length === 0 ? {} : { recentSteps: recent }),
+    });
+    this.liveVersion += 1;
+  }
+
+  private labelOf(childSessionId: string): string {
+    const run = [...this.liveRuns.values()].find((candidate) => candidate.childSessionId === childSessionId);
+    return run?.title ?? childLabel(this.children.find((child) => child.sessionId === childSessionId), '子代理');
+  }
+
+  private previewData(childSessionId: string): SubagentPreviewData {
+    const invocation = [...this.invocations.values()]
+      .filter((candidate) => candidate.childSessionId === childSessionId)
+      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0];
+    const child = this.summaries.get(childSessionId);
+    const childStatus = this.children.find((entry) => entry.sessionId === childSessionId)?.subagentStatus;
     const result = latestResultFor(childSessionId, this.results);
-    modals.show(
-      new ChoiceOverlay({
-        title: childLabel(child, '子代理'),
-        items: childActionItems(result, !this.options.embedded, child?.subagentStatus),
-        onSelect: (value) => {
-          modals.close();
-          this.run(value as ResultAction, childSessionId, result).catch(this.options.onError);
-        },
-        onCancel: () => modals.close(),
-      }),
-    );
+    return {
+      label: this.labelOf(childSessionId),
+      status:
+        invocation !== undefined
+          ? PREVIEW_STATUS[invocation.status]
+          : childStatus !== undefined
+            ? CHILD_PREVIEW_STATUS[childStatus]
+            : 'running',
+      ...(invocation === undefined ? {} : { invocation }),
+      ...(child === undefined ? {} : { child }),
+      tail: this.tails.get(childSessionId) ?? EMPTY_SUBAGENT_TAIL,
+      ...(result === undefined ? {} : { result }),
+      pendingDecision: result !== undefined && needsDecision(result),
+    };
   }
 
-  private async run(action: ResultAction, childSessionId: string, result: SubagentResultSummary | undefined): Promise<void> {
-    if (action === 'close') return;
-    if (action === 'open-child') {
-      await this.options.openSession(childSessionId);
-      return;
-    }
-    if (action === 'continue') {
-      this.askFollowUp(childSessionId);
-      return;
-    }
-    if (result === undefined) return;
+  private async run(action: SubagentResultAction, childSessionId: string, result: SubagentResultSummary): Promise<void> {
     const { resultId, revision } = result;
     const { link } = this.options;
     switch (action) {
       case 'files':
-        await this.showFiles(result);
+        await this.showFiles(result, childSessionId);
         return;
       case 'apply':
         hostData(await link.request({ type: 'subagent/worktree-action', action: 'apply', resultId, expectedRevision: revision }));
@@ -204,110 +301,13 @@ export class TuiSubagentController {
         this.options.onNotice('info', '已请主会话处理冲突');
         return;
       case 'discard':
-        await this.discard(result);
+        await this.discard(result, childSessionId);
         return;
-      default:
     }
-  }
-
-  private askFollowUp(childSessionId: string): void {
-    const { link, modals } = this.options;
-    modals.show(
-      new TextOverlay({
-        title: '给子代理追加指令',
-        message: '它会在自己的会话和工作副本里接着做，结果仍回到这里。',
-        onSubmit: (value) => {
-          modals.close();
-          const text = value.trim();
-          if (text.length === 0) return;
-          // Counted before sending: the child can settle before the answer arrives.
-          this.followUpsOf(childSessionId).unanswered += 1;
-          link
-            .request({ type: 'subagent/continue', childSessionId, text })
-            .then((response) => hostData<{ runId?: string }>(response))
-            .then(
-              (data) => {
-                this.followUpAccepted(childSessionId, data.runId);
-                this.options.onHint('已发给子代理');
-              },
-              (error: unknown) => {
-                this.followUpRefused(childSessionId);
-                this.options.onError(error);
-              },
-            );
-        },
-        onCancel: () => modals.close(),
-      }),
-    );
-  }
-
-  /**
-   * True when this update ends a follow-up this shell sent; consumes it. A
-   * follow-up is its own batch on the Host, so the child's batch id says
-   * which completion this is; other updates of a finished child do not count.
-   */
-  private settleFollowUp(child: SubagentChild): boolean {
-    const ended = child.subagentStatus !== undefined && child.subagentStatus !== 'running';
-    if (!ended) return false;
-    const follow = this.followUps.get(child.sessionId);
-    const batchRunId = child.subagentBatchRunId;
-    if (batchRunId === undefined) {
-      // A Host that does not name the batch: the next ending is taken as ours.
-      if (follow === undefined) return false;
-      const [oldest] = follow.runIds;
-      if (oldest !== undefined) follow.runIds.delete(oldest);
-      else follow.unanswered -= 1;
-      this.forgetIfSettled(child.sessionId, follow);
-      return true;
-    }
-    this.endedBatches.set(child.sessionId, { runId: batchRunId, announced: false });
-    if (follow === undefined || !follow.runIds.delete(batchRunId)) return false;
-    this.forgetIfSettled(child.sessionId, follow);
-    return true;
-  }
-
-  private followUpsOf(childSessionId: string): FollowUps {
-    let follow = this.followUps.get(childSessionId);
-    if (follow === undefined) {
-      follow = { unanswered: 0, runIds: new Set() };
-      this.followUps.set(childSessionId, follow);
-    }
-    return follow;
-  }
-
-  private forgetIfSettled(childSessionId: string, follow: FollowUps): void {
-    if (follow.unanswered <= 0 && follow.runIds.size === 0) this.followUps.delete(childSessionId);
-  }
-
-  /** The Host answered a follow-up with the batch it started. */
-  private followUpAccepted(childSessionId: string, runId: string | undefined): void {
-    const follow = this.followUpsOf(childSessionId);
-    follow.unanswered -= 1;
-    const ended = this.endedBatches.get(childSessionId);
-    if (runId !== undefined && ended?.runId === runId) {
-      // It ended before this answer arrived; say so now unless the push already did.
-      const child = this.children.find((entry) => entry.sessionId === childSessionId);
-      const notice = child === undefined || ended.announced ? undefined : describeChildChange(child, child, true);
-      if (child !== undefined && notice !== undefined) {
-        this.options.onNotice(child.subagentStatus === 'failed' ? 'error' : 'info', notice);
-      }
-    } else if (runId !== undefined) {
-      follow.runIds.add(runId);
-    } else {
-      // No batch id in the answer: fall back to counting it.
-      follow.unanswered += 1;
-    }
-    this.forgetIfSettled(childSessionId, follow);
-  }
-
-  private followUpRefused(childSessionId: string): void {
-    const follow = this.followUpsOf(childSessionId);
-    follow.unanswered -= 1;
-    this.forgetIfSettled(childSessionId, follow);
   }
 
   /** Cleanup is two-step on the Host: plan it, then spend the plan's token. */
-  private async discard(result: SubagentResultSummary): Promise<void> {
+  private async discard(result: SubagentResultSummary, childSessionId: string): Promise<void> {
     const { link, modals } = this.options;
     const plan = hostData<{ token: string }>(
       await link.request({ type: 'subagent/cleanup-plan', resultId: result.resultId, expectedRevision: result.revision }),
@@ -321,7 +321,7 @@ export class TuiSubagentController {
           { value: 'discard', label: '丢弃副本' },
         ],
         onSelect: (value) => {
-          modals.close();
+          this.preview.open(childSessionId);
           if (value !== 'discard') return;
           link
             .request({
@@ -335,12 +335,12 @@ export class TuiSubagentController {
             .then(() => this.options.onHint('副本已丢弃'))
             .catch(this.options.onError);
         },
-        onCancel: () => modals.close(),
+        onCancel: () => this.preview.open(childSessionId),
       }),
     );
   }
 
-  private async showFiles(result: SubagentResultSummary): Promise<void> {
+  private async showFiles(result: SubagentResultSummary, childSessionId: string): Promise<void> {
     const { link, modals } = this.options;
     const page = hostData<{ files: ResultFile[]; nextCursor?: string }>(
       await link.request({
@@ -363,16 +363,16 @@ export class TuiSubagentController {
           description: FILE_KIND[file.kind],
         })),
         onSelect: (fileId) => {
-          modals.close();
           const file = page.files.find((entry) => entry.fileId === fileId);
-          if (file !== undefined) this.showDiff(result, file).catch(this.options.onError);
+          if (file !== undefined) this.showDiff(result, file, childSessionId).catch(this.options.onError);
         },
-        onCancel: () => modals.close(),
+        // Back to the preview the list was opened from.
+        onCancel: () => this.preview.open(childSessionId),
       }),
     );
   }
 
-  private async showDiff(result: SubagentResultSummary, file: ResultFile): Promise<void> {
+  private async showDiff(result: SubagentResultSummary, file: ResultFile, childSessionId: string): Promise<void> {
     const { link, modals } = this.options;
     const diff = hostData<{ additions: number; deletions: number; binary: boolean; patch?: string }>(
       await link.request({
@@ -392,10 +392,7 @@ export class TuiSubagentController {
         title: `${file.relativePath}  +${diff.additions} −${diff.deletions}`,
         lines,
         // Back to the file list: reviewing a result means reading several files.
-        onClose: () => {
-          modals.close();
-          this.showFiles(result).catch(this.options.onError);
-        },
+        onClose: () => this.showFiles(result, childSessionId).catch(this.options.onError),
       }),
     );
   }

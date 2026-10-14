@@ -102,9 +102,10 @@
 @import './styles/region-session-search.css';
 @import './styles/region-overlays.css';
 @import './styles/host-workspace-picker.css';
-@import './styles/subagent-session-inspector.css';
+@import './styles/subagent-embed.css';
 @import './styles/subagent-orchestration.css';
 @import './styles/subagent-cards.css';
+@import './styles/subagent-fanout.css';
 @import './styles/subagent-review-summary.css';
 @import './styles/goal.css';
 @import './styles/inkstone-overrides.css';

@@ -1,6 +1,7 @@
 import { paintDiffLine } from './diff-view.js';
 import { Key, matchesKey, truncateToWidth, type Component } from '@earendil-works/pi-tui';
 import { frameOverlay } from './overlay-frame.js';
+import { ScrollWindow } from './scroll-window.js';
 import { style } from './tui-theme.js';
 
 const VISIBLE_LINES = 20;
@@ -16,34 +17,23 @@ export type ViewerOverlayOptions = {
 
 /** Read-only scrollable text: a diff, a long report. */
 export class ViewerOverlay implements Component {
-  private top = 0;
+  private readonly scroll = new ScrollWindow(VISIBLE_LINES);
 
   public constructor(private readonly options: ViewerOverlayOptions) {}
 
   public invalidate(): void {
-    // Nothing cached: every frame is drawn from `lines` and `top`.
+    // Nothing cached: every frame is drawn from `lines` and the scroll window.
   }
 
   public handleInput(data: string): void {
-    const last = Math.max(0, this.options.lines.length - VISIBLE_LINES);
-    const move = (delta: number): void => {
-      this.top = Math.min(last, Math.max(0, this.top + delta));
-    };
     if (matchesKey(data, Key.escape) || matchesKey(data, Key.enter) || data === 'q') this.options.onClose();
-    else if (matchesKey(data, Key.up) || data === 'k') move(-1);
-    else if (matchesKey(data, Key.down) || data === 'j') move(1);
-    else if (matchesKey(data, Key.pageUp)) move(-VISIBLE_LINES);
-    else if (matchesKey(data, Key.pageDown) || data === ' ') move(VISIBLE_LINES);
-    else if (matchesKey(data, Key.home) || data === 'g') this.top = 0;
-    else if (matchesKey(data, Key.end) || data === 'G') this.top = last;
+    else this.scroll.handleKey(data, this.options.lines.length);
   }
 
   public render(width: number): string[] {
     const inner = Math.max(4, width - 4);
     const { lines } = this.options;
-    const shown = lines.slice(this.top, this.top + VISIBLE_LINES).map((line) => truncateToWidth(this.options.plain === true ? line : paintDiffLine(line), inner));
-    const end = Math.min(lines.length, this.top + VISIBLE_LINES);
-    const position = lines.length === 0 ? '空' : `${this.top + 1}–${end} / ${lines.length}`;
-    return frameOverlay(this.options.title, shown, `${position} · ↑↓ PgUp PgDn 滚动 · Esc 关闭`, width);
+    const shown = this.scroll.slice(lines).map((line) => truncateToWidth(this.options.plain === true ? line : paintDiffLine(line), inner));
+    return frameOverlay(this.options.title, shown, `${this.scroll.position(lines.length)} · ↑↓ PgUp PgDn 滚动 · Esc 关闭`, width);
   }
 }

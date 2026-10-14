@@ -4,7 +4,7 @@
  */
 
 import type { CreateSessionInput, ExecutionRunRecord } from '@piwin/contracts';
-import { formatCompactionBoundary, formatError, isRunTerminal } from '@piwin/contracts';
+import { formatCompactionBoundary, formatError, isExternalBackendBinding, isRunTerminal } from '@piwin/contracts';
 
 import { getSessionRecord } from '@piwin/session';
 import { buildColdActivationSeedOptions } from './cold-activation-seed.js';
@@ -55,6 +55,10 @@ export async function compileRuntimeCandidate(
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
   if (!record) throw new Error(`Unknown session: ${sessionId}`);
+  // Backstop for planReload: never compile a Pi runtime for an agent session.
+  if (isExternalBackendBinding(record.backend)) {
+    throw new Error(`runtime-reload-external-agent: ${sessionId}`);
+  }
   const input: CreateSessionInput = { projectPath: record.projectPath };
   if (record.scope !== undefined) input.scope = record.scope;
   if (record.workingDirectory !== undefined) input.cwd = record.workingDirectory;

@@ -9,10 +9,12 @@ import {
   ARTIFACT_BRIDGE_LAYOUT_TYPE,
   ARTIFACT_BRIDGE_ERROR_TYPE,
   ARTIFACT_BRIDGE_SCROLL_TYPE,
+  ARTIFACT_BRIDGE_SELECTION_TYPE,
   ARTIFACT_BRIDGE_SIZE_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   ARTIFACT_ERROR_MESSAGE_MAX_CHARS,
   ARTIFACT_FRAME_MODES,
+  ARTIFACT_SELECTION_MAX_CHARS,
   DEFAULT_MAX_ARTIFACT_BYTES,
 } from './constants.js';
 import type {
@@ -24,6 +26,8 @@ import type {
   ArtifactFrameMode,
   ArtifactRenderSnapshot,
   ArtifactScrollMessage,
+  ArtifactSelectionMessage,
+  ArtifactSelectionRect,
 } from './types.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -262,6 +266,47 @@ export function parseArtifactScrollMessage(data: unknown): ArtifactScrollMessage
     top: Math.round(top),
     restored: data['restored'] === true,
   };
+}
+
+/**
+ * Parse a Canvas selection report. The text is untrusted and only ever shown
+ * or quoted after a user click in host chrome; the rect only places a button.
+ * Oversized text is refused rather than clipped: the frame already clips.
+ */
+export function parseArtifactSelectionMessage(data: unknown): ArtifactSelectionMessage | null {
+  if (!isRecord(data)) return null;
+  if (data['type'] !== ARTIFACT_BRIDGE_SELECTION_TYPE) return null;
+  const channelId = data['channelId'];
+  if (typeof channelId !== 'string' || channelId.length === 0 || channelId.length > 200) {
+    return null;
+  }
+  const text = data['text'];
+  if (typeof text !== 'string' || text.length > ARTIFACT_SELECTION_MAX_CHARS) return null;
+  if (text.trim().length === 0) {
+    return { type: ARTIFACT_BRIDGE_SELECTION_TYPE, channelId, text: '', rect: null };
+  }
+  const rect = parseSelectionRect(data['rect']);
+  if (rect === null) return null;
+  return { type: ARTIFACT_BRIDGE_SELECTION_TYPE, channelId, text, rect };
+}
+
+/** Bounded so a hostile frame cannot push the host's button anywhere absurd. */
+const SELECTION_RECT_LIMIT_PX = 100_000;
+
+function parseSelectionRect(value: unknown): ArtifactSelectionRect | null {
+  if (!isRecord(value)) return null;
+  const read = (key: string): number | null => {
+    const raw = value[key];
+    return typeof raw === 'number' && Number.isFinite(raw) && Math.abs(raw) <= SELECTION_RECT_LIMIT_PX
+      ? raw
+      : null;
+  };
+  const left = read('left');
+  const top = read('top');
+  const width = read('width');
+  const height = read('height');
+  if (left === null || top === null || width === null || height === null) return null;
+  return { left, top, width: Math.max(0, width), height: Math.max(0, height) };
 }
 
 /** Parse a contrast probe report. Counts are clamped; nothing here is trusted. */

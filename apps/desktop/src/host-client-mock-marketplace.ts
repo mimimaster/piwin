@@ -28,12 +28,18 @@ const MOCK_ENTRIES: MarketplaceCatalogEntry[] = [
     version: '4.2.1',
     author: 'apmantza',
     sourceLabel: 'npm',
-    install: { kind: 'pi-package', source: { kind: 'npm', packageName: 'pi-lens', version: '4.2.1' } },
+    install: {
+      kind: 'pi-package',
+      source: { kind: 'npm', packageName: 'pi-lens', version: '4.2.1' },
+    },
     requirements: [],
     examples: [
       {
         title: { en: 'Fix type errors', zhCN: '修复类型错误' },
-        prompt: { en: 'Refactor src/index.ts without type errors.', zhCN: '重构 src/index.ts，并保证没有类型错误。' },
+        prompt: {
+          en: 'Refactor src/index.ts without type errors.',
+          zhCN: '重构 src/index.ts，并保证没有类型错误。',
+        },
       },
     ],
     verification: [{ level: 'author-declared' }],
@@ -83,7 +89,11 @@ const MOCK_ENTRIES: MarketplaceCatalogEntry[] = [
     version: '2026.8.18',
     author: 'Model Context Protocol',
     sourceLabel: 'PyPI',
-    install: { kind: 'mcp', serverId: 'time', draft: { command: 'uvx', args: ['mcp-server-time==2026.8.18'] } },
+    install: {
+      kind: 'mcp',
+      serverId: 'time',
+      draft: { command: 'uvx', args: ['mcp-server-time==2026.8.18'] },
+    },
     requirements: [
       {
         kind: 'command',
@@ -107,24 +117,36 @@ const MOCK_ENTRIES: MarketplaceCatalogEntry[] = [
     kind: 'skill',
     category: 'code-development',
     name: { en: 'Web app testing', zhCN: 'Web 应用测试' },
-    summary: { en: 'Drive a local web app with Playwright and report what broke.', zhCN: '用 Playwright 驱动本地 Web 应用并报告问题。' },
+    summary: {
+      en: 'Drive a local web app with Playwright and report what broke.',
+      zhCN: '用 Playwright 驱动本地 Web 应用并报告问题。',
+    },
     description: { en: 'Mock entry.', zhCN: '模拟条目。' },
     version: '34040c9c568585f6929bedeaad110ad08f079624',
     author: 'Anthropic',
     sourceLabel: 'GitHub',
-    install: { kind: 'skill', source: { kind: 'git', url: 'https://github.com/anthropics/skills.git' } },
+    install: {
+      kind: 'skill',
+      source: { kind: 'git', url: 'https://github.com/anthropics/skills.git' },
+    },
     requirements: [
       {
         kind: 'command',
         value: 'python3 + playwright',
         required: true,
-        description: { en: 'Python 3 with Playwright on the Host.', zhCN: 'Host 上需有 Python 3 与 Playwright。' },
+        description: {
+          en: 'Python 3 with Playwright on the Host.',
+          zhCN: 'Host 上需有 Python 3 与 Playwright。',
+        },
       },
     ],
     examples: [
       {
         title: { en: 'Smoke test', zhCN: '冒烟测试' },
-        prompt: { en: 'Open localhost:3000 and check the login flow.', zhCN: '打开 localhost:3000 检查登录流程。' },
+        prompt: {
+          en: 'Open localhost:3000 and check the login flow.',
+          zhCN: '打开 localhost:3000 检查登录流程。',
+        },
       },
     ],
     verification: [
@@ -151,7 +173,10 @@ const MOCK_ENTRIES: MarketplaceCatalogEntry[] = [
     version: '1.0.0',
     author: 'piwin',
     sourceLabel: 'GitHub',
-    install: { kind: 'skill', source: { kind: 'git', url: 'https://github.com/example/legacy-notes.git' } },
+    install: {
+      kind: 'skill',
+      source: { kind: 'git', url: 'https://github.com/example/legacy-notes.git' },
+    },
     requirements: [],
     examples: [],
     verification: [{ level: 'author-declared' }],
@@ -303,7 +328,9 @@ export function mockMarketplacePackageDetail(entryId: string): MarketplacePackag
   };
 }
 
-export function mockMarketplaceRequirementsCheck(entryId: string): MarketplaceRequirementsCheckData {
+export function mockMarketplaceRequirementsCheck(
+  entryId: string,
+): MarketplaceRequirementsCheckData {
   const entry = MOCK_ENTRIES.find((item) => item.entryId === entryId);
   return {
     entryId,

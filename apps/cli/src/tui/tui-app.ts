@@ -271,6 +271,7 @@ export class TuiApp {
       hint: (text) => this.flashHint(text),
       error: (error) => this.reportError(error),
       exit: () => options.onExit(),
+      prompts: this.prompts,
     });
     this.composer = controllers.composer;
     this.attachments = controllers.attachments;
@@ -920,7 +921,7 @@ export class TuiApp {
     const subagents = this.features.subagents;
     const running = subagents.hasRunningInvocations();
     const second = running ? Math.floor(Date.now() / 1000) : 0;
-    this.transcriptView.setSubagentRuns(subagents.lookupRun, subagents.liveVersion * 100_000 + (second % 100_000));
+    this.transcriptView.setSubagentRuns(subagents.lookupRun, subagents.liveVersion * 100_000 + (second % 100_000), subagents.lookupRunByToolCall);
     if (running && this.subagentTimer === undefined) {
       this.subagentTimer = setInterval(() => this.refreshChrome(), 1000);
       this.subagentTimer.unref?.();

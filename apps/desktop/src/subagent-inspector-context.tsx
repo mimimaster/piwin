@@ -8,13 +8,17 @@
  * deep transcript nodes never thread inspector plumbing through props.
  */
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
-import type { SessionSummary, SubagentInvocation } from '@piwin/contracts';
-import type { ChatMessageUi, SubagentStreamState } from './chat-reducer';
+import type {
+  PermissionDecision,
+  PermissionRememberScope,
+  SessionSummary,
+  SubagentInvocation,
+} from '@piwin/contracts';
+import type { ChatMessageUi, PermissionPromptUi, SubagentStreamState } from './chat-reducer';
 import type {
   ActiveSubagentStatus,
   SubagentInspectorSelection,
 } from './subagent-activity-model';
-import type { SubagentSessionTranscriptProps } from './subagent-session-transcript';
 import type { ModelOption } from './model-options';
 
 export type SubagentInspectorToggle = {
@@ -24,8 +28,11 @@ export type SubagentInspectorToggle = {
   toggle: (selection: SubagentInspectorSelection) => void;
 };
 
-export type SubagentWorktreeAction = 'apply' | 'retain' | 'discard';
-
+/**
+ * What the dense preview reads. Observation only: there is no navigation to
+ * the child session and no delivery action — the only control is the
+ * child's pending permission gate.
+ */
 export type SubagentInspectorPanelData = {
   status: ActiveSubagentStatus;
   messages: ChatMessageUi[];
@@ -35,34 +42,17 @@ export type SubagentInspectorPanelData = {
   child?: SessionSummary;
   invocation?: SubagentInvocation;
   modelOptions?: readonly ModelOption[];
-  /** Whether child-session thinking should be shown in the panel. */
+  /** Whether child-session thinking lines are listed in the preview. */
   showThinking?: boolean;
-  /** Promote the inline preview to the existing full session view. */
-  onOpenFullSession: () => void;
   onRetry: () => void;
   /** Collapse the panel. Never aborts the child. */
   onClose: () => void;
-  onWorktreeAction: (
-    childSessionId: string,
-    action: SubagentWorktreeAction,
-  ) => Promise<void>;
-} & Pick<
-  SubagentSessionTranscriptProps,
-  | 'projectPath'
-  | 'request'
-  | 'filesChangedRequest'
-  | 'onOpenFile'
-  | 'onOpenDiff'
-  | 'onOpenDocument'
-  | 'onArtifactAction'
-  | 'onOpenArtifactCanvas'
-  | 'artifactInlineEnabled'
-  | 'artifactCanvasEnabled'
-  | 'artifactMaxBytes'
-  | 'artifactBlockExternalScripts'
-  | 'artifactBlockExternalResources'
-  | 'onPermission'
->;
+  onPermission?: (
+    prompt: PermissionPromptUi,
+    decision: PermissionDecision,
+    rememberScope?: PermissionRememberScope,
+  ) => void;
+};
 
 const SubagentInspectorToggleContext = createContext<SubagentInspectorToggle | null>(null);
 const SubagentInspectorPanelContext = createContext<SubagentInspectorPanelData | null>(null);

@@ -146,7 +146,8 @@ describe('subagent group card', () => {
     expect(container.querySelector('[data-testid="subagent-group-counts"]')?.textContent).toBe('1 完成 · 2 运行中');
     expect(header()?.getAttribute('aria-expanded')).toBe('true');
     expect(rows()?.hidden).toBe(false);
-    expect(container.querySelectorAll('.subagent-row-activity')).toHaveLength(2);
+    // Every phase keeps its second line so fan-out rows never change height.
+    expect(container.querySelectorAll('.subagent-row-activity')).toHaveLength(3);
 
     render(
       tools,
@@ -163,10 +164,41 @@ describe('subagent group card', () => {
 
     act(() => (header() as HTMLButtonElement).click());
     expect(rows()?.hidden).toBe(false);
-    // The failed row keeps its error line; finished rows are one line.
     const activityLines = container.querySelectorAll('.subagent-row-activity');
-    expect(activityLines).toHaveLength(1);
-    expect(activityLines[0]?.textContent).toContain('web_fetch 超时');
+    expect(activityLines).toHaveLength(3);
+    expect(activityLines[2]?.textContent).toContain('web_fetch 超时');
+  });
+
+  it('draws two or more delegations as a fan-out with one wire per row', () => {
+    render(
+      delegations(),
+      invocations((index) =>
+        index === 0
+          ? { status: 'completed', activity: { kind: 'completed', summary: 'complete\n- 导出 3 个接口\n- 补了测试' } }
+          : index === 2
+            ? { status: 'failed', activity: { kind: 'failed', message: 'web_fetch 超时' } }
+            : {},
+      ),
+    );
+    const fanout = container.querySelector('[data-testid="subagent-fanout"]');
+    expect(fanout?.querySelectorAll('[data-testid="subagent-invocation-block"]')).toHaveLength(3);
+    const main = container.querySelector('[data-testid="subagent-fanout-main"]');
+    expect(main?.getAttribute('aria-hidden')).toBe('true');
+    expect(main?.querySelector('button')).toBeNull();
+    expect(main?.textContent).toContain('等待 1/3');
+    const curve = [...container.querySelectorAll('.subagent-fanout-wires.is-curve path')];
+    expect(curve.map((wire) => wire.getAttribute('data-phase'))).toEqual(['done', 'running', 'failed']);
+    expect(container.querySelectorAll('.subagent-fanout-wires.is-rail path')).toHaveLength(3);
+    // A finished row shows its conclusion's first line, without the verdict.
+    expect(container.querySelector('[data-invocation-id="inv-0"] .subagent-row-activity')?.textContent).toBe(
+      '导出 3 个接口',
+    );
+  });
+
+  it('marks every child returned once the group settles', () => {
+    render(delegations().slice(0, 2), invocations(() => ({ status: 'completed', activity: { kind: 'completed' } })));
+    act(() => (header() as HTMLButtonElement).click());
+    expect(container.querySelector('[data-testid="subagent-fanout-main"]')?.textContent).toContain('已返回 2/2');
   });
 
   it('keeps a settled group open while a result needs the user', () => {
@@ -200,6 +232,7 @@ describe('subagent group card', () => {
     render(delegations().slice(0, 1), invocations());
     expect(container.querySelector('[data-testid="subagent-group"]')?.getAttribute('data-count')).toBe('1');
     expect(header()).toBeNull();
+    expect(container.querySelector('[data-testid="subagent-fanout"]')).toBeNull();
     expect(container.querySelectorAll('[data-testid="subagent-invocation-block"]')).toHaveLength(1);
   });
   it('shows the settled total of Host-counted tools and tokens in the folded header', () => {

@@ -41,7 +41,9 @@ export function MarketplaceDiscoverControls(props: MarketplaceDiscoverControlsPr
   const zh = props.locale === 'zh-CN';
   const t = (en: string, zhText: string) => (zh ? zhText : en);
   const searching = Boolean(props.search.trim());
-  const kinds = KIND_ORDER.filter((kind) => (props.kindCounts[kind] ?? 0) > 0 || props.kindFilter === kind);
+  const kinds = KIND_ORDER.filter(
+    (kind) => (props.kindCounts[kind] ?? 0) > 0 || props.kindFilter === kind,
+  );
   const categories = props.categories ?? [];
   const showCategories = categories.length > 1 && props.onCategoryFilterChange !== undefined;
 
@@ -90,15 +92,33 @@ export function MarketplaceDiscoverControls(props: MarketplaceDiscoverControlsPr
             <IconClose width={14} height={14} aria-hidden="true" />
           </button>
         ) : (
-          <kbd className="market-search-hint" aria-hidden="true">/</kbd>
+          <kbd className="market-search-hint" aria-hidden="true">
+            /
+          </kbd>
         )}
       </div>
       {kinds.length > 0 || showCategories || props.trailing ? (
         <div className="market-filter-row">
-          <div className="market-category-strip" role="group" aria-label={t('Capability type', '能力类型')}>
-            {chip('all', t('All', '全部'), props.kindFilter === 'all', () => props.onKindFilterChange('all'), props.totalCount)}
+          <div
+            className="market-category-strip"
+            role="group"
+            aria-label={t('Capability type', '能力类型')}
+          >
+            {chip(
+              'all',
+              t('All', '全部'),
+              props.kindFilter === 'all',
+              () => props.onKindFilterChange('all'),
+              props.totalCount,
+            )}
             {kinds.map((kind) =>
-              chip(kind, kindLabel(kind, props.locale), props.kindFilter === kind, () => props.onKindFilterChange(kind), props.kindCounts[kind] ?? 0),
+              chip(
+                kind,
+                kindLabel(kind, props.locale),
+                props.kindFilter === kind,
+                () => props.onKindFilterChange(kind),
+                props.kindCounts[kind] ?? 0,
+              ),
             )}
             {showCategories ? (
               <>
@@ -108,7 +128,10 @@ export function MarketplaceDiscoverControls(props: MarketplaceDiscoverControlsPr
                     category,
                     categoryLabel(category, props.locale),
                     props.categoryFilter === category,
-                    () => props.onCategoryFilterChange?.(props.categoryFilter === category ? 'all' : category),
+                    () =>
+                      props.onCategoryFilterChange?.(
+                        props.categoryFilter === category ? 'all' : category,
+                      ),
                   ),
                 )}
               </>

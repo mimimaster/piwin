@@ -108,3 +108,65 @@ describe('TranscriptView edit diffs', () => {
     expect(render(view)).toContain('+b8');
   });
 });
+
+describe('TranscriptView subagent delegations', () => {
+  const T0 = Date.now() - 5_000;
+  const started = (id: string, task: string) => ({
+    toolCallId: `call-${id}`,
+    toolName: 'piwin_subagent_start',
+    status: 'done' as const,
+    output: 'accepted',
+    presentation: {
+      kind: 'subagent' as const,
+      title: 'piwin_subagent_start',
+      subagentControl: { phase: 'accepted' as const, runId: `run-${id}`, invocationId: `inv-${id}`, task },
+    },
+  });
+  const state = (tools: TranscriptMessageEntry['tools']): TranscriptState => ({
+    entries: [{ kind: 'message', id: 'a1', role: 'assistant', text: '', thinking: '', status: 'done', tools }],
+    noticeCount: 0,
+  });
+
+  it('draws two or more delegations in a row as one fan-out instead of separate tool lines', () => {
+    const view = new TranscriptView();
+    view.setState(state([started('a', '实现导出接口'), started('b', '审查权限改动')]));
+    view.setSubagentRuns(
+      (invocationId) =>
+        invocationId === 'inv-a'
+          ? { invocationId: 'inv-a', runId: 'run-a', task: '实现导出接口', title: '实现导出接口', status: 'running', activity: '思考中', step: 'read src/a.ts', startedAt: T0 }
+          : undefined,
+      1,
+    );
+    const text = render(view);
+    expect(text).toContain('派出 2 个子代理');
+    expect(text).toMatch(/主代理 ──┬─ ◌ 实现导出接口 +read src\/a\.ts/);
+    expect(text).toMatch(/└─ · 审查权限改动 +已派出/);
+    expect(text).not.toContain('piwin_subagent_start');
+  });
+
+  it('keeps a lone synchronous run as its tool line with a live row under it', () => {
+    const view = new TranscriptView();
+    view.setState(
+      state([
+        {
+          toolCallId: 'call-sync',
+          toolName: 'piwin_subagent_run',
+          status: 'running',
+          output: '',
+          presentation: { kind: 'subagent', title: '子代理', summary: '审查权限改动' },
+        },
+      ]),
+    );
+    view.setSubagentRuns(
+      () => undefined,
+      1,
+      (toolCallId) =>
+        toolCallId === 'call-sync'
+          ? { invocationId: 'i', runId: 'r', task: '审查权限改动', status: 'running', activity: '思考中', step: 'grep allow(', startedAt: T0 }
+          : undefined,
+    );
+    const text = render(view);
+    expect(text).not.toContain('派出');
+    expect(text).toMatch(/└ ◌ 审查权限改动 grep allow\(/);
+  });
+});

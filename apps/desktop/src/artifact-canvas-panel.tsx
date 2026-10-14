@@ -34,6 +34,8 @@ import { resolveArtifactViewerKey, type ArtifactViewerWidth } from './artifact-v
 import { SourceCodeBlock } from './markdown-code-block.js';
 import { isMobileTauriRuntime } from './shell-runtime.js';
 import { useArtifactStyleModes } from './artifact-style-modes';
+import type { ArtifactTextSelection } from './artifact-canvas-selection.js';
+import { ArtifactCanvasSelectionComment } from './artifact-canvas-selection-comment.js';
 
 export type ArtifactCanvasProposal = ComposerProposeTextActionPayload;
 
@@ -84,6 +86,7 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
   const [width, setWidth] = useState<ArtifactViewerWidth>('fit');
   const [fullscreen, setFullscreen] = useState(false);
   const [showingCode, setShowingCode] = useState(false);
+  const [textSelection, setTextSelection] = useState<ArtifactTextSelection | null>(null);
   // "View with theme" applies to one artifact; another target starts in its own style.
   const [hostViewTargetId, setHostViewTargetId] = useState<string | null>(null);
   const styleModes = useArtifactStyleModes();
@@ -232,6 +235,7 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
             locale={locale}
             initPriority={0}
             onComposerProposal={setPendingProposal}
+            onTextSelection={setTextSelection}
             styleOverride={{
               active: hostView,
               onToggle: () => setHostViewTargetId(hostView ? null : activeTarget.id),
@@ -243,6 +247,13 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
           {isZh ? `正在准备「${activeTarget.title}」…` : `Preparing “${activeTarget.title}”…`}
         </div>
       )}
+      {textSelection && !showingCode && !fullscreen ? (
+        <ArtifactCanvasSelectionComment
+          selection={textSelection}
+          locale={locale}
+          onDone={() => setTextSelection(null)}
+        />
+      ) : null}
       {fullscreen ? (
         <ArtifactFullscreenOverlay
           intent={activeTarget.intent}

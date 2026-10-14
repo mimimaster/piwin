@@ -9,6 +9,7 @@ import { TuiQueueController } from './tui-queue-controller.js';
 import { TuiInterventionTracker } from './tui-intervention-tracker.js';
 import { randomUUID } from 'node:crypto';
 import { TuiSubagentController } from './tui-subagent-controller.js';
+import type { SubagentPendingPermission } from './subagent-live-tail.js';
 import { TuiTurnChangeController } from './tui-turn-change-controller.js';
 import { TuiWalkthroughController } from './tui-walkthrough-controller.js';
 
@@ -31,6 +32,10 @@ export type TuiSessionFeaturesPort = {
   /** Show a user turn this shell did not type just now (a queued turn starting). */
   echoUser: (messageId: string, text: string, annotations: string[], attachments?: readonly unknown[]) => void;
   setComposerText: (text: string) => void;
+  /** Queue the regular permission dialog for a child's request, naming the child. */
+  askChildPermission: (request: SubagentPendingPermission, origin: string) => void;
+  /** A permission was answered: drop its queued dialog. */
+  dropPermission: (requestId: string) => void;
 };
 
 /**
@@ -70,8 +75,8 @@ export class TuiSessionFeatures {
     this.subagents = new TuiSubagentController({
       ...base,
       onNotice,
-      embedded: port.embedded,
-      openSession: port.openSession,
+      askChildPermission: port.askChildPermission,
+      dropPermission: port.dropPermission,
     });
     this.turnChanges = new TuiTurnChangeController({
       link,

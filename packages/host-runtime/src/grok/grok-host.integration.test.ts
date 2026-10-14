@@ -9,7 +9,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { HostPush, HostResponse, SessionHandle } from '@piwin/contracts';
+import type { HostPush, HostResponse, PiwinConfig, SessionHandle } from '@piwin/contracts';
+import { buildSettingsDomainMutations } from '@piwin/contracts';
+import { AgentPluginSession } from '../agent-plugin-session.js';
+import { TURN_CONTINUATION_PROMPT } from '../commands/prompt-preparation.js';
 import { HostRuntime } from '../host-runtime.js';
 import { getPiwinMediaDir, getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import { FIXTURE_AGENT_ID, installFixtureAgentAdapter, type FixtureManifestOverrides } from '../testing/agent-plugin-fixture.js';
@@ -159,6 +162,65 @@ describe('External agent adapter integration (fixture artifact)', () => {
       messages: Array<{ role: string; text: string }>;
     };
     expect(messages.messages.some((message) => message.text.includes('decision:{"optionId":"allow"}'))).toBe(true);
+  });
+
+  it('keeps the agent runtime when a Settings save rebuilds Pi runtimes', async () => {
+    const harness = await createHarness();
+    const sessionId = await createAgentSession(harness);
+    await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'first' } });
+    expect(await waitForRunTerminal(harness, sessionId)).toBe('completed');
+    const runtimeStatus = async (): Promise<{ generationId?: string; desiredSettingsRevision?: string }> =>
+      (data(await harness.runtime.handleCommand({ type: 'session/runtime-status', sessionId })) as {
+        status: { generationId?: string; desiredSettingsRevision?: string };
+      }).status;
+    const before = await runtimeStatus();
+    expect(before.generationId).toBeDefined();
+
+    // A runtime-replacing save (any live Pi session would be rebuilt).
+    const snapshot = (data(await harness.runtime.handleCommand({ type: 'settings/get' })) as {
+      snapshot: { revision: string; config: PiwinConfig };
+    }).snapshot;
+    if (!snapshot.config.web) throw new Error('default Web config missing');
+    const applied = await harness.runtime.handleCommand({
+      type: 'settings/apply',
+      input: {
+        expectedRevision: snapshot.revision,
+        mutations: buildSettingsDomainMutations(snapshot.config, {
+          ...snapshot.config,
+          web: { ...snapshot.config.web, searchProvider: 'cli', searchSources: [{ id: 'cli', kind: 'cli', enabled: true }] },
+        }),
+      },
+    });
+    expect(applied.success, applied.success ? '' : applied.error).toBe(true);
+
+    const after = await runtimeStatus();
+    expect(after.generationId).toBe(before.generationId);
+    expect(after.desiredSettingsRevision).toBeUndefined();
+    // The next turn still reaches the agent adapter, never a Pi replacement.
+    const prompts = vi.spyOn(AgentPluginSession.prototype, 'prompt');
+    const second = data(await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: 'second' } })) as {
+      runId: string;
+    };
+    await vi.waitFor(() => {
+      const done = harness.pushes.some((push) =>
+        push.type === 'run/updated' && push.run.runId === second.runId && push.run.status === 'completed');
+      if (!done) throw new Error('second run not completed');
+    }, { timeout: 15_000 });
+    expect(prompts).toHaveBeenCalledWith(expect.objectContaining({ text: 'second' }));
+    expect((await runtimeStatus()).generationId).toBe(before.generationId);
+  });
+
+  it('sends Continue to the agent as a continuation prompt without an empty user row', async () => {
+    const harness = await createHarness({ steps: [{ kind: 'text', text: 'resumed' }] });
+    const sessionId = await createAgentSession(harness);
+    const prompts = vi.spyOn(AgentPluginSession.prototype, 'prompt');
+    await harness.runtime.handleCommand({ type: 'session/prompt', sessionId, input: { text: '', source: 'continuation' } });
+    expect(await waitForRunTerminal(harness, sessionId)).toBe('completed');
+    expect(prompts).toHaveBeenCalledWith(expect.objectContaining({ text: TURN_CONTINUATION_PROMPT }));
+    const messages = data(await harness.runtime.handleCommand({ type: 'session/messages', sessionId })) as {
+      messages: Array<{ role: string; text: string }>;
+    };
+    expect(messages.messages.filter((message) => message.role === 'user')).toEqual([]);
   });
 
   it('cancels a hung adapter prompt as cancelled rather than failed', async () => {

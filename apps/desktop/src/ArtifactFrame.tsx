@@ -13,6 +13,7 @@ import {
 import { ArtifactStatic } from './ArtifactStatic.js';
 import { ArtifactContrastBadge, type ArtifactStyleOverride } from './artifact-style-override';
 import { preloadStaticArtifactSanitizer } from './artifact-static-sanitizer.js';
+import type { ArtifactTextSelection } from './artifact-canvas-selection.js';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
 
@@ -24,6 +25,8 @@ export type ArtifactFrameProps = {
   presentation?: 'inline' | 'canvas';
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onComposerProposal?: (payload: { text: string; label?: string }) => void;
+  /** Canvas only: reader's text selection inside the sandbox, or null. */
+  onTextSelection?: (selection: ArtifactTextSelection | null) => void;
   extraHeaderAction?: ReactElement;
   theme?: ArtifactThemeVariables;
   locale?: 'zh-CN' | 'en';
@@ -37,6 +40,7 @@ export function ArtifactFrame({
   presentation = 'inline',
   onArtifactAction,
   onComposerProposal,
+  onTextSelection,
   extraHeaderAction,
   theme,
   locale = 'en',
@@ -111,6 +115,7 @@ export function ArtifactFrame({
       locale={locale}
       {...(onArtifactAction ? { onArtifactAction } : {})}
       {...(onComposerProposal ? { onComposerProposal } : {})}
+      {...(onTextSelection ? { onTextSelection } : {})}
       {...(extraHeaderAction ? { extraHeaderAction } : {})}
       {...(styleOverride ? { styleOverride } : {})}
     />

@@ -31,7 +31,7 @@ import { isPlanProgressTool } from './plan-todo-model.js';
 import { ToolBatchCapsule } from './tool-batch-capsule';
 import { GoalDeliveryCard, GoalBlockedCard, GoalWaitCard, useGoalActions } from './goal';
 import { useSubagentInspectorToggle } from './subagent-inspector-context';
-import { SubagentInlineSession } from './subagent-inline-session';
+import { SubagentPreview } from './subagent-preview';
 import {
   deriveSubagentOrchestrationView,
   deriveSubagentReviewLoopView,
@@ -359,6 +359,12 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
         summary={deriveSubagentGroupSummary(views, locale)}
         locale={locale}
         hasOpenRow={views.some((view) => view.expanded)}
+        fanout={views.map((view) => ({
+          key: view.toolCallId,
+          phase: view.phase,
+          selected: view.expanded,
+        }))}
+        preview={views.some((view) => view.expanded) ? <SubagentPreview /> : null}
       >
         {entries.map(({ view, stopRunId, stopStatus }) => (
           <div
@@ -373,7 +379,6 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
           >
             <SubagentRow view={view} onInspect={props.onInspectSubagent} />
             <SubagentInvocationStop runId={stopRunId} status={stopStatus} locale={locale} />
-            {view.expanded ? <SubagentInlineSession /> : null}
           </div>
         ))}
       </SubagentGroupCard>

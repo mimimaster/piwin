@@ -26,6 +26,7 @@ import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
 import { TuiUsageController } from './tui-usage-controller.js';
+import type { TuiHostPrompts } from './tui-host-prompts.js';
 
 /**
  * What the controllers need from the running app, and nothing else. Every
@@ -71,6 +72,8 @@ export type TuiWiringPort = {
   hint: (text: string) => void;
   error: (error: unknown) => void;
   exit: () => void;
+  /** The app's Host prompt queue: child permission requests use the same dialog. */
+  prompts: Pick<TuiHostPrompts, 'askPermission' | 'permissionResolvedElsewhere'>;
 };
 
 export type TuiControllers = {
@@ -141,6 +144,8 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     onError: port.error,
     echoUser,
     setComposerText,
+    askChildPermission: (request, origin) => port.prompts.askPermission(request, origin),
+    dropPermission: (requestId) => port.prompts.permissionResolvedElsewhere(requestId),
   });
   const sideChat = new TuiSideChatController({
     link: port.link,

@@ -25,8 +25,15 @@ export type SessionRuntimeControllerSnapshot = {
 
 export type SessionReloadPlan = {
   allowed: boolean;
-  reason?: 'running' | 'not-stale' | 'revision-mismatch' | 'generation-mismatch';
+  reason?: 'running' | 'not-stale' | 'revision-mismatch' | 'generation-mismatch' | 'external-agent';
 };
+
+/**
+ * Settings revision recorded for an external agent generation (ADR 0082).
+ * The agent owns its own config; Pi Settings never apply to it, and a Pi
+ * replacement candidate would silently swap the agent for a Pi runtime.
+ */
+export const EXTERNAL_AGENT_SETTINGS_REVISION = 'external-agent';
 
 export type SessionRuntimeCandidateState =
   'compiling' | 'creating-backend' | 'rebuilding' | 'active' | 'failed';
@@ -152,6 +159,14 @@ export class SessionRuntimeController {
       this.immediateRestrictionsBySession.delete(sessionId);
     }
     this.notifyChanged(sessionId);
+  }
+
+  /** Whether the active generation is an external agent, never a Pi runtime. */
+  isExternalAgentGeneration(sessionId: string): boolean {
+    return (
+      this.generationBySession.has(sessionId) &&
+      this.revisionBySession.get(sessionId) === EXTERNAL_AGENT_SETTINGS_REVISION
+    );
   }
 
   detachGeneration(sessionId: string): void {
@@ -306,6 +321,9 @@ export class SessionRuntimeController {
     changedDomains: readonly (SettingsDomain | SettingsDomainImpact)[],
     targetSettingsRevision?: string,
   ): void {
+    if (this.isExternalAgentGeneration(sessionId)) {
+      return;
+    }
     if (targetSettingsRevision !== undefined) {
       this.desiredRevisionBySession.set(sessionId, targetSettingsRevision);
     }
@@ -452,6 +470,9 @@ export class SessionRuntimeController {
       activeGenerationId !== expectedActiveGenerationId
     ) {
       return { allowed: false, reason: 'generation-mismatch' };
+    }
+    if (this.isExternalAgentGeneration(sessionId)) {
+      return { allowed: false, reason: 'external-agent' };
     }
     if (this.isRunInFlight(sessionId)) {
       return { allowed: false, reason: 'running' };

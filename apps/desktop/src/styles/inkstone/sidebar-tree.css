@@ -77,10 +77,11 @@ html[data-theme-id='piwin-inkstone-ink'] .tree-folder-summary {
   height: 28px;
   padding: 0 2px 0 8px;
   font-size: 12.5px;
-  /* A project name is full ink, one weight above its sessions. Open or
-     closed it keeps the same size and weight; only its folder glyph and the
-     sessions it shows change on a click. */
-  color: var(--t1);
+  /* A project name is a muted label one ink step below its sessions, so
+     folders and session titles read apart. Open or closed it keeps the same
+     size and weight; only its folder glyph and the sessions it shows change
+     on a click. Hover brings it to full ink. */
+  color: var(--t3);
   border-radius: 6px;
   transition: background var(--t-1) var(--ease-out);
 }
@@ -88,7 +89,7 @@ html[data-theme-id='piwin-inkstone-ink'] .tree-folder-summary {
 /* Folders are navigation, not the selected leaf. proto-00/03 paint only
    `.row.sel` (session); a filled folder pill competes with that row. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary.active {
-  color: var(--t1);
+  color: var(--t2);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-branch {
@@ -124,7 +125,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 /* The unavailable group is a drawer at the foot of the list, not a project. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--muted,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--muted:hover {
-  color: var(--t3);
+  color: var(--t4);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--muted .tree-folder-title,
@@ -141,6 +142,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html[data-theme-id='piwin-inkstone-paper'] .tree-folder-summary:hover,
 html[data-theme-id='piwin-inkstone-ink'] .tree-folder-summary:hover {
   background: var(--s2);
+  color: var(--t1);
 }
 
 /* The tree is a flat virtualized list; spacing belongs to each row, rather
@@ -159,13 +161,13 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-icon {
   width: 16px;
   height: 16px;
-  color: var(--t3);
+  color: var(--t4);
   stroke-width: 1.4;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary:hover .tree-folder-icon,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary.active .tree-folder-icon {
-  color: var(--t2);
+  color: var(--t3);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary--muted .tree-folder-icon,

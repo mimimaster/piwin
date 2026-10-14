@@ -83,7 +83,10 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
   const [kindFilter, setKindFilter] = useState<MarketKindFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<MarketCategoryFilter>('all');
   // Each tab keeps its own query: a Discover search means nothing on Installed.
-  const [searchByTab, setSearchByTab] = useState<Record<MarketTab, string>>({ discover: '', installed: '' });
+  const [searchByTab, setSearchByTab] = useState<Record<MarketTab, string>>({
+    discover: '',
+    installed: '',
+  });
   const search = searchByTab[tab];
   const setSearch = (value: string) => setSearchByTab((current) => ({ ...current, [tab]: value }));
   const [openEntryId, setOpenEntryId] = useState<string | null>(null);
@@ -114,14 +117,15 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     request: props.request,
     refreshInventory: data.refreshInventory,
     showToast,
-    confirmMigration: (name) => migrationConfirm.confirm({
-      title: zh ? `替换 ${name} 的代码修订？` : `Replace the installed revision of ${name}?`,
-      description: zh
-        ? '已有会话保留历史和原生会话 id，在逐个确认之前不会改用新代码。'
-        : 'Existing sessions keep their history and native session id. They do not run the new code until each migration is confirmed.',
-      confirmLabel: zh ? '替换修订' : 'Replace revision',
-      cancelLabel: zh ? '取消' : 'Cancel',
-    }),
+    confirmMigration: (name) =>
+      migrationConfirm.confirm({
+        title: zh ? `替换 ${name} 的代码修订？` : `Replace the installed revision of ${name}?`,
+        description: zh
+          ? '已有会话保留历史和原生会话 id，在逐个确认之前不会改用新代码。'
+          : 'Existing sessions keep their history and native session id. They do not run the new code until each migration is confirmed.',
+        confirmLabel: zh ? '替换修订' : 'Replace revision',
+        cancelLabel: zh ? '取消' : 'Cancel',
+      }),
     installFollowUp: (entry) => {
       const example = entry.examples[0];
       const useExample = props.onUseExample;
@@ -142,7 +146,11 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
   const ecosystem = useMarketplaceEcosystemSearch({
     request: props.request,
     onError: (err) => {
-      showToast({ type: 'error', title: t('Could not reach ecosystem data source', '无法连接生态数据源'), text: err });
+      showToast({
+        type: 'error',
+        title: t('Could not reach ecosystem data source', '无法连接生态数据源'),
+        text: err,
+      });
     },
   });
 
@@ -184,7 +192,10 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
   };
 
   const query = search.trim().toLowerCase();
-  const liveEntries = useMemo(() => data.entries.filter((entry) => !entry.withdrawn), [data.entries]);
+  const liveEntries = useMemo(
+    () => data.entries.filter((entry) => !entry.withdrawn),
+    [data.entries],
+  );
   const catalogLookup = useMemo(() => indexCatalogEntries(data.entries), [data.entries]);
   const installedByEntry = useMemo(() => {
     const map = new Map<string, MarketplaceInstalledItem>();
@@ -194,10 +205,15 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     return map;
   }, [data.items]);
 
-  const categories = useMemo(() => presentCategories(liveEntries, kindFilter), [liveEntries, kindFilter]);
-  const effectiveCategory = categoryFilter !== 'all' && categories.includes(categoryFilter) ? categoryFilter : 'all';
+  const categories = useMemo(
+    () => presentCategories(liveEntries, kindFilter),
+    [liveEntries, kindFilter],
+  );
+  const effectiveCategory =
+    categoryFilter !== 'all' && categories.includes(categoryFilter) ? categoryFilter : 'all';
   const visibleEntries = useMemo(
-    () => filterCatalogEntries(liveEntries, { kind: kindFilter, category: effectiveCategory, query }),
+    () =>
+      filterCatalogEntries(liveEntries, { kind: kindFilter, category: effectiveCategory, query }),
     [liveEntries, kindFilter, effectiveCategory, query],
   );
   const browsing = !query && kindFilter === 'all' && effectiveCategory === 'all';
@@ -206,7 +222,10 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     [browsing, visibleEntries],
   );
   const catalogEntries = useMemo(
-    () => (featuredEntries.length > 0 ? visibleEntries.filter((entry) => !entry.featured) : visibleEntries),
+    () =>
+      featuredEntries.length > 0
+        ? visibleEntries.filter((entry) => !entry.featured)
+        : visibleEntries,
     [featuredEntries, visibleEntries],
   );
   const packageKeys = useMemo(() => catalogPackageKeys(data.entries), [data.entries]);
@@ -219,7 +238,10 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     () => filterInstalledItems(data.items, catalogLookup, { kind: kindFilter, query }),
     [data.items, catalogLookup, kindFilter, query],
   );
-  const updates = useMemo(() => pendingUpdates(data.items, catalogLookup), [data.items, catalogLookup]);
+  const updates = useMemo(
+    () => pendingUpdates(data.items, catalogLookup),
+    [data.items, catalogLookup],
+  );
 
   const openEntry: MarketplaceCatalogEntry | null =
     data.entries.find((entry) => entry.entryId === openEntryId) ?? null;
@@ -250,14 +272,19 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
           }}
         >
           <span>{id === 'discover' ? t('Discover', '发现') : t('Installed', '已安装')}</span>
-          {id === 'installed' ? <span className="market-tab-count">{data.items.length}</span> : null}
+          {id === 'installed' ? (
+            <span className="market-tab-count">{data.items.length}</span>
+          ) : null}
           {id === 'installed' && updates.length > 0 ? (
             <span
               className="market-tab-update"
               title={t(`${updates.length} updates available`, `${updates.length} 项可更新`)}
               data-testid="marketplace-tab-updates"
             >
-              {t(`${updates.length} update${updates.length === 1 ? '' : 's'}`, `${updates.length} 可更新`)}
+              {t(
+                `${updates.length} update${updates.length === 1 ? '' : 's'}`,
+                `${updates.length} 可更新`,
+              )}
             </span>
           ) : null}
         </button>
@@ -299,7 +326,11 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
             kindFilter={kindFilter}
             onKindFilterChange={setKindFilter}
             trailing={
-              <button type="button" className="market-view-all" onClick={() => setSourceInstallOpen(true)}>
+              <button
+                type="button"
+                className="market-view-all"
+                onClick={() => setSourceInstallOpen(true)}
+              >
                 {t('Install from address…', '从地址安装…')}
               </button>
             }
@@ -311,7 +342,10 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
                   categoryFilter: effectiveCategory,
                   onCategoryFilterChange: setCategoryFilter,
                 }
-              : { kindCounts: countInstalledKinds(data.items, catalogLookup), totalCount: data.items.length })}
+              : {
+                  kindCounts: countInstalledKinds(data.items, catalogLookup),
+                  totalCount: data.items.length,
+                })}
           />
           {tab === 'discover' ? (
             <MarketplaceDiscoverView
@@ -406,7 +440,11 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
           'It stops loading in new runs. Files are deleted once no session still uses them.',
           '之后的运行不再加载它；没有会话再使用后删除文件。',
         )}
-        affectedObject={removeTarget ? `${kindLabel(removeTarget.kind, props.locale)} · ${removeTarget.name}` : undefined}
+        affectedObject={
+          removeTarget
+            ? `${kindLabel(removeTarget.kind, props.locale)} · ${removeTarget.name}`
+            : undefined
+        }
         confirmLabel={t('Uninstall', '卸载')}
         cancelLabel={t('Cancel', '取消')}
         tone="danger"

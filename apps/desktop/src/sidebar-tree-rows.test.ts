@@ -261,6 +261,30 @@ describe('buildSidebarTreeRows', () => {
     ]);
   });
 
+  it('orders folders newest-added first, ignoring last-opened recency', () => {
+    // Host lists by lastOpenedAt: /old was just opened, so it arrives first.
+    const rows = buildSidebarTreeRows({
+      recentProjects: [
+        { path: '/old', createdAt: '2026-01-01T00:00:00.000Z' },
+        { path: '/new', createdAt: '2026-03-01T00:00:00.000Z' },
+        { path: '/mid', createdAt: '2026-02-01T00:00:00.000Z' },
+      ],
+      projectSessionsByPath: {},
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: { '/old': true, '/new': true, '/mid': true },
+      sessionListScopes: createSessionListScopeState(),
+    });
+    expect(kinds(rows).filter((kind) => kind.startsWith('folder:'))).toEqual([
+      'folder:/new:true',
+      'folder:/mid:true',
+      'folder:/old:true',
+    ]);
+  });
+
   it('hides sessions under a collapsed project folder', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [{ path: '/a' }, { path: '/b' }],

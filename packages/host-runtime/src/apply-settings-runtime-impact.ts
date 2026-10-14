@@ -36,7 +36,8 @@ export function applySettingsRuntimeImpact(
   }
   for (const sessionId of deps.sessions.keys()) {
     const activeGenerationId = deps.runtimeController.getStatus(sessionId).generationId;
-    if (activeGenerationId === undefined) {
+    // External agents own their config; a Pi candidate would replace the agent.
+    if (activeGenerationId === undefined || deps.runtimeController.isExternalAgentGeneration(sessionId)) {
       continue;
     }
     deps.runtimeController.recordSettingsChange(

@@ -39,7 +39,10 @@ function matchesKind(hit: MarketplaceSearchHit, kind: MarketKindFilter | undefin
     case 'skill':
       return hit.kind === 'skill' || hit.source === 'skill';
     case 'extension':
-      return hit.kind === 'extension' || (!hit.kind && (hit.source === 'npm-pi-package' || hit.source === 'github'));
+      return (
+        hit.kind === 'extension' ||
+        (!hit.kind && (hit.source === 'npm-pi-package' || hit.source === 'github'))
+      );
   }
 }
 
@@ -63,7 +66,11 @@ export function MarketplaceCommunitySection(props: MarketplaceCommunitySectionPr
   };
 
   const visibleHits = useMemo(
-    () => sortCommunityHits(props.hits.filter((hit) => matchesKind(hit, props.kindFilter)), sort),
+    () =>
+      sortCommunityHits(
+        props.hits.filter((hit) => matchesKind(hit, props.kindFilter)),
+        sort,
+      ),
     [props.hits, props.kindFilter, sort],
   );
   const canSortByDate = visibleHits.some((hit) => hit.updatedAt);
@@ -115,7 +122,9 @@ export function MarketplaceCommunitySection(props: MarketplaceCommunitySectionPr
               locale={props.locale}
               onOpen={props.onOpen}
               onInstall={props.onInstall}
-              installState={props.installStates[hit.entryId] ?? (isInstalled(hit) ? 'installed' : 'idle')}
+              installState={
+                props.installStates[hit.entryId] ?? (isInstalled(hit) ? 'installed' : 'idle')
+              }
             />
           ))}
         </div>

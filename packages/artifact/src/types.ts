@@ -171,6 +171,22 @@ export type ArtifactScrollMessage = {
   restored: boolean;
 };
 
+/** Selection box in the sandboxed document's own viewport coordinates (CSS px). */
+export type ArtifactSelectionRect = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+/** Canvas text selection report. `text === ''` means the selection is gone. */
+export type ArtifactSelectionMessage = {
+  type: 'piwin-artifact:selection';
+  channelId: string;
+  text: string;
+  rect: ArtifactSelectionRect | null;
+};
+
 export type ArtifactBridgeMessage = {
   type: ArtifactBridgeMessageType;
   channelId: string;

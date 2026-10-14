@@ -65,6 +65,7 @@ export type DesktopCopy = {
     shellNavigation: string;
     back: string;
     forward: string;
+    revealActiveSession: string;
     dragWindow: string;
     tools: string;
     more: string;

@@ -65,6 +65,16 @@ export const ARTIFACT_BRIDGE_ERROR_TYPE = 'piwin-artifact:error' as const;
  * carry the reading position across a document swap (stream → final).
  */
 export const ARTIFACT_BRIDGE_SCROLL_TYPE = 'piwin-artifact:scroll' as const;
+/**
+ * Canvas text selection → parent, so the host can offer to quote it into the
+ * Composer. An empty `text` clears it. Display/quote only: the host still
+ * requires a user click in trusted chrome before anything reaches the draft.
+ */
+export const ARTIFACT_BRIDGE_SELECTION_TYPE = 'piwin-artifact:selection' as const;
+/** Longest selection the frame reports; the same ceiling as a Composer proposal. */
+export const ARTIFACT_SELECTION_MAX_CHARS = 10_000;
+/** Parent → iframe: rendering is no longer showing the selection; drop it. */
+export const ARTIFACT_BRIDGE_SELECTION_CLEAR_TYPE = 'piwin-artifact:selection-clear' as const;
 /** Parent → a freshly loaded document: resume at this scroll offset. */
 export const ARTIFACT_BRIDGE_SCROLL_RESTORE_TYPE = 'piwin-artifact:scroll-restore' as const;
 /**

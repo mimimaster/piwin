@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Inkstone（砚）· 增量 14 · 子代理扇出图与密集预览</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+      .app {
+        --sans: Inter, 'PingFang SC', 'Noto Sans SC', -apple-system, system-ui, sans-serif;
+        --serif: 'Noto Serif SC', 'Songti SC', 'STSong', 'Source Han Serif SC', Georgia, serif;
+        --mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+        min-height: 100dvh;
+        background: var(--void);
+        color: var(--t1);
+        font: 13.5px/1.5 var(--sans);
+        -webkit-font-smoothing: antialiased;
+        padding: 0 16px 64px;
+      }
+      .app[data-face='paper'] {
+        color-scheme: light;
+        --void: #e6e1d7; --s2: #f8f6f0; --s3: #fffdf8;
+        --t1: #1d1b17; --t2: #5a554d; --t3: #726b61; --t4: #8f887d;
+        --l1: rgba(29, 27, 23, 0.06); --l2: rgba(29, 27, 23, 0.11); --l3: rgba(29, 27, 23, 0.2);
+        --lamp: #b8801f; --lamp-wash: rgba(184, 128, 31, 0.14);
+        --pine: #3d7c5e; --crimson: #9c2e3d; --crimson-wash: rgba(156, 46, 61, 0.1);
+        --azure: #3a7797; --code: #efece4;
+        --sh1: 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--l2);
+      }
+      .app[data-face='ink'] {
+        color-scheme: dark;
+        --void: #0b0a09; --s2: #191714; --s3: #201d19;
+        --t1: #ebe5da; --t2: #a59d92; --t3: #8b8378; --t4: #6a6259;
+        --l1: rgba(235, 229, 218, 0.06); --l2: rgba(235, 229, 218, 0.1); --l3: rgba(235, 229, 218, 0.17);
+        --lamp: #e7b352; --lamp-wash: rgba(231, 179, 82, 0.12);
+        --pine: #5fad85; --crimson: #d95f6e; --crimson-wash: rgba(217, 95, 110, 0.14);
+        --azure: #6ba4c3; --code: #0f0e0c;
+        --sh1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(235, 229, 218, 0.1);
+      }
+
+      /* ── prototype chrome ── */
+      .bar {
+        position: sticky; top: 0; z-index: 3;
+        display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+        max-width: 760px; margin: 0 auto; padding: 12px 0;
+        background: var(--void);
+      }
+      .bar h1 { font: 600 14px/1.3 var(--serif); margin-right: auto; }
+      .seg { display: inline-flex; border-radius: 7px; box-shadow: var(--sh1); background: var(--s2); overflow: hidden; }
+      .seg button { padding: 4px 11px; font-size: 12px; color: var(--t3); }
+      .seg button[aria-pressed='true'] { background: var(--s3); color: var(--t1); font-weight: 600; }
+      .col { max-width: 760px; margin: 0 auto; }
+      .col.narrow { max-width: 400px; }
+      .label {
+        margin: 26px 0 8px; font-size: 11px; letter-spacing: 0.08em;
+        color: var(--t4); text-transform: uppercase;
+      }
+      .prose { color: var(--t2); margin-bottom: 10px; }
+      .note { color: var(--t3); font-size: 12px; margin-top: 8px; }
+      .note code { font: 11.5px var(--mono); }
+
+      /* ── seal / spinner (unchanged from proto-13) ── */
+      .seal {
+        display: grid; place-items: center; flex: none;
+        width: 22px; height: 22px; border-radius: 4px;
+        background: var(--azure); color: #fff;
+        font: 600 11px/1 var(--serif);
+        transform: rotate(-1.5deg);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+        user-select: none;
+      }
+      [data-phase='done'] > .seal { background: var(--pine); }
+      [data-phase='failed'] > .seal { background: var(--crimson); }
+      [data-phase='queued'] > .seal { background: var(--t4); }
+      .seal.main { background: var(--t2); }
+      .spin {
+        width: 10px; height: 10px; border-radius: 50%; flex: none;
+        border: 1.5px solid var(--l3); border-top-color: var(--lamp);
+        animation: spin 1.2s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* ── group card + header (header unchanged from proto-13) ── */
+      .group { background: var(--s3); border-radius: 10px; box-shadow: var(--sh1); overflow: hidden; container-type: inline-size; }
+      .ghead { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px; text-align: left; }
+      .ghead .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pine); flex: none; margin: 1px; }
+      .gtitle { font-weight: 600; white-space: nowrap; flex: none; }
+      .gcounts { color: var(--t3); font-size: 12.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .gtime { margin-left: auto; font: 11.5px var(--mono); color: var(--t3); font-variant-numeric: tabular-nums; flex: none; }
+
+      /* ── fan-out body ──
+       * Fixed geometry: every child row is exactly ROW_H tall in every phase,
+       * so connector paths are pure arithmetic on the row index — no DOM
+       * measurement, and no row ever changes height when its phase changes. */
+      .fan {
+        --row-h: 46px; --main-w: 138px; --wire-w: 52px;
+        position: relative;
+        display: grid; grid-template-columns: var(--main-w) var(--wire-w) minmax(0, 1fr);
+        border-top: 1px solid var(--l1);
+        padding: 6px 0;
+      }
+      .fan-main {
+        grid-column: 1; align-self: center;
+        margin-left: 12px;
+        display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: 8px; align-items: center;
+        padding: 7px 8px; border-radius: 8px;
+        background: var(--s2); box-shadow: inset 0 0 0 1px var(--l2);
+        cursor: default; user-select: none;
+      }
+      .fan-main .name { font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+      .fan-main .seal { grid-row: 1 / span 2; }
+      .fan-main .sub { grid-column: 2; font: 11px var(--mono); color: var(--t4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .fan-wires { grid-column: 2; position: relative; }
+      .fan-wires svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+      .wire { fill: none; stroke-width: 1.25; stroke: var(--l3); }
+      .wire[data-phase='running'] { stroke: var(--lamp); stroke-dasharray: 3 4; animation: flow 0.9s linear infinite; }
+      .wire[data-phase='queued'] { stroke: var(--t4); stroke-dasharray: 1 4; }
+      .wire[data-phase='done'] { stroke: var(--pine); opacity: 0.7; }
+      .wire[data-phase='failed'] { stroke: var(--crimson); }
+      .wire[data-selected='true'] { stroke-width: 2.25; opacity: 1; }
+      .wire-origin { fill: var(--t3); }
+      @keyframes flow { to { stroke-dashoffset: -7; } }
+      @media (prefers-reduced-motion: reduce) {
+        .spin, .wire[data-phase='running'] { animation: none; }
+      }
+
+      .fan-rows { grid-column: 3; min-width: 0; }
+      .node {
+        display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 9px; row-gap: 1px;
+        align-content: center; align-items: center;
+        width: 100%; height: var(--row-h); padding: 0 12px 0 8px; text-align: left;
+        border-radius: 7px 0 0 7px;
+      }
+      .node:hover { background: var(--l1); }
+      .node[aria-expanded='true'] { background: var(--l2); }
+      .node .seal { grid-row: 1 / span 2; }
+      .node .title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+      .node[data-phase='done'] .title { color: var(--t2); }
+      .node .right { display: flex; align-items: baseline; gap: 8px; font: 11.5px var(--mono); color: var(--t4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .node .state { font: 12px var(--sans); }
+      .node[data-phase='running'] .state { color: var(--lamp); }
+      .node[data-phase='done'] .state { color: var(--pine); }
+      .node[data-phase='failed'] .state { color: var(--crimson); }
+      .node[data-phase='queued'] .state { color: var(--t4); }
+      .node .act {
+        grid-column: 2 / -1; display: flex; align-items: center; gap: 6px; min-width: 0;
+        font: 11.5px var(--mono); color: var(--t3);
+      }
+      .node .act span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .node[data-phase='failed'] .act { color: var(--crimson); }
+      .badge { font: 11px var(--sans); padding: 0 6px; border-radius: 999px; background: var(--lamp-wash); color: var(--lamp); }
+
+      /* Narrow card: the main node folds away and the wires become a tree
+       * rail. Same rows, same heights — only the left column changes. */
+      @container (max-width: 520px) {
+        .fan { grid-template-columns: 22px minmax(0, 1fr); }
+        .fan-main { display: none; }
+        .fan-wires { grid-column: 1; }
+        .fan-rows { grid-column: 2; }
+        .node .right .tok { display: none; }
+      }
+
+      /* ── dense preview ──
+       * Independent renderer: plain text lines, no Markdown, no tool cards,
+       * no diffs/artifacts. One line per step; mono; scroll inside. */
+      .pv {
+        margin: 0 12px 10px; border-radius: 8px;
+        background: var(--code); box-shadow: inset 0 0 0 1px var(--l1);
+        font: 11.5px/1.6 var(--mono); color: var(--t2);
+        font-variant-numeric: tabular-nums;
+      }
+      .pv[hidden] { display: none; }
+      .pv-meta {
+        display: flex; flex-wrap: wrap; gap: 0 10px; padding: 6px 10px;
+        border-bottom: 1px solid var(--l1); color: var(--t4);
+      }
+      .pv-meta b { font-weight: 500; color: var(--t2); }
+      .pv-meta .live { color: var(--lamp); }
+      .pv-task { padding: 6px 10px 4px; color: var(--t2); font-family: var(--sans); font-size: 12.5px; line-height: 1.5; }
+      .pv-task .k { font: 11px var(--mono); color: var(--t4); margin-right: 6px; }
+      .pv-log { max-height: 236px; overflow: auto; padding: 2px 0 6px; }
+      .ln {
+        display: grid; grid-template-columns: 4.2ch 6ch minmax(0, 1fr) auto; column-gap: 8px;
+        padding: 0 10px; white-space: nowrap;
+      }
+      .ln:hover { background: var(--l1); }
+      .ln .t { color: var(--t4); text-align: right; }
+      .ln .v { color: var(--t3); }
+      .ln .x { overflow: hidden; text-overflow: ellipsis; color: var(--t1); }
+      .ln .r { color: var(--t4); }
+      .ln[data-kind='say'] .x { color: var(--t2); font-family: var(--sans); font-size: 12px; }
+      .ln[data-kind='think'] .x { color: var(--t4); font-style: italic; font-family: var(--sans); font-size: 12px; }
+      .ln[data-st='error'] .r, .ln[data-st='error'] .v { color: var(--crimson); }
+      .ln[data-st='running'] .r { color: var(--lamp); }
+      .ln.elided { color: var(--t4); display: block; padding-left: calc(10px + 4.2ch + 8px); }
+      .pv-perm {
+        display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+        border-top: 1px solid var(--l1); background: var(--lamp-wash); color: var(--t1);
+      }
+      .pv-perm .x { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+      .pv-perm .k { color: var(--lamp); }
+      .pv-perm button { font: 11.5px var(--sans); padding: 1px 9px; border-radius: 5px; box-shadow: var(--sh1); background: var(--s3); }
+      .pv-perm button.pri { background: var(--t1); color: var(--s3); box-shadow: none; }
+      .pv-out {
+        border-top: 1px solid var(--l1); padding: 6px 10px 8px;
+        white-space: pre-wrap; font: 12.5px/1.55 var(--sans); color: var(--t1);
+        max-height: 180px; overflow: auto;
+      }
+      .pv-out .k { display: block; font: 11px var(--mono); color: var(--pine); margin-bottom: 2px; }
+      .pv-out[data-tone='failed'] .k { color: var(--crimson); }
+    </style>
+  </head>
+  <body>
+    <div class="app" data-face="paper" id="app">
+      <div class="bar">
+        <h1>增量 14 · 子代理扇出图 + 密集预览</h1>
+        <div class="seg" id="scene">
+          <button aria-pressed="true" data-scene="running">3 并行·运行中</button>
+          <button aria-pressed="false" data-scene="mixed">混合状态</button>
+          <button aria-pressed="false" data-scene="six">6 并行</button>
+        </div>
+        <div class="seg" id="face">
+          <button aria-pressed="true" data-face="paper">纸</button>
+          <button aria-pressed="false" data-face="ink">墨</button>
+        </div>
+      </div>
+
+      <div class="col">
+        <p class="label">① 扇出图（≥2 个子代理同批派出）</p>
+        <p class="prose">
+          左侧主代理节点只做展示（不可点击）；右侧每个子代理一行，固定 46px 高。连线颜色即状态：
+          运行中＝琥珀虚线流动，排队＝点线，完成＝松绿实线，失败＝赤色。点击子代理行在卡片内展开下方的密集预览，选中的那条线加粗。
+        </p>
+        <div id="wide"></div>
+        <p class="note">
+          单个子代理不画图，沿用 <a href="./proto-13-subagent-cards.html">proto-13</a> 的单行（③）。已全部结束且无待处理的组，仍按 proto-13 规则折叠成头部一行。
+        </p>
+
+        <p class="label">② 窄卡片（容器宽 ≤ 520px）</p>
+        <p class="prose">主代理节点收起，连线退化为左侧树形导轨；行高与内容不变，只换左栏。</p>
+      </div>
+      <div class="col narrow"><div id="narrow"></div></div>
+
+      <div class="col">
+        <p class="label">③ 预览里刻意不做的事</p>
+        <p class="prose">
+          不渲染 Markdown、不渲染工具卡片 / diff / 文件变更条 / artifact / 引用 / 图片；没有「打开完整会话」。
+          每一步就是一行：<code>时间 · 动作 · 目标 · 结果</code>。结论用纯文本原样展示（保留换行）。
+          唯一的交互是权限确认行（不能被折叠藏起来）。
+        </p>
+      </div>
+    </div>
+
+    <script>
+      const ROW_H = 46;
+      const PAD = 6;
+
+      const SCENES = {
+        running: {
+          main: { model: 'opus-4.6', waiting: '等待 3/3' },
+          kids: [
+            { title: '查找 token 刷新的所有调用点', phase: 'running', state: '运行中', t: '0:42', tok: '18.4k', act: 'grep  refreshToken(  · 12 处', sel: true },
+            { title: '梳理 auth middleware 链', phase: 'running', state: '运行中', t: '0:42', tok: '9.1k', act: 'read  apps/web/src/middleware.ts:1-140' },
+            { title: '检查 refresh 相关测试覆盖', phase: 'running', state: '运行中', t: '0:41', tok: '6.7k', act: 'bash  pnpm vitest run auth --reporter=dot' },
+          ],
+        },
+        mixed: {
+          main: { model: 'opus-4.6', waiting: '等待 1/3' },
+          kids: [
+            { title: '查找 token 刷新的所有调用点', phase: 'done', state: '完成', t: '1:12', tok: '31.0k', act: '共 7 处调用，2 处未走拦截器', sel: true, done: true },
+            { title: '梳理 auth middleware 链', phase: 'running', state: '运行中', t: '1:40', tok: '22.3k', act: 'read  packages/auth/src/session.ts:200-260', perm: true },
+            { title: '检查 refresh 相关测试覆盖', phase: 'failed', state: '失败', t: '0:58', tok: '12.9k', act: 'provider 429 · 已重试 2 次' },
+          ],
+        },
+        six: {
+          main: { model: 'opus-4.6', waiting: '等待 4/6' },
+          kids: [
+            { title: 'scout · packages/auth', phase: 'done', state: '完成', t: '0:51', tok: '14.2k', act: '入口 3 个，导出 11 个', done: true },
+            { title: 'scout · packages/session', phase: 'running', state: '运行中', t: '1:03', tok: '17.8k', act: 'grep  persistSession  · 4 处', sel: true },
+            { title: 'scout · apps/web/api', phase: 'running', state: '运行中', t: '1:03', tok: '11.0k', act: 'read  apps/web/src/api/client.ts' },
+            { title: 'scout · apps/desktop', phase: 'done', state: '完成', t: '0:44', tok: '9.6k', act: '未发现直接依赖', done: true },
+            { title: 'scout · host-runtime', phase: 'running', state: '运行中', t: '1:02', tok: '20.5k', act: 'list  packages/host-runtime/src' },
+            { title: 'scout · 测试夹具', phase: 'queued', state: '排队', t: '', tok: '', act: '等待槽位' },
+          ],
+        },
+      };
+
+      const LOG = [
+        ['0:01', 'read', 'packages/auth/src/refresh.ts', '212 行', 'done'],
+        ['0:03', 'grep', 'refreshToken(', '12 处', 'done'],
+        ['0:06', 'think', '拦截器里有一层 retry，需要确认是否重复刷新…', '', 'think'],
+        ['0:09', 'read', 'apps/web/src/api/client.ts:40-120', '81 行', 'done'],
+        ['0:14', 'grep', 'onUnauthorized', '3 处', 'done'],
+        ['0:17', 'bash', 'rg -n "token" packages/session | head -40', 'exit 2', 'error'],
+        ['0:19', 'grep', 'token  (packages/session)', '9 处', 'done'],
+        ['0:24', 'say', '找到两条绕过拦截器的直连路径，继续确认 desktop 侧。', '', 'say'],
+        ['0:31', 'read', 'apps/desktop/src/host-request-adapters.ts:300-360', '…', 'running'],
+      ];
+
+      const RESULT = `7 处调用 refreshToken()：
+- 5 处经 apiClient 拦截器（统一 401 重试）
+- 2 处直连：packages/session/src/persist.ts:88、apps/web/src/sse.ts:41
+建议：把 sse.ts 改走拦截器；persist.ts 是启动预热，可保留。`;
+
+      function wirePath(i, n, wireW) {
+        const total = n * ROW_H;
+        const y0 = total / 2;
+        const y1 = i * ROW_H + ROW_H / 2;
+        const bend = wireW * 0.55;
+        return `M0 ${y0} C${bend} ${y0} ${wireW - bend} ${y1} ${wireW} ${y1}`;
+      }
+
+      // Narrow rail: a vertical trunk with an elbow into each row.
+      function railPath(i, n) {
+        const x = 11;
+        const yTop = 0;
+        const y1 = i * ROW_H + ROW_H / 2;
+        const r = 6;
+        return `M${x} ${yTop} V${y1 - r} Q${x} ${y1} ${x + r} ${y1} H22`;
+      }
+
+      function esc(s) {
+        return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+      }
+
+      function renderPreview(kid) {
+        const tone = kid.phase === 'failed' ? 'failed' : 'done';
+        const liveCls = kid.phase === 'running' ? 'live' : '';
+        const lines = LOG.map(([t, v, x, r, st]) => {
+          const kind = v === 'say' ? 'say' : v === 'think' ? 'think' : 'tool';
+          const verb = v === 'say' ? '说' : v === 'think' ? '想' : v;
+          const mark = st === 'done' ? '✓ ' : st === 'error' ? '✗ ' : st === 'running' ? '… ' : '';
+          return `<div class="ln" data-kind="${kind}" data-st="${st}"><span class="t">${t}</span><span class="v">${verb}</span><span class="x">${esc(x)}</span><span class="r">${mark}${r}</span></div>`;
+        }).join('');
+        const perm = kid.perm
+          ? `<div class="pv-perm"><span class="k">需要权限</span><span class="x">bash  git stash list</span><button class="pri">允许</button><button>本会话总是允许</button><button>拒绝</button></div>`
+          : '';
+        const out =
+          kid.phase === 'done'
+            ? `<div class="pv-out" data-tone="done"><span class="k">结论</span>${esc(RESULT)}</div>`
+            : kid.phase === 'failed'
+              ? `<div class="pv-out" data-tone="failed"><span class="k">失败</span>provider 返回 429（rate limit），已重试 2 次后放弃。</div>`
+              : '';
+        return `
+          <div class="pv-meta">
+            <span><b>scout</b></span><span>sonnet-4.5</span><span>14 次调用</span><span>${kid.tok || '—'} tok</span><span>${kid.t || '—'}</span>
+            <span class="${liveCls}">${kid.state}</span>
+          </div>
+          <div class="pv-task"><span class="k">任务</span>${esc(kid.title)}：列出调用点、标注是否经过 apiClient 拦截器，只读不改。</div>
+          <div class="pv-log"><div class="ln elided">… 前 23 步已省略</div>${lines}</div>
+          ${perm}${out}`;
+      }
+
+      function renderCard(root, sceneKey) {
+        const scene = SCENES[sceneKey];
+        const n = scene.kids.length;
+        const running = scene.kids.filter((k) => k.phase === 'running').length;
+        const done = scene.kids.filter((k) => k.phase === 'done').length;
+        const failed = scene.kids.filter((k) => k.phase === 'failed').length;
+        const queued = scene.kids.filter((k) => k.phase === 'queued').length;
+        const counts = [
+          running && `${running} 运行中`, done && `${done} 完成`, failed && `${failed} 失败`, queued && `${queued} 排队`,
+        ].filter(Boolean).join(' · ');
+        let selected = scene.kids.findIndex((k) => k.sel);
+        const fanH = n * ROW_H + PAD * 2;
+
+        root.innerHTML = `
+          <div class="group">
+            <div class="ghead">
+              ${running ? '<span class="spin"></span>' : '<span class="dot"></span>'}
+              <span class="gtitle">${n} 个子代理</span>
+              <span class="gcounts">${counts}</span>
+              <span class="gtime">96.4k tok · 1:42</span>
+            </div>
+            <div class="fan" style="height:${fanH}px">
+              <div class="fan-main" aria-hidden="true">
+                <span class="seal main">主</span><span class="name">主代理</span>
+                <span class="sub">${scene.main.waiting}</span>
+              </div>
+              <div class="fan-wires"><svg aria-hidden="true"></svg></div>
+              <div class="fan-rows" style="padding-top:0">
+                ${scene.kids.map((k, i) => `
+                  <button type="button" class="node" data-i="${i}" data-phase="${k.phase}" aria-expanded="false">
+                    <span class="seal">探</span>
+                    <span class="title">${esc(k.title)}</span>
+                    <span class="right">
+                      ${k.perm ? '<span class="badge">待确认</span>' : `<span class="state">${k.state}</span>`}
+                      <span class="tok">${k.tok}</span><span>${k.t}</span>
+                    </span>
+                    <span class="act">${k.phase === 'running' ? '<span class="spin"></span>' : ''}<span>${esc(k.act)}</span></span>
+                  </button>`).join('')}
+              </div>
+            </div>
+            <div class="pv" hidden></div>
+          </div>`;
+
+        const svg = root.querySelector('svg');
+        const wires = root.querySelector('.fan-wires');
+        const pv = root.querySelector('.pv');
+        const nodes = [...root.querySelectorAll('.node')];
+
+        function draw() {
+          const narrow = root.querySelector('.fan-main').offsetParent === null;
+          const w = wires.clientWidth;
+          const paths = scene.kids.map((k, i) => {
+            const d = narrow ? railPath(i, n) : wirePath(i, n, w);
+            return `<path class="wire" data-phase="${k.phase}" data-selected="${i === selected}" d="${d}" />`;
+          }).join('');
+          const origin = narrow ? '' : `<circle class="wire-origin" cx="0" cy="${(n * ROW_H) / 2}" r="2.5" />`;
+          svg.innerHTML = paths + origin;
+        }
+
+        function select(i) {
+          selected = selected === i ? -1 : i;
+          nodes.forEach((node, j) => node.setAttribute('aria-expanded', String(j === selected)));
+          if (selected < 0) { pv.hidden = true; } else { pv.hidden = false; pv.innerHTML = renderPreview(scene.kids[selected]); }
+          draw();
+        }
+
+        nodes.forEach((node) => node.addEventListener('click', () => select(Number(node.dataset.i))));
+        const initial = selected; selected = -1; if (initial >= 0) select(initial); else draw();
+        new ResizeObserver(draw).observe(wires);
+      }
+
+      let scene = 'running';
+      function renderAll() {
+        renderCard(document.getElementById('wide'), scene);
+        renderCard(document.getElementById('narrow'), scene);
+      }
+      document.getElementById('scene').addEventListener('click', (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        scene = b.dataset.scene;
+        document.querySelectorAll('#scene button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        renderAll();
+      });
+      document.getElementById('face').addEventListener('click', (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        document.getElementById('app').dataset.face = b.dataset.face;
+        document.querySelectorAll('#face button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      });
+      renderAll();
+    </script>
+  </body>
+</html>

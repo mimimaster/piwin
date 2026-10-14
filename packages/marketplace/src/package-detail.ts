@@ -4,7 +4,11 @@
  * the README is returned raw and clients render it as untrusted markdown.
  */
 import type { MarketplacePackageDetailData } from '@piwin/contracts';
-import { NPM_REGISTRY_URL, isNpmPackageName, normalizeRepositoryUrl } from './search-pi-packages.js';
+import {
+  NPM_REGISTRY_URL,
+  isNpmPackageName,
+  normalizeRepositoryUrl,
+} from './search-pi-packages.js';
 
 const FETCH_TIMEOUT_MS = 8_000;
 /** Enough for any real README; keeps a hostile document from bloating the IPC payload. */
@@ -155,7 +159,12 @@ export async function fetchPackageDetail(
   const ownerRepo = githubOwnerRepo(repositoryUrl);
   if (ownerRepo && (!detail.readme || !detail.license || !detail.updatedAt)) {
     try {
-      const github = await readGithubDetail(ownerRepo, fetchFn, options.signal, options.githubToken);
+      const github = await readGithubDetail(
+        ownerRepo,
+        fetchFn,
+        options.signal,
+        options.githubToken,
+      );
       detail = {
         ...github,
         ...detail,

@@ -1,6 +1,6 @@
 import type { SessionRuntimeStatus, SettingsDomainImpact } from '@piwin/contracts';
 import { describe, expect, it } from 'vitest';
-import { SessionRuntimeController } from './session-runtime-controller.js';
+import { EXTERNAL_AGENT_SETTINGS_REVISION, SessionRuntimeController } from './session-runtime-controller.js';
 
 function createController(runInFlight = false): SessionRuntimeController {
   return new SessionRuntimeController({ isRunInFlight: () => runInFlight });
@@ -32,6 +32,19 @@ describe('SessionRuntimeController', () => {
 
     expect(published.map((status) => status.state)).toEqual(['live', 'stale', 'lazy-shell']);
     expect(published[1]?.staleDomains).toEqual(['web']);
+  });
+
+  it('never plans a Pi settings reload for an external agent generation', () => {
+    const controller = createController();
+    controller.attachGeneration('s1', 'gen-1', EXTERNAL_AGENT_SETTINGS_REVISION);
+    controller.recordSettingsChange('s1', ['web', 'mcp'], 'rev-2');
+
+    expect(controller.isExternalAgentGeneration('s1')).toBe(true);
+    expect(controller.getStatus('s1').desiredSettingsRevision).toBeUndefined();
+    expect(controller.planReload('s1', 'rev-2', 'gen-1', { allowWhenFresh: true })).toEqual({
+      allowed: false,
+      reason: 'external-agent',
+    });
   });
 
   it('reports lazy-shell before any generation attaches', () => {

@@ -19,7 +19,11 @@ export async function applyExtensionsToSession(
   sessionId: string | null | undefined,
 ): Promise<SessionApplyOutcome> {
   if (!sessionId) return { kind: 'no-session' };
-  const response = await request({ type: 'extensions/apply', sessionId, when: 'after-current-run' });
+  const response = await request({
+    type: 'extensions/apply',
+    sessionId,
+    when: 'after-current-run',
+  });
   if (!response.success) return { kind: 'failed', error: response.error };
   const data = response.data as ExtensionsApplyData;
   switch (data.state) {
@@ -53,7 +57,9 @@ export function describeExtensionChange(
       return {
         type: 'success',
         title,
-        text: zh ? '当前会话已按新能力重建运行时。' : 'The current session runtime now reflects it.',
+        text: zh
+          ? '当前会话已按新能力重建运行时。'
+          : 'The current session runtime now reflects it.',
       };
     case 'queued':
       return {

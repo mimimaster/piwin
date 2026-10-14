@@ -19,7 +19,6 @@ import {
   type ChatMessageUi,
 } from './chat-reducer';
 import type { ComposerDockProps } from './composer-dock';
-import { SubagentSessionTranscript } from './subagent-session-transcript';
 import { TranscriptViewport } from './transcript-viewport';
 
 vi.mock('./artifact-native-bridge.js', () => ({
@@ -307,31 +306,4 @@ describe('artifact capability off (workbench / subagent / history)', () => {
       expectSourceOnly(container);
     },
   );
-
-  it('Subagent inspector transcript stays source-only when capability is off', async () => {
-    const container = renderTree(
-      <SubagentSessionTranscript
-        historicalMessages={[assistantMessage('child-history', SCRIPT_MARKDOWN)]}
-        stream={{
-          childSessionId: 'child-session-1',
-          completedSegments: [],
-          completionRevision: 0,
-          text: CANVAS_MARKDOWN,
-          thinking: '',
-          tools: [],
-          streaming: false,
-          currentMessageId: 'child-live',
-        }}
-        loading={false}
-        error={null}
-        onRetry={noop}
-        locale="en"
-        childSessionId="child-session-1"
-        artifactInlineEnabled={false}
-        onOpenArtifactCanvas={noop}
-      />,
-    );
-    await flushFrame();
-    expectSourceOnly(container);
-  });
 });

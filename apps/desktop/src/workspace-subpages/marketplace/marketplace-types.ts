@@ -18,13 +18,7 @@ export type CommunitySort = 'popular' | 'recent';
  * Only real request phases — no simulated percentages.
  */
 export type MarketOperation =
-  | 'installing'
-  | 'updating'
-  | 'enabling'
-  | 'applying'
-  | 'starting'
-  | 'removing'
-  | 'toggling';
+  'installing' | 'updating' | 'enabling' | 'applying' | 'starting' | 'removing' | 'toggling';
 
 export type MarketplaceToast = {
   text: string;

@@ -42,11 +42,23 @@ export function MarketplaceDiscoverView(props: MarketplaceDiscoverViewProps): Re
   const zh = props.locale === 'zh-CN';
   const t = (en: string, zhText: string) => (zh ? zhText : en);
   const { ecosystem } = props;
-  const communityKind = props.kindFilter === 'all' || props.kindFilter === 'extension' || props.kindFilter === 'skill' || props.kindFilter === 'mcp';
-  const searchedThisQuery = Boolean(props.query) && ecosystem.searchedQuery.toLowerCase() === props.query.toLowerCase();
+  const communityKind =
+    props.kindFilter === 'all' ||
+    props.kindFilter === 'extension' ||
+    props.kindFilter === 'skill' ||
+    props.kindFilter === 'mcp';
+  const searchedThisQuery =
+    Boolean(props.query) && ecosystem.searchedQuery.toLowerCase() === props.query.toLowerCase();
   // With a query, community results only show once that exact query was sent to the Host.
-  const showCommunity = communityKind && (props.query ? searchedThisQuery : true) &&
-    Boolean(ecosystem.searchedQuery || ecosystem.loading || props.communityHits.length > 0 || ecosystem.error);
+  const showCommunity =
+    communityKind &&
+    (props.query ? searchedThisQuery : true) &&
+    Boolean(
+      ecosystem.searchedQuery ||
+      ecosystem.loading ||
+      props.communityHits.length > 0 ||
+      ecosystem.error,
+    );
   const showSearchPrompt = Boolean(props.query) && communityKind && !searchedThisQuery;
   const nothing =
     !props.loading &&
@@ -85,11 +97,19 @@ export function MarketplaceDiscoverView(props: MarketplaceDiscoverViewProps): Re
         <section className="market-category-section" data-testid="marketplace-catalog">
           <header className="market-section-header">
             <div className="market-ecosystem-title-row">
-              <h2 className="market-ecosystem-title">{props.query ? t('Catalog', '目录') : t('All', '全部')}</h2>
+              <h2 className="market-ecosystem-title">
+                {props.query ? t('Catalog', '目录') : t('All', '全部')}
+              </h2>
               <span className="market-section-caption">
                 {props.query
-                  ? t(`${props.catalogEntries.length} matches`, `${props.catalogEntries.length} 项匹配`)
-                  : t(`${props.catalogEntries.length} entries`, `${props.catalogEntries.length} 项`)}
+                  ? t(
+                      `${props.catalogEntries.length} matches`,
+                      `${props.catalogEntries.length} 项匹配`,
+                    )
+                  : t(
+                      `${props.catalogEntries.length} entries`,
+                      `${props.catalogEntries.length} 项`,
+                    )}
               </span>
             </div>
           </header>
@@ -105,7 +125,10 @@ export function MarketplaceDiscoverView(props: MarketplaceDiscoverViewProps): Re
         >
           <IconSearch width={14} height={14} aria-hidden="true" />
           <span>
-            {t(`Search npm, GitHub and registries for “${props.query}”`, `在 npm、GitHub 与注册表中搜索“${props.query}”`)}
+            {t(
+              `Search npm, GitHub and registries for “${props.query}”`,
+              `在 npm、GitHub 与注册表中搜索“${props.query}”`,
+            )}
           </span>
           <kbd aria-hidden="true">↵</kbd>
         </button>

@@ -49,7 +49,11 @@ async function installAgentArtifact(
   try {
     await send(request, { type: 'agents/install', source });
   } catch (error) {
-    if (!(error instanceof MarketplaceRequestError) || !error.message.includes('requires-migration')) throw error;
+    if (
+      !(error instanceof MarketplaceRequestError) ||
+      !error.message.includes('requires-migration')
+    )
+      throw error;
     if (confirmMigration === undefined || !(await confirmMigration(name))) {
       throw new MarketplaceRequestError('agent-update-requires-migration: confirmation required');
     }
@@ -108,89 +112,105 @@ export function useMarketplaceActions(options: {
     const { request, sessionId, locale } = optionsRef.current;
     const name = entryName(entry, locale);
     const descriptor = entry.install;
-    await run(entry.entryId, name, async (phase) => {
-      phase('installing');
-      switch (descriptor.kind) {
-        case 'agent':
-          await installAgentArtifact(request, descriptor.source, name, optionsRef.current.confirmMigration);
-          return { type: 'success', title: zh ? `[${name}] 适配插件已安装` : `[${name}] adapter installed`, text: zh ? '在 外部智能体 设置中检测 Host CLI 并登录。安装插件不表示 CLI 已就绪。已有会话不会自动换修订。' : 'Check the Host CLI and sign in in External Agents. Adapter installation does not mean the CLI is ready. Existing sessions are not moved to another revision.' };
-        case 'pi-package': {
-          await send(request, { type: 'marketplace/package-install', source: descriptor.source });
-          phase('applying');
-          return describeExtensionChange(
-            name,
-            'installed',
-            await applyExtensionsToSession(request, sessionId),
-            locale,
-          );
-        }
-        case 'managed-extension': {
-          const installed = (await send(request, {
-            type: 'extensions/install',
-            source: descriptor.source,
-            ...(descriptor.name ? { name: descriptor.name } : {}),
-          })) as { extensionId: string; configuredEnabled?: boolean };
-          if (installed.configuredEnabled !== true) {
-            phase('enabling');
-            await send(request, {
-              type: 'extensions/set_enabled',
-              extensionId: installed.extensionId,
-              enabled: true,
-            });
-          }
-          phase('applying');
-          return describeExtensionChange(
-            name,
-            'installed',
-            await applyExtensionsToSession(request, sessionId),
-            locale,
-          );
-        }
-        case 'skill': {
-          await send(request, {
-            type: 'skills/install',
-            source: descriptor.source,
-            ...(descriptor.name ? { name: descriptor.name } : {}),
-          });
-          return {
-            type: 'success',
-            title: zh ? `[${name}] 已安装` : `[${name}] installed`,
-            text: zh ? '下一条消息起即可使用。' : 'Usable from your next message.',
-          };
-        }
-        case 'mcp': {
-          await send(request, {
-            type: 'mcp/registry-install-draft',
-            serverId: descriptor.serverId,
-            draft: descriptor.draft,
-          });
-          phase('starting');
-          const started = (await send(request, {
-            type: 'mcp/start',
-            serverId: descriptor.serverId,
-          })) as {
-            health: McpServerHealth;
-          };
-          const health = started.health;
-          if (health.status === 'running' && !health.lastError) {
+    await run(
+      entry.entryId,
+      name,
+      async (phase) => {
+        phase('installing');
+        switch (descriptor.kind) {
+          case 'agent':
+            await installAgentArtifact(
+              request,
+              descriptor.source,
+              name,
+              optionsRef.current.confirmMigration,
+            );
             return {
               type: 'success',
-              title: zh ? `[${name}] 已连接` : `[${name}] connected`,
+              title: zh ? `[${name}] 适配插件已安装` : `[${name}] adapter installed`,
               text: zh
-                ? `发现 ${health.toolCount} 个工具。`
-                : `${health.toolCount} tools discovered.`,
+                ? '在 外部智能体 设置中检测 Host CLI 并登录。安装插件不表示 CLI 已就绪。已有会话不会自动换修订。'
+                : 'Check the Host CLI and sign in in External Agents. Adapter installation does not mean the CLI is ready. Existing sessions are not moved to another revision.',
+            };
+          case 'pi-package': {
+            await send(request, { type: 'marketplace/package-install', source: descriptor.source });
+            phase('applying');
+            return describeExtensionChange(
+              name,
+              'installed',
+              await applyExtensionsToSession(request, sessionId),
+              locale,
+            );
+          }
+          case 'managed-extension': {
+            const installed = (await send(request, {
+              type: 'extensions/install',
+              source: descriptor.source,
+              ...(descriptor.name ? { name: descriptor.name } : {}),
+            })) as { extensionId: string; configuredEnabled?: boolean };
+            if (installed.configuredEnabled !== true) {
+              phase('enabling');
+              await send(request, {
+                type: 'extensions/set_enabled',
+                extensionId: installed.extensionId,
+                enabled: true,
+              });
+            }
+            phase('applying');
+            return describeExtensionChange(
+              name,
+              'installed',
+              await applyExtensionsToSession(request, sessionId),
+              locale,
+            );
+          }
+          case 'skill': {
+            await send(request, {
+              type: 'skills/install',
+              source: descriptor.source,
+              ...(descriptor.name ? { name: descriptor.name } : {}),
+            });
+            return {
+              type: 'success',
+              title: zh ? `[${name}] 已安装` : `[${name}] installed`,
+              text: zh ? '下一条消息起即可使用。' : 'Usable from your next message.',
             };
           }
-          return {
-            type: 'warning',
-            title: zh ? `[${name}] 已保存配置` : `[${name}] saved`,
-            text: zh
-              ? `但启动失败：${health.lastError ?? health.status}`
-              : `but it did not start: ${health.lastError ?? health.status}`,
-          };
+          case 'mcp': {
+            await send(request, {
+              type: 'mcp/registry-install-draft',
+              serverId: descriptor.serverId,
+              draft: descriptor.draft,
+            });
+            phase('starting');
+            const started = (await send(request, {
+              type: 'mcp/start',
+              serverId: descriptor.serverId,
+            })) as {
+              health: McpServerHealth;
+            };
+            const health = started.health;
+            if (health.status === 'running' && !health.lastError) {
+              return {
+                type: 'success',
+                title: zh ? `[${name}] 已连接` : `[${name}] connected`,
+                text: zh
+                  ? `发现 ${health.toolCount} 个工具。`
+                  : `${health.toolCount} tools discovered.`,
+              };
+            }
+            return {
+              type: 'warning',
+              title: zh ? `[${name}] 已保存配置` : `[${name}] saved`,
+              text: zh
+                ? `但启动失败：${health.lastError ?? health.status}`
+                : `but it did not start: ${health.lastError ?? health.status}`,
+            };
+          }
         }
-      }
-    }, optionsRef.current.installFollowUp?.(entry));
+      },
+      optionsRef.current.installFollowUp?.(entry),
+    );
   }
 
   async function update(
@@ -204,8 +224,19 @@ export function useMarketplaceActions(options: {
       phase('updating');
       switch (descriptor.kind) {
         case 'agent':
-          await installAgentArtifact(request, descriptor.source, name, optionsRef.current.confirmMigration);
-          return { type: 'success', title: zh ? `[${name}] 适配插件已检查` : `[${name}] adapter checked`, text: zh ? '已有会话不会自动迁移到不同修订。' : 'Existing sessions are not silently migrated to another revision.' };
+          await installAgentArtifact(
+            request,
+            descriptor.source,
+            name,
+            optionsRef.current.confirmMigration,
+          );
+          return {
+            type: 'success',
+            title: zh ? `[${name}] 适配插件已检查` : `[${name}] adapter checked`,
+            text: zh
+              ? '已有会话不会自动迁移到不同修订。'
+              : 'Existing sessions are not silently migrated to another revision.',
+          };
         case 'pi-package': {
           await send(request, { type: 'marketplace/package-install', source: descriptor.source });
           phase('applying');
@@ -292,7 +323,13 @@ export function useMarketplaceActions(options: {
       switch (route.command) {
         case 'agents/uninstall':
           await send(request, { type: 'agents/uninstall', agentId: item.capabilityId });
-          return { type: 'success', title: zh ? '适配插件已卸载' : 'Adapter removed', text: zh ? '历史和用户 CLI 已保留；当前 Run 可继续至结束。' : 'History and user CLI preserved; current Runs may finish.' };
+          return {
+            type: 'success',
+            title: zh ? '适配插件已卸载' : 'Adapter removed',
+            text: zh
+              ? '历史和用户 CLI 已保留；当前 Run 可继续至结束。'
+              : 'History and user CLI preserved; current Runs may finish.',
+          };
         case 'extensions/uninstall': {
           const data = (await send(request, {
             type: 'extensions/uninstall',
@@ -349,7 +386,19 @@ export function useMarketplaceActions(options: {
       phase('toggling');
       if (item.kind === 'agent') {
         await send(request, { type: 'agents/set-enabled', agentId: item.capabilityId, enabled });
-        return { type: 'success', title: enabled ? (zh ? 'Agent 已启用' : 'Agent enabled') : (zh ? 'Agent 已停用' : 'Agent disabled'), text: zh ? '只影响新的 Run，当前任务不会被中断。' : 'Applies to new Runs; current work is not interrupted.' };
+        return {
+          type: 'success',
+          title: enabled
+            ? zh
+              ? 'Agent 已启用'
+              : 'Agent enabled'
+            : zh
+              ? 'Agent 已停用'
+              : 'Agent disabled',
+          text: zh
+            ? '只影响新的 Run，当前任务不会被中断。'
+            : 'Applies to new Runs; current work is not interrupted.',
+        };
       }
       if (item.kind === 'skill') {
         await send(request, { type: 'skills/set_enabled', skillId: item.capabilityId, enabled });

@@ -4,7 +4,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, useRef, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { resolveArtifactViewportFrameHeight, type ArtifactFrameMode } from '@piwin/artifact';
+import {
+  resolveArtifactViewportFrameHeight,
+  type ArtifactFrameMode,
+  type ArtifactSelectionMessage,
+} from '@piwin/artifact';
 import { useArtifactFrameBridge } from './artifact-frame-bridge.js';
 import type { ArtifactSandboxView } from './artifact-frame-stream.js';
 import { subscribeNativeArtifactBridge } from './artifact-native-bridge.js';
@@ -41,6 +45,8 @@ function makeDecision(mode: 'interactive' | 'stream-preview'): ArtifactSandboxVi
 function BridgeHarness(props: {
   mode: 'interactive' | 'stream-preview';
   frameMode?: ArtifactFrameMode;
+  presentation?: 'inline' | 'canvas';
+  onTextSelection?: (selection: ArtifactSelectionMessage) => void;
 }): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const decision = makeDecision(props.mode);
@@ -53,7 +59,8 @@ function BridgeHarness(props: {
     measureHeight: true,
     bootstrapHeight: 80,
     frameMode: props.frameMode ?? 'inline-flow',
-    presentation: 'inline',
+    presentation: props.presentation ?? 'inline',
+    ...(props.onTextSelection ? { onTextSelection: props.onTextSelection } : {}),
   });
   return (
     <div>
@@ -375,5 +382,66 @@ describe('useArtifactFrameBridge recovery', () => {
     act(() => window.dispatchEvent(new Event('resize')));
     expect(container.querySelector('output')?.dataset.height).toBe('432');
     vi.unstubAllGlobals();
+  });
+
+  describe('canvas text selection', () => {
+    const selectionData = {
+      type: 'piwin-artifact:selection',
+      channelId: 'height-bridge-test',
+      text: 'quoted',
+      rect: { left: 1, top: 2, width: 3, height: 4 },
+      seq: 0,
+    };
+
+    async function renderSelectionBridge(
+      presentation: 'inline' | 'canvas',
+    ): Promise<ReturnType<typeof vi.fn>> {
+      const onTextSelection = vi.fn();
+      act(() =>
+        root.render(
+          <BridgeHarness
+            mode="interactive"
+            presentation={presentation}
+            onTextSelection={onTextSelection}
+          />,
+        ),
+      );
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      return onTextSelection;
+    }
+
+    it('routes a Canvas selection report from its own channel', async () => {
+      const onTextSelection = await renderSelectionBridge('canvas');
+      act(() => {
+        window.dispatchEvent(new MessageEvent('message', { source: null, data: selectionData }));
+        window.dispatchEvent(
+          new MessageEvent('message', {
+            source: null,
+            data: { ...selectionData, channelId: 'someone-else', seq: 1 },
+          }),
+        );
+      });
+      expect(onTextSelection).toHaveBeenCalledTimes(1);
+      expect(onTextSelection.mock.calls[0]?.[0]).toMatchObject({ text: 'quoted' });
+    });
+
+    it('ignores selection reports from inline frames and from the parent window', async () => {
+      const inline = await renderSelectionBridge('inline');
+      act(() => {
+        window.dispatchEvent(new MessageEvent('message', { source: null, data: selectionData }));
+      });
+      expect(inline).not.toHaveBeenCalled();
+
+      const canvas = await renderSelectionBridge('canvas');
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent('message', { source: window, data: { ...selectionData, seq: 5 } }),
+        );
+      });
+      expect(canvas).not.toHaveBeenCalled();
+    });
   });
 });

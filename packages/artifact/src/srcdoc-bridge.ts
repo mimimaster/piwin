@@ -17,6 +17,7 @@ import { buildCanvasStageFitRuntime } from './srcdoc-canvas-fit.js';
 import { buildArtifactLayoutProbeRuntime } from './layout-probe.js';
 import { buildArtifactContrastProbeRuntime } from './srcdoc-contrast-probe.js';
 import { buildScrollContinuityRuntime } from './srcdoc-scroll-continuity.js';
+import { buildSelectionRuntime } from './srcdoc-selection.js';
 import type { ArtifactFrameMode } from './types.js';
 
 export function buildArtifactBridgeBootstrapScript(
@@ -325,6 +326,7 @@ export function buildArtifactBridgeBootstrapScript(
   };
   ${buildCanvasStageFitRuntime()}
   ${buildScrollContinuityRuntime()}
+  ${buildSelectionRuntime()}
   var applyFrameMode = function (mode) {
     var next = acceptFrameMode(mode);
     currentFrameMode = next;

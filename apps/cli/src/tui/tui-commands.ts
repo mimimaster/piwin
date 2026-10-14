@@ -25,7 +25,7 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'back', description: '从侧聊返回主会话' },
   { name: 'sync', description: '侧聊里：同步主会话的新内容' },
   { name: 'handoff', description: '侧聊里：把最新回答带回主会话的下一条消息' },
-  { name: 'subagents', description: '查看子代理及其结果，应用、保留或丢弃' },
+  { name: 'subagents', description: '预览子代理的过程，处理它们的结果' },
   { name: 'plan', description: '查看计划，批准、执行或中止' },
   { name: 'compact', description: '压缩上下文（可附加说明）' },
   { name: 'retry', description: '重新生成上一轮回答（/retry keep 保留旧回答为分支）' },

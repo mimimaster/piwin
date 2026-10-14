@@ -137,7 +137,10 @@ export function useMarketplaceEcosystemSearch(
   }, [browseHits, browseLimit]);
 
   const loadMore = useCallback(async (): Promise<void> => {
-    const nextLimit = Math.min(ECOSYSTEM_MAX_LIMIT, limit < PAGE_STEP ? PAGE_STEP : limit + PAGE_STEP);
+    const nextLimit = Math.min(
+      ECOSYSTEM_MAX_LIMIT,
+      limit < PAGE_STEP ? PAGE_STEP : limit + PAGE_STEP,
+    );
     if (searchedQuery) await search(searchedQuery, nextLimit);
     else await browse(nextLimit);
   }, [browse, limit, search, searchedQuery]);

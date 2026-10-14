@@ -5,7 +5,7 @@
  * orchestration plus thin assembly. The region props and their sources are
  * unchanged — the same hook results the root assembled are passed through.
  */
-import type { Dispatch, ReactNode } from 'react';
+import { useState, type Dispatch, type ReactNode } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
 import type { ChatUiAction, ChatUiState } from './chat-ui-types';
@@ -116,6 +116,17 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
   const { setComposer, switchBranch, terminalJobMonitor, transcriptHistoryLoading } = model;
   const { visibleRunRecordsById, visibleTranscriptMessages, worktrees } = model;
 
+  // Titlebar "locate open session": the sidebar owns its folds, so the
+  // request travels as a counter it reacts to.
+  const [sidebarRevealRequest, setSidebarRevealRequest] = useState(0);
+  const revealActiveSession =
+    state.activeSessionId !== null || activeDraftId
+      ? () => {
+          if (!navDrawerOpen) shell.toggleSessions();
+          setSidebarRevealRequest((request) => request + 1);
+        }
+      : undefined;
+
   const cli = useWorkbenchCli({
     state, hostClient, studioOpen, subpageOpen: activeSubPage !== null,
     locale: desktopLocale, appearanceMode: activeTheme.mode === 'light' ? 'light' : 'dark',
@@ -198,6 +209,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             shell={shell}
             sidebarMode={sidebarMode}
             onSidebarModeChange={setSidebarMode}
+            revealRequest={sidebarRevealRequest}
           />
         }
         stageHeader={undefined}
@@ -231,6 +243,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             onResumeSession={handleResumeSession}
             onRetryLastUser={(messageId) => void retryTurn(messageId, { keepPrevious: false })}
             onOpenSessionSearch={openSessionSearch}
+            {...(revealActiveSession ? { onRevealActiveSession: revealActiveSession } : {})}
             conversationShellControl={cli.control}
             trailing={sessionContextRow}
             isInkstone={inkstoneStage}

@@ -10,7 +10,9 @@ import {
   presentCategories,
 } from './marketplace-view-model.js';
 
-function entry(partial: Partial<MarketplaceCatalogEntry> & Pick<MarketplaceCatalogEntry, 'entryId'>): MarketplaceCatalogEntry {
+function entry(
+  partial: Partial<MarketplaceCatalogEntry> & Pick<MarketplaceCatalogEntry, 'entryId'>,
+): MarketplaceCatalogEntry {
   return {
     capabilityId: partial.entryId.split(':')[1] ?? partial.entryId,
     kind: 'skill',
@@ -30,7 +32,9 @@ function entry(partial: Partial<MarketplaceCatalogEntry> & Pick<MarketplaceCatal
   } as MarketplaceCatalogEntry;
 }
 
-function item(partial: Partial<MarketplaceInstalledItem> & Pick<MarketplaceInstalledItem, 'capabilityId'>): MarketplaceInstalledItem {
+function item(
+  partial: Partial<MarketplaceInstalledItem> & Pick<MarketplaceInstalledItem, 'capabilityId'>,
+): MarketplaceInstalledItem {
   return {
     installationKey: `skill:${partial.capabilityId}`,
     kind: 'skill',
@@ -47,21 +51,30 @@ const entries = [
   entry({ entryId: 'extension:lens', kind: 'extension', category: 'code-development' }),
   entry({ entryId: 'skill:doc', name: { en: 'Doc', zhCN: '文档协作' } }),
   entry({ entryId: 'skill:old', withdrawn: { reason: { en: 'gone', zhCN: '下架' } } }),
-  entry({ entryId: 'extension:goal', kind: 'extension', sourceLabel: 'piwin-extensions', category: 'code-development' }),
+  entry({
+    entryId: 'extension:goal',
+    kind: 'extension',
+    sourceLabel: 'piwin-extensions',
+    category: 'code-development',
+  }),
 ];
 
 describe('catalog filtering', () => {
   it('hides withdrawn entries and matches Chinese names', () => {
-    expect(filterCatalogEntries(entries, { kind: 'all', category: 'all', query: '' }).map((e) => e.entryId)).toEqual([
-      'extension:goal',
-      'extension:lens',
-      'skill:doc',
-    ]);
-    expect(filterCatalogEntries(entries, { kind: 'all', category: 'all', query: '文档' }).map((e) => e.entryId)).toEqual([
-      'skill:doc',
-    ]);
     expect(
-      filterCatalogEntries(entries, { kind: 'piwin-extension', category: 'all', query: '' }).map((e) => e.entryId),
+      filterCatalogEntries(entries, { kind: 'all', category: 'all', query: '' }).map(
+        (e) => e.entryId,
+      ),
+    ).toEqual(['extension:goal', 'extension:lens', 'skill:doc']);
+    expect(
+      filterCatalogEntries(entries, { kind: 'all', category: 'all', query: '文档' }).map(
+        (e) => e.entryId,
+      ),
+    ).toEqual(['skill:doc']);
+    expect(
+      filterCatalogEntries(entries, { kind: 'piwin-extension', category: 'all', query: '' }).map(
+        (e) => e.entryId,
+      ),
     ).toEqual(['extension:goal']);
   });
 
@@ -77,7 +90,12 @@ describe('installed grouping', () => {
   const items = [
     item({ capabilityId: 'doc', catalogEntryId: 'skill:doc', version: '0.9.0' }),
     item({ capabilityId: 'broken', availability: 'failed' }),
-    item({ capabilityId: 'lens', kind: 'extension', installationKey: 'extension:lens', availability: 'pending-apply' }),
+    item({
+      capabilityId: 'lens',
+      kind: 'extension',
+      installationKey: 'extension:lens',
+      availability: 'pending-apply',
+    }),
     item({ capabilityId: 'old', catalogEntryId: 'skill:old', version: '0.1.0' }),
   ];
 
@@ -92,9 +110,15 @@ describe('installed grouping', () => {
   });
 
   it('filters installed items by kind and catalog names', () => {
-    expect(filterInstalledItems(items, lookup, { kind: 'all', query: '文档' }).map((i) => i.capabilityId)).toEqual(['doc']);
-    expect(filterInstalledItems(items, lookup, { kind: 'extension', query: '' }).map((i) => i.capabilityId)).toEqual([
-      'lens',
-    ]);
+    expect(
+      filterInstalledItems(items, lookup, { kind: 'all', query: '文档' }).map(
+        (i) => i.capabilityId,
+      ),
+    ).toEqual(['doc']);
+    expect(
+      filterInstalledItems(items, lookup, { kind: 'extension', query: '' }).map(
+        (i) => i.capabilityId,
+      ),
+    ).toEqual(['lens']);
   });
 });

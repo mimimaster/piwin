@@ -33,6 +33,7 @@ import {
   type SubagentReviewLoopAttach,
 } from './subagent-review-summary-model';
 import { subagentUsageLabels, sumSubagentUsageLabel } from './subagent-usage-view';
+import { firstTextLine, withoutSuccessVerdict } from '@piwin/host-client';
 
 export type SubagentLocale = 'zh-CN' | 'en';
 
@@ -79,7 +80,11 @@ export type SubagentRowView = {
   badges: readonly SubagentRowBadge[];
   /** Latest activity; also the accessible description of the row. */
   activity: string;
-  /** Running / queued / failed rows show the second line; finished rows fold to one. */
+  /**
+   * Second line. Every phase keeps it (a finished row shows its conclusion's
+   * first line) so a row never changes height when its phase changes — the
+   * fan-out wires depend on fixed row heights.
+   */
   showActivity: boolean;
   reviewLoopLabel?: string;
   reviewLoopKind?: SubagentReviewLoopAttach['kind'];
@@ -394,6 +399,12 @@ export function subagentAttentionBadges(
   return badges;
 }
 
+/** A finished row's line is its conclusion's first line, minus a bare verdict. */
+function rowActivityLine(activity: string, phase: SubagentRowPhase): string {
+  if (phase !== 'done') return activity;
+  return firstTextLine(withoutSuccessVerdict(activity)) || activity;
+}
+
 export function deriveSubagentRowView(input: SubagentRowInput): SubagentRowView {
   const axes = resolveSubagentRowLifecycle(input);
   const status = axes.executionStatus;
@@ -449,8 +460,8 @@ export function deriveSubagentRowView(input: SubagentRowInput): SubagentRowView 
       : {}),
     stateLabel: subagentStateLabel(phase, input.locale),
     badges: subagentAttentionBadges(axes, input.locale),
-    activity: resolveSubagentRowActivity(input, status),
-    showActivity: phase === 'running' || phase === 'queued' || phase === 'failed',
+    activity: rowActivityLine(resolveSubagentRowActivity(input, status), phase),
+    showActivity: true,
     ...(attach !== undefined
       ? {
           reviewLoopLabel: reviewLoopAttachLabel(attach, input.locale),
@@ -504,7 +515,7 @@ export function deriveLegacySubagentRowView(input: {
     stateLabel: subagentStateLabel(phase, locale),
     badges: [],
     activity: activity.taskSummary,
-    showActivity: phase === 'running' || phase === 'queued' || phase === 'failed',
+    showActivity: true,
     taskSummary: activity.taskSummary,
     canInspect: input.canInspect,
     expanded: input.expanded,

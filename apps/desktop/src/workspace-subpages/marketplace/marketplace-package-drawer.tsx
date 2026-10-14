@@ -16,7 +16,12 @@ import { MarkdownView } from '../../MarkdownView.js';
 import { openExternalUrl } from '../../open-external-url.js';
 import { IconCheck, IconClose, IconCopy, IconExternalLink } from '../../shell-icons.js';
 import { isPackageInstallable } from './marketplace-pi-package-card.js';
-import { formatRelativeDate, packageSourceLabel, packageSourceUrl, sanitizeReadme } from './marketplace-package-meta.js';
+import {
+  formatRelativeDate,
+  packageSourceLabel,
+  packageSourceUrl,
+  sanitizeReadme,
+} from './marketplace-package-meta.js';
 import type { MarketplaceToast } from './marketplace-types.js';
 import type { MarketplacePackageInstallState } from './use-marketplace-package-install.js';
 
@@ -50,24 +55,30 @@ function useHitDetail(
     }
     let cancelled = false;
     setState({ status: 'loading' });
-    void requestRef.current({
-      type: 'marketplace/package-detail',
-      entryId: hit.entryId,
-      ...(hit.source === 'npm-pi-package' ? { npmPackageName: hit.name } : {}),
-      ...(hit.repositoryUrl ? { repositoryUrl: hit.repositoryUrl } : {}),
-    }).then(
-      (response) => {
-        if (cancelled) return;
-        setState(
-          response.success
-            ? { status: 'ready', detail: response.data as MarketplacePackageDetailData }
-            : { status: 'error', message: response.error },
-        );
-      },
-      (error: unknown) => {
-        if (!cancelled) setState({ status: 'error', message: error instanceof Error ? error.message : String(error) });
-      },
-    );
+    void requestRef
+      .current({
+        type: 'marketplace/package-detail',
+        entryId: hit.entryId,
+        ...(hit.source === 'npm-pi-package' ? { npmPackageName: hit.name } : {}),
+        ...(hit.repositoryUrl ? { repositoryUrl: hit.repositoryUrl } : {}),
+      })
+      .then(
+        (response) => {
+          if (cancelled) return;
+          setState(
+            response.success
+              ? { status: 'ready', detail: response.data as MarketplacePackageDetailData }
+              : { status: 'error', message: response.error },
+          );
+        },
+        (error: unknown) => {
+          if (!cancelled)
+            setState({
+              status: 'error',
+              message: error instanceof Error ? error.message : String(error),
+            });
+        },
+      );
     return () => {
       cancelled = true;
     };
@@ -75,7 +86,9 @@ function useHitDetail(
   return state;
 }
 
-export function MarketplacePackageDrawer(props: MarketplacePackageDrawerProps): ReactElement | null {
+export function MarketplacePackageDrawer(
+  props: MarketplacePackageDrawerProps,
+): ReactElement | null {
   const { hit, locale } = props;
   const zh = locale === 'zh-CN';
   const t = (en: string, zhText: string) => (zh ? zhText : en);
@@ -96,7 +109,12 @@ export function MarketplacePackageDrawer(props: MarketplacePackageDrawerProps): 
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1800);
       },
-      () => props.showToast({ type: 'error', title: t('Copy failed', '复制失败'), text: hit.installCommand }),
+      () =>
+        props.showToast({
+          type: 'error',
+          title: t('Copy failed', '复制失败'),
+          text: hit.installCommand,
+        }),
     );
   };
 
@@ -121,7 +139,12 @@ export function MarketplacePackageDrawer(props: MarketplacePackageDrawerProps): 
               <span className="market-community-unverified">{t('Unreviewed', '未审核')}</span>
             </p>
           </div>
-          <IconButton label={t('Close', '关闭')} size="sm" className="market-entry-close" onClick={props.onClose}>
+          <IconButton
+            label={t('Close', '关闭')}
+            size="sm"
+            className="market-entry-close"
+            onClick={props.onClose}
+          >
             <IconClose width={14} height={14} aria-hidden="true" />
           </IconButton>
         </header>
@@ -144,13 +167,16 @@ export function MarketplacePackageDrawer(props: MarketplacePackageDrawerProps): 
             </div>
             <div>
               <dt>{hit.stars !== undefined ? t('Stars', '星标') : t('Monthly', '月下载')}</dt>
-              <dd>
-                {Intl.NumberFormat(locale).format(hit.stars ?? hit.monthlyDownloads ?? 0)}
-              </dd>
+              <dd>{Intl.NumberFormat(locale).format(hit.stars ?? hit.monthlyDownloads ?? 0)}</dd>
             </div>
           </dl>
 
-          <button type="button" className="market-cmd-bar" onClick={copyCommand} title={t('Copy install command', '复制安装命令')}>
+          <button
+            type="button"
+            className="market-cmd-bar"
+            onClick={copyCommand}
+            title={t('Copy install command', '复制安装命令')}
+          >
             <span className="market-cmd-prefix">$</span>
             <span className="market-cmd-text">{hit.installCommand}</span>
             <span className="market-cmd-action" aria-hidden="true">

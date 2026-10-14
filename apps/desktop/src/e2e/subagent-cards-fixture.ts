@@ -6,7 +6,9 @@
  * Only data is fabricated: Host-shaped `SubagentInvocation` records and child
  * summaries answered from `session/list-children`, then
  * `subagent/invocation-updated` pushes that walk block ① from running to
- * settled. Every card on screen is the shipping renderer.
+ * settled, plus one short child transcript (`session/messages`) so a row's
+ * dense preview has steps to list. Every card on screen is the shipping
+ * renderer.
  *
  * Installed only when `VITE_PIWIN_E2E_FIXTURES=true` and
  * `?e2eChainShowcase=subagents`.
@@ -182,17 +184,75 @@ const LIVE_SCRIPT: Array<{ at: number; key: string; patch: Partial<Spec> }> = [
   { at: 18, key: 'live-review', patch: { status: 'completed', activity: { kind: 'completed', summary: '符合 ADR 0019' }, usage: { toolCalls: 7, totalTokens: 13800, requests: 4 } } },
 ];
 
+/** One child history, shared by every row: a few steps and a final report. */
+function childTranscript(childSessionId: string, startedMs: number): SessionTranscriptMessage[] {
+  const at = (seconds: number): string => iso(startedMs + seconds * 1000);
+  const tool = (
+    id: string,
+    seconds: number,
+    toolName: string,
+    presentation: Omit<NonNullable<SessionToolCardView['presentation']>, 'startedAt'>,
+    status: SessionToolCardView['status'] = 'done',
+  ): SessionToolCardView => ({
+    toolCallId: `${childSessionId}-${id}`,
+    toolName,
+    status,
+    output: '',
+    presentation: { ...presentation, startedAt: at(seconds) },
+  });
+  return [
+    { id: `${childSessionId}-task`, role: 'user', text: 'task prompt', createdAt: at(0), status: 'done' },
+    {
+      id: `${childSessionId}-a1`,
+      role: 'assistant',
+      status: 'done',
+      createdAt: at(1),
+      text: '先看导出路径和权限闸门的现状。',
+      tools: [
+        tool('t1', 1, 'read', { kind: 'filesystem', title: 'Read', targetPaths: [`${PROJECT}/packages/media/src/session-export.ts`], countTag: '212 行' }),
+        tool('t2', 3, 'grep', { kind: 'filesystem', title: 'Grep', inputPreview: 'resolveMediaPath(', countTag: '7 处' }),
+        tool('t3', 6, 'bash', { kind: 'shell', title: 'Bash', command: 'rg -n "export" packages/session | head -40', exitCode: 2 }, 'error'),
+        tool('t4', 8, 'read', { kind: 'filesystem', title: 'Read', targetPaths: [`${PROJECT}/packages/host-runtime/src/permission-policy.ts`], lineRange: '40-120', countTag: '81 行' }),
+      ],
+    },
+    {
+      id: `${childSessionId}-a2`,
+      role: 'assistant',
+      status: 'done',
+      createdAt: at(12),
+      text: '导出路径改走 media 目录，补上越界校验。\n- session-export.ts:88 改用 resolveMediaPath\n- 新增 2 条越界用例',
+    },
+  ];
+}
+
 export function seedSubagentCardsShowcase(host: MockHostBackend): void {
   const seededAt = Date.now();
   const all = [...SETTLED, ...ATTENTION, ...SINGLE, ...LIVE];
   let scheduled = false;
+  let openedAt = seededAt;
+  // Same start the invocation reports, so step offsets read from 0:00.
+  const childStartMs = (childSessionId: string): number => {
+    const spec = all.find((candidate) => `child-${candidate.key}` === childSessionId);
+    if (spec === undefined) return seededAt;
+    return (LIVE.includes(spec) ? openedAt : seededAt) - spec.startedAgo * 1000;
+  };
   host.extraCommandHandlers.push((command, id) => {
+    if (command.type === 'session/messages' && command.sessionId.startsWith('child-')) {
+      return {
+        id,
+        type: 'response',
+        command: 'session/messages',
+        success: true,
+        data: { messages: childTranscript(command.sessionId, childStartMs(command.sessionId)) },
+      };
+    }
     if (command.type !== 'session/list-children' || command.parentSessionId !== SUBAGENT_CARDS_SESSION_ID) {
       return null;
     }
     const now = Date.now();
     if (!scheduled) {
       scheduled = true;
+      openedAt = now;
       scheduleLiveScript(host, now);
     }
     return {

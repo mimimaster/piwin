@@ -442,8 +442,10 @@ describe('SubagentInvocationBlock component', () => {
       '代码待处理',
     );
     expect(container.querySelector('[data-testid="subagent-execution-badge"]')).toBeNull();
-    // A finished row folds to one line; its conclusion stays the accessible label.
-    expect(container.querySelector('.subagent-activity-text')).toBeNull();
+    // A finished row keeps its conclusion as the second line and accessible label.
+    expect(container.querySelector('.subagent-activity-text')?.textContent).toBe(
+      'Patch is ready in the worktree',
+    );
     expect(
       container.querySelector('[data-testid="subagent-invocation-block"]')?.getAttribute('aria-label'),
     ).toContain('Patch is ready in the worktree');

@@ -59,7 +59,10 @@ const CATEGORY_LABELS: Record<MarketplaceCategory, Pair> = {
   'external-service': ['External services', '外部服务'],
 };
 
-export function categoryLabel(category: MarketplaceCategory, locale: DesktopLocale | undefined): string {
+export function categoryLabel(
+  category: MarketplaceCategory,
+  locale: DesktopLocale | undefined,
+): string {
   return pick(locale, CATEGORY_LABELS[category]);
 }
 
@@ -90,7 +93,10 @@ const OPERATION_LABELS: Record<MarketOperation, Pair> = {
   toggling: ['Updating…', '更新中…'],
 };
 
-export function operationLabel(operation: MarketOperation, locale: DesktopLocale | undefined): string {
+export function operationLabel(
+  operation: MarketOperation,
+  locale: DesktopLocale | undefined,
+): string {
   return pick(locale, OPERATION_LABELS[operation]);
 }
 
@@ -106,14 +112,26 @@ export function inventoryMessage(
   const code: MarketplaceInventoryMessageCode | undefined = item.messageCode;
   switch (code) {
     case 'pending-removal':
-      return pick(locale, ['Removal finishes once no live session still loads it.', '没有会话再加载它后完成移除。']);
+      return pick(locale, [
+        'Removal finishes once no live session still loads it.',
+        '没有会话再加载它后完成移除。',
+      ]);
     case 'incompatible':
-      return pick(locale, ['Not compatible with the piwin Agent Runtime; it will not load.', '与 piwin Agent Runtime 不兼容，不会加载。']);
+      return pick(locale, [
+        'Not compatible with the piwin Agent Runtime; it will not load.',
+        '与 piwin Agent Runtime 不兼容，不会加载。',
+      ]);
     case 'conversation-only':
-      return pick(locale, ['Chat conversations do not load extensions; project sessions do.', '普通对话不加载扩展，项目会话会加载。']);
+      return pick(locale, [
+        'Chat conversations do not load extensions; project sessions do.',
+        '普通对话不加载扩展，项目会话会加载。',
+      ]);
     case 'apply-failed':
       return detail
-        ? pick(locale, [`Could not apply to this session: ${detail}`, `未能应用到当前会话：${detail}`])
+        ? pick(locale, [
+            `Could not apply to this session: ${detail}`,
+            `未能应用到当前会话：${detail}`,
+          ])
         : pick(locale, ['Could not apply to this session.', '未能应用到当前会话。']);
     case 'pending-apply':
       return pick(locale, ['Applies at the next run boundary.', '下一轮运行开始时生效。']);
@@ -124,7 +142,10 @@ export function inventoryMessage(
         ? pick(locale, [`Failed to start: ${detail}`, `启动失败：${detail}`])
         : pick(locale, ['Server failed to start.', '服务启动失败。']);
     case 'mcp-idle':
-      return pick(locale, ['Configured; starts when a session needs it.', '已配置，会话需要时启动。']);
+      return pick(locale, [
+        'Configured; starts when a session needs it.',
+        '已配置，会话需要时启动。',
+      ]);
     case 'agent-adapter-installed':
       return pick(locale, [
         'Adapter installed; CLI dependency and login are checked separately in Agent Backends.',
@@ -174,7 +195,10 @@ export function installRiskNotice(
 ): string {
   switch (entry.install.kind) {
     case 'agent':
-      return pick(locale, ['Installs a declarative adapter on the Host, not the CLI. Grok runs with Host user permissions and its own account. CLI dependency installation is manual; uninstall preserves history and user-owned runtimes.', '在 Host 安装声明式适配插件，不包含 CLI。Grok 使用 Host 用户权限和自己的账号；CLI 依赖手动安装，卸载保留历史与用户运行时。']);
+      return pick(locale, [
+        'Installs a declarative adapter on the Host, not the CLI. Grok runs with Host user permissions and its own account. CLI dependency installation is manual; uninstall preserves history and user-owned runtimes.',
+        '在 Host 安装声明式适配插件，不包含 CLI。Grok 使用 Host 用户权限和自己的账号；CLI 依赖手动安装，卸载保留历史与用户运行时。',
+      ]);
     case 'pi-package':
     case 'managed-extension':
       return pick(locale, [

@@ -5,25 +5,15 @@
  * instead of showing a made-up zero.
  */
 import type { SubagentInvocationUsage } from '@piwin/contracts';
+import {
+  formatSubagentTokens,
+  formatSubagentToolCount,
+  type SubagentTextLocale,
+} from '@piwin/host-client';
 
-export type SubagentUsageLocale = 'zh-CN' | 'en';
+export { formatSubagentTokens, formatSubagentToolCalls, formatSubagentToolCount } from '@piwin/host-client';
 
-/** Proto `formatTokens`: `830 tok`, `4.2k tok`, `38k tok`. */
-export function formatSubagentTokens(tokens: number): string {
-  if (!Number.isFinite(tokens) || tokens < 0) return '';
-  if (tokens < 1000) return `${Math.round(tokens)} tok`;
-  return `${(tokens / 1000).toFixed(tokens >= 10_000 ? 0 : 1)}k tok`;
-}
-
-/** Row meta piece: `3 工具` / `3 tools`. */
-export function formatSubagentToolCount(count: number, locale: SubagentUsageLocale): string {
-  return locale === 'zh-CN' ? `${count} 工具` : `${count} tool${count === 1 ? '' : 's'}`;
-}
-
-/** Inline detail line: `3 次工具调用` / `3 tool calls`. */
-export function formatSubagentToolCalls(count: number, locale: SubagentUsageLocale): string {
-  return locale === 'zh-CN' ? `${count} 次工具调用` : `${count} tool call${count === 1 ? '' : 's'}`;
-}
+export type SubagentUsageLocale = SubagentTextLocale;
 
 export type SubagentUsageLabels = {
   toolCalls: number;

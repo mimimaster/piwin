@@ -24,15 +24,20 @@ export type TuiHostPromptsOptions = {
 export class TuiHostPrompts {
   public constructor(private readonly options: TuiHostPromptsOptions) {}
 
-  public askPermission(request: {
-    requestId: string;
-    action: string;
-    detail: string;
-    context?: PermissionRequestContext;
-  }): void {
+  /** `origin` names who asks when it is not this session (a child: 子代理「…」). */
+  public askPermission(
+    request: {
+      requestId: string;
+      action: string;
+      detail: string;
+      context?: PermissionRequestContext;
+    },
+    origin?: string,
+  ): void {
     const { requestId } = request;
     this.options.onAttention('需要你确认');
-    const prompt = describePermissionPrompt(request, this.options.getPathRoots());
+    const described = describePermissionPrompt(request, this.options.getPathRoots());
+    const prompt = origin === undefined ? described : { ...described, title: `${described.title} · ${origin}` };
     const { modals } = this.options;
     const { fullPatch } = prompt;
     const showPrompt = (): void =>

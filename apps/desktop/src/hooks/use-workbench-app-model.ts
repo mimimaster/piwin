@@ -197,13 +197,6 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     desktopLocale: chrome.desktopLocale,
     modelOptions: host.modelOptions,
     preferences: chrome.preferences,
-    config: host.config,
-    requestGit: host.requestGit,
-    handleResumeSession: session.handleResumeSession,
-    handleOpenDocument,
-    handleOpenDiff,
-    handleArtifactAction: host.handleArtifactAction,
-    handleOpenArtifactCanvas,
   });
   const turn = useWorkbenchTurnActions({
     hostClient,

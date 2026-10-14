@@ -33,7 +33,8 @@ export type MarketplaceData = {
 export function useMarketplaceData(options: {
   request: (command: HostCommand) => Promise<HostResponse>;
   sessionId?: string | null | undefined;
-  subscribeHostMessages?: ((listener: (message: HostServerMessage) => void) => () => void) | undefined;
+  subscribeHostMessages?:
+    ((listener: (message: HostServerMessage) => void) => () => void) | undefined;
 }): MarketplaceData {
   const { request, sessionId, subscribeHostMessages } = options;
   const [entries, setEntries] = useState<MarketplaceCatalogEntry[]>([]);

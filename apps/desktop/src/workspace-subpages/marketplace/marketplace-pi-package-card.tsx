@@ -8,7 +8,11 @@ import type { MarketplaceSearchHit } from '@piwin/contracts';
 import { Button, ProgressRing } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../../desktop-locale.js';
 import { activateOnKey } from './marketplace-catalog-card.js';
-import { formatRelativeDate, packageSourceLabel, packageTestId } from './marketplace-package-meta.js';
+import {
+  formatRelativeDate,
+  packageSourceLabel,
+  packageTestId,
+} from './marketplace-package-meta.js';
 import type { MarketplacePackageInstallState } from './use-marketplace-package-install.js';
 
 export type MarketplacePiPackageCardProps = {
@@ -51,7 +55,9 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
         </div>
         <div className="market-community-meta">
           {hit.publisher ? <span>{hit.publisher}</span> : null}
-          {hit.version && hit.version !== 'latest' && hit.version !== 'git' ? <span>v{hit.version}</span> : null}
+          {hit.version && hit.version !== 'latest' && hit.version !== 'git' ? (
+            <span>v{hit.version}</span>
+          ) : null}
           {updated ? <span>{t(`Updated ${updated}`, `${updated}更新`)}</span> : null}
         </div>
         <p className="market-community-description">
@@ -61,10 +67,14 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
       <div className="market-card-footer market-community-footer">
         <span className="market-community-stats">
           {hit.monthlyDownloads !== undefined ? (
-            <span>{t('Monthly downloads', '月下载')} {number.format(hit.monthlyDownloads)}</span>
+            <span>
+              {t('Monthly downloads', '月下载')} {number.format(hit.monthlyDownloads)}
+            </span>
           ) : null}
           {hit.stars !== undefined ? (
-            <span>{t('Stars', '星标')} {number.format(hit.stars)}</span>
+            <span>
+              {t('Stars', '星标')} {number.format(hit.stars)}
+            </span>
           ) : null}
         </span>
         {installState === 'installed' ? (
@@ -85,7 +95,12 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
               t('Source unavailable', '缺少来源')
             ) : installState === 'installing' ? (
               <span className="market-btn-inner market-btn-installing">
-                <ProgressRing size={13} strokeWidth={2.2} tone="pine" testId={`${testId}-progress-ring`} />
+                <ProgressRing
+                  size={13}
+                  strokeWidth={2.2}
+                  tone="pine"
+                  testId={`${testId}-progress-ring`}
+                />
                 {t('Installing…', '安装中…')}
               </span>
             ) : installState === 'failed' ? (

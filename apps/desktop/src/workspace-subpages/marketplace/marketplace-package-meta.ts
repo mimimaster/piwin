@@ -22,10 +22,21 @@ export function packageSourceLabel(hit: Pick<MarketplaceSearchHit, 'source'>): s
   }
 }
 
-export function packageTestId(hit: Pick<MarketplaceSearchHit, 'source' | 'entryId' | 'name'>): string {
-  const slug = (hit.source === 'github' ? hit.entryId.replace(/^github:/, '') : hit.name).replace(/[@/]/g, '-');
+export function packageTestId(
+  hit: Pick<MarketplaceSearchHit, 'source' | 'entryId' | 'name'>,
+): string {
+  const slug = (hit.source === 'github' ? hit.entryId.replace(/^github:/, '') : hit.name).replace(
+    /[@/]/g,
+    '-',
+  );
   const prefix =
-    hit.source === 'github' ? 'github' : hit.source === 'mcp-registry' ? 'mcp' : hit.source === 'skill' ? 'skill' : 'npm';
+    hit.source === 'github'
+      ? 'github'
+      : hit.source === 'mcp-registry'
+        ? 'mcp'
+        : hit.source === 'skill'
+          ? 'skill'
+          : 'npm';
   return `market-${prefix}-${slug}`;
 }
 
@@ -63,7 +74,8 @@ export function catalogPackageKeys(entries: readonly MarketplaceCatalogEntry[]):
   for (const entry of entries) {
     const install = entry.install;
     if (install.kind === 'pi-package') {
-      if (install.source.kind === 'npm') keys.add(`npm:${install.source.packageName.toLowerCase()}`);
+      if (install.source.kind === 'npm')
+        keys.add(`npm:${install.source.packageName.toLowerCase()}`);
       if (install.source.kind === 'git') {
         const key = repoKey(install.source.repositoryUrl);
         if (key) keys.add(`repo:${key}`);
@@ -109,7 +121,9 @@ export function formatRelativeDate(
   if (!Number.isFinite(time)) return undefined;
   const days = Math.max(0, Math.floor((now - time) / DAY_MS));
   if (days > 365) return new Date(time).toLocaleDateString(locale === 'zh-CN' ? 'zh-CN' : 'en');
-  const format = new Intl.RelativeTimeFormat(locale === 'zh-CN' ? 'zh-CN' : 'en', { numeric: 'auto' });
+  const format = new Intl.RelativeTimeFormat(locale === 'zh-CN' ? 'zh-CN' : 'en', {
+    numeric: 'auto',
+  });
   if (days >= 30) return format.format(-Math.floor(days / 30), 'month');
   return format.format(-days, 'day');
 }
@@ -128,7 +142,9 @@ function sanitizeProse(text: string): string {
     .replace(/<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?\/?>/g, '')
     .replace(/\[!\[([^\]]*)\]\([^)]*\)\]\([^)]*\)/g, '$1')
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/^\s*\[[^\]]+\]:\s*\S+.*$/gm, (line) => (/\.(png|jpe?g|gif|svg|webp)(\?|$|\s)/i.test(line) ? '' : line));
+    .replace(/^\s*\[[^\]]+\]:\s*\S+.*$/gm, (line) =>
+      /\.(png|jpe?g|gif|svg|webp)(\?|$|\s)/i.test(line) ? '' : line,
+    );
 }
 
 /**

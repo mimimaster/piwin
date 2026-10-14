@@ -160,6 +160,25 @@ describe('Host-side Agent plugin bridge', () => {
     expect(() => emissions).not.toThrow();
   });
 
+  it('keeps a permission callback open while the user has not answered', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { bridge, permission } = await harness();
+    let answer: (decision: { optionId: string }) => void = () => undefined;
+    permission.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+    await bridge.initialize();
+    let settled = false;
+    const outcome = bridge.prompt(SCOPE, { input: { text: 'hello' }, runId: 'run-1' }).finally(() => { settled = true; });
+    while (permission.mock.calls.length === 0) await new Promise((resolve) => setImmediate(resolve));
+    // Well past the machine-callback bound. Any callback answer would let the
+    // fixture finish the prompt, so give the real pipe time to round-trip.
+    await vi.advanceTimersByTimeAsync(60_000);
+    const realWaitUntil = performance.now() + 300;
+    while (performance.now() < realWaitUntil) await new Promise((resolve) => setImmediate(resolve));
+    expect(settled).toBe(false);
+    answer({ optionId: 'allow' });
+    expect(await outcome).toEqual({ status: 'completed', stopReason: 'stop' });
+  });
+
   it('drops emissions from a foreign session or generation', async () => {
     const { bridge, emissions } = await harness('foreign-scope');
     await bridge.initialize();

@@ -76,6 +76,7 @@ export const DESKTOP_COPY_ZH_CN: DesktopCopy = {
       shellNavigation: '界面导航',
       back: '上一步',
       forward: '下一步',
+      revealActiveSession: '在侧栏中定位当前会话',
       dragWindow: '拖动窗口',
       tools: '工具',
       more: '更多',

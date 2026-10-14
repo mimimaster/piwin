@@ -24,7 +24,8 @@ export type MarketplaceCatalogCardProps = {
   operation: MarketOperation | undefined;
   locale?: DesktopLocale | undefined;
   onOpen: (entry: MarketplaceCatalogEntry) => void;
-  onUpdate?: ((entry: MarketplaceCatalogEntry, installed: MarketplaceInstalledItem) => void) | undefined;
+  onUpdate?:
+    ((entry: MarketplaceCatalogEntry, installed: MarketplaceInstalledItem) => void) | undefined;
 };
 
 export function hasCatalogUpdate(
@@ -32,7 +33,11 @@ export function hasCatalogUpdate(
   installed: Pick<MarketplaceInstalledItem, 'version'>,
 ): boolean {
   return Boolean(
-    entry && !entry.withdrawn && entry.version && installed.version && entry.version !== installed.version,
+    entry &&
+    !entry.withdrawn &&
+    entry.version &&
+    installed.version &&
+    entry.version !== installed.version,
   );
 }
 

@@ -94,7 +94,6 @@ function renderInspector(options: {
   hostClient: HostClient;
   streamFor?: (childSessionId: string) => SubagentStreamState | undefined;
   childFor?: (childSessionId: string) => SessionSummary | undefined;
-  onOpenFullSession?: (sessionId: string) => void;
 }): {
   root: Root;
   container: HTMLElement;
@@ -114,7 +113,6 @@ function renderInspector(options: {
       hostClient: options.hostClient,
       streamFor: options.streamFor ?? (() => undefined),
       childFor: options.childFor ?? (() => undefined),
-      onOpenFullSession: options.onOpenFullSession ?? (() => {}),
     });
     latest = controller;
     return null;

@@ -247,6 +247,7 @@ export class ExternalAgentBackend {
           this.mcpStatuses.set(input.productSessionId, { agentId: input.agentId, servers: [...servers], observed });
         },
         onTransportClosed: (reason) => {
+          this.settlePendingPermissions(input.productSessionId);
           this.deps.backendUserInput?.cancelSession(input.productSessionId);
           this.deps.onSessionTransportClosed(input.productSessionId, reason);
         },
@@ -352,6 +353,13 @@ export class ExternalAgentBackend {
         event: { type: 'permission/request', ...base },
       });
     });
+  }
+
+  /** A dead agent can no longer receive an answer; close its open cards. */
+  private settlePendingPermissions(sessionId: string): void {
+    for (const pending of [...this.deps.pendingPermissions.values()]) {
+      if (pending.sessionId === sessionId) pending.resolve('deny');
+    }
   }
 
   private pushResolved(

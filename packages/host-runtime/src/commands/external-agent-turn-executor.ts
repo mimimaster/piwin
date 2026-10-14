@@ -12,7 +12,7 @@ import type { ExecutionRunRecord } from '@piwin/contracts';
 import { createUnknownAgentFailure, formatError } from '@piwin/contracts';
 import { randomUUID } from 'node:crypto';
 import type { SessionLiveContext } from './session-live-context.js';
-import type { PromptCommand } from './prompt-preparation.js';
+import { TURN_CONTINUATION_PROMPT, type PromptCommand } from './prompt-preparation.js';
 import { finalizeAbortedRun } from './run-control-commands.js';
 import { applyAgentPromptOutcome, persistHostRuntimeFailure } from './session-turn-outcome.js';
 
@@ -33,8 +33,10 @@ export async function executeExternalAgentTurn(input: {
       return;
     }
     // Host queues turns (ADR 0051); queued-turn rows are already persisted.
+    // A continuation has no user text: like the Pi path, it writes no row.
+    const continuation = command.input.source === 'continuation';
     let userMessageId: string | undefined;
-    if (command.input.source === 'queued-turn') {
+    if (command.input.source === 'queued-turn' || continuation) {
       userMessageId = command.input.clientMessageId?.trim() || undefined;
     } else {
       userMessageId = command.input.clientMessageId?.trim() || randomUUID();
@@ -62,7 +64,7 @@ export async function executeExternalAgentTurn(input: {
     }
     context.updateRunPhase(run.runId, 'connecting-model', 'Connecting to Grok');
     const outcome = await liveSession.prompt({
-      text: command.input.text,
+      text: continuation ? TURN_CONTINUATION_PROMPT : command.input.text,
       ...(command.input.contextRefs !== undefined ? { contextRefs: command.input.contextRefs } : {}),
     });
     const applied = await applyAgentPromptOutcome({

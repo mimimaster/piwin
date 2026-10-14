@@ -302,12 +302,8 @@ describe('TurnToolGroup causal tool sequence', () => {
               liveTail: null,
               loading: false,
               error: null,
-              projectPath: '/repo',
-              onOpenFullSession: vi.fn(),
               onRetry: vi.fn(),
               onClose: vi.fn(),
-              onWorktreeAction: async () => undefined,
-              artifactInlineEnabled: true,
             }}
           >
             <TurnToolGroup
@@ -325,7 +321,7 @@ describe('TurnToolGroup causal tool sequence', () => {
     expect(embed?.getAttribute('data-expanded')).toBe('true');
     const block = container.querySelector('[data-testid="subagent-invocation-block"]');
     expect(block?.getAttribute('aria-expanded')).toBe('true');
-    expect(container.querySelector('[data-testid="subagent-inline-session"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="subagent-preview"]')).not.toBeNull();
     expect(
       container.querySelector('[data-testid="subagent-follow-up-input"]'),
     ).toBeNull();
@@ -368,7 +364,7 @@ describe('TurnToolGroup causal tool sequence', () => {
     expect(
       container.querySelector('[data-testid="subagent-embed"]')?.getAttribute('data-expanded'),
     ).toBe('false');
-    expect(container.querySelector('[data-testid="subagent-inline-session"]')).toBeNull();
+    expect(container.querySelector('[data-testid="subagent-preview"]')).toBeNull();
   });
 
   it('keeps same-text parallel invocations distinct before child allocation', () => {
@@ -710,7 +706,7 @@ describe('TurnToolGroup causal tool sequence', () => {
     expect(queued?.getAttribute('data-status')).toBe('running');
     expect(queued?.getAttribute('data-invocation-id')).toBe('inv-delayed');
     expect(queued?.getAttribute('data-child-session-id')).toBeNull();
-    expect(container.querySelector('[data-testid="subagent-inline-session"]')).toBeNull();
+    expect(container.querySelector('[data-testid="subagent-preview"]')).toBeNull();
 
     const allocated: SubagentInvocation = {
       ...invocation,
@@ -781,12 +777,8 @@ describe('TurnToolGroup causal tool sequence', () => {
               liveTail: null,
               loading: false,
               error: null,
-              projectPath: '/repo',
-              onOpenFullSession: vi.fn(),
               onRetry: vi.fn(),
               onClose: vi.fn(),
-              onWorktreeAction: async () => undefined,
-              artifactInlineEnabled: true,
             }}
           >
             <TurnToolGroup
@@ -804,7 +796,7 @@ describe('TurnToolGroup causal tool sequence', () => {
     expect(
       container.querySelector('[data-testid="subagent-embed"]')?.getAttribute('data-expanded'),
     ).toBe('true');
-    expect(container.querySelector('[data-testid="subagent-inline-session"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="subagent-preview"]')).not.toBeNull();
   });
 
   it('old Host capability degrades to ordinary result cards', () => {

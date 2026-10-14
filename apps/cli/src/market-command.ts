@@ -141,7 +141,9 @@ function printResult(command: HostCommand, data: unknown): void {
       // "installed" and "available now" are different facts; print both columns.
       for (const item of items) {
         const message = item.message ? `\t${item.message}` : '';
-        console.log(`${item.availability}\t${item.kind}\t${item.capabilityId}\t${item.source}${message}`);
+        console.log(
+          `${item.availability}\t${item.kind}\t${item.capabilityId}\t${item.source}${message}`,
+        );
       }
       return;
     }
@@ -149,13 +151,17 @@ function printResult(command: HostCommand, data: unknown): void {
       const { results } = data as MarketplaceRequirementsCheckData;
       if (results.length === 0) console.log('(no requirements)');
       for (const result of results) {
-        console.log(`${result.status}\t${result.kind}\t${result.value}${result.required ? '' : '\t(optional)'}`);
+        console.log(
+          `${result.status}\t${result.kind}\t${result.value}${result.required ? '' : '\t(optional)'}`,
+        );
       }
       return;
     }
     case 'marketplace/package-detail': {
       const detail = data as MarketplacePackageDetailData;
-      console.log(`${detail.entryId}  license ${detail.license ?? '?'}  updated ${detail.updatedAt ?? '?'}`);
+      console.log(
+        `${detail.entryId}  license ${detail.license ?? '?'}  updated ${detail.updatedAt ?? '?'}`,
+      );
       if (detail.remoteError) console.error(`partial: ${detail.remoteError}`);
       if (detail.readme) console.log(`\n${detail.readme}`);
       return;

@@ -12,6 +12,7 @@ import {
   parseArtifactContrastMessage,
   parseArtifactLayoutMessage,
   parseArtifactErrorMessage,
+  parseArtifactSelectionMessage,
   readArtifactPostSeq,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
@@ -20,6 +21,7 @@ import {
   type ArtifactLayoutMessage,
   type ArtifactErrorMessage,
   type ArtifactFrameMode,
+  type ArtifactSelectionMessage,
 } from '@piwin/artifact';
 import { subscribeNativeArtifactBridge } from './artifact-native-bridge.js';
 import type { ArtifactSandboxView } from './artifact-frame-stream.js';
@@ -54,6 +56,8 @@ type BridgeInput = {
   onContrastIssue?: (issue: ArtifactContrastMessage) => void;
   /** Layout probe found text squeezed one glyph wide (badge only). */
   onLayoutIssue?: (issue: ArtifactLayoutMessage) => void;
+  /** Canvas text selection (empty text clears). Untrusted; places a button only. */
+  onTextSelection?: (selection: ArtifactSelectionMessage) => void;
 };
 
 function hostOwnsViewport(frameMode: ArtifactFrameMode): boolean {
@@ -244,6 +248,18 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
         lastPostSeqRef.current = postSeq;
       }
       current.onLayoutIssue?.(layout);
+      return;
+    }
+
+    const selection = parseArtifactSelectionMessage(data);
+    if (selection) {
+      if (!trustedSource || selection.channelId !== current.channelId) {
+        return;
+      }
+      if (postSeq !== null) {
+        lastPostSeqRef.current = postSeq;
+      }
+      if (current.presentation === 'canvas') current.onTextSelection?.(selection);
       return;
     }
 

@@ -15,6 +15,16 @@ export const IconPanelRight = createIcon(
   16,
 );
 
+/** Crosshair: reveal the open item in its tree (IDE "select opened file"). */
+export const IconLocate = createIcon(
+  <>
+    <circle cx="8" cy="8" r="4.5" />
+    <circle cx="8" cy="8" r="1.25" />
+    <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2" />
+  </>,
+  16,
+);
+
 export const IconClose = createIcon(
   <>
     <path d="M4 4l8 8M12 4l-8 8" />

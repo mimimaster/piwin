@@ -8,13 +8,30 @@ import type {
 import { formatElapsed } from './status-line.js';
 import { style } from './tui-style.js';
 
-/** What the TUI knows live about one invocation, from `subagent/invocation-updated`. */
+/**
+ * What the TUI knows live about one invocation: Host facts from
+ * `subagent/invocation-updated`, plus the step the child is on from
+ * `subagent/stream` (`step`, `recentSteps`), which the push never carries.
+ */
 export type LiveSubagentRun = {
   invocationId: string;
   runId: string;
+  /** The delegation tool call that created it; anchors `piwin_subagent_run` rows. */
+  parentToolCallId?: string;
+  childSessionId?: string;
   title?: string;
+  task: string;
   status: SubagentInvocation['status'];
   activity: string;
+  /** Host-measured counters; absent on older Hosts. */
+  toolCalls?: number;
+  totalTokens?: number;
+  /** Full report preview once completed (Ctrl+O shows it under the row). */
+  summary?: string;
+  /** The child's running tool as a step line (`read src/a.ts`), from the stream. */
+  step?: string;
+  /** Last few step lines, newest last, from the stream. */
+  recentSteps?: string[];
   startedAt: number;
   /** Set once the invocation reached a terminal status. */
   endedAt?: number;
@@ -51,12 +68,27 @@ export function toLiveRun(invocation: SubagentInvocation, previous?: LiveSubagen
   const created = Date.parse(invocation.createdAt);
   const updated = Date.parse(invocation.updatedAt);
   const terminal = TERMINAL.has(invocation.status);
+  const usage = invocation.usage;
+  const summary =
+    invocation.activity.kind === 'completed'
+      ? invocation.activity.summary
+      : invocation.activity.kind === 'needs-integration'
+        ? invocation.activity.message
+        : undefined;
   return {
     invocationId: invocation.id,
     runId: invocation.runId,
+    ...(invocation.parentToolCallId === undefined ? {} : { parentToolCallId: invocation.parentToolCallId }),
+    ...(invocation.childSessionId === undefined ? {} : { childSessionId: invocation.childSessionId }),
     ...(invocation.title === undefined ? {} : { title: invocation.title }),
+    task: invocation.task,
     status: invocation.status,
     activity: describeActivity(invocation.activity),
+    ...(usage === undefined ? {} : { toolCalls: usage.toolCalls, totalTokens: usage.totalTokens }),
+    ...(summary === undefined || summary.trim().length === 0 ? {} : { summary: summary.trim() }),
+    // Stream-owned: an invocation push must not wipe the step the child is on.
+    ...(terminal || previous?.step === undefined ? {} : { step: previous.step }),
+    ...(previous?.recentSteps === undefined ? {} : { recentSteps: previous.recentSteps }),
     startedAt: previous?.startedAt ?? (Number.isNaN(created) ? Date.now() : created),
     ...(terminal ? { endedAt: Number.isNaN(updated) ? Date.now() : updated } : {}),
   };
@@ -64,7 +96,7 @@ export function toLiveRun(invocation: SubagentInvocation, previous?: LiveSubagen
 
 export type LiveRunLookup = (invocationId: string | undefined, runId: string) => LiveSubagentRun | undefined;
 
-const ROW_ICON: Record<string, string> = {
+export const SUBAGENT_ROW_ICON: Record<string, string> = {
   queued: style.gray('·'),
   starting: style.yellow('◌'),
   running: style.yellow('◌'),
@@ -78,9 +110,34 @@ function needsDecision(run: SubagentControlRunDisplay): boolean {
   return run.integrationStatus === 'pending' || run.integrationStatus === 'conflict' || run.integrationStatus === 'failed';
 }
 
-function elapsedOf(live: LiveSubagentRun | undefined, now: number): number | undefined {
+export function elapsedOf(live: LiveSubagentRun | undefined, now: number): number | undefined {
   if (live === undefined) return undefined;
   return (live.endedAt ?? now) - live.startedAt;
+}
+
+/**
+ * A lone delegation (`start` accepted, or a synchronous `run`): one `└` row
+ * under its tool line with the live step and elapsed time.
+ */
+export function renderSubagentSingleRow(
+  live: LiveSubagentRun | undefined,
+  taskText: string,
+  width: number,
+  expanded: boolean,
+  now = Date.now(),
+): string[] {
+  const icon = SUBAGENT_ROW_ICON[live?.status ?? 'queued'] ?? '·';
+  const elapsed = elapsedOf(live, now);
+  const running = live?.endedAt === undefined;
+  const activity = (running ? live?.step : undefined) ?? live?.activity ?? '已派出';
+  const detail = [activity, elapsed === undefined ? undefined : formatElapsed(elapsed)]
+    .filter((part): part is string => part !== undefined)
+    .join(' · ');
+  const task = taskText.replace(/\s+/g, ' ').trim();
+  return [
+    truncateToWidth(`   └ ${icon} ${live?.title ?? task} ${style.gray(detail)}`, width),
+    ...(expanded && live?.title !== undefined ? [truncateToWidth(`     ${style.gray(task)}`, width)] : []),
+  ];
 }
 
 /**
@@ -97,17 +154,7 @@ export function renderSubagentControl(
   now = Date.now(),
 ): string[] {
   if (control.phase === 'accepted') {
-    const live = lookup(control.invocationId, control.runId);
-    const icon = ROW_ICON[live?.status ?? 'queued'] ?? '·';
-    const elapsed = elapsedOf(live, now);
-    const detail = [live?.activity ?? '已派出', elapsed === undefined ? undefined : formatElapsed(elapsed)]
-      .filter((part): part is string => part !== undefined)
-      .join(' · ');
-    const task = control.task.replace(/\s+/g, ' ').trim();
-    return [
-      truncateToWidth(`   └ ${icon} ${live?.title ?? task} ${style.gray(detail)}`, width),
-      ...(expanded && live?.title !== undefined ? [truncateToWidth(`     ${style.gray(task)}`, width)] : []),
-    ];
+    return renderSubagentSingleRow(lookup(control.invocationId, control.runId), control.task, width, expanded, now);
   }
   const runs = control.runs;
   const lives = runs.map((run) => lookup(run.invocationId, run.runId));
@@ -133,7 +180,7 @@ export function renderSubagentControl(
     const branch = index === runs.length - 1 ? '└' : '├';
     const pending = needsDecision(run);
     const status = pending ? 'needs-integration' : (live?.status ?? run.executionStatus);
-    const icon = ROW_ICON[status] ?? '·';
+    const icon = SUBAGENT_ROW_ICON[status] ?? '·';
     const title = run.title ?? live?.title ?? run.runId.slice(0, 8);
     const runElapsed = elapsedOf(live, now);
     const activity = pending

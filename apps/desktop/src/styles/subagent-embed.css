@@ -1,0 +1,61 @@
+/* Region: subagent row embed wrappers (turn-tool-group.tsx,
+   subagent-activity-card.tsx) and their stop control. The dense preview
+   lives in subagent-fanout.css; compact launcher/ticker/dock motion lives in
+   run-activity.css. */
+
+/* ── Accordion embed wrapper (anchor + panel) ───────────────────────── */
+.subagent-embed {
+  min-width: 0;
+  border: 0;
+  border-radius: var(--r-card);
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+/* A running card carries a stop control. The card itself is a button, so the
+   control sits beside it in the embed and the heading leaves room for it. */
+.subagent-embed[data-stoppable='true'] {
+  position: relative;
+}
+
+.subagent-invocation-stop {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 1;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
+}
+
+.subagent-invocation-stop:hover:not(:disabled) {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+}
+
+.subagent-invocation-stop:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 1px;
+}
+
+.subagent-invocation-stop:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subagent-embed {
+    transition: none !important;
+  }
+}

@@ -1,4 +1,11 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactElement,
+} from 'react';
 import {
   ARTIFACT_BOOTSTRAP_HEIGHT,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
@@ -15,6 +22,7 @@ import { Button, Spinner } from '@piwin/ui-kit';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import { useArtifactDocumentHandoff } from './artifact-document-handoff.js';
 import { useArtifactFrameBridge } from './artifact-frame-bridge.js';
+import { toArtifactTextSelection, type ArtifactTextSelection } from './artifact-canvas-selection.js';
 import { useArtifactFrameLease } from './artifact-frame-lifecycle.js';
 import {
   useArtifactDocument,
@@ -113,6 +121,8 @@ export function ArtifactSandboxFrame(props: {
   locale: 'zh-CN' | 'en';
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onComposerProposal?: (payload: { text: string; label?: string }) => void;
+  /** Canvas only: the reader's text selection inside the frame, or null. */
+  onTextSelection?: (selection: ArtifactTextSelection | null) => void;
   extraHeaderAction?: ReactElement;
   styleOverride?: ArtifactStyleOverride;
 }): ReactElement {
@@ -172,6 +182,13 @@ export function ArtifactSandboxFrame(props: {
     if (contrastIssue !== null) setContrastIssue(null);
     if (shatteredText !== 0) setShatteredText(0);
   }
+  const textSelectionRef = useRef(props.onTextSelection);
+  textSelectionRef.current = props.onTextSelection;
+  // A replaced document (stream → final, theme remount) takes its selection
+  // with it; the host's button must not outlive the text it points at.
+  useEffect(() => {
+    textSelectionRef.current?.(null);
+  }, [document.documentKey]);
   const bridge = useArtifactFrameBridge({
     channelId,
     documentKey: document.documentKey,
@@ -188,6 +205,12 @@ export function ArtifactSandboxFrame(props: {
     onScriptError: (error) => setScriptError((current) => current ?? error),
     onContrastIssue: (issue) => setContrastIssue((current) => current ?? issue),
     onLayoutIssue: (issue) => setShatteredText(issue.shatteredText),
+    ...(props.onTextSelection
+      ? {
+          onTextSelection: (message) =>
+            textSelectionRef.current?.(toArtifactTextSelection(message, iframeRef.current)),
+        }
+      : {}),
   });
   const appliedFrameMode = bridge.overflowsInlineFlow
     ? advanceArtifactFrameMode(plannedFrameMode, 'inline-overflow')

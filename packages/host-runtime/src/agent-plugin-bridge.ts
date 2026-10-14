@@ -77,7 +77,11 @@ export type AgentPluginBridgeOptions = {
 };
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
-/** Callback answers are Host-local decisions; they still get a bound. */
+/**
+ * Bound for machine-answered callbacks only. Permission and user-input
+ * callbacks can wait on a human, so they settle via respond or a lifecycle
+ * cancel (Stop, supersede, transport close) instead.
+ */
 const CALLBACK_TIMEOUT_MS = 5_000;
 const DISPOSE_ACK_GRACE_MS = 1_000;
 
@@ -275,11 +279,9 @@ export class AgentPluginBridge {
     }
     try {
       if (method === 'permission/request') {
-        const result = await withTimeout(
-          this.options.callbacks.requestPermission(params as AgentPluginPermissionPrompt, scope),
-          CALLBACK_TIMEOUT_MS,
-          { cancelled: true } as AgentPluginPermissionDecision,
-        );
+        // An `ask` decision waits on the user. A timed-out `cancelled` answer
+        // makes the agent abandon the whole turn while the card is still open.
+        const result = await this.options.callbacks.requestPermission(params as AgentPluginPermissionPrompt, scope);
         respond({ ok: true, result });
         return;
       }

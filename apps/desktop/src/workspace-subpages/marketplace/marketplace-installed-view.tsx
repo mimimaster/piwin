@@ -11,7 +11,11 @@ import { IconExtension } from '../../shell-icons.js';
 import { kindLabel } from './marketplace-copy.js';
 import { MarketplaceInstalledRow } from './marketplace-installed-row.js';
 import type { MarketOperation } from './marketplace-types.js';
-import { catalogEntryFor, groupInstalledItems, type PendingUpdate } from './marketplace-view-model.js';
+import {
+  catalogEntryFor,
+  groupInstalledItems,
+  type PendingUpdate,
+} from './marketplace-view-model.js';
 
 export type MarketplaceInstalledViewProps = {
   locale?: DesktopLocale | undefined;
@@ -44,7 +48,10 @@ export function MarketplaceInstalledView(props: MarketplaceInstalledViewProps): 
         <MarketplaceInstalledRow
           key={item.installationKey}
           item={item}
-          operation={props.operations[item.installationKey] ?? (item.catalogEntryId ? props.operations[item.catalogEntryId] : undefined)}
+          operation={
+            props.operations[item.installationKey] ??
+            (item.catalogEntryId ? props.operations[item.catalogEntryId] : undefined)
+          }
           locale={props.locale}
           catalogEntry={catalogEntryFor(item, props.catalogLookup)}
           onOpen={props.onOpenEntry}
@@ -62,11 +69,18 @@ export function MarketplaceInstalledView(props: MarketplaceInstalledViewProps): 
       <EmptyState
         visual={<IconExtension width={28} height={28} aria-hidden="true" />}
         seal="墨"
-        title={props.filtering ? t('Nothing matches', '没有匹配的能力') : t('Nothing installed here yet', '这里还没有已安装的能力')}
+        title={
+          props.filtering
+            ? t('Nothing matches', '没有匹配的能力')
+            : t('Nothing installed here yet', '这里还没有已安装的能力')
+        }
         description={
           props.filtering
             ? t('Try another keyword or type filter.', '换个关键词或类型筛选试试。')
-            : t('Browse Discover to add capabilities to this Host.', '去「发现」为这台 Host 添加能力。')
+            : t(
+                'Browse Discover to add capabilities to this Host.',
+                '去「发现」为这台 Host 添加能力。',
+              )
         }
         action={
           props.filtering ? (
@@ -89,7 +103,10 @@ export function MarketplaceInstalledView(props: MarketplaceInstalledViewProps): 
     <>
       <header className="market-section-header market-installed-intro">
         <span className="market-section-caption">
-          {t(`${props.totalCount} capabilities on this Host`, `这台 Host 上有 ${props.totalCount} 项能力`)}
+          {t(
+            `${props.totalCount} capabilities on this Host`,
+            `这台 Host 上有 ${props.totalCount} 项能力`,
+          )}
         </span>
         <div className="market-installed-tools">
           {props.updates.length > 0 ? (

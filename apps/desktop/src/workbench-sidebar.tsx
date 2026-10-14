@@ -103,6 +103,8 @@ export type WorkbenchSidebarProps = {
   shell: SidebarShell;
   sidebarMode: SidebarMode;
   onSidebarModeChange: (mode: SidebarMode) => void;
+  /** Titlebar locate request; see ProjectSessionSidebar `revealRequest`. */
+  revealRequest?: number;
 };
 
 export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
@@ -163,6 +165,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
 
   return (
     <MemoProjectSessionSidebar
+      {...(props.revealRequest !== undefined ? { revealRequest: props.revealRequest } : {})}
       projectPath={state.projectPath}
       projectTrusted={state.projectTrusted}
       hostReady={state.hostReady}

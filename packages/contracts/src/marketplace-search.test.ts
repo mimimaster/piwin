@@ -19,12 +19,21 @@ describe('parsePiPackageSourceInput', () => {
       ok: true,
       source: { kind: 'git', repositoryUrl: 'https://github.com/o/r' },
     });
-    expect(parsePiPackageSourceInput('/Users/me/pkg')).toMatchObject({ ok: true, source: { kind: 'local', path: '/Users/me/pkg' } });
+    expect(parsePiPackageSourceInput('/Users/me/pkg')).toMatchObject({
+      ok: true,
+      source: { kind: 'local', path: '/Users/me/pkg' },
+    });
   });
 
   it('rejects empty and unrecognized input', () => {
     expect(parsePiPackageSourceInput('  ')).toEqual({ ok: false, reason: 'empty' });
-    expect(parsePiPackageSourceInput('https://gitlab.com/o/r')).toEqual({ ok: false, reason: 'unrecognized' });
-    expect(parsePiPackageSourceInput('Not A Package')).toEqual({ ok: false, reason: 'unrecognized' });
+    expect(parsePiPackageSourceInput('https://gitlab.com/o/r')).toEqual({
+      ok: false,
+      reason: 'unrecognized',
+    });
+    expect(parsePiPackageSourceInput('Not A Package')).toEqual({
+      ok: false,
+      reason: 'unrecognized',
+    });
   });
 });

@@ -50,7 +50,12 @@ describe('fetchPackageDetail', () => {
       if (url.startsWith('https://registry.npmjs.org/')) {
         return jsonResponse({
           'dist-tags': { latest: '2.0.0' },
-          versions: { '2.0.0': { license: 'Apache-2.0', repository: { url: 'git+https://github.com/o/r.git' } } },
+          versions: {
+            '2.0.0': {
+              license: 'Apache-2.0',
+              repository: { url: 'git+https://github.com/o/r.git' },
+            },
+          },
         });
       }
       if (url.endsWith('/readme')) return textResponse('# From GitHub');

@@ -11,7 +11,7 @@
  * Data-testids:
  *   - "workspace-context-header"
  *   - "run-status-strip" / "run-status-stop" / "run-status-stopping"
- *   - "rail-chats-btn" / "right-panel-open-btn" / titlebar-*
+ *   - "rail-chats-btn" / "right-panel-open-btn" / titlebar-* (incl. titlebar-reveal-session-btn)
  */
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { IconButton, IconGit } from '@piwin/ui-kit';
@@ -22,6 +22,7 @@ import { getDesktopCopy, type DesktopLocale } from './desktop-locale.js';
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconLocate,
   IconPanelLeft,
   IconPanelRight,
 } from './shell-icons.js';
@@ -70,6 +71,8 @@ export type ContextBarProps = {
   canGoForward?: boolean;
   onGoBack?: () => void;
   onGoForward?: () => void;
+  /** Locate the open session in the sidebar tree; hidden when absent. */
+  onRevealActiveSession?: (() => void) | undefined;
   onOpenSkills?: () => void;
   onOpenMcp?: () => void;
   onToggleAppearance?: () => void;
@@ -216,6 +219,17 @@ export function ContextBar(props: ContextBarProps): ReactElement {
         <span className="proto-nav-spacer" data-tauri-drag-region />
 
         <div className="context-bar-history" data-no-window-drag>
+          {props.onRevealActiveSession ? (
+            <IconButton
+              className="context-bar-history-btn ib"
+              data-testid="titlebar-reveal-session-btn"
+              label={titlebarCopy.revealActiveSession}
+              title={titlebarCopy.revealActiveSession}
+              onClick={props.onRevealActiveSession}
+            >
+              <IconLocate width={14} height={14} stroke={1.5} />
+            </IconButton>
+          ) : null}
           <IconButton
             className="context-bar-history-btn ib"
             data-testid="titlebar-back-btn"

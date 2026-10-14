@@ -12,6 +12,8 @@ export type SidebarProjectRef = {
   /** Path is the checkout root or a symlink to it (not a subdirectory of it). */
   isCheckoutRoot?: boolean;
   workspaceAvailability?: 'missing';
+  /** When the project was first remembered; fixes its sidebar position. */
+  createdAt?: string;
   /** Path-nested remembered projects that live inside this folder. */
   nested?: SidebarProjectRef[];
   /** Other remembered paths that are the same directory (symlink alias); their sessions show here. */
@@ -196,6 +198,19 @@ export function attachNestedProjects(
   };
 
   return projects.filter((project) => !nestedPaths.has(project.path)).map(withChildren);
+}
+
+/**
+ * Sidebar folder order: newest-added first; ties keep the input order (stable sort).
+ * The Host lists projects by `lastOpenedAt`, which reshuffles folders every
+ * time a session is opened — folders are navigation landmarks and must not move.
+ */
+export function orderSidebarProjectsByCreation<Project extends SidebarProjectRef>(
+  projects: readonly Project[],
+): Project[] {
+  return [...projects].sort((left, right) =>
+    (right.createdAt ?? '').localeCompare(left.createdAt ?? ''),
+  );
 }
 
 /**

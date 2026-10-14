@@ -186,12 +186,20 @@ describe('MarketplaceWorkspaceView', () => {
   it('renders the Host catalog in localized cards, with no carousel or simulated runtime badge', async () => {
     const host = createFakeHost({
       'marketplace/catalog-list': (command) =>
-        ok(command.type, { entries: [{ ...EXTENSION_ENTRY, featured: false }, { ...SKILL_ENTRY, featured: false }] }),
+        ok(command.type, {
+          entries: [
+            { ...EXTENSION_ENTRY, featured: false },
+            { ...SKILL_ENTRY, featured: false },
+          ],
+        }),
     });
     render(host);
     await flush();
 
-    expect(host.commands()).toContainEqual({ type: 'marketplace/catalog-list', includeWithdrawn: true });
+    expect(host.commands()).toContainEqual({
+      type: 'marketplace/catalog-list',
+      includeWithdrawn: true,
+    });
     expect(container.querySelector('[data-testid="marketplace-catalog"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="marketplace-featured"]')).toBeNull();
     expect(container.querySelector('.market-hero-carousel')).toBeNull();
@@ -218,16 +226,21 @@ describe('MarketplaceWorkspaceView', () => {
 
   it('shows only registry entries in the piwin extension filter', async () => {
     const host = createFakeHost({
-      'marketplace/catalog-list': (command) => ok(command.type, {
-        entries: [EXTENSION_ENTRY, SKILL_ENTRY, COMMAND_CODE_ENTRY],
-      }),
+      'marketplace/catalog-list': (command) =>
+        ok(command.type, {
+          entries: [EXTENSION_ENTRY, SKILL_ENTRY, COMMAND_CODE_ENTRY],
+        }),
     });
     render(host);
     await flush();
-    act(() => { findButton(container, 'piwin 扩展')?.click(); });
-    expect(Array.from(container.querySelectorAll('[data-testid^="market-entry-"]')).map(
-      (node) => node.getAttribute('data-testid'),
-    )).toEqual(['market-entry-extension:mimimaster/commandcode-provider']);
+    act(() => {
+      findButton(container, 'piwin 扩展')?.click();
+    });
+    expect(
+      Array.from(container.querySelectorAll('[data-testid^="market-entry-"]')).map((node) =>
+        node.getAttribute('data-testid'),
+      ),
+    ).toEqual(['market-entry-extension:mimimaster/commandcode-provider']);
   });
 
   it('shows a small real community preview on opening Discover', async () => {
@@ -296,7 +309,9 @@ describe('MarketplaceWorkspaceView', () => {
         ) ?? 0) & Node.DOCUMENT_POSITION_PRECEDING,
     ).toBeTruthy();
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="marketplace-ecosystem-more"]')?.click();
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="marketplace-ecosystem-more"]')
+        ?.click();
     });
     await flush();
     expect(host.commands()).toContainEqual({ type: 'marketplace/search', query: '', limit: 20 });
@@ -476,7 +491,9 @@ describe('MarketplaceWorkspaceView', () => {
     render(host, { onUseExample });
     await flush();
     act(() => {
-      container.querySelector<HTMLElement>('[data-testid="market-entry-skill:doc-coauthoring"]')?.click();
+      container
+        .querySelector<HTMLElement>('[data-testid="market-entry-skill:doc-coauthoring"]')
+        ?.click();
     });
     await flush();
     act(() => {
@@ -781,37 +798,58 @@ describe('MarketplaceWorkspaceView', () => {
     const host = createFakeHost({
       'marketplace/catalog-list': (command) => ok(command.type, { entries: [COMMAND_CODE_ENTRY] }),
       'extensions/install': (command) => {
-        host.setItems([installedItem({
-          installationKey: 'extension:piwin-mimimaster-commandcode-provider',
-          capabilityId: COMMAND_CODE_ENTRY.capabilityId,
-          kind: 'extension',
-          name: 'Command Code for piwin',
-          catalogEntryId: COMMAND_CODE_ENTRY.entryId,
-        })]);
+        host.setItems([
+          installedItem({
+            installationKey: 'extension:piwin-mimimaster-commandcode-provider',
+            capabilityId: COMMAND_CODE_ENTRY.capabilityId,
+            kind: 'extension',
+            name: 'Command Code for piwin',
+            catalogEntryId: COMMAND_CODE_ENTRY.entryId,
+          }),
+        ]);
         return ok(command.type, {
           extensionId: COMMAND_CODE_ENTRY.capabilityId,
           configuredEnabled: false,
         });
       },
-      'extensions/apply': (command) => ok(command.type, {
-        sessionId: 's1', deploymentId: 'd1', state: 'active',
-        when: 'after-current-run', registryRevision: 'r1',
-      }),
+      'extensions/apply': (command) =>
+        ok(command.type, {
+          sessionId: 's1',
+          deploymentId: 'd1',
+          state: 'active',
+          when: 'after-current-run',
+          registryRevision: 'r1',
+        }),
     });
     render(host, { sessionId: 's1' });
     await flush();
-    act(() => { setInputValue(container.querySelector('[data-testid="marketplace-search-input"]'), 'Command Code for piwin'); });
-    const card = container.querySelector('[data-testid="market-entry-extension:mimimaster/commandcode-provider"]');
+    act(() => {
+      setInputValue(
+        container.querySelector('[data-testid="marketplace-search-input"]'),
+        'Command Code for piwin',
+      );
+    });
+    const card = container.querySelector(
+      '[data-testid="market-entry-extension:mimimaster/commandcode-provider"]',
+    );
     expect(card).not.toBeNull();
-    act(() => { findButton(card ?? container, '安装')?.click(); });
-    act(() => { document.querySelector<HTMLButtonElement>('[data-testid="marketplace-entry-install"]')?.click(); });
+    act(() => {
+      findButton(card ?? container, '安装')?.click();
+    });
+    act(() => {
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="marketplace-entry-install"]')
+        ?.click();
+    });
     await flush();
 
     const sent = host.commands();
     expect(sent).toContainEqual({
       type: 'extensions/install',
-      source: COMMAND_CODE_ENTRY.install.kind === 'managed-extension'
-        ? COMMAND_CODE_ENTRY.install.source : undefined,
+      source:
+        COMMAND_CODE_ENTRY.install.kind === 'managed-extension'
+          ? COMMAND_CODE_ENTRY.install.source
+          : undefined,
       name: COMMAND_CODE_ENTRY.capabilityId,
     });
     expect(sent).toContainEqual({
@@ -819,7 +857,11 @@ describe('MarketplaceWorkspaceView', () => {
       extensionId: COMMAND_CODE_ENTRY.capabilityId,
       enabled: true,
     });
-    expect(sent).toContainEqual({ type: 'extensions/apply', sessionId: 's1', when: 'after-current-run' });
+    expect(sent).toContainEqual({
+      type: 'extensions/apply',
+      sessionId: 's1',
+      when: 'after-current-run',
+    });
     expect(sent.findIndex((command) => command.type === 'extensions/install')).toBeLessThan(
       sent.findIndex((command) => command.type === 'extensions/set_enabled'),
     );
@@ -827,7 +869,6 @@ describe('MarketplaceWorkspaceView', () => {
       sent.findIndex((command) => command.type === 'extensions/apply'),
     );
   });
-
 
   it('puts items needing attention first, localizes Host messages, and updates all pinned versions', async () => {
     const host = createFakeHost({
@@ -870,7 +911,9 @@ describe('MarketplaceWorkspaceView', () => {
     render(host);
     await flush();
 
-    expect(container.querySelector('[data-testid="marketplace-tab-updates"]')?.textContent).toContain('1');
+    expect(
+      container.querySelector('[data-testid="marketplace-tab-updates"]')?.textContent,
+    ).toContain('1');
     act(() => {
       findButton(container, '已安装')?.click();
     });
@@ -880,7 +923,9 @@ describe('MarketplaceWorkspaceView', () => {
     expect(attention?.textContent).toContain('goal');
     expect(attention?.textContent).toContain('下一轮运行开始时生效');
     expect(
-      container.querySelector('[data-testid="market-installed-skill:retired"] [data-testid="market-installed-withdrawn"]'),
+      container.querySelector(
+        '[data-testid="market-installed-skill:retired"] [data-testid="market-installed-withdrawn"]',
+      ),
     ).not.toBeNull();
 
     act(() => {
@@ -889,7 +934,10 @@ describe('MarketplaceWorkspaceView', () => {
     await flush();
     // Only the still-listed entry with a different pinned version is updated.
     expect(host.commands().filter((command) => command.type === 'skills/install')).toEqual([
-      expect.objectContaining({ type: 'skills/install', source: SKILL_ENTRY.install.kind === 'skill' ? SKILL_ENTRY.install.source : undefined }),
+      expect.objectContaining({
+        type: 'skills/install',
+        source: SKILL_ENTRY.install.kind === 'skill' ? SKILL_ENTRY.install.source : undefined,
+      }),
     ]);
   });
 
@@ -944,12 +992,16 @@ describe('MarketplaceWorkspaceView', () => {
     act(() => {
       findButton(container, '从地址安装…')?.click();
     });
-    const input = document.querySelector<HTMLInputElement>('[data-testid="marketplace-source-install-dialog"] input');
+    const input = document.querySelector<HTMLInputElement>(
+      '[data-testid="marketplace-source-install-dialog"] input',
+    );
     act(() => {
       setInputValue(input, 'https://github.com/owner/pi-tools.git');
     });
     act(() => {
-      document.querySelector<HTMLButtonElement>('[data-testid="marketplace-source-install-confirm"]')?.click();
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="marketplace-source-install-confirm"]')
+        ?.click();
     });
     await flush();
 
@@ -965,7 +1017,12 @@ describe('MarketplaceWorkspaceView', () => {
       ...SKILL_ENTRY,
       featured: false,
       requirements: [
-        { kind: 'command', value: 'uvx', required: true, description: { en: 'uv', zhCN: '需要 uv' } },
+        {
+          kind: 'command',
+          value: 'uvx',
+          required: true,
+          description: { en: 'uv', zhCN: '需要 uv' },
+        },
       ],
     };
     const host = createFakeHost({
@@ -980,11 +1037,18 @@ describe('MarketplaceWorkspaceView', () => {
     await flush();
 
     act(() => {
-      container.querySelector<HTMLElement>('[data-testid="market-entry-skill:doc-coauthoring"]')?.click();
+      container
+        .querySelector<HTMLElement>('[data-testid="market-entry-skill:doc-coauthoring"]')
+        ?.click();
     });
     await flush();
 
-    expect(host.commands()).toContainEqual({ type: 'marketplace/requirements-check', entryId: entry.entryId });
-    expect(document.querySelector('[data-testid="marketplace-requirement-missing"]')?.textContent).toBe('Host 缺少');
+    expect(host.commands()).toContainEqual({
+      type: 'marketplace/requirements-check',
+      entryId: entry.entryId,
+    });
+    expect(
+      document.querySelector('[data-testid="marketplace-requirement-missing"]')?.textContent,
+    ).toBe('Host 缺少');
   });
 });

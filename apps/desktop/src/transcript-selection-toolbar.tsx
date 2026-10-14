@@ -13,16 +13,12 @@ import {
   type RefObject,
 } from 'react';
 import { Popover, type VirtualAnchorRect } from '@piwin/ui-kit';
+import { dispatchContextMenuAction, useDesktopContextMenu } from './context-menu/index.js';
 import {
-  dispatchContextMenuAction,
-  useDesktopContextMenu,
-  type ContextMenuTarget,
-} from './context-menu/index.js';
-import {
-  formatTranscriptSelectionLabel,
   visibleTextFromSelection,
   TRANSCRIPT_SELECTION_MAX_CHARS,
 } from './transcript-selection-target.js';
+import { addSelectionToChat, selectionContextTarget } from './selection-add-to-chat.js';
 import { IconCards, IconChat, IconCommentAction, IconCopy } from './shell-icons.js';
 import { SelectionCommentForm } from './selection-comment-form.js';
 import type { DesktopLocale } from './desktop-locale.js';
@@ -212,17 +208,7 @@ export function TranscriptSelectionToolbar(
   const handleAddToChat = (event: MouseEvent<HTMLButtonElement>): void => {
     event.preventDefault();
     event.stopPropagation();
-    if (!selectedText) return;
-
-    const target: ContextMenuTarget = {
-      surface: 'selection',
-      selectedText,
-      label: formatTranscriptSelectionLabel(selectedText),
-      ...(props.projectPath ? { projectPath: props.projectPath } : {}),
-    };
-
-    dispatchContextMenuAction('add-to-chat', target, contextMenu.dispatchers);
-    contextMenu.dispatchers.focusComposer();
+    if (!addSelectionToChat(contextMenu, selectedText, props.projectPath)) return;
     setOpen(false);
     if (typeof window !== 'undefined' && window.getSelection) {
       window.getSelection()?.removeAllRanges();
@@ -232,14 +218,8 @@ export function TranscriptSelectionToolbar(
   const handleGenerateFlashcard = (event: MouseEvent<HTMLButtonElement>): void => {
     event.preventDefault();
     event.stopPropagation();
-    if (!selectedText || !canSendPreset) return;
-
-    const target: ContextMenuTarget = {
-      surface: 'selection',
-      selectedText,
-      label: formatTranscriptSelectionLabel(selectedText),
-      ...(props.projectPath ? { projectPath: props.projectPath } : {}),
-    };
+    const target = selectionContextTarget(selectedText, props.projectPath);
+    if (!target || !canSendPreset) return;
 
     dispatchContextMenuAction('generate-flashcard', target, contextMenu.dispatchers);
     setOpen(false);

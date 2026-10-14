@@ -64,6 +64,8 @@ export type WorkbenchContextBarProps = {
   onResumeSession: (sessionId: string) => void | Promise<void>;
   onRetryLastUser: (messageId: string) => void | Promise<void>;
   onOpenSessionSearch?: () => void;
+  /** Unfold the sidebar to the open session and focus its row. */
+  onRevealActiveSession?: () => void;
   isInkstone?: boolean;
   trailing?: ReactNode | undefined;
   conversationShellControl?: ReactNode;
@@ -218,6 +220,9 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
           }
         : {})}
       {...(props.onOpenSessionSearch ? { onOpenSearch: props.onOpenSessionSearch } : {})}
+      {...(props.onRevealActiveSession && !subPageTitle
+        ? { onRevealActiveSession: props.onRevealActiveSession }
+        : {})}
       trailing={props.trailing}
     />
   );

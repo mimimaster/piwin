@@ -514,3 +514,28 @@ Handoff and scroll continuity were exercised in Chromium
 (`e2e/artifact-canvas-continuity.spec.ts`). The packaged `tauri://` WebKit path
 loads documents through `piwin-artifact://` and has its own timing; it still
 needs one pass with the isolated-build recipe.
+
+## Amendment (2026-10-14): Canvas selection → Comment
+
+Selecting text inside a Canvas shows a **Comment / 评论** button next to the
+selection. Clicking it quotes the text into the Composer as a selection chip,
+through the same `add-to-chat` path the transcript and document selection
+toolbar use (`selection-add-to-chat.ts`), then focuses the draft. It never sends.
+
+The Canvas document is an opaque-origin sandbox, so the host cannot read its
+selection. The bridge bootstrap embeds a selection reporter
+(`srcdoc-selection.ts`):
+
+- `piwin-artifact:selection` (frame → host): `{ text, rect }`. `rect` is the
+  first line's box in the frame's own viewport. Empty `text` clears it. Sent
+  only in `canvas` frame mode; Inline frames stay silent. Text is clipped to
+  `ARTIFACT_SELECTION_MAX_CHARS` (10 000), and the parser refuses anything
+  longer, a non-finite rect, or one beyond ±100 000 px.
+- `piwin-artifact:selection-clear` (host → frame): drop the document selection
+  once the host has quoted it.
+
+Trust is the same as §7: the report is untrusted. It only places a button in
+trusted host chrome, and nothing reaches the draft until the user clicks.
+The host checks the source and `channelId` exactly as it does for other
+bridge messages. A replaced document (stream → final, theme remount) clears
+the button.

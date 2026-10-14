@@ -23,6 +23,7 @@ import { fail, ok } from '../response-helpers.js';
 import { workingDirectoryFromIndexRecord } from '../session-scope.js';
 import { externalOperationRefusal } from '../external-agent-policy.js';
 import type { AgentPluginSession } from '../agent-plugin-session.js';
+import { EXTERNAL_AGENT_SETTINGS_REVISION } from '../sessions/session-runtime-controller.js';
 import { rebuildTranscriptFromReplay } from './grok-transcript-replay.js';
 import { externalProjectionNeedsReplay } from './external-projection-staleness.js';
 import { listExtensionBackends, requireExtensionBackendLaunch, type ExtensionBackend } from '../extension-session-backends.js';
@@ -91,7 +92,7 @@ export async function activateExternalSession(
     runtimeGenerationId,
     ...(runId !== undefined ? { runId } : {}),
   });
-  deps.runtimeController.attachGeneration(record.id, runtimeGenerationId, 'external-agent');
+  deps.runtimeController.attachGeneration(record.id, runtimeGenerationId, EXTERNAL_AGENT_SETTINGS_REVISION);
   if (runId !== undefined) {
     const attached = deps.runRegistry.attachRuntimeGeneration(runId, runtimeGenerationId);
     if (!attached.ok) {

@@ -23,3 +23,5 @@ export * from './host-wake.js';
 export * from './live-activity-bridge.js';
 export * from './native-live-audio.js';
 export * from './media-upload.js';
+export * from './subagent-report-text.js';
+export * from './subagent-preview-projection.js';

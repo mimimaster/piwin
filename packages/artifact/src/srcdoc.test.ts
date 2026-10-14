@@ -350,7 +350,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
     });
     expect(session.scriptActivateCount()).toBe(1);
     expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-flow');
-    expect(session.listenerCount()).toBe(3);
+    expect(session.listenerCount()).toBe(4);
 
     session.dispatchRenderCommand({
       type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,

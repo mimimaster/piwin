@@ -1,10 +1,11 @@
 /**
  * One delegation row of the transcript subagent card (Inkstone proto-13).
  *
- * Running: two lines — title + identity/elapsed, then "what it is doing now".
- * Finished: one line. Failed keeps its error line. Attention badges
- * (代码待处理 / 冲突) take the state column. Clicking toggles the inline
- * child-session panel; the row itself never spawns or merges anything.
+ * Two lines in every phase — title + identity/elapsed, then "what it is doing
+ * now" (running), the conclusion's first line (finished) or the error
+ * (failed) — so the row height never changes. Attention badges
+ * (代码待处理 / 冲突) take the state column. Clicking toggles the dense
+ * preview; the row itself never spawns, merges or navigates anything.
  *
  * `SubagentInvocationBlock` derives the pure snapshot on every parent render;
  * `SubagentRow` is memoized on that snapshot's value, so a sibling child's
@@ -25,7 +26,7 @@ import { SubagentElapsed, SubagentSeal, SubagentSpinner } from './subagent-card-
 export { resolveSubagentSealChar } from './subagent-card-view';
 
 export type SubagentInvocationBlockProps = Omit<SubagentRowInput, 'canInspect'> & {
-  /** Toggles the inline session panel anchored to this block. */
+  /** Toggles the dense preview anchored to this block. */
   onInspect?: (selection: SubagentInspectorSelection) => void;
 };
 

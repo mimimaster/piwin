@@ -1,7 +1,6 @@
 import type { SubagentResultSummary } from '@piwin/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  childActionItems,
   describeChildChange,
   describeSubagents,
   latestResultFor,
@@ -77,33 +76,6 @@ describe('subagent overview', () => {
   });
 });
 
-describe('childActionItems', () => {
-  it('offers what the Host allows and explains what it refuses', () => {
-    const items = childActionItems(result(), true);
-    expect(items.map((item) => item.value)).toEqual(['files', 'apply', 'close', 'retain', 'discard', 'open-child', 'close']);
-    expect(items[2]).toEqual({ value: 'close', label: '让主会话处理冲突（不可用）', description: '没有冲突' });
-  });
-
-  it('drops refused actions that come without a reason and retain once decided', () => {
-    const decided = result({
-      integrationStatus: 'applied',
-      availability: { view: allow, apply: { allowed: false }, resolve: { allowed: false }, cleanup: allow },
-    });
-    expect(childActionItems(decided, false).map((item) => item.value)).toEqual(['files', 'discard', 'close']);
-  });
-
-  it('lets a finished child be given a follow-up, but not a running one', () => {
-    expect(childActionItems(undefined, false, 'done').map((item) => item.value)).toEqual(['continue', 'close']);
-    expect(childActionItems(undefined, false, 'failed').map((item) => item.value)).toEqual(['continue', 'close']);
-    expect(childActionItems(undefined, false, 'running').map((item) => item.value)).toEqual(['close']);
-  });
-
-  it('still lets a child without a result be opened', () => {
-    expect(childActionItems(undefined, true).map((item) => item.value)).toEqual(['open-child', 'close']);
-    expect(childActionItems(undefined, false).map((item) => item.value)).toEqual(['close']);
-  });
-});
-
 describe('describeChildChange', () => {
   it('announces a child ending, once, and stays quiet while it runs', () => {
     const running = child({ sessionId: 'c1', name: '重构存储', subagentStatus: 'running' });
@@ -112,11 +84,6 @@ describe('describeChildChange', () => {
     expect(describeChildChange(running, done)).toBe('子代理「重构存储」已完成 · /subagents 查看');
     expect(describeChildChange(done, done)).toBeUndefined();
     expect(describeChildChange(running, { ...running, subagentStatus: 'failed' })).toContain('失败');
-  });
-
-  it('announces a settled follow-up even when no running update showed in between', () => {
-    const done = child({ sessionId: 'c1', name: '重构存储', subagentStatus: 'done' });
-    expect(describeChildChange(done, done, true)).toBe('子代理「重构存储」已完成 · /subagents 查看');
   });
 
   it('does not treat other changes to a finished child as another completion', () => {

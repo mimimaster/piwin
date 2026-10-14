@@ -54,7 +54,9 @@ function commandOnPath(command: string, probe: RequirementsProbe): boolean {
   return pathValue
     .split(delimiter)
     .filter(Boolean)
-    .some((directory) => extensions.some((extension) => probe.isExecutable(join(directory, command + extension))));
+    .some((directory) =>
+      extensions.some((extension) => probe.isExecutable(join(directory, command + extension))),
+    );
 }
 
 /**
@@ -70,7 +72,10 @@ function commandStatus(value: string, probe: RequirementsProbe): MarketplaceRequ
   return found === 0 ? 'missing' : 'unknown';
 }
 
-function statusFor(requirement: MarketplaceRequirement, probe: RequirementsProbe): MarketplaceRequirementStatus {
+function statusFor(
+  requirement: MarketplaceRequirement,
+  probe: RequirementsProbe,
+): MarketplaceRequirementStatus {
   const value = requirement.value.trim();
   switch (requirement.kind) {
     case 'host-os': {
