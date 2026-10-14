@@ -24,7 +24,7 @@ export type ProviderModelActionsInput = {
   onError: (message: string) => void;
   onTestModel: (provider: ModelProviderConfig, modelId: string) => Promise<{ durationMs: number }>;
   onDiscoverModels: (provider: ModelProviderConfig) => Promise<ModelDiscoveryResult>;
-  searchCatalog?: ((query: string) => Promise<ModelCatalogEntry[]>) | undefined;
+  searchCatalog?: ((query: string, catalogProviderId?: string) => Promise<ModelCatalogEntry[]>) | undefined;
 };
 
 function statusKey(providerId: string, modelId: string): string {

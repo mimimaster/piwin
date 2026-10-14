@@ -46,5 +46,15 @@ piwin 只把 `~/.piwin/config.json` 里的项目 / 区域等字段传过去。
 
 - 桌面端「添加提供商 → 云厂商」里有 Vertex AI / Amazon Bedrock 预设；
   「测试连接」会通过 Pi 真实发一次最小请求。
-- 模型列表需要手动按 ID 添加（这两个平台的列表接口需要云鉴权，暂不自动拉取）。
+- 模型列表需要手动按 ID 添加（这两个平台的列表接口需要云鉴权，暂不自动拉取），所以模型区不显示「拉取模型」。
+  「添加模型」的 ID 联想优先取该平台自己的目录（`google-vertex` / `amazon-bedrock`），
+  例如 Bedrock 会直接给出 `us.anthropic.…` 这类可用 ID；平台目录没有时才退回全量目录。
+- 未填密钥时，提供商标题显示所用凭证链（`gcloud 登录（ADC）` / `AWS 凭证链`），不再提示「未设置密钥」。
+- 模型固定走平台自身协议：不提供「请求协议」覆盖，已保存的覆盖值会被忽略（ADR 0079）。
+- 「模型内置搜索」：Vertex AI 上的 Gemini 支持，走 Google Search 接地——Host 直接调用 Vertex `generateContent`
+  （`tools: [{ googleSearch: {} }]`），与对话共用同一份凭证（Vertex 密钥，或 ADC + `x-goog-user-project`）；
+  添加 `gemini-*` 模型时默认勾选。Vertex 上的合作方模型（如 Claude）和 Bedrock 没有托管搜索，
+  该选项置灰，`web_search` 走搜索源 / DuckDuckGo。
+- `baseUrl` 留空时，Host 向 Pi 注册平台默认端点（Vertex 为 `https://{location}-aiplatform.googleapis.com` 模板，
+  Bedrock 为 `https://bedrock-runtime.<region>.amazonaws.com`）；Pi 不接受没有 `baseUrl` 的自定义模型。
 - 会话自动命名等「结构化补全」和视觉委托走纯 HTTP，对这两类提供方不可用；主对话、子代理、工具调用均正常。

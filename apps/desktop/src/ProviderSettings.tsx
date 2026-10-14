@@ -76,7 +76,7 @@ export type ProviderSettingsProps = {
   onStoreSecret: (providerId: string, secret: string) => Promise<string>;
   /** Read the saved secret back from the Host so the key field can reveal it. */
   onLoadSecret?: (providerId: string) => Promise<string | null>;
-  searchCatalog?: (query: string) => Promise<ModelCatalogEntry[]>;
+  searchCatalog?: (query: string, catalogProviderId?: string) => Promise<ModelCatalogEntry[]>;
   /**
    * Selected provider, owned by the page when given: the capability tabs
    * unmount this component, and coming back should not lose the selection.

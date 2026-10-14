@@ -64,8 +64,12 @@ export function ModelsPage(): ReactElement {
   // Kept here so switching capability tabs does not reset the provider rail.
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const searchCatalog = useCallback(
-    async (query: string) => {
-      const result = await searchModelCatalog({ query, limit: 12 });
+    async (query: string, catalogProviderId?: string) => {
+      const result = await searchModelCatalog({
+        query,
+        limit: 12,
+        ...(catalogProviderId ? { catalogProviderId } : {}),
+      });
       return result.entries;
     },
     [searchModelCatalog],

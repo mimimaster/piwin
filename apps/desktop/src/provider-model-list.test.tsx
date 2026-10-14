@@ -115,6 +115,19 @@ describe('ProviderModelList', () => {
     expect(document.body.querySelector('[data-testid="provider-model-remove-grok-4.3"]')).toBeNull();
   });
 
+  it('offers manual add only for cloud platforms, which expose no model list', () => {
+    const container = renderList({
+      id: 'bedrock',
+      name: 'Amazon Bedrock',
+      protocol: 'amazon-bedrock',
+      baseUrl: '',
+      models: [],
+    });
+    expect(container.querySelector('[data-testid="provider-discover-models-bedrock"]')).toBeNull();
+    expect(container.querySelector('[data-testid="provider-add-model-bedrock"]')).not.toBeNull();
+    expect(container.querySelector('.pmodel-empty')?.textContent).toContain('模型目录');
+  });
+
   it('allows toggling all models on and off with one click', () => {
     const onUpdateModels = vi.fn();
     const container = document.createElement('div');

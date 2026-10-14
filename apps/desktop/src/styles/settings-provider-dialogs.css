@@ -135,11 +135,6 @@
 
 /* ── Add model dialog ─────────────────────────────────────────────────── */
 
-.add-model-dialog .piwin-modal-content,
-.add-model-dialog .piwin-modal-body {
-  overflow: visible;
-}
-
 .add-model-dialog-body {
   display: flex;
   flex-direction: column;
@@ -237,9 +232,16 @@
   line-height: var(--lh-tight);
 }
 
+/* The form outgrows short windows: the modal content scrolls and the actions
+   stay pinned over it, bleeding to the modal edges so rows pass underneath. */
 .add-model-dialog-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   justify-content: flex-end;
   gap: var(--s-5);
-  margin-top: var(--s-8);
+  margin: var(--s-8) calc(-1 * var(--space-4)) calc(-1 * var(--space-3));
+  padding: var(--s-5) var(--space-4) var(--space-3);
+  background: var(--panel);
 }

@@ -7,6 +7,7 @@
  * lookups hand consumers the resulting provider-shaped view.
  */
 import type { ModelConfigEntry, ModelProviderConfig, ProviderChatApi } from './config.js';
+import { isCloudCredentialProtocol } from './config.js';
 import { isSubscriptionProvider } from './subscription-oauth.js';
 
 type ProviderProtocol = ModelProviderConfig['protocol'];
@@ -23,13 +24,30 @@ export function isProviderProtocol(value: unknown): value is ProviderProtocol {
   return typeof value === 'string' && (PROVIDER_PROTOCOLS as readonly string[]).includes(value);
 }
 
-/** The protocol this model's requests use. Subscriptions keep their fixed wire. */
+/**
+ * Whether models on this provider may pick their own request protocol.
+ * Subscriptions keep their fixed wire. Cloud platforms (Vertex AI, Bedrock)
+ * carry their own auth and endpoint, so a per-model hop into or out of them
+ * through a shared gateway URL is not meaningful.
+ */
+export function supportsModelProtocolOverride(
+  provider: Pick<ModelProviderConfig, 'protocol' | 'source'>,
+): boolean {
+  return !isSubscriptionProvider(provider) && !isCloudCredentialProtocol(provider.protocol);
+}
+
+/** The protocol this model's requests use (see {@link supportsModelProtocolOverride}). */
 export function resolveModelProtocol(
   provider: Pick<ModelProviderConfig, 'protocol' | 'source'>,
   model: Pick<ModelConfigEntry, 'protocol'> | undefined,
 ): ProviderProtocol {
   const override = model?.protocol;
-  if (!override || !isProviderProtocol(override) || isSubscriptionProvider(provider)) {
+  if (
+    !override ||
+    !isProviderProtocol(override) ||
+    isCloudCredentialProtocol(override) ||
+    !supportsModelProtocolOverride(provider)
+  ) {
     return provider.protocol;
   }
   return override;
@@ -48,16 +66,6 @@ export function resolveModelEndpoint(
   if (protocol === provider.protocol) {
     return provider;
   }
-  // Cloud platforms carry their own auth/endpoint; a per-model hop into or out
-  // of them through a shared gateway URL is not meaningful.
-  if (
-    protocol === 'google-vertex' ||
-    protocol === 'amazon-bedrock' ||
-    provider.protocol === 'google-vertex' ||
-    provider.protocol === 'amazon-bedrock'
-  ) {
-    return provider;
-  }
   const { chatApi: _providerChatApi, ...rest } = provider;
   const baseUrl = rebaseForProtocol(provider.baseUrl, protocol);
   switch (protocol) {
@@ -67,6 +75,10 @@ export function resolveModelEndpoint(
       return { ...rest, protocol, baseUrl };
     case 'google-gemini':
       return { ...rest, protocol, baseUrl };
+    // Unreachable: resolveModelProtocol never yields a cloud override.
+    case 'google-vertex':
+    case 'amazon-bedrock':
+      return provider;
   }
 }
 

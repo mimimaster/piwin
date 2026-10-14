@@ -14,6 +14,7 @@ import type {
   NativeSearchAdapterKind,
   ProviderChatApi,
 } from './config.js';
+import { isCloudCredentialProtocol } from './config.js';
 import { SUBSCRIPTION_CHAT_SURFACES } from './subscription-chat-surface.js';
 
 /** Adapters a user can pick, in display order. */
@@ -82,6 +83,9 @@ export function nativeSearchProtocolSwitch(input: {
   baseUrl?: string | undefined;
   modelId?: string | undefined;
 }): ModelProviderConfig['protocol'] | undefined {
+  // Vertex AI / Bedrock rows cannot hop to another wire (no shared key or URL);
+  // Vertex grounds Gemini itself.
+  if (isCloudCredentialProtocol(input.protocol)) return undefined;
   const vendor = resolveNativeSearchVendor(input);
   if (!vendor) return undefined;
   const needed = VENDOR_SEARCH_PROTOCOL[vendor];
@@ -114,7 +118,8 @@ function isProtocolCompatible(
     case 'anthropic-web-search-tool':
       return protocol === 'anthropic-compatible';
     case 'google-search-tool':
-      return protocol === 'google-gemini';
+      // Vertex AI serves the same Google Search grounding for Gemini models.
+      return protocol === 'google-gemini' || protocol === 'google-vertex';
     default:
       return false;
   }
@@ -174,6 +179,11 @@ export function inferNativeSearchAdapter(input: {
   // (fail closed) instead of guessing another vendor's shape.
   if (protocol && nativeSearchProtocolSwitch({ ...input, protocol }) !== undefined) return undefined;
   if (protocol === 'google-gemini') return 'google-search-tool';
+  if (protocol === 'google-vertex') {
+    // Only Gemini grounds on Vertex; partner models (Claude) have no search here.
+    const vertexVendor = resolveNativeSearchVendor(input);
+    return vertexVendor === undefined || vertexVendor === 'google' ? 'google-search-tool' : undefined;
+  }
   if (protocol === 'anthropic-compatible') return 'anthropic-web-search-tool';
   if (protocol !== 'openai-compatible') return undefined;
   const vendor = resolveNativeSearchVendor(input);

@@ -14,6 +14,8 @@
  */
 
 import {
+  CLOUD_CREDENTIAL_CHAIN_API_KEY,
+  resolveCloudBaseUrl,
   resolveCloudStreamOptions,
   wrapStreamSimpleWithCloudOptions,
 } from '../cloud-provider-stream.js';
@@ -268,6 +270,12 @@ export function buildWorkerProviderRegistration(
   streamSimple?: NativeSearchStreamSimple,
 ): ReturnType<typeof buildPiProviderRegistration> {
   const api = resolvePiApiForProvider(provider.protocol, provider.chatApi);
+  // A cloud row may leave the endpoint blank; Pi still requires one to register.
+  const providerBaseUrl = resolveCloudBaseUrl({
+    ...(provider.protocol ? { protocol: provider.protocol } : {}),
+    ...provider.cloud,
+    baseUrl: provider.baseUrl,
+  });
   const models = provider.models.map((model) => {
     // ADR 0079: Host already resolved an overriding model's wire and base URL.
     const protocol = model.protocol ?? provider.protocol;
@@ -283,7 +291,7 @@ export function buildWorkerProviderRegistration(
       id: model.id,
       name: model.label?.trim() || model.id,
       api: modelApi,
-      baseUrl: model.baseUrl ?? provider.baseUrl ?? '',
+      baseUrl: model.baseUrl || providerBaseUrl,
       reasoning: model.reasoning ?? true,
       ...(compat ? { compat } : {}),
       ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
@@ -299,13 +307,15 @@ export function buildWorkerProviderRegistration(
   );
   const registration: ReturnType<typeof buildPiProviderRegistration> = {
     name: provider.providerId,
-    baseUrl: provider.baseUrl ?? '',
+    baseUrl: providerBaseUrl,
     api,
     authHeader: cloud ? false : Boolean(apiKey || provider.auth.kind !== 'none'),
     models,
   };
   if (apiKey) {
     registration.apiKey = apiKey;
+  } else if (cloud) {
+    registration.apiKey = CLOUD_CREDENTIAL_CHAIN_API_KEY;
   }
   if (provider.headers) {
     registration.headers = provider.headers;

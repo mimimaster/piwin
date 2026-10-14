@@ -28,6 +28,7 @@
     "@earendil-works/pi-codemode": "1.1.0",
     "@earendil-works/pi-coding-agent": "0.84.2",
     "@piwin/contracts": "workspace:*",
+    "google-auth-library": "10.9.0",
     "typebox": "1.1.38"
   },
   "devDependencies": {

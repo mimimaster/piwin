@@ -2,7 +2,8 @@
  * Direct non-streaming Gemini `generateContent` call for native search. Pi's
  * Google adapter rejects a custom `fetch`, so grounding metadata cannot be
  * observed through Pi; this path is the only Gemini native executor. API-key
- * providers only — Vertex and gemini-cli OAuth fail closed.
+ * providers only — gemini-cli OAuth fails closed; Vertex AI rows use
+ * `native-search-vertex-rest.ts`.
  */
 import { buildGeminiRestHeaders } from './native-search-headers.js';
 import type { FetchLike } from './native-search-tee.js';

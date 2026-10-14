@@ -107,7 +107,11 @@ Transport:
 - `pi-tee`: official Pi `streamSimple` for the provider, wrapped only for this
   sub-request, with a `fetch` response-body tee to read provider evidence.
 - `gemini-rest`: direct non-streaming `generateContent` for Gemini API keys
-  (Pi's Google adapter rejects a custom fetch). Vertex / OAuth fail closed.
+  (Pi's Google adapter rejects a custom fetch). OAuth fails closed.
+- `vertex-rest` (2026-10-13): the same call against Vertex AI for `google-vertex`
+  rows — Google Search grounding with the row's own credentials (Vertex API key,
+  or ADC via google-auth-library plus `x-goog-user-project`). Gemini models only;
+  Bedrock rows have no hosted search and stay blocked.
 - Subscriptions: the provider is rewritten to its HTTPS surface with the
   `auth.json` OAuth access token as bearer plus provider shaping headers
   (Grok: `X-XAI-Token-Auth: xai-grok-cli`). The auth path follows the Host

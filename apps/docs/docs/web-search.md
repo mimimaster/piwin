@@ -67,7 +67,7 @@ Brave 提供了完全独立的全球网页索引库，注重隐私且搜索质�
 - **开启方式**：在「模型」里给模型勾选「模型内置搜索」。拉取或添加模型时，支持内置搜索的模型会默认勾选并推断请求方式：官方 OpenAI / Anthropic / Gemini / xAI 按地址识别，CLIProxyAPI 这类自建网关按模型名识别（`gemini-*`、`grok-*`、`claude-*`、`gpt-*`）；已有模型不会被改动；也可手动选 OpenAI Responses / OpenAI Chat 搜索模型 / xAI Responses / Anthropic / Gemini。请求方式与通道的日常 Chat API 无关：Completions 通道上的 GPT-4o 仍可走 Responses `web_search`。
 - **费用**：每次原生搜索多一次模型调用。可在「网络检索」里指定一个更便宜的已标记模型作为搜索代理，避免主模型双倍计费。
 - **顺序**：「内置优先」先原生再搜索源再 DuckDuckGo；「外部优先」先搜索源再原生再 DuckDuckGo；「仅内置」不走搜索源也不兜底。不会换模型重放整段对话。
-- **Gemini**：工具卡中会原样展示 Google Search Suggestions（Google 接地条款要求），点击直接在系统浏览器打开 Google 结果页。仅支持 API Key，不支持 Vertex / OAuth。
+- **Gemini**：工具卡中会原样展示 Google Search Suggestions（Google 接地条款要求），点击直接在系统浏览器打开 Google 结果页。Gemini API 仅支持 API Key（不支持 OAuth）；Vertex AI 提供商上的 Gemini 同样可用，搜索与对话共用 Vertex 凭证（gcloud 登录或密钥）。
 - **经网关接入的 Gemini（如 CLIProxyAPI）**：OpenAI 协议表达不了 Gemini 的 `googleSearch`，网关也会丢掉接地来源。在该模型的编辑面板把「请求协议」改为 Google Gemini 即可：同一个服务商、同一个 Key，该模型改发 `<网关>/v1beta/...`（`/v1` 会自动换掉），对话和内置搜索都走 Gemini 原生格式，其他模型不受影响。详见 ADR 0079。
 - **订阅套餐**：Grok 订阅（OAuth）走 `api.x.ai`，同步模型目录时新出现的 Grok 聊天模型会自动打标。其他订阅（ChatGPT Codex、Claude Code 等）没有 Host 可直接调用的搜索入口，即使手动打标也不会被当作内置搜索，直接走搜索源 / DuckDuckGo。
 - **拿不到结果时**：原生搜索既没有来源也没有简报（如 Codex / WebSocket 通道拿不到响应体）时，视为这一步失败，继续走下一步，不会把空结果交给模型，也不会编造链接。

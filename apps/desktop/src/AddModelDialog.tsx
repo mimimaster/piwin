@@ -6,7 +6,11 @@ import type {
   ModelProviderConfig,
   ProviderChatApi,
 } from '@piwin/contracts';
-import { rebaseForProtocol, suggestDiscoveredNativeSearch } from '@piwin/contracts';
+import {
+  isCloudCredentialProtocol,
+  rebaseForProtocol,
+  suggestDiscoveredNativeSearch,
+} from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context';
 import {
   EMPTY_GENERATION_ROUTE_FIELDS,
@@ -18,7 +22,7 @@ import {
   type ModelConfigurationDraft,
 } from './model-configuration';
 import { ModelGenerationRouteFields } from './model-generation-route-fields';
-import { NativeSearchAdapterFields } from './native-search-adapter-fields';
+import { NativeSearchAdapterFields, NativeSearchBlockedHint } from './native-search-adapter-fields';
 import { ModelProtocolField } from './model-protocol-field.js';
 
 export type AddModelDialogProps = {
@@ -62,6 +66,8 @@ export function AddModelDialog({
   const copy = translator.settings.provider;
   const common = translator.common;
   const isChinese = locale === 'zh-CN';
+  // Subscriptions and cloud platforms (Vertex AI, Bedrock) have one wire.
+  const protocolFixed = isSubscription || isCloudCredentialProtocol(protocol);
   const listboxId = useId();
   const [modelId, setModelId] = useState('');
   const [label, setLabel] = useState('');
@@ -112,6 +118,7 @@ export function AddModelDialog({
     setVideoGeneration(false);
     setSpeechToText(false);
     setTextToSpeech(false);
+    setRealtimeAudio(false);
     setNativeWebSearch(false);
     nativeWebSearchTouched.current = false;
     setNativeSearch({ nativeSearchAdapter: '' });
@@ -518,7 +525,7 @@ export function AddModelDialog({
             {isChinese ? '支持推理 / Thinking' : 'Supports reasoning / thinking'}
           </label>
         </div>
-        {isSubscription ? null : (
+        {protocolFixed ? null : (
           <ModelProtocolField
             value={modelProtocol}
             providerProtocol={protocol}
@@ -528,22 +535,30 @@ export function AddModelDialog({
             onChange={setModelProtocol}
           />
         )}
-        <NativeSearchAdapterFields
-          draft={toDraft()}
-          protocol={protocol}
-          {...(chatApi ? { chatApi } : {})}
-          {...(baseUrl ? { baseUrl } : {})}
-          allowProtocolSwitch={!isSubscription}
-          isChinese={isChinese}
-          onChange={(update) => {
-            const next = update(toDraft());
-            setModelProtocol(next.protocol ?? '');
-            setNativeSearch({
-              nativeSearchAdapter: next.nativeSearchAdapter,
-              ...(next.nativeSearchOptions ? { nativeSearchOptions: next.nativeSearchOptions } : {}),
-            });
-          }}
-        />
+        {nativeSearchBlocker !== undefined ? (
+          <NativeSearchBlockedHint
+            protocol={protocol}
+            isChinese={isChinese}
+            testId="add-model-native-search-blocked"
+          />
+        ) : (
+          <NativeSearchAdapterFields
+            draft={toDraft()}
+            protocol={protocol}
+            {...(chatApi ? { chatApi } : {})}
+            {...(baseUrl ? { baseUrl } : {})}
+            allowProtocolSwitch={!protocolFixed}
+            isChinese={isChinese}
+            onChange={(update) => {
+              const next = update(toDraft());
+              setModelProtocol(next.protocol ?? '');
+              setNativeSearch({
+                nativeSearchAdapter: next.nativeSearchAdapter,
+                ...(next.nativeSearchOptions ? { nativeSearchOptions: next.nativeSearchOptions } : {}),
+              });
+            }}
+          />
+        )}
         <ModelGenerationRouteFields
           draft={toDraft()}
           isChinese={isChinese}

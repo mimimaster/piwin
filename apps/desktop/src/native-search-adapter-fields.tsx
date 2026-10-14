@@ -42,6 +42,26 @@ export function nativeSearchAdapterLabel(adapter: NativeSearchAdapterKind, zh: b
   }
 }
 
+/** Why the 「模型内置搜索」 tag is locked off for this provider. */
+export function NativeSearchBlockedHint(props: {
+  protocol: ModelProviderConfig['protocol'];
+  isChinese: boolean;
+  testId: string;
+}): ReactElement {
+  const zh = props.isChinese;
+  return (
+    <p className="model-edit-route-fields-hint" data-testid={props.testId}>
+      {props.protocol === 'amazon-bedrock'
+        ? zh
+          ? 'Bedrock 没有厂商托管的联网搜索；web_search 会直接走搜索源 / DuckDuckGo。'
+          : 'Bedrock has no hosted web search; web_search uses sources / DuckDuckGo.'
+        : zh
+          ? '该服务商无法发起厂商原生搜索（Host 调不到它的搜索接口），web_search 会直接走搜索源 / DuckDuckGo。'
+          : 'This provider cannot run provider-native search (Host cannot reach its search endpoint); web_search uses sources / DuckDuckGo.'}
+    </p>
+  );
+}
+
 const SWITCH_PROTOCOL_VALUE = '__switch-protocol__';
 
 function protocolName(protocol: ModelProviderConfig['protocol']): string {
@@ -231,9 +251,13 @@ export function NativeSearchAdapterFields(props: {
       ) : null}
       {saved === 'google-search-tool' ? (
         <p className="model-edit-route-fields-hint">
-          {zh
-            ? 'Gemini 需在工具卡中原样展示 Google Search Suggestions；仅支持 API Key，不支持 Vertex / OAuth。'
-            : 'Gemini requires showing Google Search Suggestions unmodified; API key only (no Vertex/OAuth).'}
+          {protocol === 'google-vertex'
+            ? zh
+              ? 'Gemini 需在工具卡中原样展示 Google Search Suggestions；搜索与对话共用同一份 Vertex 凭证（gcloud 登录或密钥）。'
+              : 'Gemini requires showing Google Search Suggestions unmodified; search reuses the same Vertex credentials as chat (gcloud ADC or key).'
+            : zh
+              ? 'Gemini 需在工具卡中原样展示 Google Search Suggestions；仅支持 API Key，不支持 OAuth。'
+              : 'Gemini requires showing Google Search Suggestions unmodified; API key only (no OAuth).'}
         </p>
       ) : null}
       {saved === 'openai-responses-tool' ? (

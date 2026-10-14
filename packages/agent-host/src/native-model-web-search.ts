@@ -3,8 +3,8 @@
  *
  * OpenAI / Anthropic / xAI / Azure: official Pi `streamSimple` with hosted
  * search injected via `onPayload` and a `fetch` tee that observes the raw
- * provider body. Gemini API-key providers: direct `generateContent` REST
- * (Pi's Google adapter rejects custom fetch). Evidence comes only from
+ * provider body. Gemini API-key providers and Vertex AI (ADC or key): direct
+ * `generateContent` REST (Pi's Google adapters reject custom fetch). Evidence comes only from
  * provider structures; model prose is kept as the answer, never mined for URLs.
  */
 
@@ -28,6 +28,10 @@ import { buildPiProviderRegistration } from './pi-model-runtime.js';
 import type { NativeSearchStreamOptions, NativeSearchStreamSimple } from './native-web-search.js';
 import { buildAnthropicSearchHeaders } from './native-search-headers.js';
 import { completeGeminiRestSearch } from './native-search-gemini-rest.js';
+import {
+  completeVertexRestSearch,
+  type VertexAccessTokenProvider,
+} from './native-search-vertex-rest.js';
 import { parseNativeSearchEvidence, type NativeSearchEvidence } from './native-search-evidence.js';
 import { createNativeSearchTee, type FetchLike } from './native-search-tee.js';
 
@@ -49,8 +53,10 @@ export type NativeModelWebSearchRequest = {
 export type NativeModelWebSearchDependencies = {
   /** Test seam; production resolves Pi's real lazy protocol stream. */
   streamSimple?: NativeSearchStreamSimple;
-  /** Network seam wrapped by the tee / used by Gemini REST. */
+  /** Network seam wrapped by the tee / used by Gemini and Vertex REST. */
   fetch?: FetchLike;
+  /** Test seam for Vertex ADC; production resolves a Google access token. */
+  resolveVertexAccessToken?: VertexAccessTokenProvider;
   now?: () => number;
 };
 
@@ -102,15 +108,21 @@ export async function completeNativeModelWebSearch(
   const now = dependencies.now ?? Date.now;
   const started = now();
   const transport: NativeSearchTransport =
-    adapter === 'google-search-tool' ? 'gemini-rest' : 'pi-tee';
+    adapter !== 'google-search-tool'
+      ? 'pi-tee'
+      : request.provider.protocol === 'google-vertex'
+        ? 'vertex-rest'
+        : 'gemini-rest';
   const signal = combineSignals(request.signal, request.timeoutMs ?? DEFAULT_SEARCH_NATIVE_TIMEOUT_MS);
   const diagnosticBase = { providerId: request.provider.id, adapter, transport };
 
   try {
     const outcome =
-      transport === 'gemini-rest'
-        ? await runGeminiRest(request, configuredModel, query, signal, dependencies)
-        : await runPiTee(request, adapter, query, signal, dependencies);
+      transport === 'vertex-rest'
+        ? await runVertexRest(request, configuredModel, query, signal, dependencies)
+        : transport === 'gemini-rest'
+          ? await runGeminiRest(request, configuredModel, query, signal, dependencies)
+          : await runPiTee(request, adapter, query, signal, dependencies);
     const { evidence } = outcome;
     const diagnostic: NativeSearchDiagnostic = {
       ...diagnosticBase,
@@ -178,6 +190,37 @@ async function runGeminiRest(
       signal,
     },
     dependencies.fetch,
+  );
+  return { evidence: parseNativeSearchEvidence('google-search-tool', body) };
+}
+
+async function runVertexRest(
+  request: NativeModelWebSearchRequest,
+  model: ModelConfigEntry,
+  query: string,
+  signal: AbortSignal,
+  dependencies: NativeModelWebSearchDependencies,
+): Promise<SearchOutcome> {
+  const provider = request.provider;
+  if (provider.protocol !== 'google-vertex') {
+    throw new NativeModelWebSearchError('vertex-rest requires a google-vertex provider');
+  }
+  const body = await completeVertexRestSearch(
+    {
+      ...(provider.baseUrl.trim() ? { baseUrl: provider.baseUrl } : {}),
+      ...(request.apiKey ? { apiKey: request.apiKey } : {}),
+      ...(provider.project ? { project: provider.project } : {}),
+      ...(provider.location ? { location: provider.location } : {}),
+      ...(provider.credentialsFile ? { credentialsFile: provider.credentialsFile } : {}),
+      modelId: model.id,
+      ...(provider.headers ? { headers: provider.headers } : {}),
+      systemPrompt: buildSearchSystemPrompt(request.maxResults),
+      userPrompt: buildSearchUserPrompt(query),
+      maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+      signal,
+    },
+    dependencies.fetch,
+    dependencies.resolveVertexAccessToken,
   );
   return { evidence: parseNativeSearchEvidence('google-search-tool', body) };
 }

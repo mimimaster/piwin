@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactElement } from 'react';
 import {
   THINKING_LEVEL_OPTIONS,
+  isCloudCredentialProtocol,
   type ModelCatalogEntry,
   type ModelConfigEntry,
   type ModelProviderConfig,
@@ -20,7 +21,7 @@ import {
   withVideoGenerationEnabled,
 } from './generation-route-defaults.js';
 import { ModelGenerationRouteFields } from './model-generation-route-fields.js';
-import { NativeSearchAdapterFields } from './native-search-adapter-fields.js';
+import { NativeSearchAdapterFields, NativeSearchBlockedHint } from './native-search-adapter-fields.js';
 import { ModelProtocolField } from './model-protocol-field.js';
 import { ModelSystemPromptRoleField } from './model-system-prompt-role-field.js';
 import {
@@ -73,6 +74,9 @@ export type ModelEditInlineProps = {
 export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
   const { model, searchCatalog, onSave, onCancel, isChinese, disabled } = props;
   const nativeSearchBlocked = props.nativeSearchBlocker !== undefined;
+  // Subscriptions and cloud platforms (Vertex AI, Bedrock) have one wire.
+  const protocolFixed =
+    props.providerIsSubscription === true || isCloudCredentialProtocol(props.providerProtocol);
   const [localDraft, setLocalDraft] = useState<ModelConfigurationDraft>(() =>
     createModelConfigurationDraft(model, undefined, props.providerProtocol),
   );
@@ -287,7 +291,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         </label>
       </div>
 
-      {props.providerIsSubscription ? null : (
+      {protocolFixed ? null : (
         <ModelProtocolField
           value={localDraft.protocol}
           providerProtocol={props.providerProtocol}
@@ -299,7 +303,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         />
       )}
 
-      {!props.providerIsSubscription &&
+      {!protocolFixed &&
       (localDraft.protocol || props.providerProtocol) === 'openai-compatible' ? (
         <ModelSystemPromptRoleField
           value={localDraft.systemPromptRole}
@@ -441,11 +445,11 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
       </div>
 
       {props.nativeSearchBlocker ? (
-        <p className="model-edit-route-fields-hint" data-testid="model-edit-native-search-blocked">
-          {isChinese
-            ? '该服务商无法发起厂商原生搜索（Host 调不到它的搜索接口），web_search 会直接走搜索源 / DuckDuckGo。'
-            : 'This provider cannot run provider-native search (Host cannot reach its search endpoint); web_search uses sources / DuckDuckGo.'}
-        </p>
+        <NativeSearchBlockedHint
+          protocol={props.providerProtocol}
+          isChinese={isChinese}
+          testId="model-edit-native-search-blocked"
+        />
       ) : (
         <NativeSearchAdapterFields
           draft={localDraft}

@@ -3,12 +3,14 @@
  * and the inline parameter editor. Every change here persists immediately.
  */
 
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
+  isCloudCredentialProtocol,
   isModelEnabled,
   isProviderEnabled,
   isSubscriptionProvider,
   nativeSearchProviderBlocker,
+  platformCatalogProviderId,
 } from '@piwin/contracts';
 import type {
   DiscoveredModel,
@@ -68,7 +70,7 @@ export type ProviderModelListProps = {
   /** Last model test result, keyed by model id. */
   modelTestStatus: Record<string, ModelTestState>;
   testingModelId: string | null;
-  searchCatalog?: (query: string) => Promise<ModelCatalogEntry[]>;
+  searchCatalog?: (query: string, catalogProviderId?: string) => Promise<ModelCatalogEntry[]>;
   onUpdateModels: (models: ModelConfigEntry[]) => void;
   onTestModel: (modelId: string) => void;
   onSetDefaultModel: (modelId: string) => void;
@@ -82,6 +84,7 @@ function modelListCopy(isChinese: boolean) {
         heading: '模型',
         hint: '开关和参数修改即时生效。',
         empty: '还没有模型。拉取接口上的模型，或手动添加一个。',
+        emptyManual: '还没有模型。点「添加」输入模型 ID，会从该平台的模型目录联想。',
         emptySubscription: '这个套餐暂时没有可用模型。',
         discover: '拉取模型',
         discovering: '拉取中…',
@@ -102,6 +105,7 @@ function modelListCopy(isChinese: boolean) {
         heading: 'Models',
         hint: 'Switches and parameter edits apply at once.',
         empty: 'No models yet. Fetch them from the endpoint, or add one by hand.',
+        emptyManual: 'No models yet. Use Add and type a model ID; this platform\'s catalog suggests matches.',
         emptySubscription: 'This plan has no models yet.',
         discover: 'Fetch models',
         discovering: 'Fetching…',
@@ -177,6 +181,18 @@ export function ProviderModelList({
 
   const t = modelListCopy(isChinese);
   const subscription = isSubscriptionProvider(provider);
+  // Vertex AI / Bedrock have no model-list endpoint here: ids are added by hand.
+  const manualModelsOnly = isCloudCredentialProtocol(provider.protocol);
+  const platformCatalog = platformCatalogProviderId(provider.protocol);
+  // Suggest the platform's own ids first (e.g. Bedrock inference profiles);
+  // a model the platform catalog lacks still falls back to the full catalog.
+  const searchProviderCatalog = useMemo(() => {
+    if (!searchCatalog || !platformCatalog) return searchCatalog;
+    return async (query: string): Promise<ModelCatalogEntry[]> => {
+      const platformEntries = await searchCatalog(query, platformCatalog);
+      return platformEntries.length > 0 ? platformEntries : searchCatalog(query);
+    };
+  }, [searchCatalog, platformCatalog]);
   const nativeSearchBlocker = nativeSearchProviderBlocker(provider);
   const providerLive = isProviderEnabled(provider);
   const models = overlayOptimisticCapabilities(provider.models, optimisticModels);
@@ -258,7 +274,7 @@ export function ProviderModelList({
               {anyEnabled ? t.disableAll : t.enableAll}
             </Button>
           ) : null}
-          {subscription ? null : (
+          {subscription || manualModelsOnly ? null : (
             <Button
               size="compact"
               variant="ghost"
@@ -297,7 +313,7 @@ export function ProviderModelList({
 
       <div className="pmodel-list" data-testid="provider-model-list">
         {provider.models.length === 0 ? (
-          <p className="pmodel-empty">{subscription ? t.emptySubscription : t.empty}</p>
+          <p className="pmodel-empty">{subscription ? t.emptySubscription : manualModelsOnly ? t.emptyManual : t.empty}</p>
         ) : null}
         {displayedModels.map((model) => {
           const isDefaultModel = model.id === defaultModelId;
@@ -473,7 +489,7 @@ export function ProviderModelList({
                   {...(nativeSearchBlocker ? { nativeSearchBlocker } : {})}
                   disabled={disabled}
                   isChinese={isChinese}
-                  {...(searchCatalog ? { searchCatalog } : {})}
+                  {...(searchProviderCatalog ? { searchCatalog: searchProviderCatalog } : {})}
                   onSave={handleApplyEdit}
                   onCancel={() => setEditingModelId(null)}
                 />
@@ -496,7 +512,7 @@ export function ProviderModelList({
           onUpdateModels([...provider.models, model]);
           setAddOpen(false);
         }}
-        {...(searchCatalog ? { searchCatalog } : {})}
+        {...(searchProviderCatalog ? { searchCatalog: searchProviderCatalog } : {})}
       />
 
       <DiscoverModelsDialog

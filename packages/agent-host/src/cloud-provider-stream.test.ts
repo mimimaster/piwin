@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ModelProviderConfig } from '@piwin/contracts';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
+  CLOUD_CREDENTIAL_CHAIN_API_KEY,
   pickCloudProviderFields,
+  resolveCloudBaseUrl,
   rewriteVertexThinkingPayload,
   resolveCloudStreamOptions,
   wrapStreamSimpleWithCloudOptions,
@@ -120,6 +125,51 @@ describe('cloud provider protocols', () => {
     expect(registration.api).toBe('bedrock-converse-stream');
     expect(registration.authHeader).toBe(false);
     expect(registration.streamSimple).toBeTypeOf('function');
+  });
+
+  it('gives a blank cloud endpoint the platform default so Pi accepts the registration', async () => {
+    expect(resolveCloudBaseUrl(vertex)).toBe('https://{location}-aiplatform.googleapis.com');
+    expect(resolveCloudBaseUrl(bedrock)).toBe('https://bedrock-runtime.us-west-2.amazonaws.com');
+    expect(resolveCloudBaseUrl({ ...bedrock, baseUrl: 'https://vpce.example/ ' })).toBe('https://vpce.example/');
+    expect(resolveCloudBaseUrl({ protocol: 'openai-compatible', baseUrl: '' })).toBe('');
+
+    // Pi rejects custom models without a baseUrl ("baseUrl is required when
+    // defining custom models"); register through the real runtime to prove it.
+    const { ModelRuntime } = await import('@earendil-works/pi-coding-agent');
+    const authDir = mkdtempSync(join(tmpdir(), 'piwin-cloud-'));
+    try {
+      const runtime = await ModelRuntime.create({
+        authPath: join(authDir, 'auth.json'),
+        modelsPath: null,
+        refreshOnCreate: false,
+        allowModelNetwork: false,
+      });
+      for (const provider of [vertex, bedrock]) {
+        runtime.registerProvider(provider.id, buildPiProviderRegistration(provider) as never);
+        const modelId = provider.models[0]?.id ?? '';
+        expect(runtime.getModel(provider.id, modelId)?.baseUrl).toBe(resolveCloudBaseUrl(provider));
+        // Keyless rows must still count as configured, or Pi refuses to send
+        // ("Provider is not configured"); the marker is stripped by the wrapper.
+        expect(runtime.getProviderAuthStatus(provider.id).configured).toBe(true);
+      }
+      expect(buildPiProviderRegistration(vertex).apiKey).toBe(CLOUD_CREDENTIAL_CHAIN_API_KEY);
+      expect(buildPiProviderRegistration(vertex, 'real-key').apiKey).toBe('real-key');
+      const worker = buildWorkerProviderRegistration(
+        {
+          providerId: 'vertex-worker',
+          protocol: 'google-vertex',
+          cloud: pickCloudProviderFields(vertex)!,
+          models: [{ id: 'gemini-4-argon' }],
+          auth: { kind: 'none' },
+        },
+        undefined,
+      );
+      runtime.registerProvider('vertex-worker', worker as never);
+      expect(runtime.getProviderAuthStatus('vertex-worker').configured).toBe(true);
+      expect(runtime.getModel('vertex-worker', 'gemini-4-argon')?.api).toBe('google-vertex');
+    } finally {
+      rmSync(authDir, { recursive: true, force: true });
+    }
   });
 
   it('maps Pi thinking budgets to levels for post-2.x Gemini on Vertex', () => {

@@ -279,8 +279,14 @@ export type SearchEvidence = {
  * - `pi-tee`: official Pi `streamSimple` with a response-body tee on `fetch`.
  * - `gemini-rest`: direct non-streaming Gemini `generateContent` REST call
  *   (Pi's Google adapter rejects custom fetch, so grounding is unobservable there).
+ * - `vertex-rest`: the same call against Vertex AI, authenticated with Google
+ *   ADC or a Vertex API key.
  */
-export type NativeSearchTransport = 'pi-tee' | 'gemini-rest';
+export type NativeSearchTransport = 'pi-tee' | 'gemini-rest' | 'vertex-rest';
+
+function isNativeSearchTransport(value: unknown): value is NativeSearchTransport {
+  return value === 'pi-tee' || value === 'gemini-rest' || value === 'vertex-rest';
+}
 
 /** Bound on persisted native-search error text; full errors stay in Host logs. */
 export const NATIVE_SEARCH_ERROR_MAX_CHARS = 300;
@@ -536,7 +542,7 @@ function readWebSearchNativeDetails(value: unknown): WebSearchNativeDetails | un
   const diagnostic: NativeSearchDiagnostic = {
     providerId: raw.providerId,
     adapter: raw.adapter,
-    ...(raw.transport === 'pi-tee' || raw.transport === 'gemini-rest' ? { transport: raw.transport } : {}),
+    ...(isNativeSearchTransport(raw.transport) ? { transport: raw.transport } : {}),
     eventDetected: raw.eventDetected === true,
     hitCount: finiteNonNegative(raw.hitCount),
     durationMs: finiteNonNegative(raw.durationMs),
@@ -623,7 +629,7 @@ export function readWebSearchLogNativeSummary(value: unknown): WebSearchLogNativ
   return {
     providerId: raw.providerId,
     adapter: raw.adapter,
-    ...(raw.transport === 'pi-tee' || raw.transport === 'gemini-rest' ? { transport: raw.transport } : {}),
+    ...(isNativeSearchTransport(raw.transport) ? { transport: raw.transport } : {}),
     eventDetected: raw.eventDetected === true,
     searchQueryCount: Math.min(20, Math.floor(finiteNonNegative(raw.searchQueryCount))),
     ...(raw.fellBackToSources === true ? { fellBackToSources: true } : {}),

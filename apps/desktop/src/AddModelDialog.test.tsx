@@ -268,4 +268,46 @@ describe('AddModelDialog catalog autocomplete', () => {
     act(() => setInputValue(input, 'grok-4.6'));
     expect(searchBox()?.checked).toBe(false);
   });
+
+  it('keeps a Vertex row on its own wire and defaults Gemini to Google Search grounding', () => {
+    const onAdd = vi.fn<(model: ModelConfigEntry) => void>();
+    renderDialog(
+      <AddModelDialog open onOpenChange={vi.fn()} existingModelIds={[]} onAdd={onAdd} protocol="google-vertex" />,
+    );
+    const scope = document.body;
+    act(() => setInputValue(resolveInput(scope, 'add-model-id-input'), 'gemini-2.5-pro'));
+
+    expect(scope.querySelector('[data-testid="add-model-protocol"]')).toBeNull();
+    const searchBox = scope.querySelector<HTMLInputElement>('[data-testid="add-model-native-web-search"]');
+    expect(searchBox?.disabled).toBe(false);
+    expect(searchBox?.checked).toBe(true);
+    const adapter = scope.querySelector<HTMLSelectElement>('[data-testid="model-edit-native-search-adapter"]');
+    // Only Vertex's own grounding is offered: no "switch to Gemini protocol" entry.
+    expect([...(adapter?.options ?? [])].map((option) => option.value)).toEqual(['', 'google-search-tool']);
+
+    act(() => scope.querySelector<HTMLButtonElement>('[data-testid="add-model-submit"]')?.click());
+    expect(onAdd.mock.calls[0]?.[0].capabilities).toContain('native-web-search');
+    expect(onAdd.mock.calls[0]?.[0].protocol).toBeUndefined();
+  });
+
+  it('locks built-in search off on Bedrock, which has no hosted search', () => {
+    renderDialog(
+      <AddModelDialog
+        open
+        onOpenChange={vi.fn()}
+        existingModelIds={[]}
+        onAdd={vi.fn()}
+        protocol="amazon-bedrock"
+        nativeSearchBlocker="amazon-bedrock provider bedrock has no hosted web search"
+      />,
+    );
+    const scope = document.body;
+    act(() => setInputValue(resolveInput(scope, 'add-model-id-input'), 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'));
+
+    expect(scope.querySelector('[data-testid="add-model-protocol"]')).toBeNull();
+    const searchBox = scope.querySelector<HTMLInputElement>('[data-testid="add-model-native-web-search"]');
+    expect(searchBox?.disabled).toBe(true);
+    expect(searchBox?.checked).toBe(false);
+    expect(scope.querySelector('[data-testid="add-model-native-search-blocked"]')?.textContent).toContain('Bedrock');
+  });
 });

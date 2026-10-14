@@ -12,6 +12,7 @@ import {
   ProviderConnectionFields,
   type ProviderConnectionCopy,
 } from './provider-connection-fields.js';
+import { isCloudCredentialProtocol } from '@piwin/contracts';
 import { hasKeychainSecret, type ProviderDraft } from './provider-draft.js';
 import { IconCheck } from './shell-icons.js';
 
@@ -23,6 +24,13 @@ export function connectionKeySummary(
   if (hasKeychainSecret(draft)) return { text: isChinese ? '密钥已保存' : 'Key saved', missing: false };
   const env = draft.storedApiKeyEnv.trim();
   if (env) return { text: isChinese ? `环境变量 ${env}` : `Env ${env}`, missing: false };
+  // Cloud platforms sign in through their own credential chain; a key is optional.
+  if (draft.protocol === 'google-vertex') {
+    return { text: isChinese ? 'gcloud 登录（ADC）' : 'gcloud ADC', missing: false };
+  }
+  if (draft.protocol === 'amazon-bedrock') {
+    return { text: isChinese ? 'AWS 凭证链' : 'AWS credentials', missing: false };
+  }
   return { text: isChinese ? '未设置密钥' : 'No key', missing: true };
 }
 
@@ -45,6 +53,8 @@ export type ProviderConnectionPanelProps = {
 
 export function ProviderConnectionPanel(props: ProviderConnectionPanelProps): ReactElement {
   const { draft, isNew, dirty, isChinese } = props;
+  // Vertex AI / Bedrock sign in with platform credentials and list no models.
+  const cloud = isCloudCredentialProtocol(draft.protocol);
   return (
     <section
       className={`pconn-panel${isNew ? ' is-new' : ''}`}
@@ -56,7 +66,11 @@ export function ProviderConnectionPanel(props: ProviderConnectionPanelProps): Re
             {isNew ? (isChinese ? '连接' : 'Connection') : isChinese ? '连接设置' : 'Connection'}
           </h3>
           <p className="pdetail-section-desc">
-            {isNew
+            {cloud
+              ? isChinese
+                ? '用云平台凭证登录，密钥可选。修改后需要保存。'
+                : 'Signs in with platform credentials; a key is optional. Changes here need saving.'
+              : isNew
               ? isChinese
                 ? '填写密钥和接口地址，保存后即可拉取模型。'
                 : 'Enter the key and endpoint; fetch models after saving.'
@@ -100,7 +114,11 @@ export function ProviderConnectionPanel(props: ProviderConnectionPanelProps): Re
         <div className="pdetail-savebar" data-testid="provider-savebar">
           <span className="pdetail-savebar-text">
             {isNew
-              ? isChinese
+              ? cloud
+                ? isChinese
+                  ? '保存后即可添加和管理模型'
+                  : 'Save to add and manage models'
+                : isChinese
                 ? '保存后即可拉取和管理模型'
                 : 'Save to fetch and manage models'
               : isChinese

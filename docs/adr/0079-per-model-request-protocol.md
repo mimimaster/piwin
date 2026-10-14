@@ -30,7 +30,9 @@ and normalizing an OpenAI-style `/v1` base for Gemini
 1. `ModelConfigEntry.protocol?` optionally overrides the provider protocol for
    that model. Omitted means inherit. Base URL, key, headers and enablement stay
    on the provider. Subscription providers ignore the override (their wire is
-   fixed by the subscription).
+   fixed by the subscription). So do cloud platform rows (Vertex AI, Amazon
+   Bedrock), in both directions: their auth and endpoint are not a shared
+   gateway URL, so the editor hides the picker and Host pins the row protocol.
 2. When the override differs from the provider protocol, the model's base URL
    is derived from the provider base URL: drop a trailing `/v1`, `/v1beta` or
    `/v1alpha`, then append the version the target protocol expects —

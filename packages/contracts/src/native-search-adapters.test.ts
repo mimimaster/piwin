@@ -252,4 +252,18 @@ describe('discovered native search tagging', () => {
     );
     expect(kept.nativeSearchAdapter).toBe('openai-web-search-options');
   });
+
+  it('grounds Gemini on Vertex AI in place and offers Bedrock nothing', () => {
+    expect(compatibleNativeSearchAdapters('google-vertex', undefined, '', 'gemini-4-argon')).toEqual(['google-search-tool']);
+    expect(inferNativeSearchAdapter({ protocol: 'google-vertex', modelId: 'gemini-4-argon' })).toBe('google-search-tool');
+    expect(nativeSearchProtocolSwitch({ protocol: 'google-vertex', modelId: 'gemini-4-argon' })).toBeUndefined();
+    expect(
+      suggestDiscoveredNativeSearch({ protocol: 'google-vertex', modelId: 'gemini-2.5-pro' }),
+    ).toMatchObject({ adapter: 'google-search-tool' });
+    // Partner models on Vertex and everything on Bedrock have no hosted search.
+    expect(inferNativeSearchAdapter({ protocol: 'google-vertex', modelId: 'claude-opus-4-8@default' })).toBeUndefined();
+    expect(compatibleNativeSearchAdapters('amazon-bedrock', undefined, '', 'us.anthropic.claude-sonnet-4-5')).toEqual([]);
+    expect(nativeSearchProtocolSwitch({ protocol: 'amazon-bedrock', modelId: 'claude-sonnet-4-5' })).toBeUndefined();
+    expect(suggestDiscoveredNativeSearch({ protocol: 'amazon-bedrock', modelId: 'claude-sonnet-4-5' })).toBeUndefined();
+  });
 });

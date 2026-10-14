@@ -19,6 +19,8 @@ import {
 } from './attach-provider-stream-simple.js';
 import type { NativeSearchStreamSimple } from './native-web-search.js';
 import {
+  CLOUD_CREDENTIAL_CHAIN_API_KEY,
+  resolveCloudBaseUrl,
   resolveCloudStreamOptions,
   wrapStreamSimpleWithCloudOptions,
 } from './cloud-provider-stream.js';
@@ -222,6 +224,7 @@ export function buildPiProviderRegistration(
   options: BuildPiProviderRegistrationOptions = {},
 ): PiProviderRegistration {
   const api = resolvePiApiForProvider(provider.protocol, provider.chatApi);
+  const providerBaseUrl = resolveCloudBaseUrl(provider);
   const models: PiModelRegistration[] = provider.models
     .filter((model) => isModelEnabled(model) && modelSupportsCapability(model, 'chat'))
     .map((model) => {
@@ -241,7 +244,8 @@ export function buildPiProviderRegistration(
         id: model.id,
         name: model.label?.trim() || model.id,
         api: modelApi,
-        baseUrl: endpoint.baseUrl,
+        // A cloud row may leave it blank; Pi still requires one to register.
+        baseUrl: endpoint.baseUrl || providerBaseUrl,
         // Omit → true: preserve legacy "all models reasoning-capable" registration.
         reasoning: model.reasoning ?? true,
         ...(compat ? { compat } : {}),
@@ -272,7 +276,7 @@ export function buildPiProviderRegistration(
   const cloud = resolveCloudStreamOptions(provider, apiKey);
   const registration: PiProviderRegistration = {
     name: provider.name,
-    baseUrl: provider.baseUrl,
+    baseUrl: providerBaseUrl,
     api,
     // Cloud rows authenticate through ADC / the AWS chain; a key is optional.
     authHeader: cloud
@@ -282,6 +286,8 @@ export function buildPiProviderRegistration(
   };
   if (apiKey) {
     registration.apiKey = apiKey;
+  } else if (cloud) {
+    registration.apiKey = CLOUD_CREDENTIAL_CHAIN_API_KEY;
   }
   if (provider.headers) {
     registration.headers = provider.headers;

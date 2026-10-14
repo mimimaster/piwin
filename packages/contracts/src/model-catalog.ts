@@ -7,8 +7,19 @@
 import type {
   ImageGenerationApiStyle,
   ModelInputModality,
+  ModelProviderConfig,
   VideoGenerationApiStyle,
 } from './config.js';
+import { isCloudCredentialProtocol } from './config.js';
+
+/**
+ * Catalog provider whose model ids a cloud platform row accepts verbatim
+ * (Bedrock inference-profile ids, Vertex publisher ids). Other protocols
+ * search the whole catalog.
+ */
+export function platformCatalogProviderId(protocol: ModelProviderConfig['protocol']): string | undefined {
+  return isCloudCredentialProtocol(protocol) ? protocol : undefined;
+}
 
 export type ModelCatalogEntry = {
   /**

@@ -5,7 +5,7 @@
  * `bedrock-converse-stream` via the AWS SDK default credential chain); this
  * module only turns a product provider row into Pi stream options.
  */
-import { DEFAULT_VERTEX_LOCATION } from '@piwin/contracts';
+import { DEFAULT_BEDROCK_REGION, DEFAULT_VERTEX_LOCATION } from '@piwin/contracts';
 import type { NativeSearchStreamSimple } from './native-web-search.js';
 
 export type CloudStreamOptions = {
@@ -21,6 +21,14 @@ export type CloudStreamOptions = {
   /** Vertex: rewrite budget-style thinking for models that only accept levels. */
   vertexThinkingLevels?: boolean;
 };
+
+/**
+ * Pi only sends a request for a provider it considers configured, i.e. one
+ * with an API key. A keyless cloud row authenticates through ADC / the AWS
+ * chain instead, so register Pi's own "ambient credentials" marker; the
+ * stream wrapper below drops it before the request, so it is never sent.
+ */
+export const CLOUD_CREDENTIAL_CHAIN_API_KEY = '<authenticated>';
 
 /** Gemini 1.x / 2.x take `thinkingBudget`; newer families take `thinkingLevel`. */
 const GEMINI_BUDGET_MODEL = /(?:^|\/)gemini-(?:1|2)(?:\.|-)/u;
@@ -81,6 +89,28 @@ export function pickCloudProviderFields(
     if (value) out[key] = value;
   }
   return out;
+}
+
+/**
+ * Pi refuses to register a custom model without a `baseUrl`, but a cloud row
+ * leaves it blank to mean "the platform's own endpoint". Hand Pi the same
+ * defaults its built-in catalog uses: the Vertex `{location}` template (which
+ * its adapter treats as "no custom endpoint") and the standard regional
+ * Bedrock runtime host (which it only pins when no region/profile is set).
+ * A filled-in base URL (VPC endpoint, proxy) always wins.
+ */
+export function resolveCloudBaseUrl(
+  provider: CloudProviderFields & { baseUrl?: string | undefined },
+): string {
+  const configured = trimmed(provider.baseUrl);
+  if (configured) return configured;
+  if (provider.protocol === 'google-vertex') {
+    return 'https://{location}-aiplatform.googleapis.com';
+  }
+  if (provider.protocol === 'amazon-bedrock') {
+    return `https://bedrock-runtime.${trimmed(provider.region) ?? DEFAULT_BEDROCK_REGION}.amazonaws.com`;
+  }
+  return '';
 }
 
 /** Pi stream options for a cloud provider row, or undefined for HTTP-key protocols. */

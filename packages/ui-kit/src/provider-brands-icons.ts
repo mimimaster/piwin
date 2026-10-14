@@ -8,6 +8,7 @@ import {
   Anthropic,
   Azure,
   AzureAI,
+  Bedrock,
   ByteDance,
   Claude,
   Codex,
@@ -31,6 +32,7 @@ import {
   Qwen,
   SiliconCloud,
   Stepfun,
+  VertexAI,
   Volcengine,
   XAI,
   XiaomiMiMo,
@@ -103,4 +105,7 @@ export const BRANDS: Record<string, BrandEntry> = {
   azure: { Icon: Azure as BrandIcon, softBg: '#e8f0fe', softFg: '#0078d4' },
   'azure-openai': { Icon: AzureAI as BrandIcon, softBg: '#e8f0fe', softFg: '#0078d4' },
   azureai: { Icon: AzureAI as BrandIcon, softBg: '#e8f0fe', softFg: '#0078d4' },
+  vertex: { Icon: VertexAI as BrandIcon, softBg: '#e8f0fe', softFg: '#4285f4' },
+  vertexai: { Icon: VertexAI as BrandIcon, softBg: '#e8f0fe', softFg: '#4285f4' },
+  bedrock: { Icon: Bedrock as BrandIcon, softBg: '#e9edf2', softFg: '#222f3e' },
 };

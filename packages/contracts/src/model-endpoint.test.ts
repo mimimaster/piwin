@@ -4,6 +4,7 @@ import {
   rebaseForProtocol,
   resolveModelEndpoint,
   resolveModelProtocol,
+  supportsModelProtocolOverride,
 } from './model-endpoint.js';
 
 const cpa: ModelProviderConfig = {
@@ -56,5 +57,24 @@ describe('per-model request protocol', () => {
     };
     expect(resolveModelProtocol(subscription, { protocol: 'google-gemini' })).toBe('openai-compatible');
     expect(resolveModelProtocol(cpa, { protocol: 'bogus' as never })).toBe('openai-compatible');
+  });
+
+  it('pins cloud platform rows to their own protocol in both directions', () => {
+    const vertex: ModelProviderConfig = {
+      id: 'vertex',
+      name: 'Vertex AI',
+      protocol: 'google-vertex',
+      baseUrl: '',
+      project: 'demo',
+      models: [{ id: 'gemini-2.5-pro', protocol: 'google-gemini' }],
+    };
+    expect(supportsModelProtocolOverride(vertex)).toBe(false);
+    expect(resolveModelProtocol(vertex, vertex.models[0])).toBe('google-vertex');
+    expect(resolveModelEndpoint(vertex, vertex.models[0])).toBe(vertex);
+
+    expect(supportsModelProtocolOverride(cpa)).toBe(true);
+    const intoCloud = { id: 'claude-x', protocol: 'amazon-bedrock' as const };
+    expect(resolveModelProtocol(cpa, intoCloud)).toBe('openai-compatible');
+    expect(resolveModelEndpoint(cpa, intoCloud)).toBe(cpa);
   });
 });

@@ -106,8 +106,10 @@ function resolveBrandFromMap(
     return null;
   }
 
-  // Specific before generic (azure-openai before openai).
+  // Specific before generic (azure-openai before openai, google-vertex before google).
   if (lower.includes('azure')) return table.azure ?? null;
+  if (lower.includes('vertex')) return table.vertex ?? null;
+  if (lower.includes('bedrock')) return table.bedrock ?? null;
   if (lower.includes('openrouter')) return table.openrouter ?? null;
   if (lower.includes('gemini') || lower.includes('google')) return table.gemini ?? null;
   if (lower.includes('copilot')) return table['github-copilot'] ?? table.copilot ?? null;

@@ -53,6 +53,15 @@ describe('ProviderIcon', () => {
     expect(azure).toContain('<svg');
   });
 
+  it('draws the cloud platform marks for Vertex AI and Bedrock rows', () => {
+    for (const id of ['vertex', 'vertex-2', 'google-vertex']) {
+      expect(renderToStaticMarkup(createElement(ProviderIcon, { id }))).toContain('data-provider-brand="VertexAI"');
+    }
+    for (const id of ['bedrock', 'amazon-bedrock']) {
+      expect(renderToStaticMarkup(createElement(ProviderIcon, { id }))).toContain('data-provider-brand="Bedrock"');
+    }
+  });
+
   it('resolves official brand icon from modelId when provider is custom/proxy', () => {
     const geminiProxy = renderToStaticMarkup(
       createElement(ProviderIcon, {

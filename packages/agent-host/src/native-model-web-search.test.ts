@@ -156,6 +156,50 @@ describe('completeNativeModelWebSearch', () => {
     expect(result.nativeDiagnostic?.transport).toBe('gemini-rest');
   });
 
+  it('Vertex grounds through direct REST with ADC and the row project', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const body = JSON.stringify({
+      candidates: [
+        {
+          content: { parts: [{ text: 'V' }] },
+          groundingMetadata: {
+            webSearchQueries: ['vq'],
+            groundingChunks: [{ web: { uri: 'https://v.example', title: 'v' } }],
+          },
+        },
+      ],
+    });
+    const vertex = provider(
+      { protocol: 'google-vertex', baseUrl: '', project: 'demo', location: 'us-central1' } as Partial<ModelProviderConfig>,
+      '',
+    );
+    const model = vertex.models[0];
+    if (!model) throw new Error('fixture');
+    model.id = 'gemini-4-argon';
+    // Tag only: the adapter is inferred for a Gemini model on a Vertex row.
+    delete model.nativeSearchAdapter;
+    const result = await completeNativeModelWebSearch(
+      { provider: vertex, modelId: 'gemini-4-argon', query: 'q', maxResults: 5 },
+      {
+        fetch: async (url, init) => {
+          calls.push({ url: String(url), init: init ?? {} });
+          return new Response(body);
+        },
+        resolveVertexAccessToken: async () => 'adc-token',
+      },
+    );
+    expect(calls[0]?.url).toBe(
+      'https://us-central1-aiplatform.googleapis.com/v1/projects/demo/locations/us-central1/publishers/google/models/gemini-4-argon:generateContent',
+    );
+    const headers = calls[0]?.init.headers as Record<string, string>;
+    expect(headers.authorization).toBe('Bearer adc-token');
+    expect(headers['x-goog-user-project']).toBe('demo');
+    expect(JSON.parse(String(calls[0]?.init.body)).tools).toEqual([{ googleSearch: {} }]);
+    expect(result.hits[0]?.url).toBe('https://v.example');
+    expect(result.searchQueries).toEqual(['vq']);
+    expect(result.nativeDiagnostic?.transport).toBe('vertex-rest');
+  });
+
   it('rejects untagged or adapter-less models before any request', async () => {
     const untagged = provider({}, 'openai-responses-tool');
     const model = untagged.models[0];
