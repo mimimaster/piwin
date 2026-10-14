@@ -42,6 +42,14 @@ describe('buildArtifactDiagramKitCss', () => {
     ]);
   });
 
+
+  it('marks toned steps with a straight left accent, not a curved inset shadow', () => {
+    expect(css).toContain('linear-gradient(');
+    expect(css).toContain('0 0 / 3px 100% no-repeat');
+    // Fail closed: inset left shadows bend into a concave arc on rounded cards.
+    expect(css).not.toMatch(/box-shadow:\s*inset\s+[0-9.]+px\s+0\s+0/);
+  });
+
   it('ships in every sandbox document after the report kit', () => {
     const { srcdoc } = buildHtmlArtifactSrcdoc({
       source: '<main class="piwin-report"><table class="piwin-lanes"></table></main>',
