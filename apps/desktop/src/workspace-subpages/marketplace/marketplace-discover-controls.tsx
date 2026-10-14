@@ -24,7 +24,7 @@ export type MarketplaceDiscoverControlsProps = {
   totalCount: number;
   kindFilter: MarketKindFilter;
   onKindFilterChange: (kind: MarketKindFilter) => void;
-  /** Categories present in the current kind scope; the strip hides below two. */
+  /** Categories present in the catalog; orthogonal to kind chips. Strip hides below two. */
   categories?: readonly MarketplaceCategory[] | undefined;
   categoryFilter?: MarketCategoryFilter | undefined;
   onCategoryFilterChange?: ((category: MarketCategoryFilter) => void) | undefined;

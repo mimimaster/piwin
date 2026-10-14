@@ -84,7 +84,8 @@ export function MarketplaceDiscoverView(props: MarketplaceDiscoverViewProps): Re
     </div>
   );
 
-  const showHero = !props.query && props.kindFilter !== 'piwin-extension';
+  // Hero is a page banner, not kind-specific — only hide while searching.
+  const showHero = !props.query;
 
   return (
     <>

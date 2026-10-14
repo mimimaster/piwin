@@ -205,10 +205,9 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
     return map;
   }, [data.items]);
 
-  const categories = useMemo(
-    () => presentCategories(liveEntries, kindFilter),
-    [liveEntries, kindFilter],
-  );
+  // Category chips stay stable across kind filters so the strip does not
+  // collapse when the selected kind only spans one category (e.g. MCP).
+  const categories = useMemo(() => presentCategories(liveEntries, 'all'), [liveEntries]);
   const effectiveCategory =
     categoryFilter !== 'all' && categories.includes(categoryFilter) ? categoryFilter : 'all';
   const visibleEntries = useMemo(

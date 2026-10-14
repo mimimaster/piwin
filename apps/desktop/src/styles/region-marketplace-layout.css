@@ -159,7 +159,15 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  flex: 0 1 auto;
+  /* Grow into the row, shrink + scroll when chips overflow (do not clip). */
+  flex: 1 1 auto;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+}
+
+.market-filter-row .market-category-strip::-webkit-scrollbar {
+  display: none;
 }
 
 .market-filter-row .vault-chip {

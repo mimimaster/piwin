@@ -224,7 +224,7 @@ describe('MarketplaceWorkspaceView', () => {
     expect(container.textContent).not.toContain('Runtime Gen');
   });
 
-  it('hides the hero carousel while searching or filtering piwin extensions', async () => {
+  it('hides the hero carousel while searching, keeps it for kind filters including piwin extensions', async () => {
     const host = createFakeHost({
       'marketplace/catalog-list': (command) =>
         ok(command.type, {
@@ -258,7 +258,7 @@ describe('MarketplaceWorkspaceView', () => {
     act(() => {
       findButton(container, 'piwin 扩展')?.click();
     });
-    expect(container.querySelector('.market-hero-carousel')).toBeNull();
+    expect(container.querySelector('.market-hero-carousel')).not.toBeNull();
   });
 
   it('shows only registry entries in the piwin extension filter', async () => {
@@ -278,6 +278,53 @@ describe('MarketplaceWorkspaceView', () => {
         node.getAttribute('data-testid'),
       ),
     ).toEqual(['market-entry-extension:mimimaster/commandcode-provider']);
+  });
+
+  it('keeps category chips visible when a kind spans only one category', async () => {
+    const mcpEntry: MarketplaceCatalogEntry = {
+      ...SKILL_ENTRY,
+      entryId: 'mcp:memory',
+      capabilityId: 'memory',
+      kind: 'mcp',
+      category: 'docs-research',
+      name: { en: 'memory', zhCN: '实体记忆' },
+      summary: { en: 'Memory MCP', zhCN: '记忆 MCP' },
+      install: {
+        kind: 'mcp',
+        serverId: 'memory',
+        draft: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-memory'] },
+      },
+      featured: false,
+    };
+    const host = createFakeHost({
+      'marketplace/catalog-list': (command) =>
+        ok(command.type, {
+          entries: [
+            { ...EXTENSION_ENTRY, featured: false },
+            { ...SKILL_ENTRY, featured: false },
+            mcpEntry,
+          ],
+        }),
+    });
+    render(host);
+    await flush();
+
+    expect(findButton(container, '代码开发')).toBeDefined();
+    expect(findButton(container, '文档与研究')).toBeDefined();
+
+    act(() => {
+      findButton(container, 'MCP 服务')?.click();
+    });
+
+    // Kind-scoped categories would collapse to one chip and hide the strip;
+    // chips stay catalog-wide so the row does not jump away.
+    expect(findButton(container, '代码开发')).toBeDefined();
+    expect(findButton(container, '文档与研究')).toBeDefined();
+    expect(
+      Array.from(container.querySelectorAll('[data-testid^="market-entry-"]')).map((node) =>
+        node.getAttribute('data-testid'),
+      ),
+    ).toEqual(['market-entry-mcp:memory']);
   });
 
   it('shows a small real community preview on opening Discover', async () => {
