@@ -26,7 +26,6 @@ const workerOutfile = join(distHost, 'agent-worker.mjs');
 const EXTERNAL_DEPS = {
   '@earendil-works/pi-coding-agent': '0.84.2',
   '@earendil-works/pi-codemode': '1.1.0',
-  '@lancedb/lancedb': '0.37.1',
   '@silvia-odwyer/photon-node': '0.3.4',
   '@medv/finder': '4.0.2',
   esbuild: '0.25.12',
@@ -230,6 +229,7 @@ async function main() {
 
   await verifyPinnedExternalVersions(distHost);
   await smokeCodemodeSandbox(distHost);
+  await smokeNativeExternals(distHost);
 
   console.log(`[bundle-host] done → ${relative(root, distHost)}`);
 }
@@ -279,10 +279,7 @@ async function smokeCodemodeSandbox(distHost) {
   }
   console.log(`[bundle-host] codemode worker: ${relative(distHost, worker)}`);
   console.log(`[bundle-host] codemode wasm: ${relative(distHost, wasmPath)}`);
-  const scriptPath = join(distHost, 'codemode-smoke.mjs');
-  await writeFile(
-    scriptPath,
-    [
+  await runSmokeScript(distHost, 'codemode-smoke.mjs', [
       "import { CodemodeSandbox, loadQuickJSWasm } from '@earendil-works/pi-codemode';",
       "import { pathToFileURL } from 'node:url';",
       'const sandbox = new CodemodeSandbox({',
@@ -302,10 +299,30 @@ async function smokeCodemodeSandbox(distHost) {
       '} finally {',
       '  await sandbox.close();',
       '}',
-      '',
-    ].join('\n'),
-    'utf8',
-  );
+  ]);
+}
+
+/**
+ * Loads each native external the prune pass trims around (node-pty-foreign,
+ * sharp-wasm-fallback), so an over-eager prune rule fails the bundle here
+ * instead of at a user's first terminal or image paste.
+ */
+async function smokeNativeExternals(distHost) {
+  await runSmokeScript(distHost, 'native-externals-smoke.mjs', [
+    "import sharp from 'sharp';",
+    "import 'node-pty';",
+    'const png = await sharp({',
+    "  create: { width: 2, height: 2, channels: 3, background: '#ffffff' },",
+    '}).png().toBuffer();',
+    "if (png.length === 0) throw new Error('sharp produced an empty image');",
+    "console.log('[bundle-host] native externals smoke ok (sharp, node-pty)');",
+  ]);
+}
+
+/** Runs a throwaway ESM script from dist-host so it resolves the bundle's own node_modules. */
+async function runSmokeScript(distHost, fileName, lines) {
+  const scriptPath = join(distHost, fileName);
+  await writeFile(scriptPath, `${lines.join('\n')}\n`, 'utf8');
   try {
     run('node', [scriptPath], { cwd: distHost });
   } finally {

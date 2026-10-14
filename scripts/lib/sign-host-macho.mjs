@@ -1,7 +1,7 @@
 /**
  * Find and Developer-ID-sign Mach-O files in the packaged Host tree.
  * Tauri signs the .app and sidecar binary, but not resource natives
- * (lancedb / sharp / esbuild / onnx). Apple notarization rejects those.
+ * (sharp / esbuild / node-pty). Apple notarization rejects those.
  */
 import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';

@@ -28,10 +28,9 @@ notarization is **optional** (residual **D-ENG-03b** when certs unavailable).
 - Platform deps for Tauri 2 (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/))
 - Network access once to download the pinned Node LTS used by
   `scripts/fetch-node-runtime.mjs` (cached under `~/.cache/piwin-build/`)
-- Doc Cards V2 ships `@lancedb/lancedb` with **one** platform native
-  (`lancedb.<os>-<arch>.node`, ~216 MiB). Sidecar packaging must not bundle
-  every optional native package. FTS must use the ICU tokenizer (see
-  `docs/notes/2026-08-16-lancedb-sidecar-spike.md`).
+- The doc-rag chunk index runs on `node:sqlite` (FTS5 + vectors), built into the
+  bundled Node. It adds no native package to the sidecar (ADR 0018 appendix,
+  2026-10-13).
 
 ### End-user machine (after S5 passes)
 
@@ -115,7 +114,7 @@ pnpm test:bundle
 ## Windows build (do it on Windows)
 
 Do **not** cross-compile the Desktop installer from macOS. Host sidecar natives
-(`lancedb`, `sharp`, clipboard, bundled Node) are OS-specific, and Tauri needs
+(`sharp`, `node-pty`, clipboard, bundled Node) are OS-specific, and Tauri needs
 MSVC + WebView2. Build on the target machine (or a matching Windows x64 box):
 
 1. Node `>= 22.19` and pnpm `9.x`

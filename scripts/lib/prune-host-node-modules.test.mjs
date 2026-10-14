@@ -218,3 +218,60 @@ test('pruneHostNodeModules keeps nested photon when top-level missing', async ()
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('pruneHostNodeModules drops natives built for other triples', async () => {
+  const root = join(tmpdir(), `piwin-prune-natives-${process.pid}-${Date.now()}`);
+  const nm = join(root, 'node_modules');
+  await mkdir(nm, { recursive: true });
+
+  await touch(nm, 'node-pty/lib/index.js', 'pty');
+  await touch(nm, 'node-pty/prebuilds/darwin-arm64/pty.node', 'native');
+  await touch(nm, 'node-pty/prebuilds/darwin-x64/pty.node', 'foreign');
+  await touch(nm, 'node-pty/prebuilds/win32-x64/conpty.node', 'foreign');
+
+  await touch(nm, '@img/sharp-darwin-arm64/lib/sharp.node', 'native');
+  await touch(nm, '@img/sharp-libvips-darwin-arm64/lib/libvips.dylib', 'native');
+  await touch(nm, '@img/sharp-wasm32/lib/sharp.wasm', 'fallback');
+
+  try {
+    const report = await pruneHostNodeModules(nm, { platform: 'darwin', arch: 'arm64' });
+
+    assert.ok((report.byCategory['node-pty-foreign'] ?? 0) > 0);
+    assert.ok((report.byCategory['sharp-wasm-fallback'] ?? 0) > 0);
+
+    await access(join(nm, 'node-pty/lib/index.js'));
+    await access(join(nm, 'node-pty/prebuilds/darwin-arm64/pty.node'));
+    await assert.rejects(() => access(join(nm, 'node-pty/prebuilds/darwin-x64')));
+    await assert.rejects(() => access(join(nm, 'node-pty/prebuilds/win32-x64')));
+
+    await access(join(nm, '@img/sharp-darwin-arm64/lib/sharp.node'));
+    await access(join(nm, '@img/sharp-libvips-darwin-arm64/lib/libvips.dylib'));
+    await assert.rejects(() => access(join(nm, '@img/sharp-wasm32')));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('pruneHostNodeModules keeps every fallback when the native build is missing', async () => {
+  const root = join(tmpdir(), `piwin-prune-fallback-${process.pid}-${Date.now()}`);
+  const nm = join(root, 'node_modules');
+  await mkdir(nm, { recursive: true });
+
+  // linux-arm64 build tree that only received other triples' natives.
+  await touch(nm, 'node-pty/prebuilds/darwin-arm64/pty.node', 'other');
+  await touch(nm, 'node-pty/prebuilds/win32-x64/conpty.node', 'other');
+  await touch(nm, '@img/sharp-linuxmusl-arm64/lib/sharp.node', 'musl');
+  await touch(nm, '@img/sharp-wasm32/lib/sharp.wasm', 'fallback');
+
+  try {
+    const report = await pruneHostNodeModules(nm, { platform: 'linux', arch: 'arm64' });
+
+    assert.equal(report.byCategory['node-pty-foreign'], undefined);
+    assert.equal(report.byCategory['sharp-wasm-fallback'], undefined);
+    await access(join(nm, 'node-pty/prebuilds/darwin-arm64/pty.node'));
+    await access(join(nm, 'node-pty/prebuilds/win32-x64/conpty.node'));
+    await access(join(nm, '@img/sharp-wasm32/lib/sharp.wasm'));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

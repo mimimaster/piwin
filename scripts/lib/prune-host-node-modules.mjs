@@ -9,13 +9,15 @@
  * - Native clipboard package for the build triple (+ darwin-universal on macOS)
  * - Top-level @silvia-odwyer/photon-node WASM
  * - playwright-core, esbuild, provider SDK JS bodies
+ * - node-pty prebuild and sharp native package for the build triple
  */
 import { lstat, readdir, rm, stat } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 
 /**
- * @typedef {'sourcemap' | 'typedef' | 'markdown' | 'clipboard-foreign' | 'nested-photon-dup'} PruneCategory
+ * @typedef {'sourcemap' | 'typedef' | 'markdown' | 'clipboard-foreign' | 'nested-photon-dup' | 'node-pty-foreign' | 'sharp-wasm-fallback'} PruneCategory
  */
+
 
 /**
  * @typedef {object} PruneReport
@@ -151,6 +153,19 @@ async function safeSize(path) {
 }
 
 /**
+ * @param {string} path
+ * @returns {Promise<boolean>}
+ */
+async function pathExists(path) {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * @param {string} nodeModulesRoot
  * @returns {AsyncGenerator<string>} package roots named clipboard-* under @mariozechner
  */
@@ -272,6 +287,26 @@ export async function pruneHostNodeModules(nodeModulesRoot, options = {}) {
     }
   } catch {
     // top-level missing — keep nested if present
+  }
+
+  // 4) node-pty prebuilds for other triples. node-pty resolves exactly
+  //    prebuilds/<platform>-<arch>; without that directory, leave all of them alone.
+  const prebuildsRoot = join(nodeModulesRoot, 'node-pty', 'prebuilds');
+  const nativePrebuild = `${platform}-${arch}`;
+  if (await pathExists(join(prebuildsRoot, nativePrebuild))) {
+    for (const entry of await readdir(prebuildsRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name === nativePrebuild) continue;
+      await removePath(join(prebuildsRoot, entry.name), 'node-pty-foreign');
+    }
+  }
+
+  // 5) sharp's WASM build is only a fallback for when no native package matches.
+  const sharpWasm = join(nodeModulesRoot, '@img', 'sharp-wasm32');
+  if (
+    (await pathExists(join(nodeModulesRoot, '@img', `sharp-${platform}-${arch}`))) &&
+    (await pathExists(sharpWasm))
+  ) {
+    await removePath(sharpWasm, 'sharp-wasm-fallback');
   }
 
   return report;

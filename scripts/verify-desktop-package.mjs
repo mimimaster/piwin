@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Inspect a packaged all-in-one macOS app: sidecar Node, Host JS, LanceDB
+ * Inspect a packaged all-in-one macOS app: sidecar Node, Host JS, node-pty
  * native, and code signature. Does not launch the GUI.
  *
  * Tauri removes macos/*.app after writing the DMG. When the .app is gone,
@@ -121,7 +121,7 @@ async function inspectApp(appPath, dmgPath) {
   await assertFile(layout.agentWorker, 'agent-worker.mjs');
   await assertFile(layout.hostPackageJson, 'host package.json');
   await assertDirectory(layout.bundledAssets, 'bundled-assets');
-  await assertFile(layout.lancedbNative, 'LanceDB darwin-arm64 native');
+  await assertFile(layout.nodePtyNative, 'node-pty darwin-arm64 native');
   const dmg = await assertFile(dmgPath, 'dmg');
 
   if (isPlaceholderHostServe(hostServe.size)) {

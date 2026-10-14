@@ -14,6 +14,8 @@ apps/desktop/src-tauri/binaries/
 AuthKey_*.p8
 private_keys/
 apps/desktop/src-tauri/target/
+# Cargo build cache for every Rust crate / Tauri plugin (crates/, apps/mobile plugins)
+target/
 coverage/
 .vite/
 .wrangler/
@@ -81,6 +83,7 @@ docs/plans/
 docs/specs/*
 !docs/specs/ios-shell-display-mapping.md
 !docs/specs/codemode-readonly.md
+!docs/specs/sidebar-project-removal.md
 docs/notes/
 cropped-portraits/
 cropped-portraits-16.zip

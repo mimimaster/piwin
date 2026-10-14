@@ -22,7 +22,7 @@ test('packagedAppLayout uses the Tauri 2 sidecar + resources host tree', () => {
     layout.hostServe,
     join('/tmp/piwinwin.app', 'Contents/Resources/host/host-serve.mjs'),
   );
-  assert.match(layout.lancedbNative, /lancedb-darwin-arm64/);
+  assert.match(layout.nodePtyNative, /node-pty\/prebuilds\/darwin-arm64\/pty\.node$/);
 });
 
 test('artifact name filters ignore helper files in the dmg folder', () => {
@@ -89,7 +89,7 @@ test(
       const host = join(app, 'Contents', 'Resources', 'host');
       mkdirSync(join(app, 'Contents', 'MacOS'), { recursive: true });
       mkdirSync(join(host, 'bundled-assets'), { recursive: true });
-      mkdirSync(join(host, 'node_modules', '@lancedb', 'lancedb-darwin-arm64'), { recursive: true });
+      mkdirSync(join(host, 'node_modules', 'node-pty', 'prebuilds', 'darwin-arm64'), { recursive: true });
       writeFileSync(
         join(app, 'Contents', 'Info.plist'),
         `<?xml version="1.0" encoding="UTF-8"?>
@@ -116,7 +116,7 @@ test(
       writeFileSync(join(host, 'agent-worker.mjs'), 'worker\n');
       writeFileSync(join(host, 'package.json'), '{}\n');
       writeFileSync(
-        join(host, 'node_modules', '@lancedb', 'lancedb-darwin-arm64', 'lancedb.darwin-arm64.node'),
+        join(host, 'node_modules', 'node-pty', 'prebuilds', 'darwin-arm64', 'pty.node'),
         'native\n',
       );
       const dmgPath = join(scratch, 'piwinwin_0.0.0_aarch64.dmg');

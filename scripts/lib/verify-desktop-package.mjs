@@ -15,12 +15,13 @@ export function packagedAppLayout(appPath) {
     agentWorker: join(resourcesHost, 'agent-worker.mjs'),
     hostPackageJson: join(resourcesHost, 'package.json'),
     bundledAssets: join(resourcesHost, 'bundled-assets'),
-    lancedbNative: join(
+    nodePtyNative: join(
       resourcesHost,
       'node_modules',
-      '@lancedb',
-      'lancedb-darwin-arm64',
-      'lancedb.darwin-arm64.node',
+      'node-pty',
+      'prebuilds',
+      'darwin-arm64',
+      'pty.node',
     ),
   };
 }
