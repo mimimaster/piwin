@@ -91,6 +91,9 @@ export async function buildDomainContext(
     ...(deps.healthSummaries === undefined ? {} : { healthSummaries: deps.healthSummaries }),
     pendingPermissions: deps.pendingPermissions,
     pendingExtensionUi: deps.pendingExtensionUi,
+    ...(deps.backendUserInputPending !== undefined
+      ? { backendUserInputPending: deps.backendUserInputPending }
+      : {}),
     getExtensionUiSurface: (sessionId) => deps.extensionUiSurfaces.snapshot(sessionId),
     getSessionUsageTotals: async (sessionId) =>
       (await deps.getTranscriptStore(sessionId)).readSessionUsageTotals(),

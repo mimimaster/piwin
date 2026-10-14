@@ -228,6 +228,12 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
       deps.promptAdmissionGate.release(sessionId);
     },
     isPromptAdmissionReserved: (sessionId) => deps.promptAdmissionGate.isReserved(sessionId),
+    handoffNativeCliIfIdle: async (sessionId) => deps.agentCliService?.handoffIfIdle(sessionId) ?? false,
+    isNativeCliWriterBlocked: (sessionId) => {
+      const service = deps.agentCliService;
+      if (service !== undefined) return service.isDesktopWriterBlocked(sessionId);
+      return deps.agentCliOwnership?.isDesktopWriterBlocked(sessionId) === true;
+    },
     joinRun: (runId) => deps.runRegistry.join(runId),
     getRunSignal: (runId) => deps.runRegistry.getSignal(runId),
     getRunAbortReason: (runId) => deps.runRegistry.getAbortReason(runId),
@@ -298,6 +304,7 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
           deps.pendingPermissions.delete(requestId);
         }
       }
+      deps.backendUserInputPending?.cancelSession(sessionId);
     },
     settlePendingExtensionUiForSession: (sessionId) =>
       deps.settlePendingExtensionUiForSession(sessionId),

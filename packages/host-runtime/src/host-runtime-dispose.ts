@@ -86,6 +86,12 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
   }
   deps.pendingPermissions.clear();
   deps.pendingExtensionUi.clear();
+  try {
+    deps.backendUserInputPending?.dispose();
+  } catch (error) {
+    shutdownErrors.push(error);
+  }
+  deps.backendUserInputPending = undefined;
   deps.extensionUiSurfaces.dispose();
   deps.notesServices = null;
   if (deps.folderRag) {

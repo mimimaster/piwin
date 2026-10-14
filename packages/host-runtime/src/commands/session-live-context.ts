@@ -334,6 +334,9 @@ export type SessionLiveContext = {
   tryReservePromptAdmission: (sessionId: string) => boolean;
   releasePromptAdmission: (sessionId: string) => void;
   isPromptAdmissionReserved: (sessionId: string) => boolean;
+  /** Host-managed native CLI writer blocks Desktop prompt admission when true. */
+  isNativeCliWriterBlocked?: (sessionId: string) => boolean;
+  handoffNativeCliIfIdle?: (sessionId: string) => Promise<boolean>;
   tryReserveSessionBody: (sessionId: string) => boolean;
   releaseSessionBody: (sessionId: string) => void;
   isSessionBodyReserved: (sessionId: string) => boolean;

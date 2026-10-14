@@ -118,6 +118,8 @@ export type HostCommandContext = {
       sessionId: string;
     }
   >;
+  /** Host pending native backend user-input (optional until external agents compose). */
+  backendUserInputPending?: import('../backend-user-input-pending.js').BackendUserInputPendingController;
   /** ADR 0080: current extension surface snapshot of a session. */
   getExtensionUiSurface?: (sessionId: string) => ExtensionUiSurfaceSnapshot;
   /** Per-session transcript store (composer usage stats). */

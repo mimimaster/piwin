@@ -220,6 +220,17 @@ export async function handleSessionPromptCommand(
               context.sessionDeviceToolsGained?.(command.sessionId) === true)));
       const explicitForeground = command.foreground;
       let reservedAdmission = false;
+      // Native CLI owns the product-session writer: refuse Desktop prompts early
+      // (normal / explicit / queued share this path) before admission work.
+      if (context.isNativeCliWriterBlocked?.(command.sessionId) === true) {
+        try { await context.handoffNativeCliIfIdle?.(command.sessionId); }
+        catch (error) { return fail(requestId, command.type, formatError(error)); }
+      }
+      if (context.isNativeCliWriterBlocked?.(command.sessionId) === true) {
+        return fail(requestId, 'session/prompt', 'writer-busy: native CLI owns this session', {
+          code: 'writer-busy',
+        });
+      }
       if (explicitForeground !== undefined) {
         if (!context.tryReservePromptAdmission(command.sessionId)) {
           const transitioning = evaluatePromptForegroundAdmission({
@@ -278,6 +289,16 @@ export async function handleSessionPromptCommand(
         const registerOptions = requiresModelRuntimeReplacement
           ? { deferRuntimeGeneration: true }
           : undefined;
+        // Recheck ownership synchronously immediately before register/replace
+        // with no awaits until registration so the CLI/prompt race stays closed.
+        if (context.isSessionBodyReserved(command.sessionId)) {
+          return sessionBusyResponse(requestId, 'session/prompt', command.sessionId, 'body-job');
+        }
+        if (context.isNativeCliWriterBlocked?.(command.sessionId) === true) {
+          return fail(requestId, 'session/prompt', 'writer-busy: native CLI owns this session', {
+            code: 'writer-busy',
+          });
+        }
         try {
           run =
             supersededRun === undefined

@@ -289,9 +289,16 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
             deps.pendingPermissions.delete(requestId);
           }
         }
+        deps.backendUserInputPending?.cancelSession(sessionId);
       },
       settlePendingExtensionUi: (sessionId) => deps.settlePendingExtensionUiForSession(sessionId),
       validatePromptAttachments: (input) => deps.validatePromptAttachments(input),
+      isNativeCliWriterBlocked: (sessionId) => {
+        if (deps.agentCliService !== undefined) {
+          return deps.agentCliService.isDesktopWriterBlocked(sessionId);
+        }
+        return deps.agentCliOwnership?.isDesktopWriterBlocked(sessionId) === true;
+      },
       admitPrompt: (command) =>
         handleSessionLiveCommand(command, command.id, deps.buildSessionLiveContext()).then(
           (response) => {
@@ -501,6 +508,12 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         extensions: readonly LoadedExtensionRef[],
       ) => deps.runtimeController.recordLoadedExtensions(sessionId, generationId, extensions),
       onGenerationDetached: async (sessionId: string) => {
+        // Cancel only this generation's pending native inputs before forgetting it.
+        // A replacement generation's later inputs must not be swept by cancelSession.
+        const detachedGenerationId = deps.runtimeController.getStatus(sessionId).generationId;
+        if (detachedGenerationId !== undefined) {
+          deps.backendUserInputPending?.cancelGeneration(sessionId, detachedGenerationId);
+        }
         deps.runtimeController.detachGeneration(sessionId);
         deps.sessionHostToolPort?.clearSession(sessionId);
         await deps.releaseGenerationToolSurfaces(sessionId);

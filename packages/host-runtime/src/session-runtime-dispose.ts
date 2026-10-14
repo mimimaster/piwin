@@ -58,6 +58,10 @@ export async function disposeLiveSession(
   // sweep timer and counters never track a disposed runtime. Read the
   // generation BEFORE detaching it from the runtime registry.
   const disposedGenerationId = deps.runtimeController.getStatus(sessionId).generationId;
+  // Cancel only this generation's native input tickets before the id is forgotten.
+  if (disposedGenerationId !== undefined) {
+    deps.backendUserInputPending?.cancelGeneration(sessionId, disposedGenerationId);
+  }
   deps.pendingDirectActivations.delete(sessionId);
   deps.runtimeController.detachGeneration(sessionId);
   if (disposedGenerationId !== undefined) {

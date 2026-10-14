@@ -13,6 +13,7 @@ const TYPES = new Set<HostCommand['type']>([
   'permission/pending-list',
   'extension/ui_resolve',
   'extension/ui_surface_get',
+  'session/backend-input-respond',
 ]);
 
 export function isResolveCommand(command: HostCommand): boolean {
@@ -168,6 +169,23 @@ export async function handleResolveCommand(
           widgets: [],
         },
       );
+    case 'session/backend-input-respond': {
+      const controller = context.backendUserInputPending;
+      if (controller === undefined) {
+        return fail(requestId, command.type, 'backend-user-input-unavailable');
+      }
+      const settled = controller.respond({
+        sessionId: command.sessionId,
+        requestId: command.requestId,
+        generationId: command.generationId,
+        result: command.result,
+        ...(command.runId !== undefined ? { runId: command.runId } : {}),
+      });
+      if (!settled.ok) {
+        return fail(requestId, command.type, settled.error, { code: settled.error });
+      }
+      return ok(requestId, command.type, { requestId: command.requestId, ok: true });
+    }
     default:
       return null;
   }
