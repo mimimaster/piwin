@@ -53,6 +53,7 @@ import {
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 import { handleNativeWindowDragMouseDown } from './native-window-drag';
 import { useScrollEdgeFade } from './hooks/use-scroll-edge-fade';
+import { useActiveProjectUnfold } from './hooks/use-active-project-unfold';
 import { useSidebarRevealRequest } from './hooks/use-sidebar-reveal-request';
 
 const SIDEBAR_SESSION_ROW_ESTIMATE_PX = 28;
@@ -431,6 +432,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     },
     [treeRows, virtualizeTree, virtualizer],
   );
+
+  useActiveProjectUnfold(treeInput, setCollapsedProjects);
 
   useSidebarRevealRequest({
     request: props.revealRequest,

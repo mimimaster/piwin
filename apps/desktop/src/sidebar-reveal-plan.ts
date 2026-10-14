@@ -42,18 +42,9 @@ function folderCollapseKey(
   return row.repository?.collapseKey ?? row.projectPath;
 }
 
-/**
- * Returns null when the target is listed nowhere in the tree (archived and
- * hidden, filtered out by search, or not a sidebar session at all).
- */
-export function planSidebarReveal(input: SidebarTreeRowsInput): SidebarRevealPlan | null {
-  const targetId = input.revealSessionId ?? input.revealDraftId ?? null;
-  if (!targetId) {
-    return null;
-  }
-  // Every fold open: the target's position in the fully unfolded tree tells
-  // which folders enclose it, whatever the user folded meanwhile.
-  const rows = buildSidebarTreeRows({
+/** The tree with every fold open, so a row's ancestors show whatever the user folded. */
+function buildUnfoldedRows(input: SidebarTreeRowsInput): SidebarTreeRow[] {
+  return buildSidebarTreeRows({
     ...input,
     pinnedSectionExpanded: true,
     projectsSectionExpanded: true,
@@ -61,14 +52,21 @@ export function planSidebarReveal(input: SidebarTreeRowsInput): SidebarRevealPla
     collapsedProjects: {},
     unavailableGroupCollapsed: false,
   });
-  const targetIndex = rows.findIndex((row) => isTargetRow(row, targetId));
-  const target = rows[targetIndex];
-  if (target === undefined) {
-    return null;
-  }
+}
 
-  let depth = sidebarTreeRowDepth(target);
-  let section: SidebarRevealPlan['section'] | null = null;
+type EnclosingFolds = Pick<SidebarRevealPlan, 'unfoldKeys' | 'unfoldUnavailable'> & {
+  section: SidebarRevealPlan['section'] | null;
+};
+
+/** Walks up from `targetIndex` collecting the folds that enclose that row. */
+function collectEnclosingFolds(
+  rows: readonly SidebarTreeRow[],
+  targetIndex: number,
+  input: SidebarTreeRowsInput,
+): EnclosingFolds {
+  const target = rows[targetIndex];
+  let depth = target === undefined ? 0 : sidebarTreeRowDepth(target);
+  let section: EnclosingFolds['section'] = null;
   const unfoldKeys: string[] = [];
   let unfoldUnavailable = false;
   for (let index = targetIndex - 1; index >= 0; index -= 1) {
@@ -100,6 +98,28 @@ export function planSidebarReveal(input: SidebarTreeRowsInput): SidebarRevealPla
       unfoldKeys.push(folderCollapseKey(row, input));
     }
   }
+  return { section, unfoldKeys, unfoldUnavailable };
+}
+
+/**
+ * Returns null when the target is listed nowhere in the tree (archived and
+ * hidden, filtered out by search, or not a sidebar session at all).
+ */
+export function planSidebarReveal(input: SidebarTreeRowsInput): SidebarRevealPlan | null {
+  const targetId = input.revealSessionId ?? input.revealDraftId ?? null;
+  if (!targetId) {
+    return null;
+  }
+  const rows = buildUnfoldedRows(input);
+  const targetIndex = rows.findIndex((row) => isTargetRow(row, targetId));
+  if (targetIndex < 0) {
+    return null;
+  }
+  const { section, unfoldKeys, unfoldUnavailable } = collectEnclosingFolds(
+    rows,
+    targetIndex,
+    input,
+  );
   if (section === null) {
     return null;
   }
@@ -109,4 +129,29 @@ export function planSidebarReveal(input: SidebarTreeRowsInput): SidebarRevealPla
     ? 'code'
     : 'chat';
   return { targetId, mode, section, unfoldKeys, unfoldUnavailable };
+}
+
+/**
+ * `collapsedProjects` keys of the folders that contain the active project's
+ * own folder (a project remembered inside another remembered path is listed
+ * under it). The active folder itself is excluded: folding it is the user's
+ * call, but a fold on an ancestor would hide the active project entirely.
+ * Null while the active project has no folder in the tree yet (just opened,
+ * project list not refreshed).
+ */
+export function activeProjectEnclosingFoldKeys(input: SidebarTreeRowsInput): string[] | null {
+  const activePath = input.activeProjectPath;
+  if (!activePath) {
+    return null;
+  }
+  const rows = buildUnfoldedRows(input);
+  const targetIndex = rows.findIndex(
+    (row) =>
+      row.kind === 'project-folder' &&
+      (row.projectPath === activePath || (row.aliasPaths ?? []).includes(activePath)),
+  );
+  if (targetIndex < 0) {
+    return null;
+  }
+  return collectEnclosingFolds(rows, targetIndex, input).unfoldKeys;
 }

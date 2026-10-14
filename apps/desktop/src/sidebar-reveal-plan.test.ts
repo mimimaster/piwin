@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionListItemUi } from './chat-reducer';
 import { createSessionListScopeState } from './session-list-scope';
-import { planSidebarReveal } from './sidebar-reveal-plan';
+import { activeProjectEnclosingFoldKeys, planSidebarReveal } from './sidebar-reveal-plan';
 import { buildSidebarTreeRows, type SidebarTreeRowsInput } from './sidebar-tree-rows';
 
 function session(id: string, extras: Partial<SessionListItemUi> = {}): SessionListItemUi {
@@ -111,5 +111,42 @@ describe('planSidebarReveal', () => {
   it('returns null when the session is not listed', () => {
     expect(planSidebarReveal(baseInput({ revealSessionId: 'missing' }))).toBeNull();
     expect(planSidebarReveal(baseInput({}))).toBeNull();
+  });
+});
+
+describe('activeProjectEnclosingFoldKeys', () => {
+  function folderVisible(input: SidebarTreeRowsInput, path: string): boolean {
+    return buildSidebarTreeRows(input).some(
+      (row) => row.kind === 'project-folder' && row.projectPath === path,
+    );
+  }
+
+  it('names the folded parent that hides a nested active project', () => {
+    const input = baseInput({
+      recentProjects: [
+        { path: '/ios/ctf', createdAt: '2026-10-14T12:43:00Z' },
+        { path: '/ios', createdAt: '2026-10-14T10:46:00Z' },
+      ],
+      collapsedProjects: { '/ios': true },
+      activeProjectPath: '/ios/ctf',
+    });
+    expect(folderVisible(input, '/ios/ctf')).toBe(false);
+    expect(activeProjectEnclosingFoldKeys(input)).toEqual(['/ios']);
+    expect(folderVisible({ ...input, collapsedProjects: {} }, '/ios/ctf')).toBe(true);
+  });
+
+  it('never names the active folder itself', () => {
+    const input = baseInput({
+      recentProjects: [{ path: '/app' }],
+      collapsedProjects: { '/app': true },
+      activeProjectPath: '/app',
+    });
+    expect(activeProjectEnclosingFoldKeys(input)).toEqual([]);
+  });
+
+  it('returns null until the active project is listed', () => {
+    const input = baseInput({ recentProjects: [{ path: '/ios' }], activeProjectPath: '/ios/ctf' });
+    expect(activeProjectEnclosingFoldKeys(input)).toBeNull();
+    expect(activeProjectEnclosingFoldKeys(baseInput({}))).toBeNull();
   });
 });
