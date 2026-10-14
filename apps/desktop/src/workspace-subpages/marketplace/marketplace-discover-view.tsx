@@ -13,6 +13,7 @@ import type { DesktopLocale } from '../../desktop-locale.js';
 import { IconExtension, IconSearch } from '../../shell-icons.js';
 import { MarketplaceCatalogCard } from './marketplace-catalog-card.js';
 import { MarketplaceCommunitySection } from './marketplace-community-section.js';
+import { MarketplaceHeroCarousel } from './marketplace-hero-carousel.js';
 import type { MarketKindFilter, MarketOperation } from './marketplace-types.js';
 import type { MarketplaceEcosystemSearch } from './use-marketplace-ecosystem-search.js';
 import type { MarketplacePackageInstallState } from './use-marketplace-package-install.js';
@@ -83,8 +84,11 @@ export function MarketplaceDiscoverView(props: MarketplaceDiscoverViewProps): Re
     </div>
   );
 
+  const showHero = !props.query && props.kindFilter !== 'piwin-extension';
+
   return (
     <>
+      {showHero ? <MarketplaceHeroCarousel locale={props.locale} /> : null}
       {props.featuredEntries.length > 0 ? (
         <section className="market-category-section" data-testid="marketplace-featured">
           <header className="market-section-header">
