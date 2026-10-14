@@ -11,8 +11,12 @@ import type {
   SessionTranscriptMessage,
   SessionUsageTotals,
 } from '@piwin/contracts';
+import { getArtifactFixture } from '@piwin/artifact/fixtures';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
-import { ConversationPaneSession } from './conversation-pane-session.js';
+import {
+  ConversationPaneSession,
+  type ConversationPaneSessionProps,
+} from './conversation-pane-session.js';
 import type { HostClient } from './host-client.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -37,6 +41,7 @@ class FakeHostClient {
 
   /** What the Host reports; real resumes send the bare kind string. */
   resumeScope: unknown = { kind: 'general' };
+  resumeAssistantText = 'Pane answer';
 
   isReady(): boolean {
     return true;
@@ -97,7 +102,7 @@ class FakeHostClient {
           name: 'Auxiliary Chat',
           messages: [
             message('user-1', 'user', 'Pane question'),
-            message('assistant-1', 'assistant', 'Pane answer'),
+            message('assistant-1', 'assistant', this.resumeAssistantText),
           ],
           ...(this.contextSnapshot ? { contextSnapshot: this.contextSnapshot } : {}),
         },
@@ -198,6 +203,7 @@ function message(id: string, role: 'user' | 'assistant', text: string): SessionT
 function renderSession(
   host: FakeHostClient,
   onSessionDeleted?: () => void,
+  surfaces?: Partial<ConversationPaneSessionProps>,
 ): { container: HTMLDivElement; root: Root } {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -214,6 +220,7 @@ function renderSession(
           readMedia={null}
           locale="en"
           {...(onSessionDeleted ? { onSessionDeleted } : {})}
+          {...surfaces}
         />
       </PiwinUiProvider>,
     );
@@ -431,6 +438,20 @@ describe('ConversationPaneSession', () => {
 
     await vi.waitFor(() => expect(onSessionDeleted).toHaveBeenCalledOnce());
     expect(container?.textContent).not.toContain('Unknown session');
+  });
+
+  it('forwards the Canvas switch to the transcript instead of following Inline', async () => {
+    const host = new FakeHostClient();
+    host.resumeAssistantText = getArtifactFixture('explicit-canvas').markdown;
+    ({ container, root } = renderSession(host, undefined, {
+      artifactInlineEnabled: false,
+      artifactCanvasEnabled: true,
+      onOpenArtifactCanvas: () => undefined,
+    }));
+
+    await vi.waitFor(() =>
+      expect(container?.querySelector('[data-testid="artifact-canvas-launcher"]')).not.toBeNull(),
+    );
   });
 
   it('drives occupancy from a parsed Host snapshot via the shared selector', async () => {

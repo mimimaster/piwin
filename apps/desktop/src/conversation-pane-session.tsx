@@ -610,6 +610,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           activeTheme={props.activeTheme}
           artifactThemeKey={props.artifactThemeKey}
           artifactInlineEnabled={props.artifactInlineEnabled}
+          artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
           locale={props.locale}
           livePromptModel={state.pendingTurnModel}
           {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}

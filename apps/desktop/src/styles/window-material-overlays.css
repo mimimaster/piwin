@@ -12,12 +12,17 @@ html[data-window-material] {
   --overlay-glass-fill: color-mix(in srgb, var(--s4) 72%, transparent);
   /* Dialogs and drawers carry forms and longer reading: denser glass. */
   --overlay-glass-fill-dense: color-mix(in srgb, var(--s4) 88%, transparent);
+  /* Toasts and HUD pills carry one line over the stage. At 72% a white --s4
+     over Inkstone's paper ground is indistinguishable from a solid slab, so
+     these take the thinnest glass; the blur keeps the line legible. */
+  --overlay-glass-fill-thin: color-mix(in srgb, var(--s4) 56%, transparent);
   --overlay-glass-filter: blur(24px) saturate(1.6);
 }
 
 html[data-window-material]:is([data-memory-pressure], [data-memory-parked]) {
   --overlay-glass-fill: var(--s4);
   --overlay-glass-fill-dense: var(--s4);
+  --overlay-glass-fill-thin: var(--s4);
 }
 
 html[data-window-material] .ui-menu-content,
@@ -32,19 +37,37 @@ html[data-window-material] .add-model-catalog-suggestions,
 html[data-window-material] .fc-source-popover,
 /* transcript-selection-toolbar.css pins a solid --surface-4 with a heavier
    selector than the generic popover rule above. */
-html[data-window-material] .ui-popover-content.transcript-selection-toolbar {
+html[data-window-material] .ui-popover-content.transcript-selection-toolbar,
+html[data-window-material] .history-message-bubble,
+/* Hand-rolled menus, dropdowns and tooltips outside the ui-kit primitives. */
+html[data-window-material] .session-row-menu,
+html[data-window-material] .image-model-suggest-dropdown,
+html[data-window-material] .context-usage-hover-tooltip,
+html[data-window-material] .doc-artifact-tooltip,
+html[data-window-material] .composer-v2-drop-content,
+html[data-window-material] .lib-batch-bar {
   background: var(--overlay-glass-fill);
   -webkit-backdrop-filter: var(--overlay-glass-filter);
   backdrop-filter: var(--overlay-glass-filter);
 }
 
-/* Toasts float over the transcript like a menu does. The Inkstone rule in
-   ui-kit paints both the Mantine root and the toast body, so both clear. */
+/* Toasts and one-line HUD pills float over the stage on the thinnest glass.
+   The Inkstone rule in ui-kit paints both the Mantine root and the toast
+   body, so both clear. */
 html[data-window-material] .mantine-Notification-root,
-html[data-window-material] .ui-toast {
-  background: var(--overlay-glass-fill);
+html[data-window-material] .ui-toast,
+html[data-window-material] .conversation-pane-notice,
+html[data-window-material] .media-doc-zoom-hud,
+html[data-window-material] .jump-to-latest-btn {
+  background: var(--overlay-glass-fill-thin);
   -webkit-backdrop-filter: var(--overlay-glass-filter);
   backdrop-filter: var(--overlay-glass-filter);
+}
+
+/* The solid hover fill (region-transcript.css) loses to the glass above;
+   hover thickens the same glass instead of reverting to a slab. */
+html[data-window-material] .jump-to-latest-btn:hover {
+  background: var(--overlay-glass-fill-dense);
 }
 
 /* ── Dialogs and drawers ──────────────────────────────────────────────

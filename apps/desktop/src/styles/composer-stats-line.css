@@ -160,16 +160,6 @@
 .context-usage-bar.tone-critical .context-usage-bar-fill { background: var(--coral); }
 .context-usage-bar.tone-critical .context-usage-bar-percent { color: var(--coral); font-weight: 600; }
 
-.composer-stats-cost-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  padding: var(--s-2) var(--s-5) var(--s-4);
-  color: var(--text-2);
-  font-size: var(--fs-chrome);
-  cursor: pointer;
-}
-
 /* Medium: drop tokens, cache and cost. Narrow: also the turn, and the bar's amounts. */
 @container composer-status (max-width: 560px) {
   .composer-stats-line .priority-3 { display: none; }

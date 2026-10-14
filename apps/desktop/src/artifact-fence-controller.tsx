@@ -299,7 +299,6 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
           initPriority={props.initPriority}
           locale={props.locale}
           onShowSource={showArtifactSource}
-        {...viewerProps}
           {...viewerProps}
           {...(props.artifactThemeKey ? { artifactThemeKey: props.artifactThemeKey } : {})}
           {...(props.artifactTheme ? { artifactTheme: props.artifactTheme } : {})}

@@ -81,11 +81,10 @@ describe('buildComposerStatusBar', () => {
     expect(bar.turn.find((item) => item.key === 'ttft')?.tone).toBe('critical');
   });
 
-  it('shows cost only when enabled and priced', () => {
+  it('shows the session cost whenever it is priced', () => {
     const priced = { ...totals, estimatedCostUsd: 0.42, pricedEntryCount: 5 };
-    expect(buildComposerStatusBar({ totals: priced, locale: 'en' }).resources.map((item) => item.key)).not.toContain('cost');
-    expect(texts(buildComposerStatusBar({ totals: priced, locale: 'en', showCost: true }).resources)).toContain('$0.42');
-    expect(buildComposerStatusBar({ totals, locale: 'en', showCost: true }).resources.map((item) => item.key)).not.toContain('cost');
+    expect(texts(buildComposerStatusBar({ totals: priced, locale: 'en' }).resources)).toContain('$0.42');
+    expect(buildComposerStatusBar({ totals, locale: 'en' }).resources.map((item) => item.key)).not.toContain('cost');
   });
 
   it('shows nothing for a session without finalized requests', () => {
@@ -171,6 +170,12 @@ describe('ComposerStatsLine', () => {
     expect(slot?.getAttribute('aria-hidden')).toBe('true');
     expect(slot?.textContent).toBe('');
     expect(view.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it('renders the session cost in the resources section', () => {
+    const priced = { ...withTiming, estimatedCostUsd: 1.234, pricedEntryCount: 5 };
+    const view = render(<ComposerStatsLine totals={priced} locale="en" />);
+    expect(view.querySelector('[data-testid="composer-stats-cost"]')?.textContent).toBe('$1.23');
   });
 
   it('ticks the running turn once a second', () => {

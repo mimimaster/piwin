@@ -1,7 +1,7 @@
 /**
  * Context occupancy ring. Renders selector output only — no occupancy math.
  */
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { formatCompactTokens } from '@piwin/contracts';
 import { IconButton, Popover } from '@piwin/ui-kit';
 import { IconChevronRight, IconClose } from './shell-icons';
@@ -40,8 +40,6 @@ export type ContextUsageRingProps = {
   onOpenModelSettings?: () => void;
   /** `bar`: the status bar's thin bar with numbers; same popover. */
   variant?: 'ring' | 'bar';
-  /** Extra controls at the bottom of the popover. */
-  footerExtra?: ReactNode;
 };
 
 function ContextUsageBarTrigger(props: { view: ContextRingViewModel }): ReactElement {
@@ -188,7 +186,6 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
           view={view}
           {...(cacheEstimate !== undefined ? { cacheEstimate } : {})}
         />
-        {props.footerExtra}
         {props.onOpenModelSettings ? (
           <footer className="context-usage-popover-footer">
             <button

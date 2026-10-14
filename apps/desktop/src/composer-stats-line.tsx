@@ -15,32 +15,6 @@ import {
 import type { ContextRingViewModel } from './context-telemetry-selector.js';
 import { ContextUsageRing } from './context-usage-ring';
 
-export const STATUS_BAR_SHOW_COST_KEY = 'piwin.statusBar.showCost';
-
-function readShowCost(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(STATUS_BAR_SHOW_COST_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-/** Opt-in estimated cost, remembered on this device. */
-export function useStatusBarShowCost(): [boolean, (next: boolean) => void] {
-  const [show, setShow] = useState(readShowCost);
-  return [
-    show,
-    (next) => {
-      setShow(next);
-      try {
-        globalThis.localStorage?.setItem(STATUS_BAR_SHOW_COST_KEY, next ? 'true' : 'false');
-      } catch {
-        // Private mode: keep the choice for this view only.
-      }
-    },
-  ];
-}
-
 /** Seconds since the turn started, ticking once a second while it runs. */
 function useRunningElapsed(isRunning: boolean): number | undefined {
   const [startedAt, setStartedAt] = useState<number | undefined>(undefined);
@@ -84,18 +58,16 @@ function StatusItems(props: { items: ComposerStatusItem[] }): ReactElement {
   );
 }
 
-export type ComposerStatsLineProps = Omit<ComposerStatsLineInput, 'runningElapsedMs' | 'showCost'> & {
+export type ComposerStatsLineProps = Omit<ComposerStatsLineInput, 'runningElapsedMs'> & {
   contextView?: ContextRingViewModel | undefined;
   isRunning?: boolean | undefined;
   onOpenModelSettings?: (() => void) | undefined;
 };
 
 export function ComposerStatsLine(props: ComposerStatsLineProps): ReactElement {
-  const [showCost, setShowCost] = useStatusBarShowCost();
   const runningElapsedMs = useRunningElapsed(props.isRunning === true);
-  const bar = buildComposerStatusBar({ ...props, runningElapsedMs, showCost });
+  const bar = buildComposerStatusBar({ ...props, runningElapsedMs });
   const context = props.contextView?.visible ? props.contextView : undefined;
-  const zh = props.locale === 'zh-CN';
   if (bar.extensions.length === 0 && bar.turn.length === 0 && bar.resources.length === 0 && !context) {
     return <div className="composer-stats-line is-empty" aria-hidden="true" />;
   }
@@ -127,12 +99,6 @@ export function ComposerStatsLine(props: ComposerStatsLineProps): ReactElement {
               view={context}
               variant="bar"
               {...(props.onOpenModelSettings ? { onOpenModelSettings: props.onOpenModelSettings } : {})}
-              footerExtra={
-                <label className="composer-stats-cost-toggle" data-testid="composer-stats-cost-toggle">
-                  <input type="checkbox" checked={showCost} onChange={(event) => setShowCost(event.target.checked)} />
-                  <span>{zh ? '状态栏显示费用估算' : 'Show estimated cost in the status bar'}</span>
-                </label>
-              }
             />
           ) : null}
           {context && bar.resources.length > 0 ? (

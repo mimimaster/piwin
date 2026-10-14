@@ -633,14 +633,20 @@ html[data-theme-id='piwin-inkstone-ink'] .cap-d li .ml {
 }
 
 /* ── History ruler ticks ─────────────────────────────────────────────
-   Left-edge hairlines stay visible at rest (t4), darken on hover. */
+   Right-edge hairlines stay visible at rest (t4), step through t3 on the
+   wave shoulders and darken at the peak. Geometry and easing stay in
+   transcript-history-ticks.css. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .history-ticks-border-strip
   .border-tick-line {
   background: var(--t4);
   opacity: 1;
-  transform-origin: left center;
-  transition: background-color var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .history-ticks-border-strip
+  .border-tick-line.is-in-wave {
+  background: var(--t3);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])

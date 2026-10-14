@@ -174,6 +174,20 @@ describe('createDesktopAttentionController', () => {
     });
   });
 
+  it('a throwing native delivery takes the unsupported fallback instead of rejecting', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const harness = await createHarness({ presence: 'inactive' });
+    vi.mocked(harness.os.deliver).mockRejectedValueOnce(new Error('command not found'));
+    harness.emit(runTerminal('session-1', 'run-throw'));
+    harness.snapshot.presence = 'active';
+    await harness.flush();
+    await harness.flush();
+    expect(harness.notices).toHaveLength(1);
+    expect(harness.notices[0]?.action?.sessionId).toBe('session-1');
+    expect(warn).toHaveBeenCalledWith('[piwin] attention delivery failed', expect.any(Error));
+    warn.mockRestore();
+  });
+
   it('foreground in-app delivery includes a jump action', async () => {
     const harness = await createHarness({ presence: 'active' });
     harness.snapshot.conversationCovered = true;

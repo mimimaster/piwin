@@ -27,9 +27,12 @@ export const RIGHT_PANEL_VIEW_STORAGE_KEY = 'piwin.desktop.rightPanelView';
 
 export { RIGHT_PANEL_TOOL_KINDS };
 
-function isStoredTab(value: unknown): value is RightPanelTabKind {
+/** A tab id this panel can open: a tool kind or one of its instances. */
+export function isRightPanelTab(value: unknown): value is RightPanelTabKind {
   return typeof value === 'string' && rightPanelTabKind(value) !== null;
 }
+
+const isStoredTab = isRightPanelTab;
 
 export function readStoredRightPanelState(
   storage: Pick<Storage, 'getItem'> | null | undefined = defaultStorage(),

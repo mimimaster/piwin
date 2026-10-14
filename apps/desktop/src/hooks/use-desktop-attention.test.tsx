@@ -5,6 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInitialChatUiState, type ChatUiState, type SessionListItemUi } from '../chat-reducer';
 import { createConversationPaneLayout } from '../conversation-pane-layout';
 import type { HostClient } from '../host-client';
+import {
+  bindSideChat,
+  resetSideChatBindingsForTests,
+  takeSideChatBinding,
+} from '../side-chat-sessions';
 import type { DesktopAttentionArgs } from './use-desktop-attention';
 
 declare global {
@@ -125,7 +130,7 @@ function defaultArgs(
     locale: 'zh-CN',
     hostStatus: { ready: true },
     extensionUiRequest: null,
-    isOverlayPresentation: false,
+    overlayOpen: false,
     activeSubPage: null,
     dockingEnabled: false,
     dockingWorkspace: { state: {} as DesktopAttentionArgs['dockingWorkspace']['state'] },
@@ -162,7 +167,33 @@ describe('useDesktopAttention', () => {
     container.remove();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
     vi.clearAllMocks();
+    resetSideChatBindingsForTests();
   });
+
+  type ControllerDeps = {
+    getSnapshot: () => {
+      describeSession: (sessionId: string) => { sessionTitle?: string };
+    };
+    showInAppNotice: (notice: {
+      tone?: string;
+      title?: string;
+      body: string;
+      action?: { label: string; sessionId: string };
+    }) => void;
+  };
+
+  function controllerDeps(): ControllerDeps {
+    const deps = createControllerMock.mock.calls.at(-1)?.at(0);
+    expect(deps).toBeDefined();
+    return deps as unknown as ControllerDeps;
+  }
+
+  function clickLastNoticeJump(): void {
+    const notice = showUiNotification.mock.calls.at(-1)?.[0] as {
+      action?: { onClick: () => void };
+    };
+    notice.action?.onClick();
+  }
 
   async function renderLayer(args: DesktopAttentionArgs): Promise<void> {
     const element: ReactElement = <DesktopAttentionLayer {...args} />;
@@ -351,5 +382,118 @@ describe('useDesktopAttention', () => {
     expect(notice.action).toBeDefined();
     notice.action?.onClick();
     expect(openSessionFromShell).toHaveBeenCalledWith('session-1');
+  });
+
+  it('keeps the watched conversation seen in a narrow window with no drawer open', async () => {
+    const dispatch = vi.fn();
+    await renderLayer(defaultArgs({ dispatch, overlayOpen: false }));
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'attention/visible-sessions',
+      sessionIds: ['session-1'],
+      conversationCovered: false,
+    });
+  });
+
+  it('treats an open overlay drawer as covering the conversation', async () => {
+    const dispatch = vi.fn();
+    await renderLayer(defaultArgs({ dispatch, overlayOpen: true }));
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'attention/visible-sessions',
+      sessionIds: [],
+      conversationCovered: true,
+    });
+  });
+
+  it('counts the side chat shown in the right panel as visible', async () => {
+    bindSideChat('session-1', 'sideChat', 'side-1');
+    const dispatch = vi.fn();
+    await renderLayer(
+      defaultArgs({ dispatch, rightPanelOpen: true, rightPanelTab: 'sideChat' }),
+    );
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'attention/visible-sessions',
+      sessionIds: ['session-1', 'side-1'],
+      conversationCovered: false,
+    });
+
+    dispatch.mockClear();
+    await renderLayer(
+      defaultArgs({ dispatch, overlayOpen: true, rightPanelOpen: true, rightPanelTab: 'sideChat' }),
+    );
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'attention/visible-sessions',
+      sessionIds: ['side-1'],
+      conversationCovered: false,
+    });
+  });
+
+  it('names a side chat by its main conversation', async () => {
+    bindSideChat('session-1', 'sideChat', 'side-1');
+    await renderLayer(defaultArgs());
+    expect(controllerDeps().getSnapshot().describeSession('side-1').sessionTitle).toBe(
+      '侧聊 · session-1',
+    );
+  });
+
+  it('jumps from a side-chat notice to the main conversation and its side-chat tab', async () => {
+    bindSideChat('session-1', 'sideChat-2', 'side-1');
+    const openSessionFromShell = vi.fn(async () => undefined);
+    const openInspector = vi.fn();
+    await renderLayer(defaultArgs({ openSessionFromShell, openInspector }));
+    controllerDeps().showInAppNotice({
+      body: '侧聊 · session-1',
+      action: { label: '跳转', sessionId: 'side-1' },
+    });
+    await act(async () => {
+      clickLastNoticeJump();
+    });
+    expect(openSessionFromShell).toHaveBeenCalledWith('session-1');
+    expect(openSessionFromShell).not.toHaveBeenCalledWith('side-1');
+    expect(openInspector).toHaveBeenCalledWith('sideChat-2');
+  });
+
+  it('jumps from an in-app child-session notice to the parent, like a system click', async () => {
+    const openSessionFromShell = vi.fn(async () => undefined);
+    await renderLayer(
+      defaultArgs({
+        openSessionFromShell,
+        state: baseState({
+          sessions: [sessionItem('child-1', { parentSessionId: 'parent-1' })],
+          activeSessionId: 'parent-1',
+        }),
+      }),
+    );
+    controllerDeps().showInAppNotice({
+      body: 'child-1',
+      action: { label: '跳转', sessionId: 'child-1' },
+    });
+    await act(async () => {
+      clickLastNoticeJump();
+    });
+    expect(openSessionFromShell).toHaveBeenCalledWith('parent-1');
+  });
+
+  it('opens a side chat from a system notification instead of reporting it unavailable', async () => {
+    bindSideChat('session-1', 'sideChat', 'side-1');
+    const openSessionFromShell = vi.fn(async () => undefined);
+    const openInspector = vi.fn();
+    takePendingActivation.mockResolvedValue({ sessionId: 'side-1', attentionKey: 'run:r1' });
+    await renderLayer(defaultArgs({ openSessionFromShell, openInspector }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(openSessionFromShell).toHaveBeenCalledWith('session-1');
+    expect(openInspector).toHaveBeenCalledWith('sideChat');
+  });
+
+  it('clears the badge marker of a side chat whose tab closed', async () => {
+    bindSideChat('session-1', 'sideChat', 'side-1');
+    const dispatch = vi.fn();
+    const args = defaultArgs({ dispatch });
+    await renderLayer(args);
+    await act(async () => {
+      takeSideChatBinding('session-1', 'sideChat');
+    });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'session/attention-dismiss', sessionId: 'side-1' });
   });
 });

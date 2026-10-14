@@ -80,8 +80,14 @@ later APNs epic, not a keepalive trick.
    - Docking on: each stage group’s foreground view, if it is a session.
    - Else old conversation-pane leaves: every leaf session id.
    - Else `[activeSessionId]` when non-null.
+   - Plus the side chat bound to the open right-panel tab, when that tab
+     is a side chat (2026-10-15).
    - `conversationCovered === true` (settings sub-page or overlay over the
-     session stage) → empty set.
+     session stage) → empty set. "Overlay" means a drawer that is actually
+     open, not a narrow layout; a side chat inside the open drawer stays
+     visible. Notification jumps resolve side chats to their main session
+     plus side-chat tab, and child sessions to their parent, for both
+     system clicks and in-app notices.
    A session is **seen** (AN-R05) only when presence is active, the
    conversation stage is **not** covered, **and** (it is in the visible
    set, or the visible set is empty and it is `activeSessionId`). A

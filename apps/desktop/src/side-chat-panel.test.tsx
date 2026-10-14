@@ -18,10 +18,30 @@ import {
 
 // The full session window has its own tests; here it only has to show which
 // session and how many quoted refs the panel handed it.
+const paneSessionDeleted = new Map<string, () => void>();
 vi.mock('./conversation-pane-session.js', () => ({
-  ConversationPaneSession: (props: { sessionId: string; contextRefs?: { pending: unknown[] } }) => (
-    <div data-testid="pane" data-session={props.sessionId} data-refs={props.contextRefs?.pending.length ?? 0} />
-  ),
+  ConversationPaneSession: (props: {
+    sessionId: string;
+    contextRefs?: { pending: unknown[] };
+    artifactInlineEnabled: boolean;
+    artifactCanvasEnabled?: boolean;
+    readMedia: unknown;
+    onOpenArtifactCanvas?: unknown;
+    onSessionDeleted?: () => void;
+  }) => {
+    if (props.onSessionDeleted) paneSessionDeleted.set(props.sessionId, props.onSessionDeleted);
+    return (
+      <div
+        data-testid="pane"
+        data-session={props.sessionId}
+        data-refs={props.contextRefs?.pending.length ?? 0}
+        data-inline={String(props.artifactInlineEnabled)}
+        data-canvas={String(props.artifactCanvasEnabled)}
+        data-media={props.readMedia ? 'yes' : 'no'}
+        data-canvas-open={props.onOpenArtifactCanvas ? 'yes' : 'no'}
+      />
+    );
+  },
 }));
 
 const { SideChatPanel } = await import('./side-chat-panel.js');
@@ -36,6 +56,7 @@ function ok(command: string, data: unknown): HostResponse {
 }
 
 function fakeHost(existing: string[] = []) {
+  const listed = [...existing];
   let opened = 0;
   const calls: HostCommand[] = [];
   const client = {
@@ -43,7 +64,7 @@ function fakeHost(existing: string[] = []) {
       calls.push(command);
       if (command.type === 'side-chat/list') {
         return ok(command.type, {
-          sessions: existing.map((id) => ({ id }) as SessionSummary),
+          sessions: listed.map((id) => ({ id }) as SessionSummary),
         });
       }
       if (command.type === 'side-chat/open') {
@@ -53,7 +74,7 @@ function fakeHost(existing: string[] = []) {
       return ok(command.type, {});
     }),
   };
-  return { client: client as unknown as HostClient, calls };
+  return { client: client as unknown as HostClient, calls, listed };
 }
 
 let root: Root | null = null;
@@ -72,6 +93,10 @@ async function render(host: HostClient, tabId: string, mainSessionId: string | n
           hostClient={host}
           activeTheme={PIWIN_APPEARANCE_DARK as never}
           artifactThemeKey="t"
+          artifactInlineEnabled
+          artifactCanvasEnabled
+          readMedia={async () => null}
+          onOpenArtifactCanvas={() => undefined}
           locale="zh-CN"
         />
       </PiwinUiProvider>,
@@ -92,6 +117,7 @@ afterEach(() => {
   container = null;
   resetSideChatBindingsForTests();
   resetSideChatComposerSeedForTests();
+  paneSessionDeleted.clear();
 });
 
 describe('SideChatPanel', () => {
@@ -138,6 +164,32 @@ describe('SideChatPanel', () => {
     expect(pane?.getAttribute('data-session')).toBe('side-seeded');
     expect(pane?.getAttribute('data-refs')).toBe('1');
     expect(takeSideChatBinding('main-1', 'sideChat')).toBe('side-seeded');
+  });
+
+  it('renders artifacts and media like a conversation window, not as raw source', async () => {
+    const { client } = fakeHost();
+    const pane = (await render(client, 'sideChat')).querySelector('[data-testid="pane"]');
+    expect(pane?.getAttribute('data-inline')).toBe('true');
+    expect(pane?.getAttribute('data-canvas')).toBe('true');
+    expect(pane?.getAttribute('data-media')).toBe('yes');
+    expect(pane?.getAttribute('data-canvas-open')).toBe('yes');
+  });
+
+  it('drops a binding whose session is gone and opens a fresh side chat', async () => {
+    const { client, listed } = fakeHost(['side-gone']);
+    const view = await render(client, 'sideChat');
+    expect(view.querySelector('[data-testid="pane"]')?.getAttribute('data-session')).toBe('side-gone');
+    listed.length = 0;
+    await act(async () => {
+      paneSessionDeleted.get('side-gone')?.();
+    });
+    for (let index = 0; index < 4; index += 1) {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+    expect(view.querySelector('[data-testid="pane"]')?.getAttribute('data-session')).toBe('new-1');
+    expect(getSideChatBinding('main-1', 'sideChat')).toBe('new-1');
   });
 
   it('asks for a main conversation first', async () => {

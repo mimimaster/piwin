@@ -1,5 +1,6 @@
 import type { ChatUiState, SessionListItemUi } from './chat-reducer';
 import { findSessionForLookup } from './session-list-lookup';
+import { findSideChatBinding } from './side-chat-sessions';
 
 export type AttentionLookupSession = SessionListItemUi & {
   title?: string;
@@ -34,4 +35,23 @@ export function resolveActivationSessionId(state: ChatUiState, sessionId: string
     return session.parentSessionId;
   }
   return sessionId;
+}
+
+/**
+ * Where a notification's "Jump" lands. A side chat is hidden from every
+ * session list, so it resolves through its right-panel binding: open the main
+ * conversation, then the side-chat tab — never the side chat as a main view.
+ */
+export type AttentionJumpTarget = { sessionId: string; sideChatTabId?: string };
+
+export function resolveAttentionJumpTarget(
+  state: ChatUiState,
+  sessionId: string,
+): AttentionJumpTarget | null {
+  const sideChat = findSideChatBinding(sessionId);
+  if (sideChat) {
+    return { sessionId: sideChat.mainSessionId, sideChatTabId: sideChat.tabId };
+  }
+  const target = resolveActivationSessionId(state, sessionId);
+  return target === null ? null : { sessionId: target };
 }

@@ -200,12 +200,12 @@ describe('HistoryTicksDrawer component', () => {
     if (rail instanceof HTMLElement) {
       vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
         top: 100,
-        left: 8,
-        right: 50,
+        left: 970,
+        right: 1000,
         bottom: 200,
-        width: 42,
+        width: 30,
         height: 100,
-        x: 8,
+        x: 970,
         y: 100,
         toJSON: () => ({}),
       } as DOMRect);
@@ -220,7 +220,7 @@ describe('HistoryTicksDrawer component', () => {
       );
     });
     expect(document.querySelector('.history-bubble-position')?.textContent).toBe(
-      'User message 113–128 / 240',
+      '113–128 / 240',
     );
   });
 
@@ -311,12 +311,12 @@ describe('HistoryTicksDrawer component', () => {
     if (rail instanceof HTMLElement) {
       vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
         top: 100,
-        left: 8,
-        right: 50,
+        left: 970,
+        right: 1000,
         bottom: 200,
-        width: 42,
+        width: 30,
         height: 100,
-        x: 8,
+        x: 970,
         y: 100,
         toJSON: () => ({}),
       } as DOMRect);
@@ -338,8 +338,9 @@ describe('HistoryTicksDrawer component', () => {
     expect(bubble).not.toBeNull();
     expect(bubble?.parentElement).toBe(document.body);
     expect(container?.contains(bubble)).toBe(false);
-    // left = rail.left(8) + wave max(30) + gap(8) = 46 — tight to the tick tip.
-    expect((bubble as HTMLElement).style.left).toBe('46px');
+    // Right-edge rail: bubble edge = rail.right(1000) - wave max(24) - gap(8)
+    // = 968, so CSS right = viewport(1024) - 968 = 56 — tight to the tick tip.
+    expect((bubble as HTMLElement).style.right).toBe(`${window.innerWidth - 968}px`);
     expect(bubble?.querySelector('.history-bubble-text')?.textContent).toBe(
       '内置的浏览器有优化的方案吗',
     );
@@ -370,12 +371,12 @@ describe('HistoryTicksDrawer component', () => {
     if (rail instanceof HTMLElement) {
       vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
         top: 0,
-        left: 8,
-        right: 50,
+        left: 970,
+        right: 1000,
         bottom: 100,
-        width: 42,
+        width: 30,
         height: 100,
-        x: 8,
+        x: 970,
         y: 0,
         toJSON: () => ({}),
       } as DOMRect);
@@ -411,6 +412,11 @@ describe('HistoryTicksDrawer component', () => {
     expect(getInlineTickScale(tickElements?.[8])).toBeCloseTo(18 / 12);
     expect(getInlineTickScale(tickElements?.[9])).toBe(1);
     expect(getInlineTickScale(tickElements?.[10])).toBe(1);
+    // Peak is the previewed tick; shoulders take the mid tone; rest stays quiet.
+    expect(tickElements?.[5]?.classList.contains('is-hovered')).toBe(true);
+    expect(tickElements?.[4]?.classList.contains('is-in-wave')).toBe(true);
+    expect(tickElements?.[8]?.classList.contains('is-in-wave')).toBe(true);
+    expect(tickElements?.[0]?.classList.contains('is-in-wave')).toBe(false);
   });
 
   it('switches the bubble to the next user message without moving the rail', () => {
@@ -425,12 +431,12 @@ describe('HistoryTicksDrawer component', () => {
     if (rail instanceof HTMLElement) {
       vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
         top: 0,
-        left: 8,
-        right: 50,
+        left: 970,
+        right: 1000,
         bottom: 100,
-        width: 42,
+        width: 30,
         height: 100,
-        x: 8,
+        x: 970,
         y: 0,
         toJSON: () => ({}),
       } as DOMRect);
@@ -469,12 +475,12 @@ describe('HistoryTicksDrawer component', () => {
     if (rail instanceof HTMLElement) {
       vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
         top: 0,
-        left: 8,
-        right: 50,
+        left: 970,
+        right: 1000,
         bottom: 100,
-        width: 42,
+        width: 30,
         height: 100,
-        x: 8,
+        x: 970,
         y: 0,
         toJSON: () => ({}),
       } as DOMRect);
@@ -542,12 +548,12 @@ describe('HistoryTicksDrawer component', () => {
     if (rail instanceof HTMLElement) {
       vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
         top: 0,
-        left: 8,
-        right: 50,
+        left: 970,
+        right: 1000,
         bottom: 100,
-        width: 42,
+        width: 30,
         height: 100,
-        x: 8,
+        x: 970,
         y: 0,
         toJSON: () => ({}),
       } as DOMRect);

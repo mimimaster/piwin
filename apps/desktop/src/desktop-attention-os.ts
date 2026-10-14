@@ -50,3 +50,26 @@ export function createDesktopAttentionOs(): DesktopAttentionOs {
   }
   return isTauriRuntime() ? createTauriDesktopAttentionOs() : createNoopDesktopAttentionOs();
 }
+
+/**
+ * A native delivery that throws (missing command, plugin error) must not
+ * vanish as an unhandled rejection: report it and take the same in-app
+ * fallback path as an unsupported platform.
+ */
+export async function deliverSafely(
+  os: DesktopAttentionOs,
+  input: AttentionDeliverInput,
+): Promise<AttentionDeliverResult> {
+  try {
+    return await os.deliver(input);
+  } catch (error) {
+    console.warn('[piwin] attention delivery failed', error);
+    return 'unsupported';
+  }
+}
+
+export function warnOsFailure(operation: string): (error: unknown) => void {
+  return (error) => {
+    console.warn(`[piwin] attention ${operation} failed`, error);
+  };
+}

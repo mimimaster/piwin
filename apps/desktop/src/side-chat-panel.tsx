@@ -10,6 +10,10 @@
  *    main session, else a newly opened one;
  *  - selection seeds ("划词 → 侧聊") attach quoted context to the composer.
  * Closing the tab ends the session (see endSideChatSession).
+ *
+ * Rendering capabilities (Inline/Canvas artifacts, media previews) come from
+ * the caller and follow the main session's scope: a side chat inherits that
+ * scope on the Host, so the model is prompted with the same Artifact surfaces.
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { Button, Spinner } from '@piwin/ui-kit';
@@ -28,8 +32,15 @@ import {
   takeSideChatComposerSeed,
   type SideChatComposerSeed,
 } from './side-chat-composer-seed.js';
-import { bindSideChat, boundSideChatIds, getSideChatBinding } from './side-chat-sessions.js';
+import {
+  bindSideChat,
+  boundSideChatIds,
+  getSideChatBinding,
+  takeSideChatBinding,
+} from './side-chat-sessions.js';
+import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
+import type { MediaPreviewReader } from './transcript-media-preview.js';
 
 export type SideChatPanelProps = {
   /** Active main session id (the source for side chats). */
@@ -39,9 +50,14 @@ export type SideChatPanelProps = {
   hostClient: HostClient;
   activeTheme: ThemeManifest;
   artifactThemeKey: string | number;
+  /** Inline/Canvas switches resolved for the main session's scope. */
+  artifactInlineEnabled: boolean;
+  artifactCanvasEnabled: boolean;
+  readMedia: MediaPreviewReader | null;
   locale: 'zh-CN' | 'en';
   fileBrowseRoot?: string | null;
   onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
+  onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   /** Insert text into the main composer (handoff). */
   onInsertToMain?: (text: string) => void;
 };
@@ -128,6 +144,14 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     return subscribeSideChatComposerSeed(applySeed);
   }, [applySeed]);
 
+  // The bound side chat is gone on the Host (archived elsewhere, deleted):
+  // drop the stale binding and resolve again instead of loading forever.
+  const handleSideChatDeleted = useCallback(() => {
+    if (!mainSessionId) return;
+    takeSideChatBinding(mainSessionId, tabId);
+    setAttempt((value) => value + 1);
+  }, [mainSessionId, tabId]);
+
   async function handleInsertLastResponse(sideChatSessionId: string): Promise<void> {
     const response = await hostClient.request({ type: 'session/messages', sessionId: sideChatSessionId });
     if (!response.success) return;
@@ -197,10 +221,15 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
         hostClient={hostClient}
         activeTheme={props.activeTheme}
         artifactThemeKey={props.artifactThemeKey}
-        artifactInlineEnabled={false}
-        readMedia={null}
+        artifactInlineEnabled={props.artifactInlineEnabled}
+        artifactCanvasEnabled={props.artifactCanvasEnabled}
+        readMedia={props.readMedia}
         locale={props.locale}
+        onSessionDeleted={handleSideChatDeleted}
         {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+        {...(props.onOpenArtifactCanvas
+          ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
+          : {})}
         {...(props.fileBrowseRoot !== undefined ? { fileBrowseRoot: props.fileBrowseRoot } : {})}
         contextRefs={{
           pending: contextRefs.pendingContextRefs,

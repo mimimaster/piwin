@@ -56,7 +56,8 @@ export function WorkbenchStageLayer(props: WorkbenchStageLayerProps) {
   const { windowsShellOffer, dockingEnabled, dockingWorkspace } = props;
   const { conversationPanesEnabled, conversationPaneController } = props;
   const { openSessionFromShell, handleCreatePaneConversation } = props;
-  const { activeSubPage, desktopLocale, isOverlayPresentation, layoutMode, settingsOpen } = chrome;
+  const { activeSubPage, desktopLocale, layoutMode, settingsOpen } = chrome;
+  const { rightPanelOpen, rightPanelTab, showOverlayScrim } = chrome;
   const { activeSessionName, artifactThemeKey, config, extensionUiRequest } = model;
   const { handleOpenArtifactCanvas, handleOpenDocument, handleResumeSession } = model;
   const { fileBrowseRoot, hostStatus, readTranscriptMedia, recentProjects } = model;
@@ -75,8 +76,12 @@ export function WorkbenchStageLayer(props: WorkbenchStageLayerProps) {
         locale={desktopLocale}
         hostStatus={hostStatus}
         extensionUiRequest={extensionUiRequest}
-        isOverlayPresentation={isOverlayPresentation}
+        overlayOpen={showOverlayScrim}
         activeSubPage={activeSubPage}
+        settingsOpen={settingsOpen}
+        rightPanelOpen={rightPanelOpen}
+        rightPanelTab={rightPanelTab}
+        openInspector={chrome.shell.openInspector}
         dockingEnabled={dockingEnabled}
         dockingWorkspace={dockingWorkspace}
         conversationPanesEnabled={conversationPanesEnabled}

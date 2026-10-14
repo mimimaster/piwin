@@ -45,8 +45,6 @@ export type ComposerStatsLineInput = {
   locale: ConversationUsageLocale;
   /** Elapsed time of the turn in flight; undefined when idle. */
   runningElapsedMs?: number | undefined;
-  /** Estimated cost is opt-in, and still hidden without price data. */
-  showCost?: boolean | undefined;
 };
 
 /**
@@ -141,7 +139,8 @@ export function buildComposerStatusBar(input: ComposerStatsLineInput): ComposerS
       title: zh ? '缓存命中 = 缓存读取 ÷ 全部输入' : 'Cache hit = cache reads ÷ all input',
     });
   }
-  if (input.showCost === true && metrics.costUsd !== undefined) {
+  // Shown whenever the Host priced at least one request; unpriced sessions omit it.
+  if (metrics.costUsd !== undefined) {
     resources.push({
       key: 'cost', priority: 3,
       text: formatStatusUsd(metrics.costUsd),

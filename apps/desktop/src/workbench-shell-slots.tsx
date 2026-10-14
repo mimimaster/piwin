@@ -8,6 +8,7 @@
 import { useState, type Dispatch, type ReactNode } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
+import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from './artifact-surfaces';
 import type { ChatUiAction, ChatUiState } from './chat-ui-types';
 import { useWorkbenchAppModel } from './hooks/use-workbench-app-model';
 import type { WorkbenchShellChrome } from './hooks/use-workbench-shell-chrome';
@@ -107,6 +108,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
   const { handleRetryMessage, handleReturnToLiveTranscript, handleSend } = model;
   const { handleSessionListOrderChange, handleSessionMenuAction, handleStartNewSession } = model;
   const { handleToggleAppearance, historyViewActive, hostStatus, hydrateSessions } = model;
+  const { readTranscriptMedia } = model;
   const { inspectorFileDiff, jobs, lastUserMessage, lastUserMessageId, modelOptions } = model;
   const { onDraftAgentChange, openRightTab, openSettingsSection } = model;
   const { recentProjects, requestCardsPanel, requestFileTree, requestGit } = model;
@@ -386,6 +388,11 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             artifactTarget={artifactCanvas.activeTarget}
             artifactThemeKey={artifactThemeKey}
             {...artifactFenceSecurityProps(config?.artifact)}
+            {...artifactSurfaceProps(
+              resolveArtifactSurfacesForScope(config?.artifact, state.activeScope),
+            )}
+            readMedia={readTranscriptMedia}
+            onOpenArtifactCanvas={handleOpenArtifactCanvas}
             addWebElement={addWebElement}
             onAddImageFile={(file) => enqueueAttachmentFile(file, 'file-picker')}
             inspectorDiff={inspectorFileDiff.diff}

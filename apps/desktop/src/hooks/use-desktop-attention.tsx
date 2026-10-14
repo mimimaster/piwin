@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -15,10 +16,12 @@ import {
   readAttentionPreferences,
   subscribeAttentionPreferences,
 } from '../attention-preferences';
+import { describeSessionForAttention } from '../attention-session-describe';
 import {
-  lookupAttentionSession,
-  type AttentionLookupSession,
+  resolveAttentionJumpTarget,
+  type AttentionJumpTarget,
 } from '../attention-session-lookup';
+import { selectAttentionVisibility } from '../attention-visibility';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import {
   createDesktopAttentionController,
@@ -32,7 +35,10 @@ import {
 } from '../desktop-attention-os';
 import type { DesktopLocale } from '../desktop-locale';
 import type { HostClient } from '../host-client';
-import { projectLabel } from '../project-display-name';
+import { rightPanelTabKind } from '../right-panel-instances';
+import { isRightPanelTab } from '../right-panel-memory';
+import type { RightPanelTab } from '../right-panel-sections';
+import { getSideChatBinding, useSideChatLiveSessionIds } from '../side-chat-sessions';
 import type { ConversationPaneLayoutController } from '../use-conversation-pane-layout';
 import { getWindowPresence, subscribeWindowPresence } from '../window-focus-signal';
 import { useAttentionActivation } from './use-attention-activation';
@@ -46,8 +52,15 @@ export type DesktopAttentionArgs = {
   locale: DesktopLocale;
   hostStatus?: { ready?: boolean } | null;
   extensionUiRequest?: { sessionId: string } | null;
-  isOverlayPresentation: boolean;
+  /** An overlay drawer (sessions or inspector) currently sits over the stage. */
+  overlayOpen: boolean;
   activeSubPage: string | null | undefined;
+  settingsOpen?: boolean;
+  /** Right panel state: an open side-chat tab makes its session visible. */
+  rightPanelOpen?: boolean;
+  rightPanelTab?: RightPanelTab | null;
+  /** Reveal a right-panel tab (jumping to a side chat). */
+  openInspector?: (tab: RightPanelTab) => void;
   dockingEnabled: boolean;
   dockingWorkspace: Pick<DockingWorkspaceController, 'state'>;
   conversationPanesEnabled: boolean;
@@ -56,40 +69,6 @@ export type DesktopAttentionArgs = {
   recentProjects?: readonly { path: string; displayName?: string }[];
   children?: ReactNode;
 };
-
-function sessionProjectPath(session: AttentionLookupSession, state: ChatUiState): string | null {
-  if (typeof session.projectPath === 'string' && session.projectPath !== '') {
-    return session.projectPath;
-  }
-  if (session.scope?.kind === 'project') {
-    return session.scope.projectPath;
-  }
-  if (state.activeScope.kind === 'project') {
-    return state.activeScope.projectPath;
-  }
-  return state.projectPath;
-}
-
-function describeSessionForAttention(
-  sessionId: string,
-  state: ChatUiState,
-  projects: readonly { path: string; displayName?: string }[],
-): ReturnType<DesktopAttentionSnapshot['describeSession']> {
-  const session = lookupAttentionSession(state, sessionId);
-  if (!session) {
-    return {};
-  }
-  const projectPath = sessionProjectPath(session, state);
-  const projectId =
-    typeof session.projectId === 'string' && session.projectId !== ''
-      ? session.projectId
-      : projectPath ?? 'general';
-  return {
-    sessionTitle: session.title ?? session.name,
-    ...(projectPath ? { projectName: projectLabel(projectPath, projects) } : {}),
-    projectId,
-  };
-}
 
 function readOptInDismissedAt(storage: Pick<Storage, 'getItem'>): number | null {
   try {
@@ -134,8 +113,12 @@ export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | 
     locale,
     hostStatus,
     extensionUiRequest,
-    isOverlayPresentation,
+    overlayOpen,
     activeSubPage,
+    settingsOpen = false,
+    rightPanelOpen = false,
+    rightPanelTab = null,
+    openInspector,
     dockingEnabled,
     dockingWorkspace,
     conversationPanesEnabled,
@@ -162,19 +145,42 @@ export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | 
   projectsRef.current = recentProjects;
   const openSessionRef = useRef(openSessionFromShell);
   openSessionRef.current = openSessionFromShell;
+  const openInspectorRef = useRef(openInspector);
+  openInspectorRef.current = openInspector;
+  // System clicks and in-app "Jump" share one route: child sessions open
+  // their parent, side chats open the main conversation plus their tab.
+  const openAttentionTarget = useCallback(async (target: AttentionJumpTarget): Promise<void> => {
+    await openSessionRef.current(target.sessionId);
+    if (target.sideChatTabId !== undefined && isRightPanelTab(target.sideChatTabId)) {
+      openInspectorRef.current?.(target.sideChatTabId);
+    }
+  }, []);
   const handleActivation = useAttentionActivation({
     state,
     locale,
-    openSession: openSessionFromShell,
+    openTarget: openAttentionTarget,
   });
   const preferencesRef = useRef(readAttentionPreferences());
-  const conversationCovered = Boolean(activeSubPage) || isOverlayPresentation;
-  const visibleSessionIds = selectVisibleSessionIds({
-    dockingState: dockingEnabled ? dockingWorkspace.state : null,
-    paneLayout:
-      conversationPanesEnabled && !dockingEnabled ? conversationPaneController.layout : null,
+  const sideChatSessionIds = useSideChatLiveSessionIds();
+  const visibleSideChatSessionId =
+    rightPanelOpen &&
+    rightPanelTab !== null &&
+    state.activeSessionId !== null &&
+    rightPanelTabKind(rightPanelTab) === 'sideChat'
+      ? (getSideChatBinding(state.activeSessionId, rightPanelTab) ?? null)
+      : null;
+  const { sessionIds: visibleSessionIds, conversationCovered } = selectAttentionVisibility({
+    stageSessionIds: selectVisibleSessionIds({
+      dockingState: dockingEnabled ? dockingWorkspace.state : null,
+      paneLayout:
+        conversationPanesEnabled && !dockingEnabled ? conversationPaneController.layout : null,
+      activeSessionId: state.activeSessionId,
+      conversationCovered: false,
+    }),
     activeSessionId: state.activeSessionId,
-    conversationCovered,
+    workspaceCovered: Boolean(activeSubPage) || settingsOpen,
+    overlayOpen,
+    visibleSideChatSessionId,
   });
   const windowPresence = getWindowPresence();
   const snapshotRef = useRef({
@@ -238,7 +244,12 @@ export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | 
           stateRef.current.hostReady,
         ),
         describeSession: (sessionId: string) =>
-          describeSessionForAttention(sessionId, stateRef.current, projectsRef.current),
+          describeSessionForAttention(
+            sessionId,
+            stateRef.current,
+            projectsRef.current,
+            localeRef.current,
+          ),
       };
       return snapshot;
     };
@@ -256,7 +267,9 @@ export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | 
                   if (sessionId === undefined) {
                     return;
                   }
-                  void openSessionRef.current(sessionId);
+                  void openAttentionTarget(
+                    resolveAttentionJumpTarget(stateRef.current, sessionId) ?? { sessionId },
+                  );
                 },
               },
             }
@@ -311,7 +324,20 @@ export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | 
         controllerRef.current = null;
       }
     };
-  }, [dispatch, handleActivation, hostClient, os]);
+  }, [dispatch, handleActivation, hostClient, openAttentionTarget, os]);
+
+  // A closed side chat can never become visible again, so its finished/failed
+  // marker would pin the Dock badge forever. Drop markers with the binding.
+  const previousSideChatIdsRef = useRef(sideChatSessionIds);
+  useEffect(() => {
+    const previous = previousSideChatIdsRef.current;
+    previousSideChatIdsRef.current = sideChatSessionIds;
+    for (const sessionId of previous) {
+      if (!sideChatSessionIds.includes(sessionId)) {
+        dispatch({ type: 'session/attention-dismiss', sessionId });
+      }
+    }
+  }, [dispatch, sideChatSessionIds]);
 
   const sessionsKey = visibleKey(visibleSessionIds, conversationCovered);
   useEffect(() => {

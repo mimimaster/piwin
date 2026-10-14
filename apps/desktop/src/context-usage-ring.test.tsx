@@ -264,14 +264,13 @@ describe('ContextUsageRing', () => {
   });
 
   it('renders the status-bar variant as a thin bar with numbers and the same popover', () => {
-    render({ view: capableView(eligibleSnapshot), variant: 'bar', footerExtra: <span data-testid="extra">x</span> }, root);
+    render({ view: capableView(eligibleSnapshot), variant: 'bar' }, root);
     const bar = document.querySelector<HTMLButtonElement>('[data-testid="context-usage-bar"]');
     expect(bar?.className).toContain('tone-ok');
     expect(bar?.querySelector('.context-usage-bar-percent')?.textContent).toMatch(/^~?\d+%$/);
     expect(bar?.querySelector('.context-usage-bar-amount')?.textContent).toMatch(/k\//);
     act(() => bar?.click());
     expect(queryPopover()?.textContent).toContain('Context occupied');
-    expect(document.querySelector('[data-testid="extra"]')).not.toBeNull();
   });
 
   it('opens the popover and shows occupancy without category rows', () => {

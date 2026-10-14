@@ -45,6 +45,21 @@ export function takeSideChatBinding(mainSessionId: string, tabId: string): strin
   return sideChatSessionId;
 }
 
+/**
+ * Which main session and right-panel tab show a side chat. Notifications name
+ * the side chat's session id; this is how they find their way back to it.
+ */
+export function findSideChatBinding(
+  sideChatSessionId: string,
+): { mainSessionId: string; tabId: string } | undefined {
+  for (const [key, boundId] of bindings) {
+    if (boundId !== sideChatSessionId) continue;
+    const separator = key.indexOf('\u0000');
+    return { mainSessionId: key.slice(0, separator), tabId: key.slice(separator + 1) };
+  }
+  return undefined;
+}
+
 /** Side chats already shown by another tab, so a new tab does not reuse them. */
 export function boundSideChatIds(): ReadonlySet<string> {
   return new Set(bindings.values());

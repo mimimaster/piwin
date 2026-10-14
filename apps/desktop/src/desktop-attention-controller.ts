@@ -18,11 +18,13 @@ import {
 import type { UiNotificationTone } from '@piwin/ui-kit';
 import { formatDockBadge } from './attention-badge-model';
 import { ATTENTION_LEDGER_KEY } from './attention-preferences';
-import type {
-  AttentionDeliverInput,
-  AttentionOsCapabilities,
-  DesktopAttentionOs,
-  DockBadge,
+import {
+  deliverSafely,
+  warnOsFailure,
+  type AttentionDeliverInput,
+  type AttentionOsCapabilities,
+  type DesktopAttentionOs,
+  type DockBadge,
 } from './desktop-attention-os';
 import type { DesktopLocale } from './desktop-locale';
 
@@ -202,7 +204,7 @@ export function createDesktopAttentionController(
     );
     recordDelivered(raise.key, now);
     if (bounce) {
-      void deps.os.requestAttention();
+      void deps.os.requestAttention().catch(warnOsFailure('requestAttention'));
     }
   }
 
@@ -228,7 +230,7 @@ export function createDesktopAttentionController(
         attentionKey: raise.key,
         sound: snapshot.preferences.sound,
       };
-      const result = await deps.os.deliver(input);
+      const result = await deliverSafely(deps.os, input);
       if (disposed) return;
       if (result === 'delivered') {
         lastSystemDelivery = {
@@ -241,7 +243,7 @@ export function createDesktopAttentionController(
         };
         recordDelivered(raise.key, now);
         if (bounce) {
-          void deps.os.requestAttention();
+          void deps.os.requestAttention().catch(warnOsFailure('requestAttention'));
         }
         return;
       }
@@ -341,7 +343,7 @@ export function createDesktopAttentionController(
     first: AttentionRaise,
     snapshot: DesktopAttentionSnapshot,
   ): Promise<void> {
-    const result = await deps.os.deliver({
+    const result = await deliverSafely(deps.os, {
       identifier: SUMMARY_IDENTIFIER,
       threadId: 'general',
       title: copy.title,
@@ -435,7 +437,7 @@ export function createDesktopAttentionController(
       }
       syncedSessionIds = next;
       if (removed.length > 0) {
-        void deps.os.removeDelivered(removed);
+        void deps.os.removeDelivered(removed).catch(warnOsFailure('removeDelivered'));
       }
       const snapshot = deps.getSnapshot();
       const badge = snapshot.preferences.badge
@@ -445,7 +447,7 @@ export function createDesktopAttentionController(
         return;
       }
       lastBadge = badge;
-      void deps.os.setBadge(badge);
+      void deps.os.setBadge(badge).catch(warnOsFailure('setBadge'));
     },
     dispose() {
       if (disposed) return;

@@ -3,13 +3,17 @@
    per AGENTS.md 3.2). Viewport, thread rhythm, and turn structure stay in
    region-transcript.css.
 
-   Deck rule: the hover preview is a flyout — surface-4, elev-4, no border.
-   The tick rail itself is frameless; ticks are text-colored hairlines. */
+   Deck rule: the hover preview is a flyout — surface-4, elev-4, no border
+   (frosted on the window material, window-material-overlays.css).
+   The tick rail itself is frameless; ticks are text-colored hairlines that
+   sit on the right edge, just inside the floating scrollbar, and grow
+   leftward into the stage. */
 
 .history-ticks-drawer {
   position: absolute;
   top: 48px;
-  left: var(--s-4);
+  /* Clear the floating scrollbar (right: --s-2, 4px wide). */
+  right: var(--s-5);
   max-height: calc(100% - 64px);
   z-index: 30;
   font-family: inherit;
@@ -20,16 +24,15 @@
 .history-ticks-border-strip {
   display: flex;
   flex-direction: column;
-  width: calc(30px + var(--s-3));
+  /* Wave max width (HISTORY_TICK_WAVE_MAX_WIDTH_PX) + inward hover slack. */
+  width: calc(24px + var(--s-3));
   box-sizing: border-box;
   /* Pad / gap must match COLLAPSED_TICK_* in history-ticks-drawer.tsx. */
-  padding: var(--history-tick-pad-y, 8px) var(--s-3) var(--history-tick-pad-y, 8px) 0;
+  padding: var(--history-tick-pad-y, 8px) 0 var(--history-tick-pad-y, 8px) var(--s-3);
   cursor: pointer;
   background: transparent;
   border: none;
   box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   max-height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -45,18 +48,19 @@
   display: flex;
   flex-direction: column;
   gap: var(--history-tick-gap, 10px);
-  align-items: flex-start;
+  align-items: flex-end;
 }
 
 .border-tick-line {
   position: relative;
   display: block;
-  width: 10px;
+  /* Base width must match COLLAPSED_TICK_BASE_WIDTH_PX. */
+  width: 8px;
   height: 1px;
-  border-radius: 0 1px 1px 0;
-  background: color-mix(in srgb, var(--text-1) 38%, transparent);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--text-1) 24%, transparent);
   cursor: pointer;
-  transform-origin: left center;
+  transform-origin: right center;
   transform: scaleX(1);
   /* Ease both color and width. The tooltip/selection state (which message is
      "hovered") still updates the instant the pointer crosses a tick, so an
@@ -76,9 +80,17 @@
   bottom: -5px;
 }
 
+.border-tick-line.is-in-wave {
+  background: color-mix(in srgb, var(--text-1) 48%, transparent);
+}
+
 .border-tick-line.is-hovered,
 .border-tick-line:focus-visible {
   background: var(--text-1);
+}
+
+.border-tick-line:focus-visible {
+  outline: none;
 }
 
 .history-message-bubble {
@@ -90,12 +102,8 @@
   padding: var(--s-5) var(--s-6);
   border: 0;
   border-radius: var(--r-panel);
-  background: var(--surface-4) !important;
-  background-color: var(--surface-4) !important;
-  opacity: 1 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: var(--elev-4) !important;
+  background: var(--surface-4);
+  box-shadow: var(--elev-4);
   z-index: 100;
 }
 
@@ -104,10 +112,11 @@
   animation: history-bubble-pop-collapsed var(--t-1) var(--ease-out);
 }
 
+/* Slides in from the rail side (right), the way it is anchored. */
 @keyframes history-bubble-pop-collapsed {
   from {
-    opacity: 0.75;
-    transform: translateY(-50%) translateX(-6px);
+    opacity: 0;
+    transform: translateY(-50%) translateX(6px);
   }
   to {
     opacity: 1;
@@ -115,17 +124,28 @@
   }
 }
 
+/* Timestamp and ordinal share one meta row so the message text starts
+   higher and the card stays compact. */
 .history-bubble-header {
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  color: var(--text-3);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
   margin-bottom: var(--s-3);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
   letter-spacing: var(--tracking-tight);
 }
 
+.history-bubble-time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .history-bubble-position {
-  margin: -2px 0 var(--s-3);
-  font-size: var(--fs-micro);
+  flex: none;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
 }

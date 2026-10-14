@@ -44,6 +44,7 @@ import type { SessionDocItem } from './DocPreviewPanel';
 import { formatPlanMarkdown } from './plan-card';
 import { isSessionPlanDisplayPath } from './plan-document-path.js';
 import type { DocumentOpenInput } from './tool-call-card';
+import type { MediaPreviewReader } from './transcript-media-preview';
 import type { AddContextRefResult } from './hooks/use-composer-context-refs';
 import type { PtyOutputLine } from './terminal-dock';
 import type { DesktopLocale } from './desktop-locale';
@@ -124,6 +125,11 @@ export type WorkbenchInspectorProps = {
   artifactMaxBytes?: number;
   artifactBlockExternalScripts?: boolean;
   artifactBlockExternalResources?: boolean;
+  /** Inline/Canvas switches for the active scope (the side chat inherits it). */
+  artifactInlineEnabled: boolean;
+  artifactCanvasEnabled: boolean;
+  readMedia: MediaPreviewReader | null;
+  onOpenArtifactCanvas: (target: ArtifactCanvasTarget) => void;
   addWebElement: (pick: WebElementPickResult) => void;
   onAddImageFile?: (file: File) => void;
   inspectorDiff: { relativePath: string } | null;
@@ -186,6 +192,10 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     artifactMaxBytes,
     artifactBlockExternalScripts,
     artifactBlockExternalResources,
+    artifactInlineEnabled,
+    artifactCanvasEnabled,
+    readMedia,
+    onOpenArtifactCanvas,
     addWebElement,
     onAddImageFile,
     inspectorDiff,
@@ -437,8 +447,12 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               hostClient={hostClient}
               activeTheme={activeTheme}
               artifactThemeKey={artifactThemeKey}
+              artifactInlineEnabled={artifactInlineEnabled}
+              artifactCanvasEnabled={artifactCanvasEnabled}
+              readMedia={readMedia}
               locale={locale === 'en' ? 'en' : 'zh-CN'}
               onOpenDocument={handleOpenDocument}
+              onOpenArtifactCanvas={onOpenArtifactCanvas}
               {...(fileBrowseRoot !== undefined ? { fileBrowseRoot } : {})}
               onInsertToMain={(text) =>
                 setComposer((current) => (current.trim() ? `${current.trimEnd()}\n\n${text}` : text))

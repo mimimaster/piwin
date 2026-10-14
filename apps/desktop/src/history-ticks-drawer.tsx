@@ -1,10 +1,11 @@
 import { buildHistoryTickMessages } from './history-tick-messages.js';
 /**
- * Thin history ticks for the transcript viewport (left-edge ruler).
+ * Thin history ticks for the transcript viewport (right-edge ruler).
  *
  * Each tick represents one user message. Moving vertically across the rail
- * selects the nearest message, applies a symmetric horizontal length wave, and
- * shows a preview bubble; clicking the rail jumps to the original message.
+ * selects the nearest message, applies a symmetric length wave that grows
+ * leftward into the stage, and shows a preview bubble to the rail's left;
+ * clicking the rail jumps to the original message.
  */
 import {
   memo,
@@ -61,8 +62,8 @@ const COLLAPSED_TICK_STEP_PX = COLLAPSED_TICK_HEIGHT_PX + COLLAPSED_TICK_GAP_PX;
 // The wave is an arithmetic progression of widths. Keep the base width in
 // sync with the compact rail CSS; the step is derived so changing either
 // endpoint automatically recalculates every intermediate tick.
-const COLLAPSED_TICK_BASE_WIDTH_PX = 10;
-const HISTORY_TICK_WAVE_MAX_WIDTH_PX = 30;
+const COLLAPSED_TICK_BASE_WIDTH_PX = 8;
+const HISTORY_TICK_WAVE_MAX_WIDTH_PX = 24;
 const HISTORY_TICK_WAVE_RADIUS = 4;
 const HISTORY_TICK_WAVE_STEP_PX =
   (HISTORY_TICK_WAVE_MAX_WIDTH_PX - COLLAPSED_TICK_BASE_WIDTH_PX) / HISTORY_TICK_WAVE_RADIUS;
@@ -80,14 +81,15 @@ export function getHistoryTickWaveScale(distance: number): number {
 }
 
 type CollapsedBubbleAnchor = {
-  left: number;
+  /** Viewport X of the bubble's right edge; the bubble opens leftward. */
+  edgeX: number;
   top: number;
 };
 
 type CollapsedRailMetrics = {
   rail: HTMLDivElement;
   top: number;
-  bubbleLeft: number;
+  bubbleEdgeX: number;
   tickCount: number;
 };
 
@@ -107,17 +109,18 @@ function clampCollapsedBubbleTop(centerY: number): number {
   return Math.min(Math.max(centerY, minTop), maxTop);
 }
 
-/** Viewport X just past the peak wave tip for a left-edge rail. */
-function getBubbleLeftFromRailLeft(railLeft: number): number {
-  return railLeft + HISTORY_TICK_WAVE_MAX_WIDTH_PX + COLLAPSED_BUBBLE_OFFSET_PX;
+/** Viewport X just short of the peak wave tip for a right-edge rail. Ticks
+ *  are right-aligned in the strip, so the tip sits at railRight - max width. */
+function getBubbleEdgeXFromRailRight(railRight: number): number {
+  return railRight - HISTORY_TICK_WAVE_MAX_WIDTH_PX - COLLAPSED_BUBBLE_OFFSET_PX;
 }
 
 function getCollapsedBubbleAnchor(element: HTMLElement): CollapsedBubbleAnchor {
   const bounds = element.getBoundingClientRect();
   return {
-    // Focus path measures the tick itself; use its painted right edge so a
+    // Focus path measures the tick itself; use its painted left edge so a
     // scaled wave tip is the anchor rather than the full reserved strip.
-    left: bounds.right + COLLAPSED_BUBBLE_OFFSET_PX,
+    edgeX: bounds.left - COLLAPSED_BUBBLE_OFFSET_PX,
     top: clampCollapsedBubbleTop(bounds.top + bounds.height / 2),
   };
 }
@@ -203,7 +206,7 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
     const metrics: CollapsedRailMetrics = {
       rail,
       top: bounds.top,
-      bubbleLeft: getBubbleLeftFromRailLeft(bounds.left),
+      bubbleEdgeX: getBubbleEdgeXFromRailRight(bounds.right),
       tickCount: userMessages.length,
     };
     railMetricsRef.current = metrics;
@@ -237,7 +240,7 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
         if (message) {
           setHoveredMessageId(message.id);
           setCollapsedBubbleAnchor({
-            left: metrics.bubbleLeft,
+            edgeX: metrics.bubbleEdgeX,
             top: clampCollapsedBubbleTop(
               metrics.top +
                 COLLAPSED_TICK_PADDING_TOP_PX +
@@ -421,11 +424,14 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
               waveCenterIndex === null
                 ? 1
                 : getHistoryTickWaveScale(Math.abs(index - waveCenterIndex));
+            // Shoulders of the wave take a mid tone so the peak reads as the
+            // crest of one shape rather than a lone dark line.
+            const waveClass = isPreviewed ? 'is-hovered' : waveScale === 1 ? '' : 'is-in-wave';
 
             return (
               <span
                 key={message.id}
-                className={`border-tick-line ${isPreviewed ? 'is-hovered' : ''}`}
+                className={`border-tick-line ${waveClass}`}
                 style={waveScale === 1 ? undefined : { transform: `scaleX(${waveScale})` }}
                 data-testid={`history-tick-${message.id}`}
                 onFocus={(event) => handleTickFocus(message.id, event)}
@@ -461,16 +467,20 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
               data-testid="history-message-bubble"
               role="tooltip"
               style={{
-                left: `${collapsedBubbleAnchor.left}px`,
+                // Anchor the right edge so the bubble opens leftward off the rail
+                // without measuring its own width.
+                right: `${(document.documentElement.clientWidth || window.innerWidth) - collapsedBubbleAnchor.edgeX}px`,
                 top: `${collapsedBubbleAnchor.top}px`,
               }}
             >
               <div className="history-bubble-header">
-                {formatFullTimestamp(previewMessage.createdAt) || 'User Message'}
+                <span className="history-bubble-time">
+                  {formatFullTimestamp(previewMessage.createdAt) || 'User message'}
+                </span>
+                {previewPosition ? (
+                  <span className="history-bubble-position">{previewPosition}</span>
+                ) : null}
               </div>
-              {previewPosition ? (
-                <div className="history-bubble-position">User message {previewPosition}</div>
-              ) : null}
               <div className="history-bubble-text">
                 {truncateMessageText(previewMessage.text, 240)}
               </div>

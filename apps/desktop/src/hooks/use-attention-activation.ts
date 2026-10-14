@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { showUiNotification } from '@piwin/ui-kit';
-import { resolveActivationSessionId } from '../attention-session-lookup';
+import { resolveAttentionJumpTarget, type AttentionJumpTarget } from '../attention-session-lookup';
 import type { ChatUiState } from '../chat-reducer';
 import type { AttentionActivation } from '../desktop-attention-os';
 import type { DesktopLocale } from '../desktop-locale';
@@ -25,22 +25,22 @@ export const ACTIVATION_RESOLVE_GRACE_MS = 8_000;
 export function useAttentionActivation(args: {
   state: ChatUiState;
   locale: DesktopLocale;
-  openSession: (sessionId: string) => void | Promise<void>;
+  openTarget: (target: AttentionJumpTarget) => void | Promise<void>;
 }): (activation: AttentionActivation) => void {
   const { state } = args;
   const [pending, setPending] = useState<AttentionActivation | null>(null);
   const handledKeyRef = useRef<string | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
-  const openRef = useRef(args.openSession);
-  openRef.current = args.openSession;
+  const openRef = useRef(args.openTarget);
+  openRef.current = args.openTarget;
   const localeRef = useRef(args.locale);
   localeRef.current = args.locale;
 
   const handleActivation = useCallback((activation: AttentionActivation): void => {
     if (handledKeyRef.current === activation.attentionKey) return;
     handledKeyRef.current = activation.attentionKey;
-    const target = resolveActivationSessionId(stateRef.current, activation.sessionId);
+    const target = resolveAttentionJumpTarget(stateRef.current, activation.sessionId);
     if (target === null) {
       setPending(activation);
       return;
@@ -53,7 +53,7 @@ export function useAttentionActivation(args: {
   // changes; streaming state churn must not keep restarting the grace timer.
   useEffect(() => {
     if (pending === null) return;
-    const target = resolveActivationSessionId(stateRef.current, pending.sessionId);
+    const target = resolveAttentionJumpTarget(stateRef.current, pending.sessionId);
     if (target !== null) {
       setPending(null);
       void openRef.current(target);
