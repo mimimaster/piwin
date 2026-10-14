@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
+  EMOJI_ICON_CSS,
   MIN_ARTIFACT_IFRAME_HEIGHT,
   buildArtifactComponentKitCss,
   buildArtifactDiagramKitCss,
   buildArtifactReportKitCss,
   countShatteredText,
+  replaceEmojiIconsInTree,
   resolveArtifactThemeCssVariables,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
@@ -206,11 +208,13 @@ export function ArtifactStatic({
     const shadowRoot = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
     const baseStyle = document.createElement('style');
     baseStyle.dataset['piwinArtifactStaticBase'] = '';
-    baseStyle.textContent = `${themeCss}\n${STATIC_ARTIFACT_BASE_CSS}\n${reportKitCss}`;
+    baseStyle.textContent = `${themeCss}\n${STATIC_ARTIFACT_BASE_CSS}\n${reportKitCss}\n${EMOJI_ICON_CSS}`;
     const content = document.createElement('div');
     content.className = 'piwin-artifact-root';
     content.innerHTML = sanitizedSource;
     authorizeStaticArtifactStyles(baseStyle, content);
+    // ADR 0090: mapped emoji → Tabler icons, once per sanitized tree.
+    replaceEmojiIconsInTree(content);
     shadowRoot.replaceChildren(baseStyle, content);
     const measure = (): void => {
       setOverflows(shouldEnterArtifactInlineOverflow(content.getBoundingClientRect().height));

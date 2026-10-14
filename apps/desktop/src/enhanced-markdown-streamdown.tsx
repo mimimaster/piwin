@@ -11,7 +11,8 @@ import {
   type ReactNode,
 } from 'react';
 import { cjk } from '@streamdown/cjk';
-import { Streamdown, type Components, type ExtraProps } from 'streamdown';
+import { Streamdown, defaultRehypePlugins, type Components, type ExtraProps } from 'streamdown';
+import { rehypeEmojiIcons } from './rehype-emoji-icons.js';
 import { PathChip } from './path-chip';
 import { MermaidBlock } from './MermaidBlock';
 import { escapeRawHtmlInMarkdown } from './markdown-html-escape';
@@ -32,6 +33,7 @@ import {
 } from './streamdown-math-plugin.js';
 
 const ENHANCED_STREAMDOWN_BASE_PLUGINS = { cjk } as const;
+const ENHANCED_REHYPE_PLUGINS = [...Object.values(defaultRehypePlugins), rehypeEmojiIcons];
 const ENHANCED_LINK_SAFETY = { enabled: false };
 
 type EnhancedStreamdownContentProps = Omit<EnhancedMarkdownViewProps, 'text'> & {
@@ -210,6 +212,7 @@ export function EnhancedStreamdownContent({
       mode="static"
       parseIncompleteMarkdown={false}
       plugins={plugins}
+      rehypePlugins={ENHANCED_REHYPE_PLUGINS}
       components={components}
       controls={false}
       lineNumbers={false}

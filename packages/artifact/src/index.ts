@@ -125,3 +125,21 @@ export {
 } from './constants.js';
 export type { ArtifactContrastMessage, ArtifactLayoutMessage } from './types.js';
 export { buildArtifactBridgeBootstrapScript } from './srcdoc-bridge.js';
+
+export {
+  EMOJI_ICON_CLASS,
+  getEmojiIconGlyph,
+  normalizeEmojiKey,
+  resolveEmojiIcon,
+  segmentEmojiText,
+} from './emoji-icons/emoji-icon-text.js';
+export {
+  EMOJI_ICON_CSS,
+  EMOJI_ICON_SKIP_TAGS,
+  EMOJI_ICON_SVG_ATTRIBUTES,
+  EMOJI_ICON_TEXT_CLASS,
+  buildEmojiIconSrcdocHead,
+  collectEmojiIcons,
+  replaceEmojiIconsInTree,
+} from './emoji-icons/emoji-icon-render.js';
+export type { EmojiIconGlyphNode, EmojiTextSegment } from './emoji-icons/emoji-icon-types.js';
