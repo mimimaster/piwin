@@ -5,20 +5,27 @@ import type {
   MarketplaceCatalogGetData,
   MarketplaceCatalogListData,
   MarketplaceInstalledListData,
+  MarketplacePackageDetailData,
+  MarketplacePiPackageInstallData,
+  MarketplaceRequirementsCheckData,
 } from '@piwin/contracts';
-import { MARKETPLACE_CAPABILITY_KINDS } from '@piwin/contracts';
+import { MARKETPLACE_CAPABILITY_KINDS, parsePiPackageSourceInput } from '@piwin/contracts';
 import { hasFlag, readOption } from './cli-args.js';
 import { openCliHost } from './cli-host.js';
 
 /**
  * `piwin market`: read the curated catalog and the Host inventory through the
  * same Host commands Desktop uses. Installs stay on the per-kind commands
- * (`extension`, `skill`, `mcp`) so there is one install authority.
+ * (`extension`, `skill`, `mcp`) so there is one install authority; Pi packages
+ * by address use the same `marketplace/package-install` as Desktop.
  */
 
 const USAGE = `Usage:
   piwin market search [query] [--type extension|skill|mcp]
   piwin market show <entry-id>
+  piwin market check <entry-id>
+  piwin market package-info <npm-name|github-url>
+  piwin market install-package <npm-name[@version]|github-url|/absolute/path>
   piwin market installed [--session <id>] [--project <path>]
   piwin market uninstall-extension <extension-id>
   piwin market remove-mcp <server-id>`;
@@ -70,6 +77,29 @@ function buildCommand(argv: string[]): HostCommand | string {
       const entryId = positional(argv, 2);
       return entryId ? { type: 'marketplace/catalog-get', entryId } : USAGE;
     }
+    case 'check': {
+      const entryId = positional(argv, 2);
+      return entryId ? { type: 'marketplace/requirements-check', entryId } : USAGE;
+    }
+    case 'package-info': {
+      const parsed = parsePiPackageSourceInput(positional(argv, 2) ?? '');
+      if (!parsed.ok || parsed.source.kind === 'local') return USAGE;
+      return parsed.source.kind === 'npm'
+        ? {
+            type: 'marketplace/package-detail',
+            entryId: `npm:${parsed.source.packageName}`,
+            npmPackageName: parsed.source.packageName,
+          }
+        : {
+            type: 'marketplace/package-detail',
+            entryId: `github:${parsed.label}`,
+            repositoryUrl: parsed.source.repositoryUrl,
+          };
+    }
+    case 'install-package': {
+      const parsed = parsePiPackageSourceInput(positional(argv, 2) ?? '');
+      return parsed.ok ? { type: 'marketplace/package-install', source: parsed.source } : USAGE;
+    }
     case 'installed': {
       const sessionId = readOption(argv, '--session');
       const projectPath = readOption(argv, '--project');
@@ -115,6 +145,24 @@ function printResult(command: HostCommand, data: unknown): void {
       }
       return;
     }
+    case 'marketplace/requirements-check': {
+      const { results } = data as MarketplaceRequirementsCheckData;
+      if (results.length === 0) console.log('(no requirements)');
+      for (const result of results) {
+        console.log(`${result.status}\t${result.kind}\t${result.value}${result.required ? '' : '\t(optional)'}`);
+      }
+      return;
+    }
+    case 'marketplace/package-detail': {
+      const detail = data as MarketplacePackageDetailData;
+      console.log(`${detail.entryId}  license ${detail.license ?? '?'}  updated ${detail.updatedAt ?? '?'}`);
+      if (detail.remoteError) console.error(`partial: ${detail.remoteError}`);
+      if (detail.readme) console.log(`\n${detail.readme}`);
+      return;
+    }
+    case 'marketplace/package-install':
+      console.log(`installed ${(data as MarketplacePiPackageInstallData).source}`);
+      return;
     default:
       console.log(JSON.stringify(data));
   }

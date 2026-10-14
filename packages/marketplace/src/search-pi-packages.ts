@@ -83,6 +83,7 @@ function hitFromPackageFields(input: {
   repositoryUrl?: string;
   publisher?: string;
   monthlyDownloads?: number;
+  updatedAt?: string;
 }): MarketplaceSearchHit {
   const hit: MarketplaceSearchHit = {
     entryId: `npm:${input.name}`,
@@ -97,6 +98,7 @@ function hitFromPackageFields(input: {
   if (input.repositoryUrl) hit.repositoryUrl = input.repositoryUrl;
   if (input.publisher) hit.publisher = input.publisher;
   if (input.monthlyDownloads !== undefined) hit.monthlyDownloads = input.monthlyDownloads;
+  if (input.updatedAt) hit.updatedAt = input.updatedAt;
   return hit;
 }
 
@@ -120,6 +122,7 @@ function hitFromSearchObject(value: unknown): MarketplaceSearchHit | undefined {
     ? normalizeRepositoryUrl(readString(links, 'repository') ?? '')
     : undefined;
   const publisherName = publisher ? readString(publisher, 'username') : undefined;
+  const updatedAt = readString(pkg, 'date');
   return hitFromPackageFields({
     name,
     version: readString(pkg, 'version') ?? '0.0.0',
@@ -128,6 +131,7 @@ function hitFromSearchObject(value: unknown): MarketplaceSearchHit | undefined {
     ...(repositoryUrl ? { repositoryUrl } : {}),
     ...(publisherName ? { publisher: publisherName } : {}),
     ...(monthly !== undefined ? { monthlyDownloads: monthly } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
   });
 }
 
@@ -153,12 +157,15 @@ function hitFromRegistryDoc(value: unknown): MarketplaceSearchHit | undefined {
     readString(doc, 'description') ??
     '';
   const repositoryUrl = repositoryRaw ? normalizeRepositoryUrl(repositoryRaw) : undefined;
+  const time = asRecord(doc.time);
+  const updatedAt = time ? (readString(time, 'modified') ?? (latest ? readString(time, latest) : undefined)) : undefined;
   return hitFromPackageFields({
     name,
     version: latest ?? '0.0.0',
     description,
     ...(homepage ? { homepage } : {}),
     ...(repositoryUrl ? { repositoryUrl } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
   });
 }
 

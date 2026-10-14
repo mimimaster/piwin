@@ -1,4 +1,4 @@
-/** Host IPC: search, install and remove npm/GitHub Pi packages. */
+/** Host IPC: search, inspect, install and remove npm/GitHub Pi packages. */
 import type {
   HostCommand,
   HostResponse,
@@ -7,7 +7,7 @@ import type {
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { installPiPackage, removePiPackage } from '@piwin/agent-host';
-import { searchMarketplaceSources } from '@piwin/marketplace';
+import { fetchPackageDetail, searchMarketplaceSources } from '@piwin/marketplace';
 import { resolvePiPackageSource } from '../marketplace/pi-package-source.js';
 import { fail, ok } from '../response-helpers.js';
 import { getPiAgentDir, getPiwinRoot } from '../paths.js';
@@ -16,6 +16,7 @@ const TYPES = new Set<HostCommand['type']>([
   'marketplace/search',
   'marketplace/package-install',
   'marketplace/package-remove',
+  'marketplace/package-detail',
 ]);
 
 export type MarketplaceSearchCommandDeps = {
@@ -61,6 +62,17 @@ export async function handleMarketplaceSearchCommand(
     } catch (error) {
       return fail(requestId, 'marketplace/package-remove', formatError(error));
     }
+  }
+  if (command.type === 'marketplace/package-detail') {
+    const githubToken = process.env.GITHUB_TOKEN;
+    const data = await fetchPackageDetail({
+      entryId: command.entryId,
+      ...(command.npmPackageName ? { npmPackageName: command.npmPackageName } : {}),
+      ...(command.repositoryUrl ? { repositoryUrl: command.repositoryUrl } : {}),
+      ...(deps.fetch ? { fetch: deps.fetch } : {}),
+      ...(githubToken ? { githubToken } : {}),
+    });
+    return ok(requestId, 'marketplace/package-detail', data);
   }
   if (command.type !== 'marketplace/search') {
     return null;

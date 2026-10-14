@@ -15,6 +15,7 @@ import type {
   MarketplaceCatalogEntry,
   MarketplaceInstalledItem,
   MarketplaceInstalledListData,
+  MarketplaceInventoryMessageCode,
   McpServerConfig,
   McpServerHealth,
   SkillSummary,
@@ -27,6 +28,23 @@ const FAILED_DEPLOYMENT_PHASES = new Set<ExtensionDeploymentRecord['phase']>([
   'rolled-back',
   'restart-required',
 ]);
+
+type AvailabilityProjection = {
+  availability: MarketplaceAvailability;
+  message?: string;
+  messageCode?: MarketplaceInventoryMessageCode;
+  messageDetail?: string;
+};
+
+function messageFields(
+  projection: AvailabilityProjection,
+): Pick<MarketplaceInstalledItem, 'message' | 'messageCode' | 'messageDetail'> {
+  return {
+    ...(projection.message ? { message: projection.message } : {}),
+    ...(projection.messageCode ? { messageCode: projection.messageCode } : {}),
+    ...(projection.messageDetail ? { messageDetail: projection.messageDetail } : {}),
+  };
+}
 
 export type InventorySessionView = {
   /** Extensions the session's live runtime compiled; undefined when it is not live. */
@@ -58,11 +76,12 @@ function extensionAvailability(
   extension: ExtensionSummary,
   record: InstalledExtensionRecord | undefined,
   session: InventorySessionView | undefined,
-): { availability: MarketplaceAvailability; message?: string } {
+): AvailabilityProjection {
   if (record?.installationState === 'pending-removal') {
     return {
       availability: 'pending-removal',
       message: 'Removal finishes once no live session still loads it.',
+      messageCode: 'pending-removal',
     };
   }
   if (!extension.enabled) {
@@ -72,12 +91,14 @@ function extensionAvailability(
     return {
       availability: 'failed',
       message: 'Not compatible with the piwin Agent Runtime; it will not load.',
+      messageCode: 'incompatible',
     };
   }
   if (session?.conversationOnly) {
     return {
       availability: 'installed',
       message: 'Chat conversations do not load extensions; project sessions do.',
+      messageCode: 'conversation-only',
     };
   }
   const loaded = session?.loadedExtensions;
@@ -100,9 +121,15 @@ function extensionAvailability(
       message: deployment.error
         ? `Could not apply to this session: ${deployment.error}`
         : 'Could not apply to this session.',
+      messageCode: 'apply-failed',
+      ...(deployment.error ? { messageDetail: deployment.error } : {}),
     };
   }
-  return { availability: 'pending-apply', message: 'Applies at the next run boundary.' };
+  return {
+    availability: 'pending-apply',
+    message: 'Applies at the next run boundary.',
+    messageCode: 'pending-apply',
+  };
 }
 
 function projectExtension(
@@ -111,7 +138,8 @@ function projectExtension(
   recordsById: ReadonlyMap<string, InstalledExtensionRecord>,
 ): MarketplaceInstalledItem {
   const record = extension.managed ? recordsById.get(extension.id) : undefined;
-  const { availability, message } = extensionAvailability(extension, record, input.session);
+  const projection = extensionAvailability(extension, record, input.session);
+  const { availability } = projection;
   const catalogEntry = input.matchCatalogEntry('extension', extension.id);
   const isUserExtensionFile =
     extension.source === 'user' &&
@@ -135,7 +163,7 @@ function projectExtension(
     availability,
     enabled: extension.enabled,
     source: extension.source,
-    ...(message ? { message } : {}),
+    ...messageFields(projection),
     canToggle: availability !== 'pending-removal',
     ...(removal ? { removal } : {}),
     ...(extension.compatibility ? { compatibilityTier: extension.compatibility.tier } : {}),
@@ -166,7 +194,7 @@ function projectSkill(
 function mcpAvailability(
   config: McpServerConfig,
   health: McpServerHealth | undefined,
-): { availability: MarketplaceAvailability; message?: string } {
+): AvailabilityProjection {
   if (config.disabled || health?.status === 'disabled') {
     return { availability: 'disabled' };
   }
@@ -177,17 +205,33 @@ function mcpAvailability(
     return {
       availability: 'configuration-required',
       message: `Missing value for ${blankEnv.join(', ')}`,
+      messageCode: 'mcp-missing-env',
+      messageDetail: blankEnv.join(', '),
     };
   }
   if (health?.status === 'error') {
-    return { availability: 'failed', message: health.lastError ?? 'Server failed to start.' };
+    return {
+      availability: 'failed',
+      message: health.lastError ?? 'Server failed to start.',
+      messageCode: 'mcp-start-failed',
+      ...(health.lastError ? { messageDetail: health.lastError } : {}),
+    };
   }
   if (health?.status === 'running') {
     return health.lastError
-      ? { availability: 'failed', message: health.lastError }
+      ? {
+          availability: 'failed',
+          message: health.lastError,
+          messageCode: 'mcp-start-failed',
+          messageDetail: health.lastError,
+        }
       : { availability: 'available' };
   }
-  return { availability: 'installed', message: 'Configured; starts when a session needs it.' };
+  return {
+    availability: 'installed',
+    message: 'Configured; starts when a session needs it.',
+    messageCode: 'mcp-idle',
+  };
 }
 
 function projectMcpServer(
@@ -196,7 +240,8 @@ function projectMcpServer(
   input: InventoryProjectionInput,
   healthById: ReadonlyMap<string, McpServerHealth>,
 ): MarketplaceInstalledItem {
-  const { availability, message } = mcpAvailability(config, healthById.get(serverId));
+  const projection = mcpAvailability(config, healthById.get(serverId));
+  const { availability } = projection;
   const catalogEntry = input.matchCatalogEntry('mcp', serverId);
   return {
     installationKey: `mcp:${serverId}`,
@@ -207,7 +252,7 @@ function projectMcpServer(
     availability,
     enabled: config.disabled !== true,
     source: 'mcp-config',
-    ...(message ? { message } : {}),
+    ...messageFields(projection),
     canToggle: false,
     removal: { command: 'mcp/remove' },
   };
@@ -234,6 +279,7 @@ export function projectMarketplaceInventory(
       enabled: plugin.enabled, availability: plugin.enabled ? 'installed' : 'disabled',
       source: plugin.source.kind, canToggle: true, removal: { command: 'agents/uninstall' },
       message: 'Adapter installed; CLI dependency and login are checked separately in Agent Backends.',
+      messageCode: 'agent-adapter-installed',
     })),
     ...input.extensions.map((extension) => projectExtension(extension, input, recordsById)),
     ...input.skills

@@ -85,6 +85,7 @@ describe('projectMarketplaceInventory — extensions', () => {
       }),
     );
     expect(only(stale).availability).toBe('pending-apply');
+    expect(only(stale).messageCode).toBe('pending-apply');
   });
 
   it('surfaces a failed deployment instead of waiting forever', () => {
@@ -109,6 +110,7 @@ describe('projectMarketplaceInventory — extensions', () => {
     );
     expect(item.availability).toBe('failed');
     expect(item.message).toContain('boom');
+    expect(item).toMatchObject({ messageCode: 'apply-failed', messageDetail: expect.stringContaining('boom') });
   });
 
   it('never calls an incompatible extension available or pending', () => {
@@ -139,6 +141,7 @@ describe('projectMarketplaceInventory — extensions', () => {
     );
     expect(item.availability).toBe('installed');
     expect(item.message).toContain('Chat conversations');
+    expect(item.messageCode).toBe('conversation-only');
   });
 
   it('shows pending removal and hides a second uninstall', () => {
@@ -246,6 +249,7 @@ describe('projectMarketplaceInventory — skills and MCP', () => {
     expect(byId.get('live')?.availability).toBe('available');
     expect(byId.get('broken')?.availability).toBe('failed');
     expect(byId.get('broken')?.message).toBe('spawn ENOENT');
+    expect(byId.get('broken')).toMatchObject({ messageCode: 'mcp-start-failed', messageDetail: 'spawn ENOENT' });
     expect(byId.get('needsKey')?.availability).toBe('configuration-required');
     expect(byId.get('off')?.availability).toBe('disabled');
     expect(byId.get('live')?.removal).toEqual({ command: 'mcp/remove' });

@@ -4,10 +4,12 @@ import type {
   HostResponse,
   MarketplaceCatalogGetData,
   MarketplaceCatalogListData,
+  MarketplaceRequirementsCheckData,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { listMarketplaceWithExtensions } from '@piwin/marketplace';
 import { purgeUnreferencedExtensions, readMarketplaceInventory } from '../marketplace/inventory-reader.js';
+import { checkMarketplaceRequirements } from '../marketplace/requirements-check.js';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
 
@@ -15,6 +17,7 @@ const TYPES = new Set<HostCommand['type']>([
   'marketplace/catalog-list',
   'marketplace/catalog-get',
   'marketplace/installed-list',
+  'marketplace/requirements-check',
 ]);
 
 export async function handleMarketplaceCatalogCommand(
@@ -47,6 +50,19 @@ export async function handleMarketplaceCatalogCommand(
         return fail(requestId, command.type, `Unknown marketplace entry: ${command.entryId}`);
       }
       const data: MarketplaceCatalogGetData = { entry };
+      return ok(requestId, command.type, data);
+    }
+    case 'marketplace/requirements-check': {
+      const entry = (await listMarketplaceWithExtensions({ includeWithdrawn: true })).find(
+        (item) => item.entryId === command.entryId,
+      );
+      if (!entry) {
+        return fail(requestId, command.type, `Unknown marketplace entry: ${command.entryId}`);
+      }
+      const data: MarketplaceRequirementsCheckData = {
+        entryId: entry.entryId,
+        results: checkMarketplaceRequirements(entry),
+      };
       return ok(requestId, command.type, data);
     }
     case 'marketplace/installed-list': {

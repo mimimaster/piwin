@@ -21,6 +21,8 @@ export type { SearchPiPackagesOptions } from './search-pi-packages.js';
 export { piGitInstallCommand, searchPiGithubRepos } from './search-pi-github.js';
 export type { SearchPiGithubOptions } from './search-pi-github.js';
 export { searchMarketplaceSources } from './search-marketplace.js';
+export { fetchPackageDetail, githubOwnerRepo, MAX_README_CHARS } from './package-detail.js';
+export type { FetchPackageDetailOptions } from './package-detail.js';
 export type { SearchMarketplaceOptions } from './search-marketplace.js';
 export {
   DEFAULT_EXTENSION_REGISTRY_URL,

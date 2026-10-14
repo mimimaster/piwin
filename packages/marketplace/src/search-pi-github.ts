@@ -71,6 +71,8 @@ function hitFromRepo(value: unknown): MarketplaceSearchHit | undefined {
   }
   const homepage = readString(repo, 'homepage');
   if (homepage) hit.homepage = homepage;
+  const updatedAt = readString(repo, 'pushed_at') ?? readString(repo, 'updated_at');
+  if (updatedAt) hit.updatedAt = updatedAt;
   return hit;
 }
 

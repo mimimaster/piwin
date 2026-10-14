@@ -130,6 +130,17 @@ export type MarketplaceRemovalRoute =
   | { command: 'mcp/remove' }
   | { command: 'agents/uninstall' };
 
+export type MarketplaceInventoryMessageCode =
+  | 'pending-removal'
+  | 'incompatible'
+  | 'conversation-only'
+  | 'apply-failed'
+  | 'pending-apply'
+  | 'mcp-missing-env'
+  | 'mcp-start-failed'
+  | 'mcp-idle'
+  | 'agent-adapter-installed';
+
 export type MarketplaceInstalledItem = {
   /** `<kind>:<capabilityId>`; unique inside one inventory. */
   installationKey: string;
@@ -145,6 +156,13 @@ export type MarketplaceInstalledItem = {
   source: string;
   /** Short user-facing reason; stack traces stay in diagnostics. */
   message?: string;
+  /**
+   * Stable code for `message` so clients localize it; `message` stays the
+   * English fallback for clients that do not know the code.
+   */
+  messageCode?: MarketplaceInventoryMessageCode;
+  /** Raw detail (error text, variable names) that a localized message embeds. */
+  messageDetail?: string;
   canToggle: boolean;
   removal?: MarketplaceRemovalRoute;
   compatibilityTier?: ExtensionCompatibilityTier;
@@ -168,3 +186,18 @@ export type ExtensionsUninstallData = {
 export type MarketplacePackageRemoveData = { packageSource: string };
 
 export type McpRemoveData = { serverId: string };
+
+export type MarketplaceRequirementStatus = 'met' | 'missing' | 'unknown';
+
+export type MarketplaceRequirementCheck = {
+  kind: MarketplaceRequirement['kind'];
+  value: string;
+  required: boolean;
+  /** `unknown` when the Host cannot observe it (accounts, subscriptions). */
+  status: MarketplaceRequirementStatus;
+};
+
+export type MarketplaceRequirementsCheckData = {
+  entryId: string;
+  results: MarketplaceRequirementCheck[];
+};

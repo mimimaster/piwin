@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { handleMarketplaceSearchCommand } from './marketplace-search-commands.js';
 
@@ -192,5 +195,43 @@ describe('handleMarketplaceSearchCommand', () => {
       },
     );
     expect(refused?.success).toBe(false);
+  });
+
+  it('installs an existing absolute Host directory and rejects relative or missing paths', async () => {
+    const installPackage = vi.fn(async (input: { source: string }) => ({ source: input.source }));
+    const directory = mkdtempSync(join(tmpdir(), 'piwin-local-pkg-'));
+    const accepted = await handleMarketplaceSearchCommand(
+      { type: 'marketplace/package-install', source: { kind: 'local', path: directory } },
+      'req-local',
+      { installPackage, piwinRoot: '/tmp/piwin', agentDir: '/tmp/pi-agent' },
+    );
+    expect(accepted?.success).toBe(true);
+    expect(installPackage).toHaveBeenCalledWith(expect.objectContaining({ source: directory }));
+
+    for (const path of ['relative/pkg', join(directory, 'missing')]) {
+      const rejected = await handleMarketplaceSearchCommand(
+        { type: 'marketplace/package-install', source: { kind: 'local', path } },
+        'req-local-bad',
+        { installPackage },
+      );
+      expect(rejected?.success).toBe(false);
+    }
+    expect(installPackage).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns package details without failing when sources are unreachable', async () => {
+    const fetchFn = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    const response = await handleMarketplaceSearchCommand(
+      { type: 'marketplace/package-detail', entryId: 'npm:pi-lens', npmPackageName: 'pi-lens' },
+      'req-detail',
+      { fetch: fetchFn as unknown as typeof fetch },
+    );
+    expect(response?.success).toBe(true);
+    expect(response && 'data' in response ? response.data : undefined).toMatchObject({
+      entryId: 'npm:pi-lens',
+      remoteError: expect.stringContaining('npm: offline'),
+    });
   });
 });
