@@ -869,11 +869,16 @@ describe('auto builtin', () => {
     expect(byRole.get('sidekick')).toMatchObject({
       profileId: 'implementer',
       isolation: 'worktree',
-      behavior: { lane: 'persistent', leadReviewLimit: { maxFiles: 5, maxChangedLines: 300 } },
+      behavior: { lane: 'persistent' },
     });
     expect(byRole.get('sidekick')?.reportContract).toContain('done | blocked | escalate');
-    expect(byRole.get('reviewer')?.reportContract).toContain('piwin_subagent_review_submit');
-    expect(byRole.get('tester')).toMatchObject({ isolation: 'worktree', behavior: { detached: true } });
+    expect([...byRole.keys()]).toEqual(['scout', 'sidekick']);
+    expect(byRole.get('sidekick')?.behavior?.leadReviewLimit).toBeUndefined();
+    expect(applySchemeToSubagentSpawnInput(resolved, { role: 'reviewer' }).fallback?.kind).toBe('main');
+    expect(applySchemeToSubagentSpawnInput(resolved, { role: 'tester' }).fallback?.kind).toBe('main');
+    expect(resolved.systemPreamble).toContain('only when the user explicitly chooses to add them');
+    expect(resolved.systemPreamble).not.toContain('Host enforces');
+    expect(resolved.systemPreamble).not.toContain('start tester WITHOUT waiting');
     expect(resolved.maxSubagentThinkingLevel).toBeUndefined();
   });
 
@@ -930,11 +935,7 @@ describe('auto builtin', () => {
       model: pinned('sidekick-model'),
       behavior: { lane: 'persistent' },
     });
-    expect(applySchemeToSubagentSpawnInput(resolved, { role: 'reviewer' })).toMatchObject({
-      profileId: 'reviewer',
-      isolation: 'readonly',
-      model: pinned('reviewer-model'),
-    });
+    expect(resolved?.members.map((member) => member.role)).toEqual(['scout', 'sidekick']);
   });
 
   it('preserves explicit profile and isolation overrides on repaired Auto members', () => {
@@ -1001,41 +1002,30 @@ describe('auto builtin', () => {
     ).toThrow(/only one level/);
   });
 
-  it('lets Settings tune the Lead review limit, clamped, without touching other behavior', () => {
-    const limitOf = (leadReviewLimit: Parameters<typeof baseConfig>[0] extends infer T
-      ? T extends { leadReviewLimit?: infer L } ? L : never
-      : never) =>
-      resolveOrchestrationScheme({ ...baseConfig(), leadReviewLimit }, 'auto', known)!.members.find(
-        (member) => member.role === 'sidekick',
-      )?.behavior;
-    expect(limitOf(undefined)?.leadReviewLimit).toEqual({ maxFiles: 5, maxChangedLines: 300 });
-    expect(limitOf({ maxFiles: 12, maxChangedLines: 800 })?.leadReviewLimit).toEqual({
-      maxFiles: 12,
-      maxChangedLines: 800,
+  it('does not restore the mandatory review gate from legacy Settings', () => {
+    const resolved = resolveOrchestrationScheme(
+      { ...baseConfig(), leadReviewLimit: { maxFiles: 1, maxChangedLines: 10 } },
+      'auto', known,
+    );
+    expect(resolved?.members.find((member) => member.role === 'sidekick')?.behavior).toEqual({
+      lane: 'persistent',
     });
-    // One field set: the other keeps the builtin default.
-    expect(limitOf({ maxFiles: 2 })?.leadReviewLimit).toEqual({ maxFiles: 2, maxChangedLines: 300 });
-    // A hand-edited config can neither switch the gate off nor make it unreachable.
-    expect(limitOf({ maxFiles: 0, maxChangedLines: -5 })?.leadReviewLimit).toEqual({
-      maxFiles: 1,
-      maxChangedLines: 10,
-    });
-    expect(limitOf({ maxFiles: 9999, maxChangedLines: 1e9 })?.leadReviewLimit).toEqual({
-      maxFiles: 50,
-      maxChangedLines: 5000,
-    });
-    expect(limitOf({ maxFiles: Number.NaN, maxChangedLines: Infinity })?.leadReviewLimit).toEqual({
-      maxFiles: 5,
-      maxChangedLines: 300,
-    });
-    expect(limitOf({ maxFiles: 7 })?.lane).toBe('persistent');
   });
 
-  it('carries behavior into the spawn application', () => {
-    const resolved = resolveOrchestrationScheme(baseConfig(), 'auto', known)!;
-    expect(applySchemeToSubagentSpawnInput(resolved, { role: 'tester' }).behavior).toEqual({
-      detached: true,
+  it('preserves optional reviewer and tester recipes only when users add the roles', () => {
+    const resolved = resolveOrchestrationScheme(baseConfig({ schemes: [{
+      ...BUILTIN_AUTO_SCHEME,
+      members: [
+        ...(BUILTIN_AUTO_SCHEME.members ?? []),
+        { role: 'reviewer', description: 'User-added review', model: pinned('reviewer-model') },
+        { role: 'tester', description: 'User-added test', profileId: 'tester', isolation: 'worktree' },
+      ],
+    }] }), 'auto', known);
+    expect(resolved?.members.map((member) => member.role)).toEqual(['scout', 'sidekick', 'reviewer', 'tester']);
+    expect(applySchemeToSubagentSpawnInput(resolved, { role: 'reviewer' })).toMatchObject({
+      profileId: 'reviewer', isolation: 'readonly', model: pinned('reviewer-model'),
     });
+    expect(applySchemeToSubagentSpawnInput(resolved, { role: 'tester' }).behavior).toEqual({ detached: true });
     expect(applySchemeToSubagentSpawnInput(resolved, { role: 'scout' }).behavior).toBeUndefined();
   });
 

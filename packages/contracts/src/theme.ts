@@ -74,7 +74,7 @@ export type ThemeManifest = {
   description?: string;
   mode: 'dark' | 'light';
   /** Optional product-owned visual layer; absent means token-only rendering. */
-  visualStyle?: 'flat' | 'paper' | 'ink-wash';
+  visualStyle?: 'flat' | 'paper';
   tokens: ThemeColorTokens;
   /** Authored Deck ramp; derived from `tokens` when absent. */
   deck?: ThemeDeckTokens;

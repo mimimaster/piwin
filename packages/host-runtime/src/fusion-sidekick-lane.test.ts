@@ -47,7 +47,7 @@ function child(overrides: Partial<SessionIndexRecord>): SessionIndexRecord {
 }
 
 describe('fusion sidekick lane', () => {
-  it('gives the Auto sidekick the same lane, bounded by the Lead review limit', async () => {
+  it('gives the Auto sidekick the same lane without a mandatory Lead review limit', async () => {
     const auto = resolveOrchestrationScheme(
       { maxConcurrency: 4, maxTasksPerRun: 8 },
       AUTO_SCHEME_ID,
@@ -66,8 +66,8 @@ describe('fusion sidekick lane', () => {
       deliveryIntent: 'candidate',
       applyPolicy: 'explicit',
       reviewAuthority: 'lead',
-      leadReviewLimit: { maxFiles: 5, maxChangedLines: 300 },
     });
+    expect(patch).not.toHaveProperty('leadReviewLimit');
     expect(patch?.task).toContain(PIWIN_FUSION_BRIEF_MARKER);
     const fusionPatch = await resolveFusionStartTaskPatch({
       scheme: fusionScheme(),

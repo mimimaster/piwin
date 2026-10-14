@@ -118,13 +118,7 @@ export type KnowledgeJobsConfig = {
   generationConcurrency?: number;
 };
 
-export type KnowledgeStorageConfig = {
-  lancedbUri?: string;
-  chunkTable?: string;
-};
-
 export type KnowledgeConfig = {
-  storage?: KnowledgeStorageConfig;
   parser?: {
     unstructured?: KnowledgeParserHttpConfig;
     mineru?: KnowledgeMineruConfig;

@@ -38,6 +38,8 @@ export type QueuedTurnControllerOptions = {
   settlePendingPermissions: (sessionId: string) => void;
   settlePendingExtensionUi: (sessionId: string) => void;
   validatePromptAttachments: (input: PromptInput) => void;
+  /** Pause drain while native CLI owns the writer; release via agents/cli-sync. */
+  isNativeCliWriterBlocked?: (sessionId: string) => boolean;
   admitPrompt: (
     command: Extract<HostCommand, { type: 'session/prompt' }>,
   ) => Promise<HostResponse>;
@@ -422,6 +424,8 @@ export class QueuedTurnController {
     const store = await this.options.getTranscriptStore(sessionId);
     for (;;) {
       if (this.options.getForegroundRun(sessionId)) return;
+      // Pause before pending→starting while native CLI owns the writer.
+      if (this.options.isNativeCliWriterBlocked?.(sessionId) === true) return;
       const result = await store.listQueuedTurns();
       const next = result.queuedTurns.find((candidate) => candidate.status === 'pending');
       if (!next) return;
@@ -467,7 +471,8 @@ export class QueuedTurnController {
             updatedAt: new Date().toISOString(),
           });
           if (pending) this.options.push({ type: 'session/queued-turn-updated', queuedTurn: pending });
-          if (response.error.includes('run-active:')) return;
+          // Busy writers (Desktop run or native CLI) pause drain without spinning.
+          if (response.error.includes('run-active:') || response.error.includes('writer-busy')) return;
           continue;
         }
         await this.failStarting(store, starting, 'prompt-rejected');
@@ -616,6 +621,7 @@ function formatError(error: unknown): string {
 function isRetryableQueuedAdmissionError(error: string): boolean {
   return (
     error.includes('run-active:') ||
+    error.includes('writer-busy') ||
     error.includes('parent run is already terminal:') ||
     error.includes('parent run has closed admission:') ||
     error.includes('parent run not found:')

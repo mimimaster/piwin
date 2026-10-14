@@ -414,12 +414,36 @@ function autoScheme(): ResolvedOrchestrationScheme {
   return resolved;
 }
 
+function autoSchemeWithTester(): ResolvedOrchestrationScheme {
+  const base = autoScheme().scheme;
+  const resolved = resolveOrchestrationScheme({ schemes: [{
+    ...base,
+    members: [
+      ...(base.members ?? []),
+      { role: 'tester', description: 'User-added verification', profileId: 'tester', isolation: 'worktree' },
+    ],
+  }] }, AUTO_SCHEME_ID, { knownProfileIds: ['explorer', 'implementer', 'reviewer', 'tester'] });
+  if (!resolved) throw new Error('expected user-added tester');
+  return resolved;
+}
+
 describe('piwin_subagent_start detached tester', () => {
-  it('starts the tester outside the parent run on a workspace snapshot', async () => {
+  it('does not spawn reviewer or tester in default Auto', async () => {
+    const registry = new DetachedSubagentRegistry();
+    const harness = createHarness({ getActiveScheme: autoScheme, detachedRegistry: registry });
+    for (const role of ['reviewer', 'tester']) {
+      const result = await executeTool(harness.startTool, { task: 'optional check', role });
+      expect(result.ok).toBe(false);
+    }
+    expect(harness.batches).toHaveLength(0);
+    expect(registry.running(SESSION_ID)).toBeUndefined();
+  });
+
+  it('starts a user-added tester outside the parent run on a workspace snapshot', async () => {
     const registry = new DetachedSubagentRegistry();
     const settled: Array<{ runId: string; schemeId?: string }> = [];
     const harness = createHarness({
-      getActiveScheme: autoScheme,
+      getActiveScheme: autoSchemeWithTester,
       detachedRegistry: registry,
       onDetachedBatchSettled: (input) => settled.push(input),
     });
@@ -448,7 +472,7 @@ describe('piwin_subagent_start detached tester', () => {
 
   it('keeps the tester when the parent run is cancelled, and refuses to wait on it', async () => {
     const registry = new DetachedSubagentRegistry();
-    const harness = createHarness({ getActiveScheme: autoScheme, detachedRegistry: registry });
+    const harness = createHarness({ getActiveScheme: autoSchemeWithTester, detachedRegistry: registry });
     await executeTool(harness.startTool, { task: 'verify', role: 'tester' });
     const runId = registry.running(SESSION_ID);
     if (!runId) throw new Error('expected a registered tester');
@@ -463,7 +487,7 @@ describe('piwin_subagent_start detached tester', () => {
 
   it('lets a later turn cancel the detached tester', async () => {
     const registry = new DetachedSubagentRegistry();
-    const harness = createHarness({ getActiveScheme: autoScheme, detachedRegistry: registry });
+    const harness = createHarness({ getActiveScheme: autoSchemeWithTester, detachedRegistry: registry });
     await executeTool(harness.startTool, { task: 'verify', role: 'tester' });
     const runId = registry.running(SESSION_ID);
     if (!runId) throw new Error('expected a registered tester');

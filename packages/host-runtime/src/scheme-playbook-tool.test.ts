@@ -56,19 +56,22 @@ describe('Auto wait next steps', () => {
     resultRef: result,
   };
 
-  it('points an unreviewed candidate at Lead review or a reviewer', () => {
+  it('points an unreviewed candidate at Lead review without spawning a reviewer', () => {
     const text = formatAutoWaitNextSteps([base]);
     expect(text).toContain('piwin_subagent_review_submit');
-    expect(text).toContain('reviewOf={"resultId":"res-1","revision":2}');
+    expect(text).toContain('result={"resultId":"res-1","revision":2}');
+    expect(text).not.toContain('role="reviewer"');
+    expect(text).not.toContain('Lead limit');
   });
 
-  it('points an approved candidate at apply and the tester', () => {
+  it('points an approved candidate at apply and local checks without spawning a tester', () => {
     const text = formatAutoWaitNextSteps([
       { ...base, reviewDecision: 'approved', reviewRef: { reviewId: 'rev-1', revision: 1 } },
     ]);
     expect(text).toContain('piwin_subagent_result_apply result={"resultId":"res-1","revision":2}');
     expect(text).toContain('approvedBy={"reviewId":"rev-1","revision":1}');
-    expect(text).toContain('role="tester"');
+    expect(text).toContain('run relevant checks yourself');
+    expect(text).not.toContain('role="tester"');
   });
 
   it('stays silent for scouts and failed runs', () => {

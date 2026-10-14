@@ -154,8 +154,19 @@ Pause checkpoints carry the paused run's `turnPolicy` (scheme id, disabled
 delegation), so a resumed turn keeps its scheme instead of running freehand.
 Spec: [`orchestration-scheme-fusion.zh.md`](../specs/orchestration-scheme-fusion.zh.md) §4.1–4.2.
 
-**Auto scheme, member behavior, detached tester (2026-09-30):** Builtin `auto`
-composes existing roles: `scout`, `sidekick` and `reviewer` resolve their
+**Auto defaults revised (2026-10-13, product-owner direction):** Builtin
+`auto` includes only `scout` and `sidekick`. The Lead reviews and verifies
+changes itself. Reviewer and tester are not default members or automatic steps;
+the user decides whether to add them. Auto sidekick no longer carries
+`leadReviewLimit`, so candidate size never forces an independent reviewer.
+Exact-result approval and explicit apply remain mandatory. Optional member
+recipes preserve reviewer inheritance and detached tester semantics only for
+user-added members; existing saved member lists remain user-owned. L0, L1 and
+L2 no longer direct automatic review/test delegation. Other schemes and the
+generic Host review-limit enforcement are unchanged.
+
+**Historical Auto implementation (2026-09-30; defaults superseded above):**
+Initially `auto` composed `scout`, `sidekick` and `reviewer`, resolving their
 model / profile / contract from Ultra Code, Fusion and Reviewed Delivery via
 `inheritFrom` (one level, after the target's Settings overlay). Host-enforced
 delivery is no longer keyed by scheme id: builtin members carry

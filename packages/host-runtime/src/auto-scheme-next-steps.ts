@@ -1,7 +1,7 @@
 /**
  * Progressive disclosure layer L2 for the Auto scheme: the next concrete call
  * rides on the wait result, so the resident preamble does not have to carry
- * the review/apply/tester loop.
+ * the Lead review/apply loop. Optional roles are never started by these hints.
  */
 import type { SubagentWaitRunObservation } from './subagent-run-tool.js';
 
@@ -20,8 +20,7 @@ export function formatAutoWaitNextSteps(
     switch (run.reviewDecision) {
       case undefined:
         lines.push(
-          `next(${run.runId}): review result=${result}. Within the Lead limit: piwin_subagent_review_submit. ` +
-            `Over it: piwin_subagent_start role="reviewer" reviewOf=${result}.`,
+          `next(${run.runId}): review result=${result} yourself with piwin_subagent_review_submit.`,
         );
         break;
       case 'approved':
@@ -30,7 +29,7 @@ export function formatAutoWaitNextSteps(
             `next(${run.runId}): piwin_subagent_result_apply result=${result} approvedBy=${JSON.stringify({
               reviewId: run.reviewRef.reviewId,
               revision: run.reviewRef.revision,
-            })}; then start role="tester" without waiting and reply to the user.`,
+            })}; then run relevant checks yourself and reply to the user.`,
           );
         }
         break;

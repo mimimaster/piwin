@@ -1,6 +1,7 @@
 import type { ModelRef } from './host.js';
 import { isThinkingLevel } from './host.js';
 import { BUILTIN_SCHEMES } from './orchestration-scheme-builtin.js';
+import { AUTO_OPTIONAL_MEMBERS, AUTO_SCHEME_ID } from './orchestration-scheme-auto.js';
 import {
   isValidOrchestrationRoleId,
   LEGACY_ULTRA_CODE_SCOUT_ROLE,
@@ -201,7 +202,10 @@ function findBuiltinMemberRecipe(
   role: string,
 ): OrchestrationSchemeMember | undefined {
   const builtin = BUILTIN_SCHEMES.find((scheme) => scheme.id === schemeId);
-  return builtin?.members?.find((member) => member.role === role);
+  return builtin?.members?.find((member) => member.role === role) ??
+    (schemeId === AUTO_SCHEME_ID
+      ? AUTO_OPTIONAL_MEMBERS.find((member) => member.role === role)
+      : undefined);
 }
 
 /**

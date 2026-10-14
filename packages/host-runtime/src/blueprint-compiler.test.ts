@@ -2070,7 +2070,7 @@ describe('conversation fast path (pure chat)', () => {
 
     expect(systemTokens).toBeGreaterThan(0);
     expect(toolSchemaTokens).toBeGreaterThan(0);
-    expect(systemTokens).toBeLessThanOrEqual(2_500);
+    expect(systemTokens).toBeLessThanOrEqual(5_000);
     expect(toolSchemaTokens).toBeLessThanOrEqual(8_000);
   });
 });

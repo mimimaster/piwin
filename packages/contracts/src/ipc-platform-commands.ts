@@ -514,6 +514,16 @@ export type PlatformHostCommand =
       includeWithdrawn?: boolean;
     }
   | { id?: string; type: 'marketplace/catalog-get'; entryId: string }
+  /** Host-side check of a catalog entry's requirements (OS, PATH commands, env vars). */
+  | { id?: string; type: 'marketplace/requirements-check'; entryId: string }
+  /** README / license / update time for one live-search hit; never installs. */
+  | {
+      id?: string;
+      type: 'marketplace/package-detail';
+      entryId: string;
+      npmPackageName?: string;
+      repositoryUrl?: string;
+    }
   | {
       id?: string;
       type: 'marketplace/installed-list';

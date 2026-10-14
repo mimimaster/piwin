@@ -44,6 +44,11 @@ import type { SubscriptionAuthPush } from './subscription-oauth.js';
 import type { LiveOwnerActionPush, LiveUpdatedPush } from './voice-live.js';
 import type { FlashcardStudyChangedPush } from './flashcard-study-events.js';
 import type { KnowledgeBasesChangedPush } from './knowledge-base.js';
+import type { AgentCliOwnership } from './agent-cli.js';
+import type {
+  BackendUserInputRequestPush,
+  BackendUserInputSettledPush,
+} from './backend-user-input-host.js';
 
 /**
  * ADR 0027: transport-level sequencing fields attached to every push when a
@@ -172,8 +177,12 @@ export type HostPushVariant =
     }
   | { type: 'host/status'; mode: HostMode; ready: boolean; mock: boolean }
   | { type: 'host/log'; level: 'info' | 'warn' | 'error'; message: string }
-  | { type: 'pty/output'; ptyId: string; data: string; at: string }
+  | { type: 'pty/output'; ptyId: string; data: string; at: string; sequence?: number }
   | { type: 'pty/exit'; ptyId: string; exitCode?: number | null }
+  /** Host-managed Desktop/native writer ownership for one product session. */
+  | { type: 'agents/cli-ownership'; ownership: AgentCliOwnership }
+  | BackendUserInputRequestPush
+  | BackendUserInputSettledPush
   | { type: 'todo/updated'; sessionId: string; items: SessionTodoList['items'] }
   | { type: 'automation/cron_finished'; jobId: string; ok: boolean; message?: string }
   | {
