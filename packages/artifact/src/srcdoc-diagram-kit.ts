@@ -52,11 +52,15 @@ export function buildArtifactDiagramKitCss(): string {
   box-shadow: var(--piwin-artifact-shadow-1);
   overflow-wrap: break-word;
 }
-/* A toned step keeps the neutral body and says its status on the edge. */
+/* A toned step keeps the neutral body and marks status with a straight
+   left bar. An inset box-shadow would follow border-radius and look like a
+   concave arc, so the bar is a linear-gradient layer instead. */
 :where(${FLOW_STEP}, ${LANE_STEP}):where([data-tone]) {
   border-color: color-mix(in srgb, ${TONE} 38%, var(--piwin-artifact-border));
-  background: color-mix(in srgb, ${TONE} 8%, var(--piwin-artifact-surface));
-  box-shadow: inset 3px 0 0 ${TONE}, var(--piwin-artifact-shadow-1);
+  background:
+    linear-gradient(${TONE}, ${TONE}) 0 0 / 3px 100% no-repeat,
+    color-mix(in srgb, ${TONE} 8%, var(--piwin-artifact-surface));
+  box-shadow: var(--piwin-artifact-shadow-1);
 }
 :where(${FLOW_STEP}, .piwin-timeline > li) :where(b, strong) {
   font-weight: 650;
