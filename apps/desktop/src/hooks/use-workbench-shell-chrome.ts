@@ -36,6 +36,7 @@ import { useConfirmDialog } from '../use-confirm-dialog';
 import { loadDesktopPreferences, type DesktopPreferences } from '../ui-preferences';
 import { appShellCssVars, desktopPreferencesCssVars } from '../workbench-preferences-style';
 import { applyWindowMaterialToDocument } from '../window-material-preferences';
+import type { SessionOrchestrationRestore } from './use-composer-orchestration-controls';
 
 export type UseWorkbenchShellChromeArgs = {
   hostClient: HostClient;
@@ -259,6 +260,10 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
   const sessionComposerProfileRestoredRef = useRef<
     (profile: { model?: ModelRef; thinkingLevel?: ThinkingLevel }) => void
   >(() => undefined);
+  // Assigned by the composer runtime, which is built after the session runtime.
+  const sessionOrchestrationRestoredRef = useRef<(restore: SessionOrchestrationRestore) => void>(
+    () => undefined,
+  );
   const [runClock, setRunClock] = useState(() => Date.now());
   useEffect(() => {
     if (state.activeRunStartedAt === null) {
@@ -332,6 +337,7 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     thinkingLevel,
     setThinkingLevel,
     sessionComposerProfileRestoredRef,
+    sessionOrchestrationRestoredRef,
     runClock,
   };
 }

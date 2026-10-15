@@ -154,7 +154,7 @@ export type UseComposerDockPropsArgs = {
   orchestrationSchemeId: string;
   orchestrationSchemeOptions: readonly OrchestrationSchemeOption[];
   delegationDisabled: boolean;
-  setDelegationDisabled: Dispatch<SetStateAction<boolean>>;
+  setDelegationDisabled: (disabled: boolean) => void;
   setOrchestrationSchemeId: (schemeId: string) => void;
   requestGit: (command: Parameters<HostClient['request']>[0]) => Promise<HostResponse>;
   recentProjects: readonly ProjectRecord[];

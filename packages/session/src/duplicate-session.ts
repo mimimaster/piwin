@@ -135,6 +135,12 @@ export async function duplicateProductSession(
   if (sourceRecord.thinkingLevel) {
     record.thinkingLevel = sourceRecord.thinkingLevel;
   }
+  if (sourceRecord.orchestrationSchemeId) {
+    record.orchestrationSchemeId = sourceRecord.orchestrationSchemeId;
+  }
+  if (sourceRecord.delegationDisabled === true) {
+    record.delegationDisabled = true;
+  }
 
   // SF-01: record duplicate origin metadata.
   const origin: ProductSessionOrigin = {

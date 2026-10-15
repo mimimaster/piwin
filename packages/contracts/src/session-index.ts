@@ -45,6 +45,13 @@ export type SessionIndexRecord = {
   model?: ModelRef;
   /** Last composer thinking level used with `model` for this session. */
   thinkingLevel?: ThinkingLevel;
+  /**
+   * Composer orchestration scheme this conversation is on. Absent means
+   * freehand (`off`); the Host never stores `off` itself.
+   */
+  orchestrationSchemeId?: string;
+  /** Composer "Delegation disabled" toggle. Absent means delegation is available. */
+  delegationDisabled?: boolean;
   /** Knowledge bases mounted on this session. Projected to `SessionSummary.knowledgeBaseIds`. */
   knowledgeBaseIds?: string[];
   /**

@@ -262,13 +262,94 @@ describe('handleSessionComposerProfileCommand', () => {
 
     expect(response?.success).toBe(false);
     expect(response?.success === false ? response.error : '').toBe(
-      'model or thinkingLevel is required',
+      'model, thinkingLevel, orchestrationSchemeId, or delegationDisabled is required',
     );
     expect(pushes).toHaveLength(0);
     expect(
       (await getSessionRecord(getPiwinSessionIndexPath(piwinRoot), SESSION_ID))?.model,
     ).toEqual(CHAT_MODEL);
     assertSessionModelsUntouched(sessionModels);
+  });
+
+  it('stores the orchestration scheme and delegation toggle without a model', async () => {
+    const { piwinRoot, pushes, context } = await seedSession({ model: CHAT_MODEL });
+
+    const response = await handleSessionComposerProfileCommand(
+      {
+        type: 'session/set-composer-profile',
+        sessionId: SESSION_ID,
+        orchestrationSchemeId: 'ultra-code',
+        delegationDisabled: true,
+      },
+      'req-orch',
+      context,
+    );
+
+    expect(successfulData(response).unchanged).toBe(false);
+    const stored = await getSessionRecord(getPiwinSessionIndexPath(piwinRoot), SESSION_ID);
+    expect(stored?.orchestrationSchemeId).toBe('ultra-code');
+    expect(stored?.delegationDisabled).toBe(true);
+    expect(stored?.model).toEqual(CHAT_MODEL);
+    expect(pushes).toHaveLength(1);
+  });
+
+  it('clears the stored scheme on off and the toggle on false', async () => {
+    const { piwinRoot, pushes, context } = await seedSession();
+    await handleSessionComposerProfileCommand(
+      {
+        type: 'session/set-composer-profile',
+        sessionId: SESSION_ID,
+        orchestrationSchemeId: 'ultra-code',
+        delegationDisabled: true,
+      },
+      'req-set',
+      context,
+    );
+
+    const response = await handleSessionComposerProfileCommand(
+      {
+        type: 'session/set-composer-profile',
+        sessionId: SESSION_ID,
+        orchestrationSchemeId: 'off',
+        delegationDisabled: false,
+      },
+      'req-clear',
+      context,
+    );
+
+    expect(successfulData(response).unchanged).toBe(false);
+    const stored = await getSessionRecord(getPiwinSessionIndexPath(piwinRoot), SESSION_ID);
+    expect(stored).not.toHaveProperty('orchestrationSchemeId');
+    expect(stored).not.toHaveProperty('delegationDisabled');
+    expect(pushes).toHaveLength(2);
+
+    const again = await handleSessionComposerProfileCommand(
+      { type: 'session/set-composer-profile', sessionId: SESSION_ID, orchestrationSchemeId: 'off' },
+      'req-clear-again',
+      context,
+    );
+    expect(successfulData(again).unchanged).toBe(true);
+    expect(pushes).toHaveLength(2);
+  });
+
+  it('refuses a malformed orchestration scheme id', async () => {
+    const { piwinRoot, pushes, context } = await seedSession();
+
+    const response = await handleSessionComposerProfileCommand(
+      {
+        type: 'session/set-composer-profile',
+        sessionId: SESSION_ID,
+        orchestrationSchemeId: 'Ultra Code!',
+      },
+      'req-bad',
+      context,
+    );
+
+    expect(response?.success).toBe(false);
+    expect(pushes).toHaveLength(0);
+    expect(
+      (await getSessionRecord(getPiwinSessionIndexPath(piwinRoot), SESSION_ID))?.orchestrationSchemeId,
+    ).toBeUndefined();
   });
 
   it('returns null for other command types', async () => {

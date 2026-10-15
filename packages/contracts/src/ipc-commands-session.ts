@@ -348,6 +348,9 @@ export type HostSessionCommand =
       sessionId: string;
       model?: import('./host.js').ModelRef;
       thinkingLevel?: import('./host.js').ThinkingLevel;
+      /** Scheme id, or `off` to return the conversation to freehand. */
+      orchestrationSchemeId?: string;
+      delegationDisabled?: boolean;
     }
   | {
       id?: string;

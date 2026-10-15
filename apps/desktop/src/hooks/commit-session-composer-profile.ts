@@ -15,6 +15,9 @@ export type CommitSessionComposerProfileArgs = {
   sessionId: string | null;
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
+  /** Scheme id, or `off` to return the conversation to freehand. */
+  orchestrationSchemeId?: string;
+  delegationDisabled?: boolean;
 };
 
 export type CommitSessionComposerProfileResult = { ok: true } | { ok: false; error: string };
@@ -35,6 +38,12 @@ export async function commitSessionComposerProfile(
     sessionId: args.sessionId,
     ...(args.model ? { model: args.model } : {}),
     ...(args.thinkingLevel !== undefined ? { thinkingLevel: args.thinkingLevel } : {}),
+    ...(args.orchestrationSchemeId !== undefined
+      ? { orchestrationSchemeId: args.orchestrationSchemeId }
+      : {}),
+    ...(args.delegationDisabled !== undefined
+      ? { delegationDisabled: args.delegationDisabled }
+      : {}),
   };
 
   try {

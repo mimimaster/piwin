@@ -217,6 +217,12 @@ export async function forkProductSession(
   if (sourceRecord.thinkingLevel) {
     record.thinkingLevel = sourceRecord.thinkingLevel;
   }
+  if (sourceRecord.orchestrationSchemeId) {
+    record.orchestrationSchemeId = sourceRecord.orchestrationSchemeId;
+  }
+  if (sourceRecord.delegationDisabled === true) {
+    record.delegationDisabled = true;
+  }
 
   await upsertSessionRecord(paths.indexPath, record);
   return { record, transcript, origin };

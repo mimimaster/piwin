@@ -481,6 +481,12 @@ export async function handleSessionLiveCommand(
       if (existing.thinkingLevel) {
         data.thinkingLevel = existing.thinkingLevel;
       }
+      if (existing.orchestrationSchemeId) {
+        data.orchestrationSchemeId = existing.orchestrationSchemeId;
+      }
+      if (existing.delegationDisabled === true) {
+        data.delegationDisabled = true;
+      }
       // A Host-controlled turn keeps its own projection; replay would race it.
       if (activeRun === undefined && context.externalHistoryUnsynced?.(existing) === true) {
         data.nativeHistory = 'unsynced';

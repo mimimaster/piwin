@@ -42,6 +42,7 @@ import {
 } from '../session-list-hydrate.js';
 import { getSessionListScopeMeta } from '../session-list-scope.js';
 import { isNoRepoProjectPath } from '../file-browse-root.js';
+import type { SessionOrchestrationRestore } from './use-composer-orchestration-controls';
 
 export type ModelOption = {
   providerId: string;
@@ -77,6 +78,8 @@ export type UseSessionActionsArgs = {
     model?: ModelRef;
     thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
   }) => void;
+  /** Restore the conversation's orchestration pill from the Host session index. */
+  onSessionOrchestrationRestored?: (restore: SessionOrchestrationRestore) => void;
   /** Built-in No Repo root; open without registering a ProjectRecord. */
   generalWorkspacePath?: string | null;
 };
@@ -98,6 +101,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     setRenameDraft,
     setHostLogEntries,
     onSessionComposerProfileRestored,
+    onSessionOrchestrationRestored,
   } = args;
   const { locale } = useDesktopLocale();
   const pendingSessionCreations = useRef(new Map<string, Promise<string | null>>());
@@ -182,6 +186,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ...(resolveSessionScopeHint ? { resolveSessionScopeHint } : {}),
     hydrateSessions,
     ...(onSessionComposerProfileRestored ? { onSessionComposerProfileRestored } : {}),
+    ...(onSessionOrchestrationRestored ? { onSessionOrchestrationRestored } : {}),
   });
   const {
     handlePause,

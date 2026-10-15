@@ -181,6 +181,10 @@ export type SessionResumeData = {
   model?: ModelRef;
   /** Last composer thinking level for this session when known. */
   thinkingLevel?: import('./host.js').ThinkingLevel;
+  /** Composer orchestration scheme stored on the session; absent means freehand. */
+  orchestrationSchemeId?: string;
+  /** Present (true) when the session's composer has delegation disabled. */
+  delegationDisabled?: boolean;
   /** Last authoritative context usage restored by the Host. */
   contextUsage?: import('./usage.js').ContextUsageSnapshot;
   /** Always present; unknown occupancy is explicit. */

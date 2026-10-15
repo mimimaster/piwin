@@ -36,6 +36,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     selectedModelKey,
     thinkingLevel,
     sessionComposerProfileRestoredRef,
+    sessionOrchestrationRestoredRef,
     setEditingMessageId,
     agentMode,
     orchestrationSchemeId,
@@ -102,6 +103,9 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     setHostLogEntries,
     onSessionComposerProfileRestored: (profile) => {
       sessionComposerProfileRestoredRef.current(profile);
+    },
+    onSessionOrchestrationRestored: (restore) => {
+      sessionOrchestrationRestoredRef.current(restore);
     },
     generalWorkspacePath: host.generalWorkspacePath ?? null,
   });

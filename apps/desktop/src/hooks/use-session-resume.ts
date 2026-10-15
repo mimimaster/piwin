@@ -10,6 +10,7 @@ import type {
 } from '@piwin/contracts';
 import { parseSessionContextSnapshot } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
+import type { SessionOrchestrationRestore } from './use-composer-orchestration-controls';
 import { requestQueuedTurnQueue } from '../queued-turn-queue-request.js';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
@@ -49,6 +50,7 @@ export function useSessionResume(input: {
     model?: ModelRef;
     thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
   }) => void;
+  onSessionOrchestrationRestored?: (restore: SessionOrchestrationRestore) => void;
 }) {
   const {
     hostClient,
@@ -60,6 +62,7 @@ export function useSessionResume(input: {
     resolveSessionScopeHint,
     hydrateSessions,
     onSessionComposerProfileRestored,
+    onSessionOrchestrationRestored,
   } = input;
   const selectionGuardRef = useRef(createSessionSelectionGuard(hostClient.getHostInstanceId()));
   const nativeHistoryAttemptsRef = useRef(new Map<string, string>());
@@ -361,6 +364,22 @@ export function useSessionResume(input: {
       ) {
         onSessionComposerProfileRestored?.(restoredProfile);
       }
+      const restoredOrchestration = takeIfResumeCurrent(
+        selectionGuardRef.current,
+        started.ticket,
+        {
+          sessionId,
+          ...(data.orchestrationSchemeId !== undefined
+            ? { orchestrationSchemeId: data.orchestrationSchemeId }
+            : {}),
+          ...(data.delegationDisabled !== undefined
+            ? { delegationDisabled: data.delegationDisabled }
+            : {}),
+        },
+      );
+      if (restoredOrchestration) {
+        onSessionOrchestrationRestored?.(restoredOrchestration);
+      }
       if (!ticketMatches()) return;
       const snapshot = parseSessionContextSnapshot(data.contextSnapshot);
       if (snapshot) {
@@ -443,6 +462,7 @@ export function useSessionResume(input: {
       hydrateSessions,
       locale,
       onSessionComposerProfileRestored,
+      onSessionOrchestrationRestored,
       resolveSessionScopeHint,
       showArchivedSessions,
       state.activeScope,

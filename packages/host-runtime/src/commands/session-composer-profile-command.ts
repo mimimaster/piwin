@@ -1,6 +1,6 @@
 /**
- * Desired session composer profile: writes index record.model / thinkingLevel
- * and pushes session/index-updated. Does not apply runtime, sessionModels, or compact.
+ * Desired session composer profile: writes index record.model / thinkingLevel /
+ * orchestrationSchemeId / delegationDisabled and pushes session/index-updated. Does not apply runtime, sessionModels, or compact.
  */
 import type {
   HostCommand,
@@ -9,9 +9,12 @@ import type {
   ModelRef,
   PiwinConfig,
   SessionIndexRecord,
-  ThinkingLevel,
 } from '@piwin/contracts';
-import { modelSupportsCapability } from '@piwin/contracts';
+import {
+  isValidOrchestrationSchemeId,
+  modelSupportsCapability,
+  ORCHESTRATION_SCHEME_OFF_ID,
+} from '@piwin/contracts';
 import { getSessionRecord } from '@piwin/session';
 import { fail, ok } from '../response-helpers.js';
 import { sessionIndexUpdatedPush } from '../session-index-push.js';
@@ -19,6 +22,10 @@ import { indexRecordToSummary } from '../session-summary-map.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import { findEnabledModel } from '../provider-helpers.js';
 import { persistSessionComposerProfile } from './prompt-preparation.js';
+import {
+  isEmptySessionComposerProfile,
+  type SessionComposerProfile,
+} from './session-composer-model.js';
 
 export type SessionComposerProfileCommandContext = {
   piwinRoot?: string;
@@ -44,7 +51,12 @@ function composerProfileUnchanged(
   before: SessionIndexRecord,
   after: SessionIndexRecord,
 ): boolean {
-  return sameModel(before.model, after.model) && before.thinkingLevel === after.thinkingLevel;
+  return (
+    sameModel(before.model, after.model) &&
+    before.thinkingLevel === after.thinkingLevel &&
+    before.orchestrationSchemeId === after.orchestrationSchemeId &&
+    before.delegationDisabled === after.delegationDisabled
+  );
 }
 
 export async function handleSessionComposerProfileCommand(
@@ -56,8 +68,36 @@ export async function handleSessionComposerProfileCommand(
     return null;
   }
 
-  if (!command.model && command.thinkingLevel === undefined) {
-    return fail(requestId, command.type, 'model or thinkingLevel is required');
+  const profile: SessionComposerProfile = {
+    ...(command.model ? { model: command.model } : {}),
+    ...(command.thinkingLevel !== undefined ? { thinkingLevel: command.thinkingLevel } : {}),
+    ...(command.orchestrationSchemeId !== undefined
+      ? { orchestrationSchemeId: command.orchestrationSchemeId.trim() }
+      : {}),
+    ...(command.delegationDisabled !== undefined
+      ? { delegationDisabled: command.delegationDisabled }
+      : {}),
+  };
+  if (isEmptySessionComposerProfile(profile)) {
+    return fail(
+      requestId,
+      command.type,
+      'model, thinkingLevel, orchestrationSchemeId, or delegationDisabled is required',
+    );
+  }
+  // A scheme deleted from Settings later is fine to keep: Desktop falls back
+  // to freehand on read. Only malformed ids are refused here.
+  const schemeId = profile.orchestrationSchemeId;
+  if (
+    schemeId !== undefined &&
+    schemeId !== ORCHESTRATION_SCHEME_OFF_ID &&
+    !isValidOrchestrationSchemeId(schemeId)
+  ) {
+    return fail(
+      requestId,
+      command.type,
+      `invalid orchestration scheme id "${schemeId}" (expected [a-z0-9-]+ or off)`,
+    );
   }
 
   const indexPath = getPiwinSessionIndexPath(getPiwinRoot(context.piwinRoot));
@@ -82,10 +122,6 @@ export async function handleSessionComposerProfileCommand(
     }
   }
 
-  const profile: { model?: ModelRef; thinkingLevel?: ThinkingLevel } = {
-    ...(command.model ? { model: command.model } : {}),
-    ...(command.thinkingLevel !== undefined ? { thinkingLevel: command.thinkingLevel } : {}),
-  };
   await persistSessionComposerProfile(
     context.piwinRoot === undefined ? {} : { piwinRoot: context.piwinRoot },
     command.sessionId,
