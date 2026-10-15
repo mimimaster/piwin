@@ -94,13 +94,12 @@ describe('per-model request headers', () => {
   });
 
   it('keeps the provider identity when the model sets no headers', () => {
-    expect(resolveModelHeaders(cpa, { id: 'grok-4.7', headers: {} })).toBe(cpa.headers);
-    expect(resolveModelEndpoint(cpa, { id: 'grok-4.7', headers: {} })).toBe(cpa);
+    expect(resolveModelHeaders(cpa, { headers: {} })).toBe(cpa.headers);
+    expect(resolveModelEndpoint(cpa, { headers: {} })).toBe(cpa);
   });
 
   it('combines a protocol override with model headers', () => {
     const view = resolveModelEndpoint(cpa, {
-      id: 'gemini-3.8-flash-high',
       protocol: 'google-gemini',
       headers: { 'x-goog-route': 'b' },
     });
