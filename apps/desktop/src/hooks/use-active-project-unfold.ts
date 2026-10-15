@@ -45,7 +45,8 @@ export function useActiveProjectUnfold(
         return previous;
       }
       // Remove rather than set false: the folder falls back to the default
-      // policy (open while it holds the active project, folded after).
+      // policy, which opens it (it holds the active project) and the fold
+      // latch then keeps it open.
       const next = { ...previous };
       for (const key of keys) {
         if (next[key] === true) {

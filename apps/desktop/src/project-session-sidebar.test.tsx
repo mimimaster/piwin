@@ -65,7 +65,11 @@ function renderSidebar(props: Partial<ProjectSessionSidebarProps> = {}): {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
+  rerenderSidebar(root, props);
+  return { container, root };
+}
 
+function rerenderSidebar(root: Root, props: Partial<ProjectSessionSidebarProps> = {}): void {
   const defaultProps: ProjectSessionSidebarProps = {
     projectPath: '/Users/test/project-a',
     projectTrusted: true,
@@ -112,8 +116,6 @@ function renderSidebar(props: Partial<ProjectSessionSidebarProps> = {}): {
       </PiwinUiProvider>,
     );
   });
-
-  return { container, root };
 }
 
 describe('ProjectSessionSidebar resident session lists', () => {
@@ -1031,6 +1033,46 @@ describe('ProjectSessionSidebar project row behavior', () => {
 
     expect(otherProjectRow?.getAttribute('aria-expanded')).toBe('true');
     expect(container.textContent).toContain('Other Project Chat');
+  });
+
+  it('keeps the previous project open after opening a session in another project', () => {
+    const projects = createMockProjects(2);
+    const firstPath = projects[0]!.path;
+    const secondPath = projects[1]!.path;
+    const firstSessions = createMockSessions(1);
+    const secondSessions: SessionListItemUi[] = [
+      { id: 'second-session', name: 'Second Project Chat', isPinned: false, isArchived: false },
+    ];
+    const projectSessionsByPath = { [firstPath]: firstSessions, [secondPath]: secondSessions };
+    const firstProps: Partial<ProjectSessionSidebarProps> = {
+      recentProjects: projects,
+      projectPath: firstPath,
+      filteredSessions: firstSessions,
+      activeSessionId: firstSessions[0]!.id,
+      projectSessionsByPath,
+    };
+    const { container, root } = renderSidebar(firstProps);
+    const folderRow = (path: string): HTMLButtonElement | null =>
+      container.querySelector<HTMLButtonElement>(
+        `[data-testid="repository-item"][data-project-path="${path}"]`,
+      );
+    expect(folderRow(firstPath)?.getAttribute('aria-expanded')).toBe('true');
+
+    rerenderSidebar(root, {
+      ...firstProps,
+      projectPath: secondPath,
+      filteredSessions: secondSessions,
+      activeSessionId: 'second-session',
+    });
+
+    expect(folderRow(firstPath)?.getAttribute('aria-expanded')).toBe('true');
+    expect(folderRow(secondPath)?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.textContent).toContain('Session Item 1');
+
+    // An explicit fold still sticks when navigation comes back.
+    act(() => folderRow(firstPath)?.click());
+    rerenderSidebar(root, firstProps);
+    expect(folderRow(firstPath)?.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('keeps sessions for multiple projects visible after each folder is expanded', () => {

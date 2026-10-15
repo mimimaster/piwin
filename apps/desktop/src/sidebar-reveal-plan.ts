@@ -8,9 +8,9 @@
  * folds — the ancestors of the target row — and nothing else.
  */
 import { filterSidebarRowsByMode, type SidebarMode } from './sidebar-mode';
+import { sidebarFolderCollapseKey } from './sidebar-fold-latch';
 import {
   buildSidebarTreeRows,
-  NO_REPO_SIDEBAR_KEY,
   sidebarTreeRowDepth,
   type SidebarTreeRow,
   type SidebarTreeRowsInput,
@@ -30,16 +30,6 @@ export type SidebarRevealPlan = {
 
 function isTargetRow(row: SidebarTreeRow, targetId: string): boolean {
   return row.kind === 'session' && row.session.id === targetId;
-}
-
-function folderCollapseKey(
-  row: Extract<SidebarTreeRow, { kind: 'project-folder' | 'no-repo-folder' }>,
-  input: SidebarTreeRowsInput,
-): string {
-  if (row.kind === 'no-repo-folder') {
-    return input.noRepoProjectPath?.trim() || NO_REPO_SIDEBAR_KEY;
-  }
-  return row.repository?.collapseKey ?? row.projectPath;
 }
 
 /** The tree with every fold open, so a row's ancestors show whatever the user folded. */
@@ -95,7 +85,7 @@ function collectEnclosingFolds(
     if (row.kind === 'unavailable-group') {
       unfoldUnavailable = true;
     } else {
-      unfoldKeys.push(folderCollapseKey(row, input));
+      unfoldKeys.push(sidebarFolderCollapseKey(row, input));
     }
   }
   return { section, unfoldKeys, unfoldUnavailable };

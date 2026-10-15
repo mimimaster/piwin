@@ -96,6 +96,10 @@ export function sidebarSearchHidesReveal(
  *    project and the user never touched it, auto-expand so the session is
  *    visible (navigation convenience only, never overrides user intent).
  * 4. Default — untouched folders are collapsed except the active project.
+ *
+ * Rules 3–4 only decide a folder's first paint: the sidebar latches every
+ * folder they open into `collapsedProjects` (see `sidebar-fold-latch.ts`), so
+ * navigating to another project never folds the one the user just left.
  */
 export function resolveSidebarProjectCollapsed(input: {
   projectPath: string;
