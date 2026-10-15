@@ -3,7 +3,9 @@
  *
  * A turn the Host recorded gets the TurnChangeBar (exact counts, one-click
  * undo / redo). Older turns, or Hosts without the record, keep the per-call
- * FilesChangedBar.
+ * FilesChangedBar. Neither shows while the turn still runs: a resumed turn
+ * (继续) would otherwise keep the first run's sealed card pinned under the
+ * new output until the whole turn ends.
  */
 import type { ReactElement } from 'react';
 import { TurnChangeBar } from './turn-changes/turn-change-bar.js';
@@ -39,6 +41,7 @@ export function ChatTurnFilesSummary(props: ChatTurnFilesSummaryProps): ReactEle
     eligible ? props.sessionId : undefined,
     decodeTurnRunIds(props.turnRunKey),
   );
+  if (props.turnInProgress === true) return null;
   if (api && eligible && summaries.length > 0) {
     const locale = props.locale === 'en' ? 'en' : 'zh-CN';
     return (
@@ -57,7 +60,6 @@ export function ChatTurnFilesSummary(props: ChatTurnFilesSummaryProps): ReactEle
   }
   if (props.isConversationSession === true) return null;
   if (props.role !== 'assistant') return null;
-  if (props.turnInProgress === true) return null;
   if (props.tools.length === 0) return null;
   return (
     <FilesChangedBar

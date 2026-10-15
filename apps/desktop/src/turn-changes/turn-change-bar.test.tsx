@@ -557,6 +557,34 @@ describe('ChatTurnFilesSummary with a Host record', () => {
     expect(container.querySelector('[data-testid="turn-change-bar-title"]')?.textContent).toBe('本轮已撤销');
   });
 
+  it('hides a sealed record while the resumed turn still runs, and shows it once the turn ends', async () => {
+    const request = vi.fn(async (command: HostCommand) =>
+      ({ type: 'response', command: command.type, success: true, data: { summaries: [summary()] } }) as HostResponse,
+    );
+    const tools = [
+      { toolCallId: 't1', toolName: 'edit', status: 'done', output: '', presentation: { kind: 'filesystem', title: 'edit', changedPaths: ['src/a.ts'] } },
+    ] as never;
+    const view = (turnInProgress: boolean): ReactElement => (
+      <TurnChangesProvider request={request} subscribePush={() => () => undefined}>
+        <ChatTurnFilesSummary
+          role="assistant"
+          tools={tools}
+          sessionId="session-1"
+          turnRunKey={'run-1\nrun-2'}
+          turnInProgress={turnInProgress}
+        />
+      </TurnChangesProvider>
+    );
+    await render(view(true));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
+    expect(container.querySelector('[data-testid="turn-change-bar"]')).toBeNull();
+    expect(container.querySelector('[data-testid="files-changed-bar"]')).toBeNull();
+    await render(view(false));
+    expect(container.querySelector('[data-testid="turn-change-bar"]')).not.toBeNull();
+  });
+
   it('keeps the per-call bar when the turn has no record', async () => {
     const tools = [
       { toolCallId: 't1', toolName: 'write_file', status: 'done', output: '', presentation: { kind: 'filesystem', title: 'write_file', changedPaths: ['src/a.ts'] } },
