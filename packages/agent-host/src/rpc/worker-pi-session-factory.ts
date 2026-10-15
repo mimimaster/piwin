@@ -41,6 +41,7 @@ import {
 } from '../pi-model-runtime.js';
 
 import { resolveRegistrationStreamSimple } from '../attach-provider-stream-simple.js';
+import { wrapModelRuntimeReasoningLoopGuard } from '../reasoning-loop-guard.js';
 import { wrapModelRuntimeStreamTiming } from '../stream-request-timing.js';
 import type { NativeSearchStreamSimple } from '../native-web-search.js';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
@@ -747,6 +748,7 @@ async function createWorkerModelRuntime(
     modelsPath: join(agentDir, 'models.json'),
   });
   wrapModelRuntimeStreamTiming(modelRuntime);
+  wrapModelRuntimeReasoningLoopGuard(modelRuntime);
   return modelRuntime;
 }
 
