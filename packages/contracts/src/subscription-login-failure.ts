@@ -22,10 +22,13 @@ const FAILURE_MESSAGE: Record<string, Record<SubscriptionLoginFailureLocale, str
       '登录未完成：浏览器已授权，但凭据交换被平台拒绝。可重试一次，仍失败请把错误码发给开发者。',
     en: 'Sign-in did not finish: the browser authorized, but the credential exchange was rejected. Retry once; if it keeps failing, send the error code to your developer.',
   },
+  // Raised from any step that talks to the provider: requesting a device code,
+  // polling for it, or exchanging a callback code. Do not claim the browser
+  // already authorized, and do not push a callback paste on device-code flows.
   'oauth-network': {
     'zh-CN':
-      '登录未完成：浏览器已授权，但凭据交换时网络失败。可重试，或粘贴回调 URL 后再提交。',
-    en: 'Sign-in did not finish: the browser authorized, but the credential exchange failed on the network. Retry, or paste the callback URL and submit again.',
+      '登录未完成：Host 连不上该平台的登录服务。请检查网络或代理后重试；若浏览器已跳转到 localhost 回调页，也可粘贴回调 URL 提交。',
+    en: 'Sign-in did not finish: the Host could not reach the sign-in service. Check your network or proxy and retry; if the browser already reached the localhost callback page, you can also paste that URL and submit.',
   },
   'oauth-callback-port-busy': {
     'zh-CN':

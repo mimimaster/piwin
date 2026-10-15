@@ -290,12 +290,7 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
   });
 
   it('toasts a failed Codex sign-in instead of closing silently', async () => {
-    let push:
-      | ((message: {
-          type: string;
-          result?: { loginId: string; providerId: string; ok: boolean; errorCode?: string };
-        }) => void)
-      | undefined;
+    let push: ((message: unknown) => void) | undefined;
     const setError = vi.fn();
     const mockRequest = vi.fn(async (command) => {
       const ext = extensionListOk(command);
@@ -341,6 +336,18 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
 
     await act(async () => {
       push?.({
+        type: 'auth/prompt',
+        prompt: {
+          loginId: 'login-1',
+          promptId: 'prompt-1',
+          providerId: 'openai-codex',
+          kind: 'auth_url',
+          url: 'https://auth.openai.com/oauth/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback',
+        },
+      });
+    });
+    await act(async () => {
+      push?.({
         type: 'auth/login-finished',
         result: {
           loginId: 'login-1',
@@ -357,6 +364,63 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     expect(shown).toContain('登录未完成');
     expect(shown).not.toContain('provider-authentication');
     expect(container!.textContent).toContain('回调 URL');
+  });
+
+  it('closes a failed Grok device-code sign-in without a callback field', async () => {
+    let push: ((message: unknown) => void) | undefined;
+    const setError = vi.fn();
+    const mockRequest = vi.fn(async (command) => {
+      const ext = extensionListOk(command);
+      if (ext) return ext;
+      if (command.type === 'auth/status') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: { accounts: [{ providerId: 'xai', surface: 'v1', state: 'logged-out' }] },
+        };
+      }
+      return { type: 'response' as const, command: command.type, success: true as const, data: {} };
+    });
+    const hostClient = {
+      request: mockRequest,
+      subscribe: vi.fn((handler) => {
+        push = handler;
+        return () => {};
+      }),
+      getTransport: () => 'local',
+    };
+    const contextValue = {
+      config: baseConfig(),
+      hostClient,
+      setError,
+      setInfo: vi.fn(),
+    } as unknown as SettingsContextValue;
+
+    await act(async () => {
+      root!.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+            <SettingsProvider value={contextValue}>
+              <OauthPage />
+            </SettingsProvider>
+          </DesktopLocaleProvider>
+        </PiwinUiProvider>,
+      );
+    });
+
+    await act(async () => {
+      push?.({
+        type: 'auth/login-finished',
+        result: { loginId: 'login-1', providerId: 'xai', ok: false, errorCode: 'oauth-network' },
+      });
+    });
+
+    const shown = setError.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(shown).toContain('连不上该平台的登录服务');
+    expect(shown).not.toContain('浏览器已授权');
+    expect(container!.querySelector('[data-testid="subscription-inline-drawer-xai"]')).toBeNull();
+    expect(container!.textContent).not.toContain('回调 URL');
   });
 
   it('sends auth/login with a caller-owned idempotency key', async () => {

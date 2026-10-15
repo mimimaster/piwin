@@ -30,6 +30,7 @@ import { useSettings } from './settings/settings-context.js';
 import { useConfirmDialog } from './use-confirm-dialog.js';
 import { InlineAuthPromptForm, readAuthPromptOpenUrl, type ProviderCardMeta } from './auth-prompt-form.js';
 import { SubscriptionQuotaDrawer } from './subscription-quota-drawer.js';
+import { LOCAL_CALLBACK_PROMPT_ID, heldCallbackLogin } from './subscription-callback-retry.js';
 import { openExternalUrl } from './open-external-url.js';
 import { DevinLoginFollowUp } from './settings/devin-login-follow-up.js';
 
@@ -126,32 +127,6 @@ const CARD_COPY: Record<OauthCardId, ProviderCardMeta> = {
 
 function isClaudeFamilyId(providerId: string): boolean {
   return providerId === 'anthropic' || providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID;
-}
-
-const LOCAL_CALLBACK_PROMPT_ID = 'local-callback-retry';
-
-function heldCallbackLogin(
-  current: ActiveLoginStatus | undefined,
-  result: { loginId: string; providerId: string },
-  ownerDeviceId: string,
-): ActiveLoginStatus {
-  return {
-    loginId: result.loginId,
-    providerId: result.providerId,
-    ownerDeviceId: current?.ownerDeviceId ?? ownerDeviceId,
-    ownerConnected: true,
-    startedAt: current?.startedAt ?? new Date().toISOString(),
-    currentPrompt: {
-      loginId: result.loginId,
-      promptId: LOCAL_CALLBACK_PROMPT_ID,
-      providerId: result.providerId,
-      kind: 'text',
-      expectsResponse: true,
-      message: 'Callback URL',
-      placeholder: 'http://localhost:1455/auth/callback?code=...&state=...',
-    },
-    ...(current?.authUrl ? { authUrl: current.authUrl } : {}),
-  };
 }
 
 const STATE_LABEL: Record<SubscriptionAccount['state'], { zh: string; en: string }> = {
@@ -378,12 +353,15 @@ export function SubscriptionAccountsPanel(): ReactElement {
           }
         } else {
           // Pi renders the browser success page before it exchanges the code.
-          // The Host ticket is already dead, but the callback field stays so a
-          // network failure can be retried by pasting the URL. Only success dismisses it.
-          callbackHoldRef.current = message.result.providerId;
-          setActiveLogin((current) =>
-            heldCallbackLogin(current, message.result, ownerDeviceId),
-          );
+          // The Host ticket is already dead; a browser-redirect flow keeps the
+          // callback field so a network failure can be retried by pasting the
+          // URL. Device-code flows have nothing to paste and close instead.
+          const result = message.result;
+          setActiveLogin((current) => {
+            const held = heldCallbackLogin(current, result, ownerDeviceId);
+            callbackHoldRef.current = held ? result.providerId : null;
+            return held;
+          });
           setError?.(
             describeSubscriptionLoginFailure(message.result.errorCode, isChinese ? 'zh-CN' : 'en')
               .message,
