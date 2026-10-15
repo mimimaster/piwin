@@ -28,8 +28,12 @@ and normalizing an OpenAI-style `/v1` base for Gemini
 ## Decision
 
 1. `ModelConfigEntry.protocol?` optionally overrides the provider protocol for
-   that model. Omitted means inherit. Base URL, key, headers and enablement stay
-   on the provider. Subscription providers ignore the override (their wire is
+   that model. Omitted means inherit. Base URL, key and enablement stay on the
+   provider. Request headers are layered: `ModelConfigEntry.headers?` overlays
+   the provider `headers` (a same-named header, compared case-insensitively,
+   wins). The owner asked for this after the model editor offered no headers;
+   `resolveModelHeaders` / `resolveModelEndpoint` are the only merge points, and
+   chat, completions, native search and image/video requests all use them. Subscription providers ignore the override (their wire is
    fixed by the subscription). So do cloud platform rows (Vertex AI, Amazon
    Bedrock), in both directions: their auth and endpoint are not a shared
    gateway URL, so the editor hides the picker and Host pins the row protocol.
@@ -59,7 +63,9 @@ and normalizing an OpenAI-style `/v1` base for Gemini
 6. Model discovery, connection tests and image/video/speech routes stay
    provider-level; image/video already have per-model routes (ADR 0034).
 7. Settings: the model editor and Add Model on channel providers expose
-   **请求协议**: 跟随服务商 / OpenAI / Anthropic / Gemini.
+   **请求协议**: 跟随服务商 / OpenAI / Anthropic / Gemini. The model editor also
+   has **请求头** rows (hidden on subscriptions), the same widget as the
+   provider's advanced headers.
 
 ## Consequences
 

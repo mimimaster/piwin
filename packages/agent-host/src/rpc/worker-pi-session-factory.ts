@@ -298,7 +298,11 @@ export function buildWorkerProviderRegistration(
       input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       ...resolvePiModelLimits(model),
-      ...(provider.headers ? { headers: provider.headers } : {}),
+      ...(model.headers
+        ? { headers: model.headers }
+        : provider.headers
+          ? { headers: provider.headers }
+          : {}),
     };
   });
   const cloud = resolveCloudStreamOptions(

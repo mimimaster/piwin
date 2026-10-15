@@ -1,3 +1,4 @@
+import { resolveModelHeaders } from '@piwin/contracts';
 import type { GeneratedVideo, VideoGenerationAdapterOptions } from './video-generation-types.js';
 import { VideoGenConfigError } from './video-generation-types.js';
 import {
@@ -33,7 +34,14 @@ export async function callVideoEndpoint(
   const requestSignal = AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)]);
   const fetchImpl = options.fetchImpl ?? fetch;
   const style = resolveVideoApiStyle(options.provider, options.model);
-  const adapterOptions = { ...options, signal: requestSignal, fetchImpl };
+  // Adapters read `provider.headers`; hand them the model's merged view.
+  const headers = resolveModelHeaders(options.provider, options.model);
+  const adapterOptions = {
+    ...options,
+    provider: headers ? { ...options.provider, headers } : options.provider,
+    signal: requestSignal,
+    fetchImpl,
+  };
 
   switch (style) {
     case 'openai-videos':

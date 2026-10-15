@@ -12,6 +12,7 @@ import {
   validateWalkthroughConfig,
 } from '@piwin/contracts';
 import { findReadyWebSearchDelegate } from './capabilities/search-route-resolver.js';
+import { validateHeaderMap } from './header-map-validation.js';
 import { findReadyFetchExtractDelegate } from './model-web-fetch-extract-delegate.js';
 
 export type ProviderValidationIssue = {
@@ -161,6 +162,7 @@ export function validateProviders(
             message: 'maxOutputTokens must be a positive integer',
           });
         }
+        validateHeaderMap(model.headers, `${base}.models[${modelIndex}].headers`, issues);
         if (model.thinkingLevels !== undefined) {
           if (!Array.isArray(model.thinkingLevels) || model.thinkingLevels.length === 0) {
             issues.push({
@@ -221,56 +223,7 @@ export function validateProviders(
       }
     }
 
-    if (provider.headers !== undefined) {
-      if (
-        typeof provider.headers !== 'object' ||
-        provider.headers === null ||
-        Array.isArray(provider.headers)
-      ) {
-        issues.push({
-          path: `${base}.headers`,
-          message: 'headers must be an object of string pairs',
-        });
-      } else {
-        const entries = Object.entries(provider.headers);
-        if (entries.length > 32) {
-          issues.push({ path: `${base}.headers`, message: 'headers supports at most 32 entries' });
-        }
-        const seenNames = new Set<string>();
-        for (const [headerName, headerValue] of entries) {
-          const name = headerName.trim();
-          if (!name) {
-            issues.push({ path: `${base}.headers`, message: 'header name is required' });
-            continue;
-          }
-          if (name.length > 128 || /[\r\n]/.test(name)) {
-            issues.push({
-              path: `${base}.headers.${name}`,
-              message: 'header name is invalid',
-            });
-          }
-          const lower = name.toLowerCase();
-          if (seenNames.has(lower)) {
-            issues.push({
-              path: `${base}.headers.${name}`,
-              message: 'duplicate header name',
-            });
-          }
-          seenNames.add(lower);
-          if (typeof headerValue !== 'string') {
-            issues.push({
-              path: `${base}.headers.${name}`,
-              message: 'header value must be a string',
-            });
-          } else if (headerValue.length > 4096 || /[\r\n]/.test(headerValue)) {
-            issues.push({
-              path: `${base}.headers.${name}`,
-              message: 'header value is invalid or too long',
-            });
-          }
-        }
-      }
-    }
+    validateHeaderMap(provider.headers, `${base}.headers`, issues);
 
     if (provider.apiKeyEnv !== undefined && provider.apiKeyEnv !== '') {
       if (!ENV_NAME_PATTERN.test(provider.apiKeyEnv)) {

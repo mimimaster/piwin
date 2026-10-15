@@ -143,6 +143,18 @@ describe('validateProviders', () => {
     expect(issues.map((issue) => issue.path)).toContain('providers[0].headers.X-Request-ID');
   });
 
+  it('validates per-model headers with the provider header rules', () => {
+    const issues = validateProviders([
+      sampleProvider({
+        models: [{ id: 'routed', headers: { 'X-Tier': 'a\r\nInjected: b' } }],
+      }),
+    ]);
+    expect(issues.map((issue) => issue.path)).toContain('providers[0].models[0].headers.X-Tier');
+    expect(
+      validateProviders([sampleProvider({ models: [{ id: 'routed', headers: { 'X-Tier': 'p' } }] })]),
+    ).toEqual([]);
+  });
+
   it('validates image model route invariants and provider support', () => {
     const issues = validateProviders([
       sampleProvider({

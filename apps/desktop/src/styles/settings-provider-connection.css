@@ -223,6 +223,18 @@
   min-width: 0;
 }
 
+.model-edit-inline-headers {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+
+.model-edit-inline-headers .pconn-header-row {
+  align-self: stretch;
+  margin-bottom: 0;
+}
+
 .model-edit-inline-thinking-hint {
   font-size: var(--fs-micro);
   font-weight: 400;

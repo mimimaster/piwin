@@ -85,3 +85,42 @@ describe('provider envelope system prompt role (ADR 0082)', () => {
     expect(registration.models[0]?.compat).toEqual({ supportsDeveloperRole: false });
   });
 });
+
+describe('provider envelope per-model headers', () => {
+  it('carries merged headers only for models that set their own', async () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'cpa',
+        name: 'CPA',
+        protocol: 'openai-compatible',
+        chatApi: 'openai-responses',
+        baseUrl: 'http://127.0.0.1:8317/v1',
+        headers: { 'x-extra': '1' },
+        models: [{ id: 'grok-4.7' }, { id: 'grok-4.7-fast', headers: { 'X-Extra': '2' } }],
+      },
+    ];
+    const { providers } = await buildProviderEnvelope(config, {
+      allowInlineProviderSecrets: false,
+      allowWorkerProviderSecretBootstrap: false,
+    });
+    const cpa = providers.find((provider) => provider.providerId === 'cpa');
+    if (!cpa) throw new Error('cpa envelope missing');
+    expect(cpa.models.find((model) => model.id === 'grok-4.7')).not.toHaveProperty('headers');
+    // Headers alone are not a protocol override: the Responses transport stays.
+    const fast = cpa.models.find((model) => model.id === 'grok-4.7-fast');
+    expect(fast).toMatchObject({ headers: { 'X-Extra': '2' } });
+    expect(fast).not.toHaveProperty('protocol');
+
+    const registration = buildWorkerProviderRegistration(cpa, 'gw-key');
+    const byId = new Map(registration.models.map((model) => [model.id, model]));
+    expect(byId.get('grok-4.7')).toMatchObject({
+      api: 'openai-responses',
+      headers: { 'x-extra': '1' },
+    });
+    expect(byId.get('grok-4.7-fast')).toMatchObject({
+      api: 'openai-responses',
+      headers: { 'X-Extra': '2' },
+    });
+  });
+});

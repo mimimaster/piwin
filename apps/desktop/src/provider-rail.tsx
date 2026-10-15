@@ -5,10 +5,10 @@
  */
 
 import { resolveProviderCategory, type ModelProviderConfig } from '@piwin/contracts';
-import { IconButton } from '@piwin/ui-kit';
+import { ContextMenu, ContextMenuItem, IconButton } from '@piwin/ui-kit';
 import type { ReactElement } from 'react';
 import { ProviderAvatar } from './provider-avatar.js';
-import { IconPlus, IconSearch } from './shell-icons.js';
+import { IconPlus, IconSearch, IconTrash } from './shell-icons.js';
 
 export type ProviderRailTone = 'ok' | 'err' | 'on' | 'off';
 
@@ -35,6 +35,9 @@ export type ProviderRailProps = {
   onQueryChange: (query: string) => void;
   onSelect: (providerId: string) => void;
   onAdd: () => void;
+  /** OAuth plans cannot be removed, so the predicate gates the context menu. */
+  canDelete: (provider: ModelProviderConfig) => boolean;
+  onDelete: (provider: ModelProviderConfig) => void;
 };
 
 function toneLabel(tone: ProviderRailTone, isChinese: boolean): string {
@@ -57,6 +60,8 @@ export function ProviderRail({
   onQueryChange,
   onSelect,
   onAdd,
+  canDelete,
+  onDelete,
 }: ProviderRailProps): ReactElement {
   const custom = providers.filter((provider) => resolveProviderCategory(provider) === 'custom');
   const packages = providers.filter((provider) => resolveProviderCategory(provider) === 'package');
@@ -65,36 +70,58 @@ export function ProviderRail({
   function renderItem(provider: ModelProviderConfig): ReactElement {
     const tone = toneOf(provider);
     const selected = provider.id === selectedId;
+    const row = (
+      <button
+        type="button"
+        className={`prail-item${selected ? ' is-selected' : ''}${tone === 'off' ? ' is-off' : ''}`}
+        aria-current={selected ? 'true' : undefined}
+        onClick={() => onSelect(provider.id)}
+        data-testid={`provider-row-${provider.id}`}
+      >
+        <span className="prail-icon">
+          <ProviderAvatar id={provider.id} name={provider.name} size={28} />
+          <span
+            className={`prail-dot prail-dot--${tone}`}
+            title={toneLabel(tone, isChinese)}
+            aria-label={toneLabel(tone, isChinese)}
+          />
+        </span>
+        <span className="prail-text">
+          <span className="prail-name">
+            <span className="prail-name-text">{provider.name}</span>
+            {provider.id === defaultProviderId ? (
+              <span className="prail-default">{isChinese ? '默认' : 'Default'}</span>
+            ) : null}
+          </span>
+          <span className="prail-sub">{subtitleOf(provider)}</span>
+        </span>
+        <span className="prail-count" title={isChinese ? '模型数' : 'Models'}>
+          {provider.models.length}
+        </span>
+      </button>
+    );
     return (
       <li key={provider.id}>
-        <button
-          type="button"
-          className={`prail-item${selected ? ' is-selected' : ''}${tone === 'off' ? ' is-off' : ''}`}
-          aria-current={selected ? 'true' : undefined}
-          onClick={() => onSelect(provider.id)}
-          data-testid={`provider-row-${provider.id}`}
-        >
-          <span className="prail-icon">
-            <ProviderAvatar id={provider.id} name={provider.name} size={28} />
-            <span
-              className={`prail-dot prail-dot--${tone}`}
-              title={toneLabel(tone, isChinese)}
-              aria-label={toneLabel(tone, isChinese)}
-            />
-          </span>
-          <span className="prail-text">
-            <span className="prail-name">
-              <span className="prail-name-text">{provider.name}</span>
-              {provider.id === defaultProviderId ? (
-                <span className="prail-default">{isChinese ? '默认' : 'Default'}</span>
-              ) : null}
-            </span>
-            <span className="prail-sub">{subtitleOf(provider)}</span>
-          </span>
-          <span className="prail-count" title={isChinese ? '模型数' : 'Models'}>
-            {provider.models.length}
-          </span>
-        </button>
+        {canDelete(provider) ? (
+          <ContextMenu
+            label={provider.name}
+            testId={`provider-row-menu-${provider.id}`}
+            content={
+              <ContextMenuItem
+                danger
+                icon={<IconTrash width={13} height={13} />}
+                onSelect={() => onDelete(provider)}
+                testId={`provider-row-delete-${provider.id}`}
+              >
+                {isChinese ? '删除此提供商' : 'Delete provider'}
+              </ContextMenuItem>
+            }
+          >
+            {row}
+          </ContextMenu>
+        ) : (
+          row
+        )}
       </li>
     );
   }

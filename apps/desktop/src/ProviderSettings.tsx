@@ -106,7 +106,12 @@ function orderForRail(providers: readonly ModelProviderConfig[]): ModelProviderC
 function matchesQuery(provider: ModelProviderConfig, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
-  const haystack = [provider.name, provider.id, provider.baseUrl, ...provider.models.map((m) => m.id)];
+  const haystack = [
+    provider.name,
+    provider.id,
+    provider.baseUrl,
+    ...provider.models.map((m) => m.id),
+  ];
   return haystack.join(' ').toLowerCase().includes(needle);
 }
 
@@ -163,7 +168,8 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const baselineDraft = useMemo(() => (selected ? providerToDraft(selected) : null), [selected]);
   const draft = edit?.draft ?? baselineDraft;
   const isNew = edit?.isNew === true;
-  const dirty = edit !== null && !isNew && selected !== null && isConnectionDirty(edit.draft, selected);
+  const dirty =
+    edit !== null && !isNew && selected !== null && isConnectionDirty(edit.draft, selected);
   const detailProvider = isNew ? null : selected;
 
   const modelPropsFor = useProviderModelActions({
@@ -296,21 +302,21 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     }
   }
 
-  async function handleDelete(): Promise<void> {
-    if (!detailProvider) return;
+  async function handleDelete(target: ModelProviderConfig): Promise<void> {
     const confirmed = await confirmDialog.confirm({
       title: copy.removeProviderTitle,
       description: copy.removeProviderDescription,
-      affectedObject: detailProvider.name,
+      affectedObject: target.name,
       confirmLabel: common.delete,
       cancelLabel: common.cancel,
       tone: 'danger',
     });
     if (!confirmed) return;
-    const providers = config.providers.filter((entry) => entry.id !== detailProvider.id);
+    const providers = config.providers.filter((entry) => entry.id !== target.id);
     if (await onSave(withProviders(config, providers))) {
-      setEdit(null);
-      setSelectedId(null);
+      // Deleting another row from the rail keeps the open draft and selection.
+      if (edit?.draft.id === target.id) setEdit(null);
+      if (selected?.id === target.id) setSelectedId(null);
       onInfo(isChinese ? '已移除提供商。' : 'Provider removed.');
     }
   }
@@ -362,10 +368,14 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
 
   function subtitleOf(provider: ModelProviderConfig): string {
     if (provider.protocol === 'google-vertex') {
-      return [provider.project, provider.location ?? DEFAULT_VERTEX_LOCATION].filter(Boolean).join(' · ');
+      return [provider.project, provider.location ?? DEFAULT_VERTEX_LOCATION]
+        .filter(Boolean)
+        .join(' · ');
     }
     if (provider.protocol === 'amazon-bedrock') {
-      return [provider.region ?? DEFAULT_BEDROCK_REGION, provider.profile].filter(Boolean).join(' · ');
+      return [provider.region ?? DEFAULT_BEDROCK_REGION, provider.profile]
+        .filter(Boolean)
+        .join(' · ');
     }
     if (!isSubscriptionProvider(provider)) return hostOf(provider.baseUrl);
     if (subscriptionUsesThirdPartyExtraUsage(provider.id)) {
@@ -400,6 +410,8 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
           onQueryChange={setQuery}
           onSelect={(providerId) => void handleSelect(providerId)}
           onAdd={() => setAddOpen(true)}
+          canDelete={(provider) => !isSubscriptionProvider(provider)}
+          onDelete={(provider) => void handleDelete(provider)}
         />
 
         {draft ? (
@@ -422,7 +434,9 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
             onDraftChange={handleDraftChange}
             onSave={() => void handleSave()}
             onRevert={() => setEdit(null)}
-            onDelete={() => void handleDelete()}
+            onDelete={() => {
+              if (detailProvider) void handleDelete(detailProvider);
+            }}
             onToggleEnabled={() => {
               if (detailProvider) void handleToggleEnabled(detailProvider);
             }}
@@ -437,7 +451,11 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                 ? '接入 OpenAI、Anthropic 等厂商，或任意 OpenAI / Anthropic 兼容接口。'
                 : 'Connect OpenAI, Anthropic and others, or any OpenAI- / Anthropic-compatible endpoint.'}
             </p>
-            <Button variant="primary" onClick={() => setAddOpen(true)} data-testid="provider-add-empty">
+            <Button
+              variant="primary"
+              onClick={() => setAddOpen(true)}
+              data-testid="provider-add-empty"
+            >
               <IconPlus width={14} height={14} />
               {copy.addProvider}
             </Button>

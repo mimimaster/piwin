@@ -8,20 +8,18 @@ import { useId, useState, type ReactElement, type ReactNode } from 'react';
 import { Button, FieldCheckbox, IconButton, SegmentedControl, TextInput } from '@piwin/ui-kit';
 import {
   chatApiChoicesForProtocol,
-  createHeaderRow,
   draftChatApi,
   hasKeychainSecret,
   type ProviderDraft,
 } from './provider-draft.js';
 import {
   IconChevronRight,
-  IconClose,
   IconEye,
   IconEyeOff,
-  IconPlus,
   IconRefresh,
   IconSpark,
 } from './shell-icons.js';
+import { HeaderRowsEditor } from './header-rows-editor.js';
 
 export type ProviderConnectionCopy = {
   providerName: string;
@@ -116,12 +114,6 @@ export function ProviderConnectionFields({
     }
   }
 
-  function updateHeader(id: string, patch: { name?: string; value?: string }): void {
-    onDraftChange({
-      ...draft,
-      headerRows: draft.headerRows.map((row) => (row.id === id ? { ...row, ...patch } : row)),
-    });
-  }
 
   const isVertex = draft.protocol === 'google-vertex';
   const isBedrock = draft.protocol === 'amazon-bedrock';
@@ -402,55 +394,18 @@ export function ProviderConnectionFields({
             label={copy.requestHeaders}
             hint={draft.headerRows.length === 0 ? copy.requestHeadersHint : undefined}
           >
-            {draft.headerRows.map((row) => (
-              <div key={row.id} className="pconn-header-row">
-                <TextInput
-                  value={row.name}
-                  onChange={(event) => updateHeader(row.id, { name: event.currentTarget.value })}
-                  placeholder={copy.headerName}
-                  aria-label={copy.headerName}
-                  spellCheck={false}
-                  testId="provider-header-name"
-                  disabled={saving}
-                  className="pconn-mono"
-                />
-                <TextInput
-                  value={row.value}
-                  onChange={(event) => updateHeader(row.id, { value: event.currentTarget.value })}
-                  placeholder={copy.headerValue}
-                  aria-label={copy.headerValue}
-                  spellCheck={false}
-                  testId="provider-header-value"
-                  disabled={saving}
-                  className="pconn-mono"
-                />
-                <IconButton
-                  label={deleteLabel}
-                  size={26}
-                  onClick={() =>
-                    onDraftChange({
-                      ...draft,
-                      headerRows: draft.headerRows.filter((item) => item.id !== row.id),
-                    })
-                  }
-                  disabled={saving}
-                >
-                  <IconClose width={12} height={12} />
-                </IconButton>
-              </div>
-            ))}
-            <button
-              type="button"
-              className="pconn-add-header"
-              onClick={() =>
-                onDraftChange({ ...draft, headerRows: [...draft.headerRows, createHeaderRow()] })
-              }
+            <HeaderRowsEditor
+              rows={draft.headerRows}
               disabled={saving}
-              data-testid="provider-header-add"
-            >
-              <IconPlus width={12} height={12} />
-              {copy.addHeader}
-            </button>
+              copy={{
+                headerName: copy.headerName,
+                headerValue: copy.headerValue,
+                addHeader: copy.addHeader,
+                deleteLabel,
+              }}
+              testIdPrefix="provider"
+              onChange={(headerRows) => onDraftChange({ ...draft, headerRows })}
+            />
           </FieldRow>
         </div>
       ) : null}

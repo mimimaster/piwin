@@ -584,6 +584,54 @@ describe('ProviderSettings', () => {
     expect(saved.providers.map((provider) => provider.id)).toEqual(['custom-local']);
   });
 
+  it('deletes another provider from the rail context menu and keeps the selection', async () => {
+    const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
+    const container = mount(makeProps(onSave));
+    act(() => {
+      byTestId(container, 'provider-row-custom-local')?.dispatchEvent(
+        new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }),
+      );
+    });
+    await act(async () => {
+      byTestId<HTMLElement>(document.body, 'provider-row-delete-custom-local')?.click();
+    });
+    await flush();
+    await act(async () => {
+      byTestId<HTMLButtonElement>(document.body, 'confirm-dialog-confirm')?.click();
+    });
+    await flush();
+    const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
+    expect(saved.providers.map((provider) => provider.id)).toEqual(['openai']);
+    expect(byTestId(container, 'provider-row-openai')?.getAttribute('aria-current')).toBe('true');
+  });
+
+  it('offers no rail context menu for OAuth packages', () => {
+    const container = mount({
+      ...makeProps(),
+      config: {
+        ...makeConfig(),
+        providers: [
+          {
+            id: 'kimi-coding',
+            protocol: 'openai-compatible',
+            name: 'Kimi Coding',
+            source: 'subscription',
+            category: 'package',
+            baseUrl: 'oauth://kimi-coding',
+            models: [{ id: 'kimi-k1.5' }],
+          },
+          ...makeConfig().providers,
+        ],
+      },
+    });
+    act(() => {
+      byTestId(container, 'provider-row-kimi-coding')?.dispatchEvent(
+        new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }),
+      );
+    });
+    expect(byTestId(document.body, 'provider-row-delete-kimi-coding')).toBeNull();
+  });
+
   it('toggles the provider from the detail header and saves at once', async () => {
     const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
     const container = mount(makeProps(onSave));

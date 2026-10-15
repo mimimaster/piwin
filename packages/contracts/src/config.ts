@@ -205,6 +205,12 @@ export type ModelConfigEntry = {
   /** Overrides the provider `systemPromptRole` (ADR 0082). Omitted = inherit. */
   systemPromptRole?: SystemPromptRoleMode;
   /**
+   * Extra HTTP headers for this model's requests, layered over the provider
+   * `headers` (a same-named header, compared case-insensitively, wins).
+   * Resolve through `resolveModelEndpoint` / `resolveModelHeaders`.
+   */
+  headers?: Record<string, string>;
+  /**
    * Whether this model is available for use. Default true when omitted.
    * Disabled models remain in config but are excluded from Pi registration,
    * composer model lists, and default-model resolution.

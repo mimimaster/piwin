@@ -96,6 +96,11 @@ export type SerializableProviderRuntime = {
      * prompt. Omitted = setting does not apply; the worker keeps Pi's default.
      */
     supportsDeveloperRole?: boolean;
+    /**
+     * Host-resolved request headers when the model sets its own: provider
+     * headers already overlaid by the model's. Omitted = provider headers.
+     */
+    headers?: Record<string, string>;
   }>;
   auth: ProviderAuthDescriptor;
 };

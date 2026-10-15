@@ -294,10 +294,13 @@ function buildProviderRuntime(
           ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
           ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
           ...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
-          ...(endpoint !== provider
+          ...(endpoint.protocol !== provider.protocol
             ? { protocol: endpoint.protocol, baseUrl: endpoint.baseUrl }
             : {}),
           ...(supportsDeveloperRole !== undefined ? { supportsDeveloperRole } : {}),
+          ...(endpoint.headers !== provider.headers && endpoint.headers
+            ? { headers: endpoint.headers }
+            : {}),
         };
       }),
     auth,

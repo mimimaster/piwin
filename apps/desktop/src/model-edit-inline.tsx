@@ -24,6 +24,8 @@ import { ModelGenerationRouteFields } from './model-generation-route-fields.js';
 import { NativeSearchAdapterFields, NativeSearchBlockedHint } from './native-search-adapter-fields.js';
 import { ModelProtocolField } from './model-protocol-field.js';
 import { ModelSystemPromptRoleField } from './model-system-prompt-role-field.js';
+import { HeaderRowsEditor } from './header-rows-editor.js';
+import { rowsToHeaders, type HeaderDraftRow } from './provider-draft.js';
 import {
   createModelConfigurationDraft,
   validateModelConfigurationDraft,
@@ -44,8 +46,13 @@ function draftsMatchForPersist(
     (left.protocol ?? '') === (right.protocol ?? '') &&
     (left.systemPromptRole ?? '') === (right.systemPromptRole ?? '') &&
     left.supportsImage === right.supportsImage &&
-    left.reasoning === right.reasoning
+    left.reasoning === right.reasoning &&
+    headersKey(left.headerRows) === headersKey(right.headerRows)
   );
+}
+
+function headersKey(rows: readonly HeaderDraftRow[] | undefined): string {
+  return JSON.stringify(rowsToHeaders(rows ?? []) ?? {});
 }
 
 export type ModelEditInlineProps = {
@@ -196,6 +203,8 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         videoGen: '视频',
         realtime: '实时语音',
         nativeSearch: providerCopy.nativeSearch,
+        headersHint: '叠加在提供商请求头之上，同名覆盖',
+        deleteHeader: '删除',
         cancel: '取消',
         save: '保存',
         saved: '已保存',
@@ -214,6 +223,8 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         videoGen: 'Video',
         realtime: 'Realtime',
         nativeSearch: providerCopy.nativeSearch,
+        headersHint: 'Layered over the provider headers; same name wins',
+        deleteHeader: 'Delete',
         cancel: 'Cancel',
         save: 'Save',
         saved: 'Saved',
@@ -316,6 +327,27 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
           }
         />
       ) : null}
+
+      {props.providerIsSubscription ? null : (
+        <div className="model-edit-inline-headers" data-testid="model-edit-headers">
+          <span className="model-edit-inline-label">
+            {providerCopy.requestHeaders}
+            <span className="model-edit-inline-thinking-hint">{t.headersHint}</span>
+          </span>
+          <HeaderRowsEditor
+            rows={localDraft.headerRows ?? []}
+            disabled={disabled}
+            copy={{
+              headerName: providerCopy.headerName,
+              headerValue: providerCopy.headerValue,
+              addHeader: providerCopy.addHeader,
+              deleteLabel: t.deleteHeader,
+            }}
+            testIdPrefix="model-edit"
+            onChange={(headerRows) => updateDraft((current) => ({ ...current, headerRows }))}
+          />
+        </div>
+      )}
 
       <div className="model-edit-inline-caps">
         <label className="model-edit-inline-cap">

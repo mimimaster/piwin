@@ -3,7 +3,8 @@
  *
  * A model may speak a different wire format than its provider row (one
  * multi-format gateway, several formats). This module is the only place that
- * derives a model's effective protocol, base URL and chat transport; Host
+ * derives a model's effective protocol, base URL, chat transport and request
+ * headers (provider headers overlaid by the model's own); Host
  * lookups hand consumers the resulting provider-shaped view.
  */
 import type { ModelConfigEntry, ModelProviderConfig, ProviderChatApi } from './config.js';
@@ -54,11 +55,44 @@ export function resolveModelProtocol(
 }
 
 /**
+ * Provider headers overlaid by the model's own. HTTP header names are
+ * case-insensitive, so a model header replaces any provider header of the
+ * same name regardless of spelling. Undefined when neither sets any.
+ */
+export function resolveModelHeaders(
+  provider: Pick<ModelProviderConfig, 'headers'>,
+  model: Pick<ModelConfigEntry, 'headers'> | undefined,
+): Record<string, string> | undefined {
+  const own = model?.headers;
+  if (!own || Object.keys(own).length === 0) return provider.headers;
+  const merged: Record<string, string> = { ...provider.headers };
+  for (const [name, value] of Object.entries(own)) {
+    const lower = name.toLowerCase();
+    for (const existing of Object.keys(merged)) {
+      if (existing.toLowerCase() === lower) delete merged[existing];
+    }
+    merged[name] = value;
+  }
+  return merged;
+}
+
+/**
  * Provider-shaped view of `provider` as seen by `model`: effective protocol,
- * base URL re-versioned for that protocol, and a chat transport that belongs
- * to it. Returns `provider` itself when the model inherits its protocol.
+ * base URL re-versioned for that protocol, a chat transport that belongs to
+ * it, and the merged request headers. Returns `provider` itself when the
+ * model inherits both its protocol and its headers.
  */
 export function resolveModelEndpoint(
+  provider: ModelProviderConfig,
+  model: Pick<ModelConfigEntry, 'protocol' | 'headers'> | undefined,
+): ModelProviderConfig {
+  const view = resolveModelProtocolView(provider, model);
+  const headers = resolveModelHeaders(provider, model);
+  if (headers === provider.headers) return view;
+  return headers ? { ...view, headers } : view;
+}
+
+function resolveModelProtocolView(
   provider: ModelProviderConfig,
   model: Pick<ModelConfigEntry, 'protocol'> | undefined,
 ): ModelProviderConfig {
@@ -98,7 +132,7 @@ export function resolveModelChatApi(
   provider: ModelProviderConfig,
   model: Pick<ModelConfigEntry, 'protocol'> | undefined,
 ): ProviderChatApi | undefined {
-  return resolveModelEndpoint(provider, model).chatApi;
+  return resolveModelProtocolView(provider, model).chatApi;
 }
 
 const VERSION_SUFFIX = /\/v1(?:beta|alpha)?$/iu;

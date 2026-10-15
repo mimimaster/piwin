@@ -148,6 +148,7 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
             ...(model.supportsDeveloperRole !== undefined
               ? { supportsDeveloperRole: model.supportsDeveloperRole }
               : {}),
+            ...(model.headers ? { headers: { ...model.headers } } : {}),
           })),
           auth: provider.auth,
         }),

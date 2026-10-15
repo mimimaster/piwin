@@ -31,6 +31,7 @@ import {
   looksLikeAbsoluteUrl,
 } from './generation-route-defaults.js';
 import { getDefaultThinkingLevelsForProtocol } from './model-thinking-policy.js';
+import { headersToRows, rowsToHeaders, type HeaderDraftRow } from './provider-draft.js';
 import { isVideoApiStyle } from './video-generation-model-config.js';
 
 export type ModelConfigurationDraft = {
@@ -65,6 +66,11 @@ export type ModelConfigurationDraft = {
   protocol?: ModelProviderConfig['protocol'] | '';
   /** Maps to `systemPromptRole` (ADR 0082); omitted or '' = inherit the provider. */
   systemPromptRole?: SystemPromptRoleMode | '';
+  /**
+   * Maps to `headers`, layered over the provider's. Omitted = the editor does
+   * not manage headers, so applying the draft keeps the stored ones.
+   */
+  headerRows?: HeaderDraftRow[];
   imageApiStyle: ImageGenerationApiStyle | '';
   imagePath: string;
   imageTimeoutSeconds: string;
@@ -146,6 +152,7 @@ export function createModelConfigurationDraft(
     reasoning: generationOnly ? effective.reasoning === true : (effective.reasoning ?? true),
     ...(effective.protocol ? { protocol: effective.protocol } : {}),
     ...(effective.systemPromptRole ? { systemPromptRole: effective.systemPromptRole } : {}),
+    headerRows: headersToRows(effective.headers),
     ...hydrateGenerationRouteDraft(
       effective.id,
       protocol,
@@ -203,6 +210,10 @@ export function createModelConfigurationEntry(
   }
   if (draft.systemPromptRole) {
     model.systemPromptRole = draft.systemPromptRole;
+  }
+  const headers = rowsToHeaders(draft.headerRows ?? []);
+  if (headers) {
+    model.headers = headers;
   }
   const capabilities: ModelCapability[] = [];
   if (draft.supportsImageGeneration) {
@@ -282,6 +293,13 @@ export function validateModelConfigurationDraft(draft: ModelConfigurationDraft):
       return `${label} must be a positive integer.`;
     }
   }
+  const headerNames = new Set<string>();
+  for (const row of draft.headerRows ?? []) {
+    const name = row.name.trim().toLowerCase();
+    if (!name || !row.value.trim()) continue;
+    if (headerNames.has(name)) return `Request header "${row.name.trim()}" is set twice.`;
+    headerNames.add(name);
+  }
   if (draft.thinkingLevel && !draft.thinkingLevels.includes(draft.thinkingLevel)) {
     return 'The default thinking effort must be one of the supported levels.';
   }
@@ -346,6 +364,7 @@ export function applyModelConfigurationDraft(
   if (!draft.tooltipMarkdown.trim()) delete updated.tooltipMarkdown;
   if (!draft.protocol) delete updated.protocol;
   if (!draft.systemPromptRole) delete updated.systemPromptRole;
+  if (draft.headerRows && !entry.headers) delete updated.headers;
   // Preserve capability tags that this editor does not expose while replacing
   // the generation, speech, and native-search flags it owns.
   const preservedCapabilities = (original.capabilities ?? []).filter(

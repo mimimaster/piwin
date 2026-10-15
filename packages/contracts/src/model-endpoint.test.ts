@@ -3,6 +3,7 @@ import type { ModelProviderConfig } from './config.js';
 import {
   rebaseForProtocol,
   resolveModelEndpoint,
+  resolveModelHeaders,
   resolveModelProtocol,
   supportsModelProtocolOverride,
 } from './model-endpoint.js';
@@ -76,5 +77,37 @@ describe('per-model request protocol', () => {
     const intoCloud = { id: 'claude-x', protocol: 'amazon-bedrock' as const };
     expect(resolveModelProtocol(cpa, intoCloud)).toBe('openai-compatible');
     expect(resolveModelEndpoint(cpa, intoCloud)).toBe(cpa);
+  });
+});
+
+describe('per-model request headers', () => {
+  it('overlays model headers on the provider ones, replacing a name case-insensitively', () => {
+    const model = { id: 'grok-4.7', headers: { 'X-Extra': '2', 'x-route': 'fast' } };
+    expect(resolveModelHeaders(cpa, model)).toEqual({ 'X-Extra': '2', 'x-route': 'fast' });
+    expect(resolveModelEndpoint(cpa, model)).toMatchObject({
+      protocol: 'openai-compatible',
+      chatApi: 'openai-responses',
+      headers: { 'X-Extra': '2', 'x-route': 'fast' },
+    });
+    // The provider row itself is untouched.
+    expect(cpa.headers).toEqual({ 'x-extra': '1' });
+  });
+
+  it('keeps the provider identity when the model sets no headers', () => {
+    expect(resolveModelHeaders(cpa, { id: 'grok-4.7', headers: {} })).toBe(cpa.headers);
+    expect(resolveModelEndpoint(cpa, { id: 'grok-4.7', headers: {} })).toBe(cpa);
+  });
+
+  it('combines a protocol override with model headers', () => {
+    const view = resolveModelEndpoint(cpa, {
+      id: 'gemini-3.8-flash-high',
+      protocol: 'google-gemini',
+      headers: { 'x-goog-route': 'b' },
+    });
+    expect(view).toMatchObject({
+      protocol: 'google-gemini',
+      baseUrl: 'http://127.0.0.1:8317/v1beta',
+      headers: { 'x-extra': '1', 'x-goog-route': 'b' },
+    });
   });
 });

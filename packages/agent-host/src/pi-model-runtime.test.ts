@@ -271,6 +271,22 @@ describe('pi-model-runtime', () => {
     });
   });
 
+  it('registers provider headers overlaid by a model\'s own headers', () => {
+    const provider: ModelProviderConfig = {
+      id: 'gw',
+      protocol: 'openai-compatible',
+      name: 'Gateway',
+      baseUrl: 'https://gw.example.test/v1',
+      headers: { 'x-client': 'piwin', 'x-tier': 'base' },
+      models: [{ id: 'plain' }, { id: 'routed', headers: { 'X-Tier': 'priority' } }],
+    };
+    const registration = buildPiProviderRegistration(provider, 'secret-value');
+    const byId = new Map(registration.models.map((model) => [model.id, model]));
+    expect(byId.get('plain')?.headers).toEqual({ 'x-client': 'piwin', 'x-tier': 'base' });
+    expect(byId.get('routed')?.headers).toEqual({ 'x-client': 'piwin', 'X-Tier': 'priority' });
+    expect(registration.headers).toEqual({ 'x-client': 'piwin', 'x-tier': 'base' });
+  });
+
   it('defaults omitted maxOutputTokens to the shared product default', () => {
     const provider: ModelProviderConfig = {
       id: 'plain',

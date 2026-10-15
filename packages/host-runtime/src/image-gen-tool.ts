@@ -2,6 +2,7 @@ import {
   isModelEnabled,
   isSubscriptionProvider,
   lookupImageGenerationRegistry,
+  resolveModelHeaders,
   toMediaAttachmentRef,
 } from '@piwin/contracts';
 import type {
@@ -252,11 +253,11 @@ function optionalString(value: unknown): string | undefined {
 }
 
 function providerRequestHeaders(
-  provider: ModelProviderConfig,
+  configured: Readonly<Record<string, string>> | undefined,
   credentials: Record<string, string>,
 ): Record<string, string> {
   const headers: Record<string, string> = {};
-  for (const [name, value] of Object.entries(provider.headers ?? {})) {
+  for (const [name, value] of Object.entries(configured ?? {})) {
     const normalized = name.toLowerCase();
     if (
       normalized !== 'authorization' &&
@@ -633,7 +634,7 @@ export async function callImageEndpoint(
   const response = await fetchImpl(endpoint, {
     method: 'POST',
     headers: providerRequestHeaders(
-      provider,
+      resolveModelHeaders(provider, model),
       imageRequestCredentials(provider, style, apiKey, subscriptionAuth),
     ),
     body: JSON.stringify(body),

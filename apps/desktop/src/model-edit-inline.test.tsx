@@ -111,6 +111,56 @@ function render(node: ReactElement): { container: HTMLDivElement; root: Root } {
 }
 
 describe('ModelEditInline', () => {
+  it('edits per-model request headers and keeps existing ones', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{ id: 'routed', headers: { 'x-route': 'fast' } }}
+        providerProtocol="openai-compatible"
+        disabled={false}
+        isChinese={false}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    const names = () =>
+      [...document.querySelectorAll<HTMLInputElement>('[data-testid="model-edit-header-name"]')];
+    expect(names().map((el) => el.value)).toEqual(['x-route']);
+
+    click('[data-testid="model-edit-header-add"]');
+    const values = [
+      ...document.querySelectorAll<HTMLInputElement>('[data-testid="model-edit-header-value"]'),
+    ];
+    const newName = names()[1];
+    const newValue = values[1];
+    if (!newName || !newValue) throw new Error('new header row missing');
+    act(() => {
+      setInputValue(newName, 'X-Tier');
+      setInputValue(newValue, 'priority');
+    });
+    click('[data-testid="model-edit-save"]');
+    const saved = onSave.mock.calls[0]?.[0] as { headerRows?: { name: string; value: string }[] };
+    expect(saved.headerRows?.map(({ name, value }) => [name, value])).toEqual([
+      ['x-route', 'fast'],
+      ['X-Tier', 'priority'],
+    ]);
+  });
+
+  it('hides request headers for subscription models', () => {
+    render(
+      <ModelEditInline
+        model={{ id: 'sub-model' }}
+        providerProtocol="openai-compatible"
+        providerIsSubscription
+        disabled={false}
+        isChinese={false}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(query('[data-testid="model-edit-headers"]')).toBeNull();
+  });
+
   it('renders native search capability controls', () => {
     const onSave = vi.fn();
     render(

@@ -7,10 +7,39 @@ import {
   createModelConfigurationEntry,
   mergeDiscoveredModels,
   modelSupportsImage,
+  validateModelConfigurationDraft,
 } from './model-configuration';
 import { collectVideoModels } from './video-generation-model-config';
 
 describe('model configuration', () => {
+  it('round-trips per-model request headers and clears them when all rows are removed', () => {
+    const models: ModelConfigEntry[] = [{ id: 'routed', headers: { 'x-route': 'fast' } }];
+    const draft = createModelConfigurationDraft(models[0] as ModelConfigEntry);
+    expect(draft.headerRows?.map(({ name, value }) => [name, value])).toEqual([['x-route', 'fast']]);
+    expect(createModelConfigurationEntry(draft)?.headers).toEqual({ 'x-route': 'fast' });
+
+    const cleared = applyModelConfigurationDraft(models, 'routed', { ...draft, headerRows: [] });
+    expect(cleared?.[0]).not.toHaveProperty('headers');
+    // A draft that does not manage headers keeps the stored ones.
+    const { headerRows: _rows, ...unmanaged } = draft;
+    expect(applyModelConfigurationDraft(models, 'routed', unmanaged)?.[0]?.headers).toEqual({
+      'x-route': 'fast',
+    });
+  });
+
+  it('rejects a request header set twice regardless of case', () => {
+    const draft = createModelConfigurationDraft({ id: 'routed' });
+    expect(
+      validateModelConfigurationDraft({
+        ...draft,
+        headerRows: [
+          { id: 'a', name: 'X-Tier', value: '1' },
+          { id: 'b', name: 'x-tier', value: '2' },
+        ],
+      }),
+    ).toContain('set twice');
+  });
+
   it('round-trips all per-model configuration fields including input/reasoning', () => {
     const draft = createModelConfigurationDraft({
       id: 'deepseek-reasoner',

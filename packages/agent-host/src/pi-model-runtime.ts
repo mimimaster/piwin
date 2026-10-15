@@ -259,7 +259,8 @@ export function buildPiProviderRegistration(
           cacheWrite: 0,
         },
         ...resolvePiModelLimits(model),
-        ...(provider.headers ? { headers: provider.headers } : {}),
+        // Provider headers overlaid by the model's own (resolveModelEndpoint).
+        ...(endpoint.headers ? { headers: endpoint.headers } : {}),
       };
       if (model.capabilities?.length) {
         registration.capabilities = [...model.capabilities];

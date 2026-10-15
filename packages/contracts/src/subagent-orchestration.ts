@@ -38,6 +38,8 @@ export type SubagentProviderEnvelope = {
     readonly maxOutputTokens?: number;
     /** ADR 0082: Host-resolved system prompt role; omitted = backend default. */
     readonly supportsDeveloperRole?: boolean;
+    /** Host-resolved headers (provider overlaid by model); omitted = provider headers. */
+    readonly headers?: Record<string, string>;
   }>;
   readonly auth: WorkerProviderAuthDescriptor;
 };
