@@ -64,3 +64,12 @@ export function canOfferConversationCli(input: {
   if (!canOpenEmbeddedTui(input)) return false;
   return isPiEmbeddedTuiAgent(input.agentId) || isNativeCliEligible(input);
 }
+
+/**
+ * Agents whose sessions open in the CLI shell by default (ADR 0082 §8). Grok's
+ * own TUI is the reference interface; the Desktop projection stays one click
+ * away. The default only applies where `canOfferConversationCli` already holds.
+ */
+export function defaultsToConversationCli(agentId: string): boolean {
+  return agentId === 'grok';
+}

@@ -191,6 +191,18 @@ The Host is the authority; clients mirror it and never invent capability.
   `projectPath`/`scope` derived from their `cwd` (longest matching registered
   project root, `''` when unregistered), so the existing project and
   unregistered-worktree grouping already groups them by directory.
+- **CLI shell by default (2026-10-15).** Grok sessions and Grok drafts open
+  in Grok's own TUI (the titlebar Desktop/CLI switch set to CLI) wherever
+  Desktop can run it (`canOfferConversationCli`: native PTY plus a local or
+  attached remote Host). Grok's TUI is the reference interface for "Grok
+  follows Grok"; the Desktop ACP projection remains one click away and keeps
+  its native-history replay on return. The default is decided once when a
+  conversation is entered: choosing Desktop sticks for that conversation, a
+  Grok session entered during a running Desktop turn stays on Desktop, and a
+  CLI opened by the default is closed — without mounting a TUI — when the user
+  moves on to a Pi or other agent conversation. Pi, Claude Code and Codex keep
+  Desktop as their default. Clients without a terminal (Web, mobile, remote
+  without an attach target) render the Desktop projection unchanged.
 - **Readiness wording.** `unauthenticated` is never presented as usable, and an
   agent session row is labelled with the agent name while Pi stays unlabelled.
 - **Separate adapter and dependency installation.** `piwin agents install`

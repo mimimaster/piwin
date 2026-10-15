@@ -8,6 +8,7 @@ import { WorkbenchTuiStage, useWorkbenchTui } from './workbench-tui.js';
 import {
   canOfferConversationCli,
   canOpenEmbeddedTui,
+  defaultsToConversationCli,
   isNativeCliEligible,
 } from './terminal-feature.js';
 import { prefetchTuiPane } from './deferred-desktop-surfaces.js';
@@ -79,12 +80,18 @@ export function useWorkbenchCli(input: {
     ...(capabilities === undefined ? {} : { capabilities }),
     ...(agentStatus === undefined ? {} : { agentStatus }),
   });
-  const tui = useWorkbenchTui({
-    available, sessionId: state.activeSessionId, hostKey,
-    scopeKey: `${hostKey}:${state.activeScope.kind === 'project' ? state.activeScope.projectPath : 'general'}`,
-  });
-  const selected = useRef(tui.active);
-  selected.current = tui.active;
+  const scopeKey = `${hostKey}:${state.activeScope.kind === 'project' ? state.activeScope.projectPath : 'general'}`;
+  const tui = useWorkbenchTui({ available, sessionId: state.activeSessionId, hostKey, scopeKey });
+  const shellDefault = useRef<{ contextKey: string | null; applied: boolean }>({ contextKey: null, applied: false });
+  const contextKey = `${hostKey}|${state.activeSessionId ?? `draft:${scopeKey}`}|${agentId}`;
+  // Hide a defaulted CLI in the render that leaves Grok, before the effect
+  // resets it, so a Pi conversation never mounts the TUI for one frame.
+  const revertingDefault = shellDefault.current.applied && available &&
+    shellDefault.current.contextKey !== contextKey && !defaultsToConversationCli(agentId);
+  const cliActive = tui.active && !revertingDefault;
+  const cliMounted = tui.mounted && !revertingDefault;
+  const selected = useRef(cliActive);
+  selected.current = cliActive;
   const currentHostKey = useRef(hostKey);
   currentHostKey.current = hostKey;
   const pendingSync = useRef<{ host: HostClient; sessionId: string; again: boolean } | null>(null);
@@ -94,12 +101,12 @@ export function useWorkbenchCli(input: {
   useEffect(() => {
     // Native CLI resumes a snapshot. After a Desktop/other Host-client turn,
     // its cached interactive view must reload before it can be used again.
-    if (usesNativeHandoff && tui.mounted) {
+    if (usesNativeHandoff && cliMounted) {
       if (state.activeRunId !== null || lastHostTurn.current !== state.lastTerminalRunId) staleNativeView.current = true;
-      if (!tui.active && staleNativeView.current) tui.reset();
+      if (!cliActive && staleNativeView.current) tui.reset();
     } else staleNativeView.current = false;
     lastHostTurn.current = state.lastTerminalRunId;
-  }, [usesNativeHandoff, tui.mounted, tui.active, state.activeRunId, state.lastTerminalRunId]);
+  }, [usesNativeHandoff, cliMounted, cliActive, state.activeRunId, state.lastTerminalRunId]);
   const close = (): void => {
     selected.current = false;
     tui.close();
@@ -131,7 +138,29 @@ export function useWorkbenchCli(input: {
       setSyncing(false);
     });
   };
-  const sendBlocked = usesNativeHandoff && (tui.active || syncing) && !hostTurnView.current;
+  const openCli = (): void => {
+    hostTurnView.current = usesNativeHandoff && state.activeRunId !== null;
+    selected.current = true;
+    tui.open();
+  };
+  // The CLI default is decided once per conversation on entry; afterwards the
+  // switch belongs to the user. Unavailable contexts stay pending so a late
+  // agent status can still apply it. A default that opened the CLI is undone
+  // when the user moves on to an agent without that default, so Pi is unchanged.
+  useEffect(() => {
+    if (!available || shellDefault.current.contextKey === contextKey) return;
+    shellDefault.current.contextKey = contextKey;
+    if (!defaultsToConversationCli(agentId)) {
+      if (shellDefault.current.applied) { selected.current = false; tui.reset(); }
+      shellDefault.current.applied = false;
+      return;
+    }
+    // A running Desktop turn keeps its view; the CLI would only attach to it.
+    if (tui.active || state.activeRunId !== null) return;
+    shellDefault.current.applied = true;
+    openCli();
+  });
+  const sendBlocked = usesNativeHandoff && (cliActive || syncing) && !hostTurnView.current;
   useEffect(() => {
     onWriterBusyRef.current?.(sendBlocked);
   }, [sendBlocked]);
@@ -139,7 +168,7 @@ export function useWorkbenchCli(input: {
   const imagePreview = useCliImagePreview({ hostClient, sessionId: state.activeSessionId, locale: input.locale });
   const visible = !input.studioOpen && !input.subpageOpen;
   const projectPath = state.activeScope.kind === 'project' ? state.activeScope.projectPath : null;
-  const renderSessionTui: SessionTuiRenderer | null = tui.active && visible
+  const renderSessionTui: SessionTuiRenderer | null = cliActive && visible
     ? (sessionId, paneAgentId) => {
       const engine = paneAgentId ?? 'pi';
       if (!['pi', 'grok'].includes(engine)) return null;
@@ -150,15 +179,16 @@ export function useWorkbenchCli(input: {
     }
     : null;
   return {
-    active: tui.active && visible,
+    active: cliActive && visible,
     renderSessionTui,
     sendBlocked,
     reset,
-    control: available && visible ? <ConversationShellSwitch cli={tui.active} locale={input.locale}
-      appearanceMode={input.appearanceMode} busy={syncing} onDesktop={close}
+    control: available && visible ? <ConversationShellSwitch cli={cliActive} locale={input.locale}
+      appearanceMode={input.appearanceMode} busy={syncing}
+      onDesktop={() => { shellDefault.current.applied = false; close(); }}
       onCliIntent={() => { void prefetchTuiPane().catch(input.onError); }}
-      onCli={() => { hostTurnView.current = usesNativeHandoff && state.activeRunId !== null; selected.current = true; tui.open(); }} /> : null,
-    stage: tui.mounted ? <>{imagePreview.element}<WorkbenchTuiStage visible={tui.active && visible} sessionId={state.activeSessionId} projectPath={state.activeScope.kind === 'project' ? state.activeScope.projectPath : null}
+      onCli={() => { shellDefault.current.applied = false; openCli(); }} /> : null,
+    stage: cliMounted ? <>{imagePreview.element}<WorkbenchTuiStage visible={cliActive && visible} sessionId={state.activeSessionId} projectPath={state.activeScope.kind === 'project' ? state.activeScope.projectPath : null}
       agentId={hostTurnView.current ? 'pi' : agentId} hostClient={hostClient} hostKey={hostKey} remoteTarget={remoteTarget} locale={input.locale}
       onOpenImage={imagePreview.open}
       onSessionChange={(sessionId) => {

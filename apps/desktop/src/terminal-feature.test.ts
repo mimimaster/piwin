@@ -3,6 +3,7 @@ import { createPiSessionCapabilities } from '@piwin/contracts';
 import {
   canOfferConversationCli,
   canOpenEmbeddedTui,
+  defaultsToConversationCli,
   isNativeCliEligible,
   isPiEmbeddedTuiAgent,
 } from './terminal-feature';
@@ -75,5 +76,14 @@ describe('native CLI eligibility', () => {
         checkedAt: '2026-10-03T00:00:00Z',
       },
     })).toBe(false);
+  });
+});
+
+describe('conversation CLI default', () => {
+  it('defaults only Grok sessions to the CLI shell', () => {
+    expect(defaultsToConversationCli('grok')).toBe(true);
+    for (const agentId of ['pi', 'claude-code', 'codex', 'mystery']) {
+      expect(defaultsToConversationCli(agentId)).toBe(false);
+    }
   });
 });

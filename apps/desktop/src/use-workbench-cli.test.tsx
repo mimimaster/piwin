@@ -11,9 +11,10 @@ import { HostClient } from './host-client.js';
 import type { TuiPaneProps } from './tui-pane.js';
 import { useWorkbenchCli } from './use-workbench-cli.js';
 
-const native = vi.hoisted(() => ({ announce: undefined as TuiPaneProps['onSessionChange'] }));
+const native = vi.hoisted(() => ({ announce: undefined as TuiPaneProps['onSessionChange'], renders: [] as string[] }));
 vi.mock('./deferred-desktop-surfaces.js', () => ({ DeferredTuiPane: (props: TuiPaneProps) => {
   native.announce = props.onSessionChange;
+  native.renders.push(`${props.agentId ?? 'pi'}:${props.sessionId ?? 'draft'}`);
   return <div data-testid="native-agent" data-agent={props.agentId} />;
 }, prefetchTuiPane: async () => undefined }));
 vi.mock('./tauri-pty.js', () => ({ isTauriPtyAvailable: () => true }));
@@ -68,6 +69,11 @@ function Harness() {
     <span data-active={cli.active} data-send-blocked={cli.sendBlocked} /></PiwinUiProvider>;
 }
 function render() { act(() => root.render(<Harness />)); }
+/** Mounts a fresh window so the shell default sees the current state on entry. */
+function remount() { act(() => root.unmount()); root = createRoot(container); render(); }
+function cliPressed(): boolean {
+  return container.querySelector('[data-testid="conversation-shell-cli"]')?.getAttribute('aria-pressed') === 'true';
+}
 function click(id: string) {
   const button = container.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`);
   if (button === null) throw new Error('Switch missing');
@@ -176,7 +182,8 @@ describe.each(NATIVE_CLI_AGENTS)('%s native CLI handoff', (agentId) => {
   });
 
   it('opens the attached Host terminal view for an active Desktop turn and leaves that actor running', () => {
-    state = { ...state, activeRunId: 'desktop-native-turn' }; render();
+    state = { ...state, activeRunId: 'desktop-native-turn' }; remount();
+    expect(cliPressed()).toBe(false);
     click('conversation-shell-cli');
     expect(container.querySelector('[data-testid="native-agent"]')?.getAttribute('data-agent')).toBe('pi');
     expect(container.querySelector('[data-testid="conversation-shell-cli"]')?.getAttribute('aria-pressed')).toBe('true');
@@ -184,6 +191,87 @@ describe.each(NATIVE_CLI_AGENTS)('%s native CLI handoff', (agentId) => {
     click('conversation-shell-desktop');
     expect(host.request).not.toHaveBeenCalled();
     expect(state.activeRunId).toBe('desktop-native-turn');
+  });
+});
+
+describe('Grok CLI default', () => {
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+    state = bindNativeCli(createInitialChatUiState(), 'grok', 'grok-a');
+    host = new HostClient({ transport: 'live' });
+    vi.spyOn(host, 'request').mockImplementation(() => new Promise<HostResponse>((resolve) => { finish = resolve; }));
+    native.announce = undefined; resume.mockReset(); error.mockReset(); writerBusy.mockReset();
+  });
+  afterEach(async () => { act(() => root.unmount()); container.remove(); await host.dispose(); vi.restoreAllMocks(); });
+
+  function enter(sessionId: string, agentId: string): void {
+    state = {
+      ...state,
+      activeSessionId: sessionId,
+      sessionEntitiesById: { ...state.sessionEntitiesById, [sessionId]: { id: sessionId, name: sessionId, backend: { agentId } } },
+    };
+    render();
+  }
+
+  it('opens a Grok session in its native CLI', () => {
+    render();
+    expect(cliPressed()).toBe(true);
+    expect(container.querySelector('[data-testid="native-agent"]')?.getAttribute('data-agent')).toBe('grok');
+    expect(sendBlocked()).toBe(true);
+  });
+
+  it('opens a new Grok draft in its native CLI', () => {
+    state = { ...state, activeSessionId: null, draftAgentId: 'grok' }; render();
+    expect(cliPressed()).toBe(true);
+    expect(container.querySelector('[data-testid="native-agent"]')?.getAttribute('data-agent')).toBe('grok');
+  });
+
+  it('keeps other native-CLI agents on Desktop', () => {
+    state = bindNativeCli(createInitialChatUiState(), 'claude-code', 'cc-session'); render();
+    expect(cliPressed()).toBe(false);
+    expect(container.querySelector('[data-testid="native-agent"]')).toBeNull();
+  });
+
+  it('respects Desktop for the current session and applies the default again on the next Grok session', () => {
+    render();
+    click('conversation-shell-desktop');
+    render();
+    expect(cliPressed()).toBe(false);
+    enter('grok-b', 'grok');
+    expect(cliPressed()).toBe(true);
+  });
+
+  it('returns to Desktop without mounting a TUI when moving from a defaulted Grok CLI to Pi', () => {
+    render();
+    native.renders = [];
+    state = { ...state, activeSessionId: 'pi-session' }; render();
+    expect(native.renders.filter((entry) => entry.endsWith(':pi-session'))).toEqual([]);
+    expect(container.querySelector('[data-testid="native-agent"]')).toBeNull();
+    expect(cliPressed()).toBe(false);
+  });
+
+  it('keeps a CLI the user chose on Pi when passing through Grok', () => {
+    state = { ...state, activeSessionId: 'pi-session' }; render();
+    click('conversation-shell-cli');
+    enter('grok-b', 'grok');
+    expect(cliPressed()).toBe(true);
+    state = { ...state, activeSessionId: 'pi-session' }; render();
+    expect(cliPressed()).toBe(true);
+  });
+
+  it('leaves a Grok session with a running Desktop turn on Desktop', () => {
+    state = { ...state, activeRunId: 'desktop-turn' }; render();
+    expect(cliPressed()).toBe(false);
+    expect(container.querySelector('[data-testid="native-agent"]')).toBeNull();
+  });
+
+  it('falls back to Desktop where no terminal can run', async () => {
+    await host.dispose();
+    host = new HostClient({ transport: 'mock' });
+    render();
+    expect(container.querySelector('[data-testid="conversation-shell-switch"]')).toBeNull();
+    expect(container.querySelector('[data-testid="native-agent"]')).toBeNull();
   });
 });
 
