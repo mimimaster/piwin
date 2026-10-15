@@ -12,6 +12,7 @@ import {
   getEmojiIconGlyph,
   segmentEmojiText,
 } from '@piwin/artifact';
+import { readHostStyleNonce } from './host-style-nonce.js';
 
 type HastText = { type: 'text'; value: string };
 type HastElement = {
@@ -106,6 +107,10 @@ function ensureEmojiIconStyle(): void {
   if (document.head.querySelector('style[data-piwin-emoji-icons]')) return;
   const style = document.createElement('style');
   style.dataset['piwinEmojiIcons'] = '';
+  // Without the host nonce the packaged CSP drops this sheet and every icon
+  // SVG stretches to the column width.
+  const nonce = readHostStyleNonce();
+  if (nonce) style.nonce = nonce;
   style.textContent = EMOJI_ICON_CSS;
   document.head.appendChild(style);
 }

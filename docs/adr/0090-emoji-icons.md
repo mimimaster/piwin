@@ -34,7 +34,10 @@ avoid emoji costs every turn, fails on other models and does not fix history.
    text so copy/paste and screen readers still get the character.
    - Chat/doc Markdown: `rehypeEmojiIcons` runs after Streamdown's default
      rehype plugins (after sanitize) and skips `code`, `pre`, `svg`, math and
-     KaTeX.
+     KaTeX. Its sizing sheet is a runtime `<style>` in the app head, so it
+     carries the host style nonce (`readHostStyleNonce`): the packaged Tauri
+     CSP adds a nonce to `style-src`, which disables `'unsafe-inline'`, and an
+     unstamped sheet is dropped — every icon then fills the column width.
    - Static artifacts (Shadow DOM): one `replaceEmojiIconsInTree` pass after
      the sanitized `innerHTML`.
    - Sandboxed iframe artifacts: `srcdoc.ts` injects an inline style + script

@@ -1,11 +1,11 @@
+import { readHostStyleNonce } from './host-style-nonce.js';
+
 /** Authorize already-sanitized static Artifact CSS under the packaged host CSP. */
 export function authorizeStaticArtifactStyles(
   baseStyle: HTMLStyleElement,
   content: HTMLElement,
 ): void {
-  // Tauri assigns a fresh nonce to this trusted boot style in the app's head.
-  // Attribute reads hide nonces in browsers; use the nonce property instead.
-  const nonce = document.head.querySelector<HTMLStyleElement>('style#boot-splash-style')?.nonce;
+  const nonce = readHostStyleNonce();
   if (!nonce) return;
 
   baseStyle.nonce = nonce;
