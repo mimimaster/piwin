@@ -12,7 +12,7 @@
  * No template literals or `${` inside, because this file wraps it in one.
  */
 export const ARTIFACT_KIT_V1_RUNTIME = String.raw`
-var VERSION = '1.1.0';
+var VERSION = '1.2.0';
 var NS = 'http://www.w3.org/2000/svg';
 var COLOR = /^var\(--piwin-artifact-[a-z0-9-]+\)$/;
 var KINDS = { bar: 1, hbar: 1, line: 1, donut: 1, stack: 1, spark: 1 };

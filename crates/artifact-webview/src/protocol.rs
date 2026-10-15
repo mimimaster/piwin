@@ -49,8 +49,12 @@ const IMMUTABLE_CACHE: &str = "public, max-age=31536000, immutable";
 /// Regenerate with `pnpm exec tsx scripts/emit-kit.ts` in packages/artifact.
 /// The path names the kit version because the response is cached as immutable;
 /// keep it in step with `ARTIFACT_KIT_V1_PATH` in packages/artifact/src/kit/index.ts.
-const ARTIFACT_KIT_V1_PATH: &str = "/lib/v1/kit-1.1.0.js";
+const ARTIFACT_KIT_V1_PATH: &str = "/lib/v1/kit-1.2.0.js";
 const ARTIFACT_KIT_V1_JS: &[u8] = include_bytes!("../../../packages/artifact/kit/v1/kit.js");
+/// Artifact viz kit (ADR 0093), loaded only by documents with a viz figure.
+/// Same regeneration script; keep in step with `ARTIFACT_VIZ_PATH`.
+const ARTIFACT_VIZ_V1_PATH: &str = "/lib/v1/viz-1.0.0.js";
+const ARTIFACT_VIZ_V1_JS: &[u8] = include_bytes!("../../../packages/artifact/kit/v1/viz.js");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArtifactDocumentError {
@@ -249,13 +253,13 @@ pub fn handle_artifact_request(
     }
     // Static, read-only kit files. A fixed allowlist: no filesystem, no
     // parameters, nothing else under /lib/ resolves.
-    if request.uri().path() == ARTIFACT_KIT_V1_PATH {
-        return protocol_response_with_cache(
-            StatusCode::OK,
-            JS_CONTENT_TYPE,
-            IMMUTABLE_CACHE,
-            ARTIFACT_KIT_V1_JS,
-        );
+    let kit_file = match request.uri().path() {
+        ARTIFACT_KIT_V1_PATH => Some(ARTIFACT_KIT_V1_JS),
+        ARTIFACT_VIZ_V1_PATH => Some(ARTIFACT_VIZ_V1_JS),
+        _ => None,
+    };
+    if let Some(body) = kit_file {
+        return protocol_response_with_cache(StatusCode::OK, JS_CONTENT_TYPE, IMMUTABLE_CACHE, body);
     }
     if request.uri().path().starts_with("/lib/") {
         return protocol_response(StatusCode::NOT_FOUND, TEXT_CONTENT_TYPE, MISSING_DOCUMENT_BODY);
@@ -445,8 +449,8 @@ mod tests {
     fn serves_only_the_compiled_kit_under_lib() {
         let store = ArtifactDocumentStore::default();
         for uri in [
-            "piwin-artifact://localhost/lib/v1/kit-1.1.0.js",
-            "http://piwin-artifact.localhost/lib/v1/kit-1.1.0.js",
+            "piwin-artifact://localhost/lib/v1/kit-1.2.0.js",
+            "http://piwin-artifact.localhost/lib/v1/kit-1.2.0.js",
         ] {
             let response = get(&store, uri);
             assert_eq!(response.status(), StatusCode::OK);
@@ -460,6 +464,9 @@ mod tests {
             );
             assert!(response.body().starts_with(b"/* piwin artifact kit 1."));
         }
+        let viz = get(&store, "piwin-artifact://localhost/lib/v1/viz-1.0.0.js");
+        assert_eq!(viz.status(), StatusCode::OK);
+        assert!(viz.body().starts_with(b"/* piwin artifact viz 1."));
         for uri in [
             "piwin-artifact://localhost/lib/v1/icons.json",
             "piwin-artifact://localhost/lib/v1/../../etc/passwd",
@@ -469,20 +476,20 @@ mod tests {
             assert_eq!(get(&store, uri).status(), StatusCode::NOT_FOUND, "{uri}");
         }
         assert_eq!(
-            get(&store, "piwin-artifact://localhost/lib/v1/kit-1.1.0.js?x=1").status(),
+            get(&store, "piwin-artifact://localhost/lib/v1/kit-1.2.0.js?x=1").status(),
             StatusCode::BAD_REQUEST
         );
         let other = handle_artifact_request(
             &store,
             "pet-overlay",
-            &request("GET", "piwin-artifact://localhost/lib/v1/kit-1.1.0.js"),
+            &request("GET", "piwin-artifact://localhost/lib/v1/kit-1.2.0.js"),
             NO_WAIT,
         );
         assert_eq!(other.status(), StatusCode::FORBIDDEN);
         let post = handle_artifact_request(
             &store,
             "main",
-            &request("POST", "piwin-artifact://localhost/lib/v1/kit-1.1.0.js"),
+            &request("POST", "piwin-artifact://localhost/lib/v1/kit-1.2.0.js"),
             NO_WAIT,
         );
         assert_eq!(post.status(), StatusCode::METHOD_NOT_ALLOWED);

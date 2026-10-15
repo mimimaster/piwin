@@ -1,7 +1,8 @@
 /**
  * `#/e2e/artifacts?id=kit-showcase&theme=ink|paper` — every host-drawn
  * building block in one place for visual review and regression: kit charts
- * (all six kinds), the diagram kit, the component kit, and two fences that
+ * (all six kinds, plus line annotations), the viz kit (every kind, ADR 0093),
+ * the diagram kit, the component kit, and two fences that
  * trip the layout probe (one per renderer). Real Inkstone manifests are mapped
  * through the production theme map.
  */
@@ -10,6 +11,8 @@ import { PIWIN_APPEARANCE_DARK, PIWIN_APPEARANCE_LIGHT } from '../appearance-tok
 import { applyAppearanceToDocument } from '../theme/apply-appearance';
 import { mapThemeToArtifactVariables } from '../artifact-theme-map';
 import { MarkdownView } from '../MarkdownView';
+import { ARTIFACT_VIZ_KINDS } from '@piwin/contracts';
+import { ARTIFACT_LINE_ANNOTATION_SAMPLE, ARTIFACT_VIZ_EXTRA_SAMPLES, ARTIFACT_VIZ_SAMPLES, artifactVizFigure } from '@piwin/artifact/fixtures';
 
 const SESSION = 'e2e-kit-showcase';
 
@@ -25,8 +28,15 @@ const CHARTS = [
   chart('donut', { labels: ['通过', '建议', '失败'], series: [{ values: [18, 4, 1] }], center: '78%', centerLabel: '通过' }, '23 个检查点中 18 个通过。'),
   chart('stack', { labels: ['系统提示词', '工具定义', '对话历史', '剩余'], series: [{ values: [2600, 6200, 18000, 73200] }] }, '上下文还有七成余量。'),
   `<div class="piwin-meta"><span>近八次构建</span> ${chart('spark', { values: [3, 5, 4, 8, 7, 11, 10, 14] }, '')}</div>`,
+  chart('line', ARTIFACT_LINE_ANNOTATION_SAMPLE, '超时后 cwnd 回到 1，ssthresh 减半。'),
   '</main>',
 ].join('\n');
+
+/** One fence per viz kind, so each gets its own frame like a real reply. */
+const VIZ_FENCES = [
+  ...ARTIFACT_VIZ_KINDS.map((kind) => ({ kind, sample: ARTIFACT_VIZ_SAMPLES[kind] })),
+  ...ARTIFACT_VIZ_EXTRA_SAMPLES,
+].map(({ kind, sample }) => ({ title: sample.title, source: artifactVizFigure(kind, sample.spec, sample.title) }));
 
 const DIAGRAMS = [
   '<main class="piwin-report">',
@@ -80,6 +90,8 @@ export function ArtifactKitShowcase(props: { paper: boolean }): ReactElement {
   const markdown = [
     '### Kit 图表（六种）',
     fence('图表', CHARTS),
+    '### Viz Kit',
+    ...VIZ_FENCES.map((viz) => fence(viz.title, viz.source)),
     '### Diagram Kit',
     fence('图形', DIAGRAMS),
     '### Component Kit',

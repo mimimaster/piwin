@@ -62,4 +62,14 @@ describe('artifact memory bridge', () => {
     expect(evict).toHaveBeenCalledOnce();
     expect(getLiveArtifactHostIdsForTests()).toEqual([]);
   });
+
+  it('holds new previews while critical and lets them mount again once pressure drops', () => {
+    installArtifactMemoryBridge();
+    globalMemoryGovernor.setLevel('critical');
+    expect(claimArtifactLiveHost({ id: 'during', evict: () => undefined }).admitted).toBe(false);
+
+    globalMemoryGovernor.setLevel('moderate');
+    expect(claimArtifactLiveHost({ id: 'after', evict: () => undefined }).admitted).toBe(true);
+    expect(getLiveArtifactHostIdsForTests()).toEqual(['after']);
+  });
 });

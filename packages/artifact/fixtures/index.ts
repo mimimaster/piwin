@@ -32,3 +32,6 @@ export { wrapArtifactMarkdown } from './markdown.js';
 export { ARTIFACT_FIXTURES, getArtifactFixture } from './catalog.js';
 export { STREAMING_DELTA_STEPS } from './streaming.js';
 export { FLASHCARD_TOOL_RESULT } from './flashcard.js';
+
+export { ARTIFACT_LINE_ANNOTATION_SAMPLE, ARTIFACT_VIZ_EXTRA_SAMPLES, ARTIFACT_VIZ_SAMPLES, artifactVizFigure } from './viz.js';
+export type { ArtifactVizSample } from './viz.js';

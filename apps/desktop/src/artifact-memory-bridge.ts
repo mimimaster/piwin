@@ -1,9 +1,10 @@
 /**
  * Connects the Memory Governor to the Artifact live-host registry.
- * Critical pressure evicts non-forceKeep iframes; moderate does not.
- * Returning to normal does not remount — the user clicks Load preview.
+ * Critical pressure evicts non-forceKeep iframes and holds new ones; moderate
+ * does not. Leaving critical lifts the hold but does not remount — the user
+ * clicks Load preview.
  */
-import { evictNonForceKeepArtifactHosts } from './artifact-live-host-registry.js';
+import { evictNonForceKeepArtifactHosts, setArtifactHostPressureHold } from './artifact-live-host-registry.js';
 import { globalMemoryGovernor } from './memory-governor';
 
 let installed = false;
@@ -17,6 +18,8 @@ export function installArtifactMemoryBridge(): void {
   unsubscribe = globalMemoryGovernor.subscribe((level) => {
     if (level === 'critical') {
       evictNonForceKeepArtifactHosts();
+    } else {
+      setArtifactHostPressureHold(false);
     }
   });
   if (globalMemoryGovernor.getLevel() === 'critical') {

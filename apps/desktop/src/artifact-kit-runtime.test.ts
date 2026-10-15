@@ -36,7 +36,7 @@ describe('artifact kit runtime', () => {
 
   it('hydrates a declarative bar chart and keeps the caption readable', () => {
     const kit = loadKit(chartFigure('bar', { labels: ['一', '二'], series: [{ name: '耗时', values: [212, 198] }] }));
-    expect(kit.version).toBe('1.1.0');
+    expect(kit.version).toBe('1.2.0');
     const figure = document.querySelector('figure')!;
     expect(figure.hasAttribute('data-piwin-chart-ready')).toBe(true);
     expect(figure.querySelectorAll('svg .piwin-chart-bar')).toHaveLength(2);

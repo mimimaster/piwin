@@ -22,6 +22,53 @@
    The document canvas is only released while the shell is mounted.
    Pre-shell screens (host gate, pairing) have no surface of their own and
    rely on the html/body void, so they must stay opaque. */
+
+/* Region fills read the stored opacities through these. Ink (dark) thins the
+   stage: near-black over the dark material at 90% reads as a solid slab, so
+   ink keeps 80% of the stage slider and the desktop shows through the
+   conversation the way it does under paper. */
+html[data-window-material] {
+  --window-material-backdrop-fill: var(--window-material-backdrop-opacity, 60%);
+  --window-material-sidebar-fill: var(--window-material-sidebar-opacity, 30%);
+  --window-material-stage-fill: var(--window-material-stage-opacity, 90%);
+  --window-material-right-panel-fill: var(--window-material-right-panel-opacity, 45%);
+}
+
+html[data-window-material][data-theme-mode='dark'] {
+  --window-material-stage-fill: calc(var(--window-material-stage-opacity, 90%) * 0.8);
+  /* xterm clears its canvas (xterm-theme.ts); the dock paints this instead. */
+  --xterm-canvas: transparent;
+}
+
+/* Ink cards on the glass. Solid --s3 / void slabs on a translucent ink stage
+   read as cut-outs (the user card, the todo tray, the console), so in ink
+   they take a tinted glass of their own surface instead. */
+html[data-window-material][data-theme-mode='dark']
+  .app-shell:not([data-layout='phone'])
+  :is(.ucard, .user-message-collapsible) {
+  background: color-mix(in srgb, var(--s3) 70%, transparent);
+}
+
+html[data-window-material][data-theme-mode='dark']
+  .app-shell:not([data-layout='phone'])
+  .plan-todo-tray {
+  background: color-mix(in srgb, var(--s3) 70%, transparent);
+}
+
+html[data-window-material][data-theme-mode='dark']
+  .app-shell:not([data-layout='phone'])
+  :is(.terminal-dock-body, .xterm-surface, .pty-input-row) {
+  background: color-mix(in srgb, var(--term-bg) 45%, transparent);
+}
+
+/* One glass layer per console: the docked body already paints it. */
+html[data-window-material][data-theme-mode='dark']
+  .app-shell:not([data-layout='phone'])
+  .terminal-dock-body
+  .xterm-surface {
+  background: transparent;
+}
+
 html[data-window-material]:has(.app-shell:not([data-layout='phone'])),
 html[data-window-material]:has(.app-shell:not([data-layout='phone']))
   :is(body, #root) {
@@ -32,7 +79,7 @@ html[data-window-material]
   .app-shell:not([data-layout='phone']) {
   background: color-mix(
     in srgb,
-    var(--void) var(--window-material-backdrop-opacity, 60%),
+    var(--void) var(--window-material-backdrop-fill),
     transparent
   );
 }
@@ -42,7 +89,7 @@ html[data-window-material]
   > .sidebar {
   background: color-mix(
     in srgb,
-    var(--s1) var(--window-material-sidebar-opacity, 30%),
+    var(--s1) var(--window-material-sidebar-fill),
     transparent
   );
 }
@@ -52,7 +99,7 @@ html[data-window-material]
   > .workspace {
   background: color-mix(
     in srgb,
-    var(--s2) var(--window-material-stage-opacity, 90%),
+    var(--s2) var(--window-material-stage-fill),
     transparent
   );
 }
@@ -62,7 +109,7 @@ html[data-window-material]
   > .right-panel {
   background: color-mix(
     in srgb,
-    var(--s1) var(--window-material-right-panel-opacity, 45%),
+    var(--s1) var(--window-material-right-panel-fill),
     transparent
   );
 }

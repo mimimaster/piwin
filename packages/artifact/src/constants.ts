@@ -41,11 +41,6 @@ export const ARTIFACT_FRAME_MODES = [
 /** Max concurrent historical artifact iframe inits (srcdoc assignment). */
 export const MAX_CONCURRENT_ARTIFACT_INITS = 1;
 
-/** Priority bands for Desktop live-host admission (higher = keep). */
-export const ARTIFACT_LIVE_PRIORITY_VISIBLE = 100;
-export const ARTIFACT_LIVE_PRIORITY_STREAM = 1_000;
-export const ARTIFACT_LIVE_PRIORITY_CANVAS = 1_000;
-
 /** Single content-size message from an Inline sandbox → parent. */
 export const ARTIFACT_BRIDGE_SIZE_TYPE = 'piwin-artifact:size' as const;
 /** Parent request for a fresh size report and optional recovery viewport. */

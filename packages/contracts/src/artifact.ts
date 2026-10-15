@@ -6,6 +6,7 @@
 import { formatArtifactComponentKit, formatArtifactComponentKitReference } from './artifact-component-kit.js';
 import { formatArtifactDiagramKit, formatArtifactDiagramKitReference } from './artifact-diagram-kit.js';
 import { formatArtifactReportKit } from './artifact-report-kit.js';
+import { formatArtifactVizKit, formatArtifactVizKitReference } from './artifact-viz-kit.js';
 
 // ---------------------------------------------------------------------------
 // Artifact configuration (PiwinConfig.artifact)
@@ -161,9 +162,11 @@ export function formatArtifactKitReference(): string {
     'Charts: `<figure data-piwin-chart="bar|hbar|line|donut|stack|spark">` holding `<script type="application/json">` with {"labels": [..], "series": [{"name": "..", "values": [..], "tone": "ok"}], "tones": [..], "unit": "ms", "min": n, "max": n, "height": px, "values": true, "area": true, "center": "96%", "centerLabel": "passed"}. Always add a `<figcaption>` that states the takeaway in words; it stays readable if the chart cannot draw.',
     '- bar: grouped bars per label on a value axis; values print above the bars when there are few. hbar: one row per label with the label on the left and the value on the right — the choice for rankings and long category names. line: one line per series; a single series gets a soft area fill and its latest value. donut: first series as parts of `labels`, legend with shares beside it, optional `center` / `centerLabel`. stack: one bar split into the shares of `labels`, for composition in a single row. spark: tiny inline trend.',
     '- `unit` is appended to values and ticks; `min`/`max` fix the axis; `values` forces value labels on or off; `area` fills under every line.',
+    '- line extras: `refs` [{"y": 16, "from": 0, "to": 12, "label": "ssthresh"}] draws dashed threshold segments; `marks` [{"at": 12, "label": "超时", "tone": "risk"}] labels a point of the first series.',
     '- Colors: status data says so with `tone` (ok=green, warn=amber, risk=red, info=blue; also accent, accent-2, muted): pass/fail, success/error, blocked, flaky. Donut slices take `tones` in label order. Series and slices named like 成功/通过/失败/阻塞/建议 (success/pass/fail/blocked/warning) get that tone automatically. Neutral data omits tone and uses `series-1`…`series-6` in order (blue first; status hues last). `color` accepts only `var(--piwin-artifact-*)`. Charts redraw with the container width.',
     'Script API for interactive artifacts: `piwin.chart(el, {kind, labels, series, height})`, `piwin.icon(name, size)` → SVG string, `piwin.hydrate(root)` after inserting kit markup, `piwin.version`.',
     ...formatArtifactDiagramKitReference(),
+    ...formatArtifactVizKitReference(),
     ...formatArtifactComponentKitReference(),
     '[/piwin-artifact-kit]',
   ].join('\n');
@@ -381,6 +384,7 @@ export function formatArtifactProtocol(): string {
     '- Inline width: `width:100%`, `max-width:100%`, `min-width:0`, border-box sizing and container queries for stacking, readable at 360px and below. The advisory width hint describes the sending client; replay and other clients differ.',
     '- Built-ins (no network): `data-piwin-icon` icons; `data-piwin-chart="bar|hbar|line|donut|stack|spark"` charts. Call `artifact_instructions` for the icon list and chart options.',
     formatArtifactDiagramKit(),
+    formatArtifactVizKit(),
     formatArtifactComponentKit(),
     '- Tables: wrap long data cells with `overflow-wrap: break-word`, the one wrapping property that keeps column min-content intact (`word-break` values and `overflow-wrap: anywhere` collapse a column to 1ch). Row/column labels may `white-space: nowrap` or `width: max-content`. `min-width: 0` belongs on the outer stage. Inline: stack with `@container` before wrapping labels. Canvas: dense comparisons keep label min-content and may use table `overflow-x: auto`. Dense wide comparisons belong on Canvas.',
     '- **Canvas Viewport**: the Canvas iframe is the design viewport. Root layout and the primary stage use `width: 100%` and `height: 100%` / `100dvh` of it, and extra panel width becomes scene/layout space, so the design fills the panel edge to edge. A UI that needs a wide workspace or horizontal scrolling declares `surface="canvas"`.',

@@ -14,8 +14,7 @@ import {
   resetArtifactInitQueueForTests,
 } from './artifact-init-queue.js';
 import {
-  MAX_LIVE_ARTIFACT_IFRAMES,
-  claimArtifactLiveHost,
+  evictNonForceKeepArtifactHosts,
   resetArtifactLiveHostRegistryForTests,
 } from './artifact-live-host-registry.js';
 
@@ -155,15 +154,9 @@ describe('artifact frame init lease timeout', () => {
     expect(secondContainer.querySelector('iframe.artifact-iframe')).not.toBeNull();
   });
 
-  it('keeps the completing sandbox iframe when the live set is full of forceKeep hosts', async () => {
-    for (let index = 0; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
-      claimArtifactLiveHost({
-        id: `force-fill-${index}`,
-        forceKeep: true,
-        priority: 1_000,
-        evict: () => undefined,
-      });
-    }
+  it('keeps the completing sandbox iframe while memory pressure holds new previews', async () => {
+    // Critical pressure: unpinned claims are held, the streaming (pinned) one mounts.
+    evictNonForceKeepArtifactHosts();
 
     const container = document.createElement('div');
     document.body.appendChild(container);

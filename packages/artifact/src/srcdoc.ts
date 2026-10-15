@@ -14,7 +14,7 @@ import {
   type ArtifactPalette,
 } from './artifact-style.js';
 import { buildEmojiIconSrcdocHead, collectEmojiIcons } from './emoji-icons/emoji-icon-render.js';
-import { artifactKitScriptSource, buildArtifactKitHead, usesArtifactKit } from './kit/index.js';
+import { artifactKitScriptSource, buildArtifactKitHead, usesArtifactKit, usesArtifactViz } from './kit/index.js';
 import {
   buildArtifactFrameModePolicyCss,
   buildArtifactMotionPolicyCss,
@@ -146,6 +146,11 @@ export type BuildHtmlArtifactSrcdocInput = {
    * previews of v14 fences pass true because the source is still arriving.
    */
   kit?: boolean;
+  /**
+   * Also inject the viz kit (ADR 0093). Default: only when the source has a
+   * `data-piwin-viz` figure; v14 stream previews pass true like `kit`.
+   */
+  viz?: boolean;
   /** When false, omit the parent bridge entirely. Default true. */
   includeBridge?: boolean;
   /** Accept sanitized parent snapshots without replacing the iframe document. */
@@ -177,6 +182,7 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   const includeBridge = input.includeBridge !== false;
   const enableRenderCommand = input.enableStreamUpdates !== false && includeBridge;
   const kit = input.kit ?? usesArtifactKit(input.source);
+  const viz = kit && (input.viz ?? usesArtifactViz(input.source));
   const csp = buildStrictArtifactCsp(iframePolicy, {
     kitScriptSource: kit ? artifactKitScriptSource() : null,
   });
@@ -214,7 +220,7 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   <style data-piwin-artifact-report-kit>${buildArtifactReportKitCss({ rules: input.rules ?? 'legacy' })}</style>
   <style data-piwin-artifact-diagram-kit>${buildArtifactDiagramKitCss()}</style>
   <style data-piwin-artifact-component-kit>${buildArtifactComponentKitCss()}</style>
-${bridge}${kit ? `\n  ${buildArtifactKitHead()}` : ''}${emojiIconHead ? `\n  ${emojiIconHead}` : ''}`;
+${bridge}${kit ? `\n  ${buildArtifactKitHead(undefined, { viz })}` : ''}${emojiIconHead ? `\n  ${emojiIconHead}` : ''}`;
   const themeGuardStyle = themeGuardCss
     ? `\n  <style data-piwin-artifact-theme-guard>${themeGuardCss}</style>`
     : '';

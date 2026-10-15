@@ -9,15 +9,14 @@ import {
   resetArtifactInitQueueForTests,
 } from './artifact-init-queue.js';
 import {
-  MAX_LIVE_ARTIFACT_IFRAMES,
+  evictNonForceKeepArtifactHosts,
   getLiveArtifactHostIdsForTests,
-  getWaitingArtifactHostIdsForTests,
   resetArtifactLiveHostRegistryForTests,
 } from './artifact-live-host-registry.js';
 import { resolveArtifactFrameLifecycleState } from './artifact-frame-lifecycle.js';
 
-const VISIBLE = { forceKeep: false, priority: 100 };
-const PINNED = { forceKeep: true, priority: 1_000 };
+const VISIBLE = { forceKeep: false };
+const PINNED = { forceKeep: true };
 
 async function settle(): Promise<void> {
   await Promise.resolve();
@@ -71,46 +70,31 @@ describe('createArtifactFrameLease', () => {
     expect(next.getSnapshot().initGranted).toBe(true);
   });
 
-  it('reports a denied frame as waiting and an evicted one as recycled', async () => {
-    const pinned = Array.from({ length: MAX_LIVE_ARTIFACT_IFRAMES }, (_unused, index) =>
-      createArtifactFrameLease(`pinned-${index}`),
-    );
-    for (const lease of pinned) lease.claim(PINNED);
-    const waiting = createArtifactFrameLease('waiting');
-    waiting.claim(VISIBLE);
-    expect(resolveArtifactFrameLifecycleState(waiting.getSnapshot(), false)).toBe('waiting-live-host');
-    expect(getWaitingArtifactHostIdsForTests()).toEqual(['waiting']);
-
-    resetArtifactLiveHostRegistryForTests();
-    resetArtifactInitQueueForTests();
+  it('reports a frame held back by memory pressure as waiting and an evicted one as recycled', async () => {
     const older = createArtifactFrameLease('older');
     older.claim(VISIBLE);
     await settle();
     older.markIframeLoaded();
-    const crowd = Array.from({ length: MAX_LIVE_ARTIFACT_IFRAMES }, (_unused, index) =>
-      createArtifactFrameLease(`crowd-${index}`),
-    );
-    for (const lease of crowd) lease.claim(PINNED);
+    evictNonForceKeepArtifactHosts();
     expect(older.getSnapshot()).toMatchObject({ hostIframe: false, initGranted: false, loaded: false });
     expect(resolveArtifactFrameLifecycleState(older.getSnapshot(), false)).toBe('recycled');
-  });
 
-  it('re-initializes a waiting frame when a slot frees', async () => {
-    const pinned = Array.from({ length: MAX_LIVE_ARTIFACT_IFRAMES }, (_unused, index) =>
-      createArtifactFrameLease(`pinned-${index}`),
-    );
-    for (const lease of pinned) lease.claim(PINNED);
-    await settle();
-    for (const lease of pinned) {
-      lease.markIframeLoaded();
-      await settle();
-    }
     const waiting = createArtifactFrameLease('waiting');
     waiting.claim(VISIBLE);
-    expect(waiting.getSnapshot().hostIframe).toBe(false);
-    pinned[0]?.release();
+    expect(resolveArtifactFrameLifecycleState(waiting.getSnapshot(), false)).toBe('waiting-live-host');
+  });
+
+  it('re-initializes a recycled frame when the user asks for it back', async () => {
+    const lease = createArtifactFrameLease('recycled');
+    lease.claim(VISIBLE);
     await settle();
-    expect(waiting.getSnapshot()).toMatchObject({ hostIframe: true, initGranted: true });
+    lease.markIframeLoaded();
+    evictNonForceKeepArtifactHosts();
+    expect(lease.getSnapshot().hostIframe).toBe(false);
+    lease.requestHost();
+    await settle();
+    expect(lease.getSnapshot()).toMatchObject({ hostIframe: true, initGranted: true });
+    expect(getLiveArtifactHostIdsForTests()).toEqual(['recycled']);
   });
 
   it('gives everything back through one release, in any state, more than once', async () => {

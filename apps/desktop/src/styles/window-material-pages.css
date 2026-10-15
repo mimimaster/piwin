@@ -37,7 +37,7 @@ html[data-window-material]:has(.app-shell:not([data-layout='phone']))
 html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .settings-overlay-host {
   background: color-mix(
     in srgb,
-    var(--void) var(--window-material-backdrop-opacity, 60%),
+    var(--void) var(--window-material-backdrop-fill),
     transparent
   );
 }
@@ -49,7 +49,7 @@ html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .settings-
 html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .settings-nav {
   background: color-mix(
     in srgb,
-    var(--s1) var(--window-material-sidebar-opacity, 30%),
+    var(--s1) var(--window-material-sidebar-fill),
     transparent
   );
 }
@@ -57,7 +57,7 @@ html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .settings-
 html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .settings-main {
   background: color-mix(
     in srgb,
-    var(--s2) var(--window-material-stage-opacity, 90%),
+    var(--s2) var(--window-material-stage-fill),
     transparent
   );
 }
@@ -70,7 +70,7 @@ html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .vault-sta
 html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .vault-stage.lib-page {
   background: color-mix(
     in srgb,
-    var(--s2) var(--window-material-stage-opacity, 90%),
+    var(--s2) var(--window-material-stage-fill),
     transparent
   ) !important;
 }
@@ -79,7 +79,7 @@ html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .vault-sta
 html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .vault-stage.marketplace-stage {
   background: color-mix(
     in srgb,
-    var(--s1) var(--window-material-stage-opacity, 90%),
+    var(--s1) var(--window-material-stage-fill),
     transparent
   ) !important;
 }
@@ -88,7 +88,7 @@ html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .vault-sta
 html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .vault-stage.ink-window {
   background: color-mix(
     in srgb,
-    var(--void) var(--window-material-backdrop-opacity, 60%),
+    var(--void) var(--window-material-backdrop-fill),
     transparent
   ) !important;
 }
@@ -96,7 +96,7 @@ html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .vault-sta
 html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .wiki-layout {
   background: color-mix(
     in srgb,
-    var(--s1) var(--window-material-sidebar-opacity, 30%),
+    var(--s1) var(--window-material-sidebar-fill),
     transparent
   );
 }
@@ -105,7 +105,7 @@ html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .wiki-layo
 html[data-window-material]:has(.app-shell:not([data-layout='phone'])) .wiki-content-canvas {
   background: color-mix(
     in srgb,
-    var(--s2) var(--window-material-stage-opacity, 90%),
+    var(--s2) var(--window-material-stage-fill),
     transparent
   ) !important;
 }

@@ -27,12 +27,12 @@ export type ArtifactFrameLeaseSnapshot = {
 };
 
 export type ArtifactFrameHostRank = {
+  /** Live streaming preview or active Canvas: survives pressure eviction. */
   forceKeep: boolean;
-  priority: number;
 };
 
 /**
- * One frame's hold on the live-iframe budget and the init queue.
+ * One frame's hold on the live-host registry and the init queue.
  *
  * Both schedulers are process-wide and hand out slots that must be given back
  * exactly once. Keeping the bookkeeping in one object outside React means a
@@ -42,12 +42,12 @@ export type ArtifactFrameHostRank = {
 export type ArtifactFrameLease = {
   getSnapshot: () => ArtifactFrameLeaseSnapshot;
   subscribe: (listener: () => void) => () => void;
-  /** Claim a live-host slot, or re-rank the one already held. */
+  /** Claim a live host, or update the pin of the one already held. */
   claim: (rank: ArtifactFrameHostRank) => void;
   setInitPriority: (priority: number) => void;
   /** The iframe finished loading: the init queue may start the next frame. */
   markIframeLoaded: () => void;
-  /** User asked for a recycled preview back; may evict another frame. */
+  /** User asked for a recycled preview back. */
   requestHost: () => void;
   /** Give back the live-host slot, the init slot, and every pending timer. */
   release: () => void;
@@ -68,7 +68,7 @@ export function createArtifactFrameLease(
   options: { initPriority?: number } = {},
 ): ArtifactFrameLease {
   let snapshot = UNCLAIMED_SNAPSHOT;
-  let rank: ArtifactFrameHostRank = { forceKeep: false, priority: 0 };
+  let rank: ArtifactFrameHostRank = { forceKeep: false };
   let initPriority = options.initPriority ?? 0;
   /** Bumped whenever a pending init request stops being wanted. */
   let initGeneration = 0;
@@ -147,9 +147,7 @@ export function createArtifactFrameLease(
   const registration = (): ArtifactLiveHostRegistration => ({
     id: channelId,
     forceKeep: rank.forceKeep,
-    priority: rank.priority,
     evict: () => setHosted(false),
-    onAdmit: () => setHosted(true),
   });
 
   return {

@@ -1,9 +1,9 @@
-/* piwin artifact kit 1.1.0 */
+/* piwin artifact kit 1.2.0 */
 (function (ICONS) {
 'use strict';
 if (window.piwin && window.piwin.version) return;
 
-var VERSION = '1.1.0';
+var VERSION = '1.2.0';
 var NS = 'http://www.w3.org/2000/svg';
 var COLOR = /^var\(--piwin-artifact-[a-z0-9-]+\)$/;
 var KINDS = { bar: 1, hbar: 1, line: 1, donut: 1, stack: 1, spark: 1 };
@@ -178,6 +178,15 @@ function normalize(spec, kindHint) {
     area: spec.area === true,
     center: spec.center == null ? '' : String(spec.center).slice(0, 24),
     centerLabel: spec.centerLabel == null ? '' : String(spec.centerLabel).slice(0, 24),
+    // Line annotations: dashed threshold segments and labelled points (ADR 0093).
+    refs: (Array.isArray(spec.refs) ? spec.refs.slice(0, 12) : []).map(function (r) {
+      r = r && typeof r === 'object' ? r : {};
+      return { y: num(r.y), from: r.from == null ? null : num(r.from), to: r.to == null ? null : num(r.to), label: r.label == null ? '' : String(r.label).slice(0, 24) };
+    }),
+    marks: (Array.isArray(spec.marks) ? spec.marks.slice(0, 24) : []).map(function (m) {
+      m = m && typeof m === 'object' ? m : {};
+      return { at: num(m.at), label: m.label == null ? '' : String(m.label).slice(0, 24), color: toneColor(m.tone) || 'var(--piwin-artifact-accent)' };
+    }),
     legend: spec.legend === false ? false : (parts || (series.length > 1 && kind !== 'hbar'))
   };
 }
@@ -303,7 +312,23 @@ function drawLine(svg, c, width, spark) {
       textEl(svg, x(last), y(s.values[last]) - 9, 'piwin-chart-value', 'end', fmt(s.values[last]) + c.unit);
     }
   });
+  if (f) lineNotes(svg, c, x, y, n);
   if (f) categoryLabels(svg, c, x, { total: f.w, each: f.w / Math.max(1, c.count) });
+}
+function lineNotes(svg, c, x, y, n) {
+  c.refs.forEach(function (r) {
+    var from = r.from == null ? 0 : r.from, to = r.to == null ? n : r.to, ry = q(y(r.y));
+    svgEl('line', { x1: q(x(from) - 6), x2: q(x(to) + 6), y1: ry, y2: ry, 'class': 'piwin-chart-ref' }, svg);
+    if (r.label) textEl(svg, x(from) - 4, ry - 5, 'piwin-chart-tick', 'start', r.label);
+  });
+  var first = c.series[0];
+  if (!first) return;
+  c.marks.forEach(function (m) {
+    var v = first.values[m.at];
+    if (v === undefined) return;
+    svgEl('circle', { cx: q(x(m.at)), cy: q(y(v)), r: 4, fill: m.color }, svg);
+    if (m.label) textEl(svg, x(m.at), y(v) - 10, 'piwin-chart-value', 'middle', m.label).setAttribute('style', 'fill:' + m.color);
+  });
 }
 
 function partsOf(c) {

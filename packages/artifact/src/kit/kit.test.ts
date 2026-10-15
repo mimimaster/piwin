@@ -60,7 +60,7 @@ describe('artifact kit v1', () => {
   it('loads from the artifact scheme with a narrow script-src on the desktop path', () => {
     configureArtifactKitDelivery({ kind: 'scheme', origin: 'piwin-artifact://localhost/' });
     const { srcdoc, csp } = buildHtmlArtifactSrcdoc({ source: CHART, channelId: 'c' });
-    expect(srcdoc).toContain('<script data-piwin-artifact-kit src="piwin-artifact://localhost/lib/v1/kit-1.1.0.js"></script>');
+    expect(srcdoc).toContain('<script data-piwin-artifact-kit src="piwin-artifact://localhost/lib/v1/kit-1.2.0.js"></script>');
     expect(srcdoc).not.toContain('if (window.piwin && window.piwin.version) return;');
     expect(csp).toContain("script-src 'unsafe-inline' piwin-artifact://localhost/lib/v1/");
     expect(csp).toContain("connect-src 'none'");

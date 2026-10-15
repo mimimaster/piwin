@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import {
-  ARTIFACT_LIVE_PRIORITY_CANVAS,
-  ARTIFACT_LIVE_PRIORITY_STREAM,
-  ARTIFACT_LIVE_PRIORITY_VISIBLE,
-} from '@piwin/artifact';
-import {
   createArtifactFrameLease,
   type ArtifactFrameLeaseSnapshot,
 } from './artifact-frame-lease.js';
@@ -35,13 +30,6 @@ export function shouldForceKeepArtifactHost(
   streaming: boolean,
 ): boolean {
   return presentation === 'canvas' || streaming;
-}
-
-function resolveHostPriority(presentation: 'inline' | 'canvas', streaming: boolean): number {
-  if (presentation === 'canvas') {
-    return ARTIFACT_LIVE_PRIORITY_CANVAS;
-  }
-  return streaming ? ARTIFACT_LIVE_PRIORITY_STREAM : ARTIFACT_LIVE_PRIORITY_VISIBLE;
 }
 
 export function resolveArtifactFrameLifecycleState(
@@ -75,7 +63,6 @@ export function useArtifactFrameLease(input: {
   streaming: boolean;
 }): ArtifactFrameLease {
   const forceKeep = shouldForceKeepArtifactHost(input.presentation, input.streaming);
-  const priority = resolveHostPriority(input.presentation, input.streaming);
   const lease = useMemo(() => createArtifactFrameLease(input.channelId), [input.channelId]);
   const snapshot = useSyncExternalStore(lease.subscribe, lease.getSnapshot, lease.getSnapshot);
 
@@ -85,8 +72,8 @@ export function useArtifactFrameLease(input: {
   }, [lease, input.initPriority]);
 
   useEffect(() => {
-    lease.claim({ forceKeep, priority });
-  }, [lease, forceKeep, priority]);
+    lease.claim({ forceKeep });
+  }, [lease, forceKeep]);
 
   useEffect(() => () => lease.release(), [lease]);
 

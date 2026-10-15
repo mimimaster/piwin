@@ -7,7 +7,7 @@
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import { resolveArtifactPalette, type ArtifactStyleModes } from './artifact-style.js';
 import { resolveArtifactRules } from './artifact-rules.js';
-import { usesArtifactKit } from './kit/index.js';
+import { usesArtifactKit, usesArtifactViz } from './kit/index.js';
 import { buildHtmlArtifactSrcdoc } from './srcdoc.js';
 import {
   buildStreamableArtifactPreview,
@@ -137,6 +137,11 @@ export function materializeArtifact(
       mode === 'stream-preview'
         ? resolveArtifactRules(intent.descriptor) === 'v14'
         : usesArtifactKit(bodySource),
+    // A viz figure may arrive later in the stream, so v14 previews load it up front.
+    viz:
+      mode === 'stream-preview'
+        ? resolveArtifactRules(intent.descriptor) === 'v14'
+        : usesArtifactViz(bodySource),
     documentKind: streamFragmentShell ? 'fragment' : intent.descriptor.documentKind,
   });
 

@@ -42,6 +42,7 @@ export * from './attachment.js';
 export * from './artifact.js';
 export * from './artifact-report-kit.js';
 export * from './artifact-diagram-kit.js';
+export * from './artifact-viz-kit.js';
 export * from './artifact-component-kit.js';
 export * from './host-problem.js';
 export * from './prompt-admission.js';

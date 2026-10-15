@@ -10,22 +10,23 @@
 import { ARTIFACT_KIT_V1_ICONS } from './icons-v1.js';
 import { ARTIFACT_KIT_V1_CHARTS } from './kit-v1-charts.js';
 import { ARTIFACT_KIT_V1_RUNTIME } from './kit-v1-runtime.js';
+import { ARTIFACT_VIZ_PATH, buildArtifactVizCss, buildArtifactVizScript } from './viz/index.js';
 
 export const ARTIFACT_KIT_MAJOR = 1 as const;
-export const ARTIFACT_KIT_VERSION_STRING = '1.1.0' as const;
+export const ARTIFACT_KIT_VERSION_STRING = '1.2.0' as const;
 /**
  * The served URL carries the kit version because the scheme answers with an
  * immutable cache header: new bytes need a new URL, or an upgraded shell keeps
  * running the kit its webview cached. Keep in step with
  * `crates/artifact-webview/src/protocol.rs`.
  */
-export const ARTIFACT_KIT_V1_PATH = '/lib/v1/kit-1.1.0.js' as const;
+export const ARTIFACT_KIT_V1_PATH = '/lib/v1/kit-1.2.0.js' as const;
 export const ARTIFACT_KIT_V1_ICON_NAMES: readonly string[] = Object.keys(ARTIFACT_KIT_V1_ICONS);
 export const ARTIFACT_KIT_CHART_KINDS = ['bar', 'hbar', 'line', 'donut', 'stack', 'spark'] as const;
 
-const USES_KIT = /data-piwin-(?:chart|icon)\b|\bpiwin\.(?:chart|icon|hydrate)\s*\(/;
+const USES_KIT = /data-piwin-(?:chart|icon|viz)\b|\bpiwin\.(?:chart|icon|hydrate)\s*\(/;
 
-/** True when the source references kit markup or the `piwin.*` API. */
+/** True when the source references kit markup (charts, icons, viz) or the `piwin.*` API. */
 export function usesArtifactKit(source: string): boolean {
   return USES_KIT.test(source);
 }
@@ -70,6 +71,7 @@ export function buildArtifactKitCss(): string {
 :where([data-piwin-chart] .piwin-chart-bar:hover) { opacity: 0.78; }
 /* The fill under a line must not swallow the hover that reveals a point's value. */
 :where([data-piwin-chart] .piwin-chart-area) { pointer-events: none; }
+:where([data-piwin-chart] .piwin-chart-ref) { stroke: var(--piwin-artifact-muted); stroke-width: 1.25; stroke-dasharray: 4 4; }
 :where([data-piwin-chart] .piwin-chart-dot) { stroke: var(--piwin-artifact-surface); stroke-width: 1.5; }
 :where([data-piwin-chart] text) { fill: var(--piwin-artifact-muted); font: 11px var(--piwin-artifact-font); font-variant-numeric: tabular-nums; }
 :where([data-piwin-chart] text.piwin-chart-tick, [data-piwin-chart] text.piwin-chart-label) { fill: var(--piwin-artifact-muted); }
@@ -116,13 +118,30 @@ export function artifactKitScriptSource(current: ArtifactKitDelivery = delivery)
   return current.kind === 'scheme' ? `${current.origin}/lib/v1/` : null;
 }
 
-/** Head markup that loads the kit for one document. */
-export function buildArtifactKitHead(current: ArtifactKitDelivery = delivery): string {
-  const css = `<style data-piwin-artifact-kit>${buildArtifactKitCss()}</style>`;
+function kitScriptTag(current: ArtifactKitDelivery, path: string, build: () => string): string {
   if (current.kind === 'scheme') {
-    const src = `${current.origin}${ARTIFACT_KIT_V1_PATH}`.replace(/"/g, '&quot;');
-    return `${css}\n  <script data-piwin-artifact-kit src="${src}"></script>`;
+    const src = `${current.origin}${path}`.replace(/"/g, '&quot;');
+    return `<script data-piwin-artifact-kit src="${src}"></script>`;
   }
-  const script = buildArtifactKitV1Script().replace(/<\/script/gi, '<\\/script');
-  return `${css}\n  <script data-piwin-artifact-kit>${script}</script>`;
+  return `<script data-piwin-artifact-kit>${build().replace(/<\/script/gi, '<\\/script')}</script>`;
 }
+
+/**
+ * Head markup that loads the kit for one document. `viz` adds the viz kit
+ * (ADR 0093); by default only documents that use it pay for it.
+ */
+export function buildArtifactKitHead(current: ArtifactKitDelivery = delivery, options: { viz?: boolean } = {}): string {
+  const viz = options.viz === true;
+  const css = `<style data-piwin-artifact-kit>${buildArtifactKitCss()}${viz ? buildArtifactVizCss() : ''}</style>`;
+  const kit = kitScriptTag(current, ARTIFACT_KIT_V1_PATH, buildArtifactKitV1Script);
+  return `${css}\n  ${kit}${viz ? `\n  ${kitScriptTag(current, ARTIFACT_VIZ_PATH, buildArtifactVizScript)}` : ''}`;
+}
+
+export {
+  ARTIFACT_VIZ_ICON_NAMES,
+  ARTIFACT_VIZ_PATH,
+  ARTIFACT_VIZ_VERSION_STRING,
+  buildArtifactVizCss,
+  buildArtifactVizScript,
+  usesArtifactViz,
+} from './viz/index.js';

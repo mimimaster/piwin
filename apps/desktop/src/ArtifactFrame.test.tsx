@@ -1057,18 +1057,10 @@ describe('ArtifactFrame chrome', () => {
     expect(container.querySelector('iframe.artifact-iframe:not(.artifact-iframe--outgoing)')).not.toBeNull();
   });
 
-  it('offers Load preview when the live budget rejects the frame', async () => {
-    const { MAX_LIVE_ARTIFACT_IFRAMES, claimArtifactLiveHost, releaseArtifactLiveHost } =
-      await import('./artifact-live-host-registry.js');
-    // Fill the budget with forceKeep hosts so the next claim is denied.
-    for (let index = 0; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
-      claimArtifactLiveHost({
-        id: `force-fill-${index}`,
-        forceKeep: true,
-        priority: 1,
-        evict: () => undefined,
-      });
-    }
+  it('offers Load preview when memory pressure holds the frame back', async () => {
+    const { evictNonForceKeepArtifactHosts } = await import('./artifact-live-host-registry.js');
+    // Critical pressure: a new unpinned preview starts recycled.
+    evictNonForceKeepArtifactHosts();
 
     const { container, root } = renderFrame();
     instances.push({ container, root });
@@ -1082,10 +1074,7 @@ describe('ArtifactFrame chrome', () => {
     expect(container.querySelector('[data-testid="artifact-load-preview"]')).not.toBeNull();
     expect(container.querySelector('iframe.artifact-iframe:not(.artifact-iframe--outgoing)')).toBeNull();
 
-    // Free a slot then click load — should admit and mount iframe path.
-    act(() => {
-      releaseArtifactLiveHost('force-fill-0');
-    });
+    // Load preview mounts even while pressure holds.
     const loadBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-load-preview"]',
     );
