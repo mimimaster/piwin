@@ -2,10 +2,33 @@
  * Ordered, requestId-deduped permission prompts. Desktop used to keep a single
  * slot; concurrent Host requests overwrote each other and left tools hanging.
  */
-import type { PermissionDecision, PermissionRequestContext, PermissionRiskKind } from '@piwin/contracts';
+import type {
+  HostPush,
+  PermissionDecision,
+  PermissionRequestContext,
+  PermissionRiskKind,
+} from '@piwin/contracts';
 import type { ChatUiState, PermissionPromptUi, SubagentStreamState } from './chat-ui-types';
 
 export const MAX_PERMISSION_QUEUE = 16;
+
+export type PermissionRequestPush = Extract<HostPush, { type: 'permission/request' }>;
+
+/**
+ * Shared by the global workbench reducer and per-pane reducers so both store
+ * the same prompt shape for a host `permission/request` push.
+ */
+export function toPermissionPromptUi(message: PermissionRequestPush): PermissionPromptUi {
+  return {
+    requestId: message.requestId,
+    sessionId: message.sessionId,
+    ...(message.runId !== undefined ? { runId: message.runId } : {}),
+    action: message.action,
+    detail: message.detail,
+    defaultDecision: message.defaultDecision,
+    ...(message.context ? { context: message.context } : {}),
+  };
+}
 
 export function activePermissionPrompt(
   queue: readonly PermissionPromptUi[],

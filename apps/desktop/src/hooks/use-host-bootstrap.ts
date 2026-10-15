@@ -13,7 +13,6 @@ import type {
   ConfiguredChatModelsData,
   ExtensionDeploymentRecord,
   ExtensionUiKind,
-  HostPush,
   HostResponse,
   HostServerMessage,
   HostStatusData,
@@ -26,12 +25,13 @@ import { formatError, isPrimarySessionRecord, parseSessionContextSnapshot } from
 import type { HostClient } from '../host-client';
 import { isRemoteCommandGapError } from '../remote-command-gap.js';
 import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
+import { toPermissionPromptUi } from '../permission-queue.js';
 import {
   bootstrapExternalAgents,
   handleExternalAgentPush,
   syncReadyAgentCatalogs,
 } from './external-agent-bootstrap.js';
-import type { ChatUiAction, PermissionPromptUi } from '../chat-reducer';
+import type { ChatUiAction } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import type { PtyOutputLine } from '../terminal-dock';
@@ -91,8 +91,6 @@ export type UseHostBootstrapArgs = {
   onActiveSessionCleared?: () => void;
 };
 
-type PermissionRequestPush = Extract<HostPush, { type: 'permission/request' }>;
-
 export type SessionPlanCache = Readonly<Record<string, SessionPlan | null>>;
 
 export function cacheSessionPlan(
@@ -115,18 +113,6 @@ export function selectSessionPlan(
   activeSessionId: string | null,
 ): SessionPlan | null {
   return activeSessionId ? (current[activeSessionId] ?? null) : null;
-}
-
-export function toPermissionPromptUi(message: PermissionRequestPush): PermissionPromptUi {
-  return {
-    requestId: message.requestId,
-    sessionId: message.sessionId,
-    ...(message.runId !== undefined ? { runId: message.runId } : {}),
-    action: message.action,
-    detail: message.detail,
-    defaultDecision: message.defaultDecision,
-    ...(message.context ? { context: message.context } : {}),
-  };
 }
 
 /**

@@ -51,6 +51,8 @@ import type { MediaPreviewReader } from './transcript-media-preview.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
 import { useSessionComposerProfile } from './hooks/use-session-composer-profile.js';
+import { useConversationPanePermissions } from './hooks/use-conversation-pane-permissions.js';
+import { PermissionBar } from './permission-bar.js';
 import { attachmentsFromFiles, PANE_COMPOSER_FILE_ACCEPT } from './pane-composer-attachments.js';
 
 type PaneResumeData = Omit<SessionResumeData, 'scope'> & {
@@ -86,6 +88,11 @@ export type PaneContextRefs = {
   remove: (key: string) => void;
   clear: () => void;
 };
+
+/** Only a project conversation has a project path; the bar's "allow for project" needs it. */
+function projectPathFromScope(scope: PaneResumeData['scope']): string | null {
+  return typeof scope === 'object' && scope.kind === 'project' ? scope.projectPath : null;
+}
 
 function isSupportedPaneScope(scope: PaneResumeData['scope']): boolean {
   return (
@@ -137,6 +144,14 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
   const [resumeThinkingLevel, setResumeThinkingLevel] = useState<ThinkingLevel | undefined>(
     undefined,
   );
+  const [paneProjectPath, setPaneProjectPath] = useState<string | null>(null);
+  const panePermissions = useConversationPanePermissions({
+    hostClient: props.hostClient,
+    sessionId: props.sessionId,
+    queue: state.permissionQueue,
+    dispatch,
+  });
+  const headPermissionPrompt = panePermissions.prompts[0] ?? null;
   const sessionComposer = useSessionComposerProfile({
     hostClient: props.hostClient,
     sessionId: props.sessionId,
@@ -227,6 +242,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     setComposer('');
     setResumeModel(null);
     setResumeThinkingLevel(undefined);
+    setPaneProjectPath(null);
     void (async () => {
       try {
         const statusResponse = await props.hostClient.request({ type: 'host/status' });
@@ -291,6 +307,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         }
         setResumeModel(data.model ?? null);
         setResumeThinkingLevel(data.thinkingLevel);
+        setPaneProjectPath(projectPathFromScope(data.scope));
         if (data.name) onNameChangeRef.current?.(data.name);
         await hydrateForegroundRun(() => cancelled);
       } catch (error) {
@@ -629,6 +646,20 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           </div>
         ) : null}
         <div className="conversation-pane-composer">
+          {headPermissionPrompt ? (
+            <div className="composer-plan-stack">
+              <PermissionBar
+                key={headPermissionPrompt.requestId}
+                prompt={headPermissionPrompt}
+                projectPath={paneProjectPath}
+                queuedRemaining={panePermissions.prompts.length - 1}
+                keyboardShortcuts={false}
+                onPermission={(decision, scope) =>
+                  void panePermissions.resolve(headPermissionPrompt, decision, scope)
+                }
+              />
+            </div>
+          ) : null}
           <input
             ref={fileInputRef}
             type="file"

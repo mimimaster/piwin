@@ -11,10 +11,14 @@ export type PendingPermissionHostClient = {
 /**
  * Ask Host for the live permission tickets and merge them into Desktop's queue.
  * No-op when the command is not advertised or the request fails.
+ *
+ * `sessionId` narrows the merge to one session. A pane reducer passes it so the
+ * host's global pending list cannot pull other sessions' prompts into that pane.
  */
 export async function reconcilePendingPermissions(input: {
   hostClient: PendingPermissionHostClient;
   dispatch: Dispatch<ChatUiAction>;
+  sessionId?: string;
 }): Promise<void> {
   if (input.hostClient.supportsCommand?.('permission/pending-list') === false) {
     return;
@@ -24,9 +28,13 @@ export async function reconcilePendingPermissions(input: {
     if (!response.success) {
       return;
     }
+    const parsed = parsePendingPermissionList(response.data);
     input.dispatch({
       type: 'permission/reconcile',
-      permissions: parsePendingPermissionList(response.data),
+      permissions:
+        input.sessionId === undefined
+          ? parsed
+          : parsed.filter((prompt) => prompt.sessionId === input.sessionId),
     });
   } catch {
     // Best-effort self-heal; live permission/request pushes remain the source of truth.

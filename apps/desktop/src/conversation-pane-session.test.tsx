@@ -14,6 +14,7 @@ import type {
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { ConversationPaneSession } from './conversation-pane-session.js';
 import type { HostClient } from './host-client.js';
+import { withoutClaimedPermissionPrompts } from './permission-claims.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -26,8 +27,11 @@ class FakeHostClient {
   advertiseContextTelemetry = false;
   contextSnapshot: unknown = null;
   usageTotals: SessionUsageTotals | null = null;
+  /** Host's global pending permission list; resolved entries leave it, as they do on the Host. */
+  pendingPermissions: Array<Record<string, unknown>> = [];
 
   supportsCommand(type: HostCommand['type']): boolean {
+    if (type === 'permission/pending-list') return true;
     return type === 'usage/get-session' && this.usageTotals !== null;
   }
 
@@ -176,6 +180,20 @@ class FakeHostClient {
     if (command.type === 'session/set-composer-profile') {
       return Promise.resolve({ type: 'response', command: command.type, success: true, data: {} });
     }
+    if (command.type === 'permission/pending-list') {
+      return Promise.resolve({
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: { permissions: this.pendingPermissions },
+      });
+    }
+    if (command.type === 'permission/resolve') {
+      this.pendingPermissions = this.pendingPermissions.filter(
+        (item) => item.requestId !== command.requestId,
+      );
+      return Promise.resolve({ type: 'response', command: command.type, success: true, data: {} });
+    }
     return Promise.resolve({
       type: 'response',
       command: command.type,
@@ -193,6 +211,17 @@ function message(id: string, role: 'user' | 'assistant', text: string): SessionT
     createdAt: '2026-08-24T10:00:00.000Z',
     status: 'done',
   };
+}
+
+function pendingPermission(requestId: string, sessionId: string): Record<string, unknown> {
+  return { requestId, sessionId, action: 'bash', detail: 'ls', defaultDecision: 'ask' };
+}
+
+/** Lets the fake Host's resolved promises and the reconcile that follows them settle. */
+function flushAsync(): Promise<void> {
+  return act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 }
 
 function renderSession(
@@ -634,5 +663,127 @@ describe('ConversationPaneSession', () => {
     );
     expect(paneInput?.disabled).toBe(false);
     expect(container?.querySelector('[data-testid="composer-card"]')?.classList).toContain('slab');
+  });
+
+  it('hydrates its own pending prompts and resolves them by requestId', async () => {
+    const host = new FakeHostClient();
+    host.pendingPermissions = [
+      pendingPermission('req-own', 'session-aux'),
+      pendingPermission('req-other', 'session-other'),
+    ];
+    ({ container, root } = renderSession(host));
+    await flushAsync();
+    await vi.waitFor(() =>
+      expect(container?.querySelectorAll('[data-testid="permission-bar"]')).toHaveLength(1),
+    );
+    expect(container?.querySelector('[data-testid="permission-queue-badge"]')).toBeNull();
+
+    const allowOnce = container?.querySelector<HTMLButtonElement>(
+      '[data-testid="permission-bar-allow-once"]',
+    );
+    act(() => allowOnce?.click());
+    await vi.waitFor(() =>
+      expect(host.requests).toContainEqual({
+        type: 'permission/resolve',
+        requestId: 'req-own',
+        decision: 'allow',
+        rememberScope: 'once',
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(container?.querySelector('[data-testid="permission-bar"]')).toBeNull(),
+    );
+    expect(
+      host.requests.filter((command) => command.type === 'permission/resolve'),
+    ).toHaveLength(1);
+  });
+
+  it('shows live permission pushes for its own session and clears them when resolved', async () => {
+    const host = new FakeHostClient();
+    ({ container, root } = renderSession(host));
+    // Let the mount-time pending-list merge land before live pushes, so it cannot drop them.
+    await flushAsync();
+    await vi.waitFor(() =>
+      expect(host.requests.some((command) => command.type === 'session/resume')).toBe(true),
+    );
+
+    act(() => {
+      host.emit({
+        type: 'permission/request',
+        sessionId: 'another-session',
+        requestId: 'req-elsewhere',
+        action: 'bash',
+        detail: 'rm',
+        defaultDecision: 'ask',
+      });
+    });
+    expect(container?.querySelector('[data-testid="permission-bar"]')).toBeNull();
+
+    act(() => {
+      host.emit({
+        type: 'permission/request',
+        sessionId: 'session-aux',
+        requestId: 'req-live',
+        action: 'bash',
+        detail: 'ls',
+        defaultDecision: 'ask',
+      });
+    });
+    expect(container?.querySelector('[data-testid="permission-bar"]')).not.toBeNull();
+
+    act(() => {
+      host.emit({
+        type: 'permission/resolved',
+        sessionId: 'session-aux',
+        requestId: 'req-live',
+        decision: 'allow',
+      });
+    });
+    expect(container?.querySelector('[data-testid="permission-bar"]')).toBeNull();
+  });
+
+  it('does not grant or deny a pane prompt from a document-level Enter or Escape', async () => {
+    const host = new FakeHostClient();
+    host.pendingPermissions = [pendingPermission('req-own', 'session-aux')];
+    ({ container, root } = renderSession(host));
+    await flushAsync();
+    await vi.waitFor(() =>
+      expect(container?.querySelector('[data-testid="permission-bar"]')).not.toBeNull(),
+    );
+
+    act(() => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    // The bar's Enter path waits 160ms before deciding, so wait past it.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    expect(host.requests.some((command) => command.type === 'permission/resolve')).toBe(false);
+    expect(container?.querySelector('[data-testid="permission-bar"]')).not.toBeNull();
+  });
+
+  it('claims the prompts it renders so the main bar cannot offer the same request', async () => {
+    const host = new FakeHostClient();
+    host.pendingPermissions = [pendingPermission('req-own', 'session-aux')];
+    ({ container, root } = renderSession(host));
+    await flushAsync();
+    await vi.waitFor(() =>
+      expect(container?.querySelector('[data-testid="permission-bar"]')).not.toBeNull(),
+    );
+    const mainQueue = [
+      {
+        requestId: 'req-own',
+        sessionId: 'session-aux',
+        action: 'bash',
+        detail: 'ls',
+        defaultDecision: 'ask' as const,
+      },
+    ];
+    expect(withoutClaimedPermissionPrompts(mainQueue)).toEqual([]);
+
+    act(() => root?.unmount());
+    root = null;
+    expect(withoutClaimedPermissionPrompts(mainQueue)).toHaveLength(1);
   });
 });
