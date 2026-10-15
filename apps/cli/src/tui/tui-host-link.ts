@@ -40,11 +40,12 @@ export async function openTuiHostLink(options: TuiHostLinkOptions): Promise<TuiH
     };
   }
 
-  const [{ HostRuntime }, { HostServer }] = await Promise.all([
+  const [{ HostRuntime, applyHostNetworkProxy }, { HostServer }] = await Promise.all([
     import('@piwin/host-runtime'),
     import('@piwin/host-server'),
   ]);
   const piwinRoot = getPiwinRoot();
+  applyHostNetworkProxy();
   const runtime = new HostRuntime({ mode: 'sdk', mock: options.mock, piwinRoot });
   // Loopback only, random port, random door token: nothing else on the machine
   // is told where this Host is.

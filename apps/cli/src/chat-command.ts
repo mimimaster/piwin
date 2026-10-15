@@ -10,7 +10,12 @@ import {
 import { saveAttachedCliImageAttachment, saveLocalCliImageAttachment } from './cli-prompt-image.js';
 import { buildCliContextRefs, collectRefArgs } from './context-ref-args.js';
 import { createCliBackendPermissionResponder, parseCliAgent } from './external-agent-cli.js';
-import { HostRuntime, getPiwinRoot, loadPiwinConfig } from '@piwin/host-runtime';
+import {
+  HostRuntime,
+  applyHostNetworkProxy,
+  getPiwinRoot,
+  loadPiwinConfig,
+} from '@piwin/host-runtime';
 import { randomUUID } from 'node:crypto';
 import {
   parseMock,
@@ -264,6 +269,7 @@ export async function commandChat(argv: string[]): Promise<void> {
   const answerLocalBackendPermission = createCliBackendPermissionResponder((command) =>
     runtime.handleCommand(command),
   );
+  applyHostNetworkProxy();
   const runtime: HostRuntime = new HostRuntime({
     mode,
     mock,

@@ -46,7 +46,7 @@ import {
   type SessionSeedMessage,
   type EphemeralProviderSecret,
 } from '@piwin/contracts';
-import { formatError, pickWindowsChildSystemEnv } from '@piwin/contracts';
+import { formatError, pickChildProxyEnv, pickWindowsChildSystemEnv } from '@piwin/contracts';
 import { encodeWorkerSecretBootstrap } from './rpc/worker-secret-bootstrap.js';
 import type {
   SerializableBlueprint,
@@ -177,6 +177,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
     if (process.env.PATH) workerEnvironment.PATH = process.env.PATH;
     if (process.env.NODE_ENV) workerEnvironment.NODE_ENV = process.env.NODE_ENV;
     Object.assign(workerEnvironment, pickWindowsChildSystemEnv(process.platform, process.env));
+    Object.assign(workerEnvironment, pickChildProxyEnv(process.env));
     Object.assign(workerEnvironment, this.options.env ?? {});
     // Validate and bound the payload before allocating a child process.
     const bootstrapFrame = encodeWorkerSecretBootstrap(this.options.bootstrapSecrets ?? []);

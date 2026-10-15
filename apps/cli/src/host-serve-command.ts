@@ -9,7 +9,11 @@ import { interceptSidecarLocalShellAccess } from './local-shell-access-serve.js'
 import { createSidecarMobileAccess, interceptSidecarMobileAccess } from './mobile-access-serve.js';
 import { LOCAL_JSONL_CLIENT_ID, createSidecarHostAuthority } from './sidecar-host-authority.js';
 import { attachSidecarLocalEgress } from './sidecar-local-egress.js';
-import { HostRuntime, applyPiwinPlaywrightBrowsersPath } from '@piwin/host-runtime';
+import {
+  HostRuntime,
+  applyHostNetworkProxy,
+  applyPiwinPlaywrightBrowsersPath,
+} from '@piwin/host-runtime';
 import {
   LocalShellAccess,
   admitAndExecuteHostCommand,
@@ -36,6 +40,8 @@ export async function commandHostServe(argv: string[]): Promise<void> {
   const permissionModeOverride = resolvePermissionModeOverride(argv);
   const transport = createJsonlStdioTransport();
   applyPiwinPlaywrightBrowsersPath(hostDataRoot);
+  // Before any fetch: OAuth, providers and workers all read the resolved proxy.
+  console.error(`[piwin-host] ${applyHostNetworkProxy()}`);
   const runtimeOptions: ConstructorParameters<typeof HostRuntime>[0] = {
     mode,
     mock,

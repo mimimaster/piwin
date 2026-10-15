@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { applyPiwinPlaywrightBrowsersPath, HostRuntime } from '@piwin/host-runtime';
+import {
+  applyHostNetworkProxy,
+  applyPiwinPlaywrightBrowsersPath,
+  HostRuntime,
+} from '@piwin/host-runtime';
 import {
   HostDevicePairing,
   HostDevicePairingFileStore,
@@ -42,6 +46,8 @@ const webRootRaw = process.env.PIWIN_HOST_WEB_ROOT?.trim();
 const webRoot = webRootRaw === undefined || webRootRaw.length === 0 ? undefined : webRootRaw;
 const piwinRoot = resolvePiwinRoot();
 applyPiwinPlaywrightBrowsersPath(piwinRoot);
+// Before any fetch: OAuth, providers and workers all read the resolved proxy.
+console.error(`[piwin-host] ${applyHostNetworkProxy()}`);
 
 const agentWorkerScript = resolveAgentWorkerScript();
 const clientToolBroker = await createDeviceToolBrokerForHost(piwinRoot);

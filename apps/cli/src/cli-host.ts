@@ -5,7 +5,7 @@ import {
   createIdempotencyKey,
   executeHostRequestAttempt,
 } from '@piwin/host-client';
-import { HostRuntime } from '@piwin/host-runtime';
+import { HostRuntime, applyHostNetworkProxy } from '@piwin/host-runtime';
 import { connectCliAttachedHost, readCliHostAttachTarget } from './attach-existing-host.js';
 
 export type CliHostRequestOptions = {
@@ -52,6 +52,8 @@ export async function openCliHost(
       },
     };
   }
+  // In-process Host: same proxy resolution as `host serve`, without the log line.
+  applyHostNetworkProxy();
   const runtime = new HostRuntime(options);
   return {
     transport: 'in-process',

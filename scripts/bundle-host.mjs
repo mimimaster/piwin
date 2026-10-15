@@ -35,6 +35,8 @@ const EXTERNAL_DEPS = {
   'node-pty': '1.2.0-beta.12',
   // Native libvips bindings cannot be inlined by esbuild.
   sharp: '0.35.4',
+  // Same copy Pi uses: the Host proxy dispatcher and Pi's fetch must share one undici.
+  undici: '8.9.0',
 };
 
 function run(cmd, args, options = {}) {

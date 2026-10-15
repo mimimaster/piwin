@@ -32,3 +32,30 @@ export function pickWindowsChildSystemEnv(
   }
   return picked;
 }
+
+/**
+ * Proxy variables a Host-spawned child needs to reach the network the same
+ * way the Host does. The Host resolves them once at startup (env first, then
+ * the OS proxy); trimmed child environments must carry them forward or model
+ * calls from workers bypass the proxy and time out.
+ */
+export const CHILD_PROXY_ENV_KEYS = [
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'no_proxy',
+] as const;
+
+/** Pick the non-empty proxy variables from `source`. */
+export function pickChildProxyEnv(
+  source: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+  const picked: Record<string, string> = {};
+  for (const key of CHILD_PROXY_ENV_KEYS) {
+    const value = source[key];
+    if (value !== undefined && value.trim().length > 0) picked[key] = value;
+  }
+  return picked;
+}

@@ -107,6 +107,7 @@ export {
   getPiwinSessionWalkthroughPath,
   getPiwinSessionWalkthroughMdPath,
 } from './paths.js';
+export { applyHostNetworkProxy } from './network-proxy/host-network-proxy.js';
 export { createRemoteProjectId, isRemoteProjectId } from './remote-project-id.js';
 export {
   listInterruptedTranscriptMigrations,

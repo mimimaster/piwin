@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickWindowsChildSystemEnv } from './child-process-env.js';
+import { pickChildProxyEnv, pickWindowsChildSystemEnv } from './child-process-env.js';
 
 describe('pickWindowsChildSystemEnv', () => {
   const source = {
@@ -21,5 +21,18 @@ describe('pickWindowsChildSystemEnv', () => {
   it('adds nothing on POSIX platforms', () => {
     expect(pickWindowsChildSystemEnv('linux', source)).toEqual({});
     expect(pickWindowsChildSystemEnv('darwin', source)).toEqual({});
+  });
+});
+
+describe('pickChildProxyEnv', () => {
+  it('keeps only non-empty proxy variables', () => {
+    expect(
+      pickChildProxyEnv({
+        HTTPS_PROXY: 'http://127.0.0.1:7897',
+        no_proxy: 'localhost',
+        HTTP_PROXY: '  ',
+        OPENAI_API_KEY: 'must-not-leak',
+      }),
+    ).toEqual({ HTTPS_PROXY: 'http://127.0.0.1:7897', no_proxy: 'localhost' });
   });
 });

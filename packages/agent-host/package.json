@@ -29,7 +29,8 @@
     "@earendil-works/pi-coding-agent": "0.84.2",
     "@piwin/contracts": "workspace:*",
     "google-auth-library": "10.9.0",
-    "typebox": "1.1.38"
+    "typebox": "1.1.38",
+    "undici": "8.9.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
