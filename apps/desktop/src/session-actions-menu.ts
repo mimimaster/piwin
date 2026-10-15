@@ -36,6 +36,7 @@ export function sessionActionItems(options: {
   canExport?: boolean;
   canDuplicate?: boolean;
   canForkChat?: boolean;
+  canHandoff?: boolean;
   canContinueInProject?: boolean;
   locale?: string;
 }): SessionActionItem[] {
@@ -120,6 +121,15 @@ export function sessionActionItems(options: {
             action: 'fork-chat' as const,
             label: isChinese ? '分叉' : 'Fork Chat',
             testId: 'session-menu-fork-chat',
+          },
+        ]),
+    ...(options.canHandoff === false
+      ? []
+      : [
+          {
+            action: 'handoff' as const,
+            label: isChinese ? '交接到新会话' : 'Hand off to new session',
+            testId: 'session-menu-handoff',
           },
         ]),
     ...(options.canContinueInProject === false

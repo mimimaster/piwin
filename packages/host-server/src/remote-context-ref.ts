@@ -29,6 +29,12 @@ function isSafeLabel(value: string): boolean {
  */
 export function isSafeRemoteContextRef(ref: PromptContextRef): boolean {
   switch (ref.kind) {
+    case 'session-handoff':
+      return (
+        isSafeLabel(ref.label) &&
+        isSafeRemoteId(ref.sessionId) &&
+        isSafeRemoteId(ref.sourceSessionId)
+      );
     case 'main-message':
       return (
         isSafeLabel(ref.label) &&

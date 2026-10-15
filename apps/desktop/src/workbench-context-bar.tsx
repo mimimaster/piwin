@@ -218,7 +218,11 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
         ? {
             onReturnToRoot: () => void onResumeSession(activeSessionOrigin.rootSessionId),
           }
-        : {})}
+        : activeSessionOrigin?.kind === 'handoff'
+          ? {
+              onReturnToRoot: () => void onResumeSession(activeSessionOrigin.sourceSessionId),
+            }
+          : {})}
       {...(props.onOpenSessionSearch ? { onOpenSearch: props.onOpenSessionSearch } : {})}
       {...(props.onRevealActiveSession && !subPageTitle
         ? { onRevealActiveSession: props.onRevealActiveSession }

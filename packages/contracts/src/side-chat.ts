@@ -69,6 +69,18 @@ export type FolderContextRef = {
   label: string;
 };
 
+/**
+ * Handoff summary stored with the new session. Ids only, so remote clients
+ * never see Host paths; the Host resolves it for that session's prompts only.
+ */
+export type SessionHandoffContextRef = {
+  kind: 'session-handoff';
+  /** The new session that owns the stored summary. */
+  sessionId: string;
+  sourceSessionId: string;
+  label: string;
+};
+
 export type MainContextRef =
   | {
       kind: 'main-message';
@@ -118,7 +130,7 @@ export type SideChatOnlyContextRef = {
 export type SideChatContextRef = MainContextRef | SideChatOnlyContextRef;
 
 /** Context refs accepted by session/prompt (handoff path, §8.2). */
-export type PromptContextRef = SideChatContextRef | MainContextRef;
+export type PromptContextRef = SideChatContextRef | MainContextRef | SessionHandoffContextRef;
 
 /** side-chat/open response payload (§8.1). */
 export type SideChatOpenData = {

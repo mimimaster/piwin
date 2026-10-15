@@ -1,4 +1,4 @@
-import type { HostCommand, HostResponse, PromptInput } from '@piwin/contracts';
+import type { HostCommand, HostResponse, PromptInput, SessionHandoffData } from '@piwin/contracts';
 import type { TranscriptState } from './transcript-model.js';
 import { findLastUserMessage } from './tui-composer-options.js';
 import { listRewindItems } from './rewind-items.js';
@@ -147,6 +147,30 @@ export class TuiTurnActions {
     }
     await this.port.openSession(forked.sessionId);
     this.port.notice('info', `这是分叉出的会话「${label}」，原会话没有变化`);
+  }
+
+  /**
+   * A new empty session that carries a summary of this one; this session is
+   * untouched. Returns the result so the caller can attach the summary ref.
+   */
+  public async handoff(instructions: string): Promise<SessionHandoffData | undefined> {
+    const sessionId = this.requireIdleSession('交接');
+    if (sessionId === undefined) return undefined;
+    this.port.notice('info', '正在生成交接摘要…');
+    const data = hostData<SessionHandoffData>(
+      await this.port.request({
+        type: 'session/handoff',
+        sessionId,
+        ...(instructions.length === 0 ? {} : { instructions }),
+      }),
+    );
+    if (this.port.embedded) {
+      this.port.notice('info', `已交接到「${data.session.name ?? data.sessionId}」，在侧栏打开`);
+      return data;
+    }
+    await this.port.openSession(data.sessionId);
+    this.port.notice('info', '这是交接出的新会话，下一条消息会带上交接摘要；原会话没有变化');
+    return data;
   }
 
   private requireIdleSession(action: string): string | undefined {

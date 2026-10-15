@@ -14,7 +14,9 @@ import type { MockHostBackend } from './host-client-mock.js';
 import type {
   HostCommand,
   HostResponse,
+  HandoffSessionOrigin,
   ProductSessionOrigin,
+  SessionHandoffData,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
 
@@ -398,6 +400,53 @@ export async function handleMockSessionLifecycleCommands(
             origin,
           },
         };
+      }
+      case 'session/handoff': {
+        const session = host.sessions.get(command.sessionId);
+        if (!session || visibleMockTranscript(session).length === 0) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/handoff',
+            success: false,
+            error: session ? 'Session has no messages to summarize' : 'unknown session',
+          };
+        }
+        const handoffId = crypto.randomUUID();
+        const origin: HandoffSessionOrigin = {
+          kind: 'handoff',
+          sourceSessionId: command.sessionId,
+          ...(session.name ? { sourceSessionNameSnapshot: session.name } : {}),
+          createdAt: new Date().toISOString(),
+        };
+        host.sessions.set(handoffId, {
+          projectPath: session.projectPath,
+          events: [],
+          transcript: [],
+          name: `Handoff · ${session.name ?? `session-${command.sessionId.slice(0, 8)}`}`,
+          updatedAt: origin.createdAt,
+          isPinned: false,
+          isArchived: false,
+          origin,
+        });
+        const handoffSession = host.sessions.get(handoffId);
+        if (!handoffSession) {
+          throw new Error(`Mock handoff session was not stored: ${handoffId}`);
+        }
+        const data: SessionHandoffData = {
+          sessionId: handoffId,
+          sourceSessionId: command.sessionId,
+          session: host.mockSessionSummary(handoffId, handoffSession),
+          origin,
+          contextRef: {
+            kind: 'session-handoff',
+            sessionId: handoffId,
+            sourceSessionId: command.sessionId,
+            label: 'Handoff summary',
+          },
+          summaryChars: 0,
+        };
+        return { id, type: 'response', command: 'session/handoff', success: true, data };
       }
       case 'session/lineage': {
         return {

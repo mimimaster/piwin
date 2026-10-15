@@ -86,7 +86,14 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     side: (argument) => deps.sideChat.open(argument),
     back: () => deps.sideChat.back(),
     sync: () => deps.sideChat.sync(),
-    handoff: () => deps.sideChat.handoffLatest(),
+    handoff: async (argument) => {
+      if (deps.sideChat.isInside()) {
+        await deps.sideChat.handoffLatest();
+        return;
+      }
+      const data = await turns.handoff(argument);
+      if (data !== undefined && !deps.embedded) deps.sideChat.carryRefs(data.sessionId, [data.contextRef]);
+    },
     plan: () => plans.open(),
     subagents: () => deps.subagents.open(),
     attach: (argument) => attachments.attachPaths(argument),

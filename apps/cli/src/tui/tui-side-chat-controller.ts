@@ -60,10 +60,22 @@ export class TuiSideChatController {
     return this.inside?.sideChatSessionId === sideChatSessionId ? this.inside.sourceSessionId : undefined;
   }
 
+  public isInside(): boolean {
+    return this.current() !== undefined;
+  }
+
+  /** Session handoff: the new session's next prompt carries the summary ref. */
+  public carryRefs(sessionId: string, refs: readonly PromptContextRef[]): void {
+    this.handoff = { sourceSessionId: sessionId, refs: [...refs] };
+  }
+
   public describe(): string | undefined {
     if (this.current() !== undefined) return '侧聊 · /back 返回';
-    const pending = this.pendingRefs().length;
-    return pending === 0 ? undefined : `带回侧聊回答 ${pending}`;
+    const pending = this.pendingRefs();
+    if (pending.length === 0) return undefined;
+    return pending.some((ref) => ref.kind === 'session-handoff')
+      ? '带着交接摘要 · 输入下一步继续'
+      : `带回侧聊回答 ${pending.length}`;
   }
 
   /** `/side [name]`: step into a side chat of the session on screen. */

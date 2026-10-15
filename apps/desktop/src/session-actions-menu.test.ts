@@ -61,8 +61,24 @@ describe('sessionActionItems', () => {
       'rename',
       'copy-id',
       'fork-chat',
+      'handoff',
       'archive',
     ]);
+  });
+
+  it('offers Hand off right after Fork Chat, in Chinese too', () => {
+    const actions = sessionActionItems({ isPinned: false, isArchived: false }).map((item) => item.action);
+    expect(actions.indexOf('handoff')).toBe(actions.indexOf('fork-chat') + 1);
+    expect(sessionActionItems({ isPinned: false, isArchived: false, locale: 'zh-CN' })).toContainEqual({
+      action: 'handoff',
+      label: '交接到新会话',
+      testId: 'session-menu-handoff',
+    });
+  });
+
+  it('hides Hand off when the Host or session cannot summarize', () => {
+    const items = sessionActionItems({ isPinned: false, isArchived: false, canHandoff: false });
+    expect(items.some((item) => item.action === 'handoff')).toBe(false);
   });
 
   it('hides Fork Chat when the Host omits session/fork', () => {

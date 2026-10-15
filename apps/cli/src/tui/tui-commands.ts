@@ -24,7 +24,7 @@ export const TUI_SLASH_COMMANDS: readonly TuiSlashCommand[] = [
   { name: 'side', description: '开一个侧聊：不写回主会话的旁支对话（/side [名称]）' },
   { name: 'back', description: '从侧聊返回主会话' },
   { name: 'sync', description: '侧聊里：同步主会话的新内容' },
-  { name: 'handoff', description: '侧聊里：把最新回答带回主会话的下一条消息' },
+  { name: 'handoff', description: '交接到新会话，带上摘要接着干：/handoff [重点]；侧聊里则把最新回答带回主会话' },
   { name: 'subagents', description: '预览子代理的过程，处理它们的结果' },
   { name: 'plan', description: '查看计划，批准、执行或中止' },
   { name: 'compact', description: '压缩上下文（可附加说明）' },

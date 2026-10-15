@@ -4,7 +4,7 @@
  * Inkstone proto-00: `.turn-colophon` with `.colo-meta` on the left and
  * `.acts-f` icon buttons on the right (dashed top rule).
  */
-import { useState, type ReactElement } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import type { ProductSessionLineageView } from '@piwin/contracts';
 import { IconCheck, IconCopy, IconFork, IconRefresh } from '@piwin/ui-kit';
 import { writeTextToSystemClipboard } from './desktop-clipboard';
@@ -15,6 +15,8 @@ export type AssistantResponseActionsProps = {
   messageText?: string;
   /** Left meta for `.colo-meta` — tokens only (e.g. "本轮消耗 1.8k tokens"). */
   colophonMeta?: string | null;
+  /** Leading chip before the meta (Reply Writer state in project sessions). */
+  colophonLead?: ReactNode;
   showFork: boolean;
   showRegenerate?: boolean;
   /** Number of direct forks from this response (0 = no count badge). */
@@ -78,7 +80,10 @@ export function AssistantResponseActions(
       data-st="idle"
       data-testid="assistant-response-actions"
     >
-      <span className="colo-meta">{meta ?? ''}</span>
+      <span className="colo-meta">
+        {props.colophonLead}
+        {meta ?? ''}
+      </span>
       <div className="acts-f">
         {hasCopyText ? (
           <button

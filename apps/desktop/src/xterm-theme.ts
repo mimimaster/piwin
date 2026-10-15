@@ -23,7 +23,11 @@ function readVarOr(name: string, fallback: string): string {
 
 /** Snapshot the current Deck ramp into an xterm ITheme. */
 export function readDeckXtermTheme(): ITheme {
-  const background = readVarOr('--term-bg', readVarOr('--void', '#08080b'));
+  const termBg = readVarOr('--term-bg', readVarOr('--void', '#08080b'));
+  // On a translucent window (styles/window-material.css) the canvas clears to
+  // `--xterm-canvas` and the dock paints the glass behind it; ANSI black keeps
+  // the solid console tone so `\e[40m` blocks still read as black.
+  const background = readVarOr('--xterm-canvas', termBg);
   const foreground = readVarOr('--text-1', '#ededf2');
   const iris = readVarOr('--iris', '#6e5dff');
   return {
@@ -33,7 +37,7 @@ export function readDeckXtermTheme(): ITheme {
     cursorAccent: readVarOr('--on-iris', '#ffffff'),
     selectionBackground: readVarOr('--iris-wash', iris),
     selectionForeground: foreground,
-    black: background,
+    black: termBg,
     red: readVarOr('--coral', '#ff5f56'),
     green: readVarOr('--mint', '#3ecf8e'),
     yellow: readVarOr('--amber', '#f5b544'),

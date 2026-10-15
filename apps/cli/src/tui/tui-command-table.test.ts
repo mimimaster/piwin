@@ -76,6 +76,32 @@ describe('TUI command table', () => {
     expect(deps.hint).toHaveBeenCalledTimes(2);
   });
 
+  it('/handoff carries a side-chat answer back when inside a side chat', async () => {
+    const deps = createDeps();
+    vi.mocked(deps.sideChat.isInside).mockReturnValue(true);
+    await createTuiCommandTable(deps)('handoff', '');
+    expect(deps.sideChat.handoffLatest).toHaveBeenCalled();
+    expect(deps.turns.handoff).not.toHaveBeenCalled();
+  });
+
+  it('/handoff in a main session opens a new session that carries the summary', async () => {
+    const deps = createDeps();
+    const contextRef = { kind: 'session-handoff' as const, sessionId: 'next', sourceSessionId: 'prev', label: 'x' };
+    vi.mocked(deps.sideChat.isInside).mockReturnValue(false);
+    vi.mocked(deps.turns.handoff).mockResolvedValue({ sessionId: 'next', contextRef } as never);
+    await createTuiCommandTable(deps)('handoff', '只看鉴权');
+    expect(deps.turns.handoff).toHaveBeenCalledWith('只看鉴权');
+    expect(deps.sideChat.carryRefs).toHaveBeenCalledWith('next', [contextRef]);
+  });
+
+  it('/handoff carries nothing when Desktop embeds the TUI', async () => {
+    const deps = createDeps(true);
+    vi.mocked(deps.sideChat.isInside).mockReturnValue(false);
+    vi.mocked(deps.turns.handoff).mockResolvedValue({ sessionId: 'next' } as never);
+    await createTuiCommandTable(deps)('handoff', '');
+    expect(deps.sideChat.carryRefs).not.toHaveBeenCalled();
+  });
+
   it('says so for a name it does not know', async () => {
     const deps = createDeps();
     await createTuiCommandTable(deps)('nope', '');

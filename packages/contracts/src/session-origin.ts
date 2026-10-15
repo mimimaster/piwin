@@ -38,8 +38,19 @@ export type ForkSessionOrigin = {
   createdAt: string;
 };
 
+/**
+ * Origin metadata for a session started by handing off another session: it
+ * starts empty and carries only a distilled summary of the source.
+ */
+export type HandoffSessionOrigin = {
+  kind: 'handoff';
+  sourceSessionId: string;
+  sourceSessionNameSnapshot?: string;
+  createdAt: string;
+};
+
 /** Discriminated union for product session origin. */
-export type ProductSessionOrigin = DuplicateSessionOrigin | ForkSessionOrigin;
+export type ProductSessionOrigin = DuplicateSessionOrigin | ForkSessionOrigin | HandoffSessionOrigin;
 
 /** A node in a product session lineage view. */
 export type ProductSessionLineageNode = {

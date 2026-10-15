@@ -341,16 +341,18 @@ function VirtualizedTranscriptTurns(
     [props.turns],
   );
   const measureTurnBody = useCallback(
-    (element: HTMLElement): void => {
-      // measureElement keys a node by its data-index. A detached body keeps the
-      // index it last rendered at, so once a history page or bounded-window
-      // trim shifts turns it would claim that index's *current* key: cache the
-      // detached node's zero height (→ estimate) and unobserve the live body,
-      // leaving an under-sized slot that never heals and paints over neighbors.
-      if (!element.isConnected || !listRef.current?.contains(element)) {
-        return;
-      }
-      virtualizer.measureElement(element);
+    (element: HTMLElement | null): void => {
+      // A measurement can adjust scrollTop and request flushSync. Ref callbacks
+      // and layout effects run inside React's commit; measure just after it,
+      // before paint. ResizeObserver and scroll events keep their sync policy.
+      queueMicrotask(() => {
+        // Detached bodies retain an old data-index which may now identify a
+        // different turn. Never let those stale nodes overwrite its height.
+        if (element && (!element.isConnected || !listRef.current?.contains(element))) {
+          return;
+        }
+        virtualizer.measureElement(element);
+      });
     },
     [virtualizer],
   );
@@ -499,7 +501,7 @@ function VirtualizedTranscriptTurns(
               to virtualItem.size so under-measure cannot paint over neighbors.
             */}
             <div
-              ref={virtualizer.measureElement}
+              ref={measureTurnBody}
               className="transcript-turn-window-item-body"
               data-index={virtualItem.index}
               data-turn-id={turn.id}

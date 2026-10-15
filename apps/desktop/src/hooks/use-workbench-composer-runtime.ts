@@ -162,6 +162,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
   const {
     composer,
     setComposer,
+    seedSessionContextRefs,
     draftSessions,
     activeDraftId,
     startNewDraft,
@@ -307,6 +308,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     removeContextRef,
     composer,
     setComposer,
+    seedSessionContextRefs,
     draftSessions,
     activeDraftId,
     startNewDraft,

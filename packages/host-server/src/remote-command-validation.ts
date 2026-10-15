@@ -188,6 +188,11 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
         command.workspaceStrategy === 'shared' &&
         command.messageProjection === 'none'
       );
+    case 'session/handoff':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        (command.instructions === undefined || command.instructions.length <= 4000)
+      );
     case 'session/truncate-from':
       return (
         isSafeRemoteId(command.sessionId) &&

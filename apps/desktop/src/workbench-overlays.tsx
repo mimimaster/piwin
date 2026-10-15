@@ -240,6 +240,10 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
         activeSessionCapabilities.supports('fork')
           ? {}
           : { sessionMenuCanForkChat: false })}
+        {...(props.hostClient.supportsCommand('session/handoff') &&
+        activeSessionCapabilities.supports('compact')
+          ? {}
+          : { sessionMenuCanHandoff: false })}
         {...(props.hostClient.supportsCommand('session/duplicate') &&
         activeSessionCapabilities.supports('duplicate')
           ? {}

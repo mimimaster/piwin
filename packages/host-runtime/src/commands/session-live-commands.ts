@@ -128,6 +128,7 @@ import { settleOrphanStreamingMessages } from '../transcript-stream-settler.js';
 import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { handleCompactionCommand } from './compaction-live.js';
+import { handleSessionHandoffCommand } from './session-handoff.js';
 import { createResolveRefsDeps, persistSessionComposerProfile } from './prompt-preparation.js';
 import { resolveSessionOutputPath } from './compaction-live.js';
 import { handleRunControlCommand } from './run-control-commands.js';
@@ -165,6 +166,7 @@ const TYPES = new Set<HostCommand['type']>([
   'session/follow_up',
   'session/compact',
   'session/compact-export',
+  'session/handoff',
   'session/compact-abort',
   'session/compaction-settings',
   'session/set-auto-compaction',
@@ -200,6 +202,9 @@ export async function handleSessionLiveCommand(
     (await handleSessionBranchCommand(command, requestId, context)) ??
     (await handleSessionPromptCommand(command, requestId, context));
   if (delegated !== null) return delegated;
+  if (command.type === 'session/handoff') {
+    return handleSessionHandoffCommand(command, requestId, context);
+  }
   switch (command.type) {
     case 'session/create': {
       let createInput = command.input;

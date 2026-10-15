@@ -379,7 +379,7 @@ async function compactSessionHandle(
  * command persists a new session, so this flow reuses its pure clone
  * primitive and only passes the clone into Pi's in-memory session manager.
  */
-async function compactTranscriptSnapshot(
+export async function compactTranscriptSnapshot(
   context: SessionLiveContext,
   record: SessionIndexRecord,
   customInstructions?: string,
@@ -443,13 +443,16 @@ async function compactTranscriptSnapshot(
       temporarySession.abortCompaction?.();
       return { ok: false, message: 'Compaction cancelled' };
     }
-    return await compactSessionHandle(
+    const result = await compactSessionHandle(
       context,
       temporarySession.id,
       temporarySession,
       customInstructions,
       { persistBoundary: false },
     );
+    // A provider may resolve successfully while its abort request is in flight.
+    // Once cancellation is accepted, callers must not publish that summary.
+    return operation.abortRequested ? { ok: false, message: 'Compaction cancelled' } : result;
   } catch (error) {
     operationFailed = true;
     operationError = error;

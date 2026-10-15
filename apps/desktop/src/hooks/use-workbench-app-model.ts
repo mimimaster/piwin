@@ -2,7 +2,7 @@
  * Workbench owners: host runtime, session hydrate/restore, composer, and
  * view gestures. Must not list hydrateSessions in cold-start effect deps.
  */
-import { useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import type { HostLogEntry } from '../HostLogPanel';
 import { useArtifactCanvasAutoReveal } from './use-artifact-canvas-auto-reveal';
@@ -16,6 +16,8 @@ import { useWorkbenchDerivedView } from './use-workbench-derived-view';
 import { useWorkbenchHostRuntime } from './use-workbench-host-runtime';
 import { useWorkbenchSessionGestures } from './use-workbench-session-gestures';
 import { useWorkbenchSessionRuntime } from './use-workbench-session-runtime';
+import { useSessionHandoff } from './use-session-handoff';
+import type { SessionRowMenuAction } from '../session-row-menu';
 import { useWorkbenchSubagentInspector } from './use-workbench-subagent-inspector';
 import { useWorkbenchTurnActions } from './use-workbench-turn-actions';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
@@ -79,6 +81,26 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     session,
     ...(knowledgeMountsRef ? { knowledgeMountsRef } : {}),
   });
+  const { handleHandoffSession } = useSessionHandoff({
+    hostClient,
+    state,
+    dispatch,
+    dispatchNotification: host.dispatchNotification,
+    handleResumeSession: session.handleResumeSession,
+    seedSessionContextRefs: composer.seedSessionContextRefs,
+  });
+  const sessionMenuAction = session.handleSessionMenuAction;
+  // Handoff needs the composer (to park the summary chip), which session actions cannot see.
+  const handleSessionMenuAction = useCallback(
+    async (sessionId: string, action: SessionRowMenuAction): Promise<void> => {
+      if (action === 'handoff') {
+        await handleHandoffSession(sessionId);
+        return;
+      }
+      await sessionMenuAction(sessionId, action);
+    },
+    [handleHandoffSession, sessionMenuAction],
+  );
   const {
     handleOpenDocument,
     handleOpenDiff,
@@ -235,5 +257,6 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     ...composerSurface,
     ...subagent,
     ...turn,
+    handleSessionMenuAction,
   };
 }

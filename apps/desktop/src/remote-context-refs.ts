@@ -29,6 +29,12 @@ function isSafeLabel(value: string): boolean {
  */
 export function isSafeRemoteContextRef(ref: PromptContextRef): boolean {
   switch (ref.kind) {
+    case 'session-handoff':
+      return (
+        isSafeLabel(ref.label) &&
+        isSafeRemoteId(ref.sessionId) &&
+        isSafeRemoteId(ref.sourceSessionId)
+      );
     case 'main-message':
       return (
         isSafeLabel(ref.label) &&
@@ -81,6 +87,7 @@ function flattenRefText(ref: PromptContextRef): string {
     case 'folder':
     case 'main-message':
     case 'side-chat-message':
+    case 'session-handoff':
       return ref.label;
     case 'diff':
     case 'terminal-output':

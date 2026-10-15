@@ -147,7 +147,7 @@ describe('transcript turn window', () => {
     expect(container.querySelector('[data-testid="transcript-turn-window"]')).toBeNull();
   });
 
-  it('renders before the first frame when the scroll root mounts with the transcript', () => {
+  it('renders before the first frame when the scroll root mounts with the transcript', async () => {
     function OpeningTranscript(): ReactElement {
       const scrollElementRef = useRef<HTMLDivElement | null>(null);
       return (
@@ -164,7 +164,7 @@ describe('transcript turn window', () => {
         </TranscriptScrollProvider>
       );
     }
-    act(() => root.render(<OpeningTranscript />));
+    await act(async () => root.render(<OpeningTranscript />));
     expect(container.querySelectorAll('[data-testid="rendered-turn"]')).toHaveLength(2);
   });
 

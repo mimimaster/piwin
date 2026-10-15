@@ -31,6 +31,7 @@ import { citationsForRefs, citedKnowledgeRefs } from './knowledge/knowledge-cita
 import { KnowledgeCitationSources } from './knowledge/KnowledgeCitationSources.js';
 import { AssistantResponseActions } from './assistant-response-actions';
 import { buildAssistantColophonMeta } from './chat-turn-marginalia';
+import { ReplyWriterChip, useReplyWriterDisplayText } from './reply-writer-chip';
 import { buildConversationTurnUsageChip } from './conversation-message-header';
 import { shouldHideConversationAssistantRow } from './conversation-turn-chrome';
 
@@ -95,6 +96,7 @@ const ChatMessageRowContent = (
         ? props.composerCard.onAbort
         : undefined;
     const contextMenu = useDesktopContextMenu();
+    const displayText = useReplyWriterDisplayText(message);
     const knowledgeCitations = useMemo(() => collectKnowledgeCitations(message), [message]);
     const citedKnowledgeSources = useMemo(
       () =>
@@ -358,9 +360,9 @@ const ChatMessageRowContent = (
                 ? { planExecutionGate: props.planExecutionGate }
                 : {})}
             >
-              {message.text.trim().length > 0 ? (
+              {displayText.trim().length > 0 ? (
                 <MarkdownView
-                  text={message.text}
+                  text={displayText}
                   renderingPhase={resolveAssistantRenderingPhase(
                     message,
                     props.runRecordsById,
@@ -611,7 +613,16 @@ const ChatMessageRowContent = (
             props.onRegenerate !== undefined)) ? (
           <AssistantResponseActions
             messageId={message.id}
-            messageText={message.text}
+            messageText={displayText}
+            // Conversation already shows the chip on its turn header.
+            {...(props.isConversationSession !== true &&
+            (message.replyWriter || message.replyWriterPending)
+              ? {
+                  colophonLead: (
+                    <ReplyWriterChip source={message} locale={props.locale ?? 'zh-CN'} />
+                  ),
+                }
+              : {})}
             colophonMeta={buildAssistantColophonMeta({
               message,
               locale: props.locale ?? 'zh-CN',

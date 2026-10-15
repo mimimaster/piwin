@@ -3,7 +3,12 @@
  * module builds the value DesktopContextMenuProvider consumes.
  */
 import type { Dispatch, SetStateAction } from 'react';
-import type { MediaAttachmentRef, PromptContextRef, SideChatOpenData } from '@piwin/contracts';
+import type {
+  MediaAttachmentRef,
+  PromptContextRef,
+  SideChatContextRef,
+  SideChatOpenData,
+} from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { AddContextRefResult } from '../hooks/use-composer-context-refs';
 import { revealLocalFileInFolder } from '../local-file-actions.js';
@@ -187,10 +192,14 @@ export function createDesktopContextMenuValue(
     },
     openSideChat: (input) => {
       if (!deps.activeSessionId) return;
+      // A handoff summary belongs to its own session's prompts, not a side chat.
+      const refs = (input.refs ?? []).filter(
+        (ref): ref is SideChatContextRef => ref.kind !== 'session-handoff',
+      );
       void deps.hostClient
         .sideChatOpen(deps.activeSessionId, {
           ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}),
-          ...(input.refs && input.refs.length > 0 ? { refs: input.refs } : {}),
+          ...(refs.length > 0 ? { refs } : {}),
         })
         .then((response) => {
           if (!response.success) {

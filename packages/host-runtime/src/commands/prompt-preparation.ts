@@ -27,6 +27,7 @@ import { getSessionRecord, mergeProductHistoryIntoPrompt } from '@piwin/session'
 import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piwin/session';
 import { type ModelPromptAssembly } from '../model-context-assembly.js';
 import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
+import { readSessionHandoffSummary } from '../session-handoff-store.js';
 import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import { findRegisteredProjectRoot, loadProjectStore } from '@piwin/project';
 import { scopeFromIndexRecord } from '../session-scope.js';
@@ -52,7 +53,14 @@ export { recoverModelFromTranscript } from './session-composer-model.js';
 export { persistSessionComposerProfile, throwIfPromptPreparationAborted };
 
 /** Build resolver deps with registered-project-root enforcement (security). */
-export function createResolveRefsDeps(context: SessionLiveContext): {
+/**
+ * `ownerSessionId` is the session whose prompt is being prepared; handoff
+ * summaries resolve only for that session.
+ */
+export function createResolveRefsDeps(
+  context: SessionLiveContext,
+  ownerSessionId?: string,
+): {
   loadTranscriptMessages: (
     sessionId: string,
   ) => Promise<import('@piwin/contracts').SessionTranscriptMessage[]>;
@@ -61,10 +69,15 @@ export function createResolveRefsDeps(context: SessionLiveContext): {
     messageId: string,
   ) => Promise<import('@piwin/contracts').SessionTranscriptMessage | undefined>;
   isRegisteredProjectRoot: (projectPath: string) => Promise<boolean>;
+  loadHandoffSummary: (sessionId: string) => Promise<string | undefined>;
   onDiagnostic: (message: string) => void;
 } {
   return {
     loadTranscriptMessages: context.loadTranscriptMessages,
+    loadHandoffSummary: async (sessionId) =>
+      ownerSessionId === sessionId
+        ? readSessionHandoffSummary(getPiwinRoot(context.piwinRoot), sessionId)
+        : undefined,
     loadTranscriptMessage: async (sessionId, messageId) => {
       try {
         return await (await context.getTranscriptStore(sessionId)).getMessage(messageId);
@@ -379,7 +392,7 @@ export async function preparePromptInput(
   if (promptSource.contextRefs && promptSource.contextRefs.length > 0) {
     try {
       const resolvedContext = await resolvePromptContextRefs(
-        createResolveRefsDeps(context),
+        createResolveRefsDeps(context, command.sessionId),
         promptSource.contextRefs,
       );
       if (resolvedContext) {
@@ -499,7 +512,7 @@ export async function injectProductHistoryOnce(
         ? { excludeMessageId: promptInput.clientMessageId }
         : {}),
     });
-    const history = await formatBoundedHistoryWithContext(context, historyRows);
+    const history = await formatBoundedHistoryWithContext(context, sessionId, historyRows);
     if (history) {
       promptInput.text = mergeProductHistoryIntoPrompt(history, promptInput.text);
     }
@@ -522,6 +535,7 @@ export async function injectProductHistoryOnce(
  */
 async function formatBoundedHistoryWithContext(
   context: SessionLiveContext,
+  sessionId: string,
   rows: ReadonlyArray<{
     role: string;
     text: string;
@@ -541,7 +555,7 @@ async function formatBoundedHistoryWithContext(
     if (row.role === 'user' && row.contextRefs && row.contextRefs.length > 0) {
       try {
         const resolvedContext = await resolvePromptContextRefs(
-          createResolveRefsDeps(context),
+          createResolveRefsDeps(context, sessionId),
           row.contextRefs,
         );
         if (resolvedContext) {

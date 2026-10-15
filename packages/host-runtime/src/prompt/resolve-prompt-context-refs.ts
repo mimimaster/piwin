@@ -30,6 +30,8 @@ export type ResolvePromptContextRefsDeps = {
     messageId: string,
   ) => Promise<SessionTranscriptMessage | undefined>;
   isRegisteredProjectRoot?: (projectPath: string) => Promise<boolean>;
+  /** Handoff summary for a session; undefined when absent or not allowed here. */
+  loadHandoffSummary?: (sessionId: string) => Promise<string | undefined>;
   onDiagnostic?: (message: string) => void;
 };
 
@@ -77,6 +79,19 @@ export async function resolvePromptContextRefs(
   const blocks: string[] = [];
   for (const ref of refs) {
     switch (ref.kind) {
+      case 'session-handoff': {
+        const summary = await deps.loadHandoffSummary?.(ref.sessionId);
+        if (summary) {
+          blocks.push(
+            `<context_ref type="session_handoff" label="${ref.label}">\n${summary.trim()}\n</context_ref>`,
+          );
+        } else {
+          deps.onDiagnostic?.(
+            `context ref missing: kind=session-handoff session=${ref.sessionId} source=${ref.sourceSessionId}`,
+          );
+        }
+        break;
+      }
       case 'side-chat-message': {
         const message = await loadReferencedMessage(deps, ref.sideChatSessionId, ref.messageId);
         if (message) {

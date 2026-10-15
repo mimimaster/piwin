@@ -60,6 +60,22 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   const sessionComposerSnapshotsRef = useRef(new Map<string, SessionComposerSnapshot>());
   const draftComposerSnapshotsRef = useRef(new Map<string, SessionComposerSnapshot>());
 
+  /**
+   * Park context chips on a session the user is about to open, so the switch
+   * restores them. Never overwrites a snapshot the session already has.
+   */
+  const seedSessionContextRefs = useCallback(
+    (sessionId: string, contextRefs: PromptContextRef[]): void => {
+      if (sessionComposerSnapshotsRef.current.has(sessionId)) return;
+      sessionComposerSnapshotsRef.current.set(sessionId, {
+        text: '',
+        attachments: [],
+        contextRefs,
+      });
+    },
+    [],
+  );
+
   const notifyError = useCallback(
     (message: string): void => {
       if (args.dispatchNotification) {
@@ -211,6 +227,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   return {
     composer,
     setComposer,
+    seedSessionContextRefs,
     draftSessions: drafts.draftSessions,
     activeDraftId: drafts.activeDraftId,
     startNewDraft: drafts.startNewDraft,

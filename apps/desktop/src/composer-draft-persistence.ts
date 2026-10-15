@@ -100,7 +100,11 @@ function persistableContextRef(ref: PromptContextRef): PromptContextRef | null {
   if (ref.kind === 'file' || ref.kind === 'folder' || ref.kind === 'main-message') {
     return ref;
   }
-  if (ref.kind === 'side-chat-message' || ref.kind === 'connected-source') {
+  if (
+    ref.kind === 'side-chat-message' ||
+    ref.kind === 'connected-source' ||
+    ref.kind === 'session-handoff'
+  ) {
     return ref;
   }
   return null;

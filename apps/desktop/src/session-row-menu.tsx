@@ -5,6 +5,7 @@ import { useEffect, useRef, type ReactElement, type ReactNode } from 'react';
 import {
   IconArchive,
   IconArrowFork,
+  IconArrowRight,
   IconGit,
   IconCopy,
   IconDownload,
@@ -26,6 +27,7 @@ export type SessionRowMenuAction =
   | 'copy-transcript'
   | 'duplicate'
   | 'fork-chat'
+  | 'handoff'
   | 'continue-in-project'
   | 'archive'
   | 'unarchive'
@@ -41,6 +43,7 @@ export type SessionRowMenuProps = {
   canExport?: boolean;
   canDuplicate?: boolean;
   canForkChat?: boolean;
+  canHandoff?: boolean;
   canContinueInProject?: boolean;
   locale?: string;
   /** Screen position for fixed menu (from contextmenu / button). */
@@ -64,6 +67,8 @@ function renderSessionActionIcon(action: SessionRowMenuAction): ReactNode {
       return <IconArrowFork width={14} height={14} />;
     case 'fork-chat':
       return <IconGit width={14} height={14} />;
+    case 'handoff':
+      return <IconArrowRight width={14} height={14} />;
     case 'continue-in-project':
       return <IconFolderOpen width={14} height={14} />;
     case 'export':
@@ -141,6 +146,7 @@ export function SessionRowMenu(props: SessionRowMenuProps): ReactElement {
     ...(props.canExport === false ? { canExport: false } : {}),
     ...(props.canDuplicate === false ? { canDuplicate: false } : {}),
     ...(props.canForkChat === false ? { canForkChat: false } : {}),
+    ...(props.canHandoff === false ? { canHandoff: false } : {}),
     ...(props.canContinueInProject === false ? { canContinueInProject: false } : {}),
     ...(props.locale ? { locale: props.locale } : {}),
   });

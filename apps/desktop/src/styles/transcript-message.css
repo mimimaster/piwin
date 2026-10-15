@@ -547,6 +547,10 @@ button.att:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Reply Writer chip leads the meta in project sessions; keep the UI face. */
+.turn-colophon .colo-meta .conversation-reply-writer-chip {
+  font-family: var(--font-sans);
+}
 .turn-colophon .acts-f,
 .acts-f {
   display: inline-flex;

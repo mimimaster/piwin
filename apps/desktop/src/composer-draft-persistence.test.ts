@@ -84,7 +84,9 @@ describe('composer draft persistence', () => {
             sessionId: 's1',
             text: 'parked',
             updatedAt: '2026-08-20T00:00:00.000Z',
-            contextRefs: [],
+            contextRefs: [
+              { kind: 'session-handoff', sessionId: 's1', sourceSessionId: 's0', label: '交接摘要' },
+            ],
             attachmentHints: [],
           },
         ],
@@ -103,6 +105,10 @@ describe('composer draft persistence', () => {
     const restored = draftsFromPersistedStore(store!);
     expect(restored.draftSnapshots.get('d1')?.attachments).toEqual([]);
     expect(restored.sessionSnapshots.get('s1')?.text).toBe('parked');
+    // A reload before the first send must not drop the handoff summary.
+    expect(restored.sessionSnapshots.get('s1')?.contextRefs).toEqual([
+      { kind: 'session-handoff', sessionId: 's1', sourceSessionId: 's0', label: '交接摘要' },
+    ]);
   });
 
   it('serializes in-memory drafts without File/blob chips', () => {

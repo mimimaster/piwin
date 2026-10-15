@@ -35,6 +35,7 @@ import { readWindowChromeFromEnvironment } from './window-chrome.js';
 import { WindowsCaptionControls } from './windows-caption-controls.js';
 import { isTauriRuntime } from './tauri-pty.js';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { describeSessionOriginBadge } from './session-origin-badge-copy';
 
 export type ContextBarSession = {
   title: string;
@@ -274,26 +275,12 @@ export function ContextBar(props: ContextBarProps): ReactElement {
               className="context-bar-origin-badge"
               data-testid="context-bar-origin-badge"
               data-origin-kind={props.origin.kind}
-              title={
-                props.origin.kind === 'fork'
-                  ? isChinese
-                    ? `从「${props.origin.sourceSessionNameSnapshot ?? '源会话'}」分叉`
-                    : `Forked from "${props.origin.sourceSessionNameSnapshot ?? 'source session'}"`
-                  : isChinese
-                    ? `复制自「${props.origin.sourceSessionNameSnapshot ?? '源会话'}」`
-                    : `Duplicated from "${props.origin.sourceSessionNameSnapshot ?? 'source session'}"`
-              }
+              title={describeSessionOriginBadge(props.origin, isChinese).title}
               onClick={props.onReturnToRoot}
             >
               <IconGit width={12} height={12} stroke={1.8} />
               <span>
-                {props.origin.kind === 'fork'
-                  ? isChinese
-                    ? '分支'
-                    : 'Branch'
-                  : isChinese
-                    ? '副本'
-                    : 'Duplicate'}
+                {describeSessionOriginBadge(props.origin, isChinese).label}
               </span>
             </button>
           ) : null}

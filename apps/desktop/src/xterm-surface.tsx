@@ -102,6 +102,8 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       fontSize: 13,
       fontFamily: readDeckXtermFontFamily(),
       theme: readDeckXtermTheme(),
+      // `--xterm-canvas` may be transparent on the native window material.
+      allowTransparency: true,
       allowProposedApi: false,
       // A full-screen program positions the cursor itself; rewriting its line
       // feeds would shift every frame.

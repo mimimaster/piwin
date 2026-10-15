@@ -89,6 +89,16 @@ export type SessionExportData = {
   byteLength: number;
 };
 
+/** `session/handoff`: a new empty session plus the ref that carries the summary. */
+export type SessionHandoffData = {
+  sessionId: string;
+  sourceSessionId: string;
+  session: import('./host.js').SessionSummary;
+  origin: import('./session-origin.js').HandoffSessionOrigin;
+  contextRef: import('./side-chat.js').SessionHandoffContextRef;
+  summaryChars: number;
+};
+
 /** Compact a temporary session snapshot and write only its summary as Markdown. */
 export type SessionCompactExportData = {
   sessionId: string;

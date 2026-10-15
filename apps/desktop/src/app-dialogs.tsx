@@ -45,6 +45,7 @@ export type AppDialogsProps = {
   sessionMenuCanExport?: boolean;
   sessionMenuCanDuplicate?: boolean;
   sessionMenuCanForkChat?: boolean;
+  sessionMenuCanHandoff?: boolean;
   sessionMenuCanContinueInProject?: boolean;
   renameDraft: SessionRenameDraft | null;
   onRenameDraftChange: (draft: SessionRenameDraft | null) => void;
@@ -215,6 +216,7 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
             {...(props.sessionMenuCanExport === false ? { canExport: false } : {})}
             {...(props.sessionMenuCanDuplicate === false ? { canDuplicate: false } : {})}
             {...(props.sessionMenuCanForkChat === false ? { canForkChat: false } : {})}
+            {...(props.sessionMenuCanHandoff === false ? { canHandoff: false } : {})}
             {...(props.sessionMenuCanContinueInProject === false
               ? { canContinueInProject: false }
               : {})}

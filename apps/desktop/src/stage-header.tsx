@@ -20,6 +20,7 @@ import type { ReactElement, ReactNode } from 'react';
 import type { PermissionPreset, ProductSessionOrigin } from '@piwin/contracts';
 import { IconGit } from '@piwin/ui-kit';
 import type { RunStatusView } from './run-status.js';
+import { describeSessionOriginBadge } from './session-origin-badge-copy';
 
 export type StageHeaderProps = {
   title: string;
@@ -78,26 +79,12 @@ export function StageHeader(props: StageHeaderProps): ReactElement {
             className="context-bar-origin-badge"
             data-testid="stage-origin-badge"
             data-origin-kind={props.origin.kind}
-            title={
-              props.origin.kind === 'fork'
-                ? isChinese
-                  ? `从「${props.origin.sourceSessionNameSnapshot ?? '源会话'}」分叉`
-                  : `Forked from "${props.origin.sourceSessionNameSnapshot ?? 'source session'}"`
-                : isChinese
-                  ? `复制自「${props.origin.sourceSessionNameSnapshot ?? '源会话'}」`
-                  : `Duplicated from "${props.origin.sourceSessionNameSnapshot ?? 'source session'}"`
-            }
+            title={describeSessionOriginBadge(props.origin, isChinese).title}
             onClick={props.onReturnToRoot}
           >
             <IconGit width={12} height={12} stroke={1.8} />
             <span>
-              {props.origin.kind === 'fork'
-                ? isChinese
-                  ? '分支'
-                  : 'Branch'
-                : isChinese
-                  ? '副本'
-                  : 'Duplicate'}
+              {describeSessionOriginBadge(props.origin, isChinese).label}
             </span>
           </button>
         ) : null}

@@ -2620,6 +2620,71 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     });
   }
 
+  function replyWriterTurn(prefix: string): ChatMessageUi[] {
+    const model = { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'grok-4.6' } as const;
+    return [
+      createUserMessage(`u-${prefix}`, 'fix the login'),
+      {
+        id: `a-${prefix}-1`,
+        role: 'assistant',
+        text: 'Reading the login code.',
+        thinking: '',
+        tools: [{ toolCallId: `t-${prefix}`, toolName: 'read', status: 'done', output: 'ok' }],
+        attachments: [],
+        status: 'done',
+        model,
+      },
+      {
+        id: `a-${prefix}-2`,
+        role: 'assistant',
+        text: 'Rewritten: the login path is fixed.',
+        thinking: '',
+        tools: [],
+        attachments: [],
+        status: 'done',
+        model,
+        replyWriter: {
+          language: 'en',
+          sourceText: 'draft: login path fixed lol',
+          model: { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'haiku-writer' },
+        },
+      },
+    ];
+  }
+
+  it('shows the reply-writer toggle once on the Conversation turn header', () => {
+    renderConversation(replyWriterTurn('rw-conv'), { onForkFromMessage: vi.fn() });
+    const chips = container.querySelectorAll('[data-testid="conversation-reply-writer-chip"]');
+    expect(chips).toHaveLength(1);
+    expect(chips[0]?.textContent).toBe('Rewritten by haiku-writer');
+  });
+
+  it('puts the reply-writer toggle in the project-session colophon and swaps the body', async () => {
+    renderConversation(replyWriterTurn('rw-proj'), {
+      isConversationSession: false,
+      onForkFromMessage: vi.fn(),
+    });
+    const chip = (): HTMLElement | null =>
+      container.querySelector(
+        '#msg-a-rw-proj-2 [data-testid="assistant-response-actions"] [data-testid="conversation-reply-writer-chip"]',
+      );
+    expect(chip()?.textContent).toBe('Rewritten by haiku-writer');
+    await vi.waitFor(() =>
+      expect(container.querySelector('#msg-a-rw-proj-2')?.textContent).toContain(
+        'Rewritten: the login path is fixed.',
+      ),
+    );
+    act(() => {
+      chip()?.click();
+    });
+    await vi.waitFor(() =>
+      expect(container.querySelector('#msg-a-rw-proj-2')?.textContent).toContain(
+        'draft: login path fixed lol',
+      ),
+    );
+    expect(chip()?.textContent).toBe('Original draft');
+  });
+
   it('renders content-first Conversation answers without Agent work details', () => {
     const userMessage = createUserMessage('u-chat', 'search this');
     const searchCall: ChatMessageUi = {

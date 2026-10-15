@@ -18,6 +18,7 @@ export const EXTERNAL_AGENT_UNSUPPORTED_COMMANDS: ReadonlyMap<string, SessionBac
   ['session/resume-run', 'pause'],
   ['session/compact', 'compact'],
   ['session/compact-export', 'compact'],
+  ['session/handoff', 'compact'],
   ['session/branch-switch', 'conversationTree'],
   ['session/truncate-from', 'rewind'],
   ['session/retract-paused-prompt', 'pause'],

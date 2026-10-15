@@ -35,6 +35,8 @@ the feature name misleading.
 ## Consequences
 
 - Compact export is genuinely smaller and is useful as a handoff artifact.
+- The same snapshot compaction powers `session/handoff` (ADR 0094), which
+  shares the per-source operation slot and `session/compact-abort`.
 - The original live Pi context is not changed, so a file-write failure does not
   alter the working session.
 - Snapshot creation pays the cost of one temporary agent session and one

@@ -51,6 +51,17 @@ describe('findHandoffMessage', () => {
 });
 
 describe('TuiSideChatController', () => {
+  it('carries a handoff summary only into the new session it was made for', () => {
+    const { controller, screen } = setup();
+    const ref = { kind: 'session-handoff' as const, sessionId: 'next', sourceSessionId: 'main', label: '交接摘要' };
+    controller.carryRefs('next', [ref]);
+    expect(controller.takeRefs()).toEqual([]);
+    screen.sessionId = 'next';
+    expect(controller.describe()).toBe('带着交接摘要 · 输入下一步继续');
+    expect(controller.takeRefs()).toEqual([ref]);
+    expect(controller.takeRefs()).toEqual([]);
+  });
+
   it('opens a side chat of the session on screen and steps into it', async () => {
     const { controller, screen, sent } = setup();
     await controller.open('');

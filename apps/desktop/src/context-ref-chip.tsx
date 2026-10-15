@@ -63,6 +63,9 @@ export function formatContextRefChipCaption(ref: PromptContextRef): {
   if (ref.kind === 'diff') {
     return { title: ref.label, meta: 'diff' };
   }
+  if (ref.kind === 'session-handoff') {
+    return { title: ref.label, meta: 'handoff' };
+  }
   return { title: ref.label, meta: ref.kind };
 }
 

@@ -16,6 +16,17 @@ describe('flattenUnsafeRemoteContextRefs', () => {
     });
   });
 
+  it('keeps a handoff summary ref: it carries ids only', () => {
+    const ref = {
+      kind: 'session-handoff' as const,
+      sessionId: 'session-2',
+      sourceSessionId: 'session-1',
+      label: '交接摘要',
+    };
+    expect(flattenUnsafeRemoteContextRefs('继续', [ref])).toEqual({ text: '继续', contextRefs: [ref] });
+    expect(isSafeRemoteContextRef({ ...ref, sessionId: '' })).toBe(false);
+  });
+
   it('keeps a transcript selection on the wire so history can render the chip', () => {
     const selection = {
       kind: 'selection' as const,

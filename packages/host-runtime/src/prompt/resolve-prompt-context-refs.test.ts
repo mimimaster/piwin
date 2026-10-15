@@ -178,6 +178,30 @@ describe('resolvePromptContextRefs', () => {
     expect(allowed).toContain('body');
   });
 
+  it('resolves a session-handoff ref through the summary loader', async () => {
+    const ref: PromptContextRef = {
+      kind: 'session-handoff',
+      sessionId: 'next',
+      sourceSessionId: 'prev',
+      label: 'Handoff summary',
+    };
+    const text = await resolvePromptContextRefs(
+      { ...emptyDeps(), loadHandoffSummary: async (id) => (id === 'next' ? 'Goal: ship it.' : undefined) },
+      [ref],
+    );
+    expect(text).toBe('<context_ref type="session_handoff" label="Handoff summary">\nGoal: ship it.\n</context_ref>');
+  });
+
+  it('reports a session-handoff ref whose summary is unavailable', async () => {
+    const diagnostics: string[] = [];
+    const text = await resolvePromptContextRefs(
+      { ...emptyDeps(), loadHandoffSummary: async () => undefined, onDiagnostic: (m) => diagnostics.push(m) },
+      [{ kind: 'session-handoff', sessionId: 'next', sourceSessionId: 'prev', label: 'Handoff summary' }],
+    );
+    expect(text).toBe('');
+    expect(diagnostics).toEqual(['context ref missing: kind=session-handoff session=next source=prev']);
+  });
+
   it('formats error/diff/terminal snapshot kinds', async () => {
     const text = await resolvePromptContextRefs(emptyDeps(), [
       {

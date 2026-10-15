@@ -306,6 +306,18 @@ export type SessionHostCommand =
       /** Absolute path; when omitted host writes under the session exports dir. */
       outputPath?: string;
     }
+  | {
+      id?: string;
+      /**
+       * Distill the session into a summary and open a new empty session that
+       * carries it as a context ref. The source session is not changed.
+       * Cancel with `session/compact-abort` on the source session.
+       */
+      type: 'session/handoff';
+      sessionId: string;
+      /** Optional focus for the summary. */
+      instructions?: string;
+    }
   | { id?: string; type: 'session/compact-abort'; sessionId: string }
   | { id?: string; type: 'session/compaction-settings'; sessionId: string }
   | {
