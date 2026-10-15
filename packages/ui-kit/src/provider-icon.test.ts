@@ -228,17 +228,25 @@ describe('ProviderIcon', () => {
     expect(provider).toContain('data-provider-brand="Minimax"');
   });
 
+  it('draws the Kiro mark for the kiro provider', () => {
+    const html = renderToStaticMarkup(createElement(ProviderIcon, { id: 'kiro', name: 'Kiro' }));
+    expect(html).toContain('data-provider-icon="kiro"');
+    expect(html).toContain('data-provider-brand="Kiro"');
+    expect(html).toContain('#9046FF');
+    expect(html).not.toContain('>K<');
+  });
+
   it('draws the neutral model mark instead of a monogram when fallback="model"', () => {
     const avatar = renderToStaticMarkup(
-      createElement(ProviderIcon, { id: 'kiro', modelId: 'house-model-1', fallback: 'model' }),
+      createElement(ProviderIcon, { id: 'house', modelId: 'house-model-1', fallback: 'model' }),
     );
-    expect(avatar).toContain('data-provider-icon="kiro"');
+    expect(avatar).toContain('data-provider-icon="house"');
     expect(avatar).toContain('data-provider-brand="model"');
     expect(avatar).toContain('<svg');
     expect(avatar).not.toContain('>K<');
 
     const glyph = renderToStaticMarkup(
-      createElement(ProviderIcon, { id: 'kiro', fallback: 'model', variant: 'glyph' }),
+      createElement(ProviderIcon, { id: 'house', fallback: 'model', variant: 'glyph' }),
     );
     expect(glyph).toContain('data-provider-brand="model"');
     expect(glyph).toContain('is-glyph');

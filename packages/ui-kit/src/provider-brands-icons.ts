@@ -3,6 +3,7 @@
  * parse every vendor SVG at startup.
  */
 import type { CSSProperties, ComponentType } from 'react';
+import { KiroIcon } from './kiro-mark.js';
 import {
   AlibabaCloud,
   Anthropic,
@@ -66,6 +67,7 @@ export const BRANDS: Record<string, BrandEntry> = {
   deepseek: { Icon: DeepSeek as BrandIcon, softBg: '#e8ecff', softFg: '#4d6bfe' },
   moonshot: { Icon: Moonshot as BrandIcon, softBg: '#edf1f6', softFg: '#16191d' },
   kimi: { Icon: Kimi as BrandIcon, softBg: '#eef4ff', softFg: '#2563eb' },
+  kiro: { Icon: KiroIcon, softBg: '#f3e8ff', softFg: '#9046ff' },
   'kimi-coding': { Icon: Kimi as BrandIcon, softBg: '#eef4ff', softFg: '#2563eb' },
   minimax: { Icon: Minimax as BrandIcon, softBg: '#fdecef', softFg: '#f23f5d' },
   xai: { Icon: XAI as BrandIcon, softBg: '#f1f5f9', softFg: '#09090b' },

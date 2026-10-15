@@ -181,12 +181,10 @@
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--r-card);
-  background: var(--surface-1);
-  border: 1px solid var(--line-1);
-  box-shadow: var(--elev-1);
+  line-height: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
   transition: transform var(--t-2) var(--ease-out);
 }
 
