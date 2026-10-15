@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import type { ExtensionSummary, ExternalAgentStatus } from '@piwin/contracts';
 import { Button, Notice, Switch } from '@piwin/ui-kit';
+import { AgentLocatorMark } from '../../agent-locator';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { useSettings } from '../settings-context';
 
@@ -102,15 +103,19 @@ export function AgentBackendsPage(): ReactElement {
     }
   }
 
+  const checking = state.kind === 'idle' || state.kind === 'loading';
+  const checkingLabel = isZh ? '检测中…' : 'Checking…';
+  const locatorAnimation = settings.preferences.agentLocatorAnimation;
+
   const recheckButton = (
     <Button
       variant="secondary"
       size="compact"
       data-testid="agent-backends-recheck"
-      disabled={state.kind === 'loading'}
+      disabled={checking}
       onClick={() => void load(true)}
     >
-      {state.kind === 'loading' ? (isZh ? '检测中…' : 'Checking…') : (isZh ? '重新检测' : 'Check again')}
+      {isZh ? '重新检测' : 'Check again'}
     </Button>
   );
 
@@ -123,6 +128,21 @@ export function AgentBackendsPage(): ReactElement {
       )}
       {state.kind === 'error' ? <Notice tone="error">{state.message}</Notice> : null}
       {error !== '' ? <Notice tone="error">{error}</Notice> : null}
+      {checking ? (
+        <div className="agent-backends-checking" data-testid="agent-backends-checking">
+          <div className="agent-backends-checking-status" role="status" aria-live="polite">
+            <span className="agent-backends-checking-mark" aria-hidden="true">
+              <AgentLocatorMark
+                locale={locale}
+                size="lg"
+                label={checkingLabel}
+                {...(locatorAnimation ? { animation: locatorAnimation } : {})}
+              />
+            </span>
+            <span className="agent-locator-copy agent-locator-copy--shimmer">{checkingLabel}</span>
+          </div>
+        </div>
+      ) : null}
       {state.kind === 'loaded' && backends.length === 0 ? (
         <p className="muted" data-testid="agent-backends-empty">
           {isZh
@@ -130,32 +150,34 @@ export function AgentBackendsPage(): ReactElement {
             : 'No session-backend extension is installed. Install one from Extensions.'}
         </p>
       ) : null}
-      <ul className="agent-backends-list" data-testid="agent-backends-list">
-        {backends.map((extension) => {
-          const backend = extension.sessionBackend;
-          if (backend === undefined) return null;
-          const status = state.kind === 'loaded'
-            ? state.agents.find((agent) => agent.agentId === backend.id)
-            : undefined;
-          return (
-            <li key={extension.id} className="agent-backends-row" data-testid={`agent-backend-${backend.id}`}>
-              <div className="agent-backends-row-main">
-                <span className="agent-backends-name">{backend.name}</span>
-                <Switch
-                  checked={extension.enabled}
-                  disabled={busyId === extension.id}
-                  testId={`agent-backend-toggle-${backend.id}`}
-                  aria-label={isZh ? `启用 ${backend.name}` : `Enable ${backend.name}`}
-                  onCheckedChange={(checked) => void toggle(extension, checked)}
-                />
-              </div>
-              <p className="muted agent-backends-detail" data-testid={`agent-backend-state-${backend.id}`}>
-                {extension.enabled ? stateDetail(status, isZh) : (isZh ? '已停用' : 'Disabled')}
-              </p>
-            </li>
-          );
-        })}
-      </ul>
+      {checking ? null : (
+        <ul className="agent-backends-list" data-testid="agent-backends-list">
+          {backends.map((extension) => {
+            const backend = extension.sessionBackend;
+            if (backend === undefined) return null;
+            const status = state.kind === 'loaded'
+              ? state.agents.find((agent) => agent.agentId === backend.id)
+              : undefined;
+            return (
+              <li key={extension.id} className="agent-backends-row" data-testid={`agent-backend-${backend.id}`}>
+                <div className="agent-backends-row-main">
+                  <span className="agent-backends-name">{backend.name}</span>
+                  <Switch
+                    checked={extension.enabled}
+                    disabled={busyId === extension.id}
+                    testId={`agent-backend-toggle-${backend.id}`}
+                    aria-label={isZh ? `启用 ${backend.name}` : `Enable ${backend.name}`}
+                    onCheckedChange={(checked) => void toggle(extension, checked)}
+                  />
+                </div>
+                <p className="muted agent-backends-detail" data-testid={`agent-backend-state-${backend.id}`}>
+                  {extension.enabled ? stateDetail(status, isZh) : (isZh ? '已停用' : 'Disabled')}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

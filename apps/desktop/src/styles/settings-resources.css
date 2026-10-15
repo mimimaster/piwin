@@ -769,6 +769,49 @@
   margin-bottom: var(--s-3);
 }
 
+/* Checking fills the settings column so the live locator sits in the open middle of the page. */
+.settings-main-content:has(.agent-backends-checking) {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.settings-card:has(> .agent-backends-checking) {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.agent-backends-checking {
+  flex: 1 1 auto;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 240px;
+}
+
+.agent-backends-checking-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  color: color-mix(in srgb, var(--text-1) 62%, transparent);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.agent-backends-checking-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  color: color-mix(in srgb, var(--text-1) 62%, transparent);
+}
+
 .agent-backends-list {
   display: flex;
   flex-direction: column;

@@ -4,6 +4,7 @@ import {
   BreathDot,
   BreathMatrix,
   RadialBellow,
+  type AnimationSize,
 } from '@piwin/ui-kit';
 import type { SkillActivityView } from './chat-reducer.js';
 import type { AgentLocatorAnimation } from './ui-preferences.js';
@@ -24,21 +25,25 @@ export type SkillActivityChipProps = {
   locale?: 'zh-CN' | 'en';
 };
 
-function renderLocatorAnimation(
-  animation: AgentLocatorAnimation,
-  locale: 'zh-CN' | 'en',
-): ReactElement | null {
-  const label = locale === 'zh-CN' ? '代理运行中' : 'Agent is working';
+/** Live mark chosen in Settings → Appearance. Shared by the run locator and other in-progress surfaces. */
+export function AgentLocatorMark(props: {
+  animation?: AgentLocatorAnimation;
+  locale: 'zh-CN' | 'en';
+  size?: AnimationSize;
+  label?: string;
+}): ReactElement | null {
+  const animation = props.animation ?? 'radial-bellow';
+  const size = props.size ?? 'sm';
+  const label = props.label ?? (props.locale === 'zh-CN' ? '代理运行中' : 'Agent is working');
   switch (animation) {
     case 'asterisk-breath':
-      return <AsteriskBreath size="sm" label={label} testId="agent-locator-asterisk" />;
+      return <AsteriskBreath size={size} label={label} testId="agent-locator-asterisk" />;
     case 'breath-dot':
-      return <BreathDot size="sm" label={label} testId="agent-locator-dot" />;
+      return <BreathDot size={size} label={label} testId="agent-locator-dot" />;
     case 'none':
       return null;
     case 'radial-bellow':
-    default:
-      return <RadialBellow size="sm" label={label} testId="agent-locator-radial-bellow" />;
+      return <RadialBellow size={size} label={label} testId="agent-locator-radial-bellow" />;
   }
 }
 
@@ -70,7 +75,7 @@ export function AgentLocator(props: AgentLocatorProps): ReactElement {
     >
       {animation !== 'none' ? (
         <span className="agent-locator-visual" aria-hidden="true">
-          {renderLocatorAnimation(animation, locale)}
+          <AgentLocatorMark animation={animation} locale={locale} />
         </span>
       ) : null}
       {props.meta ? (

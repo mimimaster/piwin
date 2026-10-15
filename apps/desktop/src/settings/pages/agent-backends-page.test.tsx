@@ -100,7 +100,45 @@ describe('AgentBackendsPage', () => {
     }));
     await settle();
     expect(container.querySelector('[data-testid="agent-backends-empty"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-backends-checking"]')).toBeNull();
     expect(container.querySelector('[data-testid="agent-backend-grok"]')).toBeNull();
+  });
+
+  it('centers the checking status and leaves the header action as recheck', async () => {
+    let release: ((value: HostResponse) => void) | undefined;
+    const pending = new Promise<HostResponse>((resolve) => {
+      release = resolve;
+    });
+    const request = vi.fn(async (): Promise<HostResponse> => pending);
+    const headerSlot = document.createElement('div');
+    headerSlot.id = 'settings-main-header-actions';
+    document.body.appendChild(headerSlot);
+
+    try {
+      render(request);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const checking = container.querySelector('[data-testid="agent-backends-checking"]');
+      expect(checking?.textContent).toContain('检测中…');
+      expect(checking?.querySelector('[data-testid="agent-locator-radial-bellow"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="agent-backends-list"]')).toBeNull();
+
+      const recheck = headerSlot.querySelector<HTMLButtonElement>('[data-testid="agent-backends-recheck"]');
+      expect(recheck?.textContent).toContain('重新检测');
+      expect(recheck?.textContent).not.toContain('检测中');
+      expect(recheck?.disabled).toBe(true);
+    } finally {
+      release?.({
+        type: 'response',
+        command: 'extensions/list',
+        success: true,
+        data: { extensions: [], agents: [] },
+      });
+      await settle();
+      headerSlot.remove();
+    }
   });
 
   it('mounts recheck button into settings header actions slot when present, and card does not duplicate page title', async () => {
