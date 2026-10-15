@@ -76,7 +76,10 @@ function buildArtifactReportKitBaseCss(): string {
   padding: clamp(24px, 5vh, 44px) clamp(20px, 5vw, 56px) 72px;
   color: var(--piwin-artifact-text);
   font-family: var(--piwin-artifact-font);
-  font-size: 14.5px;
+  /* The host's reading size: the sandbox receives it as a variable, the
+     static shadow tree inherits it from the transcript. A fixed px here
+     would shrink the report against the prose around it. */
+  font-size: var(--piwin-artifact-font-size, inherit);
   line-height: 1.68;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;

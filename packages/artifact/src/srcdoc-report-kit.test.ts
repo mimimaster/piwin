@@ -86,10 +86,16 @@ describe('buildArtifactReportKitCss', () => {
       '--piwin-artifact-border',
       '--piwin-artifact-font',
       '--piwin-artifact-font-mono',
+      '--piwin-artifact-font-size',
       '--piwin-artifact-muted',
       '--piwin-artifact-surface',
       '--piwin-artifact-text',
     ]);
+  });
+
+  it('reads at the host reading size instead of a fixed px size', () => {
+    expect(css).toContain('font-size: var(--piwin-artifact-font-size, inherit);');
+    expect(css).not.toMatch(/font-size:\s*\d+(\.\d+)?px/);
   });
 
   it('ships in every sandbox document, before the author source', () => {
