@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactElement } from 'react';
 import { cjk } from '@streamdown/cjk';
 import {
+  canonicalizeArtifactTagBlocks,
   projectArtifactMarkdownForRender,
   type ArtifactActionMessage,
   type ArtifactThemeVariables,
@@ -121,9 +122,12 @@ function projectMarkdownForRender(
   knowledgeCitations: KnowledgeCitationIndex,
 ) {
   try {
+    // Tag-form artifacts become fences first, so the raw-HTML escaper skips
+    // their body like any other fence instead of printing it as text.
+    const canonical = canonicalizeArtifactTagBlocks(text);
     return projectArtifactMarkdownForRender(
       escapeRawHtmlInMarkdown(
-        linkKnowledgeCitationMarkers(rewriteLocalFileMarkdownLinks(text), knowledgeCitations),
+        linkKnowledgeCitationMarkers(rewriteLocalFileMarkdownLinks(canonical), knowledgeCitations),
       ),
       !streamMode,
     );

@@ -224,6 +224,19 @@ describe('MarkdownView artifact preview policy', () => {
     expect(wrapper?.querySelector('iframe')).toBeNull();
   });
 
+  it('renders a tag-form artifact as an artifact instead of escaped HTML text', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={'排查如下：\n\n<artifact-html title="排查" style="host">\n<style>.ctf{color:red}</style>\n<div class="ctf"><h1>Hi</h1></div>\n</artifact-html>\n\n以上。'}
+        renderingPhase="completed"
+      />,
+    );
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    expect(container.textContent).not.toContain('<artifact-html');
+    expect(container.textContent).not.toContain('.ctf{color:red}');
+    expect(container.textContent).toContain('以上。');
+  });
+
   it('previews a settled open Inline fence with an incomplete-output warning', async () => {
     const materialize = vi.spyOn(artifact, 'materializeArtifact');
     const { container } = renderMarkdown(

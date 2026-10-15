@@ -108,6 +108,13 @@ Path: `src/lib/components/chat/Messages/Artifacts/`
 From `artifactTypes.ts`:
 
 - Aliases: `artifact-html`, `artifact_html`, `ui-html`, `ui_html`, `html-artifact`
+- Tag-form recovery (2026-10-15): a model that wraps an artifact in
+  `<artifact-html …>…</artifact-html>` (alias names too) instead of a fence is
+  indexed as an artifact record (`tagBlock`). The tag must start its line (≤3
+  spaces) and anything after it on that line must already be HTML, so prose
+  mentions stay text. Desktop runs `canonicalizeArtifactTagBlocks` before the
+  raw-HTML escaper, rewriting the tags into a fence with unchanged ordinals.
+  The prompt still teaches only fences.
 - Native languages: `html`, `htm`
 - `MAX_ARTIFACT_BYTES = 100 * 1024`
 - Height: completed inert Inline HTML/SVG uses sanitized Shadow DOM and follows

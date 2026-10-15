@@ -45,7 +45,8 @@ export type {
 export { createDefaultArtifactIframePolicy } from './iframe-policy.js';
 
 export { indexArtifactFences, createArtifactFenceRecord } from './fence-index.js';
-export type { ArtifactFenceRecord } from './fence-index.js';
+export type { ArtifactFenceRecord, ArtifactTagBlockRange } from './fence-index.js';
+export { canonicalizeArtifactTagBlocks } from './artifact-tag-canonicalize.js';
 export { isProjectableStreamingFence } from './fence-syntax.js';
 
 export { projectArtifactMarkdownForRender } from './markdown-projection.js';

@@ -345,14 +345,14 @@ export function formatArtifactProtocol(): string {
   const canvasOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" surface="canvas" style="host"`;
   const svgOpen = '```svg title="Short descriptive title" style="host"';
   return [
-    '[piwin-prompt-meta kind="artifact:runtime" version="14" applies="artifacts-enabled"]',
+    '[piwin-prompt-meta kind="artifact:runtime" version="15" applies="artifacts-enabled"]',
     '## HTML Artifact Runtime Contract',
     '',
     '### Success',
     'A self-contained artifact fence that renders correctly in the chat column sandbox.',
     '',
     '### Fences',
-    'The opening fence starts at column 0 of its own line and carries `title`, `surface` and `style` together on that one line. The HTML/SVG body follows. The closing fence sits alone on its own line. Put a line break between a sentence and the opening fence, because the parser only recognizes a fence that begins a line.',
+    'The opening fence starts at column 0 of its own line and carries `title`, `surface` and `style` together on that one line. The HTML/SVG body follows. The closing fence sits alone on its own line. Put a line break between a sentence and the opening fence, because the parser only recognizes a fence that begins a line. An artifact is always a Markdown code fence; XML-style wrapper tags are not an artifact format.',
     '',
     'Inline:',
     inlineOpen,

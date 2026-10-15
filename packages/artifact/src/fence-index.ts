@@ -2,6 +2,7 @@
  * Linear CommonMark fenced-code indexer. Offsets are UTF-16 JS string indices
  * and match Streamdown `node.position.start.offset` on the same markdown.
  */
+import { findArtifactClosingTag, parseArtifactOpeningTag, type ArtifactOpeningTag } from './artifact-tag-block.js';
 import { getFenceLanguageToken } from './fence-syntax.js';
 
 export type ArtifactFenceRecord = {
@@ -14,6 +15,17 @@ export type ArtifactFenceRecord = {
   open: boolean;
   /** A canonical artifact opening glued to prose; projection inserts a break. */
   recoveredOpening?: true;
+  /**
+   * Written as `<artifact-html …>…</artifact-html>` instead of a fence. Raw
+   * offsets of the opening tag end and the closing tag (null while streaming);
+   * `canonicalizeArtifactTagBlocks` rewrites both into fence markers.
+   */
+  tagBlock?: ArtifactTagBlockRange;
+};
+
+export type ArtifactTagBlockRange = {
+  openingEnd: number;
+  closing: { start: number; end: number } | null;
 };
 
 /** Build a record for analysis when the caller is not indexing Markdown. */
@@ -212,6 +224,51 @@ function stripContentIndent(text: string, column: number): string {
   return text.slice(index);
 }
 
+function indexTagBlock(
+  lines: readonly MarkdownLine[],
+  lineIndex: number,
+  opening: ArtifactOpeningTag,
+  ordinal: number,
+): { record: ArtifactFenceRecord; cursor: number } | null {
+  const line = lines[lineIndex];
+  if (!line) return null;
+  const contentLines = opening.trailing ? [opening.trailing] : [];
+  let closing: ArtifactTagBlockRange['closing'] = null;
+  let endOffset: number | null = null;
+  let cursor = lineIndex + 1;
+  while (cursor < lines.length) {
+    const current = lines[cursor];
+    if (!current) break;
+    cursor += 1;
+    const closerIndex = findArtifactClosingTag(current.text, opening.tagName);
+    if (closerIndex === null) {
+      contentLines.push(current.text);
+      continue;
+    }
+    const before = current.text.slice(0, closerIndex);
+    if (before.trim()) contentLines.push(before);
+    closing = {
+      start: current.start + closerIndex,
+      end: current.start + closerIndex + opening.tagName.length + 3,
+    };
+    endOffset = current.start + current.text.length + current.newlineLength;
+    break;
+  }
+  return {
+    record: {
+      ordinal,
+      startOffset: line.start + opening.tagIndex,
+      endOffset,
+      info: opening.info,
+      language: opening.tagName,
+      source: contentLines.join('\n'),
+      open: closing === null,
+      tagBlock: { openingEnd: line.start + opening.tagEnd, closing },
+    },
+    cursor,
+  };
+}
+
 /**
  * Index every CommonMark fenced code block in `markdown`.
  * `startOffset` is the first fence marker (` or ~), matching Streamdown.
@@ -228,6 +285,15 @@ export function indexArtifactFences(markdown: string): ArtifactFenceRecord[] {
       break;
     }
     const opening = parseOpeningFence(line.text) ?? recoverArtifactOpening(line.text, lines[lineIndex + 1]?.text ?? '');
+    const openingTag = opening ? null : parseArtifactOpeningTag(line.text);
+    const tagBlock = openingTag ? indexTagBlock(lines, lineIndex, openingTag, ordinal) : null;
+    if (tagBlock) {
+      fences.push(tagBlock.record);
+      ordinal += 1;
+      if (tagBlock.record.open) break;
+      lineIndex = tagBlock.cursor;
+      continue;
+    }
     if (!opening) {
       lineIndex += 1;
       continue;
