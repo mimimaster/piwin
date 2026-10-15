@@ -37,6 +37,14 @@ describe('findTrailingRepetition', () => {
     expect(findTrailingRepetition(INCIDENT_SENTENCE.repeat(6))?.repeats).toBe(6);
   });
 
+  it('honours caller thresholds and a wider scan window', () => {
+    const paragraph = `${'The loader merges defaults, then env, then file values. '.repeat(30)}\n`;
+    expect(findTrailingRepetition(paragraph.repeat(5))).toBeUndefined();
+    const found = findTrailingRepetition(paragraph.repeat(5), { minRepeats: 5, tailWindowChars: 16_384 });
+    expect(found?.repeats).toBeGreaterThanOrEqual(5);
+    expect(findTrailingRepetition(INCIDENT_SENTENCE.repeat(6), { minUnitChars: 500 })).toBeUndefined();
+  });
+
   it('measures a loop longer than the scan window', () => {
     const text = `${prose(10)}\n${INCIDENT_SENTENCE.repeat(2_000)}`;
     expect(INCIDENT_SENTENCE.length * 2_000).toBeGreaterThan(200_000);

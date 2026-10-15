@@ -153,6 +153,7 @@ export * from './settings.js';
 export * from './job.js';
 export * from './run.js';
 export * from './run-idle-loop.js';
+export * from './text-repetition.js';
 export * from './run-intervention.js';
 export * from './queued-turn.js';
 export * from './agent-backend.js';

@@ -24,6 +24,7 @@
  */
 
 import {
+  findTrailingRepetition,
   RUN_IDLE_LOOP_MAX_DISTINCT,
   RUN_IDLE_LOOP_WINDOW,
   RUN_TEXT_LOOP_MAX_UNIT_PREVIEW_CHARS,
@@ -31,7 +32,6 @@ import {
   type RunIdleLoopNotice,
   type RunTextRepeat,
 } from '@piwin/contracts';
-import { findTrailingRepetition } from './text-repetition.js';
 
 /** Longest argument preview kept per call; the card shows one line. */
 const MAX_PREVIEW_CHARS = 160;
