@@ -81,6 +81,8 @@ export type PlatformHostCommand =
   | { id?: string; type: 'host/status' }
   | { id?: string; type: 'host/create-entry'; input: import('./host-entry.js').HostCreateEntryInput }
   | { id?: string; type: 'host/shell-environment' }
+  /** Read the OS proxy for the settings fill; never applied by itself (ADR 0091). */
+  | { id?: string; type: 'network/detect-system-proxy' }
   | {
       id?: string;
       /**

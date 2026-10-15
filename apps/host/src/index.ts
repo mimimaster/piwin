@@ -2,7 +2,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
-  applyHostNetworkProxy,
+  applyHostNetworkProxyFromConfig,
   applyPiwinPlaywrightBrowsersPath,
   HostRuntime,
 } from '@piwin/host-runtime';
@@ -47,7 +47,7 @@ const webRoot = webRootRaw === undefined || webRootRaw.length === 0 ? undefined 
 const piwinRoot = resolvePiwinRoot();
 applyPiwinPlaywrightBrowsersPath(piwinRoot);
 // Before any fetch: OAuth, providers and workers all read the resolved proxy.
-console.error(`[piwin-host] ${applyHostNetworkProxy()}`);
+console.error(`[piwin-host] ${await applyHostNetworkProxyFromConfig(piwinRoot)}`);
 
 const agentWorkerScript = resolveAgentWorkerScript();
 const clientToolBroker = await createDeviceToolBrokerForHost(piwinRoot);

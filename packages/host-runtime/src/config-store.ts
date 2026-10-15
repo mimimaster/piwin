@@ -36,6 +36,7 @@ import {
   createSafeFallbackPermissionConfig,
   modeToPreset,
   normalizeCodemodeConfig,
+  normalizeNetworkConfig,
   normalizeExecutionConfig,
   normalizeHealthConfig,
   normalizeWalkthroughConfig,
@@ -306,6 +307,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
     normalized.browser = browser;
   }
   normalized.codemode = normalizeCodemodeConfig(record.codemode);
+  const network = normalizeNetworkConfig(record.network);
+  if (network) {
+    normalized.network = network;
+  }
   return normalized;
 }
 

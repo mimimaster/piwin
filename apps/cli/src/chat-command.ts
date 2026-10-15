@@ -12,7 +12,7 @@ import { buildCliContextRefs, collectRefArgs } from './context-ref-args.js';
 import { createCliBackendPermissionResponder, parseCliAgent } from './external-agent-cli.js';
 import {
   HostRuntime,
-  applyHostNetworkProxy,
+  applyHostNetworkProxyFromConfig,
   getPiwinRoot,
   loadPiwinConfig,
 } from '@piwin/host-runtime';
@@ -269,7 +269,7 @@ export async function commandChat(argv: string[]): Promise<void> {
   const answerLocalBackendPermission = createCliBackendPermissionResponder((command) =>
     runtime.handleCommand(command),
   );
-  applyHostNetworkProxy();
+  await applyHostNetworkProxyFromConfig();
   const runtime: HostRuntime = new HostRuntime({
     mode,
     mock,

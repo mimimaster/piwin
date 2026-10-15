@@ -6,7 +6,7 @@
  * backend contracts and Pi/worker adapters needed by that composition root.
  */
 export { mapPiSessionEvent } from './event-map.js';
-export { installEnvHttpProxyDispatcher } from './http-proxy-dispatcher.js';
+export { configureEnvHttpProxyDispatcher } from './http-proxy-dispatcher.js';
 export {
   parseCodemodeSource,
   resolveCodemodeRuntimeAssets,

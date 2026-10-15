@@ -14,6 +14,7 @@ import { formatError } from '@piwin/contracts';
 import { fail, ok } from './response-helpers.js';
 import { handleHostCreateEntry } from './commands/host-create-entry.js';
 import { handleHostListDir } from './commands/host-list-dir.js';
+import { detectSystemProxy, readMacosSystemProxy } from './network-proxy/macos-system-proxy.js';
 import { projectActivitySummary } from './activity-summary.js';
 import { dispatchDomainCommands } from './commands/domain-command-dispatch.js';
 import { inventoryKindsChangedBy, pushInventoryUpdated } from './marketplace/inventory-reader.js';
@@ -161,6 +162,12 @@ export async function handleCommandWithTranscriptLease(
           gitBashInstalled: process.platform === 'win32' && findGitBash(deps.options.piwinRoot) !== undefined,
         });
       }
+      case 'network/detect-system-proxy':
+        return ok(
+          requestId,
+          'network/detect-system-proxy',
+          detectSystemProxy(process.platform, readMacosSystemProxy),
+        );
       case 'host/create-entry':
         return handleHostCreateEntry(command, requestId);
       case 'host/list-dir':

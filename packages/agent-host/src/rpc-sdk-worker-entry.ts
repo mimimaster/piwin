@@ -21,7 +21,7 @@ import type {
 import { WorkerSessionRuntime } from './rpc/worker-session-runtime.js';
 import { createWorkerPiSessionFactory } from './rpc/worker-pi-session-factory.js';
 import { readWorkerSecretBootstrap } from './rpc/worker-secret-bootstrap.js';
-import { installEnvHttpProxyDispatcher } from './http-proxy-dispatcher.js';
+import { configureEnvHttpProxyDispatcher } from './http-proxy-dispatcher.js';
 
 function writeLine(frame: unknown): void {
   process.stdout.write(`${JSON.stringify(frame)}\n`);
@@ -51,8 +51,8 @@ process.on('uncaughtException', (error) => {
 });
 
 async function main(): Promise<void> {
-  // The parent forwards the proxy it resolved; model calls must use it too.
-  installEnvHttpProxyDispatcher();
+  // The parent forwards its network.proxyUrl variables; model calls must use them too.
+  configureEnvHttpProxyDispatcher();
   let bootstrapSecrets: ReadonlyMap<string, string>;
   try {
     // Read the dedicated secret channel before hello. The parent can therefore

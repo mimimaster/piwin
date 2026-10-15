@@ -82,6 +82,7 @@ const RUNTIME_REVISION_DOMAINS = [
   'subagents',
   'remote',
   'codemode',
+  'network',
 ] as const satisfies readonly (keyof PiwinConfig)[];
 
 type SettingsServiceOptions = {
@@ -250,6 +251,7 @@ export function createSettingsDomainRevisions(
     'execution',
     'remote',
     'codemode',
+    'network',
   ] as const satisfies readonly SettingsDomain[]) {
     revisions[domain] = createSettingsDomainRevision(readConfigDomain(normalized, domain));
   }

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   describeHostNetworkProxy,
+  planHostProxyEnv,
   redactProxyUrl,
-  resolveHostNetworkProxy,
 } from './host-network-proxy.js';
-import { parseScutilProxyOutput } from './macos-system-proxy.js';
+import { detectSystemProxy, parseScutilProxyOutput } from './macos-system-proxy.js';
 
 const CLASH_SYSTEM_PROXY = `<dictionary> {
   ExcludeSimpleHostnames : 0
@@ -42,21 +42,20 @@ function failRead(): string {
 }
 
 describe('parseScutilProxyOutput', () => {
-  it('reads enabled HTTP/HTTPS proxies and the bypass list', () => {
+  it('reads enabled HTTP/HTTPS proxies', () => {
     expect(parseScutilProxyOutput(CLASH_SYSTEM_PROXY)).toEqual({
       httpProxy: 'http://127.0.0.1:7897',
       httpsProxy: 'http://127.0.0.1:7897',
-      exceptions: ['192.168.0.0/16', '.local', 'localhost'],
     });
   });
 
   it('ignores disabled proxies and SOCKS-only setups', () => {
-    expect(parseScutilProxyOutput(NO_SYSTEM_PROXY)).toEqual({ exceptions: [] });
+    expect(parseScutilProxyOutput(NO_SYSTEM_PROXY)).toEqual({});
     const socksOnly = NO_SYSTEM_PROXY.replace(
       'SOCKSEnable : 0',
       'SOCKSEnable : 1\n  SOCKSPort : 1080\n  SOCKSProxy : 127.0.0.1',
     );
-    expect(parseScutilProxyOutput(socksOnly)).toEqual({ exceptions: [] });
+    expect(parseScutilProxyOutput(socksOnly)).toEqual({});
   });
 
   it('brackets IPv6 proxy hosts and rejects bad ports', () => {
@@ -73,86 +72,83 @@ describe('parseScutilProxyOutput', () => {
   });
 });
 
-describe('resolveHostNetworkProxy', () => {
-  it('keeps explicit proxy variables and skips the system lookup', () => {
-    expect(
-      resolveHostNetworkProxy({
-        env: { https_proxy: 'http://proxy.corp:3128' },
-        platform: 'darwin',
-        readSystemProxy: failRead,
-      }),
-    ).toEqual({ source: 'env', assign: {} });
+describe('detectSystemProxy', () => {
+  it('offers the macOS HTTPS proxy, falling back to HTTP', () => {
+    expect(detectSystemProxy('darwin', () => CLASH_SYSTEM_PROXY)).toEqual({
+      supported: true,
+      proxyUrl: 'http://127.0.0.1:7897',
+    });
+    const httpOnly = NO_SYSTEM_PROXY.replace(
+      'HTTPEnable : 0',
+      'HTTPEnable : 1\n  HTTPPort : 8080\n  HTTPProxy : proxy.corp',
+    );
+    expect(detectSystemProxy('darwin', () => httpOnly).proxyUrl).toBe('http://proxy.corp:8080');
   });
 
-  it('fills the GUI-launched sidecar env from the macOS system proxy', () => {
+  it('reports no proxy, unsupported platforms, and read failures', () => {
+    expect(detectSystemProxy('darwin', () => NO_SYSTEM_PROXY)).toEqual({ supported: true });
+    expect(detectSystemProxy('linux', failRead)).toEqual({ supported: false });
+    const failed = detectSystemProxy('darwin', () => {
+      throw new Error('scutil missing');
+    });
+    expect(failed.supported).toBe(true);
+    expect(failed.error).toContain('scutil missing');
+  });
+});
+
+describe('planHostProxyEnv', () => {
+  it('inherits the launch environment when no proxy is configured', () => {
+    expect(planHostProxyEnv(undefined, { https_proxy: 'http://proxy.corp:3128', PATH: '/bin' })).toEqual({
+      source: 'env',
+      env: { https_proxy: 'http://proxy.corp:3128' },
+    });
+    expect(planHostProxyEnv({}, {})).toEqual({ source: 'none', env: {} });
+    expect(planHostProxyEnv(undefined, { NO_PROXY: 'internal.corp' })).toEqual({
+      source: 'none',
+      env: { NO_PROXY: 'internal.corp' },
+    });
+  });
+
+  it('overrides the launch environment with an explicit proxy URL', () => {
+    const url = 'http://127.0.0.1:7897';
     expect(
-      resolveHostNetworkProxy({
-        env: {},
-        platform: 'darwin',
-        readSystemProxy: () => CLASH_SYSTEM_PROXY,
-      }),
+      planHostProxyEnv({ proxyUrl: url }, { HTTPS_PROXY: 'http://other:1', no_proxy: 'internal.corp' }),
     ).toEqual({
-      source: 'system',
-      assign: {
-        HTTP_PROXY: 'http://127.0.0.1:7897',
-        HTTPS_PROXY: 'http://127.0.0.1:7897',
-        NO_PROXY: 'localhost,127.0.0.1,::1,192.168.0.0/16,.local',
+      source: 'setting',
+      env: {
+        HTTP_PROXY: url,
+        HTTPS_PROXY: url,
+        NO_PROXY: 'internal.corp',
+        http_proxy: url,
+        https_proxy: url,
+        no_proxy: 'internal.corp',
       },
     });
+    expect(planHostProxyEnv({ proxyUrl: url }, {}).env.NO_PROXY).toBe('localhost,127.0.0.1,::1');
   });
 
-  it('does not count NO_PROXY alone as a configured proxy', () => {
-    expect(
-      resolveHostNetworkProxy({
-        env: { NO_PROXY: 'internal.corp' },
-        platform: 'darwin',
-        readSystemProxy: () => CLASH_SYSTEM_PROXY,
-      }),
-    ).toEqual({
-      source: 'system',
-      assign: { HTTP_PROXY: 'http://127.0.0.1:7897', HTTPS_PROXY: 'http://127.0.0.1:7897' },
-    });
-  });
-
-  it('stays direct off macOS, when opted out, or with no system proxy', () => {
-    expect(
-      resolveHostNetworkProxy({ env: {}, platform: 'linux', readSystemProxy: failRead }),
-    ).toEqual({ source: 'none', assign: {} });
-    expect(
-      resolveHostNetworkProxy({
-        env: { PIWIN_SYSTEM_PROXY: '0' },
-        platform: 'darwin',
-        readSystemProxy: failRead,
-      }),
-    ).toEqual({ source: 'none', assign: {} });
-    expect(
-      resolveHostNetworkProxy({
-        env: {},
-        platform: 'darwin',
-        readSystemProxy: () => NO_SYSTEM_PROXY,
-      }),
-    ).toEqual({ source: 'none', assign: {} });
-  });
-
-  it('reports a failed system lookup instead of hiding it', () => {
-    const resolution = resolveHostNetworkProxy({
+  it('drops every proxy variable for direct', () => {
+    expect(planHostProxyEnv({ proxyUrl: 'direct' }, { HTTPS_PROXY: 'http://proxy.corp:3128' })).toEqual({
+      source: 'direct',
       env: {},
-      platform: 'darwin',
-      readSystemProxy: () => {
-        throw new Error('scutil missing');
-      },
     });
-    expect(resolution.source).toBe('none');
-    expect(resolution.systemError).toContain('scutil missing');
+    expect(planHostProxyEnv({ proxyUrl: 'NONE' }, {}).source).toBe('direct');
+  });
+
+  it('keeps the launch environment and reports an unusable stored value', () => {
+    const plan = planHostProxyEnv({ proxyUrl: 'socks5://127.0.0.1:1080' }, {});
+    expect(plan.source).toBe('none');
+    expect(plan.invalidReason).toContain('SOCKS');
   });
 });
 
 describe('describeHostNetworkProxy', () => {
   it('logs the proxy without credentials', () => {
     expect(
-      describeHostNetworkProxy({ source: 'env', assign: {} }, true, {
-        HTTPS_PROXY: 'http://user:secret@proxy.corp:3128',
-      }),
+      describeHostNetworkProxy(
+        { source: 'env', env: { HTTPS_PROXY: 'http://user:secret@proxy.corp:3128' } },
+        true,
+      ),
     ).toBe('network proxy source=env https=http://proxy.corp:3128 fetch=proxied');
     expect(redactProxyUrl('not a url')).toBe('<invalid proxy url>');
   });

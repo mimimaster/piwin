@@ -2,6 +2,7 @@ import type { SettingsApplyResult, SettingsDomainImpact } from '@piwin/contracts
 import { formatError } from '@piwin/contracts';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { applyExecutionAdmission } from './host-runtime-status.js';
+import { applyHostNetworkProxy } from './network-proxy/host-network-proxy.js';
 
 /**
  * Shared post-apply hook for settings/apply and OAuth-driven SettingsService writes.
@@ -21,6 +22,15 @@ export function applySettingsRuntimeImpact(
   }
   if (settingsConfig.permissions?.mode) {
     deps.permissionModeFromConfig = settingsConfig.permissions.mode;
+  }
+  if (result.changedDomains.some((change) => change.domain === 'network')) {
+    // Host-side fetch (OAuth, catalogs, web tools) switches now; agent workers
+    // get the new variables with their replacement generation below.
+    deps.push({
+      type: 'host/log',
+      level: 'info',
+      message: applyHostNetworkProxy(settingsConfig.network),
+    });
   }
   applyExecutionAdmission(deps, settingsConfig);
   if (settingsConfig.session) {

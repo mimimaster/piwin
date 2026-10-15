@@ -566,6 +566,30 @@ describe('SettingsService', () => {
     expect(cleared.desktop?.defaultOrchestrationSchemeId).toBeUndefined();
   });
 
+  it('stores the network proxy, refreshes the runtime revision, and rejects SOCKS', async () => {
+    const service = new SettingsService({ piwinRoot });
+    const before = await service.getSnapshot();
+    const result = await service.apply({
+      expectedRevision: before.revision,
+      mutations: [
+        { kind: 'replace-domain', domain: 'network', value: { proxyUrl: ' http://127.0.0.1:7897 ' } },
+      ],
+    });
+    expect(result.snapshot.config.network).toEqual({ proxyUrl: 'http://127.0.0.1:7897' });
+    expect(result.snapshot.runtimeRevision).not.toBe(before.runtimeRevision);
+    expect(result.changedDomains).toEqual([
+      expect.objectContaining({ domain: 'network', timing: 'new-runtime', runtimeSchemaChanged: true }),
+    ]);
+    await expect(
+      service.apply({
+        expectedRevision: result.snapshot.revision,
+        mutations: [
+          { kind: 'replace-domain', domain: 'network', value: { proxyUrl: 'socks5://127.0.0.1:1080' } },
+        ],
+      }),
+    ).rejects.toThrow(/network\.proxyUrl/);
+  });
+
   it('classifies turning off true YOLO as an immediate permission tightening', async () => {
     const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
     const previous = { ...snapshot.config, permissions: { mode: 'unrestricted' as const, preset: 'yolo' as const } };

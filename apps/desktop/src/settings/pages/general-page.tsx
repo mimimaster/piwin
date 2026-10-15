@@ -18,6 +18,7 @@ import { AgentLocator } from '../../agent-locator.js';
 import type { AgentLocatorAnimation } from '../../ui-preferences.js';
 import { DeviceHealthSettings } from '../../device-health-settings';
 import { HostHealthSettings } from '../host-health-settings';
+import { NetworkProxySettings } from '../network-proxy-settings';
 import { HostTargetSettings } from '../../host-target-settings';
 import { ShellInterfaceSettings } from '../../shell-interface-settings';
 import { AppVersionSettings } from '../../app-version-settings';
@@ -128,6 +129,8 @@ function GeneralPreferencesSection(): ReactElement {
       <HostHealthSettings />
 
       <HostTargetSettings />
+
+      <NetworkProxySettings />
 
       {/* Pairing a phone is an operator task done at the computer. */}
       {isMobileTauriRuntime() ? null : <MobileAccessSettings />}

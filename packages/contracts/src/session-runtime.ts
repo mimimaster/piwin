@@ -86,6 +86,8 @@ export const RUNTIME_STALE_DOMAINS: ReadonlySet<SettingsDomain> = new Set<Settin
   'permissions',
   'subagents',
   'codemode',
+  // Agent workers inherit proxy variables at spawn; a new generation picks up a changed proxy.
+  'network',
 ]);
 
 /** Domains that tighten safety immediately even before runtime replacement. */

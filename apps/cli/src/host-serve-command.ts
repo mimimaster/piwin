@@ -11,7 +11,7 @@ import { LOCAL_JSONL_CLIENT_ID, createSidecarHostAuthority } from './sidecar-hos
 import { attachSidecarLocalEgress } from './sidecar-local-egress.js';
 import {
   HostRuntime,
-  applyHostNetworkProxy,
+  applyHostNetworkProxyFromConfig,
   applyPiwinPlaywrightBrowsersPath,
 } from '@piwin/host-runtime';
 import {
@@ -41,7 +41,7 @@ export async function commandHostServe(argv: string[]): Promise<void> {
   const transport = createJsonlStdioTransport();
   applyPiwinPlaywrightBrowsersPath(hostDataRoot);
   // Before any fetch: OAuth, providers and workers all read the resolved proxy.
-  console.error(`[piwin-host] ${applyHostNetworkProxy()}`);
+  console.error(`[piwin-host] ${await applyHostNetworkProxyFromConfig(hostDataRoot)}`);
   const runtimeOptions: ConstructorParameters<typeof HostRuntime>[0] = {
     mode,
     mock,

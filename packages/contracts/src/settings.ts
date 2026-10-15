@@ -26,6 +26,7 @@ import type { HealthConfig } from './health-summary.js';
 import type { WebConfig } from './web.js';
 import type { CodemodeConfig } from './codemode.js';
 import type { McpConfigDocument } from './mcp.js';
+import type { NetworkConfig } from './network-proxy.js';
 
 /** Persisted settings document version managed by SettingsService. */
 export const PIWIN_SETTINGS_SCHEMA_VERSION = 2 as const;
@@ -66,6 +67,7 @@ export type SettingsDomain =
   | 'execution'
   | 'remote'
   | 'codemode'
+  | 'network'
   | 'mcp';
 
 /** Type map used to make domain replacement mutations compile-time checked. */
@@ -105,6 +107,7 @@ export type SettingsDomainValueMap = {
   execution: ExecutionConfig | undefined;
   remote: RemoteConfig | undefined;
   codemode: CodemodeConfig | undefined;
+  network: NetworkConfig | undefined;
   mcp: McpConfigDocument | undefined;
 };
 
@@ -173,6 +176,7 @@ export const REMOTE_SETTINGS_APPLY_DOMAINS = [
   'execution',
   'remote',
   'codemode',
+  'network',
   'mcp',
   'desktop',
 ] as const satisfies readonly SettingsDomain[];
@@ -322,6 +326,7 @@ export const SETTINGS_DOMAINS = [
   'execution',
   'remote',
   'codemode',
+  'network',
   'mcp',
 ] as const satisfies readonly SettingsDomain[];
 
@@ -361,5 +366,6 @@ const settingsDomainValueMap: Record<SettingsDomain, true> = {
   execution: true,
   remote: true,
   codemode: true,
+  network: true,
   mcp: true,
 };

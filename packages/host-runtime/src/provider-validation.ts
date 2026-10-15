@@ -9,6 +9,7 @@ import {
   isProviderEnabled,
   isSystemPromptRoleMode,
   isThinkingLevel,
+  validateNetworkConfig,
   validateWalkthroughConfig,
 } from '@piwin/contracts';
 import { findReadyWebSearchDelegate } from './capabilities/search-route-resolver.js';
@@ -296,6 +297,9 @@ export function validatePiwinConfig(config: PiwinConfig): ProviderValidationIssu
   }
   const walkthrough = config.walkthrough ?? createDefaultWalkthroughConfig();
   for (const issue of validateWalkthroughConfig(walkthrough)) {
+    issues.push({ path: issue.path, message: issue.message });
+  }
+  for (const issue of validateNetworkConfig(config.network)) {
     issues.push({ path: issue.path, message: issue.message });
   }
   // A configured web_search delegate must still be resolvable to a real,

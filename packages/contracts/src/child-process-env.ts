@@ -35,9 +35,9 @@ export function pickWindowsChildSystemEnv(
 
 /**
  * Proxy variables a Host-spawned child needs to reach the network the same
- * way the Host does. The Host resolves them once at startup (env first, then
- * the OS proxy); trimmed child environments must carry them forward or model
- * calls from workers bypass the proxy and time out.
+ * way the Host does. The Host writes them from its `network.proxyUrl` setting
+ * (or keeps the launch environment's); trimmed child environments must carry
+ * them forward or model calls from workers bypass the proxy and time out.
  */
 export const CHILD_PROXY_ENV_KEYS = [
   'HTTP_PROXY',

@@ -29,6 +29,7 @@ import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
 import type { SubagentProfileSettings } from './subagent-profile.js';
 import type { OrchestrationSchemeSettings } from './orchestration-scheme.js';
 import type { RemoteConfig } from './remote.js';
+import type { NetworkConfig } from './network-proxy.js';
 import type { ReplyWriterConfig } from './reply-writer.js';
 import type { SessionLifecycleConfig } from './session-lifecycle.js';
 import type { SessionColdStorageConfig } from './session-cold-storage.js';
@@ -987,6 +988,8 @@ export type PiwinConfig = {
   execution?: ExecutionConfig;
   /** Personal remote gateway (ADR 0027). Default off; W4 future. */
   remote?: RemoteConfig;
+  /** Host outbound proxy (ADR 0091). Omitted inherits the launch environment. */
+  network?: NetworkConfig;
   /**
    * Host-owned browser workbench (ADR 0020). Omitted means headless Chromium
    * with the default profile. `cdpEndpoint` is an explicit loopback Playwright

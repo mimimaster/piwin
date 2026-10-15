@@ -1,45 +1,30 @@
+import { execFileSync } from 'node:child_process';
+import { formatError, type SystemProxyDetection } from '@piwin/contracts';
+
 /**
- * Parse `scutil --proxy` (macOS SystemConfiguration proxy dictionary).
+ * Read the macOS system proxy for the settings "use system proxy" fill.
  *
- * GUI-launched Hosts (the Desktop sidecar) inherit no shell proxy variables,
- * so the system proxy is the only signal that the user's network needs one.
- * PAC and SOCKS-only setups are not translated: undici's env proxy agent only
- * speaks HTTP CONNECT proxies.
+ * Detection only: the Host never applies the result by itself (ADR 0091). PAC
+ * and SOCKS-only setups report no proxy, since the Host's fetch (undici) only
+ * speaks HTTP CONNECT.
  */
 export type SystemProxySettings = {
   httpProxy?: string;
   httpsProxy?: string;
-  /** macOS bypass list, normalized to `NO_PROXY` entries. */
-  exceptions: string[];
 };
 
 const ENTRY = /^\s*([A-Za-z]+)\s*:\s*(.*?)\s*$/;
-const ARRAY_ITEM = /^\s*\d+\s*:\s*(.*?)\s*$/;
 
+/** Parse `scutil --proxy` (macOS SystemConfiguration proxy dictionary). */
 export function parseScutilProxyOutput(output: string): SystemProxySettings {
   const scalars = new Map<string, string>();
-  const exceptions: string[] = [];
-  let inExceptions = false;
   for (const line of output.split(/\r?\n/u)) {
-    if (inExceptions) {
-      if (line.trim() === '}') {
-        inExceptions = false;
-        continue;
-      }
-      const item = ARRAY_ITEM.exec(line)?.[1];
-      if (item) exceptions.push(normalizeException(item));
-      continue;
-    }
     const entry = ENTRY.exec(line);
     if (!entry) continue;
     const [, key = '', value = ''] = entry;
-    if (key === 'ExceptionsList' && value.startsWith('<array>')) {
-      inExceptions = true;
-      continue;
-    }
     scalars.set(key, value);
   }
-  const settings: SystemProxySettings = { exceptions };
+  const settings: SystemProxySettings = {};
   const httpProxy = proxyUrl(scalars, 'HTTP');
   if (httpProxy) settings.httpProxy = httpProxy;
   const httpsProxy = proxyUrl(scalars, 'HTTPS');
@@ -57,7 +42,22 @@ function proxyUrl(scalars: ReadonlyMap<string, string>, prefix: 'HTTP' | 'HTTPS'
   return `http://${hostPart}:${port}`;
 }
 
-/** `*.example.com` → `.example.com`, the suffix form every NO_PROXY reader accepts. */
-function normalizeException(entry: string): string {
-  return entry.startsWith('*.') ? entry.slice(1) : entry;
+export function detectSystemProxy(
+  platform: string,
+  readSystemProxy: () => string,
+): SystemProxyDetection {
+  if (platform !== 'darwin') return { supported: false };
+  let output: string;
+  try {
+    output = readSystemProxy();
+  } catch (error) {
+    return { supported: true, error: formatError(error) };
+  }
+  const settings = parseScutilProxyOutput(output);
+  const proxyUrl = settings.httpsProxy ?? settings.httpProxy;
+  return proxyUrl === undefined ? { supported: true } : { supported: true, proxyUrl };
+}
+
+export function readMacosSystemProxy(): string {
+  return execFileSync('/usr/sbin/scutil', ['--proxy'], { encoding: 'utf8', timeout: 2_000 });
 }
