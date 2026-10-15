@@ -287,6 +287,9 @@ const ChatMessageRowContent = (
                 ? { configProviders: props.configProviders }
                 : {})}
               showHeader={props.showConversationHeader !== false}
+              {...(props.conversationReplyWriterSource
+                ? { replyWriterSource: props.conversationReplyWriterSource }
+                : {})}
               usageChip={
                 props.isConversationSession === true &&
                 props.showConversationHeader !== false &&

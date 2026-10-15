@@ -60,25 +60,52 @@ const COLLAPSED_TICK_GAP_PX = 10;
 const COLLAPSED_TICK_PADDING_TOP_PX = 8;
 const COLLAPSED_TICK_STEP_PX = COLLAPSED_TICK_HEIGHT_PX + COLLAPSED_TICK_GAP_PX;
 
-// The wave is an arithmetic progression of widths. Keep the base width in
-// sync with the compact rail CSS; the step is derived so changing either
-// endpoint automatically recalculates every intermediate tick.
+// Hover wave profile, peak first. Widths fall off on an ease-out curve (not
+// a straight ramp) so the wave reads as one soft lens; opacity fades toward
+// the resting tone in CSS; the peak and first shoulders gain a little weight
+// so the selected turn is clearly picked without any extra mark. Keep the
+// base width in sync with the compact rail CSS.
 const COLLAPSED_TICK_BASE_WIDTH_PX = 8;
 const HISTORY_TICK_WAVE_MAX_WIDTH_PX = 24;
-const HISTORY_TICK_WAVE_RADIUS = 4;
-const HISTORY_TICK_WAVE_STEP_PX =
-  (HISTORY_TICK_WAVE_MAX_WIDTH_PX - COLLAPSED_TICK_BASE_WIDTH_PX) / HISTORY_TICK_WAVE_RADIUS;
+const HISTORY_TICK_WAVE_PROFILE = [
+  { widthPx: HISTORY_TICK_WAVE_MAX_WIDTH_PX, opacity: 0.75, thicknessPx: 2 },
+  { widthPx: 17, opacity: 0.4, thicknessPx: 1.5 },
+  { widthPx: 12.5, opacity: 0.25, thicknessPx: 1.5 },
+  { widthPx: 9.5, opacity: 0.17, thicknessPx: 1 },
+] as const;
 
-/** Returns the discrete horizontal scale for a collapsed tick wave. */
-export function getHistoryTickWaveScale(distance: number): number {
+type HistoryTickWaveStep = (typeof HISTORY_TICK_WAVE_PROFILE)[number];
+
+function getHistoryTickWaveStep(distance: number): HistoryTickWaveStep | null {
   if (!Number.isFinite(distance)) {
-    return 1;
+    return null;
   }
+  return HISTORY_TICK_WAVE_PROFILE[Math.round(Math.abs(distance))] ?? null;
+}
 
-  const clampedDistance = Math.min(Math.max(distance, 0), HISTORY_TICK_WAVE_RADIUS);
-  const distanceIndex = Math.round(clampedDistance);
-  const width = HISTORY_TICK_WAVE_MAX_WIDTH_PX - distanceIndex * HISTORY_TICK_WAVE_STEP_PX;
-  return width / COLLAPSED_TICK_BASE_WIDTH_PX;
+/** Returns the horizontal scale for a collapsed tick at a wave distance. */
+export function getHistoryTickWaveScale(distance: number): number {
+  const step = getHistoryTickWaveStep(distance);
+  return step ? step.widthPx / COLLAPSED_TICK_BASE_WIDTH_PX : 1;
+}
+
+/** Inline wave style for a tick, or undefined when it rests (CSS styles it). */
+export function getHistoryTickWaveStyle(distance: number | null): CSSProperties | undefined {
+  const step = distance === null ? null : getHistoryTickWaveStep(distance);
+  if (!step) {
+    return undefined;
+  }
+  const style: CSSProperties = {
+    transform: `scaleX(${step.widthPx / COLLAPSED_TICK_BASE_WIDTH_PX})`,
+    opacity: step.opacity,
+  };
+  if (step.thicknessPx !== COLLAPSED_TICK_HEIGHT_PX) {
+    // Negative block margins keep the extra weight out of layout, so the
+    // column (and the pointer→tick mapping) never shifts.
+    style.height = `${step.thicknessPx}px`;
+    style.marginBlock = `${(COLLAPSED_TICK_HEIGHT_PX - step.thicknessPx) / 2}px`;
+  }
+  return style;
 }
 
 type CollapsedBubbleAnchor = {
@@ -445,35 +472,20 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
         onScroll={clearRailInteraction}
       >
         <div className="border-ticks-list">
-          {waveCenterIndex !== null ? (
-            // One shared selection pill that slides between ticks, so the
-            // selected turn reads as a cursor rather than a darker hairline.
-            // Absolutely positioned: the tick column never reflows.
-            <span
-              className="border-tick-selection"
-              data-testid="history-tick-selection"
-              aria-hidden="true"
-              style={{
-                transform: `translateY(${waveCenterIndex * COLLAPSED_TICK_STEP_PX + COLLAPSED_TICK_HEIGHT_PX / 2}px)`,
-              }}
-            />
-          ) : null}
           {userMessages.map((message, index) => {
             const isPreviewed = message.id === hoveredMessageId;
-            const waveScale =
-              waveCenterIndex === null
-                ? 1
-                : getHistoryTickWaveScale(Math.abs(index - waveCenterIndex));
-            // Shoulders of the wave take a mid tone so the peak reads as the
-            // crest of one shape rather than a lone dark line.
-            const waveClass = isPreviewed ? 'is-hovered' : waveScale === 1 ? '' : 'is-in-wave';
+            const waveDistance =
+              waveCenterIndex === null ? null : Math.abs(index - waveCenterIndex);
+            const waveStyle = getHistoryTickWaveStyle(waveDistance);
+            // State classes for tests/themes; the look is the inline wave.
+            const waveClass = isPreviewed ? 'is-hovered' : waveStyle ? 'is-in-wave' : '';
             const readingClass = index === readingIndex ? ' is-reading' : '';
 
             return (
               <span
                 key={message.id}
                 className={`border-tick-line ${waveClass}${readingClass}`}
-                style={waveScale === 1 ? undefined : { transform: `scaleX(${waveScale})` }}
+                style={waveStyle}
                 data-testid={`history-tick-${message.id}`}
                 onFocus={(event) => handleTickFocus(message.id, event)}
                 onBlur={clearRailInteraction}

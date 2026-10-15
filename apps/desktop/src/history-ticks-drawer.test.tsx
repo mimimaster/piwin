@@ -6,6 +6,7 @@ import {
   HistoryTicksDrawer,
   formatFullTimestamp,
   getHistoryTickWaveScale,
+  getHistoryTickWaveStyle,
   resolveCollapsedTickIndex,
   scrollTranscriptToMessage,
   truncateMessageText,
@@ -38,23 +39,33 @@ describe('history-ticks-drawer helpers', () => {
     expect(truncateMessageText(longText, 100).slice(-3)).toBe('...');
   });
 
-  it('keeps the wave profile symmetric around the hovered tick', () => {
-    expect(getHistoryTickWaveScale(0)).toBeCloseTo(36 / 12);
-    expect(getHistoryTickWaveScale(1)).toBeCloseTo(30 / 12);
-    expect(getHistoryTickWaveScale(2)).toBeCloseTo(24 / 12);
-    expect(getHistoryTickWaveScale(3)).toBeCloseTo(18 / 12);
+  it('keeps the wave profile symmetric and easing out from the hovered tick', () => {
+    expect(getHistoryTickWaveScale(0)).toBeCloseTo(24 / 8);
+    expect(getHistoryTickWaveScale(1)).toBeCloseTo(17 / 8);
+    expect(getHistoryTickWaveScale(2)).toBeCloseTo(12.5 / 8);
+    expect(getHistoryTickWaveScale(3)).toBeCloseTo(9.5 / 8);
     expect(getHistoryTickWaveScale(4)).toBe(1);
     expect(getHistoryTickWaveScale(5)).toBe(1);
     expect(getHistoryTickWaveScale(Number.POSITIVE_INFINITY)).toBe(1);
-    expect(getHistoryTickWaveScale(-1)).toBeCloseTo(36 / 12);
+    expect(getHistoryTickWaveScale(-1)).toBeCloseTo(17 / 8);
 
-    const firstStep = getHistoryTickWaveScale(0) - getHistoryTickWaveScale(1);
-    const secondStep = getHistoryTickWaveScale(1) - getHistoryTickWaveScale(2);
-    const thirdStep = getHistoryTickWaveScale(2) - getHistoryTickWaveScale(3);
-    const fourthStep = getHistoryTickWaveScale(3) - getHistoryTickWaveScale(4);
-    expect(firstStep).toBeCloseTo(secondStep);
-    expect(secondStep).toBeCloseTo(thirdStep);
-    expect(thirdStep).toBeCloseTo(fourthStep);
+    // Each step shrinks less than the one before: a soft lens, not a ramp.
+    const steps = [0, 1, 2].map(
+      (distance) => getHistoryTickWaveScale(distance) - getHistoryTickWaveScale(distance + 1),
+    );
+    expect(steps[0]).toBeGreaterThan(steps[1] ?? 0);
+    expect(steps[1]).toBeGreaterThan(steps[2] ?? 0);
+  });
+
+  it('weights the wave peak without shifting the tick column', () => {
+    const peak = getHistoryTickWaveStyle(0);
+    expect(peak?.opacity).toBe(0.75);
+    expect(peak?.height).toBe('2px');
+    expect(peak?.marginBlock).toBe('-0.5px');
+    const edge = getHistoryTickWaveStyle(3);
+    expect(edge?.height).toBeUndefined();
+    expect(getHistoryTickWaveStyle(4)).toBeUndefined();
+    expect(getHistoryTickWaveStyle(null)).toBeUndefined();
   });
 
   it('maps rail pointer Y to the nearest tick index, including gaps', () => {
@@ -403,13 +414,13 @@ describe('HistoryTicksDrawer component', () => {
 
     expect(getInlineTickScale(tickElements?.[0])).toBe(1);
     expect(getInlineTickScale(tickElements?.[1])).toBe(1);
-    expect(getInlineTickScale(tickElements?.[2])).toBeCloseTo(18 / 12);
-    expect(getInlineTickScale(tickElements?.[3])).toBeCloseTo(24 / 12);
-    expect(getInlineTickScale(tickElements?.[4])).toBeCloseTo(30 / 12);
-    expect(getInlineTickScale(tickElements?.[5])).toBeCloseTo(36 / 12);
-    expect(getInlineTickScale(tickElements?.[6])).toBeCloseTo(30 / 12);
-    expect(getInlineTickScale(tickElements?.[7])).toBeCloseTo(24 / 12);
-    expect(getInlineTickScale(tickElements?.[8])).toBeCloseTo(18 / 12);
+    expect(getInlineTickScale(tickElements?.[2])).toBeCloseTo(9.5 / 8);
+    expect(getInlineTickScale(tickElements?.[3])).toBeCloseTo(12.5 / 8);
+    expect(getInlineTickScale(tickElements?.[4])).toBeCloseTo(17 / 8);
+    expect(getInlineTickScale(tickElements?.[5])).toBeCloseTo(24 / 8);
+    expect(getInlineTickScale(tickElements?.[6])).toBeCloseTo(17 / 8);
+    expect(getInlineTickScale(tickElements?.[7])).toBeCloseTo(12.5 / 8);
+    expect(getInlineTickScale(tickElements?.[8])).toBeCloseTo(9.5 / 8);
     expect(getInlineTickScale(tickElements?.[9])).toBe(1);
     expect(getInlineTickScale(tickElements?.[10])).toBe(1);
     // Peak is the previewed tick; shoulders take the mid tone; rest stays quiet.
@@ -417,22 +428,13 @@ describe('HistoryTicksDrawer component', () => {
     expect(tickElements?.[4]?.classList.contains('is-in-wave')).toBe(true);
     expect(tickElements?.[8]?.classList.contains('is-in-wave')).toBe(true);
     expect(tickElements?.[0]?.classList.contains('is-in-wave')).toBe(false);
-    // The selection pill sits on the peak tick's centre (5 * 11px + 0.5px).
-    const selection = container?.querySelector<HTMLElement>(
-      '[data-testid="history-tick-selection"]',
+    // Opacity follows the same wave: full ink at the peak, fading outward.
+    expect(tickElements?.[5]?.style.opacity).toBe('0.75');
+    expect(Number(tickElements?.[4]?.style.opacity)).toBeLessThan(1);
+    expect(Number(tickElements?.[3]?.style.opacity)).toBeLessThan(
+      Number(tickElements?.[4]?.style.opacity),
     );
-    expect(selection?.style.transform).toBe('translateY(55.5px)');
-
-    act(() => {
-      rail?.dispatchEvent(
-        new window.MouseEvent('mouseout', {
-          bubbles: true,
-          cancelable: true,
-          relatedTarget: document.body,
-        }),
-      );
-    });
-    expect(container?.querySelector('[data-testid="history-tick-selection"]')).toBeNull();
+    expect(tickElements?.[0]?.style.opacity).toBe('');
   });
 
   it('switches the bubble to the next user message without moving the rail', () => {

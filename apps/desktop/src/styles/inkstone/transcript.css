@@ -633,41 +633,11 @@ html[data-theme-id='piwin-inkstone-ink'] .cap-d li .ml {
 }
 
 /* ── History ruler ticks ─────────────────────────────────────────────
-   Right-edge hairlines stay faintly visible at rest (t4, softened), the
-   reading tick holds t2, the wave shoulders step through t3 and the peak
-   hands off to the t1 selection knob. Geometry and easing stay in
-   transcript-history-ticks.css. */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .history-ticks-border-strip
-  .border-tick-line {
-  background: color-mix(in srgb, var(--t4) 72%, transparent);
-  opacity: 1;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .history-ticks-border-strip
-  .border-tick-line.is-reading {
-  background: var(--t2);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .history-ticks-border-strip
-  .border-tick-line.is-in-wave {
-  background: var(--t3);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .history-ticks-border-strip
-  .border-tick-line.is-hovered,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .history-ticks-border-strip
-  .border-tick-line:focus-visible {
-  background: transparent;
-}
-
+   Inkstone draws the ruler in t1 ink; length and opacity (geometry and
+   easing in transcript-history-ticks.css) carry rest / reading / wave. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .history-ticks-border-strip {
-  --history-tick-selection-ink: var(--t1);
+  --history-tick-ink: var(--t1);
 }
 
 /* ── Assistant message actions — proto-00 `.turn-colophon` / `.acts-f` ── */

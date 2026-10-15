@@ -307,6 +307,9 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
         <ConversationTurnIdentityHeader
           key={`turn-identity-${turn.id}`}
           message={identityForHeader}
+          {...(conversationChrome?.replyWriterSource
+            ? { replyWriterSource: conversationChrome.replyWriterSource }
+            : {})}
           turnStreaming={currentTurnStreaming}
           locale={props.locale ?? 'zh-CN'}
           {...(props.livePromptModel !== undefined

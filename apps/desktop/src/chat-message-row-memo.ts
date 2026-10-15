@@ -179,6 +179,7 @@ export function areChatMessageRowPropsEqual(
     previous.isConversationSession === next.isConversationSession &&
     previous.showConversationHeader === next.showConversationHeader &&
     previous.showConversationTurnUsage === next.showConversationTurnUsage &&
+    previous.conversationReplyWriterSource === next.conversationReplyWriterSource &&
     previous.onResolveFlashcards === next.onResolveFlashcards &&
     previous.onRegenerate === next.onRegenerate &&
     previous.onRetryTurn === next.onRetryTurn &&

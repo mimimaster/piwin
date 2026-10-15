@@ -179,6 +179,8 @@ export type ChatMessageRowProps = {
   showConversationHeader?: boolean;
   /** Conversation only: turn usage chip on that identity header. */
   showConversationTurnUsage?: boolean;
+  /** Conversation only: the turn row whose Reply Writer state the header shows. */
+  conversationReplyWriterSource?: ChatMessageUi;
   /** Message-bound execution picker for a completed plan-present result. */
   planExecutionGate?: {
     plan: SessionPlan;

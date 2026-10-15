@@ -13,6 +13,7 @@ import type { ChatMessageUi, RunRecordUi, ToolCardUi } from './chat-reducer';
 import type { ModelOption } from './model-options';
 import {
   ConversationMessageHeader,
+  type ConversationReplyWriterSource,
   type ConversationUsageChipData,
 } from './conversation-message-header';
 import {
@@ -98,6 +99,8 @@ export function ConversationResponseContent(props: {
   onResolveFlashcards?: (itemIds: string[]) => Promise<FlashcardReviewCard[]>;
   /** False for later completions in the same Conversation turn. Default true. */
   showHeader?: boolean;
+  /** Turn row whose Reply Writer state the header chip shows. */
+  replyWriterSource?: ConversationReplyWriterSource;
   /** Supplementary panes bypass ChatMessageRow, so they opt into media chrome here. */
   renderMediaChrome?: boolean;
   /** Cross-message explore-flow role (anchor capsule / suppressed member). */
@@ -229,6 +232,7 @@ export function ConversationResponseContent(props: {
       {showHeader ? (
         <ConversationMessageHeader
           message={message}
+          {...(props.replyWriterSource ? { replyWriterSource: props.replyWriterSource } : {})}
           {...(resolvedModel !== undefined ? { model: resolvedModel } : {})}
           {...(modelDisplay?.providerName !== undefined
             ? { providerName: modelDisplay.providerName }

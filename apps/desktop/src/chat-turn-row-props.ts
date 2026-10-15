@@ -98,6 +98,9 @@ export function buildChatTurnRowProps(
           showConversationTurnUsage:
             conversationChrome.showUsageOnIdentity &&
             !identityLiftedAboveWorkDisclosure,
+          ...(conversationChrome.replyWriterSource
+            ? { conversationReplyWriterSource: conversationChrome.replyWriterSource }
+            : {}),
         }
       : {}),
     ...(props.onResolveFlashcards

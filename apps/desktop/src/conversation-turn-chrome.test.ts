@@ -233,6 +233,39 @@ describe('resolveConversationTurnChrome', () => {
     expect(chrome.showUsageOnIdentity).toBe(true);
   });
 
+  it('exposes the last assistant as reply-writer source when the identity sits earlier', () => {
+    const process = assistant({
+      id: 'a-work',
+      text: 'I will fetch the page.',
+      tools: [{ toolCallId: 't1', toolName: 'web_fetch', status: 'done', output: 'ok' }],
+    });
+    const final = assistant({
+      id: 'a-final',
+      text: '整理后的结论。',
+      replyWriter: {
+        language: 'zh-CN',
+        model: { protocol: 'openai-compatible', providerId: 'p', modelId: 'writer' },
+      },
+    });
+    const chrome = resolveConversationTurnChrome({
+      messages: [process, final],
+      lastAssistantMessageId: 'a-final',
+      latestAssistantMessageId: 'a-final',
+    });
+
+    expect(chrome.identityMessageId).toBe('a-work');
+    expect(chrome.replyWriterSource).toBe(final);
+  });
+
+  it('has no reply-writer source when the last assistant was not rewritten', () => {
+    const chrome = resolveConversationTurnChrome({
+      messages: [assistant({ id: 'a-1', text: 'plain' })],
+      lastAssistantMessageId: 'a-1',
+      latestAssistantMessageId: 'a-1',
+    });
+    expect(chrome.replyWriterSource).toBeNull();
+  });
+
   it('does not put usage on an older turn', () => {
     const chrome = resolveConversationTurnChrome({
       messages: [assistant({ id: 'a-old', text: 'earlier' })],

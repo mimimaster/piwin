@@ -12,6 +12,12 @@ export type ConversationTurnChrome = {
   hiddenAssistantIds: ReadonlySet<string>;
   /** Turn usage belongs on the identity header of the session's latest turn. */
   showUsageOnIdentity: boolean;
+  /**
+   * Reply Writer rewrites the turn's last assistant row, but the identity
+   * header sits on the first one — multi-step turns never showed the chip.
+   * The header reads rewrite state from this row instead.
+   */
+  replyWriterSource: ChatMessageUi | null;
 };
 
 /**
@@ -111,5 +117,9 @@ export function resolveConversationTurnChrome(input: {
     identityMessageId: firstVisibleId,
     hiddenAssistantIds,
     showUsageOnIdentity,
+    replyWriterSource:
+      lastAssistant && (lastAssistant.replyWriterPending === true || lastAssistant.replyWriter)
+        ? lastAssistant
+        : null,
   };
 }

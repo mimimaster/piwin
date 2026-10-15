@@ -21,8 +21,12 @@ export type ConversationUsageChipData = {
   tooltip?: string;
 };
 
+/** Rewrite state shown on the header; may come from another row of the turn. */
+export type ConversationReplyWriterSource = Pick<ChatMessageUi, 'replyWriter' | 'replyWriterPending'>;
+
 export type ConversationMessageHeaderProps = {
   message: ChatMessageUi;
+  replyWriterSource?: ConversationReplyWriterSource | null;
   model?: ModelRef;
   providerName?: string;
   shortModelName?: string;
@@ -33,6 +37,7 @@ export type ConversationMessageHeaderProps = {
 
 export type ConversationTurnIdentityHeaderProps = {
   message: ChatMessageUi;
+  replyWriterSource?: ConversationReplyWriterSource | null;
   livePromptModel?: ModelRef | null;
   turnStreaming: boolean;
   modelOptions?: readonly ModelOption[];
@@ -96,6 +101,7 @@ export function buildConversationTurnUsageChip(
 export function ConversationMessageHeader(props: ConversationMessageHeaderProps): ReactElement {
   const { message, model, providerName, shortModelName, modelLabel, usageChip } = props;
   const formattedTime = formatMessageTime(message.createdAt);
+  const replyWriter = props.replyWriterSource ?? message;
 
   return (
     <div className="conversation-message-header" data-testid="conversation-message-header">
@@ -132,19 +138,19 @@ export function ConversationMessageHeader(props: ConversationMessageHeaderProps)
             {formattedTime}
           </span>
         ) : null}
-        {message.replyWriterPending ? (
+        {replyWriter.replyWriterPending ? (
           <span className="conversation-reply-writer-chip is-pending" data-testid="conversation-reply-writer-chip">
             {props.locale === 'en' ? 'Rewriting reply…' : '正在整理输出…'}
           </span>
-        ) : message.replyWriter ? (
+        ) : replyWriter.replyWriter ? (
           <span
             className="conversation-reply-writer-chip"
             data-testid="conversation-reply-writer-chip"
-            title={message.replyWriter.model.modelId}
+            title={replyWriter.replyWriter.model.modelId}
           >
             {props.locale === 'en'
-              ? `Rewritten by ${message.replyWriter.model.modelId}`
-              : `由 ${message.replyWriter.model.modelId} 整理`}
+              ? `Rewritten by ${replyWriter.replyWriter.model.modelId}`
+              : `由 ${replyWriter.replyWriter.model.modelId} 整理`}
           </span>
         ) : null}
       </div>
@@ -190,6 +196,7 @@ export function ConversationTurnIdentityHeader(
     >
       <ConversationMessageHeader
         message={props.message}
+        {...(props.replyWriterSource ? { replyWriterSource: props.replyWriterSource } : {})}
         {...(resolvedModel !== undefined ? { model: resolvedModel } : {})}
         {...(modelDisplay?.providerName !== undefined
           ? { providerName: modelDisplay.providerName }

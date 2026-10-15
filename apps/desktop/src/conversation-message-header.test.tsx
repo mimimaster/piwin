@@ -147,6 +147,21 @@ describe('ConversationMessageHeader', () => {
     expect(chip?.textContent).toBe('由 gpt-4.1 整理');
   });
 
+  it('reads the reply-writer chip from another row of the turn', () => {
+    act(() => {
+      root.render(
+        <ConversationMessageHeader
+          message={baseMessage}
+          replyWriterSource={{ replyWriterPending: true }}
+          locale="zh-CN"
+        />,
+      );
+    });
+    const chip = container.querySelector('[data-testid="conversation-reply-writer-chip"]');
+    expect(chip?.textContent).toBe('正在整理输出…');
+    expect(chip?.classList.contains('is-pending')).toBe(true);
+  });
+
   it('renders usage chip when provided', () => {
     act(() => {
       root.render(
