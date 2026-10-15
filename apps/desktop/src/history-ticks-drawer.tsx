@@ -24,6 +24,7 @@ import type { ChatMessageUi } from './chat-reducer';
 import type { SessionUserMessageAnchor, SessionUserMessageIndexData } from '@piwin/contracts';
 import { messageAnchorId } from './transcript-outline';
 import { useTranscriptScrollPort } from './transcript-scroll-port';
+import { useHistoryTickReadingPosition } from './history-tick-reading-position';
 
 export type HistoryTicksDrawerProps = {
   messages?: ChatMessageUi[] | undefined;
@@ -188,6 +189,12 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
   const userMessages = useMemo(
     () => buildHistoryTickMessages(messages, historyIndex), [historyIndex, messages],
   );
+  const tickIds = useMemo(() => userMessages.map((message) => message.id), [userMessages]);
+  const readingIndex = useHistoryTickReadingPosition(
+    transcriptScrollPort?.scrollElement ?? null,
+    tickIds,
+  );
+  const stripRef = useRef<HTMLDivElement | null>(null);
 
   const clearPreview = useCallback((): void => {
     setHoveredMessageId(null);
@@ -369,6 +376,25 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
     };
   }, [clearRailInteraction, hoveredMessageId]);
 
+  // A long rail scrolls (scrollbar hidden); keep the reading tick in view
+  // while the reader scrolls the transcript, but never under the pointer.
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip || readingIndex === null || waveCenterIndex !== null) {
+      return;
+    }
+    if (strip.scrollHeight <= strip.clientHeight) {
+      return;
+    }
+    const tickTop = COLLAPSED_TICK_PADDING_TOP_PX + readingIndex * COLLAPSED_TICK_STEP_PX;
+    const margin = COLLAPSED_TICK_STEP_PX * 3;
+    if (tickTop - margin < strip.scrollTop) {
+      strip.scrollTop = Math.max(tickTop - margin, 0);
+    } else if (tickTop + margin > strip.scrollTop + strip.clientHeight) {
+      strip.scrollTop = tickTop + margin - strip.clientHeight;
+    }
+  }, [readingIndex, waveCenterIndex]);
+
   // Keep this guard after every hook so an empty session can become populated
   // without changing the component's hook order.
   if (userMessages.length === 0) {
@@ -399,6 +425,7 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
       data-history-total-user-messages={historyIndex?.totalUserMessages ?? userMessages.length}
     >
       <div
+        ref={stripRef}
         className="history-ticks-border-strip"
         data-testid="history-drawer-handle"
         style={
@@ -418,6 +445,19 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
         onScroll={clearRailInteraction}
       >
         <div className="border-ticks-list">
+          {waveCenterIndex !== null ? (
+            // One shared selection pill that slides between ticks, so the
+            // selected turn reads as a cursor rather than a darker hairline.
+            // Absolutely positioned: the tick column never reflows.
+            <span
+              className="border-tick-selection"
+              data-testid="history-tick-selection"
+              aria-hidden="true"
+              style={{
+                transform: `translateY(${waveCenterIndex * COLLAPSED_TICK_STEP_PX + COLLAPSED_TICK_HEIGHT_PX / 2}px)`,
+              }}
+            />
+          ) : null}
           {userMessages.map((message, index) => {
             const isPreviewed = message.id === hoveredMessageId;
             const waveScale =
@@ -427,11 +467,12 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
             // Shoulders of the wave take a mid tone so the peak reads as the
             // crest of one shape rather than a lone dark line.
             const waveClass = isPreviewed ? 'is-hovered' : waveScale === 1 ? '' : 'is-in-wave';
+            const readingClass = index === readingIndex ? ' is-reading' : '';
 
             return (
               <span
                 key={message.id}
-                className={`border-tick-line ${waveClass}`}
+                className={`border-tick-line ${waveClass}${readingClass}`}
                 style={waveScale === 1 ? undefined : { transform: `scaleX(${waveScale})` }}
                 data-testid={`history-tick-${message.id}`}
                 onFocus={(event) => handleTickFocus(message.id, event)}
@@ -443,6 +484,7 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
                 role="button"
                 tabIndex={0}
                 aria-describedby={isPreviewed ? 'history-message-bubble' : undefined}
+                aria-current={index === readingIndex ? 'location' : undefined}
                 aria-label={`Jump to history message ${(message.anchor?.ordinal ?? index) + 1}: ${truncateMessageText(message.text, 60)}`}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {

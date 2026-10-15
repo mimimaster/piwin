@@ -417,6 +417,22 @@ describe('HistoryTicksDrawer component', () => {
     expect(tickElements?.[4]?.classList.contains('is-in-wave')).toBe(true);
     expect(tickElements?.[8]?.classList.contains('is-in-wave')).toBe(true);
     expect(tickElements?.[0]?.classList.contains('is-in-wave')).toBe(false);
+    // The selection pill sits on the peak tick's centre (5 * 11px + 0.5px).
+    const selection = container?.querySelector<HTMLElement>(
+      '[data-testid="history-tick-selection"]',
+    );
+    expect(selection?.style.transform).toBe('translateY(55.5px)');
+
+    act(() => {
+      rail?.dispatchEvent(
+        new window.MouseEvent('mouseout', {
+          bubbles: true,
+          cancelable: true,
+          relatedTarget: document.body,
+        }),
+      );
+    });
+    expect(container?.querySelector('[data-testid="history-tick-selection"]')).toBeNull();
   });
 
   it('switches the bubble to the next user message without moving the rail', () => {

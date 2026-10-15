@@ -45,6 +45,7 @@
 }
 
 .border-ticks-list {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--history-tick-gap, 10px);
@@ -58,7 +59,9 @@
   width: 8px;
   height: 1px;
   border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--text-1) 24%, transparent);
+  /* Quiet at rest: dozens of equal hairlines otherwise read as a comb that
+     competes with the transcript; the reading tick carries the contrast. */
+  background: color-mix(in srgb, var(--text-1) 18%, transparent);
   cursor: pointer;
   transform-origin: right center;
   transform: scaleX(1);
@@ -80,13 +83,62 @@
   bottom: -5px;
 }
 
+/* Reading position: the turn the viewport is in. Longer and darker at rest so
+   the ruler says "you are here"; the hover wave's inline scale overrides it. */
+.border-tick-line.is-reading {
+  transform: scaleX(1.75);
+  background: color-mix(in srgb, var(--text-1) 64%, transparent);
+}
+
 .border-tick-line.is-in-wave {
   background: color-mix(in srgb, var(--text-1) 48%, transparent);
 }
 
+/* The selected tick hands its look to .border-tick-selection, which sits
+   on top of it; hide the hairline so its edges never peek out. */
 .border-tick-line.is-hovered,
 .border-tick-line:focus-visible {
-  background: var(--text-1);
+  background: transparent;
+}
+
+/* Selection cursor: an ink line at the wave peak with a small knob on its
+   inner tip, pointing at the preview bubble. Same ink as the ruler (no
+   accent) and near hairline weight, so it reads as part of the ruler.
+   Width matches HISTORY_TICK_WAVE_MAX_WIDTH_PX; translateY is set inline
+   (tick centre) and eases between ticks so moving along the rail glides. */
+.border-tick-selection {
+  position: absolute;
+  top: -1px;
+  right: 0;
+  width: 24px;
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--history-tick-selection-ink, var(--text-1));
+  pointer-events: none;
+  transform-origin: right center;
+  transition: transform var(--t-2) var(--ease-out);
+  animation: history-tick-selection-in var(--t-2) var(--ease-out);
+}
+
+.border-tick-selection::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--history-tick-selection-ink, var(--text-1));
+  transform: translateY(-50%);
+}
+
+@keyframes history-tick-selection-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .border-tick-line:focus-visible {
