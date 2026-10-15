@@ -667,7 +667,13 @@ export function reduceChatEvents(state: ChatUiState, action: ChatUiEventAction):
           ...message,
           replyWriterPending: false,
           ...(action.model && action.language
-            ? { replyWriter: { model: action.model, language: action.language } }
+            ? {
+                replyWriter: {
+                  model: action.model,
+                  language: action.language,
+                  ...(action.sourceText ? { sourceText: action.sourceText } : {}),
+                },
+              }
             : {}),
         };
       });

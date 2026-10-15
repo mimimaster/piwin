@@ -369,6 +369,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           status: message.status,
           ...(message.model ? { model: message.model } : {}),
           ...(message.language ? { language: message.language } : {}),
+          ...(message.sourceText ? { sourceText: message.sourceText } : {}),
         });
       } else if (message.type === 'session/name-updated') {
         onNameChangeRef.current?.(message.name);

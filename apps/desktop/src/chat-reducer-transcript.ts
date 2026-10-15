@@ -139,6 +139,9 @@ export function mapTranscriptMessagesToUi(
             replyWriter: {
               model: message.replyWriter.model,
               language: message.replyWriter.language,
+              ...(message.replyWriter.sourceText
+                ? { sourceText: message.replyWriter.sourceText }
+                : {}),
             },
           }
         : {}),

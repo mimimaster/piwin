@@ -147,6 +147,48 @@ describe('ConversationResponseContent', () => {
     expect(container.textContent).toContain('什么是光合作用？');
   });
 
+  it('swaps the body to the worker draft when the header toggles it', async () => {
+    const message: ChatMessageUi = {
+      id: 'm-reply-writer',
+      role: 'assistant',
+      text: 'Rewritten conclusion',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      replyWriter: {
+        language: 'en',
+        sourceText: 'worker draft text',
+        model: { protocol: 'openai-compatible', providerId: 'p', modelId: 'writer' },
+      },
+    };
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="en"
+        artifactInlineEnabled={true}
+      />,
+    );
+    const chip = (): HTMLElement | null =>
+      container.querySelector('[data-testid="conversation-reply-writer-chip"]');
+    await vi.waitFor(() => expect(container.textContent).toContain('Rewritten conclusion'));
+    act(() => {
+      chip()?.click();
+    });
+    await vi.waitFor(() => expect(container.textContent).toContain('worker draft text'));
+    expect(container.textContent).not.toContain('Rewritten conclusion');
+    act(() => {
+      chip()?.click();
+    });
+    await vi.waitFor(() => expect(container.textContent).toContain('Rewritten conclusion'));
+  });
+
   it('leaves first-token activity to the run status footer', () => {
     const message: ChatMessageUi = {
       id: 'm-streaming-empty',

@@ -430,6 +430,7 @@ describe('chatUiReducer session and context', () => {
     ]);
     expect(assistant?.replyWriter).toEqual({
       language: 'zh-CN',
+      sourceText: '登录 路径 已改',
       model: { protocol: 'openai-compatible', providerId: 'openai', modelId: 'gpt-4.1' },
     });
 
@@ -454,9 +455,11 @@ describe('chatUiReducer session and context', () => {
       status: 'applied',
       language: 'zh-CN',
       model: { protocol: 'openai-compatible', providerId: 'openai', modelId: 'gpt-4.1' },
+      sourceText: 'worker draft',
     });
     expect(state.messages[0]?.replyWriterPending).toBe(false);
     expect(state.messages[0]?.replyWriter?.model.modelId).toBe('gpt-4.1');
+    expect(state.messages[0]?.replyWriter?.sourceText).toBe('worker draft');
   });
 
   it('tracks compaction banner state', () => {

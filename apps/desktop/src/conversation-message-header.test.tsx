@@ -3,12 +3,14 @@ import { describe, expect, it, beforeAll, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ContextUsageSnapshot, ModelRef } from '@piwin/contracts';
-import { loadProviderBrandIcons } from '@piwin/ui-kit';
+import { loadProviderBrandIcons, PiwinUiProvider } from '@piwin/ui-kit';
+import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import type { ChatMessageUi } from './chat-reducer';
 import {
   buildConversationTurnUsageChip,
   ConversationMessageHeader,
 } from './conversation-message-header';
+import { isReplyWriterSourceShown } from './reply-writer-source-view';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -152,7 +154,7 @@ describe('ConversationMessageHeader', () => {
       root.render(
         <ConversationMessageHeader
           message={baseMessage}
-          replyWriterSource={{ replyWriterPending: true }}
+          replyWriterSource={{ id: 'msg-assistant-last', replyWriterPending: true }}
           locale="zh-CN"
         />,
       );
@@ -160,6 +162,43 @@ describe('ConversationMessageHeader', () => {
     const chip = container.querySelector('[data-testid="conversation-reply-writer-chip"]');
     expect(chip?.textContent).toBe('正在整理输出…');
     expect(chip?.classList.contains('is-pending')).toBe(true);
+  });
+
+  it('toggles the original draft when the rewrite kept one', () => {
+    const messageId = 'msg-toggle-1';
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+        <ConversationMessageHeader
+          message={{
+            ...baseMessage,
+            id: messageId,
+            replyWriter: {
+              language: 'zh-CN',
+              sourceText: 'worker draft',
+              model: { protocol: 'openai-compatible', providerId: 'openai', modelId: 'gpt-4.1' },
+            },
+          }}
+          locale="zh-CN"
+        />
+        </PiwinUiProvider>,
+      );
+    });
+    const chip = (): HTMLElement | null =>
+      container.querySelector('[data-testid="conversation-reply-writer-chip"]');
+    expect(chip()?.textContent).toBe('由 gpt-4.1 整理');
+    expect(chip()?.getAttribute('aria-pressed')).toBe('false');
+    act(() => {
+      chip()?.click();
+    });
+    expect(isReplyWriterSourceShown(messageId)).toBe(true);
+    expect(chip()?.textContent).toBe('委托前原稿');
+    expect(chip()?.getAttribute('aria-pressed')).toBe('true');
+    act(() => {
+      chip()?.click();
+    });
+    expect(isReplyWriterSourceShown(messageId)).toBe(false);
+    expect(chip()?.textContent).toBe('由 gpt-4.1 整理');
   });
 
   it('renders usage chip when provided', () => {

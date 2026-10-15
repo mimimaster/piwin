@@ -119,6 +119,8 @@ export type ChatMessageUi = {
   replyWriter?: {
     model: ModelRef;
     language: import('@piwin/contracts').ReplyWriterLanguage;
+    /** Worker draft before the rewrite; absent on very old rows. */
+    sourceText?: string;
   };
   /** Error message if generation or execution failed. */
   error?: string;
@@ -728,6 +730,7 @@ export type ChatUiAction =
       status: 'started' | 'applied' | 'failed';
       model?: ModelRef;
       language?: import('@piwin/contracts').ReplyWriterLanguage;
+      sourceText?: string;
     }
   | {
       type: 'subagent/stream';

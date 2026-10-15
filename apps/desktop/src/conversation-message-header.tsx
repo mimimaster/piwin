@@ -13,7 +13,8 @@ import {
   resolveModelDisplayName,
 } from './conversation-message-identity';
 import type { ModelOption } from './model-options';
-import { ProviderIcon } from '@piwin/ui-kit';
+import { Button, ProviderIcon } from '@piwin/ui-kit';
+import { toggleReplyWriterSource, useReplyWriterSourceShown } from './reply-writer-source-view';
 
 export type ConversationUsageChipData = {
   text: string;
@@ -22,7 +23,10 @@ export type ConversationUsageChipData = {
 };
 
 /** Rewrite state shown on the header; may come from another row of the turn. */
-export type ConversationReplyWriterSource = Pick<ChatMessageUi, 'replyWriter' | 'replyWriterPending'>;
+export type ConversationReplyWriterSource = Pick<
+  ChatMessageUi,
+  'id' | 'replyWriter' | 'replyWriterPending'
+>;
 
 export type ConversationMessageHeaderProps = {
   message: ChatMessageUi;
@@ -143,15 +147,12 @@ export function ConversationMessageHeader(props: ConversationMessageHeaderProps)
             {props.locale === 'en' ? 'Rewriting reply…' : '正在整理输出…'}
           </span>
         ) : replyWriter.replyWriter ? (
-          <span
-            className="conversation-reply-writer-chip"
-            data-testid="conversation-reply-writer-chip"
-            title={replyWriter.replyWriter.model.modelId}
-          >
-            {props.locale === 'en'
-              ? `Rewritten by ${replyWriter.replyWriter.model.modelId}`
-              : `由 ${replyWriter.replyWriter.model.modelId} 整理`}
-          </span>
+          <ReplyWriterChip
+            messageId={replyWriter.id}
+            writerModelId={replyWriter.replyWriter.model.modelId}
+            hasSource={Boolean(replyWriter.replyWriter.sourceText)}
+            locale={props.locale ?? 'zh-CN'}
+          />
         ) : null}
       </div>
 
@@ -165,6 +166,55 @@ export function ConversationMessageHeader(props: ConversationMessageHeaderProps)
         </span>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Rewritten replies keep the worker draft; the chip flips the bubble between
+ * the two. Old rows without a stored draft stay a plain label.
+ */
+function ReplyWriterChip(props: {
+  messageId: string;
+  writerModelId: string;
+  hasSource: boolean;
+  locale: 'zh-CN' | 'en';
+}): ReactElement {
+  const showingSource = useReplyWriterSourceShown(props.messageId);
+  const isEnglish = props.locale === 'en';
+  const rewrittenLabel = isEnglish
+    ? `Rewritten by ${props.writerModelId}`
+    : `由 ${props.writerModelId} 整理`;
+  if (!props.hasSource) {
+    return (
+      <span
+        className="conversation-reply-writer-chip"
+        data-testid="conversation-reply-writer-chip"
+        title={props.writerModelId}
+      >
+        {rewrittenLabel}
+      </span>
+    );
+  }
+  return (
+    <Button
+      variant="ghost"
+      size="compact"
+      className={`conversation-reply-writer-chip is-toggle${showingSource ? ' is-source' : ''}`}
+      data-testid="conversation-reply-writer-chip"
+      aria-pressed={showingSource}
+      title={
+        showingSource
+          ? isEnglish
+            ? 'Show the rewritten reply'
+            : '切回整理后的回复'
+          : isEnglish
+            ? 'Show the original draft'
+            : '查看委托前的原稿'
+      }
+      onClick={() => toggleReplyWriterSource(props.messageId)}
+    >
+      {showingSource ? (isEnglish ? 'Original draft' : '委托前原稿') : rewrittenLabel}
+    </Button>
   );
 }
 

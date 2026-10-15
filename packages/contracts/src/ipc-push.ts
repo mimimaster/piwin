@@ -140,6 +140,8 @@ export type HostPushVariant =
       status: 'started' | 'applied' | 'failed';
       model?: import('./host.js').ModelRef;
       language?: import('./reply-writer.js').ReplyWriterLanguage;
+      /** `applied` only: worker draft, so a live bubble can toggle back to it. */
+      sourceText?: string;
     }
   | {
       type: 'permission/request';

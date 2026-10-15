@@ -11,6 +11,7 @@ import { pickArtifactFenceSecurity } from './artifact-fence-security';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import type { ChatMessageUi, RunRecordUi, ToolCardUi } from './chat-reducer';
 import type { ModelOption } from './model-options';
+import { useReplyWriterSourceShown } from './reply-writer-source-view';
 import {
   ConversationMessageHeader,
   type ConversationReplyWriterSource,
@@ -221,6 +222,12 @@ export function ConversationResponseContent(props: {
     : undefined;
 
   const showHeader = props.showHeader !== false;
+  const showingReplyWriterSource = useReplyWriterSourceShown(message.id);
+  // Toggled from the turn header; only this row's body text swaps.
+  const displayText =
+    showingReplyWriterSource && message.replyWriter?.sourceText
+      ? message.replyWriter.sourceText
+      : message.text;
   const renderMediaChrome = props.renderMediaChrome === true;
 
   return (
@@ -311,9 +318,9 @@ export function ConversationResponseContent(props: {
         </div>
       ) : null}
 
-      {message.text.trim().length > 0 ? (
+      {displayText.trim().length > 0 ? (
         <MarkdownView
-          text={message.text}
+          text={displayText}
           renderingPhase={resolveAssistantRenderingPhase(
             message,
             props.runRecordsById,

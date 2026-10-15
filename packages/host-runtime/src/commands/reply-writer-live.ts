@@ -173,6 +173,7 @@ async function rewriteCompletedReply(
       status: 'applied',
       model: writerModel,
       language,
+      sourceText: attribution.sourceText,
     });
   } catch (error) {
     context.push({

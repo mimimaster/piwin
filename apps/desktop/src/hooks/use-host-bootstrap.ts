@@ -448,6 +448,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           status: message.status,
           ...(message.model ? { model: message.model } : {}),
           ...(message.language ? { language: message.language } : {}),
+          ...(message.sourceText ? { sourceText: message.sourceText } : {}),
         });
         return;
       }
