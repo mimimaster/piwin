@@ -74,10 +74,11 @@ export type ChatThreadProps = {
   toolDensity?: ToolCallDensity;
   /** Whether intermediate Agent thinking should be rendered in the timeline. */
   showThinking?: boolean;
-  onEdit: (messageId: string) => void;
-  onCancelEdit: () => void;
-  onEditResend: (messageId: string, text: string) => void;
-  onRetry: (messageId: string) => void;
+  /** Edit / retry; omitted where the session cannot be rewound (see ChatMessageRowProps). */
+  onEdit?: ((messageId: string) => void) | undefined;
+  onCancelEdit?: (() => void) | undefined;
+  onEditResend?: ((messageId: string, text: string) => void) | undefined;
+  onRetry?: ((messageId: string) => void) | undefined;
   /** Resend a user turn as a sibling branch (changed-text or explicit 开分支). */
   onBranchResend?: (messageId: string, text: string) => void;
   /** Re-run the same user turn without creating a prompt sibling. */

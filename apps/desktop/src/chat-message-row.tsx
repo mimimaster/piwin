@@ -205,9 +205,13 @@ const ChatMessageRowContent = (
     // mode in-place. Editing the last user message sends immediately; editing
     // an earlier message triggers the revert confirmation in App.
     const canEditPendingIntervention = message.instructionDelivery?.status === 'pending';
+    const onEdit = props.onEdit;
     const handleDoubleClick =
-      isUserMessage && !isEditingThis && (!props.streaming || canEditPendingIntervention)
-        ? () => props.onEdit(message.id)
+      onEdit &&
+      isUserMessage &&
+      !isEditingThis &&
+      (!props.streaming || canEditPendingIntervention)
+        ? () => onEdit(message.id)
         : undefined;
 
     // CM-10: message surface target. Capabilities follow existing session
@@ -437,13 +441,13 @@ const ChatMessageRowContent = (
             (message.contextRefs !== undefined && message.contextRefs.length > 0)
               ? { hasCarryContent: true }
               : {})}
-            onCancel={props.onCancelEdit}
+            onCancel={() => props.onCancelEdit?.()}
             onResend={(text) => {
               if (canEditPendingIntervention && props.onInterventionEdit) {
                 void props.onInterventionEdit(message.id, text);
                 return;
               }
-              props.onEditResend(message.id, text);
+              props.onEditResend?.(message.id, text);
             }}
             {...(props.onBranchResend
               ? { onOpenBranch: (text) => props.onBranchResend?.(message.id, text) }
@@ -456,7 +460,7 @@ const ChatMessageRowContent = (
           <UserMessageContent
             message={message}
             streaming={props.streaming}
-            onRetry={props.onRetry}
+            {...(props.onRetry ? { onRetry: props.onRetry } : {})}
             {...(() => {
               const point = findActiveBranchPoint(props.branchPoints ?? [], message.id);
               if (!point || !props.onSwitchBranch) {
@@ -476,7 +480,7 @@ const ChatMessageRowContent = (
             {...(props.isConversationSession !== undefined
               ? { isConversationSession: props.isConversationSession }
               : {})}
-            {...(canEditPendingIntervention && props.onInterventionEdit
+            {...(canEditPendingIntervention && props.onInterventionEdit && props.onEdit
               ? { onInterventionEdit: props.onEdit }
               : {})}
             {...(props.onInterventionCancel
@@ -546,13 +550,18 @@ const ChatMessageRowContent = (
             locale={props.locale}
             {...(() => {
               const retryUserMessageId = props.turnUserMessageId ?? props.lastUserMessageId;
+              const canRestart =
+                props.onRegenerate !== undefined ||
+                (retryUserMessageId !== null &&
+                  retryUserMessageId !== undefined &&
+                  (props.onRetryTurn !== undefined || props.onRetry !== undefined));
               const restart = (): void => {
                 if (retryUserMessageId && props.onRetryTurn) {
                   props.onRetryTurn(retryUserMessageId, { keepPrevious: false });
                 } else if (props.onRegenerate) {
                   props.onRegenerate();
                 } else if (retryUserMessageId) {
-                  props.onRetry(retryUserMessageId);
+                  props.onRetry?.(retryUserMessageId);
                 }
               };
               const retained = turnAttemptHasRetainedWork({
@@ -562,9 +571,11 @@ const ChatMessageRowContent = (
                 ...(props.turnTools ? { turnTools: props.turnTools } : {}),
               });
               if (retained && props.onContinueTurn) {
-                return { onContinue: props.onContinueTurn, onRestart: restart };
+                return canRestart
+                  ? { onContinue: props.onContinueTurn, onRestart: restart }
+                  : { onContinue: props.onContinueTurn };
               }
-              return { onRetry: restart };
+              return canRestart ? { onRetry: restart } : {};
             })()}
             onFeedback={props.onFeedback}
           />

@@ -275,11 +275,12 @@ describe('ConversationPaneSession', () => {
 
     const textarea = container?.querySelector<HTMLTextAreaElement>('textarea');
     if (!textarea) throw new Error('pane composer missing');
-    const transcript = container?.querySelector<HTMLElement>(
-      '[data-testid="conversation-pane-transcript"]',
+    // The width hint measures the reading column (ChatThread), as in the main view.
+    const column = container?.querySelector<HTMLElement>(
+      '[data-testid="conversation-pane-transcript"] .chat-thread',
     );
-    if (!transcript) throw new Error('pane transcript missing');
-    Object.defineProperty(transcript, 'clientWidth', { configurable: true, value: 640 });
+    if (!column) throw new Error('pane reading column missing');
+    Object.defineProperty(column, 'clientWidth', { configurable: true, value: 640 });
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
       if (!setter) throw new Error('textarea value setter missing');

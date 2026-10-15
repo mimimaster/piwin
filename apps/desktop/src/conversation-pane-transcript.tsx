@@ -1,15 +1,25 @@
-import { Fragment, useLayoutEffect, useMemo, useRef, type ReactElement } from 'react';
-import type { ModelRef, ThemeManifest } from '@piwin/contracts';
-import type { ChatMessageUi, ChatUiState } from './chat-reducer.js';
-import { CompactionActivity } from './compaction-activity.js';
-import { isCompactionRunning } from './compaction-seam-model.js';
-import { ConversationResponseContent } from './conversation-response-content.js';
-import { UserMessageContent } from './conversation-user-message.js';
+/**
+ * Transcript of a conversation pane (split pane, dock view, right-panel side
+ * chat). The rows are the main workbench's `ChatThread` — same turn grouping,
+ * explore folding, work disclosure and placeholder rules — so a pane never
+ * drifts from the main conversation's rendering. This component only owns the
+ * pane's scroll viewport and its follow-tail behaviour.
+ *
+ * Session actions the pane cannot perform (in-place edit / retry, forks,
+ * walkthroughs, subagent inspector) are simply not passed; ChatThread hides
+ * their affordances when the handler is absent.
+ */
+import { useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import type { ThemeManifest } from '@piwin/contracts';
+import type { ChatUiState } from './chat-reducer.js';
+import { ChatThread } from './chat-thread.js';
+import type { ComposerDockProps } from './composer-dock-types.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
-import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
-import { RunStatusFooter } from './run-status-footer.js';
+import { memoWithLatestCallbacks } from './memo-with-latest-callbacks.js';
 import { activeSessionPermissionPrompt } from './permission-queue.js';
+import { useTranscriptComposerCard } from './transcript-composer-card.js';
+import { loadDesktopPreferences } from './ui-preferences.js';
 
 export type ConversationPaneTranscriptProps = {
   sessionId: string;
@@ -20,83 +30,43 @@ export type ConversationPaneTranscriptProps = {
   /** Canvas capability. Omitted → follows the Inline value. */
   artifactCanvasEnabled?: boolean;
   locale: 'zh-CN' | 'en';
-  livePromptModel?: ModelRef | null;
+  /**
+   * General-scope Chat session: conversation chrome. Project sessions keep the
+   * Agent presentation (explore capsules, work disclosure), like the main view.
+   */
+  isConversationSession: boolean;
+  /** The pane's composer; the in-place edit card and goal actions read it. */
+  composerCard: ComposerDockProps;
   onOpenDocument?: (doc: DocumentOpenInput) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   fileBrowseRoot?: string | null;
   onCompactAbort?: () => void | Promise<void>;
-  onCancelGeneration?: () => void;
 };
-
-function createPendingAssistant(
-  userMessage: ChatMessageUi,
-  model: ModelRef | null | undefined,
-): ChatMessageUi {
-  return {
-    id: `pane-pending-assistant-${userMessage.id}`,
-    role: 'assistant',
-    text: '',
-    thinking: '',
-    tools: [],
-    attachments: [],
-    status: 'streaming',
-    createdAt: new Date().toISOString(),
-    ...(model ? { model } : {}),
-  };
-}
 
 /** Within this distance of the bottom the pane keeps following new output. */
 export const CONVERSATION_PANE_FOLLOW_THRESHOLD_PX = 48;
+
+/** Streaming re-renders the pane per token; settled rows must not follow. */
+const StableChatThread = memoWithLatestCallbacks(ChatThread);
 
 export function ConversationPaneTranscript(props: ConversationPaneTranscriptProps): ReactElement {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Follow the tail only while the reader is already there. Scrolling up to
   // read history during a stream must not be yanked back on every token.
   const followingRef = useRef(true);
-  const messages = useMemo(() => {
-    const visible = props.state.messages.filter((message) => {
-      if (
-        message.role !== 'user' &&
-        message.role !== 'assistant' &&
-        message.role !== 'system'
-      ) {
-        return false;
-      }
-      return !isQueuedTurnHiddenFromTranscript(message);
-    });
-    const tail = visible.at(-1);
-    const priorLiveCallChain = visible.some(
-      (message) =>
-        message.role === 'assistant' &&
-        message.tools.some((tool) => tool.status === 'running'),
-    );
-    return props.state.streaming && tail?.role === 'user' && !priorLiveCallChain
-      ? [...visible, createPendingAssistant(tail, props.livePromptModel)]
-      : visible;
-  }, [props.livePromptModel, props.state.messages, props.state.streaming]);
+  // Panes are not wired to the workbench preference state; read the persisted
+  // display preferences once so tool density / thinking match the main view.
+  const [preferences] = useState(loadDesktopPreferences);
+  const composerCard = useTranscriptComposerCard(props.composerCard);
+  const { state } = props;
 
-  // Messages from the newest user row on: the turn the status footer measures.
-  const currentTurnMessages = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i]?.role === 'user') return messages.slice(i);
-    }
-    return messages;
-  }, [messages]);
-  const showRunStatusFooter =
-    props.state.streaming &&
-    !props.state.awaitingTranscript &&
-    !activeSessionPermissionPrompt(props.state) &&
-    !isCompactionRunning(props.state.compactionActivity);
-
-  const latestAssistantId = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (msg && msg.role === 'assistant') {
-        return msg.id;
-      }
+  const lastUserMessageId = useMemo(() => {
+    for (let i = state.messages.length - 1; i >= 0; i--) {
+      const message = state.messages[i];
+      if (message?.role === 'user') return message.id;
     }
     return null;
-  }, [messages]);
+  }, [state.messages]);
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
@@ -104,7 +74,9 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
     // Scroll this pane only: scrollIntoView also moved ancestor scrollers and
     // stopped short of the transcript's bottom padding.
     element.scrollTop = element.scrollHeight;
-  }, [messages]);
+  }, [state.messages, state.streaming]);
+
+  const showThread = state.messages.length > 0 || state.streaming;
 
   return (
     <div
@@ -123,124 +95,55 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
       data-artifact-layout-root="main"
       data-artifact-layout-session={props.sessionId}
     >
-      {props.state.awaitingTranscript ? (
+      {state.awaitingTranscript ? (
         <div className="conversation-pane-loading" role="status">
           {props.locale === 'zh-CN' ? '正在加载会话…' : 'Loading conversation…'}
         </div>
       ) : null}
-      {messages.length === 0 && !props.state.awaitingTranscript ? (
+      {!showThread && !state.awaitingTranscript ? (
         <div className="conversation-pane-empty-copy muted">
           {props.locale === 'zh-CN' ? '开始一段新的对话。' : 'Start a new conversation.'}
         </div>
       ) : null}
-      {messages.map((message, messageIndex) => {
-        if (message.role === 'user') {
-          const userRow = (
-            <div
-              key={message.id}
-              className="conversation-pane-message role-user"
-              data-message-id={message.id}
-            >
-              <UserMessageContent
-                message={message}
-                streaming={props.state.streaming}
-                locale={props.locale}
-                isConversationSession
-              />
-            </div>
-          );
-          return (
-            <Fragment key={message.id}>
-              {userRow}
-              {props.state.compactionActivity?.anchorMessageId === message.id ? (
-                <CompactionActivity
-                  activity={props.state.compactionActivity}
-                  locale={props.locale}
-                  {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
-                />
-              ) : null}
-            </Fragment>
-          );
-        }
-        if (message.role === 'assistant') {
-          // A transcript row can remain marked streaming after a terminal push
-          // is missed. The pane's Host-backed run projection is the source of
-          // truth for live chrome; otherwise a historical row can keep the
-          // spinner and suppress its settled identity forever.
-          const isLiveMessage = props.state.streaming && message.status === 'streaming';
-          const previous = messages[messageIndex - 1];
-          const showHeader = previous?.role !== 'assistant';
-          const assistantRow = (
-            <div
-              key={message.id}
-              className="conversation-pane-message role-assistant"
-              data-message-id={message.id}
-            >
-              <ConversationResponseContent
-                message={message}
-                sessionId={props.sessionId}
-                messageIndex={messageIndex}
-                showStreamingCaret={isLiveMessage && message.text.length > 0}
-                activeTheme={props.activeTheme}
-                artifactThemeKey={props.artifactThemeKey}
-                artifactInlineEnabled={props.artifactInlineEnabled}
-                artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
-                runRecordsById={props.state.runRecordsById}
-                activeRunId={props.state.activeRunId}
-                locale={props.locale}
-                showHeader={showHeader}
-                renderMediaChrome
-                {...(props.livePromptModel !== undefined
-                  ? { livePromptModel: props.livePromptModel }
-                  : {})}
-                isLatestAssistantResponse={latestAssistantId === message.id}
-                isStreaming={isLiveMessage}
-                {...(isLiveMessage && props.onCancelGeneration
-                  ? { onCancelGeneration: props.onCancelGeneration }
-                  : {})}
-                {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
-                {...(props.onOpenArtifactCanvas
-                  ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
-                  : {})}
-                {...(props.fileBrowseRoot ? { projectPath: props.fileBrowseRoot } : {})}
-              />
-            </div>
-          );
-          return (
-            <Fragment key={message.id}>
-              {assistantRow}
-              {props.state.compactionActivity?.anchorMessageId === message.id ? (
-                <CompactionActivity
-                  activity={props.state.compactionActivity}
-                  locale={props.locale}
-                  {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
-                />
-              ) : null}
-            </Fragment>
-          );
-        }
-        return (
-          <div key={message.id} className="conversation-pane-system-message muted">
-            {message.text}
-          </div>
-        );
-      })}
-      {props.state.compactionActivity &&
-      !messages.some((message) => message.id === props.state.compactionActivity?.anchorMessageId) ? (
-        <CompactionActivity
-          activity={props.state.compactionActivity}
+      {showThread ? (
+        <StableChatThread
+          messages={state.messages}
+          sessionId={props.sessionId}
+          hydrating={state.awaitingTranscript}
+          streaming={state.streaming}
+          isConversationSession={props.isConversationSession}
+          livePromptModel={state.pendingTurnModel}
+          contextUsage={state.contextUsage}
+          editingMessageId={null}
+          lastUserMessageId={lastUserMessageId}
+          activeTheme={props.activeTheme}
+          artifactThemeKey={props.artifactThemeKey}
+          artifactInlineEnabled={props.artifactInlineEnabled}
+          artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
+          artifactCodeFirst={preferences.artifactCodeFirst}
+          runRecordsById={state.runRecordsById}
+          activeRunId={state.activeRunId}
+          activeSkill={state.activeSkill}
+          permissionPrompt={activeSessionPermissionPrompt(state)}
+          projectPath={props.fileBrowseRoot ?? null}
+          workDetailsExpanded={preferences.workDetailsExpanded}
+          toolDensity={preferences.toolDensity}
+          showThinking={preferences.verboseAgentChat}
+          {...(preferences.agentLocatorAnimation
+            ? { agentLocatorAnimation: preferences.agentLocatorAnimation }
+            : {})}
           locale={props.locale}
-          {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
-        />
-      ) : null}
-      {showRunStatusFooter ? (
-        <RunStatusFooter
-          messages={currentTurnMessages}
-          activeRunId={props.state.activeRunId}
-          runRecordsById={props.state.runRecordsById}
-          modelWaitTail={null}
-          locale={props.locale}
-          {...(props.state.activeSkill ? { skill: props.state.activeSkill } : {})}
+          onInspectSubagent={undefined}
+          subagentChildren={state.subagentChildren}
+          subagentInvocations={state.subagentInvocations}
+          subagentStreams={state.subagentStreams}
+          compactionActivity={state.compactionActivity}
+          {...(props.onCompactAbort ? { onCompactAbort: props.onCompactAbort } : {})}
+          composerCard={composerCard}
+          {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+          {...(props.onOpenArtifactCanvas
+            ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
+            : {})}
         />
       ) : null}
     </div>

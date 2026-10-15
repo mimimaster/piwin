@@ -7,6 +7,7 @@ import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import type { SessionTranscriptMessage } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState, type ChatMessageUi } from './chat-reducer';
 import { ConversationPaneTranscript } from './conversation-pane-transcript';
+import { createPaneTestComposerCard } from './conversation-pane-test-composer';
 import { ConversationResponseContent } from './conversation-response-content';
 
 declare global {
@@ -157,6 +158,8 @@ describe('orphan streaming chrome', () => {
         artifactThemeKey={0}
         artifactInlineEnabled={false}
         locale="zh-CN"
+        isConversationSession
+        composerCard={createPaneTestComposerCard('session-mtaymv82-9wz6ccco')}
       />,
     );
     expect(container.querySelector('[data-testid="app-error-boundary"]')).toBeNull();
@@ -228,6 +231,8 @@ describe('orphan streaming chrome', () => {
         artifactThemeKey={0}
         artifactInlineEnabled={false}
         locale="zh-CN"
+        isConversationSession
+        composerCard={createPaneTestComposerCard('s1')}
       />,
     );
     expect(container.textContent).toContain('follow up while tools run');
@@ -265,6 +270,8 @@ describe('orphan streaming chrome', () => {
         artifactThemeKey={0}
         artifactInlineEnabled={false}
         locale="zh-CN"
+        isConversationSession
+        composerCard={createPaneTestComposerCard('s1')}
       />,
     );
     expect(container.textContent).not.toContain('queued follow-up');

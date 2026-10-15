@@ -97,6 +97,11 @@ function isSupportedPaneScope(scope: PaneResumeData['scope']): boolean {
   );
 }
 
+/** Bare-string or object scope from `session/resume` → its kind. */
+function readPaneScopeKind(scope: PaneResumeData['scope']): string | undefined {
+  return typeof scope === 'object' ? scope.kind : scope;
+}
+
 function readRun(responseData: unknown): ExecutionRunRecord | null {
   if (responseData === null || typeof responseData !== 'object') return null;
   const run = (responseData as { run?: unknown }).run;
@@ -144,6 +149,9 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     ...(resumeThinkingLevel !== undefined ? { resumeThinkingLevel } : {}),
   });
   const [busy, setBusy] = useState(false);
+  // Chat (general) sessions get conversation chrome; project sessions keep the
+  // Agent presentation. Unknown until resume answers → conversation chrome.
+  const [projectScoped, setProjectScoped] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [plusSubmenu, setPlusSubmenu] = useState<ComposerPlusSubmenu>('none');
@@ -227,6 +235,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     setComposer('');
     setResumeModel(null);
     setResumeThinkingLevel(undefined);
+    setProjectScoped(false);
     void (async () => {
       try {
         const statusResponse = await props.hostClient.request({ type: 'host/status' });
@@ -289,6 +298,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
             usage: data.lastRequestUsage ?? null,
           });
         }
+        setProjectScoped(readPaneScopeKind(data.scope) === 'project');
         setResumeModel(data.model ?? null);
         setResumeThinkingLevel(data.thinkingLevel);
         if (data.name) onNameChangeRef.current?.(data.name);
@@ -594,6 +604,40 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         }
       : {}),
   });
+  const composerProps = buildPaneComposerProps({
+    sessionId: props.sessionId,
+    composer,
+    onComposerChange: setComposer,
+    streaming: state.streaming,
+    runPhase: state.runPhase,
+    mutationsEnabled: state.hostReady && !busy,
+    attachments,
+    onRemoveAttachment: (id) =>
+      setAttachments((current) => current.filter((item) => item.id !== id)),
+    onAttachFiles: (files, source) => void handleAttach(files, source),
+    onPickFiles: () => fileInputRef.current?.click(),
+    dropActive,
+    onDropActiveChange: setDropActive,
+    plusMenuOpen,
+    onPlusMenuOpenChange: setPlusMenuOpen,
+    plusSubmenu,
+    onPlusSubmenuChange: setPlusSubmenu,
+    modelOptions: sessionComposer.modelOptions,
+    selectedModelKey: sessionComposer.selectedModelKey,
+    selectedModelLabel: sessionComposer.selectedModelLabel,
+    thinkingLevel: sessionComposer.thinkingLevel,
+    onSelectModel: (key) => void sessionComposer.selectModel(key),
+    onThinkingLevelChange: (level) => void sessionComposer.setThinkingLevel(level),
+    contextRingView,
+    onSend: () => void handleSend(),
+    onStop: () => void handleStop(),
+    ...(props.contextRefs
+      ? {
+          pendingContextRefs: props.contextRefs.pending,
+          onRemoveContextRef: props.contextRefs.remove,
+        }
+      : {}),
+  });
   return (
     <MediaPreviewReadProvider sessionId={props.sessionId} readMedia={props.readMedia}>
       <div
@@ -612,14 +656,14 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           artifactInlineEnabled={props.artifactInlineEnabled}
           artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
           locale={props.locale}
-          livePromptModel={state.pendingTurnModel}
+          isConversationSession={!projectScoped}
+          composerCard={composerProps}
           {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           {...(props.onOpenArtifactCanvas
             ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
             : {})}
           {...(props.fileBrowseRoot !== undefined ? { fileBrowseRoot: props.fileBrowseRoot } : {})}
           onCompactAbort={handleCompactAbort}
-          onCancelGeneration={() => void handleStop()}
         />
         {state.error ? (
           <div className="conversation-pane-error" role="alert">
@@ -642,42 +686,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
               event.target.value = '';
             }}
           />
-          <ComposerCard
-            {...buildPaneComposerProps({
-              sessionId: props.sessionId,
-              composer,
-              onComposerChange: setComposer,
-              streaming: state.streaming,
-              runPhase: state.runPhase,
-              mutationsEnabled: state.hostReady && !busy,
-              attachments,
-              onRemoveAttachment: (id) =>
-                setAttachments((current) => current.filter((item) => item.id !== id)),
-              onAttachFiles: (files, source) => void handleAttach(files, source),
-              onPickFiles: () => fileInputRef.current?.click(),
-              dropActive,
-              onDropActiveChange: setDropActive,
-              plusMenuOpen,
-              onPlusMenuOpenChange: setPlusMenuOpen,
-              plusSubmenu,
-              onPlusSubmenuChange: setPlusSubmenu,
-              modelOptions: sessionComposer.modelOptions,
-              selectedModelKey: sessionComposer.selectedModelKey,
-              selectedModelLabel: sessionComposer.selectedModelLabel,
-              thinkingLevel: sessionComposer.thinkingLevel,
-              onSelectModel: (key) => void sessionComposer.selectModel(key),
-              onThinkingLevelChange: (level) => void sessionComposer.setThinkingLevel(level),
-              contextRingView,
-              onSend: () => void handleSend(),
-              onStop: () => void handleStop(),
-              ...(props.contextRefs
-                ? {
-                    pendingContextRefs: props.contextRefs.pending,
-                    onRemoveContextRef: props.contextRefs.remove,
-                  }
-                : {}),
-            })}
-          />
+          <ComposerCard {...composerProps} />
           <ComposerStatsLine
             totals={sessionUsageTotals}
             lastRequest={contextRingView.lastRequest}

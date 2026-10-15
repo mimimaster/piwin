@@ -75,10 +75,15 @@ export type ChatMessageRowProps = {
   toolDiffRequest?: DiffCardRequest;
   filesChangedRequest?: FilesChangedBarRequest;
   onReviewChanges?: () => void;
-  onEdit: (messageId: string) => void;
-  onCancelEdit: () => void;
-  onEditResend: (messageId: string, text: string) => void;
-  onRetry: (messageId: string) => void;
+  /**
+   * In-place edit / retry. Omitted by transcripts that cannot rewind their
+   * session (split panes, side chat): the row then hides those affordances
+   * instead of offering a control that does nothing.
+   */
+  onEdit?: ((messageId: string) => void) | undefined;
+  onCancelEdit?: (() => void) | undefined;
+  onEditResend?: ((messageId: string, text: string) => void) | undefined;
+  onRetry?: ((messageId: string) => void) | undefined;
   onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;
   onContinueTurn?: () => void;
   onBranchResend?: (messageId: string, text: string) => void;

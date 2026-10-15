@@ -159,10 +159,10 @@ export function buildChatTurnRowProps(
     ...(props.onReviewChanges !== undefined
       ? { onReviewChanges: props.onReviewChanges }
       : {}),
-    onEdit: props.onEdit,
-    onCancelEdit: props.onCancelEdit,
-    onEditResend: props.onEditResend,
-    onRetry: props.onRetry,
+    ...(props.onEdit !== undefined ? { onEdit: props.onEdit } : {}),
+    ...(props.onCancelEdit !== undefined ? { onCancelEdit: props.onCancelEdit } : {}),
+    ...(props.onEditResend !== undefined ? { onEditResend: props.onEditResend } : {}),
+    ...(props.onRetry !== undefined ? { onRetry: props.onRetry } : {}),
     ...(props.onBranchResend !== undefined ? { onBranchResend: props.onBranchResend } : {}),
     ...(props.onRetryTurn !== undefined ? { onRetryTurn: props.onRetryTurn } : {}),
     ...(props.onContinueTurn !== undefined ? { onContinueTurn: props.onContinueTurn } : {}),

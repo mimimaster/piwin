@@ -7,6 +7,7 @@ import type { SessionTranscriptMessage } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { chatUiReducer, createInitialChatUiState, type ChatUiState } from './chat-reducer';
 import { ConversationPaneTranscript } from './conversation-pane-transcript';
+import { createPaneTestComposerCard } from './conversation-pane-test-composer';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -51,6 +52,8 @@ describe('conversation pane transcript scrolling', () => {
             artifactThemeKey={0}
             artifactInlineEnabled={false}
             locale="zh-CN"
+            isConversationSession
+            composerCard={createPaneTestComposerCard(SESSION_ID)}
           />
         </PiwinUiProvider>,
       );
@@ -68,7 +71,11 @@ describe('conversation pane transcript scrolling', () => {
     let scrollTop = 0;
     Object.defineProperties(scroller, {
       clientHeight: { configurable: true, value: 400 },
-      scrollHeight: { configurable: true, get: () => scroller.children.length * 300 },
+      // Rows now live inside ChatThread: size the log by its message rows.
+      scrollHeight: {
+        configurable: true,
+        get: () => scroller.querySelectorAll('[id^="msg-"]').length * 300,
+      },
       scrollTop: {
         configurable: true,
         get: () => scrollTop,
