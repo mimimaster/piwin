@@ -25,6 +25,7 @@ import { useComposerPlusMenu } from './use-composer-plus-menu';
 import { useRightPanelResize } from './use-right-panel-resize';
 import { useSessionListChrome } from './use-session-list-chrome';
 import { useSessionListQuery } from './use-session-list-query';
+import { useSessionSwitchPanelReset } from './use-session-switch-panel-reset';
 import { isOverlayShellLayout } from '../shell-layout';
 import { useShellLayout } from './use-shell-layout';
 import { loadSidebarMode, saveSidebarMode, type SidebarMode } from '../sidebar-mode';
@@ -85,6 +86,13 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
       rightPanelResize.setFullWidth(false);
     }
   }, [rightPanelOpen, rightPanelResize.setFullWidth]);
+  useSessionSwitchPanelReset({
+    activeSessionId: state.activeSessionId,
+    rightPanelOpen,
+    rightPanelTab,
+    setFullWidth: rightPanelResize.setFullWidth,
+    dismissInspector: shell.dismissInspector,
+  });
   const revealDocPreview = useCallback(() => {
     const inspectorTab: RightPanelTab = 'docPreview';
     shell.setInspectorTab(inspectorTab);

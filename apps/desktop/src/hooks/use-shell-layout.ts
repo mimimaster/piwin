@@ -128,6 +128,12 @@ export function useShellLayout() {
     restoreFocus();
   }, [restoreFocus]);
 
+  // Programmatic close (e.g. after a session switch): focus stays where the
+  // user just clicked, and another open overlay is left alone.
+  const dismissInspector = useCallback(() => {
+    setOverlay((current) => (current === 'inspector' ? 'none' : current));
+  }, []);
+
   const toggleSessions = useCallback(() => {
     if (layoutMode === 'desktop') {
       setDesktopSidebarCollapsed((current) => !current);
@@ -347,6 +353,7 @@ export function useShellLayout() {
     openSessions,
     openInspector,
     closeOverlay,
+    dismissInspector,
     toggleSessions,
     collapseSessions,
     expandSessions,
