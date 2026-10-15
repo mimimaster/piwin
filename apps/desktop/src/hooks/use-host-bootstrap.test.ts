@@ -8,8 +8,8 @@ import {
   resolveThemeBootstrapResponse,
   selectSessionPlan,
   shouldAnnounceExtensionDeploymentFailure,
-  toPermissionPromptUi,
 } from './use-host-bootstrap';
+import { toPermissionPromptUi } from '../permission-queue';
 import { MAX_EXTENSION_DEPLOYMENT_ANNOUNCEMENTS, MAX_SESSION_PLAN_CACHE } from '../record-budget';
 import {
   PIWIN_APPEARANCE_DARK,

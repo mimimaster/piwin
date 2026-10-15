@@ -18,8 +18,9 @@ import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js'
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 import { compactFailureMessage } from './session-actions-helpers.js';
 import { reconcilePendingPermissions } from './reconcile-pending-permissions.js';
-import { activeSessionPermissionPrompt } from '../permission-queue.js';
-import { backendOptionForDecision, backendPermissionOptions } from '../backend-permission-options.js';
+import { activeSessionPermissionQueue } from '../permission-queue.js';
+import { withoutClaimedPermissionPrompts } from '../permission-claims.js';
+import { resolvePermissionPrompt } from '../permission-resolve.js';
 
 export function useSessionRunActions(input: {
   hostClient: HostClient;
@@ -342,34 +343,20 @@ export function useSessionRunActions(input: {
       rememberScope: PermissionRememberScope = 'once',
     ): Promise<void> => {
       // Resolve what the bar shows for this session, not the cross-session head.
-      const prompt = activeSessionPermissionPrompt(state);
+      // A prompt a conversation pane is already rendering is not offered here.
+      const prompt = withoutClaimedPermissionPrompts(activeSessionPermissionQueue(state))[0];
       if (!prompt) {
         return;
       }
-      const payload: {
-        type: 'permission/resolve';
-        requestId: string;
-        decision: PermissionDecision;
-        rememberScope?: PermissionRememberScope;
-        backendOptionId?: string;
-      } = {
-        type: 'permission/resolve',
-        requestId: prompt.requestId,
+      const response = await resolvePermissionPrompt({
+        hostClient,
+        prompt,
         decision,
-      };
-      const backendOptions = backendPermissionOptions(prompt.context);
-      if (backendOptions !== undefined) {
-        // ADR 0082: the agent's own option id, never a piwin remember scope.
-        const option = backendOptionForDecision(backendOptions, decision, rememberScope);
-        if (option !== undefined) {
-          payload.backendOptionId = option.optionId;
-        }
-      } else if (decision === 'allow') {
-        payload.rememberScope = rememberScope;
-      }
-      const response = await hostClient.request(payload, {
-        idempotencyKey: createGestureIdempotencyKey(),
+        rememberScope,
       });
+      if (response === null) {
+        return;
+      }
       dispatch({ type: 'permission/clear', requestId: prompt.requestId });
       if (!response.success) {
         dispatchNotification(pushError(response.error));

@@ -34,6 +34,11 @@ export type PermissionBarProps = {
    * background session). The workspace fact then shows where that session runs.
    */
   origin?: { kind: 'subagent' | 'session'; name: string; workingDirectory?: string };
+  /**
+   * Document-wide Enter/Esc shortcuts. Off for conversation panes: several panes
+   * can show prompts at once, and one Enter must not grant all of them.
+   */
+  keyboardShortcuts?: boolean;
 };
 
 /**
@@ -97,7 +102,7 @@ function shouldDefaultExpand(prompt: PermissionPromptUi): boolean {
 }
 
 export function PermissionBar(props: PermissionBarProps): ReactElement {
-  const { prompt, projectPath, origin } = props;
+  const { prompt, projectPath, origin, keyboardShortcuts = true } = props;
   const workspacePath = origin?.workingDirectory ?? projectPath;
   const { translator, locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
@@ -121,6 +126,7 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
   onPermissionRef.current = props.onPermission;
   useEffect(() => {
     setStamping(false);
+    if (!keyboardShortcuts) return;
     const requestId = prompt.requestId;
     if (keyboardOwners.has(requestId)) return;
     const owner = Symbol(requestId);
@@ -143,7 +149,7 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
       document.removeEventListener('keydown', onKeyDown);
       if (keyboardOwners.get(requestId) === owner) keyboardOwners.delete(requestId);
     };
-  }, [prompt.requestId]);
+  }, [prompt.requestId, keyboardShortcuts]);
 
   const queueBadge =
     queuedRemaining > 0 ? (

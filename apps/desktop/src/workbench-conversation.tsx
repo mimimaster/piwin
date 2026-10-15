@@ -44,6 +44,7 @@ import type { DoccardsHostRequest } from './knowledge/knowledge-host-request';
 import type { ModelOption } from './model-options';
 import { PermissionBar } from './permission-bar';
 import { activeSessionPermissionPrompt, activeSessionPermissionQueue } from './permission-queue';
+import { usePermissionClaimsVersion, withoutClaimedPermissionPrompts } from './permission-claims';
 import { shouldShowPlanTodoTray, type PlanTrayAction } from './plan-todo-model.js';
 import { PlanTodoTray } from './plan-todo-tray.js';
 import { ProjectTrustNotice } from './project-trust-notice';
@@ -455,12 +456,16 @@ export function WorkbenchPermissionBar(
     onPermission,
     onExtensionUiResolve,
   } = props;
+  // Re-render when a conversation pane claims or releases a prompt.
+  usePermissionClaimsVersion();
   const isConversationSession = isConversationSessionChrome(
     state.activeScope,
     sidebarMode,
     resolveActiveComposerAgentId(state),
   );
-  const visiblePermissionQueue = activeSessionPermissionQueue(state);
+  const visiblePermissionQueue = withoutClaimedPermissionPrompts(
+    activeSessionPermissionQueue(state),
+  );
   const visiblePermissionPrompt = visiblePermissionQueue[0] ?? null;
   const tray =
     sessionPlan && shouldShowPlanTodoTray({ plan: sessionPlan, isConversationSession }) ? (
