@@ -5,6 +5,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite';
 import {
+  normalizeUsageTokenSplit,
   parseAssistantUsageMeasurement,
   type SessionLatestRequestTiming,
   type SessionUsageTotals,
@@ -26,7 +27,8 @@ export function readSessionUsageTotals(db: DatabaseSync, sessionId: string): Ses
   for (const row of rows) {
     let measurement;
     try {
-      measurement = parseAssistantUsageMeasurement(JSON.parse(row.measurement_json) as unknown);
+      const parsed = parseAssistantUsageMeasurement(JSON.parse(row.measurement_json) as unknown);
+      measurement = parsed && normalizeUsageTokenSplit(parsed);
     } catch {
       continue;
     }

@@ -16,6 +16,7 @@ import {
   SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
 } from '@piwin/contracts';
 import { createMockSessionTranscriptPage } from './mock-session-transcript-page';
+import { summarizeUsageCallEntries } from './usage-panel-statistics';
 import {
   PIWIN_APPEARANCE_INKSTONE_INK,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
@@ -164,6 +165,7 @@ export function createMockUsageCallLog(
     limit,
     totalInWindow: all.length,
     truncated: all.length > entries.length,
+    windowSummary: summarizeUsageCallEntries(all),
   };
 }
 

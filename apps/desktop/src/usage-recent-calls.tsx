@@ -5,6 +5,7 @@ import {
   RECENT_CALLS_PAGE_SIZES, RECENT_CALLS_POLL_MS, formatThinkingLabel, formatTokensPerSecond, formatUsageClock,
   formatUsageCompact, formatUsageDuration, formatUsageExact, formatUsagePercent,
   formatUsageTimestamp, formatUsageUsd, resolveUsageCallLogPage, summarizeUsageCallLog,
+  type UsageCallLogSummary,
 } from './usage-panel-statistics';
 
 export type UsageRecentCallsProps = {
@@ -25,7 +26,7 @@ export function UsageRecentCalls({
   callLog, locale, isZh, autoRefresh, callOffset, callPageSize, callsLoading, callScrollRef,
   onAutoRefresh: setAutoRefresh, onOffset: setCallOffset, onPageSize: setCallPageSize,
 }: UsageRecentCallsProps): ReactElement {
-  const callSummary = summarizeUsageCallLog(callLog.entries);
+  const callSummary = summarizeUsageCallLog(callLog);
   const callPage = resolveUsageCallLogPage(callLog);
   const livePaused = !autoRefresh || callOffset > 0;
   return (
@@ -45,9 +46,7 @@ export function UsageRecentCalls({
                     ? isZh
                       ? '逐次记录模型调用，随会话实时追加。'
                       : 'Every model call, appended live as sessions run.'
-                    : isZh
-                      ? `共 ${formatUsageExact(callLog.totalInWindow)} 次调用 · 本页 ${formatUsageCompact(callSummary.totalTokens)} token · 缓存命中 ${formatUsageExact(callSummary.cachedCalls)}/${formatUsageExact(callSummary.calls)}（${formatUsagePercent(callSummary.cacheHitRate)}）`
-                      : `${formatUsageExact(callLog.totalInWindow)} calls · ${formatUsageCompact(callSummary.totalTokens)} tokens on this page · cache hit on ${formatUsageExact(callSummary.cachedCalls)}/${formatUsageExact(callSummary.calls)} (${formatUsagePercent(callSummary.cacheHitRate)})`}
+                    : formatRecentCallsSummary(callLog.totalInWindow, callSummary, isZh)}
                 </p>
               </div>
               <label className="usage-calls-live" data-live={livePaused ? 'off' : 'on'}>
@@ -288,4 +287,24 @@ export function UsageRecentCalls({
             ) : null}
           </section>
   );
+}
+
+/** Every figure in the header shares one scope; page-only numbers say so. */
+function formatRecentCallsSummary(
+  totalInWindow: number,
+  summary: UsageCallLogSummary,
+  isZh: boolean,
+): string {
+  const calls = formatUsageExact(totalInWindow);
+  const tokens = formatUsageCompact(summary.totalTokens);
+  const hits = `${formatUsageExact(summary.cachedCalls)}/${formatUsageExact(summary.calls)}`;
+  const rate = formatUsagePercent(summary.cacheHitRate);
+  if (summary.scope === 'window') {
+    return isZh
+      ? `共 ${calls} 次调用 · ${tokens} token · 缓存命中 ${hits} 次（token 命中率 ${rate}）`
+      : `${calls} calls · ${tokens} tokens · cache hit on ${hits} calls (${rate} of prompt tokens)`;
+  }
+  return isZh
+    ? `共 ${calls} 次调用 · 本页 ${tokens} token · 本页缓存命中 ${hits} 次（${rate}）`
+    : `${calls} calls · ${tokens} tokens on this page · cache hit on ${hits} on this page (${rate})`;
 }

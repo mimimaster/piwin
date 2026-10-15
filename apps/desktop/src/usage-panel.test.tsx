@@ -274,7 +274,7 @@ describe('UsagePanel', () => {
   it('labels the heatmap as a fixed one-year window', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
-    expect(container?.querySelector('[data-testid="usage-heatmap-scope"]')?.textContent).toContain('不随上方范围变化');
+    expect(container?.querySelector('[data-testid="usage-heatmap-scope"]')?.textContent).toContain('不随上方时间范围变化');
   });
 
   it('consolidates cost, totals, cache efficiency, and activity into four summaries', async () => {
@@ -289,7 +289,7 @@ describe('UsagePanel', () => {
     expect(requestCount?.previousElementSibling?.textContent).toBe('请求数');
     expect(
       container?.querySelector('[data-testid="usage-panel"]')?.getAttribute('data-scope'),
-    ).toBe('project');
+    ).toBe('global');
   });
 
   it('renders a one-year heatmap read in the viewer time zone with a hover card', async () => {
@@ -326,22 +326,63 @@ describe('UsagePanel', () => {
     }
   });
 
-  it('requests the selected project and defaults to a 30-day window', async () => {
-    let requestedProjectPath: string | undefined;
-    let requestedWindow: { from?: string; to?: string } | undefined;
+  it('starts across all projects with a 30-day window and an explicit scope choice', async () => {
+    const commands: UsageRequestCommand[] = [];
     const request = async (command: UsageRequestCommand) => {
+      commands.push(command);
       if (command.type === 'usage/list-recent') {
         return okResponse({ log: SAMPLE_CALL_LOG });
       }
-      requestedProjectPath = command.projectPath;
-      requestedWindow = command.window;
       return okResponse({ rollup: SAMPLE_ROLLUP });
     };
     ({ root, container } = renderPanel({ request }));
     await flushLoad();
 
-    expect(requestedProjectPath).toBe('/tmp/proj');
-    expect(requestedWindow?.from).toBeTruthy();
+    expect(commands.length).toBeGreaterThanOrEqual(3);
+    expect(commands.every((command) => command.projectPath === undefined)).toBe(true);
+    const pageRollup = commands.find((command) => command.type === 'usage/get-rollup');
+    expect(pageRollup?.window?.from).toBeTruthy();
+    const scopeControl = container?.querySelector('[data-testid="usage-scope-control"]');
+    expect(scopeControl?.textContent).toContain('全部项目');
+    expect(scopeControl?.textContent).toContain('proj');
+  });
+
+  it('narrows every usage query to the open project when that scope is chosen', async () => {
+    const commands: UsageRequestCommand[] = [];
+    const request = async (command: UsageRequestCommand) => {
+      commands.push(command);
+      if (command.type === 'usage/list-recent') {
+        return okResponse({ log: SAMPLE_CALL_LOG });
+      }
+      return okResponse({ rollup: SAMPLE_ROLLUP });
+    };
+    ({ root, container } = renderPanel({ request }));
+    await flushLoad();
+    commands.length = 0;
+
+    const projectOption = container?.querySelector<HTMLInputElement>(
+      '[data-testid="usage-scope-control"] input[value="project"]',
+    );
+    act(() => {
+      projectOption?.click();
+    });
+    await flushLoad();
+    await flushLoad();
+
+    expect(
+      container?.querySelector('[data-testid="usage-panel"]')?.getAttribute('data-scope'),
+    ).toBe('project');
+    const types = new Set(commands.map((command) => command.type));
+    expect(types).toEqual(new Set(['usage/get-rollup', 'usage/list-recent']));
+    // Summary cards, the heatmap and the call log all follow the scope.
+    expect(commands.filter((command) => command.type === 'usage/get-rollup').length).toBeGreaterThanOrEqual(2);
+    expect(commands.every((command) => command.projectPath === '/tmp/proj')).toBe(true);
+  });
+
+  it('offers no scope choice when no project is open', async () => {
+    ({ root, container } = renderPanel({ projectPath: null }));
+    await flushLoad();
+    expect(container?.querySelector('[data-testid="usage-scope-control"]')).toBeNull();
   });
 
   it('can switch the time range to all time', async () => {
@@ -450,7 +491,7 @@ describe('UsagePanel', () => {
     ).toContain('2');
   });
 
-  it('requests the rolling window scoped to the selected project', async () => {
+  it('requests the rolling one-hour window', async () => {
     let recentCommand: UsageRequestCommand | undefined;
     const request = async (command: UsageRequestCommand) => {
       if (command.type === 'usage/list-recent') {
@@ -463,7 +504,7 @@ describe('UsagePanel', () => {
     await flushLoad();
 
     expect(recentCommand?.windowMinutes).toBe(60);
-    expect(recentCommand?.projectPath).toBe('/tmp/proj');
+    expect(recentCommand?.projectPath).toBeUndefined();
   });
 
   it('pages the call log and pauses the live poll while paging', async () => {

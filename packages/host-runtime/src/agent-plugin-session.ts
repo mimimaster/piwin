@@ -30,6 +30,7 @@ import {
   type SavedMediaAsset,
   type AgentPluginCliLaunchResult,
   type BackendUserInputResult,
+  normalizeUsageTokenSplit,
   parseAgentPluginCliLaunchResult,
 } from '@piwin/contracts';
 import { AgentPluginBridge } from './agent-plugin-bridge.js';
@@ -361,7 +362,12 @@ export class AgentPluginSession implements SessionHandle {
       this.ports.onTransportClosed?.(emission.reason);
       return;
     }
-    const timedEvent = this.turnTiming.observe(emission.event);
+    // Plugins may report OpenAI-style usage (prompt includes cache); the ledger
+    // and context projection expect Pi's uncached split.
+    const usageEvent = emission.event.type === 'usage/finalized'
+      ? { ...emission.event, measurement: normalizeUsageTokenSplit(emission.event.measurement) }
+      : emission.event;
+    const timedEvent = this.turnTiming.observe(usageEvent);
     this.deliveryChain = this.deliveryChain.then(async () => {
       if (this.released) return;
       const importedEvent = this.ports.importMedia === undefined

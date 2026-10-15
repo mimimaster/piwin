@@ -15,7 +15,7 @@ import type {
   UsageRecord,
   UsageRollup,
 } from '@piwin/contracts';
-import { shouldAcceptContextUsage } from '@piwin/contracts';
+import { normalizeUsageTokenSplit, shouldAcceptContextUsage } from '@piwin/contracts';
 import { addToUsageBucket, createUsageBucket } from './usage-bucket.js';
 import { computeUsageCallLog, normalizeProviderId, type UsageCallLogOptions } from './usage-call-log.js';
 
@@ -134,7 +134,9 @@ export async function loadUsageRecords(filePath: string): Promise<UsageRecord[]>
         typeof record.totalTokens === 'number' &&
         Number.isFinite(record.totalTokens)
       ) {
-        records.push(record as UsageRecord);
+        // Rows written before plugin usage was normalized carry a
+        // cache-inclusive prompt; read them with today's split.
+        records.push(normalizeUsageTokenSplit(record as UsageRecord));
       }
     } catch {
       // Corrupt lines are skipped; the ledger is append-only and must not

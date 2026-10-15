@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { UsageRollup } from '@piwin/contracts';
+import type { UsageCallLog, UsageCallLogEntry, UsageRollup } from '@piwin/contracts';
 import {
   formatThinkingLabel,
   formatTokensPerSecond,
@@ -7,6 +7,7 @@ import {
   formatUsageUsd,
   normalizeUsageRollup,
   resolveUsageWindow,
+  summarizeUsageCallLog,
   tokenComponents,
 } from './usage-panel-statistics';
 
@@ -14,7 +15,43 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+function callEntry(id: string, cacheReadTokens: number): UsageCallLogEntry {
+  return {
+    id, recordedAt: '2026-08-02T08:30:00.000Z', sessionId: 's1', projectPath: null,
+    providerId: null, modelId: 'm', promptTokens: 10, completionTokens: 5,
+    cacheReadTokens, cacheWriteTokens: 0, totalTokens: 15 + cacheReadTokens,
+    source: 'assistant-usage',
+  };
+}
+
+function callLog(partial: Partial<UsageCallLog>): UsageCallLog {
+  return {
+    windowMinutes: 60, from: '', to: '', entries: [callEntry('a', 90), callEntry('b', 0)],
+    offset: 0, limit: 2, totalInWindow: 70, truncated: true, ...partial,
+  };
+}
+
 describe('usage-panel-statistics', () => {
+  it('summarizes the recent-call header over the whole window when the Host reports it', () => {
+    const summary = summarizeUsageCallLog(callLog({
+      windowSummary: {
+        promptTokens: 100, completionTokens: 50, cacheReadTokens: 900, cacheWriteTokens: 0,
+        totalTokens: 1_050, cachedCalls: 40,
+      },
+    }));
+    expect(summary).toEqual({
+      scope: 'window', calls: 70, totalTokens: 1_050, cachedCalls: 40, cacheHitRate: 0.9,
+    });
+  });
+
+  it('falls back to page-only figures, marked as such, for an older Host', () => {
+    const summary = summarizeUsageCallLog(callLog({}));
+    expect(summary.scope).toBe('page');
+    expect(summary.calls).toBe(2);
+    expect(summary.cachedCalls).toBe(1);
+    expect(summary.totalTokens).toBe(120);
+  });
+
   it('formats small USD costs without confusing unknown, tiny and genuinely free', () => {
     expect(formatUsageUsd(undefined)).toBe('—');
     expect(formatUsageUsd(Number.NaN)).toBe('—');

@@ -24,6 +24,11 @@ import { UsageRecentCalls } from './usage-recent-calls';
 import { UsageCostOverviewCard } from './usage-cost-overview';
 import { UsageCostDetails } from './usage-cost-details';
 import {
+  resolveUsageScopeProjectPath,
+  UsageScopeControl,
+  type UsageScopeChoice,
+} from './usage-scope-control';
+import {
   EMPTY_USAGE_CALL_LOG,
   EMPTY_USAGE_ROLLUP,
   RECENT_CALLS_PAGE_SIZE,
@@ -44,7 +49,7 @@ import {
 const VIEWER_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 export type UsagePanelProps = {
-  /** Optional trusted project path; null/undefined for global usage. */
+  /** The open project, offered as a scope choice; usage starts across all projects. */
   projectPath?: string | null;
   request: (command: {
     type: 'usage/get-rollup' | 'usage/list-recent';
@@ -63,6 +68,7 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const [timeRange, setTimeRange] = useState<UsageTimeRange>('30d');
+  const [scopeChoice, setScopeChoice] = useState<UsageScopeChoice>('all');
   const [rollup, setRollup] = useState<UsageRollup>(EMPTY_USAGE_ROLLUP);
   const [callLog, setCallLog] = useState<UsageCallLog>(EMPTY_USAGE_CALL_LOG);
   const [callLogSupported, setCallLogSupported] = useState(true);
@@ -78,7 +84,7 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
   requestRef.current = props.request;
   const callScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const scopedProjectPath = props.projectPath ?? null;
+  const scopedProjectPath = resolveUsageScopeProjectPath(scopeChoice, props.projectPath);
 
   /**
    * Rolling call log. Kept separate from the rollup load so a 20s poll never
@@ -218,6 +224,14 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
 
   const toolbarControls = (
     <div className="usage-toolbar-controls" data-testid="usage-toolbar-controls">
+      {props.projectPath ? (
+        <UsageScopeControl
+          value={scopeChoice}
+          projectPath={props.projectPath}
+          isZh={isZh}
+          onChange={setScopeChoice}
+        />
+      ) : null}
       {refreshedLabel ? (
         <span className="usage-toolbar-stamp" data-testid="usage-refreshed-at">
           {isZh ? `更新于 ${refreshedLabel}` : `Updated ${refreshedLabel}`}

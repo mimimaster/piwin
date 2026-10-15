@@ -1,5 +1,12 @@
 /** Pure rolling model-call projection; storage and all-time rollups stay separate. */
-import type { SessionScope, UsageCallLog, UsageCallLogEntry, UsageCostEstimate, UsageRecord } from '@piwin/contracts';
+import type {
+  SessionScope,
+  UsageCallLog,
+  UsageCallLogEntry,
+  UsageCallLogWindowSummary,
+  UsageCostEstimate,
+  UsageRecord,
+} from '@piwin/contracts';
 
 export type UsageCallLogOptions = {
   scope?: SessionScope;
@@ -87,7 +94,28 @@ export function computeUsageCallLog(
     limit,
     totalInWindow: inWindow.length,
     truncated: inWindow.length > entries.length,
+    windowSummary: summarizeCallWindow(inWindow),
   };
+}
+
+function summarizeCallWindow(records: readonly UsageRecord[]): UsageCallLogWindowSummary {
+  const summary: UsageCallLogWindowSummary = {
+    promptTokens: 0,
+    completionTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    totalTokens: 0,
+    cachedCalls: 0,
+  };
+  for (const record of records) {
+    summary.promptTokens += record.promptTokens ?? 0;
+    summary.completionTokens += record.completionTokens ?? 0;
+    summary.cacheReadTokens += record.cacheReadTokens ?? 0;
+    summary.cacheWriteTokens += record.cacheWriteTokens ?? 0;
+    summary.totalTokens += record.totalTokens;
+    if ((record.cacheReadTokens ?? 0) > 0) summary.cachedCalls += 1;
+  }
+  return summary;
 }
 
 function lastPageOffset(total: number, limit: number): number {

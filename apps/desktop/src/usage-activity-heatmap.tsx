@@ -102,7 +102,7 @@ export function UsageActivityHeatmap(props: UsageActivityHeatmapProps): ReactEle
           <h3>
             {isZh ? '用量活跃度' : 'Usage activity'}
             <span className="usage-scope-pill" data-testid="usage-heatmap-scope">
-              {isZh ? '过去一年 · 不随上方范围变化' : 'Past year · ignores the range above'}
+              {isZh ? '过去一年 · 不随上方时间范围变化' : 'Past year · ignores the time range above'}
             </span>
           </h3>
           <p>{isZh ? '每天的用量，颜色越深用得越多。' : 'Daily usage; darker means more.'}</p>

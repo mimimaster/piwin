@@ -322,6 +322,20 @@ export type UsageCallLogEntry = {
 };
 
 /**
+ * Token totals over every call in the rolling window, not just one page, so
+ * the log header and the call count share one scope.
+ */
+export type UsageCallLogWindowSummary = {
+  promptTokens: number;
+  completionTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalTokens: number;
+  /** Calls that read anything from the prompt cache. */
+  cachedCalls: number;
+};
+
+/**
  * One page of the rolling call log returned by `usage/list-recent`.
  *
  * Paging is offset-based over a newest-first ordering. The window is bounded
@@ -345,6 +359,8 @@ export type UsageCallLog = {
   totalInWindow: number;
   /** True when rows exist outside this page. */
   truncated: boolean;
+  /** Window-wide totals; omitted by older Hosts, whose clients fall back to the page. */
+  windowSummary?: UsageCallLogWindowSummary;
   pricingCatalog?: UsagePricingCatalog;
 };
 

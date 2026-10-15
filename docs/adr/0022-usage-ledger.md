@@ -71,3 +71,34 @@ per-session breakdown. The user explicitly excluded cost estimation.
 - Rollup compaction / monthly file rotation if the ledger grows large.
 - Cache-aware cost display remains out of scope; the panel reports token counts
   only.
+
+## Amendment: explicit scope, window-wide call summary, uncached prompt split (2026-10-15, accepted)
+
+An audit of the live ledger against the Settings → Usage page found three
+accounting defects.
+
+1. **Scope was implicit.** Settings passed the open project into the panel, so
+   the summary cards, the one-year heatmap and the recent-call log all counted
+   only that project while nothing on the page said so (a one-project view read
+   as "2 active days" against months of global history). The panel now starts
+   across **all projects**; when a project is open, a `全部项目 / <project>`
+   segmented control in the toolbar narrows every usage query together. With no
+   project open the control is absent and the page is global. The heatmap note
+   now names what it ignores: the *time* range, not the scope.
+2. **The recent-call header mixed scopes.** It printed the window call count
+   next to tokens and cache hits from the visible page only. `UsageCallLog` now
+   carries an optional `windowSummary` (token totals and cached-call count over
+   every call in the window); Desktop uses it for the whole header. An older
+   Host without it falls back to page figures, labelled `本页` throughout.
+3. **Cache-inclusive prompts from external agents.** Some backend plugins report
+   OpenAI-style usage: `promptTokens` includes the cached part and
+   `totalTokens = prompt + completion`. Pi's split, which the ledger assumes,
+   is uncached `promptTokens` with `totalTokens = prompt + completion + cache`.
+   Mixed rows inflated direct input, double-counted cache in the hit-rate
+   denominator and could never be priced. `normalizeUsageTokenSplit`
+   (`@piwin/contracts`) rewrites the inclusive form when it is unambiguous
+   (cache present, total equals prompt + completion exactly, prompt ≥ cache);
+   Pi-split rows never match. It runs at the plugin-session boundary for
+   `usage/finalized`, on backend request usage, and on ledger / session-totals
+   reads so rows already on disk are counted with today's split. The ledger
+   file is not rewritten.

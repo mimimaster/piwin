@@ -3,6 +3,7 @@ import type {
   UsageBucket,
   UsageCallLog,
   UsageCallLogEntry,
+  UsageCallLogWindowSummary,
   UsageModelKeyTotal,
   UsageRollup,
 } from '@piwin/contracts';
@@ -200,28 +201,49 @@ export function resolveUsageCallLogPage(log: UsageCallLog): UsageCallLogPage {
 }
 
 export type UsageCallLogSummary = {
+  /**
+   * `window` covers every call in the rolling window; `page` is the fallback
+   * for an older Host that reports no window totals, so the header must say
+   * its numbers belong to the visible page only.
+   */
+  scope: 'window' | 'page';
   calls: number;
   totalTokens: number;
   cachedCalls: number;
-  /** Window-wide hit rate, not the average of per-call rates. */
+  /** Token-weighted hit rate, not the average of per-call rates. */
   cacheHitRate: number | null;
 };
 
-export function summarizeUsageCallLog(entries: readonly UsageCallLogEntry[]): UsageCallLogSummary {
-  let totalTokens = 0;
-  let cachedCalls = 0;
-  const totals = { promptTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+/** Token totals for a set of call rows (page fallback and mock Hosts). */
+export function summarizeUsageCallEntries(
+  entries: readonly UsageCallLogEntry[],
+): UsageCallLogWindowSummary {
+  const summary: UsageCallLogWindowSummary = {
+    promptTokens: 0,
+    completionTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    totalTokens: 0,
+    cachedCalls: 0,
+  };
   for (const entry of entries) {
-    totalTokens += entry.totalTokens;
-    if (entry.cacheReadTokens > 0) cachedCalls += 1;
-    totals.promptTokens += entry.promptTokens;
-    totals.cacheReadTokens += entry.cacheReadTokens;
-    totals.cacheWriteTokens += entry.cacheWriteTokens;
+    summary.promptTokens += entry.promptTokens;
+    summary.completionTokens += entry.completionTokens;
+    summary.cacheReadTokens += entry.cacheReadTokens;
+    summary.cacheWriteTokens += entry.cacheWriteTokens;
+    summary.totalTokens += entry.totalTokens;
+    if (entry.cacheReadTokens > 0) summary.cachedCalls += 1;
   }
+  return summary;
+}
+
+export function summarizeUsageCallLog(log: UsageCallLog): UsageCallLogSummary {
+  const totals = log.windowSummary ?? summarizeUsageCallEntries(log.entries);
   return {
-    calls: entries.length,
-    totalTokens,
-    cachedCalls,
+    scope: log.windowSummary ? 'window' : 'page',
+    calls: log.windowSummary ? log.totalInWindow : log.entries.length,
+    totalTokens: totals.totalTokens,
+    cachedCalls: totals.cachedCalls,
     cacheHitRate: computePromptCacheHitRate(totals),
   };
 }

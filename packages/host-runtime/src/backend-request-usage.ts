@@ -1,4 +1,4 @@
-import { formatError, parseAssistantUsageMeasurement, type UsageRecord } from '@piwin/contracts';
+import { formatError, normalizeUsageTokenSplit, parseAssistantUsageMeasurement, type UsageRecord } from '@piwin/contracts';
 import { listAllSessionRecords } from '@piwin/session';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
@@ -32,9 +32,10 @@ export async function readBackendRequestUsage(deps: HostRuntimeKernel, from: str
         if (typeof row.requestId !== 'string' || row.requestId.length === 0) continue;
         const session = bound.find((item) => item.backend?.backendSessionId === row.backendSessionId);
         if (!session) continue;
-        const usage = parseAssistantUsageMeasurement({ ...row,
+        const parsed = parseAssistantUsageMeasurement({ ...row,
           measurementId: `${agentId}:${row.requestId}`, sessionId: session.id, messageId: row.requestId,
         });
+        const usage = parsed && normalizeUsageTokenSplit(parsed);
         if (!usage || !Number.isFinite(Date.parse(usage.recordedAt))) continue;
         const { sessionId, modelId, promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens,
           totalTokens, durationMs, firstTokenMs, recordedAt, measurementId, thinkingLevel,

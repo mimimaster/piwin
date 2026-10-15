@@ -65,6 +65,7 @@ lines.on('line', (line) => {
     emit(frame.scope, { type: 'agent', event: { kind: 'text', text: 'a' }, media: [{ directoryId: 'images', relativePath: 'shot.png', kind: 'image', importKey: 'k1' }] });
     emit(frame.scope, { type: 'agent', event: { kind: 'text', text: 'b' } });
     emit(frame.scope, { type: 'title', title: 'Renamed by backend' });
+    if (mode === 'usage-inclusive') emit(frame.scope, { type: 'agent', event: { type: 'usage/finalized', measurement: { measurementId: 'm-1', sessionId: 'product-1', messageId: 'msg-1', runId: 'run-1', promptTokens: 1000, completionTokens: 50, cacheReadTokens: 900, totalTokens: 1050, recordedAt: '2026-10-15T00:00:00.000Z' } } });
     if (mode === 'hang-prompt') { promptFrame = frame; return; }
     return ok(frame, { status: 'completed', stopReason: 'stop' });
   }
@@ -179,6 +180,15 @@ describe('Bridge-backed Agent plugin session handle', () => {
     expect(events.map((event) => (event as { text?: string }).text)).toEqual(['a', 'b']);
     expect(order).toEqual(['import', 'event', 'event']);
     expect(titles).toEqual(['Renamed by backend']);
+  });
+
+  it('normalizes cache-inclusive plugin usage to the uncached prompt split', async () => {
+    const { session, events } = await harness('usage-inclusive');
+    await session.prompt({ text: 'hello' });
+    const finalized = events.find((event) => event.type === 'usage/finalized');
+    expect(finalized?.type === 'usage/finalized' ? finalized.measurement : undefined).toMatchObject({
+      promptTokens: 100, completionTokens: 50, cacheReadTokens: 900, totalTokens: 1050,
+    });
   });
 
   it('keeps the ordered stream alive when a media import fails', async () => {

@@ -52,6 +52,19 @@ describe('usage-ledger-store', () => {
     expect(records[0]?.sessionId).toBe('s1');
   });
 
+  it('reads legacy cache-inclusive prompt rows with the uncached split', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-usage-split-'));
+    const filePath = join(dir, 'ledger.jsonl');
+    await appendUsageRecord(filePath, record({
+      promptTokens: 1_000, completionTokens: 50, cacheReadTokens: 900, cacheWriteTokens: 0,
+      totalTokens: 1_050, timingScope: 'turn',
+    }));
+    const rollup = await readUsageRollup(filePath);
+    expect(rollup.promptTokens).toBe(100);
+    expect(rollup.cacheReadTokens).toBe(900);
+    expect(rollup.totalTokens).toBe(1_050);
+  });
+
   it('preserves turn timing and its scope through the ledger and recent usage log', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-usage-turn-'));
     const filePath = join(dir, 'ledger.jsonl');
@@ -389,6 +402,35 @@ describe('usage-ledger-store', () => {
     const last = computeUsageCallLog(records, { now, limit: 10, offset: 20 });
     expect(last.entries).toHaveLength(5);
     expect(last.entries[0]?.sessionId).toBe('s20');
+  });
+
+  it('call log summarizes the whole window, not the returned page', () => {
+    const now = new Date('2026-08-01T12:00:00.000Z');
+    const records = Array.from({ length: 5 }, (_, index) =>
+      record({
+        sessionId: `s${index}`,
+        measurementId: `w-${index}`,
+        recordedAt: new Date(now.getTime() - (index + 1) * 60_000).toISOString(),
+        promptTokens: 10,
+        completionTokens: 5,
+        cacheReadTokens: index < 3 ? 85 : 0,
+        totalTokens: index < 3 ? 100 : 15,
+      }),
+    );
+    const outside = record({
+      measurementId: 'old', recordedAt: '2026-08-01T10:00:00.000Z', totalTokens: 9_999,
+    });
+
+    const page = computeUsageCallLog([...records, outside], { now, limit: 2 });
+    expect(page.entries).toHaveLength(2);
+    expect(page.windowSummary).toEqual({
+      promptTokens: 50,
+      completionTokens: 25,
+      cacheReadTokens: 255,
+      cacheWriteTokens: 0,
+      totalTokens: 330,
+      cachedCalls: 3,
+    });
   });
 
   it('call log clamps an offset that ran past the shrinking window', () => {
