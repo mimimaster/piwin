@@ -13,7 +13,7 @@
  * other product capability.
  */
 
-import { useMemo, useState, type ReactElement } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   materializeArtifact,
   type ArtifactThemeVariables,
@@ -27,6 +27,11 @@ import { artifactDownloadLabel, downloadArtifactSource } from './artifact-source
 import { useDesktopLocale } from './desktop-locale-context';
 import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
 import { useStableArtifactTheme } from './artifact-stable-theme.js';
+import {
+  readArtifactReadingTypography,
+  sameArtifactTypography,
+  type ArtifactTypography,
+} from './artifact-typography.js';
 import { RenderErrorBoundary } from './render-error-boundary.js';
 import { ArtifactFullscreenOverlay } from './artifact-fullscreen-overlay.js';
 import { ArtifactViewerStage, ArtifactViewerToolbar } from './artifact-viewer-controls.js';
@@ -96,10 +101,25 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
     ...(activeTarget ? { originSessionId: activeTarget.sessionId } : {}),
   });
 
-  const artifactTheme = useStableArtifactTheme(props.artifactTheme);
+  const hostTheme = useStableArtifactTheme(props.artifactTheme);
+  // The sandbox cannot inherit the reading size; measure it before the first
+  // frame so the Canvas reads at the same size as the transcript.
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [typography, setTypography] = useState<ArtifactTypography | null>(null);
+  const hasTarget = activeTarget !== null && activeTarget !== undefined;
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!hasTarget || panel === null) return;
+    const next = readArtifactReadingTypography(panel);
+    setTypography((current) => (sameArtifactTypography(current, next) ? current : next));
+  }, [hasTarget, props.artifactThemeKey]);
+  const artifactTheme = useMemo(
+    () => (hostTheme && typography ? { ...hostTheme, ...typography } : hostTheme),
+    [hostTheme, typography],
+  );
   const hostView = activeTarget !== null && activeTarget !== undefined && hostViewTargetId === activeTarget.id;
   const plan = useMemo(() => {
-    if (!activeTarget) return null;
+    if (!activeTarget || typography === null) return null;
     return materializeArtifact(activeTarget.intent, {
       mode: activeTarget.streaming === true ? 'stream-preview' : 'interactive',
       source: activeTarget.source,
@@ -109,7 +129,7 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
       ...(hostView ? { forceHostStyle: true } : {}),
       ...(artifactTheme ? { theme: artifactTheme } : {}),
     });
-  }, [activeTarget, artifactTheme, mediaDataUrls, styleModes, hostView]);
+  }, [activeTarget, typography, artifactTheme, mediaDataUrls, styleModes, hostView]);
 
   function handleInsert(): void {
     if (pendingProposal && props.onInsertProposal) {
@@ -151,6 +171,7 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
 
   return (
     <div
+      ref={panelRef}
       className="artifact-canvas-panel"
       data-testid="artifact-canvas-panel"
       onKeyDown={(event) => {

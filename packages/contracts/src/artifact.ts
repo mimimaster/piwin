@@ -348,7 +348,7 @@ export function formatArtifactProtocol(): string {
   const canvasOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" surface="canvas" style="host"`;
   const svgOpen = '```svg title="Short descriptive title" style="host"';
   return [
-    '[piwin-prompt-meta kind="artifact:runtime" version="15" applies="artifacts-enabled"]',
+    '[piwin-prompt-meta kind="artifact:runtime" version="16" applies="artifacts-enabled"]',
     '## HTML Artifact Runtime Contract',
     '',
     '### Success',
@@ -371,6 +371,18 @@ export function formatArtifactProtocol(): string {
     svgOpen,
     '<!-- self-contained SVG, all assets inline -->',
     fenceClose,
+    '',
+    'Example reply (prose, blank line, fence opening, body, fence closing, prose):',
+    '````text',
+    'The three checks compare like this:',
+    '',
+    '```artifact-html title="Check comparison" style="host"',
+    '<div class="cmp"><style>.cmp{width:100%;color:var(--piwin-artifact-text)}</style>',
+    '<p>…</p></div>',
+    fenceClose,
+    '',
+    'The second check is the one that fails.',
+    '````',
     '',
     '### Rendering rules (the sandbox depends on these)',
     '- Style: every fence declares `style="host"`. `style="expressive"` is for when the user asks for a look, prototype, game, or poster; reports and unprompted artifacts use `host`.',
@@ -399,6 +411,9 @@ export function formatArtifactProtocol(): string {
     '- **CSS First**: when you write a `<style>` block, emit it complete before any visible HTML markup, so the preview has its styles from the first element.',
     '- **Incremental Streaming**: Close each visual block before starting siblings so live preview renders cleanly.',
     '- **Static First**: core content lives in static HTML and JS enhances it, so the content stays readable if JS fails.',
+    '',
+    '### Output check',
+    '- The first line of every artifact is its opening fence (`' + inlineOpen + '`), never a bare `<div>`, `<style>` or `<svg>`. HTML written outside a fence reaches the user as escaped source text.',
   ].join('\n');
 }
 

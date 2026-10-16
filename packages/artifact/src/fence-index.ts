@@ -2,6 +2,7 @@
  * Linear CommonMark fenced-code indexer. Offsets are UTF-16 JS string indices
  * and match Streamdown `node.position.start.offset` on the same markdown.
  */
+import { BARE_HTML_ARTIFACT_INFO, indexBareHtmlBlock } from './artifact-bare-html-block.js';
 import { findArtifactClosingTag, parseArtifactOpeningTag, type ArtifactOpeningTag } from './artifact-tag-block.js';
 import { getFenceLanguageToken } from './fence-syntax.js';
 
@@ -18,9 +19,12 @@ export type ArtifactFenceRecord = {
   /**
    * Written as `<artifact-html …>…</artifact-html>` instead of a fence. Raw
    * offsets of the opening tag end and the closing tag (null while streaming);
-   * `canonicalizeArtifactTagBlocks` rewrites both into fence markers.
+   * `canonicalizeArtifactTagBlocks` rewrites both into fence markers. A bare
+   * HTML block has zero-width ranges: the markers are inserted, nothing removed.
    */
   tagBlock?: ArtifactTagBlockRange;
+  /** Bare `<div>…</div>` artifact with no fence or tag; see `tagBlock`. */
+  bareHtml?: true;
 };
 
 export type ArtifactTagBlockRange = {
@@ -269,6 +273,33 @@ function indexTagBlock(
   };
 }
 
+function indexBareHtml(
+  lines: readonly MarkdownLine[],
+  lineIndex: number,
+  ordinal: number,
+): { record: ArtifactFenceRecord; cursor: number } | null {
+  const block = indexBareHtmlBlock(lines, lineIndex);
+  if (!block) return null;
+  const closingAt = block.closingAt;
+  return {
+    record: {
+      ordinal,
+      startOffset: block.startOffset,
+      endOffset: block.endOffset,
+      info: BARE_HTML_ARTIFACT_INFO,
+      language: getFenceLanguageToken(BARE_HTML_ARTIFACT_INFO),
+      source: block.source,
+      open: closingAt === null,
+      tagBlock: {
+        openingEnd: block.startOffset,
+        closing: closingAt === null ? null : { start: closingAt, end: closingAt },
+      },
+      bareHtml: true,
+    },
+    cursor: block.cursor,
+  };
+}
+
 /**
  * Index every CommonMark fenced code block in `markdown`.
  * `startOffset` is the first fence marker (` or ~), matching Streamdown.
@@ -286,7 +317,9 @@ export function indexArtifactFences(markdown: string): ArtifactFenceRecord[] {
     }
     const opening = parseOpeningFence(line.text) ?? recoverArtifactOpening(line.text, lines[lineIndex + 1]?.text ?? '');
     const openingTag = opening ? null : parseArtifactOpeningTag(line.text);
-    const tagBlock = openingTag ? indexTagBlock(lines, lineIndex, openingTag, ordinal) : null;
+    const tagBlock = openingTag
+      ? indexTagBlock(lines, lineIndex, openingTag, ordinal)
+      : opening ? null : indexBareHtml(lines, lineIndex, ordinal);
     if (tagBlock) {
       fences.push(tagBlock.record);
       ordinal += 1;

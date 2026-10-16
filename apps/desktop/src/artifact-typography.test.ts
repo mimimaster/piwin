@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { readArtifactTypography, sameArtifactTypography } from './artifact-typography';
+import {
+  readArtifactReadingTypography,
+  readArtifactTypography,
+  sameArtifactTypography,
+} from './artifact-typography';
 
 function stubComputedStyle(values: Record<string, string>): void {
   vi.stubGlobal('getComputedStyle', () => ({
@@ -42,5 +46,28 @@ describe('readArtifactTypography', () => {
     expect(sameArtifactTypography(null, typography)).toBe(false);
     expect(sameArtifactTypography({ ...typography }, typography)).toBe(true);
     expect(sameArtifactTypography(typography, { '--piwin-artifact-font-size': '16px' })).toBe(false);
+  });
+});
+
+describe('readArtifactReadingTypography', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('reads the chat reading tokens, not the panel chrome size', () => {
+    stubComputedStyle({
+      'font-size': '12.5px',
+      '--chat-font-size': ' 14.5px',
+      '--chat-line-height': ' 1.72',
+    });
+    expect(readArtifactReadingTypography({} as Element)).toEqual({
+      '--piwin-artifact-font-size': '14.5px',
+      '--piwin-artifact-line-height': '1.72',
+    });
+  });
+
+  it('leaves the sandbox defaults when the shell sets no reading tokens', () => {
+    stubComputedStyle({ 'font-size': '12.5px' });
+    expect(readArtifactReadingTypography({} as Element)).toEqual({});
   });
 });

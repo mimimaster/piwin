@@ -115,6 +115,17 @@ From `artifactTypes.ts`:
   mentions stay text. Desktop runs `canonicalizeArtifactTagBlocks` before the
   raw-HTML escaper, rewriting the tags into a fence with unchanged ordinals.
   The prompt still teaches only fences.
+- Bare-HTML recovery (2026-10-16): a model that skips the fence entirely and
+  opens with `<div class="x"><style>…` (seen from DeepSeek 4.1) is indexed as an
+  artifact record (`bareHtml`, zero-width `tagBlock` ranges, info
+  `artifact-html style="host"`). It must start its line (≤3 spaces) with a
+  `div`/`section`/`article`/`main` container, ends where that element's depth
+  returns to zero (script bodies ignored), and its body must reference a
+  `--piwin-artifact-` var — ordinary HTML in prose never does, so it stays
+  text. While streaming, recovery starts once the first theme var arrives.
+  `canonicalizeArtifactTagBlocks` inserts fence markers around it. Runtime
+  contract v16 adds a full example reply and an "Output check" rule so models
+  emit the fence in the first place.
 - Native languages: `html`, `htm`
 - `MAX_ARTIFACT_BYTES = 100 * 1024`
 - Height: completed inert Inline HTML/SVG uses sanitized Shadow DOM and follows

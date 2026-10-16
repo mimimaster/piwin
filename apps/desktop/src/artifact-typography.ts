@@ -33,6 +33,23 @@ export function readArtifactTypography(element: Element): ArtifactTypography {
 }
 
 /**
+ * The reading typography for a Canvas Artifact. The Canvas sits in panel
+ * chrome, not transcript prose, so measuring its own font-size would hand the
+ * sandbox chrome size; read the user's chat reading tokens it inherits from
+ * the app shell instead. Without them the sandbox falls back to UA 16px and
+ * every em-sized kit control grows with it.
+ */
+export function readArtifactReadingTypography(element: Element): ArtifactTypography {
+  const style = getComputedStyle(element);
+  const typography: ArtifactTypography = {};
+  const fontSize = style.getPropertyValue('--chat-font-size').trim();
+  if (fontSize) typography['--piwin-artifact-font-size'] = fontSize;
+  const lineHeight = style.getPropertyValue('--chat-line-height').trim();
+  if (lineHeight) typography['--piwin-artifact-line-height'] = lineHeight;
+  return typography;
+}
+
+/**
  * Computed line-height resolves to px, but transcript prose sets a unitless
  * ratio that children rescale by their own font-size. Passing the px value
  * would pin every heading to body leading, so hand the ratio through.
