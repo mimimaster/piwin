@@ -21,6 +21,12 @@ start clean, but keep what matters, and keep going (prior art: Amp
    decisions, files, open problems, next steps). Cancel with
    `session/compact-abort` on the source session. Once accepted, cancellation
    wins even if the provider concurrently returns a successful summary.
+   The summarizer runs on the source session's model and thinking level
+   (falling back to the configured default), never Pi's built-in provider
+   default. If that model is refused or fails, the command returns problem
+   `summary-model-unavailable { model?, reason }` (also used by
+   `session/compact-export`); Desktop names the model and asks the user to
+   switch the source session's model.
 2. **New session, created lazily.** Same scope, working directory, model,
    thinking level, knowledge bases, MCP opt-outs and orchestration settings;
    name `Handoff · <source>`; no transcript, no runtime until the first

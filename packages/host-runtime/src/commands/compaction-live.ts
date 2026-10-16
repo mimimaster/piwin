@@ -119,7 +119,8 @@ import {
   workingDirectoryFromIndexRecord,
 } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
-import { findEnabledModel } from '../provider-helpers.js';
+import { findEnabledModel, resolveDefaultModelRef } from '../provider-helpers.js';
+import { SummaryModelError } from '../summary-model-error.js';
 import type { SessionLiveContext } from './session-live-context.js';
 
 function isAlreadyCompactedMessage(message: string | undefined): boolean {
@@ -374,6 +375,17 @@ async function compactSessionHandle(
   }
 }
 
+/** Session creation refused the model itself (unknown, disabled, signed out). */
+function isModelResolutionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = (error as { code?: unknown }).code;
+  return (
+    code === 'provider-authentication' ||
+    error.message.startsWith('Configured model is unavailable') ||
+    error.message.startsWith('model-unavailable')
+  );
+}
+
 /**
  * Compact a disposable copy of the product transcript. `duplicate`'s public
  * command persists a new session, so this flow reuses its pure clone
@@ -431,25 +443,48 @@ export async function compactTranscriptSnapshot(
       timestamp: Date.now(),
     });
 
+    const model =
+      context.sessionModels.get(record.id) ??
+      record.model ??
+      resolveDefaultModelRef(await context.loadConfig());
     const createInput: CreateSessionInput = {
       projectPath: record.projectPath,
       ...(record.scope ? { scope: record.scope } : {}),
       ...(record.workingDirectory ? { cwd: record.workingDirectory } : {}),
       ...(record.name ? { sessionName: record.name } : {}),
+      // Pin the summarizer to the source session's model: without one Pi picks
+      // its own built-in default (e.g. openai-codex/gpt-5.5), which the user
+      // may not be able to call. Subscription-only setups can still resolve
+      // nothing here; the runtime picks then, and a failure names no model.
+      ...(model ? { model } : {}),
+      ...(record.thinkingLevel !== undefined ? { thinkingLevel: record.thinkingLevel } : {}),
     };
-    temporarySession = await context.createSession(createInput, { seedMessages });
+    try {
+      temporarySession = await context.createSession(createInput, { seedMessages });
+    } catch (error) {
+      if (isModelResolutionError(error)) throw new SummaryModelError(model, formatError(error));
+      throw error;
+    }
     operation.temporarySession = temporarySession;
     if (operation.abortRequested) {
       temporarySession.abortCompaction?.();
       return { ok: false, message: 'Compaction cancelled' };
     }
-    const result = await compactSessionHandle(
-      context,
-      temporarySession.id,
-      temporarySession,
-      customInstructions,
-      { persistBoundary: false },
-    );
+    let result: SessionCompactResult;
+    try {
+      result = await compactSessionHandle(
+        context,
+        temporarySession.id,
+        temporarySession,
+        customInstructions,
+        { persistBoundary: false },
+      );
+    } catch (error) {
+      if (operation.abortRequested) return { ok: false, message: 'Compaction cancelled' };
+      // The temporary session only runs the summarizer call, so a failure here
+      // is the provider refusing or failing on this model.
+      throw new SummaryModelError(model, formatError(error));
+    }
     // A provider may resolve successfully while its abort request is in flight.
     // Once cancellation is accepted, callers must not publish that summary.
     return operation.abortRequested ? { ok: false, message: 'Compaction cancelled' } : result;
@@ -560,7 +595,15 @@ export async function handleCompactionCommand(
         return fail(requestId, 'session/compact-export', `Unknown session: ${command.sessionId}`);
       }
 
-      const result = await compactTranscriptSnapshot(context, record, command.customInstructions);
+      let result: SessionCompactResult;
+      try {
+        result = await compactTranscriptSnapshot(context, record, command.customInstructions);
+      } catch (error) {
+        if (error instanceof SummaryModelError) {
+          return fail(requestId, 'session/compact-export', error.message, error.toProblem());
+        }
+        throw error;
+      }
       if (!result.ok) {
         return fail(
           requestId,

@@ -11,6 +11,7 @@ import type {
   HandoffSessionOrigin,
   HostCommand,
   HostResponse,
+  SessionCompactResult,
   SessionHandoffContextRef,
   SessionHandoffData,
 } from '@piwin/contracts';
@@ -22,6 +23,7 @@ import { createProductSessionId } from '../product-agent-host.js';
 import { fail, ok } from '../response-helpers.js';
 import { rejectUnavailableSessionBody } from '../session-body-guard.js';
 import { writeSessionHandoffSummary } from '../session-handoff-store.js';
+import { SummaryModelError } from '../summary-model-error.js';
 import { sessionIndexUpdatedPush } from '../session-index-push.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import { compactTranscriptSnapshot } from './compaction-live.js';
@@ -61,11 +63,19 @@ export async function handleSessionHandoffCommand(
   }
 
   const focus = command.instructions?.trim();
-  const result = await compactTranscriptSnapshot(
-    context,
-    source,
-    focus ? `${SESSION_HANDOFF_INSTRUCTIONS}\nFocus: ${focus}` : SESSION_HANDOFF_INSTRUCTIONS,
-  );
+  let result: SessionCompactResult;
+  try {
+    result = await compactTranscriptSnapshot(
+      context,
+      source,
+      focus ? `${SESSION_HANDOFF_INSTRUCTIONS}\nFocus: ${focus}` : SESSION_HANDOFF_INSTRUCTIONS,
+    );
+  } catch (error) {
+    if (error instanceof SummaryModelError) {
+      return fail(requestId, 'session/handoff', error.message, error.toProblem());
+    }
+    throw error;
+  }
   const summary = result.summary?.trim() ?? '';
   if (!result.ok || summary.length === 0) {
     return fail(requestId, 'session/handoff', result.message ?? 'Handoff summary was empty');

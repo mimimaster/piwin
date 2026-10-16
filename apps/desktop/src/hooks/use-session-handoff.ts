@@ -12,6 +12,7 @@ import type { NotificationAction } from '../notification-queue';
 import { pushError, pushInfo, pushSuccess } from '../notification-queue';
 import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
 import { useDesktopLocale } from '../desktop-locale-context';
+import { hostFailureNotice } from '../host-problem-copy';
 import { summaryToListItem } from './session-list-item';
 
 export type UseSessionHandoffArgs = {
@@ -60,7 +61,7 @@ export function useSessionHandoff(args: UseSessionHandoffArgs) {
       try {
         const response = await hostClient.request({ type: 'session/handoff', sessionId });
         if (!response.success) {
-          dispatchNotification(pushError(response.error));
+          dispatchNotification(pushError(hostFailureNotice(response, locale)));
           return;
         }
         const data = response.data as SessionHandoffData;
@@ -91,6 +92,7 @@ export function useSessionHandoff(args: UseSessionHandoffArgs) {
       seedSessionContextRefs,
       state.activeSessionId,
       state.transcriptOwnerSessionId,
+      locale,
       zh,
     ],
   );

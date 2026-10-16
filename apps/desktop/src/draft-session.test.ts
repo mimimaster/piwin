@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionScope } from '@piwin/contracts';
 import {
+  DRAFT_ROW_LABEL_MAX_CHARS,
+  draftRowLabel,
   draftSessionMatchesQuery,
   findLatestDraftForScope,
   sortDraftSessions,
@@ -56,5 +58,13 @@ describe('local composer drafts', () => {
     expect(draftSessionMatchesQuery(item, 'project')).toBe(true);
     expect(draftSessionMatchesQuery(item, 'AUTH')).toBe(true);
     expect(draftSessionMatchesQuery(item, 'missing')).toBe(false);
+  });
+
+  it('derives a single-line, bounded row label from a pasted transcript', () => {
+    expect(draftRowLabel('  User:  hello\n\n  world  ')).toBe('User: hello world');
+    const label = draftRowLabel('User: 一段很长的 transcript\n'.repeat(10_000));
+    expect(label.length).toBe(DRAFT_ROW_LABEL_MAX_CHARS);
+    expect(label).not.toContain('\n');
+    expect(draftRowLabel(' \n\t ')).toBe('');
   });
 });

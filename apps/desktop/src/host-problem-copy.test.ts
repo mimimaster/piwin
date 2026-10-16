@@ -208,4 +208,26 @@ describe('host problem copy', () => {
       ),
     ).toMatch(/还没确认/);
   });
+
+  it('names the summary model that could not run and points at the source session', () => {
+    const problem = {
+      code: 'summary-model-unavailable',
+      data: {
+        model: { providerId: 'openai-codex', modelId: 'gpt-5.5' },
+        reason: 'not supported with a ChatGPT account',
+      },
+    };
+    expect(hostProblemNotice(problem, 'zh-CN')).toBe(
+      '摘要模型 openai-codex/gpt-5.5 当前不可用：not supported with a ChatGPT account。请切换源会话的模型后重试。',
+    );
+    expect(hostProblemNotice(problem, 'en')).toContain(
+      "Summary model openai-codex/gpt-5.5 is unavailable: not supported with a ChatGPT account. Switch the source session's model",
+    );
+    expect(
+      hostProblemNotice(
+        { code: 'summary-model-unavailable', data: { reason: 'model not supported' } },
+        'zh-CN',
+      ),
+    ).toContain('请为源会话选择可用模型后重试');
+  });
 });

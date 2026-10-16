@@ -189,6 +189,73 @@ describe('HostRuntime session/handoff', () => {
     }
   });
 
+  it('summarizes with the source model instead of the Pi built-in default', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-handoff-model-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    try {
+      const sourceId = await createSession(runtime, '/tmp/handoff-model');
+      await seedUserTurn(runtime, sourceId, 'Summarize with my model.');
+      const model = { providerId: 'custom-openai', modelId: 'source-model' };
+      await updateSessionRecord(getPiwinSessionIndexPath(rootDir), sourceId, (draft) => {
+        draft.model = model;
+        draft.thinkingLevel = 'low';
+      });
+      const createSpy = vi.spyOn(runtime, 'createSession');
+
+      const response = await runtime.handleCommand({
+        type: 'session/handoff',
+        sessionId: sourceId,
+      });
+
+      expect(response.success).toBe(true);
+      expect(createSpy.mock.calls[0]?.[0]).toMatchObject({ model, thinkingLevel: 'low' });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('names the summary model when the provider refuses it, and creates no session', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-handoff-model-fail-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    try {
+      const sourceId = await createSession(runtime, '/tmp/handoff-model-fail');
+      await seedUserTurn(runtime, sourceId, 'Summarize with a model I cannot use.');
+      const model = { providerId: 'openai-codex', modelId: 'gpt-5.5' };
+      await updateSessionRecord(getPiwinSessionIndexPath(rootDir), sourceId, (draft) => {
+        draft.model = model;
+      });
+      runtime.sessionModels.delete(sourceId);
+      const create = runtime.createSession.bind(runtime);
+      vi.spyOn(runtime, 'createSession').mockImplementationOnce(async (...args) => {
+        const session = await create(...args);
+        session.compact = async () => {
+          throw new Error('Summarization failed: model is not supported with a ChatGPT account.');
+        };
+        return session;
+      });
+
+      const response = await runtime.handleCommand({
+        type: 'session/handoff',
+        sessionId: sourceId,
+      });
+
+      expect(response).toMatchObject({
+        success: false,
+        error: expect.stringContaining('Summary model openai-codex/gpt-5.5 is unavailable'),
+        problem: {
+          code: 'summary-model-unavailable',
+          data: {
+            model,
+            reason: 'Summarization failed: model is not supported with a ChatGPT account.',
+          },
+        },
+      });
+      expect((await readIndex(rootDir)).sessions.map((record) => record.id)).toEqual([sourceId]);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('does not create a session when cancellation races with a successful summary', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-handoff-abort-'));
     const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });

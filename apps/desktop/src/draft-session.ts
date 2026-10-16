@@ -11,6 +11,21 @@ export type DraftSessionItemUi = {
   isDraft: true;
 };
 
+/**
+ * Sidebar draft rows show one ellipsized line. Deriving the label from the
+ * whole draft put a pasted transcript's full body into the row's DOM, so every
+ * keystroke re-laid-out (and re-shaped) hundreds of KB of text in the sidebar.
+ */
+export const DRAFT_ROW_LABEL_MAX_CHARS = 200;
+
+/** Single-line sidebar label for a draft: whitespace collapsed, length bounded. */
+export function draftRowLabel(text: string): string {
+  // Collapsing whitespace only shrinks the prefix, so twice the cap is enough
+  // input for any label that is not mostly runs of blank space.
+  const head = text.trimStart().slice(0, DRAFT_ROW_LABEL_MAX_CHARS * 2);
+  return head.replace(/\s+/g, ' ').trim().slice(0, DRAFT_ROW_LABEL_MAX_CHARS);
+}
+
 export function sortDraftSessions(list: readonly DraftSessionItemUi[]): DraftSessionItemUi[] {
   return [...list].sort((left, right) => {
     const leftTime = Date.parse(left.createdAt);

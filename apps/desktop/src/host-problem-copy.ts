@@ -143,7 +143,28 @@ export function hostProblemNotice(
       return copy.composer.requestDuplicateKey;
     case 'piwin-root-lease-compromised':
       return piwinRootLeaseNotice(locale);
+    case 'summary-model-unavailable':
+      return summaryModelUnavailableNotice(problem.data, locale);
     default:
       return undefined;
   }
+}
+
+/** Name the model that could not write the summary and point at the fix. */
+function summaryModelUnavailableNotice(data: unknown, locale: DesktopLocale): string {
+  const record = typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : {};
+  const model = record.model as { providerId?: unknown; modelId?: unknown } | undefined;
+  const label =
+    typeof model?.providerId === 'string' && typeof model.modelId === 'string'
+      ? `${model.providerId}/${model.modelId}`
+      : undefined;
+  const reason = typeof record.reason === 'string' ? record.reason : '';
+  if (locale === 'zh-CN') {
+    return label
+      ? `摘要模型 ${label} 当前不可用：${reason}。请切换源会话的模型后重试。`
+      : `摘要生成失败（源会话未指定模型，使用了运行时默认模型）：${reason}。请为源会话选择可用模型后重试。`;
+  }
+  return label
+    ? `Summary model ${label} is unavailable: ${reason}. Switch the source session's model and try again.`
+    : `The summary failed on the runtime's default model: ${reason}. Pick a model for the source session and try again.`;
 }

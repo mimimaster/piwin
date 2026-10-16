@@ -89,3 +89,13 @@ export type IdempotencyRegistryCapacityProblem = {
 export type IdempotencyReplayOmittedProblem = {
   code: 'idempotency-replay-omitted';
 };
+
+/**
+ * A transcript summary (handoff / compact-export) could not run on its model.
+ * `model` is absent when none was resolved and the runtime chose; `reason` is the
+ * provider or runtime message, not localized.
+ */
+export type SummaryModelUnavailableProblem = {
+  code: 'summary-model-unavailable';
+  data: { model?: { providerId: string; modelId: string }; reason: string };
+};
