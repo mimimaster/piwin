@@ -243,14 +243,44 @@ describe('useSidebarResize drag scheduling', () => {
     }
 
     act(() => {
-      // default width 300; clientX 200 → candidate 200, past min 300 by >24px
-      pointerMoveListener(createPointerEvent('pointermove', 9, 200));
-      pointerUpListener(createPointerEvent('pointerup', 9, 200));
+      // default width 300; clientX 120 → candidate 120, below the 140 collapse threshold
+      pointerMoveListener(createPointerEvent('pointermove', 9, 120));
+      pointerUpListener(createPointerEvent('pointerup', 9, 120));
       vi.runOnlyPendingTimers();
     });
 
     expect(onCollapseRequest).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem('piwin.desktop.sidebarWidth')).toBe('300');
+    disposeHarness(harness);
+  });
+
+  it('narrows to min width and holds there through the resistance band', () => {
+    const onCollapseRequest = vi.fn();
+    const harness = renderHarness({ onCollapseRequest });
+    const addEventListener = vi.spyOn(window, 'addEventListener');
+
+    act(() => {
+      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 10, 300));
+    });
+    const pointerMoveListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointermove',
+    )?.[1];
+    const pointerUpListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointerup',
+    )?.[1];
+    if (typeof pointerMoveListener !== 'function' || typeof pointerUpListener !== 'function') {
+      throw new Error('expected drag listeners');
+    }
+
+    act(() => {
+      // candidate 160: under min 220 but above the 140 threshold → clamps, no collapse
+      pointerMoveListener(createPointerEvent('pointermove', 10, 160));
+      pointerUpListener(createPointerEvent('pointerup', 10, 160));
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(onCollapseRequest).not.toHaveBeenCalled();
+    expect(localStorage.getItem('piwin.desktop.sidebarWidth')).toBe('220');
     disposeHarness(harness);
   });
 
@@ -271,21 +301,21 @@ describe('useSidebarResize drag scheduling', () => {
     }
 
     act(() => {
-      // candidate 200: past min 300 by >24px → collapse
-      pointerMoveListener(createPointerEvent('pointermove', 11, 200));
+      // candidate 120: below the 140 collapse threshold → collapse
+      pointerMoveListener(createPointerEvent('pointermove', 11, 120));
     });
     expect(onCollapseRequest).toHaveBeenCalledTimes(1);
     expect(onExpandRequest).not.toHaveBeenCalled();
 
     act(() => {
-      // candidate 285: still in the 276–299 dead zone
-      pointerMoveListener(createPointerEvent('pointermove', 11, 285));
+      // candidate 180: still in the 140–219 resistance band
+      pointerMoveListener(createPointerEvent('pointermove', 11, 180));
     });
     expect(onExpandRequest).not.toHaveBeenCalled();
 
     act(() => {
-      // candidate 310: back to min width → expand, still holding
-      pointerMoveListener(createPointerEvent('pointermove', 11, 310));
+      // candidate 230: back past min width (220) → expand, still holding
+      pointerMoveListener(createPointerEvent('pointermove', 11, 230));
     });
     expect(onExpandRequest).toHaveBeenCalledTimes(1);
     expect(onCollapseRequest).toHaveBeenCalledTimes(1);

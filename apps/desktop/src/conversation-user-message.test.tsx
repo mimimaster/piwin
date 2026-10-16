@@ -309,6 +309,27 @@ describe('UserMessageContent collapse', () => {
     expect(bubble?.getAttribute('aria-expanded')).toBe('true');
   });
 
+  it('drops blank lines from the collapsed preview and restores them on expand', () => {
+    scrollHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
+      .mockReturnValue(USER_MESSAGE_COLLAPSE_THRESHOLD + 40);
+    const text = '先看这个：# 用666换DGA种子\n\n## 背景\n正文';
+    render(<UserMessageContent message={{ ...message, text }} onRetry={vi.fn()} locale="zh-CN" />);
+    const bubble = container?.querySelector<HTMLElement>(
+      '[data-testid="user-message-collapsible-body"]',
+    );
+    const textNode = bubble?.querySelector('.message-text');
+    expect(bubble?.classList.contains('is-collapsed')).toBe(true);
+    expect(textNode?.textContent).toBe('先看这个：# 用666换DGA种子\n## 背景\n正文');
+
+    act(() => {
+      bubble?.click();
+    });
+
+    expect(bubble?.classList.contains('is-expanded')).toBe(true);
+    expect(textNode?.textContent).toBe(text);
+  });
+
   it('leaves short Conversation prompts expanded and not clickable', () => {
     scrollHeightSpy = vi
       .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')

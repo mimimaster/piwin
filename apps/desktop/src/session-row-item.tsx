@@ -84,6 +84,15 @@ function SessionActivityIndicator(props: {
 }
 
 /**
+ * The preview is one ellipsized line (plus a `title` tooltip). A draft's text
+ * can be a whole pasted transcript; feeding it all to the row re-laid-out that
+ * text in the sidebar on every keystroke. Sanitize a bounded head (wrappers it
+ * strips sit at the start) and cap what reaches the DOM.
+ */
+const PREVIEW_SOURCE_MAX_CHARS = 2000;
+const PREVIEW_MAX_CHARS = 300;
+
+/**
  * Cleans up raw preview strings (e.g. stripping prompt metadata, XML context refs,
  * transcript history preambles, and message headers) before showing in session cards.
  */
@@ -239,11 +248,11 @@ export function SessionRowItem({
 
 
   const rawPreview = isDraft
-    ? session.text.trim()
+    ? session.text.trimStart().slice(0, PREVIEW_SOURCE_MAX_CHARS)
     : 'lastPreview' in session && typeof session.lastPreview === 'string'
       ? session.lastPreview.trim()
       : '';
-  const cleanedPreview = sanitizePreviewSnippet(rawPreview);
+  const cleanedPreview = sanitizePreviewSnippet(rawPreview).slice(0, PREVIEW_MAX_CHARS);
   const unquoted = cleanedPreview.replace(/^[“"']+|[”"']+$/g, '').trim();
   const formattedPreview = unquoted ? `“${unquoted}”` : null;
 

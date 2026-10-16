@@ -19,6 +19,7 @@ import type { PromptContextRef, SessionScope } from '@piwin/contracts';
 import type { PendingComposerAttachment } from '../media-utils.js';
 import { decideDraftTransition } from '../draft-transition';
 import {
+  draftRowLabel,
   findLatestDraftForScope,
   sortDraftSessions,
   type DraftSessionItemUi,
@@ -182,7 +183,7 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
         .find((name) => name);
       const draft: DraftSessionItemUi = {
         id: draftId,
-        name: text.trim().replace(/\s+/g, ' ') || attachmentTitle || 'Attachment draft',
+        name: draftRowLabel(text) || attachmentTitle || 'Attachment draft',
         text,
         createdAt,
         updatedAt: new Date().toISOString(),

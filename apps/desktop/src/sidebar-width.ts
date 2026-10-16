@@ -4,10 +4,15 @@
  */
 
 export const SIDEBAR_DEFAULT_WIDTH_PX = 300;
-export const SIDEBAR_MIN_WIDTH_PX = 300;
+/** Kept below the default so the navigator can narrow before it collapses. */
+export const SIDEBAR_MIN_WIDTH_PX = 220;
 export const SIDEBAR_MAX_WIDTH_PX = 420;
-/** Extra px past min width before drag-to-collapse fires. */
-export const SIDEBAR_COLLAPSE_OVERSHOOT_PX = 24;
+/**
+ * Drag-to-collapse fires only once the pointer would make the navigator
+ * narrower than this. Between it and the min width the navigator holds at
+ * min — a resistance band, so a slight overdrag never hides it.
+ */
+export const SIDEBAR_COLLAPSE_BELOW_PX = 140;
 
 const STORAGE_KEY = 'piwin.desktop.sidebarWidth';
 
@@ -38,21 +43,19 @@ export function clampSidebarWidthForViewport(
 
 /**
  * After the navigator is already at min width, keep dragging the splitter
- * left (conversation grows) to collapse it.
+ * left (conversation grows) past the resistance band to collapse it.
  */
-export function shouldCollapseSidebar(
-  widthPx: number,
-  overshootPx = SIDEBAR_COLLAPSE_OVERSHOOT_PX,
-): boolean {
+export function shouldCollapseSidebar(widthPx: number): boolean {
   if (!Number.isFinite(widthPx)) {
     return false;
   }
-  return widthPx < SIDEBAR_MIN_WIDTH_PX - overshootPx;
+  return widthPx < SIDEBAR_COLLAPSE_BELOW_PX;
 }
 
 /**
  * Reverse of drag-to-collapse: after the navigator is hidden, dragging the
- * splitter back to min width (24px hysteresis) expands it without pointer-up.
+ * splitter back to min width expands it without pointer-up (the band between
+ * the collapse threshold and min width is the hysteresis).
  */
 export function shouldExpandSidebar(widthPx: number): boolean {
   if (!Number.isFinite(widthPx)) {

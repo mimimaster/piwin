@@ -1,7 +1,14 @@
 /**
  * Context menu for agent session rows (Cursor-style: pin/rename/archive/delete).
  */
-import { useEffect, useRef, type ReactElement, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import {
   IconArchive,
   IconArrowFork,
@@ -17,6 +24,7 @@ import {
   IconTrash,
   IconUnarchive,
 } from '@piwin/ui-kit';
+import { placeMenuInViewport } from './menu-viewport-placement';
 import { sessionActionItems } from './session-actions-menu';
 
 export type SessionRowMenuAction =
@@ -89,6 +97,26 @@ function renderSessionActionIcon(action: SessionRowMenuAction): ReactNode {
 export function SessionRowMenu(props: SessionRowMenuProps): ReactElement {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const firstItemRef = useRef<HTMLButtonElement | null>(null);
+  const anchorX = props.position.x;
+  const anchorY = props.position.y;
+  const [placement, setPlacement] = useState({ x: anchorX, y: anchorY });
+
+  // Measure before paint so a menu opened near the window edge flips/pins
+  // inside the viewport instead of being clipped by the window frame.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) {
+      return;
+    }
+    const rect = root.getBoundingClientRect();
+    setPlacement(
+      placeMenuInViewport({
+        anchor: { x: anchorX, y: anchorY },
+        menuSize: { width: rect.width, height: rect.height },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+      }),
+    );
+  }, [anchorX, anchorY]);
 
   useEffect(() => {
     firstItemRef.current?.focus();
@@ -158,7 +186,7 @@ export function SessionRowMenu(props: SessionRowMenuProps): ReactElement {
       role="menu"
       data-testid="session-row-menu"
       data-session-id={props.sessionId}
-      style={{ top: props.position.y, left: props.position.x }}
+      style={{ top: placement.y, left: placement.x }}
       onClick={(event) => event.stopPropagation()}
       onContextMenu={(event) => event.preventDefault()}
     >

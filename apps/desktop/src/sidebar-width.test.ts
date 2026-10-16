@@ -9,7 +9,7 @@ import {
   saveSidebarWidth,
   shouldCollapseSidebar,
   shouldExpandSidebar,
-  SIDEBAR_COLLAPSE_OVERSHOOT_PX,
+  SIDEBAR_COLLAPSE_BELOW_PX,
 } from './sidebar-width';
 
 function createMockStorage(): Storage {
@@ -67,23 +67,35 @@ describe('clampSidebarWidthForViewport', () => {
   });
 });
 
+describe('sidebar width band', () => {
+  it('lets the default width narrow before reaching the min', () => {
+    expect(SIDEBAR_MIN_WIDTH_PX).toBe(220);
+    expect(SIDEBAR_DEFAULT_WIDTH_PX).toBe(300);
+    expect(clampSidebarWidth(SIDEBAR_DEFAULT_WIDTH_PX - 60)).toBe(SIDEBAR_DEFAULT_WIDTH_PX - 60);
+    expect(shouldCollapseSidebar(SIDEBAR_DEFAULT_WIDTH_PX - 60)).toBe(false);
+  });
+});
+
 describe('sidebar drag-to-collapse', () => {
-  it('does not collapse at the min width', () => {
+  it('holds at min width through the resistance band', () => {
     expect(shouldCollapseSidebar(SIDEBAR_MIN_WIDTH_PX)).toBe(false);
-    expect(
-      shouldCollapseSidebar(SIDEBAR_MIN_WIDTH_PX - SIDEBAR_COLLAPSE_OVERSHOOT_PX),
-    ).toBe(false);
+    expect(shouldCollapseSidebar(SIDEBAR_MIN_WIDTH_PX - 40)).toBe(false);
+    expect(shouldCollapseSidebar(SIDEBAR_COLLAPSE_BELOW_PX)).toBe(false);
+    // In the band the drag clamps to min rather than following the pointer.
+    expect(clampSidebarWidth(SIDEBAR_COLLAPSE_BELOW_PX + 1)).toBe(SIDEBAR_MIN_WIDTH_PX);
   });
 
-  it('collapses only after overshooting past min', () => {
-    expect(
-      shouldCollapseSidebar(SIDEBAR_MIN_WIDTH_PX - SIDEBAR_COLLAPSE_OVERSHOOT_PX - 1),
-    ).toBe(true);
+  it('collapses only below the absolute threshold', () => {
+    expect(SIDEBAR_COLLAPSE_BELOW_PX).toBe(140);
+    expect(shouldCollapseSidebar(SIDEBAR_COLLAPSE_BELOW_PX - 1)).toBe(true);
+    expect(shouldCollapseSidebar(0)).toBe(true);
+    expect(shouldCollapseSidebar(Number.NaN)).toBe(false);
   });
 });
 
 describe('sidebar reverse-drag expand', () => {
-  it('expands at min width and stays collapsed in the overshoot dead zone', () => {
+  it('expands at min width and stays collapsed in the resistance band', () => {
+    expect(shouldExpandSidebar(SIDEBAR_COLLAPSE_BELOW_PX + 20)).toBe(false);
     expect(shouldExpandSidebar(SIDEBAR_MIN_WIDTH_PX - 1)).toBe(false);
     expect(shouldExpandSidebar(SIDEBAR_MIN_WIDTH_PX)).toBe(true);
     expect(shouldExpandSidebar(Number.NaN)).toBe(false);

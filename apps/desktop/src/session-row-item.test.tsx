@@ -114,6 +114,27 @@ describe('SessionRowItem', () => {
     expect(previewEl?.textContent).toBe('“整理这周的设计规范更新”');
   });
 
+  it('keeps a pasted-transcript draft out of the row DOM beyond a short preview', () => {
+    const text = '整理这周的设计规范更新\n'.repeat(20_000);
+    const draft: DraftSessionItemUi = {
+      id: 'draft-long',
+      name: '整理这周的设计规范更新',
+      text,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      scope: { kind: 'general' },
+      isDraft: true,
+    };
+
+    const { container } = renderSessionRow({ session: draft });
+    activeContainers.push(container);
+
+    const previewEl = container.querySelector('[data-testid="session-item-preview"]');
+    expect(previewEl?.textContent?.startsWith('“整理这周的设计规范更新 整理')).toBe(true);
+    expect(previewEl?.textContent?.length ?? 0).toBeLessThan(400);
+    expect(previewEl?.getAttribute('title')?.length ?? 0).toBeLessThan(400);
+  });
+
   it('does not render preview element when lastPreview is absent', () => {
     const session: SessionListItemUi = {
       id: 'sess-3',

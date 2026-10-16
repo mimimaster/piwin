@@ -16,6 +16,7 @@ import {
   measureUnwrappedTextWidth,
   readBubbleInnerWidth,
 } from './user-message-footer-layout.js';
+import { compactCollapsedPreview } from './user-message-preview.js';
 
 export const USER_MESSAGE_COLLAPSE_THRESHOLD = 78;
 
@@ -118,6 +119,8 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
   );
   const textRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  // Written each render, read by the resize observer below.
+  const collapseStateRef = useRef({ collapsed: false, textOverflow: false });
   const hasMediaAttachments = message.attachments.length > 0;
   const hasShelfContent = hasMediaAttachments || (message.contextRefs?.length ?? 0) > 0;
   const interventionStatus = message.instructionDelivery?.status;
@@ -177,9 +180,14 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
     if (!textNode && !bubble) return;
 
     function measure(): void {
-      const overflowing = textNode
-        ? textNode.scrollHeight > USER_MESSAGE_COLLAPSE_THRESHOLD
-        : false;
+      // A collapsed card renders the compacted preview, which can measure
+      // under the threshold; re-measuring it would un-collapse the card and
+      // flip back on the next frame. Overflow is decided on the full text.
+      const overflowing = collapseStateRef.current.collapsed
+        ? collapseStateRef.current.textOverflow
+        : textNode
+          ? textNode.scrollHeight > USER_MESSAGE_COLLAPSE_THRESHOLD
+          : false;
       setIsTextOverflow(overflowing);
       if (!bubble) {
         setIsMultilineFooter(hasShelfContent || message.text.includes('\n') || overflowing);
@@ -224,6 +232,8 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
   // transcript viewport. Click (or Enter/Space) expands; selecting text does not.
   const isCollapsible = hasMediaAttachments || isTextOverflow;
   const collapsed = isCollapsible && isCollapsed;
+  collapseStateRef.current = { collapsed, textOverflow: isTextOverflow };
+  const displayText = collapsed ? compactCollapsedPreview(message.text) : message.text;
 
   // overflow:hidden still creates a scrollport. A click in the middle of a
   // long prompt (or scroll anchoring) would otherwise keep that slice visible
@@ -272,7 +282,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
           >
             {message.text ? (
               <div ref={textRef} className="user-message-text message-text">
-                <UserMessageText text={message.text} />
+                <UserMessageText text={displayText} />
               </div>
             ) : null}
             <MessageAttachments
@@ -398,7 +408,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
       >
         {message.text ? (
           <div ref={textRef} className="message-text">
-            <UserMessageText text={message.text} />
+            <UserMessageText text={displayText} />
           </div>
         ) : null}
         <MessageAttachments

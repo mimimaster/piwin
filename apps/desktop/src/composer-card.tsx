@@ -16,6 +16,7 @@ import { isReservedComposerSlashCommand, SlashMenu } from './slash';
 import { AtMenu } from './at';
 import { useComposerSlashMenu } from './hooks/use-composer-slash-menu';
 import { useComposerAtMenu } from './hooks/use-composer-at-menu';
+import { useComposerTextareaAutosize } from './hooks/use-composer-textarea-autosize';
 import {
   decideComposerKeyDown,
   dispatchComposerKeyAction,
@@ -73,14 +74,17 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const extensionUiInput = props.extensionUiInput ?? '';
   const canComposeText = !isExtensionUiActive;
   const composerValue = isExtensionUiInput ? extensionUiInput : props.composer;
+  // `/\S/` stops at the first visible character; `trim()` copied the whole
+  // draft several times per keystroke, which adds up for a pasted transcript.
+  const composerHasText = /\S/.test(props.composer);
   const hasContent = isExtensionUiActive
-    ? (isExtensionUiInput ? extensionUiInput.trim().length > 0 : props.composer.trim().length > 0)
-    : (props.composer.trim().length > 0 || props.pendingAttachments.length > 0 || (props.pendingContextRefs?.length ?? 0) > 0 || props.hasCarryContent === true);
+    ? (isExtensionUiInput ? /\S/.test(extensionUiInput) : composerHasText)
+    : (composerHasText || props.pendingAttachments.length > 0 || (props.pendingContextRefs?.length ?? 0) > 0 || props.hasCarryContent === true);
   const failedAttachments = props.pendingAttachments.filter(isFailedMediaAttachment);
-  const hasSendableContentBesidesFailures = props.composer.trim().length > 0 || props.pendingAttachments.some((item) => !isFailedMediaAttachment(item)) || (props.pendingContextRefs?.length ?? 0) > 0;
+  const hasSendableContentBesidesFailures = composerHasText || props.pendingAttachments.some((item) => !isFailedMediaAttachment(item)) || (props.pendingContextRefs?.length ?? 0) > 0;
   const onlyFailedAttachments = failedAttachments.length > 0 && !hasSendableContentBesidesFailures;
   const isPauseContinueDraft = isPaused && isPauseContinueUtterance(props.composer) && props.pendingAttachments.length === 0 && (props.pendingContextRefs?.length ?? 0) === 0 && props.hasCarryContent !== true;
-  const canKeyboardSend = props.composer.trim().length > 0 || props.hasCarryContent === true || (queuedEdit !== null && props.pendingAttachments.length > 0);
+  const canKeyboardSend = composerHasText || props.hasCarryContent === true || (queuedEdit !== null && props.pendingAttachments.length > 0);
   const selectedModel = props.modelOptions.find((model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey);
   const hasImageAttachment = props.pendingAttachments.some((item) => item.attachment.kind === 'media' && (item.attachment.contentKind === 'image' || (item.attachment.contentKind === undefined && item.attachment.mimeType.toLowerCase().startsWith('image/'))));
   const selectedModelSupportsImage = selectedModel?.supportsImage === true;
@@ -322,36 +326,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     });
   }
 
-  // Auto-resize textarea using rAF to avoid sync layout thrashing. One frame
-  // at a time: the value effect, onInput and paste can all ask within a single
-  // keystroke, and each run forces a layout to read scrollHeight.
-  const resizeFrameRef = useRef<number | null>(null);
-  const autoResize = useCallback(() => {
-    if (resizeFrameRef.current !== null) {
-      cancelAnimationFrame(resizeFrameRef.current);
-    }
-    resizeFrameRef.current = requestAnimationFrame(() => {
-      resizeFrameRef.current = null;
-      const el = textareaRef.current;
-      if (!el) return;
-      el.style.height = 'auto';
-      if (composerValue) {
-        el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-      }
-    });
-  }, [composerValue]);
-  useEffect(
-    () => () => {
-      if (resizeFrameRef.current !== null) {
-        cancelAnimationFrame(resizeFrameRef.current);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    autoResize();
-  }, [composerValue, props.layoutMode, autoResize]);
+  const autoResize = useComposerTextareaAutosize(textareaRef, composerValue, props.layoutMode);
 
   return (
     <div
@@ -484,7 +459,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
       <ComposerModalEditor
         open={modalEditorOpen} value={props.composer}
-        onSave={(newValue) => { props.onComposerChange(newValue); autoResize(); }}
+        onSave={(newValue) => { props.onComposerChange(newValue); autoResize({ force: true }); }}
         onClose={() => setModalEditorOpen(false)}
       />
 
