@@ -28,6 +28,17 @@ describe('readDeckXtermTheme', () => {
     expect(readDeckXtermFontFamily()).toContain('JetBrains Mono');
   });
 
+  it('turns a transparent canvas into a colour xterm can parse', () => {
+    const root = document.documentElement;
+    root.style.setProperty('--term-bg', '#08080b');
+    root.style.setProperty('--xterm-canvas', 'transparent');
+
+    const theme = readDeckXtermTheme();
+    expect(theme.background).toBe('#00000000');
+    expect(theme.black).toBe('#08080b');
+    root.style.removeProperty('--xterm-canvas');
+  });
+
   it('follows a light-face void rather than a hardcoded black slab', () => {
     const root = document.documentElement;
     root.style.setProperty('--void', '#e5e2dc');

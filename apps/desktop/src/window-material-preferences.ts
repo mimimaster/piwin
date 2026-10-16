@@ -13,14 +13,15 @@ export type WindowMaterialRegion = (typeof WINDOW_MATERIAL_REGIONS)[number];
 export type WindowMaterialOpacity = Record<WindowMaterialRegion, number>;
 
 /**
- * Both side panels read as glass wings around a mostly solid conversation.
+ * Both side panels read as glass wings around a denser, still translucent
+ * conversation.
  * The right panel stays a little denser than the sidebar because it carries
  * work content (file trees, diffs) rather than navigation.
  */
 export const DEFAULT_WINDOW_MATERIAL_OPACITY: WindowMaterialOpacity = {
   backdrop: 60,
   sidebar: 30,
-  stage: 90,
+  stage: 75,
   rightPanel: 45,
 };
 

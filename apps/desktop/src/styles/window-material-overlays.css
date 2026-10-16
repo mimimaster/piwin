@@ -44,6 +44,7 @@ html[data-window-material] .session-row-menu,
 html[data-window-material] .image-model-suggest-dropdown,
 html[data-window-material] .context-usage-hover-tooltip,
 html[data-window-material] .doc-artifact-tooltip,
+html[data-window-material] .kb-cite-card,
 html[data-window-material] .composer-v2-drop-content,
 html[data-window-material] .lib-batch-bar {
   background: var(--overlay-glass-fill);
@@ -51,13 +52,24 @@ html[data-window-material] .lib-batch-bar {
   backdrop-filter: var(--overlay-glass-filter);
 }
 
-/* Toasts and one-line HUD pills float over the stage on the thinnest glass.
+/* Short pickers that open over the right panel's own list (tool picker,
+   changes scope). Over a panel that is already glass, the default 72% reads
+   as a solid slab cut out of it; the thin glass lets the list it opens beside
+   show through, and the blur keeps the short labels legible. */
+html[data-window-material] .ui-menu-content.right-panel-plus-menu,
+html[data-window-material] .ui-menu-content.changes-scope-menu {
+  background: var(--overlay-glass-fill-thin);
+}
+
+/* Toasts, one-line HUD pills and the background-task list over the composer
+   float over the stage on the thinnest glass.
    The Inkstone rule in ui-kit paints both the Mantine root and the toast
    body, so both clear. */
 html[data-window-material] .mantine-Notification-root,
 html[data-window-material] .ui-toast,
 html[data-window-material] .conversation-pane-notice,
 html[data-window-material] .media-doc-zoom-hud,
+html[data-window-material] .ui-popover-content.composer-activity-popover,
 html[data-window-material] .jump-to-latest-btn {
   background: var(--overlay-glass-fill-thin);
   -webkit-backdrop-filter: var(--overlay-glass-filter);
@@ -83,4 +95,17 @@ html[data-window-material] .source-drawer {
   background: var(--overlay-glass-fill-dense);
   -webkit-backdrop-filter: var(--overlay-glass-filter);
   backdrop-filter: var(--overlay-glass-filter);
+}
+
+/* Rows inside a glass overlay take an ink wash, not a solid --surface-3 chip
+   that reads as a slab cut out of the glass. */
+html[data-window-material] .composer-activity-row:not(:hover) {
+  background: color-mix(in srgb, var(--text-1) 5%, transparent);
+}
+
+/* The activity pill stays up while work runs, so no blur (it is not a
+   short-lived overlay); a translucent fill keeps it from sitting on the
+   stage as a solid chip. */
+html[data-window-material] .composer-activity-pill:not(:hover, [aria-expanded='true']) {
+  background: color-mix(in srgb, var(--surface-3) 55%, transparent);
 }

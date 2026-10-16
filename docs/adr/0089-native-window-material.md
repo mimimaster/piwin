@@ -34,17 +34,28 @@ pressure) and the glass mix flashed white during streaming reflow.
    floating drawers share `--overlay-glass-fill(-dense)` + a 24px blur. They
    are small and short-lived; the selectors are added to
    `PRODUCT_GLASS_WHITELIST` and the fill turns solid when memory pressure or
-   parking strips the blur.
-6. **Transcript edge fades** on a translucent stage mask the scroller instead
+   parking strips the blur. Short pickers that open over the right panel's
+   own list (tool picker, changes scope) take the thin fill so the list
+   reads through instead of a slab.
+6. **Right-panel cards are tinted glass.** Changes file cards, history
+   commit cards and the inline git form on the docked panel use
+   `--window-material-panel-card-fill` (paper `--s2` 60%, ink `--s3` 55%);
+   diff bodies stay solid, and an expanded card's sticky head takes the
+   dense 94% fill so its own diff does not read through. No blur: these are
+   long-lived, so they stay off the backdrop-filter whitelist.
+7. **Transcript edge fades** on a translucent stage mask the scroller instead
    of painting the stage colour (which reads as a band) — a deliberate
    exception to region-transcript.css.
 
 ## Consequences
 
-- Reading surfaces (stage 90%, cards, code, terminal) stay effectively
-  solid; translucency lives in chrome and overlays.
-- The terminal tab keeps its solid `--term-bg`; xterm transparency is not
-  enabled (repaint cost).
+- The stage defaults to 75% (ink scales it by 0.8, so 60%): denser than the
+  side panels but still translucent. Cards and code inside it stay solid so
+  reading contrast does not depend on the desktop behind the window.
+- Under ink the terminal tab's xterm canvas clears to `#00000000` and the
+  dock body paints the glass. It must be a hex alpha: xterm's colour parser
+  rejects `transparent` and falls back to opaque #000, which shows as a black
+  slab framed by the glass padding. Paper keeps a solid `--term-bg` canvas.
 - `transparent: true` is in the shared window config, so Windows also gets
   a transparent window with opaque content; not yet verified on Windows.
 - Paper (light) theme has not been verified against the native window.

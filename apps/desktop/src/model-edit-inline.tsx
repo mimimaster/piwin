@@ -203,7 +203,6 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         videoGen: '视频',
         realtime: '实时语音',
         nativeSearch: providerCopy.nativeSearch,
-        headersHint: '叠加在提供商请求头之上，同名覆盖',
         deleteHeader: '删除',
         cancel: '取消',
         save: '保存',
@@ -223,7 +222,6 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         videoGen: 'Video',
         realtime: 'Realtime',
         nativeSearch: providerCopy.nativeSearch,
-        headersHint: 'Layered over the provider headers; same name wins',
         deleteHeader: 'Delete',
         cancel: 'Cancel',
         save: 'Save',
@@ -332,7 +330,6 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         <div className="model-edit-inline-headers" data-testid="model-edit-headers">
           <span className="model-edit-inline-label">
             {providerCopy.requestHeaders}
-            <span className="model-edit-inline-thinking-hint">{t.headersHint}</span>
           </span>
           <HeaderRowsEditor
             rows={localDraft.headerRows ?? []}

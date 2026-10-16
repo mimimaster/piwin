@@ -10,9 +10,9 @@
    Each region mixes its own surface colour over that material. The
    --window-material-*-opacity values come from Settings → Appearance
    (window-material-preferences.ts) and are written on `.app-shell`; the
-   fallbacks here are the same defaults. The conversation defaults to mostly
-   solid so transcript/code contrast barely depends on the desktop behind
-   the window; cards inside it (bubbles, code, artifacts) stay solid.
+   fallbacks here are the same defaults. The conversation is denser than the
+   side panels but still lets the desktop through; cards inside it (bubbles,
+   code, artifacts) stay solid so transcript/code contrast holds.
 
    Docked panels follow the region opacities on the desktop layout; in
    compact (and the overlay inspector) the same panels become drawers over
@@ -30,14 +30,16 @@
 html[data-window-material] {
   --window-material-backdrop-fill: var(--window-material-backdrop-opacity, 60%);
   --window-material-sidebar-fill: var(--window-material-sidebar-opacity, 30%);
-  --window-material-stage-fill: var(--window-material-stage-opacity, 90%);
+  --window-material-stage-fill: var(--window-material-stage-opacity, 75%);
   --window-material-right-panel-fill: var(--window-material-right-panel-opacity, 45%);
 }
 
 html[data-window-material][data-theme-mode='dark'] {
-  --window-material-stage-fill: calc(var(--window-material-stage-opacity, 90%) * 0.8);
-  /* xterm clears its canvas (xterm-theme.ts); the dock paints this instead. */
-  --xterm-canvas: transparent;
+  --window-material-stage-fill: calc(var(--window-material-stage-opacity, 75%) * 0.8);
+  /* xterm clears its canvas (xterm-theme.ts); the dock paints this instead.
+     Hex alpha, not `transparent`: xterm's colour parser rejects the keyword
+     and falls back to opaque #000, a black slab inside the glass body. */
+  --xterm-canvas: #00000000;
 }
 
 /* Ink cards on the glass. Solid --s3 / void slabs on a translucent ink stage
@@ -158,4 +160,42 @@ html[data-window-material] .app-shell[data-layout='compact'] > .sidebar,
 html[data-window-material] .app-shell[data-layout='compact'] > .right-panel,
 html[data-window-material] .app-shell[data-inspector='overlay'] > .right-panel {
   background: var(--overlay-glass-fill-dense);
+}
+
+/* Cards in the docked right panel. Over the panel's own 45% glass a solid
+   --s2 card reads as a slab cut out of it (changes files, history commits),
+   so they take a tinted glass instead: ink lifts with --s3, paper with --s2.
+   Code bodies stay solid for diff contrast. An expanded card's sticky head
+   scrolls over its own diff, so it takes the dense fill to keep those lines
+   from reading through. */
+html[data-window-material] {
+  --window-material-panel-card-fill: color-mix(in srgb, var(--s2) 60%, transparent);
+  --window-material-panel-card-head-fill: color-mix(in srgb, var(--s2) 94%, transparent);
+}
+
+html[data-window-material][data-theme-mode='dark'] {
+  --window-material-panel-card-fill: color-mix(in srgb, var(--s3) 55%, transparent);
+  --window-material-panel-card-head-fill: color-mix(in srgb, var(--s3) 94%, transparent);
+}
+
+html[data-window-material]
+  .app-shell[data-layout='desktop']:not([data-inspector='overlay'])
+  > .right-panel
+  :is(.changes-file, .git-commit-card, .git-inline-form) {
+  background: var(--window-material-panel-card-fill);
+}
+
+html[data-window-material]
+  .app-shell[data-layout='desktop']:not([data-inspector='overlay'])
+  > .right-panel
+  .changes-file-head {
+  background: transparent;
+}
+
+html[data-window-material]
+  .app-shell[data-layout='desktop']:not([data-inspector='overlay'])
+  > .right-panel
+  .changes-file.expanded
+  .changes-file-head {
+  background: var(--window-material-panel-card-head-fill);
 }

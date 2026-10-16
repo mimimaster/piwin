@@ -21,13 +21,21 @@ function readVarOr(name: string, fallback: string): string {
   return value.length > 0 ? value : fallback;
 }
 
+/**
+ * xterm's colour parser has no CSS keywords: `transparent` silently falls back
+ * to the default opaque #000.
+ */
+function toXtermColor(value: string): string {
+  return value.toLowerCase() === 'transparent' ? '#00000000' : value;
+}
+
 /** Snapshot the current Deck ramp into an xterm ITheme. */
 export function readDeckXtermTheme(): ITheme {
   const termBg = readVarOr('--term-bg', readVarOr('--void', '#08080b'));
   // On a translucent window (styles/window-material.css) the canvas clears to
   // `--xterm-canvas` and the dock paints the glass behind it; ANSI black keeps
   // the solid console tone so `\e[40m` blocks still read as black.
-  const background = readVarOr('--xterm-canvas', termBg);
+  const background = toXtermColor(readVarOr('--xterm-canvas', termBg));
   const foreground = readVarOr('--text-1', '#ededf2');
   const iris = readVarOr('--iris', '#6e5dff');
   return {
