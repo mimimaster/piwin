@@ -221,6 +221,114 @@ describe('deriveGoalSessionView', () => {
   });
 });
 
+describe('deriveGoalSessionView across rounds and episodes', () => {
+  const blocked = goalTool('goal_blocked', {
+    id: 'call-blocked',
+    goal: { phase: 'blocked', reason: 'need the API key' },
+  });
+  const completedA = goalTool('goal_complete', {
+    id: 'call-complete-a',
+    goal: { phase: 'completed', summary: 'A shipped' },
+  });
+
+  it('runs again once the user answers a blocker, keeping the objective', () => {
+    const view = deriveGoalSessionView({
+      messages: [
+        userMessage('ship A', { goalMode: true }),
+        assistantWithTools('a1', [blocked]),
+        userMessage('the key is in .env', { goalMode: true }),
+      ],
+      streaming: true,
+      agentMode: 'goal',
+    });
+    expect(view.phase).toBe('running');
+    expect(view.latest).toBeNull();
+    expect(view.objective).toBe('ship A');
+    expect(view.roundCount).toBe(2);
+  });
+
+  it('still shows blocked before the user answers', () => {
+    const view = deriveGoalSessionView({
+      messages: [userMessage('ship A', { goalMode: true }), assistantWithTools('a1', [blocked])],
+      streaming: false,
+      agentMode: 'goal',
+    });
+    expect(view.phase).toBe('blocked');
+    expect(view.latest).toEqual({ phase: 'blocked', reason: 'need the API key' });
+  });
+
+  it('starts a new objective after goal_complete', () => {
+    const messages = [
+      userMessage('ship A', { goalMode: true }),
+      assistantWithTools('a1', [completedA]),
+      userMessage('ship B', { goalMode: true }),
+    ];
+    const view = deriveGoalSessionView({ messages, streaming: true, agentMode: 'goal' });
+    expect(view.phase).toBe('running');
+    expect(view.objective).toBe('ship B');
+    expect(view.objectiveIndex).toBe(2);
+    expect(view.roundCount).toBe(1);
+    expect(listGoalEvents(messages, view.objectiveIndex).map((event) => event.kind)).toEqual([
+      'objective',
+      'running',
+    ]);
+  });
+
+  it('starts a new objective when Goal is re-armed after an Agent turn', () => {
+    const agentTurn: ChatMessageUi = { ...userMessage('unrelated question'), agentMode: 'agent' };
+    const view = deriveGoalSessionView({
+      messages: [
+        userMessage('ship A', { goalMode: true }),
+        assistantWithTools('a1', [blocked]),
+        agentTurn,
+        userMessage('ship B', { goalMode: true }),
+      ],
+      streaming: true,
+      agentMode: 'goal',
+    });
+    expect(view.objective).toBe('ship B');
+    expect(view.phase).toBe('running');
+  });
+
+  it('keeps completed until the next objective is sent', () => {
+    const view = deriveGoalSessionView({
+      messages: [userMessage('ship A', { goalMode: true }), assistantWithTools('a1', [completedA])],
+      streaming: false,
+      agentMode: 'goal',
+    });
+    expect(view.phase).toBe('completed');
+    expect(view.objective).toBe('ship A');
+  });
+
+  it('continues a resumed legacy episode instead of restarting it', () => {
+    const view = deriveGoalSessionView({
+      messages: [
+        userMessage('ship A'),
+        assistantWithTools('a1', [blocked]),
+        userMessage('the key is in .env', { goalMode: true }),
+      ],
+      streaming: true,
+      agentMode: 'goal',
+    });
+    expect(view.objective).toBe('ship A');
+    expect(view.phase).toBe('running');
+  });
+
+  it('does not leak a finished legacy episode into an unanchored one', () => {
+    const view = deriveGoalSessionView({
+      messages: [
+        userMessage('ship A'),
+        assistantWithTools('a1', [completedA]),
+        userMessage('ship B'),
+      ],
+      streaming: false,
+      agentMode: 'goal',
+    });
+    expect(view.phase).toBe('running');
+    expect(view.latest).toBeNull();
+  });
+});
+
 describe('listGoalEvents', () => {
   it('is empty when the objective cannot be identified', () => {
     expect(listGoalEvents([userMessage('hello')], -1)).toEqual([]);

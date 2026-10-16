@@ -52,38 +52,72 @@ function isGoalTool(tool: ToolCardUi): boolean {
   return tool.toolName.startsWith('goal_');
 }
 
+function hasCompletedSignal(message: ChatMessageUi): boolean {
+  return message.tools.some(
+    (tool) => isGoalTool(tool) && tool.presentation?.goal?.phase === 'completed',
+  );
+}
+
 /**
- * Index of the user message that armed Goal.
+ * Index of the user message that armed the *current* Goal episode.
  *
- * The live send path stamps `agentMode` (see chat-reducer-run.ts), so a session
- * started in this window is exact. Resumed history has no stamp; fall back to
- * the user turn immediately preceding the first goal tool call, which is the
- * turn that produced it.
+ * An episode ends when the model declares `goal_complete` or the user sends an
+ * Agent turn; the next Goal turn after that is a new objective. Replying to a
+ * `goal_blocked` stays in the same episode — the reply answers the objective,
+ * it does not replace it.
+ *
+ * The live send path stamps `agentMode` on every user turn (see
+ * chat-reducer-run.ts). Resumed history has no stamp; there the episode is
+ * anchored at the user turn immediately preceding its first goal tool call,
+ * and a stamped Goal turn after such history continues that episode.
  */
 function findObjectiveIndex(messages: readonly ChatMessageUi[]): number {
+  let objectiveIndex = -1;
+  let lastUserIndex = -1;
+  let lastUserMode: AgentModeId | undefined;
+  let completedSinceLastUser = false;
   for (let index = 0; index < messages.length; index += 1) {
     const message = messages[index];
-    if (message?.role === 'user' && message.agentMode === 'goal') {
-      return index;
+    if (!message) continue;
+    if (message.role === 'user') {
+      const episodeEnded = completedSinceLastUser || lastUserMode === 'agent';
+      if (message.agentMode === 'goal') {
+        if (objectiveIndex < 0 || episodeEnded) objectiveIndex = index;
+      } else if (message.agentMode === 'agent' || episodeEnded) {
+        objectiveIndex = -1;
+      }
+      lastUserIndex = index;
+      lastUserMode = message.agentMode;
+      completedSinceLastUser = false;
+      continue;
     }
+    // Goal tools are registered in every mode; one fired from an explicit
+    // Agent turn does not open a Goal episode.
+    if (
+      objectiveIndex < 0 &&
+      lastUserIndex >= 0 &&
+      lastUserMode !== 'agent' &&
+      message.tools.some(isGoalTool)
+    ) {
+      objectiveIndex = lastUserIndex;
+    }
+    if (hasCompletedSignal(message)) completedSinceLastUser = true;
   }
+  return objectiveIndex;
+}
 
-  let firstGoalToolIndex = -1;
-  for (let index = 0; index < messages.length; index += 1) {
-    if (messages[index]?.tools.some(isGoalTool) === true) {
-      firstGoalToolIndex = index;
-      break;
-    }
+/**
+ * Start of the round in flight: the newest user turn at or after the
+ * objective. A goal signal before it belongs to an earlier round and must not
+ * decide the phase — otherwise a `blocked` the user already answered keeps
+ * showing while the model works on the reply.
+ */
+function findCurrentRoundIndex(messages: readonly ChatMessageUi[], objectiveIndex: number): number {
+  if (objectiveIndex < 0) return -1;
+  for (let index = messages.length - 1; index > objectiveIndex; index -= 1) {
+    if (messages[index]?.role === 'user') return index;
   }
-  if (firstGoalToolIndex < 0) {
-    return -1;
-  }
-  for (let index = firstGoalToolIndex; index >= 0; index -= 1) {
-    if (messages[index]?.role === 'user') {
-      return index;
-    }
-  }
-  return -1;
+  return objectiveIndex;
 }
 
 type LatestGoalSignal = {
@@ -105,7 +139,9 @@ function findLatestGoalSignal(
     waitInFlight: false,
     sawUnreadableGoalTool: false,
   };
-  for (let index = messages.length - 1; index >= Math.max(fromIndex, 0); index -= 1) {
+  // No episode yet: an older episode's signals must not leak into this one.
+  if (fromIndex < 0) return result;
+  for (let index = messages.length - 1; index >= fromIndex; index -= 1) {
     const tools = messages[index]?.tools ?? [];
     for (let toolIndex = tools.length - 1; toolIndex >= 0; toolIndex -= 1) {
       const tool = tools[toolIndex];
@@ -174,7 +210,10 @@ export function deriveGoalSessionView(input: {
 
   const objectiveIndex = findObjectiveIndex(input.messages);
   const objectiveText = objectiveIndex >= 0 ? input.messages[objectiveIndex]?.text.trim() : '';
-  const signal = findLatestGoalSignal(input.messages, objectiveIndex);
+  const signal = findLatestGoalSignal(
+    input.messages,
+    findCurrentRoundIndex(input.messages, objectiveIndex),
+  );
 
   return {
     phase: resolvePhase({ signal, streaming: input.streaming }),
