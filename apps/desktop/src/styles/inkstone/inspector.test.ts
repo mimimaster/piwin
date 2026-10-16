@@ -31,9 +31,17 @@ describe('Inkstone inspector tab strip', () => {
     expect(inspector).toMatch(/\.right-panel-action-btn\.ib svg[\s\S]*?width:\s*14px\s*!important/);
   });
 
-  it('paints a hover mask on the close chip', () => {
+  it('tints the close chip on hover and fades the label under it', () => {
     expect(inspector).toMatch(
-      /\.right-panel-tab-close:hover[\s\S]*?background:\s*color-mix\(in srgb, var\(--t1\) 10%, var\(--s3\)\)\s*!important/,
+      /\.right-panel-tab-close:hover[\s\S]*?background:\s*var\(--itab-hover-fill\)\s*!important/,
     );
+    expect(inspector).toMatch(/\.right-panel-tab:hover \.right-panel-tab-label \{[^}]*mask-image/);
+  });
+
+  it('marks the selected tab with a text-colour tint, not a raised plate', () => {
+    expect(inspector).toMatch(
+      /\.itab\.active \{[^}]*background:\s*var\(--itab-selected-fill\) !important;[^}]*box-shadow:\s*none !important/,
+    );
+    expect(inspector).not.toMatch(/\.itab\.active \{[^}]*var\(--sh1\)/);
   });
 });

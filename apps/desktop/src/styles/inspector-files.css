@@ -10,8 +10,7 @@
 
 /* ── File tree ────────────────────────────────────────────────────── */
 
-.file-tree-panel,
-.review-panel {
+.file-tree-panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -520,65 +519,6 @@
   padding: var(--s-7) var(--s-5);
   color: var(--text-3);
   font-size: var(--fs-chrome);
-}
-
-/* ── Review sub-tabs ──────────────────────────────────────────────── */
-
-/* Same segmented-control language as .right-panel-tab: the active segment is
-   raised out of the strip rather than filled with accent. */
-.review-subtabs {
-  display: flex;
-  gap: var(--s-2);
-  padding: var(--s-4) var(--s-5);
-  flex-shrink: 0;
-}
-
-.review-subtab {
-  height: var(--h-md);
-  padding: 0 var(--s-5);
-  border: 0;
-  border-radius: var(--r-control);
-  background: transparent;
-  color: var(--text-3);
-  cursor: pointer;
-  font-family: var(--font);
-  font-size: var(--fs-chrome);
-  transition:
-    background-color var(--t-1) var(--ease-out),
-    color var(--t-1) var(--ease-out);
-}
-
-.review-subtab:hover:not(.active) {
-  background: var(--hover);
-  color: var(--text-1);
-}
-
-.review-subtab.active {
-  background: var(--surface-3);
-  box-shadow: var(--elev-1);
-  color: var(--text-1);
-  font-weight: 600;
-}
-
-.review-panel-body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-
-.review-subtab-badge {
-  min-width: 17px;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: var(--r-pill);
-  background: var(--iris-wash);
-  color: var(--iris);
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  display: inline-grid;
-  place-items: center;
-  font-variant-numeric: tabular-nums;
-  margin-left: 2px;
 }
 
 /* ── File Tree Empty Fallback ──────────────────────────────────────── */

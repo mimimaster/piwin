@@ -423,7 +423,6 @@
 .right-panel-plus-menu {
   min-width: 200px;
   max-width: min(260px, 80vw);
-  background: var(--surface-4);
   border: 0;
 }
 

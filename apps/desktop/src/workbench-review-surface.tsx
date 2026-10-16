@@ -1,22 +1,19 @@
 /**
- * Review inspector surface: this turn's recorded changes, subagent result,
- * and workspace Git (uncommitted changes + history).
+ * Review inspector surface: the right-panel Changes tab. One scope picker
+ * covers this turn's sealed record, the workspace Git tree (uncommitted /
+ * staged / unstaged), commit history, and subagent results.
  *
  * 本轮变更 shows the sealed record of the turn a card opened; it never falls
  * back to the Git working tree, which also holds other turns' and the user's
- * edits. Git keeps its own tab, with 更多 → 代码撤销记录.
+ * edits. ⋯ → 代码撤销记录 stays the undo fallback.
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { HostPush, SubagentResultSummary } from '@piwin/contracts';
 import type { ReviewResultsHost } from './use-review-subagent-results';
 import type { HostRequestAdapters } from './host-request-adapters';
 import type { DesktopLocale } from './desktop-locale';
-import {
-  DeferredChangesPanel,
-  DeferredGitPanel,
-  DeferredReviewPanel,
-} from './deferred-desktop-surfaces';
-import type { ReviewPanelContext } from './review-panel';
+import { DeferredChangesPanel, DeferredGitPanel } from './deferred-desktop-surfaces';
+import type { ChangesScope } from './changes-scope';
 import { RemoteUnavailableSurface } from './remote-unavailable-surface';
 import { SubagentUnresolvedEntry } from './subagent-unresolved-entry';
 import { SubagentCandidateCard } from './subagent-candidate-card';
@@ -25,7 +22,7 @@ import { deriveSubagentReviewLoopView } from './subagent-orchestration-view';
 import { resolveSubagentReviewActionGate } from './subagent-review-summary-model';
 import { TurnChangePanel } from './turn-changes/turn-change-panel.js';
 import { useTurnChangesApi } from './turn-changes/turn-changes-context.js';
-import { WorkspaceChangesSection } from './turn-changes/workspace-changes-section.js';
+import { useTurnChangeRecordEntry } from './turn-changes/use-turn-change-record-entry.js';
 
 export type WorkbenchReviewSurfaceProps = {
   hostClient: ReviewResultsHost & {
@@ -45,13 +42,11 @@ export function WorkbenchReviewSurface(props: WorkbenchReviewSurfaceProps): Reac
   const turnChanges = useTurnChangesApi();
   const focused = turnChanges?.focusedChangeSetId ?? null;
   const focusRequest = turnChanges?.focusRequest ?? 0;
-  // Without a turn-change Host (or before any card opened a turn), the first
-  // tab keeps showing the workspace Git list, as before.
-  const [context, setContext] = useState<{ tab: ReviewPanelContext; request: number } | undefined>(
-    undefined,
-  );
+  // 查看变更 on a turn card opens that turn's record; otherwise the panel
+  // keeps whatever scope the person picked (default: uncommitted).
+  const [scope, setScope] = useState<{ scope: ChangesScope; request: number } | undefined>(undefined);
   useEffect(() => {
-    if (focused !== null) setContext({ tab: 'this-turn', request: focusRequest });
+    if (focused !== null) setScope({ scope: 'turn', request: focusRequest });
   }, [focused, focusRequest]);
   const subscribeHost = hostClient.subscribe;
   const subscribeTurnChangePush = useCallback(
@@ -63,61 +58,59 @@ export function WorkbenchReviewSurface(props: WorkbenchReviewSurfaceProps): Reac
       }) ?? (() => undefined),
     [subscribeHost],
   );
+  const uiLocale = locale === 'zh-CN' ? 'zh-CN' : 'en';
+  const record = useTurnChangeRecordEntry({
+    hostClient,
+    subscribePush: subscribeTurnChangePush,
+    projectPath,
+    locale: uiLocale,
+    turnChangesSupported: turnChanges !== null,
+  });
   if (!hostClient.supportsCommand('git/status')) {
     return <RemoteUnavailableSurface feature="review" locale={locale} />;
   }
-  const uiLocale = locale === 'zh-CN' ? 'zh-CN' : 'en';
-  const workspaceChanges = (
-    <WorkspaceChangesSection
-      hostClient={hostClient}
-      subscribePush={subscribeTurnChangePush}
-      projectPath={projectPath}
-      locale={uiLocale}
-      turnChangesSupported={turnChanges !== null}
-    >
-      <DeferredChangesPanel projectPath={projectPath} request={requestGit as never} locale={locale} />
-    </WorkspaceChangesSection>
-  );
+  const focusedSummary = focused !== null ? turnChanges?.index.summaries.get(focused) : undefined;
   return (
-    <DeferredReviewPanel
-      changesContent={
-        turnChanges !== null ? (
-          <TurnChangePanel
-            projectPath={projectPath}
-            locale={uiLocale}
-            onShowWorkspaceChanges={() =>
-              setContext((current) => ({ tab: 'git', request: (current?.request ?? 0) + 1 }))
+    <>
+      <DeferredChangesPanel
+        projectPath={projectPath}
+        request={requestGit as never}
+        locale={uiLocale}
+        {...(turnChanges !== null
+          ? {
+              turn: {
+                content: <TurnChangePanel projectPath={projectPath} locale={uiLocale} />,
+                tally:
+                  focusedSummary !== undefined
+                    ? {
+                        files: focusedSummary.fileCount ?? 0,
+                        additions: focusedSummary.additions,
+                        deletions: focusedSummary.deletions,
+                      }
+                    : null,
+              },
             }
-          />
-        ) : (
-          workspaceChanges
-        )
-      }
-      gitContent={
-        <>
-          {turnChanges !== null ? workspaceChanges : null}
-          <DeferredGitPanel projectPath={projectPath} request={requestGit as never} variant="embedded" />
-        </>
-      }
-      {...(context !== undefined ? { context: context.tab, contextRequest: context.request } : {})}
-      {...(reviewResults.results.length > 0
-        ? {
-            resultContent: (
-              <ReviewResultList
-                results={reviewResults.results}
-                locale={uiLocale}
-                onRequestResolution={reviewResults.requestResolution}
-                onAdopt={reviewResults.adoptCandidate}
-              />
-            ),
-          }
-        : {})}
-      {...(reviewResults.resultId !== undefined ? { resultId: reviewResults.resultId } : {})}
-      {...(reviewResults.changeSetId !== undefined
-        ? { changeSetId: reviewResults.changeSetId }
-        : {})}
-      locale={uiLocale}
-    />
+          : {})}
+        history={<DeferredGitPanel projectPath={projectPath} request={requestGit as never} variant="embedded" />}
+        {...(reviewResults.results.length > 0
+          ? {
+              result: (
+                <ReviewResultList
+                  results={reviewResults.results}
+                  locale={uiLocale}
+                  onRequestResolution={reviewResults.requestResolution}
+                  onAdopt={reviewResults.adoptCandidate}
+                />
+              ),
+            }
+          : {})}
+        moreMenuItems={record.menuItem}
+        {...(scope !== undefined ? { scope: scope.scope, scopeRequest: scope.request } : {})}
+        {...(reviewResults.resultId !== undefined ? { resultId: reviewResults.resultId } : {})}
+        {...(reviewResults.changeSetId !== undefined ? { changeSetId: reviewResults.changeSetId } : {})}
+      />
+      {record.dialog}
+    </>
   );
 }
 

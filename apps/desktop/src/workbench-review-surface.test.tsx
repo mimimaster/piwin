@@ -19,20 +19,19 @@ declare global {
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock('./deferred-desktop-surfaces', () => ({
-  DeferredReviewPanel: (props: {
-    resultContent?: React.ReactNode;
+  DeferredChangesPanel: (props: {
+    result?: React.ReactNode;
     resultId?: string;
     changeSetId?: string;
   }) => (
     <div
-      data-testid="review-panel"
+      data-testid="changes-panel"
       data-result-id={props.resultId ?? ''}
       data-change-set-id={props.changeSetId ?? ''}
     >
-      {props.resultContent}
+      {props.result}
     </div>
   ),
-  DeferredChangesPanel: () => <div data-testid="changes-panel" />,
   DeferredGitPanel: () => <div data-testid="git-panel" />,
 }));
 
@@ -103,7 +102,7 @@ describe('WorkbenchReviewSurface', () => {
         </PiwinUiProvider>,
       );
     });
-    const panel = container.querySelector('[data-testid="review-panel"]');
+    const panel = container.querySelector('[data-testid="changes-panel"]');
     expect(panel?.getAttribute('data-result-id')).toBe('result-1');
     expect(panel?.getAttribute('data-change-set-id')).toBe('cs-1');
     expect(container.querySelector('[data-testid="subagent-unresolved-entry"]')).not.toBeNull();

@@ -17,6 +17,7 @@ import { readStoredRightPanelState, writeStoredRightPanelState } from './right-p
 import {
   allocateRightPanelInstanceId,
   insertTabAfterActive,
+  isSingleInstanceKind,
   isTerminalTab,
   rightPanelTabKind,
   sectionLabel,
@@ -317,7 +318,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     setPickerOpen(false);
   }, [keepsTab, props, terminalSessions]);
 
-  /** + menu and the empty-state launcher: always another instance. */
+  /** + menu and the empty-state launcher: another instance, except single-instance views. */
   const openKind = useCallback((kind: RightPanelToolKind): void => {
     if (kind === 'terminal' && terminalSessions) {
       if (allTabs.length === 0 && terminalSessions.sessions.length > 0) {
@@ -334,7 +335,9 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         return;
       }
     }
-    const id = allocateRightPanelInstanceId(kind, allTabs) as RightPanelTab;
+    const id = (
+      isSingleInstanceKind(kind) ? kind : allocateRightPanelInstanceId(kind, allTabs)
+    ) as RightPanelTab;
     if (props.onOpenInstance && !keepsTab(id)) {
       props.onOpenInstance(id);
       setPickerOpen(false);

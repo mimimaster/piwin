@@ -33,6 +33,19 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   flex: none !important;
 }
 
+/* Selected chips are a tint of the text colour, not a raised --s3 plate with a
+   --sh1 ring: on the translucent panel the plate read as a dark sticker with a
+   black hairline. Inactive tabs drop to --t3 so the selection carries the
+   contrast instead of the fill alone. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
+  --itab-hover-fill: color-mix(in srgb, var(--t1) 6%, transparent);
+  --itab-selected-fill: color-mix(in srgb, var(--t1) 10%, transparent);
+}
+html[data-theme-id='piwin-inkstone-ink'] {
+  --itab-hover-fill: color-mix(in srgb, var(--t1) 7%, transparent);
+  --itab-selected-fill: color-mix(in srgb, var(--t1) 14%, transparent);
+}
+
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .itab {
   display: inline-flex;
   align-items: center;
@@ -56,15 +69,15 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .itab:hover {
-  color: var(--t1);
-  background: var(--s2);
+  color: var(--t2);
+  background: var(--itab-hover-fill);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .itab.act,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .itab.active {
-  background: var(--s3) !important;
+  background: var(--itab-selected-fill) !important;
   color: var(--t1) !important;
-  box-shadow: var(--sh1) !important;
+  box-shadow: none !important;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .itab .right-panel-tab-icon,
@@ -337,10 +350,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--azure);
 }
 
-/* ── Review subtabs / split-diff toggle ────────────────────────────── */
+/* ── Split-diff toggle ────────────────────────────── */
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .subtab,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .review-subtabs.subtab {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .subtab {
   display: inline-flex;
   border-radius: 6px;
   background: var(--s1);
@@ -350,8 +362,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   align-self: flex-start;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .subtab > button,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .review-subtab {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .subtab > button {
   height: 24px;
   padding: 0 10px;
   border-radius: 5px;
@@ -366,16 +377,10 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   gap: 4px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .review-subtab:hover:not(.active) {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .subtab > button.on {
+  background: var(--itab-selected-fill);
   color: var(--t1);
-  background: var(--s1);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .subtab > button.on,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .review-subtab.active {
-  background: var(--s3);
-  color: var(--t1);
-  box-shadow: var(--sh1);
+  box-shadow: none;
   font-weight: 500;
 }
 
@@ -602,8 +607,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   }
   .right-panel .right-panel-tab.active,
   .right-panel .right-panel-tab.act {
-    background: var(--s3);
-    box-shadow: var(--sh1);
+    background: var(--itab-selected-fill);
+    box-shadow: none;
   }
   .right-panel .right-panel-tab-main {
     display: inline-flex;
@@ -635,9 +640,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
      chip shadow sat inside proto `--sh1` and read as a dirty halo. */
   .right-panel .right-panel-tab-main.ui-tabs-trigger,
   .right-panel-tab-main[data-state='active'] {
-    color: var(--t1);
+    color: inherit;
     background: transparent;
     box-shadow: none !important;
+  }
+  .right-panel .right-panel-tab.active .right-panel-tab-main {
+    font-weight: 500;
   }
   .right-panel .right-panel-titlebar-drag {
     flex: 1 1 auto;
@@ -710,16 +718,16 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   }
   .right-panel .right-panel-tab:hover .right-panel-tab-close {
     opacity: 1;
-    /* Plate covers the label the X sits on top of. */
-    background: var(--s2) !important;
   }
-  .right-panel .right-panel-tab.active:hover .right-panel-tab-close,
-  .right-panel .right-panel-tab.act:hover .right-panel-tab-close {
-    background: var(--s3) !important;
+  /* The X sits over the label's tail. A solid plate under it showed as a
+     square on the tinted chip, so the label fades out there instead. */
+  .right-panel .right-panel-tab:hover .right-panel-tab-label {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent calc(100% - 6px));
+    mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent calc(100% - 6px));
   }
   .right-panel .right-panel-tab-close:hover {
     color: var(--t1) !important;
-    background: color-mix(in srgb, var(--t1) 10%, var(--s3)) !important;
+    background: var(--itab-hover-fill) !important;
   }
   .right-panel .right-panel-tab-close svg {
     width: 12px !important;
@@ -746,36 +754,22 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   }
   .right-panel-tabstrip .right-panel-tab-add:hover:not(:disabled),
   .right-panel-tab-add:hover {
-    background: var(--s2);
+    background: var(--itab-hover-fill);
     color: var(--t1);
   }
   .right-panel-tabstrip .right-panel-tab-add.active,
   .right-panel-tab-add.active,
   .right-panel-tabstrip .right-panel-tab-add[data-state='open'] {
-    background: var(--s3);
+    background: var(--itab-selected-fill);
     color: var(--t1);
-    box-shadow: var(--sh1);
+    box-shadow: none;
   }
   .right-panel .file-tree-row { min-height: 26px; height: 26px; font: 12px var(--mono); }
   .right-panel .file-tree-panel { background: transparent; border: 0; box-shadow: none; }
-  .right-panel .review-panel {
-    background: transparent;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-  }
-  .right-panel .review-panel-body {
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
   .right-panel .review-file-list { gap: 0; }
   .right-panel .review-file-row { padding: 4px 8px; min-height: 28px; background: transparent; box-shadow: none; border: 0; border-radius: 6px; }
-  .right-panel .review-file-row:is(:hover, .active, .is-selected) { background: var(--s3); box-shadow: var(--sh1); }
+  .right-panel .review-file-row:hover { background: var(--itab-hover-fill); box-shadow: none; }
+  .right-panel .review-file-row:is(.active, .is-selected) { background: var(--itab-selected-fill); box-shadow: none; }
 }
 /* Tabs also retain a bounded horizontal strip in the alternative themes. */
 .right-panel-tabs-root { min-width: 0; flex: 0 1 auto; }

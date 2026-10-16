@@ -90,74 +90,74 @@ describe('ChangesPanel', () => {
     deletions: 1,
   };
 
-  it('lists uncommitted files with directory and filename parts', async () => {
-    const request = vi.fn<ChangesPanelProps['request']>(async (command) => {
-      if (command.type === 'git/status') {
-        return createResponse(command.type, { snapshot: sampleSnapshot });
-      }
-      if (command.type === 'git/diff-summary') {
-        return createResponse(command.type, { summary: sampleDiffSummary });
-      }
-      if (command.type === 'git/diff-file') {
-        return createResponse(command.type, { diff: sampleFileDiff });
-      }
-      return {
-        id: 'unexpected-response',
-        type: 'response',
-        command: command.type,
-        success: false,
-        error: 'unexpected command',
-      };
-    });
 
-    act(() => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChangesPanel projectPath="/workspace" request={request} locale="zh-CN" />
-        </PiwinUiProvider>,
-      );
+  function makeRequest(snapshot: GitStatusSnapshot) {
+    return vi.fn<ChangesPanelProps['request']>(async (command) => {
+      switch (command.type) {
+        case 'git/status':
+          return createResponse(command.type, { snapshot });
+        case 'git/diff-summary':
+          return createResponse(command.type, { summary: sampleDiffSummary });
+        case 'git/diff-file':
+          return createResponse(command.type, {
+            diff: { ...sampleFileDiff, path: command.path, scope: command.scope ?? 'combined' },
+          });
+        case 'git/stage':
+        case 'git/unstage':
+        case 'git/commit':
+          return createResponse(command.type, { result: { ok: true } });
+      }
     });
+  }
 
+  async function settle(): Promise<void> {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
+  }
 
-    expect(container.querySelector('[data-testid="changes-list"]')?.getAttribute('data-changes-count')).toBe('2');
-    expect(container.textContent).toContain('App.tsx');
-    expect(container.textContent).toContain('src/');
-    expect(container.textContent).toContain('README.md');
-    expect(container.textContent).toContain('已暂存');
-    expect(container.textContent).toContain('暂存全部');
-    expect(container.querySelector('.changes-sec-h')).toBeNull();
+  function mountPanel(props: Partial<ChangesPanelProps> & Pick<ChangesPanelProps, 'request'>): ReactElement {
+    return (
+      <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+        <ChangesPanel projectPath="/workspace" locale="zh-CN" {...props} />
+      </PiwinUiProvider>
+    );
+  }
 
-    const appDir = container.querySelector('.changes-path-dir');
-    expect(appDir?.textContent).toBe('src/');
-    const appFile = container.querySelector('.changes-path-file');
-    expect(appFile?.textContent).toBe('App.tsx');
+  const q = (testId: string): HTMLElement | null =>
+    container.querySelector(`[data-testid="${testId}"]`);
+  const all = (testId: string): HTMLElement[] =>
+    [...container.querySelectorAll<HTMLElement>(`[data-testid="${testId}"]`)];
+  const section = (path: string): HTMLElement | null =>
+    container.querySelector(`[data-testid="changes-file"][data-path="${path}"]`);
+
+  it('stacks every uncommitted file with its diff open under one toolbar', async () => {
+    const request = makeRequest(sampleSnapshot);
+    act(() => root.render(mountPanel({ request })));
+    await settle();
+
+    expect(q('changes-files')?.getAttribute('data-changes-count')).toBe('2');
+    expect(q('changes-scope-trigger')?.textContent).toContain('未提交');
+    expect(q('changes-scope-trigger')?.textContent).toContain('+3');
+    const app = section('src/App.tsx');
+    expect(app?.querySelector('.changes-path-dir')?.textContent).toBe('src/');
+    expect(app?.querySelector('.changes-path-file')?.textContent).toBe('App.tsx');
+    // Both files open by default, each with its own patch against HEAD.
+    expect(all('changes-file').every((node) => node.classList.contains('expanded'))).toBe(true);
+    expect(container.querySelectorAll('.diff-view').length).toBe(2);
+    const diffCalls = request.mock.calls.filter(([command]) => command.type === 'git/diff-file');
+    expect(diffCalls.map(([command]) => (command as { scope?: string }).scope)).toEqual([
+      'combined',
+      'combined',
+    ]);
+    expect(q('changes-commit-trigger')).not.toBeNull();
   });
 
   it('does not refetch when the parent re-renders with an equal-props object', async () => {
     // Regression: reload used to depend on the props object identity, so every
     // composer keystroke (parent re-render) re-ran the effect — flashing the
     // loading state and spamming git requests into the open right panel.
-    const request = vi.fn<ChangesPanelProps['request']>(async (command) => {
-      if (command.type === 'git/status') {
-        return createResponse(command.type, { snapshot: sampleSnapshot });
-      }
-      if (command.type === 'git/diff-summary') {
-        return createResponse(command.type, { summary: sampleDiffSummary });
-      }
-      if (command.type === 'git/diff-file') {
-        return createResponse(command.type, { diff: sampleFileDiff });
-      }
-      return {
-        id: 'unexpected-response',
-        type: 'response',
-        command: command.type,
-        success: false,
-        error: 'unexpected command',
-      };
-    });
+    const request = makeRequest(sampleSnapshot);
 
     const mount = (): ReactElement => (
       <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -188,130 +188,119 @@ describe('ChangesPanel', () => {
     expect(request.mock.calls.length).toBe(callsAfterMount);
   });
 
-  it('enters in-tab file review on click without leaving Changes tab', async () => {
-    const onOpenFile = vi.fn();
-    const request = vi.fn<ChangesPanelProps['request']>(async (command) => {
-      if (command.type === 'git/status') {
-        return createResponse(command.type, { snapshot: sampleSnapshot });
-      }
-      if (command.type === 'git/diff-summary') {
-        return createResponse(command.type, { summary: sampleDiffSummary });
-      }
-      if (command.type === 'git/diff-file') {
-        return createResponse(command.type, { diff: sampleFileDiff });
-      }
-      return {
-        id: 'unexpected-response',
-        type: 'response',
-        command: command.type,
-        success: false,
-        error: 'unexpected command',
-      };
-    });
+  it('collapses a section without dropping it from the stack', async () => {
+    const request = makeRequest(sampleSnapshot);
+    act(() => root.render(mountPanel({ request })));
+    await settle();
 
-    act(() => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChangesPanel
-            projectPath="/workspace"
-            request={request}
-            onOpenFile={onOpenFile}
-            locale="zh-CN"
-          />
-        </PiwinUiProvider>,
-      );
-    });
-
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    const appRow = Array.from(
-      container.querySelectorAll<HTMLButtonElement>('.changes-row-main'),
-    ).find((row) => row.textContent?.includes('App.tsx'));
-
-    act(() => {
-      appRow?.click();
-    });
-
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    // Does NOT call the legacy onOpenFile (which would switch to Document tab)
-    expect(onOpenFile).not.toHaveBeenCalled();
-
-    // List stays up; the selected file's diff sits under it.
-    expect(container.querySelector('[data-testid="changes-list"]')).not.toBeNull();
-    const review = container.querySelector('[data-testid="change-file-review"]');
-    expect(review).not.toBeNull();
-    expect(container.querySelector('[data-testid="change-file-header"]')).not.toBeNull();
-    expect(container.textContent).toContain('src/');
-    expect(container.textContent).toContain('App.tsx');
-    expect(container.querySelector('[data-testid="change-file-status-badge"]')?.textContent).toBe('M');
-
-    const backBtn = container.querySelector<HTMLButtonElement>('[data-testid="change-file-back"]');
-    expect(backBtn).not.toBeNull();
-    act(() => {
-      backBtn?.click();
-    });
-
-    expect(container.querySelector('[data-testid="change-file-review"]')).toBeNull();
-    expect(container.querySelector('[data-testid="changes-list"]')).not.toBeNull();
+    const toggle = section('README.md')?.querySelector<HTMLButtonElement>('[data-testid="changes-file-toggle"]');
+    act(() => toggle?.click());
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(section('README.md')?.querySelector('.changes-file-body')).toBeNull();
+    expect(section('src/App.tsx')?.querySelector('.changes-file-body')).not.toBeNull();
   });
 
-  it('restores list view on Escape key in file review mode', async () => {
-    const request = vi.fn<ChangesPanelProps['request']>(async (command) => {
-      if (command.type === 'git/status') {
-        return createResponse(command.type, { snapshot: sampleSnapshot });
-      }
-      if (command.type === 'git/diff-summary') {
-        return createResponse(command.type, { summary: sampleDiffSummary });
-      }
-      if (command.type === 'git/diff-file') {
-        return createResponse(command.type, { diff: sampleFileDiff });
-      }
-      return {
-        id: 'unexpected-response',
-        type: 'response',
-        command: command.type,
-        success: false,
-        error: 'unexpected command',
-      };
-    });
+  it('stages and unstages a single file from its checkbox without a confirm step', async () => {
+    const snapshot: GitStatusSnapshot = {
+      ...sampleSnapshot,
+      changedFiles: [
+        { path: 'src/App.tsx', status: 'modified', staged: true, unstaged: false },
+        { path: 'README.md', status: 'untracked', staged: false, unstaged: true },
+        { path: 'src/half.ts', status: 'modified', staged: true, unstaged: true },
+      ],
+      totalChangedFiles: 3,
+    };
+    const request = makeRequest(snapshot);
+    act(() => root.render(mountPanel({ request })));
+    await settle();
 
+    const check = (path: string) =>
+      section(path)?.querySelector<HTMLInputElement>('[data-testid="changes-stage-check"]');
+    expect(check('src/App.tsx')?.checked).toBe(true);
+    expect(check('README.md')?.checked).toBe(false);
+    expect(check('src/half.ts')?.indeterminate).toBe(true);
+
+    act(() => check('README.md')?.click());
+    await settle();
+    act(() => check('src/App.tsx')?.click());
+    await settle();
+
+    const mutations = request.mock.calls
+      .map(([command]) => command)
+      .filter((command) => command.type === 'git/stage' || command.type === 'git/unstage');
+    expect(mutations).toEqual([
+      { type: 'git/stage', input: { projectPath: '/workspace', paths: ['README.md'] } },
+      { type: 'git/unstage', input: { projectPath: '/workspace', paths: ['src/App.tsx'] } },
+    ]);
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it('shows an empty staged scope that points at the scopes with changes', async () => {
+    const request = makeRequest(sampleSnapshot);
+    act(() => root.render(mountPanel({ request, scope: 'staged' })));
+    await settle();
+
+    expect(q('changes-panel')?.getAttribute('data-changes-scope')).toBe('staged');
+    expect(q('changes-empty')?.textContent).toContain('「已暂存」中没有变更');
+    expect(q('changes-empty-scope-staged')).toBeNull();
+    expect(q('changes-empty-scope-unstaged')?.textContent).toContain('2');
+
+    act(() => q('changes-empty-scope-unstaged')?.click());
+    await settle();
+    expect(q('changes-panel')?.getAttribute('data-changes-scope')).toBe('unstaged');
+    const lastDiff = request.mock.calls.filter(([command]) => command.type === 'git/diff-file').at(-1);
+    expect((lastDiff?.[0] as { scope?: string }).scope).toBe('worktree');
+  });
+
+  it('commits through the popover, staging everything first when nothing is staged', async () => {
+    const request = makeRequest(sampleSnapshot);
+    act(() => root.render(mountPanel({ request })));
+    await settle();
+
+    act(() => q('changes-commit-trigger')?.click());
+    await settle();
+    expect(document.querySelector('[data-testid="changes-commit-consequence"]')?.textContent).toContain(
+      '将暂存全部 2 个文件并提交',
+    );
+    const textarea = document.querySelector<HTMLTextAreaElement>('[data-testid="changes-commit-message"] textarea, textarea[data-testid="changes-commit-message"]');
+    expect(textarea).not.toBeNull();
     act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      setter?.call(textarea, 'feat: scope picker');
+      textarea?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    act(() => document.querySelector<HTMLButtonElement>('[data-testid="changes-commit-submit"]')?.click());
+    await settle();
+
+    const mutations = request.mock.calls
+      .map(([command]) => command)
+      .filter((command) => command.type === 'git/stage' || command.type === 'git/commit');
+    expect(mutations).toEqual([
+      { type: 'git/stage', input: { projectPath: '/workspace', paths: [] } },
+      { type: 'git/commit', input: { projectPath: '/workspace', message: 'feat: scope picker' } },
+    ]);
+  });
+
+  it('renders a requested slot scope and falls back to the tree when the slot is absent', async () => {
+    const request = makeRequest(sampleSnapshot);
+    act(() =>
       root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChangesPanel projectPath="/workspace" request={request} />
-        </PiwinUiProvider>,
-      );
-    });
+        mountPanel({
+          request,
+          scope: 'turn',
+          turn: { content: <div data-testid="turn-body">turn</div>, tally: { files: 4, additions: 9, deletions: 2 } },
+        }),
+      ),
+    );
+    await settle();
+    expect(q('turn-body')).not.toBeNull();
+    expect(q('changes-scope-trigger')?.textContent).toContain('本轮变更');
+    expect(q('changes-scope-trigger')?.textContent).toContain('+9');
+    expect(q('changes-commit-trigger')).toBeNull();
 
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    const appRow = Array.from(
-      container.querySelectorAll<HTMLButtonElement>('.changes-row-main'),
-    ).find((row) => row.textContent?.includes('App.tsx'));
-
-    act(() => {
-      appRow?.click();
-    });
-
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(container.querySelector('[data-testid="change-file-review"]')).not.toBeNull();
-
-    // Trigger Escape key event
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    });
-
-    expect(container.querySelector('[data-testid="change-file-review"]')).toBeNull();
-    expect(container.querySelector('[data-testid="changes-list"]')).not.toBeNull();
+    act(() => root.render(mountPanel({ request, scope: 'turn' })));
+    await settle();
+    expect(q('turn-body')).toBeNull();
+    expect(q('changes-panel')?.getAttribute('data-changes-scope')).toBe('uncommitted');
   });
 });

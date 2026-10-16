@@ -673,14 +673,13 @@ describe('TurnChangePanel', () => {
       return { type: 'response', command: command.type, success: false, error: 'unexpected' };
     });
     const onFocus = vi.fn();
-    const onWorkspace = vi.fn();
     const tools = [
       { toolCallId: 't1', toolName: 'edit', status: 'done', output: '', presentation: { kind: 'filesystem', title: 'edit', changedPaths: ['src/a.ts'] } },
     ] as never;
     await render(
       <TurnChangesProvider request={request} subscribePush={() => () => undefined} onFocusChangeSet={onFocus}>
         <ChatTurnFilesSummary role="assistant" tools={tools} sessionId="session-1" turnRunKey="run-1" />
-        <TurnChangePanel projectPath={null} locale="zh-CN" onShowWorkspaceChanges={onWorkspace} />
+        <TurnChangePanel projectPath={null} locale="zh-CN" />
       </TurnChangesProvider>,
     );
     await act(async () => {
@@ -695,8 +694,5 @@ describe('TurnChangePanel', () => {
     const panel = q('turn-change-panel');
     expect(panel?.querySelector('[data-testid="turn-change-bar"]')).not.toBeNull();
     expect(panel?.querySelectorAll('[data-testid="turn-change-bar-file"]')).toHaveLength(1);
-
-    await act(async () => q('turn-change-panel-workspace')?.click());
-    expect(onWorkspace).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,482 +1,394 @@
-/* Inkstone Changes tab — proto-00 `.chg` / `.file` / `.diff`.
-   Split from inspector.css (AGENTS.md 1000-line cap). */
-
-/* ── Git Changes panel (proto-04 / proto-00) ────────────────────────── */
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-panel {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  background: transparent;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-list-pane {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  background: transparent;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-panel-stacked .change-file-review {
-  flex: 1;
-  min-height: 0;
-  margin: 0 8px 8px;
-  border-radius: 8px;
-  background: var(--code);
-  box-shadow: var(--sh1);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-panel-stacked .change-file-review-body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  font: 11.5px / 1.75 var(--mono);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-toolbar {
-  display: none;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-toolbar-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-toolbar-heading > strong {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--t1);
-  font-family: var(--sans);
-  letter-spacing: -0.01em;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-branch {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font: 11px var(--mono);
-  color: var(--t3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-branch-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--pine);
-  flex-shrink: 0;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-branch-dot.dirty {
-  background: var(--ochre);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-icon-button {
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  color: var(--t3);
-  display: grid;
-  place-items: center;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-icon-button:hover:not(:disabled) {
-  background: var(--s2);
-  color: var(--t1);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-totals {
-  display: none;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-sec-h {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding: 8px 8px 0;
-  font: 600 11px var(--sans);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--t3);
-  flex-shrink: 0;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-sec-h .n {
-  font: 11px var(--mono);
-  color: var(--t4);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
-  text-transform: none;
-  font-weight: 400;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-sec-h .changes-icon-button {
-  margin-left: auto;
-  opacity: 0;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-list-pane:hover .changes-sec-h .changes-icon-button {
-  opacity: 1;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-list {
-  list-style: none;
-  margin: 0;
-  padding: 4px 8px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 40%;
-  overflow-y: auto;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 28px;
-  min-height: 28px;
-  padding: 0 8px;
-  border-radius: 5px;
-  background: transparent;
-  box-shadow: none;
-  border: 0;
-  color: var(--t1);
-  cursor: pointer;
-  font: 12px var(--mono);
-  white-space: nowrap;
-  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-row:hover {
-  background: var(--s2);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-row.selected {
-  background: var(--s3) !important;
-  box-shadow: var(--sh1) !important;
-  color: var(--t1) !important;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-check {
-  width: 13px;
-  height: 13px;
-  border-radius: 3px;
-  border: 1.5px solid var(--l3);
-  accent-color: var(--zhu);
-  margin: 0;
-  flex-shrink: 0;
-  cursor: pointer;
-  opacity: 1;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-row:hover .changes-check,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-check:checked,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-check:focus-visible {
-  opacity: 1;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-row-main {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-row-icon,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-row-main .file-icon {
-  display: none !important;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-code {
-  font: 600 11px var(--mono);
-  width: 14px;
-  text-align: center;
-  flex-shrink: 0;
-  padding: 0;
-  background: transparent;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-code.status-modified {
-  color: var(--ochre);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-code.status-added,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-code.status-untracked {
-  color: var(--pine);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-code.status-deleted {
-  color: var(--crimson);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-code.status-renamed,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-code.status-conflicted {
-  color: var(--azure);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-path {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--t1);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-path-dir {
-  color: var(--t4);
-  font-size: 11.5px;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-path-file {
-  color: var(--t1);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-stats {
-  font: 11px var(--mono);
-  flex-shrink: 0;
-  display: inline-flex;
-  gap: 6px;
-  margin-left: auto;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-stats .add {
-  color: var(--pine);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-stats .del {
-  color: var(--crimson);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-chip {
-  display: inline-flex;
-  align-items: center;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 3px;
-  background: var(--pine-wash);
-  color: var(--pine);
-  font: 11px var(--mono);
-  flex-shrink: 0;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-commit-bar {
-  border-top: 1px solid var(--l1);
-  background: var(--s1);
-  padding: 8px 10px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-commit-hint {
-  font-size: 11.5px;
-  color: var(--t3);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-commit-hint b {
-  color: var(--t1);
-  font-weight: 600;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-stage-links {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-link-btn {
-  color: var(--zhu);
-  font-size: 11.5px;
-  font-family: var(--sans);
-  text-decoration: none;
-  cursor: pointer;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  transition: color var(--t-1) var(--ease-out);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-link-btn:hover:not(:disabled) {
-  color: var(--zhu-lift);
-  text-decoration: underline;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-link-btn:disabled {
-  color: var(--t4);
-  cursor: default;
-  text-decoration: none;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-commit-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-commit-input {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  background: var(--s3);
-  border: 1px solid var(--l2);
-  border-radius: 6px;
-  font-size: 12px;
-  font-family: var(--sans);
-  color: var(--t1);
-  box-shadow: var(--sh1);
-  box-sizing: border-box;
-  transition: border-color var(--t-1) var(--ease-out), box-shadow var(--t-1) var(--ease-out);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-commit-input::placeholder {
-  color: var(--t4);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .changes-commit-input:focus {
-  outline: none;
-  border-color: var(--zhu);
-  box-shadow: 0 0 0 2px var(--zhu-wash);
-}
-
-/* In-tab diff file review (proto-04 b09) */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 32px;
-  min-height: 32px;
-  padding: 0 8px;
-  border-bottom: 1px solid var(--l1);
-  background: transparent;
-  flex-shrink: 0;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-header .ib {
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  color: var(--t3);
-  display: grid;
-  place-items: center;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-header .ib:hover {
-  background: var(--s2);
-  color: var(--t1);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-path-group {
-  font: 12px var(--mono);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-path-dir {
-  color: var(--t4);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-path-name {
-  color: var(--t1);
-  font-weight: 600;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: 1;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-stats {
-  font: 11px var(--mono);
-  display: inline-flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-stats .add {
-  color: var(--pine);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-stats .del {
-  color: var(--crimson);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-status-badge {
-  font: 600 11px var(--mono);
-  width: 14px;
-  text-align: center;
-  flex-shrink: 0;
-  margin-left: auto;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-status-badge.status-modified {
-  color: var(--ochre);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-status-badge.status-added,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-status-badge.status-untracked {
-  color: var(--pine);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-status-badge.status-deleted {
-  color: var(--crimson);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-status-badge.status-renamed,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-status-badge.status-conflicted {
-  color: var(--azure);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-/* proto-04 b09: no unified/split toggle in Changes review */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .change-file-diff-mode {
-  display: none !important;
+/* Inkstone Changes tab: scope toolbar over stacked per-file diffs.
+   docs/specs/changes-panel-scopes.md. Split from inspector.css (AGENTS.md
+   1000-line cap).
+
+   Deck rule: the file header sits on the raised step, the patch recesses to
+   --code. Change semantics keep the reserved four: pine added, crimson
+   deleted, ochre modified, azure moved/conflicted. */
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
+  .changes-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+    background: transparent;
+  }
+
+  .changes-panel > .ui-notice {
+    margin: 6px 8px 0;
+  }
+
+  /* ── Toolbar ─────────────────────────────────────────────────────── */
+
+  .changes-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 8px 0 6px;
+    border-bottom: 1px solid var(--l1);
+    flex-shrink: 0;
+  }
+
+  .changes-toolbar-spacer {
+    flex: 1;
+  }
+
+  .changes-scope-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    height: 26px;
+    padding: 0 7px 0 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--t1);
+    font: 500 12.5px var(--sans);
+    cursor: pointer;
+    transition: background var(--t-1) var(--ease-out);
+  }
+
+  .changes-scope-trigger > svg:first-child {
+    color: var(--t3);
+    flex-shrink: 0;
+  }
+
+  .changes-scope-trigger:hover,
+  .changes-scope-trigger[data-state='open'] {
+    background: var(--itab-selected-fill);
+  }
+
+  .changes-scope-label {
+    white-space: nowrap;
+  }
+
+  .changes-scope-chevron {
+    color: var(--t4);
+    flex-shrink: 0;
+  }
+
+  .changes-tally {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    font: 11px var(--mono);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .changes-tally-files {
+    color: var(--t3);
+  }
+
+  .changes-tally .add,
+  .changes-stats .add {
+    color: var(--pine);
+  }
+
+  .changes-tally .del,
+  .changes-stats .del {
+    color: var(--crimson);
+  }
+
+  .changes-commit-trigger {
+    height: 24px;
+    padding: 0 10px;
+    margin-left: 2px;
+    font-size: 12px;
+  }
+
+  /* ── Scope menu ──────────────────────────────────────────────────── */
+
+  .changes-scope-menu {
+    min-width: 220px;
+  }
+
+  .changes-scope-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .changes-scope-item-label {
+    flex: 1;
+  }
+
+  .changes-scope-item-check {
+    color: var(--t2);
+    flex-shrink: 0;
+  }
+
+  /* ── Commit popover ──────────────────────────────────────────────── */
+
+  .changes-commit-popover {
+    width: 300px;
+    padding: 10px;
+  }
+
+  .changes-commit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .changes-commit-message textarea {
+    font: 12.5px / 1.5 var(--sans);
+    resize: none;
+  }
+
+  .changes-commit-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .changes-commit-consequence {
+    font-size: 11.5px;
+    color: var(--t3);
+    min-width: 0;
+  }
+
+  /* ── Body ────────────────────────────────────────────────────────── */
+
+  .changes-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .changes-files {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 8px 16px;
+  }
+
+  /* overflow: clip, not hidden — hidden would make each card its own scroll
+     container and pin the sticky header to it instead of to .changes-body. */
+  .changes-file {
+    border: 1px solid var(--l1);
+    border-radius: 8px;
+    background: var(--s2);
+    overflow: clip;
+    flex-shrink: 0;
+  }
+
+  .changes-file-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 32px;
+    padding: 0 8px 0 4px;
+    background: var(--s2);
+  }
+
+  .changes-file.expanded .changes-file-head {
+    border-bottom: 1px solid var(--l1);
+  }
+
+  .changes-file-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    color: var(--t1);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .changes-file-chevron {
+    color: var(--t4);
+    flex-shrink: 0;
+    transition: transform var(--t-1) var(--ease-out);
+  }
+
+  .changes-file.expanded .changes-file-chevron {
+    transform: rotate(90deg);
+  }
+
+  .changes-code {
+    width: 12px;
+    flex-shrink: 0;
+    font: 600 11px var(--mono);
+    text-align: center;
+  }
+
+  .changes-code.status-modified,
+  .changes-code.status-typechange {
+    color: var(--ochre);
+  }
+
+  .changes-code.status-added,
+  .changes-code.status-untracked {
+    color: var(--pine);
+  }
+
+  .changes-code.status-deleted {
+    color: var(--crimson);
+  }
+
+  .changes-code.status-renamed,
+  .changes-code.status-copied,
+  .changes-code.status-conflicted {
+    color: var(--azure);
+  }
+
+  .changes-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: ltr;
+    font: 12px var(--mono);
+  }
+
+  .changes-path-dir {
+    color: var(--t4);
+  }
+
+  .changes-path-file {
+    color: var(--t1);
+    font-weight: 500;
+  }
+
+  .changes-stats {
+    display: inline-flex;
+    gap: 6px;
+    flex-shrink: 0;
+    font: 11px var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Copy is a secondary action: it keeps its slot (rows never shift) and
+     only shows on hover or keyboard focus. */
+  .changes-file-copy {
+    opacity: 0;
+    color: var(--t3);
+    flex-shrink: 0;
+  }
+
+  .changes-file-head:hover .changes-file-copy,
+  .changes-file-copy:focus-visible {
+    opacity: 1;
+  }
+
+  .changes-stage-check {
+    width: 14px;
+    height: 14px;
+    margin: 0 0 0 4px;
+    flex-shrink: 0;
+    accent-color: var(--zhu);
+    cursor: pointer;
+  }
+
+  .changes-stage-check:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  .changes-file-body {
+    background: var(--code);
+    font: 11.5px / 1.75 var(--mono);
+    overflow-x: auto;
+  }
+
+  .changes-file-body > .ui-notice {
+    margin: 8px;
+  }
+
+  .changes-file-loading {
+    padding: 10px 12px;
+    font: 11.5px var(--sans);
+    color: var(--t3);
+  }
+
+  .changes-truncated {
+    margin: 4px 4px 0;
+    font-size: 11.5px;
+    color: var(--t4);
+  }
+
+  /* ── Empty scope ─────────────────────────────────────────────────── */
+
+  .changes-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    margin: auto 0;
+    padding: 32px 16px;
+  }
+
+  .changes-empty-message {
+    margin: 0;
+    font: 12.5px var(--sans);
+    color: var(--t3);
+  }
+
+  .changes-empty-scopes {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: min(240px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .changes-empty-scope {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 28px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--t2);
+    font: 12px var(--sans);
+    cursor: pointer;
+    transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
+  }
+
+  .changes-empty-scope > svg {
+    color: var(--t3);
+    flex-shrink: 0;
+  }
+
+  .changes-empty-scope:hover {
+    background: var(--s2);
+    color: var(--t1);
+  }
+
+  .changes-empty-scope-label {
+    flex: 1;
+    text-align: left;
+  }
+
+  /* The turn record and history slots bring their own padding. */
+  .changes-body > .turn-change-panel,
+  .changes-body > .git-panel-embedded {
+    flex: 1;
+    min-height: 0;
+  }
 }

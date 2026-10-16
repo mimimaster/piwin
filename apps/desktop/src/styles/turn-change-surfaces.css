@@ -1,6 +1,6 @@
 /*
  * Turn-change surfaces outside the transcript card: the right panel's
- * 本轮变更 view, the 更多 menu over workspace Changes, and 代码撤销记录.
+ * 本轮变更 view and 代码撤销记录.
  */
 
 .turn-change-panel {
@@ -13,37 +13,6 @@
 
 .turn-change-panel .turn-change-bar {
   margin: 0;
-}
-
-.turn-change-panel-workspace {
-  align-self: flex-start;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: var(--fs-body);
-  color: var(--text-3);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-
-.turn-change-panel-workspace:hover,
-.turn-change-panel-workspace:focus-visible {
-  color: var(--text-1);
-}
-
-.workspace-changes-section {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.workspace-changes-more {
-  display: flex;
-  justify-content: flex-end;
-  padding: var(--s-3) var(--s-4) 0;
 }
 
 /* ── 代码撤销记录 ─────────────────────────────────────────────── */

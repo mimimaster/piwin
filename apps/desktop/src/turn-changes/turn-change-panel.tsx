@@ -1,8 +1,8 @@
 /**
  * Right-panel 本轮变更: the turn a card opened with 查看变更 — its files and
  * per-file diffs from the sealed record (what that turn did, never the
- * current working tree), its undo state, and a way over to the workspace's
- * Git view. Nothing selected → a short hint.
+ * current working tree) and its undo state. Nothing selected → a short hint;
+ * the Changes scope picker is the way over to the workspace's Git view.
  *
  * Reuses TurnChangeBar so the card and the panel can never disagree about
  * state or actions.
@@ -14,8 +14,6 @@ import { useTurnChangesApi } from './turn-changes-context.js';
 export type TurnChangePanelProps = {
   projectPath: string | null;
   locale: 'zh-CN' | 'en';
-  /** Switch the review panel to workspace Git (查看工作区全部变更). */
-  onShowWorkspaceChanges: () => void;
 };
 
 export function TurnChangePanel(props: TurnChangePanelProps): ReactElement | null {
@@ -42,14 +40,6 @@ export function TurnChangePanel(props: TurnChangePanelProps): ReactElement | nul
           )}
         </p>
       )}
-      <button
-        type="button"
-        className="turn-change-panel-workspace"
-        onClick={props.onShowWorkspaceChanges}
-        data-testid="turn-change-panel-workspace"
-      >
-        {t('查看工作区全部变更', 'Show all workspace changes')}
-      </button>
     </div>
   );
 }

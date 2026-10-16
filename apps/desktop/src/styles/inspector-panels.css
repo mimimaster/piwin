@@ -544,7 +544,7 @@
   background: var(--hover);
 }
 
-/* Raised active segment, same as .right-panel-tab and .review-subtab. */
+/* Raised active segment, same as .right-panel-tab. */
 .knowledge-center-panel .ui-tabs-trigger[data-state='active'] {
   background: var(--surface-3);
   box-shadow: var(--elev-1);

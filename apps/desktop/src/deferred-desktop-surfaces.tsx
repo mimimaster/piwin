@@ -67,11 +67,6 @@ export const DeferredTuiPane = lazy(loadTuiPane);
 /** Warm the renderer on intent without starting a process or creating a session. */
 export function prefetchTuiPane(): Promise<unknown> { return loadTuiPane(); }
 
-export const DeferredReviewPanel = lazy(async () => {
-  const module = await import('./review-panel');
-  return { default: module.ReviewPanel };
-});
-
 export const DeferredChangesPanel = lazy(async () => {
   const module = await import('./changes-panel');
   return { default: module.ChangesPanel };
