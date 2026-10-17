@@ -62,6 +62,8 @@ export class MockHostBackend {
   readonly contextTelemetry = new MockContextTelemetryStore();
   readonly extraCommandHandlers: MockExtraCommandHandler[] = [];
 
+  /** Mock stand-in for `~/.piwin/sessions/<id>/handoff.md`. */
+  handoffSummaries = new Map<string, string>();
   sessions = new Map<
     string,
     {

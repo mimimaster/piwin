@@ -2,16 +2,17 @@
  * Detect active slash tokens and parse whole-message slash submits.
  */
 import type { AgentModeId } from '../agent-mode';
-import type { ActiveSlashToken, ParsedSlashSubmit } from './slash-types';
+import type { ActiveSlashToken, ParsedSlashSubmit, ReservedSlashCommandId } from './slash-types';
 import { formatSkillPrompt } from '@piwin/contracts';
 
-/** Max length for compact customInstructions (plan: 2KB). */
+/** Max length for compact customInstructions and handoff focus (plan: 2KB). */
 export const COMPACT_CUSTOM_INSTRUCTIONS_MAX_CHARS = 2048;
 
-const COMMAND_ALIASES: Record<string, 'compact'> = {
+const COMMAND_ALIASES: Record<string, ReservedSlashCommandId> = {
   compact: 'compact',
   summarize: 'compact',
   compress: 'compact',
+  handoff: 'handoff',
 };
 
 /** Product commands that run on the first Enter/click from the slash menu. */
@@ -22,7 +23,7 @@ const RESERVED_SLASH_EXECUTE_NAMES: ReadonlySet<string> = new Set([
   'ultra-code',
 ]);
 
-/** True for `/compact` and its aliases — product commands, not prompts. */
+/** True for `/compact`, `/handoff` and aliases — product commands, not prompts. */
 export function isReservedSlashExecuteName(name: string): boolean {
   return RESERVED_SLASH_EXECUTE_NAMES.has(name.trim().toLowerCase());
 }
@@ -185,13 +186,14 @@ export function parseComposerSlashSubmit(
 }
 
 /**
- * Run whole-message `/compact` (and aliases) without painting a bubble.
+ * Run whole-message `/compact`, `/handoff` (and aliases) without painting a bubble.
  * Returns true when the text was consumed as a reserved command.
  */
 export async function runReservedComposerSlashCommand(
   trimmedText: string,
   handlers: {
     compact?: (customInstructions?: string) => Promise<unknown>;
+    handoff?: (instructions?: string) => Promise<unknown>;
   },
 ): Promise<boolean> {
   if (!trimmedText.startsWith('/')) {
@@ -201,7 +203,8 @@ export async function runReservedComposerSlashCommand(
   if (parsed.kind !== 'command') {
     return false;
   }
-  await handlers.compact?.(normalizeCompactCustomInstructions(parsed.args));
+  const handler = parsed.commandId === 'handoff' ? handlers.handoff : handlers.compact;
+  await handler?.(normalizeCompactCustomInstructions(parsed.args));
   return true;
 }
 

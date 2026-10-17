@@ -117,9 +117,11 @@ The Host is the authority; clients mirror it and never invent capability.
 - **Draft picker.** A new session offers an agent choice only when the Host
   reports more than one agent. Pi stays the default and an agent that is not
   `ready` stays visible but unselectable, so the user learns it exists without
-  starting a session that cannot run. In the Desktop workbench, clicking its
-  setup label opens Agent Backends settings so the Host can be rechecked or
-  configured. A Pi-only install keeps today's composer.
+  starting a session that cannot run. Grok remains selectable in the
+  Conversations pane; a new Grok draft without an explicit project binding
+  starts Loose instead of inheriting the open project. In the Desktop
+  workbench, clicking its setup label opens Agent Backends settings so the
+  Host can be rechecked or configured. A Pi-only install keeps today's composer.
 - **New-session defaults (2026-10-03).** The draft model/effort/mode catalog
   comes only from the Host's current `ExternalAgentStatus.options`; cached
   options from any existing session are never a fallback. Entering or resetting
@@ -187,10 +189,15 @@ The Host is the authority; clients mirror it and never invent capability.
 - **Delete copy.** A Grok session's delete confirmation says the session is
   also removed from Grok: the backend owns its catalog, so a local-only
   expectation would be wrong.
-- **Sidebar grouping.** Grok sessions enter the product index with
-  `projectPath`/`scope` derived from their `cwd` (longest matching registered
-  project root, `''` when unregistered), so the existing project and
-  unregistered-worktree grouping already groups them by directory.
+- **Sidebar grouping.** Newly discovered Grok catalog rows enter the product
+  index with `projectPath`/`scope` derived from their `cwd` (longest matching
+  registered project root, `''` when unregistered). Unmatched / default Grok
+  sessions are Conversations (Loose), not No Repo and not the currently open
+  project. Picking Grok on an empty stage while a project is merely open
+  starts Loose; a project-folder `+` still creates a project-scoped Grok
+  session under that repo. Catalog sync does not rehome an existing Loose
+  Grok row into a project because cwd later matches. Desktop lists general
+  Grok rows in the chat pane; only a project cwd snaps the sidebar to code.
 - **CLI shell by default (2026-10-15).** Grok sessions and Grok drafts open
   in Grok's own TUI (the titlebar Desktop/CLI switch set to CLI) wherever
   Desktop can run it (`canOfferConversationCli`: native PTY plus a local or

@@ -9,6 +9,11 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import type { ModelCatalogEntry, ModelConfigEntry } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { ModelEditInline } from './model-edit-inline.js';
+import {
+  resolveDraftExtraBody,
+  resolveDraftHeaders,
+  type ModelConfigurationDraft,
+} from './model-configuration.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -56,6 +61,26 @@ function setInputValue(el: HTMLInputElement, value: string): void {
   setter?.call(el, value);
   el.dispatchEvent(new Event('input', { bubbles: true }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function setTextAreaValue(el: HTMLTextAreaElement, value: string): void {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+  setter?.call(el, value);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function bodyText(): string {
+  return query<HTMLTextAreaElement>('[data-testid="model-edit-request-body"] textarea')?.value ?? '';
+}
+
+function setBodyText(value: string): void {
+  const element = query<HTMLTextAreaElement>('[data-testid="model-edit-request-body"] textarea');
+  if (!element) throw new Error('Missing request body textarea');
+  act(() => setTextAreaValue(element, value));
+}
+
+function chooseHeadersMode(mode: 'rows' | 'json'): void {
+  click(`[data-testid="model-edit-request-headers-mode"] input[value="${mode}"]`);
 }
 
 function waitFor(condition: () => boolean, timeout = 1000): Promise<void> {
@@ -158,7 +183,91 @@ describe('ModelEditInline', () => {
         onCancel={vi.fn()}
       />,
     );
-    expect(query('[data-testid="model-edit-headers"]')).toBeNull();
+    expect(query('[data-testid="model-edit-request"]')).toBeNull();
+  });
+
+  it('edits a custom request body through the OpenRouter routing helper (ADR 0095)', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{ id: 'anthropic/claude-sonnet-4.5', extraBody: { temperature: 0.2 } }}
+        providerProtocol="openai-compatible"
+        providerBaseUrl="https://openrouter.ai/api/v1"
+        disabled={false}
+        isChinese={false}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(query('[data-testid="model-edit-request-toggle"]')?.getAttribute('aria-expanded')).toBe('true');
+    expect(query('[data-testid="model-edit-request-summary"]')?.textContent).toBe('body: temperature');
+    click('[data-testid="model-edit-openrouter-chip-anthropic"]');
+    click('[data-testid="model-edit-openrouter-chip-amazon-bedrock"]');
+    click('[data-testid="model-edit-openrouter-no-fallback"]');
+    expect(bodyText()).toContain('"allow_fallbacks": false');
+    expect(query('[data-testid="model-edit-request-body-status"]')?.textContent).toContain(
+      'temperature, provider',
+    );
+    click('[data-testid="model-edit-save"]');
+    const saved = onSave.mock.calls[0]?.[0] as ModelConfigurationDraft;
+    expect(resolveDraftExtraBody(saved)).toEqual({
+      temperature: 0.2,
+      provider: { order: ['anthropic', 'amazon-bedrock'], allow_fallbacks: false },
+    });
+  });
+
+  it('blocks saving a body that overrides a protected field', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{ id: 'gpt-test' }}
+        providerProtocol="openai-compatible"
+        disabled={false}
+        isChinese
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(query('[data-testid="model-edit-openrouter"]')).toBeNull();
+    setBodyText('{"model": "other"}');
+    expect(query('[data-testid="model-edit-request-body"]')?.textContent).toContain(
+      '“model”由 piwin 生成',
+    );
+    expect(query('[data-testid="model-edit-request-summary"]')?.textContent).toBe('JSON 有误，展开修正');
+    click('[data-testid="model-edit-save"]');
+    expect(onSave).not.toHaveBeenCalled();
+    expect(query('[data-testid="model-edit-error"]')?.textContent).toBe(
+      'Custom request body JSON is invalid.',
+    );
+  });
+
+  it('switches request headers to JSON and back without losing them', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{ id: 'routed', headers: { 'x-route': 'fast' } }}
+        providerProtocol="openai-compatible"
+        disabled={false}
+        isChinese={false}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    chooseHeadersMode('json');
+    const json = query<HTMLTextAreaElement>('[data-testid="model-edit-request-headers-json"] textarea');
+    expect(JSON.parse(json?.value ?? '')).toEqual({ 'x-route': 'fast' });
+    act(() => {
+      if (json) setTextAreaValue(json, '{"X-Title": "piwin", "x-route": "slow"}');
+    });
+    chooseHeadersMode('rows');
+    const names = [
+      ...document.querySelectorAll<HTMLInputElement>('[data-testid="model-edit-header-name"]'),
+    ].map((element) => element.value);
+    expect(names).toEqual(['X-Title', 'x-route']);
+    chooseHeadersMode('json');
+    click('[data-testid="model-edit-save"]');
+    const saved = onSave.mock.calls[0]?.[0] as ModelConfigurationDraft;
+    expect(resolveDraftHeaders(saved)).toEqual({ 'X-Title': 'piwin', 'x-route': 'slow' });
   });
 
   it('renders native search capability controls', () => {

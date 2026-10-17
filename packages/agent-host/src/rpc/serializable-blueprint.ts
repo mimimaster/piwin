@@ -101,6 +101,8 @@ export type SerializableProviderRuntime = {
      * headers already overlaid by the model's. Omitted = provider headers.
      */
     headers?: Record<string, string>;
+    /** ADR 0095: Host-resolved custom request body merged into every payload. */
+    extraBody?: import('@piwin/contracts').ModelRequestBody;
   }>;
   auth: ProviderAuthDescriptor;
 };

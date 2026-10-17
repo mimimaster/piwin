@@ -93,6 +93,10 @@ export type ComposerDockProps = {
   /** CM: structured context ref chips (file/selection/folder/…). */
   pendingContextRefs?: PendingContextRefItem[];
   onRemoveContextRef?: (key: string) => void;
+  /** Opens the stored handoff summary from its composer chip. */
+  onLoadHandoffSummary?: (
+    sessionId: string,
+  ) => Promise<import('./handoff-summary-chip').HandoffSummaryPreview>;
   /** CM-17: `@` mention file/folder items also become structured refs. */
   onAddContextRef?: ((ref: import('@piwin/contracts').PromptContextRef) => void) | undefined;
   /** Bounded workspace file/folder index backing `@` mention completion. */
@@ -153,6 +157,8 @@ export type ComposerDockProps = {
   onCompact: () => void;
   /** Host capability; when false compact slash is unavailable. Default true. */
   compactionSupported?: boolean;
+  /** Host + session support `session/handoff`; when not true `/handoff` is hidden. */
+  handoffSupported?: boolean;
   contextUsage: ContextUsageSnapshot | null;
   contextRingView?: import('./context-telemetry-selector.js').ContextRingViewModel;
   modelContextWindow?: number;

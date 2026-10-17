@@ -35,6 +35,7 @@ function commandTimeoutMs(command: HostCommand, defaultTimeoutMs: number): numbe
   switch (command.type) {
     case 'session/compact':
     case 'session/compact-export':
+    case 'session/handoff':
       // These commands await a model completion. The control lane remains
       // available for session/compact-abort, so a wall-clock dispatcher
       // deadline would only detach the response from work that keeps running.

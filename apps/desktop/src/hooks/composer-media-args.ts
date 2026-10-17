@@ -23,6 +23,8 @@ export type UseComposerMediaArgs = {
   /** Skills available for `/name` send intercept. */
   menuSkills?: Array<{ id: string; name: string; enabled: boolean }>;
   onCompact?: (customInstructions?: string) => Promise<boolean | void>;
+  /** `/handoff [focus]` on the active session; false when it did not start. */
+  onHandoff?: (instructions?: string) => boolean;
   onAbort?: () => Promise<void>;
   /** Continue a paused turn. Optional text is extra instruction for the resume. */
   onResumeRun?: (continuationText?: string) => Promise<void>;

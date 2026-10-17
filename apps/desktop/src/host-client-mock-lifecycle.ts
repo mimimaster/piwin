@@ -412,6 +412,7 @@ export async function handleMockSessionLifecycleCommands(
             error: session ? 'Session has no messages to summarize' : 'unknown session',
           };
         }
+        const summary = `Goal: continue “${session.name ?? command.sessionId}”.\nNext: write the next step.`;
         const handoffId = crypto.randomUUID();
         const origin: HandoffSessionOrigin = {
           kind: 'handoff',
@@ -429,6 +430,7 @@ export async function handleMockSessionLifecycleCommands(
           isArchived: false,
           origin,
         });
+        host.handoffSummaries.set(handoffId, summary);
         const handoffSession = host.sessions.get(handoffId);
         if (!handoffSession) {
           throw new Error(`Mock handoff session was not stored: ${handoffId}`);
@@ -444,9 +446,29 @@ export async function handleMockSessionLifecycleCommands(
             sourceSessionId: command.sessionId,
             label: 'Handoff summary',
           },
-          summaryChars: 0,
+          summaryChars: summary.length,
         };
         return { id, type: 'response', command: 'session/handoff', success: true, data };
+      }
+      case 'session/handoff-summary': {
+        const summary = host.handoffSummaries.get(command.sessionId);
+        if (summary === undefined) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/handoff-summary',
+            success: false,
+            error: 'Handoff summary is missing',
+            problem: { code: 'session-handoff-summary-missing' },
+          };
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'session/handoff-summary',
+          success: true,
+          data: { sessionId: command.sessionId, summary, truncated: false },
+        };
       }
       case 'session/lineage': {
         return {

@@ -706,6 +706,43 @@ describe('useComposerMedia session transitions', () => {
     expect(latest().composer).toBe('');
   });
 
+  it.each([
+    { started: true, composerAfter: '' },
+    { started: false, composerAfter: '/handoff auth only' },
+  ])('intercepts /handoff on Send without prompting (started=$started)', async ({ started, composerAfter }) => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const onCompact = vi.fn(async () => true);
+    const onHandoff = vi.fn(() => started);
+    const hostClient = { request: vi.fn() } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: { ...createInitialTestChatUiState(), activeSessionId: 'session-1' },
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+        onCompact,
+        onHandoff,
+      });
+      return null;
+    }
+    act(() => root?.render(<Harness />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+    act(() => latest().setComposer('/handoff auth only'));
+    await act(async () => {
+      await latest().handleSend();
+    });
+    expect(onHandoff).toHaveBeenCalledWith('auth only');
+    expect(onCompact).not.toHaveBeenCalled();
+    expect(vi.mocked(hostClient.request)).not.toHaveBeenCalled();
+    expect(latest().composer).toBe(composerAfter);
+  });
+
   it('runs /compact even when leftover attachment chips are present', async () => {
     container = document.createElement('div');
     document.body.append(container);

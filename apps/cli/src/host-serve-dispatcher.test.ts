@@ -151,6 +151,38 @@ describe('createHostServeDispatcher', () => {
     expect(sent).toEqual([expect.objectContaining({ command: 'session/compact', success: true })]);
   });
 
+  it('keeps waiting for a handoff summary after the ordinary command deadline', async () => {
+    let releaseHandoff: (() => void) | undefined;
+    const handoffGate = new Promise<void>((resolve) => {
+      releaseHandoff = resolve;
+    });
+    const runtime = createMockRuntime({
+      onCommand: async (command) => {
+        await handoffGate;
+        return { type: 'response', command: command.type, success: true, data: {} };
+      },
+    });
+    const sent: HostServerMessage[] = [];
+    const dispatcher = createHostServeDispatcher({
+      runtime: runtime as HostRuntime,
+      send: async (message) => {
+        sent.push(message);
+      },
+      commandTimeoutMs: 10,
+    });
+
+    dispatcher.dispatch({ type: 'session/handoff', sessionId: 'session-1' });
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(sent).toHaveLength(0);
+
+    if (releaseHandoff === undefined) {
+      throw new Error('handoff gate was not initialized');
+    }
+    releaseHandoff();
+    await dispatcher.drain();
+    expect(sent).toEqual([expect.objectContaining({ command: 'session/handoff', success: true })]);
+  });
+
   it('keeps waiting for extensions/apply after the ordinary command deadline', async () => {
     let releaseApply: (() => void) | undefined;
     const applyGate = new Promise<void>((resolve) => {

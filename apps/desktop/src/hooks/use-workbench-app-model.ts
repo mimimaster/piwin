@@ -16,7 +16,6 @@ import { useWorkbenchDerivedView } from './use-workbench-derived-view';
 import { useWorkbenchHostRuntime } from './use-workbench-host-runtime';
 import { useWorkbenchSessionGestures } from './use-workbench-session-gestures';
 import { useWorkbenchSessionRuntime } from './use-workbench-session-runtime';
-import { useSessionHandoff } from './use-session-handoff';
 import type { SessionRowMenuAction } from '../session-row-menu';
 import { useWorkbenchSubagentInspector } from './use-workbench-subagent-inspector';
 import { useWorkbenchTurnActions } from './use-workbench-turn-actions';
@@ -81,25 +80,18 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     session,
     ...(knowledgeMountsRef ? { knowledgeMountsRef } : {}),
   });
-  const { handleHandoffSession } = useSessionHandoff({
-    hostClient,
-    state,
-    dispatch,
-    dispatchNotification: host.dispatchNotification,
-    handleResumeSession: session.handleResumeSession,
-    seedSessionContextRefs: composer.seedSessionContextRefs,
-  });
   const sessionMenuAction = session.handleSessionMenuAction;
+  const { startHandoff } = composer;
   // Handoff needs the composer (to park the summary chip), which session actions cannot see.
   const handleSessionMenuAction = useCallback(
     async (sessionId: string, action: SessionRowMenuAction): Promise<void> => {
       if (action === 'handoff') {
-        await handleHandoffSession(sessionId);
+        startHandoff(sessionId);
         return;
       }
       await sessionMenuAction(sessionId, action);
     },
-    [handleHandoffSession, sessionMenuAction],
+    [startHandoff, sessionMenuAction],
   );
   const {
     handleOpenDocument,
@@ -136,6 +128,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     handleAbort: session.handleAbort,
     generalWorkspacePath: host.generalWorkspacePath ?? null,
     sessionPlan: host.sessionPlan,
+    setSidebarMode: chrome.setSidebarMode,
   });
   // Auto-reveal follows the Canvas switch of the active session's scope class;
   // artifactCodeFirst is Inline-only and is never folded into it.

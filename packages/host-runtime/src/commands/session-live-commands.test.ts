@@ -6,7 +6,7 @@ import type {
   SessionHandle,
 } from '@piwin/contracts';
 import { COMPLETED_STOP_OUTCOME, failedAgentPromptOutcome } from '@piwin/contracts';
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -15,6 +15,7 @@ import {
   openSessionTranscriptStore,
   PauseCheckpointRetiredError,
   saveSessionPlan,
+  updateSessionRecord,
   type SessionTranscriptStore,
 } from '@piwin/session';
 import { openOrCreateProject } from '@piwin/project';
@@ -2581,17 +2582,21 @@ describe('session/create projectId binding', () => {
 });
 
 describe('session/create chat mode', () => {
-  it('rejects an external agent in general scope before persisting', async () => {
-    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-create-chat-pi-only-'));
+  it('creates a Loose Grok session in general scope', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-create-chat-grok-'));
     try {
       const session = createDelayedSessionHandle();
       const { context } = createControlContext(session);
       context.piwinRoot = rootDir;
-      let createSessionCalls = 0;
-      context.createSession = async () => {
-        createSessionCalls += 1;
-        return session;
-      };
+      context.resolveInstalledAgentIds = async () => ['grok'];
+      context.bindExternalAgentSession = async (sessionId, agentId) =>
+        updateSessionRecord(
+          getPiwinSessionIndexPath(getPiwinRoot(rootDir)),
+          sessionId,
+          (record) => {
+            record.backend = { agentId };
+          },
+        );
 
       const response = await handleSessionLiveCommand(
         {
@@ -2606,15 +2611,19 @@ describe('session/create chat mode', () => {
         context,
       );
 
-      expect(response).toMatchObject({
-        success: false,
-        command: 'session/create',
-        error: 'chat-mode-pi-only',
+      if (!response?.success) {
+        throw new Error(response?.error ?? 'session/create failed');
+      }
+      const sessionId = (response.data as { sessionId: string }).sessionId;
+      const record = await getSessionRecord(
+        getPiwinSessionIndexPath(getPiwinRoot(rootDir)),
+        sessionId,
+      );
+      expect(record).toMatchObject({
+        scope: { kind: 'general' },
+        backend: { agentId: 'grok' },
+        name: 'Grok chat',
       });
-      expect(createSessionCalls).toBe(0);
-      await expect(
-        access(getPiwinSessionIndexPath(getPiwinRoot(rootDir))),
-      ).rejects.toMatchObject({ code: 'ENOENT' });
     } finally {
       await rm(rootDir, { recursive: true, force: true });
     }

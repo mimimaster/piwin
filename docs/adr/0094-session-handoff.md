@@ -43,12 +43,29 @@ start clean, but keep what matters, and keep going (prior art: Amp
    that same session (including bounded history replay), capped at 24 000
    characters, as `<context_ref type="session_handoff">`.
 6. **No auto-send.** Desktop parks the ref as a composer chip on the new
-   session before switching to it; the user writes the next step. The TUI
-   `/handoff [focus]` does the same through its carried-refs path (inside a
-   side chat `/handoff` keeps its old meaning: carry the answer back).
-7. **Gating.** Desktop shows the menu item when the Host supports
-   `session/handoff` and the session supports `compact`; external agent
-   sessions are refused through the existing `compact` capability.
+   session; the user writes the next step. Desktop switches there only when
+   the user is still on the source session when the summary lands; otherwise
+   it shows a toast with an Open action. The TUI `/handoff [focus]` does the
+   same through its carried-refs path (inside a side chat `/handoff` keeps its
+   old meaning: carry the answer back).
+7. **Entry points and gating.** Desktop offers the session menu item and the
+   composer command `/handoff [focus]` when the Host supports
+   `session/handoff` and the session supports `compact` (the menu checks the
+   session it was opened on, not the active one). External agent sessions are
+   refused through the existing `compact` capability.
+8. **A model completion, not an ack.** `session/handoff` has no request
+   deadline (Desktop bridge, Host serve dispatcher; TUI gets 15 minutes),
+   like `session/compact`. Desktop shows a sticky progress toast whose Cancel
+   sends `session/compact-abort`.
+9. **Refusals are typed.** Known refusals return problem
+   `session-handoff-refused { reason: cancelled | empty-transcript |
+   already-running | archived | empty-summary }`; Desktop localizes them and
+   treats `cancelled` as an info, not an error.
+10. **Preview is a read.** `session/handoff-summary { sessionId }` returns the
+    stored summary for that session, capped at the same 24 000 characters the
+    prompt receives, with `truncated` when the file was longer. A missing file
+    is problem `session-handoff-summary-missing`. Desktop shows it as plain
+    text from the composer chip. The summary stays untrusted model output.
 
 ## Consequences
 
@@ -56,8 +73,18 @@ start clean, but keep what matters, and keep going (prior art: Amp
   session stays usable meanwhile.
 - The summary is model-generated text and is treated like any other context
   ref: untrusted, bounded, never rendered as HTML.
-- Not in v1: editing the summary before handoff, previewing it from the chip,
-  carrying unfinished `SessionPlan` steps, handing off to another backend.
+- Not in v1: editing the summary before handoff, carrying unfinished
+  `SessionPlan` steps, handing off to another backend. Preview from the chip
+  shipped 2026-10-17 (`session/handoff-summary`).
+
+## Revision 2026-10-17 — usability fixes
+
+The first version timed out: Desktop gave the command its 15 s query budget
+and the Host serve dispatcher a 45 s deadline, while summaries routinely run
+longer. The user saw a timeout, the Host kept going and created a session
+without the parked chip. Decisions 6–9 above record the fix: no deadline,
+sticky cancellable progress, no forced jump, `/handoff` in the Desktop
+composer, menu gating on the menu's own session, and typed refusals.
 
 ## Validation
 

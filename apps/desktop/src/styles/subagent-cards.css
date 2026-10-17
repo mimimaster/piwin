@@ -2,7 +2,8 @@
    (apps/docs/public/inkstone/proto-13-subagent-cards.html).
 
    subagent-group-card.tsx draws one card per consecutive run of delegations
-   (header: spinner/dot · "N 个子代理" · counts · wall time · chevron);
+   (folded capsule: spinner/dot · "N 个子代理" · counts · wall time · chevron;
+   open fan-out cards have no header bar — the main node folds them);
    subagent-invocation-block.tsx draws each row (seal · title + meta · state,
    then the activity / conclusion / error line in every phase). Two or more
    rows draw as a fan-out and the open row's dense preview sits at the card
@@ -14,7 +15,6 @@
 
 .subagent-group {
   --sa-surface: var(--s3, var(--surface-3, #fffdf8));
-  --sa-shadow: var(--sh1, var(--elev-1, 0 0 0 1px rgba(29, 27, 23, 0.11)));
   --sa-rule: var(--l1, var(--line-1, rgba(29, 27, 23, 0.06)));
   --sa-hover: var(--l1, var(--line-1, rgba(29, 27, 23, 0.06)));
   --sa-select: var(--l2, var(--line-2, rgba(29, 27, 23, 0.11)));
@@ -34,31 +34,66 @@
   --sa-mono: var(--mono, var(--font-mono, 'JetBrains Mono', ui-monospace, Menlo, monospace));
   --sa-serif: var(--serif, var(--font-serif, 'Noto Serif SC', 'Songti SC', Georgia, serif));
 
+  /* Glass, not paper: the card lets the transcript show through and is held
+     by a hairline instead of a drop shadow. */
+  --sa-glass: color-mix(in srgb, var(--sa-surface) 32%, transparent);
+  --sa-glass-strong: color-mix(in srgb, var(--sa-surface) 55%, transparent);
+  --sa-hairline: color-mix(in srgb, var(--sa-select) 70%, transparent);
+  --sa-node: color-mix(in srgb, var(--sa-code) 40%, transparent);
+
   min-width: 0;
   margin: 6px 0;
   overflow: hidden;
-  border-radius: 10px;
-  background: var(--sa-surface);
-  box-shadow: var(--sa-shadow);
+  border-radius: 12px;
+  background: var(--sa-glass);
+  box-shadow: inset 0 0 0 1px var(--sa-hairline);
   color: var(--sa-t1);
 }
 
-/* ── Group header ───────────────────────────────────────────────────── */
+/* Folded: the card dissolves and only the capsule remains. */
+.subagent-group[data-expanded='false'] {
+  overflow: visible;
+  background: none;
+  box-shadow: none;
+}
+
+/* ── Folded capsule ─────────────────────────────────────────────────── */
 .subagent-group-head {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  padding: 9px 12px;
+  max-width: 100%;
+  padding: 5px 10px 5px 11px;
   border: 0;
-  background: none;
+  border-radius: 999px;
+  background: var(--sa-glass);
+  box-shadow: inset 0 0 0 1px var(--sa-hairline);
   color: inherit;
   font: inherit;
+  font-size: 13px;
   text-align: left;
   cursor: pointer;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .subagent-group-head:hover {
+  background: var(--sa-glass-strong);
+  box-shadow: inset 0 0 0 1px var(--sa-ring);
+}
+
+/* Open card without a fan-out (no main node to fold it): a quiet top line. */
+.subagent-group[data-expanded='true'] > .subagent-group-head {
+  display: flex;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.subagent-group[data-expanded='true'] > .subagent-group-head:hover {
   background: var(--sa-hover);
 }
 
@@ -79,7 +114,7 @@
 
 .subagent-group-title {
   flex: none;
-  font-weight: 600;
+  font-weight: 560;
   white-space: nowrap;
 }
 
@@ -95,7 +130,8 @@
 .subagent-group-time {
   flex: none;
   margin-left: auto;
-  color: var(--sa-t3);
+  padding-left: 4px;
+  color: var(--sa-t4);
   font: 11.5px var(--sa-mono);
   font-variant-numeric: tabular-nums;
 }
@@ -120,7 +156,10 @@
 }
 
 .subagent-group-rows {
-  padding: 4px 0 6px;
+  padding: 6px 0;
+}
+
+.subagent-group-head + .subagent-group-rows {
   border-top: 1px solid var(--sa-rule);
 }
 

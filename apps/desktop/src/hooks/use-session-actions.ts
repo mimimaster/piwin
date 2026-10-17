@@ -26,7 +26,7 @@ import { findSessionForLookup } from '../session-list-lookup';
 import {
   activateProjectOnHost,
 } from '../remote-session-hydrate';
-import { buildSessionCreateInput } from './session-create-input.js';
+import { buildSessionCreateInput, resolveSessionCreateLocation } from './session-create-input.js';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { findAdjacentSessionId } from '../session-navigation';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
@@ -224,14 +224,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       backendModelId?: string;
       backendEffortId?: string;
     }): Promise<string | null> => {
-      const requestedScope = options?.scope;
-      const requestedProjectPath =
-        requestedScope?.kind === 'project'
-          ? requestedScope.projectPath
-          : (options?.projectPath ?? state.projectPath);
-      const useGeneral =
-        requestedScope?.kind === 'general' ||
-        (!requestedScope && !requestedProjectPath && state.activeScope.kind === 'general');
+      const location = resolveSessionCreateLocation({
+        activeScope: state.activeScope,
+        ...(options?.scope !== undefined ? { requestedScope: options.scope } : {}),
+        ...(options?.projectPath !== undefined ? { projectPath: options.projectPath } : {}),
+        ...(options?.agentId !== undefined ? { agentId: options.agentId } : {}),
+      });
+      const useGeneral = location.useGeneral;
+      const requestedProjectPath = location.useGeneral ? undefined : location.projectKey;
       const scopeKey = useGeneral
         ? 'general'
         : requestedProjectPath

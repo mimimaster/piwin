@@ -6,8 +6,10 @@ import type {
 import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+  isCloudCredentialProtocol,
   isModelEnabled,
   resolveModelEndpoint,
+  resolveModelRequestBody,
   resolveSupportsDeveloperRole,
   modelSupportsCapability,
 } from '@piwin/contracts';
@@ -218,6 +220,22 @@ function positiveLimit(value: number | undefined): number | undefined {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
+/**
+ * One-shot Pi completions register a provider without the product stream
+ * unless the request depends on it: cloud rows carry project/location/region
+ * in it, and a model with a custom body (ADR 0095) needs its merge hook.
+ */
+export function completionNeedsRegistrationStream(
+  provider: ModelProviderConfig,
+  modelId: string,
+): boolean {
+  return (
+    isCloudCredentialProtocol(provider.protocol) ||
+    resolveModelRequestBody(provider, provider.models.find((model) => model.id === modelId)) !==
+      undefined
+  );
+}
+
 export function buildPiProviderRegistration(
   provider: ModelProviderConfig,
   apiKey?: string,
@@ -294,13 +312,20 @@ export function buildPiProviderRegistration(
     registration.headers = provider.headers;
   }
 
-  const streamFlags: RegistrationModelStreamFlags[] = models.map((model) => ({
-    id: model.id,
-    api: model.api,
-    ...(model.capabilities ? { capabilities: model.capabilities } : {}),
-    ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
-    ...(model.nativeSearchOptions ? { nativeSearchOptions: model.nativeSearchOptions } : {}),
-  }));
+  const streamFlags: RegistrationModelStreamFlags[] = models.map((model) => {
+    const extraBody = resolveModelRequestBody(
+      provider,
+      provider.models.find((entry) => entry.id === model.id),
+    );
+    return {
+      id: model.id,
+      api: model.api,
+      ...(model.capabilities ? { capabilities: model.capabilities } : {}),
+      ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
+      ...(model.nativeSearchOptions ? { nativeSearchOptions: model.nativeSearchOptions } : {}),
+      ...(extraBody ? { extraBody } : {}),
+    };
+  });
   const streamSimple = resolveRegistrationStreamSimple({
     defaultApi: api,
     models: streamFlags,

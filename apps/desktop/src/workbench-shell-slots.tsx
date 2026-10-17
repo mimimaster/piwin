@@ -26,6 +26,7 @@ import { WorkbenchInspector } from './workbench-inspector';
 import { WorkbenchSidebar } from './workbench-sidebar';
 import { WorkbenchStageLayer } from './workbench-stage-slots';
 import { WorkspaceShell } from './workspace-shell';
+import { StageToolCard } from './stage-tool-card';
 
 type AppModel = ReturnType<typeof useWorkbenchAppModel>;
 
@@ -271,6 +272,20 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             renderSessionTui={cli.renderSessionTui ?? undefined}
           />
         )}
+        stageOverlay={
+          rightPanelOpen || studioOpen || layoutMode === 'phone' ? null : (
+            <StageToolCard
+              locale={desktopLocale}
+              projectPath={
+                state.activeScope.kind === 'project' && hostClient.supportsCommand('git/diff-summary')
+                  ? state.activeScope.projectPath
+                  : null
+              }
+              request={requestGit}
+              onOpenTool={openRightTab}
+            />
+          )
+        }
         conversationOverride={cli.stage}
         conversationOverrideActive={cli.active}
         transcript={

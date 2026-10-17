@@ -429,6 +429,70 @@ describe('session chain phase 1', () => {
     });
   });
 
+  it('starts a Grok session in Conversations instead of the open project', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const handleOpenProject = vi.fn(async () => undefined);
+    const startNewDraft = vi.fn();
+    const handleNewSession = vi.fn(async () => undefined);
+    const dispatch = vi.fn();
+    const setSidebarMode = vi.fn();
+    const hydrateSessions = vi.fn(async () => []);
+    const projectPath = '/Users/test/project-a';
+
+    let captured: ReturnType<typeof useWorkbenchSessionGestures> | undefined;
+    function Harness(): null {
+      captured = useWorkbenchSessionGestures({
+        hostClient: stubHostClient(),
+        state: {
+          ...createInitialChatUiState(),
+          activeScope: { kind: 'project', projectPath },
+          projectPath,
+          projectTrusted: true,
+        },
+        dispatch,
+        inspectorFileDiff: { clear: vi.fn(), open: vi.fn() },
+        openDocumentBase: vi.fn(),
+        revealDocPreview: vi.fn(),
+        artifactCanvas: { openTarget: vi.fn() },
+        layoutMode: 'desktop',
+        rightPanelWidthPx: 360,
+        setRightPanelWidthPx: vi.fn(),
+        openInspector: vi.fn(),
+        startNewDraft,
+        handleNewSession,
+        draftSessions: [],
+        handleOpenProject,
+        hydrateSessions,
+        resumeDraft: vi.fn(),
+        showArchivedSessions: false,
+        setEditingMessageId: vi.fn(),
+        extensionUiRequest: null,
+        clearExtensionUiRequest: vi.fn(),
+        handleAbort: async () => undefined,
+        setSidebarMode,
+      });
+      return null;
+    }
+
+    act(() => {
+      root?.render(<Harness />);
+    });
+    await act(async () => {
+      await captured?.handleStartNewSession({ agentId: 'grok' });
+    });
+
+    expect(handleOpenProject).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({ type: 'project/clear' });
+    expect(setSidebarMode).toHaveBeenCalledWith('chat');
+    expect(startNewDraft).toHaveBeenCalledWith({ kind: 'general' });
+    expect(handleNewSession).toHaveBeenCalledWith({
+      scope: { kind: 'general' },
+    });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'draft/set-agent', agentId: 'grok' });
+  });
+
   it('keeps an explicit project draft scope while navigation is still General', () => {
     container = document.createElement('div');
     document.body.append(container);

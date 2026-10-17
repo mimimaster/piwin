@@ -46,6 +46,8 @@ export type BuildSlashCatalogOptions = {
   extensionCommands?: SlashExtensionCommandInput[];
   /** Host capabilities.compaction when known; default true for mock/sdk. */
   compactionSupported?: boolean;
+  /** Host supports `session/handoff` for this session; default false. */
+  handoffSupported?: boolean;
   streaming?: boolean;
   compacting?: boolean;
   hasActiveSession?: boolean;
@@ -78,6 +80,7 @@ export const RESERVED_SLASH_COMMAND_NAMES: ReadonlySet<string> = new Set([
   'compact',
   'summarize',
   'compress',
+  'handoff',
   'agent',
   'goal',
   // Retired composer modes — keep reserved so a skill cannot claim the tokens.
@@ -158,6 +161,30 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       compactItem.unavailableReason = unavailableReason;
     }
     items.push(compactItem);
+  }
+
+  // `handoff` summarizes into a fresh session; same gates as compact, plus the
+  // Host command. External backends have no Pi compaction to summarize with.
+  if (!backendSession && options.handoffSupported === true) {
+    const unavailableReason = !interactive
+      ? !hasActiveSession
+        ? 'Start or select a session first'
+        : 'Trust the project first'
+      : streaming
+        ? 'Wait for the current run to finish'
+        : undefined;
+    items.push({
+      id: 'cmd:handoff',
+      kind: 'command',
+      name: 'handoff',
+      label: 'Hand off to new session',
+      description: 'Continue in a fresh session with a summary · /handoff [focus] / 交接到新会话',
+      keywords: ['handoff', 'continue', 'new session', 'summary', 'context', '交接', '新会话'],
+      groupLabel: 'Command',
+      available: unavailableReason === undefined,
+      acceptsArgs: true,
+      ...(unavailableReason ? { unavailableReason } : {}),
+    });
   }
 
   // --- Flashcards home + knowledge bases (legacy tokens stay aliases) ---

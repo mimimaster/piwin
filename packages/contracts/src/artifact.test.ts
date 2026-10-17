@@ -56,7 +56,7 @@ describe('canonical artifact language', () => {
 describe('default artifact decision prompt', () => {
   it('wraps the proactive decision policy in a metadata block', () => {
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '[piwin-prompt-meta kind="artifact:decision" version="13" applies="artifacts-enabled"]',
+      '[piwin-prompt-meta kind="artifact:decision" version="14" applies="artifacts-enabled"]',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
       '<artifact-decision-policy name="piwin-proactive-surfaces">',
@@ -121,7 +121,7 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toContain('```artifact-html title="Short descriptive title" surface="canvas"');
     expect(protocol).toContain('surface="canvas"');
     expect(protocol).toContain('--piwin-artifact-');
-    expect(protocol).toContain('kind="artifact:runtime" version="16"');
+    expect(protocol).toContain('kind="artifact:runtime" version="17"');
     expect(protocol).toContain('Example reply (prose, blank line, fence opening, body, fence closing, prose)');
     expect(protocol).toContain('never a bare `<div>`, `<style>` or `<svg>`');
     expect(protocol).toContain('a light host gets a light design and a dark host a dark one');
@@ -190,6 +190,12 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toContain('Wrap a whole sentence');
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('You choose the form, and the content decides it');
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Cards suit a few parallel, independent items.');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('the first screen states the conclusion');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Color marks status and handoffs');
+    expect(protocol).toContain('Host tone: flat and quiet.');
+    expect(protocol).not.toContain('gradient;');
+    expect(formatArtifactKitReference()).toContain('`data-to="<actor>"`');
+    expect(formatArtifactKitReference()).toContain('`data-dir="down"` — actors in `thead`');
     expect(protocol).toContain('The kit is a fast default: write your own `<style>`');
   });
 

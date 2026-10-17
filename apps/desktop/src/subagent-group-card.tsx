@@ -1,11 +1,12 @@
 /**
  * Group card for one consecutive run of delegations (Inkstone proto-13 ①②④).
  *
- * Header: spinner while any child runs (a pine dot once settled), "N 个子代理",
- * per-phase counts and the group's wall time. A settled group folds into the
- * header unless a result still needs the user; a header click always wins.
- * A lone delegation (③) renders its row without the header. Two or more
- * draw as a fan-out (proto-14): main node, wires, rows. The open child's
+ * Two or more delegations draw as a fan-out (proto-14): main node, wires,
+ * rows — with no header bar; the main node itself folds the group. A folded
+ * group is a single capsule: spinner while any child runs (a pine dot once
+ * settled), "N 个子代理", per-phase counts, usage and wall time. A settled
+ * group folds unless a result still needs the user; a click always wins.
+ * A lone delegation (③) renders its row without either. The open child's
  * dense preview sits at the bottom of the card, never between rows.
  *
  * The header is memoized on scalars and each row is memoized on its snapshot
@@ -94,6 +95,10 @@ export function SubagentGroupCard(props: SubagentGroupCardProps): ReactElement {
   const onToggle = useCallback(() => setUserChoice(!expanded), [expanded]);
   const single = summary.count <= 1;
   const title = subagentGroupTitle(summary.count, props.locale);
+  const hasFanout = !single && props.fanout !== undefined && props.fanout.length > 1;
+  // The fan-out's main node folds an open group; without it the capsule
+  // stays as the only toggle.
+  const showHeader = !single && (!expanded || !hasFanout);
   // One element shape for every count: the header slot is null for a lone
   // delegation, so a second delegation arriving never remounts the rows.
   return (
@@ -106,7 +111,7 @@ export function SubagentGroupCard(props: SubagentGroupCardProps): ReactElement {
       role="group"
       aria-label={title}
     >
-      {single ? null : (
+      {!showHeader ? null : (
         <SubagentGroupHeader
           title={title}
           countsLabel={summary.countsLabel}
@@ -119,8 +124,8 @@ export function SubagentGroupCard(props: SubagentGroupCardProps): ReactElement {
         />
       )}
       <div className="subagent-group-rows" hidden={!single && !expanded}>
-        {!single && props.fanout !== undefined && props.fanout.length > 1 ? (
-          <SubagentFanout nodes={props.fanout} locale={props.locale}>
+        {hasFanout && props.fanout !== undefined ? (
+          <SubagentFanout nodes={props.fanout} locale={props.locale} title={title} onCollapse={onToggle}>
             {props.children}
           </SubagentFanout>
         ) : (

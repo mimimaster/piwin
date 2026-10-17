@@ -27,6 +27,36 @@ describe('model configuration', () => {
     });
   });
 
+  it('round-trips a custom request body and clears it when the text is emptied (ADR 0095)', () => {
+    const extraBody = { provider: { order: ['anthropic'], allow_fallbacks: false } };
+    const models: ModelConfigEntry[] = [{ id: 'routed', extraBody }];
+    const draft = createModelConfigurationDraft(models[0] as ModelConfigEntry);
+    expect(JSON.parse(draft.extraBodyText ?? '')).toEqual(extraBody);
+    expect(createModelConfigurationEntry(draft)?.extraBody).toEqual(extraBody);
+
+    const cleared = applyModelConfigurationDraft(models, 'routed', { ...draft, extraBodyText: ' ' });
+    expect(cleared?.[0]).not.toHaveProperty('extraBody');
+    const { extraBodyText: _text, ...unmanaged } = draft;
+    expect(applyModelConfigurationDraft(models, 'routed', unmanaged)?.[0]?.extraBody).toEqual(extraBody);
+    expect(validateModelConfigurationDraft({ ...draft, extraBodyText: '{"messages": []}' })).toBe(
+      'Custom request body JSON is invalid.',
+    );
+  });
+
+  it('prefers JSON-mode header text over rows', () => {
+    const draft = createModelConfigurationDraft({ id: 'routed', headers: { 'x-route': 'fast' } });
+    const json = { ...draft, headersJsonText: '{"X-Title": "piwin"}' };
+    expect(createModelConfigurationEntry(json)?.headers).toEqual({ 'X-Title': 'piwin' });
+    expect(validateModelConfigurationDraft({ ...draft, headersJsonText: '{"X": 1}' })).toBe(
+      'Request headers JSON is invalid.',
+    );
+    const cleared = applyModelConfigurationDraft([{ id: 'routed', headers: { a: 'b' } }], 'routed', {
+      ...draft,
+      headersJsonText: '',
+    });
+    expect(cleared?.[0]).not.toHaveProperty('headers');
+  });
+
   it('rejects a request header set twice regardless of case', () => {
     const draft = createModelConfigurationDraft({ id: 'routed' });
     expect(

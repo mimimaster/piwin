@@ -553,6 +553,7 @@ const REMOTE_SETTINGS_OMITTED_KEYS = new Set(
     'directory',
     'entryPath',
     'extraPaths',
+    'extraBody',
     'fetchApiKeyEnv',
     'headers',
     'outputPath',

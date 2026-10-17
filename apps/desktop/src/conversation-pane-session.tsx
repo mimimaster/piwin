@@ -419,6 +419,17 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     const promptRefs = props.contextRefs?.snapshot() ?? [];
     if ((!text && attachments.length === 0 && promptRefs.length === 0) || busy) return;
     const reserved = parseComposerSlashSubmit(text, []);
+    if (reserved.kind === 'command' && reserved.commandId === 'handoff') {
+      // The new session's summary chip lives in the main composer.
+      dispatch({
+        type: 'error',
+        message:
+          props.locale === 'zh-CN'
+            ? '分屏里不能交接。在主窗口输入 /handoff，或用会话菜单的「交接到新会话」。'
+            : 'Handoff is not available in split panes. Use /handoff in the main window or the session menu.',
+      });
+      return;
+    }
     if (reserved.kind === 'command' && reserved.commandId === 'compact') {
       setComposer('');
       setBusy(true);

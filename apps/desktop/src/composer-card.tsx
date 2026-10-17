@@ -366,6 +366,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         {...(props.docCommentsAttachment && { docCommentsAttachment: props.docCommentsAttachment })}
         {...(props.onRetryAttachment && { onRetryAttachment: props.onRetryAttachment })}
         {...(props.onRemoveContextRef && { onRemoveContextRef: props.onRemoveContextRef })}
+        {...(props.onLoadHandoffSummary && { onLoadHandoffSummary: props.onLoadHandoffSummary })}
         {...(props.onRemoveDocComments && { onRemoveDocComments: props.onRemoveDocComments })}
         {...(props.onOpenModelSettings && { onOpenModelSettings: props.onOpenModelSettings })}
         onRequestComposerFocus={() => textareaRef.current?.focus()}

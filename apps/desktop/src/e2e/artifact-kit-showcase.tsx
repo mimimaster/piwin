@@ -38,14 +38,31 @@ const VIZ_FENCES = [
   ...ARTIFACT_VIZ_EXTRA_SAMPLES,
 ].map(({ kind, sample }) => ({ title: sample.title, source: artifactVizFigure(kind, sample.spec, sample.title) }));
 
+/**
+ * A dense real-world swimlane: seven phases, three actors, handoffs between
+ * them. Over five phases the lanes run down (actors across, phases as rows).
+ */
+const ATTACK_CHAIN_LANES = [
+  '<table class="piwin-lanes" data-dir="down"><thead><tr><th></th><th>页面 JS</th><th>原生</th><th>C2</th></tr></thead><tbody>',
+  '<tr><th>入口</th><td><p>埋点上报 UA，拉取 loader.js</p></td><td></td><td><p data-to="页面 JS">下发 loader</p></td></tr>',
+  '<tr><th>Hook</th><td><p data-to="原生">改写 window.bridge</p></td><td></td><td><p data-to="页面 JS">下发 hook 脚本</p></td></tr>',
+  '<tr><th>RCE</th><td><p data-to="原生">调用 reporter.run()</p></td><td><p data-tone="risk">bridge 不校验调用来源</p></td><td><p>记录 ack</p></td></tr>',
+  '<tr><th>选包</th><td><p>按机型挑 payload（7 选 1）</p></td><td><p>写入 /data/local/tmp</p></td><td><p data-to="页面 JS">按指纹返回包名</p></td></tr>',
+  '<tr><th>执行</th><td><p data-to="原生">写入并触发加载</p></td><td><p>dlopen 加载 so</p></td><td></td></tr>',
+  '<tr><th>注册</th><td><p data-to="C2">POST /api/reg</p></td><td><p data-to="C2">上报设备 ID + deviceinfo</p></td><td><p data-tone="info">设备入库</p></td></tr>',
+  '<tr><th>后续</th><td><p data-tone="warn">等待下一轮指令</p></td><td><p data-tone="warn">常驻，等待回连</p></td><td><p>定时轮询任务</p></td></tr>',
+  '</tbody></table>',
+];
+
 const DIAGRAMS = [
   '<main class="piwin-report">',
   '<ol class="piwin-flow"><li><b>下单</b><small>提交购物车</small></li><li><b>支付</b></li><li data-kind="decision">库存充足？</li><li data-tone="ok"><b>发货</b></li></ol>',
   '<table class="piwin-lanes"><thead><tr><th></th><th>下单</th><th>支付</th><th>履约</th></tr></thead><tbody>',
-  '<tr><th>用户</th><td><p>提交订单</p></td><td><p>确认付款</p></td><td></td></tr>',
+  '<tr><th>用户</th><td><p data-to="订单服务">提交订单</p></td><td><p data-to="支付网关">确认付款</p></td><td></td></tr>',
   '<tr><th>订单服务</th><td><p>创建订单</p></td><td></td><td><p>锁定库存</p><p data-tone="warn">缺货则回滚</p></td></tr>',
   '<tr><th>支付网关</th><td></td><td><p data-tone="info">扣款回调</p></td><td></td></tr>',
   '</tbody></table>',
+  ...ATTACK_CHAIN_LANES,
   '<ol class="piwin-timeline"><li data-tone="ok"><time>10-10</time><b>设计评审通过</b><small>产品负责人确认</small></li><li data-tone="warn"><time>10-12</time><b>v14 运行时上线</b></li><li><time>10-13</time><b>内置组件</b></li></ol>',
   '<ul class="piwin-tree"><li>apps<ul><li>desktop</li><li>cli<ul><li>tui</li></ul></li></ul></li><li>packages<ul><li>contracts</li><li>artifact</li></ul></li></ul>',
   '</main>',

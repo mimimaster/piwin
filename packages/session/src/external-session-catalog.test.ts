@@ -62,7 +62,7 @@ describe('syncExternalSessionCatalog', () => {
     expect(ids).toEqual(['p-1', 'pi-1']);
   });
 
-  it('rehomes a general external session when resolve returns a project path', async () => {
+  it('keeps a Loose Grok session in Conversations even when cwd matches a project', async () => {
     const existing = createSessionRecord({
       id: 'p-1',
       projectPath: '',
@@ -80,10 +80,9 @@ describe('syncExternalSessionCatalog', () => {
       resolveProjectPath: (cwd) => (cwd === '/proj/sub' ? '/proj' : ''),
     });
 
-    expect(result.updated.map((record) => record.id)).toEqual(['p-1']);
     expect(await getSessionRecord(indexPath, 'p-1')).toMatchObject({
-      projectPath: '/proj',
-      scope: { kind: 'project', projectPath: '/proj' },
+      projectPath: '',
+      scope: { kind: 'general' },
     });
   });
 

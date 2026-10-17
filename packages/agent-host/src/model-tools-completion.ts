@@ -7,7 +7,10 @@
 import { join } from 'node:path';
 import type { ModelProviderConfig } from '@piwin/contracts';
 import { isCloudCredentialProtocol } from '@piwin/contracts';
-import { buildPiProviderRegistration } from './pi-model-runtime.js';
+import {
+  buildPiProviderRegistration,
+  completionNeedsRegistrationStream,
+} from './pi-model-runtime.js';
 import { resolvePiRuntimeAgentDir } from './pi-runtime-agent-dir.js';
 
 export class ModelToolsCompletionError extends Error {
@@ -79,7 +82,9 @@ export async function completeModelTools(
     );
     runtime.registerProvider(
       provider.id,
-      cloudProvider && streamSimple ? ({ ...registration, streamSimple } as never) : registration,
+      completionNeedsRegistrationStream(provider, input.model.modelId) && streamSimple
+        ? ({ ...registration, streamSimple } as never)
+        : registration,
     );
   }
   const model = runtime.getModel(input.model.providerId, input.model.modelId);

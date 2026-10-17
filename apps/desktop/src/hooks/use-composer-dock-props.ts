@@ -19,9 +19,11 @@ import type {
   PiwinConfig,
   ProjectRecord,
   PromptContextRef,
+  SessionHandoffSummaryData,
   SpeechTranscribeInput,
   ThinkingLevel,
 } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import type { AgentModeId } from '../agent-mode';
 import { useStructuralValue } from '../use-structural-value.js';
 import type { ChatUiState } from '../chat-reducer';
@@ -34,6 +36,8 @@ import type { ExtensionUiRequestState } from './use-host-bootstrap';
 import type { PendingComposerAttachment } from '../media-utils';
 import type { OrchestrationSchemeOption } from '../OrchestrationSchemeControl';
 import { showErrorNotification } from '@piwin/ui-kit';
+import type { HandoffSummaryPreview } from '../handoff-summary-chip';
+import { hostFailureNotice } from '../host-problem-copy';
 import { useDesktopLocale } from '../desktop-locale-context.js';
 import {
   useSubagentStopController,
@@ -271,6 +275,22 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   } = args;
 
   const { locale } = useDesktopLocale();
+  const loadHandoffSummary = useCallback(
+    async (sessionId: string): Promise<HandoffSummaryPreview> => {
+      try {
+        const response = await hostClient.request({ type: 'session/handoff-summary', sessionId });
+        if (!response.success) {
+          const notice = hostFailureNotice(response, locale);
+          return { ok: false, message: notice || response.error };
+        }
+        const data = response.data as SessionHandoffSummaryData;
+        return { ok: true, summary: data.summary, truncated: data.truncated };
+      } catch (error) {
+        return { ok: false, message: formatError(error) };
+      }
+    },
+    [hostClient, locale],
+  );
   const live = useLiveCall({
     hostClient,
     sessionId: liveSessionId,
@@ -593,6 +613,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onDiscardFailedAttachments: discardFailedAttachments,
       pendingContextRefs,
       onRemoveContextRef: removeContextRef,
+      onLoadHandoffSummary: loadHandoffSummary,
       onAddContextRef: (ref) => {
         addContextRef(ref);
       },
@@ -655,6 +676,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onCompact: handleComposerCompact,
       compactionSupported:
         hostStatus?.capabilities?.compaction !== false && capabilities.supports('compact'),
+      handoffSupported:
+        hostClient.supportsCommand('session/handoff') && capabilities.supports('compact'),
       contextUsage: state.contextUsage,
       contextRingView,
       ...(typeof effectiveModelContextWindow === 'number'
@@ -812,6 +835,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       state.contextUsage,
       state.contextTelemetry,
       state.queuedTurnsBySession,
+      loadHandoffSummary,
       locale,
       state.hostMock,
       state.hostReady,

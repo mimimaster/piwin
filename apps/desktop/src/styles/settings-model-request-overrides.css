@@ -1,0 +1,190 @@
+/* 自定义请求 section shared by Add Model and the inline model editor
+   (model-request-overrides-fields.tsx, ADR 0095). */
+
+.model-request-overrides {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-chip);
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.model-request-overrides-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-width: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-request-overrides-toggle:hover {
+  background: var(--hover);
+}
+
+.model-request-overrides-toggle:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--iris);
+}
+
+.model-request-overrides-caret {
+  flex: none;
+  color: var(--text-3);
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.model-request-overrides-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.model-request-overrides-title {
+  flex: none;
+  font-weight: 500;
+}
+
+.model-request-overrides-summary {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-request-overrides-summary.is-error {
+  color: var(--danger);
+}
+
+.model-request-overrides-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-2) var(--s-4) var(--s-5);
+}
+
+.model-request-overrides-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.model-request-overrides-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.model-request-overrides-label {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.model-request-overrides-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* The template menu opens inside Mantine modals (z-index 200), above the
+   --layer-popover contract other ui-kit menus use; match Mantine's own popovers. */
+.ui-menu-content.model-request-templates-menu {
+  z-index: var(--mantine-z-index-popover, 300);
+}
+
+.model-request-overrides-rows {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.model-request-overrides-rows .pconn-header-row {
+  align-self: stretch;
+}
+
+.model-request-json .piwin-text-area-field {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
+.model-request-overrides-hint {
+  margin: 0;
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+}
+
+.model-request-overrides-status {
+  margin: 0;
+  color: var(--iris-lift);
+  font-size: var(--fs-micro);
+}
+
+.model-request-openrouter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-radius: var(--r-chip);
+  background: var(--panel);
+}
+
+.model-request-openrouter-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.model-request-openrouter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.model-request-openrouter-chips .model-edit-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.model-request-openrouter-rank {
+  display: inline-grid;
+  place-items: center;
+  min-width: 14px;
+  height: 14px;
+  margin-right: var(--s-2);
+  border-radius: 7px;
+  background: var(--iris-lift);
+  color: var(--panel);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.model-request-openrouter-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-chrome);
+}
+
+.model-request-openrouter-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}

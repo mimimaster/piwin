@@ -30,11 +30,28 @@
   align-items: center;
   margin-left: 12px;
   padding: 7px 8px;
-  border-radius: 8px;
-  background: var(--sa-code);
+  border: 0;
+  border-radius: 9px;
+  background: var(--sa-node);
   box-shadow: inset 0 0 0 1px var(--sa-rule);
-  cursor: default;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   user-select: none;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.subagent-fanout-main:hover {
+  background: var(--sa-hover);
+  box-shadow: inset 0 0 0 1px var(--sa-ring);
+}
+
+.subagent-fanout-main:focus-visible {
+  outline: 2px solid var(--sa-focus);
+  outline-offset: 1px;
 }
 
 .subagent-fanout-main-seal {
@@ -154,24 +171,55 @@
   background: var(--sa-select);
 }
 
-/* Narrow card: the main node folds away and the wires become a tree rail;
-   rows keep their content and height. */
+/* Narrow card: the main node becomes one line above a tree rail whose trunk
+   drops from its seal; rows keep their content and height. */
 @container subagent-group (max-width: 520px) {
   .subagent-fanout {
     grid-template-columns: 22px minmax(0, 1fr);
+    padding-left: 10px;
   }
 
-  .subagent-fanout-main,
   .subagent-fanout-wires.is-curve {
     display: none;
   }
 
+  .subagent-fanout-main {
+    grid-row: 1;
+    grid-column: 1 / -1;
+    justify-self: start;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    max-width: 100%;
+    margin: 0 0 2px;
+    padding: 2px 10px 2px 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .subagent-fanout-main-seal {
+    align-self: center;
+  }
+
+  .subagent-fanout-main:hover {
+    background: none;
+    box-shadow: none;
+  }
+
+  .subagent-fanout-main:hover .subagent-fanout-main-name {
+    text-decoration: underline;
+    text-decoration-color: var(--sa-ring);
+    text-underline-offset: 3px;
+  }
+
   .subagent-fanout-wires.is-rail {
     display: block;
+    grid-row: 2;
     grid-column: 1;
   }
 
   .subagent-fanout-rows {
+    grid-row: 2;
     grid-column: 2;
   }
 
@@ -185,7 +233,7 @@
   margin: 2px 12px 8px;
   overflow: hidden;
   border-radius: 8px;
-  background: var(--sa-code);
+  background: var(--sa-node);
   box-shadow: inset 0 0 0 1px var(--sa-rule);
   color: var(--sa-t2);
   font: 11.5px/1.6 var(--sa-mono);

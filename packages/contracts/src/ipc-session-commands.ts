@@ -318,6 +318,12 @@ export type SessionHostCommand =
       /** Optional focus for the summary. */
       instructions?: string;
     }
+  | {
+      id?: string;
+      /** Read the stored handoff summary for its owning session. */
+      type: 'session/handoff-summary';
+      sessionId: string;
+    }
   | { id?: string; type: 'session/compact-abort'; sessionId: string }
   | { id?: string; type: 'session/compaction-settings'; sessionId: string }
   | {

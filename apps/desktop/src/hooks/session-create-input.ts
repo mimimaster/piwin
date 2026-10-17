@@ -8,12 +8,83 @@
  *     because Pi refs mean nothing to another runtime;
  *   - a Pi session keeps the existing composer model/thinking behaviour.
  */
-import type { ModelRef, ThinkingLevel } from '@piwin/contracts';
+import type { ModelRef, SessionScope, ThinkingLevel } from '@piwin/contracts';
 import {
   sessionCreateInputForTransport,
   type DesktopHostTransport,
   type SessionCreateInputPayload,
 } from '../remote-session-hydrate.js';
+
+export function isExternalAgentId(agentId: string | undefined): boolean {
+  return agentId !== undefined && agentId !== '' && agentId !== 'pi';
+}
+
+/**
+ * Empty-stage / composer Grok pick while a project is merely open: leave that
+ * folder and start Loose. Folder `+` sets an explicit project draft and stays.
+ */
+export function shouldMoveExternalDraftToConversations(input: {
+  agentId?: string;
+  activeSessionId?: string | null;
+  activeScopeKind: 'general' | 'project';
+  explicitDraftScopeKind?: 'general' | 'project' | null;
+}): boolean {
+  if (!isExternalAgentId(input.agentId) || input.activeSessionId) {
+    return false;
+  }
+  if (input.explicitDraftScopeKind === 'project') {
+    return false;
+  }
+  return input.activeScopeKind === 'project';
+}
+
+/**
+ * First-send location for an unsent draft. Ambient project scope is not a
+ * Grok binding; only folder `+` (`explicitDraftScope.kind === 'project'`) is.
+ */
+export function resolveDraftCreateScopeForAgent(input: {
+  agentId?: string;
+  draftScope: SessionScope;
+  explicitDraftScope?: SessionScope | null;
+}): SessionScope {
+  if (!isExternalAgentId(input.agentId)) {
+    return input.draftScope;
+  }
+  if (input.explicitDraftScope?.kind === 'project') {
+    return input.explicitDraftScope;
+  }
+  return { kind: 'general' };
+}
+
+/**
+ * Where a new session lands when the caller has not already resolved scope.
+ *
+ * An explicit project (folder + / `projectPath`) stays a project session.
+ * Grok and other external agents with no project binding default to
+ * Conversations (Loose), instead of inheriting the currently open project
+ * and jumping to the top of that folder.
+ */
+export function resolveSessionCreateLocation(input: {
+  requestedScope?: SessionScope;
+  projectPath?: string;
+  agentId?: string;
+  activeScope: SessionScope;
+}): { useGeneral: true } | { useGeneral: false; projectKey: string } {
+  if (input.requestedScope?.kind === 'general') {
+    return { useGeneral: true };
+  }
+  if (input.requestedScope?.kind === 'project') {
+    return { useGeneral: false, projectKey: input.requestedScope.projectPath };
+  }
+  const explicitProject = input.projectPath?.trim();
+  if (explicitProject) {
+    return { useGeneral: false, projectKey: explicitProject };
+  }
+  if (isExternalAgentId(input.agentId) || input.activeScope.kind === 'general') {
+    return { useGeneral: true };
+  }
+  return { useGeneral: false, projectKey: input.activeScope.projectPath };
+}
 
 export type SessionCreateDraft = {
   /** Scope resolution already decided by the caller. */
@@ -36,7 +107,7 @@ export function buildSessionCreateInput(
   transport: DesktopHostTransport,
   draft: SessionCreateDraft,
 ): SessionCreateInputPayload {
-  const isExternalAgent = draft.agentId !== undefined && draft.agentId !== 'pi';
+  const isExternalAgent = isExternalAgentId(draft.agentId);
 
   const input = sessionCreateInputForTransport(transport, {
     useGeneral: draft.useGeneral,

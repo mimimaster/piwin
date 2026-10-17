@@ -765,3 +765,82 @@ describe('main-session provider registration and hosted search', () => {
     expect(sdkPayload).toEqual(initial);
   });
 });
+
+describe('per-model custom request body (ADR 0095)', () => {
+  const routing = { provider: { order: ['anthropic'], allow_fallbacks: false } };
+  const initial = {
+    model: 'anthropic/claude-sonnet-4.5',
+    messages: [{ role: 'user', content: 'hi' }],
+    stream: true,
+    store: false,
+  };
+  const base: NativeSearchStreamSimple = async (model, _context, options) =>
+    (await options?.onPayload?.(structuredClone(initial), model)) ?? initial;
+
+  it('merges the body last in both the worker and the SDK registration', async () => {
+    const worker = buildWorkerProviderRegistration(
+      {
+        providerId: 'openrouter',
+        protocol: 'openai-compatible',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        models: [
+          { id: 'anthropic/claude-sonnet-4.5', extraBody: { ...routing, store: null } },
+          { id: 'openai/gpt-5' },
+        ],
+        auth: { kind: 'none' },
+      },
+      undefined,
+      base,
+    );
+    const sdk = buildPiProviderRegistration(
+      {
+        id: 'openrouter',
+        protocol: 'openai-compatible',
+        name: 'OpenRouter',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        models: [
+          { id: 'anthropic/claude-sonnet-4.5', extraBody: { ...routing, store: null } },
+          { id: 'openai/gpt-5' },
+        ],
+      },
+      'secret',
+      { streamSimple: base },
+    );
+    const expected = { ...initial, ...routing };
+    delete (expected as { store?: boolean }).store;
+    // A caller hook that also sets `provider` runs first; the user body wins.
+    const callerOptions = {
+      onPayload: (payload: unknown) => ({
+        ...(payload as Record<string, unknown>),
+        provider: { order: ['openai'] },
+      }),
+    };
+    const call = { id: 'anthropic/claude-sonnet-4.5', api: 'openai-completions', provider: 'openrouter' };
+    expect(await worker.streamSimple?.(call, {}, callerOptions)).toEqual({
+      ...expected,
+      provider: { order: ['anthropic'], allow_fallbacks: false },
+    });
+    expect(await sdk.streamSimple?.(call, {}, {})).toEqual(expected);
+
+    const other = { id: 'openai/gpt-5', api: 'openai-completions', provider: 'openrouter' };
+    expect(await worker.streamSimple?.(other, {}, {})).toEqual(initial);
+    expect(await sdk.streamSimple?.(other, {}, {})).toEqual(initial);
+  });
+
+  it('ignores a body on subscription rows', async () => {
+    const sdk = buildPiProviderRegistration(
+      {
+        id: 'sub',
+        protocol: 'openai-compatible',
+        source: 'subscription',
+        name: 'Sub',
+        baseUrl: 'https://api.example.test/v1',
+        models: [{ id: 'anthropic/claude-sonnet-4.5', extraBody: routing }],
+      },
+      'secret',
+      { streamSimple: base },
+    );
+    const call = { id: 'anthropic/claude-sonnet-4.5', api: 'openai-completions', provider: 'sub' };
+    expect(await sdk.streamSimple?.(call, {}, {})).toEqual(initial);
+  });
+});

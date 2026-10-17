@@ -24,10 +24,11 @@ import { ModelGenerationRouteFields } from './model-generation-route-fields.js';
 import { NativeSearchAdapterFields, NativeSearchBlockedHint } from './native-search-adapter-fields.js';
 import { ModelProtocolField } from './model-protocol-field.js';
 import { ModelSystemPromptRoleField } from './model-system-prompt-role-field.js';
-import { HeaderRowsEditor } from './header-rows-editor.js';
-import { rowsToHeaders, type HeaderDraftRow } from './provider-draft.js';
+import { ModelRequestOverridesFields } from './model-request-overrides-fields.js';
 import {
   createModelConfigurationDraft,
+  resolveDraftExtraBody,
+  resolveDraftHeaders,
   validateModelConfigurationDraft,
   type ModelConfigurationDraft,
 } from './model-configuration.js';
@@ -47,12 +48,11 @@ function draftsMatchForPersist(
     (left.systemPromptRole ?? '') === (right.systemPromptRole ?? '') &&
     left.supportsImage === right.supportsImage &&
     left.reasoning === right.reasoning &&
-    headersKey(left.headerRows) === headersKey(right.headerRows)
+    JSON.stringify(resolveDraftHeaders(left) ?? {}) ===
+      JSON.stringify(resolveDraftHeaders(right) ?? {}) &&
+    JSON.stringify(resolveDraftExtraBody(left) ?? {}) ===
+      JSON.stringify(resolveDraftExtraBody(right) ?? {})
   );
-}
-
-function headersKey(rows: readonly HeaderDraftRow[] | undefined): string {
-  return JSON.stringify(rowsToHeaders(rows ?? []) ?? {});
 }
 
 export type ModelEditInlineProps = {
@@ -326,26 +326,6 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         />
       ) : null}
 
-      {props.providerIsSubscription ? null : (
-        <div className="model-edit-inline-headers" data-testid="model-edit-headers">
-          <span className="model-edit-inline-label">
-            {providerCopy.requestHeaders}
-          </span>
-          <HeaderRowsEditor
-            rows={localDraft.headerRows ?? []}
-            disabled={disabled}
-            copy={{
-              headerName: providerCopy.headerName,
-              headerValue: providerCopy.headerValue,
-              addHeader: providerCopy.addHeader,
-              deleteLabel: t.deleteHeader,
-            }}
-            testIdPrefix="model-edit"
-            onChange={(headerRows) => updateDraft((current) => ({ ...current, headerRows }))}
-          />
-        </div>
-      )}
-
       <div className="model-edit-inline-caps">
         <label className="model-edit-inline-cap">
           <input
@@ -547,6 +527,18 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
           </div>
         </div>
       ) : null}
+
+      {props.providerIsSubscription ? null : (
+        <ModelRequestOverridesFields
+          value={localDraft}
+          protocol={localDraft.protocol || props.providerProtocol}
+          {...(props.providerBaseUrl ? { baseUrl: props.providerBaseUrl } : {})}
+          disabled={disabled}
+          isChinese={isChinese}
+          testIdPrefix="model-edit"
+          onChange={updateDraft}
+        />
+      )}
 
       <div className="model-edit-inline-footer">
         {savedFlash ? (

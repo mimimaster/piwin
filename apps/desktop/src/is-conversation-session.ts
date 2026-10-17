@@ -8,7 +8,8 @@ export function isPiwinConversationAgent(agentId: string | undefined): boolean {
 
 /**
  * Conversation chrome belongs to the chat pane and a piwin `{ kind: 'general' }`
- * session. No Repo is a built-in project folder. Grok never gets this chrome.
+ * session. Grok can live in Conversations, but it still uses agent chrome
+ * (CLI default, backend picker) rather than Pi chat chrome.
  */
 export function isConversationSessionChrome(
   scope: SessionScope,

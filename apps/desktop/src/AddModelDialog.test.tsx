@@ -310,4 +310,60 @@ describe('AddModelDialog catalog autocomplete', () => {
     expect(searchBox?.checked).toBe(false);
     expect(scope.querySelector('[data-testid="add-model-native-search-blocked"]')?.textContent).toContain('Bedrock');
   });
+
+  it('adds an OpenRouter model pinned to an upstream with custom headers (ADR 0095)', () => {
+    const onAdd = vi.fn();
+    renderDialog(
+      <AddModelDialog
+        open
+        onOpenChange={vi.fn()}
+        existingModelIds={[]}
+        onAdd={onAdd}
+        baseUrl="https://openrouter.ai/api/v1"
+      />,
+    );
+    const scope = document.body;
+    act(() => setInputValue(resolveInput(scope, 'add-model-id-input'), 'anthropic/claude-sonnet-4.5'));
+    // OpenRouter rows open the section so the routing helper is visible.
+    expect(
+      scope.querySelector('[data-testid="add-model-request-toggle"]')?.getAttribute('aria-expanded'),
+    ).toBe('true');
+    act(() => setInputValue(resolveInput(scope, 'add-model-openrouter-order'), 'anthropic, google-vertex'));
+    act(() => scope.querySelector<HTMLInputElement>('[data-testid="add-model-openrouter-no-fallback"]')?.click());
+    act(() => scope.querySelector<HTMLButtonElement>('[data-testid="add-model-header-add"]')?.click());
+    act(() => setInputValue(resolveInput(scope, 'add-model-header-name'), 'X-Title'));
+    act(() => setInputValue(resolveInput(scope, 'add-model-header-value'), 'piwin'));
+    act(() => scope.querySelector<HTMLButtonElement>('[data-testid="add-model-submit"]')?.click());
+
+    const added = onAdd.mock.calls[0]?.[0] as ModelConfigEntry;
+    expect(added.extraBody).toEqual({
+      provider: { order: ['anthropic', 'google-vertex'], allow_fallbacks: false },
+    });
+    expect(added.headers).toEqual({ 'X-Title': 'piwin' });
+  });
+
+  it('refuses to add a model whose custom body is not valid JSON', () => {
+    const onAdd = vi.fn();
+    renderDialog(
+      <AddModelDialog open onOpenChange={vi.fn()} existingModelIds={[]} onAdd={onAdd} />,
+    );
+    const scope = document.body;
+    act(() => setInputValue(resolveInput(scope, 'add-model-id-input'), 'gpt-test'));
+    expect(scope.querySelector('[data-testid="add-model-openrouter"]')).toBeNull();
+    const body = scope.querySelector<HTMLTextAreaElement>('[data-testid="add-model-request-body"] textarea');
+    act(() => {
+      if (!body) return;
+      Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set?.call(
+        body,
+        '{"temperature": 0.7,',
+      );
+      body.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(scope.querySelector('[data-testid="add-model-request-body"]')?.textContent).toContain(
+      'JSON 格式错误',
+    );
+    act(() => scope.querySelector<HTMLButtonElement>('[data-testid="add-model-submit"]')?.click());
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(scope.querySelector('[data-testid="add-model-request-error"]')).not.toBeNull();
+  });
 });

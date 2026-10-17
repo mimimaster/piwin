@@ -8,12 +8,15 @@ import type { HostResponse, ProjectRecord } from '@piwin/contracts';
 import { BranchChip, type BranchChipRequest } from './branch-chip';
 import { ProjectChip } from './project-chip';
 import { projectLabel } from './project-display-name';
+import { SessionWorkingTreeChip, type WorkingTreeStatRequest } from './session-working-tree-chip';
 
 export type SessionContextRowProps = {
   /** null = general conversation: renders nothing. */
   projectPath: string | null;
   recentProjects: readonly ProjectRecord[];
-  request: (command: BranchChipRequest) => Promise<HostResponse>;
+  request: (command: BranchChipRequest | WorkingTreeStatRequest) => Promise<HostResponse>;
+  /** Opens the Changes surface. The chip stays a label when omitted. */
+  onOpenChanges?: () => void;
   onOpenProject?: (path: string) => void;
   onOpenWorktreeProject?: (worktreePath: string) => void | Promise<void>;
   /** Branch switching is suspended while the agent is streaming. */
@@ -58,6 +61,11 @@ export function SessionContextRow(props: SessionContextRowProps): ReactElement |
         {...(props.onOpenWorktreeProject
           ? { onOpenWorktreeProject: props.onOpenWorktreeProject }
           : {})}
+      />
+      <SessionWorkingTreeChip
+        projectPath={projectPath}
+        request={props.request}
+        {...(props.onOpenChanges ? { onOpen: props.onOpenChanges } : {})}
       />
     </div>
   );

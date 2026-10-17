@@ -16,7 +16,6 @@ import {
 } from '@piwin/session';
 import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
 import {
-  getPiwinGeneralWorkspacePath,
   getPiwinProjectsPath,
   getPiwinRoot,
   getPiwinSessionIndexPath,
@@ -25,6 +24,20 @@ import { createProductSessionId } from '../product-agent-host.js';
 import { fail, ok } from '../response-helpers.js';
 import { sessionIndexUpdatedPush } from '../session-index-push.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
+
+/** Map an adapter cwd onto a product project, or `''` for Conversations. */
+export function resolveExternalCatalogProjectPath(
+  cwd: string | undefined,
+  projectRoots: readonly string[],
+): string {
+  if (cwd === undefined) {
+    return '';
+  }
+  const matched = [...projectRoots]
+    .sort((left, right) => right.length - left.length)
+    .find((root) => cwd === root || cwd.startsWith(`${root}/`));
+  return matched ?? '';
+}
 
 function indexPath(deps: HostRuntimeKernel): string {
   return getPiwinSessionIndexPath(getPiwinRoot(deps.options.piwinRoot));
@@ -49,8 +62,7 @@ export async function syncExternalAgentCatalog(
     }
     const rootDir = getPiwinRoot(deps.options.piwinRoot);
     const projects = await listProjects(getPiwinProjectsPath(rootDir));
-    const roots = projects.map((project) => project.path).sort((left, right) => right.length - left.length);
-    const generalWorkspace = getPiwinGeneralWorkspacePath(rootDir);
+    const roots = projects.map((project) => project.path);
     // Subagent / internal sessions belong to the agent; only user sessions map.
     const visible = catalog.filter((entry) => entry.originKind !== 'subagent');
     const result = await syncExternalSessionCatalog({
@@ -65,14 +77,7 @@ export async function syncExternalAgentCatalog(
       createProductSessionId,
       preserveMissingSession: (record) => deps.agentCliOwnership?.isDesktopWriterBlocked(record.id) === true ||
         deps.runRegistry.getForegroundRun(record.id) !== undefined,
-      resolveProjectPath: (cwd) => {
-        if (cwd !== undefined) {
-          const matched = roots.find((root) => cwd === root || cwd.startsWith(`${root}/`));
-          if (matched !== undefined) return matched;
-        }
-        // Unmatched Grok sessions are agent chats under No Repo, never Chat.
-        return generalWorkspace;
-      },
+      resolveProjectPath: (cwd) => resolveExternalCatalogProjectPath(cwd, roots),
     });
     for (const record of result.created) {
       deps.push(sessionIndexUpdatedPush({ op: 'created', sessionId: record.id, session: indexRecordToSummary(record) }));

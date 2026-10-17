@@ -646,6 +646,7 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     preserveComposerOnSessionActivationRef,
     draftTextRef,
     currentDraftScopeRef,
+    explicitDraftScopeRef,
     currentDraftIdRef,
   };
 }

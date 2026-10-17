@@ -1,7 +1,7 @@
 /**
  * Composer model, context chips, and media/send stack.
  */
-import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject } from 'react';
+import { useCallback, useRef, type Dispatch, type MutableRefObject } from 'react';
 import type { AgentModeId } from '../agent-mode';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import {
@@ -22,6 +22,7 @@ import {
 } from './use-backend-session-controls';
 import { useEnabledSessionBackends } from './use-enabled-session-backends';
 import { useSessionCapabilities } from './use-session-capabilities';
+import { useSessionHandoff, type StartSessionHandoff } from './use-session-handoff';
 import type { WorkbenchHostRuntime } from './use-workbench-host-runtime';
 import type { WorkbenchSessionRuntime } from './use-workbench-session-runtime';
 import type { WorkbenchShellChrome } from './use-workbench-shell-chrome';
@@ -159,6 +160,9 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     replaceContextRefs,
   } = useComposerContextRefs();
 
+  // Handoff seeds the composer that useComposerMedia builds below, while
+  // `/handoff` inside that composer needs to start it.
+  const startHandoffRef = useRef<StartSessionHandoff | null>(null);
   const {
     composer,
     setComposer,
@@ -167,6 +171,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     activeDraftId,
     startNewDraft,
     resumeDraft,
+    explicitDraftScopeRef,
     pendingAttachments,
     dropActive,
     setDropActive,
@@ -215,6 +220,12 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     onOpenKnowledge: handleOpenKnowledge,
     onOpenCardsPanel: handleOpenCardsPanel,
     onCompact: session.handleCompact,
+    onHandoff: (instructions) => {
+      const sessionId = state.activeSessionId;
+      const start = startHandoffRef.current;
+      if (sessionId === null || start === null) return false;
+      return start(sessionId, instructions ? { instructions } : undefined);
+    },
     onAbort: session.handleAbort,
     onResumeRun: session.handleResumeRun,
     ensureSession: session.ensureSession,
@@ -273,25 +284,25 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     },
   });
   composerSetterRef.current = setComposer;
+  const { startHandoff } = useSessionHandoff({
+    hostClient,
+    state,
+    dispatch,
+    dispatchNotification: host.dispatchNotification,
+    handleResumeSession: session.handleResumeSession,
+    seedSessionContextRefs,
+  });
+  startHandoffRef.current = startHandoff;
 
   const enabledBackends = useEnabledSessionBackends(hostClient);
-  const enabledDraftAgents = draftAgentOptionsFrom(state.externalAgents, enabledBackends);
-  const draftAgentOptions =
-    chrome.sidebarMode === 'chat'
-      ? enabledDraftAgents.filter((option) => option.agentId === 'pi')
-      : enabledDraftAgents;
+  const draftAgentOptions = draftAgentOptionsFrom(state.externalAgents, enabledBackends);
   const capabilities = useSessionCapabilities({
     sessionId: state.activeSessionId,
     capabilitiesBySession: state.backendCapabilitiesBySession,
   });
   const draftAgentId = state.draftAgentId ?? 'pi';
   const activeAgentId = resolveActiveComposerAgentId(state);
-  useSyncSidebarModeForAgent(activeAgentId, chrome.setSidebarMode);
-  useEffect(() => {
-    if (chrome.sidebarMode === 'chat' && draftAgentId !== 'pi') {
-      dispatch({ type: 'draft/set-agent', agentId: 'pi' });
-    }
-  }, [chrome.sidebarMode, draftAgentId, dispatch]);
+  useSyncSidebarModeForAgent(activeAgentId, chrome.setSidebarMode, state.activeScope.kind);
   const onDraftAgentChange = useCallback(
     (agentId: string) => dispatch({ type: 'draft/set-agent', agentId }),
     [dispatch],
@@ -309,6 +320,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     composer,
     setComposer,
     seedSessionContextRefs,
+    startHandoff,
     draftSessions,
     activeDraftId,
     startNewDraft,
@@ -341,6 +353,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     draftAgentOptions,
     draftAgentId,
     onDraftAgentChange,
+    explicitDraftScopeRef,
     capabilities,
     selectOrchestrationScheme,
     selectDelegationDisabled: orchestration.selectDelegationDisabled,

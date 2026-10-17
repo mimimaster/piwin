@@ -112,7 +112,7 @@ export type ProjectSessionSidebarProps = {
   filteredSessions: SessionListItemUi[];
   /** General-scope sessions for the Conversations section (always visible). */
   generalSessions: SessionListItemUi[];
-  /** Built-in No Repo project root. Agent sessions live here, not in Conversations. */
+  /** Built-in No Repo project root. Explicit No Repo + sessions live here. */
   noRepoProjectPath?: string | null;
   /** Local-only unsent composer drafts, grouped by their captured scope. */
   draftSessions?: DraftSessionItemUi[];

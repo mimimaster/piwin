@@ -46,6 +46,9 @@ export type ComposerAttachmentShelfProps = {
   onRemoveAttachment: (localId: string) => void;
   onRetryAttachment?: ((localId: string) => void) | undefined;
   onRemoveContextRef?: ((key: string) => void) | undefined;
+  onLoadHandoffSummary?:
+    | ((sessionId: string) => Promise<import('./handoff-summary-chip').HandoffSummaryPreview>)
+    | undefined;
   onRemoveDocComments?: (() => void) | undefined;
   onOpenModelSettings?: (() => void) | undefined;
   onRequestComposerFocus?: (() => void) | undefined;
@@ -139,6 +142,9 @@ export function ComposerAttachmentShelf(props: ComposerAttachmentShelfProps): Re
             item={item}
             {...(props.onRemoveContextRef
               ? { onRemove: props.onRemoveContextRef }
+              : {})}
+            {...(props.onLoadHandoffSummary
+              ? { onLoadHandoffSummary: props.onLoadHandoffSummary }
               : {})}
           />
         ))}

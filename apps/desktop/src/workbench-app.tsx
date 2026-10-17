@@ -244,6 +244,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
         onOpenWorktreeProject={(path) => handleOpenProject(path, { switchSession: true })}
         projectSwitchLocked={state.messages.length > 0 || state.awaitingTranscript}
         disabled={state.streaming}
+        onOpenChanges={openReviewTab}
       />
     ) : null;
   const inkstoneStage = isInkstoneThemeId(activeTheme.id) || activeTheme.visualStyle === 'paper';

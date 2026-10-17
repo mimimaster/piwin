@@ -12,8 +12,6 @@ import { isMovableToolKind } from './workbench/docking/types.js';
 import type { DockingWorkspaceController } from './workbench/docking/use-docking-workspace.js';
 import type { Dispatch, ReactElement, ReactNode, SetStateAction } from 'react';
 import type {
-  GitDiffSummary,
-  GitStatusSnapshot,
   HostResponse,
   PromptContextRef,
   SessionPlan,
@@ -74,9 +72,6 @@ import { TerminalJobMonitor, type TerminalJobMonitorProps } from './terminal-job
 import { isTauriPtyAvailable } from './tauri-pty';
 import { useTerminalSessions } from './use-terminal-sessions';
 import { requestBrowserNewTab } from './host-client-browser';
-import { getDesktopCopy } from './desktop-locale';
-import { formatDesktopRemoteHostDisplay } from './remote-host-session';
-import { describeProjectFolder, type RightPanelHomeContext } from './right-panel-home-context';
 
 type InspectorShell = {
   closeOverlay: () => void;
@@ -232,36 +227,6 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     shell.openInspector(tab);
   });
   const hostPathStyle = hostClient.getRemoteCapabilities()?.pathStyle;
-  const homeHostRemote = hostClient.getTransport() === 'remote';
-  const homeContext: RightPanelHomeContext = {
-    host: {
-      remote: homeHostRemote,
-      label: homeHostRemote
-        ? formatDesktopRemoteHostDisplay(hostClient.getRemoteTarget()?.endpoint ?? '') ||
-          getDesktopCopy(locale).composer.runtimeAttachedLabel
-        : getDesktopCopy(locale).composer.runtimeLocalLabel,
-    },
-    project: describeProjectFolder(projectPath),
-    gitKey: projectPath && hostClient.supportsCommand('git/status') ? projectPath : null,
-    loadGit: async () => {
-      if (!projectPath) return null;
-      const [status, diff] = await Promise.all([
-        requestGit({ type: 'git/status', projectPath }),
-        hostClient.supportsCommand('git/diff-summary')
-          ? requestGit({ type: 'git/diff-summary', projectPath })
-          : null,
-      ]);
-      if (!status.success) return null;
-      const branchStatus = (status.data as { snapshot: GitStatusSnapshot }).snapshot.branch;
-      const summary = diff?.success ? (diff.data as { summary: GitDiffSummary }).summary : null;
-      return {
-        branch: branchStatus?.currentBranch ?? branchStatus?.headCommit?.slice(0, 7) ?? null,
-        changes: summary
-          ? { additions: summary.totalAdditions, deletions: summary.totalDeletions }
-          : null,
-      };
-    },
-  };
   const terminalProjectPath = resolveInteractiveTerminalProjectPath(projectPath);
   const terminalSpawnCwd = resolveInteractiveTerminalCwd({
     preferredCwd: terminalCwd,
@@ -309,7 +274,6 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           }}
           activeTab={rightPanelTab}
           layoutSessionId={activeSessionId}
-          homeContext={homeContext}
           {...(dockedTools ? { handedOffTabs: DOCKING_OWNED_INSPECTOR_TABS, dockedTools } : {})}
           onOpenInstance={(tab) => {
             if (docking && inspectorTabToToolKind(tab) === 'browser') {

@@ -175,7 +175,7 @@ describe('buildSidebarTreeRows', () => {
     ]);
   });
 
-  it('puts a general-scoped Grok session under No Repo, not Conversations', () => {
+  it('keeps a general-scoped Grok session in Conversations, not under No Repo', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [],
       noRepoProjectPath: '/Users/me/.piwin/workspace',
@@ -194,9 +194,9 @@ describe('buildSidebarTreeRows', () => {
     });
     expect(kinds(rows)).toEqual([
       'header:projects',
-      'session:grok-1',
       'header:conversations',
       'session:g1',
+      'session:grok-1',
     ]);
   });
 

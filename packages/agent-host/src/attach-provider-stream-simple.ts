@@ -7,12 +7,18 @@ import {
   type NativeSearchModelFlags,
   type NativeSearchStreamSimple,
 } from './native-web-search.js';
+import {
+  wrapStreamSimpleForModelRequestBody,
+  type ModelRequestBodyFlags,
+} from './model-request-body-stream.js';
 import { resolvePiNativeSearchStream, type PiNativeSearchApi } from './pi-native-search-stream.js';
 import { wrapStreamSimpleForRequestTiming } from './stream-request-timing.js';
 
+export type ProviderStreamModelFlags = NativeSearchModelFlags & ModelRequestBodyFlags;
+
 export function resolveProviderStreamSimple(input: {
   api: PiNativeSearchApi;
-  models: readonly NativeSearchModelFlags[];
+  models: readonly ProviderStreamModelFlags[];
   streamSimple?: NativeSearchStreamSimple;
   /** Host `web_search` native executor only; main sessions never inject hosted search. */
   injectNativeSearch?: boolean;
@@ -21,11 +27,13 @@ export function resolveProviderStreamSimple(input: {
   const needsGeminiIsolation =
     input.api === 'openai-completions' &&
     input.models.some((model) => isGeminiOpenAiCompatModelId(model.id));
-  if (!needsSearch && !needsGeminiIsolation) {
-    return wrapStreamSimpleForRequestTiming(input.streamSimple ?? resolvePiNativeSearchStream(input.api));
-  }
   const fallback = resolvePiNativeSearchStream(input.api);
-  let stream = input.streamSimple;
+  // Innermost: the custom body hook is the one Pi calls, so it merges last.
+  const base = wrapStreamSimpleForModelRequestBody(input.streamSimple ?? fallback, input.models);
+  if (!needsSearch && !needsGeminiIsolation) {
+    return wrapStreamSimpleForRequestTiming(base);
+  }
+  let stream = base;
   if (needsSearch) {
     stream =
       wrapStreamSimpleForNativeSearch(stream, {
@@ -42,7 +50,7 @@ export function resolveProviderStreamSimple(input: {
   return wrapStreamSimpleForRequestTiming(stream ?? fallback);
 }
 
-export type RegistrationModelStreamFlags = NativeSearchModelFlags & { api: PiNativeSearchApi };
+export type RegistrationModelStreamFlags = ProviderStreamModelFlags & { api: PiNativeSearchApi };
 
 /**
  * Registration-level stream for a provider whose models may use different Pi

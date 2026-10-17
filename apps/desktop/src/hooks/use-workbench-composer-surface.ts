@@ -5,8 +5,9 @@ import type { ChatUiState } from '../chat-reducer';
 import type { ExtensionUiResolvePayload } from '../extension-ui-prompt';
 import type { HostClient } from '../host-client';
 import type { ShellSettingsSection } from '../shell-navigation';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { resolveActiveComposerAgentId } from '../composer-dock-assembly.js';
+import { shouldMoveExternalDraftToConversations } from './session-create-input.js';
 import { useComposerDockProps } from './use-composer-dock-props';
 import { useIosLiveActivity } from '../live/use-ios-live-activity.js';
 import { useExtensionSlashCommands } from './use-extension-slash-commands';
@@ -82,6 +83,30 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
   const sessionUsageTotals = useSessionUsageTotals(hostClient, state.activeSessionId);
   const menuExtensionCommands = useExtensionSlashCommands(hostClient, state.hostReady);
 
+  const onDraftAgentChange = useCallback(
+    (agentId: string) => {
+      if (
+        shouldMoveExternalDraftToConversations({
+          agentId,
+          activeSessionId: state.activeSessionId,
+          activeScopeKind: state.activeScope.kind,
+          explicitDraftScopeKind: composer.explicitDraftScopeRef.current?.kind ?? null,
+        }) &&
+        args.onStartNewSession
+      ) {
+        void args.onStartNewSession({ agentId });
+        return;
+      }
+      composer.onDraftAgentChange(agentId);
+    },
+    [
+      args.onStartNewSession,
+      composer,
+      state.activeScope.kind,
+      state.activeSessionId,
+    ],
+  );
+
   const dock = useComposerDockProps({
     hostClient,
     hostStatus: host.hostStatus,
@@ -147,7 +172,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     backendControls: composer.backendControls,
     draftAgentOptions: composer.draftAgentOptions,
     draftAgentId: composer.draftAgentId,
-    onDraftAgentChange: composer.onDraftAgentChange,
+    onDraftAgentChange,
     onStartNewSession: args.onStartNewSession,
     capabilities: composer.capabilities,
     speechConfigured: host.speechConfigured,

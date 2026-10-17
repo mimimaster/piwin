@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 // @vitest-environment happy-dom
-import type { HostResponse, ProjectRecord } from '@piwin/contracts';
+import type { GitDiffSummary, HostResponse, ProjectRecord } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -144,6 +144,49 @@ describe('SessionContextRow', () => {
     expect(label).not.toBeNull();
     expect(label?.textContent).toContain('piwin');
     expect(container.querySelector('[data-testid="composer-project-chip"]')).toBeNull();
+  });
+
+  it('shows the working-tree size beside the branch and opens Changes', async () => {
+    const request = vi.fn(async (command: { type: string }): Promise<HostResponse> => {
+      if (command.type === 'git/diff-summary') {
+        return {
+          type: 'response',
+          command: 'git/diff-summary',
+          success: true,
+          data: {
+            summary: {
+              totalAdditions: 12,
+              totalDeletions: 3,
+            } as GitDiffSummary,
+          },
+        };
+      }
+      return {
+        type: 'response',
+        command: 'git/status',
+        success: true,
+        data: { branch: 'main', dirty: false },
+      } as HostResponse;
+    });
+    const onOpenChanges = vi.fn();
+    let rendered!: { container: HTMLElement; root: Root };
+    await act(async () => {
+      rendered = renderRow(
+        <SessionContextRow
+          projectPath="/Users/test/piwin"
+          recentProjects={projects}
+          request={request}
+          onOpenChanges={onOpenChanges}
+        />,
+      );
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    const chip = container.querySelector<HTMLButtonElement>('[data-testid="session-working-tree"]');
+    expect(chip?.textContent).toBe('+12−3');
+    act(() => chip?.click());
+    expect(onOpenChanges).toHaveBeenCalledTimes(1);
   });
 
   it('keeps chips without a full-bleed session-context bar', () => {

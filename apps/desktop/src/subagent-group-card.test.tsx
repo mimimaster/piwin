@@ -139,12 +139,14 @@ describe('subagent group card', () => {
     expect(container.textContent).toContain('正在执行 read (permissions.md)');
   });
 
-  it('shows the live header open, then folds once every row settled; a click reopens it', () => {
+  const mainNode = () => container.querySelector('[data-testid="subagent-fanout-main"]') as HTMLButtonElement | null;
+
+  it('shows a live group open without a header bar, folds it to a capsule once settled; clicks toggle it', () => {
     const tools = delegations();
     render(tools, invocations((index) => (index === 0 ? { status: 'completed', activity: { kind: 'completed' } } : {})));
-    expect(header()?.textContent).toContain('3 个子代理');
-    expect(container.querySelector('[data-testid="subagent-group-counts"]')?.textContent).toBe('1 完成 · 2 运行中');
-    expect(header()?.getAttribute('aria-expanded')).toBe('true');
+    expect(header()).toBeNull();
+    expect(mainNode()?.getAttribute('aria-expanded')).toBe('true');
+    expect(mainNode()?.getAttribute('aria-label')).toBe('收起 3 个子代理');
     expect(rows()?.hidden).toBe(false);
     // Every phase keeps its second line so fan-out rows never change height.
     expect(container.querySelectorAll('.subagent-row-activity')).toHaveLength(3);
@@ -158,15 +160,21 @@ describe('subagent group card', () => {
       ),
     );
     expect(header()?.getAttribute('aria-expanded')).toBe('false');
+    expect(header()?.textContent).toContain('3 个子代理');
     expect(rows()?.hidden).toBe(true);
     expect(container.querySelector('[data-testid="subagent-group-counts"]')?.textContent).toBe('2 完成 · 1 失败');
     expect(container.querySelector('[data-testid="subagent-group-elapsed"]')?.textContent).toBe('30s');
 
     act(() => (header() as HTMLButtonElement).click());
     expect(rows()?.hidden).toBe(false);
+    expect(header()).toBeNull();
     const activityLines = container.querySelectorAll('.subagent-row-activity');
     expect(activityLines).toHaveLength(3);
     expect(activityLines[2]?.textContent).toContain('web_fetch 超时');
+
+    act(() => mainNode()?.click());
+    expect(rows()?.hidden).toBe(true);
+    expect(header()?.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('draws two or more delegations as a fan-out with one wire per row', () => {
@@ -182,10 +190,8 @@ describe('subagent group card', () => {
     );
     const fanout = container.querySelector('[data-testid="subagent-fanout"]');
     expect(fanout?.querySelectorAll('[data-testid="subagent-invocation-block"]')).toHaveLength(3);
-    const main = container.querySelector('[data-testid="subagent-fanout-main"]');
-    expect(main?.getAttribute('aria-hidden')).toBe('true');
-    expect(main?.querySelector('button')).toBeNull();
-    expect(main?.textContent).toContain('等待 1/3');
+    expect(mainNode()?.tagName).toBe('BUTTON');
+    expect(mainNode()?.textContent).toContain('等待 1/3');
     const curve = [...container.querySelectorAll('.subagent-fanout-wires.is-curve path')];
     expect(curve.map((wire) => wire.getAttribute('data-phase'))).toEqual(['done', 'running', 'failed']);
     expect(container.querySelectorAll('.subagent-fanout-wires.is-rail path')).toHaveLength(3);
@@ -210,7 +216,8 @@ describe('subagent group card', () => {
         activity: { kind: 'completed' },
       })),
     );
-    expect(header()?.getAttribute('aria-expanded')).toBe('true');
+    expect(header()).toBeNull();
+    expect(rows()?.hidden).toBe(false);
     expect(container.querySelector('[data-testid="subagent-badge-code-pending"]')?.textContent).toBe('代码待处理');
   });
 
@@ -223,7 +230,7 @@ describe('subagent group card', () => {
       presentation: { kind: 'subagent', title: 'piwin_subagent_result_apply', summary: 'applied · run-1' },
     };
     render([...delegations(), apply], invocations());
-    expect(header()?.textContent).toContain('3 个子代理');
+    expect(mainNode()?.getAttribute('aria-label')).toBe('收起 3 个子代理');
     const groups = container.querySelectorAll('[data-testid="subagent-group"]');
     expect([...groups].map((group) => group.getAttribute('data-count'))).toEqual(['3', '1']);
   });

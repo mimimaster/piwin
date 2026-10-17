@@ -24,6 +24,13 @@ import {
 import { ModelGenerationRouteFields } from './model-generation-route-fields';
 import { NativeSearchAdapterFields, NativeSearchBlockedHint } from './native-search-adapter-fields';
 import { ModelProtocolField } from './model-protocol-field.js';
+import {
+  ModelRequestOverridesFields,
+  type ModelRequestOverridesValue,
+} from './model-request-overrides-fields.js';
+import { parseHeadersJsonText, parseRequestBodyText } from './model-request-overrides.js';
+
+const EMPTY_REQUEST_OVERRIDES: ModelRequestOverridesValue = { headerRows: [], extraBodyText: '' };
 
 export type AddModelDialogProps = {
   open: boolean;
@@ -95,7 +102,10 @@ export function AddModelDialog({
   const [videoPollIntervalSeconds, setVideoPollIntervalSeconds] = useState('');
   const [reasoning, setReasoning] = useState(true);
   const [modelProtocol, setModelProtocol] = useState<ModelConfigurationDraft['protocol']>('');
+  const [requestOverrides, setRequestOverrides] =
+    useState<ModelRequestOverridesValue>(EMPTY_REQUEST_OVERRIDES);
   const [error, setError] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<ModelCatalogEntry[]>([]);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -123,6 +133,7 @@ export function AddModelDialog({
     nativeWebSearchTouched.current = false;
     setNativeSearch({ nativeSearchAdapter: '' });
     setModelProtocol('');
+    setRequestOverrides(EMPTY_REQUEST_OVERRIDES);
     setImageApiStyle(EMPTY_GENERATION_ROUTE_FIELDS.imageApiStyle);
     setImagePath('');
     setImageGenTimeout('');
@@ -132,6 +143,7 @@ export function AddModelDialog({
     setVideoPollIntervalSeconds('');
     setReasoning(true);
     setError(null);
+    setRequestError(null);
     setSuggestions([]);
     setCatalogOpen(false);
     setSearching(false);
@@ -291,6 +303,7 @@ export function AddModelDialog({
       ...(nativeSearch.nativeSearchOptions ? { nativeSearchOptions: nativeSearch.nativeSearchOptions } : {}),
       reasoning,
       ...(modelProtocol ? { protocol: modelProtocol } : {}),
+      ...(isSubscription ? {} : requestOverrides),
       imageApiStyle,
       imagePath,
       imageTimeoutSeconds: imageGenTimeout,
@@ -321,7 +334,19 @@ export function AddModelDialog({
       setError(isChinese ? '该模型 ID 已存在。' : 'This model ID already exists.');
       return;
     }
-    const model = createModelConfigurationEntry(toDraft());
+    const draft = toDraft();
+    if (
+      (draft.headersJsonText !== undefined && !parseHeadersJsonText(draft.headersJsonText).ok) ||
+      !parseRequestBodyText(draft.extraBodyText ?? '').ok
+    ) {
+      setRequestError(
+        isChinese
+          ? '自定义请求里的 JSON 有误，请展开修正后再添加。'
+          : 'The custom request JSON is invalid; expand it and fix it first.',
+      );
+      return;
+    }
+    const model = createModelConfigurationEntry(draft);
     if (!model) {
       setError(isChinese ? '请填写模型 ID。' : 'Model ID is required.');
       return;
@@ -564,6 +589,24 @@ export function AddModelDialog({
           isChinese={isChinese}
           onChange={(update) => applyRouteDraft(update(toDraft()))}
         />
+        {isSubscription ? null : (
+          <ModelRequestOverridesFields
+            value={requestOverrides}
+            protocol={modelProtocol || protocol}
+            {...(baseUrl ? { baseUrl } : {})}
+            isChinese={isChinese}
+            testIdPrefix="add-model"
+            onChange={(update) => {
+              setRequestError(null);
+              setRequestOverrides(update);
+            }}
+          />
+        )}
+        {requestError ? (
+          <p className="ui-field-error" role="alert" data-testid="add-model-request-error">
+            {requestError}
+          </p>
+        ) : null}
         {searchCatalog ? (
           <p className="add-model-catalog-hint muted">
             {isChinese

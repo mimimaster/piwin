@@ -145,6 +145,37 @@ export function hostProblemNotice(
       return piwinRootLeaseNotice(locale);
     case 'summary-model-unavailable':
       return summaryModelUnavailableNotice(problem.data, locale);
+    case 'session-handoff-refused':
+      return sessionHandoffRefusedNotice(problem.data, locale);
+    case 'session-handoff-summary-missing':
+      return locale === 'zh-CN'
+        ? '这份交接摘要已经不在了。'
+        : 'This handoff summary is no longer on disk.';
+    default:
+      return undefined;
+  }
+}
+
+/** `cancelled` maps to '' — the user asked for it, so there is nothing to report. */
+function sessionHandoffRefusedNotice(data: unknown, locale: DesktopLocale): string | undefined {
+  const reason =
+    typeof data === 'object' && data !== null ? (data as Record<string, unknown>).reason : undefined;
+  const zh = locale === 'zh-CN';
+  switch (reason) {
+    case 'cancelled':
+      return '';
+    case 'empty-transcript':
+      return zh ? '这个会话还没有对话，没有可交接的内容。' : 'This session has no conversation to hand off yet.';
+    case 'already-running':
+      return zh
+        ? '这个会话正在生成摘要（交接或导出），等它结束再试。'
+        : 'A summary is already being written for this session. Try again when it finishes.';
+    case 'archived':
+      return zh ? '已归档的会话不能交接，先恢复它。' : 'Restore this archived session before handing it off.';
+    case 'empty-summary':
+      return zh
+        ? '模型返回了空摘要，没有创建新会话。可以重试或换个模型。'
+        : 'The model returned an empty summary, so no session was created. Retry or switch models.';
     default:
       return undefined;
   }

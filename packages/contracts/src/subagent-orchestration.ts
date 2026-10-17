@@ -22,6 +22,7 @@
  */
 import type { EphemeralProviderSecret, WorkerProviderAuthDescriptor } from './provider-auth.js';
 import type { ProviderChatApi } from './config.js';
+import type { ModelRequestBody } from './model-request-body.js';
 export type SubagentProviderEnvelope = {
   readonly providerId: string;
   readonly protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' | 'google-vertex' | 'amazon-bedrock';
@@ -40,6 +41,8 @@ export type SubagentProviderEnvelope = {
     readonly supportsDeveloperRole?: boolean;
     /** Host-resolved headers (provider overlaid by model); omitted = provider headers. */
     readonly headers?: Record<string, string>;
+    /** ADR 0095: Host-resolved custom request body; omitted = none. */
+    readonly extraBody?: ModelRequestBody;
   }>;
   readonly auth: WorkerProviderAuthDescriptor;
 };

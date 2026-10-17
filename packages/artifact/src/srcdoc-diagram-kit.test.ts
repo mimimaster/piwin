@@ -35,11 +35,28 @@ describe('buildArtifactDiagramKitCss', () => {
       '--piwin-artifact-muted',
       '--piwin-artifact-ok',
       '--piwin-artifact-risk',
-      '--piwin-artifact-shadow-1',
       '--piwin-artifact-surface',
       '--piwin-artifact-text',
       '--piwin-artifact-warn',
     ]);
+  });
+
+  it('draws diagrams flat: no drop shadow anywhere', () => {
+    expect(css).not.toContain('shadow-1');
+    expect(css).not.toMatch(/box-shadow:\s*0\s+[0-9.]+px\s+[0-9.]+px/);
+  });
+
+  it('writes lane steps as text on the lane and prints each handoff target', () => {
+    expect(css).toContain('content: "→ " attr(data-to)');
+    expect(css).toContain(':where(.piwin-lanes td > [data-to])::after');
+    // A lane step carries a status dot, not a card border.
+    expect(css).toMatch(/:where\(\.piwin-lanes td > p, \.piwin-lanes td > div\) \{\s*position: relative;\s*margin: 0;\s*padding: 0 0 0 0\.95em;/);
+  });
+
+  it('numbers phase headers across, or phase rows when the lanes run down', () => {
+    expect(css).toContain(':where(.piwin-lanes:not([data-dir="down"]) thead th:not(:first-child))::before');
+    expect(css).toContain(':where(.piwin-lanes[data-dir="down"] tbody th)::before');
+    expect(css).toContain(':where(.piwin-lanes[data-dir="down"] tbody tr:not(:last-child) th)::after');
   });
 
 

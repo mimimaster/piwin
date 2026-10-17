@@ -6,7 +6,13 @@
  * test means Pi's runtime request goes to the same place.
  */
 import type { ModelProviderConfig, ProviderChatApi } from '@piwin/contracts';
-import { formatError, isCloudCredentialProtocol } from '@piwin/contracts';
+import {
+  formatError,
+  isCloudCredentialProtocol,
+  mergeModelRequestBody,
+  resolveModelHeaders,
+  resolveModelRequestBody,
+} from '@piwin/contracts';
 import { completeModelText } from '@piwin/agent-host';
 import {
   ProviderModelDiscoveryError,
@@ -61,8 +67,19 @@ export async function testProviderModel(
 
   const chatApi = resolveEffectiveChatApi(provider);
   const request = buildModelTestRequest(provider, normalizedModelId, chatApi);
-  const headers = await buildProviderRequestHeaders(provider, dependencies.resolveSecret);
+  // Probe with the model's own headers and body so a pass means chat passes.
+  const model = provider.models.find((entry) => entry.id === normalizedModelId);
+  const modelHeaders = resolveModelHeaders(provider, model);
+  const headers = await buildProviderRequestHeaders(
+    modelHeaders ? { ...provider, headers: modelHeaders } : provider,
+    dependencies.resolveSecret,
+  );
   headers.set('content-type', 'application/json');
+  // Pi's Gemini SDK payload (`config`) is not the REST probe shape; skip it there.
+  const body =
+    chatApi === 'google-generative-ai'
+      ? request.body
+      : mergeModelRequestBody(request.body, resolveModelRequestBody(provider, model));
 
   const abortController = new AbortController();
   const timeout = setTimeout(() => abortController.abort(), MODEL_TEST_TIMEOUT_MS);
@@ -72,7 +89,7 @@ export async function testProviderModel(
     const response = await fetchImplementation(request.endpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify(request.body),
+      body: JSON.stringify(body),
       signal: abortController.signal,
     });
     if (!response.ok) {

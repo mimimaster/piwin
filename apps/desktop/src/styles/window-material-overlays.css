@@ -52,6 +52,13 @@ html[data-window-material] .lib-batch-bar {
   backdrop-filter: var(--overlay-glass-filter);
 }
 
+/* Ink history bubbles preview past turns beside the transcript they jump
+   into; on the thinned ink stage the shared glass reads as a slab, so they
+   take the thin glass and the blur keeps the preview legible. */
+html[data-window-material][data-theme-mode='dark'] .history-message-bubble {
+  background: var(--overlay-glass-fill-thin);
+}
+
 /* Short pickers that open over the right panel's own list (tool picker,
    changes scope). Over a panel that is already glass, the default 72% reads
    as a solid slab cut out of it; the thin glass lets the list it opens beside

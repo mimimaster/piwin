@@ -284,13 +284,15 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
  * Users can replace this via `decisionPrompt.mode = 'custom'`.
  */
 export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
-  '[piwin-prompt-meta kind="artifact:decision" version="13" applies="artifacts-enabled"]',
+  '[piwin-prompt-meta kind="artifact:decision" version="14" applies="artifacts-enabled"]',
   '<artifact-decision-policy name="piwin-proactive-surfaces">',
   '## Decision Criteria',
   'Choose the presentation that lets the reader scan, understand, search, copy, compare, and reuse the information.',
   'Use an Artifact for structured or information-dense content even without an explicit UI request: compact, grouped or interactive content reads better than a Markdown wall of text.',
   '',
   'You choose the form, and the content decides it: a flow for steps, a swimlane for handoffs between actors, a timeline for dated events, a tree for hierarchy, a matrix for items × attributes, a chart for quantities, an SVG diagram or a layout of your own for everything else. Cards suit a few parallel, independent items. Mix forms freely in one artifact; a form that matches the content is what makes it clear at a glance.',
+  '',
+  'Dense and clear at once: the first screen states the conclusion and shows the one figure that explains it. Text sits directly on the page, grouped by whitespace and hairline rules; a box marks the one thing that stands apart, so a step, a cell or a number stays plain text. Each step or cell is a short phrase (about 12 CJK characters or 6 words) and details go to a table or `small` beneath it. Color marks status and handoffs; everything else stays neutral.',
   '',
   'Choose the surface by **user intent**, not response length. Canvas (`surface="canvas"`) is a workspace beside the conversation, and a standalone analytical deliverable belongs there: architecture reviews, plan reviews, code-base or design reviews, security audits, delivery reports, findings write-ups, quantitative breakdowns, timelines, large comparison tables. When an answer is heading toward a long Markdown document or a large Markdown table, make it a Canvas.',
   'Unprompted artifacts use `style="host"`.',
@@ -348,7 +350,7 @@ export function formatArtifactProtocol(): string {
   const canvasOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" surface="canvas" style="host"`;
   const svgOpen = '```svg title="Short descriptive title" style="host"';
   return [
-    '[piwin-prompt-meta kind="artifact:runtime" version="16" applies="artifacts-enabled"]',
+    '[piwin-prompt-meta kind="artifact:runtime" version="17" applies="artifacts-enabled"]',
     '## HTML Artifact Runtime Contract',
     '',
     '### Success',
@@ -389,7 +391,7 @@ export function formatArtifactProtocol(): string {
     '- Colors: take every color from the `--piwin-artifact-*` vars, so the artifact follows the host theme in light and dark: `bg surface surface-2 text muted subtle accent accent-2 on-accent border border-strong`, status `ok warn info risk` (`risk` marks real problems), charts `series-1`…`series-6`. This list is the complete set. Literal hex/rgb belongs to expressive illustrations. Text uses `text`/`muted`/`subtle`/status, or `on-accent` on a solid fill; `bg` and `surface*` are backgrounds. Tint: `color-mix(in srgb, var(--piwin-artifact-<c>) 12%, transparent)`. Floating layers (sticky bar, toast, popover) use `surface`.',
     '- Inline code & tokens: neutral `color-mix(in srgb, var(--piwin-artifact-text) 8%, transparent)` background with `var(--piwin-artifact-text)` text; red tones are reserved for errors and diff deletions. Badges: muted for inactive/hidden, accent for ready/visible, amber for estimate/progress.',
     '- Host theme: follow the send-time `light`/`dark` hint in every style, expressive stages and cards included: a light host gets a light design and a dark host a dark one, unless the user asks for the opposite mode. Without a hint, theme vars cover both modes.',
-    '- Host tone: quiet with depth: `shadow-1` on cards, `shadow-2` on floating layers, `radius-sm`/`radius-lg`; title hierarchy by size and weight in `--piwin-artifact-font`, the host font throughout; one hero may use a theme-var gradient; surfaces are solid and matte; labels are plain text.',
+    '- Host tone: flat and quiet. Whitespace and hairline `border` rules group content; a box (`surface`, `radius-sm`/`radius-lg`) is for the one thing that stands apart, and `shadow-1`/`shadow-2` belong to floating layers (sticky bar, popover, toast). Title hierarchy by size and weight in `--piwin-artifact-font`, the host font throughout; surfaces are solid and matte; labels are plain text.',
     '- Expressive: an inner stage may paint gradients, illustration, motion, large type; the outer page stays transparent; text keeps 4.5:1 and reads on light and dark hosts.',
     '- Outermost wrapper background: transparent on Inline and Canvas, because the host page shows through it; `surface` goes on inner cards. `pre`/`code` islands may keep their own dark contrast pair.',
     '- Inline layout: a fluid 360–760px chat column, sized like a message in the thread. Inline grows with its content and the conversation owns scrolling in both directions: height stays auto on html/body/outer wrapper and every block fits the column width.',

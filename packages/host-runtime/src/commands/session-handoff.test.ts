@@ -11,7 +11,11 @@ import { updateSessionRecord } from '@piwin/session';
 import * as handoffStore from '../session-handoff-store.js';
 import { HostRuntime } from '../host-runtime.js';
 import { getPiwinSessionIndexPath } from '../paths.js';
-import { getSessionHandoffPath, writeSessionHandoffSummary } from '../session-handoff-store.js';
+import {
+  MAX_HANDOFF_SUMMARY_CHARS,
+  getSessionHandoffPath,
+  writeSessionHandoffSummary,
+} from '../session-handoff-store.js';
 import { createResolveRefsDeps } from './prompt-preparation.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { buildHandoffSessionName } from './session-handoff.js';
@@ -288,7 +292,11 @@ describe('HostRuntime session/handoff', () => {
       const response = await pending;
 
       expect(aborted).toHaveBeenCalledOnce();
-      expect(response).toMatchObject({ success: false, error: 'Compaction cancelled' });
+      expect(response).toMatchObject({
+        success: false,
+        error: 'Compaction cancelled',
+        problem: { code: 'session-handoff-refused', data: { reason: 'cancelled' } },
+      });
       expect((await readIndex(rootDir)).sessions.map((record) => record.id)).toEqual([sourceId]);
     } finally {
       await runtime.dispose();
@@ -301,7 +309,10 @@ describe('HostRuntime session/handoff', () => {
     const sourceId = await createSession(runtime, '/tmp/handoff-empty');
 
     const response = await runtime.handleCommand({ type: 'session/handoff', sessionId: sourceId });
-    expect(response.success).toBe(false);
+    expect(response).toMatchObject({
+      success: false,
+      problem: { code: 'session-handoff-refused', data: { reason: 'empty-transcript' } },
+    });
     expect((await readIndex(rootDir)).sessions.map((record) => record.id)).toEqual([sourceId]);
 
     await runtime.dispose();
@@ -313,6 +324,38 @@ describe('HostRuntime session/handoff', () => {
     const response = await runtime.handleCommand({ type: 'session/handoff', sessionId: 'missing' });
     expect(response).toMatchObject({ success: false, error: 'Unknown session: missing' });
     await runtime.dispose();
+  });
+});
+
+describe('session/handoff-summary', () => {
+  it('returns the stored summary, truncated to the same cap a prompt receives', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-handoff-read-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    try {
+      const sessionId = await createSession(runtime, '/tmp/handoff-read');
+      const full = `${'kept'.repeat(100)}\n${'x'.repeat(MAX_HANDOFF_SUMMARY_CHARS)}`;
+      await writeSessionHandoffSummary(rootDir, sessionId, full);
+      const response = await runtime.handleCommand({ type: 'session/handoff-summary', sessionId });
+      expect(response.success).toBe(true);
+      if (!response.success) return;
+      expect(response.data).toMatchObject({
+        sessionId,
+        truncated: true,
+        summary: full.slice(0, MAX_HANDOFF_SUMMARY_CHARS),
+      });
+
+      const empty = await createSession(runtime, '/tmp/handoff-read');
+      const missing = await runtime.handleCommand({
+        type: 'session/handoff-summary',
+        sessionId: empty,
+      });
+      expect(missing).toMatchObject({
+        success: false,
+        problem: { code: 'session-handoff-summary-missing' },
+      });
+    } finally {
+      await runtime.dispose();
+    }
   });
 });
 

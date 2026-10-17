@@ -128,7 +128,10 @@ import { settleOrphanStreamingMessages } from '../transcript-stream-settler.js';
 import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { handleCompactionCommand } from './compaction-live.js';
-import { handleSessionHandoffCommand } from './session-handoff.js';
+import {
+  handleSessionHandoffCommand,
+  handleSessionHandoffSummaryCommand,
+} from './session-handoff.js';
 import { createResolveRefsDeps, persistSessionComposerProfile } from './prompt-preparation.js';
 import { resolveSessionOutputPath } from './compaction-live.js';
 import { handleRunControlCommand } from './run-control-commands.js';
@@ -167,6 +170,7 @@ const TYPES = new Set<HostCommand['type']>([
   'session/compact',
   'session/compact-export',
   'session/handoff',
+  'session/handoff-summary',
   'session/compact-abort',
   'session/compaction-settings',
   'session/set-auto-compaction',
@@ -205,6 +209,9 @@ export async function handleSessionLiveCommand(
   if (command.type === 'session/handoff') {
     return handleSessionHandoffCommand(command, requestId, context);
   }
+  if (command.type === 'session/handoff-summary') {
+    return handleSessionHandoffSummaryCommand(command, requestId, context);
+  }
   switch (command.type) {
     case 'session/create': {
       let createInput = command.input;
@@ -221,14 +228,6 @@ export async function handleSessionLiveCommand(
         return fail(requestId, 'session/create', message);
       }
       const requestedAgentId = command.input.agentId?.trim();
-      if (
-        requestedAgentId !== undefined &&
-        requestedAgentId !== '' &&
-        requestedAgentId !== 'pi' &&
-        createInput.scope?.kind === 'general'
-      ) {
-        return fail(requestId, 'session/create', 'chat-mode-pi-only');
-      }
       const sessionId = createProductSessionId();
       const lineage: {
         parentSessionId?: string;

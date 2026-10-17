@@ -171,4 +171,44 @@ describe('ContextRefChip', () => {
     });
     expect(onRemove).toHaveBeenCalledWith('file:/p:src/a.ts::');
   });
+
+  it('opens the handoff summary as text, including characters that look like markup', async () => {
+    const onLoad = vi.fn(async () => ({
+      ok: true as const,
+      summary: '<b>not html</b>',
+      truncated: false,
+    }));
+    const rendered = renderChip(
+      <ContextRefChip
+        item={{
+          token: 'handoff',
+          key: 'session-handoff:next',
+          label: '交接摘要',
+          ref: {
+            kind: 'session-handoff',
+            sessionId: 'next',
+            sourceSessionId: 'prev',
+            label: '交接摘要',
+          },
+        }}
+        onLoadHandoffSummary={onLoad}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    const trigger = container.querySelector(
+      '[data-testid="handoff-summary-preview-trigger"]',
+    ) as HTMLButtonElement | null;
+    expect(trigger).not.toBeNull();
+    act(() => {
+      trigger?.click();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const text = document.body.querySelector('[data-testid="handoff-summary-preview-text"]');
+    expect(onLoad).toHaveBeenCalledWith('next');
+    expect(text?.textContent).toBe('<b>not html</b>');
+    expect(text?.querySelector('b')).toBeNull();
+  });
 });

@@ -15,4 +15,9 @@ describe('Host request timeouts', () => {
       120_000,
     );
   });
+  it('waits for a handoff summary like compaction, on local and remote transports', () => {
+    const command = { type: 'session/handoff', sessionId: 's1' } as const;
+    expect(getHostRequestTimeoutMs(command)).toBe(0);
+    expect(getHostRequestTimeoutMs(command, 'remote')).toBe(0);
+  });
 });

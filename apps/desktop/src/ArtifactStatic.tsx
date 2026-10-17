@@ -117,6 +117,9 @@ function buildStaticReportKitCss(rules: ArtifactRules): string {
   margin: 0;
   padding: 2px 0 6px;
 }
+.piwin-artifact-root .piwin-lanes td {
+  min-width: 4.5em;
+}
 `;
 }
 

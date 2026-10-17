@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildSessionCreateInput } from './session-create-input';
+import {
+  buildSessionCreateInput,
+  resolveDraftCreateScopeForAgent,
+  resolveSessionCreateLocation,
+  shouldMoveExternalDraftToConversations,
+} from './session-create-input';
 
 const piModel = { providerId: 'acme', modelId: 'gpt-test' } as const;
 
@@ -83,5 +88,94 @@ describe('buildSessionCreateInput', () => {
     });
     expect(input.knowledgeBaseIds).toBeUndefined();
     expect(input.disabledMcpServerIds).toBeUndefined();
+  });
+});
+
+describe('resolveSessionCreateLocation', () => {
+  const projectScope = { kind: 'project' as const, projectPath: '/repo/app' };
+  const generalScope = { kind: 'general' as const };
+
+  it('keeps an explicit project binding', () => {
+    expect(
+      resolveSessionCreateLocation({
+        requestedScope: projectScope,
+        agentId: 'grok',
+        activeScope: generalScope,
+      }),
+    ).toEqual({ useGeneral: false, projectKey: '/repo/app' });
+  });
+
+  it('defaults Grok without a project binding to Conversations', () => {
+    expect(
+      resolveSessionCreateLocation({
+        agentId: 'grok',
+        activeScope: projectScope,
+      }),
+    ).toEqual({ useGeneral: true });
+  });
+
+  it('still inherits the open project for a Pi session', () => {
+    expect(
+      resolveSessionCreateLocation({
+        activeScope: projectScope,
+      }),
+    ).toEqual({ useGeneral: false, projectKey: '/repo/app' });
+  });
+});
+
+describe('resolveDraftCreateScopeForAgent', () => {
+  const projectScope = { kind: 'project' as const, projectPath: '/repo/app' };
+
+  it('does not treat an open project as a Grok binding', () => {
+    expect(
+      resolveDraftCreateScopeForAgent({
+        agentId: 'grok',
+        draftScope: projectScope,
+        explicitDraftScope: null,
+      }),
+    ).toEqual({ kind: 'general' });
+  });
+
+  it('keeps Grok under a project folder + draft', () => {
+    expect(
+      resolveDraftCreateScopeForAgent({
+        agentId: 'grok',
+        draftScope: projectScope,
+        explicitDraftScope: projectScope,
+      }),
+    ).toEqual(projectScope);
+  });
+
+  it('still inherits the open project for Pi', () => {
+    expect(
+      resolveDraftCreateScopeForAgent({
+        draftScope: projectScope,
+        explicitDraftScope: null,
+      }),
+    ).toEqual(projectScope);
+  });
+});
+
+describe('shouldMoveExternalDraftToConversations', () => {
+  it('leaves an open project when picking Grok on an empty unbound composer', () => {
+    expect(
+      shouldMoveExternalDraftToConversations({
+        agentId: 'grok',
+        activeSessionId: null,
+        activeScopeKind: 'project',
+        explicitDraftScopeKind: null,
+      }),
+    ).toBe(true);
+  });
+
+  it('does not leave a folder + Grok draft', () => {
+    expect(
+      shouldMoveExternalDraftToConversations({
+        agentId: 'grok',
+        activeSessionId: null,
+        activeScopeKind: 'project',
+        explicitDraftScopeKind: 'project',
+      }),
+    ).toBe(false);
   });
 });

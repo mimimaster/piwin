@@ -1,11 +1,12 @@
 /**
  * Fan-out body of a subagent group card (Inkstone proto-14 ①②).
  *
- * Left: the main agent as a display-only node (not focusable, not
- * clickable). Middle: one wire per child, coloured by its phase. Right: the
- * child rows, passed in as children. Wire geometry is pure arithmetic on the
- * row index (subagent-fanout-geometry.ts); a narrow card swaps the curves
- * for a tree rail through a container query, with the same rows.
+ * Left: the main agent node, which doubles as the group's fold control (the
+ * open card has no header bar). Middle: one wire per child, coloured by its
+ * phase. Right: the child rows, passed in as children. Wire geometry is pure
+ * arithmetic on the row index (subagent-fanout-geometry.ts); a narrow card
+ * swaps the curves for a tree rail through a container query, with the
+ * same rows, and lays the main node above the rail.
  */
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import type { SubagentLocale, SubagentRowPhase } from './subagent-card-view';
@@ -72,6 +73,10 @@ function Wires(props: {
 export function SubagentFanout(props: {
   nodes: readonly SubagentFanoutNode[];
   locale: SubagentLocale;
+  /** Group title ("N 个子代理"), named by the fold control. */
+  title: string;
+  /** The main node folds the group; the card has no header bar while open. */
+  onCollapse: () => void;
   children: ReactNode;
 }): ReactElement {
   const zh = props.locale === 'zh-CN';
@@ -79,13 +84,22 @@ export function SubagentFanout(props: {
     '--sa-fan-row-h': `${SUBAGENT_FANOUT_ROW_HEIGHT}px`,
     '--sa-fan-h': `${subagentFanoutHeight(props.nodes.length)}px`,
   } as CSSProperties;
+  const foldLabel = zh ? `收起 ${props.title}` : `Collapse ${props.title}`;
   return (
     <div className="subagent-fanout" data-testid="subagent-fanout" style={style}>
-      <div className="subagent-fanout-main" data-testid="subagent-fanout-main" aria-hidden="true">
+      <button
+        type="button"
+        className="subagent-fanout-main"
+        data-testid="subagent-fanout-main"
+        aria-expanded="true"
+        aria-label={foldLabel}
+        title={foldLabel}
+        onClick={props.onCollapse}
+      >
         <span className="subagent-seal subagent-fanout-main-seal">{zh ? '主' : 'M'}</span>
         <span className="subagent-fanout-main-name">{zh ? '主代理' : 'Main agent'}</span>
         <span className="subagent-fanout-main-sub">{mainNodeStatus(props.nodes, props.locale)}</span>
-      </div>
+      </button>
       <Wires nodes={props.nodes} variant="curve" />
       <Wires nodes={props.nodes} variant="rail" />
       <div className="subagent-fanout-rows">{props.children}</div>

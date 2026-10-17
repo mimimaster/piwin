@@ -19,7 +19,8 @@ import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 import { hostFailureNotice, isStaleQueuedTurnError } from '../host-problem-copy.js';
 import type { SteerQueueMessage } from '../steer-queue-model';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
-import { normalizeCompactCustomInstructions, parseComposerSlashSubmit } from '../slash';
+import { parseComposerSlashSubmit } from '../slash';
+import { runComposerReservedCommand } from './composer-reserved-command.js';
 import type { ComposerPromptRequestInput } from './use-composer-send.js';
 
 type PromptRequestParams = {
@@ -78,12 +79,12 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         return false;
       }
       const reserved = parseComposerSlashSubmit(text, []);
-      if (reserved.kind === 'command' && reserved.commandId === 'compact') {
-        const compacted = await args.onCompact?.(normalizeCompactCustomInstructions(reserved.args));
-        if (compacted !== false && overrideText === undefined) {
+      if (reserved.kind === 'command') {
+        const ran = await runComposerReservedCommand(reserved, args);
+        if (ran !== false && overrideText === undefined) {
           setComposer('');
         }
-        return compacted !== false;
+        return ran !== false;
       }
       if (!args.state.activeSessionId || !args.state.activeRunId || !args.state.streaming) {
         notifyError(attachmentCopy.steerUnavailable);
@@ -162,17 +163,15 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
     const text = composer.trim();
     const sessionId = args.state.activeSessionId;
     const reserved = parseComposerSlashSubmit(text, []);
-    if (reserved.kind === 'command' && reserved.commandId === 'compact') {
+    if (reserved.kind === 'command') {
       if (promptSubmissionInProgress.current) {
         return;
       }
       promptSubmissionInProgress.current = true;
       void (async () => {
         try {
-          const compacted = await args.onCompact?.(
-            normalizeCompactCustomInstructions(reserved.args),
-          );
-          if (compacted !== false) {
+          const ran = await runComposerReservedCommand(reserved, args);
+          if (ran !== false) {
             setComposer('');
           }
         } finally {
@@ -287,8 +286,8 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
       queuedSubmissions.current.add(submissionKey);
       try {
         const reserved = parseComposerSlashSubmit(target.input.text, []);
-        if (reserved.kind === 'command' && reserved.commandId === 'compact') {
-          await args.onCompact?.(normalizeCompactCustomInstructions(reserved.args));
+        if (reserved.kind === 'command') {
+          await runComposerReservedCommand(reserved, args);
           return;
         }
         const command = {

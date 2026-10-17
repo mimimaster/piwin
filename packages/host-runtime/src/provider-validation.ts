@@ -5,10 +5,12 @@
 import type { ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 import {
   createDefaultWalkthroughConfig,
+  describeRequestBodyIssue,
   isModelEnabled,
   isProviderEnabled,
   isSystemPromptRoleMode,
   isThinkingLevel,
+  validateModelRequestBody,
   validateNetworkConfig,
   validateWalkthroughConfig,
 } from '@piwin/contracts';
@@ -164,6 +166,14 @@ export function validateProviders(
           });
         }
         validateHeaderMap(model.headers, `${base}.models[${modelIndex}].headers`, issues);
+        if (model.extraBody !== undefined) {
+          for (const issue of validateModelRequestBody(model.extraBody)) {
+            issues.push({
+              path: `${base}.models[${modelIndex}].extraBody`,
+              message: describeRequestBodyIssue(issue),
+            });
+          }
+        }
         if (model.thinkingLevels !== undefined) {
           if (!Array.isArray(model.thinkingLevels) || model.thinkingLevels.length === 0) {
             issues.push({

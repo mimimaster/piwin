@@ -11,6 +11,7 @@ import {
   isV1SubscriptionProviderId,
   modelSupportsCapability,
   resolveModelEndpoint,
+  resolveModelRequestBody,
   resolveSupportsDeveloperRole,
 } from '@piwin/contracts';
 import type { SerializableProviderRuntime } from '@piwin/agent-host';
@@ -304,6 +305,7 @@ function buildProviderRuntime(
       .map((model) => {
         const endpoint = resolveModelEndpoint(provider, model);
         const supportsDeveloperRole = resolveSupportsDeveloperRole(provider, model);
+        const extraBody = resolveModelRequestBody(provider, model);
         return {
           id: model.id,
           ...(model.label ? { label: model.label } : {}),
@@ -319,6 +321,7 @@ function buildProviderRuntime(
           ...(endpoint.headers !== provider.headers && endpoint.headers
             ? { headers: endpoint.headers }
             : {}),
+          ...(extraBody ? { extraBody } : {}),
         };
       }),
     auth,

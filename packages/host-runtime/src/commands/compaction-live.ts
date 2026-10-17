@@ -386,6 +386,12 @@ function isModelResolutionError(error: unknown): boolean {
   );
 }
 
+/** Stable `compactTranscriptSnapshot` refusals; callers map them to problems. */
+export const SNAPSHOT_COMPACTION_ACTIVE_MESSAGE =
+  'compaction-active: compact-export already running for this session';
+export const SNAPSHOT_COMPACTION_CANCELLED_MESSAGE = 'Compaction cancelled';
+export const SNAPSHOT_COMPACTION_EMPTY_MESSAGE = 'Session has no messages to summarize';
+
 /**
  * Compact a disposable copy of the product transcript. `duplicate`'s public
  * command persists a new session, so this flow reuses its pure clone
@@ -399,7 +405,7 @@ export async function compactTranscriptSnapshot(
   if (context.compactExportOperations.has(record.id)) {
     return {
       ok: false,
-      message: 'compaction-active: compact-export already running for this session',
+      message: SNAPSHOT_COMPACTION_ACTIVE_MESSAGE,
     };
   }
   const operation: {
@@ -418,13 +424,13 @@ export async function compactTranscriptSnapshot(
   let operationError: unknown;
   try {
     if (operation.abortRequested) {
-      return { ok: false, message: 'Compaction cancelled' };
+      return { ok: false, message: SNAPSHOT_COMPACTION_CANCELLED_MESSAGE };
     }
     const history = await context.withTranscriptStore(record.id, (store) =>
       store.buildHistoryWindow({ maxMessages: 200, maxChars: 200_000 }),
     );
     if (operation.abortRequested) {
-      return { ok: false, message: 'Compaction cancelled' };
+      return { ok: false, message: SNAPSHOT_COMPACTION_CANCELLED_MESSAGE };
     }
     const snapshotMessages: SessionTranscriptMessage[] = history.map((message, index) => ({
       id: `compact-history-${index}`,
@@ -435,7 +441,7 @@ export async function compactTranscriptSnapshot(
     }));
     const seedMessages = buildCompactionSeedMessages(snapshotMessages);
     if (seedMessages.length === 0) {
-      return { ok: false, message: 'Session has no messages to summarize' };
+      return { ok: false, message: SNAPSHOT_COMPACTION_EMPTY_MESSAGE };
     }
     seedMessages.push({
       role: 'user',
@@ -468,7 +474,7 @@ export async function compactTranscriptSnapshot(
     operation.temporarySession = temporarySession;
     if (operation.abortRequested) {
       temporarySession.abortCompaction?.();
-      return { ok: false, message: 'Compaction cancelled' };
+      return { ok: false, message: SNAPSHOT_COMPACTION_CANCELLED_MESSAGE };
     }
     let result: SessionCompactResult;
     try {
@@ -480,14 +486,14 @@ export async function compactTranscriptSnapshot(
         { persistBoundary: false },
       );
     } catch (error) {
-      if (operation.abortRequested) return { ok: false, message: 'Compaction cancelled' };
+      if (operation.abortRequested) return { ok: false, message: SNAPSHOT_COMPACTION_CANCELLED_MESSAGE };
       // The temporary session only runs the summarizer call, so a failure here
       // is the provider refusing or failing on this model.
       throw new SummaryModelError(model, formatError(error));
     }
     // A provider may resolve successfully while its abort request is in flight.
     // Once cancellation is accepted, callers must not publish that summary.
-    return operation.abortRequested ? { ok: false, message: 'Compaction cancelled' } : result;
+    return operation.abortRequested ? { ok: false, message: SNAPSHOT_COMPACTION_CANCELLED_MESSAGE } : result;
   } catch (error) {
     operationFailed = true;
     operationError = error;

@@ -76,6 +76,9 @@ for (const handoff of [false, true]) {
       );
       await expect(page.getByTestId('message-bubble')).toHaveCount(0);
       await expect(page.getByTestId('composer-input')).toHaveValue('');
+      await page.getByTestId('handoff-summary-preview-trigger').click();
+      await expect(page.getByTestId('handoff-summary-preview-text')).toContainText('Goal: continue');
+      await page.keyboard.press('Escape');
       await page.locator('[data-origin-kind="handoff"]:visible').click();
     } else {
       await page.getByTestId('response-fork-btn').click();

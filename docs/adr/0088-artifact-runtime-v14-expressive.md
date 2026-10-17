@@ -270,6 +270,54 @@ components, as the stable route beside free-form output.
 Verification and remaining packaged/mobile checks:
 [2026-10-12 continuation evidence](../evidence/2026-10-12-artifact-v14-continuation.md).
 
+## Dense, flat reports and handoff lanes (2026-10-17)
+
+Owner feedback on a Canvas attack-chain report: the swimlane was unreadable.
+Seven phases split the width evenly, every step was a bordered, shadowed card
+inside a bordered cell, CJK text broke into two-character lines, half the
+cells were empty boxes, and nothing showed which actor handed what to whom.
+The rest of the report repeated the pattern (gradient hero, a shadowed box per
+number). Research basis: swimlanes exist to show ownership *and* handoffs, and
+a cross-lane handoff should be labelled (Mermaid swimlane guide, Lucidchart);
+non-data ink — borders, boxes, shadows — should be removed or lightened and
+whitespace used instead of containers (Tufte; Few, *Information Dashboard
+Design*); many steps read better top-down, as in a sequence diagram.
+
+37. **Lanes are text on bands.** A lane step is a line of text with a status
+    dot, not a card. Every other lane carries a faint wash; columns have a
+    minimum width (7.5em, 10em running down) so short CJK phrases stay whole;
+    the Inline column (sandbox `inline-flow` and the static renderer) keeps
+    4.5em so the chat column never overflows. Toned steps are bold; `risk`
+    also colors the text.
+38. **Handoffs and order are drawn.** `data-to="<actor>"` on a step prints
+    "→ actor" beneath it in the `info` tone (some host accents are red and
+    would read as a fault). Phase headers carry ordinals joined by chevrons.
+    `data-dir="down"` is the transposed table — actors in `thead`, one row
+    per phase — with the ordinals on a vertical rail; the reference tells the
+    model to use it past five phases or for longer steps. Still CSS only and
+    zero specificity; a shell without the sheet shows the plain table, and
+    `data-to` is only lost visually there. Item 26's "no arrows between lanes"
+    is narrowed to: no drawn cross-lane connectors (they need layout the CSS
+    kit cannot do); the labelled handoff carries the same fact.
+39. **Flat by default.** Flow steps lose their drop shadow. v14 report stats
+    become a metric strip (a hairline before each figure, toned figures
+    color it) instead of shadowed tiles; v14 `h2` spacing tightens. The hero
+    drops its gradient box for a masthead with one rule under it; the
+    recommended `piwin-compare` option keeps an accent border and tint but no
+    shadow or top bar. Legacy-rule report CSS is unchanged.
+40. **Prompt.** Decision prompt v14 adds a density paragraph: conclusion and
+    its explaining figure first, text on the page grouped by whitespace and
+    rules, boxes only for what stands apart, short phrases per step/cell,
+    color for status and handoffs. Runtime contract v17 replaces "quiet with
+    depth / one hero may use a gradient" with "flat and quiet", shadows for
+    floating layers only. The lanes reference documents `data-to` and
+    `data-dir="down"`.
+41. **Evidence.** Before/after at Canvas width, light and dark, plus the
+    Inline showcase: `docs/evidence/2026-10-17-canvas-report-before.png`,
+    `…-canvas-report-dense-light.png`, `…-canvas-report-dense-dark.png`,
+    `…-lanes-inline-down.png`. Not verified: WebKit (packaged Tauri) and a
+    live model run under the new prompts.
+
 ## Canvas toolbar trimmed (2026-10-13)
 
 Owner direction: the Canvas toolbar carried too many controls. This

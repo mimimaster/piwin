@@ -1,6 +1,7 @@
 /** Provider/model configuration and pure defaults. */
 import { THINKING_LEVEL_OPTIONS } from './host.js';
 import type { ThinkingLevel } from './host.js';
+import type { ModelRequestBody } from './model-request-body.js';
 import type { ModelSource } from './subscription-oauth.js';
 import type { SystemPromptRoleMode } from './system-prompt-role.js';
 
@@ -179,6 +180,12 @@ export type ModelConfigEntry = {
    * Resolve through `resolveModelEndpoint` / `resolveModelHeaders`.
    */
   headers?: Record<string, string>;
+  /**
+   * Custom JSON deep-merged into every request body for this model (ADR 0095),
+   * e.g. OpenRouter `provider` routing. Resolve through
+   * `resolveModelRequestBody`; ignored on subscriptions.
+   */
+  extraBody?: ModelRequestBody;
   /**
    * Whether this model is available for use. Default true when omitted.
    * Disabled models remain in config but are excluded from Pi registration,

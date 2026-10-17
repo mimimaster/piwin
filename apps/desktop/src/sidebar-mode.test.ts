@@ -62,7 +62,7 @@ describe('filterSidebarRowsByMode', () => {
     ]);
   });
 
-  it('keeps a pinned Grok session out of the chat pane', () => {
+  it('keeps a pinned general Grok session in the chat pane', () => {
     const rows: SidebarTreeRow[] = [
       header('pinned'),
       session('pinned-grok', 'general', 'grok'),
@@ -72,14 +72,12 @@ describe('filterSidebarRowsByMode', () => {
     ];
     expect(keys(filterSidebarRowsByMode(rows, 'chat'))).toEqual([
       'section:pinned',
+      'session:pinned-grok',
       'session:pinned-chat',
       'section:conversations',
       'session:chat-a',
     ]);
-    expect(keys(filterSidebarRowsByMode(rows, 'code'))).toEqual([
-      'section:pinned',
-      'session:pinned-grok',
-    ]);
+    expect(keys(filterSidebarRowsByMode(rows, 'code'))).toEqual([]);
   });
 
   it('drops the pinned header when this pane has nothing pinned', () => {

@@ -15,6 +15,7 @@ import {
   IconTerminal,
 } from './shell-icons';
 import type { PendingContextRefItem } from './hooks/use-composer-context-refs';
+import { HandoffSummaryChip, type HandoffSummaryPreview } from './handoff-summary-chip';
 
 export type ContextRefChipProps = {
   item:
@@ -25,6 +26,8 @@ export type ContextRefChipProps = {
         key?: string | undefined;
       };
   onRemove?: ((key: string) => void) | undefined;
+  /** Loads the stored summary when the handoff chip is opened. */
+  onLoadHandoffSummary?: ((sessionId: string) => Promise<HandoffSummaryPreview>) | undefined;
 };
 
 export function formatContextRefChipCaption(ref: PromptContextRef): {
@@ -116,10 +119,22 @@ function ContextRefKindIcon(props: { kind: PromptContextRef['kind'] }): ReactEle
   }
 }
 
-export function ContextRefChip({ item, onRemove }: ContextRefChipProps): ReactElement {
+export function ContextRefChip({ item, onRemove, onLoadHandoffSummary }: ContextRefChipProps): ReactElement {
   const caption = formatContextRefChipCaption(item.ref);
-  const error = item.ref.kind === 'error';
   const itemKey = 'key' in item && item.key ? item.key : undefined;
+  if (item.ref.kind === 'session-handoff' && onLoadHandoffSummary) {
+    return (
+      <HandoffSummaryChip
+        label={item.label || caption.title}
+        meta={caption.meta}
+        sessionId={item.ref.sessionId}
+        onLoad={onLoadHandoffSummary}
+        {...(itemKey ? { shelfId: itemKey } : {})}
+        {...(onRemove && itemKey ? { onRemove: () => onRemove(itemKey) } : {})}
+      />
+    );
+  }
+  const error = item.ref.kind === 'error';
   const itemLabel = item.label || caption.title;
   return (
     <div

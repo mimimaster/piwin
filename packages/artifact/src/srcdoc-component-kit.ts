@@ -55,13 +55,12 @@ export function buildArtifactComponentKitCss(): string {
   font-weight: 400;
 }
 
-/* Hero: the one place a host artifact uses a gradient. */
+/* Hero: the page's masthead. Type and one rule give it weight; it sits on
+   the page like the text below it rather than in a tinted box. */
 :where(.piwin-hero) {
-  margin: 0 0 1.7em;
-  padding: clamp(18px, 4.5vw, 30px) clamp(18px, 5vw, 34px);
-  border: 1px solid ${mix('accent', 20)};
-  border-radius: var(--piwin-artifact-radius-lg);
-  background: linear-gradient(135deg, ${mix('accent', 15)}, ${mix('accent-2', 6)} 62%, transparent);
+  margin: 0 0 1.6em;
+  padding: 0 0 1.15em;
+  border-bottom: 1px solid ${RULE};
 }
 :where(.piwin-hero) :where(h1, h2) {
   margin: 0;
@@ -222,9 +221,8 @@ export function buildArtifactComponentKitCss(): string {
   background: ${SURFACE};
 }
 :where(.piwin-compare > [data-pick]) {
-  border-color: ${mix('accent', 55)};
+  border-color: var(--piwin-artifact-accent);
   background: ${mix('accent', 5, SURFACE)};
-  box-shadow: inset 0 3px 0 var(--piwin-artifact-accent), var(--piwin-artifact-shadow-2);
 }
 :where(.piwin-compare > *) > :where(h2, h3, h4) {
   margin: 0 0 0.45em;

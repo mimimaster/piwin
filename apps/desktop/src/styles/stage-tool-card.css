@@ -1,0 +1,174 @@
+/* Idle tool rail in the stage's right gutter (right panel closed).
+
+   The dock spans the stage, ignores the pointer, and is the size container,
+   so the rail adapts to the gutter left beside the 760px measure in every
+   theme: labels when the gutter fits them, an icon column when it only fits
+   icons, nothing when it would cover the transcript.
+   `.chat-stage > *` forces children relative; this selector outranks it. */
+.chat-stage > .stage-tool-dock {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  container: stage-tool-dock / inline-size;
+}
+
+.stage-tool-card {
+  --rail-ink: var(--text-3);
+  --rail-ink-strong: var(--text-1);
+  --rail-icon: var(--text-4, var(--text-3));
+  --rail-hover: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  --rail-add: var(--add-text, var(--mint));
+  --rail-del: var(--del-text, var(--danger));
+
+  position: absolute;
+  top: 10px;
+  /* Clear the history tick strip (right --s-5, 24px + --s-3 wide). */
+  right: calc(var(--s-5, 12px) + 24px + var(--s-3, 6px) + 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 148px;
+  padding: 4px;
+  pointer-events: auto;
+  opacity: 0.7;
+  transition: opacity 160ms var(--ease-out, ease-out);
+}
+
+.stage-tool-card:hover,
+.stage-tool-card:focus-within {
+  opacity: 1;
+}
+
+.stage-tool-card-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--rail-ink);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 120ms var(--ease-out, ease-out),
+    color 120ms var(--ease-out, ease-out);
+}
+
+.stage-tool-card-row:hover {
+  color: var(--rail-ink-strong);
+}
+
+.stage-tool-card-row:focus-visible {
+  background: var(--rail-hover);
+  color: var(--rail-ink-strong);
+  outline: none;
+}
+
+.stage-tool-card-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--rail-icon);
+}
+
+.stage-tool-card-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.stage-tool-card-row:hover .stage-tool-card-icon {
+  color: var(--rail-ink-strong);
+}
+
+/* Only shown in the icon column, where the stat itself has no room. */
+.stage-tool-card-dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  display: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--rail-add);
+}
+
+.stage-tool-card-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stage-tool-card-stat {
+  display: inline-flex;
+  gap: 5px;
+  flex: none;
+  font: 500 11px/1 var(--mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.stage-tool-card-add {
+  color: var(--rail-add);
+}
+
+.stage-tool-card-del {
+  color: var(--rail-del);
+}
+
+/* Gutter = (stage − 760 measure − 48 stream padding) / 2. With the 50px
+   tick-strip offset, labels need ~212px of it and the icon column ~98px;
+   below that the rail would sit on the text. */
+@container stage-tool-dock (max-width: 1232px) {
+  .stage-tool-card {
+    width: auto;
+    padding: 3px;
+  }
+
+  .stage-tool-card-row {
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+  }
+
+  .stage-tool-card-label,
+  .stage-tool-card-stat {
+    display: none;
+  }
+
+  .stage-tool-card-dot {
+    display: block;
+  }
+}
+
+@container stage-tool-dock (max-width: 1004px) {
+  .stage-tool-card {
+    display: none;
+  }
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-tool-card {
+  --rail-ink: var(--t3);
+  --rail-ink-strong: var(--t1);
+  --rail-icon: var(--t4);
+  --rail-hover: color-mix(in srgb, var(--s3) 80%, transparent);
+  --rail-add: var(--pine);
+  --rail-del: var(--crimson);
+
+  /* Top-aligns the first row with the first message bubble. */
+  top: calc(var(--titleband-height) - 14px);
+  font-family: var(--sans);
+}

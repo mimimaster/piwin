@@ -41,6 +41,7 @@ export function getHostRequestTimeoutMs(
   switch (command.type) {
     case 'session/compact':
     case 'session/compact-export':
+    case 'session/handoff':
       return HOST_REQUEST_NO_TIMEOUT_MS;
     case 'session/prompt':
     case 'session/abort':

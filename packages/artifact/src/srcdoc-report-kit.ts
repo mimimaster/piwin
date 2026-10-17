@@ -43,8 +43,21 @@ ${within('h1')} {
   font-weight: 700;
   letter-spacing: -0.02em;
 }
+${within('h2')} {
+  margin-top: 2.1em;
+}
+/* Stats read as one metric strip: a hairline before each figure, colored
+   only when the figure carries a status. A box per number is ink that
+   encodes nothing. */
 ${within('.piwin-stat')} {
-  box-shadow: var(--piwin-artifact-shadow-1);
+  padding: 0.1em 0 0.1em 0.95em;
+  border: 0;
+  border-left: 2px solid var(--piwin-kit-rule);
+  border-radius: 0;
+  background: none;
+}
+${within('.piwin-stat[data-tone]')} {
+  border-left-color: var(--piwin-kit-tone);
 }
 ${within('.piwin-stat > span, .piwin-meta')} {
   display: inline-flex;

@@ -12,8 +12,9 @@ declare global {
 function Probe(props: {
   activeAgentId: string | undefined;
   setSidebarMode: (mode: SidebarMode) => void;
+  activeScopeKind?: 'general' | 'project';
 }): ReactElement {
-  useSyncSidebarModeForAgent(props.activeAgentId, props.setSidebarMode);
+  useSyncSidebarModeForAgent(props.activeAgentId, props.setSidebarMode, props.activeScopeKind);
   return <div />;
 }
 
@@ -40,31 +41,49 @@ describe('useSyncSidebarModeForAgent', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
-  it('snaps to code when a Grok session becomes active', () => {
+  it('snaps to code when a project Grok session becomes active', () => {
     const setSidebarMode = vi.fn();
     act(() => {
-      root.render(<Probe activeAgentId="pi" setSidebarMode={setSidebarMode} />);
+      root.render(
+        <Probe activeAgentId="pi" activeScopeKind="project" setSidebarMode={setSidebarMode} />,
+      );
     });
     expect(setSidebarMode).not.toHaveBeenCalled();
 
     act(() => {
-      root.render(<Probe activeAgentId="grok" setSidebarMode={setSidebarMode} />);
+      root.render(
+        <Probe activeAgentId="grok" activeScopeKind="project" setSidebarMode={setSidebarMode} />,
+      );
     });
     expect(setSidebarMode).toHaveBeenCalledTimes(1);
     expect(setSidebarMode).toHaveBeenCalledWith('code');
   });
 
-  it('does not bounce to code when Chat is opened on an already-active Grok session', () => {
+  it('snaps to chat when a Loose Grok session becomes active', () => {
     const setSidebarMode = vi.fn();
     act(() => {
-      root.render(<Probe activeAgentId="grok" setSidebarMode={setSidebarMode} />);
+      root.render(
+        <Probe activeAgentId="grok" activeScopeKind="general" setSidebarMode={setSidebarMode} />,
+      );
+    });
+    expect(setSidebarMode).toHaveBeenCalledWith('chat');
+  });
+
+  it('does not bounce to code when Chat is opened on an already-active project Grok session', () => {
+    const setSidebarMode = vi.fn();
+    act(() => {
+      root.render(
+        <Probe activeAgentId="grok" activeScopeKind="project" setSidebarMode={setSidebarMode} />,
+      );
     });
     expect(setSidebarMode).toHaveBeenCalledWith('code');
     setSidebarMode.mockClear();
 
     // Parent re-render after the user clicks Chat — same Grok agent stays selected.
     act(() => {
-      root.render(<Probe activeAgentId="grok" setSidebarMode={setSidebarMode} />);
+      root.render(
+        <Probe activeAgentId="grok" activeScopeKind="project" setSidebarMode={setSidebarMode} />,
+      );
     });
     expect(setSidebarMode).not.toHaveBeenCalled();
   });

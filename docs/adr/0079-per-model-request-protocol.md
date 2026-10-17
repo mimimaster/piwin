@@ -63,9 +63,13 @@ and normalizing an OpenAI-style `/v1` base for Gemini
 6. Model discovery, connection tests and image/video/speech routes stay
    provider-level; image/video already have per-model routes (ADR 0034).
 7. Settings: the model editor and Add Model on channel providers expose
-   **请求协议**: 跟随服务商 / OpenAI / Anthropic / Gemini. The model editor also
-   has **请求头** rows (hidden on subscriptions), the same widget as the
-   provider's advanced headers.
+   **请求协议**: 跟随服务商 / OpenAI / Anthropic / Gemini. Request headers
+   live in the **自定义请求** section (ADR 0095) of both the model editor and
+   Add Model (hidden on subscriptions): rows by default, or a JSON object
+   (`{"Name": "value"}`) for pasting; switching back to rows requires valid
+   JSON. The same section holds the per-model request body.
+8. The per-model test (`models/test`) sends the model's resolved headers and
+   request body, so it probes what chat actually sends.
 
 ## Consequences
 

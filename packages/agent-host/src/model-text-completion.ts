@@ -1,8 +1,10 @@
 /** One tool-free Pi completion, including native subscription authentication. */
 import { join } from 'node:path';
 import type { ModelProviderConfig, ModelTextCompletionInput } from '@piwin/contracts';
-import { isCloudCredentialProtocol } from '@piwin/contracts';
-import { buildPiProviderRegistration } from './pi-model-runtime.js';
+import {
+  buildPiProviderRegistration,
+  completionNeedsRegistrationStream,
+} from './pi-model-runtime.js';
 import { resolvePiRuntimeAgentDir } from './pi-runtime-agent-dir.js';
 
 export class ModelTextCompletionError extends Error {
@@ -30,10 +32,9 @@ export async function completeModelText(
   if (options.provider) {
     // No native search route: classification must never acquire tools.
     const { streamSimple, ...registration } = buildPiProviderRegistration(options.provider, options.apiKey);
-    // Cloud rows need their stream wrapper to carry project/location/region.
     runtime.registerProvider(
       options.provider.id,
-      isCloudCredentialProtocol(options.provider.protocol) && streamSimple
+      completionNeedsRegistrationStream(options.provider, input.model.modelId) && streamSimple
         ? ({ ...registration, streamSimple } as never)
         : registration,
     );

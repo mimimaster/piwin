@@ -84,14 +84,9 @@ export async function syncExternalSessionCatalog(
         existing.updatedAt = updatedAt;
         changed = true;
       }
-      if (existing.scope?.kind === 'general') {
-        const projectPath = input.resolveProjectPath(entry.cwd ?? existing.workingDirectory);
-        if (projectPath !== '') {
-          existing.projectPath = projectPath;
-          existing.scope = { kind: 'project', projectPath };
-          changed = true;
-        }
-      }
+      // Product-created Loose Grok stays in Conversations. New catalog rows
+      // still map by cwd; do not yank an existing general session into a
+      // matching project just because the adapter reports that directory.
       if (changed) {
         result.updated.push(existing);
       }

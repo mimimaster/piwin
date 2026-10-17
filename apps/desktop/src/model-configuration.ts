@@ -15,6 +15,7 @@ import type {
   ModelConfigEntry,
   ModelInputModality,
   ModelProviderConfig,
+  ModelRequestBody,
   ModelRouteConfig,
   NativeSearchAdapterKind,
   NativeSearchAdapterOptions,
@@ -31,6 +32,11 @@ import {
   looksLikeAbsoluteUrl,
 } from './generation-route-defaults.js';
 import { getDefaultThinkingLevelsForProtocol } from './model-thinking-policy.js';
+import {
+  formatRequestBodyText,
+  parseHeadersJsonText,
+  parseRequestBodyText,
+} from './model-request-overrides.js';
 import { headersToRows, rowsToHeaders, type HeaderDraftRow } from './provider-draft.js';
 import { isVideoApiStyle } from './video-generation-model-config.js';
 
@@ -71,6 +77,16 @@ export type ModelConfigurationDraft = {
    * not manage headers, so applying the draft keeps the stored ones.
    */
   headerRows?: HeaderDraftRow[];
+  /**
+   * Raw JSON text of the headers while the header editor is in JSON mode;
+   * when present it wins over `headerRows`. Omitted = rows mode.
+   */
+  headersJsonText?: string;
+  /**
+   * Raw JSON text of `extraBody` (ADR 0095). Omitted = the editor does not
+   * manage the body, so applying the draft keeps the stored one.
+   */
+  extraBodyText?: string;
   imageApiStyle: ImageGenerationApiStyle | '';
   imagePath: string;
   imageTimeoutSeconds: string;
@@ -153,6 +169,7 @@ export function createModelConfigurationDraft(
     ...(effective.protocol ? { protocol: effective.protocol } : {}),
     ...(effective.systemPromptRole ? { systemPromptRole: effective.systemPromptRole } : {}),
     headerRows: headersToRows(effective.headers),
+    extraBodyText: formatRequestBodyText(effective.extraBody),
     ...hydrateGenerationRouteDraft(
       effective.id,
       protocol,
@@ -211,9 +228,13 @@ export function createModelConfigurationEntry(
   if (draft.systemPromptRole) {
     model.systemPromptRole = draft.systemPromptRole;
   }
-  const headers = rowsToHeaders(draft.headerRows ?? []);
+  const headers = resolveDraftHeaders(draft);
   if (headers) {
     model.headers = headers;
+  }
+  const extraBody = resolveDraftExtraBody(draft);
+  if (extraBody) {
+    model.extraBody = extraBody;
   }
   const capabilities: ModelCapability[] = [];
   if (draft.supportsImageGeneration) {
@@ -247,6 +268,26 @@ export function createModelConfigurationEntry(
     model.routes = routes;
   }
   return model;
+}
+
+/** Headers the draft describes: JSON text when in JSON mode, otherwise rows. Invalid → none. */
+export function resolveDraftHeaders(
+  draft: Pick<ModelConfigurationDraft, 'headerRows' | 'headersJsonText'>,
+): Record<string, string> | undefined {
+  if (draft.headersJsonText !== undefined) {
+    const parsed = parseHeadersJsonText(draft.headersJsonText);
+    return parsed.ok ? parsed.headers : undefined;
+  }
+  return rowsToHeaders(draft.headerRows ?? []);
+}
+
+/** Custom request body the draft describes; blank or invalid → none. */
+export function resolveDraftExtraBody(
+  draft: Pick<ModelConfigurationDraft, 'extraBodyText'>,
+): ModelRequestBody | undefined {
+  if (draft.extraBodyText === undefined) return undefined;
+  const parsed = parseRequestBodyText(draft.extraBodyText);
+  return parsed.ok ? parsed.body : undefined;
 }
 
 /** Write adapter + options owned by the editor; clear them when the tag is off. */
@@ -293,12 +334,21 @@ export function validateModelConfigurationDraft(draft: ModelConfigurationDraft):
       return `${label} must be a positive integer.`;
     }
   }
-  const headerNames = new Set<string>();
-  for (const row of draft.headerRows ?? []) {
-    const name = row.name.trim().toLowerCase();
-    if (!name || !row.value.trim()) continue;
-    if (headerNames.has(name)) return `Request header "${row.name.trim()}" is set twice.`;
-    headerNames.add(name);
+  if (draft.headersJsonText !== undefined) {
+    if (!parseHeadersJsonText(draft.headersJsonText).ok) {
+      return 'Request headers JSON is invalid.';
+    }
+  } else {
+    const headerNames = new Set<string>();
+    for (const row of draft.headerRows ?? []) {
+      const name = row.name.trim().toLowerCase();
+      if (!name || !row.value.trim()) continue;
+      if (headerNames.has(name)) return `Request header "${row.name.trim()}" is set twice.`;
+      headerNames.add(name);
+    }
+  }
+  if (draft.extraBodyText !== undefined && !parseRequestBodyText(draft.extraBodyText).ok) {
+    return 'Custom request body JSON is invalid.';
   }
   if (draft.thinkingLevel && !draft.thinkingLevels.includes(draft.thinkingLevel)) {
     return 'The default thinking effort must be one of the supported levels.';
@@ -364,7 +414,10 @@ export function applyModelConfigurationDraft(
   if (!draft.tooltipMarkdown.trim()) delete updated.tooltipMarkdown;
   if (!draft.protocol) delete updated.protocol;
   if (!draft.systemPromptRole) delete updated.systemPromptRole;
-  if (draft.headerRows && !entry.headers) delete updated.headers;
+  if ((draft.headerRows || draft.headersJsonText !== undefined) && !entry.headers) {
+    delete updated.headers;
+  }
+  if (draft.extraBodyText !== undefined && !entry.extraBody) delete updated.extraBody;
   // Preserve capability tags that this editor does not expose while replacing
   // the generation, speech, and native-search flags it owns.
   const preservedCapabilities = (original.capabilities ?? []).filter(

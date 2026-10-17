@@ -39,6 +39,39 @@ describe('testProviderModel', () => {
     expect(result.modelId).toBe('coding-model');
   });
 
+  it('probes with the model headers and custom request body (ADR 0095)', async () => {
+    let requestedBody = '';
+    let routeHeader = '';
+    await testProviderModel(
+      createProvider({
+        baseUrl: 'https://openrouter.ai/api/v1',
+        headers: { 'X-Title': 'piwin' },
+        models: [
+          {
+            id: 'anthropic/claude-sonnet-4.5',
+            headers: { 'X-Route': 'fast' },
+            extraBody: { provider: { order: ['anthropic'], allow_fallbacks: false } },
+          },
+        ],
+      }),
+      'anthropic/claude-sonnet-4.5',
+      {
+        resolveSecret: async () => 'or-secret',
+        fetch: async (_input, init) => {
+          requestedBody = String(init?.body);
+          routeHeader = new Headers(init?.headers).get('x-route') ?? '';
+          return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        },
+      },
+    );
+    expect(routeHeader).toBe('fast');
+    expect(JSON.parse(requestedBody)).toMatchObject({
+      model: 'anthropic/claude-sonnet-4.5',
+      max_tokens: 1,
+      provider: { order: ['anthropic'], allow_fallbacks: false },
+    });
+  });
+
   it('uses the configured Gemini model resource for a real generation probe', async () => {
     let requestedUrl = '';
     let requestedBody = '';

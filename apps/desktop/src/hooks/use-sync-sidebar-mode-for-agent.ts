@@ -3,19 +3,26 @@ import { isPiwinConversationAgent } from '../is-conversation-session';
 import type { SidebarMode } from '../sidebar-mode';
 
 /**
- * Non-pi agents (Grok, etc.) live in the code pane. Snap there when such a
- * session becomes active.
+ * Project-scoped external agents (Grok in a repo folder) live in the code
+ * pane. Snap there when such a session becomes active. A Loose / Conversations
+ * Grok session stays in chat — do not bounce it under the project list.
  *
- * Depend only on `activeAgentId` — not the current pane. Clicking Chat while
- * Grok is still selected must not bounce the sidebar back to code.
+ * Depend on agent + scope kind, not the current pane, so clicking the other
+ * tab on an already-active session does not fight the user.
  */
 export function useSyncSidebarModeForAgent(
   activeAgentId: string | undefined,
   setSidebarMode: (mode: SidebarMode) => void,
+  activeScopeKind?: 'general' | 'project',
 ): void {
   useEffect(() => {
-    if (activeAgentId !== undefined && !isPiwinConversationAgent(activeAgentId)) {
-      setSidebarMode('code');
+    if (activeAgentId === undefined || isPiwinConversationAgent(activeAgentId)) {
+      return;
     }
-  }, [activeAgentId, setSidebarMode]);
+    if (activeScopeKind === 'project') {
+      setSidebarMode('code');
+    } else if (activeScopeKind === 'general') {
+      setSidebarMode('chat');
+    }
+  }, [activeAgentId, activeScopeKind, setSidebarMode]);
 }

@@ -1,5 +1,9 @@
 import type { ModelProviderConfig } from '@piwin/contracts';
-import { resolveModelEndpointById } from '@piwin/contracts';
+import {
+  mergeModelRequestBody,
+  resolveModelEndpointById,
+  resolveModelRequestBody,
+} from '@piwin/contracts';
 
 /** Max chars for an LLM-generated session title. */
 const MAX_TITLE_CHARS = 80;
@@ -101,15 +105,17 @@ async function fetchOpenAiCompatible(
     method: 'POST',
     headers,
     ...(signal ? { signal } : {}),
-    body: JSON.stringify({
-      model: modelId,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      max_tokens: MAX_TITLE_TOKENS,
-      temperature: 0.3,
-    }),
+    body: JSON.stringify(
+      withModelRequestBody(provider, modelId, {
+        model: modelId,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        max_tokens: MAX_TITLE_TOKENS,
+        temperature: 0.3,
+      }),
+    ),
   });
   if (!response.ok) return null;
   const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
@@ -135,16 +141,30 @@ async function fetchAnthropicCompatible(
     method: 'POST',
     headers,
     ...(signal ? { signal } : {}),
-    body: JSON.stringify({
-      model: modelId,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-      max_tokens: MAX_TITLE_TOKENS,
-    }),
+    body: JSON.stringify(
+      withModelRequestBody(provider, modelId, {
+        model: modelId,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+        max_tokens: MAX_TITLE_TOKENS,
+      }),
+    ),
   });
   if (!response.ok) return null;
   const data = (await response.json()) as { content?: Array<{ type: string; text?: string }> };
   return cleanTitle(data.content?.find((b) => b.type === 'text')?.text);
+}
+
+/** ADR 0095: the model's custom body rides along on every request it sends. */
+function withModelRequestBody(
+  provider: ModelProviderConfig,
+  modelId: string,
+  body: Record<string, unknown>,
+): unknown {
+  return mergeModelRequestBody(
+    body,
+    resolveModelRequestBody(provider, provider.models.find((model) => model.id === modelId)),
+  );
 }
 
 function cleanTitle(raw: string | undefined): string | null {

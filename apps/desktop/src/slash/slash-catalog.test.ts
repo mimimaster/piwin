@@ -295,3 +295,47 @@ describe('extension command purpose discovery', () => {
     }
   });
 });
+
+describe('buildSlashCatalog — handoff', () => {
+  it('offers /handoff only when the Host and session support it', () => {
+    const base = { skills, hasActiveSession: true, projectTrusted: true };
+    expect(buildSlashCatalog(base).some((item) => item.id === 'cmd:handoff')).toBe(false);
+    const item = buildSlashCatalog({ ...base, handoffSupported: true }).find(
+      (entry) => entry.id === 'cmd:handoff',
+    );
+    expect(item).toMatchObject({ kind: 'command', available: true, acceptsArgs: true });
+    expect(
+      buildSlashCatalog({ ...base, handoffSupported: true, backendSession: true }).some(
+        (entry) => entry.id === 'cmd:handoff',
+      ),
+    ).toBe(false);
+  });
+
+  it('explains why /handoff is unavailable while a run streams or without a session', () => {
+    const streaming = buildSlashCatalog({
+      skills,
+      hasActiveSession: true,
+      projectTrusted: true,
+      handoffSupported: true,
+      streaming: true,
+    }).find((entry) => entry.id === 'cmd:handoff');
+    expect(streaming).toMatchObject({
+      available: false,
+      unavailableReason: 'Wait for the current run to finish',
+    });
+    const draft = buildSlashCatalog({ skills, handoffSupported: true }).find(
+      (entry) => entry.id === 'cmd:handoff',
+    );
+    expect(draft).toMatchObject({ available: false, unavailableReason: 'Start or select a session first' });
+  });
+
+  it('matches the Chinese keyword', () => {
+    const catalog = buildSlashCatalog({
+      skills,
+      hasActiveSession: true,
+      projectTrusted: true,
+      handoffSupported: true,
+    });
+    expect(filterSlashItems(catalog, 'hand').map((item) => item.id)).toContain('cmd:handoff');
+  });
+});

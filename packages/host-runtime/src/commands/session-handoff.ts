@@ -14,6 +14,10 @@ import type {
   SessionCompactResult,
   SessionHandoffContextRef,
   SessionHandoffData,
+  SessionHandoffRefusedProblem,
+  SessionHandoffRefusedReason,
+  SessionHandoffSummaryData,
+  SessionHandoffSummaryMissingProblem,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { deleteSessionRecord, getSessionRecord, updateSessionRecord } from '@piwin/session';
@@ -22,14 +26,20 @@ import { getPiwinRoot, getPiwinSessionDir, getPiwinSessionIndexPath } from '../p
 import { createProductSessionId } from '../product-agent-host.js';
 import { fail, ok } from '../response-helpers.js';
 import { rejectUnavailableSessionBody } from '../session-body-guard.js';
-import { writeSessionHandoffSummary } from '../session-handoff-store.js';
+import { readStoredHandoffSummary, writeSessionHandoffSummary } from '../session-handoff-store.js';
 import { SummaryModelError } from '../summary-model-error.js';
 import { sessionIndexUpdatedPush } from '../session-index-push.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
-import { compactTranscriptSnapshot } from './compaction-live.js';
+import {
+  SNAPSHOT_COMPACTION_ACTIVE_MESSAGE,
+  SNAPSHOT_COMPACTION_CANCELLED_MESSAGE,
+  SNAPSHOT_COMPACTION_EMPTY_MESSAGE,
+  compactTranscriptSnapshot,
+} from './compaction-live.js';
 import type { SessionLiveContext } from './session-live-context.js';
 
 type HandoffCommand = Extract<HostCommand, { type: 'session/handoff' }>;
+type HandoffSummaryCommand = Extract<HostCommand, { type: 'session/handoff-summary' }>;
 
 export const SESSION_HANDOFF_CONTEXT_LABEL = 'Handoff summary';
 
@@ -40,6 +50,28 @@ export const SESSION_HANDOFF_INSTRUCTIONS = [
   'key decisions and why; files and commands that matter; open problems; concrete next steps.',
   'Keep exact paths, identifiers and error messages. Leave out finished detours.',
 ].join(' ');
+
+function snapshotRefusalReason(message: string): SessionHandoffRefusedReason | undefined {
+  switch (message) {
+    case SNAPSHOT_COMPACTION_CANCELLED_MESSAGE:
+      return 'cancelled';
+    case SNAPSHOT_COMPACTION_EMPTY_MESSAGE:
+      return 'empty-transcript';
+    case SNAPSHOT_COMPACTION_ACTIVE_MESSAGE:
+      return 'already-running';
+    default:
+      return undefined;
+  }
+}
+
+function refuse(
+  requestId: string | undefined,
+  message: string,
+  reason: SessionHandoffRefusedReason,
+): HostResponse {
+  const problem: SessionHandoffRefusedProblem = { code: 'session-handoff-refused', data: { reason } };
+  return fail(requestId, 'session/handoff', message, problem);
+}
 
 export function buildHandoffSessionName(sourceName: string | undefined, sourceId: string): string {
   return `Handoff · ${sourceName ?? `session-${sourceId.slice(0, 8)}`}`;
@@ -59,7 +91,7 @@ export async function handleSessionHandoffCommand(
   const unavailable = rejectUnavailableSessionBody(requestId, 'session/handoff', source, 'handoff');
   if (unavailable) return unavailable;
   if (source.isArchived === true) {
-    return fail(requestId, 'session/handoff', 'Source session is archived');
+    return refuse(requestId, 'Source session is archived', 'archived');
   }
 
   const focus = command.instructions?.trim();
@@ -77,8 +109,15 @@ export async function handleSessionHandoffCommand(
     throw error;
   }
   const summary = result.summary?.trim() ?? '';
-  if (!result.ok || summary.length === 0) {
-    return fail(requestId, 'session/handoff', result.message ?? 'Handoff summary was empty');
+  if (!result.ok) {
+    const message = result.message ?? 'Handoff summary failed';
+    const reason = snapshotRefusalReason(message);
+    return reason
+      ? refuse(requestId, message, reason)
+      : fail(requestId, 'session/handoff', message);
+  }
+  if (summary.length === 0) {
+    return refuse(requestId, 'Handoff summary was empty', 'empty-summary');
   }
 
   const sessionId = createProductSessionId();
@@ -148,4 +187,29 @@ export async function handleSessionHandoffCommand(
     }
     return fail(requestId, 'session/handoff', `Handoff failed: ${errors.join('; ')}`);
   }
+}
+
+/** Read the summary the chip previews. Same cap as prompt injection. */
+export async function handleSessionHandoffSummaryCommand(
+  command: HandoffSummaryCommand,
+  requestId: string | undefined,
+  context: SessionLiveContext,
+): Promise<HostResponse> {
+  const rootDir = getPiwinRoot(context.piwinRoot);
+  const indexPath = getPiwinSessionIndexPath(rootDir);
+  const session = await getSessionRecord(indexPath, command.sessionId);
+  if (!session) {
+    return fail(requestId, 'session/handoff-summary', `Unknown session: ${command.sessionId}`);
+  }
+  const stored = await readStoredHandoffSummary(rootDir, command.sessionId);
+  if (!stored) {
+    const problem: SessionHandoffSummaryMissingProblem = { code: 'session-handoff-summary-missing' };
+    return fail(requestId, 'session/handoff-summary', 'Handoff summary is missing', problem);
+  }
+  const data: SessionHandoffSummaryData = {
+    sessionId: command.sessionId,
+    summary: stored.summary,
+    truncated: stored.truncated,
+  };
+  return ok(requestId, 'session/handoff-summary', data);
 }

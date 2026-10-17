@@ -23,16 +23,32 @@ export async function writeSessionHandoffSummary(
   await writeFile(getSessionHandoffPath(rootDir, sessionId), summary, 'utf8');
 }
 
+export type StoredHandoffSummary = {
+  summary: string;
+  truncated: boolean;
+};
+
+/** Undefined when the session has no handoff summary. */
+export async function readStoredHandoffSummary(
+  rootDir: string,
+  sessionId: string,
+): Promise<StoredHandoffSummary | undefined> {
+  try {
+    const content = await readFile(getSessionHandoffPath(rootDir, sessionId), 'utf8');
+    return {
+      summary: content.slice(0, MAX_HANDOFF_SUMMARY_CHARS),
+      truncated: content.length > MAX_HANDOFF_SUMMARY_CHARS,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+
 /** Undefined when the session has no handoff summary. */
 export async function readSessionHandoffSummary(
   rootDir: string,
   sessionId: string,
 ): Promise<string | undefined> {
-  try {
-    const content = await readFile(getSessionHandoffPath(rootDir, sessionId), 'utf8');
-    return content.slice(0, MAX_HANDOFF_SUMMARY_CHARS);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-    throw error;
-  }
+  return (await readStoredHandoffSummary(rootDir, sessionId))?.summary;
 }

@@ -43,11 +43,14 @@ export type ActiveSlashToken = {
   endIndex: number;
 };
 
+/** Product commands the composer runs itself instead of sending as a prompt. */
+export type ReservedSlashCommandId = 'compact' | 'handoff';
+
 export type ParsedSlashSubmit =
   | { kind: 'none' }
   | {
       kind: 'command';
-      commandId: 'compact';
+      commandId: ReservedSlashCommandId;
       /** Primary name used (may be an alias). */
       name: string;
       args: string;

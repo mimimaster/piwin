@@ -37,7 +37,9 @@ describe('report kit by rules', () => {
     const v14 = buildArtifactReportKitCss({ rules: 'v14' });
     const legacy = buildArtifactReportKitCss();
     expect(v14).toContain('--piwin-kit-ok: var(--piwin-artifact-ok)');
-    expect(v14).toContain('var(--piwin-artifact-shadow-1)');
+    // v14 stats are a flat metric strip; only a toned figure colors its rule.
+    expect(v14).toContain('border-left-color: var(--piwin-kit-tone)');
+    expect(v14).not.toContain('shadow-1');
     expect(legacy).not.toContain('var(--piwin-artifact-ok)');
     expect(legacy).not.toContain('shadow-1');
     expect(legacy).toContain('[data-tone="info"]');

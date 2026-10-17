@@ -1,4 +1,5 @@
 import type { ModelProviderConfig } from '@piwin/contracts';
+import { mergeModelRequestBody, resolveModelRequestBody } from '@piwin/contracts';
 import { StructuredCompletionError } from './structured-completion-error.js';
 import { ProviderEndpointError, resolveProviderChatEndpoint } from './provider-endpoint.js';
 
@@ -71,14 +72,23 @@ export function buildCompletionBody(request: StructuredCompletionRequest): Recor
       generationConfig,
     };
   }
+  // ADR 0095: the model's custom body applies to Chat/Messages bodies. The
+  // Gemini REST body above is not the Pi SDK shape the user configures against.
+  const extraBody = resolveModelRequestBody(
+    provider,
+    provider.models.find((model) => model.id === modelId),
+  );
   if (provider.protocol === 'anthropic-compatible') {
-    return {
-      model: modelId,
-      system,
-      messages: [{ role: 'user', content: userPrompt }],
-      max_tokens: maxOutputTokens,
-      temperature,
-    };
+    return mergeModelRequestBody(
+      {
+        model: modelId,
+        system,
+        messages: [{ role: 'user', content: userPrompt }],
+        max_tokens: maxOutputTokens,
+        temperature,
+      },
+      extraBody,
+    ) as Record<string, unknown>;
   }
   const body: Record<string, unknown> = {
     model: modelId,
@@ -100,7 +110,7 @@ export function buildCompletionBody(request: StructuredCompletionRequest): Recor
       },
     };
   }
-  return body;
+  return mergeModelRequestBody(body, extraBody) as Record<string, unknown>;
 }
 
 export function parseCompletionResponse(

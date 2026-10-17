@@ -99,6 +99,14 @@ export type SessionHandoffData = {
   summaryChars: number;
 };
 
+/** `session/handoff-summary`: the stored summary for preview. No Host paths. */
+export type SessionHandoffSummaryData = {
+  sessionId: string;
+  summary: string;
+  /** True when the file was longer than the context-ref cap. */
+  truncated: boolean;
+};
+
 /** Compact a temporary session snapshot and write only its summary as Markdown. */
 export type SessionCompactExportData = {
   sessionId: string;

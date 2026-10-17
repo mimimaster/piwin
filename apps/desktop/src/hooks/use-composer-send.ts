@@ -20,11 +20,8 @@ import {
   type PendingComposerAttachment,
 } from '../media-utils.js';
 import type { DesktopCopy, DesktopLocale } from '../desktop-locale.js';
-import {
-  applySkillToPrompt,
-  normalizeCompactCustomInstructions,
-  parseComposerSlashSubmit,
-} from '../slash';
+import { applySkillToPrompt, parseComposerSlashSubmit } from '../slash';
+import { runComposerReservedCommand } from './composer-reserved-command.js';
 import { composerSessionListName } from '../composer-session-list-name';
 import { buildComposerSendSessionUpdate } from '../composer-send-session-update.js';
 import { resolveEntityScope } from '../session-entities.js';
@@ -49,6 +46,7 @@ import { logSessionChain, sessionChainErrorCode } from '../session-chain-log.js'
 import { sessionScopeKey } from '../session-scope-key.js';
 import { resolveNoRepoSendPath, sameHostPath } from '../file-browse-root.js';
 import { isImagePromptAttachment, useComposerPromptInput } from './use-composer-prompt-input.js';
+import { resolveDraftCreateScopeForAgent } from './session-create-input.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
 
@@ -75,6 +73,8 @@ export type UseComposerSendArgs = {
   preserveComposerOnSessionActivationRef: MutableRefObject<boolean>;
   draftTextRef: MutableRefObject<string>;
   currentDraftScopeRef: MutableRefObject<SessionScope>;
+  /** Folder `+` / New Agent target; null means the composer is following navigation. */
+  explicitDraftScopeRef: MutableRefObject<SessionScope | null>;
   currentDraftIdRef: MutableRefObject<string | null>;
   sendOwnerLocksRef: MutableRefObject<Set<string>>;
   // Attachments domain.
@@ -106,6 +106,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
     preserveComposerOnSessionActivationRef,
     draftTextRef,
     currentDraftScopeRef,
+    explicitDraftScopeRef,
     currentDraftIdRef,
     sendOwnerLocksRef,
     clearPendingAttachments,
@@ -240,16 +241,25 @@ export function useComposerSend(params: UseComposerSendArgs) {
       // draft) wins over the latest navigation scope, so project first-send
       // never falls back to a General session.
       const draftScope = currentDraftScopeRef.current;
-      const noRepoPath = resolveNoRepoSendPath({
+      const draftAgentId = args.state.draftAgentId;
+      const createScope = resolveDraftCreateScopeForAgent({
+        ...(draftAgentId !== undefined ? { agentId: draftAgentId } : {}),
         draftScope,
-        projectPath: args.state.projectPath,
-        generalWorkspacePath: args.generalWorkspacePath,
+        explicitDraftScope: explicitDraftScopeRef.current,
       });
-      const isGeneral = noRepoPath === null && draftScope.kind === 'general';
+      const noRepoPath =
+        createScope.kind === 'project'
+          ? resolveNoRepoSendPath({
+              draftScope: createScope,
+              projectPath: args.state.projectPath,
+              generalWorkspacePath: args.generalWorkspacePath,
+            })
+          : null;
+      const isGeneral = noRepoPath === null && createScope.kind === 'general';
       const draftProjectTrusted =
         noRepoPath !== null ||
-        (draftScope.kind === 'project' &&
-          sameHostPath(args.state.projectPath, draftScope.projectPath) &&
+        (createScope.kind === 'project' &&
+          sameHostPath(args.state.projectPath, createScope.projectPath) &&
           args.state.projectTrusted);
       if (!isGeneral && !draftProjectTrusted) {
         args.dispatch({ type: 'project/trust-dialog', open: true });
@@ -265,7 +275,6 @@ export function useComposerSend(params: UseComposerSendArgs) {
       // skipDraftSaveRef first, so the send path still clears.
       const pendingMountedIds = args.knowledgeMountsRef?.current?.mountedIds;
       const draftMcpDisabled = args.draftMcpSwitches?.disabledServerIds;
-      const draftAgentId = args.state.draftAgentId;
       const draftCreateOptions = {
         ...(pendingMountedIds && pendingMountedIds.length > 0
           ? { knowledgeBaseIds: pendingMountedIds }
@@ -273,7 +282,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
         ...(draftMcpDisabled && draftMcpDisabled.length > 0
           ? { disabledMcpServerIds: draftMcpDisabled }
           : {}),
-        ...(!isGeneral && draftAgentId && draftAgentId !== 'pi'
+        ...(draftAgentId && draftAgentId !== 'pi'
           ? {
               agentId: draftAgentId,
               ...(args.draftBackendModelId ? { backendModelId: args.draftBackendModelId } : {}),
@@ -297,8 +306,8 @@ export function useComposerSend(params: UseComposerSendArgs) {
                 ...draftCreateOptions,
               })
             : await args.ensureSession({
-                scope: draftScope,
-                ...(draftScope.kind === 'project' ? { projectPath: draftScope.projectPath } : {}),
+                scope: createScope,
+                ...(createScope.kind === 'project' ? { projectPath: createScope.projectPath } : {}),
                 alreadyTrusted: true,
                 ...(sessionName !== undefined ? { sessionName } : {}),
                 ...draftCreateOptions,
@@ -337,13 +346,11 @@ export function useComposerSend(params: UseComposerSendArgs) {
       // action (⌘.), not a slash command.
       if (text.startsWith('/')) {
         const parsed = parseComposerSlashSubmit(text, []);
-        if (parsed.kind === 'command' && parsed.commandId === 'compact') {
+        if (parsed.kind === 'command') {
           promptSubmissionInProgress.current = true;
           try {
-            const compacted = await args.onCompact?.(
-              normalizeCompactCustomInstructions(parsed.args),
-            );
-            if (compacted !== false) {
+            const ran = await runComposerReservedCommand(parsed, args);
+            if (ran !== false) {
               setComposer('');
               clearPendingAttachments();
             }

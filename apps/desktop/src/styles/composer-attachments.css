@@ -298,6 +298,43 @@
 }
 
 .doc-comment-chip-title,
+.handoff-summary-chip-open {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.handoff-summary-preview {
+  width: min(28rem, 72vw);
+  max-height: min(22rem, 50vh);
+  overflow: auto;
+  padding: var(--s-3);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.handoff-summary-preview-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: var(--fs-small, 13px);
+  line-height: 1.45;
+}
+
+.handoff-summary-preview-status {
+  margin: var(--s-2) 0 0;
+  color: var(--text-2, var(--muted));
+  font-size: var(--fs-micro, 12px);
+}
+
 .composer-v2-context-chip .chip-text {
   font-weight: 600;
   overflow: hidden;

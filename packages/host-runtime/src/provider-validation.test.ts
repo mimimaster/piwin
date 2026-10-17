@@ -155,6 +155,25 @@ describe('validateProviders', () => {
     ).toEqual([]);
   });
 
+  it('validates per-model custom request bodies (ADR 0095)', () => {
+    expect(
+      validateProviders([
+        sampleProvider({
+          models: [{ id: 'routed', extraBody: { provider: { order: ['anthropic'] } } }],
+        }),
+      ]),
+    ).toEqual([]);
+    const issues = validateProviders([
+      sampleProvider({ models: [{ id: 'routed', extraBody: { messages: [] } }] }),
+    ]);
+    expect(issues).toEqual([
+      {
+        path: 'providers[0].models[0].extraBody',
+        message: 'request body cannot override "messages"; piwin generates it',
+      },
+    ]);
+  });
+
   it('validates image model route invariants and provider support', () => {
     const issues = validateProviders([
       sampleProvider({

@@ -426,3 +426,24 @@ html[data-window-chrome='windows-caption'] .context-bar > .context-bar-leading {
   flex: none;
   pointer-events: none;
 }
+
+.session-working-tree {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font: 500 11.5px/20px var(--mono, ui-monospace, monospace);
+  cursor: pointer;
+}
+
+.session-working-tree-add {
+  color: var(--add-text, var(--mint));
+}
+
+.session-working-tree-del {
+  color: var(--del-text, var(--danger));
+}

@@ -28,7 +28,6 @@ import {
 import { terminalTabLabel } from './terminal-tab-label.js';
 import { RightPanelPlusMenu } from './right-panel-plus-menu';
 import { RightPanelHome } from './right-panel-home';
-import type { RightPanelHomeContext } from './right-panel-home-context';
 import { RightPanelTabs } from './right-panel-tabs.js';
 import {
   RIGHT_PANEL_SIDE_CHAT_TABS_SLOT_ID,
@@ -113,8 +112,6 @@ export type RightPanelProps = {
   terminalSessions?: TerminalSessionsApi;
   /** The conversation whose tab layout this panel shows; omitted: one global layout. */
   layoutSessionId?: string | null;
-  /** Project/Host line and Changes diff stat for the empty launcher. */
-  homeContext?: RightPanelHomeContext;
 };
 
 const NO_HANDED_OFF_TABS: readonly RightPanelTab[] = [];
@@ -636,8 +633,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
           locale={locale}
           onSelect={openKind}
           tasksActiveCount={tasksActiveCount}
-          active={props.open}
-          context={props.homeContext}
         />
       ) : (
         /* Active-only lifecycle; terminal remains the explicit PTY exception. */

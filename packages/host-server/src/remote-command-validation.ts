@@ -193,6 +193,8 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
         isSafeRemoteId(command.sessionId) &&
         (command.instructions === undefined || command.instructions.length <= 4000)
       );
+    case 'session/handoff-summary':
+      return isSafeRemoteId(command.sessionId);
     case 'session/truncate-from':
       return (
         isSafeRemoteId(command.sessionId) &&

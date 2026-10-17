@@ -32,6 +32,8 @@ export type WorkspaceShellProps = {
    */
   conversationOverride?: ReactNode | undefined;
   conversationOverrideActive?: boolean | undefined;
+  /** Floats over the stage's top-right corner (the idle tool card). */
+  stageOverlay?: ReactNode | undefined;
   rightPanel: ReactNode;
   workspaceClassName?: string | undefined;
   chatColumnClassName?: string | undefined;
@@ -49,6 +51,7 @@ type WorkspaceChatColumnProps = Pick<
   | 'composerDock'
   | 'conversationOverride'
   | 'conversationOverrideActive'
+  | 'stageOverlay'
   | 'chatColumnClassName'
 >;
 
@@ -76,6 +79,7 @@ function WorkspaceChatColumn(props: WorkspaceChatColumnProps): ReactElement {
           {props.composerDock}
         </div>
         {props.conversationOverride}
+        {props.conversationOverrideActive === true ? null : props.stageOverlay}
       </div>
     </section>
   );
@@ -92,6 +96,7 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
       composerDock={props.composerDock}
       conversationOverride={props.conversationOverride}
       conversationOverrideActive={props.conversationOverrideActive}
+      stageOverlay={props.stageOverlay}
       chatColumnClassName={props.chatColumnClassName}
     />
   );

@@ -86,6 +86,33 @@ describe('provider envelope system prompt role (ADR 0082)', () => {
   });
 });
 
+describe('provider envelope custom request body (ADR 0095)', () => {
+  it('carries a valid body to the worker and drops an invalid one', async () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        protocol: 'openai-compatible',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        models: [
+          { id: 'anthropic/claude-sonnet-4.5', extraBody: { provider: { only: ['anthropic'] } } },
+          { id: 'openai/gpt-5', extraBody: { model: 'override' } },
+          { id: 'google/gemini-3' },
+        ],
+      },
+    ];
+    const { providers } = await buildProviderEnvelope(config, {
+      allowInlineProviderSecrets: false,
+      allowWorkerProviderSecretBootstrap: false,
+    });
+    const models = providers.find((provider) => provider.providerId === 'openrouter')?.models ?? [];
+    expect(models[0]).toMatchObject({ extraBody: { provider: { only: ['anthropic'] } } });
+    expect(models[1]).not.toHaveProperty('extraBody');
+    expect(models[2]).not.toHaveProperty('extraBody');
+  });
+});
+
 describe('provider envelope per-model headers', () => {
   it('carries merged headers only for models that set their own', async () => {
     const config = createDefaultPiwinConfig();

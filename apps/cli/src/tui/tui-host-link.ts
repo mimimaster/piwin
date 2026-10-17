@@ -82,12 +82,33 @@ export async function openTuiHostLink(options: TuiHostLinkOptions): Promise<TuiH
   }
 }
 
+/**
+ * A summary is a model completion, not an ack: the default request budget
+ * fails it while the Host keeps working and later creates the session anyway.
+ * `session/compact-abort` is the bounded way out.
+ */
+const SUMMARY_REQUEST_TIMEOUT_MS = 15 * 60_000;
+
+function requestTimeoutFor(command: HostCommand): number | undefined {
+  switch (command.type) {
+    case 'session/compact':
+    case 'session/compact-export':
+    case 'session/handoff':
+      return SUMMARY_REQUEST_TIMEOUT_MS;
+    default:
+      return undefined;
+  }
+}
+
 /** Mutations the remote protocol dedupes get a fresh key per user gesture. */
 function createLinkRequest(client: HostClient): TuiHostLink['request'] {
-  return (command) =>
-    remoteCommandRequiresIdempotencyKey(command.type)
-      ? client.request(command, { idempotencyKey: randomUUID() })
-      : client.request(command);
+  return (command) => {
+    const timeoutMs = requestTimeoutFor(command);
+    return client.request(command, {
+      ...(remoteCommandRequiresIdempotencyKey(command.type) ? { idempotencyKey: randomUUID() } : {}),
+      ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    });
+  };
 }
 
 /** Unwrap a Host response or throw its error text. Shapes are the remote projections. */

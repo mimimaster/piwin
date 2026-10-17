@@ -99,3 +99,24 @@ export type SummaryModelUnavailableProblem = {
   code: 'summary-model-unavailable';
   data: { model?: { providerId: string; modelId: string }; reason: string };
 };
+
+/**
+ * `session/handoff` did not create a session for a known, user-actionable
+ * reason. `cancelled` follows a `session/compact-abort` the shell sent itself.
+ */
+export type SessionHandoffRefusedReason =
+  | 'cancelled'
+  | 'empty-transcript'
+  | 'already-running'
+  | 'archived'
+  | 'empty-summary';
+
+export type SessionHandoffRefusedProblem = {
+  code: 'session-handoff-refused';
+  data: { reason: SessionHandoffRefusedReason };
+};
+
+/** The session exists, but its handoff summary file does not. */
+export type SessionHandoffSummaryMissingProblem = {
+  code: 'session-handoff-summary-missing';
+};

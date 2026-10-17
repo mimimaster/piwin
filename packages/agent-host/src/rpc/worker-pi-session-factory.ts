@@ -328,9 +328,15 @@ export function buildWorkerProviderRegistration(
     registration.headers = provider.headers;
   }
   // Main-session registration: never wrapped for hosted search (ADR 0043).
+  const extraBodiesById = new Map(
+    provider.models.flatMap((model) => (model.extraBody ? [[model.id, model.extraBody] as const] : [])),
+  );
   const resolvedStream = resolveRegistrationStreamSimple({
     defaultApi: api,
-    models: models.map((model) => ({ id: model.id, api: model.api })),
+    models: models.map((model) => {
+      const extraBody = extraBodiesById.get(model.id);
+      return { id: model.id, api: model.api, ...(extraBody ? { extraBody } : {}) };
+    }),
     // Optional under exactOptionalPropertyTypes: omit rather than pass undefined.
     ...(streamSimple === undefined ? {} : { streamSimple }),
   });

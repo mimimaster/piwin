@@ -60,6 +60,31 @@ describe('parseComposerSlashSubmit', () => {
     });
   });
 
+  it('parses /handoff with an optional focus as a reserved command', () => {
+    expect(parseComposerSlashSubmit('/handoff', skills)).toEqual({
+      kind: 'command',
+      commandId: 'handoff',
+      name: 'handoff',
+      args: '',
+    });
+    expect(parseComposerSlashSubmit('/handoff only the auth refactor', skills)).toMatchObject({
+      commandId: 'handoff',
+      args: 'only the auth refactor',
+    });
+    expect(isReservedComposerSlashCommand('/handoff keep tests')).toBe(true);
+    expect(isReservedSlashExecuteName('handoff')).toBe(true);
+  });
+
+  it('routes a whole-message /handoff to the handoff handler, not compact', async () => {
+    const compact = vi.fn(async () => true);
+    const handoff = vi.fn(async () => true);
+    await expect(
+      runReservedComposerSlashCommand('/handoff auth only', { compact, handoff }),
+    ).resolves.toBe(true);
+    expect(handoff).toHaveBeenCalledWith('auth only');
+    expect(compact).not.toHaveBeenCalled();
+  });
+
   it('recognizes reserved compact submits', () => {
     expect(isReservedSlashExecuteName('compact')).toBe(true);
     expect(isReservedSlashExecuteName('summarize')).toBe(true);

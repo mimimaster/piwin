@@ -230,4 +230,16 @@ describe('host problem copy', () => {
       ),
     ).toContain('请为源会话选择可用模型后重试');
   });
+  it('explains handoff refusals and stays quiet for a cancellation the user asked for', () => {
+    const refused = (reason: string) => ({ code: 'session-handoff-refused', data: { reason } });
+    expect(hostProblemNotice(refused('empty-transcript'), 'zh-CN')).toBe(
+      '这个会话还没有对话，没有可交接的内容。',
+    );
+    expect(hostProblemNotice(refused('already-running'), 'en')).toContain('already being written');
+    expect(hostProblemNotice(refused('cancelled'), 'zh-CN')).toBe('');
+    expect(hostProblemNotice(refused('something-new'), 'en')).toBeUndefined();
+    expect(hostProblemNotice({ code: 'session-handoff-summary-missing' }, 'zh-CN')).toBe(
+      '这份交接摘要已经不在了。',
+    );
+  });
 });

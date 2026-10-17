@@ -4,6 +4,7 @@
  */
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
 import type { SessionPlan } from '@piwin/contracts';
+import type { SidebarMode } from '../sidebar-mode';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { ArtifactCanvasTarget } from '../artifact-canvas-model';
 import type { DraftSessionItemUi } from '../draft-session';
@@ -35,6 +36,7 @@ export type UseWorkbenchSessionGesturesArgs = {
   startNewDraft: (scope?: { kind: 'general' } | { kind: 'project'; projectPath: string }) => void;
   handleNewSession: (options?: {
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+    agentId?: string;
   }) => Promise<void>;
   draftSessions: DraftSessionItemUi[];
   handleOpenProject: (path: string) => Promise<void>;
@@ -50,6 +52,8 @@ export type UseWorkbenchSessionGesturesArgs = {
   handleAbort: () => Promise<void>;
   /** Built-in No Repo root; fills an empty projectPath from the folder +. */
   generalWorkspacePath?: string | null;
+  /** Switch Conversations / Projects when a Loose Grok draft starts. */
+  setSidebarMode?: (mode: SidebarMode) => void;
   /**
    * Live session plan. `plans/<sessionId>.md` is a logical path, not a
    * workspace file — inject its markdown before the preview looks on disk.
@@ -83,6 +87,7 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
     handleAbort,
     generalWorkspacePath,
     sessionPlan,
+    setSidebarMode,
   } = args;
 
   const handleOpenDocument = useCallback(
@@ -152,6 +157,26 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
       } else {
         dispatch({ type: 'draft/set-agent', agentId: 'pi' });
       }
+      const externalWithoutProject =
+        options?.agentId !== undefined &&
+        options.agentId !== '' &&
+        options.agentId !== 'pi' &&
+        scope?.kind !== 'project';
+      if (externalWithoutProject) {
+        // Default Grok to Conversations (Loose), not the open project's top.
+        if (state.activeScope.kind !== 'general') {
+          dispatch({ type: 'project/clear' });
+          void hydrateSessions(
+            { kind: 'general' },
+            { includeArchived: showArchivedSessions },
+          );
+        }
+        setSidebarMode?.('chat');
+        const general = { kind: 'general' as const };
+        startNewDraft(general);
+        await handleNewSession({ scope: general });
+        return;
+      }
       // Mirror Conversations +: switch scope first, then enter the draft.
       // Project-row + only passes scope; opening belongs here so it cannot
       // race bumpToDraft and cancel project/set.
@@ -179,6 +204,9 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
       generalWorkspacePath,
       handleNewSession,
       handleOpenProject,
+      hydrateSessions,
+      setSidebarMode,
+      showArchivedSessions,
       startNewDraft,
       state.activeScope,
     ],

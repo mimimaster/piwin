@@ -19,6 +19,7 @@ export * from './codemode.js';
 export * from './config.js';
 export * from './native-search-adapters.js';
 export * from './model-endpoint.js';
+export * from './model-request-body.js';
 export * from './system-prompt-role.js';
 export * from './subscription-chat-surface.js';
 export * from './model-catalog.js';

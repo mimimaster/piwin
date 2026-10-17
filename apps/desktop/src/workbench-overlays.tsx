@@ -166,12 +166,13 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
     projectSessionsByPath: props.state.projectSessionsByPath,
   });
   const hostOsFamily = props.hostClient.getRemoteCapabilities()?.platform;
-  // ADR 0082: gate session chrome on the active session's backend capabilities
-  // (the Host would reject these anyway; hiding avoids a dead menu item).
-  const activeSessionCapabilities = createSessionCapabilityGate(
+  // ADR 0082: gate the session menu on the backend of the session it was opened
+  // on — a sidebar row is often not the active session. The Host would reject
+  // these anyway; hiding avoids a dead menu item.
+  const menuSessionCapabilities = createSessionCapabilityGate(
     backendCapabilitiesFor(
       props.state.backendCapabilitiesBySession,
-      props.state.activeSessionId,
+      props.sessionMenu?.sessionId ?? props.state.activeSessionId,
     ),
   );
   return (
@@ -233,19 +234,19 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
           ? {}
           : { sessionMenuCanExport: false })}
         {...(props.hostClient.supportsCommand('session/duplicate') &&
-        activeSessionCapabilities.supports('duplicate')
+        menuSessionCapabilities.supports('duplicate')
           ? {}
           : { sessionMenuCanDuplicate: false })}
         {...(props.hostClient.supportsCommand('session/fork') &&
-        activeSessionCapabilities.supports('fork')
+        menuSessionCapabilities.supports('fork')
           ? {}
           : { sessionMenuCanForkChat: false })}
         {...(props.hostClient.supportsCommand('session/handoff') &&
-        activeSessionCapabilities.supports('compact')
+        menuSessionCapabilities.supports('compact')
           ? {}
           : { sessionMenuCanHandoff: false })}
         {...(props.hostClient.supportsCommand('session/duplicate') &&
-        activeSessionCapabilities.supports('duplicate')
+        menuSessionCapabilities.supports('duplicate')
           ? {}
           : { sessionMenuCanContinueInProject: false })}
         {...(props.sessionMenu !== null &&

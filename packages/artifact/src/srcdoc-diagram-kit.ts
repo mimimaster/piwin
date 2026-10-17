@@ -41,26 +41,24 @@ export function buildArtifactDiagramKitCss(): string {
   margin: 1.3em 0;
 }
 
-/* A step: the one node shape flows and lanes share. */
-:where(${FLOW_STEP}, ${LANE_STEP}) {
+/* A flow step is the one boxed node: a flat hairline box, no lift. */
+:where(${FLOW_STEP}) {
   box-sizing: border-box;
   margin: 0;
-  padding: 0.62em 0.9em;
+  padding: 0.55em 0.85em;
   border: 1px solid var(--piwin-artifact-border);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--piwin-artifact-surface);
-  box-shadow: var(--piwin-artifact-shadow-1);
   overflow-wrap: break-word;
 }
 /* A toned step keeps the neutral body and marks status with a straight
    left bar. An inset box-shadow would follow border-radius and look like a
    concave arc, so the bar is a linear-gradient layer instead. */
-:where(${FLOW_STEP}, ${LANE_STEP}):where([data-tone]) {
+:where(${FLOW_STEP}):where([data-tone]) {
   border-color: color-mix(in srgb, ${TONE} 38%, var(--piwin-artifact-border));
   background:
     linear-gradient(${TONE}, ${TONE}) 0 0 / 3px 100% no-repeat,
     color-mix(in srgb, ${TONE} 8%, var(--piwin-artifact-surface));
-  box-shadow: var(--piwin-artifact-shadow-1);
 }
 :where(${FLOW_STEP}, .piwin-timeline > li) :where(b, strong) {
   font-weight: 650;
@@ -141,84 +139,149 @@ export function buildArtifactDiagramKitCss(): string {
   transform: translateX(-50%) rotate(135deg);
 }
 
-/* Swimlane: a table whose rows are actors and whose columns are phases. */
+/* Swimlane: rows are actors, columns are ordered phases. A step is a line of
+   text on its lane, not a box: the lane bands, the phase order and the
+   handoffs carry the picture, so nothing else is drawn around the words.
+   data-dir="down" is the transposed table (actors in thead, one row per
+   phase) for many phases or longer steps. */
 :where(.piwin-lanes) {
   width: 100%;
   margin: 1.3em 0;
-  border: 1px solid var(--piwin-artifact-border);
-  border-radius: 12px;
   border-collapse: separate;
   border-spacing: 0;
   counter-reset: piwin-phase;
   font-size: 0.93em;
+  line-height: 1.45;
 }
 :where(.piwin-lanes) :where(th, td) {
-  padding: 0.7em 0.75em;
+  position: relative;
+  padding: 0.6em 0.8em;
   border: 0;
   border-bottom: 1px solid var(--piwin-diagram-rule);
-  border-left: 1px dashed var(--piwin-diagram-rule);
   text-align: left;
-  vertical-align: middle;
+  vertical-align: top;
   white-space: normal;
   overflow-wrap: break-word;
 }
+:where(.piwin-lanes) :where(tr > * + *) {
+  border-left: 1px solid var(--piwin-diagram-rule);
+}
 :where(.piwin-lanes) :where(tr > :first-child) {
-  border-left: 0;
-  padding-left: 1em;
+  padding-left: 0.2em;
 }
-:where(.piwin-lanes) :where(tr > :nth-child(2)) {
-  border-left-style: solid;
+/* Lanes read as bands: every other row carries a faint wash. */
+:where(.piwin-lanes) :where(tbody tr:nth-child(even) > *) {
+  background: var(--piwin-diagram-wash);
 }
-:where(.piwin-lanes) :where(tr > :last-child) {
-  padding-right: 0.75em;
+/* Wide enough that a short CJK phrase stays on one or two lines. */
+:where(.piwin-lanes) :where(td) {
+  min-width: 7.5em;
 }
-:where(.piwin-lanes) :where(tbody tr:last-child > *) {
-  border-bottom: 0;
+:where(.piwin-lanes[data-dir="down"]) :where(td) {
+  min-width: 10em;
+}
+/* The chat column must not overflow; there the lanes give way to its width. */
+:where(html[data-frame-mode="inline-flow"] .piwin-lanes) :where(td) {
+  min-width: 4.5em;
 }
 :where(.piwin-lanes) :where(thead th) {
-  padding-block: 0.6em;
-  background: var(--piwin-diagram-wash);
-  color: var(--piwin-artifact-muted);
-  font-size: 0.86em;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  padding-block: 0.5em;
+  border-bottom: 1.5px solid var(--piwin-diagram-line);
+  color: var(--piwin-artifact-text);
+  font-size: 0.88em;
+  font-weight: 650;
   white-space: nowrap;
 }
-/* Phases are ordered, so each header carries its ordinal. */
-:where(.piwin-lanes thead th:not(:first-child))::before {
-  content: counter(piwin-phase);
-  counter-increment: piwin-phase;
-  display: inline-block;
-  min-width: 1.55em;
-  margin-right: 0.5em;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--piwin-artifact-text) 9%, transparent);
-  color: var(--piwin-artifact-text);
-  font-size: 0.92em;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.55;
-  text-align: center;
+:where(.piwin-lanes) :where(thead th + th) {
+  border-left-color: transparent;
 }
 :where(.piwin-lanes) :where(tbody th) {
   width: 1%;
-  background: var(--piwin-diagram-wash);
+  padding-right: 1em;
   color: var(--piwin-artifact-text);
   font-size: 1em;
   font-weight: 650;
   letter-spacing: 0;
   white-space: nowrap;
 }
-:where(.piwin-lanes) :where(thead tr:first-child > :first-child) { border-top-left-radius: 11px; }
-:where(.piwin-lanes) :where(thead tr:first-child > :last-child) { border-top-right-radius: 11px; }
-:where(.piwin-lanes) :where(tbody tr:last-child > :first-child) { border-bottom-left-radius: 11px; }
-/* Wide enough that a short CJK label is not broken into two-character lines. */
+/* Phases are ordered: each phase header carries its ordinal... */
+:where(.piwin-lanes:not([data-dir="down"]) thead th:not(:first-child))::before,
+:where(.piwin-lanes[data-dir="down"] tbody th)::before {
+  content: counter(piwin-phase);
+  counter-increment: piwin-phase;
+  display: inline-block;
+  box-sizing: border-box;
+  width: 1.6em;
+  height: 1.6em;
+  margin-right: 0.45em;
+  border: 1px solid var(--piwin-diagram-line);
+  border-radius: 50%;
+  background: var(--piwin-artifact-surface);
+  color: var(--piwin-artifact-muted);
+  font-size: 0.82em;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: calc(1.6em - 2px);
+  text-align: center;
+  vertical-align: 0.08em;
+}
+/* ...and an arrow points to the next one. */
+:where(.piwin-lanes:not([data-dir="down"]) thead th:not(:first-child):not(:last-child))::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -4px;
+  width: 6px;
+  height: 6px;
+  border-top: 1.5px solid var(--piwin-diagram-line);
+  border-right: 1.5px solid var(--piwin-diagram-line);
+  transform: translateY(-50%) rotate(45deg);
+}
+/* Down: the phase ordinals sit on a rail that runs to the next row. */
+:where(.piwin-lanes[data-dir="down"] tbody tr:not(:last-child) th)::after {
+  content: "";
+  position: absolute;
+  top: calc(0.6em + 1.45em);
+  bottom: calc(-0.6em + 0.2em);
+  left: calc(0.2em + 0.66em);
+  width: 1.5px;
+  background: var(--piwin-diagram-rule);
+}
+/* A step: a dot on the lane, then the words. Status colors the dot. */
 :where(${LANE_STEP}) {
-  min-width: 4.5em;
-  padding: 0.45em 0.75em;
-  border-radius: 8px;
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 0.95em;
+  overflow-wrap: break-word;
+}
+:where(${LANE_STEP})::before {
+  content: "";
+  position: absolute;
+  top: 0.52em;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: ${TONE};
+}
+:where(${LANE_STEP}):where([data-tone]) {
+  font-weight: 600;
+}
+:where(${LANE_STEP}):where([data-tone="risk"]) {
+  color: color-mix(in srgb, var(--piwin-kit-risk) 85%, var(--piwin-artifact-text));
+}
+/* A handoff names who receives it: the arrow is the point of a swimlane.
+   Info, not accent: some host accents are red and would read as a fault. */
+:where(.piwin-lanes td > [data-to])::after {
+  content: "→ " attr(data-to);
+  display: block;
+  margin-top: 0.1em;
+  color: var(--piwin-kit-info);
+  font-size: 0.84em;
+  font-weight: 600;
 }
 :where(.piwin-lanes) :where(td > * + p, td > * + div) {
-  margin-top: 6px;
+  margin-top: 0.45em;
 }
 
 /* Timeline: a rail with one haloed dot per event. */

@@ -23,10 +23,11 @@
    Pre-shell screens (host gate, pairing) have no surface of their own and
    rely on the html/body void, so they must stay opaque. */
 
-/* Region fills read the stored opacities through these. Ink (dark) thins the
-   stage: near-black over the dark material at 90% reads as a solid slab, so
-   ink keeps 80% of the stage slider and the desktop shows through the
-   conversation the way it does under paper. */
+/* Region fills read the stored opacities through these. Ink (dark) thins
+   every region: near-black over the dark material reads as a solid slab at
+   the same coverage that leaves paper airy, so ink scales each slider down
+   and the desktop shows through the way it does under paper. The backdrop
+   thins too, since no panel can read clearer than the backdrop under it. */
 html[data-window-material] {
   --window-material-backdrop-fill: var(--window-material-backdrop-opacity, 60%);
   --window-material-sidebar-fill: var(--window-material-sidebar-opacity, 30%);
@@ -35,7 +36,12 @@ html[data-window-material] {
 }
 
 html[data-window-material][data-theme-mode='dark'] {
-  --window-material-stage-fill: calc(var(--window-material-stage-opacity, 75%) * 0.8);
+  --window-material-backdrop-fill: calc(var(--window-material-backdrop-opacity, 60%) * 0.7);
+  --window-material-sidebar-fill: calc(var(--window-material-sidebar-opacity, 30%) * 0.8);
+  --window-material-stage-fill: calc(var(--window-material-stage-opacity, 75%) * 0.6);
+  --window-material-right-panel-fill: calc(
+    var(--window-material-right-panel-opacity, 45%) * 0.65
+  );
   /* xterm clears its canvas (xterm-theme.ts); the dock paints this instead.
      Hex alpha, not `transparent`: xterm's colour parser rejects the keyword
      and falls back to opaque #000, a black slab inside the glass body. */
@@ -48,13 +54,13 @@ html[data-window-material][data-theme-mode='dark'] {
 html[data-window-material][data-theme-mode='dark']
   .app-shell:not([data-layout='phone'])
   :is(.ucard, .user-message-collapsible) {
-  background: color-mix(in srgb, var(--s3) 70%, transparent);
+  background: color-mix(in srgb, var(--s3) 52%, transparent);
 }
 
 html[data-window-material][data-theme-mode='dark']
   .app-shell:not([data-layout='phone'])
   .plan-todo-tray {
-  background: color-mix(in srgb, var(--s3) 70%, transparent);
+  background: color-mix(in srgb, var(--s3) 52%, transparent);
 }
 
 html[data-window-material][data-theme-mode='dark']
@@ -174,7 +180,7 @@ html[data-window-material] {
 }
 
 html[data-window-material][data-theme-mode='dark'] {
-  --window-material-panel-card-fill: color-mix(in srgb, var(--s3) 55%, transparent);
+  --window-material-panel-card-fill: color-mix(in srgb, var(--s3) 42%, transparent);
   --window-material-panel-card-head-fill: color-mix(in srgb, var(--s3) 94%, transparent);
 }
 

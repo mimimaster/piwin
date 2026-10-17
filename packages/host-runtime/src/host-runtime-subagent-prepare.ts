@@ -253,6 +253,7 @@ export async function prepareSubagentTask(
             ? { supportsDeveloperRole: model.supportsDeveloperRole }
             : {}),
           ...(model.headers ? { headers: { ...model.headers } } : {}),
+          ...(model.extraBody ? { extraBody: model.extraBody } : {}),
         })),
         auth: provider.auth,
       };
