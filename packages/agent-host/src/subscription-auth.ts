@@ -3,6 +3,7 @@
  * Apps and host-runtime never import Pi packages.
  */
 import { dirname, join } from 'node:path';
+import { canRegisterExtensionProvider } from './extension-provider-ownership.js';
 import {
   classifySubscriptionLoginFailure,
   isClaudeCodeOauthProviderId,
@@ -182,7 +183,7 @@ export function isOauthProviderAuth(
 }
 
 export function shouldRegisterCompiledProvider(auth: { kind: string }): boolean {
-  return auth.kind !== 'oauth';
+  return auth.kind !== 'oauth' && auth.kind !== 'extension';
 }
 
 export async function createSubscriptionAuthPort(
@@ -361,7 +362,7 @@ async function createDefaultRuntime(
       reload(): Promise<void>;
       getExtensions(): {
         errors: Array<{ path: string; error: string }>;
-        runtime: { pendingProviderRegistrations: Array<{ name: string; config: object }> };
+        runtime: { pendingProviderRegistrations: Array<{ name: string; config: object; extensionPath?: string }> };
       };
     };
   };
@@ -401,8 +402,9 @@ async function createDefaultRuntime(
       // same extension never reach the Host auth runtime. Host Runtime already
       // rejects two enabled extensions claiming one id.
       const claimedIds = new Set(extensionProviders.map((entry) => entry.providerId));
+      const owners = extensionProviders.map((entry) => ({ path: entry.entryPath, modelProviderId: entry.providerId }));
       for (const registration of loaded.runtime.pendingProviderRegistrations) {
-        if (!claimedIds.has(registration.name)) continue;
+        if (!claimedIds.has(registration.name) || !canRegisterExtensionProvider(registration.name, registration.extensionPath, owners)) continue;
         runtime.registerProvider(registration.name, registration.config);
         const name = (registration.config as { name?: unknown }).name;
         if (typeof name === 'string' && name.trim()) {

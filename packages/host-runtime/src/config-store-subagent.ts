@@ -245,7 +245,7 @@ export function normalizeSubagentModelRef(
   if (isModelProtocol(record.protocol)) {
     model.protocol = record.protocol;
   }
-  if (record.source === 'subscription' || record.source === 'channel') {
+  if (record.source === 'subscription' || record.source === 'channel' || record.source === 'extension') {
     model.source = record.source;
   }
   return model;

@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { EphemeralProviderSecret, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 import {
   isChannelProvider,
+  isExtensionProvider,
+  isModelEnabled,
+  isProviderEnabled,
   isClaudeCodeOauthProviderId,
   isSubscriptionOauthProviderId,
   isSubscriptionProvider,
@@ -37,6 +40,7 @@ export type ProviderEnvelopeCompileOptions = {
   allowWorkerProviderSecretBootstrap: boolean;
   requiredProviderIds?: readonly string[];
   usableSubscriptionProviderIds?: readonly string[];
+  publicExtensionProviderIds?: readonly string[];
   secretResolver?: Pick<SecretResolver, 'resolveProviderSecret'>;
   catalogModelIdsByProvider?: ReadonlyMap<string, readonly string[]>;
 };
@@ -64,6 +68,7 @@ export async function buildProviderEnvelope(
     config,
     options.requiredProviderIds,
     options.usableSubscriptionProviderIds,
+    options.publicExtensionProviderIds,
   )) {
     const built = await buildSingleProviderRuntime(
       provider,
@@ -85,6 +90,17 @@ export async function buildProviderEnvelope(
     ),
   );
 
+  for (const providerId of new Set(options.requiredProviderIds ?? [])) {
+    if (!options.publicExtensionProviderIds?.includes(providerId)) continue;
+    const provider = config.providers.find((entry) => entry.id === providerId);
+    if (provider && (!isExtensionProvider(provider) || !isProviderEnabled(provider))) continue;
+    envelope.push({
+      providerId,
+      auth: { kind: 'extension', providerId },
+      models: provider ? provider.models.filter((model) => isModelEnabled(model) && modelSupportsCapability(model, 'chat')).map((model) => ({ id: model.id }))
+        : (options.catalogModelIdsByProvider?.get(providerId) ?? []).map((id) => ({ id })),
+    });
+  }
   return { providers: envelope, providerSecrets };
 }
 
@@ -107,6 +123,7 @@ function selectProvidersForCompilation(
   config: PiwinConfig,
   requiredProviderIds: readonly string[] | undefined,
   usableSubscriptionProviderIds: readonly string[] | undefined,
+  publicExtensionProviderIds: readonly string[] = [],
 ): ModelProviderConfig[] {
   const enabledProviders = getEnabledProviders(config).filter(isChannelProvider);
   if (requiredProviderIds === undefined) {
@@ -120,7 +137,8 @@ function selectProvidersForCompilation(
   const missingProviderId = uniqueIds.find(
     (providerId) =>
       !providersById.has(providerId) &&
-      !isCompilableSubscriptionProviderId(providerId, usableSubscriptionProviderIds),
+      !isCompilableSubscriptionProviderId(providerId, usableSubscriptionProviderIds) &&
+      !publicExtensionProviderIds.includes(providerId),
   );
   if (missingProviderId) {
     throw new Error(`Configured provider is unavailable: ${missingProviderId}`);

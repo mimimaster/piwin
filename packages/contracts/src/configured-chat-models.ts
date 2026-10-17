@@ -52,18 +52,18 @@ export function projectConfiguredChatModels(
       if (!isModelEnabled(model) || !modelSupportsCapability(model, 'chat')) {
         continue;
       }
-      const isSubscription = provider.source === 'subscription';
+      const source = provider.source === 'subscription' ? 'subscription' : provider.source === 'extension' ? 'extension' : 'channel';
       const entry: ConfiguredChatModel = {
         providerId: provider.id,
         modelId: model.id,
-        source: isSubscription ? 'subscription' : 'channel',
-        group: isSubscription ? 'subscription' : 'channel',
+        source,
+        group: source,
       };
       const providerName = provider.name?.trim();
       if (providerName) {
         entry.providerName = providerName;
       }
-      if (!isSubscription) {
+      if (source !== 'subscription') {
         entry.protocol = provider.protocol;
       }
       if (typeof model.label === 'string' && model.label.trim().length > 0) {
@@ -145,14 +145,15 @@ export function readConfiguredChatModel(item: unknown): ConfiguredChatModel | un
     protocol === 'google-vertex' ||
     protocol === 'amazon-bedrock';
   const isSubscription = item.source === 'subscription';
-  if (!isChannelProtocol && !isSubscription) {
+  const isExtension = item.source === 'extension';
+  if (!isChannelProtocol && !isSubscription && !isExtension) {
     return undefined;
   }
   const model: ConfiguredChatModel = {
     providerId: item.providerId,
     modelId: item.modelId,
-    source: isSubscription ? 'subscription' : 'channel',
-    group: isSubscription ? 'subscription' : 'channel',
+    source: isSubscription ? 'subscription' : isExtension ? 'extension' : 'channel',
+    group: isSubscription ? 'subscription' : isExtension ? 'extension' : 'channel',
   };
   if (typeof item.providerName === 'string' && item.providerName.trim().length > 0) {
     model.providerName = item.providerName.trim();

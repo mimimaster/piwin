@@ -7,12 +7,14 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { isValidExtensionAuthProviderId } from '@piwin/contracts';
+import { isValidExtensionAuthProviderId, parseExtensionModelProviderClaim } from '@piwin/contracts';
 import { createExtensionRevisionStore } from '@piwin/extensions';
 
 export type SubscriptionExtensionProvider = {
+  kind?: 'auth' | 'model';
   providerId: string;
   entryPath: string;
+  contentRevision?: string;
   /** Manifest `authProviderName`; the auth port falls back to Pi's registration name. */
   displayName?: string;
 };
@@ -22,6 +24,7 @@ export async function readSubscriptionExtensionProviders(
 ): Promise<SubscriptionExtensionProvider[]> {
   const records = await createExtensionRevisionStore(piwinRoot).listRecords();
   const providers: SubscriptionExtensionProvider[] = [];
+  const ambiguous = new Set<string>();
   for (const record of records) {
     if (!record.configuredEnabled || record.installationState === 'pending-removal') continue;
     const selected = record.revisions.find((revision) =>
@@ -29,7 +32,10 @@ export async function readSubscriptionExtensionProviders(
     if (!selected) continue;
     const manifest = await readPiwinManifest(selected.packageRoot);
     if (!manifest) continue;
-    const claim = parseAuthProviderClaim(manifest);
+    const publicClaim = parseExtensionModelProviderClaim(manifest);
+    const claim = publicClaim === 'invalid' ? 'invalid' : publicClaim
+      ? { providerId: publicClaim.id, ...(publicClaim.name ? { displayName: publicClaim.name } : {}) }
+      : parseAuthProviderClaim(manifest);
     if (claim === undefined) continue;
     if (claim === 'invalid') {
       console.warn(
@@ -39,15 +45,18 @@ export async function readSubscriptionExtensionProviders(
     }
     // A single provider ID may only have one owner in the auth runtime.
     if (providers.some((provider) => provider.providerId === claim.providerId)) {
-      throw new Error(`Multiple enabled extensions claim the ${claim.providerId} auth provider`);
+      ambiguous.add(claim.providerId);
+      console.warn(`[piwin-host] multiple extensions claim ${claim.providerId}; all contributions refused`);
     }
     providers.push({
+      ...(publicClaim ? { kind: 'model' as const } : {}),
       providerId: claim.providerId,
       entryPath: selected.entryPath,
+      ...(publicClaim ? { contentRevision: selected.contentRevision } : {}),
       ...(claim.displayName !== undefined ? { displayName: claim.displayName } : {}),
     });
   }
-  return providers;
+  return providers.filter((provider) => !ambiguous.has(provider.providerId));
 }
 
 /** Missing manifest is normal (most extensions are not auth providers). */

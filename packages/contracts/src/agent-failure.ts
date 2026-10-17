@@ -12,6 +12,7 @@ export const AGENT_FAILURE_CODES = [
   'provider-quota',
   'provider-rate-limit',
   'provider-http-error',
+  'provider-image-input-rejected',
   'provider-unavailable',
   'model-request-timeout',
   'model-stream-missing-finish',

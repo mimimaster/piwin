@@ -1,6 +1,7 @@
 /** Backend-only Pi SDK session creation from exact contracts and ports. */
 
 import { join } from 'node:path';
+import { compiledChannelProviderIds } from '../extension-provider-ownership.js';
 import { selectPiPromptText, type PiExtensionCommandSession } from '../pi-extension-command.js';
 import type { AgentEvent, BackendPreparedPrompt } from '@piwin/contracts';
 import {
@@ -106,7 +107,10 @@ export async function createBackendSdkSession(
       agentDir,
       input.providers,
     ));
-  await flushExtensionProviderRegistrations(resourceLoader, modelRuntime);
+  await flushExtensionProviderRegistrations(resourceLoader, modelRuntime, {
+    extensions: input.blueprint.capabilitySnapshot.resourceManifest.extensions,
+    channelProviderIds: compiledChannelProviderIds(input.providers),
+  });
   const capabilitySnapshot = input.blueprint.capabilitySnapshot;
   let activeRunId: string | undefined;
   const customTools = toPiBackendCustomTools(
@@ -250,6 +254,7 @@ async function createBackendModelRuntime(
       }
       continue;
     }
+    if (provider.auth.kind === 'extension') continue;
     modelRuntime.registerProvider(
       provider.providerId,
       buildWorkerProviderRegistration(
@@ -274,6 +279,7 @@ function resolveBackendProviderApiKey(provider: SerializableProviderRuntime): st
       );
     case 'none':
     case 'oauth':
+    case 'extension':
       return undefined;
   }
 }

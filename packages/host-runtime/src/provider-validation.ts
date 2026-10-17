@@ -68,7 +68,7 @@ export function validateProviders(
       issues.push({ path: `${base}.name`, message: 'provider name is required' });
     }
 
-    if (provider.source === 'subscription') {
+    if (provider.source === 'subscription' || provider.source === 'extension') {
       if (!provider.baseUrl?.trim()) {
         issues.push({ path: `${base}.baseUrl`, message: 'baseUrl is required' });
       }

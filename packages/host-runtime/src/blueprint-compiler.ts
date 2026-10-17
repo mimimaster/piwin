@@ -70,7 +70,7 @@ import { buildMcpCapabilityBrief, type McpCapabilityBrief } from './mcp-capabili
 import { getPiAgentDir, getPiwinRoot } from './paths.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
-import { resolveDefaultModelRef } from './provider-helpers.js';
+import { resolveConfiguredDefaultModelRef, resolveDefaultModelRef } from './provider-helpers.js';
 import { resolveChatModel } from './resolve-chat-model.js';
 import type { SecretResolver } from './secret-resolver.js';
 import type { SubagentReviewCapabilityScope } from './subagent-review-context.js';
@@ -437,9 +437,21 @@ async function assembleCompiledBlueprint(
   });
 
   // Build provider envelope from live config.
+  const savedDefault = config.providers.find((provider) => provider.id === config.defaultProviderId);
+  if (!input.model && config.defaultProviderId && (!savedDefault || savedDefault.source === 'extension') &&
+      !resolveConfiguredDefaultModelRef(config, options.subscriptionAccounts)) {
+    throw Object.assign(new Error(`Configured default model is unavailable: ${config.defaultProviderId}`), { code: 'provider-unavailable' });
+  }
   const defaultModel = resolveDefaultModelRef(config, options.subscriptionAccounts);
-  if (input.model && options.subscriptionAccounts) {
+  if (input.model) {
     const resolved = resolveChatModel(config, input.model, options.subscriptionAccounts);
+    const publicClaim = options.subscriptionAccounts?.publicModelProviders?.some((claim) => claim.providerId === input.model?.providerId);
+    if (!resolved && (input.model.source === 'extension' || publicClaim)) {
+      throw Object.assign(new Error(`Extension model provider "${input.model.providerId}" is unavailable.`), { code: 'provider-unavailable' });
+    }
+    if (input.model.source === 'extension' && !publicClaim) {
+      throw Object.assign(new Error(`Extension model provider "${input.model.providerId}" is unavailable.`), { code: 'provider-unavailable' });
+    }
     if (
       !resolved &&
       isKnownSubscriptionProviderId(input.model.providerId, options.subscriptionAccounts) &&
@@ -475,6 +487,8 @@ async function assembleCompiledBlueprint(
     ...(options.usableSubscriptionProviderIds
       ? { usableSubscriptionProviderIds: options.usableSubscriptionProviderIds }
       : {}),
+    ...(options.subscriptionAccounts?.publicModelProviders
+      ? { publicExtensionProviderIds: options.subscriptionAccounts.publicModelProviders.map((claim) => claim.providerId) } : {}),
     ...(options.secretResolver ? { secretResolver: options.secretResolver } : {}),
     ...(options.subscriptionAccounts?.catalogModelIds
       ? { catalogModelIdsByProvider: options.subscriptionAccounts.catalogModelIds }
@@ -592,7 +606,7 @@ function compileConversationPlan(
       projectRevision: computeProjectRevision(location.scope),
       mcpRevision: computeMcpRevision({ mcpServers: {} }),
       resourceCatalogRevision: computeResourceRevision(emptyCatalog),
-      extensionSetRevision: computeExtensionSetRevision([]),
+      extensionSetRevision: computeExtensionSetRevision(subscriptionExtensionResources(options.subscriptionAccounts)),
     },
     scope: location.scope,
     workingDirectory: location.workingDirectory,

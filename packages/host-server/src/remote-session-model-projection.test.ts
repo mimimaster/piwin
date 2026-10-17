@@ -49,6 +49,14 @@ function requireProjectedMessages(
 }
 
 describe('remote session model projection', () => {
+  it('preserves public extension source without converting it to channel or subscription', () => {
+    const model: ModelRef = { providerId: 'acme-public', modelId: 'flash', source: 'extension' };
+    const messages = requireProjectedMessages({ type: 'session/messages', sessionId: 'session-1' }, {
+      type: 'response', command: 'session/messages', success: true,
+      data: { sessionId: 'session-1', messages: [assistantMessage(model)] },
+    });
+    expect(messages[0]?.model).toEqual(model);
+  });
   it('preserves the session and message generation snapshots on resume', () => {
     const command = { type: 'session/resume' as const, sessionId: 'session-1' };
     const response: HostResponse = {

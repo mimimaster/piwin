@@ -5,6 +5,8 @@ import {
   allocateUniqueProviderId,
   allocateUniqueProviderName,
   isChannelProvider,
+  isExtensionProvider,
+  parseExtensionModelProviderClaim,
   isIgnoredSubscriptionProviderId,
   isSubscriptionProvider,
   isV1SubscriptionProviderId,
@@ -15,6 +17,21 @@ import {
 } from './subscription-oauth.js';
 
 describe('subscription oauth contracts', () => {
+  it('separates public extension providers from channels and subscription accounts', () => {
+    expect(isExtensionProvider({ source: 'extension' })).toBe(true);
+    expect(isChannelProvider({ source: 'extension' })).toBe(false);
+    expect(isSubscriptionProvider({ source: 'extension' })).toBe(false);
+    expect(isChannelProvider({ source: 'unknown' })).toBe(false);
+    expect(parseExtensionModelProviderClaim({ modelProvider: { id: 'acme-public', name: ' Acme ', auth: 'none' } })).toEqual({ id: 'acme-public', name: 'Acme', auth: 'none' });
+    expect(parseExtensionModelProviderClaim({})).toBeUndefined();
+  });
+
+  it('rejects malformed, reserved and mutually exclusive public claims', () => {
+    for (const raw of [null, [], 42, { id: '../escape', auth: 'none' }, { id: 'openai-codex', auth: 'none' }, { id: 'acme', auth: 'oauth' }, { id: 'acme', auth: 'none', name: 7 }, { id: 'acme', auth: 'none', name: ' ' }]) {
+      expect(parseExtensionModelProviderClaim({ modelProvider: raw })).toBe('invalid');
+    }
+    expect(parseExtensionModelProviderClaim({ authProvider: 'acme-auth', modelProvider: { id: 'acme-public', auth: 'none' } })).toBe('invalid');
+  });
   it('allowlists Pi subscription OAuth, not OpenRouter keys', () => {
     expect(isV1SubscriptionProviderId('kimi-coding')).toBe(true);
     expect(isV1SubscriptionProviderId('openai-codex')).toBe(true);

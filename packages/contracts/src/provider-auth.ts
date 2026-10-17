@@ -10,7 +10,8 @@ export type ProviderAuthDescriptor =
   | { readonly kind: 'bootstrap'; readonly secretId: string }
   | { readonly kind: 'inline'; readonly apiKey: string }
   | { readonly kind: 'none' }
-  | { readonly kind: 'oauth'; readonly providerId: string };
+  | { readonly kind: 'oauth'; readonly providerId: string }
+  | { readonly kind: 'extension'; readonly providerId: string };
 
 /**
  * Authentication modes allowed to cross the worker JSONL boundary. Inline

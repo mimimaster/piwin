@@ -18,6 +18,7 @@ import { injectBranchCalibrationOnce } from './branch-calibration.js';
 import { finalizeAbortedRun } from './run-control-commands.js';
 import { scheduleReplyWriterAfterRun } from './reply-writer-live.js';
 import { applyAgentPromptOutcome, persistHostRuntimeFailure } from './session-turn-outcome.js';
+import { promptSentNativeImages, relabelImageInputOutcome } from './image-input-failure.js';
 
 export async function executeSessionTurn(input: {
   context: SessionLiveContext;
@@ -190,9 +191,10 @@ export async function executeSessionTurn(input: {
         return;
       }
     }
-    const outcome = extensionCommandText === undefined
+    const rawOutcome = extensionCommandText === undefined
       ? await liveSession.prompt(promptInput)
       : await liveSession.prompt(promptInput, { extensionCommandText });
+    const outcome = relabelImageInputOutcome(rawOutcome, promptSentNativeImages(promptInput));
     const applied = await applyAgentPromptOutcome({
       context,
       sessionId: command.sessionId,

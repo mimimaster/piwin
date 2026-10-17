@@ -20,6 +20,7 @@ import {
   wrapStreamSimpleWithCloudOptions,
 } from '../cloud-provider-stream.js';
 import { join } from 'node:path';
+import { canRegisterExtensionProvider, compiledChannelProviderIds, nativeRegistrationId, type ExtensionProviderOwner } from '../extension-provider-ownership.js';
 import { selectPiPromptText, type PiExtensionCommandSession } from '../pi-extension-command.js';
 import { readFile } from 'node:fs/promises';
 import type {
@@ -220,7 +221,7 @@ export function registerWorkerProviders(
 ): void {
   const referencedBootstrapIds = new Set<string>();
   for (const provider of providers) {
-    if (provider.auth.kind === 'oauth') {
+    if (provider.auth.kind === 'oauth' || provider.auth.kind === 'extension') {
       continue;
     }
     if (provider.auth.kind === 'bootstrap') {
@@ -257,6 +258,7 @@ function resolveWorkerProviderApiKey(
     }
     case 'none':
     case 'oauth':
+    case 'extension':
       return undefined;
   }
 }
@@ -376,12 +378,17 @@ function readPendingProviderQueue(resourceLoader: unknown): PendingExtensionProv
 export async function flushExtensionProviderRegistrations(
   resourceLoader: unknown,
   modelRuntime: ExtensionProviderSink | PiModelRuntime,
+  policy?: { extensions: readonly ExtensionProviderOwner[]; channelProviderIds?: ReadonlySet<string> },
 ): Promise<void> {
   const queue = readPendingProviderQueue(resourceLoader);
   if (!queue) return;
   const sink = modelRuntime as ExtensionProviderSink;
   let registered = false;
   for (const { name, config, extensionPath } of queue.pendingProviderRegistrations) {
+    if (policy && !canRegisterExtensionProvider(name, extensionPath, policy.extensions, policy.channelProviderIds)) {
+      console.warn(`[piwin-agent-host] refused provider ${name} from ${extensionPath}`);
+      continue;
+    }
     try {
       sink.registerProvider(name, config as never);
       registered = true;
@@ -392,6 +399,11 @@ export async function flushExtensionProviderRegistrations(
   queue.pendingProviderRegistrations = [];
   if (typeof sink.registerNativeProvider === 'function') {
     for (const { provider, extensionPath } of queue.pendingNativeProviderRegistrations) {
+      const providerId = nativeRegistrationId(provider);
+      if (policy && (!providerId || !canRegisterExtensionProvider(providerId, extensionPath, policy.extensions, policy.channelProviderIds))) {
+        console.warn(`[piwin-agent-host] refused native provider from ${extensionPath}`);
+        continue;
+      }
       try {
         sink.registerNativeProvider(provider as never);
         registered = true;
@@ -454,7 +466,10 @@ export function createWorkerPiSessionFactory(
         }
       }
     }
-    await flushExtensionProviderRegistrations(resourceLoader, modelRuntime);
+    await flushExtensionProviderRegistrations(resourceLoader, modelRuntime, {
+      extensions: blueprint.resourceManifest.extensions,
+      channelProviderIds: compiledChannelProviderIds(providers),
+    });
     await modelRuntime.refresh({ allowNetwork: false });
 
     let settingsManager = createPiwinSettingsManager(

@@ -18,12 +18,20 @@ The auth bridge is no longer limited to `commandcode`. Any enabled managed exten
 { "authProvider": "acme-cloud", "authProviderName": "Acme Cloud" }
 ```
 
-- `authProvider` must be a lowercase slug (`[a-z0-9][a-z0-9-]{0,63}`) and must not be a built-in Host subscription id (`V1_SUBSCRIPTION_PROVIDER_IDS` or `anthropic-claude-code`). Invalid or reserved claims are ignored with a Host warning. Two enabled extensions claiming the same id is an error.
+- `authProvider` must be a lowercase slug (`[a-z0-9][a-z0-9-]{0,63}`) and must not be a built-in Host subscription id (`V1_SUBSCRIPTION_PROVIDER_IDS` or `anthropic-claude-code`). Invalid or reserved claims are ignored with a Host warning. Two enabled extensions claiming the same id are all refused with a Host warning; unrelated claims continue.
 - `authProviderName` is optional. The card name falls back to the `name` the extension passed to Pi `registerProvider`, then to the id.
 - The Host auth runtime registers only the claimed id from each extension, so an extension cannot inject side providers into it.
 - `auth/status` lists an extension account with `extension: { displayName }`. Shells render such cards from that metadata instead of a built-in copy table and show no quota drawer for them. A stored `oauth` or `api_key` credential under a claimed id counts as signed in, because extensions choose their own credential shape.
 - Sessions load the owning extension for every usable extension account, including pure-chat sessions, and flush Pi's pending provider registrations into the session model runtime before model resolution (mirroring Pi `createAgentSessionServices`). The compiler receives the claim snapshot through the subscription compile context; it does not read the extension store itself.
 - No piwin source names an extension provider id. `commandcode` and `kiro` are ordinary extension claims.
+
+### Amendment: public no-login model providers
+
+A managed package may instead declare `modelProvider: { id, name?, auth: 'none' }`. This is mutually exclusive with `authProvider` and uses the same reserved-id validation. Its actual `registerProvider` registration supplies the catalog and transport, without an OAuth account or stored credential.
+
+Projected settings/model references use `source: 'extension'`; compiled provider envelopes use `{ kind: 'extension', providerId }`. SDK/RPC skip ordinary channel registration, bind the exact managed revision (including pure chat), and flush the extension registration before model selection. `ResourceInstance.modelProviderId` carries ownership across this boundary. A package directory owns its contained actual entry modules; sibling prefixes and path escapes are not owners. Catalog loading and session flush both reject cross-owner registrations; compiled channel ids cannot be overwritten by extensions.
+
+A collision with a user-owned channel or subscription rejects only the public contribution. Catalog refresh preserves model/provider switches and saved limits, withdraws removed models, and does not automatically select a public model. Explicit references to disabled or removed extension models fail as unavailable. External provider packages remain independently shipped; no provider-specific endpoint or client emulation belongs in the Host.
 
 ## Consequences
 

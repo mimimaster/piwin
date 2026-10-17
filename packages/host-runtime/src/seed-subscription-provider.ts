@@ -13,6 +13,7 @@ import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
   isChannelProvider,
+  isExtensionProvider,
   isSubscriptionProvider,
   isThinkingLevel,
   isClaudeCodeOauthProviderId,
@@ -105,7 +106,7 @@ export function upsertSubscriptionProvider(
   displayName?: string,
 ): PiwinConfig {
   const existing = config.providers.find((provider) => provider.id === providerId);
-  if (existing && isChannelProvider(existing)) {
+  if (existing && (isChannelProvider(existing) || isExtensionProvider(existing))) {
     return config;
   }
   const nextProvider = mergeSubscriptionProvider(

@@ -533,7 +533,7 @@ function projectModelRef(value: unknown): ModelRef | undefined {
   ) {
     model.protocol = record.protocol;
   }
-  if (record.source === 'channel' || record.source === 'subscription') {
+  if (record.source === 'channel' || record.source === 'subscription' || record.source === 'extension') {
     model.source = record.source;
   }
   return model;

@@ -225,6 +225,7 @@ export function agentFailureOriginForCode(code: AgentFailureCode): AgentFailureO
     case 'provider-quota':
     case 'provider-rate-limit':
     case 'provider-http-error':
+    case 'provider-image-input-rejected':
     case 'provider-unavailable':
     case 'context-limit-exceeded':
       return 'provider';

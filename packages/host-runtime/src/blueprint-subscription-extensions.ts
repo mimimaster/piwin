@@ -12,7 +12,7 @@ import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
 export function subscriptionExtensionResources(
   subscription: ResolveChatModelAccounts | undefined,
 ): ResourceInstance[] {
-  if (!subscription?.extensionProviders) {
+  if (!subscription) {
     return [];
   }
   const usable = new Set(
@@ -20,14 +20,18 @@ export function subscriptionExtensionResources(
       .filter((account) => account.extension !== undefined && isSubscriptionAccountUsable(account))
       .map((account) => account.providerId),
   );
-  return subscription.extensionProviders
-    .filter((provider) => usable.has(provider.providerId))
+  return [
+    ...(subscription.extensionProviders ?? []).filter((provider) => usable.has(provider.providerId)),
+    ...(subscription.publicModelProviders ?? []),
+  ]
     .map((provider) => ({
       resourceId: `extension:subscription:${provider.providerId}`,
       kind: 'extension',
       name: provider.displayName ?? provider.providerId,
       path: provider.entryPath,
       source: 'user',
+      modelProviderId: provider.providerId,
+      ...(provider.contentRevision ? { contentRevision: provider.contentRevision } : {}),
     }));
 }
 
@@ -36,12 +40,11 @@ export function withSubscriptionExtensions(
   manifest: ResourceManifest,
   subscription: ResolveChatModelAccounts | undefined,
 ): ResourceManifest {
-  const additions = subscriptionExtensionResources(subscription).filter(
-    (resource) => !manifest.extensions.some((extension) => extension.path === resource.path),
-  );
-  return additions.length === 0
-    ? manifest
-    : { ...manifest, extensions: [...manifest.extensions, ...additions] };
+  const byPath = new Map(manifest.extensions.map((resource) => [resource.path, resource]));
+  for (const resource of subscriptionExtensionResources(subscription)) {
+    byPath.set(resource.path, { ...byPath.get(resource.path), ...resource });
+  }
+  return { ...manifest, extensions: [...byPath.values()] };
 }
 
 /**

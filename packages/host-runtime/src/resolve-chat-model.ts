@@ -1,5 +1,7 @@
 import {
   isChannelProvider,
+  isExtensionProvider,
+  isProviderEnabled,
   isModelEnabled,
   isSubscriptionProvider,
   modelSupportsCapability,
@@ -18,11 +20,12 @@ export type ResolveChatModelAccounts = {
    * snapshot instead of touching the extension store itself.
    */
   extensionProviders?: readonly SubscriptionExtensionProvider[];
+  publicModelProviders?: readonly SubscriptionExtensionProvider[];
 };
 
 export type ResolvedChatModel = {
   ref: ModelRef;
-  source: 'channel' | 'subscription';
+  source: 'channel' | 'subscription' | 'extension';
 };
 
 /**
@@ -33,6 +36,7 @@ export function resolveChatModel(
   ref: ModelRef,
   accounts: ResolveChatModelAccounts = { accounts: [] },
 ): ResolvedChatModel | undefined {
+  if (ref.source === 'extension') return resolveExtension(config, ref, accounts);
   if (ref.source === 'subscription') {
     return resolveSubscription(ref, config, accounts);
   }
@@ -43,7 +47,7 @@ export function resolveChatModel(
   if (channel) {
     return channel;
   }
-  return resolveSubscription(ref, config, accounts);
+  return resolveExtension(config, ref, accounts) ?? resolveSubscription(ref, config, accounts);
 }
 
 export function isSubscriptionAccountUsable(account: SubscriptionAccount | undefined): boolean {
@@ -60,7 +64,7 @@ function resolveChannel(
   ref: ModelRef,
 ): ResolvedChatModel | undefined {
   const provider = findEnabledProvider(config, ref.providerId);
-  if (!provider || isSubscriptionProvider(provider)) {
+  if (!provider || !isChannelProvider(provider)) {
     return undefined;
   }
   const model = findEnabledModel(config, ref.providerId, ref.modelId);
@@ -78,13 +82,30 @@ function resolveChannel(
   };
 }
 
+function resolveExtension(
+  config: { providers: readonly import('@piwin/contracts').ModelProviderConfig[] },
+  ref: ModelRef,
+  accounts: ResolveChatModelAccounts,
+): ResolvedChatModel | undefined {
+  const live = accounts.publicModelProviders;
+  const claim = live?.find((provider) => provider.providerId === ref.providerId);
+  if (live !== undefined && !claim) return undefined;
+  const provider = config.providers.find((entry) => entry.id === ref.providerId);
+  if (provider && (!isExtensionProvider(provider) || !isProviderEnabled(provider))) return undefined;
+  if (!provider && !claim) return undefined;
+  const model = provider?.models.find((entry) => entry.id === ref.modelId && isModelEnabled(entry) && modelSupportsCapability(entry, 'chat'));
+  if (provider && !model) return undefined;
+  if (!provider && !accounts.catalogModelIds?.get(ref.providerId)?.includes(ref.modelId)) return undefined;
+  return { source: 'extension', ref: { providerId: ref.providerId, modelId: ref.modelId, source: 'extension' } };
+}
+
 function resolveSubscription(
   ref: ModelRef,
   config: { providers: readonly import('@piwin/contracts').ModelProviderConfig[] },
   accounts: ResolveChatModelAccounts,
 ): ResolvedChatModel | undefined {
   // Accounts cover built-in ids and enabled extension claims; no id allowlist here.
-  if (config.providers.some((provider) => provider.id === ref.providerId && isChannelProvider(provider))) {
+  if (config.providers.some((provider) => provider.id === ref.providerId && !isSubscriptionProvider(provider))) {
     return undefined;
   }
   const account = accounts.accounts.find((entry) => entry.providerId === ref.providerId);

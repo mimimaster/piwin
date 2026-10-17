@@ -47,9 +47,9 @@ export type SubscriptionAccountState =
 
 export type SubscriptionSurface = 'v1' | 'ignored';
 
-export type ModelSource = 'channel' | 'subscription';
+export type ModelSource = 'channel' | 'subscription' | 'extension';
 
-export type ConfiguredChatModelGroup = 'subscription' | 'channel';
+export type ConfiguredChatModelGroup = 'subscription' | 'channel' | 'extension';
 
 /**
  * Present when an enabled managed extension (not Pi/piwin) owns this account.
@@ -283,7 +283,7 @@ export function isSubscriptionProvider(provider: { source?: string }): boolean {
 
 /** BYOK / CPA / custom channel. Omitted `source` is a channel. */
 export function isChannelProvider(provider: { source?: string }): boolean {
-  return provider.source !== 'subscription';
+  return provider.source === undefined || provider.source === 'channel';
 }
 
 export function isIgnoredSubscriptionProviderId(providerId: string): boolean {
@@ -302,6 +302,43 @@ export function isValidExtensionAuthProviderId(providerId: string): boolean {
     EXTENSION_AUTH_PROVIDER_ID_PATTERN.test(providerId) &&
     !isSubscriptionOauthProviderId(providerId)
   );
+}
+
+/** Public no-login provider contribution; never an OAuth account. */
+export type ExtensionModelProviderClaim = {
+  readonly id: string;
+  readonly name?: string;
+  readonly auth: 'none';
+};
+
+export function isExtensionProvider(provider: { source?: string }): boolean {
+  return provider.source === 'extension';
+}
+
+export function parseExtensionModelProviderClaim(
+  manifest: Record<string, unknown>,
+): ExtensionModelProviderClaim | 'invalid' | undefined {
+  const raw = manifest['modelProvider'];
+  if (raw === undefined) return undefined;
+  if (manifest['authProvider'] !== undefined || !raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return 'invalid';
+  }
+  const record = raw as Record<string, unknown>;
+  if (typeof record.id !== 'string' || !isValidExtensionAuthProviderId(record.id) || record.auth !== 'none') {
+    return 'invalid';
+  }
+  if (record.name !== undefined && (typeof record.name !== 'string' || !record.name.trim())) {
+    return 'invalid';
+  }
+  return {
+    id: record.id,
+    auth: 'none',
+    ...(typeof record.name === 'string' ? { name: record.name.trim() } : {}),
+  };
+}
+
+export function extensionModelProviderOrigin(providerId: string): string {
+  return `extension://${providerId}`;
 }
 
 export const AUTH_CLI_PROVIDER_IDS = [

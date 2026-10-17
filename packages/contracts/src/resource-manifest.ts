@@ -19,6 +19,8 @@ export type ResourceInstance = {
   contentRevision?: string;
   /** Pi-native root marker; undefined for product roots. */
   piNativeRoot?: string;
+  /** Managed provider owner; registration is restricted to this immutable path. */
+  modelProviderId?: string;
 };
 
 /** Only active instances. Blocked/shadowed entries stay in the catalog/status API. */

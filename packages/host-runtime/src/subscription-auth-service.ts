@@ -12,6 +12,7 @@ import type {
 } from '@piwin/contracts';
 import {
   AUTH_LOGIN_IDLE_MS,
+  projectConfiguredChatModels,
   allocateRelocateChannelId,
   classifySubscriptionLoginFailure,
   isV1SubscriptionProviderId,
@@ -37,7 +38,8 @@ import { getPiwinRoot, resolveHostPiAgentDir } from './paths.js';
 import { rewriteChannelModelRefs } from './rewrite-channel-model-refs.js';
 import { buildSubscriptionAccounts, findCollidingChannelId, oauthProviderIds } from './subscription-account-status.js';
 import { applyDevinLogoutWebSearch, applySubscriptionLoginDefaults } from './subscription-login-defaults.js';
-import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
+import { buildExtensionProviderSnapshot } from './extension-provider-snapshot.js';
+import { projectPublicModelProviders } from './extension-model-provider-projection.js';
 import {
   ensureSubscriptionProviders,
   upsertSubscriptionProvider,
@@ -223,15 +225,8 @@ export class SubscriptionAuthService {
       accounts = await this.readAccounts();
     }
     this.lastOauthProviderIds = oauthProviderIds(accounts);
-    const catalogModelIds = new Map<string, readonly string[]>();
-    for (const account of accounts) {
-      if (!isSubscriptionAccountUsable(account)) {
-        continue;
-      }
-      catalogModelIds.set(account.providerId, this.catalogModelIds(account.providerId));
-    }
-    // readAccounts refreshed the extension snapshot; hand compilers the same one.
-    return { accounts, catalogModelIds, extensionProviders: this.extensionProviders };
+    return buildExtensionProviderSnapshot(accounts, this.extensionProviders, await this.loadConfig(),
+      (providerId) => this.catalogModelIds(providerId));
   }
 
   usableSubscriptionProviderIds(): string[] {
@@ -444,13 +439,14 @@ export class SubscriptionAuthService {
   }
 
   async mergeConfiguredModels(channelModels: ConfiguredChatModels): Promise<ConfiguredChatModels> {
-    await this.ensurePort();
-    return mergeSubscriptionCatalogModels(
-      channelModels,
-      await this.readAccounts(),
-      await this.loadConfig(),
-      (providerId) => this.chatCatalogFor(providerId),
-    );
+    const snapshot = await this.chatResolveInput();
+    const config = await this.loadConfig();
+    const merged = mergeSubscriptionCatalogModels(channelModels, snapshot.accounts, config,
+      (providerId) => this.chatCatalogFor(providerId));
+    return { ...merged, models: [
+      ...merged.models.filter((model) => model.source !== 'extension'),
+      ...projectConfiguredChatModels(config).models.filter((model) => model.source === 'extension').map((model) => ({ ...model })),
+    ] };
   }
 
   startWatch(): void {
@@ -709,7 +705,7 @@ export class SubscriptionAuthService {
       ...(this.active ? { loggingInProviderId: this.active.providerId } : {}),
       syncErrorProviderIds: this.syncErrorProviderIds,
       needsReauthProviderIds: this.needsReauthProviderIds,
-    }, extensionProviders.map((provider) => ({
+    }, extensionProviders.filter((provider) => provider.kind !== 'model').map((provider) => ({
       providerId: provider.providerId,
       displayName: extensionDisplayName(provider, port),
     })));
@@ -721,7 +717,7 @@ export class SubscriptionAuthService {
   }
 
   private isExtensionProvider(providerId: string): boolean {
-    return this.extensionProviders.some((provider) => provider.providerId === providerId);
+    return this.extensionProviders.some((provider) => provider.kind !== 'model' && provider.providerId === providerId);
   }
 
   /** Built-in Host subscription ids plus ids claimed by enabled extensions. */
@@ -861,7 +857,9 @@ export class SubscriptionAuthService {
   private async projectLoggedInProviders(): Promise<PiwinConfig> {
     const accounts = await this.readAccounts();
     const derive = (config: PiwinConfig): PiwinConfig =>
-      ensureSubscriptionProviders(config, accounts, (providerId) => this.chatCatalogFor(providerId));
+      projectPublicModelProviders(
+        ensureSubscriptionProviders(config, accounts, (providerId) => this.chatCatalogFor(providerId)),
+        this.extensionProviders, (providerId) => this.chatCatalogFor(providerId));
     if (this.externalConfigStore) {
       const config = await this.loadConfig();
       const next = derive(config);
