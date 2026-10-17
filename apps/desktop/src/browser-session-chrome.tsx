@@ -2,8 +2,9 @@
  * Browser workbench chrome (spec §4.2).
  *
  * Row 1: tabs and panel actions — inside the right panel it merges into that
- * panel's titlebar instead. Row 2: navigation, address bar, mode group.
- * Secondary tools (console, open external, restart) live in the ⋯ menu.
+ * panel's titlebar instead. Row 2: navigation, address bar, then the tool
+ * group (Annotate, viewport, console) — the Cursor browser layout.
+ * One-shot actions (screenshot, copy URL, open external, restart) live in ⋯.
  * The host titlebar already has a + (open another tool). Do not add a second
  * + for new tab there — that action goes in ⋯ while chrome is merged.
  * Controls are icon-only — the address bar submits on Enter, Reload always
@@ -46,7 +47,8 @@ import {
   IconExternalLink,
   IconMore,
   IconPlus,
-  IconEdit,
+  IconCopy,
+  IconImage,
   IconPointer,
   IconRefresh,
   IconTerminal,
@@ -65,8 +67,10 @@ export type BrowserSessionChromeCopy = {
   pickDisabled: string;
   pickExit: string;
   pickEnter: string;
-  annotate: string;
-  annotateExit: string;
+  /** Visible label of the pick button (Cursor's 「Annotate」). */
+  pickLabel: string;
+  takeScreenshot: string;
+  copyUrl: string;
   openExternal: string;
   devDrawer: string;
   more: string;
@@ -115,8 +119,9 @@ export type BrowserSessionChromeProps = {
   interactEnabled: boolean;
   pickActive: boolean;
   onTogglePick: () => void;
-  annotateActive: boolean;
-  onToggleAnnotate: () => void;
+  /** Omitted when the host surface cannot take an image into the composer. */
+  onTakeScreenshot?: (() => void) | undefined;
+  onCopyUrl: () => void;
   /** Activity indicator only: the agent never locks the user out. */
   controller: BrowserController;
   /** Writer of the last delivered frame, shown in the density tooltip. */
@@ -152,8 +157,8 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
     interactEnabled,
     pickActive,
     onTogglePick,
-    annotateActive,
-    onToggleAnnotate,
+    onTakeScreenshot,
+    onCopyUrl,
     controller,
     producer,
     tabs,
@@ -256,7 +261,7 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
       label={copy.more}
       trigger={
         <IconButton
-          className={`browser-session-icon-btn${devDrawerOpen ? ' active' : ''}`}
+          className="browser-session-icon-btn"
           data-testid="browser-session-more"
           label={copy.more}
           size={28}
@@ -280,14 +285,25 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
           <DropdownMenuSeparator />
         </>
       ) : null}
+      {onTakeScreenshot ? (
+        <DropdownMenuItem
+          testId="browser-session-more-screenshot"
+          icon={<IconImage width={13} height={13} />}
+          disabled={!interactEnabled}
+          onSelect={onTakeScreenshot}
+        >
+          {copy.takeScreenshot}
+        </DropdownMenuItem>
+      ) : null}
       <DropdownMenuItem
-        testId="browser-session-dev-drawer"
-        icon={<IconTerminal width={13} height={13} />}
-        onSelect={onToggleDevDrawer}
-        {...(devDrawerOpen ? { shortcut: '✓' } : {})}
+        testId="browser-session-more-copy-url"
+        icon={<IconCopy width={13} height={13} />}
+        disabled={committedUrl.length === 0}
+        onSelect={onCopyUrl}
       >
-        {copy.devDrawer}
+        {copy.copyUrl}
       </DropdownMenuItem>
+      <DropdownMenuSeparator />
       <DropdownMenuItem
         testId="browser-session-more-external"
         icon={<IconExternalLink width={13} height={13} />}
@@ -332,12 +348,10 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
     </DropdownMenu>
   );
 
-  // In a host titlebar the host's own expand/close sit right after this slot.
-  const actionsNode = inTitlebar ? (
-    moreMenu
-  ) : (
+  // In a host titlebar the host's own expand/close already sit there and ⋯
+  // lives in the address row, so nothing is portaled into the actions slot.
+  const actionsNode = inTitlebar ? null : (
     <>
-      {moreMenu}
       {panelActions ? (
         <>
           <IconButton
@@ -380,10 +394,6 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
               {tabsNode}
             </div>,
             tabsSlot,
-          )}
-          {createPortal(
-            <div className="browser-session-chrome-actions browser-session-titlebar-actions">{actionsNode}</div>,
-            actionsSlot,
           )}
         </>
       ) : titlebar ? null : (
@@ -455,28 +465,21 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
             />
           ) : null}
 
-          <IconButton
-            className={`browser-session-icon-btn${annotateActive ? ' active' : ''}`}
-            data-testid="browser-session-annotate"
-            label={annotateActive ? copy.annotateExit : copy.annotate}
-            size={28}
-            aria-pressed={annotateActive}
-            onClick={onToggleAnnotate}
-          >
-            <IconEdit width={15} height={15} />
-          </IconButton>
-
-          <IconButton
-            className={`browser-session-icon-btn${pickActive ? ' active' : ''}`}
+          <button
+            type="button"
+            className={`browser-session-annotate${pickActive ? ' active' : ''}`}
             data-testid="browser-session-pick-toggle"
-            label={!interactEnabled ? copy.pickDisabled : pickActive ? copy.pickExit : copy.pickEnter}
-            size={28}
+            title={!interactEnabled ? copy.pickDisabled : pickActive ? copy.pickExit : copy.pickEnter}
+            aria-label={!interactEnabled ? copy.pickDisabled : pickActive ? copy.pickExit : copy.pickEnter}
             disabled={!interactEnabled}
             aria-pressed={pickActive}
             onClick={onTogglePick}
           >
-            <IconPointer width={15} height={15} />
-          </IconButton>
+            <IconPointer width={14} height={14} />
+            <span className="browser-session-annotate-label">{copy.pickLabel}</span>
+          </button>
+
+          <span className="browser-session-tool-divider" aria-hidden />
 
           <BrowserViewportMenu
             copy={copy}
@@ -492,6 +495,17 @@ export function BrowserSessionChrome(props: BrowserSessionChromeProps): ReactEle
             onSelectViewport={onSelectViewport}
             onSelectDisplayZoom={onSelectDisplayZoom}
           />
+          <IconButton
+            className={`browser-session-icon-btn${devDrawerOpen ? ' active' : ''}`}
+            data-testid="browser-session-dev-drawer"
+            label={copy.devDrawer}
+            size={28}
+            aria-pressed={devDrawerOpen}
+            onClick={onToggleDevDrawer}
+          >
+            <IconTerminal width={15} height={15} />
+          </IconButton>
+          {moreMenu}
         </div>
       </div>
 

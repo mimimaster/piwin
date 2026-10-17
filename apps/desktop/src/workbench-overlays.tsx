@@ -248,6 +248,11 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
         activeSessionCapabilities.supports('duplicate')
           ? {}
           : { sessionMenuCanContinueInProject: false })}
+        {...(props.sessionMenu !== null &&
+        (props.sessionMenu.sessionId in props.state.completedAttentionSessionIds ||
+          props.sessionMenu.sessionId in props.state.failedAttentionSessionIds)
+          ? { sessionMenuHasAttention: true }
+          : {})}
         renameDraft={props.renameDraft}
         onRenameDraftChange={props.setRenameDraft}
         onRenameSession={(sessionId, name) => {

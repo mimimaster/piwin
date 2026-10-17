@@ -138,8 +138,7 @@
   height: 22px;
 }
 
-.browser-session-titlebar-tabs .browser-session-icon-btn,
-.browser-session-titlebar-actions .browser-session-icon-btn {
+.browser-session-titlebar-tabs .browser-session-icon-btn {
   width: 22px;
   height: 22px;
   min-width: 22px;
@@ -156,13 +155,9 @@
   display: none;
 }
 
-.browser-session-titlebar-actions {
-  gap: 2px;
-}
-
-/* Default theme pins actions absolutely; reserve room for ⋯ + expand + close. */
+/* Default theme pins actions absolutely; reserve room for expand + close. */
 .right-panel-tabstrip.has-browser-actions {
-  padding-right: 100px;
+  padding-right: 68px;
 }
 
 /* ---- chrome row 2: navigation + address + mode group ---- */
@@ -234,12 +229,48 @@
   cursor: not-allowed;
 }
 
-/* ---- mode group: control state, pick, viewport ---- */
+/* ---- tool group: agent activity, Annotate, viewport, console, ⋯ ---- */
 .browser-session-mode-group {
   display: flex;
   align-items: center;
   gap: var(--s-1);
   flex-shrink: 0;
+}
+
+.browser-session-annotate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 28px;
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.browser-session-annotate:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.browser-session-annotate.active {
+  background: color-mix(in srgb, var(--iris) 18%, transparent);
+  color: var(--iris-lift);
+}
+
+.browser-session-annotate:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.browser-session-tool-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 var(--s-1);
+  background: var(--line-1);
 }
 
 .browser-session-agent-activity {
@@ -350,15 +381,6 @@
   background: var(--hover);
 }
 
-.browser-session-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  padding: var(--s-2) var(--s-4);
-  border-bottom: 1px solid var(--line-1);
-  flex-shrink: 0;
-}
-
 .browser-session-pick-toggle {
   height: var(--h-xs);
   padding: 0 var(--s-4);
@@ -387,34 +409,105 @@
   cursor: not-allowed;
 }
 
-.browser-session-pick-pending {
-  font-size: var(--fs-micro);
-  color: var(--text-3);
+/* ---- floating status: overlays the page so the viewport never shifts ---- */
+.browser-session-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.browser-session-pick-error {
-  font-size: var(--fs-micro);
-  color: var(--coral);
+.browser-status-overlay {
+  position: absolute;
+  top: var(--s-4);
+  left: var(--s-4);
+  right: var(--s-4);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2);
+  pointer-events: none;
 }
 
-.browser-session-clear-highlight {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
+.browser-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  max-width: 100%;
+  height: 26px;
+  padding: 0 var(--s-5);
   border: 0;
-  border-radius: var(--r-chip);
-  background: transparent;
-  color: var(--text-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface-1) 86%, transparent);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow:
+    0 0 0 1px var(--line-1),
+    0 4px 14px color-mix(in srgb, var(--text-1) 10%, transparent);
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  pointer-events: auto;
+  animation: browser-status-in var(--t-2) var(--ease-out) both;
+}
+
+.browser-status-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.browser-status-pill[data-tone='error'] {
+  color: var(--text-1);
+}
+
+.browser-status-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--iris-lift);
+}
+
+.browser-status-pill[data-tone='pending'] .browser-status-dot {
+  animation: browser-session-agent-pulse 1.4s var(--ease-out) infinite;
+}
+
+.browser-status-pill[data-tone='error'] .browser-status-dot {
+  --lamp: var(--coral);
+  background: var(--coral);
+}
+
+.browser-status-clear {
   cursor: pointer;
   transition:
     background-color var(--t-1) var(--ease-out),
     color var(--t-1) var(--ease-out);
 }
 
-.browser-session-clear-highlight:hover {
+.browser-status-clear:hover {
+  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
   color: var(--text-1);
-  background: var(--hover);
+}
+
+@keyframes browser-status-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .browser-status-pill,
+  .browser-status-pill[data-tone='pending'] .browser-status-dot {
+    animation: none;
+  }
 }
 
 .browser-session-frame-container {
@@ -519,44 +612,4 @@
 
 .browser-session-dev-warning {
   color: var(--amber);
-}
-
-.browser-annotation-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-4);
-}
-
-.browser-annotation-canvas {
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-  object-fit: contain;
-  cursor: crosshair;
-}
-
-.browser-annotation-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-1);
-  padding: var(--s-2) var(--s-3);
-  border-top: 1px solid var(--line-1);
-  background: var(--surface-1);
-}
-
-.browser-annotation-swatch {
-  width: 16px;
-  height: 16px;
-  border: 0;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: inset 0 0 0 1px var(--line-1);
-}
-
-.browser-annotation-swatch.active {
-  box-shadow: 0 0 0 2px var(--iris-lift);
 }

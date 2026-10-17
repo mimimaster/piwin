@@ -19,7 +19,7 @@ import {
 import type { WebElementPickResult } from '@piwin/contracts';
 import type { HostClient } from './host-client';
 import { normalizeUrl } from './normalize-url';
-import { IconClose } from './shell-icons';
+import { BrowserStatusOverlay } from './browser-status-overlay';
 import { BrowserSessionChrome } from './browser-session-chrome';
 import { BrowserConsoleDrawer } from './browser-console-drawer';
 import { BrowserViewportSurface } from './browser-viewport-surface';
@@ -35,7 +35,6 @@ import {
 } from './browser-workbench-ime';
 import { displayRectFromFilledViewport } from './browser-workbench-pointer';
 import { useBrowserInput } from './hooks/use-browser-input';
-import { BrowserAnnotationOverlay } from './browser-annotation-overlay';
 import { useDesktopLocale } from './desktop-locale-context';
 import { openExternalUrl } from './open-external-url';
 import type { BrowserPanelNotice } from './browser-session-chrome';
@@ -73,7 +72,7 @@ export type BrowserPanelPanelActions = {
 };
 
 export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactElement {
-  const { hostClient, onAddWebElement, onAddImageFile, activeSessionId } = props;
+  const { hostClient, onAddWebElement, onAddImageFile } = props;
   const { locale } = useDesktopLocale();
   const copy = browserSessionCopy(locale);
   const {
@@ -109,7 +108,6 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     mirrorStopFailed: copy.mirrorStopFailed,
   });
   const [pickMode, setPickMode] = useState(false);
-  const [annotateMode, setAnnotateMode] = useState(false);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -174,7 +172,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     imgRef,
     viewportWidth: frame.viewportWidth,
     viewportHeight: frame.viewportHeight,
-    interactEnabled: interactEnabled && !annotateMode,
+    interactEnabled,
     pickMode,
     ...(target === undefined ? {} : { target }),
     onPickStart: () => {
@@ -238,6 +236,29 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
       if (!opened) pushNotice(copy.panelActionFailed);
     });
   }, [committedUrl, pushNotice, copy.panelActionFailed]);
+
+  const handleCopyUrl = useCallback((): void => {
+    if (committedUrl.length === 0) return;
+    void navigator.clipboard.writeText(committedUrl).catch(() => pushNotice(copy.panelActionFailed));
+  }, [committedUrl, pushNotice, copy.panelActionFailed]);
+
+  // The mirrored frame is already what the user sees, so the screenshot is
+  // that frame attached to the composer — no extra Host capture round trip.
+  const frameSrc = frame.src;
+  const handleTakeScreenshot = useCallback((): void => {
+    if (!onAddImageFile || !frameSrc) return;
+    void fetch(frameSrc)
+      .then((response) => response.blob())
+      .then((blob) => {
+        const extension = blob.type === 'image/png' ? 'png' : 'jpg';
+        onAddImageFile(
+          new File([blob], `browser-screenshot-${String(Date.now())}.${extension}`, {
+            type: blob.type || 'image/jpeg',
+          }),
+        );
+      })
+      .catch(() => pushNotice(copy.panelActionFailed));
+  }, [onAddImageFile, frameSrc, pushNotice, copy.panelActionFailed]);
 
   const handleSelectViewport = useCallback(
     (selection: { id: BrowserViewportPresetId; width: number; height: number }): void => {
@@ -354,23 +375,9 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         onReload={handleReload}
         interactEnabled={interactEnabled}
         pickActive={pickMode}
-        onTogglePick={() => {
-          setAnnotateMode(false);
-          setPickMode((current) => !current);
-        }}
-        annotateActive={annotateMode}
-        onToggleAnnotate={() => {
-          setPickMode(false);
-          setAnnotateMode((current) => {
-            const next = !current;
-            if (next) {
-              void hostClient.browserCapture({
-                ...(activeSessionId ? { sessionId: activeSessionId } : {}),
-              });
-            }
-            return next;
-          });
-        }}
+        onTogglePick={() => setPickMode((current) => !current)}
+        {...(onAddImageFile && frameSrc ? { onTakeScreenshot: handleTakeScreenshot } : {})}
+        onCopyUrl={handleCopyUrl}
         controller={owner}
         producer={frame.producer}
         tabs={tabs}
@@ -411,92 +418,65 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         </div>
       ) : null}
 
-      <div className="browser-session-toolbar">
-        {pickPending ? (
-          <span className="browser-session-pick-pending" data-testid="browser-session-pick-pending">
-            {copy.pickPending}
-          </span>
-        ) : null}
-        {pickError ? (
-          <span className="browser-session-pick-error" data-testid="browser-session-pick-error">
-            {pickError}
-          </span>
-        ) : null}
-        {mirrorError && !runtimeStatus.showBanner ? (
-          <span className="browser-session-pick-error" data-testid="browser-session-mirror-error">
-            {mirrorError}
-          </span>
-        ) : null}
-        {frameError ? (
-          <span className="browser-session-pick-error" data-testid="browser-session-frame-error">
-            {frameError === 'client-update-required' || frameError === 'unavailable'
-              ? copy.frameUnavailable
-              : copy.commandFailed}
-          </span>
-        ) : null}
-        {highlight ? (
-          <button type="button" className="browser-session-clear-highlight" onClick={() => setHighlight(null)} aria-label={copy.clearHighlight}>
-            <IconClose width={12} height={12} />
-          </button>
-        ) : null}
+      <div className="browser-session-stage">
+        <BrowserStatusOverlay
+          pending={pickPending ? copy.pickPending : null}
+          errors={[
+            ...(pickError ? [{ testId: 'browser-session-pick-error', message: pickError }] : []),
+            ...(mirrorError && !runtimeStatus.showBanner
+              ? [{ testId: 'browser-session-mirror-error', message: mirrorError }]
+              : []),
+            ...(frameError
+              ? [
+                  {
+                    testId: 'browser-session-frame-error',
+                    message:
+                      frameError === 'client-update-required' || frameError === 'unavailable'
+                        ? copy.frameUnavailable
+                        : copy.commandFailed,
+                  },
+                ]
+              : []),
+          ]}
+          clearHighlightLabel={highlight ? copy.clearHighlight : null}
+          onClearHighlight={() => setHighlight(null)}
+        />
+        <BrowserViewportSurface
+          containerRef={containerRef}
+          imgRef={imgRef}
+          imeRef={imeRef}
+          frameSrc={frame.src}
+          frameAlt={title || urlInput || copy.frameAlt}
+          starting={copy.starting}
+          pickMode={pickMode}
+          interactEnabled={interactEnabled}
+          runtimeInteractEnabled={runtimeStatus.interactEnabled}
+          displayBox={displayBox}
+          fillPanel={fillPanel}
+          zoom={displayZoom}
+          overlay={overlay}
+          overlayOffsetX={overlayOffsetX}
+          overlayOffsetY={overlayOffsetY}
+          onPointerDown={input.onPointerDown}
+          onPointerMove={input.onPointerMove}
+          onPointerUp={input.onPointerUp}
+          onPointerCancel={input.onPointerCancel}
+          onClick={input.onClick}
+          onWheel={input.onWheel}
+          onImeKey={handleImeKey}
+          onCompositionEnd={(event) => {
+            const insert = compositionEndToInsertText(event.data);
+            if (insert) input.sendKeyEvents([insert]);
+            event.currentTarget.value = '';
+          }}
+          onPaste={(event) => {
+            event.preventDefault();
+            const insert = pasteToInsertText(event.clipboardData.getData('text'));
+            if (insert) input.sendKeyEvents([insert]);
+          }}
+          {...(followsOtherWindow ? { onPointerEnterSurface: claimViewport } : {})}
+        />
       </div>
-
-      <BrowserViewportSurface
-        containerRef={containerRef}
-        imgRef={imgRef}
-        imeRef={imeRef}
-        frameSrc={frame.src}
-        frameAlt={title || urlInput || copy.frameAlt}
-        starting={copy.starting}
-        pickMode={pickMode}
-        interactEnabled={interactEnabled}
-        runtimeInteractEnabled={runtimeStatus.interactEnabled}
-        displayBox={displayBox}
-        fillPanel={fillPanel}
-        zoom={displayZoom}
-        overlay={overlay}
-        overlayOffsetX={overlayOffsetX}
-        overlayOffsetY={overlayOffsetY}
-        onPointerDown={input.onPointerDown}
-        onPointerMove={input.onPointerMove}
-        onPointerUp={input.onPointerUp}
-        onPointerCancel={input.onPointerCancel}
-        onClick={input.onClick}
-        onWheel={input.onWheel}
-        onImeKey={handleImeKey}
-        onCompositionEnd={(event) => {
-          const insert = compositionEndToInsertText(event.data);
-          if (insert) input.sendKeyEvents([insert]);
-          event.currentTarget.value = '';
-        }}
-        onPaste={(event) => {
-          event.preventDefault();
-          const insert = pasteToInsertText(event.clipboardData.getData('text'));
-          if (insert) input.sendKeyEvents([insert]);
-        }}
-        {...(followsOtherWindow ? { onPointerEnterSurface: claimViewport } : {})}
-      >
-        {annotateMode && frame.src ? (
-          <BrowserAnnotationOverlay
-            imageSrc={frame.src}
-            copy={{
-              close: copy.annotateExit,
-              addToChat: copy.annotateAdd,
-              undo: copy.annotateUndo,
-              redo: copy.annotateRedo,
-              clear: copy.annotateClear,
-              pen: copy.annotatePen,
-              line: copy.annotateLine,
-              arrow: copy.annotateArrow,
-              rect: copy.annotateRect,
-              ellipse: copy.annotateEllipse,
-              text: copy.annotateText,
-            }}
-            onClose={() => setAnnotateMode(false)}
-            onAddToChat={(file) => onAddImageFile?.(file)}
-          />
-        ) : null}
-      </BrowserViewportSurface>
       {devDrawerOpen ? (
         <BrowserConsoleDrawer
           open

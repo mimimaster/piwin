@@ -135,9 +135,7 @@ describe('BrowserSessionPanel', () => {
     });
   }
 
-  /** Toggle items must see exactly one select: a lone click, no pointerup. */
   async function toggleDevDrawer(): Promise<void> {
-    await openRadixMenu('browser-session-more');
     const item = queryByTestId('browser-session-dev-drawer');
     expect(item).not.toBeNull();
     await act(async () => {

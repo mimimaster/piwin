@@ -12,16 +12,6 @@ export type BrowserSessionCopy = BrowserSessionChromeCopy & {
   starting: string;
   clearHighlight: string;
   frameAlt: string;
-  annotateAdd: string;
-  annotateUndo: string;
-  annotateRedo: string;
-  annotateClear: string;
-  annotatePen: string;
-  annotateLine: string;
-  annotateArrow: string;
-  annotateRect: string;
-  annotateEllipse: string;
-  annotateText: string;
   frameUnavailable: string;
   commandFailed: string;
   viewportFailed: string;
@@ -49,11 +39,12 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
       dismissDialog: '取消',
       pickDisabled: '浏览器就绪后才能取元素',
       pickExit: '退出取元素',
-      pickEnter: '选择元素（⇧⌘S）',
-      annotate: '标注页面',
-      annotateExit: '关闭标注',
+      pickEnter: '选择页面元素加入对话（⇧⌘S）',
+      pickLabel: '标注',
+      takeScreenshot: '截图到对话',
+      copyUrl: '复制当前网址',
       openExternal: '在系统浏览器打开（单独会话，不共享登录态）',
-      devDrawer: '开发抽屉（控制台 / 网络）',
+      devDrawer: '控制台 / 网络',
       more: '更多',
       expand: '全宽显示',
       collapse: '退出全宽',
@@ -92,16 +83,6 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
       starting: '正在启动浏览器会话…',
       clearHighlight: '清除高亮',
       frameAlt: '浏览器会话',
-      annotateAdd: '添加到对话',
-      annotateUndo: '撤销',
-      annotateRedo: '重做',
-      annotateClear: '清空',
-      annotatePen: '画笔',
-      annotateLine: '直线',
-      annotateArrow: '箭头',
-      annotateRect: '矩形',
-      annotateEllipse: '椭圆',
-      annotateText: '文字',
       frameUnavailable: '远程浏览画面需要更新 Host 或 Desktop',
       commandFailed: '浏览器命令失败，请重试。',
       viewportFailed: '无法调整视口。',
@@ -120,11 +101,12 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
     dismissDialog: 'Dismiss',
     pickDisabled: 'Pick is available once the browser is ready',
     pickExit: 'Exit pick mode',
-    pickEnter: 'Pick element (⇧⌘S)',
-    annotate: 'Annotate page',
-    annotateExit: 'Close annotation',
+    pickEnter: 'Pick a page element into the chat (⇧⌘S)',
+    pickLabel: 'Annotate',
+    takeScreenshot: 'Take Screenshot',
+    copyUrl: 'Copy Current URL',
     openExternal: 'Open in system browser (separate session, no shared login)',
-    devDrawer: 'Developer drawer (console / network)',
+    devDrawer: 'Console / Network',
     more: 'More',
     expand: 'Full width',
     collapse: 'Exit full width',
@@ -163,16 +145,6 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
     starting: 'Starting browser session…',
     clearHighlight: 'Clear highlight',
     frameAlt: 'Browser session',
-    annotateAdd: 'Add to conversation',
-    annotateUndo: 'Undo',
-    annotateRedo: 'Redo',
-    annotateClear: 'Clear',
-    annotatePen: 'Pen',
-    annotateLine: 'Line',
-    annotateArrow: 'Arrow',
-    annotateRect: 'Rectangle',
-    annotateEllipse: 'Ellipse',
-    annotateText: 'Text',
     frameUnavailable: 'Remote browser view needs a Host or Desktop update',
     commandFailed: 'Browser command failed. Try again.',
     viewportFailed: 'Could not change the viewport.',
