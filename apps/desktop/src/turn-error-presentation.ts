@@ -85,7 +85,11 @@ export function presentTurnErrorCard(input: {
     : isChinese
       ? classification.titleZh
       : classification.titleEn;
-  const detail = extraUsageDetail ?? formatTurnErrorDetail(input.error, isChinese);
+  const baseDetail = extraUsageDetail ?? formatTurnErrorDetail(input.error, isChinese);
+  const detail =
+    input.failure?.code === 'provider-image-input-rejected'
+      ? `${imageInputRejectedHint(isChinese)}\n\n${baseDetail}`
+      : baseDetail;
   return {
     title,
     detail,
@@ -93,6 +97,16 @@ export function presentTurnErrorCard(input: {
     // "unknown" as a visible tag reads like a raw dump — hide it.
     showCategoryTag: classification.category !== 'unknown',
   };
+}
+
+/**
+ * The image went out natively because the model is flagged image-capable;
+ * vision delegation only runs for text-only models, so the flag is the fix.
+ */
+function imageInputRejectedHint(isChinese: boolean): string {
+  return isChinese
+    ? '这张图片以原生图片发给了模型，但模型服务拒绝了它——通常是该模型被误标为支持图片。请到模型设置中取消它的「视觉」标识；开启视觉委托后，图片会先由视觉模型转成文字再发送。'
+    : 'The image was sent to the model as native image input, but the provider rejected it — usually the model is wrongly marked as image-capable. Turn off its Vision flag in model settings; with vision delegation on, images are described by the vision model first.';
 }
 
 function formatTurnErrorDetail(error: string, isChinese: boolean): string {

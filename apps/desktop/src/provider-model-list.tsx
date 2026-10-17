@@ -9,6 +9,7 @@ import {
   isModelEnabled,
   isProviderEnabled,
   isSubscriptionProvider,
+  isExtensionProvider,
   nativeSearchProviderBlocker,
   platformCatalogProviderId,
 } from '@piwin/contracts';
@@ -180,7 +181,7 @@ export function ProviderModelList({
   }, [provider.models, optimisticModels]);
 
   const t = modelListCopy(isChinese);
-  const subscription = isSubscriptionProvider(provider);
+  const subscription = isSubscriptionProvider(provider) || isExtensionProvider(provider);
   // Vertex AI / Bedrock have no model-list endpoint here: ids are added by hand.
   const manualModelsOnly = isCloudCredentialProtocol(provider.protocol);
   const platformCatalog = platformCatalogProviderId(provider.protocol);
@@ -294,7 +295,7 @@ export function ProviderModelList({
             size="compact"
             variant="ghost"
             onClick={() => setAddOpen(true)}
-            disabled={disabled}
+            disabled={disabled || isExtensionProvider(provider)}
             data-testid={`provider-add-model-${provider.id}`}
           >
             <IconPlus width={13} height={13} />
@@ -313,7 +314,7 @@ export function ProviderModelList({
 
       <div className="pmodel-list" data-testid="provider-model-list">
         {provider.models.length === 0 ? (
-          <p className="pmodel-empty">{subscription ? t.emptySubscription : manualModelsOnly ? t.emptyManual : t.empty}</p>
+          <p className="pmodel-empty">{isExtensionProvider(provider) ? (isChinese ? '扩展暂未提供可用模型。' : 'The extension provides no models yet.') : subscription ? t.emptySubscription : manualModelsOnly ? t.emptyManual : t.empty}</p>
         ) : null}
         {displayedModels.map((model) => {
           const isDefaultModel = model.id === defaultModelId;

@@ -184,6 +184,24 @@ describe('ProviderSettings', () => {
     return rendered.container;
   }
 
+  it('treats public extension models as managed without OAuth or key-entry controls', () => {
+    const props = makeProps();
+    props.config = { ...props.config, providers: [{
+      id: 'public-fixture', name: 'Public Fixture', protocol: 'openai-compatible',
+      source: 'extension', baseUrl: 'extension://public-fixture', models: [{ id: 'flash' }],
+    }] };
+    const container = mount(props);
+    expect(container.textContent).toContain('Public extension');
+    expect(container.textContent).toContain('Extension models');
+    expect(container.textContent).not.toContain('Plans · OAuth');
+    expect(container.textContent).toContain('no login or API key');
+    expect(byTestId(container, 'provider-key-state')).toBeNull();
+    expect(byTestId(container, 'provider-connection-toggle')).toBeNull();
+    expect(byTestId(container, 'provider-detail-menu')).toBeNull();
+    expect(byTestId<HTMLButtonElement>(container, 'provider-add-model-public-fixture')?.disabled).toBe(true);
+    expect(byTestId(container, 'provider-discover-models-public-fixture')).toBeNull();
+  });
+
   it('shows the rail and the first provider in the detail pane', () => {
     const container = mount(makeProps());
     expect(byTestId(container, 'provider-settings')).not.toBeNull();

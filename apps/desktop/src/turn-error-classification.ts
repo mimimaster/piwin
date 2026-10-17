@@ -75,6 +75,13 @@ export function classifyAgentFailure(failure: AgentFailure | undefined): TurnErr
         titleEn: 'Model service returned an error',
         primaryAction: failure?.retriable === true ? 'retry' : 'copy',
       };
+    case 'provider-image-input-rejected':
+      return {
+        category: 'http',
+        titleZh: '模型不接受图片输入',
+        titleEn: 'Model rejected image input',
+        primaryAction: 'settings',
+      };
     case 'provider-unavailable':
       return {
         category: 'http',

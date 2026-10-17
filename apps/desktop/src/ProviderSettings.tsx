@@ -14,6 +14,7 @@ import {
   formatError,
   isCloudCredentialProtocol,
   isSubscriptionProvider,
+  isExtensionProvider,
   resolveProviderCategory,
   subscriptionUsesThirdPartyExtraUsage,
 } from '@piwin/contracts';
@@ -367,6 +368,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   }
 
   function subtitleOf(provider: ModelProviderConfig): string {
+    if (isExtensionProvider(provider)) return isChinese ? '扩展 · 免登录' : 'Extension · no login';
     if (provider.protocol === 'google-vertex') {
       return [provider.project, provider.location ?? DEFAULT_VERTEX_LOCATION]
         .filter(Boolean)
@@ -410,7 +412,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
           onQueryChange={setQuery}
           onSelect={(providerId) => void handleSelect(providerId)}
           onAdd={() => setAddOpen(true)}
-          canDelete={(provider) => !isSubscriptionProvider(provider)}
+          canDelete={(provider) => !isSubscriptionProvider(provider) && !isExtensionProvider(provider)}
           onDelete={(provider) => void handleDelete(provider)}
         />
 

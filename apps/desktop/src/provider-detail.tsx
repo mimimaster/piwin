@@ -4,7 +4,7 @@
  */
 
 import { useState, type ReactElement } from 'react';
-import { isSubscriptionProvider, type ModelProviderConfig } from '@piwin/contracts';
+import { isExtensionProvider, isSubscriptionProvider, type ModelProviderConfig } from '@piwin/contracts';
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -93,10 +93,12 @@ export function ProviderDetail({
 }: ProviderDetailProps): ReactElement {
   const isNew = provider === null;
   const subscription = provider !== null && isSubscriptionProvider(provider);
+  const extension = provider !== null && isExtensionProvider(provider);
+  const managed = subscription || extension;
   const title = draft.name.trim() || (isChinese ? '新提供商' : 'New provider');
   const [connectionOpen, setConnectionOpen] = useState(false);
   // New providers must fill it in; unsaved edits must stay in sight.
-  const showConnection = !subscription && (isNew || dirty || connectionOpen);
+  const showConnection = !managed && (isNew || dirty || connectionOpen);
   const keyState = connectionKeySummary(draft, isChinese);
 
   return (
@@ -106,7 +108,9 @@ export function ProviderDetail({
         <div className="pdetail-who">
           <h2 className="pdetail-name">{title}</h2>
           <p className="pdetail-meta">
-            {subscription ? (
+            {extension ? (
+              <span className="pdetail-chip">{isChinese ? '免登录扩展' : 'Public extension'}</span>
+            ) : subscription ? (
               <span className="pdetail-chip">{isChinese ? 'OAuth 套餐' : 'OAuth plan'}</span>
             ) : (
               <>
@@ -133,7 +137,7 @@ export function ProviderDetail({
         {provider ? (
           <div className="pdetail-head-actions">
             <ProviderStatusPill status={status} />
-            {subscription ? null : (
+            {managed ? null : (
               <button
                 type="button"
                 className={`pdetail-conn-btn${showConnection ? ' is-open' : ''}`}
@@ -166,7 +170,7 @@ export function ProviderDetail({
                 size="sm"
               />
             </span>
-            {subscription ? null : (
+            {managed ? null : (
               <DropdownMenu
                 align="end"
                 label={isChinese ? '更多操作' : 'More actions'}
@@ -215,7 +219,11 @@ export function ProviderDetail({
         />
       ) : null}
 
-      {subscription ? (
+      {extension ? (
+        <p className="pdetail-note">{isChinese
+          ? '模型由扩展提供，无需登录或 API 密钥。这里可以开关模型、调整参数、设置默认模型；卸载请到扩展管理。'
+          : 'Models are provided by an extension; no login or API key is needed. Adjust models and defaults here; uninstall through Extensions.'}</p>
+      ) : subscription ? (
         <p className="pdetail-note">
           {isChinese
             ? '套餐通过 OAuth 登录，不需要 API 密钥；登录状态在「OAuth 登录」页管理。这里可以开关模型、调整参数、设置默认模型。'

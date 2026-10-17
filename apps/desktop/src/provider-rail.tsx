@@ -4,7 +4,7 @@
  * OAuth packages. Selecting an item shows it in the detail pane.
  */
 
-import { resolveProviderCategory, type ModelProviderConfig } from '@piwin/contracts';
+import { isExtensionProvider, resolveProviderCategory, type ModelProviderConfig } from '@piwin/contracts';
 import { ContextMenu, ContextMenuItem, IconButton } from '@piwin/ui-kit';
 import type { ReactElement } from 'react';
 import { ProviderAvatar } from './provider-avatar.js';
@@ -192,7 +192,11 @@ export function ProviderRail({
         {packages.length > 0 ? (
           <div className="prail-group" data-testid="provider-section-package">
             <h4 className="prail-group-title">
-              {isChinese ? '套餐 · OAuth' : 'Plans · OAuth'}
+              {packages.every(isExtensionProvider)
+                ? (isChinese ? '扩展模型' : 'Extension models')
+                : packages.some(isExtensionProvider)
+                  ? (isChinese ? '套餐与扩展' : 'Plans & extensions')
+                  : (isChinese ? '套餐 · OAuth' : 'Plans · OAuth')}
               <span>{packages.length}</span>
             </h4>
             <ul className="prail-list">{packages.map(renderItem)}</ul>

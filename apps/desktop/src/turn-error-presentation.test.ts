@@ -101,6 +101,26 @@ describe('presentTurnErrorCard', () => {
   });
 });
 
+describe('presentTurnErrorCard image input rejection', () => {
+  it('explains the wrong Vision flag above the provider detail', () => {
+    const message = "400 messages.content.type 参数非法，取值范围 ['text']";
+    const card = presentTurnErrorCard({
+      error: message,
+      failure: {
+        code: 'provider-image-input-rejected',
+        origin: 'provider',
+        message,
+        retriable: false,
+        httpStatus: 400,
+      },
+      locale: 'zh-CN',
+    });
+    expect(card.title).toBe('模型不接受图片输入');
+    expect(card.detail).toContain('「视觉」标识');
+    expect(card.detail.endsWith(message)).toBe(true);
+  });
+});
+
 describe('resolveTurnErrorMessage', () => {
   it('hides a run-level error from earlier assistant responses', () => {
     expect(
