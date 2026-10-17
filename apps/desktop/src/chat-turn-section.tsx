@@ -12,6 +12,7 @@ import {
   resolveTurnMarginalia,
   type ResolveTurnMarginaliaOptions,
 } from './chat-turn-marginalia.js';
+import { userPromptPinText } from './pinned-user-prompt.js';
 
 export type ChatTurnSectionProps = {
   turnId: string;
@@ -80,7 +81,11 @@ export function ChatTurnSection(props: ChatTurnSectionProps): ReactElement {
       {...(props.isCurrentResponse ? { 'data-testid': 'current-response-turn' } : {})}
     >
       {props.userItems.length > 0 ? (
-        <article key="user-turn" className="turn chat-turn chat-turn-user">
+        <article
+          key="user-turn"
+          className="turn chat-turn chat-turn-user"
+          data-user-prompt={userPromptPinText(props.userMessages)}
+        >
           <div className="chat-turn-body">
             {userMarginaliaData !== null ? <ChatTurnHead data={userMarginaliaData} /> : null}
             {props.userItems}

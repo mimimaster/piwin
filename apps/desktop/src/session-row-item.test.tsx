@@ -20,7 +20,6 @@ function renderSessionRow(props: {
   projectSubtitle?: string;
   activeSessionId?: string | null;
   isPinnedSection?: boolean;
-  treeLead?: boolean;
   worktree?: { name: string; branch: string | null };
 }) {
   const container = document.createElement('div');
@@ -33,7 +32,6 @@ function renderSessionRow(props: {
         session={props.session}
         projectSubtitle={props.projectSubtitle}
         isPinnedSection={props.isPinnedSection}
-        treeLead={props.treeLead}
         worktree={props.worktree}
         activeSessionId={props.activeSessionId ?? null}
         onResumeSession={vi.fn()}
@@ -281,7 +279,6 @@ describe('SessionRowItem', () => {
   it('opens a project-tree row with the neutral ring for a plain piwin session', () => {
     const { container } = renderSessionRow({
       session: { id: 'sess-native', name: 'Native', updatedAt: new Date().toISOString() },
-      treeLead: true,
     });
     activeContainers.push(container);
     const lead = container.querySelector('.session-lead');
@@ -297,7 +294,6 @@ describe('SessionRowItem', () => {
         backend: { agentId: 'grok' },
         updatedAt: new Date().toISOString(),
       },
-      treeLead: true,
     });
     activeContainers.push(container);
     const lead = container.querySelector('.session-lead');
@@ -309,7 +305,6 @@ describe('SessionRowItem', () => {
   it('replaces the ring with the worktree mark for a piwin session in a linked worktree', () => {
     const { container } = renderSessionRow({
       session: { id: 'sess-linked', name: 'Linked', updatedAt: new Date().toISOString() },
-      treeLead: true,
       worktree: { name: 'piwin-release', branch: 'release/1.2' },
     });
     activeContainers.push(container);
@@ -329,7 +324,6 @@ describe('SessionRowItem', () => {
         backend: { agentId: 'grok' },
         updatedAt: new Date().toISOString(),
       },
-      treeLead: true,
       worktree: { name: 'piwin-release', branch: 'release/1.2' },
     });
     activeContainers.push(container);
@@ -339,12 +333,13 @@ describe('SessionRowItem', () => {
     expect(container.querySelectorAll('[data-testid="session-backend-badge"]')).toHaveLength(1);
   });
 
-  it('adds no lead slot to flat lists', () => {
+  it('gives flat lists the same lead slot so status always sits on the left', () => {
     const { container } = renderSessionRow({
       session: { id: 'sess-flat', name: 'Flat', updatedAt: new Date().toISOString() },
+      isPinnedSection: true,
     });
     activeContainers.push(container);
-    expect(container.querySelector('.session-lead')).toBeNull();
+    expect(container.querySelector('.session-lead [data-testid="session-native-mark"]')).not.toBeNull();
   });
 });
 

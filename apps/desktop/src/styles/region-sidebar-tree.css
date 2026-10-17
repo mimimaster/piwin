@@ -188,21 +188,25 @@
 }
 
 .sidebar-folder-tree:hover,
+.sidebar-pinned-shelf:hover,
 .sidebar-sessions:hover {
   scrollbar-color: var(--line-2) transparent;
 }
 
 .sidebar-folder-tree::-webkit-scrollbar,
+.sidebar-pinned-shelf::-webkit-scrollbar,
 .sidebar-sessions::-webkit-scrollbar {
   width: 6px;
 }
 
 .sidebar-folder-tree::-webkit-scrollbar-track,
+.sidebar-pinned-shelf::-webkit-scrollbar-track,
 .sidebar-sessions::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .sidebar-folder-tree::-webkit-scrollbar-thumb,
+.sidebar-pinned-shelf::-webkit-scrollbar-thumb,
 .sidebar-sessions::-webkit-scrollbar-thumb {
   background: transparent;
   border: 1px solid transparent;
@@ -211,9 +215,28 @@
 }
 
 .sidebar-folder-tree:hover::-webkit-scrollbar-thumb,
+.sidebar-pinned-shelf:hover::-webkit-scrollbar-thumb,
 .sidebar-sessions:hover::-webkit-scrollbar-thumb {
   background: var(--line-2);
   background-clip: content-box;
+}
+
+/* Pinned shelf: the pinned section, held above the scrolling tree so it
+   stays reachable in a long list (sidebar-pinned-shelf.ts). It shares the
+   tree's indent and scrollbar; past its cap it scrolls on its own. */
+.sidebar-pinned-shelf {
+  --tree-indent-step: 14px;
+  flex: 0 0 auto;
+  max-height: 40%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-right: calc(var(--s-3) * -1);
+  padding: 0 0 var(--s-3) var(--s-1);
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 
 .sidebar-folder-tree-virtual-window {

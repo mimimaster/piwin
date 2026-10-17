@@ -13,6 +13,7 @@ import {
   IconArchive,
   IconArrowFork,
   IconArrowRight,
+  IconCheck,
   IconGit,
   IconCopy,
   IconDownload,
@@ -41,7 +42,8 @@ export type SessionRowMenuAction =
   | 'unarchive'
   | 'restore-pack'
   | 'delete'
-  | 'export';
+  | 'export'
+  | 'dismiss-attention';
 
 export type SessionRowMenuProps = {
   sessionId: string;
@@ -53,6 +55,8 @@ export type SessionRowMenuProps = {
   canForkChat?: boolean;
   canHandoff?: boolean;
   canContinueInProject?: boolean;
+  /** The row shows an unread completed/failed mark that the menu can clear. */
+  hasAttention?: boolean;
   locale?: string;
   /** Screen position for fixed menu (from contextmenu / button). */
   position: { x: number; y: number };
@@ -89,6 +93,8 @@ function renderSessionActionIcon(action: SessionRowMenuAction): ReactNode {
       return <IconRefresh width={14} height={14} />;
     case 'delete':
       return <IconTrash width={14} height={14} />;
+    case 'dismiss-attention':
+      return <IconCheck width={14} height={14} />;
     default:
       return null;
   }
@@ -176,6 +182,7 @@ export function SessionRowMenu(props: SessionRowMenuProps): ReactElement {
     ...(props.canForkChat === false ? { canForkChat: false } : {}),
     ...(props.canHandoff === false ? { canHandoff: false } : {}),
     ...(props.canContinueInProject === false ? { canContinueInProject: false } : {}),
+    ...(props.hasAttention === true ? { hasAttention: true } : {}),
     ...(props.locale ? { locale: props.locale } : {}),
   });
 

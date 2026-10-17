@@ -5,6 +5,7 @@ import { projectDisplayName } from './project-display-name.js';
 import { groupSessionsByRecency } from './session-groups.js';
 import type { SessionListScopeState } from './session-list-scope';
 import { sessionScopeKey } from './session-scope-key';
+import { sessionIsLiveActivity } from './sidebar-session-order.js';
 import {
   clusterProjectsByRepository,
   orderSidebarProjectsByCreation,
@@ -269,7 +270,9 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
     // Conversations: general chat only. No Repo is a separate project folder.
     if (input.groupBy === 'time' && !searching && generalMerged.length > 0) {
       const sessionList = generalMerged.map((row) => row.session);
-      const groups = groupSessionsByRecency(sessionList);
+      const groups = groupSessionsByRecency(sessionList, new Date(), (session) =>
+        sessionIsLiveActivity(session, input),
+      );
       for (const group of groups) {
         if (group.id !== 'pinned' && groups.length > 1) {
           rows.push({
@@ -279,12 +282,10 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
             key: `time-group:general:${group.id}`,
           });
         }
-        for (const session of group.sessions) {
-          const match = generalMerged.find((r) => r.session.id === session.id);
-          if (match) {
-            rows.push(match);
-          }
-        }
+        // Buckets decide the heading only; order inside a bucket stays the
+        // merged order so live sessions keep floating above idle ones.
+        const groupSessionIds = new Set(group.sessions.map((session) => session.id));
+        rows.push(...generalMerged.filter((row) => groupSessionIds.has(row.session.id)));
       }
     } else {
       rows.push(...generalMerged);

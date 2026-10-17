@@ -106,4 +106,21 @@ describe('sessionActionItems', () => {
     expect(archive?.label).toBe('归档');
     expect(items.some((item) => item.action === 'delete')).toBe(false);
   });
+
+  it('leads with Mark as Read only while the row shows an unread outcome', () => {
+    const plain = sessionActionItems({ isPinned: false, isArchived: false });
+    expect(plain.some((item) => item.action === 'dismiss-attention')).toBe(false);
+
+    const unread = sessionActionItems({
+      isPinned: false,
+      isArchived: false,
+      hasAttention: true,
+      locale: 'zh-CN',
+    });
+    expect(unread[0]?.action).toBe('dismiss-attention');
+    expect(unread[0]?.label).toBe('标为已读');
+    expect(unread.slice(1)).toEqual(
+      sessionActionItems({ isPinned: false, isArchived: false, locale: 'zh-CN' }),
+    );
+  });
 });

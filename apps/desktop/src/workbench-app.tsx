@@ -80,6 +80,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     enabled: dockingActive,
     hostClient,
     inspectorTab: rightPanelOpen ? rightPanelTab : null,
+    followSessionId: state.activeSessionId,
     rightPanelOpen,
     onRevealRightTool: (kind) => shell.openInspector(toolKindToInspectorTab(kind)),
     ...(conversationPanesEnabled ? { scopeKey: sessionScopeKey(state.activeScope) } : {}),

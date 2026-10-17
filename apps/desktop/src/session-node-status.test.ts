@@ -38,10 +38,22 @@ describe('resolveSessionNodeStatus', () => {
     ).toBe('waiting-you');
   });
 
-  it('prioritizes background service over plain working/failed/success', () => {
+  it('prioritizes running over a background service job', () => {
     expect(
       resolveSessionNodeStatus({
         isWorking: true,
+        hasActiveBackendService: true,
+        isWaitingOnPermission: false,
+        hasFailedAttention: true,
+        hasCompletedAttention: true,
+      }),
+    ).toBe('running');
+  });
+
+  it('prioritizes background service over failed/success', () => {
+    expect(
+      resolveSessionNodeStatus({
+        isWorking: false,
         hasActiveBackendService: true,
         isWaitingOnPermission: false,
         hasFailedAttention: true,

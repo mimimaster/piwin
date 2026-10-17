@@ -137,7 +137,7 @@ describe('RightPanel multi-tab', () => {
     const hints = [...container.querySelectorAll('.right-panel-home-shortcut')].map(
       (node) => node.textContent,
     );
-    expect(hints).toEqual(['⌘4', '⌘1', '⌘J', '⌘3']);
+    expect(hints).toEqual(['⌘3', '⌘4', '⌘1', '⌘J']);
     // Nothing to expand over the conversation yet.
     expect(container.querySelector('[data-testid="right-panel-expand-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="right-panel-tab-add"]')).toBeNull();

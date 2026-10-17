@@ -8,3 +8,9 @@ it('orders recent native work with other active runs and clears the running buck
   expect(sortPinnedThenUpdated([other, idle, native], activity).map((session) => session.id)).toEqual(['grok', 'pi', 'idle']);
   expect(sortPinnedThenUpdated([other, idle, { ...native, nativeCli: { ...native.nativeCli, activity: 'idle' } }], activity).map((session) => session.id)).toEqual(['pi', 'idle', 'grok']);
 });
+it('ranks an unstamped session as newest and an unparseable stamp as oldest', () => {
+  const stamped = { id: 'stamped', name: 'Stamped', updatedAt: '2026-10-12T10:00:00Z' };
+  const fresh = { id: 'fresh', name: 'Fresh' };
+  const broken = { id: 'broken', name: 'Broken', updatedAt: 'not-a-date' };
+  expect(sortPinnedThenUpdated([broken, stamped, fresh]).map((session) => session.id)).toEqual(['fresh', 'stamped', 'broken']);
+});

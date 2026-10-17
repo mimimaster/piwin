@@ -1,6 +1,10 @@
 /**
- * Fold rail: the open folds the reader is inside of, pinned to the top of the
- * viewport once their headers have scrolled away.
+ * Fold rail: the user prompt and the open folds the reader is inside of,
+ * pinned to the top of the viewport once they have scrolled away.
+ *
+ * The prompt row (Cursor's frozen prompt) is one line above the fold rows;
+ * clicking it brings the prompt back. Only the turn under the viewport top
+ * owns it, so it changes as the reader crosses into another turn.
  *
  * Long call chains put the header that owns them far above what is on screen;
  * collapsing used to mean scrolling back to it. Each row here proxies its real
@@ -15,8 +19,14 @@ import { useCallback, useEffect, useRef, useState, type ReactElement, type RefOb
 import { IconChevronDown } from './shell-icons';
 import { TRANSCRIPT_TURN_MEASURE_EVENT } from './transcript-turn-measure.js';
 import {
+  pinnedUserPrompt,
+  scrollToPinnedPrompt,
+  type PinnedUserPrompt,
+} from './pinned-user-prompt.js';
+import {
   collapseFoldWithAnchor,
   FOLD_RAIL_MAX_ROWS,
+  FOLD_RAIL_ROW_PX,
   pinnedFoldChain,
   type OpenFold,
 } from './work-fold-anchor.js';
@@ -35,6 +45,7 @@ function sameChain(left: readonly OpenFold[], right: readonly OpenFold[]): boole
 
 export function TranscriptFoldRail(props: TranscriptFoldRailProps): ReactElement | null {
   const [chain, setChain] = useState<readonly OpenFold[]>([]);
+  const [prompt, setPrompt] = useState<PinnedUserPrompt | null>(null);
   const [geometry, setGeometry] = useState<RailGeometry | null>(null);
   const chainRef = useRef<readonly OpenFold[]>([]);
   const frameRef = useRef<number | null>(null);
@@ -44,7 +55,13 @@ export function TranscriptFoldRail(props: TranscriptFoldRailProps): ReactElement
     frameRef.current = null;
     const container = props.scrollElementRef.current;
     if (!container) return;
-    const next = pinnedFoldChain(container);
+    const nextPrompt = pinnedUserPrompt(container, FOLD_RAIL_ROW_PX);
+    setPrompt((current) =>
+      current?.article === nextPrompt?.article && current?.text === nextPrompt?.text
+        ? current
+        : nextPrompt,
+    );
+    const next = pinnedFoldChain(container, FOLD_RAIL_ROW_PX, nextPrompt ? FOLD_RAIL_ROW_PX : 0);
     if (!sameChain(next, chainRef.current)) {
       chainRef.current = next;
       setChain(next);
@@ -128,16 +145,34 @@ export function TranscriptFoldRail(props: TranscriptFoldRailProps): ReactElement
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [collapse, props.scrollElementRef]);
 
-  if (chain.length === 0) return null;
+  const jumpToPrompt = (): void => {
+    const container = props.scrollElementRef.current;
+    if (!container || !prompt) return;
+    scrollToPinnedPrompt(container, prompt.article, props.beginProgrammaticScroll);
+  };
+
+  if (chain.length === 0 && prompt === null) return null;
   const shown = chain.slice(-FOLD_RAIL_MAX_ROWS);
   return (
     <div
       className="transcript-fold-rail"
       data-testid="transcript-fold-rail"
       role="navigation"
-      aria-label={zh ? '当前所在的折叠' : 'Enclosing folds'}
+      aria-label={zh ? '当前所在的提问与折叠' : 'Current prompt and folds'}
       style={geometry ? { left: geometry.left, width: geometry.width } : undefined}
     >
+      {prompt ? (
+        <button
+          type="button"
+          className="transcript-fold-rail-row transcript-prompt-pin"
+          data-testid="transcript-prompt-pin"
+          onClick={jumpToPrompt}
+          title={prompt.text}
+          aria-label={`${zh ? '回到提问' : 'Back to prompt'}: ${prompt.text}`}
+        >
+          <span className="transcript-prompt-pin-text">{prompt.text}</span>
+        </button>
+      ) : null}
       {shown.map((fold, index) => (
         <button
           key={fold.id}

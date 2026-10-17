@@ -39,6 +39,7 @@ import {
   saveSidebarMode,
   type SidebarMode,
 } from './sidebar-mode';
+import { splitPinnedShelfRows } from './sidebar-pinned-shelf';
 import { Button } from '@piwin/ui-kit';
 import {
   IconBook,
@@ -179,19 +180,19 @@ export type ProjectSessionSidebarProps = {
   onResizeReset?: () => void;
   /**
    * Session IDs that currently have an active run (streaming / tool-running).
-   * Sessions in this set show a right-side circular working indicator.
+   * Sessions in this set show the running mark in the row's lead slot.
    */
   workingSessionIds?: Record<string, true> | undefined;
   /** Foreground run phase; the open session spins only while streaming. */
   runPhase?: 'idle' | 'streaming' | 'pausing' | 'aborting' | undefined;
   /**
-   * Session IDs that own an active backend service job. These take priority
-   * over the regular working indicator and show a wave of three dots instead.
+   * Session IDs that own an active backend service job. They show a wave of
+   * three dots in the lead slot unless the session's own turn is running.
    */
   backendServiceSessionIds?: Record<string, true> | undefined;
   /**
    * Session IDs whose latest turn finished while the sidebar stayed mounted.
-   * Cleared when the session is opened, or when the user clicks the checkmark.
+   * Cleared when the session is opened, or from the row's context menu.
    */
   completedAttentionSessionIds?: Record<string, true> | undefined;
   /** Same lifecycle as `completedAttentionSessionIds`, for a failed turn. */
@@ -201,8 +202,6 @@ export type ProjectSessionSidebarProps = {
    * Outranks every other row state in the ink-line node vocabulary.
    */
   waitingPermissionSessionIds?: Record<string, true> | undefined;
-  /** Click the completed checkmark without opening the session. */
-  onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
   sessionListScopes?: SessionListScopeState;
   onRetrySessionList?: (scope: SessionScope) => void;
   /** Bumped by the titlebar locate button: unfold to and focus the open session. */
@@ -214,7 +213,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const sidebarCopy = copy.sidebar;
   const disclosureCopy = getProjectSessionDisclosureCopy(props.locale ?? 'zh-CN');
   const newConversationLabel = props.locale === 'en' ? 'Clean Slate' : '素笺';
-  const newSessionLabel = props.generalActive ? newConversationLabel : copy.newSession;
   const [localSortBy, setLocalSortBy] = useState<SessionListOrder>('updated');
   const sortBy = props.sessionListOrder ?? localSortBy;
   const [groupBy, setGroupBy] = useState<'time' | 'none'>('time');
@@ -234,6 +232,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     setFolderTreeElement(node);
   }, []);
   useScrollEdgeFade(folderTreeElement);
+  const [pinnedShelfElement, setPinnedShelfElement] = useState<HTMLDivElement | null>(null);
+  useScrollEdgeFade(pinnedShelfElement);
   const virtualizerRef = useRef<{ scrollToIndex: (index: number) => void } | null>(null);
   const changeSortBy = (order: SessionListOrder): void => {
     setLocalSortBy(order);
@@ -295,6 +295,11 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     },
     [props.sidebarMode, props.onSidebarModeChange],
   );
+  // Chat mode lists general conversations only, so its + must start one there
+  // instead of inheriting whichever project scope is currently active.
+  const startsGeneralConversation = sidebarMode === 'chat' || props.generalActive === true;
+  const newSessionLabel = startsGeneralConversation ? newConversationLabel : copy.newSession;
+  const startNewSession = sidebarMode === 'chat' ? props.onNewGeneralSession : () => props.onNewSession();
   const projectFolderCount = useMemo(
     () =>
       countSidebarProjectFolders({
@@ -366,10 +371,15 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
 
   /* One builder, two panes. Filtering here keeps sidebar-tree-rows.ts (and its
      tests) untouched — the split is presentation, not a different query. */
-  const treeRows = useMemo(
+  const paneRows = useMemo(
     () => filterSidebarRowsByMode(allTreeRows, sidebarMode),
     [allTreeRows, sidebarMode],
   );
+  /* Pinned stays in view above the scroller. `treeRows` is shelf-then-scroll
+     order, so keyboard ↑↓ and reveal walk the rows as they appear on screen;
+     only scroll rows feed the virtualizer, offset by the shelf length. */
+  const { shelfRows, scrollRows } = useMemo(() => splitPinnedShelfRows(paneRows), [paneRows]);
+  const treeRows = useMemo(() => [...shelfRows, ...scrollRows], [scrollRows, shelfRows]);
 
   const searchHidesCurrent = sidebarSearchHidesReveal(
     treeRows,
@@ -377,7 +387,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     props.activeSessionId,
     props.activeDraftId ?? null,
   );
-  const virtualizeTree = shouldVirtualizeSidebar(treeRows.length);
+  const virtualizeTree = shouldVirtualizeSidebar(scrollRows.length);
   const sessionRowIndexes = useMemo(
     () => treeRows.flatMap((row, index) => (row.kind === 'session' ? [index] : [])),
     [treeRows],
@@ -385,16 +395,16 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   // The virtualizer's measurement cache depends on getItemKey identity. Keep
   // these callbacks stable across scroll-driven renders of this component.
   const estimateTreeRowSize = useCallback(
-    (index: number) => estimateSidebarTreeRowSize(treeRows[index]),
-    [treeRows],
+    (index: number) => estimateSidebarTreeRowSize(scrollRows[index]),
+    [scrollRows],
   );
   const getTreeRowKey = useCallback(
-    (index: number) => sidebarTreeRowKey(treeRows[index] ?? {
+    (index: number) => sidebarTreeRowKey(scrollRows[index] ?? {
       kind: 'section-header',
       sectionId: 'projects',
       key: `missing:${index}`,
     }),
-    [treeRows],
+    [scrollRows],
   );
   const measureTreeRow = useCallback(
     (element: Element) => Math.max(element.getBoundingClientRect().height, 1),
@@ -402,7 +412,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   );
 
   const virtualizer = useVirtualizer({
-    count: treeRows.length,
+    count: scrollRows.length,
     getScrollElement: () => folderTreeElement,
     estimateSize: estimateTreeRowSize,
     getItemKey: getTreeRowKey,
@@ -419,19 +429,21 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         if (row?.kind !== 'session') {
           return;
         }
-        const button = folderTreeRef.current?.querySelector<HTMLElement>(
+        // Shelf rows live outside the scroller, so search the whole rail.
+        const button = sidebarRef.current?.querySelector<HTMLElement>(
           `[data-session-id="${CSS.escape(row.session.id)}"]`,
         );
         button?.focus();
       };
-      if (virtualizeTree) {
-        virtualizer.scrollToIndex(rowIndex, { align: 'auto' });
+      const scrollIndex = rowIndex - shelfRows.length;
+      if (virtualizeTree && scrollIndex >= 0) {
+        virtualizer.scrollToIndex(scrollIndex, { align: 'auto' });
         requestAnimationFrame(focusMounted);
         return;
       }
       focusMounted();
     },
-    [treeRows, virtualizeTree, virtualizer],
+    [shelfRows.length, treeRows, virtualizeTree, virtualizer],
   );
 
   useActiveProjectUnfold(treeInput, setCollapsedProjects);
@@ -456,7 +468,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     if (!targetId) {
       return;
     }
-    const rowIndex = treeRows.findIndex(
+    const rowIndex = scrollRows.findIndex(
       (row) => row.kind === 'session' && row.session.id === targetId,
     );
     if (rowIndex < 0) {
@@ -465,7 +477,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     if (virtualizeTree) {
       virtualizer.scrollToIndex(rowIndex, { align: 'auto' });
     }
-  }, [props.activeDraftId, props.activeSessionId, treeRows, virtualizeTree, virtualizer]);
+  }, [props.activeDraftId, props.activeSessionId, scrollRows, virtualizeTree, virtualizer]);
 
   // Keyboard navigation for session list (↑↓ Enter) when focus is inside the sidebar.
   useEffect(() => {
@@ -599,7 +611,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         completedAttentionSessionIds={props.completedAttentionSessionIds}
         failedAttentionSessionIds={props.failedAttentionSessionIds}
         waitingPermissionSessionIds={props.waitingPermissionSessionIds}
-        onDismissCompletedAttention={props.onDismissCompletedAttention}
         onShowMoreSessions={(projectPath, _batchSize, nextCount) => {
           setProjectSessionVisibleCounts((previous) => ({
             ...previous,
@@ -708,7 +719,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           type="button"
           className="new sidebar-new-btn"
           data-testid="new-session-btn-sb-top"
-          onClick={() => props.onNewSession()}
+          onClick={() => startNewSession()}
           title={newSessionLabel}
           aria-label={newSessionLabel}
         >
@@ -722,7 +733,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             type="button"
             className={`sidebar-action-row${!props.activeSubPage || props.activeSubPage === 'chat' ? ' active' : ''}`}
             data-testid="new-session-btn"
-            onClick={() => props.onNewSession()}
+            onClick={() => startNewSession()}
             title={newSessionLabel}
             aria-label={newSessionLabel}
           >
@@ -798,6 +809,24 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         </div>
       ) : null}
 
+      {shelfRows.length > 0 ? (
+        <div
+          className="sidebar-pinned-shelf"
+          data-testid="sidebar-pinned-shelf"
+          ref={setPinnedShelfElement}
+        >
+          {shelfRows.map((row) => (
+            <div
+              key={sidebarTreeRowKey(row)}
+              className="sidebar-tree-flow-item"
+              style={sidebarTreeDepthStyle(sidebarTreeRowDepth(row))}
+            >
+              {renderSidebarTreeRow(row)}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <div
         className="sidebar-folder-tree"
         data-testid="sessions-list"
@@ -809,7 +838,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             style={{ height: virtualizer.getTotalSize() }}
           >
             {virtualizer.getVirtualItems().map((virtualRow) => {
-              const row = treeRows[virtualRow.index];
+              const row = scrollRows[virtualRow.index];
               if (row === undefined) return null;
               return (
                 <div
@@ -828,7 +857,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             })}
           </div>
         ) : (
-          treeRows.map((row) => (
+          scrollRows.map((row) => (
             <div
               key={sidebarTreeRowKey(row)}
               className="sidebar-tree-flow-item"

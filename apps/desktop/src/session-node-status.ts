@@ -26,15 +26,11 @@ export type SessionNodeStatusKind =
 
 /**
  * Resolve a sidebar session row's node state from the same flags
- * `SessionRowItem` already receives. Priority (highest first) reflects what
- * most needs the user's attention: a blocked decision outranks everything,
- * then an active backend service job, then plain foreground/background
- * turn work, then a terminal outcome, then rest.
- *
- * Backend-service-over-working preserves existing precedent: the prop doc on
- * `backendServiceSessionIds` (project-session-sidebar.tsx) already states
- * these "take priority over the regular working indicator" — this resolver
- * keeps that ordering rather than introducing a second, conflicting one.
+ * `SessionRowItem` already receives. The row's lead slot shows exactly one
+ * mark, so this order decides what wins (highest first): a blocked decision,
+ * then the user's own turn running, then a backend service job, then an
+ * unread failure, then an unread completion. `null` means the slot falls back
+ * to the session's kind mark.
  */
 export function resolveSessionNodeStatus(input: {
   isWorking: boolean;
@@ -44,8 +40,8 @@ export function resolveSessionNodeStatus(input: {
   hasCompletedAttention: boolean;
 }): SessionNodeStatusKind | null {
   if (input.isWaitingOnPermission) return 'waiting-you';
-  if (input.hasActiveBackendService) return 'background';
   if (input.isWorking) return 'running';
+  if (input.hasActiveBackendService) return 'background';
   if (input.hasFailedAttention) return 'failed';
   if (input.hasCompletedAttention) return 'success';
   return null;

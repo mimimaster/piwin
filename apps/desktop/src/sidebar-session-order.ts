@@ -1,5 +1,6 @@
 import type { SessionListItemUi } from './chat-ui-types.js';
 import type { SidebarTreeRowsInput } from './sidebar-tree-rows.js';
+import { compareSessionRecency } from './session-recency.js';
 import { sessionRowHasOrderingActivity } from './session-row-working.js';
 
 export function sortPinnedThenUpdated(
@@ -32,18 +33,15 @@ export function sortPinnedThenUpdated(
         return leftLive ? -1 : 1;
       }
     }
-    const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : Number.POSITIVE_INFINITY;
-    const rightTime = right.updatedAt ? Date.parse(right.updatedAt) : Number.POSITIVE_INFINITY;
-    const leftSafe = Number.isFinite(leftTime) ? leftTime : 0;
-    const rightSafe = Number.isFinite(rightTime) ? rightTime : 0;
-    if (rightSafe !== leftSafe) {
-      return rightSafe - leftSafe;
+    const byRecency = compareSessionRecency(left, right);
+    if (byRecency !== 0) {
+      return byRecency;
     }
     return left.id.localeCompare(right.id);
   });
 }
 
-function sessionIsLiveActivity(
+export function sessionIsLiveActivity(
   session: SessionListItemUi,
   input: Pick<
     SidebarTreeRowsInput,

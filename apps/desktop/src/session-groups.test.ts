@@ -55,4 +55,30 @@ describe('groupSessionsByRecency', () => {
     expect(groups[1]?.sessions.map((session) => session.id)).toEqual(['t1']);
   });
 
+  it('treats an unstamped session as the newest row of Today', () => {
+    const groups = groupSessionsByRecency(
+      [
+        { id: 'stamped', name: 'Stamped', updatedAt: new Date(2026, 6, 20, 14, 0, 0).toISOString() },
+        { id: 'fresh', name: 'Fresh' },
+      ],
+      now,
+    );
+    expect(groups.map((group) => group.id)).toEqual(['today']);
+    expect(groups[0]?.sessions.map((session) => session.id)).toEqual(['fresh', 'stamped']);
+  });
+
+  it('files a live session under Today even when its stamp is older', () => {
+    const groups = groupSessionsByRecency(
+      [
+        { id: 'idle', name: 'Idle', updatedAt: new Date(2026, 6, 19, 10, 0, 0).toISOString() },
+        { id: 'live', name: 'Live', updatedAt: new Date(2026, 6, 19, 9, 0, 0).toISOString() },
+      ],
+      now,
+      (session) => session.id === 'live',
+    );
+    expect(groups.map((group) => [group.id, group.sessions.map((session) => session.id)])).toEqual([
+      ['today', ['live']],
+      ['yesterday', ['idle']],
+    ]);
+  });
 });

@@ -1825,6 +1825,26 @@ describe('ComposerDock host status', () => {
     ).toBeNull();
   });
 
+  it('keeps model and orchestration pickers enabled while a turn is running', () => {
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        streaming={true}
+        runPhase="streaming"
+        onThinkingLevelChange={vi.fn()}
+        orchestrationSchemeId="off"
+        orchestrationSchemeOptions={[{ id: 'off', name: 'Freehand', description: 'Freehand' }]}
+        onOrchestrationSchemeChange={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    const model = container.querySelector<HTMLButtonElement>('[data-testid="thinking-effort-trigger"]');
+    const scheme = container.querySelector<HTMLButtonElement>('[data-testid="orchestration-scheme-trigger"]');
+    expect(model?.disabled).toBe(false);
+    expect(scheme?.disabled).toBe(false);
+  });
+
   it('shows an unpinned-model hint only for a selected scheme without a pinned default role', () => {
     const options = [
       { id: 'off', name: 'Freehand', description: 'Freehand' },

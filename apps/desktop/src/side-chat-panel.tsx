@@ -20,7 +20,6 @@ import { Button, Spinner } from '@piwin/ui-kit';
 import { formatError } from '@piwin/contracts';
 import type {
   SessionSummary,
-  SessionTranscriptMessage,
   SideChatOpenData,
   ThemeManifest,
 } from '@piwin/contracts';
@@ -58,8 +57,6 @@ export type SideChatPanelProps = {
   fileBrowseRoot?: string | null;
   onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
-  /** Insert text into the main composer (handoff). */
-  onInsertToMain?: (text: string) => void;
 };
 
 type Resolution =
@@ -81,16 +78,6 @@ async function resolveSideChat(hostClient: HostClient, mainSessionId: string): P
   const data = opened.data as SideChatOpenData | undefined;
   if (!data) throw new Error('side-chat/open returned no session');
   return data.sideChatSessionId;
-}
-
-function lastAssistantText(messages: readonly SessionTranscriptMessage[]): string | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message?.role === 'assistant' && typeof message.text === 'string' && message.text.trim()) {
-      return message.text;
-    }
-  }
-  return undefined;
 }
 
 export function SideChatPanel(props: SideChatPanelProps): ReactElement {
@@ -152,15 +139,6 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     setAttempt((value) => value + 1);
   }, [mainSessionId, tabId]);
 
-  async function handleInsertLastResponse(sideChatSessionId: string): Promise<void> {
-    const response = await hostClient.request({ type: 'session/messages', sessionId: sideChatSessionId });
-    if (!response.success) return;
-    const messages =
-      (response.data as { messages?: SessionTranscriptMessage[] } | undefined)?.messages ?? [];
-    const text = lastAssistantText(messages);
-    if (text) props.onInsertToMain?.(text);
-  }
-
   if (!mainSessionId) {
     return (
       <div className="side-chat-panel side-chat-panel--status" data-testid="side-chat-panel">
@@ -203,18 +181,6 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
       data-testid="side-chat-panel"
       data-session-id={sideChatSessionId}
     >
-      {props.onInsertToMain ? (
-        <div className="side-chat-toolbar">
-          <Button
-            size="compact"
-            variant="ghost"
-            onClick={() => void handleInsertLastResponse(sideChatSessionId)}
-            data-testid="side-chat-insert-main"
-          >
-            {zh ? '插入最新回答到主会话' : 'Insert latest answer into main chat'}
-          </Button>
-        </div>
-      ) : null}
       <ConversationPaneSession
         key={sideChatSessionId}
         sessionId={sideChatSessionId}

@@ -11,6 +11,12 @@ html[data-theme-id='piwin-inkstone-ink'] .sidebar-folder-tree {
   gap: 0;
 }
 
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-pinned-shelf {
+  padding: 0 2px 0 6px;
+  margin-right: 0;
+  gap: 0;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .sidebar-section-label,
 html[data-theme-id='piwin-inkstone-ink'] .sidebar-section-label {
   display: flex;
@@ -45,9 +51,8 @@ html[data-theme-id='piwin-inkstone-ink'] .session-row .session-item {
   /* The title runs up to the timestamp; only that much is reserved. The
      hover actions are wider than the timestamp, so they paint over the
      title's tail (see `.session-row-actions` below) instead of reserving
-     their width on every row at rest. The ellipsis therefore never moves.
-     Completed/failed rows add seal clearance so the seal keeps its own slot. */
-  padding-right: calc(44px + var(--session-status-seal-clearance, 0px));
+     their width on every row at rest. The ellipsis therefore never moves. */
+  padding-right: 44px;
   border-radius: 6px;
   font-size: 12.5px;
   font-family: var(--sans);
@@ -109,7 +114,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
    icon slot at the 8px row inset and its text 8px after it: a folder's glyph
    and its sessions' marks share one column, names and titles share the next.
    There are no chevrons and no guide lines. */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-folder-tree {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(.sidebar-folder-tree, .sidebar-pinned-shelf) {
   --tree-indent-step: 24px;
 }
 
@@ -286,8 +292,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 /* Touch keeps the selected row's actions up with no hover fill to hide the
    title under them, so that one row reserves their full width instead. */
 @media (hover: none) {
-  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session .session-row--active:not(.session-row--working) .session-item {
-    padding-right: calc(78px + var(--session-status-seal-clearance, 0px));
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session .session-row--active .session-item {
+    padding-right: 78px;
   }
 }
 

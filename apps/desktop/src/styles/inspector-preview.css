@@ -30,14 +30,6 @@
   text-align: center;
 }
 
-.side-chat-toolbar {
-  display: flex;
-  flex: 0 0 auto;
-  justify-content: flex-end;
-  padding: var(--s-1) var(--s-3);
-  border-bottom: 1px solid var(--line-1);
-}
-
 /* ── Artifact viewer: 32px Canvas toolbar, width stage, fullscreen ──────
    design.md §7. The toolbar is always visible; Download moved into it
    (Canvas has no on-disk HTML, ADR 0029: export is Save As). */

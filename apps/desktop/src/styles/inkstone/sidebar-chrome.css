@@ -138,15 +138,17 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
    — and every row's — shifted by the scrollbar width on each switch. That jump
    is most of what made the toggle feel like a different screen. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .sidebar-folder-tree {
+  :is(.sidebar-folder-tree, .sidebar-pinned-shelf) {
   scrollbar-gutter: stable;
 }
 
 /* The conversations header used to sit below the projects section and carried
    a rule to divide them. It leads its own pane now, so the divider would be a
    second line right under the destinations block's. Lists with >60 rows wrap
-   as .sidebar-tree-virtual-item, so both wrappers have to match. */
+   as .sidebar-tree-virtual-item, so both wrappers have to match. Below the
+   pinned shelf the header still follows pinned rows, so it keeps its rule. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-folder-tree:not(.sidebar-pinned-shelf + .sidebar-folder-tree)
   :is(.sidebar-tree-flow-item, .sidebar-tree-virtual-item):first-child
   .sidebar-section-label-row--conversations {
   margin-top: 4px;

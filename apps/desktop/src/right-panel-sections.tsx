@@ -55,12 +55,12 @@ export const SECTION_META: Array<{
   /** One view of the workspace: opening it again focuses the open tab. */
   singleInstance?: boolean;
 }> = [
+  { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更', shortcut: '⌘3', singleInstance: true },
   { id: 'sideChat', icon: <IconSideChat />, labelEn: 'Side chat', labelZh: '侧聊' },
   { id: 'browser', icon: <IconBrowser />, labelEn: 'Browser', labelZh: '浏览器', shortcut: '⌘4' },
   { id: 'files', icon: <IconFile />, labelEn: 'Files', labelZh: '文件', shortcut: '⌘1' },
   { id: 'terminal', icon: <IconTerminal />, labelEn: 'zsh', labelZh: 'zsh', shortcut: '⌘J' },
   { id: 'tasks', icon: <IconActivity />, labelEn: 'Tasks', labelZh: '任务' },
-  { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更', shortcut: '⌘3', singleInstance: true },
   { id: 'notes', icon: <IconNote />, labelEn: 'Notes', labelZh: '笔记', plusOnly: true },
   { id: 'cards', icon: <IconCards />, labelEn: 'Flashcards', labelZh: '知识卡片', plusOnly: true },
   { id: 'canvas', icon: <IconDocument />, labelEn: 'Canvas', labelZh: '画布', hidden: true },

@@ -13,30 +13,14 @@ const inkstoneSidebar = [
   .map((name) => readFileSync(join(here, 'inkstone', name), 'utf8'))
   .join('\n');
 
-describe('session row status seal vs hover actions', () => {
-  it('reserves clearance so archive actions never share the completed/failed seal slot', () => {
-    // Completed/failed attention owns the trailing seal; hover actions shift
-    // left by --session-status-seal-clearance instead of cross-fading on top
-    // (the archive∩check overlap).
-    expect(session).toMatch(/--session-status-seal-clearance:\s*0px/);
-    expect(session).toMatch(
-      /\.session-row--completed,\s*\n\.session-row--failed\s*\{[\s\S]*?--session-status-seal-clearance:\s*26px/,
-    );
-    expect(session).toMatch(
-      /\.session-row-actions\s*\{[\s\S]*?right:\s*calc\(var\(--s-2\)\s*\+\s*var\(--session-status-seal-clearance\)\)/,
-    );
-    // Working pulse and terminal status seals yield on hover while the action
-    // cluster is visible; the clearance variable still reserves their resting
-    // slot so neither state can overlap.
-    expect(session).toMatch(
-      /\.session-row--working:hover\s+\.session-item-activity/,
-    );
-    expect(session).toMatch(
-      /\.session-row:hover\s+\.session-item-completed-mark/,
-    );
-    expect(session).toMatch(/\.session-row:hover\s+\.session-item-failed-mark/);
-    expect(inkstoneSidebar).toMatch(
-      /right:\s*calc\(6px\s*\+\s*var\(--session-status-seal-clearance/,
+describe('session row status marks', () => {
+  it('keeps status in the lead slot, not in the trailing action column', () => {
+    // Status owns the lead slot, so the trailing edge holds only the time and
+    // the hover actions: no seal there, and no clearance reserved for one.
+    expect(session).toMatch(/\.session-status-mark\s*\{[\s\S]*?width:\s*14px/);
+    expect(session).toMatch(/\.session-status-mark--running::before\s*\{[\s\S]*?animation:\s*session-status-spin/);
+    expect(`${session}\n${inkstoneSidebar}`).not.toMatch(
+      /session-status-seal-clearance|session-item-activity|session-item-completed-mark|session-item-failed-mark/,
     );
   });
 

@@ -12,6 +12,7 @@
  * above the viewport, so the content under the reader vanishes. `collapse…`
  * puts the header back where it was (or just under the rail).
  */
+import { pinnedUserPrompt } from './pinned-user-prompt.js';
 
 export const FOLD_RAIL_ROW_PX = 30;
 /** Folds shown in the rail at once; the deepest ones win. */
@@ -56,12 +57,17 @@ export function collectOpenFolds(container: HTMLElement): OpenFold[] {
  * The open folds that contain the top edge of the viewport but whose header
  * has scrolled away — the breadcrumb the reader would otherwise have to
  * scroll back up to find. Each pinned row covers `rowPx`, so the next fold's
- * header only counts as scrolled away once it is under those rows.
+ * header only counts as scrolled away once it is under those rows. `insetPx`
+ * is chrome already pinned above the folds (the frozen user prompt).
  */
-export function pinnedFoldChain(container: HTMLElement, rowPx = FOLD_RAIL_ROW_PX): OpenFold[] {
+export function pinnedFoldChain(
+  container: HTMLElement,
+  rowPx = FOLD_RAIL_ROW_PX,
+  insetPx = 0,
+): OpenFold[] {
   const top = container.getBoundingClientRect().top;
   const chain: OpenFold[] = [];
-  let pinned = 0;
+  let pinned = insetPx;
   for (const fold of collectOpenFolds(container)) {
     const headerTop = fold.header.getBoundingClientRect().top;
     const endTop = fold.end.getBoundingClientRect().top;
@@ -87,14 +93,16 @@ export function collapseFoldWithAnchor(
   hooks: { beginProgrammaticScroll?: () => void; rowPx?: number } = {},
 ): void {
   const rowPx = hooks.rowPx ?? FOLD_RAIL_ROW_PX;
-  const chain = pinnedFoldChain(container, rowPx);
+  // The frozen prompt sits above the fold rows; land the header under it too.
+  const insetPx = pinnedUserPrompt(container, rowPx) ? rowPx : 0;
+  const chain = pinnedFoldChain(container, rowPx, insetPx);
   const ancestorRows = Math.max(
     0,
     chain.findIndex((fold) => fold.header === header),
   );
   const offsetOf = (): number =>
     header.getBoundingClientRect().top - container.getBoundingClientRect().top;
-  const desired = Math.max(offsetOf(), ancestorRows * rowPx + 2);
+  const desired = Math.max(offsetOf(), insetPx + ancestorRows * rowPx + 2);
   header.click();
   let frame = 0;
   const settle = (): void => {

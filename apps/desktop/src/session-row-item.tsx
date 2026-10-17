@@ -4,7 +4,6 @@ import type { DraftSessionItemUi } from './draft-session';
 import type { DesktopCopy } from './desktop-locale';
 import {
   IconArchive,
-  IconCheck,
   IconDocument,
   IconFolder,
   IconGit,
@@ -13,7 +12,8 @@ import {
   IconTrash,
   IconUnarchive,
 } from './shell-icons';
-import { InkLineNode } from './ink-line-node';
+import { resolveSessionNodeStatus } from './session-node-status';
+import { SessionStatusMark } from './session-status-mark';
 import { formatSessionRelativeTime } from './session-relative-time';
 import {
   sessionRowHasLiveActivity,
@@ -27,61 +27,6 @@ import { useSessionRowDragGesture } from './workbench/docking/use-session-row-dr
 
 /** proto-03 `.i.s12` inside `.ib.s22` hit targets. */
 const SESSION_ACTION_ICON_PX = 12;
-
-/**
- * Right-side status slot. `waiting-you` and `background` keep their existing,
- * more elaborate treatments (rounded square via InkLineNode; three-dot wave)
- * since those already carry specific meaning; plain `running` renders through
- * the shared ink-line node so the sidebar dot and the tool-chain dot draw
- * from one vocabulary (Inkstone increment 7 §2 row 06).
- */
-function SessionActivityIndicator(props: {
-  isWorking: boolean;
-  hasActiveBackendService: boolean;
-  isWaitingOnPermission: boolean;
-  workingLabel: string;
-  backendServiceLabel: string;
-  waitingOnYouLabel: string;
-}): ReactElement | null {
-  if (props.isWaitingOnPermission) {
-    return (
-      <span
-        className="session-item-activity session-item-activity--waiting-you"
-        data-testid="session-waiting-indicator"
-      >
-        <InkLineNode kind="waiting-you" label={props.waitingOnYouLabel} size="compact" />
-      </span>
-    );
-  }
-
-  if (props.hasActiveBackendService) {
-    return (
-      <span
-        className="session-item-activity session-item-activity--service"
-        data-testid="session-service-indicator"
-        aria-label={props.backendServiceLabel}
-        role="status"
-      >
-        <span className="session-item-activity-dot" aria-hidden />
-        <span className="session-item-activity-dot" aria-hidden />
-        <span className="session-item-activity-dot" aria-hidden />
-      </span>
-    );
-  }
-
-  if (props.isWorking) {
-    return (
-      <span
-        className="session-item-activity session-item-activity--working"
-        data-testid="session-working-indicator"
-        aria-label={props.workingLabel}
-        role="status"
-      />
-    );
-  }
-
-  return null;
-}
 
 /**
  * The preview is one ellipsized line (plus a `title` tooltip). A draft's text
@@ -149,9 +94,7 @@ export function SessionRowItem({
   completedAttentionSessionIds,
   failedAttentionSessionIds,
   waitingPermissionSessionIds,
-  onDismissCompletedAttention,
   worktree,
-  treeLead,
   onTogglePin,
   onArchiveSession,
   onUnarchiveSession,
@@ -183,14 +126,8 @@ export function SessionRowItem({
   completedAttentionSessionIds?: Record<string, true> | undefined;
   failedAttentionSessionIds?: Record<string, true> | undefined;
   waitingPermissionSessionIds?: Record<string, true> | undefined;
-  onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
   /** Set when the session runs in a linked worktree rather than the repository's own checkout. */
   worktree?: { name: string; branch: string | null } | undefined;
-  /**
-   * Project-tree rows open with one fixed slot that says what kind of session
-   * this is. Flat lists (pinned, conversations) have no such column.
-   */
-  treeLead?: boolean | undefined;
 }): ReactElement {
   const isDraft = 'isDraft' in session && session.isDraft === true;
   const isPinned = 'isPinned' in session && session.isPinned === true;
@@ -245,7 +182,15 @@ export function SessionRowItem({
     !isDraft && completedAttentionSessionIds != null && session.id in completedAttentionSessionIds;
   const hasFailedAttention =
     !isDraft && failedAttentionSessionIds != null && session.id in failedAttentionSessionIds;
-
+  const nodeStatus = isDraft
+    ? null
+    : resolveSessionNodeStatus({
+        isWorking,
+        hasActiveBackendService,
+        isWaitingOnPermission,
+        hasFailedAttention,
+        hasCompletedAttention,
+      });
 
   const rawPreview = isDraft
     ? session.text.trimStart().slice(0, PREVIEW_SOURCE_MAX_CHARS)
@@ -276,8 +221,20 @@ export function SessionRowItem({
     worktree !== undefined && backendBadge === null
       ? copy.sessionInWorktree(worktree.name, worktree.branch)
       : null;
-  // One slot, one mark: what kind of session this is, read down the column.
-  const leadMark = isDraft ? (
+  // One slot, one mark, read down the column: a live or unread status when the
+  // session has one, otherwise what kind of session this is.
+  const leadMark = nodeStatus !== null ? (
+    <SessionStatusMark
+      kind={nodeStatus}
+      labels={{
+        working: copy.working,
+        backendServiceActive: copy.backendServiceActive,
+        waitingOnYou: copy.waitingOnYou,
+        completed: copy.completed,
+        failedAttention: copy.failedAttention,
+      }}
+    />
+  ) : isDraft ? (
     <span className="session-draft-mark" aria-hidden />
   ) : logoBadge !== null ? (
     logoBadge
@@ -363,11 +320,9 @@ export function SessionRowItem({
           }
         >
           <span className="session-item-name" {...dragGesture.handleProps}>
-            {treeLead === true ? (
-              <span className="session-lead">{leadMark}</span>
-            ) : isDraft ? (
-              <span className="session-draft-mark" aria-hidden />
-            ) : null}
+            <span className="session-lead" data-status={nodeStatus ?? undefined}>
+              {leadMark}
+            </span>
             {isArchived ? (
               <span className="session-archived-mark" aria-hidden title={copy.archived}>
                 <IconDocument width={13} height={13} />
@@ -391,9 +346,7 @@ export function SessionRowItem({
                 {copy.missingPack}
               </span>
             ) : null}
-            {logoBadge !== null && treeLead !== true ? (
-              logoBadge
-            ) : backendBadge !== null && backendLogoId === null ? (
+            {backendBadge !== null && backendLogoId === null ? (
               <span
                 className="session-backend-badge"
                 data-testid="session-backend-badge"
@@ -424,59 +377,12 @@ export function SessionRowItem({
             </span>
           ) : null}
         </span>
-        <SessionActivityIndicator
-          isWorking={isWorking}
-          hasActiveBackendService={hasActiveBackendService}
-          isWaitingOnPermission={isWaitingOnPermission}
-          workingLabel={copy.working}
-          backendServiceLabel={copy.backendServiceActive}
-          waitingOnYouLabel={copy.waitingOnYou}
-        />
-        {session.updatedAt &&
-        !isWorking &&
-        !hasActiveBackendService &&
-        !isWaitingOnPermission &&
-        !hasCompletedAttention &&
-        !hasFailedAttention ? (
+        {session.updatedAt ? (
           <span className="session-item-time" aria-label={session.updatedAt}>
             {formatSessionRelativeTime(session.updatedAt)}
           </span>
         ) : null}
       </button>
-      {hasCompletedAttention && !hasActiveSessionWork ? (
-        <button
-          type="button"
-          className="session-item-completed-mark session-item-completed-dismiss"
-          data-testid="session-completed-dismiss"
-          aria-label={copy.dismissCompleted}
-          title={copy.dismissCompleted}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onDismissCompletedAttention?.(session.id);
-          }}
-        >
-          <span data-testid="session-completed-indicator" aria-hidden>
-            <IconCheck width={12} height={12} />
-          </span>
-        </button>
-      ) : null}
-      {hasFailedAttention && !hasActiveSessionWork ? (
-        <button
-          type="button"
-          className="session-item-failed-mark session-item-failed-dismiss"
-          data-testid="session-failed-dismiss"
-          aria-label={copy.dismissFailed}
-          title={copy.dismissFailed}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onDismissCompletedAttention?.(session.id);
-          }}
-        >
-          <InkLineNode kind="failed" label={copy.failedAttention} size="compact" />
-        </button>
-      ) : null}
       <div
         className={
           isDraft

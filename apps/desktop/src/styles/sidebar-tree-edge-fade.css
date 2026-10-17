@@ -6,15 +6,15 @@
    where a surface-coloured overlay reads as a band. No blur — titles are
    scanned, not read, and blur would cost a backdrop surface (memory diet). */
 
-.sidebar-folder-tree[data-overflow-above] {
+:is(.sidebar-folder-tree, .sidebar-pinned-shelf)[data-overflow-above] {
   --sidebar-tree-fade-top: 16px;
 }
 
-.sidebar-folder-tree[data-overflow-below] {
+:is(.sidebar-folder-tree, .sidebar-pinned-shelf)[data-overflow-below] {
   --sidebar-tree-fade-bottom: 24px;
 }
 
-.sidebar-folder-tree:is([data-overflow-above], [data-overflow-below]) {
+:is(.sidebar-folder-tree, .sidebar-pinned-shelf):is([data-overflow-above], [data-overflow-below]) {
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,

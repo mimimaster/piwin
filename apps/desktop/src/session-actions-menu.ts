@@ -38,9 +38,39 @@ export function sessionActionItems(options: {
   canForkChat?: boolean;
   canHandoff?: boolean;
   canContinueInProject?: boolean;
+  hasAttention?: boolean;
   locale?: string;
 }): SessionActionItem[] {
   const isChinese = options.locale === 'zh-CN';
+  const items = baseSessionActionItems(options, isChinese);
+  if (options.hasAttention !== true) {
+    return items;
+  }
+  // The row's lead mark is display-only, so the menu is the one place to clear
+  // an unread outcome without opening the session.
+  return [
+    {
+      action: 'dismiss-attention',
+      label: isChinese ? '标为已读' : 'Mark as Read',
+      testId: 'session-menu-dismiss-attention',
+    },
+    ...items,
+  ];
+}
+
+function baseSessionActionItems(
+  options: {
+    isPinned: boolean;
+    isArchived: boolean;
+    storageState?: 'local' | 'offloaded' | 'missing-pack';
+    canExport?: boolean;
+    canDuplicate?: boolean;
+    canForkChat?: boolean;
+    canHandoff?: boolean;
+    canContinueInProject?: boolean;
+  },
+  isChinese: boolean,
+): SessionActionItem[] {
 
   if (options.storageState === 'offloaded' || options.storageState === 'missing-pack') {
     return [

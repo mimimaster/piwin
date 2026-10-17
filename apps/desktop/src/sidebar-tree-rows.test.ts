@@ -1241,6 +1241,59 @@ describe('buildSidebarTreeRows', () => {
     expect(after).toEqual(before);
   });
 
+  it('floats a running conversation above newer idle ones inside a time group', () => {
+    const today = new Date();
+    const at = (minutesAgo: number): string =>
+      new Date(today.getTime() - minutesAgo * 60_000).toISOString();
+    const rows = buildSidebarTreeRows({
+      recentProjects: [],
+      projectSessionsByPath: {},
+      generalSessions: [
+        session('idle-newest', 'Idle newest', { updatedAt: at(0) }),
+        session('idle-newer', 'Idle newer', { updatedAt: at(0) }),
+        session('running', 'Running', { updatedAt: at(1) }),
+      ],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      groupBy: 'time',
+      projectsSectionExpanded: false,
+      conversationsSectionExpanded: true,
+      collapsedProjects: {},
+      sessionListScopes: createSessionListScopeState(),
+      workingSessionIds: { running: true },
+      runPhase: 'idle',
+      revealSessionId: 'idle-newest',
+    });
+    const ids = rows.flatMap((row) => (row.kind === 'session' ? [row.session.id] : []));
+    expect(ids[0]).toBe('running');
+  });
+
+  it('lifts a running conversation stamped yesterday into the Today group', () => {
+    const now = Date.now();
+    const rows = buildSidebarTreeRows({
+      recentProjects: [],
+      projectSessionsByPath: {},
+      generalSessions: [
+        session('idle-today', 'Idle today', { updatedAt: new Date(now).toISOString() }),
+        session('running', 'Running', {
+          updatedAt: new Date(now - 2 * 24 * 60 * 60_000).toISOString(),
+        }),
+      ],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      groupBy: 'time',
+      projectsSectionExpanded: false,
+      conversationsSectionExpanded: true,
+      collapsedProjects: {},
+      sessionListScopes: createSessionListScopeState(),
+      workingSessionIds: { running: true },
+      runPhase: 'idle',
+    });
+    const ids = rows.flatMap((row) => (row.kind === 'session' ? [row.session.id] : []));
+    expect(ids).toEqual(['running', 'idle-today']);
+    expect(rows.some((row) => row.kind === 'time-group')).toBe(false);
+  });
+
   it('does not float live-activity sessions when sorting alphabetically', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [{ path: '/a' }],

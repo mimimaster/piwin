@@ -177,6 +177,11 @@ describe('ProjectSessionSidebar resident session lists', () => {
     expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(4);
     act(() => container.querySelector<HTMLButtonElement>('[data-testid="general-workspace-btn"]')?.click());
     expect(onNewGeneralSession).toHaveBeenCalledOnce();
+
+    // The top + follows the chat pane instead of the active No Repo project.
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="new-session-btn-sb-top"]')?.click());
+    expect(onNewGeneralSession).toHaveBeenCalledTimes(2);
+    expect(onNewSession).toHaveBeenCalledOnce();
   });
 
   it('creates a No Repo session from hostStatus when noRepoProjectPath is omitted', () => {
@@ -554,11 +559,11 @@ it('spins the open session while its run is streaming even without a leftover ma
     runPhase: 'streaming',
   });
 
-  expect(container.querySelector('[data-testid="session-working-indicator"]')).not.toBeNull();
-  expect(container.querySelector('.session-item-time')).toBeNull();
+  expect(container.querySelector('.session-lead [data-testid="session-working-indicator"]')).not.toBeNull();
+  expect(container.querySelector('.session-item-time')).not.toBeNull();
 });
 
-it('renders a circular indicator for a working session instead of its timestamp', () => {
+it('renders the working spinner in the lead slot and keeps the timestamp', () => {
   const sessions = createMockSessions(1);
   const { container } = renderSidebar({
     filteredSessions: sessions,
@@ -567,7 +572,8 @@ it('renders a circular indicator for a working session instead of its timestamp'
 
   expect(container.querySelector('[data-testid="session-working-indicator"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-service-indicator"]')).toBeNull();
-  expect(container.querySelector('.session-item-time')).toBeNull();
+  expect(container.querySelector('[data-testid="session-native-mark"]')).toBeNull();
+  expect(container.querySelector('.session-item-time')).not.toBeNull();
   // The action group remains mounted so CSS can swap it in on hover/focus.
   expect(container.querySelector('.session-row-actions')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-menu-btn"]')).not.toBeNull();
@@ -610,7 +616,7 @@ it('does not let a selected live session delete from the row', () => {
   expect(onDeleteSession).not.toHaveBeenCalled();
 });
 
-it('renders the three-dot service indicator in preference to the working spinner', () => {
+it('renders the working spinner in preference to the three-dot service indicator', () => {
   const sessions = createMockSessions(1);
   const { container } = renderSidebar({
     filteredSessions: sessions,
@@ -618,12 +624,25 @@ it('renders the three-dot service indicator in preference to the working spinner
     backendServiceSessionIds: { 'session-1': true },
   });
 
-  const serviceIndicator = container.querySelector('[data-testid="session-service-indicator"]');
-  expect(serviceIndicator).not.toBeNull();
-  expect(serviceIndicator?.querySelectorAll('.session-item-activity-dot')).toHaveLength(3);
-  expect(container.querySelector('[data-testid="session-working-indicator"]')).toBeNull();
-  expect(container.querySelector('.session-item-time')).toBeNull();
+  const lead = container.querySelector('.session-lead');
+  expect(lead?.querySelector('[data-testid="session-working-indicator"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-service-indicator"]')).toBeNull();
+  expect(container.querySelector('.session-item-time')).not.toBeNull();
   expect(container.querySelector('.session-row-actions')).not.toBeNull();
+});
+
+it('renders the three-dot service indicator in the lead slot when no turn runs', () => {
+  const sessions = createMockSessions(1);
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    backendServiceSessionIds: { 'session-1': true },
+  });
+
+  const serviceIndicator = container.querySelector(
+    '.session-lead [data-testid="session-service-indicator"]',
+  );
+  expect(serviceIndicator?.querySelectorAll('.session-status-mark-dot')).toHaveLength(3);
+  expect(container.querySelector('[data-testid="session-native-mark"]')).toBeNull();
 });
 
 it('opens the overflow menu for the clicked row, not the first session', () => {
@@ -677,64 +696,22 @@ it('exposes the selected session as an explicit active row', () => {
   expect(other?.getAttribute('aria-current')).toBeNull();
 });
 
-it('shows a completion marker and replaces the session timestamp', () => {
-  const sessions = createMockSessions(1);
-  const { container } = renderSidebar({
-    filteredSessions: sessions,
-    completedAttentionSessionIds: { 'session-1': true },
-  });
-
-  const item = container.querySelector<HTMLButtonElement>('[data-session-id="session-1"]');
-  expect(item?.getAttribute('data-completed')).toBe('true');
-  expect(container.querySelector('[data-testid="session-completed-indicator"]')).not.toBeNull();
-  expect(container.querySelector('[data-testid="session-completed-dismiss"]')).not.toBeNull();
-  expect(container.querySelector('.session-item-time')).toBeNull();
-});
-
-it('keeps the completion seal as a sibling of hover actions on completed rows', () => {
-  const sessions = createMockSessions(1);
-  const { container } = renderSidebar({
-    filteredSessions: sessions,
-    completedAttentionSessionIds: { 'session-1': true },
-  });
-
-  const row = container.querySelector<HTMLElement>('.session-row--completed');
-  const seal = container.querySelector<HTMLElement>('[data-testid="session-completed-dismiss"]');
-  const actions = container.querySelector<HTMLElement>('.session-row-actions');
-  const archive = container.querySelector<HTMLElement>('[data-testid="session-archive-btn"]');
-  expect(row).not.toBeNull();
-  expect(seal).not.toBeNull();
-  expect(actions).not.toBeNull();
-  expect(archive).not.toBeNull();
-  // Seal and actions are siblings under the row (not nested). Layout CSS keeps
-  // actions left of the seal via --session-status-seal-clearance so archive
-  // never paints over the mint check.
-  expect(row?.contains(seal)).toBe(true);
-  expect(row?.contains(actions)).toBe(true);
-  expect(seal?.contains(archive)).toBe(false);
-  expect(actions?.contains(archive)).toBe(true);
-});
-
-it('dismisses the completion marker on checkmark click without opening the session', () => {
+it('shows a display-only completion mark in the lead slot and keeps the timestamp', () => {
   const sessions = createMockSessions(1);
   const onResumeSession = vi.fn();
-  const onDismissCompletedAttention = vi.fn();
   const { container } = renderSidebar({
     filteredSessions: sessions,
     completedAttentionSessionIds: { 'session-1': true },
     onResumeSession,
-    onDismissCompletedAttention,
   });
 
-  const dismiss = container.querySelector<HTMLButtonElement>(
-    '[data-testid="session-completed-dismiss"]',
-  );
-  expect(dismiss).not.toBeNull();
-  act(() => {
-    dismiss?.click();
-  });
-  expect(onDismissCompletedAttention).toHaveBeenCalledWith('session-1');
-  expect(onResumeSession).not.toHaveBeenCalled();
+  const item = container.querySelector<HTMLButtonElement>('[data-session-id="session-1"]');
+  expect(item?.getAttribute('data-completed')).toBe('true');
+  const mark = container.querySelector('.session-lead [data-testid="session-completed-indicator"]');
+  expect(mark).not.toBeNull();
+  expect(mark?.closest('button')).toBe(item);
+  expect(container.querySelector('[data-testid="session-native-mark"]')).toBeNull();
+  expect(container.querySelector('.session-item-time')).not.toBeNull();
 });
 
 it('shows the waiting-you ink-line node in preference to working and service indicators', () => {
@@ -753,10 +730,10 @@ it('shows the waiting-you ink-line node in preference to working and service ind
   expect(node?.getAttribute('data-kind')).toBe('waiting-you');
   expect(container.querySelector('[data-testid="session-working-indicator"]')).toBeNull();
   expect(container.querySelector('[data-testid="session-service-indicator"]')).toBeNull();
-  expect(container.querySelector('.session-item-time')).toBeNull();
+  expect(container.querySelector('.session-item-time')).not.toBeNull();
 });
 
-it('shows a failed marker and replaces the session timestamp', () => {
+it('shows a failed mark in the lead slot instead of the completed one', () => {
   const sessions = createMockSessions(1);
   const { container } = renderSidebar({
     filteredSessions: sessions,
@@ -765,32 +742,9 @@ it('shows a failed marker and replaces the session timestamp', () => {
 
   const item = container.querySelector<HTMLButtonElement>('[data-session-id="session-1"]');
   expect(item?.getAttribute('data-failed')).toBe('true');
-  expect(container.querySelector('[data-testid="session-failed-dismiss"]')).not.toBeNull();
-  expect(container.querySelector('.session-item-time')).toBeNull();
-  // Mutually exclusive with the completed marker.
-  expect(container.querySelector('[data-testid="session-completed-dismiss"]')).toBeNull();
-});
-
-it('dismisses the failed marker on click without opening the session', () => {
-  const sessions = createMockSessions(1);
-  const onResumeSession = vi.fn();
-  const onDismissCompletedAttention = vi.fn();
-  const { container } = renderSidebar({
-    filteredSessions: sessions,
-    failedAttentionSessionIds: { 'session-1': true },
-    onResumeSession,
-    onDismissCompletedAttention,
-  });
-
-  const dismiss = container.querySelector<HTMLButtonElement>(
-    '[data-testid="session-failed-dismiss"]',
-  );
-  expect(dismiss).not.toBeNull();
-  act(() => {
-    dismiss?.click();
-  });
-  expect(onDismissCompletedAttention).toHaveBeenCalledWith('session-1');
-  expect(onResumeSession).not.toHaveBeenCalled();
+  expect(container.querySelector('.session-lead [data-testid="session-failed-indicator"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-completed-indicator"]')).toBeNull();
+  expect(container.querySelector('.session-item-time')).not.toBeNull();
 });
 
 it('archived row shows pin, unarchive, and delete actions', () => {
@@ -1817,6 +1771,14 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
     const ribbons = container.querySelectorAll('[data-testid="session-pinned-ribbon"]');
     expect(ribbons).toHaveLength(1);
 
+    // Pinned rows sit on the shelf above the scroller, so a long list cannot scroll them away
+    const shelf = container.querySelector('[data-testid="sidebar-pinned-shelf"]');
+    expect(shelf?.querySelector('[data-testid="pinned-section-toggle"]')).not.toBeNull();
+    expect(shelf?.querySelectorAll('[data-testid="session-pinned-ribbon"]')).toHaveLength(1);
+    expect(
+      container.querySelector('[data-testid="sessions-list"] [data-testid="pinned-section-toggle"]'),
+    ).toBeNull();
+
     // Project subtitle is omitted in pinned section to keep rows clean
     expect(container.querySelectorAll('[data-testid="session-project-subtitle"]')).toHaveLength(0);
 
@@ -1853,5 +1815,6 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
     });
 
     expect(container.querySelector('[data-testid="pinned-section-toggle"]')).toBeNull();
+    expect(container.querySelector('[data-testid="sidebar-pinned-shelf"]')).toBeNull();
   });
 });

@@ -143,7 +143,7 @@ export function ComposerCardToolbar({
               options={backendOptions}
               agentLabel={agentDisplayName(backendOptions.agentId)}
               hideModes={true}
-              disabled={isStreamingRun || !props.onBackendModelChange}
+              disabled={!props.onBackendModelChange}
               onSelectModel={(modelId) => props.onBackendModelChange?.(modelId)}
               onSelectEffort={(effortId) => props.onBackendEffortChange?.(effortId)}
               onSelectMode={(modeId) => props.onBackendModeChange?.(modeId)}
@@ -171,7 +171,7 @@ export function ComposerCardToolbar({
           )
         ) : (
           <ThinkingEffortControl
-            disabled={isStreamingRun || !props.onThinkingLevelChange}
+            disabled={!props.onThinkingLevelChange}
             modelLabel={selectedModel?.label ?? props.selectedModelLabel ?? copy.model}
             ultraEnabled={props.ultraThinkingEnabled ?? false}
             value={props.thinkingLevel ?? 'off'}

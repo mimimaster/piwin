@@ -47,6 +47,7 @@ export type AppDialogsProps = {
   sessionMenuCanForkChat?: boolean;
   sessionMenuCanHandoff?: boolean;
   sessionMenuCanContinueInProject?: boolean;
+  sessionMenuHasAttention?: boolean;
   renameDraft: SessionRenameDraft | null;
   onRenameDraftChange: (draft: SessionRenameDraft | null) => void;
   onRenameSession: (sessionId: string, name: string) => void;
@@ -220,6 +221,7 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
             {...(props.sessionMenuCanContinueInProject === false
               ? { canContinueInProject: false }
               : {})}
+            {...(props.sessionMenuHasAttention === true ? { hasAttention: true } : {})}
             position={{ x: sessionMenu.x, y: sessionMenu.y }}
             onClose={props.onCloseSessionMenu}
             onAction={(action) => {

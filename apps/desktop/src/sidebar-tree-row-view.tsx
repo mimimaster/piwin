@@ -97,7 +97,6 @@ export type SidebarTreeRowViewProps = {
   completedAttentionSessionIds?: Record<string, true> | undefined;
   failedAttentionSessionIds?: Record<string, true> | undefined;
   waitingPermissionSessionIds?: Record<string, true> | undefined;
-  onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
   // Show more & retry
   onShowMoreSessions: (projectPath: string, batchSize: number, nextCount: number) => void;
   onRetrySessionList?: ((scope: SessionScope) => void) | undefined;
@@ -564,7 +563,6 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
           session={row.session}
           projectSubtitle={row.projectSubtitle}
           worktree={row.worktree}
-          treeLead={row.depth !== undefined}
           isPinnedSection={row.isPinnedSection}
           activeSessionId={props.activeSessionId}
           onResumeSession={props.onResumeSession}
@@ -576,7 +574,6 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
           completedAttentionSessionIds={props.completedAttentionSessionIds}
           failedAttentionSessionIds={props.failedAttentionSessionIds}
           waitingPermissionSessionIds={props.waitingPermissionSessionIds}
-          onDismissCompletedAttention={props.onDismissCompletedAttention}
           onTogglePin={props.onTogglePin}
           onArchiveSession={props.onArchiveSession}
           onUnarchiveSession={props.onUnarchiveSession}

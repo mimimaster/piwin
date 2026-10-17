@@ -36,14 +36,6 @@
   display: flex;
   align-items: center;
   border-radius: var(--r-control);
-  /* Extra trailing room when a completed/failed seal owns the right edge, so
-     hover actions clear it instead of cross-fading on top (archive∩check). */
-  --session-status-seal-clearance: 0px;
-}
-
-.session-row--completed,
-.session-row--failed {
-  --session-status-seal-clearance: 26px;
 }
 
 .session-row .session-item {
@@ -55,10 +47,8 @@
      timestamp and the action buttons are both absolutely positioned, so only
      this padding bounds the title -- and swapping it on hover re-truncated the
      title's ellipsis in the same frame the actions appeared. 108px clears the
-     widest occupant: 4 x 22px buttons + 3 x 2px gaps at right: var(--s-2).
-     Completed/failed add --session-status-seal-clearance so the seal and the
-     shifted action cluster both stay outside the title. */
-  padding-right: calc(108px + var(--session-status-seal-clearance));
+     widest occupant: 4 x 22px buttons + 3 x 2px gaps at right: var(--s-2). */
+  padding-right: 108px;
   border: none;
   border-radius: var(--r-control);
   background: transparent;
@@ -303,15 +293,14 @@
    Time yields to the hover action cluster, and to the close control that
    stays up on the shaded (selected) row. */
 @media (hover: hover) {
-  .session-row:not(.session-row--working):hover .session-item-time {
+  .session-row:hover .session-item-time {
     opacity: 0;
     visibility: hidden;
   }
 }
 
-.session-row:not(.session-row--working):focus-within .session-item-time,
-.session-row--active:not(.session-row--working):not(.session-row--completed):not(.session-row--failed)
-  .session-item-time {
+.session-row:focus-within .session-item-time,
+.session-row--active .session-item-time {
   opacity: 0;
   visibility: hidden;
 }
@@ -464,55 +453,53 @@
   background: none;
 }
 
-/* ── Run and completion markers ───────────────────────────────────────
-   A session that is working is the only place in the sidebar allowed to use
-   ember, and it uses the shell breath so it pulses in phase with the stage. */
-
-.session-item-activity {
-  position: absolute;
-  top: 50%;
-  right: var(--s-5);
+/* ── Status marks in the lead slot ─────────────────────────────────────
+   A live or unread status takes the lead slot over from the kind mark, so a
+   session's state is read down one column. Every mark fits the slot's 16px
+   width and the title's line height, so a status coming or going moves no
+   text. Marks are display-only: opening the row clears an unread outcome,
+   and the context menu clears it without opening. Status colors are their
+   own ink, so the slot's hover/selected color step does not touch them. */
+.session-status-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  transform: translateY(-50%);
-  color: var(--ember);
+  width: 14px;
+  height: 14px;
   pointer-events: none;
-  transition:
-    opacity var(--t-1) var(--ease-out),
-    visibility var(--t-1) var(--ease-out);
 }
 
-/* A running session is a liveness indicator, so it breathes on the shell cycle
-   instead of spinning on its own clock — Deck §6 requires every "alive" mark to
-   share one animation name and duration so they pulse in phase. The dot is
-   solid rather than a ring: `breath` scales, and a scaling ring reads as a
-   wobble. Absolute centring lives on the parent, so the keyframe's own
-   `scale()` cannot own `translateY`; the extra element keeps them separate. */
-.session-item-activity--working::before {
+/* Running: a thin ring with one ember arc, the sidebar's only spinning mark. */
+.session-status-mark--running::before {
   content: '';
-  width: 7px;
-  height: 7px;
+  box-sizing: border-box;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid color-mix(in srgb, var(--ember) 22%, transparent);
+  border-top-color: var(--ember);
   border-radius: 50%;
-  background: var(--ember);
-  animation: breath var(--breath) var(--ease-in-out) infinite;
+  animation: session-status-spin 0.9s linear infinite;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .session-item-activity--working::before {
-    animation: none;
+@keyframes session-status-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-.session-item-activity--service {
-  gap: 2px;
+@media (prefers-reduced-motion: reduce) {
+  .session-status-mark--running::before {
+    animation: none;
+    border-color: var(--ember);
+  }
 }
 
-.session-item-activity-dot {
+.session-status-mark--service {
+  gap: 2px;
+  color: var(--sky);
+}
+
+.session-status-mark-dot {
   width: 3px;
   height: 3px;
   border-radius: 50%;
@@ -521,11 +508,11 @@
   animation: session-service-wave 0.95s ease-in-out infinite;
 }
 
-.session-item-activity-dot:nth-child(2) {
+.session-status-mark-dot:nth-child(2) {
   animation-delay: 120ms;
 }
 
-.session-item-activity-dot:nth-child(3) {
+.session-status-mark-dot:nth-child(3) {
   animation-delay: 240ms;
 }
 
@@ -542,112 +529,39 @@
   }
 }
 
-/* Working pulse yields to hover actions. Completed/failed seals stay — they are
-   dismissible affordances, and actions clear to their left via
-   --session-status-seal-clearance rather than stacking in the same pixels. */
-@media (hover: hover) {
-  .session-row--working:hover .session-item-activity,
-  .session-row:hover .session-item-completed-mark,
-  .session-row:hover .session-item-failed-mark {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
+@media (prefers-reduced-motion: reduce) {
+  .session-status-mark-dot {
+    animation: none;
+    opacity: 1;
   }
 }
 
-.session-row--working:focus-within .session-item-activity,
-.session-row:focus-within .session-item-completed-mark,
-.session-row:focus-within .session-item-failed-mark {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
+.session-status-mark--success,
+.session-status-mark--failed {
+  border-radius: 50%;
 }
 
-/* Sibling of .session-item (not nested) so click can dismiss without opening. */
-.session-item-completed-mark,
-.session-item-completed-dismiss {
-  position: absolute;
-  top: 50%;
-  right: 9px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  padding: 0;
-  transform: translateY(-50%);
-  border: 0;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--mint) 20%, transparent);
+.session-status-mark--success {
+  background: color-mix(in srgb, var(--mint) 22%, transparent);
   color: var(--mint);
-  cursor: pointer;
-  z-index: 2;
-  transition:
-    opacity var(--t-1) var(--ease-out),
-    visibility var(--t-1) var(--ease-out),
-    background-color var(--t-1) var(--ease-out);
 }
 
-.session-item-completed-dismiss:hover,
-.session-item-completed-dismiss:focus-visible {
-  background: color-mix(in srgb, var(--mint) 32%, transparent);
-  outline: none;
+.session-status-mark--failed {
+  background: color-mix(in srgb, var(--coral) 22%, transparent);
+  color: var(--coral);
 }
 
-.session-item-completed-mark svg {
+.session-status-mark--success svg,
+.session-status-mark--failed svg {
   display: block;
-  stroke-width: 2.5;
-  pointer-events: none;
-}
-
-/* Same slot/geometry as the completed mark; coral instead of mint so a failed
-   turn reads as a different outcome, not a variation on "done" (Inkstone
-   six-state vocabulary — see ink-line-node.css). */
-.session-item-failed-mark,
-.session-item-failed-dismiss {
-  position: absolute;
-  top: 50%;
-  right: 9px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  padding: 0;
-  transform: translateY(-50%);
-  border: 0;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--coral) 20%, transparent);
-  cursor: pointer;
-  z-index: 2;
-  transition:
-    opacity var(--t-1) var(--ease-out),
-    visibility var(--t-1) var(--ease-out),
-    background-color var(--t-1) var(--ease-out);
-}
-
-.session-item-failed-dismiss:hover,
-.session-item-failed-dismiss:focus-visible {
-  background: color-mix(in srgb, var(--coral) 32%, transparent);
-  outline: none;
-}
-
-/* The waiting-you node sits in the same right-side slot as the working dot
-   and the service wave; it wins the priority order (session-node-status.ts)
-   so only one of the three is ever mounted at a time. */
-.session-item-activity--waiting-you {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  stroke-width: 3;
 }
 
 /* ── Hover actions ────────────────────────────────────────────────────── */
 
 .session-row-actions {
   position: absolute;
-  right: calc(var(--s-2) + var(--session-status-seal-clearance));
+  right: var(--s-2);
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -713,11 +627,11 @@
 /* Touch: there is no hover to reveal the cluster, so the selected row — whose
    time label already yields — keeps its actions up. */
 @media (hover: none) {
-  .session-row--active:not(.session-row--working) .session-row-actions {
+  .session-row--active .session-row-actions {
     pointer-events: auto;
   }
 
-  .session-row--active:not(.session-row--working) .session-action-btn {
+  .session-row--active .session-action-btn {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;

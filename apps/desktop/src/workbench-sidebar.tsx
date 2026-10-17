@@ -289,9 +289,6 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       completedAttentionSessionIds={state.completedAttentionSessionIds}
       failedAttentionSessionIds={state.failedAttentionSessionIds}
       waitingPermissionSessionIds={waitingPermissionSessionIds}
-      onDismissCompletedAttention={(sessionId) => {
-        dispatch({ type: 'session/attention-dismiss', sessionId });
-      }}
       onRetrySessionList={(scope) => {
         void hydrateSessions(scope, { includeArchived: showArchivedSessions });
       }}

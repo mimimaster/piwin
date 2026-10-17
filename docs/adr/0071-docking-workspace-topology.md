@@ -50,6 +50,18 @@ stop run".
    the existing replace/focus semantics and edges creating a split. This remains
    an in-window Tauri workspace interaction; native OS window detachment is not
    part of v1.
+9. The right panel's layout follows the primary conversation (owner decision,
+   2026-10-17, after Cursor). The stage tree stays per project; the right
+   group's tool kinds and front tool, plus the panel's own tabs (files,
+   terminal, notes, side chats…), are remembered per session in localStorage
+   (`piwin.desktop.workspaceRight.bySession.v1`,
+   `piwin.desktop.rightPanelTabs.bySession.v1`, newest 100 sessions). Switching
+   to a session restores its layout; a session with no memory (a new
+   conversation) keeps what is showing — the previous session's layout in that
+   project — minus side chats, which belong to the session that opened them.
+   Tool instances stay shared: the browser view still mirrors the one Host
+   Chromium, and a tool both layouts hold keeps its view across the switch so
+   it is not remounted. Focusing another split pane does not swap the layout.
 
 ## Consequences
 

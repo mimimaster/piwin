@@ -96,7 +96,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   height: 28px;
   max-height: 28px;
   padding: 0 8px 0 8px !important;
-  padding-right: calc(84px + var(--session-status-seal-clearance, 0px)) !important;
+  padding-right: 84px !important;
   border-radius: 6px;
   font-size: 12.5px;
   font-family: var(--sans);
@@ -227,7 +227,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-row-actions {
-  right: calc(6px + var(--session-status-seal-clearance, 0px));
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -244,22 +244,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   width: 22px;
   height: 22px;
   border-radius: 4px;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-row .session-item-activity,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-item-activity {
-  top: 50%;
-  transform: translateY(-50%);
-  right: 4px;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-row .session-item-completed-mark,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-row .session-item-failed-mark,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-item-completed-mark,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-item-failed-mark {
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-item-project-subtitle {
@@ -293,7 +277,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-row-actions {
-  right: calc(6px + var(--session-status-seal-clearance, 0px));
+  right: 6px;
   gap: 2px;
 }
 

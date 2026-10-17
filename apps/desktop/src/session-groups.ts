@@ -3,6 +3,8 @@
  * Pinned (if any) → Today / Yesterday / Previous 7 days / Older.
  */
 
+import { compareSessionRecency } from './session-recency';
+
 export type SessionGroupable = {
   id: string;
   name: string;
@@ -35,7 +37,7 @@ function startOfLocalDay(date: Date): Date {
 
 function resolveTimeGroupId(updatedAt: string | undefined, now: Date): Exclude<SessionTimeGroupId, 'pinned'> {
   if (!updatedAt) {
-    return 'older';
+    return 'today';
   }
   const stamp = new Date(updatedAt);
   if (Number.isNaN(stamp.getTime())) {
@@ -59,23 +61,22 @@ function resolveTimeGroupId(updatedAt: string | undefined, now: Date): Exclude<S
 
 function sortByRecencyThenName<T extends SessionGroupable>(sessions: T[]): T[] {
   return [...sessions].sort((left, right) => {
-    // Missing updatedAt = just created; treat as newest so new rows stay on top.
-    const leftTime = left.updatedAt ? new Date(left.updatedAt).getTime() : Number.POSITIVE_INFINITY;
-    const rightTime = right.updatedAt
-      ? new Date(right.updatedAt).getTime()
-      : Number.POSITIVE_INFINITY;
-    const leftSafe = Number.isFinite(leftTime) ? leftTime : 0;
-    const rightSafe = Number.isFinite(rightTime) ? rightTime : 0;
-    if (leftSafe !== rightSafe) {
-      return rightSafe - leftSafe;
+    const byRecency = compareSessionRecency(left, right);
+    if (byRecency !== 0) {
+      return byRecency;
     }
     return left.name.localeCompare(right.name);
   });
 }
 
+/**
+ * `isLive` marks sessions with work in flight; they count as Today whatever
+ * their last stamp, so a long run started yesterday is not buried below.
+ */
 export function groupSessionsByRecency<T extends SessionGroupable>(
   sessions: readonly T[],
   now: Date = new Date(),
+  isLive?: (session: T) => boolean,
 ): SessionTimeGroup<T>[] {
   const buckets: Record<SessionTimeGroupId, T[]> = {
     pinned: [],
@@ -90,7 +91,8 @@ export function groupSessionsByRecency<T extends SessionGroupable>(
       buckets.pinned.push(session);
       continue;
     }
-    buckets[resolveTimeGroupId(session.updatedAt, now)].push(session);
+    const groupId = isLive?.(session) === true ? 'today' : resolveTimeGroupId(session.updatedAt, now);
+    buckets[groupId].push(session);
   }
 
   for (const groupId of GROUP_ORDER) {

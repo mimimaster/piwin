@@ -17,6 +17,7 @@ import {
   upsertSessionEntity,
 } from './session-entities';
 import { mergeSessionListItem } from './session-list-item-merge';
+import { compareSessionRecency } from './session-recency';
 import { projectInstructionUserMessage } from './instruction-message-projection';
 import { enforceBoundedTranscriptWindow } from './chat-reducer-transcript';
 import {
@@ -184,14 +185,7 @@ export function reduceChatSessionList(
           if (leftPinned !== rightPinned) {
             return leftPinned ? -1 : 1;
           }
-          // Missing updatedAt = just created; keep above stamped rows.
-          const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : Number.POSITIVE_INFINITY;
-          const rightTime = right.updatedAt
-            ? Date.parse(right.updatedAt)
-            : Number.POSITIVE_INFINITY;
-          const leftSafe = Number.isFinite(leftTime) ? leftTime : 0;
-          const rightSafe = Number.isFinite(rightTime) ? rightTime : 0;
-          return rightSafe - leftSafe;
+          return compareSessionRecency(left, right);
         });
         return list;
       };

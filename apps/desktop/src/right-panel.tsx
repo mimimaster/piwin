@@ -14,6 +14,7 @@ import { getDesktopCopy } from './desktop-locale';
 import type { DesktopLocale } from './desktop-locale';
 import { IconButton, IconClose } from '@piwin/ui-kit';
 import { readStoredRightPanelState, writeStoredRightPanelState } from './right-panel-memory';
+import { useRightPanelFollowsSession } from './use-right-panel-follows-session';
 import {
   allocateRightPanelInstanceId,
   insertTabAfterActive,
@@ -27,6 +28,7 @@ import {
 import { terminalTabLabel } from './terminal-tab-label.js';
 import { RightPanelPlusMenu } from './right-panel-plus-menu';
 import { RightPanelHome } from './right-panel-home';
+import type { RightPanelHomeContext } from './right-panel-home-context';
 import { RightPanelTabs } from './right-panel-tabs.js';
 import {
   RIGHT_PANEL_SIDE_CHAT_TABS_SLOT_ID,
@@ -109,6 +111,10 @@ export type RightPanelProps = {
   dockedTools?: RightPanelDockedTools;
   /** Shared multi-session terminal controller. */
   terminalSessions?: TerminalSessionsApi;
+  /** The conversation whose tab layout this panel shows; omitted: one global layout. */
+  layoutSessionId?: string | null;
+  /** Project/Host line and Changes diff stat for the empty launcher. */
+  homeContext?: RightPanelHomeContext;
 };
 
 const NO_HANDED_OFF_TABS: readonly RightPanelTab[] = [];
@@ -194,6 +200,15 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     [dockedTabs, openTabs],
   );
 
+  useRightPanelFollowsSession({
+    sessionId: props.layoutSessionId,
+    openTabs,
+    activeTab: props.activeTab,
+    setOpenTabs,
+    onTabChange: props.onTabChange,
+    keepsTab,
+  });
+
   // Sync stored multi-tab state.
   useEffect(() => {
     const requested = props.activeTab;
@@ -276,9 +291,14 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   // Sessions opened outside the + menu (terminal sidebar) still need a tab.
   // The + menu inserts its own tab first, so an id already listed stays put
   // instead of being pulled to the end.
+  // Keyed by the terminal's own active id only: a tab switch (or a session
+  // switch restoring another layout) must not pull the terminal back in.
+  const previousTerminalIdRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (!terminalSessions) return;
     const activeId = terminalSessions.activeSessionId;
+    if (previousTerminalIdRef.current === activeId) return;
+    previousTerminalIdRef.current = activeId;
     if (activeId) {
       setOpenTabs((current) =>
         current.includes(activeId as RightPanelTab)
@@ -616,6 +636,8 @@ export function RightPanel(props: RightPanelProps): ReactElement {
           locale={locale}
           onSelect={openKind}
           tasksActiveCount={tasksActiveCount}
+          active={props.open}
+          context={props.homeContext}
         />
       ) : (
         /* Active-only lifecycle; terminal remains the explicit PTY exception. */

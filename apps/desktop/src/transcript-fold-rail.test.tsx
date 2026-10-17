@@ -36,6 +36,24 @@ function addFold(
   return header;
 }
 
+/** A turn group whose prompt article ends at `articleBottom` and turn at `groupBottom`. */
+function addTurn(stream: HTMLElement, prompt: string, articleBottom: number, groupBottom: number): HTMLElement {
+  const group = document.createElement('section');
+  group.className = 'chat-turn-group';
+  const article = document.createElement('article');
+  article.className = 'turn chat-turn chat-turn-user';
+  article.dataset.userPrompt = prompt;
+  group.appendChild(article);
+  stream.appendChild(group);
+  vi.spyOn(article, 'getBoundingClientRect').mockImplementation(
+    () => ({ top: articleBottom - 40, bottom: articleBottom, left: 0, right: 0, width: 0, height: 40 }) as DOMRect,
+  );
+  vi.spyOn(group, 'getBoundingClientRect').mockImplementation(
+    () => ({ top: articleBottom - 40, bottom: groupBottom, left: 0, right: 0, width: 0, height: 0 }) as DOMRect,
+  );
+  return article;
+}
+
 describe('TranscriptFoldRail', () => {
   let shell: HTMLDivElement;
   let stream: HTMLDivElement;
@@ -131,5 +149,40 @@ describe('TranscriptFoldRail', () => {
       document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     });
     expect(clicked).toHaveBeenCalledTimes(1);
+  });
+
+  it('freezes the prompt of the turn under the viewport top, above the fold rows', () => {
+    addTurn(stream, '上一个问题', -2000, -900);
+    addTurn(stream, '一起修吧', -500, 1200);
+    addFold(stream, 'turn:a', 'turn', '已工作 3h', -400, 1100);
+    renderRail();
+    const pin = host.querySelector('[data-testid="transcript-prompt-pin"]');
+    expect(pin?.textContent).toBe('一起修吧');
+    const rail = host.querySelector('[data-testid="transcript-fold-rail"]');
+    expect(rail?.firstElementChild).toBe(pin);
+    expect(host.querySelectorAll('[data-testid="transcript-fold-rail-row"]')).toHaveLength(1);
+  });
+
+  it('shows no prompt while the prompt bubble is still on screen', () => {
+    addTurn(stream, '一起修吧', 60, 1200);
+    renderRail();
+    expect(host.querySelector('[data-testid="transcript-prompt-pin"]')).toBeNull();
+  });
+
+  it('pushes a fold header that sits just under the prompt row out of the rail', () => {
+    addTurn(stream, '一起修吧', -500, 1200);
+    // Header at y=10 is on screen, but under the 30px prompt row: it counts as scrolled away.
+    addFold(stream, 'segment:s1', 'segment', '第一步', 10, 800);
+    renderRail();
+    expect(host.querySelectorAll('[data-testid="transcript-fold-rail-row"]')).toHaveLength(1);
+  });
+
+  it('scrolls the prompt back to the top when the pin is clicked', () => {
+    addTurn(stream, '一起修吧', -500, 1200);
+    renderRail();
+    const pin = host.querySelector<HTMLButtonElement>('[data-testid="transcript-prompt-pin"]');
+    act(() => pin?.click());
+    // The article's top is 540px above the viewport top (bottom -500, height 40).
+    expect(stream.scrollTop).toBe(-540);
   });
 });

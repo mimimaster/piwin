@@ -928,6 +928,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             setColdRestorePrompt({ sessionId, storage: session.storage });
           }
           break;
+        case 'dismiss-attention':
+          dispatch({ type: 'session/attention-dismiss', sessionId });
+          break;
         case 'delete':
           // App owns ConfirmDialog for permanent delete — menu only signals intent.
           break;
@@ -944,6 +947,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     [
       handleArchiveSession,
       confirmDeleteSession,
+      dispatch,
       dispatchNotification,
       hostClient,
       locale,
