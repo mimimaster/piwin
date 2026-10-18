@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { InteractiveTerminalManager } from '@piwin/process';
+import { createExtensionRevisionStore } from '@piwin/extensions';
 import type { AgentCliOpenData } from '@piwin/contracts';
 import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
 import { HostRuntime } from '../host-runtime.js';
+import { AgentPluginBridge } from '../agent-plugin-bridge.js';
 import { installFixtureAgentAdapter } from '../testing/agent-plugin-fixture.js';
 
 let runtime: HostRuntime | undefined;
@@ -25,10 +27,45 @@ async function setup(catalog: unknown[] = []) {
   runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: directory, externalAgents: { env: fixture.env } });
   const open = vi.spyOn(InteractiveTerminalManager.prototype, 'open').mockResolvedValue('pty-fixture');
   const close = vi.spyOn(InteractiveTerminalManager.prototype, 'close').mockResolvedValue();
-  return { runtime, open, close };
+  return { runtime, open, close, fixture };
 }
 
 describe('Host native Grok terminal routing', () => {
+  it('performs one readiness handshake on cold open and reuses it on the next new session', async () => {
+    const host = await setup();
+    const request = vi.spyOn(AgentPluginBridge.prototype, 'request');
+    const open = () => host.runtime.handleCommand({
+      type: 'agents/cli-open', input: { agentId: 'grok', cols: 80, rows: 24 },
+    });
+
+    const first = await open();
+    expect(first.success, first.success ? '' : first.error).toBe(true);
+    expect(request.mock.calls.filter(([method]) => method === 'check')).toHaveLength(1);
+    request.mockClear();
+
+    const second = await open();
+    expect(second.success, second.success ? '' : second.error).toBe(true);
+    expect(request.mock.calls.filter(([method]) => method === 'check')).toHaveLength(0);
+  });
+
+  it('rechecks extension enablement after activation even when readiness is cached', async () => {
+    const host = await setup();
+    const kernel = host.runtime as unknown as Pick<HostRuntimeKernel, 'activateSessionRuntime'>;
+    const activate = kernel.activateSessionRuntime.bind(kernel);
+    vi.spyOn(kernel, 'activateSessionRuntime').mockImplementationOnce(async (sessionId) => {
+      const handle = await activate(sessionId);
+      await createExtensionRevisionStore(directory ?? '').setEnabled(host.fixture.extensionId, false);
+      return handle;
+    });
+
+    const response = await host.runtime.handleCommand({
+      type: 'agents/cli-open', input: { agentId: 'grok', cols: 80, rows: 24 },
+    });
+    expect(response.success).toBe(false);
+    expect(response.success ? '' : response.error).toContain('agent-plugin-disabled');
+    expect(host.open).not.toHaveBeenCalled();
+  });
+
   it('creates one product binding, resumes the native id, and refreshes vendor history on return', async () => {
     const host = await setup();
     const first = await host.runtime.handleCommand({ type: 'agents/cli-open', input: { agentId: 'grok', cols: 80, rows: 24 } });

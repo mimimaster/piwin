@@ -1,0 +1,350 @@
+/* Settings → Code search: status line, engine tiles, folded budgets.
+
+   The page answers three questions top to bottom — is it on, who plans the
+   search, are the budgets default — so each gets exactly one surface. Engine
+   tiles are radio cards (one choice, readiness visible on every option); the
+   selected engine's setup sits in a single panel below instead of nesting
+   another toggle inside the first. */
+
+.code-search-page {
+  padding-bottom: var(--s-8);
+}
+
+.code-search-hero .settings-card-heading {
+  align-items: center;
+  margin-bottom: var(--s-5);
+}
+
+/* ── Status line ──────────────────────────────────────────────────────── */
+
+.code-search-status {
+  --code-search-status: var(--text-4);
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--text-3) 7%, transparent);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+  transition: background-color var(--t-2) var(--ease-out);
+}
+
+.code-search-status[data-tone='ready'] {
+  --code-search-status: var(--mint);
+  background: color-mix(in srgb, var(--mint) 10%, transparent);
+}
+
+/* Sky, not iris: the accent is vermilion in some themes and would read as an error. */
+.code-search-status[data-tone='pending'] {
+  --code-search-status: var(--sky);
+  background: color-mix(in srgb, var(--sky) 10%, transparent);
+}
+
+.code-search-status[data-tone='blocked'] {
+  --code-search-status: var(--amber);
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+}
+
+.code-search-status-dot {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--code-search-status);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--code-search-status) 18%, transparent);
+}
+
+.code-search-status-title {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.code-search-status-detail {
+  min-width: 0;
+  color: var(--text-2);
+}
+
+/* ── Engine tiles ─────────────────────────────────────────────────────── */
+
+.code-search-engines {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+
+.code-search-engine {
+  --code-search-engine-state: var(--text-4);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--s-5) var(--s-5) var(--s-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-card);
+  background: var(--surface-1);
+  box-shadow: var(--elev-1);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    border-color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.code-search-engine:hover:not(:disabled) {
+  border-color: var(--line-2);
+  box-shadow: var(--elev-2);
+}
+
+.code-search-engine:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--iris) 60%, transparent);
+  outline-offset: 2px;
+}
+
+.code-search-engine.is-selected {
+  background: color-mix(in srgb, var(--iris) 5%, var(--surface-1));
+  border-color: color-mix(in srgb, var(--iris) 50%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--iris) 22%, transparent);
+}
+
+.code-search-engine:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.code-search-engine-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.code-search-engine-name {
+  overflow: hidden;
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-search-engine-tag {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--mint) 14%, transparent);
+  color: var(--mint);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Radio mark: an empty ring, filled to a thick iris ring when chosen. */
+.code-search-engine-check {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  border-radius: var(--r-pill);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  transition: box-shadow var(--t-2) var(--ease-out);
+}
+
+.code-search-engine.is-selected .code-search-engine-check {
+  box-shadow: inset 0 0 0 5px var(--iris);
+}
+
+.code-search-engine-desc {
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+}
+
+.code-search-engine-state {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  margin-top: auto;
+  padding-top: var(--s-3);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+}
+
+.code-search-engine-state[data-tone='ok'] {
+  --code-search-engine-state: var(--mint);
+}
+
+.code-search-engine-state[data-tone='warn'] {
+  --code-search-engine-state: var(--amber);
+}
+
+.code-search-engine-state[data-tone='busy'] {
+  --code-search-engine-state: var(--iris);
+}
+
+.code-search-engine-state > i {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--code-search-engine-state);
+}
+
+.code-search-engine-state[data-tone='busy'] > i {
+  animation: devin-account-pulse 1.2s var(--ease-in-out) infinite;
+}
+
+.code-search-engine-state > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Selected engine setup ────────────────────────────────────────────── */
+
+/* No frame of its own: the account row, select and secret editor already
+   carry one, and a second box around them reads as nesting. */
+.code-search-engine-detail {
+  margin-top: var(--s-6);
+}
+
+.code-search-engine-detail .devin-credential {
+  margin-top: 0;
+}
+
+.code-search-engine-detail .devin-credential-actions {
+  justify-content: space-between;
+}
+
+.code-search-engine-detail .devin-credential-actions .devin-credential-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.code-search-model-field {
+  margin: 0;
+}
+
+.code-search-model-field .piwin-select {
+  width: 100%;
+  max-width: 440px;
+}
+
+/* ── Advanced fold ────────────────────────────────────────────────────── */
+
+.code-search-advanced > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.code-search-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.code-search-advanced > summary::after {
+  content: '›';
+  color: var(--text-4);
+  font-size: 20px;
+  font-weight: 350;
+  line-height: 0.7;
+  transition:
+    color var(--t-1) var(--ease-out),
+    transform var(--t-2) var(--ease-out);
+}
+
+.code-search-advanced[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.code-search-advanced-title {
+  color: var(--text-1);
+  font-size: var(--fs-title);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.code-search-advanced > summary:hover .code-search-advanced-title,
+.code-search-advanced > summary:hover::after {
+  color: var(--iris-lift);
+}
+
+.code-search-advanced-summary {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+}
+
+.code-search-advanced-summary[data-customized='true'] {
+  color: var(--iris-lift);
+}
+
+.code-search-advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding-top: var(--s-6);
+}
+
+.code-search-advanced-intro {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+}
+
+.code-search-budget-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-5);
+}
+
+.code-search-budget-field {
+  margin: 0;
+}
+
+.code-search-budget-field .ui-field-label {
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.code-search-budget-field .piwin-text-input {
+  width: 100%;
+}
+
+.code-search-budget-field .ui-field-description {
+  font-size: var(--fs-micro);
+}
+
+@media (max-width: 860px) {
+  .code-search-budget-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .code-search-engines {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-search-engine-state[data-tone='busy'] > i {
+    animation: none;
+  }
+}

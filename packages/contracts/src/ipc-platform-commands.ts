@@ -514,6 +514,8 @@ export type PlatformHostCommand =
       kinds?: MarketplaceCapabilityKind[];
       category?: MarketplaceCategory;
       includeWithdrawn?: boolean;
+      /** Read the offline catalog and cached remote indexes without network I/O. */
+      cachedOnly?: boolean;
     }
   | { id?: string; type: 'marketplace/catalog-get'; entryId: string }
   /** Host-side check of a catalog entry's requirements (OS, PATH commands, env vars). */

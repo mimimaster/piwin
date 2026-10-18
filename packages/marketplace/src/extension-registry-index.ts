@@ -138,12 +138,14 @@ export async function fetchExtensionRegistryIndex(options: {
 }
 
 export async function listMarketplaceWithExtensions(
-  options: ListCatalogEntriesOptions = {},
+  options: ListCatalogEntriesOptions & { cachedOnly?: boolean } = {},
   fetchOptions: Parameters<typeof fetchExtensionRegistryIndex>[0] = {},
 ): Promise<MarketplaceCatalogEntry[]> {
-  const remoteAgents = Object.keys(fetchOptions).length === 0 ? listRemoteAgentCatalog() : Promise.resolve([]);
+  const remoteAgents = Object.keys(fetchOptions).length === 0
+    ? listRemoteAgentCatalog({ cachedOnly: options.cachedOnly === true })
+    : Promise.resolve([]);
   let remote = cachedEntries;
-  if (Object.keys(fetchOptions).length > 0 || Date.now() >= cacheExpiresAt) {
+  if (!options.cachedOnly && (Object.keys(fetchOptions).length > 0 || Date.now() >= cacheExpiresAt)) {
     pendingFetch ??= fetchExtensionRegistryIndex(fetchOptions).then((entries) => {
       if (Object.keys(fetchOptions).length === 0) {
         cachedEntries = entries;

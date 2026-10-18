@@ -695,7 +695,8 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
     case 'marketplace/catalog-list':
       return (
         (command.query === undefined || command.query.length <= 256) &&
-        (command.kinds === undefined || command.kinds.length <= 8)
+        (command.kinds === undefined || command.kinds.length <= 8) &&
+        (command.cachedOnly === undefined || typeof command.cachedOnly === 'boolean')
       );
     case 'marketplace/catalog-get':
       return command.entryId.trim().length > 0 && command.entryId.length <= 256;

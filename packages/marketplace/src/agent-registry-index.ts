@@ -60,8 +60,10 @@ export async function fetchAgentRegistryIndex(options: { url?: string; fetchImpl
   return parseAgentRegistryIndex(JSON.parse(body) as unknown);
 }
 
-export async function listRemoteAgentCatalog(): Promise<MarketplaceCatalogEntry[]> {
-  if (Date.now() < expiresAt) return cached;
+export async function listRemoteAgentCatalog(
+  options: { cachedOnly?: boolean } = {},
+): Promise<MarketplaceCatalogEntry[]> {
+  if (options.cachedOnly || Date.now() < expiresAt) return cached;
   pending ??= fetchAgentRegistryIndex().then((entries) => {
     cached = entries; expiresAt = Date.now() + 300_000; return entries;
   }).catch(() => {

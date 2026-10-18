@@ -58,7 +58,12 @@ block2 = "0.6"
 libc = "0.2"
 
 [profile.release]
-panic = "abort"
+# Must stay "unwind": wry wraps WKURLSchemeTask didReceiveResponse/Data/Finish
+# in objc2::exception::catch so a late IPC reply to a task WebKit already
+# stopped (navigation, WebContent process relaunch) is dropped. With
+# panic = "abort" every Rust frame is nounwind, so that ObjC exception hits
+# panic_cannot_unwind and SIGABRTs the whole app instead of being caught.
+panic = "unwind"
 codegen-units = 1
 lto = true
 

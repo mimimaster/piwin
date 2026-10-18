@@ -5,6 +5,23 @@ import { describe, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const conversation = readFileSync(join(here, 'conversation.css'), 'utf8');
+const userCard = readFileSync(join(here, 'user-card.css'), 'utf8');
+
+describe('Inkstone user-card surface', () => {
+  it('paints the ink-face user card from the ink composer slab without a rim', () => {
+    expect(userCard).toMatch(
+      /\[data-theme-id='piwin-inkstone-ink'\]:not\(\[data-slab='paper'\]\) :is\(\.ucard, \.user-message-collapsible\) \{[\s\S]*?--ucard-fill: var\(--slab\);[\s\S]*?--ucard-shadow: 0 0 #0000;/,
+    );
+  });
+
+  it('reads the conversation bubble fill and fades from the shared card fill', () => {
+    expect(conversation).toMatch(
+      /\.user-message-bubble \{[\s\S]*?background: var\(--ucard-fill\);[\s\S]*?box-shadow: var\(--ucard-shadow\);/,
+    );
+    expect(conversation).toContain('--user-message-mask: var(--ucard-fill);');
+    expect(conversation).not.toMatch(/var\(--s3\) 36px/);
+  });
+});
 
 describe('Inkstone conversation user-card footer', () => {
   it('keeps one-line copy/edit on the same grid row', () => {

@@ -47,7 +47,8 @@ export async function readMarketplaceInventory(
     store.listRecords(),
     loadMcpConfig(rootDir),
     context.getMcpManager().listHealth(),
-    listMarketplaceWithExtensions(),
+    // Inventory reads must remain local even when remote indexes are slow.
+    listMarketplaceWithExtensions({ cachedOnly: true }),
   ]);
   let session: InventorySessionView | undefined;
   if (options.sessionId) {
@@ -83,7 +84,8 @@ export async function readInstalledCatalogEntryIds(piwinRoot: string): Promise<S
   const [resources, mcpConfig, catalog] = await Promise.all([
     loadCatalogResources(piwinRoot),
     loadMcpConfig(piwinRoot),
-    listMarketplaceWithExtensions(),
+    // Inventory reads must remain local even when remote indexes are slow.
+    listMarketplaceWithExtensions({ cachedOnly: true }),
   ]);
   const installed = new Set<string>();
   const mark = (kind: MarketplaceCapabilityKind, capabilityId: string): void => {

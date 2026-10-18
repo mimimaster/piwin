@@ -162,18 +162,29 @@ describe('CodeSearchPage', () => {
     });
   }
 
+  function clickSave(): void {
+    container.querySelector<HTMLButtonElement>('[data-testid="code-search-save"]')?.click();
+  }
+
   function findSwitch(): HTMLInputElement | null {
     const switches = [...container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
     return switches[0] ?? null;
   }
 
-  it('starts disabled and offers both backends', async () => {
+  it('starts disabled and offers the three engines as one choice', async () => {
     const contextValue = createContextValue();
     await renderPage(contextValue);
     expect(container.textContent).toContain('代码搜索');
     expect(findSwitch()?.checked).toBe(false);
-    expect(container.textContent).toContain('已配置模型');
-    expect(container.textContent).toContain('Windsurf 云端');
+    const engines = [...container.querySelectorAll('[data-testid="code-search-engines"] [role="radio"]')];
+    expect(engines.map((engine) => engine.getAttribute('data-testid'))).toEqual([
+      'code-search-engine-devin',
+      'code-search-engine-model',
+      'code-search-engine-token',
+    ]);
+    expect(
+      container.querySelector('[data-testid="code-search-engine-model"]')?.getAttribute('aria-checked'),
+    ).toBe('true');
   });
 
   it('lists only chat/reasoning models, not image video or voice', async () => {
@@ -223,10 +234,7 @@ describe('CodeSearchPage', () => {
     });
     // Model comes from config; pick it through the same handler the page uses.
     await act(async () => {
-      const save = [...container.querySelectorAll('button')].find((button) =>
-        button.textContent?.includes('保存'),
-      );
-      save?.click();
+      clickSave();
     });
 
     const saveConfig = contextValue.saveConfig as unknown as ReturnType<typeof vi.fn>;
@@ -246,10 +254,7 @@ describe('CodeSearchPage', () => {
       findSwitch()?.click();
     });
     await act(async () => {
-      const save = [...container.querySelectorAll('button')].find((button) =>
-        button.textContent?.includes('保存'),
-      );
-      save?.click();
+      clickSave();
     });
 
     const saveConfig = contextValue.saveConfig as unknown as ReturnType<typeof vi.fn>;
@@ -287,8 +292,8 @@ describe('CodeSearchPage', () => {
     expect(container.querySelector('[data-testid="code-search-devin-credential"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="code-search-windsurf-token"]')).toBeNull();
     expect(
-      container.querySelector('[data-testid="code-search-credential-source"]')?.textContent,
-    ).toMatch(/Devin 账号|Devin account/);
+      container.querySelector('[data-testid="code-search-engine-devin"]')?.getAttribute('aria-checked'),
+    ).toBe('true');
   });
 
   it('defaults an empty windsurf config to the Devin account, without a token field', async () => {
@@ -345,26 +350,19 @@ describe('CodeSearchPage', () => {
     expect(login?.input?.providerId).toBe('devin');
   });
 
-  it('blocks saving windsurf without a token', async () => {
+  it('keeps Save disabled while a budget is not a positive integer', async () => {
     const contextValue = createContextValue({
-      config: createConfig({ codeSearch: { enabled: true, backend: 'windsurf' } }),
+      config: createConfig({ codeSearch: { enabled: true, backend: 'model' } }),
     });
     await renderPage(contextValue);
 
     await act(async () => {
-      const save = [...container.querySelectorAll('button')].find((button) =>
-        button.textContent?.includes('保存'),
-      );
-      // Nothing is dirty yet, so no save button exists; toggle to make it dirty.
-      const toggle = container.querySelector<HTMLElement>(
-        '[data-testid="code-search-windsurf-token"] input',
-      );
-      if (!save && toggle) {
-        toggle.dispatchEvent(new Event('input', { bubbles: true }));
-      }
+      setInputValue(container.querySelector<HTMLInputElement>('[data-testid="code-search-max-turns"]'), '0');
     });
-    // The guard is exercised through the save path used by the UI.
-    expect(contextValue.saveConfig).not.toHaveBeenCalled();
+    const save = container.querySelector<HTMLButtonElement>('[data-testid="code-search-save"]');
+    expect(save?.disabled).toBe(true);
+    expect(container.querySelector('[data-testid="code-search-save-bar"]')?.textContent).toContain('正整数');
+    expect(container.querySelector('[data-testid="code-search-advanced"]')?.textContent).toContain('有无效数值');
   });
 
   it('saves advanced numeric budgets and drops them when cleared', async () => {
@@ -380,22 +378,13 @@ describe('CodeSearchPage', () => {
     });
     await renderPage(contextValue);
 
-    await act(async () => {
-      const show = [...container.querySelectorAll('button')].find((button) =>
-        button.textContent?.includes('展开'),
-      );
-      show?.click();
-    });
     const turns = container.querySelector<HTMLInputElement>('[data-testid="code-search-max-turns"]');
     expect(turns).not.toBeNull();
     await act(async () => {
       setInputValue(turns, '');
     });
     await act(async () => {
-      const save = [...container.querySelectorAll('button')].find((button) =>
-        button.textContent?.includes('保存'),
-      );
-      save?.click();
+      clickSave();
     });
 
     const saveConfig = contextValue.saveConfig as unknown as ReturnType<typeof vi.fn>;
@@ -511,9 +500,7 @@ describe('CodeSearchPage', () => {
     expect(container.querySelector('[data-testid^="code-search-windsurf-token"]')).not.toBeNull();
 
     await act(async () => {
-      container
-        .querySelector<HTMLInputElement>('[data-testid="code-search-credential-source"] input[value="devin"]')
-        ?.click();
+      container.querySelector<HTMLButtonElement>('[data-testid="code-search-engine-devin"]')?.click();
     });
     expect(container.querySelector('[data-testid="code-search-devin-credential"]')).not.toBeNull();
     expect(container.querySelector('[data-testid^="code-search-windsurf-token"]')).toBeNull();
@@ -521,9 +508,7 @@ describe('CodeSearchPage', () => {
     expect(saveConfig).not.toHaveBeenCalled();
 
     await act(async () => {
-      [...container.querySelectorAll('button')]
-        .find((button) => button.textContent?.trim() === '保存')
-        ?.click();
+      clickSave();
       await Promise.resolve();
     });
     const saved = (saveConfig.mock.calls.at(-1) as [PiwinConfig] | undefined)?.[0];
@@ -573,6 +558,47 @@ describe('CodeSearchPage', () => {
     expect(saved?.codeSearch?.enabled).toBe(true);
     expect(saved?.codeSearch?.backend).toBe('windsurf');
     expect(saved?.codeSearch?.apiKeyRef).toBe('keychain:piwin-code-search-windsurf');
+  });
+
+  it('moves between engines with the arrow keys like a radio group', async () => {
+    const contextValue = createContextValue();
+    await renderPage(contextValue);
+    const group = container.querySelector<HTMLElement>('[data-testid="code-search-engines"]');
+
+    await act(async () => {
+      group?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    });
+    expect(
+      container.querySelector('[data-testid="code-search-engine-token"]')?.getAttribute('aria-checked'),
+    ).toBe('true');
+    expect(container.querySelector('[data-testid="code-search-windsurf-token"]')).not.toBeNull();
+
+    await act(async () => {
+      group?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    });
+    expect(
+      container.querySelector('[data-testid="code-search-engine-devin"]')?.getAttribute('aria-checked'),
+    ).toBe('true');
+  });
+
+  it('does not report unsaved changes for a freshly loaded config with budgets', async () => {
+    const contextValue = createContextValue({
+      config: createConfig({
+        codeSearch: { maxTurns: 5, enabled: true, treeDepth: 0, backend: 'windsurf', apiKeyRef: 'oauth:devin' },
+      }),
+    });
+    await renderPage(contextValue);
+    expect(container.querySelector('[data-testid="code-search-save-bar"]')).toBeNull();
+  });
+
+  it('summarizes customized budgets without opening the fold', async () => {
+    const contextValue = createContextValue({
+      config: createConfig({ codeSearch: { enabled: true, backend: 'model', maxTurns: 5, includeSnippets: false } }),
+    });
+    await renderPage(contextValue);
+    expect(container.querySelector('[data-testid="code-search-advanced"] summary')?.textContent).toContain(
+      '已自定义 2 项',
+    );
   });
 
 });

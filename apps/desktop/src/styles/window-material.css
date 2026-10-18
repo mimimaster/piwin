@@ -49,12 +49,14 @@ html[data-window-material][data-theme-mode='dark'] {
 }
 
 /* Ink cards on the glass. Solid --s3 / void slabs on a translucent ink stage
-   read as cut-outs (the user card, the todo tray, the console), so in ink
-   they take a tinted glass of their own surface instead. */
-html[data-window-material][data-theme-mode='dark']
+   read as cut-outs (the todo tray, the console), so in ink they take a tinted
+   glass of their own surface instead. The user card stays solid while it
+   shares the ink composer slab (inkstone/user-card.css); it only glasses when
+   the composer is paper and the card falls back to --s3. */
+html[data-window-material][data-theme-mode='dark'][data-slab='paper']
   .app-shell:not([data-layout='phone'])
   :is(.ucard, .user-message-collapsible) {
-  background: color-mix(in srgb, var(--s3) 52%, transparent);
+  --ucard-fill: color-mix(in srgb, var(--s3) 52%, transparent);
 }
 
 html[data-window-material][data-theme-mode='dark']

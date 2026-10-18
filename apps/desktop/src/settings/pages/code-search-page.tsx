@@ -1,11 +1,11 @@
 /**
  * Settings → Code search (`code_search`).
  *
- * Mirrors how Web search selects a backend: pick where the search subagent's
- * reasoning runs, then prove it is usable. `model` needs a configured chat
- * model; `windsurf` needs a Windsurf/Devin token stored in the keychain (never
- * written to config). Loop knobs stay collapsed — the main agent must not be
- * able to retune the subagent per call.
+ * One switch, one engine choice, folded budgets. The engine choice flattens
+ * `backend` + Windsurf credential source into a single decision (see
+ * `code-search-engine.ts`); Windsurf tokens live in the keychain, never in
+ * config. Budgets stay here rather than on the tool so the main agent cannot
+ * retune the subagent per call.
  */
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
@@ -14,33 +14,22 @@ import {
   isProviderEnabled,
   modelSupportsCapability,
   type CodeSearchConfig,
-  type ModelRef,
   type PiwinConfig,
 } from '@piwin/contracts';
-import {
-  Button,
-  SegmentedControl,
-  Switch,
-  TextInput,
-} from '@piwin/ui-kit';
+import { Button, Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
-import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
+import { CodeSearchAdvanced, type CodeSearchBudgetDrafts } from '../code-search-advanced';
 import {
-  CodeSearchWindsurfCredentials,
   DEFAULT_WINDSURF_KEY_ENV,
-  DEVIN_ACCOUNT_REF,
-  windsurfCredentialSource,
-  type WindsurfCredentialSource,
-} from '../code-search-windsurf-credentials';
+  applyCodeSearchEngine,
+  codeSearchEngine,
+  hasStoredWindsurfToken,
+} from '../code-search-engine';
+import { CodeSearchEnginePicker, type CodeSearchModelOption } from '../code-search-engine-picker';
+import { describeCodeSearchStatus } from '../code-search-status';
 import { useDevinAccount } from '../use-devin-account';
 import { useSettings } from '../settings-context';
-
-
-type ModelOption = {
-  ref: ModelRef;
-  label: string;
-};
 
 function parseOptionalPositiveInt(raw: string): number | undefined {
   const trimmed = raw.trim();
@@ -59,9 +48,39 @@ function parseOptionalNonNegativeInt(raw: string): number | undefined {
   return value;
 }
 
-function collectChatModels(config: PiwinConfig | null): ModelOption[] {
+function budgetDraftsFrom(config: CodeSearchConfig): CodeSearchBudgetDrafts {
+  return {
+    turns: config.maxTurns ? String(config.maxTurns) : '',
+    commands: config.maxCommands ? String(config.maxCommands) : '',
+    results: config.maxResults ? String(config.maxResults) : '',
+    depth: config.treeDepth !== undefined ? String(config.treeDepth) : '',
+  };
+}
+
+/**
+ * The numeric fields live in their own text state so a half-typed value cannot
+ * reach the config; this folds the parseable ones back in.
+ */
+function withBudgets(base: CodeSearchConfig, budgets: CodeSearchBudgetDrafts): CodeSearchConfig {
+  const next: CodeSearchConfig = { ...base };
+  delete next.maxTurns;
+  delete next.maxCommands;
+  delete next.maxResults;
+  delete next.treeDepth;
+  const maxTurns = parseOptionalPositiveInt(budgets.turns);
+  const maxCommands = parseOptionalPositiveInt(budgets.commands);
+  const maxResults = parseOptionalPositiveInt(budgets.results);
+  const treeDepth = parseOptionalNonNegativeInt(budgets.depth);
+  if (maxTurns !== undefined) next.maxTurns = maxTurns;
+  if (maxCommands !== undefined) next.maxCommands = maxCommands;
+  if (maxResults !== undefined) next.maxResults = maxResults;
+  if (treeDepth !== undefined) next.treeDepth = treeDepth;
+  return next;
+}
+
+function collectChatModels(config: PiwinConfig | null): CodeSearchModelOption[] {
   if (!config) return [];
-  const options: ModelOption[] = [];
+  const options: CodeSearchModelOption[] = [];
   for (const provider of config.providers ?? []) {
     if (!isProviderEnabled(provider)) continue;
     for (const model of provider.models) {
@@ -75,43 +94,23 @@ function collectChatModels(config: PiwinConfig | null): ModelOption[] {
   return options;
 }
 
-function describeDraftIssue(draft: CodeSearchConfig, zh: boolean): string | undefined {
-  if (!draft.enabled) return undefined;
-  if ((draft.backend ?? 'model') === 'windsurf') {
-    if (!draft.apiKeyRef && !draft.apiKeyEnv) {
-      return zh
-        ? 'Windsurf 后端需要填入 token（或填写环境变量名）。'
-        : 'The Windsurf backend needs a token (or an environment variable name).';
-    }
-    return undefined;
-  }
-  return undefined;
-}
-
 export function CodeSearchPage(): ReactElement {
   const { locale } = useDesktopLocale();
   const zh = locale === 'zh-CN';
   const settings = useSettings();
-  const { config, saveConfig, setInfo, loadProviderSecret, storeProviderSecret, testCodeSearchWindsurf } = settings;
+  const { config, saving, saveConfig, setInfo, loadProviderSecret, storeProviderSecret, testCodeSearchWindsurf } =
+    settings;
+  const readOnly = settings.remoteSettingsReadOnly === true;
 
   const saved = config?.codeSearch ?? createDefaultCodeSearchConfig();
   const [draft, setDraft] = useState<CodeSearchConfig>(saved);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [turnDraft, setTurnDraft] = useState(saved.maxTurns ? String(saved.maxTurns) : '');
-  const [commandDraft, setCommandDraft] = useState(saved.maxCommands ? String(saved.maxCommands) : '');
-  const [resultDraft, setResultDraft] = useState(saved.maxResults ? String(saved.maxResults) : '');
-  const [depthDraft, setDepthDraft] = useState(
-    saved.treeDepth !== undefined ? String(saved.treeDepth) : '',
-  );
+  const [budgets, setBudgets] = useState<CodeSearchBudgetDrafts>(() => budgetDraftsFrom(saved));
 
   // Re-sync after a save or an external config change.
   useEffect(() => {
     const next = config?.codeSearch ?? createDefaultCodeSearchConfig();
     setDraft(next);
-    setTurnDraft(next.maxTurns ? String(next.maxTurns) : '');
-    setCommandDraft(next.maxCommands ? String(next.maxCommands) : '');
-    setResultDraft(next.maxResults ? String(next.maxResults) : '');
-    setDepthDraft(next.treeDepth !== undefined ? String(next.treeDepth) : '');
+    setBudgets(budgetDraftsFrom(next));
   }, [config]);
 
   const modelOptions = useMemo(() => collectChatModels(config), [config]);
@@ -124,390 +123,197 @@ export function CodeSearchPage(): ReactElement {
     const before = previousDevinState.current;
     previousDevinState.current = devinAccount.state;
     if (before === 'logging-in' && devinAccount.connected) {
-      setDraft((current) =>
-        current.backend === 'windsurf' && windsurfCredentialSource(current) === 'devin'
-          ? { ...current, enabled: true }
-          : current,
-      );
+      setDraft((current) => (codeSearchEngine(current) === 'devin' ? { ...current, enabled: true } : current));
     }
   }, [devinAccount.state, devinAccount.connected]);
-  const backend = draft.backend ?? 'model';
-  const issue = describeDraftIssue(draft, zh);
-  // Not a save blocker: the account can be connected before or after saving.
-  const accountIssue =
-    backend === 'windsurf' &&
-    windsurfCredentialSource(draft) === 'devin' &&
-    devinAccount.state !== 'unknown' &&
-    !devinAccount.connected;
-  const invalidNumber =
-    (turnDraft.trim() && parseOptionalPositiveInt(turnDraft) === undefined) ||
-    (commandDraft.trim() && parseOptionalPositiveInt(commandDraft) === undefined) ||
-    (resultDraft.trim() && parseOptionalPositiveInt(resultDraft) === undefined) ||
-    (depthDraft.trim() && parseOptionalNonNegativeInt(depthDraft) === undefined);
-  /**
-   * The numeric fields live in their own text state so a half-typed value cannot
-   * reach the config, which means the dirty check has to compare the *composed*
-   * result rather than the object draft.
-   */
+
+  const engine = codeSearchEngine(draft);
+  const invalidNumber = Boolean(
+    (budgets.turns.trim() && parseOptionalPositiveInt(budgets.turns) === undefined) ||
+      (budgets.commands.trim() && parseOptionalPositiveInt(budgets.commands) === undefined) ||
+      (budgets.results.trim() && parseOptionalPositiveInt(budgets.results) === undefined) ||
+      (budgets.depth.trim() && parseOptionalNonNegativeInt(budgets.depth) === undefined),
+  );
+
   function composeCodeSearchConfig(): CodeSearchConfig {
-    const next: CodeSearchConfig = { ...draft };
-    delete next.maxTurns;
-    delete next.maxCommands;
-    delete next.maxResults;
-    delete next.treeDepth;
-    const maxTurns = turnDraft.trim() ? parseOptionalPositiveInt(turnDraft) : undefined;
-    const maxCommands = commandDraft.trim() ? parseOptionalPositiveInt(commandDraft) : undefined;
-    const maxResults = resultDraft.trim() ? parseOptionalPositiveInt(resultDraft) : undefined;
-    const treeDepth = depthDraft.trim() ? parseOptionalNonNegativeInt(depthDraft) : undefined;
-    if (maxTurns !== undefined) next.maxTurns = maxTurns;
-    if (maxCommands !== undefined) next.maxCommands = maxCommands;
-    if (maxResults !== undefined) next.maxResults = maxResults;
-    if (treeDepth !== undefined) next.treeDepth = treeDepth;
-    return next;
+    return withBudgets(draft, budgets);
   }
 
-  const dirty = JSON.stringify(composeCodeSearchConfig()) !== JSON.stringify(saved);
+  // Both sides go through withBudgets so key order cannot fake a change; a
+  // half-typed invalid number composes away but is still an edit to resolve.
+  const dirty =
+    invalidNumber ||
+    JSON.stringify(composeCodeSearchConfig()) !== JSON.stringify(withBudgets(saved, budgetDraftsFrom(saved)));
   const persistedEnabled = config?.codeSearch?.enabled === true;
-  const draftReady = draft.enabled === true && !issue && !invalidNumber;
+
+  /** Not save blockers: each can be fixed before or after saving. */
+  function describeMissingStep(): string | undefined {
+    if (engine === 'devin' && devinAccount.state !== 'unknown' && !devinAccount.connected) {
+      return zh ? 'Devin 账号未连接：在下方连接后生效。' : 'Devin account not connected: connect it below.';
+    }
+    if (engine === 'token' && !hasStoredWindsurfToken(draft)) {
+      return zh
+        ? `保存 Windsurf Token 后生效（或在 Host 上设置 ${draft.apiKeyEnv ?? DEFAULT_WINDSURF_KEY_ENV}）。`
+        : `Save a Windsurf token (or set ${draft.apiKeyEnv ?? DEFAULT_WINDSURF_KEY_ENV} on the Host).`;
+    }
+    if (engine === 'model' && modelOptions.length === 0) {
+      return zh ? '还没有可用的聊天模型：先到「模型」页添加一个。' : 'No chat model yet: add one on the Models page.';
+    }
+    return undefined;
+  }
+
+  const status = describeCodeSearchStatus(
+    { enabled: draft.enabled, persistedEnabled, dirty, missingStep: describeMissingStep() },
+    zh,
+  );
 
   function patch(changes: Partial<CodeSearchConfig>): void {
     setDraft((current) => ({ ...current, ...changes }));
   }
 
-  /** Switching source only edits the draft; the bottom Save persists it. */
-  function selectCredentialSource(source: WindsurfCredentialSource): void {
-    setDraft((current) => {
-      const next: CodeSearchConfig = { ...current };
-      if (source === 'devin') {
-        next.apiKeyRef = DEVIN_ACCOUNT_REF;
-        delete next.apiKeyEnv;
-        if (devinAccount.connected) next.enabled = true;
-      } else if (next.apiKeyRef === DEVIN_ACCOUNT_REF) {
-        delete next.apiKeyRef;
-        next.apiKeyEnv = DEFAULT_WINDSURF_KEY_ENV;
-      }
-      return next;
-    });
+  function resetDraft(): void {
+    setDraft(saved);
+    setBudgets(budgetDraftsFrom(saved));
   }
 
   async function handleSave(): Promise<void> {
-    if (!config) return;
-    if (invalidNumber) {
-      setInfo(zh ? '保存失败：数值项必须是正整数。' : 'Save failed: numeric fields must be positive integers.');
-      return;
-    }
-    if (issue) {
-      setInfo(zh ? `保存失败：${issue}` : `Save failed: ${issue}`);
-      return;
-    }
+    if (!config || invalidNumber) return;
     const codeSearch = composeCodeSearchConfig();
     if (await saveConfig({ ...config, codeSearch })) {
       setInfo(
-        zh
-          ? codeSearch.enabled
-            ? '已保存。请等本轮结束或开新会话后再试 code_search。'
-            : '已保存（未启用：会话不会注册 code_search）。'
-          : codeSearch.enabled
-            ? 'Saved. Wait for this run to end or open a new session, then try code_search.'
-            : 'Saved (disabled: sessions will not register code_search).',
+        codeSearch.enabled
+          ? zh
+            ? '已保存：新会话即可使用 code_search。'
+            : 'Saved: new sessions get code_search.'
+          : zh
+            ? '已保存：code_search 已关闭。'
+            : 'Saved: code_search is off.',
       );
     } else {
       setInfo(zh ? '保存失败：无法写入配置文件。' : 'Save failed: could not write config.');
     }
   }
 
+  /** Saving a token is the configure gesture: wire the engine, enable, persist. */
+  async function handleTokenSaved(apiKeyRef: string, apiKeyEnv: string): Promise<boolean> {
+    const envName =
+      apiKeyEnv && /^[A-Za-z_][A-Za-z0-9_]*$/.test(apiKeyEnv.trim()) ? apiKeyEnv.trim() : DEFAULT_WINDSURF_KEY_ENV;
+    const credential: Partial<CodeSearchConfig> = {
+      enabled: true,
+      backend: 'windsurf',
+      apiKeyRef,
+      apiKeyEnv: envName,
+    };
+    patch(credential);
+    if (!config) return true;
+    const ok = await saveConfig({ ...config, codeSearch: { ...composeCodeSearchConfig(), ...credential } });
+    if (ok) {
+      setInfo(zh ? 'Token 已保存，code_search 已启用。' : 'Token saved and code_search enabled.');
+    }
+    return ok;
+  }
+
+  const saveBlocker = invalidNumber ? (zh ? '数值需为正整数' : 'Numbers must be positive integers') : null;
+
   return (
-    <div className="settings-card" data-testid="settings-code-search">
-      <section className="settings-section settings-section-card">
+    <div className="settings-card code-search-page" data-testid="settings-code-search">
+      <section className="settings-section settings-section-card code-search-hero">
         <PageTitle
-          title={zh ? '代码搜索' : 'Code search'}
+          title={zh ? '启用代码搜索' : 'Enable code search'}
           description={
             zh
-              ? 'code_search 与 grep / read 同级：在后台运行只读搜索子代理，返回相关文件与行号范围。'
-              : 'code_search sits alongside grep / read: a read-only search subagent returns relevant files and line ranges.'
+              ? '让代理派一个只读子代理快速定位相关文件与行号，代替多轮 grep / read。'
+              : 'The agent dispatches a read-only subagent to pinpoint relevant files and lines instead of many grep / read rounds.'
+          }
+          trailing={
+            <Switch
+              checked={draft.enabled}
+              disabled={readOnly}
+              onCheckedChange={(checked) => patch({ enabled: checked })}
+              aria-label={zh ? '启用 code_search' : 'Enable code_search'}
+            />
           }
         />
-        <FieldRow
-          label={zh ? '启用 code_search' : 'Enable code_search'}
-          description={
-            zh
-              ? '开启后工具与“优先搜索”指引会进入会话；关闭则两者都不出现。'
-              : 'When on, the tool and its prefer-first guidance enter the session; when off, neither appears.'
-          }
-        >
-          <Switch
-            checked={draft.enabled}
-            onCheckedChange={(checked) => patch({ enabled: checked })}
-            aria-label={zh ? '启用 code_search' : 'Enable code_search'}
-          />
-        </FieldRow>
-        <div
-          className={`code-search-status${draft.enabled && draftReady && !accountIssue ? (persistedEnabled ? ' is-ready' : ' is-pending') : ' is-blocked'}`}
-          data-testid="code-search-status"
-          role="status"
-        >
-          {!draft.enabled ? (
-            zh ? (
-              <>
-                当前关闭：只配置 Token / 模型还不够，会话中不会出现 <code>code_search</code>。
-                {backend !== 'windsurf'
-                  ? '选择搜索模型时会自动打开；或手动打开后再点底部「保存」。'
-                  : windsurfCredentialSource(draft) === 'devin'
-                    ? '连接 Devin 账号后会自动打开此开关；或手动打开后再点底部「保存」。'
-                    : '保存 API Key 时会自动打开此开关；或手动打开后再点底部「保存」。'}
-              </>
-            ) : (
-              <>
-                Off: a token/model alone is not enough — sessions will not get <code>code_search</code>.
-                {backend !== 'windsurf'
-                  ? ' Picking a search model turns this on; or flip it and click Save below.'
-                  : windsurfCredentialSource(draft) === 'devin'
-                    ? ' Connecting the Devin account turns this on; or flip it and click Save below.'
-                    : ' Saving the API key turns this on automatically; or flip it and click Save below.'}
-              </>
-            )
-          ) : issue ? (
-            zh ? <>已开启，但后端未就绪：{issue}</> : <>Enabled, but the backend is not ready: {issue}</>
-          ) : accountIssue ? (
-            zh ? (
-              <>已开启，但 Devin 账号未连接：连接后会话里才会出现 <code>code_search</code>。</>
-            ) : (
-              <>Enabled, but the Devin account is not connected: <code>code_search</code> appears once it is.</>
-            )
-          ) : !persistedEnabled ? (
-            zh ? (
-              <>草稿已可保存，但 Host 配置中尚未启用。点击下方「保存」写入；若提示 Host 不支持，需更新并重启 Host。</>
-            ) : (
-              <>Draft is ready, but the Host config does not yet have it enabled. Click Save below. If save says the Host cannot persist Code search, update and restart the Host.</>
-            )
-          ) : (
-            zh ? (
-              <>已写入 Host。本轮任务结束后运行时将自动更新，或新建会话使用；之后工具列表中将出现 <code>code_search</code>。</>
-            ) : (
-              <>Persisted on the Host. After the current run ends (or in a new session), <code>code_search</code> should appear in the tool list.</>
-            )
-          )}
+        <div className="code-search-status" data-tone={status.tone} data-testid="code-search-status" role="status">
+          <i className="code-search-status-dot" aria-hidden="true" />
+          <span className="code-search-status-title">{status.title}</span>
+          <span className="code-search-status-detail">{status.detail}</span>
         </div>
       </section>
 
       <section className="settings-section settings-section-card">
         <PageTitle
-          title={zh ? '推理后端' : 'Reasoning backend'}
+          title={zh ? '搜索引擎' : 'Search engine'}
           description={
             zh
-              ? '两种后端的本地命令执行一致，仅下一轮搜索的规划方式不同。'
-              : 'Local command execution is identical either way; only who plans the next search round changes.'
+              ? '引擎只负责规划每一轮搜索，命令始终在本机只读执行。'
+              : 'The engine only plans each round; commands always run locally and read-only.'
           }
         />
-        <FieldRow
-          label={zh ? '后端' : 'Backend'}
-          description={
-            zh
-              ? '默认使用已配置的模型；也可以用 Devin 账号或 Windsurf Token 走云端服务。'
-              : 'Default uses a configured model; or use the Devin account / a Windsurf token for the cloud service.'
+        <CodeSearchEnginePicker
+          draft={draft}
+          zh={zh}
+          readOnly={readOnly}
+          account={devinAccount}
+          modelOptions={modelOptions}
+          onSelectEngine={(next) =>
+            setDraft((current) => applyCodeSearchEngine(current, next, devinAccount.connected))
           }
-        >
-          <SegmentedControl
-            value={backend}
-            onChange={(value) => {
-              const nextBackend = value as NonNullable<CodeSearchConfig['backend']>;
-              const ready =
-                nextBackend === 'windsurf'
-                  ? windsurfCredentialSource(draft) === 'token' || devinAccount.connected
-                  : Boolean(draft.model);
-              patch({
-                backend: nextBackend,
-                ...(ready ? { enabled: true } : {}),
-              });
-            }}
-            data={[
-              { value: 'model', label: zh ? '已配置模型' : 'Configured model' },
-              { value: 'windsurf', label: zh ? 'Windsurf 云端' : 'Windsurf cloud' },
-            ]}
-            aria-label={zh ? '推理后端' : 'Reasoning backend'}
-          />
-        </FieldRow>
-
-        {backend === 'model' ? (
-          <FieldRow
-            label={zh ? '搜索模型' : 'Search model'}
-            description={
-              zh
-                ? '建议使用延迟低、TPS 快的模型。'
-                : 'Prefer a low-latency, high-TPS model.'
-            }
-          >
-            <select
-              className="settings-select"
-              value={draft.model ? `${draft.model.providerId}/${draft.model.modelId}` : ''}
-              onChange={(event) => {
-                const found = modelOptions.find(
-                  (option) => `${option.ref.providerId}/${option.ref.modelId}` === event.target.value,
-                );
+          onSelectModel={(model) =>
+            setDraft((current) => {
+              const next: CodeSearchConfig = { ...current, backend: 'model' };
+              if (model) {
                 // Picking a search model is an explicit "I want this feature" gesture.
-                patch(found ? { model: found.ref, enabled: true, backend: 'model' } : {});
-              }}
-              aria-label={zh ? '搜索模型' : 'Search model'}
-              data-testid="code-search-model"
-            >
-              <option value="">{zh ? '请选择…' : 'Select…'}</option>
-              {modelOptions.map((option) => (
-                <option
-                  key={`${option.ref.providerId}/${option.ref.modelId}`}
-                  value={`${option.ref.providerId}/${option.ref.modelId}`}
-                >
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </FieldRow>
-        ) : (
-          <CodeSearchWindsurfCredentials
-            draft={draft}
-            zh={zh}
-            readOnly={settings.remoteSettingsReadOnly === true}
-            account={devinAccount}
-            onSelectSource={selectCredentialSource}
-            loadSecret={loadProviderSecret}
-            storeSecret={storeProviderSecret}
-            {...(testCodeSearchWindsurf ? { testConnection: testCodeSearchWindsurf } : {})}
-            onTokenSaved={async (apiKeyRef, apiKeyEnv) => {
-              // Saving a Windsurf token is the configure gesture: wire the backend
-              // AND flip the feature on so the tool actually registers. A bare
-              // key with enabled=false is what made "I already configured it"
-              // still produce sessions without code_search.
-              const envName =
-                apiKeyEnv && /^[A-Za-z_][A-Za-z0-9_]*$/.test(apiKeyEnv.trim())
-                  ? apiKeyEnv.trim()
-                  : DEFAULT_WINDSURF_KEY_ENV;
-              const next: CodeSearchConfig = {
-                ...composeCodeSearchConfig(),
-                enabled: true,
-                backend: 'windsurf',
-                apiKeyRef,
-                apiKeyEnv: envName,
-              };
-              // Drop any accidental plaintext that once lived in apiKeyEnv.
-              patch({
-                enabled: true,
-                backend: 'windsurf',
-                apiKeyRef,
-                apiKeyEnv: envName,
-              });
-              if (!config) {
-                return true;
+                next.model = model;
+                next.enabled = true;
+              } else {
+                delete next.model;
               }
-              const ok = await saveConfig({ ...config, codeSearch: next });
-              if (ok) {
-                setInfo(
-                  zh
-                    ? 'Token 已保存并已启用 code_search。请开新会话或等本轮结束后试用。'
-                    : 'Token saved and code_search enabled. Open a new session (or wait for this run to end) to use it.',
-                );
-              }
-              return ok;
-            }}
-          />
-        )}
+              return next;
+            })
+          }
+          loadSecret={loadProviderSecret}
+          storeSecret={storeProviderSecret}
+          {...(testCodeSearchWindsurf ? { testConnection: testCodeSearchWindsurf } : {})}
+          onTokenSaved={handleTokenSaved}
+        />
       </section>
 
       <section className="settings-section settings-section-card">
-        <PageTitle
-          title={zh ? '高级设置' : 'Advanced'}
-          description={
-            zh
-              ? '搜索循环的执行限额。默认值已做优化，通常无需调整。'
-              : 'Budgets for the search loop. Defaults follow the reference implementation and rarely need changing.'
-          }
+        <CodeSearchAdvanced
+          zh={zh}
+          drafts={budgets}
+          onDraftChange={(key, value) => setBudgets((current) => ({ ...current, [key]: value }))}
+          includeSnippets={draft.includeSnippets ?? true}
+          onIncludeSnippetsChange={(checked) => patch({ includeSnippets: checked })}
+          invalid={invalidNumber}
         />
-        <FieldRow label={zh ? '高级搜索参数' : 'Adjust budgets'}>
-          <Button variant="ghost" onClick={() => setAdvancedOpen((current) => !current)}>
-            {advancedOpen ? (zh ? '收起' : 'Hide') : zh ? '展开' : 'Show'}
-          </Button>
-        </FieldRow>
-        {advancedOpen ? (
-          <>
-            <FieldRow label={zh ? '搜索轮数' : 'Search rounds'} description={zh ? '默认 3' : 'Default 3'}>
-              <TextInput
-                testId="code-search-max-turns"
-                type="number"
-                min={1}
-                value={turnDraft}
-                onChange={(event) => setTurnDraft(event.currentTarget.value)}
-              />
-            </FieldRow>
-            <FieldRow
-              label={zh ? '每轮命令数' : 'Commands per round'}
-              description={zh ? '默认 8' : 'Default 8'}
-            >
-              <TextInput
-                testId="code-search-max-commands"
-                type="number"
-                min={1}
-                value={commandDraft}
-                onChange={(event) => setCommandDraft(event.currentTarget.value)}
-              />
-            </FieldRow>
-            <FieldRow
-              label={zh ? '最多返回文件' : 'Max files returned'}
-              description={zh ? '默认 10' : 'Default 10'}
-            >
-              <TextInput
-                testId="code-search-max-results"
-                type="number"
-                min={1}
-                value={resultDraft}
-                onChange={(event) => setResultDraft(event.currentTarget.value)}
-              />
-            </FieldRow>
-            <FieldRow
-              label={zh ? '目录树深度' : 'Repo map depth'}
-              description={zh ? '默认 3；0 表示自动' : 'Default 3; 0 means auto'}
-            >
-              <TextInput
-                testId="code-search-tree-depth"
-                type="number"
-                min={0}
-                value={depthDraft}
-                onChange={(event) => setDepthDraft(event.currentTarget.value)}
-              />
-            </FieldRow>
-            <FieldRow
-              label={zh ? '包含代码片段' : 'Include code snippets'}
-              description={
-                zh
-                  ? '关闭后只返回文件路径与行号范围。'
-                  : 'When off, only file paths and line ranges are returned.'
-              }
-            >
-              <Switch
-                checked={draft.includeSnippets ?? true}
-                onCheckedChange={(checked) => patch({ includeSnippets: checked })}
-                aria-label={zh ? '包含代码片段' : 'Include code snippets'}
-              />
-            </FieldRow>
-          </>
-        ) : null}
       </section>
 
       {dirty ? (
-        <section className="settings-section settings-section-card">
-          <Button variant="primary" onClick={() => void handleSave()}>
-            {zh ? '保存' : 'Save'}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setDraft(saved);
-              setAdvancedOpen(false);
-            }}
-          >
-            {zh ? '还原' : 'Reset'}
-          </Button>
-          {issue ? (
-            <p className="settings-hint">{issue}</p>
-          ) : null}
-        </section>
+        <div className="web-tools-actions is-floating" data-testid="code-search-save-bar">
+          <div className="web-tools-floating-pill">
+            <div
+              className={saveBlocker ? 'web-tools-save-status is-error' : 'web-tools-save-status'}
+              role="status"
+              aria-live="polite"
+            >
+              {saveBlocker ?? (zh ? '● 有未保存更改' : '● Unsaved changes')}
+            </div>
+            <Button variant="ghost" size="compact" disabled={saving} onClick={resetDraft}>
+              {zh ? '还原' : 'Reset'}
+            </Button>
+            <Button
+              variant="primary"
+              size="compact"
+              disabled={saving || readOnly || saveBlocker !== null}
+              onClick={() => void handleSave()}
+              data-testid="code-search-save"
+            >
+              {saving ? (zh ? '保存中…' : 'Saving…') : zh ? '保存更改' : 'Save changes'}
+            </Button>
+          </div>
+        </div>
       ) : null}
     </div>
   );

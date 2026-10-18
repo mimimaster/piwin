@@ -108,8 +108,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   width: 100%;
   padding: 12px 14px;
   border-radius: 8px;
-  background: var(--s3);
-  box-shadow: var(--sh1);
+  background: var(--ucard-fill);
+  box-shadow: var(--ucard-shadow);
   font-size: 14.5px;
   line-height: 1.72;
   display: grid;
@@ -122,7 +122,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .user-message-wrapper.is-conversation
   .user-message-bubble.user-message-collapsible.is-collapsed {
-  --user-message-mask: var(--s3);
+  --user-message-mask: var(--ucard-fill);
   align-items: start;
   align-content: start;
   justify-items: start;
@@ -230,8 +230,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   background: linear-gradient(
     to right,
     transparent 0%,
-    color-mix(in srgb, var(--s3) 70%, transparent) 18px,
-    var(--s3) 36px
+    color-mix(in srgb, var(--ucard-fill) 70%, transparent) 18px,
+    var(--ucard-fill) 36px
   );
 }
 

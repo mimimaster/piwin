@@ -55,9 +55,10 @@ only offered rows, which is awkward for pasting a header set.
 7. **Remote shells.** The remote settings projection omits `extraBody` like it
    omits `headers`; only the Host and the local Desktop edit it.
 8. **Desktop UI — 自定义请求.** A collapsible section in Add Model and the
-   inline model editor (hidden on subscriptions). It opens by default when
-   overrides exist or the provider base URL is OpenRouter; collapsed, it
-   summarizes counts or flags invalid JSON.
+   inline model editor (hidden on subscriptions). It starts collapsed,
+   including when overrides exist or the provider base URL is OpenRouter;
+   collapsed, it summarizes counts or flags invalid JSON. Users expand it
+   explicitly to edit the overrides.
    - 请求头: rows or a JSON object, toggled; switching to rows requires valid
      JSON.
    - 请求体: a JSON editor with per-wire placeholder, format button, templates

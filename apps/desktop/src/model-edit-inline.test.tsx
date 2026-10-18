@@ -148,6 +148,8 @@ describe('ModelEditInline', () => {
         onCancel={vi.fn()}
       />,
     );
+    expect(query('[data-testid="model-edit-request-toggle"]')?.getAttribute('aria-expanded')).toBe('false');
+    click('[data-testid="model-edit-request-toggle"]');
     const names = () =>
       [...document.querySelectorAll<HTMLInputElement>('[data-testid="model-edit-header-name"]')];
     expect(names().map((el) => el.value)).toEqual(['x-route']);
@@ -199,8 +201,10 @@ describe('ModelEditInline', () => {
         onCancel={vi.fn()}
       />,
     );
-    expect(query('[data-testid="model-edit-request-toggle"]')?.getAttribute('aria-expanded')).toBe('true');
+    expect(query('[data-testid="model-edit-request-toggle"]')?.getAttribute('aria-expanded')).toBe('false');
     expect(query('[data-testid="model-edit-request-summary"]')?.textContent).toBe('body: temperature');
+    click('[data-testid="model-edit-request-toggle"]');
+    expect(query('[data-testid="model-edit-request-toggle"]')?.getAttribute('aria-expanded')).toBe('true');
     click('[data-testid="model-edit-openrouter-chip-anthropic"]');
     click('[data-testid="model-edit-openrouter-chip-amazon-bedrock"]');
     click('[data-testid="model-edit-openrouter-no-fallback"]');

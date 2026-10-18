@@ -92,6 +92,36 @@ async function installManagedExtension(piwinRoot: string): Promise<string> {
 }
 
 describe('marketplace catalog commands', () => {
+  it('reads cached catalog and installed inventory without fetching remote indexes', async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchImpl);
+    try {
+      const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-market-local-'));
+      const { context } = makeFixture(piwinRoot);
+      await installManagedExtension(piwinRoot);
+      const catalog = dataOf<MarketplaceCatalogListData>(
+        await handleMarketplaceCatalogCommand(
+          { type: 'marketplace/catalog-list', cachedOnly: true, kinds: ['mcp'] },
+          'cached',
+          context,
+        ),
+      );
+      expect(catalog.entries.length).toBeGreaterThan(0);
+      expect(catalog.entries.every((entry) => entry.kind === 'mcp')).toBe(true);
+      const inventory = dataOf<MarketplaceInstalledListData>(
+        await handleMarketplaceCatalogCommand(
+          { type: 'marketplace/installed-list' },
+          'inventory',
+          context,
+        ),
+      );
+      expect(inventory.items.some((item) => item.installationKey === 'extension:hello')).toBe(true);
+      expect(fetchImpl).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('lists and filters the curated catalog', async () => {
     const { context } = makeFixture(await mkdtemp(join(tmpdir(), 'piwin-market-')));
     const all = dataOf<MarketplaceCatalogListData>(

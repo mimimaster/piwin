@@ -8,6 +8,19 @@ The community piwin extension market reads `index.json` from the public [piwin-e
 
 The Host owns catalog retrieval and installation; Desktop and CLI only request Host data or use its public application APIs. The curated offline catalog remains available when the community index cannot be fetched. The Host caches a successful community index for five minutes and keeps that snapshot during a temporary fetch failure.
 
+### Amendment (2026-10-18): local-first marketplace loading
+
+`marketplace/catalog-list` accepts `cachedOnly: true` to read the curated offline
+catalog plus the Host's last successful extension and Agent index snapshots,
+without starting or waiting for network requests. Desktop reads that snapshot
+and local inventory first, then requests the complete catalog in the background
+and refreshes inventory associations after the indexes arrive. Inventory reads
+also use the cached catalog, so browsing installed capabilities and publishing
+inventory updates do not depend on registry availability. The existing five-minute
+index cache and thirty-second failure retry remain unchanged; snapshots are kept
+in Host memory. CLI catalog queries and install-time catalog resolution retain
+the existing complete-index behavior.
+
 The first published entry is `mimimaster/commandcode-provider`, an MIT-licensed adaptation of `patlux/pi-commandcode-provider`. Its `piwin/piwin.json` declares `authProvider: "commandcode"`. The Host reads this metadata only from the selected, enabled managed revision. `@piwin/agent-host` loads that exact extension through Pi's resource loader into its separate auth model runtime. The extension's own `registerProvider` registration supplies OAuth and the model catalog; piwin stores credentials under its Host `pi-agent/auth.json`. The OAuth card appears while the extension is enabled; the Models provider is projected after the account connects.
 
 ### Amendment (2026-09-28): generic extension subscription providers

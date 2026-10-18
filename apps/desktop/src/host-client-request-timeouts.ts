@@ -77,6 +77,10 @@ export function getHostRequestTimeoutMs(
     // A knowledge probe is one live round trip to a user-typed endpoint.
     case 'knowledge/test-connection':
     case 'knowledge/embedding-models/discover':
+    // Native startup and handoff await adapter initialization and session I/O.
+    case 'agents/cli-open':
+    case 'agents/cli-sync':
+    case 'agents/cli-snapshot':
     case 'speech/transcribe':
     case 'mcp/start':
     case 'mcp/stop':

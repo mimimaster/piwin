@@ -234,7 +234,8 @@ export class AgentCliService {
   private async assertLaunchReady(agentId: string, sessionId: string): Promise<void> {
     const backend = this.deps.externalAgents;
     if (backend === undefined) throw cliError('not-ready', 'external-agent-backend-unavailable');
-    const status = await backend.getStatus(agentId, true);
+    // Revalidate installation without spawning another readiness probe per gate.
+    const status = await backend.getStatus(agentId);
     // Grok legacy adapters may omit nativeCli; other backends must advertise it while ready.
     if (agentId !== 'grok' && !isExternalAgentNativeCliReady(status)) {
       throw cliError('not-ready', 'native-cli-not-ready');

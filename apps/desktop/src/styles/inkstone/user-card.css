@@ -6,9 +6,14 @@ html[data-theme-id='piwin-inkstone-paper'] .ucard,
 html[data-theme-id='piwin-inkstone-ink'] .ucard,
 html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible,
 html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible {
+  /* Fill + rim are variables so the conversation bubble, edit card and the
+     collapse/action fades all paint from the same surface. */
+  --ucard-fill: var(--s3);
+  --ucard-shadow: var(--sh1);
+  --ucard-code: var(--s1);
   position: relative;
-  background: var(--s3);
-  box-shadow: var(--sh1);
+  background: var(--ucard-fill);
+  box-shadow: var(--ucard-shadow);
   border-radius: 8px;
   padding: var(--card-y) var(--card-x);
   font-size: 14.5px;
@@ -17,11 +22,20 @@ html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible {
   border: 0;
 }
 
+/* Ink face with the ink slab: the user card is the composer's slab, flat —
+   same fill, no hairline. The --sh1 black ring over a lighter --s3 read as a
+   muddy box framed in black next to the composer. */
+html[data-theme-id='piwin-inkstone-ink']:not([data-slab='paper']) :is(.ucard, .user-message-collapsible) {
+  --ucard-fill: var(--slab);
+  --ucard-shadow: 0 0 #0000;
+  --ucard-code: var(--slab-chip);
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .ucard code,
 html[data-theme-id='piwin-inkstone-ink'] .ucard code,
 html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible code,
 html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible code {
-  background: var(--s1);
+  background: var(--ucard-code);
 }
 
 
@@ -54,8 +68,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 /* User edit card (.ucard.edit) per proto-01 */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ucard.edit {
   position: relative;
-  background: var(--s3);
-  box-shadow: 0 0 0 1.5px var(--zhu), var(--sh1);
+  background: var(--ucard-fill);
+  box-shadow: 0 0 0 1.5px var(--zhu), var(--ucard-shadow);
   border-radius: 8px;
   padding: 10px 14px;
   margin: 2px 0;

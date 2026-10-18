@@ -324,10 +324,10 @@ describe('AddModelDialog catalog autocomplete', () => {
     );
     const scope = document.body;
     act(() => setInputValue(resolveInput(scope, 'add-model-id-input'), 'anthropic/claude-sonnet-4.5'));
-    // OpenRouter rows open the section so the routing helper is visible.
     expect(
       scope.querySelector('[data-testid="add-model-request-toggle"]')?.getAttribute('aria-expanded'),
-    ).toBe('true');
+    ).toBe('false');
+    act(() => scope.querySelector<HTMLButtonElement>('[data-testid="add-model-request-toggle"]')?.click());
     act(() => setInputValue(resolveInput(scope, 'add-model-openrouter-order'), 'anthropic, google-vertex'));
     act(() => scope.querySelector<HTMLInputElement>('[data-testid="add-model-openrouter-no-fallback"]')?.click());
     act(() => scope.querySelector<HTMLButtonElement>('[data-testid="add-model-header-add"]')?.click());

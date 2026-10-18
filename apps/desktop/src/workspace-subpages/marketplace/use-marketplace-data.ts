@@ -13,6 +13,7 @@ import type {
   MarketplaceInstalledItem,
   MarketplaceInstalledListData,
 } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 
 const TERMINAL_DEPLOYMENT_PHASES = new Set([
   'active',
@@ -42,6 +43,7 @@ export function useMarketplaceData(options: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  const generationRef = useRef(0);
   // Parents pass fresh closures every render; pin them so streaming re-renders
   // elsewhere in the workbench do not refetch or resubscribe.
   const requestRef = useRef(request);
@@ -51,41 +53,75 @@ export function useMarketplaceData(options: {
   const canSubscribe = subscribeHostMessages !== undefined;
 
   const refreshInventory = useCallback(async (): Promise<void> => {
-    // Host-global scope only: remote Hosts reject client-supplied paths, and
-    // project-local resources belong to the repository, not the marketplace.
-    const response = await requestRef.current({
-      type: 'marketplace/installed-list',
-      ...(sessionId ? { sessionId } : {}),
-    });
-    if (!mountedRef.current) return;
-    if (!response.success) {
-      setError(response.error);
-      return;
+    const generation = generationRef.current;
+    try {
+      // Host-global scope only: remote Hosts reject client-supplied paths, and
+      // project-local resources belong to the repository, not the marketplace.
+      const response = await requestRef.current({
+        type: 'marketplace/installed-list',
+        ...(sessionId ? { sessionId } : {}),
+      });
+      if (!mountedRef.current || generation !== generationRef.current) return;
+      if (!response.success) {
+        setError(response.error);
+        return;
+      }
+      const data = response.data as MarketplaceInstalledListData;
+      setItems(data.items);
+      setError(null);
+    } catch (caught: unknown) {
+      if (mountedRef.current && generation === generationRef.current) {
+        setError(formatError(caught));
+      }
     }
-    const data = response.data as MarketplaceInstalledListData;
-    setItems(data.items);
-    setError(null);
   }, [sessionId]);
 
   useEffect(() => {
     mountedRef.current = true;
+    let cancelled = false;
     setLoading(true);
     void (async () => {
-      const [catalog] = await Promise.all([
-        // Withdrawn entries are kept so Installed can explain why an item left the catalog.
-        requestRef.current({ type: 'marketplace/catalog-list', includeWithdrawn: true }),
-        refreshInventory(),
-      ]);
-      if (!mountedRef.current) return;
-      if (catalog.success) {
-        setEntries((catalog.data as MarketplaceCatalogListData).entries);
-      } else {
-        setError(catalog.error);
+      try {
+        const [catalog] = await Promise.all([
+          // Withdrawn entries let Installed explain why an item left the catalog.
+          // A cold or expired registry must not hold up the initial page.
+          requestRef.current({
+            type: 'marketplace/catalog-list',
+            includeWithdrawn: true,
+            cachedOnly: true,
+          }),
+          refreshInventory(),
+        ]);
+        if (cancelled) return;
+        if (catalog.success) {
+          setEntries((catalog.data as MarketplaceCatalogListData).entries);
+        } else {
+          setError(catalog.error);
+        }
+        setLoading(false);
+
+        const refreshed = await requestRef.current({
+          type: 'marketplace/catalog-list',
+          includeWithdrawn: true,
+        });
+        if (cancelled) return;
+        if (refreshed.success) {
+          setEntries((refreshed.data as MarketplaceCatalogListData).entries);
+          // Newly fetched entries can identify installed resources and updates.
+          await refreshInventory();
+        } else {
+          setError(refreshed.error);
+        }
+      } catch (caught: unknown) {
+        if (!cancelled) setError(formatError(caught));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     })();
     return () => {
+      cancelled = true;
       mountedRef.current = false;
+      generationRef.current += 1;
     };
   }, [refreshInventory]);
 

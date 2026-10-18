@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { getHostRequestTimeoutMs } from './host-client-request-timeouts.js';
 
 describe('Host request timeouts', () => {
+  it('allows native terminal startup and history handoff to finish on local and remote Hosts', () => {
+    for (const transport of ['live', 'remote'] as const) {
+      expect(getHostRequestTimeoutMs({
+        type: 'agents/cli-open', input: { agentId: 'grok', cols: 80, rows: 24 },
+      }, transport)).toBe(120_000);
+      expect(getHostRequestTimeoutMs({ type: 'agents/cli-sync', sessionId: 's1' }, transport)).toBe(120_000);
+      expect(getHostRequestTimeoutMs({ type: 'agents/cli-snapshot', sessionId: 's1' }, transport)).toBe(120_000);
+      expect(getHostRequestTimeoutMs({ type: 'agents/cli-status', sessionId: 's1' }, transport)).toBe(15_000);
+    }
+  });
+
   it('bounds Live startup and its status/end control waits on mobile remote transport', () => {
     expect(getHostRequestTimeoutMs({ type: 'voice/live/status', input: {
       capabilities: { microphone: true, mediaDriverIds: ['codex-webrtc-v1'] },

@@ -136,7 +136,9 @@ export class ExternalAgentBackend {
 
   /** The adapter's binary path, or a message explaining why it cannot run yet. */
   async requireReadyBinary(agentId: string): Promise<string> {
-    const status = await this.getStatus(agentId, true);
+    // Reuse the bounded readiness cache; control() still verifies the enabled
+    // extension and artifact on every call, including after a revision change.
+    const status = await this.getStatus(agentId);
     if (status.state === 'ready' || status.state === 'unauthenticated') return status.binaryPath;
     if (status.state === 'not-installed') {
       throw new Error(`${agentId}-not-installed: the agent CLI was not found`);

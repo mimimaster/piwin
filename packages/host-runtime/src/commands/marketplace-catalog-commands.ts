@@ -8,7 +8,7 @@ import type {
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { listMarketplaceWithExtensions } from '@piwin/marketplace';
-import { purgeUnreferencedExtensions, readMarketplaceInventory } from '../marketplace/inventory-reader.js';
+import { readMarketplaceInventory } from '../marketplace/inventory-reader.js';
 import { checkMarketplaceRequirements } from '../marketplace/requirements-check.js';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
@@ -32,6 +32,7 @@ export async function handleMarketplaceCatalogCommand(
     case 'marketplace/catalog-list': {
       const data: MarketplaceCatalogListData = {
         entries: await listMarketplaceWithExtensions({
+          ...(command.cachedOnly !== undefined ? { cachedOnly: command.cachedOnly } : {}),
           ...(command.query !== undefined ? { query: command.query } : {}),
           ...(command.kinds !== undefined ? { kinds: command.kinds } : {}),
           ...(command.category !== undefined ? { category: command.category } : {}),
@@ -67,9 +68,6 @@ export async function handleMarketplaceCatalogCommand(
     }
     case 'marketplace/installed-list': {
       try {
-        // Reading the inventory is the natural moment to finish uninstalls
-        // whose last referencing runtime has since gone away.
-        await purgeUnreferencedExtensions(context);
         const data = await readMarketplaceInventory(context, {
           ...(command.sessionId ? { sessionId: command.sessionId } : {}),
           ...(command.projectPath ? { projectPath: command.projectPath } : {}),

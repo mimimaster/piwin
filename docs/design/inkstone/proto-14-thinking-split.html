@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inkstone（砚）· 提案 14 · 模型 / 思考度（不加宽版）</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s12{width:12px;height:12px}.s14{width:14px;height:14px}
+body{
+  --sans:Inter,"PingFang SC","Noto Sans SC",-apple-system,system-ui,sans-serif;
+  --serif:"Noto Serif SC","Songti SC","STSong","Source Han Serif SC",Georgia,serif;
+  --mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;
+  --t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;
+  --l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);
+  --zhu:#b03a24;--zhu-lift:#d4553d;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);
+  --lamp:#b8801f;--pine:#3d7c5e;--code:#efece4;
+  --slab:#1f1c18;--slab-t:#efe9df;--slab-ph:#8d857a;--slab-chip:rgba(255,255,255,.07);--slab-line:rgba(255,255,255,.1);
+  --sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);
+  --sh3:0 14px 34px -12px rgba(50,35,15,.3),0 0 0 1px var(--l3);
+  background:var(--s2);color:var(--t1);font:13.5px/1.5 var(--sans);-webkit-font-smoothing:antialiased;
+}
+.page{max-width:820px;margin:0 auto;padding:28px 28px 80px}
+.page>h1{font:500 22px/1.3 var(--serif)}
+.page>.lede{color:var(--t3);font-size:12.5px;margin:6px 0 4px;max-width:660px}
+.sec{margin-top:40px}
+.sec-h{display:flex;align-items:baseline;gap:10px}
+.sec-h .tag{font:600 11px var(--mono);color:var(--on-zhu);background:var(--zhu);border-radius:4px;padding:1px 6px}
+.sec-h .tag.muted{background:var(--s1);color:var(--t3);box-shadow:var(--sh1)}
+.sec-h h2{font:500 18px/1.3 var(--serif)}
+.sec-d{font-size:12.5px;color:var(--t3);margin:6px 0 12px;max-width:680px}
+.sec-d code,.note code{font:11.5px var(--mono);background:var(--code);color:var(--t1);padding:1px 5px;border-radius:3px}
+.pc{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;margin-top:10px;font-size:12px;color:var(--t2)}
+.pc b{font:600 10.5px var(--sans);letter-spacing:.06em;color:var(--t3);display:block;margin-bottom:2px}
+.pc ul{list-style:none}.pc li{padding-left:12px;position:relative}
+.pc li::before{content:"";position:absolute;left:2px;top:.62em;width:4px;height:4px;border-radius:50%;background:var(--t4)}
+.pc .pro li::before{background:var(--pine)}.pc .con li::before{background:var(--zhu)}
+
+.stage{position:relative;padding-top:var(--room,24px)}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:end}
+.cap{font:11px var(--mono);color:var(--t4);margin:0 0 6px 2px}
+
+/* 石板 */
+.slab{background:var(--slab);color:var(--slab-t);border-radius:12px;box-shadow:var(--sh3);position:relative}
+.slab::before{content:"";position:absolute;left:12px;right:12px;top:0;height:1px;background:var(--slab-line)}
+.ta{padding:12px 14px 4px;color:var(--slab-ph);font-size:14.5px;min-height:44px}
+.bar{display:flex;align-items:center;gap:2px;padding:4px 8px 8px}
+.grow{flex:1}
+.chip{position:relative;display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:6px;color:var(--slab-ph);font-size:12.5px;white-space:nowrap}
+.chip:hover,.chip.hover{background:var(--slab-chip);color:var(--slab-t)}
+.chip.model{color:var(--slab-t)}
+.chip.ic{width:28px;padding:0;justify-content:center}
+.chip .v{opacity:.75}
+.chip .chev{width:9px;height:9px;opacity:.7}
+.chip.open{background:var(--slab-chip);color:var(--slab-t)}
+.dot{color:var(--slab-ph)}
+.mode{color:var(--pine)}
+.send{width:32px;height:32px;border-radius:50%;background:var(--zhu);color:var(--on-zhu);display:grid;place-items:center;flex:none;margin-left:4px}
+
+/* E：同一胶囊，两个点击区 */
+.split{position:relative;display:inline-flex;align-items:center;height:26px;border-radius:6px;font-size:12.5px;color:var(--slab-t);white-space:nowrap}
+.split .zone{position:relative;display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 6px 0 8px;border-radius:6px}
+.split .zone+.zone{padding:0 8px 0 6px}
+.split .zone.hover,.split .zone.open{background:var(--slab-chip)}
+.split .zone .v{opacity:.75}
+.split .zone.hover .v,.split .zone.open .v{opacity:1}
+.split .chev{width:9px;height:9px;opacity:.7}
+.split .sepdot{color:var(--slab-ph);padding:0 1px}
+
+/* 档位柱 */
+.meter{display:inline-flex;align-items:flex-end;gap:2px;height:11px}
+.meter i{display:block;width:3px;border-radius:1px;background:currentColor;opacity:.28}
+.meter i:nth-child(1){height:4px}.meter i:nth-child(2){height:6px}.meter i:nth-child(3){height:8px}.meter i:nth-child(4){height:10px}.meter i:nth-child(5){height:11px}
+.meter i.on{opacity:1}
+
+/* 弹层 */
+.pop{position:absolute;bottom:calc(100% + 8px);left:0;background:var(--s4);color:var(--t1);box-shadow:var(--sh3);border-radius:12px;padding:6px;z-index:5;cursor:default;white-space:normal}
+.lv{display:flex;align-items:center;gap:9px;height:30px;padding:0 8px;border-radius:7px;width:100%;font-size:13px}
+.lv:hover{background:var(--s2)}
+.lv .meter{color:var(--t3)}
+.lv .nm{flex:1}
+.lv .ck{width:14px;color:var(--zhu);flex:none}
+.lv.on{background:var(--zhu-wash)}
+.lv.on .nm{color:var(--zhu);font-weight:600}.lv.on .meter{color:var(--zhu)}
+
+.search{display:flex;align-items:center;gap:8px;height:32px;margin:2px;padding:0 10px;border-radius:8px;background:var(--s2);box-shadow:0 0 0 1px var(--l2);color:var(--t4);font-size:13px}
+.mlist{position:relative}
+.mo{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:7px}
+.mo:hover,.mo.hover{background:var(--s2)}
+.mo .mi{width:26px;height:26px;border-radius:6px;background:var(--s1);display:grid;place-items:center;color:var(--t3);flex:none}
+.mo .mb{flex:1;min-width:0}
+.mo .mn{font-size:13px;color:var(--t1)}
+.mo .mt{font-size:11.5px;color:var(--t4)}
+.mo .mp{font:10.5px var(--mono);color:var(--t4);display:block;margin-top:-1px}
+.mo .ck{color:var(--zhu);flex:none}
+.mo.on{background:var(--zhu-wash)}
+.mo.on .mi{background:var(--s4);color:var(--zhu)}
+
+/* 弹层内的紧凑分段条 */
+.strip{display:flex;align-items:center;gap:8px;padding:6px 6px 2px;border-top:1px solid var(--l1);margin-top:4px}
+.strip .lb{font:600 10.5px var(--sans);letter-spacing:.06em;color:var(--t3);flex:none;width:28px}
+.segs{display:flex;flex:1;background:var(--s1);border-radius:7px;padding:2px;gap:2px}
+.segs button{flex:1;height:24px;border-radius:5px;font-size:12px;color:var(--t2);text-align:center}
+.segs button:hover{background:var(--s3)}
+.segs button.on{background:var(--s4);color:var(--zhu);font-weight:600;box-shadow:var(--sh1)}
+
+/* G：行内档位 */
+.mo .inl{display:flex;gap:2px;margin-top:5px;background:var(--s1);border-radius:6px;padding:2px;width:max-content}
+.mo .inl button{height:20px;padding:0 8px;border-radius:4px;font-size:11.5px;color:var(--t2)}
+.mo .inl button:hover{background:var(--s3)}
+.mo .inl button.on{background:var(--s4);color:var(--zhu);font-weight:600;box-shadow:var(--sh1)}
+.mo.on .inl{background:rgba(255,255,255,.7)}
+
+/* H：滚轮 / 快捷键反馈 */
+.flash{color:var(--zhu-lift)!important;opacity:1!important;font-weight:600}
+.hud{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:var(--s4);color:var(--t1);box-shadow:var(--sh3);border-radius:8px;padding:5px 8px;font-size:12px;white-space:nowrap}
+.hud .pip{display:flex;gap:3px}
+.hud .pip i{display:block;width:16px;height:4px;border-radius:2px;background:var(--l2)}
+.hud .pip i.on{background:var(--zhu)}
+.hud .k{font:10.5px var(--mono);color:var(--t4)}
+.wheel{position:absolute;right:-26px;top:50%;transform:translateY(-50%);color:var(--slab-ph);font:11px var(--mono)}
+
+.note{margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--s3);box-shadow:var(--sh1);font-size:12px;color:var(--t2)}
+.note b{color:var(--t1);font-weight:600}
+table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--l2);vertical-align:top}
+th{font:600 10.5px var(--sans);letter-spacing:.06em;color:var(--t3)}
+td:first-child{font-weight:600;white-space:nowrap}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="chev" viewBox="0 0 10 10"><path d="M2 6.5 5 3.5 8 6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+  <symbol id="mic" viewBox="0 0 16 16"><rect x="5.5" y="2" width="5" height="8" rx="2.5"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2"/></symbol>
+  <symbol id="send" viewBox="0 0 16 16"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></symbol>
+  <symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></symbol>
+  <symbol id="spark" viewBox="0 0 16 16"><path d="M8 2.5v3M8 10.5v3M2.5 8h3M10.5 8h3M4.5 4.5l1.5 1.5M10 10l1.5 1.5M11.5 4.5 10 6M6 10l-1.5 1.5"/></symbol>
+  <symbol id="check" viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-7"/></symbol>
+</svg>
+
+<div class="page">
+  <h1>模型 / 思考度 · 第二轮（工具栏零加宽）</h1>
+  <p class="lede">约束：工具栏宽度和现在一样，仍然是一个「模型 · 高」胶囊。只改点击区和弹层内部结构。下面 E / F / G 三个可以单选，H 是不占任何像素的附加手势，可以叠加在任何一个上。</p>
+
+  <!-- 现状 -->
+  <section class="sec">
+    <div class="sec-h"><span class="tag muted">现状</span><h2>改思考度要开整个模型弹层</h2></div>
+    <p class="sec-d">档位按钮在弹层最顶上，离胶囊最远；搜索框自动聚焦，列表很长；点完档位弹层不关。</p>
+    <div class="stage" style="--room:0px">
+      <div class="slab">
+        <div class="bar" style="padding-top:8px">
+          <button class="chip ic"><svg class="i"><use href="#plus"/></svg></button>
+          <button class="chip model">DeepSeek V4.1 Flash <span class="dot">·</span> <span class="v">高</span> <svg class="chev"><use href="#chev"/></svg></button>
+          <span class="grow"></span>
+          <button class="chip"><span class="mode">自动</span></button>
+          <button class="chip ic"><svg class="i"><use href="#mic"/></svg></button>
+          <span class="send"><svg class="i"><use href="#send"/></svg></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- E -->
+  <section class="sec">
+    <div class="sec-h"><span class="tag">E</span><h2>同一个胶囊，分两个点击区</h2></div>
+    <p class="sec-d">外观和现在几乎一样，只是「· 高」那一截单独可点。点模型名开模型列表（不再带思考区）；点「高」开一个只有档位的小菜单，紧贴在「高」上方，选完即关。</p>
+    <div class="duo">
+      <div>
+        <div class="cap">E-1 · 悬停在「高」上，只亮那一截</div>
+        <div class="stage" style="--room:0px">
+          <div class="slab">
+            <div class="bar" style="padding-top:8px">
+              <button class="chip ic"><svg class="i"><use href="#plus"/></svg></button>
+              <span class="split">
+                <span class="zone">DeepSeek V4.1 Flash</span><span class="sepdot">·</span><span class="zone hover"><span class="v">高</span> <svg class="chev"><use href="#chev"/></svg></span>
+              </span>
+              <span class="grow"></span>
+              <span class="send"><svg class="i"><use href="#send"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="cap">E-2 · 点「高」：小菜单</div>
+        <div class="stage" style="--room:118px">
+          <div class="slab">
+            <div class="bar" style="padding-top:8px">
+              <button class="chip ic"><svg class="i"><use href="#plus"/></svg></button>
+              <span class="split">
+                <span class="zone">DeepSeek V4.1 Flash</span><span class="sepdot">·</span><span class="zone open"><span class="v">高</span> <svg class="chev"><use href="#chev"/></svg>
+                  <div class="pop" style="width:124px;left:-6px">
+                    <button class="lv"><span class="meter"><i class="on"></i><i></i><i></i><i></i><i></i></span><span class="nm">低</span><span class="ck"></span></button>
+                    <button class="lv"><span class="meter"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="nm">中</span><span class="ck"></span></button>
+                    <button class="lv on"><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="nm">高</span><svg class="i s14 ck"><use href="#check"/></svg></button>
+                    <button class="lv"><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span class="nm">极高</span><span class="ck"></span></button>
+                    <button class="lv"><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="nm">最大</span><span class="ck"></span></button>
+                  </div>
+                </span>
+              </span>
+              <span class="grow"></span>
+              <span class="send"><svg class="i"><use href="#send"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pc">
+      <div class="pro"><b>好处</b><ul><li>工具栏零变化，宽度不变</li><li>改思考度：点「高」→ 点档位，两下，菜单只有 124px 宽</li><li>模型弹层变短，只剩搜索 + 列表</li></ul></div>
+      <div class="con"><b>代价</b><ul><li>两个热区挨着，「高」只有一个字宽，需要悬停高亮让人看出来能单独点</li></ul></div>
+    </div>
+  </section>
+
+  <!-- F -->
+  <section class="sec">
+    <div class="sec-h"><span class="tag">F</span><h2>还是一个弹层，档位挪到底部贴着胶囊</h2></div>
+    <p class="sec-d">弹层是向上展开的，底部离胶囊和鼠标最近。把档位做成一条紧凑的分段条放在最底下，标题和大按钮去掉；搜索框也挪到底部附近，列表在上面。思考区高度从约 90px 降到 34px。</p>
+    <div class="stage" style="--room:228px">
+      <div class="slab">
+        <div class="ta">给 piwin 布置任务…</div>
+        <div class="bar">
+          <button class="chip ic"><svg class="i"><use href="#plus"/></svg></button>
+          <span style="position:relative">
+            <button class="chip model open">DeepSeek V4.1 Flash <span class="dot">·</span> <span class="v">高</span> <svg class="chev"><use href="#chev"/></svg></button>
+            <div class="pop" style="width:330px">
+              <div class="mlist">
+                <div class="mo"><span class="mi"><svg class="i s14"><use href="#spark"/></svg></span><span class="mb"><span class="mn">Claude Opus 5.5</span> <span class="mt">· vision · reason</span><span class="mp">CPA</span></span></div>
+                <div class="mo"><span class="mi"><svg class="i s14"><use href="#spark"/></svg></span><span class="mb"><span class="mn">Gemini 3.8 Flash</span> <span class="mt">· vision · reason</span><span class="mp">CPA</span></span></div>
+                <div class="mo on"><span class="mi"><svg class="i s14"><use href="#spark"/></svg></span><span class="mb"><span class="mn">DeepSeek V4.1 Flash</span> <span class="mt">· reason</span><span class="mp">CPA</span></span><svg class="i s14 ck"><use href="#check"/></svg></div>
+              </div>
+              <div class="search" style="margin-top:4px"><svg class="i s14"><use href="#search"/></svg>搜索模型…</div>
+              <div class="strip">
+                <span class="lb">思考</span>
+                <div class="segs"><button>低</button><button>中</button><button class="on">高</button><button>极高</button><button>最大</button></div>
+              </div>
+            </div>
+          </span>
+          <span class="grow"></span>
+          <button class="chip"><span class="mode">自动</span></button>
+          <button class="chip ic"><svg class="i"><use href="#mic"/></svg></button>
+          <span class="send"><svg class="i"><use href="#send"/></svg></span>
+        </div>
+      </div>
+    </div>
+    <div class="pc">
+      <div class="pro"><b>好处</b><ul><li>改动最小，交互模型不变</li><li>鼠标从胶囊往上移一点就到档位</li><li>弹层整体变矮</li></ul></div>
+      <div class="con"><b>代价</b><ul><li>改思考度仍要打开整个模型弹层</li><li>列表在上、搜索在下，和常见下拉方向相反（向上弹出时其实更顺）</li></ul></div>
+    </div>
+  </section>
+
+  <!-- G -->
+  <section class="sec">
+    <div class="sec-h"><span class="tag">G</span><h2>档位长在模型行里</h2></div>
+    <p class="sec-d">思考档位本来就是跟模型走的（每个模型支持的档位不同）。当前模型那一行下面直接显示档位条；悬停到别的推理模型时它那行也展开，一下点就同时选定「模型 + 档位」。不支持思考的模型不显示。</p>
+    <div class="stage" style="--room:236px">
+      <div class="slab">
+        <div class="ta">给 piwin 布置任务…</div>
+        <div class="bar">
+          <button class="chip ic"><svg class="i"><use href="#plus"/></svg></button>
+          <span style="position:relative">
+            <button class="chip model open">DeepSeek V4.1 Flash <span class="dot">·</span> <span class="v">高</span> <svg class="chev"><use href="#chev"/></svg></button>
+            <div class="pop" style="width:330px">
+              <div class="search" style="margin-bottom:4px"><svg class="i s14"><use href="#search"/></svg>搜索模型…</div>
+              <div class="mlist">
+                <div class="mo on" style="align-items:flex-start"><span class="mi"><svg class="i s14"><use href="#spark"/></svg></span><span class="mb"><span class="mn">DeepSeek V4.1 Flash</span> <span class="mt">· reason</span>
+                  <div class="inl"><button>低</button><button>中</button><button class="on">高</button><button>极高</button></div></span><svg class="i s14 ck" style="margin-top:5px"><use href="#check"/></svg></div>
+                <div class="mo hover" style="align-items:flex-start"><span class="mi"><svg class="i s14"><use href="#spark"/></svg></span><span class="mb"><span class="mn">Claude Opus 5.5</span> <span class="mt">· vision · reason</span>
+                  <div class="inl"><button>低</button><button>中</button><button>高</button><button>最大</button></div></span></div>
+                <div class="mo"><span class="mi"><svg class="i s14"><use href="#spark"/></svg></span><span class="mb"><span class="mn">GPT-5 Mini</span> <span class="mt">· vision</span><span class="mp">CPA</span></span></div>
+              </div>
+            </div>
+          </span>
+          <span class="grow"></span>
+          <button class="chip"><span class="mode">自动</span></button>
+          <button class="chip ic"><svg class="i"><use href="#mic"/></svg></button>
+          <span class="send"><svg class="i"><use href="#send"/></svg></span>
+        </div>
+      </div>
+    </div>
+    <div class="pc">
+      <div class="pro"><b>好处</b><ul><li>完全没有独立的思考区，弹层最紧凑</li><li>换模型和定档位一次完成</li><li>每个模型只显示它真正支持的档位</li></ul></div>
+      <div class="con"><b>代价</b><ul><li>行高会随悬停变化，列表会轻微跳动</li><li>只改思考度仍要开弹层</li></ul></div>
+    </div>
+  </section>
+
+  <!-- H -->
+  <section class="sec">
+    <div class="sec-h"><span class="tag muted">H · 附加</span><h2>滚轮 / 快捷键，零像素</h2></div>
+    <p class="sec-d">不画任何新控件：鼠标停在胶囊上滚动滚轮升降档；输入时 <code>⌘.</code> / <code>⌘⇧.</code> 升降档。切换时胶囊上的「高」字闪一下朱色，上方冒一个 1 秒的档位提示后消失。可以叠加在 E / F / G 任何一个上。</p>
+    <div class="stage" style="--room:20px">
+      <div class="slab">
+        <div class="ta">给 piwin 布置任务…</div>
+        <div class="bar">
+          <button class="chip ic"><svg class="i"><use href="#plus"/></svg></button>
+          <span style="position:relative">
+            <button class="chip model hover">DeepSeek V4.1 Flash <span class="dot">·</span> <span class="v flash">极高</span> <svg class="chev"><use href="#chev"/></svg></button>
+            <div class="hud">思考 <span class="pip"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span> 极高 <span class="k">滚轮 / ⌘.</span></div>
+          </span>
+          <span class="grow"></span>
+          <button class="chip"><span class="mode">自动</span></button>
+          <button class="chip ic"><svg class="i"><use href="#mic"/></svg></button>
+          <span class="send"><svg class="i"><use href="#send"/></svg></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><span class="tag muted">对比</span><h2>怎么选</h2></div>
+    <table>
+      <tr><th>方案</th><th>工具栏加宽</th><th>只改思考度</th><th>改动量</th></tr>
+      <tr><td>E 分区胶囊</td><td>0</td><td>2 下，小菜单</td><td>中：拆出一个小 Popover</td></tr>
+      <tr><td>F 档位沉底</td><td>0</td><td>开大弹层 + 1 下</td><td>小：只重排弹层</td></tr>
+      <tr><td>G 行内档位</td><td>0</td><td>开大弹层 + 1 下</td><td>中：列表行要能展开</td></tr>
+      <tr><td>H 滚轮 / ⌘.</td><td>0</td><td>不开任何弹层</td><td>小：叠加</td></tr>
+    </table>
+    <div class="note"><b>倾向：</b>E + H。平时滚轮或 <code>⌘.</code> 直接切；要看全部档位就点「高」，开的是 124px 的小菜单，不是整个模型列表。</div>
+  </section>
+</div>
+</body>
+</html>

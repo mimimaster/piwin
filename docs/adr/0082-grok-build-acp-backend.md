@@ -212,6 +212,15 @@ The Host is the authority; clients mirror it and never invent capability.
   without an attach target) render the Desktop projection unchanged.
 - **Readiness wording.** `unauthenticated` is never presented as usable, and an
   agent session row is labelled with the agent name while Pi stays unlabelled.
+- **Native startup latency (2026-10-18).** Session binding and native CLI
+  launch gates reuse the control client's existing 60-second readiness cache
+  and in-flight check deduplication. They still resolve and verify the enabled
+  extension on every gate; an adapter revision change replaces the control
+  client, and explicit status refresh still forces a handshake. A cold native
+  open therefore checks once instead of four times; another new session within
+  the cache lifetime needs no repeated readiness handshake. Desktop uses a
+  bounded 120-second operation deadline for native open, sync and snapshot on
+  both local and remote Hosts, since these await adapter/session work.
 - **Separate adapter and dependency installation.** `piwin agents install`
   installs a reviewed declarative adapter through the Host inventory, without
   starting Grok. Official CLI dependency installation remains manual until a

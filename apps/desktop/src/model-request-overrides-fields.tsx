@@ -82,9 +82,7 @@ export function ModelRequestOverridesFields<T extends ModelRequestOverridesValue
   const headerCount = headers ? Object.keys(headers).length : 0;
   const bodyKeys = requestBodyTopLevelKeys(body);
   const hasError = (headersParsed !== undefined && !headersParsed.ok) || !bodyParsed.ok;
-  const [open, setOpen] = useState(
-    () => headerCount > 0 || bodyKeys.length > 0 || isOpenRouterBaseUrl(baseUrl),
-  );
+  const [open, setOpen] = useState(false);
   const [modeError, setModeError] = useState(false);
 
   function setHeadersMode(mode: string): void {
