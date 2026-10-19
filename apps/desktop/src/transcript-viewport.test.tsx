@@ -279,6 +279,19 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(onReturnToLatest).toHaveBeenCalledOnce();
   });
 
+  it('keeps cached content visible while its authoritative snapshot refreshes', async () => {
+    await renderSession('warm-session', { awaitingTranscript: true, messageCount: 3 });
+    expect(container.querySelector('[data-testid="transcript-opening-state"]')).toBeNull();
+    expect(container.querySelector('.chat-stream')?.getAttribute('aria-hidden')).toBe('false');
+    expect(container.textContent).toContain('Transcript content');
+  });
+
+  it('shows one loading surface for a cold conversation until messages arrive', async () => {
+    await renderSession('cold-session', { awaitingTranscript: true, messageCount: 0 });
+    expect(container.querySelectorAll('[data-testid="transcript-opening-state"]')).toHaveLength(1);
+    expect(container.textContent).toContain('Opening conversation');
+  });
+
   it('does not cover or pin a history view while its transcript is awaiting data', async () => {
     await renderSession('history-awaiting-session', {
       historyViewActive: true,

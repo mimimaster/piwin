@@ -177,6 +177,9 @@ export function useSessionResume(input: {
 
       if (!ticketMatches()) return;
       dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
+      // Resume is a durable read: it needs no active project or agent runtime.
+      // Start it alongside activation instead of paying both round trips in order.
+      const resumeRequest = hostClient.request({ type: 'session/resume', sessionId });
 
       if (
         knownProjectPath &&
@@ -222,10 +225,7 @@ export function useSessionResume(input: {
         dispatch({ type: 'project/clear', keepActiveSession: true });
         void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
       }
-      const resumed = await hostClient.request({
-        type: 'session/resume',
-        sessionId,
-      });
+      const resumed = await resumeRequest;
       if (!ticketMatches()) return;
       if (!resumed.success) {
         if (context?.quiet !== true) {

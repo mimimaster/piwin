@@ -54,6 +54,7 @@ export type UseWorkbenchSessionLifecycleArgs = {
   hostClient: HostClient;
   hostReady: boolean;
   projectPath: string | null;
+  activeSessionId?: string | null;
   config: PiwinConfig | null;
   setConfig: Dispatch<SetStateAction<PiwinConfig | null>>;
   dispatch: Dispatch<ChatUiAction>;
@@ -294,6 +295,11 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
   }, [recentProjects, hostReady, remoteCatchUpEpoch, generalWorkspacePath]);
 
   useEffect(() => {
+    if (args.activeSessionId != null) {
+      // A notification or user selection wins over a late startup config.
+      hasRestoredDesktopSession.current = true;
+      return;
+    }
     const plan = planLastSessionRestore({
       hostReady,
       config,
@@ -316,14 +322,12 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
           });
           return;
         }
-        dispatch({ type: 'project/clear' });
-        await hydrateSessions({ kind: 'general' }, { includeArchived: false });
-        await handleResumeSession(plan.sessionId, { quiet: true });
+        await handleResumeSession(plan.sessionId, { scope: { kind: 'general' }, quiet: true });
       } catch (error) {
         console.warn('last session restore failed', error);
       }
     })();
-  }, [config, dispatch, handleOpenProject, handleResumeSession, hydrateSessions, hostReady]);
+  }, [args.activeSessionId, config, handleOpenProject, handleResumeSession, hostReady]);
 
   const handleRemoveProjectFromSidebar = useCallback(
     async (path: string): Promise<void> => {

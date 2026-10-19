@@ -1,6 +1,5 @@
 import { useLayoutEffect, useState, type RefObject } from 'react';
 
-const MIN_PREPARATION_MS = 300;
 const STABLE_LAYOUT_MS = 180;
 const MAX_PREPARATION_MS = 1_600;
 
@@ -18,7 +17,9 @@ export function useTranscriptReveal(options: TranscriptRevealOptions): boolean {
   const sessionId = options.sessionId ?? null;
   const hasMessages = options.messageCount > 0;
   const [revealedSessionId, setRevealedSessionId] = useState<string | null>(() =>
-    options.historyViewActive || (!options.awaitingTranscript && !hasMessages) ? sessionId : null,
+    options.historyViewActive ||
+    (options.awaitingTranscript && hasMessages) ||
+    (!options.awaitingTranscript && !hasMessages) ? sessionId : null,
   );
   const opening =
     sessionId !== null &&
@@ -104,7 +105,6 @@ export function useTranscriptReveal(options: TranscriptRevealOptions): boolean {
         !pendingFrame &&
         pendingMedia === null &&
         maximumTop - top <= 2 &&
-        now - startedAt >= MIN_PREPARATION_MS &&
         now - stableSince >= STABLE_LAYOUT_MS
       ) {
         reveal();

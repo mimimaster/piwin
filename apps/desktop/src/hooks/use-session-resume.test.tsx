@@ -269,11 +269,11 @@ describe('useSessionResume continue-in-project', () => {
       getHostInstanceId: () => 'host-1',
       getTransport: () => 'live',
       isReady: () => true,
-      request,
+      request: vi.fn(request),
     } as unknown as HostClient;
   }
 
-  it('activates the destination project before resume and sets the session once', async () => {
+  it('reads the destination transcript alongside project activation and sets the session once', async () => {
     const commands: string[] = [];
     const hostClient = liveHost(async (command) => {
       commands.push(command.type);
@@ -300,7 +300,7 @@ describe('useSessionResume continue-in-project', () => {
     });
 
     expect(commands.indexOf('project/open')).toBeGreaterThanOrEqual(0);
-    expect(commands.indexOf('project/open')).toBeLessThan(commands.indexOf('session/resume'));
+    expect(commands.indexOf('session/resume')).toBeLessThan(commands.indexOf('project/open'));
     const sessionSets = dispatch.mock.calls.filter(
       (call) => (call[0] as ChatUiAction).type === 'session/set',
     );
@@ -421,6 +421,8 @@ describe('useSessionResume continue-in-project', () => {
         awaitTranscript: true,
       });
     });
+    expect(hostClient.request).toHaveBeenCalledWith({ type: 'session/resume', sessionId: continuedId });
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'session/load-messages' }));
     expect(dispatch.mock.calls.some((call) => (call[0] as ChatUiAction).type === 'project/set')).toBe(
       false,
     );

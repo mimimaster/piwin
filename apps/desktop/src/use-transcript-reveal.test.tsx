@@ -205,19 +205,19 @@ describe('useTranscriptReveal', () => {
     ) === 'true';
   }
 
-  it('keeps an existing transcript mounted but hidden until the minimum and stable windows pass', () => {
+  it('keeps an existing transcript mounted but hidden until the layout is stable without a fixed minimum delay', () => {
     const scenario = createScenario();
     renderScenario(scenario);
 
     expect(isRevealing()).toBe(true);
     expect(container.querySelector('[data-testid="transcript-layout"]')).not.toBeNull();
 
-    advance(300);
+    advance(80);
     notifyGeometry();
     expect(isRevealing()).toBe(true);
     advance(179);
     expect(isRevealing()).toBe(true);
-    advance(1);
+    advance(21);
 
     expect(isRevealing()).toBe(false);
     expect(scenario.jumpToLatest).toHaveBeenCalled();
@@ -228,7 +228,7 @@ describe('useTranscriptReveal', () => {
     const scenario = createScenario();
     renderScenario(scenario);
 
-    advance(300);
+    advance(80);
     notifyGeometry();
     advance(100);
 
@@ -252,9 +252,20 @@ describe('useTranscriptReveal', () => {
 
     renderScenario({ ...scenario, messageCount: 12, awaitingTranscript: false });
     notifyGeometry();
-    advance(299);
+    advance(179);
     expect(isRevealing()).toBe(true);
-    advance(81);
+    advance(41);
+    expect(isRevealing()).toBe(false);
+  });
+
+
+  it('shows a warm snapshot immediately while Host refresh is pending', () => {
+    const scenario = createScenario({ messageCount: 12, awaitingTranscript: true });
+    renderScenario(scenario);
+    expect(isRevealing()).toBe(false);
+    advance(2_000);
+    expect(isRevealing()).toBe(false);
+    renderScenario({ ...scenario, awaitingTranscript: false, messageCount: 14 });
     expect(isRevealing()).toBe(false);
   });
 

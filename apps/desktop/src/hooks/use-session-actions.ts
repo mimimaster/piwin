@@ -23,9 +23,6 @@ import { isSessionBodyOffloaded } from '../session-storage-ui';
 import { forgetTranscriptScrollPosition } from '../transcript-scroll-memory';
 import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
 import { findSessionForLookup } from '../session-list-lookup';
-import {
-  activateProjectOnHost,
-} from '../remote-session-hydrate';
 import { buildSessionCreateInput, resolveSessionCreateLocation } from './session-create-input.js';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { findAdjacentSessionId } from '../session-navigation';
@@ -41,6 +38,7 @@ import {
   resolveHydrateScope,
 } from '../session-list-hydrate.js';
 import { getSessionListScopeMeta } from '../session-list-scope.js';
+import { useProjectOpen } from './use-project-open.js';
 import { isNoRepoProjectPath } from '../file-browse-root.js';
 import type { SessionOrchestrationRestore } from './use-composer-orchestration-controls';
 
@@ -359,102 +357,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ],
   );
 
-  const handleOpenProject = useCallback(
-    async (
-      path: string,
-      options?: {
-        autoTrust?: boolean;
-        resumeSessionId?: string;
-        switchSession?: boolean;
-        quiet?: boolean;
-      },
-    ): Promise<void> => {
-      const resumeSessionId = options?.resumeSessionId;
-      const navigationEpoch = beginNavigation(resumeSessionId ?? null);
-      const workspacePath = args.generalWorkspacePath?.trim() ?? '';
-      if (isNoRepoProjectPath(path, workspacePath)) {
-        if (!navigationEpochMatches(navigationEpoch)) {
-          return;
-        }
-        dispatch({ type: 'project/set', path: workspacePath, trusted: true });
-        setProjectPickerOpen(false);
-        // Draft UI must not wait on the workspace session list.
-        void hydrateSessions(workspacePath);
-        void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
-        if (resumeSessionId) {
-          await handleResumeSession(resumeSessionId, {
-            scope: { kind: 'project', projectPath: workspacePath },
-            projectAlreadyActivated: true,
-            ...(options?.quiet === true ? { quiet: true } : {}),
-          });
-        }
-        return;
-      }
-      const openOptions =
-        options?.autoTrust !== undefined ? { autoTrust: options.autoTrust } : undefined;
-      const activation = await activateProjectOnHost(
-        (command) => hostClient.request(command),
-        hostClient.getTransport(),
-        path,
-        openOptions,
-      );
-      if (!navigationEpochMatches(navigationEpoch)) {
-        return;
-      }
-      if (!activation.ok) {
-        if (options?.quiet !== true) {
-          dispatchNotification(pushError(activation.error));
-        }
-        return;
-      }
-      if (!activation.trusted) {
-        dispatch({ type: 'project/set', path: activation.path, trusted: false });
-        setProjectPickerOpen(false);
-        dispatchNotification(
-          pushError(
-            'This project is not trusted on the Host yet. Trust it on the machine running the Host.',
-          ),
-        );
-        return;
-      }
-      const openedPath = activation.path;
-      dispatch({ type: 'project/set', path: openedPath, trusted: true });
-      setProjectPickerOpen(false);
-      // Hydrate sessions for opened project. Do not force-switch session when simply opening/expanding a folder.
-      const sessions = await hydrateSessions(openedPath);
-      // Also hydrate general sessions in the background so the Conversations
-      // sidebar section stays populated while a project is active.
-      void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
-      if (resumeSessionId) {
-        await handleResumeSession(resumeSessionId, {
-          scope: { kind: 'project', projectPath: openedPath },
-          projectAlreadyActivated: true,
-          ...(options?.quiet === true ? { quiet: true } : {}),
-        });
-      } else if (options?.switchSession) {
-        if (sessions[0]) {
-          await handleResumeSession(sessions[0].id, {
-            scope: { kind: 'project', projectPath: openedPath },
-            projectAlreadyActivated: true,
-          });
-        } else {
-          await ensureSession({ projectPath: openedPath, alreadyTrusted: true });
-        }
-      }
-    },
-    [
-      dispatch,
-      ensureSession,
-      handleResumeSession,
-      hostClient,
-      hydrateSessions,
-      setProjectPickerOpen,
-      showArchivedSessions,
-      beginNavigation,
-      navigationEpochMatches,
-      args.generalWorkspacePath,
-    ],
-  );
+  const handleOpenProject = useProjectOpen({
+    hostClient, dispatch, dispatchNotification, setProjectPickerOpen,
+    generalWorkspacePath: args.generalWorkspacePath, showArchivedSessions,
+    beginNavigation, navigationEpochMatches, hydrateSessions, handleResumeSession, ensureSession,
+  });
 
   const handleOpenWorkspaceClick = useCallback(async (): Promise<void> => {
     const hostHomeDirectory = hostClient.getRemoteCapabilities()?.homeDirectory;

@@ -210,19 +210,13 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       readingAnchorRestorerRef={readingAnchorRestorerRef}
     >
       <div className={`transcript-viewport${opening ? ' is-opening' : ''}`}>
-        {opening || (props.awaitingTranscript && !props.historyViewActive) ? (
+        {opening || (props.awaitingTranscript && props.messageCount === 0 && !props.historyViewActive) ? (
           <div className="transcript-opening-state" data-testid="transcript-opening-state" role="status">
             <div className="transcript-opening-container">
               <div className="transcript-opening-banner">
                 <span aria-hidden="true" className="transcript-opening-spinner" />
                 <span data-testid={props.awaitingTranscript ? 'transcript-awaiting-banner' : undefined}>
-                  {props.messageCount > 0
-                    ? locale === 'zh-CN'
-                      ? `转录定位中 · 共 ${props.messageCount} 条消息`
-                      : `Anchoring transcript · ${props.messageCount} messages`
-                    : locale === 'zh-CN'
-                      ? '正在打开会话…'
-                      : 'Opening conversation…'}
+                  {locale === 'zh-CN' ? '正在打开会话…' : 'Opening conversation…'}
                 </span>
               </div>
               <div className="transcript-opening-skeleton" aria-hidden="true">

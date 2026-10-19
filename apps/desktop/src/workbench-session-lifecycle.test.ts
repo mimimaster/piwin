@@ -62,7 +62,7 @@ describe('shouldHydrateInitialGeneralSessions', () => {
     ).toBe(false);
   });
 
-  it('skips local until the first config arrives, and when lastSession owns restore', () => {
+  it('loads local lists before config arrives and while lastSession restores', () => {
     expect(
       shouldHydrateInitialGeneralSessions({
         hostReady: true,
@@ -71,7 +71,7 @@ describe('shouldHydrateInitialGeneralSessions', () => {
         isRemote: false,
         config: null,
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldHydrateInitialGeneralSessions({
         hostReady: true,
@@ -80,7 +80,7 @@ describe('shouldHydrateInitialGeneralSessions', () => {
         isRemote: false,
         config: configWithLastGeneral,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('runs for remote with a null config, and for local config without lastSession', () => {

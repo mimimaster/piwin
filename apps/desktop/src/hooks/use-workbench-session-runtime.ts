@@ -193,6 +193,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     hostClient,
     hostReady: state.hostReady,
     projectPath: state.projectPath,
+    activeSessionId: state.activeSessionId,
     config: host.config,
     setConfig: host.setConfig,
     dispatch,

@@ -14,11 +14,8 @@ export function shouldHydrateInitialGeneralSessions(input: {
   if (!input.hostReady || input.projectPath !== null || input.alreadyHydrated) {
     return false;
   }
-  // Local: wait for the first config, and yield to lastSession restore when set.
-  // Remote config/get is not allowed; do not wait on config === null there.
-  if (!input.isRemote && (input.config === null || Boolean(input.config.desktop?.lastSession))) {
-    return false;
-  }
+  // Lists are independent of config and last-session restoration. Loading them
+  // immediately also lets a notification resolve while config is still pending.
   return true;
 }
 
