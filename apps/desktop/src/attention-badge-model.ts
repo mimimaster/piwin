@@ -8,16 +8,14 @@ export function selectAttentionSessionIds(input: {
   completedAttentionSessionIds: Readonly<Record<string, true>>;
   failedAttentionSessionIds: Readonly<Record<string, true>>;
   permissionQueue: ReadonlyArray<{ sessionId: string }>;
-  questionSessionId: string | null;
+  questionSessionIds: ReadonlyArray<string>;
 }): string[] {
   const ids = [
     ...Object.keys(input.completedAttentionSessionIds),
     ...Object.keys(input.failedAttentionSessionIds),
     ...input.permissionQueue.map((item) => item.sessionId),
+    ...input.questionSessionIds,
   ];
-  if (input.questionSessionId !== null) {
-    ids.push(input.questionSessionId);
-  }
   return uniqueSorted(ids);
 }
 

@@ -2,24 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { formatDockBadge, selectAttentionSessionIds } from './attention-badge-model';
 
 describe('selectAttentionSessionIds', () => {
-  it('counts a session once across complete and permission and includes the question session (AN-T33)', () => {
+  it('counts a session once across complete and permission and includes question sessions (AN-T33)', () => {
     expect(
       selectAttentionSessionIds({
         completedAttentionSessionIds: { 'sess-b': true, 'sess-a': true },
         failedAttentionSessionIds: { 'sess-c': true },
         permissionQueue: [{ sessionId: 'sess-a' }, { sessionId: 'sess-d' }],
-        questionSessionId: 'sess-q',
+        questionSessionIds: ['sess-q', 'sess-b'],
       }),
     ).toEqual(['sess-a', 'sess-b', 'sess-c', 'sess-d', 'sess-q']);
   });
 
-  it('omits a null question session and sorts unique ids', () => {
+  it('handles no question sessions and sorts unique ids', () => {
     expect(
       selectAttentionSessionIds({
         completedAttentionSessionIds: {},
         failedAttentionSessionIds: { zed: true },
         permissionQueue: [{ sessionId: 'alpha' }, { sessionId: 'zed' }],
-        questionSessionId: null,
+        questionSessionIds: [],
       }),
     ).toEqual(['alpha', 'zed']);
   });

@@ -12,7 +12,6 @@ import {
 import type {
   ConfiguredChatModelsData,
   ExtensionDeploymentRecord,
-  ExtensionUiKind,
   HostResponse,
   HostServerMessage,
   HostStatusData,
@@ -52,6 +51,7 @@ import {
 import { readConfiguredChatModelsData } from '../model-options';
 import { resolveBootstrapSelectedModelKey } from '../composer-model-selection-policy.js';
 import { publishPetOverlayState } from '../pet-overlay-state-bridge.js';
+import { useExtensionUiRequests } from './use-extension-ui-requests';
 import { readProjectedHostConfig } from '../remote-settings-hydrate.js';
 import { mergeSettingsViewConfig } from '../settings/settings-view-config.js';
 import {
@@ -65,15 +65,7 @@ import {
 /** HMR must remount this subscribe effect; `hostClient` identity does not change. */
 const HOST_PUSH_LIVE_PATH = 'paced-v2';
 
-export type ExtensionUiRequestState = {
-  sessionId: string;
-  requestId: string;
-  kind: ExtensionUiKind;
-  title: string;
-  message?: string;
-  options?: string[];
-  placeholder?: string;
-};
+export type { ExtensionUiRequestState } from '../extension-ui-request-registry';
 
 export type UseHostBootstrapArgs = {
   hostClient: HostClient;
@@ -252,29 +244,11 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   }, []);
   const [plansBySessionId, setPlansBySessionId] = useState<Record<string, SessionPlan | null>>({});
   const sessionPlan = selectSessionPlan(plansBySessionId, args.activeSessionId);
-  const [extensionUiRequest, setExtensionUiRequest] = useState<ExtensionUiRequestState | null>(
-    null,
-  );
-  const [extensionUiInput, setExtensionUiInput] = useState('');
   const [assemblySummariesByRunId, setAssemblySummariesByRunId] = useState<
     Record<string, import('@piwin/contracts').ContextSummaryPush>
-  >({}); /**
-   * React state can lag behind a push while an extension-ui resolve is in
-   * flight. Keep the latest request synchronously so an old resolve cannot
-   * clear the next questionnaire page.
-   */
-  const extensionUiRequestRef = useRef<ExtensionUiRequestState | null>(null);
-
-  const clearExtensionUiRequest = useCallback((requestId?: string): boolean => {
-    const currentRequest = extensionUiRequestRef.current;
-    if (requestId !== undefined && currentRequest?.requestId !== requestId) {
-      return false;
-    }
-    extensionUiRequestRef.current = null;
-    setExtensionUiRequest(null);
-    setExtensionUiInput('');
-    return true;
-  }, []);
+  >({});
+  const extensionUi = useExtensionUiRequests(args.activeSessionId);
+  const { showExtensionUiRequest, clearExtensionUiRequestForSession } = extensionUi;
 
   useEffect(() => {
     const { hostClient, dispatch } = args;
@@ -370,10 +344,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           type: 'run/terminal',
           run: message.run,
         });
-        const currentExtensionUiRequest = extensionUiRequestRef.current;
-        if (currentExtensionUiRequest?.sessionId === message.run.sessionId) {
-          clearExtensionUiRequest(currentExtensionUiRequest.requestId);
-        }
+        clearExtensionUiRequestForSession(message.run.sessionId);
         return;
       }
       // Job lifecycle pushes are top-level HostPush variants, not AgentEvent
@@ -590,7 +561,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'extension/ui_request') {
-        const nextRequest: ExtensionUiRequestState = {
+        showExtensionUiRequest({
           sessionId: message.sessionId,
           requestId: message.requestId,
           kind: message.kind,
@@ -598,10 +569,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           ...(message.message !== undefined ? { message: message.message } : {}),
           ...(message.options !== undefined ? { options: message.options } : {}),
           ...(message.placeholder !== undefined ? { placeholder: message.placeholder } : {}),
-        };
-        extensionUiRequestRef.current = nextRequest;
-        setExtensionUiRequest(nextRequest);
-        setExtensionUiInput('');
+        });
         return;
       }
       if (message.type === 'extension/deployment-updated') {
@@ -918,11 +886,11 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     activePet,
     setActivePet,
     sessionPlan,
-    extensionUiRequest,
-    setExtensionUiRequest,
-    extensionUiInput,
-    setExtensionUiInput,
-    clearExtensionUiRequest,
+    extensionUiRequest: extensionUi.extensionUiRequest,
+    extensionUiQuestionSessionIds: extensionUi.extensionUiQuestionSessionIds,
+    extensionUiInput: extensionUi.extensionUiInput,
+    setExtensionUiInput: extensionUi.setExtensionUiInput,
+    clearExtensionUiRequest: extensionUi.clearExtensionUiRequest,
     assemblySummariesByRunId,
     configuredChatModels,
     remoteCatchUpEpoch,

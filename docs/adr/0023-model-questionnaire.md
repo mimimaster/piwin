@@ -28,6 +28,10 @@ and diverge CLI/Desktop handling (AGENTS.md §5: no parallel logic).
    Composer input, while `input` requests (including questionnaire `Other`)
    reuse the main Composer textarea. Stop stays available alongside the
    question and continues through the existing abort command. No new IPC.
+   Pending questions are held per asking session (one per session, newest
+   wins); only the active session's question renders in the Composer, and a
+   background session's question surfaces through attention badges until the
+   user switches to it. Typed `input` answers stay with their own request.
 3. **CLI uses a Node-stdlib TTY handler on stderr.** `piwin chat` wires
    `createCliExtensionUiRequestHandler` into the existing
    `onExtensionUiRequest` seam on `createAgentHost`. Prompts render to

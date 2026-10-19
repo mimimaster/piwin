@@ -129,7 +129,7 @@ function defaultArgs(
     dispatch: vi.fn(),
     locale: 'zh-CN',
     hostStatus: { ready: true },
-    extensionUiRequest: null,
+    extensionUiQuestionSessionIds: [],
     overlayOpen: false,
     activeSubPage: null,
     dockingEnabled: false,

@@ -51,7 +51,8 @@ export type DesktopAttentionArgs = {
   dispatch: Dispatch<ChatUiAction>;
   locale: DesktopLocale;
   hostStatus?: { ready?: boolean } | null;
-  extensionUiRequest?: { sessionId: string } | null;
+  /** Sessions waiting on an extension-ui question, active or not. */
+  extensionUiQuestionSessionIds?: ReadonlyArray<string>;
   /** An overlay drawer (sessions or inspector) currently sits over the stage. */
   overlayOpen: boolean;
   activeSubPage: string | null | undefined;
@@ -105,6 +106,8 @@ function visibleKey(sessionIds: readonly string[], conversationCovered: boolean)
   return `${conversationCovered ? '1' : '0'}:${sessionIds.join(',')}`;
 }
 
+const NO_QUESTION_SESSIONS: ReadonlyArray<string> = [];
+
 export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | null {
   const {
     hostClient,
@@ -112,7 +115,7 @@ export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | 
     dispatch,
     locale,
     hostStatus,
-    extensionUiRequest,
+    extensionUiQuestionSessionIds = NO_QUESTION_SESSIONS,
     overlayOpen,
     activeSubPage,
     settingsOpen = false,
@@ -352,7 +355,7 @@ export function useDesktopAttention(args: DesktopAttentionArgs): ReactElement | 
     completedAttentionSessionIds: state.completedAttentionSessionIds,
     failedAttentionSessionIds: state.failedAttentionSessionIds,
     permissionQueue: state.permissionQueue,
-    questionSessionId: extensionUiRequest?.sessionId ?? null,
+    questionSessionIds: extensionUiQuestionSessionIds,
   });
   const attentionKey = attentionSessionIds.join(',');
   useEffect(() => {

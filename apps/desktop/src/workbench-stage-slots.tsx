@@ -58,7 +58,7 @@ export function WorkbenchStageLayer(props: WorkbenchStageLayerProps) {
   const { openSessionFromShell, handleCreatePaneConversation } = props;
   const { activeSubPage, desktopLocale, layoutMode, settingsOpen } = chrome;
   const { rightPanelOpen, rightPanelTab, showOverlayScrim } = chrome;
-  const { activeSessionName, artifactThemeKey, config, extensionUiRequest } = model;
+  const { activeSessionName, artifactThemeKey, config, extensionUiQuestionSessionIds } = model;
   const { handleOpenArtifactCanvas, handleOpenDocument, handleResumeSession } = model;
   const { fileBrowseRoot, hostStatus, readTranscriptMedia, recentProjects } = model;
   return (
@@ -75,7 +75,7 @@ export function WorkbenchStageLayer(props: WorkbenchStageLayerProps) {
         dispatch={dispatch}
         locale={desktopLocale}
         hostStatus={hostStatus}
-        extensionUiRequest={extensionUiRequest}
+        extensionUiQuestionSessionIds={extensionUiQuestionSessionIds}
         overlayOpen={showOverlayScrim}
         activeSubPage={activeSubPage}
         settingsOpen={settingsOpen}
