@@ -7,6 +7,7 @@ import type {
   AuthStatusData,
   HostPush,
   PiwinConfig,
+  ModelDiscoveryResult,
   SettingsApplyResult,
   SubscriptionAccount,
 } from '@piwin/contracts';
@@ -39,6 +40,7 @@ import { rewriteChannelModelRefs } from './rewrite-channel-model-refs.js';
 import { buildSubscriptionAccounts, findCollidingChannelId, oauthProviderIds } from './subscription-account-status.js';
 import { applyDevinLogoutWebSearch, applySubscriptionLoginDefaults } from './subscription-login-defaults.js';
 import { buildExtensionProviderSnapshot } from './extension-provider-snapshot.js';
+import { refreshExtensionModelCatalog } from './extension-model-catalog-refresh.js';
 import { projectPublicModelProviders } from './extension-model-provider-projection.js';
 import {
   ensureSubscriptionProviders,
@@ -90,6 +92,7 @@ const LIVE_ACCOUNT_STATES = new Set(['logged-in', 'logging-in', 'sync-error', 'n
 
 export class SubscriptionAuthService {
   private port: SubscriptionAuthPort | undefined;
+  private portCreation: Promise<SubscriptionAuthPort> | undefined;
   private portExtensionFingerprint: string | undefined;
   /** Last enabled extension claims; sync callers (reauth, prompts) read this. */
   private extensionProviders: readonly SubscriptionExtensionProvider[] = [];
@@ -160,6 +163,7 @@ export class SubscriptionAuthService {
         extensionProviders: (await this.readExtensionProviders()).map((provider) => ({
           providerId: provider.providerId,
           entryPath: provider.entryPath,
+          kind: provider.kind ?? 'auth',
         })),
       }));
   }
@@ -232,6 +236,13 @@ export class SubscriptionAuthService {
 
   usableSubscriptionProviderIds(): string[] {
     return [...this.lastOauthProviderIds];
+  }
+
+  async discoverExtensionModels(providerId: string): Promise<ModelDiscoveryResult> {
+    return refreshExtensionModelCatalog(providerId, {
+      port: await this.ensurePort(), claims: this.extensionProviders,
+      config: await this.loadConfig(), project: () => this.projectLoggedInProviders(),
+    });
   }
 
   async refreshProvider(providerId: string): Promise<void> {
@@ -974,7 +985,8 @@ export class SubscriptionAuthService {
         this.portExtensionFingerprint = sources.map((source) => source.entryPath).join('|');
         this.extensionProjectionPending = sources.length > 0;
       }
-      this.port = await this.portFactory();
+      this.portCreation ??= this.portFactory().then((port) => { this.port = port; return port; }).finally(() => { this.portCreation = undefined; });
+      this.port = await this.portCreation;
       this.startWatch();
     }
     return this.port;

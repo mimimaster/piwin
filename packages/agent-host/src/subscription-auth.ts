@@ -157,6 +157,7 @@ type PiModelRuntimeLike = {
 };
 
 export type SubscriptionExtensionEntry = {
+  kind?: 'auth' | 'model';
   providerId: string;
   entryPath: string;
 };
@@ -371,7 +372,7 @@ async function createDefaultRuntime(
   }
   const runtime = await piModule.ModelRuntime.create({
     authPath,
-    ...(modelsPath !== undefined ? { modelsPath } : {}),
+    modelsPath: modelsPath ?? join(dirname(authPath), 'models.json'),
     ...SUBSCRIPTION_RUNTIME_CREATE_OPTIONS,
   });
   if (typeof runtime.registerProvider === 'function') {
@@ -410,6 +411,16 @@ async function createDefaultRuntime(
         if (typeof name === 'string' && name.trim()) {
           providerNames.set(registration.name, name.trim());
         }
+      }
+      // Complete offline registration before the first live public-provider pull.
+      await runtime.refresh({ allowNetwork: false, providers: [...claimedIds] });
+      const publicIds = extensionProviders.filter((entry) => entry.kind === 'model').map((entry) => entry.providerId);
+      if (publicIds.length > 0) {
+        const result = await runtime.refresh({
+          providers: publicIds, allowNetwork: true,
+          signal: AbortSignal.timeout(LIVE_CATALOG_REFRESH_TIMEOUT_MS),
+        });
+        for (const error of readRefreshErrors(result)) console.warn('[piwin-host] public model discovery failed', error);
       }
     }
   }
@@ -475,7 +486,8 @@ function readRefreshErrors(result: unknown): string[] {
   if (!result || typeof result !== 'object') {
     return [];
   }
-  const errors = (result as { errors?: unknown }).errors;
+  const rawErrors = (result as { errors?: unknown }).errors;
+  const errors = rawErrors instanceof Map ? [...rawErrors.values()] : rawErrors;
   if (!Array.isArray(errors)) {
     return [];
   }

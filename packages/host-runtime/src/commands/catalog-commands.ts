@@ -16,6 +16,7 @@ import {
   createDefaultWebConfig,
   formatError,
   isMediaThumbEdge,
+  isExtensionProvider,
   modelSupportsCapability,
   projectConfiguredChatModels,
 } from '@piwin/contracts';
@@ -657,6 +658,11 @@ export async function handleCatalogCommand(
     }
     case 'models/discover': {
       try {
+        if (isExtensionProvider(command.provider)) {
+          const { getSubscriptionAuthService } = await import('./auth-commands.js');
+          const result = await getSubscriptionAuthService(context).discoverExtensionModels(command.provider.id);
+          return ok(requestId, 'models/discover', result);
+        }
         // Host owns secrets. Remote shells send a stripped provider row; pull
         // the stored ref from this Host's config and resolve it here.
         const probe = await prepareProviderProbe({

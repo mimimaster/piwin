@@ -53,3 +53,11 @@ A collision with a user-owned channel or subscription rejects only the public co
 - Enabled provider extensions run with Host user permissions, including when Pi loads them for the OAuth page.
 - Uninstalling or disabling a provider extension removes its card and model projection at the next Host status reconciliation. Stored credentials remain in the Host auth file until sign-out.
 - The registry can be redirected by the Host's `PIWIN_EXTENSION_REGISTRY_URL` environment variable for a private or self-hosted index.
+
+### Amendment: dynamic public-provider model catalogs (2026-10-19)
+
+Public extensions may use Pi's existing `refreshModels` hook instead of static model registrations. On creation of the enabled public-provider catalog runtime, Host actively refreshes the claimed providers once before model projection. Install/enable catalog publication triggers that initialization; inactive installations remain unexecuted. Concurrent first readers share runtime construction. Provider networking and filtering stay in the independent package.
+
+The existing `models/discover` command routes public-extension rows to their owner runtime and applies the replacement catalog through the settings queue. It never uses the synthetic `extension://` origin as an HTTP endpoint or trusts shell-supplied transport details. Desktop exposes Fetch models and applies this replacement without a BYOK import dialog; manually invented extension models remain unavailable.
+
+For Zen, the owner requires an empty initial list, no model-ID allowlist, and empty publication after any failed/empty live fetch. Its extension persists fetched results through Pi ModelsStore for offline SDK/RPC initialization; a failed live check overwrites that snapshot with an empty catalog. Runtime storage defaults derive from the Host-owned auth path, never from native Pi inventory. Other providers keep their own refresh and persistence policies.

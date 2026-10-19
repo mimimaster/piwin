@@ -227,6 +227,7 @@ export function ProviderModelList({
         });
         return;
       }
+      if (isExtensionProvider(provider)) return;
       setDiscovered(result.models);
       setDiscoverOpen(true);
     } catch {
@@ -275,7 +276,7 @@ export function ProviderModelList({
               {anyEnabled ? t.disableAll : t.enableAll}
             </Button>
           ) : null}
-          {subscription || manualModelsOnly ? null : (
+          {isSubscriptionProvider(provider) || manualModelsOnly ? null : (
             <Button
               size="compact"
               variant="ghost"
@@ -314,7 +315,7 @@ export function ProviderModelList({
 
       <div className="pmodel-list" data-testid="provider-model-list">
         {provider.models.length === 0 ? (
-          <p className="pmodel-empty">{isExtensionProvider(provider) ? (isChinese ? '扩展暂未提供可用模型。' : 'The extension provides no models yet.') : subscription ? t.emptySubscription : manualModelsOnly ? t.emptyManual : t.empty}</p>
+          <p className="pmodel-empty">{isExtensionProvider(provider) ? (isChinese ? '未拉取到可用模型。点击「拉取模型」重试。' : 'No models were fetched. Use Fetch models to retry.') : subscription ? t.emptySubscription : manualModelsOnly ? t.emptyManual : t.empty}</p>
         ) : null}
         {displayedModels.map((model) => {
           const isDefaultModel = model.id === defaultModelId;
