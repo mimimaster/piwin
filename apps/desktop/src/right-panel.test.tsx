@@ -15,6 +15,8 @@ import { RIGHT_PANEL_STATE_STORAGE_KEY, writeStoredRightPanelState } from './rig
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import { SubAgentPanel } from './SubAgentPanel';
 import { MAX_RECENT_TASK_ITEMS } from './subagent-tasks-overview';
+import { writeSessionKeyedValue } from './session-keyed-memory';
+import { RIGHT_PANEL_TABS_BY_SESSION_STORAGE_KEY } from './use-right-panel-follows-session';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -961,5 +963,44 @@ describe('RightPanel multi-tab', () => {
       MAX_RECENT_TASK_ITEMS,
     );
     expect(container.textContent).toContain('Still working');
+  });
+
+  it('restores a session tab through onTabRestore so a collapsed panel stays collapsed', () => {
+    writeSessionKeyedValue(RIGHT_PANEL_TABS_BY_SESSION_STORAGE_KEY, 'session-b', {
+      openTabs: ['files'],
+      activeTab: 'files',
+    });
+    const onTabChange = vi.fn();
+    const onTabRestore = vi.fn();
+    const panel = (sessionId: string) => (
+      <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+        <RightPanel
+          open={false}
+          onOpen={() => {}}
+          onClose={() => {}}
+          activeTab={null}
+          onTabChange={onTabChange}
+          onTabRestore={onTabRestore}
+          layoutSessionId={sessionId}
+          panelWidthPx={320}
+          isResizing={false}
+          onResizePointerDown={() => {}}
+          onResizeReset={() => {}}
+          filesContent={<div data-testid="files-body">files</div>}
+          terminalContent={<div data-testid="terminal-body">terminal</div>}
+          reviewContent={<div data-testid="review-body">review</div>}
+        />
+      </PiwinUiProvider>
+    );
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    const mountedRoot = createRoot(container);
+    root = mountedRoot;
+    act(() => mountedRoot.render(panel('session-a')));
+    act(() => mountedRoot.render(panel('session-b')));
+
+    expect(onTabRestore).toHaveBeenCalledWith('files');
+    expect(onTabChange).not.toHaveBeenCalled();
+    window.localStorage.removeItem(RIGHT_PANEL_TABS_BY_SESSION_STORAGE_KEY);
   });
 });

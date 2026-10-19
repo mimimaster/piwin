@@ -66,6 +66,11 @@ export type RightPanelProps = {
   activeTab: RightPanelTab | null;
   onTabChange: (tab: RightPanelTab | null) => void;
   /**
+   * A session switch restored this tab. Selects it without opening or closing
+   * the panel; omitted: falls back to `onTabChange`.
+   */
+  onTabRestore?: ((tab: RightPanelTab | null) => void) | undefined;
+  /**
    * The + menu and the empty launcher asked for one more instance of a tool.
    * A host that owns the tool's surface (docking) handles it; otherwise the
    * panel opens the tab itself.
@@ -202,7 +207,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     openTabs,
     activeTab: props.activeTab,
     setOpenTabs,
-    onTabChange: props.onTabChange,
+    onTabChange: props.onTabRestore ?? props.onTabChange,
     keepsTab,
   });
 

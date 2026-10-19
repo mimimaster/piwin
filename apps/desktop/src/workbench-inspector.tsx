@@ -295,6 +295,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               shell.openInspector(tab);
             }
           }}
+          onTabRestore={shell.setInspectorTab}
           panelWidthPx={rightPanelResize.widthPx}
           isResizing={rightPanelResize.isResizing}
           onResizePointerDown={rightPanelResize.onResizePointerDown}
