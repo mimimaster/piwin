@@ -30,7 +30,7 @@
         "shadow": true,
         "transparent": true,
         "windowEffects": {
-          "effects": ["sidebar"],
+          "effects": ["sidebar", "mica"],
           "state": "followsWindowActiveState"
         },
         "titleBarStyle": "Overlay",

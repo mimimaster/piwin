@@ -3,7 +3,7 @@ import { DesktopThemeRoot } from './desktop-theme-root';
 import { applyAppearanceToDocument, loadAndRegisterAllCustomFonts } from './appearance-tokens';
 import { resolveStartupAppearance } from './theme-startup';
 import { loadDesktopPreferences } from './ui-preferences';
-import { applyWindowChromeToDocument } from './window-chrome';
+import { applyNativeWindowMaterialToDocument, applyWindowChromeToDocument } from './window-chrome';
 import { installDevelopmentPerformanceTimelineGuard } from './development-performance-timeline';
 import { installArtifactMemoryBridge } from './artifact-memory-bridge';
 import { installMemoryParking } from './memory-parking';
@@ -24,6 +24,9 @@ import './styles.css';
 // frame is not always Noir. Host may still refine custom themes after connect.
 // Once mounted, DesktopThemeRoot is authoritative.
 applyWindowChromeToDocument(document.documentElement);
+// macOS marks synchronously so the startup paint already uses the material;
+// Windows resolves after an OS probe and the mounted theme root re-applies.
+const nativeWindowMaterialReady = applyNativeWindowMaterialToDocument(document.documentElement);
 const startupPreferences = loadDesktopPreferences();
 applyAppearanceToDocument(resolveStartupAppearance(), startupPreferences.customFonts);
 applyWindowMaterialToDocument(document.documentElement, startupPreferences.windowMaterial);
@@ -78,5 +81,7 @@ if (isMobileTauriRuntime()) {
     },
   );
 } else {
-  root.render(<DesktopThemeRoot />);
+  void nativeWindowMaterialReady.finally(() => {
+    root.render(<DesktopThemeRoot />);
+  });
 }

@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  applyNativeWindowMaterialToDocument,
   applyWindowChromeToDocument,
+  isWindowsMicaSupported,
   MACOS_OVERLAY_CLEARANCE_PX,
+  readNativeWindowMaterial,
   resolveWindowChrome,
 } from './window-chrome.js';
 
@@ -76,6 +79,64 @@ describe('applyWindowChromeToDocument', () => {
     applyWindowChromeToDocument(root, 'windows-caption');
     expect(root.dataset.windowChrome).toBe('windows-caption');
     expect(root.dataset.runtime).toBe('tauri');
+  });
+});
+
+describe('native window material', () => {
+  function fakeRoot(): HTMLElement {
+    return { dataset: {} } as HTMLElement;
+  }
+
+  function windowsNavigator(platformVersion: string | undefined) {
+    return {
+      userAgentData: {
+        getHighEntropyValues: async () => (platformVersion === undefined ? {} : { platformVersion }),
+      },
+    };
+  }
+
+  it('detects Windows 11 from the client-hints platform version', async () => {
+    expect(await isWindowsMicaSupported(windowsNavigator('15.0.0'))).toBe(true);
+    expect(await isWindowsMicaSupported(windowsNavigator('13.0.0'))).toBe(true);
+    expect(await isWindowsMicaSupported(windowsNavigator('10.0.0'))).toBe(false);
+    expect(await isWindowsMicaSupported(windowsNavigator(undefined))).toBe(false);
+    expect(await isWindowsMicaSupported({})).toBe(false);
+  });
+
+  it('marks vibrancy synchronously behind the macOS window', () => {
+    const root = fakeRoot();
+    void applyNativeWindowMaterialToDocument(root, 'macos-overlay', {});
+    expect(readNativeWindowMaterial(root)).toBe('vibrancy');
+  });
+
+  it('marks Mica only on Windows 11', async () => {
+    const win11 = fakeRoot();
+    await applyNativeWindowMaterialToDocument(win11, 'windows-caption', windowsNavigator('15.0.0'));
+    expect(readNativeWindowMaterial(win11)).toBe('mica');
+
+    const win10 = fakeRoot();
+    await applyNativeWindowMaterialToDocument(win10, 'windows-caption', windowsNavigator('10.0.0'));
+    expect(readNativeWindowMaterial(win10)).toBeUndefined();
+  });
+
+  it('keeps the window opaque when the version probe fails', async () => {
+    const root = fakeRoot();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await applyNativeWindowMaterialToDocument(root, 'windows-caption', {
+      userAgentData: { getHighEntropyValues: async () => Promise.reject(new Error('denied')) },
+    });
+    expect(readNativeWindowMaterial(root)).toBeUndefined();
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it('has no material on Linux or in a browser tab', async () => {
+    for (const chrome of ['native-frame', 'web'] as const) {
+      const root = fakeRoot();
+      root.dataset.nativeWindowMaterial = 'vibrancy';
+      await applyNativeWindowMaterialToDocument(root, chrome, windowsNavigator('15.0.0'));
+      expect(readNativeWindowMaterial(root)).toBeUndefined();
+    }
   });
 });
 

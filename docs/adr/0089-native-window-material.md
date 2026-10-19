@@ -1,4 +1,4 @@
-# ADR 0089: Native window material on macOS (Inkstone)
+# ADR 0089: Native window material on macOS and Windows 11 (Inkstone)
 
 - **Status**: Accepted
 - **Date**: 2026-10-14
@@ -19,8 +19,11 @@ pressure) and the glass mix flashed white during streaming reflow.
    (`tauri.conf.json` `windowEffects`, `followsWindowActiveState`). The
    window server composites the blur; WebContent pays nothing. The native
    appearance follows the app theme mode (`native-window-appearance.ts`).
-2. **One document flag.** `theme/apply-appearance.ts` sets
-   `html[data-window-material]` only for macOS overlay chrome + Inkstone
+2. **One document flag.** `window-chrome.ts`
+   `applyNativeWindowMaterialToDocument` marks
+   `html[data-native-window-material]` (`vibrancy` on macOS, `mica` on
+   Windows 11); `theme/apply-appearance.ts` then sets
+   `html[data-window-material]` only when that marker is present + Inkstone
    paper/ink. All material CSS hangs off it; other themes and platforms stay
    opaque. Phone layout stays opaque.
 3. **Per-region opacity, user-tunable.** Settings → Appearance → 窗口通透
@@ -58,6 +61,17 @@ pressure) and the glass mix flashed white during streaming reflow.
    fill reads that, so the stage is not thinned twice. Sticky heads that
    occlude scrolling rows keep a 94% fill. Portaled overlays mount on
    `<body>` and keep the overlay glass of decision 5. No blur.
+9. **Windows 11 uses Mica** (owner direction, 2026-10-19). `windowEffects`
+   lists `["sidebar", "mica"]`; Tauri applies only the effect each platform
+   understands. Mica exists only on Windows 11, and on Windows 10 the
+   transparent window has nothing behind it, so the shell probes
+   User-Agent Client Hints (`platformVersion` major >= 13) and stays opaque
+   when the probe fails or reports Windows 10. The probe is async, so
+   `main.tsx` holds the first React render until it settles; the startup
+   paint before that is opaque on Windows. Native light/dark follows the
+   theme mode on both platforms (`native-window-appearance.ts`), which also
+   drives Mica's tint. Acrylic was rejected: it lags window drag/resize on
+   Windows 10.
 
 ## Consequences
 
@@ -69,6 +83,9 @@ pressure) and the glass mix flashed white during streaming reflow.
   dock body paints the glass. It must be a hex alpha: xterm's colour parser
   rejects `transparent` and falls back to opaque #000, which shows as a black
   slab framed by the glass padding. Paper keeps a solid `--term-bg` canvas.
-- `transparent: true` is in the shared window config, so Windows also gets
-  a transparent window with opaque content; not yet verified on Windows.
+- `transparent: true` is in the shared window config, so Windows 10 gets a
+  transparent window with opaque content. Mica on Windows 11 reuses the
+  macOS region defaults; it tints from the wallpaper rather than showing the
+  windows behind, and goes solid when the window is inactive. Neither has
+  been verified on a Windows machine yet.
 - Paper (light) theme has not been verified against the native window.

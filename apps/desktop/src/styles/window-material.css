@@ -1,8 +1,9 @@
-/* Native window material — macOS desktop, Inkstone faces only
+/* Native window material — macOS / Windows 11 desktop, Inkstone faces only
    (`html[data-window-material]`, set by theme/apply-appearance.ts).
 
-   The main window is created transparent with an NSVisualEffectView behind
-   the WebView (tauri.conf.json `windowEffects`). The blur is composited by
+   The main window is created transparent with an NSVisualEffectView (macOS)
+   or Mica (Windows 11) behind the WebView (tauri.conf.json `windowEffects`).
+   The blur is composited by
    the system, so it costs no WebContent IOSurfaces — unlike CSS
    backdrop-filter, which memory-degradation.css has to strip under pressure
    and renderer-resource-boundaries.test.ts whitelists.

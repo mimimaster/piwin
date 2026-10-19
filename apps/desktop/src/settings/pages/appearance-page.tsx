@@ -16,7 +16,7 @@ import { AppearanceCustomFonts } from './appearance-custom-fonts.js';
 import { AppearanceModeControl, getAppearanceThemeSettings } from './appearance-theme-controls.js';
 import { AppearanceWindowMaterial } from './appearance-window-material.js';
 import { applyCustomFontsToDocument } from '../../theme/font-manager.js';
-import { readWindowChromeFromEnvironment } from '../../window-chrome.js';
+import { readNativeWindowMaterial } from '../../window-chrome.js';
 import { DEFAULT_WINDOW_MATERIAL_OPACITY } from '../../window-material-preferences.js';
 
 function updatePreference<K extends keyof DesktopPreferences>(
@@ -124,9 +124,9 @@ export function AppearancePage(): ReactElement {
         </FieldRow>
       </section>
 
-      {/* The material only exists behind the macOS window; elsewhere these
-          sliders would move nothing. */}
-      {readWindowChromeFromEnvironment() === 'macos-overlay' && !themePackageActive ? (
+      {/* The material only exists behind the macOS / Windows 11 window;
+          elsewhere these sliders would move nothing. */}
+      {readNativeWindowMaterial() !== undefined && !themePackageActive ? (
         <AppearanceWindowMaterial
           preferences={preferences}
           onChange={onPreferencesChange}

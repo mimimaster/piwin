@@ -394,8 +394,10 @@ export function applyAppearanceToDocument(
   root.dataset.themeVisualStyle = theme.visualStyle ?? 'flat';
   root.style.colorScheme = theme.mode;
   // The native window material (styles/window-material*.css) is tuned for the
-  // Inkstone faces behind the macOS window only; everything else stays opaque.
-  if (root.dataset.windowChrome === 'macos-overlay' && INKSTONE_DOCUMENT_THEME_IDS.has(theme.id)) {
+  // Inkstone faces over a native material (macOS vibrancy, Windows 11 Mica)
+  // only; everything else stays opaque. The marker is written by
+  // window-chrome.ts `applyNativeWindowMaterialToDocument`.
+  if (root.dataset.nativeWindowMaterial !== undefined && INKSTONE_DOCUMENT_THEME_IDS.has(theme.id)) {
     root.dataset.windowMaterial = 'on';
   } else {
     delete root.dataset.windowMaterial;
