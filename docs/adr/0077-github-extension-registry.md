@@ -71,3 +71,13 @@ Host prepares bundled extensions before public-provider discovery, including sta
 Public `modelProvider` claims may include an optional plain-text `notice` (nonempty, at most 4096 characters). Host projects the current manifest name and notice, plus bundled provenance, into provider settings; manifest branding replaces names cached by older versions. Shells render the supplied notice as plain text, preserve it during settings edits, and label built-in providers accordingly. The Zen title is **OpenCode Zen**, with the owner-supplied IP availability guidance replacing the generic extension paragraph. Existing model toggles, limits, defaults and provider enablement are preserved.
 
 The built-in has no static model catalog or fallback model limits. First activation still initiates a live fetch; failed or empty discovery still replaces the visible and stored catalog with zero models. No paid-key mode or automatic public-model selection is added.
+
+Built-in version 0.3.1 corrects a Chat failure when the model selects a required
+protocol-only `bash`/`read` declaration absent from the session's actual tools.
+The extension rejects the entire batch without execution and permits one
+corrective completion carrying error results and the actual available tool names.
+Tool events remain held until the batch is validated; preceding text continues
+streaming, and usage includes both requests. Repeated invalid calls and unrelated
+unknown tools remain errors. This grants no shell/filesystem capability to Chat
+and does not retry HTTP, entitlement, or quota failures. The shared provider path
+applies to SDK and RPC on all platforms.
