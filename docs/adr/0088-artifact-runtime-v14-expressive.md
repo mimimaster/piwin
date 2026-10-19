@@ -333,3 +333,18 @@ supersedes the control list in item 9 for the Canvas surface.
     and its exit button and uses the same width toggle with 1200 added.
 28. **Mobile shell.** Still fullscreen only; it keeps the button because it
     has no keyboard for F.
+
+## Amendment (2026-10-19): Compact resident instructions
+
+The owner requested a much smaller Artifact prompt. The resident decision policy
+and fence contract are now 1,428 characters (22 lines), down from 11,936, with a
+2,000-character regression budget including product restriction prefixes.
+This supersedes the prompt placement described in §5 and later kit additions;
+renderer rules, theme tokens and stored-fence compatibility are unchanged.
+
+Detailed rendering guidance and the complete report/diagram/component/chart/viz
+reference are delivered only by `artifact_instructions`. Its response no longer
+repeats the resident policy or protocol. Basic reports use semantic HTML inside
+`piwin-report` and the existing sandbox stylesheet; charts and interactions reuse
+the existing runtime JavaScript APIs. No new executor, wire type or dependency
+is introduced. See [ADR 0029](./0029-artifact-surface-routing.md#0-compact-resident-protocol-detailed-reference-on-demand).

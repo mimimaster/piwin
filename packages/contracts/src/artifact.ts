@@ -3,10 +3,10 @@
  * shared across packages. Renderer runtime lives in @piwin/artifact.
  */
 
-import { formatArtifactComponentKit, formatArtifactComponentKitReference } from './artifact-component-kit.js';
-import { formatArtifactDiagramKit, formatArtifactDiagramKitReference } from './artifact-diagram-kit.js';
-import { formatArtifactReportKit } from './artifact-report-kit.js';
-import { formatArtifactVizKit, formatArtifactVizKitReference } from './artifact-viz-kit.js';
+import { formatArtifactComponentKitReference } from './artifact-component-kit.js';
+import { formatArtifactDiagramKitReference } from './artifact-diagram-kit.js';
+import { formatArtifactRenderingReference } from './artifact-rendering-reference.js';
+import { formatArtifactVizKitReference } from './artifact-viz-kit.js';
 
 // ---------------------------------------------------------------------------
 // Artifact configuration (PiwinConfig.artifact)
@@ -138,7 +138,7 @@ export const NATIVE_SVG_ARTIFACT_LANGUAGES = ['svg'] as const;
 
 export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
 
-/** Host tool that returns the decision policy + runtime contract on demand. */
+/** Host tool that returns detailed authoring and built-in kit references on demand. */
 export const ARTIFACT_INSTRUCTIONS_TOOL_NAME = 'artifact_instructions' as const;
 
 /**
@@ -158,6 +158,7 @@ export function formatArtifactKitReference(): string {
   return [
     '[piwin-artifact-kit version="1"]',
     'Local built-ins, no network. Use only when they help; plain HTML/SVG stays fine.',
+    ...formatArtifactRenderingReference(),
     `Icons: \`<i data-piwin-icon="NAME" data-size="16"></i>\` (stroke = currentColor; size 8–96). Names: ${ARTIFACT_KIT_V1_ICONS.join(' ')}.`,
     'Charts: `<figure data-piwin-chart="bar|hbar|line|donut|stack|spark">` holding `<script type="application/json">` with {"labels": [..], "series": [{"name": "..", "values": [..], "tone": "ok"}], "tones": [..], "unit": "ms", "min": n, "max": n, "height": px, "values": true, "area": true, "center": "96%", "centerLabel": "passed"}. Always add a `<figcaption>` that states the takeaway in words; it stays readable if the chart cannot draw.',
     '- bar: grouped bars per label on a value axis; values print above the bars when there are few. hbar: one row per label with the label on the left and the value on the right — the choice for rankings and long category names. line: one line per series; a single series gets a soft area fill and its latest value. donut: first series as parts of `labels`, legend with shares beside it, optional `center` / `centerLabel`. stack: one bar split into the shares of `labels`, for composition in a single row. spark: tiny inline trend.',
@@ -175,10 +176,10 @@ export function formatArtifactKitReference(): string {
 /** Trigger constraint prefixed onto instructions whenever triggerMode is explicit-only. */
 /** Prefixed onto instructions when `artifact.styleModes` is `host-only`. */
 export const ARTIFACT_HOST_STYLE_ONLY_HINT =
-  'Expressive style is off for this Host: every artifact fence uses `style="host"`.';
+  'Only `style="host"` is available.';
 
 export const ARTIFACT_EXPLICIT_ONLY_HINT =
-  'Use an Artifact only when the user explicitly requests an artifact, visualization, interactive page, prototype, or UI.';
+  'Use Artifacts only when explicitly requested (artifact, visualization, interactive page, prototype or UI); otherwise use Markdown.';
 
 /**
  * Surface constraint prefixed onto instructions when the session's scope keeps
@@ -186,14 +187,14 @@ export const ARTIFACT_EXPLICIT_ONLY_HINT =
  * product constraint, not part of the editable decision prompt.
  */
 export const ARTIFACT_INLINE_ONLY_HINT =
-  'Artifact surfaces for this session: Inline only (the right-side Canvas panel is unavailable). Every artifact is an Inline `artifact-html`/`svg` fence without a `surface` attribute, and the Canvas rules in the decision policy are inactive. Use Inline when a visualization helps, otherwise answer in Markdown.';
+  'Inline only: omit `surface`; Canvas is unavailable. Ignore Canvas routing below.';
 
 /**
  * Surface constraint prefixed onto instructions when the session's scope keeps
  * only the Canvas surface.
  */
 export const ARTIFACT_CANVAS_ONLY_HINT =
-  'Artifact surfaces for this session: Canvas only (the chat-column Artifact preview is unavailable). Every artifact declares `surface="canvas"`: standalone deliverables go there, and everything else stays ordinary Markdown.';
+  'Canvas only: declare `surface="canvas"` for standalone deliverables; otherwise use Markdown.';
 
 /**
  * Shipped per-scope surface switches.
@@ -284,41 +285,10 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
  * Users can replace this via `decisionPrompt.mode = 'custom'`.
  */
 export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
-  '[piwin-prompt-meta kind="artifact:decision" version="14" applies="artifacts-enabled"]',
-  '<artifact-decision-policy name="piwin-proactive-surfaces">',
   '## Decision Criteria',
-  'Choose the presentation that lets the reader scan, understand, search, copy, compare, and reuse the information.',
-  'Use an Artifact for structured or information-dense content even without an explicit UI request: compact, grouped or interactive content reads better than a Markdown wall of text.',
-  '',
-  'You choose the form, and the content decides it: a flow for steps, a swimlane for handoffs between actors, a timeline for dated events, a tree for hierarchy, a matrix for items × attributes, a chart for quantities, an SVG diagram or a layout of your own for everything else. Cards suit a few parallel, independent items. Mix forms freely in one artifact; a form that matches the content is what makes it clear at a glance.',
-  '',
-  'Dense and clear at once: the first screen states the conclusion and shows the one figure that explains it. Text sits directly on the page, grouped by whitespace and hairline rules; a box marks the one thing that stands apart, so a step, a cell or a number stays plain text. Each step or cell is a short phrase (about 12 CJK characters or 6 words) and details go to a table or `small` beneath it. Color marks status and handoffs; everything else stays neutral.',
-  '',
-  'Choose the surface by **user intent**, not response length. Canvas (`surface="canvas"`) is a workspace beside the conversation, and a standalone analytical deliverable belongs there: architecture reviews, plan reviews, code-base or design reviews, security audits, delivery reports, findings write-ups, quantitative breakdowns, timelines, large comparison tables. When an answer is heading toward a long Markdown document or a large Markdown table, make it a Canvas.',
-  'Unprompted artifacts use `style="host"`.',
-  '',
-  '### 1. Ordinary Markdown (default for simple text)',
-  '- Short answers (1–2 paragraphs), direct code explanations, debugging, or simple snippets.',
-  '- The user asks for plain text, Markdown, source code, raw HTML, or a code snippet.',
-  '- The user asks to explain, debug, teach, or comment on a specific code snippet and a plain reply serves them.',
-  '- The user asks to fix code, implement a change, or produce a patch/PR: the code is the deliverable.',
-  '- A small list or simple table is clearer than an Artifact.',
-  '',
-  '### 2. Inline Artifact (`artifact-html` without surface attr)',
-  'Default Artifact surface when the result fits in the conversation.',
-  '- Cheatsheets, command summaries, reference guides, comparisons, comparative tables, matrices, timelines, catalogs, checklists, categorized overviews.',
-  '- Many items, or content that benefits from search, filtering, copying, sorting, tabs, accordions, or grouping.',
-  '- Dense content that is hard to scan in Markdown; answers users will save, revisit, compare, or reuse.',
-  'When the answer sits between a long Markdown block and a compact searchable Artifact, choose the Artifact.',
-  '',
-  '### 3. Canvas Artifact (`artifact-html` with `surface="canvas"`)',
-  'Canvas is the right-side workspace panel. Use it for work the user reads or operates as a document or workspace.',
-  '- Full app/page prototypes, multi-step flows with local state, interactive tools/calculators, dashboards that need a wide workspace.',
-  '- A coordinated workspace or result that stays beside the conversation, or a layout that needs sustained width.',
-  '- Standalone reports and reviews: architecture / plan / design / code-base reviews, audits, delivery reports, findings. Give them a scannable hierarchy — status, grouped findings, comparisons, diagrams. The Report Kit is the quickest route. Ordinary in-thread comments on a specific snippet stay Markdown.',
-  '- Content already written to a file this turn: the Canvas shows what the text cannot at a glance — conclusions, status, key comparisons — and points to the file for the full text.',
-  'Declaring `surface="canvas"` is all it takes: it opens the right workspace automatically.',
-  '</artifact-decision-policy>',
+  'Use Markdown for short answers, code explanations, debugging, patches or requested source.',
+  'Use Artifacts proactively when a diagram, structured comparison or interaction helps.',
+  'Inline: content read in the conversation. Canvas: standalone reports, reviews, audits, prototypes or tools. Choose by user intent, not length.',
 ].join('\n');
 
 /**
@@ -345,77 +315,25 @@ export function resolveArtifactDecisionPrompt(config: ArtifactConfig): string {
  * may emit is `artifact-html`. Parser-input aliases stay out of prompts.
  */
 export function formatArtifactProtocol(): string {
-  const fenceClose = '```';
-  const inlineOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" style="host"`;
-  const canvasOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" surface="canvas" style="host"`;
-  const svgOpen = '```svg title="Short descriptive title" style="host"';
+  const fence = '```';
   return [
-    '[piwin-prompt-meta kind="artifact:runtime" version="17" applies="artifacts-enabled"]',
     '## HTML Artifact Runtime Contract',
-    '',
-    '### Success',
-    'A self-contained artifact fence that renders correctly in the chat column sandbox.',
-    '',
-    '### Fences',
-    'The opening fence starts at column 0 of its own line and carries `title`, `surface` and `style` together on that one line. The HTML/SVG body follows. The closing fence sits alone on its own line. Put a line break between a sentence and the opening fence, because the parser only recognizes a fence that begins a line. An artifact is always a Markdown code fence; XML-style wrapper tags are not an artifact format.',
-    '',
-    'Inline:',
-    inlineOpen,
-    '<!-- body fragment: HTML/CSS + optional small inline JS -->',
-    fenceClose,
-    '',
+    'Artifacts use Markdown code fences, never XML wrapper tags. Fence markers start on their own lines at column 0; opening attributes stay on that line. Keep prose outside.',
+    'Inline (omit surface):',
+    `${fence}${CANONICAL_ARTIFACT_LANGUAGE} title="Title" style="host"`,
+    '<main class="piwin-report">...</main>',
+    fence,
     'Canvas:',
-    canvasOpen,
-    '<!-- self-contained HTML/CSS + optional small inline JS -->',
-    fenceClose,
-    '',
-    'SVG:',
-    svgOpen,
-    '<!-- self-contained SVG, all assets inline -->',
-    fenceClose,
-    '',
-    'Example reply (prose, blank line, fence opening, body, fence closing, prose):',
-    '````text',
-    'The three checks compare like this:',
-    '',
-    '```artifact-html title="Check comparison" style="host"',
-    '<div class="cmp"><style>.cmp{width:100%;color:var(--piwin-artifact-text)}</style>',
-    '<p>…</p></div>',
-    fenceClose,
-    '',
-    'The second check is the one that fails.',
-    '````',
-    '',
-    '### Rendering rules (the sandbox depends on these)',
-    '- Style: every fence declares `style="host"`. `style="expressive"` is for when the user asks for a look, prototype, game, or poster; reports and unprompted artifacts use `host`.',
-    '- Colors: take every color from the `--piwin-artifact-*` vars, so the artifact follows the host theme in light and dark: `bg surface surface-2 text muted subtle accent accent-2 on-accent border border-strong`, status `ok warn info risk` (`risk` marks real problems), charts `series-1`…`series-6`. This list is the complete set. Literal hex/rgb belongs to expressive illustrations. Text uses `text`/`muted`/`subtle`/status, or `on-accent` on a solid fill; `bg` and `surface*` are backgrounds. Tint: `color-mix(in srgb, var(--piwin-artifact-<c>) 12%, transparent)`. Floating layers (sticky bar, toast, popover) use `surface`.',
-    '- Inline code & tokens: neutral `color-mix(in srgb, var(--piwin-artifact-text) 8%, transparent)` background with `var(--piwin-artifact-text)` text; red tones are reserved for errors and diff deletions. Badges: muted for inactive/hidden, accent for ready/visible, amber for estimate/progress.',
-    '- Host theme: follow the send-time `light`/`dark` hint in every style, expressive stages and cards included: a light host gets a light design and a dark host a dark one, unless the user asks for the opposite mode. Without a hint, theme vars cover both modes.',
-    '- Host tone: flat and quiet. Whitespace and hairline `border` rules group content; a box (`surface`, `radius-sm`/`radius-lg`) is for the one thing that stands apart, and `shadow-1`/`shadow-2` belong to floating layers (sticky bar, popover, toast). Title hierarchy by size and weight in `--piwin-artifact-font`, the host font throughout; surfaces are solid and matte; labels are plain text.',
-    '- Expressive: an inner stage may paint gradients, illustration, motion, large type; the outer page stays transparent; text keeps 4.5:1 and reads on light and dark hosts.',
-    '- Outermost wrapper background: transparent on Inline and Canvas, because the host page shows through it; `surface` goes on inner cards. `pre`/`code` islands may keep their own dark contrast pair.',
-    '- Inline layout: a fluid 360–760px chat column, sized like a message in the thread. Inline grows with its content and the conversation owns scrolling in both directions: height stays auto on html/body/outer wrapper and every block fits the column width.',
-    '- Inline width: `width:100%`, `max-width:100%`, `min-width:0`, border-box sizing and container queries for stacking, readable at 360px and below. The advisory width hint describes the sending client; replay and other clients differ.',
-    '- Built-ins (no network): `data-piwin-icon` icons; `data-piwin-chart="bar|hbar|line|donut|stack|spark"` charts. Call `artifact_instructions` for the icon list and chart options.',
-    formatArtifactDiagramKit(),
-    formatArtifactVizKit(),
-    formatArtifactComponentKit(),
-    '- Tables: wrap long data cells with `overflow-wrap: break-word`, the one wrapping property that keeps column min-content intact (`word-break` values and `overflow-wrap: anywhere` collapse a column to 1ch). Row/column labels may `white-space: nowrap` or `width: max-content`. `min-width: 0` belongs on the outer stage. Inline: stack with `@container` before wrapping labels. Canvas: dense comparisons keep label min-content and may use table `overflow-x: auto`. Dense wide comparisons belong on Canvas.',
-    '- **Canvas Viewport**: the Canvas iframe is the design viewport. Root layout and the primary stage use `width: 100%` and `height: 100%` / `100dvh` of it, and extra panel width becomes scene/layout space, so the design fills the panel edge to edge. A UI that needs a wide workspace or horizontal scrolling declares `surface="canvas"`.',
-    '- Repeated cards/items are siblings in one flat list.',
-    '- Flex and grid rows: each direct child is one cell, and so is each bare text run. Wrap a whole sentence — its text together with its inline `code`, `b` and `a` — in a single child element (`<span>` or `<p>`), so the sentence stays on one line of flow beside the marker or icon.',
-    '- Session vault images: `<img data-piwin-media="<mediaId>" alt="short label">` is the way to show them; the host resolves the id to the image.',
-    '- When the user only needs to pick among generated images, the attachment cards already do that job.',
-    '',
-    ...formatArtifactReportKit(),
-    '',
-    '### Streaming & Progressive Enhancement',
-    '- **CSS First**: when you write a `<style>` block, emit it complete before any visible HTML markup, so the preview has its styles from the first element.',
-    '- **Incremental Streaming**: Close each visual block before starting siblings so live preview renders cleanly.',
-    '- **Static First**: core content lives in static HTML and JS enhances it, so the content stays readable if JS fails.',
-    '',
-    '### Output check',
-    '- The first line of every artifact is its opening fence (`' + inlineOpen + '`), never a bare `<div>`, `<style>` or `<svg>`. HTML written outside a fence reaches the user as escaped source text.',
+    `${fence}${CANONICAL_ARTIFACT_LANGUAGE} title="Title" surface="canvas" style="host"`,
+    '<main class="piwin-report">...</main>',
+    fence,
+    'SVG may use a `svg` fence with the same attributes.',
+    '- Self-contained HTML/CSS/JS, no network. Core content in HTML; CSS before markup, JS for enhancement.',
+    '- Default `style="host"`: semantic HTML in `piwin-report` gets host styling. Custom CSS uses `--piwin-artifact-*` vars; outer background stays transparent.',
+    '- `style="expressive"` is for requested custom looks, prototypes or games; follow the host light/dark theme.',
+    '- Inline: fluid width, auto height, no nested page scroll. Canvas fills its viewport.',
+    '- Images: `<img data-piwin-media="ID" alt="description">`.',
+    '- Call `artifact_instructions` only for theme/layout details, charts, diagrams, icons or JS APIs.',
   ].join('\n');
 }
 
@@ -426,9 +344,9 @@ export function formatArtifactProtocol(): string {
 export const ARTIFACT_RUNTIME_CONTRACT = formatArtifactProtocol();
 
 /**
- * Full model-facing Artifact instructions: configured decision policy plus
- * the shared runtime protocol. `artifact_instructions` and any default
- * prompt path must call this instead of concatenating surface rules.
+ * Resident Artifact instructions: configured decision policy plus the compact
+ * runtime protocol. Prompt injection paths use this single formatter; the
+ * optional authoring reference is delivered separately by the Host tool.
  * Explicit-only is a product constraint, not part of the editable decision
  * prompt, so it is prefixed whenever `triggerMode === 'explicit-only'`. The
  * same pattern carries a surface restriction (`capability`): the shared

@@ -21,6 +21,7 @@ vi.mock('./xterm-surface', () => ({
   XtermSurface: (props: {
     tui?: { sessionId?: string; remoteTarget?: HostAttachTarget };
     projectPath?: string;
+    fullBleed?: boolean;
     onTuiSession?: (sessionId: string) => void;
     onStatus?: (kind: string, ptyId: string | null) => void;
   }) => {
@@ -36,6 +37,7 @@ vi.mock('./xterm-surface', () => ({
         data-project={props.projectPath ?? ''}
         data-mount={mount.current}
         data-host={props.tui?.remoteTarget?.endpoint ?? 'local'}
+        data-full-bleed={props.fullBleed === true ? 'true' : 'false'}
       />
     );
   },
@@ -90,6 +92,7 @@ describe('TuiPane', () => {
   it('runs the terminal shell on the active session', () => {
     renderPane('session-1', 'zh-CN');
     expect(surface()?.dataset.session).toBe('session-1');
+    expect(surface()?.dataset.fullBleed).toBe('false');
   });
 
   it('starts a new conversation in the active project when there is no session', () => {
@@ -195,6 +198,7 @@ describe('TuiPane', () => {
         );
       });
       expect(surface()).not.toBeNull();
+      expect(surface()?.dataset.fullBleed).toBe('true');
       expect(container.textContent).not.toContain('runs in the desktop app');
     }
   });

@@ -281,9 +281,19 @@
   padding: var(--s-3) var(--s-2) var(--s-3) var(--s-4);
 }
 /* Native agent CLIs (Grok) paint their own full-screen surface. Any inset
-   here shows as a --term-bg band around it, so let their canvas reach the edge. */
+   here shows as a --term-bg band around it, so let their canvas reach the edge.
+   The scrollbar is hidden too: FitAddon withholds ~14px for it, and we give
+   those columns back (see fullBleedColumns). A real bar would cover them. */
 .conversation-tui-stage .tui-pane:not([data-agent='pi']) .xterm-surface { border-radius: 0; }
 .conversation-tui-stage .tui-pane:not([data-agent='pi']) .xterm-surface .xterm { padding: 0; }
+.conversation-tui-stage .tui-pane:not([data-agent='pi']) .xterm-viewport {
+  overflow: hidden !important;
+  scrollbar-width: none;
+}
+.conversation-tui-stage .tui-pane:not([data-agent='pi']) .xterm-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
 
 /* ── Dock content ─────────────────────────────────────────────────── */
 

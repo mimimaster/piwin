@@ -37,6 +37,9 @@ const EXTERNAL_DEPS = {
   sharp: '0.35.4',
   // Same copy Pi uses: the Host proxy dispatcher and Pi's fetch must share one undici.
   undici: '8.9.0',
+  // Vertex ADC for native search. Inlined, gaxios's dynamic CJS import of
+  // https-proxy-agent loses its named export, so ADC fails whenever HTTPS_PROXY is set.
+  'google-auth-library': '10.9.0',
 };
 
 function run(cmd, args, options = {}) {
@@ -318,6 +321,13 @@ async function smokeNativeExternals(distHost) {
     '}).png().toBuffer();',
     "if (png.length === 0) throw new Error('sharp produced an empty image');",
     "console.log('[bundle-host] native externals smoke ok (sharp, node-pty)');",
+  ]);
+  await runSmokeScript(distHost, 'google-auth-smoke.mjs', [
+    "const { HttpsProxyAgent } = await import('https-proxy-agent');",
+    "if (typeof HttpsProxyAgent !== 'function') throw new Error('https-proxy-agent lost its named export');",
+    "const { GoogleAuth } = await import('google-auth-library');",
+    "if (typeof GoogleAuth !== 'function') throw new Error('google-auth-library lost GoogleAuth');",
+    "console.log('[bundle-host] google-auth-library smoke ok');",
   ]);
 }
 

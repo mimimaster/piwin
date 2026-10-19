@@ -24,9 +24,8 @@ export const ARTIFACT_DIAGRAM_KIT_CLASSES = [
 export type ArtifactDiagramKitClass = (typeof ARTIFACT_DIAGRAM_KIT_CLASSES)[number];
 
 /**
- * Model-facing line of the Artifact runtime contract. It rides in the
- * resident conversation prompt (fixed token budget, CHT-803), so it names the
- * shapes and nothing else; markup examples live in the on-demand reference.
+ * Compact vocabulary pointer retained for public API consumers. Markup
+ * examples live in the on-demand reference, outside the resident prompt.
  */
 export function formatArtifactDiagramKit(): string {
   return '- Diagram built-ins (optional, host-styled): `ol.piwin-flow` (steps joined by arrows), `table.piwin-lanes` (swimlane with `data-to` handoffs), `ol.piwin-timeline`, `ul.piwin-tree`; `artifact_instructions` has the markup. Inline `<svg viewBox>` in theme vars covers every other relation.';

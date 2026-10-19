@@ -139,6 +139,7 @@ export function TuiPane(props: TuiPaneProps): ReactElement {
           {...(shown.current.projectPath ? { projectPath: shown.current.projectPath } : {})}
           pty={agentPty}
           onOpenImage={agentPty === undefined ? undefined : props.onOpenImage}
+          fullBleed={agentId !== 'pi'}
           tui={agentId === 'pi' ? {
             ...(shown.current.sessionId === null ? {} : { sessionId: shown.current.sessionId }),
             ...(shown.current.remoteTarget === undefined ? {} : { remoteTarget: shown.current.remoteTarget }),

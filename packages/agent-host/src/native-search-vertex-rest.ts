@@ -133,8 +133,9 @@ async function resolveAdcAccessToken(input: { credentialsFile?: string }): Promi
     if (!token) throw new Error('empty access token');
     return token;
   } catch (error) {
+    const detail = error instanceof Error && error.message ? `: ${error.message}` : '';
     throw new VertexRestSearchError(
-      'Vertex AI native search could not obtain Google credentials (run `gcloud auth application-default login` or set a service-account file)',
+      `Vertex AI native search could not obtain Google credentials (run \`gcloud auth application-default login\` or set a service-account file)${detail}`,
       { cause: error },
     );
   }

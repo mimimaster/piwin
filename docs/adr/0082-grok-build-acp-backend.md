@@ -221,6 +221,12 @@ The Host is the authority; clients mirror it and never invent capability.
   the cache lifetime needs no repeated readiness handshake. Desktop uses a
   bounded 120-second operation deadline for native open, sync and snapshot on
   both local and remote Hosts, since these await adapter/session work.
+  Follow-up profiling (2026-10-19) found another check inside the fresh adapter
+  process: session initialization now receives the Host-checked binary through
+  the existing `runtime.binaryPath` field, so it can skip internal detection.
+  Legacy Grok adapters without `capabilities.nativeCli` use the existing Grok
+  launch fallback directly; probing `session/cli-launch` can terminate their
+  older frame parser. Adapters advertising native CLI keep their own descriptor.
 - **Separate adapter and dependency installation.** `piwin agents install`
   installs a reviewed declarative adapter through the Host inventory, without
   starting Grok. Official CLI dependency installation remains manual until a

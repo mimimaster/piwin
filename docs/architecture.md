@@ -708,7 +708,11 @@ Assistant message
 (`general` / `project` × `inline` / `canvas`) narrows it per session class, and
 `resolveArtifactCapability` is the one resolver Host compilation, Desktop
 rendering, and Canvas auto-reveal use. Shipped default: Conversation chat on,
-Agent chat off. Code-first is Inline-only.
+Agent chat Canvas-only. Code-first is Inline-only.
+The resident Artifact policy and fence protocol have a 2,000-character default
+budget; detailed authoring and built-in JS/component references are loaded only
+through `artifact_instructions`, without repeating the resident text. Sandbox
+CSS/JS owns default styling, rendering guards and security enforcement.
 Flashcard tool results are structured transcript projections, not HTML fences.
 Copy/export use original model source, never srcdoc. See
 [artifact-research.md](./artifact-research.md) and ADR 0005 / 0029.

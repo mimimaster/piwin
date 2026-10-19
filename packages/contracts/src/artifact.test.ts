@@ -54,166 +54,101 @@ describe('canonical artifact language', () => {
 });
 
 describe('default artifact decision prompt', () => {
-  it('wraps the proactive decision policy in a metadata block', () => {
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '[piwin-prompt-meta kind="artifact:decision" version="14" applies="artifacts-enabled"]',
-    );
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '<artifact-decision-policy name="piwin-proactive-surfaces">',
-    );
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('</artifact-decision-policy>');
-  });
-
-  it('treats dense reference content as a proactive artifact use case', () => {
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('information-dense content');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('command summaries');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('comparative tables');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      'even without an explicit UI request',
-    );
-  });
-
-  it('does not concatenate surface rules or parser-only aliases', () => {
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toContain('## HTML Artifact Runtime Contract');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toContain('```artifact-html');
-    for (const alias of PARSER_ONLY_ALIASES) {
-      expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toContain(alias);
+  it('keeps resident instructions within 2000 characters including every product restriction', () => {
+    const config = createDefaultArtifactConfig();
+    const capabilities = [
+      { enabled: true, inline: true, canvas: true },
+      { enabled: true, inline: true, canvas: false },
+      { enabled: true, inline: false, canvas: true },
+    ];
+    for (const triggerMode of ['automatic', 'explicit-only'] as const) {
+      for (const styleModes of ['model', 'host-only'] as const) {
+        for (const capability of capabilities) {
+          expect(formatArtifactInstructions({ ...config, triggerMode, styleModes }, capability).length)
+            .toBeLessThanOrEqual(2000);
+        }
+      }
     }
   });
 
-  it('routes short Markdown, dense Inline Artifact, and prototype Canvas', () => {
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      'Short answers (1–2 paragraphs)',
-    );
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '`artifact-html` without surface attr',
-    );
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      'Full app/page prototypes',
-    );
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Standalone reports');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('architecture reviews');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('a standalone analytical deliverable belongs there');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('user intent');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Markdown table');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toContain('```artifact-html');
+  it('keeps proactive semantic routing without XML wrappers or length-based promotion', () => {
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('## Decision Criteria');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('proactively');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Markdown');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Inline:');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Canvas: standalone reports, reviews, audits');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('user intent, not length');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toMatch(/<\/?artifact/);
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toContain('```');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toContain('wall of text');
   });
 
-  it('keeps pre-slim proactive routing: scan/reuse, wall-of-text, default Inline, auto Canvas', () => {
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      'scan, understand, search, copy, compare, and reuse',
-    );
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('wall of text');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Default Artifact surface');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      'opens the right workspace automatically',
-    );
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('explain, debug, teach');
+  it('preserves custom policies and falls back when the custom policy is blank', () => {
+    const config = createDefaultArtifactConfig();
+    config.decisionPrompt = { mode: 'custom', customPrompt: 'custom routing' };
+    expect(resolveArtifactDecisionPrompt(config)).toBe('custom routing');
+    config.decisionPrompt.customPrompt = '  ';
+    expect(resolveArtifactDecisionPrompt(config)).toBe(DEFAULT_ARTIFACT_DECISION_PROMPT);
   });
 });
 
 describe('artifact protocol formatter', () => {
-  it('is the single surface-rule source and locks output to artifact-html', () => {
+  it('teaches two complete canonical fences with explicit surface and style semantics', () => {
     const protocol = formatArtifactProtocol();
+    const examples = [...protocol.matchAll(/^```([^\n]+)\n([\s\S]*?)\n```$/gm)];
     expect(protocol).toBe(ARTIFACT_RUNTIME_CONTRACT);
-    expect(protocol).toContain('## HTML Artifact Runtime Contract');
-    expect(protocol).toContain('```artifact-html title="Short descriptive title"');
-    expect(protocol).toContain('```artifact-html title="Short descriptive title" surface="canvas"');
-    expect(protocol).toContain('surface="canvas"');
-    expect(protocol).toContain('--piwin-artifact-');
-    expect(protocol).toContain('kind="artifact:runtime" version="17"');
-    expect(protocol).toContain('Example reply (prose, blank line, fence opening, body, fence closing, prose)');
-    expect(protocol).toContain('never a bare `<div>`, `<style>` or `<svg>`');
-    expect(protocol).toContain('a light host gets a light design and a dark host a dark one');
-    expect(protocol).toContain('data-piwin-media');
-    expect(protocol).toContain('the host resolves the id to the image');
-    expect(protocol).toContain('Canvas Viewport');
-    expect(protocol).toContain('emit it complete before any visible HTML markup');
-    expect(protocol).toContain('### Report Kit');
-    for (const kitClass of ARTIFACT_REPORT_KIT_CLASSES) {
-      expect(protocol).toContain(kitClass);
+    expect(examples.map((match) => match[1])).toEqual([
+      'artifact-html title="Title" style="host"',
+      'artifact-html title="Title" surface="canvas" style="host"',
+    ]);
+    for (const example of examples) {
+      expect(example[2]).toContain('<main class="piwin-report">');
     }
-    for (const tone of ARTIFACT_REPORT_KIT_TONES) {
-      expect(protocol).toContain(`"${tone}"`);
-    }
-    expect(protocol).toContain(
-      'Close each visual block before starting siblings',
-    );
-    expect(protocol).toContain('### Success');
-    expect(protocol).toContain('chat column sandbox');
-    expect(protocol).toContain('Rendering rules (the sandbox depends on these)');
-    expect(protocol).toContain('sized like a message in the thread');
-    expect(protocol).toContain('the conversation owns scrolling in both directions');
-    expect(protocol).toContain('every block fits the column width');
-    expect(protocol).not.toContain('Let table data wrap');
-    expect(protocol).not.toContain('avoid nowrap on data cells');
-    expect(protocol).toContain('overflow-wrap: break-word');
-    expect(protocol).toContain('the one wrapping property that keeps column min-content intact');
-    expect(protocol).toContain('keep label min-content');
-    expect(protocol).toContain('Outermost wrapper background');
-    for (const alias of PARSER_ONLY_ALIASES) {
-      expect(protocol).not.toContain(alias);
-    }
-  });
-
-  it('runtime v14 teaches style declaration and the extended vocabulary', () => {
-    const protocol = formatArtifactProtocol();
-    expect(protocol).toContain('`style="host"`');
+    expect(protocol).toContain('column 0');
+    expect(protocol).toContain('never XML wrapper tags');
+    expect(protocol).toContain('`svg` fence');
     expect(protocol).toContain('`style="expressive"`');
-    for (const token of ['surface-2', 'border-strong', 'ok warn info risk', 'series-1', 'shadow-1', 'radius-lg']) {
-      expect(protocol).toContain(token);
+    expect(protocol).toContain('data-piwin-media');
+    expect(protocol).toContain('no network');
+    expect(protocol).toContain('Core content in HTML; CSS before markup');
+    for (const alias of PARSER_ONLY_ALIASES) {
+      expect(formatArtifactInstructions(createDefaultArtifactConfig())).not.toContain(alias);
     }
-    expect(protocol).toContain('the host font throughout');
-    expect(protocol).toContain('data-piwin-chart="bar|hbar|line|donut|stack|spark"');
-    expect(formatArtifactKitReference()).toContain('"tone": "ok"');
-    expect(formatArtifactKitReference()).toContain('Donut slices take `tones` in label order.');
-    expect(protocol).toContain('Call `artifact_instructions` for the icon list and chart options.');
-    expect(protocol).not.toContain('trend-up');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Unprompted artifacts use `style="host"`.');
   });
 
-  it('offers a form per information shape instead of defaulting to cards', () => {
+  it('keeps authoring details on demand while retaining essential theme and sizing guidance', () => {
     const protocol = formatArtifactProtocol();
-    for (const kitClass of ARTIFACT_DIAGRAM_KIT_CLASSES) {
-      expect(protocol).toContain(`.${kitClass}`);
-      expect(formatArtifactKitReference()).toContain(`class="${kitClass}"`);
+    const reference = formatArtifactKitReference();
+    expect(protocol).toContain('--piwin-artifact-*');
+    expect(protocol).toContain('transparent');
+    expect(protocol).toContain('light/dark');
+    expect(protocol).toContain('auto height');
+    expect(protocol).toContain('Canvas fills its viewport');
+    expect(protocol).toContain('`artifact_instructions`');
+    for (const detail of ['overflow-wrap: break-word', 'series-1', 'radius-lg', 'trend-up', 'piwin-flow', 'piwin-matrix']) {
+      expect(protocol).not.toContain(detail);
+      expect(reference).toContain(detail);
     }
-    expect(protocol).toContain('Inline `<svg viewBox>`');
-    for (const kitClass of ARTIFACT_COMPONENT_KIT_CLASSES) {
-      expect(protocol).toContain(`.${kitClass}`);
-      expect(formatArtifactKitReference()).toContain(`class="${kitClass}"`);
-    }
-    for (const state of ARTIFACT_COMPONENT_KIT_STATES) {
-      expect(formatArtifactKitReference()).toContain(`"${state}"`);
-    }
-    // A sentence split across grid cells shatters inline code into one-glyph columns.
-    expect(protocol).toContain('Wrap a whole sentence');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('You choose the form, and the content decides it');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Cards suit a few parallel, independent items.');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('the first screen states the conclusion');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Color marks status and handoffs');
-    expect(protocol).toContain('Host tone: flat and quiet.');
-    expect(protocol).not.toContain('gradient;');
-    expect(formatArtifactKitReference()).toContain('`data-to="<actor>"`');
-    expect(formatArtifactKitReference()).toContain('`data-dir="down"` — actors in `thead`');
-    expect(protocol).toContain('The kit is a fast default: write your own `<style>`');
+    expect(reference).not.toContain('## Decision Criteria');
+    expect(reference).not.toContain('## HTML Artifact Runtime Contract');
   });
 
-  it('shows block fences on their own line, not one-line empty fences', () => {
-    const protocol = formatArtifactProtocol();
-    expect(protocol).toContain('column 0 of its own line');
-    expect(protocol).toContain('together on that one line');
-    expect(protocol).toContain('Put a line break between a sentence and the opening fence');
-    expect(protocol).toContain('```artifact-html title="Short descriptive title" style="host"\n');
-    expect(protocol).toContain(
-      '```artifact-html title="Short descriptive title" surface="canvas" style="host"\n',
-    );
-    expect(protocol).toContain('```svg title="Short descriptive title" style="host"\n');
-    expect(protocol).not.toMatch(/```artifact-html title="Short descriptive title" style="host"```/);
-    expect(protocol).not.toMatch(
-      /```artifact-html title="Short descriptive title" surface="canvas" style="host"```/,
-    );
-    expect(protocol).not.toMatch(/```svg title="Short descriptive title" style="host"```/);
+  it('retains every report, diagram and component vocabulary entry in the reference', () => {
+    const reference = formatArtifactKitReference();
+    for (const kitClass of [
+      ...ARTIFACT_REPORT_KIT_CLASSES,
+      ...ARTIFACT_DIAGRAM_KIT_CLASSES,
+      ...ARTIFACT_COMPONENT_KIT_CLASSES,
+    ]) {
+      expect(reference).toContain(kitClass);
+    }
+    for (const state of [...ARTIFACT_REPORT_KIT_TONES, ...ARTIFACT_COMPONENT_KIT_STATES]) {
+      expect(reference).toContain(`"${state}"`);
+    }
+    expect(reference).toContain('piwin.chart(');
+    expect(reference).toContain('data-piwin-viz="KIND"');
+    expect(reference).toContain('Wrap a whole sentence');
+    expect(reference).toContain('Close each visual block');
   });
 
   it('assembles decision policy plus protocol without a second surface-rule copy', () => {

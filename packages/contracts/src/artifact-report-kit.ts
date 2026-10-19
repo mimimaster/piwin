@@ -37,9 +37,8 @@ export const ARTIFACT_REPORT_KIT_TONES = ['ok', 'warn', 'info', 'risk', 'accent'
 export type ArtifactReportKitTone = (typeof ARTIFACT_REPORT_KIT_TONES)[number];
 
 /**
- * Model-facing section of the Artifact runtime contract. It rides in the
- * resident conversation prompt, which has a fixed token budget (CHT-803), so
- * it names the vocabulary and nothing else.
+ * Report vocabulary returned on demand by `artifact_instructions`. The compact
+ * resident contract only names the root class needed for automatic styling.
  */
 export function formatArtifactReportKit(): string[] {
   return [

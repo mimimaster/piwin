@@ -901,12 +901,12 @@ Generate short video clips from text prompts or reference images (inputImagePath
 
 #### 6.7 Artifact 渲染策略（常驻 system prompt）
 * **源码位置**：`packages/host-runtime/src/artifact-instructions-tool.ts`、`packages/contracts/src/artifact.ts`
-* **应用时机**：`config.artifact.enabled` 打开时，完整决策策略 + runtime 契约直接注入 system prompt。
+* **应用时机**：Artifact 已开启且工具可用时，将精简决策策略和围栏协议注入 system prompt；内置组件及样式细则通过工具按需读取。
 
 ##### 英文生产原版
-见 `DEFAULT_ARTIFACT_DECISION_PROMPT` 与 `formatArtifactProtocol()`（runtime 契约 **v12**）。
-会话 vault 图用 `<img data-piwin-media="<mediaId>">`，禁止 `data:image` / 本地路径 / markdown 图。
-模型不再需要先调用 `artifact_instructions` 才能决定是否输出 Artifact。
+见 `DEFAULT_ARTIFACT_DECISION_PROMPT` 与 `formatArtifactProtocol()`。2026-10-19 精简后，默认常驻部分为 **1,428 字符 / 22 行**，包含配置限制的默认组合上限为 2,000 字符。
+会话 vault 图用 `<img data-piwin-media="<mediaId>">`。
+基础 Artifact 可直接输出；只有需要样式细则、图表、图标、示意图或 JS API 时才调用 `artifact_instructions`，工具不再重复返回常驻协议。默认样式及渲染校验由现有宿主 CSS/JS 执行。
 
 ---
 

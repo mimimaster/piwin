@@ -1,4 +1,5 @@
 import type { SessionBackendBinding } from '@piwin/contracts';
+import { isNativeCliSupported } from '@piwin/contracts';
 import type { InteractiveTerminalInput } from '@piwin/process';
 import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
 import { AgentCliError } from './native-cli-error.js';
@@ -28,7 +29,11 @@ export async function resolveNativeCliLaunch(
         ) => Promise<{ backendSessionId: string; args: readonly string[] }>;
       }
     | undefined;
-  if (handle?.cliLaunch !== undefined) {
+  // Old Grok frame parsers exit on unknown methods instead of refusing them.
+  // Only ask for a descriptor when the adapter advertises the native surface.
+  const legacyGrok = input.agentId === 'grok' &&
+    !isNativeCliSupported(deps.externalAgents?.getSessionCapabilities(input.sessionId));
+  if (handle?.cliLaunch !== undefined && !legacyGrok) {
     try {
       const descriptor = await handle.cliLaunch(input.nativeId);
       return {

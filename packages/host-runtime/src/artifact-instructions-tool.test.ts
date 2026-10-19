@@ -30,20 +30,17 @@ const SOURCE_OR_UI_STATE_MARKERS = [
 ] as const;
 
 
-/** The tool prepends the kit reference to the resident contract. */
-function withKitReference(instructions: string): string {
-  return `${formatArtifactKitReference()}\n\n${instructions}`;
-}
-
 describe('Artifact instruction loading', () => {
-  it('injects the full decision policy and runtime contract when enabled', () => {
+  it('injects compact routing and fence syntax when enabled', () => {
     const artifactConfig = config();
     const prompt = formatArtifactCapabilityPrompt(artifactConfig);
 
     expect(prompt).toBe(formatArtifactInstructions(artifactConfig));
     expect(prompt).toContain('## Decision Criteria');
     expect(prompt).toContain('## HTML Artifact Runtime Contract');
-    expect(prompt).toContain('even without an explicit UI request');
+    expect(prompt).toContain('proactively');
+    expect(prompt?.length).toBeLessThanOrEqual(2000);
+    expect(prompt).not.toContain('trend-up');
     expect(prompt).toContain('```artifact-html');
   });
 
@@ -92,136 +89,87 @@ describe('Artifact instruction loading', () => {
   });
 });
 
-describe('artifact_instructions golden', () => {
-  it('returns rules only from the shared protocol formatter', async () => {
-    const artifactConfig = config();
-    const tool = buildArtifactInstructionsTool(artifactConfig);
-    const result = await tool.execute({}, new AbortController().signal, {
-      sessionId: 'session-1',
-      runtimeGenerationId: 'generation-1',
-      runId: 'run-1',
-      toolName: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
-    });
+describe('artifact_instructions reference loading', () => {
+  const context = {
+    sessionId: 'session-1',
+    runtimeGenerationId: 'generation-1',
+    runId: 'run-1',
+    toolName: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
+  };
+
+  it('returns authoring guidance without repeating the resident policy or fence protocol', async () => {
+    const tool = buildArtifactInstructionsTool();
+    const result = await tool.execute({}, new AbortController().signal, context);
 
     expect(tool.family).toBe('artifact');
     expect(tool.permissionSpec.readOnly).toBe(true);
-    expect(tool.descriptor.description).toContain('already in the system prompt');
-    expect(tool.descriptor.description).toContain('surface="canvas"');
-    expect(tool.descriptor.description).toContain('reviews');
+    expect(tool.descriptor.description.length).toBeLessThan(160);
     expect(result.ok).toBe(true);
-    if (!result.ok) {
-      throw new Error(result.message);
-    }
-    expect(result.output).toBe(withKitReference(formatArtifactInstructions(artifactConfig)));
-    expect(result.output).toContain(formatArtifactProtocol());
-    expect(result.output).toContain('## Decision Criteria');
-    expect(result.output).toContain('## HTML Artifact Runtime Contract');
-    expect(result.output).toContain('```artifact-html');
-    expect(result.output.split('## HTML Artifact Runtime Contract')).toHaveLength(2);
-    expect(result.output).toContain('[piwin-artifact-kit version="1"]');
+    if (!result.ok) throw new Error(result.message);
+    expect(result.output).toBe(formatArtifactKitReference());
+    expect(result.output).not.toContain('## Decision Criteria');
+    expect(result.output).not.toContain('## HTML Artifact Runtime Contract');
+    expect(result.output).not.toContain('```artifact-html');
+    expect(result.output).toContain('### Rendering reference');
+    expect(result.output).toContain('### Report Kit');
     expect(result.output).toContain('trend-up');
+    expect(result.output).toContain('piwin.chart(');
     for (const alias of PARSER_ONLY_ALIASES) {
       expect(result.output).not.toContain(alias);
     }
   });
 
-  it('does not carry Artifact source or UI state', async () => {
-    const tool = buildArtifactInstructionsTool(
-      config({ decisionPrompt: { mode: 'custom', customPrompt: 'private custom sentinel' } }),
-    );
-    const result = await tool.execute({}, new AbortController().signal, {
-      sessionId: 'session-secret',
-      runtimeGenerationId: 'generation-secret',
-      runId: 'run-secret',
-      toolName: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      throw new Error(result.message);
-    }
-    expect(result.output).toContain('private custom sentinel');
-    expect(result.output).toContain(formatArtifactProtocol());
-    for (const marker of SOURCE_OR_UI_STATE_MARKERS) {
-      expect(result.output).not.toContain(marker);
-    }
-    expect(result.output).not.toContain('session-secret');
-    expect(result.output).not.toContain('<div');
-    expect(result.output).not.toContain('artifactHtml');
-  });
-
-  it('returns the full contract only once for the same run', async () => {
-    const tool = buildArtifactInstructionsTool(config());
-    const context = {
-      sessionId: 'session-1',
-      runtimeGenerationId: 'generation-1',
-      runId: 'run-1',
-      toolCallId: 'call-1',
-      toolName: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
-    };
-
-    const [first, repeated] = await Promise.all([
-      tool.execute({}, new AbortController().signal, context),
-      tool.execute({}, new AbortController().signal, { ...context, toolCallId: 'call-2' }),
-    ]);
-
-    expect(first.ok).toBe(true);
-    expect(repeated.ok).toBe(true);
-    if (!first.ok || !repeated.ok) {
-      throw new Error('expected successful Artifact instruction results');
-    }
-    expect(first.output).toBe(withKitReference(formatArtifactInstructions(config())));
-    expect(repeated.output).not.toContain('## HTML Artifact Runtime Contract');
-    expect(repeated.output).toContain('already loaded for this run');
-    expect(repeated.output.length).toBeLessThan(200);
-  });
-
-  it('includes the explicit-only constraint in tool output, including custom mode', async () => {
+  it('keeps configured constraints resident without repeating them in the reference', async () => {
     const artifactConfig = config({
       triggerMode: 'explicit-only',
       decisionPrompt: { mode: 'custom', customPrompt: 'private custom sentinel' },
     });
-    const tool = buildArtifactInstructionsTool(artifactConfig);
-    const result = await tool.execute({}, new AbortController().signal, {
-      sessionId: 'session-1',
-      runtimeGenerationId: 'generation-1',
-      runId: 'run-1',
-      toolName: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
-    });
+    const resident = formatArtifactCapabilityPrompt(artifactConfig);
+    expect(resident).toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
+    expect(resident).toContain('private custom sentinel');
+    expect(resident).toContain(formatArtifactProtocol());
 
+    const result = await buildArtifactInstructionsTool().execute({}, new AbortController().signal, context);
     expect(result.ok).toBe(true);
-    if (!result.ok) {
-      throw new Error(result.message);
+    if (!result.ok) throw new Error(result.message);
+    expect(result.output).not.toContain('private custom sentinel');
+    expect(result.output).not.toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
+    for (const marker of SOURCE_OR_UI_STATE_MARKERS) {
+      expect(result.output).not.toContain(marker);
     }
-    expect(result.output).toBe(withKitReference(formatArtifactInstructions(artifactConfig)));
-    expect(result.output).toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
-    expect(result.output).toContain('private custom sentinel');
-    expect(result.output).toContain(formatArtifactProtocol());
+    expect(result.output).not.toContain('session-1');
   });
 
-  it('loads the full contract again for another run or runtime generation', async () => {
-    const tool = buildArtifactInstructionsTool(config());
+  it('returns the reference only once for concurrent calls in the same run', async () => {
+    const tool = buildArtifactInstructionsTool();
     const signal = new AbortController().signal;
-    const baseContext = {
-      sessionId: 'session-1',
-      runtimeGenerationId: 'generation-1',
-      runId: 'run-1',
-      toolName: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
-    };
+    const [first, repeated] = await Promise.all([
+      tool.execute({}, signal, { ...context, toolCallId: 'call-1' }),
+      tool.execute({}, signal, { ...context, toolCallId: 'call-2' }),
+    ]);
 
-    const firstRun = await tool.execute({}, signal, baseContext);
-    const nextRun = await tool.execute({}, signal, { ...baseContext, runId: 'run-2' });
-    const nextGeneration = await tool.execute({}, signal, {
-      ...baseContext,
-      runtimeGenerationId: 'generation-2',
-    });
+    expect(first.ok).toBe(true);
+    expect(repeated.ok).toBe(true);
+    if (!first.ok || !repeated.ok) throw new Error('expected successful Artifact reference results');
+    expect(first.output).toBe(formatArtifactKitReference());
+    expect(repeated.output).not.toContain('[piwin-artifact-kit');
+    expect(repeated.output).toContain('already loaded for this run');
+    expect(repeated.output.length).toBeLessThan(200);
+  });
 
-    for (const result of [firstRun, nextRun, nextGeneration]) {
+  it('loads the reference again for another run, generation or session', async () => {
+    const tool = buildArtifactInstructionsTool();
+    const signal = new AbortController().signal;
+    for (const nextContext of [
+      context,
+      { ...context, runId: 'run-2' },
+      { ...context, runtimeGenerationId: 'generation-2' },
+      { ...context, sessionId: 'session-2' },
+    ]) {
+      const result = await tool.execute({}, signal, nextContext);
       expect(result.ok).toBe(true);
-      if (!result.ok) {
-        throw new Error(result.message);
-      }
-      expect(result.output).toBe(withKitReference(formatArtifactInstructions(config())));
+      if (!result.ok) throw new Error(result.message);
+      expect(result.output).toBe(formatArtifactKitReference());
     }
   });
 });

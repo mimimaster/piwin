@@ -27,7 +27,7 @@ export type ArtifactVizKind = (typeof ARTIFACT_VIZ_KINDS)[number];
 
 export const ARTIFACT_VIZ_ICONS = ['host', 'laptop', 'phone', 'server', 'db', 'hub', 'switch', 'router', 'firewall', 'ap', 'cloud'] as const;
 
-/** Resident pointer (fixed token budget, CHT-803): names the markup and kinds only. */
+/** Compact vocabulary pointer retained for public API consumers. */
 export function formatArtifactVizKit(): string {
   return `- Step-through figures: \`<figure data-piwin-viz="KIND">\` + JSON, kinds ${ARTIFACT_VIZ_KINDS.join(' ')}; prefer them over hand-written animation for algorithms, memory, scheduling and networking. \`artifact_instructions\` has the fields.`;
 }

@@ -14,6 +14,15 @@ describe('Inkstone user-card surface', () => {
     );
   });
 
+  it('paints the ink-face agent-mode prompt bubble from the composer slab', () => {
+    expect(userCard).toMatch(
+      /\[data-theme-id='piwin-inkstone-ink'\]:not\(\[data-slab='paper'\]\)\s+\.bubble\.role-user:not\(\.is-conversation-bubble\) \{[\s\S]*?background: var\(--slab\);[\s\S]*?box-shadow: none;/,
+    );
+    expect(userCard).toMatch(
+      /\.user-message-actions \{\s*--user-card-actions-fade: var\(--slab\);/,
+    );
+  });
+
   it('reads the conversation bubble fill and fades from the shared card fill', () => {
     expect(conversation).toMatch(
       /\.user-message-bubble \{[\s\S]*?background: var\(--ucard-fill\);[\s\S]*?box-shadow: var\(--ucard-shadow\);/,

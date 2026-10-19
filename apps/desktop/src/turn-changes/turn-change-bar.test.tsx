@@ -319,7 +319,7 @@ describe('TurnChangeBar', () => {
     expect(q('turn-change-bar-overlapping')?.textContent).toContain('src/a.ts');
     // The others are a count only: no scope wording, no path list on the card.
     expect(q('turn-change-bar-excluded')?.textContent).toBe('另有 2 个文件由命令修改');
-    expect(note?.textContent).not.toContain('不在撤销范围');
+    expect(note?.textContent).not.toContain('无法一键撤回');
     expect(note?.textContent).not.toContain('dist/out.js');
     // One footer: the paths sit inside the incomplete note.
     expect(container.querySelectorAll('.turn-change-bar-foot')).toHaveLength(1);

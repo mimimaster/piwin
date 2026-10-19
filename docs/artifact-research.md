@@ -18,9 +18,14 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
 - **Master switch:** `PiwinConfig.artifact.enabled`, narrowed per session class
   by `PiwinConfig.artifact.scopes` (`general` / `project` × `inline` / `canvas`)
   through `resolveArtifactCapability`. Shipped default: `general` on, `project`
-  (Agent chat) off; a missing scope/surface follows that default. Desktop workbench forwards the resolved
+  (Agent chat) Canvas-only; a missing scope/surface follows that default. Desktop workbench forwards the resolved
   pair as `artifactInlineEnabled` + `artifactCanvasEnabled`. There is no
   `localStorage` opt-in key.
+- **Compact instructions (2026-10-19):** the resident decision policy and fence
+  contract total 1,428 characters; tests cap all default restriction variants at
+  2,000. `artifact_instructions` returns detailed rendering guidance and kit APIs
+  only on demand and does not repeat the resident text. Existing sandbox CSS/JS
+  owns theme injection, report styles, built-in rendering and security guards.
 - **One fence index:** `indexArtifactFences` + `projectArtifactMarkdownForRender`.
   Streamdown adapters bind by projected start offset → ordinal. Do not parse
   fences a second time in Canvas or MarkdownView.

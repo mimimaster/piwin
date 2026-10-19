@@ -20,6 +20,7 @@ import { readDeckXtermFontFamily, readDeckXtermTheme } from './xterm-theme';
 import { attachXtermWebglRenderer, type XtermRenderer } from './xterm-webgl-renderer';
 import { attachXtermImageLinks } from './xterm-image-links.js';
 import { attachXtermImageAddon, type XtermImages } from './xterm-image-addon';
+import { fullBleedColumns } from './xterm-fit-gutter';
 import {
   tauriPtyOpen,
   tauriPtyOpenTui,
@@ -53,11 +54,32 @@ export type XtermSurfaceProps = {
   onTitle?: ((title: string) => void) | undefined;
   /** The program's `[Open Image]` button was clicked; Desktop shows the file itself. */
   onOpenImage?: ((fileName: string) => void) | undefined;
+  /**
+   * The program paints its own full-screen surface (Grok and other native CLIs).
+   * FitAddon otherwise keeps a scrollbar gutter that shows up as a right-hand band.
+   */
+  fullBleed?: boolean | undefined;
 };
 
 const MIN_OPEN_WIDTH = 40;
 const MIN_OPEN_HEIGHT = 40;
 const RESIZE_DEBOUNCE_MS = 120;
+
+function reclaimFullBleedColumns(terminal: Terminal, container: HTMLElement): void {
+  const screen = container.querySelector('.xterm-screen');
+  const element = terminal.element;
+  if (!(screen instanceof HTMLElement) || element === undefined) return;
+  const style = getComputedStyle(element);
+  const paddingX = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+  const columns = fullBleedColumns({
+    screenWidth: screen.getBoundingClientRect().width,
+    columns: terminal.cols,
+    containerWidth: container.clientWidth,
+    paddingX,
+  });
+  if (columns === undefined || columns === terminal.cols) return;
+  terminal.resize(columns, terminal.rows);
+}
 
 export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -134,6 +156,11 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       }
       try {
         fitAddonRef.current.fit();
+        const terminal = terminalRef.current;
+        const container = containerRef.current;
+        if (props.fullBleed === true && terminal !== null && container !== null) {
+          reclaimFullBleedColumns(terminal, container);
+        }
       } catch {
         // fit can throw if container is display:none or too small
         return;
@@ -195,6 +222,9 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
 
       try {
         fitAddon.fit();
+        if (props.fullBleed === true && containerRef.current) {
+          reclaimFullBleedColumns(terminal, containerRef.current);
+        }
       } catch {
         /* empty */
       }
@@ -302,7 +332,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [props.cwd, props.projectPath, props.tui?.sessionId, props.tui?.remoteTarget, props.pty]);
+  }, [props.cwd, props.projectPath, props.tui?.sessionId, props.tui?.remoteTarget, props.pty, props.fullBleed]);
 
   useEffect(() => {
     if (props.visible === false) { terminalRef.current?.blur(); return; }

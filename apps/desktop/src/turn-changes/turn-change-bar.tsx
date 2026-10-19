@@ -326,9 +326,7 @@ export function TurnChangeBar(props: TurnChangeBarProps): ReactElement | null {
         </StatusFoot>
       ) : excluded.length > 0 ? (
         <StatusFoot tone="info" testId="turn-change-bar-excluded">
-          {commandsOnly
-            ? t('这些文件由命令修改，不在撤销范围', 'Changed by commands; undo leaves them alone')
-            : t('以下文件由命令修改，撤销不会动它们', 'Changed by commands; undo leaves them alone')}
+          {t('有命令修改的文件，无法一键撤回', 'Files changed by commands cannot be undone in one click')}
           <CollapsiblePathChips
             paths={excluded}
             visible={COLLAPSED_COMMAND_PATHS}

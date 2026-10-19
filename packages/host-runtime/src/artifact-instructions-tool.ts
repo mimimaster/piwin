@@ -13,7 +13,7 @@ import {
 
 const MAX_TRACKED_INSTRUCTION_RUNS = 256;
 const ALREADY_LOADED_OUTPUT =
-  'Artifact instructions are already loaded for this run. Reuse the previous result and produce the final response without calling this tool again.';
+  'Artifact reference is already loaded for this run. Reuse it without calling again.';
 
 /**
  * Resident decision policy + runtime contract, restricted to the surfaces the
@@ -45,17 +45,14 @@ export function formatResidentArtifactPrompt(
     : undefined;
 }
 
-export function buildArtifactInstructionsTool(
-  config: ArtifactConfig,
-  capability: ResolvedArtifactCapability = FULL_ARTIFACT_CAPABILITY,
-): HostToolRegistration {
+export function buildArtifactInstructionsTool(): HostToolRegistration {
   const loadedRuns = new Set<string>();
 
   return {
     descriptor: {
       name: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
       description:
-        'Artifact decision policy and HTML/SVG output contract are already in the system prompt. Call this tool only for the built-in kit reference (icon names, chart options, diagram markup for flow / swimlane / timeline / tree). For reviews, reports, audits, and other standalone analytical write-ups, emit artifact-html with surface="canvas" directly.',
+        'Artifact theme/layout details, charts, diagrams, icons and JS APIs. Call only when needed; basic fence syntax is already in the system prompt.',
       parameters: {
         type: 'object',
         properties: {},
@@ -85,7 +82,7 @@ export function buildArtifactInstructionsTool(
 
       return {
         ok: true,
-        output: `${formatArtifactKitReference()}\n\n${formatArtifactInstructions(config, capability)}`,
+        output: formatArtifactKitReference(),
       };
     },
   };

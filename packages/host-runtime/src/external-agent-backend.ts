@@ -205,6 +205,7 @@ export class ExternalAgentBackend {
     runtimeGenerationId: string;
     runId?: string;
   }): Promise<OpenedExternalSession> {
+    const binaryPath = await this.requireReadyBinary(input.agentId);
     const install = await this.deps.requireInstall(input.agentId);
     let session: AgentPluginSession | undefined;
     const mediaContext = (): Parameters<typeof importAgentPluginMedia>[0]['context'] => ({
@@ -226,7 +227,9 @@ export class ExternalAgentBackend {
       entrypoint: install.entrypoint,
       agentId: input.agentId,
       pluginRevision: install.revision,
-      runtime: install.runtime,
+      // A session adapter is a fresh process; forward the verified detection
+      // result so it does not repeat its own spawn/handshake/shutdown probe.
+      runtime: { ...install.runtime, binaryPath },
       cwd: input.cwd,
       binding: input.binding,
       mode: input.mode,

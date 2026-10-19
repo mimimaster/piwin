@@ -8,13 +8,14 @@ import type { AgentCliOpenData } from '@piwin/contracts';
 import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
 import { HostRuntime } from '../host-runtime.js';
 import { AgentPluginBridge } from '../agent-plugin-bridge.js';
+import { AgentPluginSession } from '../agent-plugin-session.js';
 import { installFixtureAgentAdapter } from '../testing/agent-plugin-fixture.js';
 
 let runtime: HostRuntime | undefined;
 let directory: string | undefined;
 afterEach(async () => { await runtime?.dispose(); if (directory !== undefined) await rm(directory, { recursive: true, force: true }); vi.restoreAllMocks(); });
 
-async function setup(catalog: unknown[] = []) {
+async function setup(catalog: unknown[] = [], script: Record<string, unknown> = {}) {
   directory = await mkdtemp(join(tmpdir(), 'piwin-native-grok-'));
   const fixture = await installFixtureAgentAdapter(directory, { agentId: 'grok', script: {
     backendSessionId: 'native-grok-id', binaryPath: '/fixture/grok', catalog,
@@ -23,6 +24,7 @@ async function setup(catalog: unknown[] = []) {
       { type: 'agent', event: { type: 'message/text_delta', messageId: 'cli-answer', delta: '来自原生 CLI 的回答' } },
       { type: 'agent', event: { type: 'message/end', messageId: 'cli-answer' } },
     ],
+    ...script,
   } });
   runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: directory, externalAgents: { env: fixture.env } });
   const open = vi.spyOn(InteractiveTerminalManager.prototype, 'open').mockResolvedValue('pty-fixture');
@@ -31,6 +33,44 @@ async function setup(catalog: unknown[] = []) {
 }
 
 describe('Host native Grok terminal routing', () => {
+  it('passes the checked CLI binary into session initialization instead of making the adapter redetect it', async () => {
+    const host = await setup();
+    const openSession = vi.spyOn(AgentPluginSession, 'open');
+    const response = await host.runtime.handleCommand({
+      type: 'agents/cli-open', input: { agentId: 'grok', cols: 80, rows: 24 },
+    });
+    expect(response.success, response.success ? '' : response.error).toBe(true);
+    expect(openSession.mock.calls[0]?.[0].runtime).toEqual({ binaryPath: '/fixture/grok' });
+  });
+
+  it('uses the legacy Grok launch without probing an unadvertised adapter method', async () => {
+    const host = await setup();
+    const cliLaunch = vi.spyOn(AgentPluginSession.prototype, 'cliLaunch');
+    const response = await host.runtime.handleCommand({
+      type: 'agents/cli-open', input: { agentId: 'grok', cols: 80, rows: 24 },
+    });
+    expect(response.success, response.success ? '' : response.error).toBe(true);
+    expect(cliLaunch).not.toHaveBeenCalled();
+    expect(host.open).toHaveBeenCalledWith(expect.objectContaining({
+      args: ['--fullscreen', '--cwd', expect.any(String), '--resume', 'native-grok-id'],
+    }));
+  });
+
+  it('keeps the advertised native launch descriptor authoritative for newer Grok adapters', async () => {
+    const args = ['--resume', 'native-grok-id', '--model', 'agent-default'];
+    const host = await setup([], {
+      capabilities: { agentId: 'grok', operations: {}, nativeCli: { supported: true } },
+      cliLaunchArgs: args,
+    });
+    const cliLaunch = vi.spyOn(AgentPluginSession.prototype, 'cliLaunch');
+    const response = await host.runtime.handleCommand({
+      type: 'agents/cli-open', input: { agentId: 'grok', cols: 80, rows: 24 },
+    });
+    expect(response.success, response.success ? '' : response.error).toBe(true);
+    expect(cliLaunch).toHaveBeenCalledWith('native-grok-id');
+    expect(host.open).toHaveBeenCalledWith(expect.objectContaining({ args }));
+  });
+
   it('performs one readiness handshake on cold open and reuses it on the next new session', async () => {
     const host = await setup();
     const request = vi.spyOn(AgentPluginBridge.prototype, 'request');

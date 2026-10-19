@@ -31,6 +31,20 @@ html[data-theme-id='piwin-inkstone-ink']:not([data-slab='paper']) :is(.ucard, .u
   --ucard-code: var(--slab-chip);
 }
 
+/* Agent-mode prompt: the visible card is the outer bubble (region-transcript
+   resets the inner collapsible to transparent), so it takes the slab too. */
+html[data-theme-id='piwin-inkstone-ink']:not([data-slab='paper'])
+  .bubble.role-user:not(.is-conversation-bubble) {
+  background: var(--slab);
+  box-shadow: none;
+}
+
+html[data-theme-id='piwin-inkstone-ink']:not([data-slab='paper'])
+  .bubble.role-user:not(.is-conversation-bubble)
+  .user-message-actions {
+  --user-card-actions-fade: var(--slab);
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .ucard code,
 html[data-theme-id='piwin-inkstone-ink'] .ucard code,
 html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible code,
