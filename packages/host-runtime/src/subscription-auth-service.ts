@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import type { ActiveLogin, SubscriptionAuthServiceOptions } from './subscription-auth-state.js';
+export type { SubscriptionAuthServiceOptions } from './subscription-auth-state.js';
 import type {
   ActiveLoginStatus,
   AuthLoginFinishedData,
@@ -58,35 +60,6 @@ import { SubscriptionAuthWatcher } from './subscription-auth-watcher.js';
 import { mergeSubscriptionCatalogModels, type ConfiguredChatModels } from './subscription-model-overlay.js';
 import { assertCodexCallbackPortFree } from './subscription-oauth-callback-port.js';
 import type { ResolveChatModelAccounts } from './resolve-chat-model.js';
-
-export type SubscriptionAuthServiceOptions = {
-  piwinRoot?: string;
-  piAgentDir?: string;
-  port?: SubscriptionAuthPort;
-  now?: () => number;
-  /** Pi CLI opens the auth URL itself. Host must do the same on this machine. */
-  openAuthUrl?: (url: string) => void;
-};
-
-type PendingPrompt = {
-  promptId: string;
-  resolve: (value: string) => void;
-  reject: (error: Error) => void;
-};
-
-type ActiveLogin = {
-  loginId: string;
-  providerId: string;
-  ownerDeviceId: string;
-  startedAt: string;
-  preferLoopback: boolean;
-  openAuthUrlOnHost: boolean;
-  abort: AbortController;
-  currentPrompt?: AuthPromptPayload;
-  authUrl?: AuthPromptPayload;
-  pending?: PendingPrompt;
-  newChannelId?: string;
-};
 
 const LIVE_ACCOUNT_STATES = new Set(['logged-in', 'logging-in', 'sync-error', 'needs-reauth']);
 
