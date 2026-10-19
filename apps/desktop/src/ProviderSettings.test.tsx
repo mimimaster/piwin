@@ -184,7 +184,7 @@ describe('ProviderSettings', () => {
     return rendered.container;
   }
 
-  it('treats public extension models as managed without OAuth or key-entry controls', () => {
+  it('allows public extension catalog refresh without OAuth or key-entry controls', () => {
     const props = makeProps();
     props.config = { ...props.config, providers: [{
       id: 'public-fixture', name: 'Public Fixture', protocol: 'openai-compatible',
@@ -199,7 +199,9 @@ describe('ProviderSettings', () => {
     expect(byTestId(container, 'provider-connection-toggle')).toBeNull();
     expect(byTestId(container, 'provider-detail-menu')).toBeNull();
     expect(byTestId<HTMLButtonElement>(container, 'provider-add-model-public-fixture')?.disabled).toBe(true);
-    expect(byTestId(container, 'provider-discover-models-public-fixture')).toBeNull();
+    const fetchModels = byTestId<HTMLButtonElement>(container, 'provider-discover-models-public-fixture');
+    expect(fetchModels).not.toBeNull();
+    expect(fetchModels?.disabled).toBe(false);
   });
 
   it('shows the rail and the first provider in the detail pane', () => {
