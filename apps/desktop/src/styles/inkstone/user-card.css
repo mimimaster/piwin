@@ -31,18 +31,39 @@ html[data-theme-id='piwin-inkstone-ink']:not([data-slab='paper']) :is(.ucard, .u
   --ucard-code: var(--slab-chip);
 }
 
-/* Agent-mode prompt: the visible card is the outer bubble (region-transcript
-   resets the inner collapsible to transparent), so it takes the slab too. */
-html[data-theme-id='piwin-inkstone-ink']:not([data-slab='paper'])
-  .bubble.role-user:not(.is-conversation-bubble) {
-  background: var(--slab);
-  box-shadow: none;
+/* Agent-mode prompt on the ink face: the visible card is the outer bubble
+   (region-transcript resets the inner collapsible to transparent). A smoked
+   void glass with a warm-paper stroke on the leading edge and a wash that
+   fades out across the card. Independent of the slab choice. */
+html[data-theme-id='piwin-inkstone-ink'] .bubble.role-user:not(.is-conversation-bubble) {
+  /* Mixed from the solid void: the window-material card ramp already makes
+     --void translucent, and mixing that again would thin the card twice. */
+  --ink-prompt-fill: color-mix(in srgb, var(--wm-solid-void, var(--void)) 50%, transparent);
+  background:
+    linear-gradient(90deg, rgba(235, 229, 218, 0.045), transparent 70%),
+    var(--ink-prompt-fill);
+  box-shadow:
+    inset 2px 0 0 rgba(235, 229, 218, 0.22),
+    inset 0 0 0 1px rgba(235, 229, 218, 0.06);
+  transition: box-shadow var(--t-3) var(--ease-out);
 }
 
-html[data-theme-id='piwin-inkstone-ink']:not([data-slab='paper'])
+html[data-theme-id='piwin-inkstone-ink'] .bubble.role-user:not(.is-conversation-bubble):hover {
+  box-shadow:
+    inset 2px 0 0 rgba(235, 229, 218, 0.38),
+    inset 0 0 0 1px rgba(235, 229, 218, 0.09);
+}
+
+/* The action fade must be opaque to hide the glyphs it covers; a second
+   layer of the translucent fill would read as a darker band. */
+html[data-theme-id='piwin-inkstone-ink']
   .bubble.role-user:not(.is-conversation-bubble)
   .user-message-actions {
-  --user-card-actions-fade: var(--slab);
+  --user-card-actions-fade: color-mix(
+    in srgb,
+    var(--wm-solid-void, var(--void)) 50%,
+    var(--wm-solid-s2, var(--s2))
+  );
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .ucard code,

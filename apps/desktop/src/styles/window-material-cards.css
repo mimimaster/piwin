@@ -1,0 +1,84 @@
+/* Cards on the native window material — ink (dark) face only.
+
+   The regions (window-material.css, window-material-pages.css) are glass,
+   but every card, field, chip, code well and the ink composer slab inside
+   them painted the solid surface ramp. Near-black slabs over a translucent
+   ink stage read as holes cut out of the glass, so here the ramp itself turns
+   translucent inside the shell and the full-window pages: one token remap
+   instead of a per-component override list.
+
+   Region fills must not inherit the remap (a translucent --s2 mixed at the
+   stage opacity again would thin the stage twice), so the solid ramp is
+   captured on the root as --wm-solid-* before the remap and the region rules
+   read those. Custom properties resolve var() at computed-value time, so the
+   captured values are the literal root colours.
+
+   Portaled overlays (Mantine menus, dialogs, lightbox) mount on <body>,
+   outside these scopes, and keep the overlay glass of
+   window-material-overlays.css. No blur here: cards are long-lived, so they
+   stay off the backdrop-filter whitelist. */
+html[data-window-material] {
+  --wm-solid-void: var(--void);
+  --wm-solid-s1: var(--s1, var(--surface-1));
+  --wm-solid-s2: var(--s2, var(--surface-2));
+  --wm-solid-s3: var(--s3, var(--surface-3));
+  --wm-solid-s4: var(--s4, var(--surface-4));
+  --wm-solid-surface-3: var(--surface-3);
+}
+
+/* Each step stays denser than the step under it so nesting still reads as
+   elevation: stage glass (--s2 at ~45%) < wells < cards < raised chips. */
+html[data-window-material][data-theme-mode='dark']:has(.app-shell:not([data-layout='phone']))
+  :is(.app-shell, .settings-overlay-host, .vault-stage) {
+  --void: color-mix(in srgb, var(--wm-solid-void) 55%, transparent);
+  --s1: color-mix(in srgb, var(--wm-solid-s1) 48%, transparent);
+  --s2: color-mix(in srgb, var(--wm-solid-s2) 50%, transparent);
+  --s3: color-mix(in srgb, var(--wm-solid-s3) 56%, transparent);
+  --s4: color-mix(in srgb, var(--wm-solid-s4) 72%, transparent);
+  --code: color-mix(in srgb, #0f0e0c 60%, transparent);
+  --slab: color-mix(in srgb, #0e0d0b 64%, transparent);
+
+  /* Deck roles are written inline on <html> as literals by
+     apply-appearance.ts, so they do not follow the --s* remap above. */
+  --surface-1: var(--s1);
+  --surface-2: var(--s2);
+  --surface-3: var(--s3);
+  --surface-4: var(--s4);
+  --sunken: var(--void);
+  --bg: var(--s2);
+  --canvas: var(--s2);
+  --surface-canvas: var(--s2);
+  --rail: var(--s1);
+  --surface-rail: var(--s1);
+  --sidebar: var(--s1);
+  --surface-sidebar: var(--s1);
+  --panel: var(--s3);
+  --surface: var(--s3);
+  --surface-inset: var(--s3);
+  --card: var(--s3);
+  --composer: var(--s3);
+  --user-bubble: var(--s3);
+  --control: var(--s3);
+  --surface-control: var(--s3);
+  --surface-raised: var(--s4);
+  --surface-control-hover: var(--s4);
+
+  /* The ink elevation rims are a 1px black ring, which frames a glass card
+     like a cut-out. On the material the rim is a faint warm hairline and the
+     drop shadow is softer. Overlay steps (--sh3, --elev-4) are untouched. */
+  --sh1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(235, 229, 218, 0.07);
+  --sh2: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(235, 229, 218, 0.09),
+    0 2px 8px -2px rgba(0, 0, 0, 0.35);
+  --elev-1: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(235, 229, 218, 0.07);
+  --elev-2: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(235, 229, 218, 0.09),
+    0 2px 8px -2px rgba(0, 0, 0, 0.35);
+  --elev-3: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 0 0 1px rgba(235, 229, 218, 0.1),
+    0 12px 32px -8px rgba(0, 0, 0, 0.5);
+}
+
+/* Sticky heads and footers occlude the rows scrolling under them; on the
+   translucent ramp those rows would read through, so they keep a dense fill. */
+html[data-window-material][data-theme-mode='dark']:has(.app-shell:not([data-layout='phone']))
+  :is(.settings-hub-tabs, .session-hub-tabs, .usage-calls-scroll thead th, .proto-bar) {
+  background-color: color-mix(in srgb, var(--wm-solid-s2) 94%, transparent);
+}

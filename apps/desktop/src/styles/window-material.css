@@ -48,23 +48,9 @@ html[data-window-material][data-theme-mode='dark'] {
   --xterm-canvas: #00000000;
 }
 
-/* Ink cards on the glass. Solid --s3 / void slabs on a translucent ink stage
-   read as cut-outs (the todo tray, the console), so in ink they take a tinted
-   glass of their own surface instead. The user card stays solid while it
-   shares the ink composer slab (inkstone/user-card.css); it only glasses when
-   the composer is paper and the card falls back to --s3. */
-html[data-window-material][data-theme-mode='dark'][data-slab='paper']
-  .app-shell:not([data-layout='phone'])
-  :is(.ucard, .user-message-collapsible) {
-  --ucard-fill: color-mix(in srgb, var(--s3) 52%, transparent);
-}
-
-html[data-window-material][data-theme-mode='dark']
-  .app-shell:not([data-layout='phone'])
-  .plan-todo-tray {
-  background: color-mix(in srgb, var(--s3) 52%, transparent);
-}
-
+/* Ink cards on the glass (user card, todo tray, settings rows, the slab)
+   follow the translucent ramp in window-material-cards.css. The console is
+   painted from --term-bg, which that ramp leaves alone. */
 html[data-window-material][data-theme-mode='dark']
   .app-shell:not([data-layout='phone'])
   :is(.terminal-dock-body, .xterm-surface, .pty-input-row) {
@@ -89,7 +75,7 @@ html[data-window-material]
   .app-shell:not([data-layout='phone']) {
   background: color-mix(
     in srgb,
-    var(--void) var(--window-material-backdrop-fill),
+    var(--wm-solid-void) var(--window-material-backdrop-fill),
     transparent
   );
 }
@@ -99,7 +85,7 @@ html[data-window-material]
   > .sidebar {
   background: color-mix(
     in srgb,
-    var(--s1) var(--window-material-sidebar-fill),
+    var(--wm-solid-s1) var(--window-material-sidebar-fill),
     transparent
   );
 }
@@ -109,7 +95,7 @@ html[data-window-material]
   > .workspace {
   background: color-mix(
     in srgb,
-    var(--s2) var(--window-material-stage-fill),
+    var(--wm-solid-s2) var(--window-material-stage-fill),
     transparent
   );
 }
@@ -119,7 +105,7 @@ html[data-window-material]
   > .right-panel {
   background: color-mix(
     in srgb,
-    var(--s1) var(--window-material-right-panel-fill),
+    var(--wm-solid-s1) var(--window-material-right-panel-fill),
     transparent
   );
 }

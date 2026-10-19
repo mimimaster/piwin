@@ -46,12 +46,25 @@ pressure) and the glass mix flashed white during streaming reflow.
 7. **Transcript edge fades** on a translucent stage mask the scroller instead
    of painting the stage colour (which reads as a band) — a deliberate
    exception to region-transcript.css.
+8. **Ink cards follow a translucent surface ramp** (owner direction,
+   2026-10-19). Solid near-black cards, fields, chips, code wells and the ink
+   composer slab read as cut-outs on the ink glass, so
+   `window-material-cards.css` remaps the ramp itself inside the shell and
+   the full-window pages (dark mode only): `--void` 55%, `--s1` 48%, `--s2`
+   50%, `--s3` 56%, `--s4` 72%, `--code` 60%, `--slab` 64%, plus the Deck
+   aliases written inline by `apply-appearance.ts`. The black 1px elevation
+   rims (`--sh1/2`, `--elev-1..3`) become a faint warm hairline. The solid
+   ramp is captured on the root as `--wm-solid-*` first, and every region
+   fill reads that, so the stage is not thinned twice. Sticky heads that
+   occlude scrolling rows keep a 94% fill. Portaled overlays mount on
+   `<body>` and keep the overlay glass of decision 5. No blur.
 
 ## Consequences
 
 - The stage defaults to 75% (ink scales it by 0.8, so 60%): denser than the
-  side panels but still translucent. Cards and code inside it stay solid so
-  reading contrast does not depend on the desktop behind the window.
+  side panels but still translucent. Under ink, cards and code inside it are
+  translucent too (decision 8), so reading contrast now depends partly on the
+  desktop behind the window; paper cards stay solid.
 - Under ink the terminal tab's xterm canvas clears to `#00000000` and the
   dock body paints the glass. It must be a hex alpha: xterm's colour parser
   rejects `transparent` and falls back to opaque #000, which shows as a black
