@@ -522,7 +522,7 @@ export async function buildSessionHostTools(
     options.config &&
     (artifactCapability ? artifactCapability.enabled : options.config.artifact.enabled)
   ) {
-    tools.push(buildArtifactInstructionsTool());
+    tools.push(buildArtifactInstructionsTool(options.config.artifact, artifactCapability));
   }
 
   // --- Subagent run / start / wait / cancel ---

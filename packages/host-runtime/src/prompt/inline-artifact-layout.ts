@@ -9,12 +9,8 @@ export function formatInlineArtifactLayout(width: unknown): string | undefined {
   return [
     '[piwin-inline-artifact-layout]',
     `Sending client chat column: approximately ${Math.round(width)} CSS px at send time.`,
-    'This is advisory layout context: it describes the column, and the artifact decision stays with the existing policy.',
-    'For Inline, use width:100%, max-width:100%, min-width:0 and border-box sizing, so the layout follows whatever width it gets.',
-    'Stay readable at 360 CSS px and adapt to narrower containers: sidebars, replay, and other clients change the width.',
-    'Use container queries for stacking layouts, so every block fits the column width.',
-    'Tables: wrap data with overflow-wrap:break-word, the wrapping property that keeps columns readable. Labels may nowrap. Wide comparison tables use Canvas and keep label min-content.',
-    'Existing artifact trigger and surface policies still apply.',
+    'Start any Artifact at column 0 on its own line with ```artifact-html title="..." style="host" (add surface="canvas" for wide workspaces) or ```svg, and close with ``` on its own line.',
+    'Design freely with custom <style>, Flex/Grid, inline <svg>, interactive JS, or <main class="piwin-report"> using fluid width (width:100%; max-width:100%; min-width:0; box-sizing:border-box) so the layout adapts down to 360 CSS px.',
     '[/piwin-inline-artifact-layout]',
   ].join('\n');
 }
@@ -26,14 +22,10 @@ export function formatInlineArtifactLayout(width: unknown): string | undefined {
  */
 export function formatArtifactHostTheme(mode: unknown): string | undefined {
   if (mode !== 'light' && mode !== 'dark') return undefined;
-  const opposite = mode === 'light' ? 'dark' : 'light';
   return [
     '[piwin-artifact-host-theme]',
     `Sending client theme: ${mode} background at send time.`,
-    'The `--piwin-artifact-*` vars already resolve to this theme; prefer them over literal colors.',
-    `Any color you do choose (custom looks, SVG fills, chart series, code islands aside) reads well on a ${mode} background: pages, full-bleed stages and cards are all ${mode}-mode for this host.`,
-    `This includes style="expressive": its stage, hero and cards stay on the ${mode} side (a ${mode} base, with saturated color kept for accents). A ${opposite} stage is flagged as off-theme.`,
-    'Viewers can switch theme later, so theme vars remain the default. This is advisory context; the artifact decision stays with the existing policy.',
+    `Color with var(--piwin-artifact-*) tokens (bg, surface, surface-2, text, muted, subtle, accent, on-accent, border, ok, warn, info, risk) on a transparent outer wrapper so pages, full-bleed stages, and cards stay on the ${mode} side for this host (including style="expressive").`,
     '[/piwin-artifact-host-theme]',
   ].join('\n');
 }

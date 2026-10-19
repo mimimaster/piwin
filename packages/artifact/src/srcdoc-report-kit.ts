@@ -68,6 +68,13 @@ ${within('.piwin-stat > span, .piwin-meta')} {
 ${within('.piwin-meta')} {
   display: flex;
 }
+/* A report is read, not copied: a listing wraps instead of hiding its line
+   ends behind a horizontal scroll. Inline flow already wraps; this brings
+   Canvas in line. Code meant for copying belongs in a Markdown fence. */
+${within('pre')} {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 `;
 }
 

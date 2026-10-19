@@ -20,30 +20,22 @@ one narrow Composer capability Canvas frames get.
 
 ## Decision
 
-### 0. Compact resident protocol, detailed reference on demand
+### 0. The full Artifact contract is loaded on demand
 
-Amended 2026-10-19: an Artifact-enabled generation keeps a short decision policy
-and the canonical fenced-output syntax in its system prompt. The default text,
-including every combination of product restriction prefixes, is capped at 2,000
-characters by a regression test. User-authored decision policies remain resident
-and are not truncated to fit the default budget.
+An Artifact-enabled generation keeps only a compact routing hint in its system
+prompt. Before emitting HTML or SVG, the model calls the read-only
+`artifact_instructions` Host tool, which returns the configured decision policy
+and the canonical runtime contract together. The tool is advertised only when
+its concrete executor is present in the compiled generation surface.
 
-The model can emit a basic Artifact directly. The read-only
-`artifact_instructions` tool is optional and returns detailed theme/layout
-advice, the report vocabulary and built-in chart/icon/diagram/JS APIs. It does
-not repeat the resident policy or fence protocol. A concrete tool executor is
-still required before the resident Artifact prompt is injected.
+The full contract is returned at most once for each Runtime generation and Run.
+A repeated call in the same Run succeeds with only a compact reminder to reuse
+the previously loaded result, preventing duplicate policy text from polluting
+the model context. A later Run may load the contract again.
 
-The reference is returned at most once per session, Runtime generation and Run.
-Repeated calls in that Run get a short reuse reminder. Later Runs may reload it.
-
-Existing sandbox CSS/JS owns theme variables, base styles, report/component
-rendering, size/scroll guards and security enforcement. Those capabilities are
-not reimplemented by a new model-generated script or made dependent on prose.
-The decision policy has no XML wrapper and never promotes to Canvas based on
-response length: Inline is in-conversation content; Canvas is a standalone
-report, review, audit, prototype or tool. Configuration prefixes still constrain
-explicit-only generation, available surfaces and host-only style.
+This preserves the exact policy at the point where it matters without charging
+every ordinary Markdown turn for the full Artifact protocol. Custom decision
+prompts are also returned by the tool rather than copied into every generation.
 
 ### 1. Surface selection is semantic and explicit
 
@@ -55,7 +47,7 @@ Canonical fence syntax:
 ```
 ````
 
-The model-facing runtime contract (`formatArtifactProtocol`) shows this
+The model-facing runtime contract (`formatArtifactProtocol`, v8) shows this
 block shape. Opening fence at column 0 of its own line; `title` and `surface`
 stay on that opening line. Inline uses the chat-column flow constraints
 (transparent root, no `100vh`, no nested page scroll, no horizontal scroll).
@@ -510,10 +502,8 @@ closed — often a third of the whole response.
 - Kit classes count as styled in `buildStreamableArtifactPreview`: a kit report
   has no stylesheet to wait for and paints from its first words. Author classes
   without a stylesheet are still withheld.
-- As amended 2026-10-19, only the report root class stays in the resident
-  prompt; detailed kit vocabulary is returned on demand. The default resident
-  policy and protocol, including product restriction prefixes, are capped at
-  2,000 characters by tests.
+- The kit text rides in the resident conversation prompt and must stay inside
+  its token budget (CHT-803); it names the vocabulary and nothing else.
 
 ### Frame lease
 

@@ -28,13 +28,14 @@ describe('Artifact rendering context', () => {
       expect(formatArtifactHostTheme(mode)).toBeUndefined();
     },
   );
-  it('keeps expressive stages on the host side of light/dark', () => {
+  it('keeps expressive stages on the host side of light/dark using positive token guidance', () => {
     const light = formatArtifactHostTheme('light') ?? '';
-    expect(light).toContain('This includes style="expressive": its stage, hero and cards stay on the light side');
-    expect(light).toContain('A dark stage is flagged as off-theme.');
+    expect(light).toContain('pages, full-bleed stages, and cards stay on the light side for this host (including style="expressive")');
+    expect(light).toContain('var(--piwin-artifact-*)');
+    expect(light).not.toContain('flagged as off-theme');
     expect(formatArtifactHostTheme('dark')).toContain('stay on the dark side');
   });
-  it('tracks layout-only context as one ledger entry', () => {
+  it('tracks layout-only context as one ledger entry with positive fence and creative freedom guidance', () => {
     const original: PromptInput = { text: 'Compare phones', inlineArtifactWidthPx: 679.6, artifactKit: 1 };
     const prepared = { ...original };
     const assembly = createModelPromptAssembly();
@@ -43,13 +44,9 @@ describe('Artifact rendering context', () => {
     expect(prepared.inlineArtifactWidthPx).toBeUndefined();
     expect(prepared.text).toContain('[piwin-inline-artifact-layout]');
     expect(prepared.text).toContain('approximately 680 CSS px');
-    expect(prepared.text).toContain('so the layout follows whatever width it gets');
+    expect(prepared.text).toContain('```artifact-html title="..." style="host"');
+    expect(prepared.text).toContain('Design freely with custom <style>, Flex/Grid, inline <svg>, interactive JS');
     expect(prepared.text).toContain('360 CSS px');
-    expect(prepared.text).toContain('overflow-wrap:break-word, the wrapping property that keeps columns readable');
-    expect(prepared.text).toContain('keep label min-content');
-    expect(prepared.text).not.toContain('avoid nowrap on data cells');
-    expect(prepared.text).not.toContain('allow table data to wrap');
-    expect(prepared.text).toContain('Existing artifact trigger and surface policies still apply');
     expect(prepared.text).not.toContain('Sending client theme');
     expect(prepared.text).not.toContain('[piwin-artifact-context]');
     expect(prepared.text.endsWith('\n\nCompare phones')).toBe(true);
@@ -57,14 +54,14 @@ describe('Artifact rendering context', () => {
     expect(contributions).toHaveLength(1);
     expect(contributions[0]?.label).toBe('Inline artifact layout');
   });
-  it('tells the model the host background so a light host never gets a dark canvas', () => {
+  it('tells the model the host background so a light host stays on the light side', () => {
     const input: PromptInput = { text: 'Write a report', artifactHostTheme: 'light', artifactKit: 1 };
     const assembly = createModelPromptAssembly();
     applyInlineArtifactLayout(input, BOTH_SURFACES, assembly);
     expect(input).not.toHaveProperty('artifactHostTheme');
     expect(input.text).toContain('[piwin-artifact-host-theme]');
     expect(input.text).toContain('Sending client theme: light background');
-    expect(input.text).toContain('pages, full-bleed stages and cards are all light-mode for this host');
+    expect(input.text).toContain('pages, full-bleed stages, and cards stay on the light side for this host');
     expect(input.text).not.toContain('[piwin-artifact-context]');
     expect(input.text.endsWith('\n\nWrite a report')).toBe(true);
     const contributions = summary(assembly).contributions;
@@ -88,11 +85,8 @@ describe('Artifact rendering context', () => {
     expect(input.text.indexOf('Sending client theme: dark')).toBeLessThan(
       input.text.indexOf('Sending client chat column'),
     );
-    expect(input.text).toContain(
-      'This is advisory layout context: it describes the column, and the artifact decision stays with the existing policy.',
-    );
-    expect(input.text).toContain('This is advisory context; the artifact decision stays with the existing policy.');
-    expect(input.text.match(/Existing artifact trigger and surface policies still apply/g)).toHaveLength(1);
+    expect(input.text).toContain('```artifact-html title="..." style="host"');
+    expect(input.text).toContain('var(--piwin-artifact-*)');
     expect(input.text.endsWith('\n\nCompare phones')).toBe(true);
     const contributions = summary(assembly).contributions;
     expect(contributions.map((entry) => entry.label)).toEqual([

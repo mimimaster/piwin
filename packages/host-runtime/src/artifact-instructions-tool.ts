@@ -13,7 +13,7 @@ import {
 
 const MAX_TRACKED_INSTRUCTION_RUNS = 256;
 const ALREADY_LOADED_OUTPUT =
-  'Artifact reference is already loaded for this run. Reuse it without calling again.';
+  'Artifact instructions are already loaded for this run. Reuse the previous result and produce the final response without calling this tool again.';
 
 /**
  * Resident decision policy + runtime contract, restricted to the surfaces the
@@ -45,14 +45,17 @@ export function formatResidentArtifactPrompt(
     : undefined;
 }
 
-export function buildArtifactInstructionsTool(): HostToolRegistration {
+export function buildArtifactInstructionsTool(
+  config: ArtifactConfig,
+  capability: ResolvedArtifactCapability = FULL_ARTIFACT_CAPABILITY,
+): HostToolRegistration {
   const loadedRuns = new Set<string>();
 
   return {
     descriptor: {
       name: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
       description:
-        'Artifact theme/layout details, charts, diagrams, icons and JS APIs. Call only when needed; basic fence syntax is already in the system prompt.',
+        'Artifact decision policy, fence syntax, and core `--piwin-artifact-*` theme tokens are already in the system prompt (you may write custom HTML/CSS/SVG/JS or `<main class="piwin-report">` directly; for reviews, reports, audits, and other standalone analytical write-ups, emit artifact-html with surface="canvas" directly). Call this tool only for the built-in kit reference (icon names, chart options, diagram markup for flow / swimlane / timeline / tree, step-through viz, and component/report kits).',
       parameters: {
         type: 'object',
         properties: {},
@@ -82,7 +85,7 @@ export function buildArtifactInstructionsTool(): HostToolRegistration {
 
       return {
         ok: true,
-        output: formatArtifactKitReference(),
+        output: `${formatArtifactKitReference()}\n\n${formatArtifactInstructions(config, capability)}`,
       };
     },
   };

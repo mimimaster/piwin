@@ -98,6 +98,13 @@ describe('buildArtifactReportKitCss', () => {
     expect(css).not.toMatch(/font-size:\s*\d+(\.\d+)?px/);
   });
 
+  it('wraps code listings on v14 Canvas instead of scrolling them sideways', () => {
+    const wrapsPre = /:where\(\.piwin-report\) :where\(pre\) \{[^}]*white-space: pre-wrap;/;
+    expect(buildArtifactReportKitCss({ rules: 'v14' })).toMatch(wrapsPre);
+    // Legacy fences replay as they were drawn.
+    expect(css).not.toMatch(wrapsPre);
+  });
+
   it('ships in every sandbox document, before the author source', () => {
     for (const documentKind of ['fragment', 'document'] as const) {
       const source =

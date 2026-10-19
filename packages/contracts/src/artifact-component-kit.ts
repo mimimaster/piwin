@@ -25,7 +25,7 @@ export type ArtifactComponentKitClass = (typeof ARTIFACT_COMPONENT_KIT_CLASSES)[
 /** `data-state` values a step or checklist item may carry. Absent means not started. */
 export const ARTIFACT_COMPONENT_KIT_STATES = ['done', 'current', 'blocked'] as const;
 
-/** Compact vocabulary pointer retained for public API consumers. */
+/** Model-facing line of the Artifact runtime contract (resident prompt). */
 export function formatArtifactComponentKit(): string {
   return '- Component built-ins (optional, host-styled): `header.piwin-hero`, `ol.piwin-steps`, `ul.piwin-checklist`, `label.piwin-progress`, `section.piwin-compare`, `table.piwin-matrix`; `artifact_instructions` has the markup.';
 }

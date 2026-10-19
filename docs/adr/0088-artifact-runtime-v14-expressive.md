@@ -334,17 +334,20 @@ supersedes the control list in item 9 for the Canvas surface.
 28. **Mobile shell.** Still fullscreen only; it keeps the button because it
     has no keyboard for F.
 
-## Amendment (2026-10-19): Compact resident instructions
+## Code stays beside the artifact (2026-10-19)
 
-The owner requested a much smaller Artifact prompt. The resident decision policy
-and fence contract are now 1,428 characters (22 lines), down from 11,936, with a
-2,000-character regression budget including product restriction prefixes.
-This supersedes the prompt placement described in §5 and later kit additions;
-renderer rules, theme tokens and stored-fence compatibility are unchanged.
+Owner direction: models were pasting whole listings into Report Kit `pre`
+blocks, which have no highlighting and, on Canvas, scrolled sideways instead
+of wrapping. An artifact is the wrong place to read or copy code; the
+transcript's Markdown code block already is.
 
-Detailed rendering guidance and the complete report/diagram/component/chart/viz
-reference are delivered only by `artifact_instructions`. Its response no longer
-repeats the resident policy or protocol. Basic reports use semantic HTML inside
-`piwin-report` and the existing sandbox stylesheet; charts and interactions reuse
-the existing runtime JavaScript APIs. No new executor, wire type or dependency
-is introduced. See [ADR 0029](./0029-artifact-surface-routing.md#0-compact-resident-protocol-detailed-reference-on-demand).
+42. **Routing.** Decision prompt v16 adds one rule: an artifact cites code by
+    `path:line` and quotes a few lines at most; full code, patches, diffs and
+    commands go in an ordinary Markdown fence before or after the artifact
+    fence. A reply mixes the two freely: the fence is one block of the
+    Markdown message. The Report Kit section drops `pre` from its element
+    list and repeats the rule. No second code viewer is built in the sandbox.
+43. **Fallback.** The v14 kit wraps `pre` (`white-space: pre-wrap`,
+    `overflow-wrap: anywhere`) on Canvas too, so a listing that still lands
+    in a report shows its line ends. Legacy fences replay unchanged.
+    Not verified: a live model run under the new prompt.

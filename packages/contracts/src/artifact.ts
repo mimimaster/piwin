@@ -5,7 +5,7 @@
 
 import { formatArtifactComponentKitReference } from './artifact-component-kit.js';
 import { formatArtifactDiagramKitReference } from './artifact-diagram-kit.js';
-import { formatArtifactRenderingReference } from './artifact-rendering-reference.js';
+import { formatArtifactReportKit } from './artifact-report-kit.js';
 import { formatArtifactVizKitReference } from './artifact-viz-kit.js';
 
 // ---------------------------------------------------------------------------
@@ -138,7 +138,7 @@ export const NATIVE_SVG_ARTIFACT_LANGUAGES = ['svg'] as const;
 
 export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
 
-/** Host tool that returns detailed authoring and built-in kit references on demand. */
+/** Host tool that returns the decision policy + runtime contract on demand. */
 export const ARTIFACT_INSTRUCTIONS_TOOL_NAME = 'artifact_instructions' as const;
 
 /**
@@ -157,8 +157,9 @@ export const ARTIFACT_KIT_V1_ICONS = ['activity', 'alert', 'arrow-down', 'arrow-
 export function formatArtifactKitReference(): string {
   return [
     '[piwin-artifact-kit version="1"]',
-    'Local built-ins, no network. Use only when they help; plain HTML/SVG stays fine.',
-    ...formatArtifactRenderingReference(),
+    'Local built-in kits, no network. Combine freely with custom `<style>`, CSS Grid/Flex, inline `<svg viewBox>`, or vanilla JS.',
+    ...formatArtifactReportKit(),
+    'Tables & Responsive Layout: wrap long data cells with `overflow-wrap: break-word` to keep column min-content readable; row/column labels may use `white-space: nowrap` or `width: max-content`. Stack narrow Inline layouts with `@container`; place wide comparison tables on Canvas (`surface="canvas"`) with `overflow-x: auto`.',
     `Icons: \`<i data-piwin-icon="NAME" data-size="16"></i>\` (stroke = currentColor; size 8–96). Names: ${ARTIFACT_KIT_V1_ICONS.join(' ')}.`,
     'Charts: `<figure data-piwin-chart="bar|hbar|line|donut|stack|spark">` holding `<script type="application/json">` with {"labels": [..], "series": [{"name": "..", "values": [..], "tone": "ok"}], "tones": [..], "unit": "ms", "min": n, "max": n, "height": px, "values": true, "area": true, "center": "96%", "centerLabel": "passed"}. Always add a `<figcaption>` that states the takeaway in words; it stays readable if the chart cannot draw.',
     '- bar: grouped bars per label on a value axis; values print above the bars when there are few. hbar: one row per label with the label on the left and the value on the right — the choice for rankings and long category names. line: one line per series; a single series gets a soft area fill and its latest value. donut: first series as parts of `labels`, legend with shares beside it, optional `center` / `centerLabel`. stack: one bar split into the shares of `labels`, for composition in a single row. spark: tiny inline trend.',
@@ -176,10 +177,10 @@ export function formatArtifactKitReference(): string {
 /** Trigger constraint prefixed onto instructions whenever triggerMode is explicit-only. */
 /** Prefixed onto instructions when `artifact.styleModes` is `host-only`. */
 export const ARTIFACT_HOST_STYLE_ONLY_HINT =
-  'Only `style="host"` is available.';
+  'Expressive style is off for this Host: every artifact fence uses `style="host"`.';
 
 export const ARTIFACT_EXPLICIT_ONLY_HINT =
-  'Use Artifacts only when explicitly requested (artifact, visualization, interactive page, prototype or UI); otherwise use Markdown.';
+  'Use an Artifact only when the user explicitly requests an artifact, visualization, interactive page, prototype, or UI.';
 
 /**
  * Surface constraint prefixed onto instructions when the session's scope keeps
@@ -187,14 +188,14 @@ export const ARTIFACT_EXPLICIT_ONLY_HINT =
  * product constraint, not part of the editable decision prompt.
  */
 export const ARTIFACT_INLINE_ONLY_HINT =
-  'Inline only: omit `surface`; Canvas is unavailable. Ignore Canvas routing below.';
+  'Artifact surfaces for this session: Inline only (the right-side Canvas panel is unavailable). Every artifact is an Inline `artifact-html`/`svg` fence without a `surface` attribute, and the Canvas rules in the decision policy are inactive. Use Inline when a visualization helps, otherwise answer in Markdown.';
 
 /**
  * Surface constraint prefixed onto instructions when the session's scope keeps
  * only the Canvas surface.
  */
 export const ARTIFACT_CANVAS_ONLY_HINT =
-  'Canvas only: declare `surface="canvas"` for standalone deliverables; otherwise use Markdown.';
+  'Artifact surfaces for this session: Canvas only (the chat-column Artifact preview is unavailable). Every artifact declares `surface="canvas"`: standalone deliverables go there, and everything else stays ordinary Markdown.';
 
 /**
  * Shipped per-scope surface switches.
@@ -285,10 +286,16 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
  * Users can replace this via `decisionPrompt.mode = 'custom'`.
  */
 export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
+  '[piwin-prompt-meta kind="artifact:decision" version="16" applies="artifacts-enabled"]',
   '## Decision Criteria',
-  'Use Markdown for short answers, code explanations, debugging, patches or requested source.',
-  'Use Artifacts proactively when a diagram, structured comparison or interaction helps.',
-  'Inline: content read in the conversation. Canvas: standalone reports, reviews, audits, prototypes or tools. Choose by user intent, not length.',
+  'Choose the presentation that lets the reader scan, understand, search, copy, compare, and reuse the information.',
+  'Use an Artifact proactively for structured or information-dense content when visual layout, diagrams, comparisons, or interactive controls communicate better than a Markdown wall of text, even without an explicit UI request.',
+  '',
+  '- **Ordinary Markdown**: Short answers (1–2 paragraphs), direct code explanations, debugging, teaching a specific snippet, patches/PRs, or when the user asks for plain text, Markdown, or source code.',
+  '- **Inline Artifact** (`artifact-html` without surface attr): Default Artifact surface for content embedded in the conversation — architecture or data-flow diagrams, comparative tables, cheatsheets, command summaries, timelines, categorized cards, or views with search, filtering, tabs, sorting, or accordions.',
+  '- **Canvas Artifact** (`artifact-html` with `surface="canvas"`): Right-side workspace panel for standalone analytical deliverables and wide layouts — architecture / plan / design / codebase reviews, security audits, delivery reports, findings write-ups, full app/page prototypes, interactive tools/calculators, and wide comparison tables. Choose Canvas by user intent whenever a standalone analytical deliverable belongs there (declaring `surface="canvas"` opens the right workspace automatically).',
+  '- **Code beside an Artifact**: an Artifact cites code by location (`path:line`) and quotes at most a few lines. Full code, patches, diffs, and commands to copy go in an ordinary Markdown code fence before or after the artifact fence, where the reader can copy them.',
+  'Unprompted artifacts use `style="host"`.',
 ].join('\n');
 
 /**
@@ -315,25 +322,40 @@ export function resolveArtifactDecisionPrompt(config: ArtifactConfig): string {
  * may emit is `artifact-html`. Parser-input aliases stay out of prompts.
  */
 export function formatArtifactProtocol(): string {
-  const fence = '```';
+  const fenceClose = '```';
+  const inlineOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" style="host"`;
+  const canvasOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" surface="canvas" style="host"`;
+  const svgOpen = '```svg title="Short descriptive title" style="host"';
   return [
+    '[piwin-prompt-meta kind="artifact:runtime" version="18" applies="artifacts-enabled"]',
     '## HTML Artifact Runtime Contract',
-    'Artifacts use Markdown code fences, never XML wrapper tags. Fence markers start on their own lines at column 0; opening attributes stay on that line. Keep prose outside.',
-    'Inline (omit surface):',
-    `${fence}${CANONICAL_ARTIFACT_LANGUAGE} title="Title" style="host"`,
-    '<main class="piwin-report">...</main>',
-    fence,
+    'Design visual layout and interaction freely: write custom `<style>`, CSS Grid/Flex layouts, inline `<svg viewBox="0 0 W H">` diagrams, and interactive vanilla JS (search, filter, tabs, accordions, sorting, calculators, local state), or use the sandbox\'s built-in report classes (`<main class="piwin-report">`, `.piwin-card`, `.piwin-stat`, `.piwin-badge`).',
+    '',
+    '### Code Fences',
+    'Put a line break between a sentence and the opening fence. Start the opening fence at column 0 of its own line with `title`, `surface` (optional), and `style` together on that one line, place all HTML/CSS/SVG/JS inside the fence, and close with ``` on its own line:',
+    '',
+    'Inline:',
+    inlineOpen,
+    '<!-- self-contained HTML/CSS + optional inline JS -->',
+    fenceClose,
+    '',
     'Canvas:',
-    `${fence}${CANONICAL_ARTIFACT_LANGUAGE} title="Title" surface="canvas" style="host"`,
-    '<main class="piwin-report">...</main>',
-    fence,
-    'SVG may use a `svg` fence with the same attributes.',
-    '- Self-contained HTML/CSS/JS, no network. Core content in HTML; CSS before markup, JS for enhancement.',
-    '- Default `style="host"`: semantic HTML in `piwin-report` gets host styling. Custom CSS uses `--piwin-artifact-*` vars; outer background stays transparent.',
-    '- `style="expressive"` is for requested custom looks, prototypes or games; follow the host light/dark theme.',
-    '- Inline: fluid width, auto height, no nested page scroll. Canvas fills its viewport.',
-    '- Images: `<img data-piwin-media="ID" alt="description">`.',
-    '- Call `artifact_instructions` only for theme/layout details, charts, diagrams, icons or JS APIs.',
+    canvasOpen,
+    '<!-- self-contained HTML/CSS + optional inline JS -->',
+    fenceClose,
+    '',
+    'SVG:',
+    svgOpen,
+    '<!-- self-contained SVG, all assets inline -->',
+    fenceClose,
+    '',
+    '(Use `style="host"` by default; use `style="expressive"` when the user asks for a custom visual look, high-fidelity prototype, game, or poster.)',
+    '',
+    '### Sandbox Rendering Rules',
+    '- **Theme Tokens**: Take colors from `--piwin-artifact-*` CSS variables so light and dark themes adapt automatically: base `bg, surface, surface-2, text, muted, subtle, accent, accent-2, on-accent, border, border-strong`; status `ok, warn, info, risk`; charts `series-1`…`series-6`; geometry `radius-sm, radius-lg, shadow-1, shadow-2, font`. Soft tint: `color-mix(in srgb, var(--piwin-artifact-<token>) 12%, transparent)`.',
+    '- **Backgrounds & Host Theme**: Keep the outermost wrapper background `transparent` so the host page shows through, and place `var(--piwin-artifact-surface)` on inner cards, panels, and floating layers. Follow the host `light` or `dark` mode across all styles: a light host gets a light design and a dark host gets a dark one.',
+    '- **Viewport & Streaming**: Inline uses a fluid chat-column width (`width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box`) with `height: auto` so the conversation owns scrolling. Canvas fills the workspace viewport (`width: 100%; height: 100dvh`). Emit `<style>` complete before any visible HTML markup, close each visual block before starting siblings, and keep core content in static HTML with JS for progressive enhancement.',
+    '- **Media & Built-in Kits**: Render session media with `<img data-piwin-media="<mediaId>" alt="short label">` (the host resolves the id to the image). Call `artifact_instructions` when you want the syntax reference for built-in charts (`data-piwin-chart`), icons (`data-piwin-icon`), diagrams (`.piwin-flow`, `.piwin-lanes`, `.piwin-timeline`, `.piwin-tree`), step-through visualizations (`data-piwin-viz`), or component/report kits.',
   ].join('\n');
 }
 
@@ -344,9 +366,9 @@ export function formatArtifactProtocol(): string {
 export const ARTIFACT_RUNTIME_CONTRACT = formatArtifactProtocol();
 
 /**
- * Resident Artifact instructions: configured decision policy plus the compact
- * runtime protocol. Prompt injection paths use this single formatter; the
- * optional authoring reference is delivered separately by the Host tool.
+ * Full model-facing Artifact instructions: configured decision policy plus
+ * the shared runtime protocol. `artifact_instructions` and any default
+ * prompt path must call this instead of concatenating surface rules.
  * Explicit-only is a product constraint, not part of the editable decision
  * prompt, so it is prefixed whenever `triggerMode === 'explicit-only'`. The
  * same pattern carries a surface restriction (`capability`): the shared
