@@ -103,37 +103,54 @@ export async function syncExternalAgentCatalog(
   }
 }
 
-/** Apply observed metadata under the index lock; local user fields remain authoritative. */
+/**
+ * Apply an observed title under the index lock; a user rename stays
+ * authoritative. The agent's `lastChangeUnixMs` is deliberately not adopted as
+ * `updatedAt`: resuming or idling a native session moves it too, so trusting it
+ * reorders the list whenever a session is merely opened.
+ */
 export async function applyExternalAgentMetadata(
   deps: HostRuntimeKernel,
   sessionId: string,
-  patch: Partial<Pick<AgentPluginNativeObservation, 'title' | 'lastChangeUnixMs' | 'backendSessionId'>>,
+  patch: Partial<Pick<AgentPluginNativeObservation, 'title' | 'backendSessionId'>>,
   isCurrent: () => boolean = () => true,
 ): Promise<void> {
+  const title = patch.title;
+  if (title === undefined || isPlaceholderSessionName(title)) return;
   const needsChange = (record: Awaited<ReturnType<typeof getSessionRecord>>): boolean => record !== undefined &&
     isCurrent() && (patch.backendSessionId === undefined || record.backend?.backendSessionId === patch.backendSessionId) &&
-    ((patch.title !== undefined && !isPlaceholderSessionName(patch.title) && record.nameSource !== 'user' && record.name !== patch.title) ||
-      (patch.lastChangeUnixMs !== undefined && patch.lastChangeUnixMs > Date.parse(record.updatedAt)));
+    record.nameSource !== 'user' && record.name !== title;
   if (!needsChange(await getSessionRecord(indexPath(deps), sessionId))) return;
   let changed = false;
-  let titleChanged = false;
   const updated = await updateSessionRecord(indexPath(deps), sessionId, (record) => {
     if (!needsChange(record)) return;
-    if (patch.title !== undefined && !isPlaceholderSessionName(patch.title) && record.nameSource !== 'user' && record.name !== patch.title) {
-      record.name = patch.title;
-      record.nameSource = 'llm';
-      titleChanged = true;
-    }
-    if (patch.lastChangeUnixMs !== undefined && patch.lastChangeUnixMs > Date.parse(record.updatedAt)) {
-      record.updatedAt = new Date(patch.lastChangeUnixMs).toISOString();
-    }
+    record.name = title;
+    record.nameSource = 'llm';
     changed = true;
   });
   if (updated === undefined || !changed || !isCurrent()) return;
   deps.push(sessionIndexUpdatedPush({ op: 'updated', sessionId, session: indexRecordToSummary(updated) }));
-  if (titleChanged && updated.name !== undefined) {
-    deps.push({ type: 'session/name-updated', sessionId, name: updated.name, nameSource: 'llm' });
-  }
+  deps.push({ type: 'session/name-updated', sessionId, name: title, nameSource: 'llm' });
+}
+
+/**
+ * The conversation itself changed outside a Host turn (native CLI input, or a
+ * replay that imported new rows): move the session's activity time forward.
+ */
+export async function markExternalConversationActivity(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+  changedAtUnixMs: number,
+): Promise<void> {
+  const updatedAt = new Date(changedAtUnixMs).toISOString();
+  let changed = false;
+  const updated = await updateSessionRecord(indexPath(deps), sessionId, (record) => {
+    if (updatedAt <= record.updatedAt) return;
+    record.updatedAt = updatedAt;
+    changed = true;
+  });
+  if (updated === undefined || !changed) return;
+  deps.push(sessionIndexUpdatedPush({ op: 'updated', sessionId, session: indexRecordToSummary(updated) }));
 }
 
 /** The adapter reported a title: adopt it unless the user renamed the session. */

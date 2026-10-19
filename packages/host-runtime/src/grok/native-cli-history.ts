@@ -4,7 +4,7 @@ import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import { workingDirectoryFromIndexRecord } from '../session-scope.js';
 import { rebuildTranscriptFromReplay } from './grok-transcript-replay.js';
 import { AgentCliError } from './native-cli-error.js';
-import { applyExternalAgentMetadata } from './grok-catalog-sync.js';
+import { applyExternalAgentMetadata, markExternalConversationActivity } from './grok-catalog-sync.js';
 
 /** Native view sync is a data read, never a writer handoff or a new agent process. */
 export async function snapshotNativeCliHistory(
@@ -45,13 +45,16 @@ export async function snapshotNativeCliHistory(
     const latest = await getSessionRecord(indexPath, sessionId);
     if (latest?.backend?.backendSessionId !== binding.backendSessionId)
       throw new AgentCliError('transition-failed', 'native binding changed');
-    await rebuildTranscriptFromReplay(
+    const changed = await rebuildTranscriptFromReplay(
       deps,
       record,
       observed.replayEvents.map((emission) => emission.event),
       undefined,
     );
     await applyExternalAgentMetadata(deps, sessionId, observed);
+    if (changed) {
+      await markExternalConversationActivity(deps, sessionId, observed.lastChangeUnixMs ?? snapshotStartedAt);
+    }
     await updateSessionRecord(indexPath, sessionId, (current) => {
       if (
         current.backend !== undefined &&

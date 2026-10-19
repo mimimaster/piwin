@@ -78,10 +78,8 @@ it('preserves local metadata and never reconciles unrelated or temporarily missi
   host.catalog.mockResolvedValue([{
     backendSessionId: 'native-grok-id', title: 'Vendor title', lastChangeUnixMs: Date.now() + 10_000,
   }, { backendSessionId: 'unrelated', title: 'Unrelated' }]);
-  await vi.waitFor(() => expect(host.pushes).toContainEqual(expect.objectContaining({
-    type: 'session/index-updated', op: 'updated', sessionId: host.sessionId,
-    session: expect.objectContaining({ name: 'My title', isPinned: true, isArchived: true }),
-  })), { timeout: 5_000 });
+  const vendorCalls = host.catalog.mock.calls.length;
+  await vi.waitFor(() => expect(host.catalog.mock.calls.length).toBeGreaterThan(vendorCalls), { timeout: 5_000 });
   host.catalog.mockResolvedValue([]);
   const calls = host.catalog.mock.calls.length;
   await vi.waitFor(() => expect(host.catalog.mock.calls.length).toBeGreaterThan(calls), { timeout: 5_000 });
@@ -89,6 +87,33 @@ it('preserves local metadata and never reconciles unrelated or temporarily missi
     name: 'My title', nameSource: 'user', isPinned: true, pinnedAt, isArchived: true,
   });
   expect(host.pushes.filter((push) => push.type === 'session/index-updated' && push.op === 'created')).toHaveLength(1);
+}, 15_000);
+
+it('keeps list order when merely opening a native session moves the agent last-change time', async () => {
+  const host = await setup();
+  const before = await getSessionRecord(host.indexPath, host.sessionId);
+  if (before === undefined) throw new Error('Missing product session');
+  host.catalog.mockResolvedValue([{ backendSessionId: 'native-grok-id', lastChangeUnixMs: Date.now() + 60_000 }]);
+  const calls = host.catalog.mock.calls.length;
+  await vi.waitFor(() => expect(host.catalog.mock.calls.length).toBeGreaterThan(calls + 1), { timeout: 8_000 });
+  expect((await getSessionRecord(host.indexPath, host.sessionId))?.updatedAt).toBe(before.updatedAt);
+  expect(host.pushes.filter((push) => push.type === 'session/index-updated' && push.op === 'updated')).toHaveLength(0);
+}, 15_000);
+
+it('moves a native session up when the person submits input in its terminal', async () => {
+  const host = await setup();
+  const stale = '2026-01-01T00:00:00.000Z';
+  await updateSessionRecord(host.indexPath, host.sessionId, (record) => { record.updatedAt = stale; });
+  vi.spyOn(InteractiveTerminalManager.prototype, 'write').mockImplementation(() => undefined);
+  await host.runtime.handleCommand({ type: 'pty/write', ptyId: 'pty-fixture', data: 'hel' });
+  expect((await getSessionRecord(host.indexPath, host.sessionId))?.updatedAt).toBe(stale);
+  await host.runtime.handleCommand({ type: 'pty/write', ptyId: 'pty-fixture', data: 'lo\r' });
+  await vi.waitFor(async () => {
+    expect((await getSessionRecord(host.indexPath, host.sessionId))?.updatedAt).not.toBe(stale);
+  });
+  expect(host.pushes).toContainEqual(expect.objectContaining({
+    type: 'session/index-updated', op: 'updated', sessionId: host.sessionId,
+  }));
 }, 15_000);
 
 it('detaches views and snapshots a running native turn without closing or activating an agent session', async () => {

@@ -11,25 +11,30 @@ import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
 /**
  * Replace the display projection with the Grok replay. Rows are rebuilt from
  * ordered replay events because Grok messages carry no ids.
+ *
+ * Returns whether the replay brought conversation the replaced projection did
+ * not show; the pending prompt row is not part of that comparison.
  */
 export async function rebuildTranscriptFromReplay(
   deps: HostRuntimeKernel,
   record: SessionIndexRecord,
   events: readonly AgentEvent[],
   pendingUserMessageId: string | undefined,
-): Promise<void> {
+): Promise<boolean> {
   const rows = replayEventsToRows(events);
   if (rows.length === 0) {
-    return;
+    return false;
   }
-  await deps.withTranscriptStore(
+  return deps.withTranscriptStore(
     record.id,
     async (store) => {
       const pending =
         pendingUserMessageId !== undefined ? await store.getMessage(pendingUserMessageId) : undefined;
       const existingIds: string[] = [];
+      const existingRows: ConversationRow[] = [];
       for await (const existing of store.iterateActivePath()) {
         existingIds.push(existing.id);
+        if (existing.id !== pendingUserMessageId) existingRows.push(existing);
       }
       for (const id of existingIds) {
         await store.deleteMessage(id);
@@ -60,9 +65,29 @@ export async function rebuildTranscriptFromReplay(
           ...(pending.contextRefs !== undefined ? { contextRefs: pending.contextRefs } : {}),
         });
       }
+      return replayAddsConversation(existingRows, rows);
     },
     record.projectPath,
   );
+}
+
+type ConversationRow = Pick<SessionTranscriptMessage, 'role' | 'text'>;
+
+/**
+ * Whether a replay brings conversation the projection did not show. A first
+ * import (nothing projected yet) is not new activity: the agent already had
+ * that history when piwin listed the session.
+ */
+export function replayAddsConversation(
+  previous: readonly ConversationRow[],
+  replayed: readonly ConversationRow[],
+): boolean {
+  const said = (rows: readonly ConversationRow[]): string[] =>
+    rows.filter((row) => row.text.trim() !== '').map((row) => `${row.role}\u0000${row.text.trim()}`);
+  const before = said(previous);
+  if (before.length === 0) return false;
+  const after = said(replayed);
+  return before.length !== after.length || before.some((entry, index) => entry !== after[index]);
 }
 
 type ReplayRow = {

@@ -35,8 +35,10 @@ export async function persistDurableSessionRecord(
 ): Promise<SessionIndexRecord> {
   await mkdir(getPiwinSessionDir(input.rootDir, input.sessionId), { recursive: true });
   // Changed under the index lock, so a rename made meanwhile survives.
+  // `updatedAt` is left alone: binding a runtime to an existing session (cold
+  // activation, settings rebind) is not conversation activity, and moving it
+  // reorders the session list when a session is merely opened.
   const current = await updateSessionRecord(input.indexPath, input.sessionId, (record) => {
-    record.updatedAt = new Date().toISOString();
     // The name here may have been read before a rename landed (a runtime binds
     // with the record it activated from); a name the person chose or a model
     // title is not ours to put back.

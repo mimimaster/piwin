@@ -79,14 +79,24 @@ clients through a per-session capability descriptor.
 
 ### 4. The session list maps Grok sessions directly
 
-The Grok catalog is the source of truth for Grok session existence, title and
-activity. piwin lists every Grok session (including TUI-created ones), groups
-them by working directory, and writes rename and delete back to Grok. Delete
-is permanent in both places. Pin and archive are piwin-local.
+The Grok catalog is the source of truth for Grok session existence and title.
+piwin lists every Grok session (including TUI-created ones), groups them by
+working directory, and writes rename and delete back to Grok. Delete is
+permanent in both places. Pin and archive are piwin-local.
 
 The piwin transcript is a display projection. First open (no local
 projection) or a newer Grok `lastChangeUnixMs` rebuilds it with
 `session/load`; otherwise `session/resume` continues without replay.
+
+List order (`updatedAt`) is not taken from `lastChangeUnixMs`. Grok moves
+that time when a session is merely resumed (it appends synthetic reminders and
+background-task updates) and while it idles, so adopting it reordered the list
+whenever a person only opened a conversation. The catalog time only dates a
+newly imported row. Afterwards `updatedAt` advances on conversation evidence:
+a Host turn completing, the person submitting input in that session's native
+CLI terminal, or a replay that brings rows the existing projection did not
+show (a first import into an empty projection does not count). Binding a
+runtime to an existing session (cold activation) never touches `updatedAt`.
 
 ### 5. Queue and interjection
 

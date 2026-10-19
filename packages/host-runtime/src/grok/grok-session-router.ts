@@ -25,6 +25,7 @@ import { externalOperationRefusal } from '../external-agent-policy.js';
 import type { AgentPluginSession } from '../agent-plugin-session.js';
 import { EXTERNAL_AGENT_SETTINGS_REVISION } from '../sessions/session-runtime-controller.js';
 import { rebuildTranscriptFromReplay } from './grok-transcript-replay.js';
+import { markExternalConversationActivity } from './grok-catalog-sync.js';
 import { externalProjectionNeedsReplay } from './external-projection-staleness.js';
 import { listExtensionBackends, requireExtensionBackendLaunch, type ExtensionBackend } from '../extension-session-backends.js';
 
@@ -112,8 +113,14 @@ export async function activateExternalSession(
   }
   try {
     if (replay) {
-      await rebuildTranscriptFromReplay(deps, record, opened.replayEvents, pendingUserMessageId);
+      const changed = await rebuildTranscriptFromReplay(deps, record, opened.replayEvents, pendingUserMessageId);
       bindingPatch.syncedChangeUnixMs = Date.now();
+      if (changed) {
+        const catalogChange = binding.backendSessionId !== undefined
+          ? deps.externalCatalogChanges.get(binding.backendSessionId)
+          : undefined;
+        await markExternalConversationActivity(deps, record.id, catalogChange ?? bindingPatch.syncedChangeUnixMs);
+      }
     }
     await persistBinding(deps, record.id, bindingPatch);
     deps.host.registerExternalSession(record.id, opened.handle);

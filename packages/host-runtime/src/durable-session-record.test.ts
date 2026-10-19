@@ -1,7 +1,7 @@
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getSessionRecord, renameSessionRecord } from '@piwin/session';
+import { getSessionRecord, renameSessionRecord, updateSessionRecord } from '@piwin/session';
 import { describe, expect, it } from 'vitest';
 import { persistDurableSessionRecord } from './durable-session-record.js';
 
@@ -26,5 +26,14 @@ describe('persistDurableSessionRecord', () => {
     await persistDurableSessionRecord({ rootDir, indexPath, sessionId: 's2', projectPath: '' });
     await persistDurableSessionRecord({ rootDir, indexPath, sessionId: 's2', projectPath: '', sessionName: '后来才有名字' });
     expect((await getSessionRecord(indexPath, 's2'))?.name).toBe('后来才有名字');
+  });
+
+  it('does not treat binding a runtime to an existing session as activity', async () => {
+    const { rootDir, indexPath } = await setup();
+    await persistDurableSessionRecord({ rootDir, indexPath, sessionId: 's3', projectPath: '' });
+    const stale = '2026-01-01T00:00:00.000Z';
+    await updateSessionRecord(indexPath, 's3', (record) => { record.updatedAt = stale; });
+    await persistDurableSessionRecord({ rootDir, indexPath, sessionId: 's3', projectPath: '' });
+    expect((await getSessionRecord(indexPath, 's3'))?.updatedAt).toBe(stale);
   });
 });

@@ -86,6 +86,28 @@ describe('syncExternalSessionCatalog', () => {
     });
   });
 
+  it('dates new rows from the agent but never reorders a listed session by its last-change time', async () => {
+    const existing = createSessionRecord({ id: 'p-1', projectPath: '/proj' });
+    existing.backend = { agentId: 'grok', backendSessionId: 'g-1' };
+    existing.updatedAt = '2026-10-01T00:00:00.000Z';
+    await upsertSessionRecord(indexPath, existing);
+
+    const result = await syncExternalSessionCatalog({
+      indexPath,
+      agentId: 'grok',
+      entries: [
+        { backendSessionId: 'g-1', lastChangeUnixMs: Date.parse('2026-10-19T10:30:38Z') },
+        { backendSessionId: 'g-2', lastChangeUnixMs: Date.parse('2026-10-18T00:00:00Z') },
+      ],
+      createProductSessionId: () => 'p-2',
+      resolveProjectPath: () => '/proj',
+    });
+
+    expect(result.updated).toEqual([]);
+    expect((await getSessionRecord(indexPath, 'p-1'))?.updatedAt).toBe('2026-10-01T00:00:00.000Z');
+    expect((await getSessionRecord(indexPath, 'p-2'))?.updatedAt).toBe('2026-10-18T00:00:00.000Z');
+  });
+
   it('keeps external sessions out of cold storage', () => {
     const record = { ...createSessionRecord({ id: 'g', projectPath: '/p' }), isArchived: true, backend: { agentId: 'grok' } };
     expect(

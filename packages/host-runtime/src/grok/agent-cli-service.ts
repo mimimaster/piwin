@@ -43,6 +43,7 @@ import { AgentCliError } from './native-cli-error.js';
 import { NativeCliCatalogObserver } from './native-cli-catalog.js';
 import { NativeCliOutputBuffer } from './native-cli-output.js';
 import { snapshotNativeCliHistory } from './native-cli-history.js';
+import { markExternalConversationActivity } from './grok-catalog-sync.js';
 import { resolveNativeCliLaunch } from './native-cli-launch.js';
 
 type SessionPty = { ptyId: string; agentId: string };
@@ -110,6 +111,7 @@ export class AgentCliService {
         case 'agents/cli-status': return ok(requestId, command.type, this.status(command.sessionId));
         case 'pty/write':
           this.terminals.write(command.ptyId, command.data);
+          this.noteNativeSubmit(command.ptyId, command.data);
           return ok(requestId, command.type, {});
         case 'pty/resize':
           this.terminals.resize(command.ptyId, command.cols, command.rows);
@@ -376,6 +378,22 @@ export class AgentCliService {
       }
     }
     await this.deps.activateSessionRuntime(sessionId);
+  }
+
+  /**
+   * Opening or resuming a native session moves the agent's own last-change
+   * time, so the Host's evidence of a native turn is the person submitting
+   * input in that session's terminal.
+   */
+  private noteNativeSubmit(ptyId: string, data: string): void {
+    if (!data.includes('\r') && !data.includes('\n')) return;
+    for (const [sessionId, entry] of this.sessionPtys) {
+      if (entry.ptyId !== ptyId) continue;
+      void markExternalConversationActivity(this.deps, sessionId, Date.now()).catch((error: unknown) => {
+        this.deps.push({ type: 'host/log', level: 'warn', message: `native session activity update failed: ${formatError(error)}` });
+      });
+      return;
+    }
   }
 
   private handlePtyExit(ptyId: string): void {

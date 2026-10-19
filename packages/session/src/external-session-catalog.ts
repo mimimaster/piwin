@@ -52,11 +52,11 @@ export async function syncExternalSessionCatalog(
     for (const entry of input.entries) {
       seen.add(entry.backendSessionId);
       const existing = byBackendId.get(entry.backendSessionId);
-      const updatedAt =
-        entry.lastChangeUnixMs !== undefined
-          ? new Date(entry.lastChangeUnixMs).toISOString()
-          : now().toISOString();
       if (existing === undefined) {
+        const updatedAt =
+          entry.lastChangeUnixMs !== undefined
+            ? new Date(entry.lastChangeUnixMs).toISOString()
+            : now().toISOString();
         const projectPath = input.resolveProjectPath(entry.cwd);
         const record: SessionIndexRecord = {
           id: input.createProductSessionId(),
@@ -74,14 +74,12 @@ export async function syncExternalSessionCatalog(
         result.created.push(record);
         continue;
       }
+      // An agent's last-change time also moves when its session is merely
+      // resumed or idles, so it never reorders a session piwin already lists.
       let changed = false;
       if (entry.title !== undefined && existing.nameSource !== 'user' && existing.name !== entry.title) {
         existing.name = entry.title;
         existing.nameSource = 'llm';
-        changed = true;
-      }
-      if (updatedAt > existing.updatedAt) {
-        existing.updatedAt = updatedAt;
         changed = true;
       }
       // Product-created Loose Grok stays in Conversations. New catalog rows
