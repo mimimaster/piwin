@@ -109,7 +109,9 @@ export function ProviderDetail({
           <h2 className="pdetail-name">{title}</h2>
           <p className="pdetail-meta">
             {extension ? (
-              <span className="pdetail-chip">{isChinese ? '免登录扩展' : 'Public extension'}</span>
+              <span className="pdetail-chip">{provider.extension?.bundled
+                ? (isChinese ? '内置扩展' : 'Built-in extension')
+                : (isChinese ? '免登录扩展' : 'Public extension')}</span>
             ) : subscription ? (
               <span className="pdetail-chip">{isChinese ? 'OAuth 套餐' : 'OAuth plan'}</span>
             ) : (
@@ -220,9 +222,9 @@ export function ProviderDetail({
       ) : null}
 
       {extension ? (
-        <p className="pdetail-note">{isChinese
+        <p className="pdetail-note">{provider.extension?.notice ?? (isChinese
           ? '模型由扩展提供，无需登录或 API 密钥。这里可以开关模型、调整参数、设置默认模型；卸载请到扩展管理。'
-          : 'Models are provided by an extension; no login or API key is needed. Adjust models and defaults here; uninstall through Extensions.'}</p>
+          : 'Models are provided by an extension; no login or API key is needed. Adjust models and defaults here; uninstall through Extensions.')}</p>
       ) : subscription ? (
         <p className="pdetail-note">
           {isChinese

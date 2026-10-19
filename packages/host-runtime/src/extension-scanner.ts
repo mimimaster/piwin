@@ -69,7 +69,7 @@ export async function scanExtensions(options: ScanExtensionsOptions): Promise<Ex
       id: record.id,
       name: record.name,
       description: record.description,
-      source: 'user',
+      source: selected.sourceLocator?.startsWith('bundled:') ? 'bundled' : 'user',
       path: selected.entryPath,
       enabled: compatible && record.configuredEnabled && selected.state === 'installed',
       managed: true,

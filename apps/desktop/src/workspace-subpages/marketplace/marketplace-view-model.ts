@@ -179,6 +179,14 @@ export function groupInstalledItems(items: readonly MarketplaceInstalledItem[]):
 
 export type PendingUpdate = { entry: MarketplaceCatalogEntry; item: MarketplaceInstalledItem };
 
+export function hasCatalogUpdate(
+  entry: Pick<MarketplaceCatalogEntry, 'version' | 'withdrawn'> | undefined,
+  installed: Pick<MarketplaceInstalledItem, 'version' | 'source'>,
+): boolean {
+  return Boolean(entry && installed.source !== 'bundled' && !entry.withdrawn &&
+    entry.version && installed.version && entry.version !== installed.version);
+}
+
 /** Installed items whose curated entry pins a different, still-listed version. */
 export function pendingUpdates(
   items: readonly MarketplaceInstalledItem[],
@@ -186,13 +194,7 @@ export function pendingUpdates(
 ): PendingUpdate[] {
   return items.flatMap((item) => {
     const entry = catalogEntryFor(item, lookup);
-    if (
-      !entry ||
-      entry.withdrawn ||
-      !entry.version ||
-      !item.version ||
-      entry.version === item.version
-    )
+    if (!entry || !hasCatalogUpdate(entry, item))
       return [];
     return [{ entry, item }];
   });

@@ -1,0 +1,8 @@
+{
+  "modelProvider": {
+    "id": "opencode-zen",
+    "name": "OpenCode Zen",
+    "auth": "none",
+    "notice": "模型使用受官方IP管制，受环境因素影响不保证可用，若不可用，可调整使用IP尝试"
+  }
+}

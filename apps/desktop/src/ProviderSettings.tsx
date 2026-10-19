@@ -368,7 +368,9 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   }
 
   function subtitleOf(provider: ModelProviderConfig): string {
-    if (isExtensionProvider(provider)) return isChinese ? '扩展 · 免登录' : 'Extension · no login';
+    if (isExtensionProvider(provider)) return provider.extension?.bundled
+      ? (isChinese ? '内置扩展 · 免登录' : 'Built-in extension · no login')
+      : (isChinese ? '扩展 · 免登录' : 'Extension · no login');
     if (provider.protocol === 'google-vertex') {
       return [provider.project, provider.location ?? DEFAULT_VERTEX_LOCATION]
         .filter(Boolean)

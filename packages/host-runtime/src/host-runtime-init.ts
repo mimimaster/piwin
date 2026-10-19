@@ -40,6 +40,7 @@ import { loadModelCatalogFromDisk } from './model-catalog-store.js';
 import { listTrustedProjectRoots, trustedWorktreeRoots } from './trusted-project-roots.js';
 import { isGeneralWorkspacePath } from './general-workspace.js';
 import { ensureHostPiAgentDir } from './import-legacy-pi-auth.js';
+import { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
 import { fail } from './response-helpers.js';
 import { RunRegistry } from './run-registry.js';
 import { handleSessionLiveCommand } from './commands/session-live-commands.js';
@@ -206,18 +207,28 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         push: options.onPush,
       });
     }
+    let bundledExtensionsReady: Promise<unknown> | undefined;
+    const prepareExtensions = () => bundledExtensionsReady ??= options.mock === true
+      ? Promise.resolve()
+      : ensureBundledExtensionsInstalled(getPiwinRoot(options.piwinRoot));
     deps.subscriptionAuth = new SubscriptionAuthService({
       ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
       openAuthUrl: openLocalAuthUrl,
+    }, {
+      prepareExtensions,
     });
     deps.subscriptionAuth.bindPush((message) => deps.push(message));
     if (options.mock !== true) {
-      void ensureHostPiAgentDir(options.piwinRoot)
-        .then(() => {
+      deps.subscriptionStartup = ensureHostPiAgentDir(options.piwinRoot)
+        .then(async () => {
+          if (deps.hostClosing) return;
+          await prepareExtensions();
+          if (deps.hostClosing) return;
           deps.subscriptionAuth?.startWatch();
-          return deps.subscriptionAuth?.ensureLoggedInProviders();
+          await deps.subscriptionAuth?.ensureLoggedInProviders();
         })
         .catch((error: unknown) => {
+          if (deps.hostClosing) return;
           deps.push({
             type: 'host/log',
             level: 'warn',

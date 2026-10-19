@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import type { ActiveLogin, SubscriptionAuthServiceOptions } from './subscription-auth-state.js';
+export type { SubscriptionAuthServiceOptions } from './subscription-auth-state.js';
 import type {
   ActiveLoginStatus,
   AuthLoginFinishedData,
@@ -59,35 +61,6 @@ import { mergeSubscriptionCatalogModels, type ConfiguredChatModels } from './sub
 import { assertCodexCallbackPortFree } from './subscription-oauth-callback-port.js';
 import type { ResolveChatModelAccounts } from './resolve-chat-model.js';
 
-export type SubscriptionAuthServiceOptions = {
-  piwinRoot?: string;
-  piAgentDir?: string;
-  port?: SubscriptionAuthPort;
-  now?: () => number;
-  /** Pi CLI opens the auth URL itself. Host must do the same on this machine. */
-  openAuthUrl?: (url: string) => void;
-};
-
-type PendingPrompt = {
-  promptId: string;
-  resolve: (value: string) => void;
-  reject: (error: Error) => void;
-};
-
-type ActiveLogin = {
-  loginId: string;
-  providerId: string;
-  ownerDeviceId: string;
-  startedAt: string;
-  preferLoopback: boolean;
-  openAuthUrlOnHost: boolean;
-  abort: AbortController;
-  currentPrompt?: AuthPromptPayload;
-  authUrl?: AuthPromptPayload;
-  pending?: PendingPrompt;
-  newChannelId?: string;
-};
-
 const LIVE_ACCOUNT_STATES = new Set(['logged-in', 'logging-in', 'sync-error', 'needs-reauth']);
 
 export class SubscriptionAuthService {
@@ -99,6 +72,8 @@ export class SubscriptionAuthService {
   private extensionProjectionPending = false;
   private readonly reloadPortOnExtensions: boolean;
   private readonly portFactory: () => Promise<SubscriptionAuthPort>;
+  private readonly prepareExtensions: (() => Promise<unknown>) | undefined;
+  private readonly lifetime = new AbortController();
   private readonly loadConfig: () => Promise<PiwinConfig>;
   private readonly saveConfig: (config: PiwinConfig) => Promise<void>;
   /** Tests inject saveConfig. Production writes go through the settings queue. */
@@ -128,6 +103,7 @@ export class SubscriptionAuthService {
     saveConfig?: (config: PiwinConfig) => Promise<void>;
     applySettings?: (config: PiwinConfig) => Promise<void>;
     createPort?: () => Promise<SubscriptionAuthPort>;
+    prepareExtensions?: () => Promise<unknown>;
   } = {},
 ) {
     const agentDir = resolveHostPiAgentDir({
@@ -155,9 +131,11 @@ export class SubscriptionAuthService {
         });
       });
     this.piwinRoot = options.piwinRoot;
+    this.prepareExtensions = deps.prepareExtensions;
     this.port = options.port;
     this.portFactory = deps.createPort ?? (async () =>
       options.port ?? createSubscriptionAuthPort({
+        signal: this.lifetime.signal,
         authPath: paths.authPath,
         modelsPath: paths.modelsPath,
         extensionProviders: (await this.readExtensionProviders()).map((provider) => ({
@@ -466,6 +444,7 @@ export class SubscriptionAuthService {
   }
 
   dispose(): void {
+    this.lifetime.abort();
     if (this.active) {
       this.active.abort.abort();
       this.active.pending?.reject(new Error('login-cancelled'));
@@ -724,6 +703,8 @@ export class SubscriptionAuthService {
   }
 
   private async readExtensionProviders(): Promise<readonly SubscriptionExtensionProvider[]> {
+    await this.prepareExtensions?.();
+    this.lifetime.signal.throwIfAborted();
     this.extensionProviders = await readSubscriptionExtensionProviders(getPiwinRoot(this.piwinRoot));
     return this.extensionProviders;
   }

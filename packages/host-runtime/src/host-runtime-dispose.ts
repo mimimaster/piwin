@@ -12,6 +12,10 @@ import { createCancelledExtensionUiResponse } from './extension-ui-cancel.js';
 
 export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void> {
   const shutdownErrors: unknown[] = [];
+  deps.subscriptionAuth?.dispose();
+  // Startup can still be staging immutable bundled revisions. Finish those
+  // writes before releasing the root; disposal cancels any initial live pull.
+  await deps.subscriptionStartup;
   deps.queuedTurnController.dispose();
   const replacementCleanup = deps.runtimeReplacementEngine.cancelAll();
   const activeRuns = deps.runRegistry.list({

@@ -30,6 +30,7 @@ export type ProviderDraft = {
   enabled: boolean;
   category?: ModelCategory;
   source?: ModelSource;
+  extension?: ModelProviderConfig['extension'];
   /** Raw API key entered for this provider. Empty means keep the saved key. */
   apiKeyInput: string;
   /**
@@ -110,6 +111,7 @@ export function providerToDraft(provider: ModelProviderConfig): ProviderDraft {
     enabled: provider.enabled !== false,
     ...(provider.category ? { category: provider.category } : {}),
     ...(provider.source ? { source: provider.source } : {}),
+    ...(provider.extension ? { extension: provider.extension } : {}),
     apiKeyInput: '',
     // A provider is single-key. If an older config contains both fields,
     // keep the keychain ref as the authoritative source and drop the stale
@@ -151,6 +153,7 @@ export function draftToProvider(draft: ProviderDraft): ModelProviderConfig {
   if (draft.source) {
     config.source = draft.source;
   }
+  if (draft.extension) config.extension = draft.extension;
   const headers = rowsToHeaders(draft.headerRows);
   if (headers) {
     config.headers = headers;

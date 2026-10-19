@@ -2,6 +2,9 @@ import { cp, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getPiwinExtensionsDir } from './paths.js';
 import { resolveBundledAssetsRoot } from './bundled-assets-root.js';
+import { ensureManagedBundledExtension } from './ensure-managed-bundled-extension.js';
+
+const installations = new Map<string, Promise<string[]>>();
 
 /**
  * Copy shipped extension modules into ~/.piwin/extensions.
@@ -18,7 +21,20 @@ import { resolveBundledAssetsRoot } from './bundled-assets-root.js';
  * target (stale `compact.ts` next to `compact/`, or a package we stopped
  * vendoring). User-installed files without the bundled marker are left alone.
  */
-export async function ensureBundledExtensionsInstalled(
+export function ensureBundledExtensionsInstalled(
+  piwinRoot: string,
+  bundledRoot?: string,
+): Promise<string[]> {
+  const key = JSON.stringify([piwinRoot, bundledRoot]);
+  const pending = installations.get(key);
+  if (pending) return pending;
+  const installation = installBundledExtensions(piwinRoot, bundledRoot)
+    .finally(() => { installations.delete(key); });
+  installations.set(key, installation);
+  return installation;
+}
+
+async function installBundledExtensions(
   piwinRoot: string,
   bundledRoot?: string,
 ): Promise<string[]> {
@@ -78,6 +94,11 @@ export async function ensureBundledExtensionsInstalled(
       continue;
     }
     shippedNames.add(entryName);
+    const managed = await ensureManagedBundledExtension(piwinRoot, fromPath);
+    if (managed !== 'unmanaged') {
+      if (managed === 'installed') installed.push(entryName);
+      continue;
+    }
     const toPath = join(targetRoot, entryName);
     const shouldRefresh = await packageNeedsRefresh(fromPath, toPath);
     if (!shouldRefresh) {

@@ -308,6 +308,8 @@ export function isValidExtensionAuthProviderId(providerId: string): boolean {
 export type ExtensionModelProviderClaim = {
   readonly id: string;
   readonly name?: string;
+  /** Plain-text availability guidance owned by the extension. */
+  readonly notice?: string;
   readonly auth: 'none';
 };
 
@@ -330,10 +332,14 @@ export function parseExtensionModelProviderClaim(
   if (record.name !== undefined && (typeof record.name !== 'string' || !record.name.trim())) {
     return 'invalid';
   }
+  if (record.notice !== undefined && (typeof record.notice !== 'string' || !record.notice.trim() || record.notice.length > 4096)) {
+    return 'invalid';
+  }
   return {
     id: record.id,
     auth: 'none',
     ...(typeof record.name === 'string' ? { name: record.name.trim() } : {}),
+    ...(typeof record.notice === 'string' ? { notice: record.notice.trim() } : {}),
   };
 }
 

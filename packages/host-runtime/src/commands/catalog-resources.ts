@@ -6,6 +6,7 @@ import { loadPiwinConfig } from '../config-store.js';
 import { loadDiscoveredResources } from '../discovered-resources.js';
 import { ensureBundledExtensionsInstalled } from '../ensure-bundled-extensions.js';
 import { getSubscriptionAuthService } from './auth-commands.js';
+import { createExtensionRevisionStore } from '@piwin/extensions';
 import type { HostCommandContext } from './host-command-context.js';
 
 export async function loadCatalogResources(rootDir: string, projectPath?: string) {
@@ -25,12 +26,16 @@ export async function pushExtensionCatalog(
   rootDir: string,
   registryRevision: string,
 ): Promise<void> {
-  await ensureBundledExtensionsInstalled(rootDir);
+  const installed = await ensureBundledExtensionsInstalled(rootDir);
+  // A newly shipped managed built-in changes the registry during publication.
+  const currentRevision = installed.length > 0
+    ? (await createExtensionRevisionStore(rootDir).readRegistry()).revision
+    : registryRevision;
   const discovered = await loadCatalogResources(rootDir);
   await getSubscriptionAuthService(context).status();
   context.push({
     type: 'extension/catalog-updated',
-    registryRevision,
+    registryRevision: currentRevision,
     extensions: discovered.extensions,
   });
 }

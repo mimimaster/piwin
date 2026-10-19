@@ -46,15 +46,20 @@ const model = (id: string) => ({ id, name: id, reasoning: true, input: ['text'],
 describe('public extension dynamic model discovery', () => {
   it('automatically fetches once on enable/catalog publication without OAuth or UI discovery', async () => {
     const fetchImplementation = vi.fn<typeof fetch>(async () => Response.json([model('remote-first')])); vi.stubGlobal('fetch', fetchImplementation);
-    const { root, installed, store, service, context } = await setup();
+    const { root, installed, store, service, context, pushes } = await setup();
     await service.status(); expect(fetchImplementation).not.toHaveBeenCalled();
     const registry = await store.setEnabled(installed.extensionId, true);
     await pushExtensionCatalog(context, root, registry.revision);
+    expect(pushes).toContainEqual(expect.objectContaining({
+      type: 'extension/catalog-updated', registryRevision: (await store.readRegistry()).revision,
+    }));
     const config = await loadPiwinConfig(root);
     expect(config.providers.find((provider) => provider.id === 'live-public')?.models).toEqual([expect.objectContaining({ id: 'remote-first', contextWindow: 123456 })]);
     expect((await service.status()).accounts.some((account) => account.providerId === 'live-public')).toBe(false);
     await service.chatResolveInput();
-    expect(fetchImplementation).toHaveBeenCalledTimes(1);
+    // Catalog publication also installs shipped providers, each with its own
+    // first pull. Count this extension's request independently of built-ins.
+    expect(fetchImplementation.mock.calls.filter(([url]) => String(url) === 'https://catalog.example.test/models')).toHaveLength(1);
   });
 
   it('shares the first network pull across simultaneous initial readers', async () => {

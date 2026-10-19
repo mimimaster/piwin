@@ -22,6 +22,11 @@ function makeProvider(partial: Partial<ModelProviderConfig> & { id: string }): M
 }
 
 describe('provider-draft', () => {
+  it('preserves built-in provider presentation when editing model settings', () => {
+    const provider = makeProvider({ id: 'opencode-zen', source: 'extension',
+      extension: { bundled: true, notice: 'IP availability notice' } });
+    expect(draftToProvider(providerToDraft(provider)).extension).toEqual(provider.extension);
+  });
   it('draftToProvider never serializes the raw API key input', () => {
     const draft = providerToDraft(makeProvider({ id: 'a', apiKeyRef: 'ref-123' }));
     draft.apiKeyInput = 'raw-api-key';

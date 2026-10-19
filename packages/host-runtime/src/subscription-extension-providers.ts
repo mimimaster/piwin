@@ -18,6 +18,8 @@ export type SubscriptionExtensionProvider = {
   contentRevision?: string;
   /** Manifest `authProviderName`; the auth port falls back to Pi's registration name. */
   displayName?: string;
+  bundled?: boolean;
+  notice?: string;
 };
 
 export async function readSubscriptionExtensionProviders(
@@ -54,6 +56,8 @@ export async function readSubscriptionExtensionProviders(
       providerId: claim.providerId,
       entryPath: selected.entryPath,
       ...(publicClaim ? { contentRevision: selected.contentRevision } : {}),
+      ...(selected.sourceLocator?.startsWith('bundled:') ? { bundled: true } : {}),
+      ...(publicClaim && publicClaim !== 'invalid' && publicClaim.notice ? { notice: publicClaim.notice } : {}),
       ...(claim.displayName !== undefined ? { displayName: claim.displayName } : {}),
     });
   }

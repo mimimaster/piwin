@@ -29,7 +29,7 @@ export function subscriptionExtensionResources(
       kind: 'extension',
       name: provider.displayName ?? provider.providerId,
       path: provider.entryPath,
-      source: 'user',
+      source: provider.bundled ? 'bundled' : 'user',
       modelProviderId: provider.providerId,
       ...(provider.contentRevision ? { contentRevision: provider.contentRevision } : {}),
     }));

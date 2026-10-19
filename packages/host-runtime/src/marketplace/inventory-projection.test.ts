@@ -182,9 +182,9 @@ describe('projectMarketplaceInventory — extensions', () => {
     expect(item.catalogEntryId).toBe('extension:pi-lens');
   });
 
-  it('offers no removal for bundled extensions', () => {
+  it.each([false, true])('offers no removal for bundled extensions (managed=%s)', (managed) => {
     const item = only(
-      projectMarketplaceInventory(input({ extensions: [extension({ source: 'bundled', managed: false })] })),
+      projectMarketplaceInventory(input({ extensions: [extension({ source: 'bundled', managed })], managedRecords: [managedRecord()] })),
     );
     expect(item.removal).toBeUndefined();
   });

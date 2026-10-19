@@ -147,7 +147,8 @@ function projectExtension(
     Boolean(extension.path) &&
     !extension.bundledFrom;
   const removal: MarketplaceInstalledItem['removal'] =
-    (extension.managed && record && availability !== 'pending-removal') || isUserExtensionFile
+    extension.source === 'bundled' ? undefined
+    : (extension.managed && record && availability !== 'pending-removal') || isUserExtensionFile
       ? { command: 'extensions/uninstall' }
       : extension.piPackageSource
         ? { command: 'marketplace/package-remove', packageSource: extension.piPackageSource }

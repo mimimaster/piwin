@@ -81,12 +81,12 @@ function dataOf<T>(response: HostResponse | null): T {
   return response.data as T;
 }
 
-async function installManagedExtension(piwinRoot: string): Promise<string> {
+async function installManagedExtension(piwinRoot: string, sourceLocator?: string): Promise<string> {
   const sourceDir = await mkdtemp(join(tmpdir(), 'piwin-market-ext-src-'));
   const sourcePath = join(sourceDir, 'hello.ts');
   await writeFile(sourcePath, '/** hello */\nexport default function () {}\n', 'utf8');
   const store = createExtensionRevisionStore(piwinRoot);
-  const staged = await store.stage({ sourcePath });
+  const staged = await store.stage({ sourcePath, ...(sourceLocator ? { sourceLocator } : {}) });
   await store.setEnabled('hello', true);
   return staged.contentRevision;
 }
@@ -195,6 +195,17 @@ describe('marketplace catalog commands', () => {
 });
 
 describe('capability removal commands', () => {
+  it.each([false, true])('keeps built-in managed revisions installed (force=%s)', async (force) => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-builtin-uninstall-'));
+    const fixture = makeFixture(piwinRoot);
+    await installManagedExtension(piwinRoot, 'bundled:piwin:hello@1.0.0');
+    const response = await handleCapabilityRemovalCommand(
+      { type: 'extensions/uninstall', extensionId: 'hello', force }, 'builtin', fixture.context,
+    );
+    expect(response).toMatchObject({ success: false, error: expect.stringContaining('disable this extension') });
+    expect(await createExtensionRevisionStore(piwinRoot).getRecord('hello')).toMatchObject({ configuredEnabled: true });
+  });
+
   it('keeps a managed extension until its last runtime lets go, then deletes it', async () => {
     const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-market-uninstall-'));
     const fixture = makeFixture(piwinRoot);
