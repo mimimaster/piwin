@@ -79,6 +79,11 @@ async function uninstallExtension(
     );
   }
 
+  const selected = record.revisions.find((revision) => revision.contentRevision === record.selectedRevision);
+  if (selected?.sourceLocator?.startsWith('bundled:')) {
+    return fail(requestId, command.type, 'Built-in extensions ship with the application; disable this extension instead.');
+  }
+
   // `force` means delete now, even if a live runtime still names the revision.
   // Mark pending first: purge only drops records already in that state.
   if (command.force && record.installationState !== 'pending-removal') {

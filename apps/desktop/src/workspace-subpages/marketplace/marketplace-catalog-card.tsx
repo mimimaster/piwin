@@ -17,6 +17,8 @@ import {
 } from './marketplace-copy.js';
 import { MarketplaceKindSeal } from './marketplace-kind-seal.js';
 import type { MarketOperation } from './marketplace-types.js';
+import { hasCatalogUpdate } from './marketplace-view-model.js';
+export { hasCatalogUpdate } from './marketplace-view-model.js';
 
 export type MarketplaceCatalogCardProps = {
   entry: MarketplaceCatalogEntry;
@@ -27,19 +29,6 @@ export type MarketplaceCatalogCardProps = {
   onUpdate?:
     ((entry: MarketplaceCatalogEntry, installed: MarketplaceInstalledItem) => void) | undefined;
 };
-
-export function hasCatalogUpdate(
-  entry: Pick<MarketplaceCatalogEntry, 'version' | 'withdrawn'> | undefined,
-  installed: Pick<MarketplaceInstalledItem, 'version'>,
-): boolean {
-  return Boolean(
-    entry &&
-    !entry.withdrawn &&
-    entry.version &&
-    installed.version &&
-    entry.version !== installed.version,
-  );
-}
 
 /** Enter / Space on a focused card behaves like a click, as on a button. */
 export function activateOnKey(event: KeyboardEvent<HTMLElement>, activate: () => void): void {

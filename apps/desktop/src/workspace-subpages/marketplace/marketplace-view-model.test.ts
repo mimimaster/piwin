@@ -5,6 +5,7 @@ import {
   filterCatalogEntries,
   filterInstalledItems,
   groupInstalledItems,
+  hasCatalogUpdate,
   indexCatalogEntries,
   pendingUpdates,
   presentCategories,
@@ -107,6 +108,12 @@ describe('installed grouping', () => {
 
   it('offers updates only for listed entries with a different pinned version', () => {
     expect(pendingUpdates(items, lookup).map((u) => u.item.capabilityId)).toEqual(['doc']);
+  });
+
+  it('keeps built-in revisions on the application version instead of offering a registry downgrade', () => {
+    const bundled = item({ capabilityId: 'doc', catalogEntryId: 'skill:doc', source: 'bundled', version: '9.0.0' });
+    expect(hasCatalogUpdate(lookup.get('skill:doc'), bundled)).toBe(false);
+    expect(pendingUpdates([bundled], lookup)).toEqual([]);
   });
 
   it('filters installed items by kind and catalog names', () => {
