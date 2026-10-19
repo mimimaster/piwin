@@ -351,3 +351,27 @@ transcript's Markdown code block already is.
     `overflow-wrap: anywhere`) on Canvas too, so a listing that still lands
     in a report shows its line ends. Legacy fences replay unchanged.
     Not verified: a live model run under the new prompt.
+
+## Left accent bars stay straight (2026-10-19)
+
+Owner direction: a status bar on the left edge of a card must be a straight
+line. The 2026-10-14 fix only covered Diagram Kit steps (a gradient layer
+instead of an inset shadow); its prompt rule was reverted the same day, so
+model-authored cards with `border-left: 3px` plus `border-radius` kept
+drawing the bar as a concave arc.
+
+44. **Host squares the corners.** `straightenLeftAccents` in
+    `@piwin/artifact` `left-accent-straighten` finds rounded elements whose
+    left border is at least 2px and thicker than the other sides, or that
+    carry an inset left shadow bar, and sets their two left corner radii to
+    `0 !important` through CSSOM. Right corners, fill and colors stay as
+    written; uniform frames, hairlines and SVG are untouched.
+45. **Both renderers, every phase.** Same self-contained pattern as the
+    layout probe (item 33): the static renderer calls it on its shadow root;
+    the sandbox embeds its source and reruns it, debounced, on load and on
+    every `childList` mutation, so stream previews straighten too.
+46. **A narrow rewrite.** Item 34 keeps automatic layout repair out because
+    it would guess at intent. This one does not guess: a thick left edge on a
+    rounded box is always meant as a bar. No model-facing prompt change.
+    Evidence: `docs/evidence/2026-10-19-left-accent-straight.png` (Chromium).
+    Not verified: WebKit (packaged Tauri).

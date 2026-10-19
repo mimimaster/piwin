@@ -10,6 +10,7 @@ import {
   resolveArtifactThemeCssVariables,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
+  straightenLeftAccents,
   type ArtifactRules,
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
@@ -219,6 +220,7 @@ export function ArtifactStatic({
     // ADR 0090: mapped emoji → Tabler icons, once per sanitized tree.
     replaceEmojiIconsInTree(content);
     shadowRoot.replaceChildren(baseStyle, content);
+    straightenLeftAccents(shadowRoot, window);
     const measure = (): void => {
       setOverflows(shouldEnterArtifactInlineOverflow(content.getBoundingClientRect().height));
       // Same probe the sandbox runs in its frame; here the host owns the tree.

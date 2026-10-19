@@ -15,6 +15,7 @@ import {
 } from './constants.js';
 import { buildCanvasStageFitRuntime } from './srcdoc-canvas-fit.js';
 import { buildArtifactLayoutProbeRuntime } from './layout-probe.js';
+import { buildArtifactLeftAccentRuntime } from './left-accent-straighten.js';
 import { buildArtifactContrastProbeRuntime } from './srcdoc-contrast-probe.js';
 import { buildScrollContinuityRuntime } from './srcdoc-scroll-continuity.js';
 import { buildSelectionRuntime } from './srcdoc-selection.js';
@@ -474,6 +475,7 @@ export function buildArtifactBridgeBootstrapScript(
 
   ${contrastProbe && freezeSource ? buildArtifactContrastProbeRuntime() : ''}
   ${freezeSource ? buildArtifactLayoutProbeRuntime() : ''}
+  ${buildArtifactLeftAccentRuntime()}
   applyFrameMode(currentFrameMode);
   if (document.readyState === 'complete') {
     if (currentFrameMode === 'inline-flow') startHeightObserver();

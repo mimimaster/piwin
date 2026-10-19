@@ -126,6 +126,7 @@ export {
 export type { ArtifactPalette, ArtifactStyleModes, ResolveArtifactPaletteInput } from './artifact-style.js';
 export { parseArtifactContrastMessage, parseArtifactLayoutMessage } from './bridge-protocol.js';
 export { countShatteredText } from './layout-probe.js';
+export { straightenLeftAccents } from './left-accent-straighten.js';
 export {
   ARTIFACT_BRIDGE_CONTRAST_TYPE,
   ARTIFACT_BRIDGE_LAYOUT_TYPE,
