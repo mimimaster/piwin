@@ -267,13 +267,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .turn-change-bar-pill {
-  background: color-mix(in srgb, var(--ochre) 14%, transparent);
-  color: var(--ochre);
-  font-size: 11.5px;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .turn-change-bar-foot,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .turn-change-bar-inline-note {

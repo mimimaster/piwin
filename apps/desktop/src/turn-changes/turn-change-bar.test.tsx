@@ -297,7 +297,7 @@ describe('TurnChangeBar', () => {
     expect(q('turn-change-bar-conflict')?.textContent).toContain(untouched);
   });
 
-  it('says why an incomplete record cannot be undone and names the files that block it', async () => {
+  it('omits irreversible warnings for an incomplete record and still lists command-changed files', async () => {
     await render(
       <TurnChangeBar
         summary={summary({
@@ -312,16 +312,9 @@ describe('TurnChangeBar', () => {
       />,
     );
     expect(q('turn-change-bar-undo')).toBeNull();
-    expect(q('turn-change-bar-locked')?.textContent).toBe('不可撤销');
-    const note = q('turn-change-bar-incomplete');
-    expect(note?.textContent).toContain('有命令也修改了本轮改过的文件');
-    // The files that block undo are the ones named.
-    expect(q('turn-change-bar-overlapping')?.textContent).toContain('src/a.ts');
-    // The others are a count only: no scope wording, no path list on the card.
-    expect(q('turn-change-bar-excluded')?.textContent).toBe('另有 2 个文件由命令修改');
-    expect(note?.textContent).not.toContain('无法一键撤回');
-    expect(note?.textContent).not.toContain('dist/out.js');
-    // One footer: the paths sit inside the incomplete note.
+    expect(q('turn-change-bar-locked')).toBeNull();
+    expect(q('turn-change-bar-incomplete')).toBeNull();
+    expect(q('turn-change-bar-excluded')?.textContent).toContain('有命令修改的文件，无法一键撤回');
     expect(container.querySelectorAll('.turn-change-bar-foot')).toHaveLength(1);
   });
 
@@ -340,32 +333,9 @@ describe('TurnChangeBar', () => {
         api={fakeApi()}
       />,
     );
-    expect(q('turn-change-bar-excluded')?.textContent).toContain('另有 2 个文件由命令修改');
+    expect(q('turn-change-bar-excluded')?.textContent).toContain('有命令修改的文件，无法一键撤回');
     expect(q('turn-change-bar-excluded')?.textContent).toContain('dist/out.js');
     expect(q('turn-change-bar-excluded')?.textContent).toContain('dist/out.css');
-  });
-
-  it('folds a long overlap list behind a toggle', async () => {
-    const paths = Array.from({ length: 8 }, (_, index) => `src/file-${index}.ts`);
-    await render(
-      <TurnChangeBar
-        summary={summary({
-          captureState: 'incomplete',
-          coverageComplete: false,
-          incompleteReason: 'command-overlap',
-          undo: { allowed: false, reason: 'capture-incomplete' },
-          overlappingPaths: paths,
-        })}
-        api={fakeApi()}
-      />,
-    );
-    const chips = (): number => q('turn-change-bar-overlapping')?.querySelectorAll('.turn-change-bar-chip').length ?? 0;
-    expect(chips()).toBe(5);
-    const toggle = q('turn-change-bar-overlapping-toggle');
-    expect(toggle?.textContent).toBe('另有 3 个');
-    await act(async () => toggle?.click());
-    expect(chips()).toBe(8);
-    expect(q('turn-change-bar-overlapping-toggle')?.textContent).toBe('收起');
   });
 
   it('folds command-changed files past three behind a toggle, and the panel lists them all', async () => {

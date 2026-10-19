@@ -45,7 +45,6 @@ export function PathChips(props: { paths: readonly string[] }): ReactElement {
 
 /** Chips shown before a long path list folds (transcript card only). */
 export const COLLAPSED_COMMAND_PATHS = 3;
-export const COLLAPSED_OVERLAP_PATHS = 5;
 
 /**
  * Path chips that fold behind one quiet toggle past `visible`. A single hidden
@@ -84,10 +83,8 @@ export function CollapsiblePathChips(props: {
 }
 
 /**
- * Files commands changed that Host could not image, inside the incomplete
- * note. The whole turn is already un-undoable there, so "not in the undo
- * scope" would say nothing: the card states how many, and the side panel
- * (`full`) lists them.
+ * Files commands changed that Host could not image, nested under another
+ * status line (e.g. left-in-place). The side panel (`full`) lists them.
  */
 export function ExcludedPaths(props: {
   paths: readonly string[];
@@ -96,7 +93,7 @@ export function ExcludedPaths(props: {
 }): ReactElement {
   const count = props.paths.length;
   return (
-    <div className="turn-change-bar-foot-sub" data-testid="turn-change-bar-excluded">
+    <div className="turn-change-bar-foot-sub" data-testid="turn-change-bar-excluded-nested">
       {props.t(`另有 ${count} 个文件由命令修改`, `${count} more files changed by commands`)}
       {props.full ? <PathChips paths={props.paths} /> : null}
     </div>
@@ -104,32 +101,8 @@ export function ExcludedPaths(props: {
 }
 
 /**
- * The files that block undo: a command changed them and the turn wrote them
- * too, and Host could not chain the two.
- */
-export function OverlappingPaths(props: {
-  paths: readonly string[];
-  full: boolean;
-  t: Copy;
-}): ReactElement {
-  return (
-    <div className="turn-change-bar-foot-sub" data-testid="turn-change-bar-overlapping">
-      {props.t('涉及这些文件', 'Files involved')}
-      <CollapsiblePathChips
-        paths={props.paths}
-        visible={COLLAPSED_OVERLAP_PATHS}
-        defaultOpen={props.full}
-        moreLabel={(hidden) => props.t(`另有 ${hidden} 个`, `${hidden} more`)}
-        lessLabel={props.t('收起', 'Show less')}
-        testId="turn-change-bar-overlapping"
-      />
-    </div>
-  );
-}
-
-/**
  * Why neither undo nor redo is offered when that is not obvious from the card
- * (记录不完整 and 没有改动 already explain themselves).
+ * (incomplete / no-changes already omit the action with no extra footnote).
  */
 export function AvailabilityFoot(props: { summary: TurnChangeSummary; t: Copy }): ReactElement | null {
   const { summary, t } = props;

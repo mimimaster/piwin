@@ -353,24 +353,6 @@ button.files-changed-bar-row:hover {
   transform: scaleX(-1);
 }
 
-.turn-change-bar-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  height: 22px;
-  padding: 0 var(--s-3);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--amber) 14%, transparent);
-  color: var(--amber);
-  font-size: var(--fs-micro);
-  white-space: nowrap;
-}
-
-.turn-change-bar-pill .i {
-  width: 12px;
-  height: 12px;
-}
-
 .turn-change-bar[data-state='undone'] .files-changed-bar-list,
 .turn-change-bar[data-state='undone'] .files-changed-bar-more {
   opacity: 0.5;

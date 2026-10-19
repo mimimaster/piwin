@@ -5,20 +5,16 @@
  *
  * A card under the turn, shown only once the record is sealed: header
  * (glyph · 本轮改动 · N 个文件 · +a −d · the one action), the files listed
- * directly, then at most one status footer — incomplete, command-changed
- * paths, conflict, or error. While the turn still records nothing renders:
+ * directly, then at most one status footer — command-changed paths, conflict,
+ * or error. Incomplete records simply omit undo (no irreversible badge or
+ * “cannot undo” footnote). While the turn still records nothing renders:
  * most turns only read, and a card that appears and vanishes is noise.
- * Incomplete records and conflicts say why and never offer a forced overwrite.
+ * Conflicts say why and never offer a forced overwrite.
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import type {
-  TurnChangeFileEntry,
-  TurnChangeIncompleteReason,
-  TurnChangePathConflict,
-  TurnChangeSummary,
-} from '@piwin/contracts';
+import type { TurnChangeFileEntry, TurnChangePathConflict, TurnChangeSummary } from '@piwin/contracts';
 import { LineStat } from '../files-changed-bar';
-import { IconGit, IconRevert, IconTerminal, IconWarn } from '../shell-icons.js';
+import { IconGit, IconRevert, IconTerminal } from '../shell-icons.js';
 import { TurnChangeFileList } from './turn-change-file-list.js';
 import { TurnChangeConflictList } from './turn-change-conflict-view.js';
 import {
@@ -28,7 +24,6 @@ import {
   describeRefusal,
   ExcludedPaths,
   isRefusal,
-  OverlappingPaths,
   PathChips,
   StatusFoot,
   type Copy,
@@ -36,15 +31,6 @@ import {
 import { TurnChangeRunningFoot, type RunningNote } from './turn-change-running-foot.js';
 import type { TurnChangeGestureEvent, TurnChangeRefusal } from './turn-change-gesture.js';
 import type { TurnChangeActionResult, TurnChangesApi } from './turn-changes-context.js';
-
-const INCOMPLETE_COPY: Record<TurnChangeIncompleteReason, [string, string]> = {
-  'command-overlap': ['有命令也修改了本轮改过的文件', 'a command also changed a file this turn edited'],
-  'command-unaudited': ['有命令的改动无法核实', "a command's changes could not be verified"],
-  'chain-broken': ['文件在本轮中途被其他来源修改', 'a file was changed by something else mid-turn'],
-  'capture-failed': ['有写入未能记录', 'a write could not be recorded'],
-  'capture-timeout': ['记录结束时仍有工具未完成', 'a tool was still running when recording ended'],
-  'storage-full': ['撤销数据已达存储上限，本轮未保存', 'undo storage is full; this turn was not kept'],
-};
 
 type Phase =
   | { kind: 'idle' }
@@ -76,7 +62,6 @@ export function TurnChangeBar(props: TurnChangeBarProps): ReactElement | null {
 
   const fileCount = summary.fileCount ?? 0;
   const excluded = summary.excludedPaths ?? [];
-  const overlapping = summary.overlappingPaths ?? [];
   // Files only commands created that changed after the turn: the undo kept them.
   const leftInPlace = summary.leftInPlacePaths ?? [];
   // The side panel is where the full lists live; the transcript card stays short.
@@ -262,12 +247,6 @@ export function TurnChangeBar(props: TurnChangeBarProps): ReactElement | null {
               <span className="turn-change-bar-action-label">{running ? t('正在恢复…', 'Restoring…') : t('恢复改动', 'Restore changes')}</span>
             </button>
           ) : null}
-          {incomplete ? (
-            <span className="turn-change-bar-pill" data-testid="turn-change-bar-locked">
-              <IconWarn className="i" />
-              {t('不可撤销', 'Cannot undo')}
-            </span>
-          ) : null}
           {props.placement !== 'panel' && !commandsOnly ? (
             <button
               type="button"
@@ -315,13 +294,6 @@ export function TurnChangeBar(props: TurnChangeBarProps): ReactElement | null {
             lessLabel={t('收起', 'Show less')}
             testId="turn-change-bar-left-in-place-paths"
           />
-          {excluded.length > 0 ? <ExcludedPaths paths={excluded} full={inPanel} t={t} /> : null}
-        </StatusFoot>
-      ) : incomplete ? (
-        <StatusFoot tone="warn" testId="turn-change-bar-incomplete">
-          {t('记录不完整，无法自动撤销', 'This turn’s record is incomplete; it cannot be undone automatically')}
-          {summary.incompleteReason ? `：${t(...INCOMPLETE_COPY[summary.incompleteReason])}` : ''}
-          {overlapping.length > 0 ? <OverlappingPaths paths={overlapping} full={inPanel} t={t} /> : null}
           {excluded.length > 0 ? <ExcludedPaths paths={excluded} full={inPanel} t={t} /> : null}
         </StatusFoot>
       ) : excluded.length > 0 ? (
