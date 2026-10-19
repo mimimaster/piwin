@@ -1,6 +1,6 @@
 /**
  * Shared status-bar metrics for the CLI status line and the Desktop composer
- * bar: first-token latency, speed, session tokens, cache, cost and context.
+ * bar: first-token latency, speed, session turns, tokens, cache, cost and context.
  * Pure; each shell decides which of these to draw for its width.
  */
 import { computePromptCacheHitRate, computeTokensPerSecond, type SessionUsageTotals, type UsageReasoningTiming } from './usage.js';
@@ -32,6 +32,8 @@ export type StatusMetrics = {
   ttftTone?: StatusTone;
   tokensPerSecond?: number;
   lastDurationMs?: number;
+  /** User turns in the session; omitted while zero. */
+  userTurnCount?: number;
   /** All input incl. cache reads/writes. */
   inputTokens?: number;
   outputTokens?: number;
@@ -110,6 +112,7 @@ export function buildStatusMetrics(input: StatusMetricsInput): StatusMetrics {
     }
   }
   if (totals && totals.entryCount > 0) {
+    if (totals.userTurnCount > 0) metrics.userTurnCount = totals.userTurnCount;
     metrics.inputTokens = totals.promptTokens + totals.cacheReadTokens + totals.cacheWriteTokens;
     metrics.outputTokens = totals.completionTokens;
     const hit = computePromptCacheHitRate(totals);

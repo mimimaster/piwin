@@ -57,8 +57,14 @@ describe('buildComposerStatusBar', () => {
       locale: 'zh-CN',
     });
     expect(texts(bar.turn)).toEqual(['上轮 1.50s', '首字 0.50s', '200 tok/s']);
-    expect(texts(bar.resources)).toEqual(['↑8k ↓2k', '缓存 75%']);
+    expect(texts(bar.resources)).toEqual(['2 轮', '↑8k ↓2k', '缓存 75%']);
     expect(bar.resources[0]?.title).toContain('2 轮 · 5 步');
+    expect(bar.resources[1]?.title).toContain('2 轮 · 5 步');
+  });
+
+  it('counts turns in the singular and hides a zero count', () => {
+    expect(texts(buildComposerStatusBar({ totals: { ...totals, userTurnCount: 1 }, locale: 'en' }).resources)[0]).toBe('1 turn');
+    expect(buildComposerStatusBar({ totals: { ...totals, userTurnCount: 0 }, locale: 'en' }).resources.map((item) => item.key)).not.toContain('turns');
   });
 
   it('prefers the session read timing over the hydrated context ring copy', () => {
@@ -156,6 +162,7 @@ describe('ComposerStatsLine', () => {
     );
     expect(view.querySelectorAll('[role="status"]')).toHaveLength(1);
     expect(view.querySelector('[data-testid="composer-stats-turn"]')?.textContent).toBe('last1.50s·TTFT0.50s·200 tok/s');
+    expect(view.querySelector('[data-testid="composer-stats-turns"]')?.textContent).toBe('2 turns');
     expect(view.querySelector('[data-testid="composer-stats-tokens"]')?.textContent).toBe('↑8k ↓2k');
     expect(view.querySelector('[data-testid="composer-stats-cache"]')?.textContent).toBe('cache75%');
     expect(view.querySelector('[data-testid="composer-stats-tokens"]')?.className).toContain('priority-3');

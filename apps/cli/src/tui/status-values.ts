@@ -52,6 +52,7 @@ export function buildStatusMetricValues(input: StatusMetricValuesInput): StatusV
     values.ctx = `${values.context} ${amounts}`;
     values.ctxbar = `${label('ctx')} ${tone(style, metrics.context.tone, `${contextBar(ratio)} ${percent}`)} ${amounts}`;
   }
+  if (metrics.userTurnCount !== undefined) values.turns = `${metrics.userTurnCount} ${label('轮')}`;
   if (metrics.inputTokens !== undefined && metrics.outputTokens !== undefined) {
     values.tokens = `${label('↑')}${formatCompactTokens(metrics.inputTokens)} ${label('↓')}${formatCompactTokens(metrics.outputTokens)}`;
   }

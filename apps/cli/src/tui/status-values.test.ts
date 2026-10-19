@@ -5,7 +5,7 @@ import { createStyle } from './tui-style.js';
 const plain = createStyle({ NO_COLOR: '1' });
 const colour = createStyle({});
 const metrics = {
-  ttftMs: 820, ttftTone: 'ok' as const, tokensPerSecond: 86.4, lastDurationMs: 18_400,
+  ttftMs: 820, ttftTone: 'ok' as const, tokensPerSecond: 86.4, lastDurationMs: 18_400, userTurnCount: 12,
   inputTokens: 1_240_000, outputTokens: 38_000, cacheHitRate: 0.71, costUsd: 0.42,
   context: { used: 92_000, limit: 200_000, ratio: 0.46, estimated: false, tone: 'ok' as const },
 };
@@ -21,6 +21,7 @@ describe('buildStatusMetricValues', () => {
       context: 'ctx 46%',
       ctx: 'ctx 46% 92k/200k',
       ctxbar: 'ctx ▰▰▰▱▱▱ 46% 92k/200k',
+      turns: '12 轮',
       tokens: '↑1.2M ↓38k',
       cache: '缓存 71%',
     });

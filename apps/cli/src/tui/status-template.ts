@@ -17,6 +17,7 @@ export const STATUS_FIELDS = [
   'context',
   'ctx',
   'ctxbar',
+  'turns',
   'tokens',
   'cache',
   'cost',
@@ -28,7 +29,7 @@ export type StatusTemplates = Record<StatusTier, string>;
 
 /** Who/where │ this turn │ resources. Wider terminals get more of each. */
 export const DEFAULT_STATUS_TEMPLATES: StatusTemplates = {
-  wide: '{agent} · {session} · {project} · {branch} · {model} · {thinking} · {permission} · {scheme} · {skill} │ {elapsed} · {ttft} · {tps} · {activity} │ {ctxbar} · {tokens} · {cache} · {cost} · {mock}',
+  wide: '{agent} · {session} · {project} · {branch} · {model} · {thinking} · {permission} · {scheme} · {skill} │ {elapsed} · {ttft} · {tps} · {activity} │ {ctxbar} · {turns} · {tokens} · {cache} · {cost} · {mock}',
   medium: '{agent} · {session} · {project} · {model} · {thinking} · {permission} · {scheme} │ {activity} · {ttft} · {tps} │ {ctx} · {cost} · {mock}',
   narrow: '{agent} · {model} · {permission} · {context} · {mock}',
 };
@@ -39,7 +40,7 @@ export const DEFAULT_STATUS_TEMPLATE = DEFAULT_STATUS_TEMPLATES.wide;
  * permission are never dropped.
  */
 export const STATUS_DROP_ORDER: readonly StatusField[] = [
-  'cost', 'cache', 'tokens', 'tps', 'ttft', 'skill', 'branch', 'thinking', 'project', 'session', 'scheme', 'elapsed', 'activity', 'agent', 'mock',
+  'turns', 'cost', 'cache', 'tokens', 'tps', 'ttft', 'skill', 'branch', 'thinking', 'project', 'session', 'scheme', 'elapsed', 'activity', 'agent', 'mock',
 ];
 
 export const STATUS_PIECE_SEPARATOR = ' · ';

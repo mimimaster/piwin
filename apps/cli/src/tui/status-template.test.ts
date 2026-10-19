@@ -42,14 +42,23 @@ describe('renderStatusLine', () => {
     model: 'grok-4', thinking: '高', permission: 'YOLO', scheme: '编排 Ultra Code',
     elapsed: '上轮 18.4s', ttft: '首字 0.82s', tps: '86 tok/s',
     ctxbar: 'ctx ▰▰▰▱▱▱ 46% 92k/200k', ctx: 'ctx 46% 92k/200k', context: 'ctx 46%',
-    tokens: '↑1.2M ↓38k', cache: '缓存 71%',
+    turns: '12 轮', tokens: '↑1.2M ↓38k', cache: '缓存 71%',
   };
   const measure = (text: string) => [...text].length;
 
   it('uses the full three-group line when wide', () => {
     expect(renderStatusLine({ templates: DEFAULT_STATUS_TEMPLATES, values, width: 160, measure })).toBe(
-      'grok-4 · 高 · YOLO · 编排 Ultra Code │ 上轮 18.4s · 首字 0.82s · 86 tok/s │ ctx ▰▰▰▱▱▱ 46% 92k/200k · ↑1.2M ↓38k · 缓存 71%',
+      'grok-4 · 高 · YOLO · 编排 Ultra Code │ 上轮 18.4s · 首字 0.82s · 86 tok/s │ ctx ▰▰▰▱▱▱ 46% 92k/200k · 12 轮 · ↑1.2M ↓38k · 缓存 71%',
     );
+  });
+
+  it('drops the turn count before any other resource', () => {
+    const full = renderStatusLine({ templates: DEFAULT_STATUS_TEMPLATES, values, width: 160, measure });
+    // Measured one cell too wide at a wide-tier width.
+    const tooWide = (text: string) => measure(text) + 150 - measure(full) + 1;
+    const line = renderStatusLine({ templates: DEFAULT_STATUS_TEMPLATES, values, width: 150, measure: tooWide });
+    expect(line).not.toContain('12 轮');
+    expect(line).toContain('缓存 71%');
   });
 
   it('drops resources first when the wide line does not fit', () => {

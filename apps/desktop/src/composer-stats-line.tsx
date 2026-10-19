@@ -1,7 +1,7 @@
 /**
  * The status bar under the composer card, three sections: Pi extension status
  * │ this turn (elapsed · first token · speed) │ resources (context bar ·
- * tokens · cache · cost). Container queries hide lower-priority items as the
+ * turns · tokens · cache · cost). Container queries hide lower-priority items as the
  * pane narrows; the context bar always stays and opens the usage popover.
  * An inert empty slot stays hidden in single-pane mode; split panes reserve its
  * height so usage loading or extension updates cannot shift the input baseline.

@@ -61,6 +61,7 @@ describe('buildStatusMetrics', () => {
     expect(m.ttftMs).toBe(820);
     expect(Math.round(m.tokensPerSecond ?? 0)).toBe(86);
     expect(m.lastDurationMs).toBe(10_820);
+    expect(m.userTurnCount).toBe(3);
     expect(m.inputTokens).toBe(1_200_000);
     expect(m.outputTokens).toBe(38_000);
     expect(Math.round((m.cacheHitRate ?? 0) * 100)).toBe(75);
@@ -76,6 +77,9 @@ describe('buildStatusMetrics', () => {
     const m = buildStatusMetrics({ totals, lastRequest: { completionTokens: 100, durationMs: 2100, firstTokenMs: 3100 } });
     expect(m.ttftMs).toBe(3100);
     expect(m.ttftTone).toBe('warn');
+  });
+  it('omits a zero turn count', () => {
+    expect(buildStatusMetrics({ totals: { ...totals, userTurnCount: 0 } }).userTurnCount).toBeUndefined();
   });
   it('is empty without data', () => {
     const m = buildStatusMetrics({});

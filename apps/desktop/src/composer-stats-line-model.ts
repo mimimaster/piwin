@@ -1,7 +1,7 @@
 /**
  * Composer status bar (below the composer card), three sections:
  * Pi extension status │ this turn (elapsed · first token · speed) │
- * resources (context bar · tokens · cache · cost). Pure; the component only
+ * resources (context bar · turns · tokens · cache · cost). Pure; the component only
  * renders it. Metrics come from the shared contracts helper the CLI uses too.
  */
 import {
@@ -17,7 +17,7 @@ import {
 import type { ContextRingLastRequest } from './context-telemetry-selector.js';
 import type { ConversationUsageLocale } from './conversation-usage-copy.js';
 
-export type ComposerStatusItemKey = 'elapsed' | 'ttft' | 'tps' | 'tokens' | 'cache' | 'cost';
+export type ComposerStatusItemKey = 'elapsed' | 'ttft' | 'tps' | 'turns' | 'tokens' | 'cache' | 'cost';
 
 /** Priority 2 hides in a narrow bar, 3 already in a medium one (container queries). */
 export type ComposerStatusItem = {
@@ -121,6 +121,14 @@ export function buildComposerStatusBar(input: ComposerStatsLineInput): ComposerS
   }
 
   const resources: ComposerStatusItem[] = [];
+  if (metrics.userTurnCount !== undefined) {
+    const turnCount = metrics.userTurnCount;
+    resources.push({
+      key: 'turns', priority: 3,
+      text: zh ? `${turnCount} 轮` : `${turnCount} ${turnCount === 1 ? 'turn' : 'turns'}`,
+      title: [zh ? '本会话用户轮数' : 'User turns in this session', counts].filter(Boolean).join('\n'),
+    });
+  }
   if (totals && metrics.inputTokens !== undefined && metrics.outputTokens !== undefined) {
     resources.push({
       key: 'tokens', priority: 3,
