@@ -72,6 +72,8 @@ export class SubscriptionAuthService {
   private extensionProjectionPending = false;
   private readonly reloadPortOnExtensions: boolean;
   private readonly portFactory: () => Promise<SubscriptionAuthPort>;
+  private readonly prepareExtensions: (() => Promise<unknown>) | undefined;
+  private readonly lifetime = new AbortController();
   private readonly loadConfig: () => Promise<PiwinConfig>;
   private readonly saveConfig: (config: PiwinConfig) => Promise<void>;
   /** Tests inject saveConfig. Production writes go through the settings queue. */
@@ -101,6 +103,7 @@ export class SubscriptionAuthService {
     saveConfig?: (config: PiwinConfig) => Promise<void>;
     applySettings?: (config: PiwinConfig) => Promise<void>;
     createPort?: () => Promise<SubscriptionAuthPort>;
+    prepareExtensions?: () => Promise<unknown>;
   } = {},
 ) {
     const agentDir = resolveHostPiAgentDir({
@@ -128,9 +131,11 @@ export class SubscriptionAuthService {
         });
       });
     this.piwinRoot = options.piwinRoot;
+    this.prepareExtensions = deps.prepareExtensions;
     this.port = options.port;
     this.portFactory = deps.createPort ?? (async () =>
       options.port ?? createSubscriptionAuthPort({
+        signal: this.lifetime.signal,
         authPath: paths.authPath,
         modelsPath: paths.modelsPath,
         extensionProviders: (await this.readExtensionProviders()).map((provider) => ({
@@ -439,6 +444,7 @@ export class SubscriptionAuthService {
   }
 
   dispose(): void {
+    this.lifetime.abort();
     if (this.active) {
       this.active.abort.abort();
       this.active.pending?.reject(new Error('login-cancelled'));
@@ -697,6 +703,8 @@ export class SubscriptionAuthService {
   }
 
   private async readExtensionProviders(): Promise<readonly SubscriptionExtensionProvider[]> {
+    await this.prepareExtensions?.();
+    this.lifetime.signal.throwIfAborted();
     this.extensionProviders = await readSubscriptionExtensionProviders(getPiwinRoot(this.piwinRoot));
     return this.extensionProviders;
   }

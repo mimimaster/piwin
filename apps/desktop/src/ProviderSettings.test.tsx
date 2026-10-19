@@ -73,7 +73,7 @@ function makeConfig(): PiwinConfig {
   };
 }
 
-function renderProviderSettings(props: ProviderSettingsProps): {
+function renderProviderSettings(props: ProviderSettingsProps, locale: 'en' | 'zh-CN' = 'en'): {
   container: HTMLDivElement;
   root: Root;
 } {
@@ -84,7 +84,7 @@ function renderProviderSettings(props: ProviderSettingsProps): {
     root.render(
       (
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
+          <DesktopLocaleProvider locale={locale} onLocaleChange={() => {}}>
             <SettingsProvider value={{ hostClient: undefined } as unknown as SettingsContextValue}>
               <ProviderSettings {...props} />
             </SettingsProvider>
@@ -178,8 +178,8 @@ describe('ProviderSettings', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
-  function mount(props: ProviderSettingsProps): HTMLDivElement {
-    const rendered = renderProviderSettings(props);
+  function mount(props: ProviderSettingsProps, locale: 'en' | 'zh-CN' = 'en'): HTMLDivElement {
+    const rendered = renderProviderSettings(props, locale);
     instances.push(rendered);
     return rendered.container;
   }
@@ -202,6 +202,22 @@ describe('ProviderSettings', () => {
     const fetchModels = byTestId<HTMLButtonElement>(container, 'provider-discover-models-public-fixture');
     expect(fetchModels).not.toBeNull();
     expect(fetchModels?.disabled).toBe(false);
+  });
+
+  it('renders the built-in provider name and its own availability notice', () => {
+    const props = makeProps();
+    const notice = '模型使用受官方IP管制，受环境因素影响不保证可用，若不可用，可调整使用IP尝试';
+    props.config = { ...props.config, providers: [{
+      id: 'opencode-zen', name: 'OpenCode Zen', protocol: 'openai-compatible',
+      source: 'extension', baseUrl: 'extension://opencode-zen', models: [],
+      extension: { bundled: true, notice },
+    }] };
+    const container = mount(props, 'zh-CN');
+    expect(container.querySelector('.pdetail-name')?.textContent).toBe('OpenCode Zen');
+    expect(container.textContent).toContain('内置扩展');
+    expect(container.querySelector('.pdetail-note')?.textContent).toBe(notice);
+    expect(container.textContent).not.toContain('experimental');
+    expect(byTestId<HTMLButtonElement>(container, 'provider-discover-models-opencode-zen')?.disabled).toBe(false);
   });
 
   it('shows the rail and the first provider in the detail pane', () => {

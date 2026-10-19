@@ -164,6 +164,8 @@ export type SubscriptionExtensionEntry = {
 
 export type CreateSubscriptionAuthPortOptions = {
   authPath: string;
+  /** Host shutdown cancels the first public-provider catalog pull. */
+  signal?: AbortSignal;
   modelsPath?: string;
   /**
    * Enabled, immutable provider extension entries selected by Host Runtime,
@@ -203,6 +205,7 @@ export async function createSubscriptionAuthPort(
         options.modelsPath,
         extensionProviders,
         extensionProviderNames,
+        options.signal,
       );
   const entitlements = new Map<string, ReadonlySet<string>>();
 
@@ -349,7 +352,9 @@ async function createDefaultRuntime(
   extensionProviders: readonly SubscriptionExtensionEntry[],
   /** Filled with each claimed provider's `registerProvider` display name. */
   providerNames: Map<string, string>,
+  signal?: AbortSignal,
 ): Promise<PiModelRuntimeLike> {
+  signal?.throwIfAborted();
   const piModule = (await import('@earendil-works/pi-coding-agent')) as unknown as {
     ModelRuntime?: {
       create: (options: {
@@ -416,9 +421,12 @@ async function createDefaultRuntime(
       await runtime.refresh({ allowNetwork: false, providers: [...claimedIds] });
       const publicIds = extensionProviders.filter((entry) => entry.kind === 'model').map((entry) => entry.providerId);
       if (publicIds.length > 0) {
+        signal?.throwIfAborted();
         const result = await runtime.refresh({
           providers: publicIds, allowNetwork: true,
-          signal: AbortSignal.timeout(LIVE_CATALOG_REFRESH_TIMEOUT_MS),
+          signal: AbortSignal.any([
+            ...(signal ? [signal] : []), AbortSignal.timeout(LIVE_CATALOG_REFRESH_TIMEOUT_MS),
+          ]),
         });
         for (const error of readRefreshErrors(result)) console.warn('[piwin-host] public model discovery failed', error);
       }

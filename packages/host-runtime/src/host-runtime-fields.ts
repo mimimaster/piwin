@@ -392,6 +392,7 @@ export class HostRuntimeFields {
   ready = true;
   /** Host-owned Pi subscription OAuth (Codex / Grok / Copilot). */
   subscriptionAuth: SubscriptionAuthService | undefined;
+  subscriptionStartup: Promise<void> | undefined;
   /** piwin Live singleton; created in initializeHostRuntime. */
   liveCallCoordinator: LiveCallCoordinator | null = null;
   /** Owner focus for Live admission hold; created with the coordinator. */

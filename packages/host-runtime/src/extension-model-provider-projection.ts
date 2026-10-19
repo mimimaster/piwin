@@ -32,8 +32,12 @@ export function projectPublicModelProviders(
     const previous = new Map(existing?.models.map((model) => [model.id, model]));
     const next: ModelProviderConfig = {
       id: claim.providerId,
-      name: existing?.name || claim.displayName || claim.providerId,
+      name: claim.displayName || existing?.name || claim.providerId,
       source: 'extension', category: 'package', protocol: 'openai-compatible',
+      extension: {
+        ...(claim.bundled ? { bundled: true } : {}),
+        ...(claim.notice ? { notice: claim.notice } : {}),
+      },
       baseUrl: extensionModelProviderOrigin(claim.providerId),
       ...(existing?.enabled !== undefined ? { enabled: existing.enabled } : {}),
       models: catalogFor(claim.providerId).map((model) => {

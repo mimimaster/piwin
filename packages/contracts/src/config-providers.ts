@@ -323,12 +323,16 @@ export type AmazonBedrockProviderConfig = {
   models: ModelConfigEntry[];
 };
 
-export type ModelProviderConfig =
+export type ModelProviderConfig = (
   | OpenAiCompatibleProviderConfig
   | AnthropicCompatibleProviderConfig
   | GoogleGeminiProviderConfig
   | GoogleVertexProviderConfig
-  | AmazonBedrockProviderConfig;
+  | AmazonBedrockProviderConfig
+) & {
+  /** Host projection of the owning extension; shells display it as plain text. */
+  extension?: { bundled?: boolean; notice?: string };
+};
 
 /** Default Vertex location when the provider row leaves it blank. */
 export const DEFAULT_VERTEX_LOCATION = 'global';

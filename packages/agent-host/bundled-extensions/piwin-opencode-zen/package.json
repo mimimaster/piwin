@@ -1,0 +1,16 @@
+{
+  "name": "piwin-opencode-zen",
+  "version": "0.3.0",
+  "description": "OpenCode Zen built-in public model provider",
+  "type": "module",
+  "private": true,
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "piwin": {
+    "bundledFrom": "github:mimimaster/piwin-opencode-zen#16a9c2654d53e03d3135c5bbf10082fd9e5fb293",
+    "managedId": "piwin-mimimaster-opencode-zen"
+  }
+}
