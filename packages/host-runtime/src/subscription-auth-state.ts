@@ -29,4 +29,3 @@ export type ActiveLogin = {
   pending?: PendingPrompt;
   newChannelId?: string;
 };
-
