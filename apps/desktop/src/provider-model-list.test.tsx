@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { ModelProviderConfig } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
-import { ProviderModelList } from './provider-model-list.js';
+import { ProviderModelList, type ProviderModelListProps } from './provider-model-list.js';
 
 const mounted: Array<{ container: HTMLElement; root: Root }> = [];
 
@@ -55,7 +55,7 @@ describe('ProviderModelList', () => {
     ],
   };
 
-  function renderList(provider: ModelProviderConfig): HTMLElement {
+  function renderList(provider: ModelProviderConfig, overrides: Partial<ProviderModelListProps> = {}): HTMLElement {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -79,6 +79,7 @@ describe('ProviderModelList', () => {
               protocol: provider.protocol,
               models: [],
             }))}
+            {...overrides}
           />
         </PiwinUiProvider>,
       );
@@ -113,6 +114,26 @@ describe('ProviderModelList', () => {
     expect(moreBtn).not.toBeNull();
     openMenu(moreBtn);
     expect(document.body.querySelector('[data-testid="provider-model-remove-grok-4.3"]')).toBeNull();
+  });
+
+  it('offers live fetch for public extensions while keeping manual additions disabled', () => {
+    const provider: ModelProviderConfig = { ...customProvider, id: 'public-test', source: 'extension', models: [] };
+    const container = renderList(provider);
+    expect(container.querySelector('[data-testid="provider-discover-models-public-test"]')).not.toBeNull();
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="provider-add-model-public-test"]')?.disabled).toBe(true);
+    expect(container.textContent).toContain('点击「拉取模型」重试');
+  });
+
+  it('refreshes an extension directly without opening the channel import dialog', async () => {
+    const provider: ModelProviderConfig = { ...customProvider, id: 'public-test', source: 'extension' };
+    const onDiscoverModels = vi.fn(async () => ({ providerId: provider.id, protocol: provider.protocol, models: [] }));
+    const onUpdateModels = vi.fn();
+    const container = renderList(provider, { onDiscoverModels, onUpdateModels });
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="provider-discover-models-public-test"]');
+    await act(async () => { button?.click(); });
+    expect(onDiscoverModels).toHaveBeenCalledWith(provider);
+    expect(onUpdateModels).not.toHaveBeenCalled();
+    expect(document.body.querySelector('[data-testid="discover-models-list"]')).toBeNull();
   });
 
   it('offers manual add only for cloud platforms, which expose no model list', () => {

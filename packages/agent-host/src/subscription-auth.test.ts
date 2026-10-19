@@ -266,6 +266,18 @@ describe('subscription auth port', () => {
     ]);
   });
 
+  it('reports model refresh failures returned in the native Pi error map', async () => {
+    const port = await createSubscriptionAuthPort({
+      authPath: '/tmp/auth.json',
+      createRuntime: async () => ({
+        listCredentials: async () => [], isUsingSubscription: () => false, getModels: () => [],
+        login: async () => undefined, logout: async () => undefined,
+        refresh: async () => ({ errors: new Map([['public-test', new Error('catalog unavailable')]]) }),
+      }),
+    });
+    await expect(port.refreshLiveCatalog({ providers: ['public-test'] })).rejects.toThrow('catalog unavailable');
+  });
+
   it('fails refresh when Pi returns errors without throwing', async () => {
     const port = await createSubscriptionAuthPort({
       authPath: '/tmp/auth.json',

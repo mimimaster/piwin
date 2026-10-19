@@ -5,6 +5,7 @@
  * (`authProvider`, optional `authProviderName`). The Host treats the claim
  * generically: no provider id is special-cased here or downstream.
  */
+import type { SubscriptionAuthPort } from '@piwin/agent-host';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isValidExtensionAuthProviderId, parseExtensionModelProviderClaim } from '@piwin/contracts';
@@ -92,4 +93,12 @@ export function parseAuthProviderClaim(
   const name = manifest['authProviderName'];
   const displayName = typeof name === 'string' && name.trim() ? name.trim() : undefined;
   return displayName !== undefined ? { providerId, displayName } : { providerId };
+}
+
+/** Manifest name, then the extension's own Pi registration name, then the id. */
+export function extensionDisplayName(
+  provider: SubscriptionExtensionProvider,
+  port: Pick<SubscriptionAuthPort, 'getProviderName'>,
+): string {
+  return provider.displayName ?? port.getProviderName?.(provider.providerId) ?? provider.providerId;
 }

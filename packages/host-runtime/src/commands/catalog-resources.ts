@@ -5,6 +5,7 @@
 import { loadPiwinConfig } from '../config-store.js';
 import { loadDiscoveredResources } from '../discovered-resources.js';
 import { ensureBundledExtensionsInstalled } from '../ensure-bundled-extensions.js';
+import { getSubscriptionAuthService } from './auth-commands.js';
 import type { HostCommandContext } from './host-command-context.js';
 
 export async function loadCatalogResources(rootDir: string, projectPath?: string) {
@@ -26,6 +27,7 @@ export async function pushExtensionCatalog(
 ): Promise<void> {
   await ensureBundledExtensionsInstalled(rootDir);
   const discovered = await loadCatalogResources(rootDir);
+  await getSubscriptionAuthService(context).status();
   context.push({
     type: 'extension/catalog-updated',
     registryRevision,

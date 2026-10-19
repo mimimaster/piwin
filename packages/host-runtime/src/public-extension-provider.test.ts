@@ -1,7 +1,8 @@
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseExtensionModelProviderClaim, projectConfiguredChatModels } from '@piwin/contracts';
 import { createExtensionRevisionStore, installExtension } from '@piwin/extensions';
 import { createSubscriptionAuthPort, createBackendSdkSession, createWorkerPiSessionFactory } from '@piwin/agent-host';
@@ -14,7 +15,7 @@ import { compileBlueprintForWorker } from './blueprint-compiler.js';
 import { SubscriptionAuthService } from './subscription-auth-service.js';
 
 const roots: string[] = [];
-afterEach(async () => { await Promise.all(roots.splice(0).map((path) => rm(path, { recursive: true, force: true }))); });
+afterEach(async () => { vi.unstubAllGlobals(); await Promise.all(roots.splice(0).map((path) => rm(path, { recursive: true, force: true }))); });
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'piwin-public-provider-'));
   roots.push(root);
@@ -38,8 +39,7 @@ async function setup() {
   return { root, source, installed, store, claims, port, config, snapshot };
 }
 
-async function assertActualSessions(root: string, compiled: Awaited<ReturnType<typeof compileBlueprintForWorker>>) {
-  const agentDir = join(root, 'runtime-agent');
+async function assertActualSessions(root: string, compiled: Awaited<ReturnType<typeof compileBlueprintForWorker>>, agentDir = join(root, 'runtime-agent')) {
   await mkdir(agentDir, { recursive: true });
   const sdk = await createBackendSdkSession({ blueprint: compiled.backendBlueprint, providers: compiled.providers, hostToolExecution: { execute: async () => ({ ok: true, output: '' }) } }, { agentDir });
   await sdk.abort();
@@ -56,6 +56,8 @@ describe('public extension model provider vertical slice', () => {
     const source = process.env.PIWIN_TEST_PUBLIC_PROVIDER_PACKAGE;
     if (!source) throw new Error('explicit fixture package path required');
     const root = await mkdtemp(join(tmpdir(), 'piwin-independent-provider-')); roots.push(root);
+    const fixture = createRequire(import.meta.url)(join(source, 'test/catalog-fixture.mjs')) as { catalogFetch: typeof fetch };
+    vi.stubGlobal('fetch', fixture.catalogFetch);
     const installed = await installExtension({ piwinRoot: root, source: { kind: 'local', path: source } });
     await createExtensionRevisionStore(root).setEnabled(installed.extensionId, true);
     const claims = await readSubscriptionExtensionProviders(root);
@@ -68,7 +70,7 @@ describe('public extension model provider vertical slice', () => {
     const config = projectPublicModelProviders(await loadPiwinConfig(root), claims, (id) => port.getChatCatalog(id));
     const snapshot = buildExtensionProviderSnapshot([], claims, config, (id) => port.getChatCatalog(id).map((entry) => entry.id));
     const compiled = await compileBlueprintForWorker({ scope: { kind: 'general' }, model: { providerId: claim.providerId, modelId: model.id, source: 'extension' } }, { piwinRoot: root, config, subscriptionAccounts: snapshot });
-    await assertActualSessions(root, compiled);
+    await assertActualSessions(root, compiled, join(root, 'agent'));
     port.dispose();
   });
   it.each([
