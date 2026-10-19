@@ -48,6 +48,7 @@ import { resolveConfiguredDefaultModelRef } from './provider-helpers.js';
 import { selectSubscriptionLoginMethod } from './select-subscription-login-method.js';
 import {
   readSubscriptionExtensionProviders,
+  extensionDisplayName,
   type SubscriptionExtensionProvider,
 } from './subscription-extension-providers.js';
 import { eventToPayload, promptToPayload } from './subscription-auth-prompt-payload.js';
@@ -978,14 +979,6 @@ export class SubscriptionAuthService {
     }
     return this.port;
   }
-}
-
-/** Manifest name, then the extension's own Pi registration name, then the id. */
-function extensionDisplayName(
-  provider: SubscriptionExtensionProvider,
-  port: Pick<SubscriptionAuthPort, 'getProviderName'>,
-): string {
-  return provider.displayName ?? port.getProviderName?.(provider.providerId) ?? provider.providerId;
 }
 
 export { LIVE_ACCOUNT_STATES };
