@@ -3,7 +3,7 @@
  * (`node:sqlite` missing, undici's `markAsUncloneable is not a function`), so
  * say what is wrong before anything else loads.
  */
-export const MIN_NODE_VERSION = [22, 19, 0] as const;
+export const MIN_NODE_VERSION = [22, 23, 4] as const;
 
 export function isSupportedNode(version: string): boolean {
   const parts = version.replace(/^v/, '').split('.').map((part) => Number.parseInt(part, 10));

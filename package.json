@@ -6,7 +6,7 @@
   "license": "MIT",
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=22.23.4"
   },
   "scripts": {
     "build": "pnpm --workspace-concurrency=4 -r run build",

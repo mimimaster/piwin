@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
-$env:Path = "D:\tools\node-v22.19.0-win-x64;$env:USERPROFILE\.cargo\bin;$env:Path"
+$env:Path = "D:\tools\node-v22.23.4-win-x64;$env:USERPROFILE\.cargo\bin;$env:Path"
 Set-Location D:\src\piwin
 
 $override = '{"build":{"beforeBuildCommand":""}}'

@@ -13,8 +13,9 @@ import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 
 // Pin exact LTS (update deliberately; re-run S5 after bumps).
-// Pi 0.84 engines require Node >=22.19.0 (see docs/notes/2026-08-19-pi-0.84.2-upgrade.md).
-const NODE_VERSION = 'v22.19.0';
+// Pi 0.84 engines require Node >=22.19.0 (see docs/notes/2026-08-19-pi-0.84.2-upgrade.md);
+// 22.23.4 is the 2026-10-20 security release (Brotli decoder OOB write, TLS/DNS fixes).
+const NODE_VERSION = 'v22.23.4';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const binariesDir = join(root, 'apps/desktop/src-tauri/binaries');
