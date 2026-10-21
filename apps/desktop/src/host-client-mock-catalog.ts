@@ -5,6 +5,7 @@ import {
 import { isInkstoneThemeId, PIWIN_INKSTONE_THEME_ID } from './appearance-tokens.js';
 import type { MockHostBackend } from './host-client-mock.js';
 import {
+  filterMockHitsBySources,
   mockMarketplaceBrowseHits,
   mockMarketplaceCatalog,
   mockMarketplaceInventory,
@@ -845,7 +846,7 @@ export async function handleMockCatalogCommands(
           type: 'response',
           command: 'marketplace/search',
           success: true,
-          data: { query: command.query, hits },
+          data: { query: command.query, hits: filterMockHitsBySources<{ source: string }>(hits, command.sources) },
         };
       }
       case 'marketplace/package-install':

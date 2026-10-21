@@ -2,9 +2,21 @@ import { useCallback, useRef, useState } from 'react';
 import type { HostCommand, HostResponse, MarketplaceSearchHit } from '@piwin/contracts';
 import { isMarketplaceSearchResult } from '@piwin/contracts';
 
+/** npm/GitHub/skills answer in a second or two; the MCP registry's search can take ~30 s. */
+const FAST_SOURCES = ['packages', 'skills'] as const;
+const SLOW_SOURCES = ['mcp'] as const;
+
+/** Same order as a single combined search: packages, then MCP servers, then skills. */
+function orderHits(fast: readonly MarketplaceSearchHit[], mcp: readonly MarketplaceSearchHit[]) {
+  const isSkill = (hit: MarketplaceSearchHit) => hit.source === 'skill';
+  return [...fast.filter((hit) => !isSkill(hit)), ...mcp, ...fast.filter(isSkill)];
+}
+
 export type MarketplaceEcosystemSearch = {
   hits: MarketplaceSearchHit[];
   loading: boolean;
+  /** Fast results are shown; the MCP registry part of the search is still running. */
+  mcpLoading: boolean;
   error: string | null;
   searchedQuery: string;
   /** True while a larger page may exist (the last page filled its limit). */
@@ -36,6 +48,7 @@ export function useMarketplaceEcosystemSearch(
   const [hits, setHits] = useState<MarketplaceSearchHit[]>([]);
   const [browseHits, setBrowseHits] = useState<MarketplaceSearchHit[]>([]);
   const [loading, setLoading] = useState(false);
+  const [mcpLoading, setMcpLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchedQuery, setSearchedQuery] = useState('');
   const [limit, setLimit] = useState(BROWSE_PREVIEW_LIMIT);
@@ -91,38 +104,51 @@ export function useMarketplaceEcosystemSearch(
       setLoading(true);
       setError(null);
 
-      try {
-        const response = await optionsRef.current.request({
-          type: 'marketplace/search',
-          query: trimmed,
-          limit: nextLimit,
-        });
-        if (sequence !== requestSequence.current) return;
-        if (!response.success) {
-          setHits([]);
-          setError(response.error);
-          optionsRef.current.onError?.(response.error);
-          return;
+      const current = () => sequence === requestSequence.current;
+      let fastHits: MarketplaceSearchHit[] = [];
+      let mcpHits: MarketplaceSearchHit[] = [];
+      const errors: Partial<Record<'fast' | 'mcp', string>> = {};
+      const publishError = (part: 'fast' | 'mcp') => {
+        setError([errors.fast, errors.mcp].filter(Boolean).join('; ') || null);
+        // Notify once per failing part, not again with the other part's error.
+        const message = errors[part];
+        if (message) optionsRef.current.onError?.(message);
+      };
+      const run = async (
+        part: 'fast' | 'mcp',
+        sources: readonly ('packages' | 'skills' | 'mcp')[],
+      ): Promise<void> => {
+        try {
+          const response = await optionsRef.current.request({
+            type: 'marketplace/search',
+            query: trimmed,
+            limit: nextLimit,
+            sources: [...sources],
+          });
+          if (!current()) return;
+          if (!response.success) {
+            errors[part] = response.error;
+          } else {
+            const data = isMarketplaceSearchResult(response.data) ? response.data : undefined;
+            if (part === 'fast') fastHits = data?.hits ?? [];
+            else mcpHits = data?.hits ?? [];
+            if (data?.remoteError) errors[part] = data.remoteError;
+          }
+        } catch (caught: unknown) {
+          if (!current()) return;
+          errors[part] = caught instanceof Error ? caught.message : String(caught);
         }
+        setHits(orderHits(fastHits, mcpHits));
+        publishError(part);
+      };
 
-        const data = isMarketplaceSearchResult(response.data)
-          ? response.data
-          : { query: trimmed, hits: [] as MarketplaceSearchHit[] };
-        setHits(data.hits);
-        const remoteError = data.remoteError ?? null;
-        setError(remoteError);
-        if (remoteError) {
-          optionsRef.current.onError?.(remoteError);
-        }
-      } catch (caught: unknown) {
-        if (sequence !== requestSequence.current) return;
-        const message = caught instanceof Error ? caught.message : String(caught);
-        setHits([]);
-        setError(message);
-        optionsRef.current.onError?.(message);
-      } finally {
-        if (sequence === requestSequence.current) setLoading(false);
-      }
+      setMcpLoading(true);
+      const slow = run('mcp', SLOW_SOURCES).finally(() => {
+        if (current()) setMcpLoading(false);
+      });
+      await run('fast', FAST_SOURCES);
+      if (current()) setLoading(false);
+      await slow;
     },
     [browseHits, browseLimit],
   );
@@ -132,6 +158,7 @@ export function useMarketplaceEcosystemSearch(
     setHits(browseHits);
     setError(null);
     setLoading(false);
+    setMcpLoading(false);
     setSearchedQuery('');
     setLimit(browseLimit);
   }, [browseHits, browseLimit]);
@@ -148,5 +175,16 @@ export function useMarketplaceEcosystemSearch(
   // A page that came back short of its limit is the whole result set.
   const hasMore = limit < ECOSYSTEM_MAX_LIMIT && hits.length >= limit;
 
-  return { hits, loading, error, searchedQuery, hasMore, browse, search, loadMore, reset };
+  return {
+    hits,
+    loading,
+    mcpLoading,
+    error,
+    searchedQuery,
+    hasMore,
+    browse,
+    search,
+    loadMore,
+    reset,
+  };
 }

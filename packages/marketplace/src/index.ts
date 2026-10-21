@@ -20,7 +20,15 @@ export {
 export type { SearchPiPackagesOptions } from './search-pi-packages.js';
 export { piGitInstallCommand, searchPiGithubRepos } from './search-pi-github.js';
 export type { SearchPiGithubOptions } from './search-pi-github.js';
-export { searchMarketplaceSources } from './search-marketplace.js';
+export { EXCLUDED_COMMUNITY_RECOMMENDATIONS, searchMarketplaceSources } from './search-marketplace.js';
+export {
+  parseSkillsShEntryId,
+  searchSkillsSh,
+  skillInstallCommand,
+  skillsShEntryId,
+  skillsShInstallSource,
+} from './search-skills-sh.js';
+export type { SearchSkillsShOptions } from './search-skills-sh.js';
 export { fetchPackageDetail, githubOwnerRepo, MAX_README_CHARS } from './package-detail.js';
 export type { FetchPackageDetailOptions } from './package-detail.js';
 export type { SearchMarketplaceOptions } from './search-marketplace.js';
@@ -37,6 +45,16 @@ export {
   draftToServerConfig,
   STATIC_MCP_REGISTRY,
 } from './mcp-registry.js';
+export {
+  OFFICIAL_MCP_REGISTRY_URL,
+  OFFICIAL_MCP_SEARCH_TIMEOUT_MS,
+  cardFromOfficialServer,
+  clearOfficialMcpSearchCache,
+  officialMcpServerId,
+  parseOfficialRegistryServers,
+  searchOfficialMcpRegistry,
+} from './mcp-official-registry.js';
+export type { SearchOfficialMcpRegistryOptions } from './mcp-official-registry.js';
 export { listSkillStoreEntries } from './skill-store.js';
 
 // Plugin system

@@ -15,8 +15,8 @@ export function CapabilityDiscoveryHint(props: { kind: 'skill' | 'mcp' }): React
   return (
     <p className="muted capability-discovery-hint" data-testid={`capability-discovery-hint-${props.kind}`}>
       {zh
-        ? `想添加新的${what}？直接在对话里说“帮我找个能……的${what}”，Agent 会从精选目录查找，经你确认后安装；也可以在侧栏「扩展市场」浏览。`
-        : `Want new ${what}? Ask in chat (“find me ${what} that can …”): the agent searches the curated catalog and installs with your approval. Or browse the Marketplace in the sidebar.`}
+        ? `想添加新的${what}？直接在对话里说“帮我装个能……的${what}”，Agent 会查找${props.kind === 'skill' ? '精选目录和 skills.sh 社区' : '精选目录'}，你在权限弹窗里批准即可安装；也可以在侧栏「扩展市场」浏览。`
+        : `Want new ${what}? Ask in chat (“install ${what} that can …”): the agent searches ${props.kind === 'skill' ? 'the curated catalog and the skills.sh community' : 'the curated catalog'} and installs once you approve the permission prompt. Or browse the Marketplace in the sidebar.`}
     </p>
   );
 }

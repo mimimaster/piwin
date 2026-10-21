@@ -6,14 +6,14 @@ import type { MarketplaceCatalogEntry, MarketplaceSearchHit } from '@piwin/contr
 import type { DesktopLocale } from '../../desktop-locale.js';
 import type { CommunitySort } from './marketplace-types.js';
 
-export function packageSourceLabel(hit: Pick<MarketplaceSearchHit, 'source'>): string {
+export function packageSourceLabel(hit: Pick<MarketplaceSearchHit, 'source' | 'curated'>): string {
   switch (hit.source) {
     case 'github':
       return 'GitHub';
     case 'mcp-registry':
       return 'MCP Registry';
     case 'skill':
-      return 'Skill';
+      return hit.curated === false ? 'skills.sh' : 'Skill';
     case 'npm-pi-package':
       return 'npm';
     default:
@@ -25,7 +25,14 @@ export function packageSourceLabel(hit: Pick<MarketplaceSearchHit, 'source'>): s
 export function packageTestId(
   hit: Pick<MarketplaceSearchHit, 'source' | 'entryId' | 'name'>,
 ): string {
-  const slug = (hit.source === 'github' ? hit.entryId.replace(/^github:/, '') : hit.name).replace(
+  // Community skills share names across repos, so their id carries owner/repo.
+  const raw =
+    hit.source === 'github'
+      ? hit.entryId.replace(/^github:/, '')
+      : hit.entryId.startsWith('skills.sh:')
+        ? hit.entryId.replace(/^skills\.sh:/, '')
+        : hit.name;
+  const slug = raw.replace(
     /[@/]/g,
     '-',
   );
@@ -88,6 +95,8 @@ export function catalogPackageKeys(entries: readonly MarketplaceCatalogEntry[]):
 }
 
 export function isCatalogDuplicate(hit: MarketplaceSearchHit, keys: ReadonlySet<string>): boolean {
+  // Curated hits are catalog entries; their reviewed card already shows.
+  if (hit.curated === true) return true;
   if (hit.source === 'npm-pi-package' && keys.has(`npm:${hit.name.toLowerCase()}`)) return true;
   const repo = repoKey(hit.repositoryUrl);
   return repo !== undefined && keys.has(`repo:${repo}`);

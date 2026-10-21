@@ -45,6 +45,7 @@ export type MarketplaceInstalledRowProps = {
   onUpdate?:
     ((entry: MarketplaceCatalogEntry, installed: MarketplaceInstalledItem) => void) | undefined;
   onConfigureMcp?: (() => void) | undefined;
+  onSourceUpdate?: ((item: MarketplaceInstalledItem) => void) | undefined;
 };
 
 export function MarketplaceInstalledRow(props: MarketplaceInstalledRowProps): ReactElement {
@@ -132,6 +133,11 @@ export function MarketplaceInstalledRow(props: MarketplaceInstalledRowProps): Re
                 onClick={() => props.onUpdate?.(catalogEntry, item)}
               >
                 {zh ? `更新至 v${catalogEntry.version}` : `Update to v${catalogEntry.version}`}
+              </Button>
+            ) : null}
+            {!updatable && item.sourceUpdate && props.onSourceUpdate ? (
+              <Button variant="ghost" size="compact" onClick={() => props.onSourceUpdate?.(item)}>
+                {zh ? '检查更新' : 'Check for update'}
               </Button>
             ) : null}
             {item.kind === 'mcp' && props.onConfigureMcp ? (

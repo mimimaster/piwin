@@ -4,6 +4,7 @@ import {
   catalogPackageKeys,
   formatRelativeDate,
   isCatalogDuplicate,
+  packageSourceLabel,
   packageTestId,
   sanitizeReadme,
   sortCommunityHits,
@@ -118,5 +119,29 @@ describe('packageTestId', () => {
     expect(packageTestId(hit({ name: 'x', source: 'github', entryId: 'github:o/r' }))).toBe(
       'market-github-o-r',
     );
+  });
+});
+
+describe('community skill hits', () => {
+  const community = {
+    entryId: 'skills.sh:acme/tools/pdf-ocr',
+    name: 'pdf-ocr',
+    version: 'HEAD',
+    description: '',
+    source: 'skill' as const,
+    installCommand: '',
+    repositoryUrl: 'https://github.com/acme/tools',
+    curated: false,
+  };
+
+  it('labels skills.sh results and keys their test id by repo', () => {
+    expect(packageSourceLabel(community)).toBe('skills.sh');
+    expect(packageSourceLabel({ ...community, curated: true })).toBe('Skill');
+    expect(packageTestId(community)).toBe('market-skill-acme-tools-pdf-ocr');
+  });
+
+  it('treats curated skill hits as catalog duplicates, community ones not', () => {
+    expect(isCatalogDuplicate({ ...community, curated: true }, new Set())).toBe(true);
+    expect(isCatalogDuplicate(community, new Set())).toBe(false);
   });
 });

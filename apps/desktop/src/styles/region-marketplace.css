@@ -727,6 +727,14 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--text-3);
 }
 
+.market-dialog-command {
+  display: block;
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
 .market-dialog-footer {
   display: flex;
   justify-content: flex-end;

@@ -9,6 +9,7 @@ import {
   isNpmPackageName,
   normalizeRepositoryUrl,
 } from './search-pi-packages.js';
+import { readSkillDetail, type SkillDetailTarget } from './skill-detail.js';
 
 const FETCH_TIMEOUT_MS = 8_000;
 /** Enough for any real README; keeps a hostile document from bloating the IPC payload. */
@@ -19,6 +20,8 @@ export type FetchPackageDetailOptions = {
   entryId: string;
   npmPackageName?: string;
   repositoryUrl?: string;
+  /** Skill hits: read this skill's SKILL.md instead of the repository README. */
+  skill?: SkillDetailTarget;
   fetch?: typeof fetch;
   signal?: AbortSignal;
   githubToken?: string;
@@ -157,6 +160,20 @@ export async function fetchPackageDetail(
   }
 
   const ownerRepo = githubOwnerRepo(repositoryUrl);
+  if (ownerRepo && options.skill) {
+    const headers: Record<string, string> = {
+      'User-Agent': 'piwin-marketplace',
+      'X-GitHub-Api-Version': '2022-11-28',
+    };
+    if (options.githubToken) headers.Authorization = `Bearer ${options.githubToken}`;
+    try {
+      detail = await readSkillDetail(ownerRepo, options.skill, async (url, accept) =>
+        (await fetchWithTimeout(url, fetchFn, options.signal, { ...headers, Accept: accept })).text(),
+      );
+    } catch (error) {
+      errors.push(`SKILL.md: ${describeError(error)}`);
+    }
+  }
   if (ownerRepo && (!detail.readme || !detail.license || !detail.updatedAt)) {
     try {
       const github = await readGithubDetail(
@@ -176,6 +193,7 @@ export async function fetchPackageDetail(
 
   return {
     entryId: options.entryId,
+    ...(detail.description ? { description: detail.description } : {}),
     ...(detail.readme ? { readme: truncateReadme(detail.readme) } : {}),
     ...(detail.license ? { license: detail.license } : {}),
     ...(detail.updatedAt ? { updatedAt: detail.updatedAt } : {}),

@@ -32,6 +32,7 @@ export type MarketplaceInstalledViewProps = {
   onUpdate: (entry: MarketplaceCatalogEntry, installed: MarketplaceInstalledItem) => void;
   onUpdateAll: () => void;
   onConfigureMcp?: (() => void) | undefined;
+  onSourceUpdate?: ((item: MarketplaceInstalledItem) => void) | undefined;
   onDiscover: () => void;
   onClearFilters: () => void;
 };
@@ -59,6 +60,7 @@ export function MarketplaceInstalledView(props: MarketplaceInstalledViewProps): 
           onRemove={props.onRemove}
           onUpdate={props.onUpdate}
           onConfigureMcp={props.onConfigureMcp}
+          onSourceUpdate={props.onSourceUpdate}
         />
       ))}
     </div>

@@ -9,6 +9,7 @@ import type {
   HostServerMessage,
   MarketplaceCatalogEntry,
   MarketplaceInstalledItem,
+  MarketplaceSearchHit,
 } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens.js';
 import { findButton, flush, setInputValue } from './workspace-subpages-test-helpers.js';
@@ -95,6 +96,24 @@ function ok(command: string, data: unknown): HostResponse {
   return { type: 'response', command, success: true, data };
 }
 
+/** Mirrors the Host's `sources` filter: hits and errors land only in their own group's response. */
+function splitBySources(command: HostCommand, response: HostResponse): HostResponse {
+  if (command.type !== 'marketplace/search' || !command.sources || !response.success) return response;
+  const sources = command.sources;
+  const data = response.data as { query: string; hits: MarketplaceSearchHit[]; remoteError?: string };
+  const group = (source: string) =>
+    source === 'mcp-registry' ? 'mcp' : source === 'skill' ? 'skills' : 'packages';
+  const errorGroup = data.remoteError?.startsWith('MCP registry') ? 'mcp' : 'packages';
+  return {
+    ...response,
+    data: {
+      query: data.query,
+      hits: data.hits.filter((item) => sources.includes(group(item.source))),
+      ...(data.remoteError && sources.includes(errorGroup) ? { remoteError: data.remoteError } : {}),
+    },
+  };
+}
+
 function createFakeHost(
   overrides: Partial<Record<HostCommand['type'], (command: HostCommand) => HostResponse>> = {},
 ): FakeHost {
@@ -102,6 +121,9 @@ function createFakeHost(
   const listeners = new Set<(message: HostServerMessage) => void>();
   const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
     const override = overrides[command.type];
+    if (override && command.type === 'marketplace/search') {
+      return splitBySources(command, override(command));
+    }
     if (override) return override(command);
     switch (command.type) {
       case 'marketplace/catalog-list':
@@ -651,7 +673,8 @@ describe('MarketplaceWorkspaceView', () => {
     });
     await flush();
 
-    expect(host.commands().filter((c) => c.type === 'marketplace/search')).toHaveLength(2);
+    // Enter runs the fast sources and the slow MCP registry as two requests.
+    expect(host.commands().filter((c) => c.type === 'marketplace/search')).toHaveLength(3);
     expect(container.querySelector('[data-testid="marketplace-ecosystem"]')?.textContent).toContain(
       'pi-lens-extra',
     );

@@ -77,6 +77,28 @@ export function groupSkillsBySource<T extends { source: SkillSource }>(
     .filter((group) => group.skills.length > 0);
 }
 
+/**
+ * Where a git-installed skill came from, written next to its SKILL.md at
+ * install time (`SKILL_ORIGIN_FILE`) so it can be updated later.
+ */
+export type SkillInstallOrigin = {
+  kind: 'git';
+  url: string;
+  subdir?: string;
+  /** Requested ref; a 40-hex commit means the install is pinned (curated). */
+  ref?: string;
+  /** Commit actually installed. */
+  commit?: string;
+  installedAt: string;
+};
+
+export const SKILL_ORIGIN_FILE = '.piwin-origin.json';
+
+/** True when `origin` pins an exact commit, so only the catalog may move it. */
+export function isPinnedSkillOrigin(origin: SkillInstallOrigin): boolean {
+  return origin.ref !== undefined && /^[0-9a-f]{40}$/.test(origin.ref);
+}
+
 export type SkillSummary = {
   id: string;
   name: string;
@@ -85,6 +107,8 @@ export type SkillSummary = {
   path: string;
   enabled: boolean;
   hidden?: boolean;
+  /** Present for skills installed from git by piwin. */
+  origin?: SkillInstallOrigin;
 };
 export type SkillsConfig = {
   /** Extra skill directories to scan (absolute or ~) */

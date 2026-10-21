@@ -13,9 +13,10 @@ import type {
   MarketplaceCatalogEntry,
   MarketplaceInstalledItem,
   McpServerHealth,
+  SkillsUpdateData,
 } from '@piwin/contracts';
 import type { DesktopLocale } from '../../desktop-locale.js';
-import { entryName } from './marketplace-copy.js';
+import { describeSkillSourceUpdate, entryName } from './marketplace-copy.js';
 import { applyExtensionsToSession, describeExtensionChange } from './marketplace-session-apply.js';
 import type { MarketOperation, MarketplaceToast } from './marketplace-types.js';
 
@@ -26,6 +27,8 @@ export type MarketplaceActions = {
   install: (entry: MarketplaceCatalogEntry) => Promise<void>;
   update: (entry: MarketplaceCatalogEntry, installed?: MarketplaceInstalledItem) => Promise<void>;
   remove: (item: MarketplaceInstalledItem) => Promise<void>;
+  /** Re-install a git-installed skill from its recorded source (`item.sourceUpdate`). */
+  updateFromSource: (item: MarketplaceInstalledItem) => Promise<void>;
   toggle: (item: MarketplaceInstalledItem) => Promise<void>;
 };
 
@@ -379,6 +382,20 @@ export function useMarketplaceActions(options: {
     });
   }
 
+  async function updateFromSource(item: MarketplaceInstalledItem): Promise<void> {
+    const route = item.sourceUpdate;
+    if (!route) return;
+    const { request, locale } = optionsRef.current;
+    await run(item.installationKey, item.name, async (phase) => {
+      phase('updating');
+      const data = (await send(request, {
+        type: route.command,
+        skillId: item.capabilityId,
+      })) as SkillsUpdateData;
+      return describeSkillSourceUpdate(item.name, data, locale);
+    });
+  }
+
   async function toggle(item: MarketplaceInstalledItem): Promise<void> {
     const { request, sessionId, locale } = optionsRef.current;
     const enabled = !item.enabled;
@@ -425,5 +442,5 @@ export function useMarketplaceActions(options: {
     });
   }
 
-  return { operations, install, update, remove, toggle };
+  return { operations, install, update, remove, updateFromSource, toggle };
 }

@@ -29,6 +29,8 @@ const HOST_REQUEST_OPERATION_TIMEOUT_MS = 120_000;
 const HOST_REQUEST_IMAGE_GENERATION_TIMEOUT_MS = 360_000;
 const HOST_REQUEST_NETWORK_QUERY_TIMEOUT_MS = 30_000;
 const HOST_REQUEST_LIVE_START_TIMEOUT_MS = 30_000;
+/** Above the Host's 45 s MCP registry search bound, so the registry's own timeout reports first. */
+const HOST_REQUEST_MARKETPLACE_SEARCH_TIMEOUT_MS = 60_000;
 
 export function getHostRequestTimeoutMs(
   command: HostCommand | LocalMobileAccessCommand,
@@ -87,6 +89,7 @@ export function getHostRequestTimeoutMs(
     case 'mcp/list_tools':
     case 'skills/install':
     case 'skills/uninstall':
+    case 'skills/update':
     case 'extensions/install':
     case 'extensions/uninstall':
     case 'extensions/apply':
@@ -112,6 +115,8 @@ export function getHostRequestTimeoutMs(
     // npm then GitHub, each bounded at 8s on the Host.
     case 'marketplace/package-detail':
       return HOST_REQUEST_NETWORK_QUERY_TIMEOUT_MS;
+    case 'marketplace/search':
+      return HOST_REQUEST_MARKETPLACE_SEARCH_TIMEOUT_MS;
     default:
       return HOST_REQUEST_QUERY_TIMEOUT_MS;
   }

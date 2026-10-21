@@ -20,7 +20,12 @@ import type {
   McpServerHealth,
   SkillSummary,
 } from '@piwin/contracts';
-import { canToggleSkill, canUninstallSkill, isExtensionBlueprintEligible } from '@piwin/contracts';
+import {
+  canToggleSkill,
+  canUninstallSkill,
+  isExtensionBlueprintEligible,
+  isPinnedSkillOrigin,
+} from '@piwin/contracts';
 import type { LoadedExtensionRef } from '../sessions/session-runtime-controller.js';
 
 const FAILED_DEPLOYMENT_PHASES = new Set<ExtensionDeploymentRecord['phase']>([
@@ -189,6 +194,10 @@ function projectSkill(
     source: skill.source,
     canToggle: canToggleSkill(skill.source),
     ...(canUninstallSkill(skill.source) ? { removal: { command: 'skills/uninstall' as const } } : {}),
+    // Catalog entries update through the catalog; only unpinned git installs follow their source.
+    ...(!catalogEntry && skill.origin && !isPinnedSkillOrigin(skill.origin)
+      ? { sourceUpdate: { command: 'skills/update' as const, repositoryUrl: skill.origin.url } }
+      : {}),
   };
 }
 

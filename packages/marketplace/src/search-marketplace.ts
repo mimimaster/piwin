@@ -1,16 +1,21 @@
 import type {
+  MarketplaceSearchSourceGroup,
   MarketplaceSearchHit,
   MarketplaceSearchResult,
   McpRegistryCard,
   SkillStoreEntry,
 } from '@piwin/contracts';
-import { listMcpRegistryCards } from './mcp-registry.js';
+import { listStaticMcpRegistry } from './mcp-registry.js';
+import { officialMcpServerId, searchOfficialMcpRegistry } from './mcp-official-registry.js';
 import { listSkillStoreEntries } from './skill-store.js';
 import { searchPiGithubRepos } from './search-pi-github.js';
 import { normalizeRepositoryUrl, searchPiNpmPackages } from './search-pi-packages.js';
+import { searchSkillsSh, skillInstallCommand } from './search-skills-sh.js';
 
 export type SearchMarketplaceOptions = {
   query: string;
+  /** Omitted = every group. */
+  sources?: readonly MarketplaceSearchSourceGroup[];
   limit?: number;
   fetch?: typeof fetch;
   signal?: AbortSignal;
@@ -48,24 +53,25 @@ function mergeHits(
 
 function mcpCardToHit(card: McpRegistryCard): MarketplaceSearchHit {
   const isOfficial = card.id.startsWith('official:');
-  const serverName = isOfficial ? card.id.slice('official:'.length) : card.id;
-  const command = card.installDraft?.command
-    ? `${card.installDraft.command} ${(card.installDraft.args ?? []).join(' ')}`
-    : card.manualDraft?.command
-      ? `${card.manualDraft.command} ${(card.manualDraft.args ?? []).join(' ')}`
-      : `npx -y ${serverName}`;
+  const registryName = isOfficial ? card.id.slice('official:'.length) : card.id;
+  const serverId = isOfficial ? officialMcpServerId(registryName) : card.id;
+  const draft = card.installDraft;
   const hit: MarketplaceSearchHit = {
-    entryId: `mcp:${serverName}`,
-    name: card.title || serverName,
-    version: 'latest',
+    entryId: `mcp:${registryName}`,
+    name: card.title || registryName,
+    version: card.version ?? 'latest',
     description: card.description,
     source: 'mcp-registry',
-    installCommand: command,
+    // Remote-only servers have no local command; the empty string marks "not installable".
+    installCommand: draft ? `${draft.command} ${(draft.args ?? []).join(' ')}`.trim() : '',
     kind: 'mcp',
+    mcpServerId: serverId,
+    curated: card.source === 'static',
   };
-  if (card.homepage) {
-    hit.homepage = card.homepage;
-  }
+  if (draft) hit.mcpDraft = draft;
+  if (card.requiredEnv && card.requiredEnv.length > 0) hit.requiredEnv = card.requiredEnv;
+  if (card.homepage) hit.homepage = card.homepage;
+  if (card.repositoryUrl) hit.repositoryUrl = card.repositoryUrl;
   return hit;
 }
 
@@ -78,11 +84,35 @@ function skillToHit(entry: SkillStoreEntry): MarketplaceSearchHit {
     source: 'skill',
     installCommand: `piwin skill install ${entry.name}`,
     kind: 'skill',
+    curated: true,
   };
   if (entry.source.kind === 'git') {
     hit.repositoryUrl = entry.source.url;
+    hit.skillSource = entry.source;
+    hit.installCommand = skillInstallCommand(entry.source.url, entry.id);
   }
   return hit;
+}
+
+/** `owner/repo` + skill name, used to drop community copies of a curated skill. */
+function skillKey(hit: MarketplaceSearchHit): string | undefined {
+  const repo = repoKey(hit.repositoryUrl)?.replace(/^https?:\/\/(www\.)?github\.com\//, '');
+  return repo ? `${repo}/${hit.name.toLowerCase()}` : undefined;
+}
+
+/** Curated skills first; community hits follow, minus the ones already curated. */
+function mergeSkillHits(
+  curated: MarketplaceSearchHit[],
+  community: MarketplaceSearchHit[],
+): MarketplaceSearchHit[] {
+  const seen = new Set(curated.map(skillKey).filter((key): key is string => key !== undefined));
+  return [
+    ...curated,
+    ...community.filter((hit) => {
+      const key = skillKey(hit);
+      return key === undefined || !seen.has(key);
+    }),
+  ];
 }
 
 /**
@@ -95,9 +125,32 @@ export const EXCLUDED_COMMUNITY_RECOMMENDATIONS = new Set<string>([
   'pi-subagents',
 ]);
 
+/** Curated MCP cards plus official registry matches; a registry failure is reported, not thrown. */
+async function searchMcpCards(
+  query: string,
+  options: Pick<SearchMarketplaceOptions, 'fetch' | 'signal'>,
+): Promise<{ cards: McpRegistryCard[]; error?: string }> {
+  const staticCards = listStaticMcpRegistry(query);
+  try {
+    const remote = await searchOfficialMcpRegistry({
+      query,
+      ...(options.fetch ? { fetch: options.fetch } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    const seen = new Set(staticCards.map((card) => card.id));
+    return { cards: [...staticCards, ...remote.filter((card) => !seen.has(card.id))] };
+  } catch (error) {
+    return { cards: staticCards, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+const SKIPPED: Promise<never[]> = Promise.resolve([]);
+
 /**
  * One marketplace query: npm `pi-package` + GitHub `topic:pi-package` +
- * official/static MCP registry servers + GitHub skills.
+ * official/static MCP registry servers + curated skills + skills.sh community skills.
+ * `sources` limits it to some groups so a client can run the slow MCP
+ * registry search apart from the rest.
  */
 export async function searchMarketplaceSources(
   options: SearchMarketplaceOptions,
@@ -109,28 +162,29 @@ export async function searchMarketplaceSources(
     ...(options.fetch ? { fetch: options.fetch } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
   };
-  const [npmOutcome, githubOutcome, mcpOutcome, skillOutcome] = await Promise.allSettled([
-    searchPiNpmPackages(shared),
-    searchPiGithubRepos({
-      ...shared,
-      ...(options.githubToken ? { token: options.githubToken } : {}),
-    }),
-    query !== ''
-      ? listMcpRegistryCards({
-          query,
-          includeOfficial: true,
-          ...(options.fetch ? { fetch: options.fetch } : {}),
-          ...(options.signal ? { signal: options.signal } : {}),
-        })
-      : Promise.resolve([]),
-    query !== '' ? Promise.resolve(listSkillStoreEntries(query)) : Promise.resolve([]),
-  ]);
+  const wants = (group: MarketplaceSearchSourceGroup) =>
+    options.sources === undefined || options.sources.includes(group);
+  const [npmOutcome, githubOutcome, mcpOutcome, skillOutcome, communitySkillOutcome] =
+    await Promise.allSettled([
+      wants('packages') ? searchPiNpmPackages(shared) : SKIPPED,
+      wants('packages')
+        ? searchPiGithubRepos({
+            ...shared,
+            ...(options.githubToken ? { token: options.githubToken } : {}),
+          })
+        : SKIPPED,
+      query !== '' && wants('mcp')
+        ? searchMcpCards(query, options)
+        : Promise.resolve<{ cards: McpRegistryCard[]; error?: string }>({ cards: [] }),
+      query !== '' && wants('skills') ? Promise.resolve(listSkillStoreEntries(query)) : SKIPPED,
+      wants('skills') ? searchSkillsSh(shared) : SKIPPED,
+    ]);
 
   const npmHits = npmOutcome.status === 'fulfilled' ? npmOutcome.value : [];
   const githubHits = githubOutcome.status === 'fulfilled' ? githubOutcome.value : [];
   const mcpHits =
     mcpOutcome.status === 'fulfilled'
-      ? mcpOutcome.value
+      ? mcpOutcome.value.cards
           .filter((card) => !EXCLUDED_COMMUNITY_RECOMMENDATIONS.has(card.id))
           .map(mcpCardToHit)
       : [];
@@ -140,6 +194,8 @@ export async function searchMarketplaceSources(
           .filter((entry) => !EXCLUDED_COMMUNITY_RECOMMENDATIONS.has(entry.id))
           .map(skillToHit)
       : [];
+  const communitySkillHits =
+    communitySkillOutcome.status === 'fulfilled' ? communitySkillOutcome.value : [];
 
   const errors: string[] = [];
   if (npmOutcome.status === 'rejected') {
@@ -150,6 +206,14 @@ export async function searchMarketplaceSources(
   if (githubOutcome.status === 'rejected') {
     errors.push(
       `GitHub: ${githubOutcome.reason instanceof Error ? githubOutcome.reason.message : String(githubOutcome.reason)}`,
+    );
+  }
+  if (mcpOutcome.status === 'fulfilled' && mcpOutcome.value.error) {
+    errors.push(`MCP registry: ${mcpOutcome.value.error}`);
+  }
+  if (communitySkillOutcome.status === 'rejected') {
+    errors.push(
+      `skills.sh: ${communitySkillOutcome.reason instanceof Error ? communitySkillOutcome.reason.message : String(communitySkillOutcome.reason)}`,
     );
   }
 
@@ -170,7 +234,11 @@ export async function searchMarketplaceSources(
             : filteredNpm,
           filteredGithub,
         ).slice(0, options.limit)
-      : [...mergeHits(filteredNpm, filteredGithub), ...mcpHits, ...skillHits];
+      : [
+          ...mergeHits(filteredNpm, filteredGithub),
+          ...mcpHits,
+          ...mergeSkillHits(skillHits, communitySkillHits),
+        ];
   const result: MarketplaceSearchResult = {
     query,
     hits: browsedHits,

@@ -69,6 +69,7 @@ export async function handleMarketplaceSearchCommand(
       entryId: command.entryId,
       ...(command.npmPackageName ? { npmPackageName: command.npmPackageName } : {}),
       ...(command.repositoryUrl ? { repositoryUrl: command.repositoryUrl } : {}),
+      ...(command.skill ? { skill: command.skill } : {}),
       ...(deps.fetch ? { fetch: deps.fetch } : {}),
       ...(githubToken ? { githubToken } : {}),
     });
@@ -83,6 +84,7 @@ export async function handleMarketplaceSearchCommand(
     const result = await searchMarketplaceSources({
       query,
       ...(command.limit !== undefined ? { limit: command.limit } : {}),
+      ...(command.sources ? { sources: command.sources } : {}),
       ...(deps.fetch ? { fetch: deps.fetch } : {}),
       ...(githubToken ? { githubToken } : {}),
     });

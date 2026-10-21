@@ -24,6 +24,7 @@ export type MarketplacePiPackageCardProps = {
 };
 
 export function isPackageInstallable(hit: MarketplaceSearchHit): boolean {
+  if (hit.source === 'mcp-registry') return Boolean(hit.mcpDraft);
   return hit.source !== 'github' || Boolean(hit.repositoryUrl);
 }
 
@@ -55,7 +56,10 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
         </div>
         <div className="market-community-meta">
           {hit.publisher ? <span>{hit.publisher}</span> : null}
-          {hit.version && hit.version !== 'latest' && hit.version !== 'git' ? (
+          {hit.version &&
+          hit.version !== 'latest' &&
+          hit.version !== 'git' &&
+          hit.version !== 'HEAD' ? (
             <span>v{hit.version}</span>
           ) : null}
           {updated ? <span>{t(`Updated ${updated}`, `${updated}更新`)}</span> : null}
@@ -74,6 +78,11 @@ export function MarketplacePiPackageCard(props: MarketplacePiPackageCardProps): 
           {hit.stars !== undefined ? (
             <span>
               {t('Stars', '星标')} {number.format(hit.stars)}
+            </span>
+          ) : null}
+          {hit.installs !== undefined ? (
+            <span>
+              {t('Installs', '安装量')} {number.format(hit.installs)}
             </span>
           ) : null}
         </span>

@@ -86,10 +86,14 @@ export function MarketplaceCommunitySection(props: MarketplaceCommunitySectionPr
           <span className="market-section-caption">
             {ecosystem.searchedQuery
               ? t(
-                  `npm, GitHub, MCP Registry and Skill store for “${ecosystem.searchedQuery}”`,
-                  `npm、GitHub、MCP Registry 与技能库中的“${ecosystem.searchedQuery}”`,
+                  `npm, GitHub, MCP Registry and skills.sh for “${ecosystem.searchedQuery}”`,
+                  `npm、GitHub、MCP Registry 与 skills.sh 中的“${ecosystem.searchedQuery}”`,
                 )
               : t('Pi packages on npm and GitHub', 'npm 与 GitHub 上的 Pi 包')}
+            {/* The registry search is slow; say so in the caption so the grid never shifts. */}
+            {ecosystem.searchedQuery && ecosystem.mcpLoading && !ecosystem.loading
+              ? t(' · MCP Registry still searching…', ' · MCP Registry 仍在搜索…')
+              : null}
           </span>
         </div>
         {canSortByDate ? (
@@ -110,7 +114,7 @@ export function MarketplaceCommunitySection(props: MarketplaceCommunitySectionPr
       </header>
       {ecosystem.loading && visibleHits.length === 0 ? (
         <p className="market-ecosystem-status" data-testid="marketplace-ecosystem-loading">
-          {t('Searching npm and GitHub…', '正在搜索 npm 与 GitHub…')}
+          {t('Searching npm, GitHub and skills.sh…', '正在搜索 npm、GitHub 与 skills.sh…')}
         </p>
       ) : null}
       {visibleHits.length > 0 ? (
@@ -143,7 +147,10 @@ export function MarketplaceCommunitySection(props: MarketplaceCommunitySectionPr
           </Button>
         </div>
       ) : null}
-      {!ecosystem.loading && visibleHits.length === 0 && ecosystem.searchedQuery ? (
+      {!ecosystem.loading &&
+      !ecosystem.mcpLoading &&
+      visibleHits.length === 0 &&
+      ecosystem.searchedQuery ? (
         <p className="market-ecosystem-status" data-testid="marketplace-ecosystem-empty">
           {t('No community packages found.', '未找到相关的社区包。')}
         </p>

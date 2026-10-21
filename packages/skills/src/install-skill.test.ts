@@ -54,3 +54,63 @@ describe('installSkill git', () => {
     expect(await readFile(join(result.targetPath, 'SKILL.md'), 'utf8')).toContain('first');
   });
 });
+
+describe('installSkill git multi-skill repo', () => {
+  async function makeCollectionRepo(): Promise<{ root: string; repo: string }> {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-mkt-collection-'));
+    const repo = join(root, 'repo');
+    const write = async (dir: string, frontmatterName: string) => {
+      await mkdir(join(repo, dir), { recursive: true });
+      await writeFile(
+        join(repo, dir, 'SKILL.md'),
+        `---\nname: ${frontmatterName}\n---\n${dir}\n`,
+        'utf8',
+      );
+    };
+    await write('skills/pdf', 'pdf');
+    await write('skills/docx', 'docx');
+    await write('plugins/office/skills/sheet-tools', 'xlsx');
+    await writeFile(join(repo, 'README.md'), 'collection\n', 'utf8');
+    const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args]);
+    execFileSync('git', ['init', '--quiet', repo]);
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'test');
+    git('add', '.');
+    git('commit', '--quiet', '-m', 'init');
+    return { root, repo };
+  }
+
+  it('installs only the folder whose name matches, recording its subdir', async () => {
+    const { root, repo } = await makeCollectionRepo();
+    const result = await installSkill({
+      piwinRoot: join(root, 'piwin'),
+      source: { kind: 'git', url: `file://${repo}` },
+      name: 'pdf',
+    });
+    expect(result.skillId).toBe('pdf');
+    expect(result.source).toEqual({ kind: 'git', url: `file://${repo}`, subdir: 'skills/pdf' });
+    expect(await readFile(join(result.targetPath, 'SKILL.md'), 'utf8')).toContain('skills/pdf');
+    await expect(readFile(join(result.targetPath, 'README.md'), 'utf8')).rejects.toThrow();
+  });
+
+  it('matches the SKILL.md name when the folder is named differently', async () => {
+    const { root, repo } = await makeCollectionRepo();
+    const result = await installSkill({
+      piwinRoot: join(root, 'piwin'),
+      source: { kind: 'git', url: `file://${repo}` },
+      name: 'xlsx',
+    });
+    expect(result.source).toMatchObject({ subdir: 'plugins/office/skills/sheet-tools' });
+  });
+
+  it('lists the available skills when the name matches none', async () => {
+    const { root, repo } = await makeCollectionRepo();
+    await expect(
+      installSkill({
+        piwinRoot: join(root, 'piwin'),
+        source: { kind: 'git', url: `file://${repo}` },
+        name: 'pptx',
+      }),
+    ).rejects.toThrow(/Skill "pptx" not found in repository; available: .*skills\/pdf/);
+  });
+});

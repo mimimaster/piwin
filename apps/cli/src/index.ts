@@ -47,7 +47,8 @@ Usage:
   piwin scheme show <id> [--mock]
   piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass|unrestricted]
   piwin skill list [--project <path>]
-  piwin skill install --local <dir> | --git <url> [--name <id>]
+  piwin skill install skills.sh:<owner>/<repo>/<skill> | --local <dir> | --git <url> [--name <id>]
+  piwin skill update <skill-id>
   piwin skill uninstall <skill-id>
   piwin skill ensure-bundled
   piwin extension list [--project <path>]

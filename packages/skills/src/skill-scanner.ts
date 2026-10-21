@@ -5,11 +5,13 @@ import {
   canToggleSkill,
   createDefaultSkillsConfig,
   normalizeResourceId,
+  parseSkillFrontmatter,
   type SkillSource,
   type SkillSummary,
   type SkillsConfig,
 } from '@piwin/contracts';
 import { frontmatterHasBundledOrigin, hasBundledSkillMarker } from './bundled-skill-origin.js';
+import { readSkillOrigin } from './skill-origin.js';
 
 export type ScanSkillsOptions = {
   piwinRoot: string;
@@ -107,7 +109,7 @@ async function parseSkillMarkdown(
   } catch {
     return null;
   }
-  const fm = parseFrontmatter(raw);
+  const fm = parseSkillFrontmatter(raw);
   const name = (fm.name ?? basename(directoryPath ?? filePath).replace(/\.md$/i, '')).trim();
   if (!name) return null;
   const description = (fm.description ?? '').trim() || '(no description)';
@@ -115,6 +117,7 @@ async function parseSkillMarkdown(
   const hiddenRaw = (fm.hidden ?? '').trim().toLowerCase();
   const hidden = hiddenRaw === 'true' || hiddenRaw === '1';
   const resolvedSource = await resolveSkillSource(source, fm, directoryPath, bundledIds, id);
+  const origin = directoryPath && resolvedSource === 'user' ? await readSkillOrigin(directoryPath) : undefined;
   return {
     id,
     name,
@@ -123,6 +126,7 @@ async function parseSkillMarkdown(
     path: directoryPath ?? filePath,
     enabled: true,
     ...(hidden ? { hidden: true } : {}),
+    ...(origin ? { origin } : {}),
   };
 }
 
@@ -153,23 +157,6 @@ function collapseSkillCatalog(skills: SkillSummary[]): SkillSummary[] {
     }
   }
   return [...byId.values()];
-}
-
-function parseFrontmatter(markdown: string): Record<string, string> {
-  const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!match) return {};
-  const result: Record<string, string> = {};
-  for (const line of (match[1] ?? '').split(/\r?\n/)) {
-    const idx = line.indexOf(':');
-    if (idx === -1) continue;
-    const key = line.slice(0, idx).trim();
-    const value = line
-      .slice(idx + 1)
-      .trim()
-      .replace(/^["']|["']$/g, '');
-    if (key) result[key] = value;
-  }
-  return result;
 }
 
 function expandHome(pathValue: string): string {

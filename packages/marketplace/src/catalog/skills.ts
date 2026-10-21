@@ -172,4 +172,136 @@ export const SKILL_CATALOG: MarketplaceCatalogEntry[] = [
     ],
     featured: true,
   }),
+  anthropicSkill({
+    skillId: 'pdf',
+    category: 'docs-research',
+    name: { en: 'PDF', zhCN: 'PDF 处理' },
+    summary: {
+      en: 'Read, merge, split, fill and create PDF files.',
+      zhCN: '读取、合并、拆分、填写表单并生成 PDF 文件。',
+    },
+    description: {
+      en: 'Text and table extraction, merging and splitting, form filling, watermarks and OCR for scanned PDFs, using Python libraries and command-line tools.',
+      zhCN: '借助 Python 库与命令行工具完成文字/表格提取、合并拆分、表单填写、加水印，以及扫描件 OCR。',
+    },
+    requirements: [
+      {
+        kind: 'command',
+        value: 'python3 + pypdf',
+        required: true,
+        description: {
+          en: 'Most operations run Python scripts on the Host; OCR also needs tesseract.',
+          zhCN: '多数操作在 Host 上运行 Python 脚本；OCR 还需要 tesseract。',
+        },
+      },
+    ],
+    examples: [
+      {
+        title: { en: 'Fill a form', zhCN: '填写表单' },
+        prompt: {
+          en: 'Fill in ~/Downloads/application.pdf with my details and save a copy.',
+          zhCN: '用我的信息填好 ~/Downloads/application.pdf 并另存一份。',
+        },
+      },
+    ],
+  }),
+  anthropicSkill({
+    skillId: 'docx',
+    category: 'docs-research',
+    name: { en: 'Word Documents', zhCN: 'Word 文档' },
+    summary: {
+      en: 'Create and edit .docx files with real formatting.',
+      zhCN: '创建和编辑带完整排版的 .docx 文档。',
+    },
+    description: {
+      en: 'Builds Word documents with headings, tables of contents and tracked changes, and edits existing ones without breaking their formatting.',
+      zhCN: '生成带标题层级、目录与修订记录的 Word 文档，并在不破坏原有格式的前提下修改已有文档。',
+    },
+    requirements: [
+      {
+        kind: 'command',
+        value: 'node + pandoc',
+        required: true,
+        description: {
+          en: 'Uses the docx npm package and pandoc on the Host; LibreOffice for conversions.',
+          zhCN: '在 Host 上使用 docx npm 包与 pandoc；格式转换需要 LibreOffice。',
+        },
+      },
+    ],
+    examples: [
+      {
+        title: { en: 'Draft a memo', zhCN: '起草备忘录' },
+        prompt: {
+          en: 'Turn these meeting notes into a formatted Word memo.',
+          zhCN: '把这些会议纪要整理成一份排好版的 Word 备忘录。',
+        },
+      },
+    ],
+  }),
+  anthropicSkill({
+    skillId: 'xlsx',
+    category: 'docs-research',
+    name: { en: 'Excel Spreadsheets', zhCN: 'Excel 表格' },
+    summary: {
+      en: 'Build and fix spreadsheets with formulas and formatting.',
+      zhCN: '创建和修正带公式与格式的电子表格。',
+    },
+    description: {
+      en: 'Creates, edits and cleans .xlsx/.csv files with openpyxl and pandas, and recalculates formulas so results are verified.',
+      zhCN: '用 openpyxl 与 pandas 创建、编辑、清洗 .xlsx/.csv 文件，并重新计算公式以核对结果。',
+    },
+    requirements: [
+      {
+        kind: 'command',
+        value: 'python3 + openpyxl',
+        required: true,
+        description: {
+          en: 'Runs Python on the Host; formula recalculation uses LibreOffice.',
+          zhCN: '在 Host 上运行 Python；公式重算依赖 LibreOffice。',
+        },
+      },
+    ],
+    examples: [
+      {
+        title: { en: 'Clean a sheet', zhCN: '整理表格' },
+        prompt: {
+          en: 'Clean up sales.csv and build a monthly summary sheet with totals.',
+          zhCN: '整理 sales.csv，并生成一张带合计的月度汇总表。',
+        },
+      },
+    ],
+  }),
+  anthropicSkill({
+    skillId: 'pptx',
+    category: 'design-content',
+    name: { en: 'PowerPoint Decks', zhCN: 'PPT 演示文稿' },
+    summary: {
+      en: 'Create, edit and read .pptx slide decks.',
+      zhCN: '创建、编辑和读取 .pptx 演示文稿。',
+    },
+    description: {
+      en: 'Generates decks with pptxgenjs, edits existing presentations and templates, and renders slides for visual checks.',
+      zhCN: '用 pptxgenjs 生成幻灯片，修改已有演示文稿与模板，并渲染页面做视觉检查。',
+    },
+    requirements: [
+      {
+        kind: 'command',
+        value: 'node + python3',
+        required: true,
+        description: {
+          en: 'Uses pptxgenjs and python-pptx on the Host; previews need LibreOffice.',
+          zhCN: '在 Host 上使用 pptxgenjs 与 python-pptx；预览需要 LibreOffice。',
+        },
+      },
+    ],
+    examples: [
+      {
+        title: { en: 'Make a deck', zhCN: '做一份演示' },
+        prompt: {
+          en: 'Make a 6-slide deck summarizing this quarter\'s roadmap.',
+          zhCN: '做一份 6 页的演示文稿，总结本季度路线图。',
+        },
+      },
+    ],
+  }),
 ];

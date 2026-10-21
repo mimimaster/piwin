@@ -135,6 +135,8 @@ export * from './repository-subdir.js';
 export * from './session-visibility.js';
 export * from './marketplace-registry.js';
 export * from './marketplace-search.js';
+export * from './skill-frontmatter.js';
+export * from './mcp-draft-env.js';
 export * from './permission.js';
 export * from './capability-matrix.js';
 export * from './walkthrough.js';

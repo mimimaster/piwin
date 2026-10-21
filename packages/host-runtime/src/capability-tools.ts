@@ -1,9 +1,10 @@
 /**
- * Agent tools for the curated capability catalog: `capability_search` finds
- * vetted skills / MCP servers / Pi extensions, `capability_install` installs
- * one by catalog entry id. Discovery and install happen in conversation
- * instead of a settings store page; every install passes a per-call
- * permission prompt and only ever uses the catalog's pinned source.
+ * Agent capability tools: `capability_search` finds vetted skills / MCP
+ * servers / Pi extensions in the curated catalog plus community results
+ * (skills.sh skills, official MCP registry servers, npm/GitHub Pi packages);
+ * `capability_install` installs one by entry id. The per-call permission
+ * prompt is the single confirmation — the agent does not ask again in chat.
+ * Curated entries use the catalog's pinned source.
  */
 import type {
   AgentPluginSource,
@@ -16,12 +17,27 @@ import type {
 import { MARKETPLACE_CAPABILITY_KINDS, formatError } from '@piwin/contracts';
 import { installPiPackage } from '@piwin/agent-host';
 import { createExtensionRevisionStore, installExtension } from '@piwin/extensions';
-import { findCatalogEntry, listCatalogEntries } from '@piwin/marketplace';
+import {
+  findCatalogEntry,
+  listCatalogEntries,
+  searchOfficialMcpRegistry,
+  searchPiGithubRepos,
+  searchPiNpmPackages,
+  searchSkillsSh,
+} from '@piwin/marketplace';
 import type { McpLifecycleManager } from '@piwin/mcp';
+import { loadMcpConfig } from '@piwin/mcp';
 import { installSkill } from '@piwin/skills';
 import type { ExtensionApplyOutcome } from './extension-tools.js';
-import { readInstalledCatalogEntryIds } from './marketplace/inventory-reader.js';
-import { saveMcpServerDraft, startMcpServerWithDiscovery } from './marketplace/mcp-install.js';
+import {
+  readInstalledCatalogEntryIds,
+  readInstalledSkillIds,
+} from './marketplace/inventory-reader.js';
+import { curatedSkillKeys } from './capability-community-skills.js';
+import { installCommunity, searchCommunity, type CommunityPorts } from './capability-community.js';
+import type { CommunityMcpCache } from './capability-community-mcp.js';
+import { searchPiPackageSources } from './capability-community-packages.js';
+import { connectMcpDraft } from './capability-mcp-connect.js';
 import { resolvePiPackageSource } from './marketplace/pi-package-source.js';
 import { getPiAgentDir } from './paths.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
@@ -45,7 +61,7 @@ export type CapabilityInstallPorts = {
   }) => Promise<{ extensionId: string }>;
   enableManagedExtension: (piwinRoot: string, extensionId: string) => Promise<void>;
   listInstalledEntryIds: (piwinRoot: string) => Promise<Set<string>>;
-};
+} & CommunityPorts;
 
 export type BuildCapabilityToolsOptions = {
   piwinRoot: string;
@@ -63,6 +79,13 @@ const DEFAULT_PORTS: CapabilityInstallPorts = {
     await createExtensionRevisionStore(piwinRoot).setEnabled(extensionId, true);
   },
   listInstalledEntryIds: (piwinRoot) => readInstalledCatalogEntryIds(piwinRoot),
+  searchCommunitySkills: (input) => searchSkillsSh(input),
+  listInstalledSkillIds: (piwinRoot) => readInstalledSkillIds(piwinRoot),
+  // Throws on a slow/failed registry so the agent is told, instead of seeing "no results".
+  searchCommunityMcp: (input) => searchOfficialMcpRegistry(input),
+  listMcpServerIds: async (piwinRoot) => new Set(Object.keys((await loadMcpConfig(piwinRoot)).mcpServers)),
+  searchCommunityPackages: (input) =>
+    searchPiPackageSources(input, { npm: searchPiNpmPackages, github: searchPiGithubRepos }),
 };
 
 function invalid(message: string): ToolResult {
@@ -92,6 +115,7 @@ function describeEntry(entry: MarketplaceCatalogEntry, installed: boolean): Reco
       (requirement) => `${requirement.value}${requirement.required ? '' : ' (optional)'}`,
     ),
     examplePrompt: entry.examples[0]?.prompt.en,
+    curated: true,
     installed,
   };
 }
@@ -139,29 +163,15 @@ async function installEntry(
         details: { entryId: entry.entryId, skillId: result.skillId },
       };
     }
-    case 'mcp': {
-      if (!options.mcpManager) {
-        return failed('MCP is not available on this Host; the user can add it from Settings → MCP.');
-      }
-      const saved = await saveMcpServerDraft(
-        options.piwinRoot,
-        options.mcpManager,
-        install.serverId,
-        install.draft,
-      );
-      const health = await startMcpServerWithDiscovery(options.mcpManager, saved.serverId);
-      if (health.status !== 'running' || health.lastError) {
-        return failed(
-          `Saved MCP server "${saved.serverId}" but it did not start: ${health.lastError ?? health.status}. ` +
-            `Check the prerequisites (${entry.requirements.map((item) => item.value).join(', ') || 'none'}).`,
-        );
-      }
-      return {
-        ok: true,
-        output: `Connected MCP server "${saved.serverId}" (${health.toolCount} tools). New sessions expose its tools.`,
-        details: { entryId: entry.entryId, serverId: saved.serverId, toolCount: health.toolCount },
-      };
-    }
+    case 'mcp':
+      return connectMcpDraft({
+        piwinRoot: options.piwinRoot,
+        mcpManager: options.mcpManager,
+        entryId: entry.entryId,
+        serverId: install.serverId,
+        draft: install.draft,
+        prerequisites: entry.requirements.map((item) => item.value),
+      });
     case 'pi-package': {
       await ports.installPiPackage({
         source: resolvePiPackageSource(install.source),
@@ -184,15 +194,27 @@ async function installEntry(
 
 export function buildCapabilityTools(options: BuildCapabilityToolsOptions): HostToolRegistration[] {
   const ports: CapabilityInstallPorts = { ...DEFAULT_PORTS, ...options.ports };
+  const mcpCache: CommunityMcpCache = new Map();
+  const community = {
+    piwinRoot: options.piwinRoot,
+    agentDirectory: getPiAgentDir(),
+    mcpManager: options.mcpManager,
+    ports,
+    mcpCache,
+    applyAfterTurn: (label: string) => applyAfterTurn(options, label),
+  };
   return [
     {
       descriptor: {
         name: 'capability_search',
         description:
-          'Search piwin\'s curated catalog of installable skills, MCP servers and Pi extensions ' +
-          '(pinned versions, reviewed sources). Use when the user wants a capability that is not ' +
+          'Search installable skills, MCP servers and Pi extensions. Covers piwin\'s curated ' +
+          'catalog (curated: true; pinned, reviewed) and, with a query, community sources ' +
+          '(curated: false): skills.sh skills (ranked by installs), the official MCP registry, ' +
+          'and npm/GitHub Pi packages. Use when the user wants a capability that is not ' +
           'installed yet. Returns entry ids, purpose, prerequisites and whether each is already ' +
-          'installed. Omit query to list everything.',
+          'installed. Omit query to list the curated catalog. Prefer a curated match; otherwise ' +
+          'pick the best community result yourself instead of asking the user to choose.',
         parameters: {
           type: 'object',
           properties: {
@@ -208,8 +230,8 @@ export function buildCapabilityTools(options: BuildCapabilityToolsOptions): Host
         rememberable: false,
         readOnly: true,
       },
-      async execute(args) {
-        const query = typeof args.query === 'string' ? args.query : undefined;
+      async execute(args, signal) {
+        const query = typeof args.query === 'string' ? args.query.trim() : undefined;
         if (args.kind !== undefined && !isCapabilityKind(args.kind)) {
           return invalid('kind must be "extension", "skill", "mcp" or "agent".');
         }
@@ -217,15 +239,32 @@ export function buildCapabilityTools(options: BuildCapabilityToolsOptions): Host
           ...(query ? { query } : {}),
           ...(isCapabilityKind(args.kind) ? { kinds: [args.kind] } : {}),
         });
-        const installed = await ports.listInstalledEntryIds(options.piwinRoot);
+        const kind = isCapabilityKind(args.kind) ? args.kind : undefined;
+        // Session backends have no community source.
+        const withCommunity = Boolean(query) && kind !== 'agent';
+        const [installed, found] = await Promise.all([
+          ports.listInstalledEntryIds(options.piwinRoot),
+          withCommunity && query
+            ? searchCommunity(community, {
+                query,
+                kind,
+                signal,
+                excludeSkillKeys: curatedSkillKeys(listCatalogEntries({ kinds: ['skill'] })),
+              })
+            : Promise.resolve({ entries: [], errors: [] }),
+        ]);
+        const described = [
+          ...entries.map((entry) => describeEntry(entry, installed.has(entry.entryId))),
+          ...found.entries,
+        ];
+        const output = JSON.stringify(described, null, 2);
         return {
           ok: true,
-          output: JSON.stringify(
-            entries.map((entry) => describeEntry(entry, installed.has(entry.entryId))),
-            null,
-            2,
-          ),
-          details: { count: entries.length },
+          output:
+            found.errors.length > 0
+              ? `${output}\n\nCommunity sources unavailable: ${found.errors.join('; ')}`
+              : output,
+          details: { count: described.length, communityCount: found.entries.length },
         };
       },
     },
@@ -233,14 +272,23 @@ export function buildCapabilityTools(options: BuildCapabilityToolsOptions): Host
       descriptor: {
         name: 'capability_install',
         description:
-          'Install one curated catalog entry by its entryId from capability_search. ' +
-          'Confirm with the user first and state its prerequisites; the user also approves ' +
-          'each install in a permission prompt. Skills are usable from the next message, ' +
-          'extensions after this turn, MCP servers in new sessions.',
+          'Install one entry by its entryId from capability_search (curated or community; ' +
+          'community MCP ids must come from a search in this session). ' +
+          'Call it directly once the user asked for the capability: the user approves each ' +
+          'install in a permission prompt, so do not ask for confirmation in chat or ask ' +
+          'whether it is curated. Mention prerequisites and, for community skills, that ' +
+          'piwin has not reviewed them. Skills are usable from the next message, ' +
+          'extensions after this turn, MCP servers in new sessions. An MCP server that needs ' +
+          'env vars is saved but not started; the user fills them in Settings → MCP.',
         parameters: {
           type: 'object',
           properties: {
-            entryId: { type: 'string', description: 'e.g. "skill:doc-coauthoring".' },
+            entryId: {
+              type: 'string',
+              description:
+                'e.g. "skill:doc-coauthoring", "skills.sh:anthropics/skills/pdf", ' +
+                '"mcp-registry:io.github.acme/fs-mcp", "npm:pi-foo" or "github:owner/repo".',
+            },
           },
           required: ['entryId'],
         },
@@ -260,6 +308,8 @@ export function buildCapabilityTools(options: BuildCapabilityToolsOptions): Host
       executionSpec: { maxDurationMs: 10 * 60 * 1000 },
       async execute(args) {
         const entryId = typeof args.entryId === 'string' ? args.entryId.trim() : '';
+        const communityResult = await installCommunity(community, entryId);
+        if (communityResult) return communityResult;
         const entry = entryId ? findCatalogEntry(entryId) : undefined;
         if (!entry) {
           return invalid(`Unknown catalog entry "${entryId}". Call capability_search for valid ids.`);

@@ -420,6 +420,14 @@ export type SkillsInstallData = {
   targetPath: string;
 };
 
+export type SkillsUpdateData = {
+  skillId: string;
+  previousCommit?: string;
+  commit?: string;
+  /** false when the source had no new commit. */
+  changed: boolean;
+};
+
 export type SkillsUninstallData = {
   skillId: string;
 };

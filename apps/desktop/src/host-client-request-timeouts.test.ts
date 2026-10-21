@@ -21,6 +21,10 @@ describe('Host request timeouts', () => {
     expect(getHostRequestTimeoutMs({ type: 'voice/live/start', input: { sessionId: 's1', providerId: 'openai-codex',
       settingsRevision: 1, idempotencyKey: 'start', bootstrap: { mediaDriverId: 'codex-webrtc-v1', offerSdp: 'v=0' } } }, 'remote')).toBe(30_000);
   });
+  it('outlasts the Host MCP registry search bound for marketplace searches', () => {
+    expect(getHostRequestTimeoutMs({ type: 'marketplace/search', query: 'pg', sources: ['mcp'] })).toBe(60_000);
+  });
+
   it('keeps MCP tool discovery open during browser authorization', () => {
     expect(getHostRequestTimeoutMs({ type: 'mcp/list_tools', serverId: 'cloudflare' })).toBe(
       120_000,

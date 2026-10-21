@@ -383,6 +383,7 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
               onUpdate={(entry, installed) => void actions.update(entry, installed)}
               onUpdateAll={() => void updateAll()}
               onConfigureMcp={props.onOpenMcpSettings}
+              onSourceUpdate={(target) => void actions.updateFromSource(target)}
               onDiscover={() => setTab('discover')}
               onClearFilters={clearFilters}
             />

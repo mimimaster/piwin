@@ -32,6 +32,7 @@ const SERIALIZED_COMMAND_TYPES = new Set<HostCommand['type']>([
   'mcp/stop',
   'skills/install',
   'skills/uninstall',
+  'skills/update',
   'skills/set_enabled',
   'extensions/install',
   'extensions/set_enabled',

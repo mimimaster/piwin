@@ -128,6 +128,7 @@ const INVENTORY_MUTATIONS: ReadonlyMap<HostCommand['type'], MarketplaceCapabilit
   ['marketplace/package-remove', ['extension', 'skill']],
   ['skills/install', ['skill']],
   ['skills/uninstall', ['skill']],
+  ['skills/update', ['skill']],
   ['skills/set_enabled', ['skill']],
   ['mcp/save', ['mcp']],
   ['mcp/start', ['mcp']],
@@ -164,4 +165,10 @@ export async function pushInventoryUpdated(
       message: `marketplace inventory refresh failed: ${formatError(error)}`,
     });
   }
+}
+
+/** Lower-cased ids of every skill the Host can see; marks community search hits. */
+export async function readInstalledSkillIds(piwinRoot: string): Promise<Set<string>> {
+  const resources = await loadCatalogResources(piwinRoot);
+  return new Set(resources.skills.map((skill) => skill.id.toLowerCase()));
 }

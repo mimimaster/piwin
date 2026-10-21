@@ -5,6 +5,7 @@ import type { HostCommand, HostResponse } from '@piwin/contracts';
 import type { HostCommandContext } from './host-command-context.js';
 import { handleCatalogCommand } from './catalog-commands.js';
 import { handleMarketplaceSearchCommand } from './marketplace-search-commands.js';
+import { handleSkillUpdateCommand } from './skill-update-commands.js';
 import { handleMcpCommand } from './mcp-commands.js';
 import { handleMarketplaceCatalogCommand } from './marketplace-catalog-commands.js';
 import { handleCapabilityRemovalCommand } from './capability-removal-commands.js';
@@ -136,6 +137,9 @@ export async function dispatchDomainCommands(
     ...(context.piwinRoot === undefined ? {} : { piwinRoot: context.piwinRoot }),
   });
   if (marketplaceSearch) return marketplaceSearch;
+
+  const skillUpdate = await handleSkillUpdateCommand(command, requestId, context);
+  if (skillUpdate) return skillUpdate;
 
   const study = await handleFlashcardStudyCommand(command, requestId, context.flashcardStudy);
   if (study) return study;

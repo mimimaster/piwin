@@ -17,6 +17,11 @@ export type McpRegistryCard = {
   manualDraft?: Partial<McpServerConfig> & { id?: string };
   /** When true, server needs non-stdio transport not fully supported yet. */
   requiresSse?: boolean;
+  /** Environment variables the server needs and the registry gives no default for. */
+  requiredEnv?: string[];
+  /** Registry version the draft pins. */
+  version?: string;
+  repositoryUrl?: string;
 };
 
 export type SkillStoreEntry = {

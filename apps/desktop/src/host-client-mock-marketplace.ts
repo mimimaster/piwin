@@ -11,6 +11,7 @@ import type {
   MarketplacePiPackageSource,
   MarketplaceRequirementsCheckData,
   MarketplaceSearchHit,
+  MarketplaceSearchSourceGroup,
 } from '@piwin/contracts';
 
 const MOCK_ENTRIES: MarketplaceCatalogEntry[] = [
@@ -303,6 +304,17 @@ const MOCK_BROWSE_HITS: MarketplaceSearchHit[] = [
     updatedAt: '2026-06-01T00:00:00Z',
   },
 ];
+
+/** Mirrors the Host's `sources` filter so split Desktop searches do not duplicate hits. */
+export function filterMockHitsBySources<Hit extends { source: string }>(
+  hits: readonly Hit[],
+  sources: readonly MarketplaceSearchSourceGroup[] | undefined,
+): Hit[] {
+  if (!sources) return [...hits];
+  const group = (hit: Hit): MarketplaceSearchSourceGroup =>
+    hit.source === 'mcp-registry' ? 'mcp' : hit.source === 'skill' ? 'skills' : 'packages';
+  return hits.filter((hit) => sources.includes(group(hit)));
+}
 
 export function mockMarketplaceBrowseHits(limit: number | undefined): MarketplaceSearchHit[] {
   return MOCK_BROWSE_HITS.slice(0, limit ?? MOCK_BROWSE_HITS.length);

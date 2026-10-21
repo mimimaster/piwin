@@ -4,6 +4,7 @@
  */
 import type { McpRegistryCard, McpServerConfig } from '@piwin/contracts';
 import { MCP_CATALOG } from './catalog/mcp.js';
+import { searchOfficialMcpRegistry } from './mcp-official-registry.js';
 
 /** Offline-friendly recommended MCP servers, projected from the curated catalog. */
 export const STATIC_MCP_REGISTRY: McpRegistryCard[] = MCP_CATALOG.flatMap((entry) =>
@@ -33,8 +34,9 @@ export function listStaticMcpRegistry(query?: string): McpRegistryCard[] {
 }
 
 /**
- * Best-effort official registry fetch. Falls back to static on any failure.
- * Does not throw.
+ * Static cards plus the official registry's matches. Never throws: a slow or
+ * offline registry leaves the curated cards. Callers that must report the
+ * failure use `searchOfficialMcpRegistry` directly.
  */
 export async function listMcpRegistryCards(options?: {
   query?: string;
@@ -42,45 +44,24 @@ export async function listMcpRegistryCards(options?: {
   /** Injected transport so callers/tests never reach the network by accident. */
   fetch?: typeof fetch;
   signal?: AbortSignal;
+  timeoutMs?: number;
 }): Promise<McpRegistryCard[]> {
   const staticCards = listStaticMcpRegistry(options?.query);
   if (!options?.includeOfficial) {
     return staticCards;
   }
   try {
-    const url = 'https://registry.modelcontextprotocol.io/v0/servers?limit=30';
-    const response = await (options.fetch ?? fetch)(url, { signal: options.signal ?? AbortSignal.timeout(8000) });
-    if (!response.ok) return staticCards;
-    const payload = (await response.json()) as {
-      servers?: Array<{ name?: string; description?: string; packages?: unknown[] }>;
-    };
-    const remote: McpRegistryCard[] = [];
-    for (const server of payload.servers ?? []) {
-      const name = server.name?.trim();
-      if (!name) continue;
-      remote.push({
-        id: `official:${name}`,
-        title: name,
-        description: server.description?.trim() || 'Official MCP registry entry',
-        source: 'official',
-        manualDraft: {
-          command: 'npx',
-          args: ['-y', name],
-        },
-      });
-    }
-    const q = options.query?.trim().toLowerCase() ?? '';
-    const filtered = q
-      ? remote.filter(
-          (card) =>
-            card.title.toLowerCase().includes(q) ||
-            card.description.toLowerCase().includes(q),
-        )
-      : remote;
-    // Prefer static drafts first, then remote
+    const remote = await searchOfficialMcpRegistry({
+      query: options.query ?? '',
+      ...(options.fetch ? { fetch: options.fetch } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
+      ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+    });
+    // Curated drafts first; a registry copy of the same server id is dropped.
     const seen = new Set(staticCards.map((card) => card.id));
-    return [...staticCards, ...filtered.filter((card) => !seen.has(card.id))];
+    return [...staticCards, ...remote.filter((card) => !seen.has(card.id))];
   } catch {
+    // Offline or slow registry: the curated cards still work.
     return staticCards;
   }
 }

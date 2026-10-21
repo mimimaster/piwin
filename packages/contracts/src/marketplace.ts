@@ -165,6 +165,11 @@ export type MarketplaceInstalledItem = {
   messageDetail?: string;
   canToggle: boolean;
   removal?: MarketplaceRemovalRoute;
+  /**
+   * Host-decided update path outside the catalog: a skill installed from an
+   * unpinned git source re-installs from that source's latest commit.
+   */
+  sourceUpdate?: { command: 'skills/update'; repositoryUrl: string };
   compatibilityTier?: ExtensionCompatibilityTier;
 };
 

@@ -1,9 +1,11 @@
 import { cp, mkdir, readdir, stat } from 'node:fs/promises';
-import { basename, join, resolve } from 'node:path';
+import { basename, join, relative, resolve, sep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { InstallSource } from '@piwin/contracts';
 import { normalizeRepositorySubdir } from '@piwin/contracts';
+import { locateSkillDirectory } from './locate-skill-directory.js';
+import { writeSkillOrigin } from './skill-origin.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -11,6 +13,8 @@ export type InstallSkillResult = {
   skillId: string;
   targetPath: string;
   source: InstallSource;
+  /** Commit installed, for git sources. */
+  commit?: string;
 };
 
 export type InstallSkillOptions = {
@@ -23,7 +27,8 @@ export type InstallSkillOptions = {
 /**
  * Install a skill into ~/.piwin/skills/<name>.
  * - local: copy directory (must contain SKILL.md)
- * - git: shallow clone then optional subdir copy
+ * - git: shallow clone, then copy the skill folder (`subdir`, or located by
+ *   `name` inside a multi-skill repo)
  */
 export async function installSkill(options: InstallSkillOptions): Promise<InstallSkillResult> {
   const skillsRoot = join(options.piwinRoot, 'skills');
@@ -75,42 +80,60 @@ async function installFromGit(
 
   let contentRoot: string;
   try {
-    contentRoot = resolve(clonePath, normalizeRepositorySubdir(source.subdir));
-  } catch (error) {
-    await rmQuiet(clonePath);
-    throw error;
-  }
-  try {
-    await assertHasSkillMarkdown(contentRoot);
+    const requestedRoot = resolve(clonePath, normalizeRepositorySubdir(source.subdir));
+    contentRoot = await locateSkillDirectory(requestedRoot, nameOverride);
   } catch (error) {
     await rmQuiet(clonePath);
     throw error;
   }
 
+  const locatedSubdir = relative(clonePath, contentRoot).split(sep).join('/');
+  const commit = await readCloneCommit(clonePath);
   const skillName =
     nameOverride ??
-    (source.subdir ? basename(source.subdir) : basename(source.url).replace(/\.git$/, ''));
+    (locatedSubdir ? basename(contentRoot) : basename(source.url).replace(/\.git$/, ''));
   const targetPath = join(skillsRoot, sanitizeName(skillName));
-  // Move content into final destination
+  // Only the skill folder is installed, never the rest of a multi-skill repo.
   await rmQuiet(targetPath);
   await cp(contentRoot, targetPath, { recursive: true, force: true });
   await rmQuiet(clonePath);
+  // A single-skill repo root was cloned with its .git; the installed copy is not a checkout.
+  await rmQuiet(join(targetPath, '.git'));
 
-  const resultSource: InstallSource = { kind: 'git', url: source.url };
+  const resultSource: Extract<InstallSource, { kind: 'git' }> = { kind: 'git', url: source.url };
   if (source.ref) {
     resultSource.ref = source.ref;
   }
-  if (source.subdir) {
-    resultSource.subdir = source.subdir;
+  if (locatedSubdir) {
+    resultSource.subdir = locatedSubdir;
   }
+  await writeSkillOrigin(targetPath, {
+    ...resultSource,
+    ...(commit ? { commit } : {}),
+    installedAt: new Date().toISOString(),
+  });
   return {
     skillId: sanitizeName(skillName).toLowerCase(),
     targetPath,
     source: resultSource,
+    ...(commit ? { commit } : {}),
   };
 }
 
 const GIT_COMMIT = /^[0-9a-f]{40}$/;
+
+async function readCloneCommit(clonePath: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync('git', ['-C', clonePath, 'rev-parse', 'HEAD'], {
+      timeout: 10_000,
+    });
+    const commit = stdout.trim();
+    return GIT_COMMIT.test(commit) ? commit : undefined;
+  } catch {
+    // The commit only feeds update checks; an install without it still works.
+    return undefined;
+  }
+}
 
 /**
  * `clone --branch` only accepts branches and tags. A pinned commit is fetched

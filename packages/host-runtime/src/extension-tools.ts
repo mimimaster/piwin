@@ -9,8 +9,8 @@
  *
  * Only self-contained sources work: a git repo whose entry is a root
  * `index.ts` / a single `.ts` file, or a local path. Packages that need
- * `npm install` (dependencies or lifecycle scripts) are rejected with the
- * exact `pi install npm:<name>` command instead.
+ * `npm install` (dependencies or lifecycle scripts) are rejected and pointed
+ * at `capability_install` with `npm:<name>`, which runs the Pi package install.
  */
 import type {
   ExtensionsConfig,
@@ -61,8 +61,8 @@ function parseInstallSource(args: Record<string, unknown>): InstallSource | { er
       const name = url.replace(/^npm:/i, '');
       return {
         error:
-          `"${name}" looks like an npm package, not a git repository. Tell the user to run \`pi install npm:${name}\` ` +
-          'then Refresh Settings → Extensions if it is an Agent-runtime extension (tools/hooks). ' +
+          `"${name}" looks like an npm package, not a git repository. Install it with capability_install ` +
+          `{ "entryId": "npm:${name}" } instead (equivalent to \`pi install npm:${name}\`). ` +
           'Pi TUI plugins (custom UI, themes, keybindings) are not supported in piwin. ' +
           'This tool only installs from a git URL or a local path.',
       };
@@ -136,8 +136,8 @@ export function buildExtensionTools(options: BuildExtensionToolsOptions): HostTo
           'Tell the user that boundary before claiming the extension will change the Desktop window. ' +
           'Sources: kind "git" (a repo whose entry is a root index.ts or a single self-contained .ts file; ' +
           'set "subdir" when it lives in a folder), or kind "local" (an absolute path). ' +
-          'Packages that need `npm install` cannot be installed this way — the tool returns the ' +
-          '`pi install npm:<name>` command to give the user instead, plus the TUI-unsupported warning. ' +
+          'Packages that need `npm install` cannot be installed this way — install those with ' +
+          'capability_install { "entryId": "npm:<name>" } (it runs `pi install npm:<name>`). ' +
           'The user approves every install in a permission prompt.',
         parameters: {
           type: 'object',

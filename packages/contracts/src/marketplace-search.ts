@@ -1,4 +1,20 @@
-/** Live marketplace search: npm `pi-package` plus GitHub `topic:pi-package`. */
+/**
+ * Live marketplace search: npm `pi-package`, GitHub `topic:pi-package`, MCP
+ * registries, curated skills and the skills.sh community skill index.
+ */
+import type { InstallSource, McpServerConfig } from './mcp.js';
+
+/**
+ * Source groups one `marketplace/search` may cover. The MCP registry's search
+ * is far slower than the rest, so clients query it in a separate request.
+ */
+export type MarketplaceSearchSourceGroup = 'packages' | 'mcp' | 'skills';
+
+export const MARKETPLACE_SEARCH_SOURCE_GROUPS: readonly MarketplaceSearchSourceGroup[] = [
+  'packages',
+  'mcp',
+  'skills',
+];
 
 export type MarketplaceSearchSource =
   | 'npm-pi-package'
@@ -30,6 +46,24 @@ export type MarketplaceSearchHit = {
   kind?: 'extension' | 'skill' | 'mcp';
   /** ISO timestamp of the latest publish / push, when the source reports it. */
   updatedAt?: string;
+  /**
+   * Skill hits only: the exact source `skills/install` takes, so a client never
+   * guesses the repository or subdirectory from the display name.
+   */
+  skillSource?: Extract<InstallSource, { kind: 'git' }>;
+  /** true for curated-catalog hits (skills, static MCP cards); false for unreviewed community results. */
+  curated?: boolean;
+  /** Install count reported by the community skill index. */
+  installs?: number;
+  /** MCP hits only: server id to save under. */
+  mcpServerId?: string;
+  /**
+   * MCP hits only: the stdio config to save. Absent when the server cannot run
+   * locally (remote-only endpoints) — such a hit is not installable.
+   */
+  mcpDraft?: McpServerConfig;
+  /** MCP hits only: env vars the user must fill in before the server can start. */
+  requiredEnv?: string[];
 };
 
 export type MarketplaceSearchResult = {
@@ -42,6 +76,8 @@ export type MarketplaceSearchResult = {
 /** Read-only details for one live-search hit, fetched on demand. */
 export type MarketplacePackageDetailData = {
   entryId: string;
+  /** Skill hits: SKILL.md `description`, which the community index does not return. */
+  description?: string;
   /** Raw README markdown; untrusted — clients render without raw HTML or remote media. */
   readme?: string;
   license?: string;

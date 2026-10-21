@@ -40,6 +40,19 @@ type DetailState =
   | { status: 'ready'; detail: MarketplacePackageDetailData }
   | { status: 'error'; message: string };
 
+/** Which SKILL.md to show: the exact curated path when known, else located by name. */
+function skillDetailTarget(hit: MarketplaceSearchHit): {
+  name: string;
+  subdir?: string;
+  ref?: string;
+} {
+  return {
+    name: hit.name,
+    ...(hit.skillSource?.subdir ? { subdir: hit.skillSource.subdir } : {}),
+    ...(hit.skillSource?.ref ? { ref: hit.skillSource.ref } : {}),
+  };
+}
+
 function useHitDetail(
   hit: MarketplaceSearchHit | null,
   request: MarketplacePackageDrawerProps['request'],
@@ -61,6 +74,7 @@ function useHitDetail(
         entryId: hit.entryId,
         ...(hit.source === 'npm-pi-package' ? { npmPackageName: hit.name } : {}),
         ...(hit.repositoryUrl ? { repositoryUrl: hit.repositoryUrl } : {}),
+        ...(hit.source === 'skill' ? { skill: skillDetailTarget(hit) } : {}),
       })
       .then(
         (response) => {
@@ -150,7 +164,9 @@ export function MarketplacePackageDrawer(
         </header>
 
         <div className="market-entry-scroll">
-          {hit.description ? <p className="market-entry-desc">{hit.description}</p> : null}
+          {(detail?.description ?? hit.description) ? (
+            <p className="market-entry-desc">{detail?.description ?? hit.description}</p>
+          ) : null}
 
           <dl className="market-entry-ledger">
             <div>
@@ -166,8 +182,18 @@ export function MarketplacePackageDrawer(
               <dd>{updated ?? '—'}</dd>
             </div>
             <div>
-              <dt>{hit.stars !== undefined ? t('Stars', '星标') : t('Monthly', '月下载')}</dt>
-              <dd>{Intl.NumberFormat(locale).format(hit.stars ?? hit.monthlyDownloads ?? 0)}</dd>
+              <dt>
+                {hit.stars !== undefined
+                  ? t('Stars', '星标')
+                  : hit.installs !== undefined
+                    ? t('Installs', '安装量')
+                    : t('Monthly', '月下载')}
+              </dt>
+              <dd>
+                {Intl.NumberFormat(locale).format(
+                  hit.stars ?? hit.installs ?? hit.monthlyDownloads ?? 0,
+                )}
+              </dd>
             </div>
           </dl>
 

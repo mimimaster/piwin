@@ -70,7 +70,7 @@ import type {
 } from './voice-live.js';
 import type { LiveSetIntendedSessionInput } from './live-intended-session.js';
 import type { MediaReadCommandInput, MediaSaveCommandInput } from './ipc-media.js';
-import type { MarketplacePiPackageSource } from './marketplace-search.js';
+import type { MarketplacePiPackageSource, MarketplaceSearchSourceGroup } from './marketplace-search.js';
 import type { MarketplaceCapabilityKind, MarketplaceCategory } from './marketplace.js';
 
 export type PlatformHostCommand =
@@ -239,6 +239,8 @@ export type PlatformHostCommand =
       name?: string;
     }
   | { id?: string; type: 'skills/uninstall'; skillId: string }
+  /** Re-install a git-installed (unpinned) skill from its recorded source. */
+  | { id?: string; type: 'skills/update'; skillId: string }
   | { id?: string; type: 'extensions/list'; projectPath?: string }
   | {
       id?: string;
@@ -495,6 +497,8 @@ export type PlatformHostCommand =
       query: string;
       /** Max npm hits. Default 20, max 50. */
       limit?: number;
+      /** Omitted = every group. */
+      sources?: MarketplaceSearchSourceGroup[];
     }
   | {
       id?: string;
@@ -527,6 +531,8 @@ export type PlatformHostCommand =
       entryId: string;
       npmPackageName?: string;
       repositoryUrl?: string;
+      /** Skill hits: show the skill's own SKILL.md instead of the repository README. */
+      skill?: { name: string; subdir?: string; ref?: string };
     }
   | {
       id?: string;

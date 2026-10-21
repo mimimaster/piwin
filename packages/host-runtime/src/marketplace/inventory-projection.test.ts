@@ -268,3 +268,36 @@ describe('computeInventoryRevision', () => {
     expect(computeInventoryRevision(changed)).not.toBe(data.revision);
   });
 });
+
+describe('skill source updates', () => {
+  const skill = (origin?: SkillSummary['origin']): SkillSummary => ({
+    id: 'pdf-ocr',
+    name: 'pdf-ocr',
+    description: 'OCR',
+    source: 'user',
+    path: '/tmp/piwin/skills/pdf-ocr',
+    enabled: true,
+    ...(origin ? { origin } : {}),
+  });
+  const origin = { kind: 'git' as const, url: 'https://github.com/acme/tools.git', installedAt: '' };
+
+  it('offers a source update for an unpinned git install outside the catalog', () => {
+    expect(only(projectMarketplaceInventory(input({ skills: [skill(origin)] }))).sourceUpdate).toEqual({
+      command: 'skills/update',
+      repositoryUrl: 'https://github.com/acme/tools.git',
+    });
+  });
+
+  it('offers none for pinned, catalog or hand-copied skills', () => {
+    const pinned = { ...origin, ref: 'a'.repeat(40) };
+    expect(only(projectMarketplaceInventory(input({ skills: [skill(pinned)] }))).sourceUpdate).toBeUndefined();
+    expect(only(projectMarketplaceInventory(input({ skills: [skill()] }))).sourceUpdate).toBeUndefined();
+    const catalog = projectMarketplaceInventory(
+      input({
+        skills: [skill(origin)],
+        matchCatalogEntry: () => ({ entryId: 'skill:pdf-ocr' }) as MarketplaceCatalogEntry,
+      }),
+    );
+    expect(only(catalog).sourceUpdate).toBeUndefined();
+  });
+});

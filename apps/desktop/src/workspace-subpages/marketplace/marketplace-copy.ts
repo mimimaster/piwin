@@ -14,7 +14,7 @@ import type {
   MarketplaceVerification,
 } from '@piwin/contracts';
 import type { DesktopLocale } from '../../desktop-locale.js';
-import type { MarketOperation } from './marketplace-types.js';
+import type { MarketOperation, MarketplaceToast } from './marketplace-types.js';
 
 type Pair = readonly [en: string, zh: string];
 
@@ -92,6 +92,32 @@ const OPERATION_LABELS: Record<MarketOperation, Pair> = {
   removing: ['Removing…', '移除中…'],
   toggling: ['Updating…', '更新中…'],
 };
+
+/** Toast for `skills/update`: new commit, or "already latest". */
+export function describeSkillSourceUpdate(
+  name: string,
+  data: { changed: boolean; commit?: string },
+  locale: DesktopLocale | undefined,
+): MarketplaceToast {
+  const short = data.commit ? data.commit.slice(0, 7) : undefined;
+  if (!data.changed) {
+    return {
+      type: 'success',
+      title: pick(locale, [`[${name}] is up to date`, `[${name}] 已是最新`]),
+      text: '',
+    };
+  }
+  return {
+    type: 'success',
+    title: pick(locale, [`[${name}] updated`, `[${name}] 已更新`]),
+    text: short
+      ? pick(locale, [
+          `Now at ${short}; usable from your next message.`,
+          `已更新到 ${short}，下一条消息起生效。`,
+        ])
+      : pick(locale, ['Usable from your next message.', '下一条消息起生效。']),
+  };
+}
 
 export function operationLabel(
   operation: MarketOperation,

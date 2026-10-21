@@ -1,5 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearOfficialMcpSearchCache } from './mcp-official-registry.js';
 import { searchMarketplaceSources } from './search-marketplace.js';
+
+
+beforeEach(() => {
+  clearOfficialMcpSearchCache();
+});
 
 describe('searchMarketplaceSources', () => {
   it('limits the browse preview and includes a GitHub package when available', async () => {
