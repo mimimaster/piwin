@@ -123,6 +123,7 @@ export function getStatus(deps: HostRuntimeKernel): HostStatusData {
       getPiwinGeneralWorkspacePath(getPiwinRoot(deps.options.piwinRoot)),
     ),
     activeSessionIds: [...deps.sessions.keys()],
+    busySessionCount: deps.residencyController.getCounts().residentBusy,
     capabilities: {
       // True only when the real parent-owned session tool port is composed
       // (non-mock live path). Mock has no product tool executors wired.

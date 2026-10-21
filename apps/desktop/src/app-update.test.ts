@@ -1,54 +1,50 @@
 import { describe, expect, it } from 'vitest';
 import {
-  compareAppVersions,
-  findAvailableUpdate,
-  releasePlatformForUserAgent,
+  appUpdatePercent,
+  parseAppUpdateInstallOutcome,
+  parseAppUpdateProgress,
+  parseAvailableAppUpdate,
 } from './app-update.js';
 
-const MANIFEST = {
-  latest: {
-    'macos-aarch64': { version: '0.2.1', url: 'https://dl.piwinwin.com/x.dmg' },
-    'windows-x64': { version: '0.2.0', url: 'https://dl.piwinwin.com/x.exe' },
-  },
-  releases: [],
-};
-
-describe('compareAppVersions', () => {
-  it('compares numerically, not as text', () => {
-    expect(compareAppVersions('0.1.10', '0.1.9')).toBeGreaterThan(0);
-    expect(compareAppVersions('0.2.0', '0.1.12')).toBeGreaterThan(0);
-    expect(compareAppVersions('0.1.1', '0.1.1')).toBe(0);
-  });
-
-  it('refuses anything that is not X.Y.Z', () => {
-    expect(compareAppVersions('1.0-preview', '0.1.0')).toBeUndefined();
-  });
-});
-
-describe('findAvailableUpdate', () => {
-  it('offers the newest installer for this platform only', () => {
-    expect(findAvailableUpdate(MANIFEST, 'macos-aarch64', '0.2.0')).toEqual({ version: '0.2.1' });
-    expect(findAvailableUpdate(MANIFEST, 'windows-x64', '0.2.0')).toBeUndefined();
-  });
-
-  it('stays quiet when up to date, ahead, or the manifest is malformed', () => {
-    expect(findAvailableUpdate(MANIFEST, 'macos-aarch64', '0.2.1')).toBeUndefined();
-    expect(findAvailableUpdate(MANIFEST, 'macos-aarch64', '0.3.0')).toBeUndefined();
+describe('parseAvailableAppUpdate', () => {
+  it('reads the Rust payload and drops blank notes', () => {
     expect(
-      findAvailableUpdate({ latest: { 'macos-aarch64': {} } }, 'macos-aarch64', '0.1.0'),
-    ).toBeUndefined();
-    expect(findAvailableUpdate('not json', 'macos-aarch64', '0.1.0')).toBeUndefined();
+      parseAvailableAppUpdate({ version: '0.2.6', currentVersion: '0.2.5', notes: '  ' }),
+    ).toEqual({ version: '0.2.6', currentVersion: '0.2.5' });
+    expect(
+      parseAvailableAppUpdate({ version: '0.2.6', currentVersion: '0.2.5', notes: '新增\n- a' }),
+    ).toEqual({ version: '0.2.6', currentVersion: '0.2.5', notes: '新增\n- a' });
+  });
+
+  it('treats null (no update) and malformed payloads as nothing', () => {
+    expect(parseAvailableAppUpdate(null)).toBeUndefined();
+    expect(parseAvailableAppUpdate({ version: 1 })).toBeUndefined();
   });
 });
 
-describe('releasePlatformForUserAgent', () => {
-  it('maps Desktop webviews to installer platforms', () => {
-    expect(releasePlatformForUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')).toBe(
-      'macos-aarch64',
-    );
-    expect(releasePlatformForUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')).toBe(
-      'windows-x64',
-    );
-    expect(releasePlatformForUserAgent('Mozilla/5.0 (X11; Linux x86_64)')).toBeUndefined();
+describe('parseAppUpdateInstallOutcome', () => {
+  it('maps every Rust outcome', () => {
+    expect(parseAppUpdateInstallOutcome({ kind: 'busy', busySessionCount: 2 })).toEqual({
+      kind: 'busy',
+      busySessionCount: 2,
+    });
+    expect(parseAppUpdateInstallOutcome({ kind: 'restarting' })).toEqual({ kind: 'restarting' });
+    expect(parseAppUpdateInstallOutcome({ kind: 'noUpdate' })).toEqual({ kind: 'noUpdate' });
+    expect(parseAppUpdateInstallOutcome('garbage')).toEqual({ kind: 'noUpdate' });
+  });
+});
+
+describe('progress', () => {
+  it('parses progress and computes a whole percent', () => {
+    const progress = parseAppUpdateProgress({ downloaded: 50, total: 200, finished: false });
+    expect(progress).toEqual({ downloaded: 50, total: 200, finished: false });
+    expect(appUpdatePercent(progress)).toBe(25);
+  });
+
+  it('has no percent without a known size', () => {
+    const progress = parseAppUpdateProgress({ downloaded: 50, total: null, finished: false });
+    expect(progress).toEqual({ downloaded: 50, finished: false });
+    expect(appUpdatePercent(progress)).toBeUndefined();
+    expect(parseAppUpdateProgress({})).toBeUndefined();
   });
 });

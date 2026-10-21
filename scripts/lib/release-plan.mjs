@@ -4,17 +4,26 @@
  * machine is ready to publish.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { countChangelogItems, draftChangelogSection } from './release-changelog.mjs';
 import { RELEASE_MANIFEST_KEY, releaseObjectUrl } from './release-manifest.mjs';
 import { pickUploader } from './release-publish.mjs';
+import {
+  configuredUpdaterPublicKey,
+  updaterPublicKeysMatch,
+} from './release-updater-manifest.mjs';
 import { parseDeveloperIdIdentities } from './signing-identity.mjs';
 
 /** wrangler rejects single uploads above this; rclone multipart has no such cap. */
 const WRANGLER_MAX_OBJECT_BYTES = 300 * 1024 * 1024;
 const DOCS_ORIGIN = 'https://docs.piwinwin.com';
+const TAURI_CONF_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../apps/desktop/src-tauri/tauri.conf.json',
+);
 
 /**
  * @typedef {{ label: string, ok: boolean, detail: string, blocking: boolean }} PreflightCheck
@@ -70,6 +79,8 @@ export async function runPreflight(config, options) {
     });
   }
 
+  checks.push(checkUpdaterKey(config.updater.privateKeyPath));
+
   const uploader = pickUploader(config);
   checks.push({
     label: '上传通道',
@@ -91,6 +102,29 @@ export async function runPreflight(config, options) {
     blocking: false,
   });
   return checks;
+}
+
+/**
+ * ADR 0097: installs only accept bundles signed by the key whose public half
+ * shipped in their tauri.conf.json, so a missing or rotated key must stop the
+ * release before anything is built.
+ *
+ * @param {string} keyPath
+ * @returns {PreflightCheck}
+ */
+function checkUpdaterKey(keyPath) {
+  const label = '应用内更新签名密钥';
+  if (!existsSync(keyPath) || !existsSync(`${keyPath}.pub`)) {
+    return { label, ok: false, detail: `缺 ${keyPath}(.pub)；丢失会导致已安装客户端收不到更新`, blocking: true };
+  }
+  const configured = configuredUpdaterPublicKey(JSON.parse(readFileSync(TAURI_CONF_PATH, 'utf8')));
+  const matches = updaterPublicKeysMatch(configured, readFileSync(`${keyPath}.pub`, 'utf8'));
+  return {
+    label,
+    ok: matches,
+    detail: matches ? keyPath : `${keyPath}.pub 与 tauri.conf.json plugins.updater.pubkey 不一致`,
+    blocking: true,
+  };
 }
 
 /**

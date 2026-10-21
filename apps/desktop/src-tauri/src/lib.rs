@@ -1,4 +1,5 @@
 mod app_shutdown;
+mod app_update;
 mod attention_notifications;
 #[cfg(target_os = "windows")]
 mod attention_notifications_windows;
@@ -15,6 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use attention_notifications::AttentionNotificationState;
 use app_shutdown::{ShutdownState, ShutdownTrigger};
+use app_update::AppUpdateState;
 use host_bridge::{host_is_running, host_request, host_start, host_stop, HostBridgeState};
 use pet_overlay::{
     pet_overlay_hide, pet_overlay_show, pet_overlay_toggle, raise_main_window, show_main_window,
@@ -29,10 +31,12 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_websocket::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(HostBridgeState::default())
         .manage(PtyHostState::default())
         .manage(ShutdownState::default())
         .manage(AttentionNotificationState::default())
+        .manage(AppUpdateState::default())
         .invoke_handler(tauri::generate_handler![
             host_start,
             host_stop,
@@ -62,13 +66,17 @@ pub fn run() {
             attention_notifications::attention_deliver,
             attention_notifications::attention_remove_delivered,
             attention_notifications::attention_take_pending_activation,
-            attention_notifications::attention_open_system_settings
+            attention_notifications::attention_open_system_settings,
+            app_update::app_update_check,
+            app_update::app_update_install
         ])
         .setup(|application| {
             piwin_artifact_webview::install_artifact_bridge(application.handle())?;
             attention_notifications::install(application.handle());
             // Feeds the frontend Memory Governor; no-op on unsupported platforms.
             memory_pressure::spawn_memory_pressure_monitor(application.handle().clone());
+            // ADR 0097: no-op for development and shell-only builds.
+            app_update::spawn_update_checks(application.handle().clone());
             // The window title is "piwin" so the Dock menu / Window list name it;
             // `hiddenTitle` (macOS) and custom chrome (Windows) keep it off the titlebar.
             if let Some(main_window) = application.get_webview_window("main") {

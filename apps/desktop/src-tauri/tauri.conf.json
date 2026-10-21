@@ -19,7 +19,7 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "",
+        "title": "piwin",
         "width": 1280,
         "height": 840,
         "resizable": true,
@@ -44,7 +44,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost https://asset.localhost https://dl.piwinwin.com; img-src 'self' asset: http://asset.localhost https://asset.localhost blob: data:; media-src 'self' asset: http://asset.localhost https://asset.localhost blob: data: mediastream:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; font-src 'self' data:; frame-src 'self' blob: data: piwin-artifact: http://piwin-artifact.localhost https://piwin-artifact.localhost; child-src 'self' blob: data: piwin-artifact: http://piwin-artifact.localhost https://piwin-artifact.localhost;",
+      "csp": "default-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost https://asset.localhost; img-src 'self' asset: http://asset.localhost https://asset.localhost blob: data:; media-src 'self' asset: http://asset.localhost https://asset.localhost blob: data: mediastream:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; font-src 'self' data:; frame-src 'self' blob: data: piwin-artifact: http://piwin-artifact.localhost https://piwin-artifact.localhost; child-src 'self' blob: data: piwin-artifact: http://piwin-artifact.localhost https://piwin-artifact.localhost;",
       "assetProtocol": {
         "enable": true,
         "scope": {
@@ -95,5 +95,14 @@
     "copyright": "Copyright © 2026 piwin",
     "shortDescription": "私有 AI 智能体工作台",
     "longDescription": "piwin 是您的私有 AI 智能体工作台"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY1REE2QjE4RDBDNkZBNTgKUldSWStzYlFHR3ZhOVJBTXQ2ckhYa2NHN1VBRllSVnRDbDRqWDhyYXBaVXJYVG9uRDBaek84eDQK",
+      "endpoints": ["https://dl.piwinwin.com/updater/{{target}}-{{arch}}.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

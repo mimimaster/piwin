@@ -2118,6 +2118,8 @@ describe('HostRuntime', () => {
     expect(status).toMatchObject({
       success: true,
       data: {
+        // Nothing is running yet; Desktop updates without asking (ADR 0097).
+        busySessionCount: 0,
         capabilities: {
           runtimeResidency: true,
           sessionOutlinePage: true,

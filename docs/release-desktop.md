@@ -9,7 +9,7 @@ notarization is **optional** (residual **D-ENG-03b** when certs unavailable).
 > `pnpm fetch:node-runtime` before `tauri build`, and the Rust host bridge
 > prefers the packaged sidecar when `host/host-serve.mjs` is present.
 > Host bundle pins Pi `@earendil-works/pi-coding-agent@0.84.2` and Node
-> `v22.19.0` (Pi 0.84 engines). **Clean-machine smoke (S5) is still required**
+> `v22.23.4` (2026-10-20 security release; Pi 0.84 needs >= 22.19). **Clean-machine smoke (S5) is still required**
 > before treating installers as public-ready — until then, prefer
 > internal/dev distribution. See
 > `docs/plans/2026-07-26-host-sidecar-bundling-execution-plan.md`.
@@ -23,7 +23,7 @@ notarization is **optional** (residual **D-ENG-03b** when certs unavailable).
 
 ### Build machine
 
-- Node `>= 22.19.0`, pnpm `9.x`
+- Node `>= 22.23.4`, pnpm `9.x`
 - Rust toolchain (`rustup`, `cargo`) for Tauri
 - Platform deps for Tauri 2 (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/))
 - Network access once to download the pinned Node LTS used by
@@ -56,7 +56,7 @@ pnpm package:desktop
    single `Developer ID Application` identity in the keychain (several → set the
    env; none → ad-hoc with a warning)
 1. `pnpm bundle:host` — `dist-host/host-serve.mjs` + `host-listen.mjs` + worker + pruned `node_modules`
-2. `pnpm fetch:node-runtime` — Node `v22.19.0` → `apps/desktop/src-tauri/binaries/piwin-host-<triple>`
+2. `pnpm fetch:node-runtime` — Node `v22.23.4` → `apps/desktop/src-tauri/binaries/piwin-host-<triple>`
 3. `pnpm sign:host-macho` — Developer-ID-sign Host natives with that identity
 4. `tauri build` with `tauri.conf.sidecar.json` — embeds Host files, signs app + sidecar
 
@@ -117,7 +117,7 @@ Do **not** cross-compile the Desktop installer from macOS. Host sidecar natives
 (`sharp`, `node-pty`, clipboard, bundled Node) are OS-specific, and Tauri needs
 MSVC + WebView2. Build on the target machine (or a matching Windows x64 box):
 
-1. Node `>= 22.19` and pnpm `9.x`
+1. Node `>= 22.23.4` and pnpm `9.x`
 2. Rust stable (`x86_64-pc-windows-msvc`)
 3. Visual Studio Build Tools with MSVC + Windows SDK
 4. WebView2 runtime (usually already present)

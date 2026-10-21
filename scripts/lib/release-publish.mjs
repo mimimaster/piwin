@@ -22,7 +22,8 @@ const SIZE_CHECK_DELAY_MS = 3000;
 /** @param {string} file */
 export function contentTypeForFile(file) {
   if (file.endsWith('.dmg')) return 'application/x-apple-diskimage';
-  if (file.endsWith('.sha256')) return 'text/plain';
+  if (file.endsWith('.sha256') || file.endsWith('.sig')) return 'text/plain';
+  if (file.endsWith('.tar.gz')) return 'application/gzip';
   if (file.endsWith('.json')) return 'application/json';
   return 'application/octet-stream';
 }
@@ -156,11 +157,13 @@ async function isInstallerPublished(url, installer) {
 }
 
 /**
- * Each installer is uploaded together with its `.sha256` sidecar.
+ * Each file is uploaded together with its `.sha256` sidecar; `signed` files
+ * (updater bundles, ADR 0097) also carry a `.sig`. Signatures are tiny and
+ * go up even when the file itself is already live, so a rerun can add one.
  *
  * @param {{
  *   config: ReleaseConfig, runner: StepRunner, version: string, cwd: string,
- *   installers: { file: string, path: string, size: number, sha256: string }[],
+ *   installers: { file: string, path: string, size: number, sha256: string, signed?: boolean }[],
  * }} input
  */
 export async function uploadReleaseFiles(input) {
@@ -169,11 +172,14 @@ export async function uploadReleaseFiles(input) {
     input.installers.map(async (installer) => {
       const key = releaseObjectKey(version, installer.file);
       const url = releaseObjectUrl(config.r2.publicBase, key);
+      const upload = { config, runner, cacheControl: IMMUTABLE_CACHE_CONTROL, cwd: input.cwd };
+      if (installer.signed) {
+        await uploadObject({ ...upload, key: `${key}.sig`, filePath: `${installer.path}.sig` });
+      }
       if (await isInstallerPublished(url, installer)) {
         console.log(`[${runner.lane}] already published ${url}`);
         return;
       }
-      const upload = { config, runner, cacheControl: IMMUTABLE_CACHE_CONTROL, cwd: input.cwd };
       await uploadObject({ ...upload, key, filePath: installer.path });
       await uploadObject({ ...upload, key: `${key}.sha256`, filePath: `${installer.path}.sha256` });
       await assertPublishedSize(url, installer.size);

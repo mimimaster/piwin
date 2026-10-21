@@ -14,7 +14,9 @@ import { installExternalLinkGuard } from './external-link-guard';
 import { isTauriRuntime } from './tauri-pty';
 import { primeDeviceCredential } from './device-admission';
 import { loadDesktopRemoteHostTarget } from './remote-host-session';
-import { isMobileTauriRuntime } from './shell-runtime';
+import { isDesktopTauriRuntime, isMobileTauriRuntime } from './shell-runtime';
+import { getAppUpdateStore } from './app-update-store';
+import { connectAppUpdateNotice } from './app-update-notice';
 import { configureArtifactKitDelivery } from '@piwin/artifact';
 import { resolveArtifactSchemeOrigin } from './artifact-frame-stream';
 import { applyWindowMaterialToDocument } from './window-material-preferences';
@@ -61,6 +63,16 @@ const disposePerformanceTimelineGuard = import.meta.env.DEV
   : undefined;
 if (disposePerformanceTimelineGuard !== undefined && import.meta.hot !== undefined) {
   import.meta.hot.dispose(disposePerformanceTimelineGuard);
+}
+
+// ADR 0097: Rust checks in the background; the notice answers its events.
+// Process-lifetime listeners, like the bridges above.
+if (isDesktopTauriRuntime()) {
+  const appUpdateStore = getAppUpdateStore();
+  connectAppUpdateNotice(appUpdateStore);
+  appUpdateStore.watch().catch((error: unknown) => {
+    console.warn('[app-update] event watch failed', error);
+  });
 }
 
 const rootElement = document.getElementById('root');

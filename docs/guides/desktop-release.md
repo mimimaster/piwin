@@ -54,10 +54,18 @@ pnpm release:desktop --formal  # 正式版：0.1.4 -> 0.2.0
    - macOS：发布专用检出（默认是仓库旁的 `piwin-release`）→ `pnpm package:desktop`
      → 校验 → 公证 + staple → Gatekeeper 关卡（必须是 `Notarized Developer ID`）。
    - Windows：SSH 到构建机，`git reset --hard <提交>` → 打包 → 取回安装包。
-3. 安装包和 `.sha256` 上传到 R2 的版本目录，核对线上文件大小。
-4. 更新 `https://dl.piwinwin.com/releases.json`。下载页读这份清单，**文档站不需要重新
+3. 在 Mac 上准备应用内更新包（ADR 0097），签名只在这台机器上做：
+   - macOS：从已公证的 DMG 里取出 `piwin.app`，staple 票据，打成
+     `piwinwin_<版本>_aarch64.app.tar.gz`，用更新密钥签名（`.sig`）。
+   - Windows：对取回的 `-setup.exe` 直接签名。
+4. 安装包、更新包和 `.sha256` / `.sig` 上传到 R2 的版本目录，核对线上文件大小。
+5. 写 `https://dl.piwinwin.com/updater/darwin-aarch64.json` 和
+   `updater/windows-x86_64.json`（Tauri updater 格式，每个平台一份；`--skip-windows`
+   时 Windows 那份不动）。已安装的客户端启动 30 秒后和每 6 小时读一次，发现新版本就弹一次
+   提示，用户点「立即更新」后下载、替换并重启。补丁版和正式版都会推送。
+6. 更新 `https://dl.piwinwin.com/releases.json`。下载页读这份清单，**文档站不需要重新
    构建或部署**。清单最后才写，所以下载页不会指向还没传完的文件。
-5. 打 tag 并 push；正式版再创建 GitHub Release。
+7. 打 tag 并 push；正式版再创建 GitHub Release。
 
 日志和产物在 `dist/release/<版本>/`。结尾会打印每一步的耗时。
 
@@ -84,10 +92,16 @@ pnpm release:desktop --formal  # 正式版：0.1.4 -> 0.2.0
 
 ### 一次性设置
 
-**允许跨域读取清单。** 两处会读 `releases.json`：`docs.piwinwin.com` 的下载页，和桌面端
-「设置 → 通用 → 版本」卡片（来源是 `tauri://localhost` / `http://tauri.localhost`）。
-清单本来就是公开文件，所以给 R2 桶加一条允许任意来源只读的 CORS 规则。没加之前下载页
-停留在内置的兜底链接、应用里只显示当前版本不提示更新，都不会报错。
+**应用内更新签名密钥。** 已安装的客户端只接受用
+`tauri.conf.json > plugins.updater.pubkey` 对应私钥签名的更新包。私钥默认在
+`~/.piwin/skills/piwin-desktop-release/updater.key`（`.pub` 在旁边；发布配置里可用
+`updater.privateKeyPath` 改路径；有口令时用环境变量 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`）。
+**私钥丢失 = 所有已安装的客户端再也收不到更新**，必须离线备份。`pnpm release:plan` 在私钥缺失
+或与 `tauri.conf.json` 里的公钥不一致时阻止发布。更换密钥只能靠用户手动重装一次新版本。
+
+**允许跨域读取清单。** `docs.piwinwin.com` 的下载页跨域读 `releases.json`。清单本来就是
+公开文件，所以给 R2 桶加一条允许任意来源只读的 CORS 规则。没加之前下载页停留在内置的兜底
+链接，不会报错。应用内更新由 Rust 侧请求，不受 CORS 影响。
 `pnpm release:plan` 的就绪检查会显示是否生效。
 
 ```json
@@ -114,3 +128,5 @@ remote，把名字填进 `r2.rcloneRemote`，上传就会改成分片并行且�
 - 引入本流程前的安装包发布在 `piwinwin_0.0.0_*` 这两个被反复覆盖的地址上，旧链接继续
   可用；下载页读不到清单时也回落到它们。
 - R2 上的历史版本不会自动清理。
+- 0.2.5 及更早的安装没有应用内更新，需要手动装一次带更新功能的版本；之后的版本都会自动推送。
+- 更新不支持降级：发错版本就立刻发一个补丁版。

@@ -64,6 +64,12 @@ export type HostStatusData = {
   generalWorkspaceProjectId?: string;
   activeSessionIds: string[];
   /**
+   * Resident runtimes in `resident-busy` (a turn or other protected operation
+   * is running). Desktop asks before an in-app update restarts this Host
+   * (ADR 0097). Absent on older Hosts.
+   */
+  busySessionCount?: number;
+  /**
    * Capability flags so clients never assume RPC has custom tools.
    * Stock `pi --mode rpc` does not support host-owned MCP/web tool injection.
    */

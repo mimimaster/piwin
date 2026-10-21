@@ -6,13 +6,12 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export const DEFAULT_RELEASE_CONFIG_PATH = join(
-  homedir(),
-  '.piwin',
-  'skills',
-  'piwin-desktop-release',
-  'release.config.json',
-);
+const RELEASE_SKILL_DIR = join(homedir(), '.piwin', 'skills', 'piwin-desktop-release');
+
+export const DEFAULT_RELEASE_CONFIG_PATH = join(RELEASE_SKILL_DIR, 'release.config.json');
+
+/** ADR 0097: losing this key strands every install on its current version. */
+export const DEFAULT_UPDATER_KEY_PATH = join(RELEASE_SKILL_DIR, 'updater.key');
 
 /**
  * @typedef {{
@@ -21,6 +20,7 @@ export const DEFAULT_RELEASE_CONFIG_PATH = join(
  *   apple: { signingIdentity: string | undefined, apiKey: string, apiIssuer: string, apiKeyPath: string | undefined } | undefined,
  *   windows: { ssh: string, dir: string } | undefined,
  *   r2: { bucket: string, publicBase: string, rcloneRemote: string | undefined },
+ *   updater: { privateKeyPath: string },
  * }} ReleaseConfig
  */
 
@@ -46,6 +46,7 @@ export function resolveReleaseConfig(raw, context) {
   const apple = asRecord(root.apple);
   const windows = asRecord(root.windows);
   const r2 = asRecord(root.r2);
+  const updater = asRecord(root.updater);
   const apiKey = optionalString(apple.apiKey);
   const apiIssuer = optionalString(apple.apiIssuer);
   const windowsSsh = optionalString(windows.ssh);
@@ -69,6 +70,9 @@ export function resolveReleaseConfig(raw, context) {
       bucket: optionalString(r2.bucket) ?? 'piwin-downloads',
       publicBase: optionalString(r2.publicBase) ?? 'https://dl.piwinwin.com',
       rcloneRemote: optionalString(r2.rcloneRemote),
+    },
+    updater: {
+      privateKeyPath: optionalString(updater.privateKeyPath) ?? DEFAULT_UPDATER_KEY_PATH,
     },
   };
 }

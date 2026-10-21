@@ -8,7 +8,8 @@
  *
  * publish: commit CHANGELOG.md -> push -> build macOS (clean checkout, signed,
  * notarized) and Windows (build box) in parallel from that exact commit ->
- * upload to versioned R2 keys -> flip releases.json -> tag. `--dry-run` builds
+ * sign in-app updater bundles (ADR 0097) -> upload to versioned R2 keys ->
+ * write updater manifests -> flip releases.json -> tag. `--dry-run` builds
  * origin/main without committing, notarizing, uploading, or tagging.
  */
 import { spawnSync } from 'node:child_process';
@@ -42,6 +43,8 @@ import {
   uploadReleaseFiles,
 } from './lib/release-publish.mjs';
 import { createStepRunner } from './lib/release-step-runner.mjs';
+import { prepareUpdaterBundles, publishUpdaterManifests } from './lib/release-updater-bundles.mjs';
+import { renderUpdaterNotes } from './lib/release-updater-manifest.mjs';
 import {
   formatReleaseVersion,
   latestReleaseVersion,
@@ -222,7 +225,7 @@ async function publish() {
 
   /** @type {Record<string, import('./lib/release-manifest.mjs').ReleaseAsset>} */
   const assets = {};
-  /** @type {{ file: string, path: string, size: number, sha256: string }[]} */
+  /** @type {{ file: string, path: string, size: number, sha256: string, signed?: boolean }[]} */
   const installers = [];
   const built = [
     { platform: 'macos-aarch64', installer: mac.value },
@@ -244,6 +247,34 @@ async function publish() {
     installers.push({ file: installer.file, path: installer.path, size, sha256 });
   }
 
+  const updaterRunner = createStepRunner({ lane: 'updater', logPath: join(outDir, 'updater.log') });
+  const updaterBundles = await prepareUpdaterBundles({
+    runner: updaterRunner,
+    config,
+    repoRoot,
+    version,
+    outDir,
+    notarized: !dryRun,
+    mac: mac.value,
+    windows: windows.value,
+  });
+  for (const bundle of updaterBundles) {
+    const existing = installers.find((entry) => entry.path === bundle.path);
+    if (existing) {
+      existing.signed = true;
+      continue;
+    }
+    const sha256 = await fileSha256(bundle.path);
+    writeFileSync(`${bundle.path}.sha256`, `${sha256}  ${bundle.file}\n`);
+    installers.push({
+      file: bundle.file,
+      path: bundle.path,
+      size: statSync(bundle.path).size,
+      sha256,
+      signed: true,
+    });
+  }
+
   const buildSeconds = Math.round((Date.now() - startedAt) / 1000);
   if (dryRun) {
     printSummary({
@@ -252,7 +283,7 @@ async function publish() {
       assets,
       gate: mac.value.gate,
       buildSeconds,
-      runners: [macRunner, winRunner],
+      runners: [macRunner, winRunner, updaterRunner],
     });
     console.log('[release] dry run: nothing committed, notarized, uploaded, or tagged');
     return;
@@ -260,6 +291,17 @@ async function publish() {
 
   const publishRunner = createStepRunner({ lane: 'publish', logPath: join(outDir, 'publish.log') });
   await uploadReleaseFiles({ config, runner: publishRunner, version, installers, cwd: repoRoot });
+
+  await publishUpdaterManifests({
+    runner: publishRunner,
+    config,
+    cwd: repoRoot,
+    version,
+    outDir,
+    notes: renderUpdaterNotes(target.section?.groups ?? []),
+    pubDate: new Date().toISOString(),
+    bundles: updaterBundles,
+  });
 
   const manifest = upsertRelease(
     readManifestReleases(await fetchPublishedManifest(config.r2.publicBase, RELEASE_MANIFEST_KEY)),
@@ -300,7 +342,7 @@ async function publish() {
     assets,
     gate: mac.value.gate,
     buildSeconds,
-    runners: [macRunner, winRunner, publishRunner],
+    runners: [macRunner, winRunner, updaterRunner, publishRunner],
   });
 }
 
