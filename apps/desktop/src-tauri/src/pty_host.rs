@@ -552,7 +552,7 @@ pub async fn pty_close_all(state: State<'_, PtyHostState>) -> Result<(), String>
         .map_err(|error| format!("pty_close_all worker failed: {error}"))?
 }
 
-fn pty_close_all_blocking(sessions: Arc<Mutex<HashMap<String, PtySession>>>) -> Result<(), String> {
+pub(crate) fn pty_close_all_blocking(sessions: Arc<Mutex<HashMap<String, PtySession>>>) -> Result<(), String> {
     // Drain the map first; every child is terminated and reaped after the
     // shared state is unlocked, allowing concurrent PTY commands to fail fast.
     let sessions_to_close = sessions

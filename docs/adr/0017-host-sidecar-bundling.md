@@ -209,7 +209,7 @@ On a machine/user account **without** pnpm/tsx/piwin checkout:
 - [ ] Paste an image → saved under `~/.piwin/media/` (exercises photon/WASM
       path if resize is involved).
 - [ ] Skills/extension listing works (exercises Pi ResourceLoader file access).
-- [ ] Quit → sidecar exits gracefully (`ShutdownDisposition::Graceful`).
+- [ ] Quit → sidecar exits gracefully (`ShutdownDisposition::Graceful`). Every quit path, including macOS Dock Quit / Cmd+Q, reaps it (ADR 0096).
 
 Add a scripted variant (`scripts/smoke-packaged-host.sh`) that runs the bundle
 directly: `binaries/piwin-host host/host-serve.mjs host serve --mock` and

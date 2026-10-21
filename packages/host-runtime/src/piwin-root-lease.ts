@@ -158,6 +158,22 @@ function readOwner(ownerPath: string): PiwinRootOwner {
   return parseOwner(readJson(ownerPath, 'piwin root owner record'));
 }
 
+/**
+ * The current owner record, or `null` when the root has no owner lock.
+ * Throws `PiwinRootOwnershipUnknownError` for an unreadable or invalid record.
+ */
+export function readPiwinRootOwner(rootDir: string): PiwinRootOwner | null {
+  const ownerPath = join(resolveCanonicalRoot(rootDir), '.host', 'owner.lock', 'owner.json');
+  try {
+    return readOwner(ownerPath);
+  } catch (error) {
+    if (error instanceof PiwinRootOwnershipUnknownError && isNodeError(error.cause, 'ENOENT')) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 function isProcessAlive(processId: number): boolean | 'unknown' {
   try {
     process.kill(processId, 0);

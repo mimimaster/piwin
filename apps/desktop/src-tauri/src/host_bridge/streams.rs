@@ -19,7 +19,9 @@ pub(super) fn spawn_stdout_reader(
     inner: Arc<Mutex<Option<Arc<HostProcess>>>>,
     lifecycle: Arc<Mutex<()>>,
     mock_flag: Arc<AtomicBool>,
+    restart_attempts: Arc<AtomicU32>,
 ) {
+    let spawned_at = Instant::now();
     let pending_reader = Arc::clone(&pending);
     let alive_reader = Arc::clone(&alive);
     let shutting_down_reader = Arc::clone(&shutting_down);
@@ -96,6 +98,8 @@ pub(super) fn spawn_stdout_reader(
                     inner_for_supervisor,
                     lifecycle_for_supervisor,
                     mock_flag_for_supervisor,
+                    restart_attempts,
+                    spawned_at.elapsed(),
                 );
             });
         }

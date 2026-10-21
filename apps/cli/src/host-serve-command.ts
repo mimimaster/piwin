@@ -13,6 +13,7 @@ import {
   HostRuntime,
   applyHostNetworkProxyFromConfig,
   applyPiwinPlaywrightBrowsersPath,
+  stopOrphanedPiwinRootOwner,
 } from '@piwin/host-runtime';
 import {
   LocalShellAccess,
@@ -34,6 +35,17 @@ import {
 export async function commandHostServe(argv: string[]): Promise<void> {
   const hostDataRoot = resolveHostDataRoot();
   installHostDiagnosticLog(hostDataRoot);
+  // A Host left behind by a shell that quit without reaping it would hold the
+  // root lease; stop it (bounded) instead of failing and being respawned.
+  const takeover = await stopOrphanedPiwinRootOwner({
+    rootDir: hostDataRoot,
+    log: (line) => console.error(`[piwin host serve] ${line}`),
+  });
+  if (takeover.outcome !== 'no-live-owner') {
+    console.error(
+      `[piwin host serve] root owner pid=${takeover.owner.processId} kind=${takeover.owner.ownerKind}: ${takeover.outcome}`,
+    );
+  }
   const mode = parseMode(argv);
   const mock = parseMock(argv);
   const testFixture = parseHostServeTestFixture(argv);
@@ -170,9 +182,13 @@ export async function commandHostServe(argv: string[]): Promise<void> {
     return shutdownPromise;
   };
 
-  process.on('SIGINT', () => {
-    void shutdown().then(() => process.exit(0));
-  });
+  // SIGTERM is how a successor Host asks an orphaned one to stop; drain the
+  // same way as SIGINT instead of dying mid-write.
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(signal, () => {
+      void shutdown().then(() => process.exit(0));
+    });
+  }
 
   await transport.start((request) => {
     const send = (message: Parameters<typeof transport.send>[0]): Promise<void> => transport.send(message);

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -36,6 +36,9 @@ pub struct HostBridgeState {
     /// Remembers the last mock flag so the supervisor can restart with the
     /// same mode. Set by `host_start_blocking` on every successful spawn.
     mock: Arc<AtomicBool>,
+    /// Supervisor restarts since the last sidecar that stayed up; shared by
+    /// every supervisor so a Host that dies on startup cannot reset backoff.
+    restart_attempts: Arc<AtomicU32>,
 }
 
 pub(crate) struct HostProcess {
@@ -64,6 +67,7 @@ impl Default for HostBridgeState {
             inner: Arc::new(Mutex::new(None)),
             lifecycle: Arc::new(Mutex::new(())),
             mock: Arc::new(AtomicBool::new(false)),
+            restart_attempts: Arc::new(AtomicU32::new(0)),
         }
     }
 }
@@ -77,8 +81,12 @@ pub async fn host_start(
     let inner = Arc::clone(&state.inner);
     let lifecycle = Arc::clone(&state.lifecycle);
     let mock_flag = Arc::clone(&state.mock);
+    let restart_attempts = Arc::clone(&state.restart_attempts);
+    // An explicit start (bootstrap or a user retry after "fatal") grants a
+    // fresh restart budget.
+    restart_attempts.store(0, Ordering::Release);
     tauri::async_runtime::spawn_blocking(move || {
-        host_start_blocking(app, inner, lifecycle, mock_flag, mock)
+        host_start_blocking(app, inner, lifecycle, mock_flag, restart_attempts, mock)
     })
     .await
     .map_err(|error| format!("host_start worker failed: {error}"))?
@@ -89,6 +97,7 @@ fn host_start_blocking(
     inner: Arc<Mutex<Option<Arc<HostProcess>>>>,
     lifecycle: Arc<Mutex<()>>,
     mock_flag: Arc<AtomicBool>,
+    restart_attempts: Arc<AtomicU32>,
     mock: bool,
 ) -> Result<Value, String> {
     if is_shell_only_build() {
@@ -186,6 +195,7 @@ fn host_start_blocking(
         Arc::clone(&inner),
         Arc::clone(&lifecycle),
         Arc::clone(&mock_flag),
+        restart_attempts,
     );
     spawn_stderr_reader(app.clone(), stderr);
 
@@ -311,6 +321,12 @@ pub async fn host_stop(state: State<'_, HostBridgeState>) -> Result<Value, Strin
     tauri::async_runtime::spawn_blocking(move || host_stop_blocking(inner, lifecycle))
         .await
         .map_err(|error| format!("host_stop worker failed: {error}"))?
+}
+
+/// Synchronous stop for the native exit path, where no async runtime turn is
+/// guaranteed before the process ends. Same bounded graceful-then-kill policy.
+pub(crate) fn host_stop_now(state: &HostBridgeState) -> Result<Value, String> {
+    host_stop_blocking(Arc::clone(&state.inner), Arc::clone(&state.lifecycle))
 }
 
 fn host_stop_blocking(

@@ -416,7 +416,13 @@ export {
   PiwinRootAlreadyOwnedError,
   PiwinRootLeaseCompromisedError,
   PiwinRootOwnershipUnknownError,
+  readPiwinRootOwner,
 } from './piwin-root-lease.js';
+export { stopOrphanedPiwinRootOwner } from './piwin-root-orphan-takeover.js';
+export type {
+  OrphanedRootOwnerTakeover,
+  StopOrphanedRootOwnerOptions,
+} from './piwin-root-orphan-takeover.js';
 export type {
   AcquirePiwinRootLeaseOptions,
   PiwinRootLease,
