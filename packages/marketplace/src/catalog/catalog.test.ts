@@ -112,7 +112,31 @@ describe('curated marketplace catalog', () => {
     expect(matchCatalogEntry('extension', 'ff-labs-pi-fff-grep')?.entryId).toBe(
       'extension:ff-labs-pi-fff',
     );
+    expect(matchCatalogEntry('extension', 'pi-purge')?.entryId).toBe('extension:pi-purge');
     expect(matchCatalogEntry('skill', 'ff-labs-pi-fff')).toBeUndefined();
     expect(matchCatalogEntry('mcp', 'memory-extra')).toBeUndefined();
+  });
+
+  it('features pi-purge pinned to an exact npm version', () => {
+    const entry = findCatalogEntry('extension:pi-purge');
+    expect(entry).toBeDefined();
+    expect(validateCatalogEntry(entry!)).toEqual([]);
+    expect(entry).toMatchObject({
+      capabilityId: 'pi-purge',
+      kind: 'extension',
+      featured: true,
+      version: '0.2.3',
+      author: 'ZiChuanLan',
+      homepage: 'https://github.com/ZiChuanLan/pi-purge',
+      sourceLabel: 'npm',
+      verification: [{ level: 'author-declared' }],
+      install: {
+        kind: 'pi-package',
+        source: { kind: 'npm', packageName: 'pi-purge', version: '0.2.3' },
+      },
+    });
+    expect(listCatalogEntries({ query: '提示词切换' }).map((item) => item.entryId)).toEqual([
+      'extension:pi-purge',
+    ]);
   });
 });

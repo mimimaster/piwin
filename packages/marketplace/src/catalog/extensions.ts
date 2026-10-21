@@ -42,4 +42,39 @@ export const EXTENSION_CATALOG: MarketplaceCatalogEntry[] = [
     verification: [{ level: 'author-declared' }],
     featured: true,
   },
+  {
+    entryId: 'extension:pi-purge',
+    capabilityId: 'pi-purge',
+    kind: 'extension',
+    category: 'code-development',
+    name: { en: 'pi-purge prompt swap', zhCN: 'pi-purge 提示词切换' },
+    summary: {
+      en: '/purge toggles a session between the stock pi system prompt and a persona prompt (strict, replace, or append).',
+      zhCN: '用 /purge 在会话中切换 pi 原系统提示词与人设提示词（strict / replace / append）。',
+    },
+    description: {
+      en: 'Session-scoped system-prompt experiments. Off by default, so an idle install changes nothing. /purge swaps the prompt in strict (persona plus working directory only), replace (strip host identity and docs), or append (prepend the persona). Point /purge source at a local file, or keep the bundled example.',
+      zhCN: '会话级系统提示词实验。默认关闭，未开启时行为与未安装一致。/purge 按 strict（仅人设和工作目录）、replace（去掉宿主身份与文档段）或 append（人设挂到头部）重写提示词。可用 /purge source 指向本地文件，或沿用内嵌示例。',
+    },
+    version: '0.2.3',
+    author: 'ZiChuanLan',
+    homepage: 'https://github.com/ZiChuanLan/pi-purge',
+    sourceLabel: 'npm',
+    install: {
+      kind: 'pi-package',
+      source: { kind: 'npm', packageName: 'pi-purge', version: '0.2.3' },
+    },
+    requirements: [],
+    examples: [
+      {
+        title: { en: 'Toggle a persona prompt', zhCN: '切换人设提示词' },
+        prompt: {
+          en: 'Turn on /purge in strict mode and answer using only the persona prompt.',
+          zhCN: '用 /purge 开启 strict 模式，只按人设提示词来回答。',
+        },
+      },
+    ],
+    verification: [{ level: 'author-declared' }],
+    featured: true,
+  },
 ];
