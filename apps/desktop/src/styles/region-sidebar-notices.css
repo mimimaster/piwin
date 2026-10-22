@@ -1,0 +1,61 @@
+/* ── Sidebar notice area ────────────────────────────────────────────────
+   App-level notices (update available, …) live right above the Settings
+   shelf. The ui-kit Notice lays text and action side by side, which does
+   not fit a ~240px column, so here it stacks: text, optional progress, then
+   the buttons right-aligned. The area takes no space when empty. */
+.sidebar-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: none;
+  /* Bottom-anchored with the shelf; the shelf below gives up its own auto
+     margin so the free space stays above the notices, not between them. */
+  margin-top: auto;
+  padding: 6px 8px 2px;
+}
+
+.sidebar-notices + .shelf,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-notices
+  + .shelf {
+  margin-top: 0;
+}
+
+.sidebar-notices .ui-notice {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 8px;
+}
+
+.sidebar-notices .ui-notice-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sidebar-notices .ui-notice-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--t1, var(--text));
+}
+
+.sidebar-notices .ui-notice-message {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--t3, var(--muted));
+  overflow-wrap: anywhere;
+}
+
+.sidebar-notices .ui-notice-details {
+  margin-top: 5px;
+}
+
+.sidebar-notices .ui-notice-action {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}

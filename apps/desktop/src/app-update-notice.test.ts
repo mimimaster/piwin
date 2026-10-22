@@ -1,69 +1,82 @@
-// @vitest-environment happy-dom
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AppUpdateBridge, AppUpdateInstallOutcome, AvailableAppUpdate } from './app-update.js';
-import { createAppUpdateStore } from './app-update-store.js';
-import { connectAppUpdateNotice } from './app-update-notice.js';
+import { describe, expect, it, vi } from 'vitest';
+import type { AppUpdateState } from './app-update-store.js';
+import { describeAppUpdateNotice, type AppUpdateNoticeHandlers } from './app-update-notice.js';
 
-const ui = vi.hoisted(() => ({ show: vi.fn(), hide: vi.fn() }));
-vi.mock('@piwin/ui-kit', () => ({ showUiNotification: ui.show, hideUiNotification: ui.hide }));
 vi.mock('./open-external-url.js', () => ({ openExternalUrl: vi.fn() }));
 
-const UPDATE: AvailableAppUpdate = { version: '0.2.6', currentVersion: '0.2.5' };
+const UPDATE = { version: '0.2.8', currentVersion: '0.2.7' };
 
-function storeWith(install: () => Promise<AppUpdateInstallOutcome>) {
-  const bridge: AppUpdateBridge = {
-    check: async () => UPDATE,
-    install: vi.fn(install),
-    onAvailable: async () => () => {},
-    onProgress: async () => () => {},
-  };
-  return createAppUpdateStore(bridge);
+function handlers(): AppUpdateNoticeHandlers {
+  return { install: vi.fn(), dismissPrompt: vi.fn(), openDownloadPage: vi.fn() };
 }
 
-afterEach(() => {
-  ui.show.mockClear();
-  ui.hide.mockClear();
-  localStorage.clear();
-});
+function describeState(state: AppUpdateState, actions = handlers()) {
+  return describeAppUpdateNotice(state, 'zh-CN', actions);
+}
 
-describe('connectAppUpdateNotice', () => {
-  it('announces each version once, across launches', async () => {
-    const first = storeWith(async () => ({ kind: 'restarting' }));
-    const stop = connectAppUpdateNotice(first);
-    await first.refresh();
-    await first.refresh();
-    expect(ui.show).toHaveBeenCalledTimes(1);
-    expect(ui.show.mock.calls[0]?.[0]).toMatchObject({
+describe('describeAppUpdateNotice', () => {
+  it('shows nothing while no newer version is published', () => {
+    expect(describeState({ status: 'idle' })).toBeUndefined();
+  });
+
+  it('stays resident with "Update now" while an update is available', () => {
+    const actions = handlers();
+    const notice = describeState({ status: 'idle', update: UPDATE }, actions);
+    expect(notice).toMatchObject({
+      id: 'app-update',
       tone: 'info',
-      autoClose: false,
-      action: { label: '立即更新' },
+      title: 'piwin v0.2.8 可用',
+      primaryAction: { label: '立即更新' },
     });
-    stop();
-
-    const relaunched = storeWith(async () => ({ kind: 'restarting' }));
-    connectAppUpdateNotice(relaunched);
-    await relaunched.refresh();
-    expect(ui.show).toHaveBeenCalledTimes(1);
+    expect(notice?.progress).toBeUndefined();
+    notice?.primaryAction?.onSelect();
+    expect(actions.install).toHaveBeenCalledWith(false);
   });
 
-  it('asks again from the notice when sessions are busy', async () => {
-    const store = storeWith(async () => ({ kind: 'busy', busySessionCount: 1 }));
-    connectAppUpdateNotice(store);
-    await store.refresh();
-    const action = ui.show.mock.calls[0]?.[0]?.action as { onClick: () => void };
-    action.onClick();
-    await vi.waitFor(() => expect(store.getState().status).toBe('busy'));
-    const prompt = ui.show.mock.calls.at(-1)?.[0];
-    expect(prompt).toMatchObject({ tone: 'warning', action: { label: '仍然更新' } });
-    expect(String(prompt?.message)).toContain('1 个会话');
+  it('shows download progress without actions', () => {
+    const notice = describeState({
+      status: 'downloading',
+      update: UPDATE,
+      progress: { downloaded: 42, total: 100, finished: false },
+    });
+    expect(notice).toMatchObject({ message: '正在下载更新 42%', progress: 42 });
+    expect(notice?.primaryAction).toBeUndefined();
+    expect(describeState({ status: 'preparing', update: UPDATE })?.progress).toBeNull();
+    expect(describeState({ status: 'restarting', update: UPDATE })?.progress).toBe(100);
   });
 
-  it('leaves busy prompts started from Settings to the Settings card', async () => {
-    const store = storeWith(async () => ({ kind: 'busy', busySessionCount: 1 }));
-    connectAppUpdateNotice(store);
-    await store.refresh();
-    ui.show.mockClear();
-    await store.install({ force: false, origin: 'settings' });
-    expect(ui.show).not.toHaveBeenCalled();
+  it('asks before interrupting busy sessions', () => {
+    const actions = handlers();
+    const notice = describeState(
+      { status: 'busy', update: UPDATE, origin: 'notice', busySessionCount: 2 },
+      actions,
+    );
+    expect(notice).toMatchObject({ tone: 'warning', primaryAction: { label: '仍然更新' } });
+    expect(notice?.message).toContain('2 个会话');
+    notice?.primaryAction?.onSelect();
+    notice?.secondaryAction?.onSelect();
+    expect(actions.install).toHaveBeenCalledWith(true);
+    expect(actions.dismissPrompt).toHaveBeenCalled();
+  });
+
+  it('offers retry and the download page after a failure', () => {
+    const actions = handlers();
+    const notice = describeState(
+      { status: 'failed', update: UPDATE, origin: 'notice', error: 'network down' },
+      actions,
+    );
+    expect(notice).toMatchObject({ tone: 'error', message: '更新失败：network down' });
+    notice?.primaryAction?.onSelect();
+    notice?.secondaryAction?.onSelect();
+    expect(actions.install).toHaveBeenCalledWith(false);
+    expect(actions.openDownloadPage).toHaveBeenCalled();
+  });
+
+  it('follows the desktop locale', () => {
+    const notice = describeAppUpdateNotice({ status: 'idle', update: UPDATE }, 'en', handlers());
+    expect(notice).toMatchObject({
+      title: 'piwin v0.2.8 is available',
+      primaryAction: { label: 'Update now' },
+    });
   });
 });

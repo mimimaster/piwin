@@ -61,8 +61,9 @@ pnpm release:desktop --formal  # 正式版：0.1.4 -> 0.2.0
 4. 安装包、更新包和 `.sha256` / `.sig` 上传到 R2 的版本目录，核对线上文件大小。
 5. 写 `https://dl.piwinwin.com/updater/darwin-aarch64.json` 和
    `updater/windows-x86_64.json`（Tauri updater 格式，每个平台一份；`--skip-windows`
-   时 Windows 那份不动）。已安装的客户端启动 30 秒后和每 6 小时读一次，发现新版本就弹一次
-   提示，用户点「立即更新」后下载、替换并重启。补丁版和正式版都会推送。
+   时 Windows 那份不动）。已安装的客户端启动 30 秒后和每 6 小时读一次，发现新版本就在侧栏
+   底部（设置上方）的通知区常驻一张更新卡片，直到装上新版本才消失；用户点「立即更新」后
+   下载、替换并重启。补丁版和正式版都会推送。
 6. 更新 `https://dl.piwinwin.com/releases.json`。下载页读这份清单，**文档站不需要重新
    构建或部署**。清单最后才写，所以下载页不会指向还没传完的文件。
 7. 打 tag 并 push；正式版再创建 GitHub Release。

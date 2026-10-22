@@ -1,6 +1,7 @@
 import type { DesktopLocale } from './desktop-locale';
 import { shouldShowSidebarHostStatus } from './sidebar-host-status';
 import { IconBook, IconImage, IconSettings } from './shell-icons';
+import { SidebarNoticeArea } from './sidebar-notice-area';
 
 export interface SidebarShelfFooterProps {
   activeSubPage?:
@@ -34,6 +35,7 @@ export function SidebarShelfFooter(props: SidebarShelfFooterProps) {
 
   return (
     <>
+      <SidebarNoticeArea locale={props.locale ?? 'zh-CN'} />
       <footer className="shelf sidebar-shelf" data-testid="sidebar-shelf">
         <button
           type="button"

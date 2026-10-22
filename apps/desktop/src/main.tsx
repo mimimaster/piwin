@@ -16,7 +16,6 @@ import { primeDeviceCredential } from './device-admission';
 import { loadDesktopRemoteHostTarget } from './remote-host-session';
 import { isDesktopTauriRuntime, isMobileTauriRuntime } from './shell-runtime';
 import { getAppUpdateStore } from './app-update-store';
-import { connectAppUpdateNotice } from './app-update-notice';
 import { configureArtifactKitDelivery } from '@piwin/artifact';
 import { resolveArtifactSchemeOrigin } from './artifact-frame-stream';
 import { applyWindowMaterialToDocument } from './window-material-preferences';
@@ -65,12 +64,11 @@ if (disposePerformanceTimelineGuard !== undefined && import.meta.hot !== undefin
   import.meta.hot.dispose(disposePerformanceTimelineGuard);
 }
 
-// ADR 0097: Rust checks in the background; the notice answers its events.
-// Process-lifetime listeners, like the bridges above.
+// ADR 0097: Rust checks in the background; the store keeps what it reports
+// and the sidebar notice area shows it. Process-lifetime listener, like the
+// bridges above.
 if (isDesktopTauriRuntime()) {
-  const appUpdateStore = getAppUpdateStore();
-  connectAppUpdateNotice(appUpdateStore);
-  appUpdateStore.watch().catch((error: unknown) => {
+  getAppUpdateStore().watch().catch((error: unknown) => {
     console.warn('[app-update] event watch failed', error);
   });
 }

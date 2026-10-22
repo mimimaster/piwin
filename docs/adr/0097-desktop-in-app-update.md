@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-10-21
-- **Scope**: `scripts/release-desktop.mjs` + `scripts/lib/release-*`, `apps/desktop/src-tauri` (`app_update`), `apps/desktop/src` (update store, notice, Settings → General → Version), `@piwin/contracts` `HostStatusData`, `@piwin/host-runtime` status
+- **Scope**: `scripts/release-desktop.mjs` + `scripts/lib/release-*`, `apps/desktop/src-tauri` (`app_update`), `apps/desktop/src` (update store, sidebar notice area, Settings → General → Version), `@piwin/contracts` `HostStatusData`, `@piwin/host-runtime` status
 - **Consults**: ADR 0017 (sidecar bundling), ADR 0096 (quit reaps the Host sidecar), `docs/guides/desktop-release.md`, research `docs/plans/2026-10-21-update-push-research.md`
 
 ## Context
@@ -44,9 +44,13 @@ so most installs ran stale.
    differs from `tauri.conf.json`.
 3. **Prompt, then one-click install; every release is offered.** Patch and
    formal releases are both pushed. Rust checks 30 s after launch and every
-   6 h, and emits `app-update://available`. The UI shows one non-blocking
-   notice per version ("Update now"), and Settings → General → Version shows
-   the version, an **Update now** button and download progress. Development
+   6 h, and emits `app-update://available`. While a newer version is
+   published, the sidebar notice area (bottom of the sidebar, above
+   Settings) keeps a resident card with **Update now**, download progress,
+   the busy-session prompt and failures; it cannot be dismissed and leaves
+   only once the app runs that version. (Amended 2026-10-22 by the product
+   owner: this replaced a one-time toast per version.) Settings → General →
+   Version shows the version, an **Update now** button and download progress. Development
    builds (`0.0.0`) and the shell-only build never check (the shell-only app
    has another bundle id and no published bundle).
 4. **Host safety before replacement.** `app_update_install` first asks the
@@ -61,7 +65,8 @@ so most installs ran stale.
      sidecar's files are released before NSIS (passive mode, `/UPDATE`) runs.
 5. **Failures degrade to the download page.** A failed check stays silent; a
    failed install (unwritable location, translocated app, network) shows the
-   error and keeps the "Download" button.
+   error and keeps the "Download" button (the sidebar card also offers
+   "Retry").
 
 ## Consequences
 
