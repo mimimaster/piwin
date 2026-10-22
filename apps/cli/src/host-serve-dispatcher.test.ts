@@ -249,4 +249,37 @@ describe('createHostServeDispatcher', () => {
     expect(runtime.handleCommand).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
   });
+
+  it('keeps tracking a handler after its client got the timeout', async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const runtime = createMockRuntime({
+      onCommand: async (command) => {
+        await gate;
+        return { type: 'response', command: command.type, success: true, data: {} };
+      },
+    });
+    const responses: HostServerMessage[] = [];
+    const dispatcher = createHostServeDispatcher({
+      runtime: runtime as HostRuntime,
+      send: async (message) => {
+        responses.push(message);
+      },
+      commandTimeoutMs: 20,
+      log: () => undefined,
+    });
+
+    dispatcher.dispatch({ type: 'project/list' });
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(responses).toHaveLength(1);
+    expect(dispatcher.inFlightCommands()).toMatchObject([
+      { type: 'project/list', lane: 'concurrent', timedOut: true },
+    ]);
+
+    release?.();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(dispatcher.inFlightCommands()).toEqual([]);
+  });
 });

@@ -418,7 +418,10 @@ export {
   PiwinRootOwnershipUnknownError,
   readPiwinRootOwner,
 } from './piwin-root-lease.js';
-export { stopOrphanedPiwinRootOwner } from './piwin-root-orphan-takeover.js';
+export {
+  PIWIN_HOST_DIAGNOSTIC_REPORT_SIGNAL,
+  stopOrphanedPiwinRootOwner,
+} from './piwin-root-orphan-takeover.js';
 export type {
   OrphanedRootOwnerTakeover,
   StopOrphanedRootOwnerOptions,

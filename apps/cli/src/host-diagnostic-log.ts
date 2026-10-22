@@ -11,8 +11,9 @@ type StderrWrite = typeof process.stderr.write;
  * `host-log` events, so a Host that stalled or failed leaves nothing to read
  * afterwards. Tee every stderr write into `<root>/logs/host.log` with a
  * timestamp per line. stdout is untouched: it carries the JSONL protocol.
+ * Returns the log path so the hang watchdog thread can append to it directly.
  */
-export function installHostDiagnosticLog(piwinRoot: string): void {
+export function installHostDiagnosticLog(piwinRoot: string): string {
   redirectHostLogsToStandardError();
   const directory = join(piwinRoot, 'logs');
   const filePath = join(directory, 'host.log');
@@ -65,6 +66,7 @@ export function installHostDiagnosticLog(piwinRoot: string): void {
 
   open();
   append(`[piwin host serve] started pid=${process.pid} platform=${process.platform}\n`);
+  return filePath;
 }
 
 /** Prefix each line that starts in `text` with `[timestamp] `. */

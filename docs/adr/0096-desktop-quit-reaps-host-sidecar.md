@@ -45,7 +45,9 @@ unbounded loop.
    owner is an orphan only if it is alive, its parent is PID 1
    (launchd/init), its argv runs `host serve`, and its `ps` start time matches
    the owner record's `processStartedAt` (PID-reuse guard). The successor
-   sends SIGTERM, waits up to 10 s, then SIGKILL with a 3 s wait, and the lease
+   sends SIGTERM and waits up to 10 s. If the orphan is still alive, the
+   successor first asks it for a diagnostic report (SIGUSR2) and stack-samples
+   it (ADR 0099). Then it sends SIGKILL with a 3 s wait, and the lease
    reclaims the dead owner. Any other live owner is never signalled; the lease
    fails with `PiwinRootAlreadyOwnedError` and decision 2 bounds the retries.
    `host serve` now drains on SIGTERM like SIGINT. Windows has no

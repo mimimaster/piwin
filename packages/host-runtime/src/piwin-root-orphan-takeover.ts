@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { readPiwinRootOwner, type PiwinRootOwner } from './piwin-root-lease.js';
 
@@ -15,6 +17,13 @@ const ORPHAN_POLL_INTERVAL_MS = 100;
  */
 const PROCESS_START_TOLERANCE_MS = 10_000;
 const LAUNCHD_OR_INIT_PID = 1;
+/**
+ * Asks a wedged Host to write a Node diagnostic report before SIGKILL. The
+ * Host handles it on its event loop, so a fully blocked loop writes nothing;
+ * the native stack sample taken right after covers that case.
+ */
+export const PIWIN_HOST_DIAGNOSTIC_REPORT_SIGNAL = 'SIGUSR2';
+const ORPHAN_SAMPLE_SECONDS = 3;
 const HOST_SERVE_ARGV = /(^|\s)host\s+serve(\s|$)/;
 
 export type RootOwnerProcessFacts = {
@@ -36,6 +45,11 @@ export type StopOrphanedRootOwnerOptions = {
   rootDir: string;
   stopTimeoutMs?: number;
   killTimeoutMs?: number;
+  /**
+   * When set, a Host that ignores SIGTERM is asked for a diagnostic report and
+   * (macOS) stack-sampled into this directory before SIGKILL.
+   */
+  diagnosticsDir?: string;
   log?: (line: string) => void;
   /** Test seams; default to the real process table. */
   inspectProcess?: (processId: number) => Promise<RootOwnerProcessFacts | null>;
@@ -43,6 +57,8 @@ export type StopOrphanedRootOwnerOptions = {
   signalProcess?: (processId: number, signal: NodeJS.Signals) => void;
   sleep?: (milliseconds: number) => Promise<void>;
   now?: () => number;
+  /** Native stack capture; resolves to the written file, or null when unavailable. */
+  captureStackSample?: (processId: number, diagnosticsDir: string) => Promise<string | null>;
 };
 
 function isNodeError(error: unknown, code: string): boolean {
@@ -93,6 +109,20 @@ async function inspectProcessWithPs(processId: number): Promise<RootOwnerProcess
     // to stop and the lease decides from liveness alone.
     return null;
   }
+}
+
+async function captureStackSampleWithSample(
+  processId: number,
+  diagnosticsDir: string,
+): Promise<string | null> {
+  if (process.platform !== 'darwin') return null;
+  await mkdir(diagnosticsDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const file = join(diagnosticsDir, `orphan-host-${processId}-${stamp}.sample.txt`);
+  await execFileAsync('/usr/bin/sample', [String(processId), String(ORPHAN_SAMPLE_SECONDS), '-file', file], {
+    timeout: (ORPHAN_SAMPLE_SECONDS + 20) * 1_000,
+  });
+  return file;
 }
 
 /**
@@ -176,6 +206,28 @@ export async function stopOrphanedPiwinRootOwner(
   log(`stopping orphaned piwin host pid=${owner.processId} (SIGTERM, wait ${stopTimeoutMs}ms)`);
   if (!sendSignal('SIGTERM') || (await waitForExit(stopTimeoutMs))) {
     return { outcome: 'stopped', owner };
+  }
+
+  if (options.diagnosticsDir !== undefined) {
+    const diagnosticsDir = options.diagnosticsDir;
+    const captureStackSample = options.captureStackSample ?? captureStackSampleWithSample;
+    log(
+      `orphaned piwin host pid=${owner.processId} ignored SIGTERM; requesting diagnostic report (${PIWIN_HOST_DIAGNOSTIC_REPORT_SIGNAL}) and stack sample before SIGKILL`,
+    );
+    if (!sendSignal(PIWIN_HOST_DIAGNOSTIC_REPORT_SIGNAL)) {
+      return { outcome: 'stopped', owner };
+    }
+    // The sample's run time doubles as the window for the report write.
+    try {
+      const file = await captureStackSample(owner.processId, diagnosticsDir);
+      log(file === null ? 'stack sample unavailable on this platform' : `stack sample written: ${file}`);
+    } catch (error) {
+      log(`stack sample failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    // A Host from before this signal existed dies on it (default action).
+    if (!isAlive(owner.processId)) {
+      return { outcome: 'killed', owner };
+    }
   }
 
   const killTimeoutMs = options.killTimeoutMs ?? DEFAULT_ORPHAN_KILL_TIMEOUT_MS;

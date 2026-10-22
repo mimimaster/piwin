@@ -6,6 +6,11 @@ import type { HostCommand, HostCommandRequest, HostResponse, HostServerMessage }
 import { formatHostError } from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/host-runtime';
 import { classifyHostServeCommand, type HostServeCommandLane } from './host-serve-command-lane.js';
+import {
+  createInFlightCommandTracker,
+  type InFlightCommandSnapshot,
+  type InFlightCommandTracker,
+} from './host-serve-inflight-commands.js';
 
 /** Frame sender the dispatcher uses to write responses. Transport-agnostic. */
 export type HostServeSend = (message: HostServerMessage) => Promise<void>;
@@ -19,12 +24,18 @@ export type HostServeDispatcherOptions = {
     request: HostCommandRequest,
     execute: () => Promise<HostResponse>,
   ) => Promise<HostResponse>;
+  /** Host log sink for slow / long-running command lines. Defaults to stderr. */
+  log?: (line: string) => void;
 };
 
 export type HostServeDispatcher = {
   dispatch: (command: HostCommand | HostCommandRequest) => void;
   /** Stop accepting commands and await every queued or active command. */
   drain: () => Promise<void>;
+  /** Handlers still running, including ones whose client already got a timeout. */
+  inFlightCommands: () => InFlightCommandSnapshot[];
+  /** Log handlers that crossed their next long-running report age. */
+  reportLongRunningCommands: () => number;
 };
 
 const DEFAULT_COMMAND_TIMEOUT_MS = 45_000;
@@ -58,6 +69,8 @@ export function createHostServeDispatcher(
   options: HostServeDispatcherOptions,
 ): HostServeDispatcher {
   const timeoutMs = options.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
+  const log = options.log ?? ((line: string): void => console.error(line));
+  const handlers = createInFlightCommandTracker({ log });
   let serializedChain: Promise<void> = Promise.resolve();
   const inFlightCommands = new Set<Promise<void>>();
   let acceptingCommands = true;
@@ -74,9 +87,14 @@ export function createHostServeDispatcher(
     const run = async (): Promise<void> => {
       const startedAt = Date.now();
       try {
-        await runCommand(options.runtime, options.send, request, commandDeadlineMs, options.admit);
+        await runCommand(options.runtime, options.send, request, {
+          lane,
+          timeoutMs: commandDeadlineMs,
+          admit: options.admit,
+          handlers,
+        });
       } finally {
-        reportSlowCommand(request.command.type, lane, queuedAt, startedAt, Date.now());
+        reportSlowCommand(log, request.command.type, lane, queuedAt, startedAt, Date.now());
       }
     };
     if (lane === 'control' || lane === 'concurrent') {
@@ -109,7 +127,12 @@ export function createHostServeDispatcher(
     }
   }
 
-  return { dispatch, drain };
+  return {
+    dispatch,
+    drain,
+    inFlightCommands: handlers.snapshot,
+    reportLongRunningCommands: handlers.reportLongRunning,
+  };
 }
 
 /**
@@ -117,6 +140,7 @@ export function createHostServeDispatcher(
  * switches included); the queue/run split shows which one held the lane.
  */
 function reportSlowCommand(
+  log: (line: string) => void,
   type: HostCommand['type'],
   lane: HostServeCommandLane,
   queuedAt: number,
@@ -124,7 +148,7 @@ function reportSlowCommand(
   finishedAt: number,
 ): void {
   if (finishedAt - queuedAt < HOST_SERVE_SLOW_COMMAND_MS) return;
-  console.error(
+  log(
     `[piwin host serve] slow command ${type} lane=${lane} queued=${startedAt - queuedAt}ms ran=${finishedAt - startedAt}ms`,
   );
 }
@@ -133,19 +157,33 @@ async function runCommand(
   runtime: HostRuntime,
   send: HostServeSend,
   request: HostCommandRequest,
-  timeoutMs: number | undefined,
-  admit:
-    | ((request: HostCommandRequest, execute: () => Promise<HostResponse>) => Promise<HostResponse>)
-    | undefined,
+  options: {
+    lane: HostServeCommandLane;
+    timeoutMs: number | undefined;
+    admit:
+      | ((request: HostCommandRequest, execute: () => Promise<HostResponse>) => Promise<HostResponse>)
+      | undefined;
+    handlers: InFlightCommandTracker;
+  },
 ): Promise<void> {
+  const { timeoutMs, admit, handlers } = options;
   const command = request.command;
   const commandId = typeof command.id === 'string' ? command.id : undefined;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
-    const handle = (): Promise<HostResponse> =>
-      request.idempotencyKey
+    let handlerEntry: ReturnType<InFlightCommandTracker['begin']> | undefined;
+    // Track the handler itself, not the deadline race: a timed-out handler
+    // keeps running and is exactly what a hang investigation needs to see.
+    const handle = (): Promise<HostResponse> => {
+      const entry = handlers.begin(command.type, options.lane);
+      handlerEntry = entry;
+      const pending = request.idempotencyKey
         ? runtime.handleCommand(command, { idempotencyKey: request.idempotencyKey })
         : runtime.handleCommand(command);
+      return pending.finally(() => {
+        handlers.end(entry);
+      });
+    };
     const execute = (): Promise<HostResponse> =>
       timeoutMs === undefined
         ? handle()
@@ -153,6 +191,7 @@ async function runCommand(
             handle(),
             new Promise<never>((_resolve, reject) => {
               timeoutId = setTimeout(() => {
+                if (handlerEntry !== undefined) handlerEntry.timedOut = true;
                 reject(new Error(`command timed out after ${timeoutMs}ms`));
               }, timeoutMs);
               timeoutId.unref();

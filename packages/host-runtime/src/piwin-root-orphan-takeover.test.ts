@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { PiwinRootOwner } from './piwin-root-lease.js';
 import {
+  PIWIN_HOST_DIAGNOSTIC_REPORT_SIGNAL,
   isOrphanedHostOwner,
   parsePsElapsed,
   parsePsProcessRow,
@@ -105,6 +106,61 @@ describe('orphaned piwin root owner takeover', () => {
     });
     expect(result.outcome).toBe('killed');
     expect(table.signals).toEqual(['SIGTERM', 'SIGKILL']);
+  });
+
+  it('asks a wedged orphan for a report and samples its stack before SIGKILL', async () => {
+    const rootDir = await rootWithOwner(createOwner(NOW_MS - 3_600_000));
+    const table = fakeProcessTable(orphanFacts, ['SIGKILL']);
+    const sampled: number[] = [];
+    const lines: string[] = [];
+    const result = await stopOrphanedPiwinRootOwner({
+      rootDir,
+      stopTimeoutMs: 1_000,
+      diagnosticsDir: join(rootDir, 'diagnostics'),
+      captureStackSample: async (processId) => {
+        sampled.push(processId);
+        return `/diag/orphan-host-${processId}.sample.txt`;
+      },
+      log: (line) => lines.push(line),
+      ...table.options,
+    });
+    expect(result.outcome).toBe('killed');
+    expect(table.signals).toEqual(['SIGTERM', PIWIN_HOST_DIAGNOSTIC_REPORT_SIGNAL, 'SIGKILL']);
+    expect(sampled).toEqual([ORPHAN_PID]);
+    expect(lines.some((line) => line.includes(`orphan-host-${ORPHAN_PID}.sample.txt`))).toBe(true);
+  });
+
+  it('still kills the orphan when the stack sample fails', async () => {
+    const rootDir = await rootWithOwner(createOwner(NOW_MS - 3_600_000));
+    const table = fakeProcessTable(orphanFacts, ['SIGKILL']);
+    const lines: string[] = [];
+    const result = await stopOrphanedPiwinRootOwner({
+      rootDir,
+      stopTimeoutMs: 1_000,
+      diagnosticsDir: join(rootDir, 'diagnostics'),
+      captureStackSample: async () => {
+        throw new Error('sample denied');
+      },
+      log: (line) => lines.push(line),
+      ...table.options,
+    });
+    expect(result.outcome).toBe('killed');
+    expect(table.signals.at(-1)).toBe('SIGKILL');
+    expect(lines).toContain('stack sample failed: sample denied');
+  });
+
+  it('skips SIGKILL when an older Host dies on the report signal', async () => {
+    const rootDir = await rootWithOwner(createOwner(NOW_MS - 3_600_000));
+    const table = fakeProcessTable(orphanFacts, [PIWIN_HOST_DIAGNOSTIC_REPORT_SIGNAL]);
+    const result = await stopOrphanedPiwinRootOwner({
+      rootDir,
+      stopTimeoutMs: 1_000,
+      diagnosticsDir: join(rootDir, 'diagnostics'),
+      captureStackSample: async () => null,
+      ...table.options,
+    });
+    expect(result.outcome).toBe('killed');
+    expect(table.signals).toEqual(['SIGTERM', PIWIN_HOST_DIAGNOSTIC_REPORT_SIGNAL]);
   });
 
   it('never signals a live owner that still has its shell', async () => {

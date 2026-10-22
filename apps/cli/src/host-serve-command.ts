@@ -1,5 +1,8 @@
 import { resolveHostDataRoot } from './host-data-root.js';
 import { installHostDiagnosticLog } from './host-diagnostic-log.js';
+import { hostDiagnosticsDirectory } from './host-diagnostic-report.js';
+import { startHostHangWatchdog } from './host-hang-watchdog.js';
+import { formatInFlightCommands } from './host-serve-inflight-commands.js';
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import {
   HOST_SERVE_LOCAL_EGRESS_LIMITS,
@@ -34,11 +37,12 @@ import {
 
 export async function commandHostServe(argv: string[]): Promise<void> {
   const hostDataRoot = resolveHostDataRoot();
-  installHostDiagnosticLog(hostDataRoot);
+  const hostLogPath = installHostDiagnosticLog(hostDataRoot);
   // A Host left behind by a shell that quit without reaping it would hold the
   // root lease; stop it (bounded) instead of failing and being respawned.
   const takeover = await stopOrphanedPiwinRootOwner({
     rootDir: hostDataRoot,
+    diagnosticsDir: hostDiagnosticsDirectory(hostDataRoot),
     log: (line) => console.error(`[piwin host serve] ${line}`),
   });
   if (takeover.outcome !== 'no-live-owner') {
@@ -124,6 +128,14 @@ export async function commandHostServe(argv: string[]): Promise<void> {
         execute,
       }),
   });
+  const hangWatchdog = startHostHangWatchdog({
+    logFilePath: hostLogPath,
+    diagnosticsDir: hostDiagnosticsDirectory(hostDataRoot),
+    inFlightCommands: dispatcher.inFlightCommands,
+    reportLongRunningCommands: () => {
+      dispatcher.reportLongRunningCommands();
+    },
+  });
   const hostInstanceId = authority.hostInstanceId;
   let mobileAccess: Awaited<ReturnType<typeof createSidecarMobileAccess>> | undefined;
   try {
@@ -178,6 +190,7 @@ export async function commandHostServe(argv: string[]): Promise<void> {
       localEgress.dispose();
       authority.dispose();
       await runtime.dispose();
+      await hangWatchdog.stop();
     })();
     return shutdownPromise;
   };
@@ -186,6 +199,11 @@ export async function commandHostServe(argv: string[]): Promise<void> {
   // same way as SIGINT instead of dying mid-write.
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.on(signal, () => {
+      // A drain that never finishes is what makes a Host "ignore" SIGTERM;
+      // record what it is waiting on before it starts waiting.
+      console.error(
+        `[piwin host serve] ${signal} received; draining in-flight: ${formatInFlightCommands(dispatcher.inFlightCommands())}`,
+      );
       void shutdown().then(() => process.exit(0));
     });
   }
