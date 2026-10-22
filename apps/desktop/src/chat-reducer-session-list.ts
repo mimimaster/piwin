@@ -133,6 +133,8 @@ export function reduceChatSessionList(
             ...state.generalSessions.filter((item) => item.id !== action.sessionId),
           ])
         : state.generalSessions.filter((item) => item.id !== action.sessionId);
+      const activates =
+        state.activeSessionId === null || state.activeSessionId === action.sessionId;
       const nextSessionListScopes =
         listable && !alreadyKnown
           ? bumpSessionListScopeMutationEpoch(
@@ -170,10 +172,16 @@ export function reduceChatSessionList(
           listable && !alreadyKnown
             ? state.sessionListMutationEpoch + 1
             : state.sessionListMutationEpoch,
-        activeSessionId:
-          state.activeSessionId === null || state.activeSessionId === action.sessionId
-            ? action.sessionId
-            : state.activeSessionId,
+        activeSessionId: activates ? action.sessionId : state.activeSessionId,
+        // A named first send activates through here instead of session/set, so
+        // the context bar must select it too; otherwise the session's context
+        // snapshot is parked as a background (warm) one and the bar stays hidden.
+        contextTelemetry: activates
+          ? applyContextTelemetry(state.contextTelemetry, {
+              type: 'select',
+              sessionId: action.sessionId,
+            })
+          : state.contextTelemetry,
         ...sessionAddTranscriptPatch(state, action.sessionId),
       };
     }

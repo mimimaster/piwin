@@ -47,6 +47,29 @@ describe('chatUiReducer session and context', () => {
     expect(state.messages[0]?.text).toBe('test');
   });
 
+  it('session/add from a draft selects the new session for context telemetry', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, {
+      type: 'session/add',
+      sessionId: 's-new',
+      name: 'hello',
+      scope: { kind: 'general' },
+    });
+
+    expect(state.activeSessionId).toBe('s-new');
+    expect(state.contextTelemetry.selectedSessionId).toBe('s-new');
+
+    // Adding a background session must not steal the context bar.
+    state = chatUiReducer(state, {
+      type: 'session/add',
+      sessionId: 's-other',
+      name: 'other',
+      scope: { kind: 'general' },
+    });
+    expect(state.activeSessionId).toBe('s-new');
+    expect(state.contextTelemetry.selectedSessionId).toBe('s-new');
+  });
+
   it('session/add does not wipe the painted transcript of the already-active session', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });

@@ -14,10 +14,10 @@ test.describe('context usage ring', () => {
   test('empty shell and typed-not-sent hide the ring', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
-    await expect(page.getByTestId('context-usage-ring')).toHaveCount(0);
+    await expect(page.getByTestId('context-usage-bar')).toHaveCount(0);
 
     await page.getByTestId('composer-input').fill('typed but not sent');
-    await expect(page.getByTestId('context-usage-ring')).toHaveCount(0);
+    await expect(page.getByTestId('context-usage-bar')).toHaveCount(0);
   });
 
   test('mock assistant reply shows the ring; New hides it again', async ({ page }) => {
@@ -32,9 +32,9 @@ test.describe('context usage ring', () => {
       page.locator('[data-testid="message-bubble"][data-role="user"]', { hasText: prompt }),
     ).toBeVisible();
     await expect(page.locator('[data-testid="message-bubble"][data-role="assistant"]')).toBeVisible();
-    await expect(page.getByTestId('context-usage-ring')).toBeVisible();
+    await expect(page.getByTestId('context-usage-bar')).toBeVisible();
 
-    await page.getByTestId('context-usage-ring').click();
+    await page.getByTestId('context-usage-bar').click();
     const popover = page.getByTestId('context-usage-popover');
     await expect(popover).toBeVisible();
     await expect(popover).toContainText(/缓存预估|Cache estimate/);
@@ -46,9 +46,9 @@ test.describe('context usage ring', () => {
 
     await page.getByTestId('composer-input').fill('follow-up context usage e2e');
     await page.getByTestId('send-btn').click();
-    await expect(page.getByTestId('context-usage-ring')).toBeVisible();
+    await expect(page.getByTestId('context-usage-bar')).toBeVisible();
 
-    await page.getByTestId('new-session-btn').click();
-    await expect(page.getByTestId('context-usage-ring')).toHaveCount(0);
+    await page.getByTestId('new-session-btn-sb-top').click();
+    await expect(page.getByTestId('context-usage-bar')).toHaveCount(0);
   });
 });
