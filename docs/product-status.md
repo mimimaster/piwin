@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Updated | 2026-08-30 |
+| Updated | 2026-10-23 |
 | Backlog | [`todo-deferred.md`](./todo-deferred.md) |
 | Depth program | [`specs/product-depth-competitive-alignment.md`](./specs/product-depth-competitive-alignment.md) |
 | Optimization program | [`specs/product-optimization-program.md`](./specs/product-optimization-program.md) **Active** |
@@ -22,7 +22,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Session cold storage (ADR 0044) | green (manual R1) | Archive first, then pack / plan+confirm offload / restore; Desktop restore-first; doctor + reconcile; no schedule or force-replace |
 | Pin + search | green | Pinned group in sidebar |
 | Project rail density | green | Project section folds; recent projects are capped in the rail with a searchable all-project picker |
-| Skills / MCP panels | green | stdio lifecycle |
+| Skills / MCP panels | green | stdio + remote (Streamable HTTP / SSE, header auth) lifecycle; remote OAuth via `npx mcp-remote` |
 | Permissions | green | Host-owned policy |
 | Media prompt routing | green/transitioning | Native vision uses ImageContent; path text is explicit text-only fallback only |
 | Markdown + KaTeX/Mermaid | green | Soft-fail fences |
@@ -32,11 +32,11 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Context menus (CM-*) | green | **P0 + P1 shipped 2026-08-10** — right-click file tree / path chip / code selection → Add to Chat / Ask / Explain / Fix; message / code block / diff / tool card / terminal selection / error menus; Apply (confirm + `project/write-file`); More… submenu; `@` mention → refs; CLI `--ref` parity; composer context-ref chips + `PromptInput.contextRefs`; drag-to-ref |
 | Memory / process tools | green | Feature-flagged config |
 | Shell dock | yellow→green on Tauri | **Tauri PTY + xterm** when running desktop; Node shell preview is removed by Runtime Refactor Phase 1 |
-| Runtime target chip (Local / Remote Host) | yellow | **Stub shipped:** 本机 active; 远程 Host grey + tooltip「未连接到远程服务器」; real switch after Host Server multi-client slice (D-CTX-01b) |
+| Runtime target chip (Local / Remote Host) | yellow→green | Shows the attached Host when Desktop is connected to a remote Host (Settings → Host target); per-session target switching (D-CTX-01b) still open |
 | RPC isolation | yellow | SDK fallback is transitional; Runtime Refactor Phase 3 requires one isolated worker per runtime generation |
 | Hooks / cron | yellow | Thin post-event; cron needs host up |
 | Interactive PTY (xterm) | green (Tauri) | portable-pty + xterm; no second Node shell-preview architecture in the target state |
-| Host Server / multi-client | red | Target defined by ADR 0036; Host Server, private transport, auth, replay, and second-client connection are not shipped |
+| Host Server / multi-client | yellow (in tree) | `@piwin/host-server` + `apps/host`: WebSocket transport, device pairing (ADR 0075), LAN phone access (ADR 0076), origin/exposure guards. Desktop can attach to a standalone Host; Mobile (ADR 0084) and CLI TUI (ADR 0086) use the remote protocol. Owner to confirm release status |
 | Personal Gateway / tunnel | red | Optional W4 transport layer after Host Server; ADR 0027 protocol seams retained |
 | Flashcard study workbench (ADR 0066) | yellow | **In tree, not released.** Desktop page, Mobile catalog+study, CLI `piwin study`, Host rounds/operations, unique CardStore, existing tear-off. Real-device V04/V09/V22 **not run**; visual fixtures **not captured**; root typecheck / mobile build still fail on pre-existing artifact types. Mobile source is excerpt-only; v1 online-only; CLI has no animation. Do not claim dual-device video or 已上线. |
 
@@ -48,8 +48,9 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | App shell modularity | green | App ~800 lines orchestration + hooks/components |
 | host-client mock isolation | green | `host-client-mock.ts` |
 | HostRuntime modularity | transition | target extraction to `@piwin/host-runtime`; `@piwin/agent-host` narrows to the Pi boundary |
-| Host deployment | red | Local sidecar exists; standalone Host Server and multi-client transport are planned by ADR 0036 |
+| Host deployment | yellow | Local sidecar plus standalone Host (`apps/host`, `pnpm package:host`) with paired remote clients (ADR 0036/0075) |
 | ui-kit primitives | green | Menu/Popover/Confirm/Notice/Status/Tabs/Field + Button/Dialog |
+| Lint / CI gates | green | Real ESLint (typed no-floating-promises, hooks rules, no empty catch); CI runs lint, typecheck incl. mobile, tests, boundaries, host smoke, plus macOS (cargo test, desktop e2e) and Windows (credential store) jobs |
 | Desktop UI modernization | green | Shell IA + run strip + palette + confirms + CSS split + viewport e2e + visual baselines (darwin) |
 
 ## Product Optimization focus (PO-*)
@@ -66,6 +67,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 ## Verify
 
 ```bash
+pnpm lint
 pnpm typecheck
 pnpm test
 pnpm test:cold-storage
