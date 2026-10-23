@@ -213,6 +213,8 @@ export const SettingsPanel = memo(function SettingsPanel({
     if (!hostClient) {
       return;
     }
+    // Set on cleanup: a sync still in flight when the client changes or the
+    // panel unmounts must not write its response into the form.
     let cancelled = false;
     const syncProviders = async (withLoginFollowUp = false): Promise<void> => {
       if (savingRef.current) {
@@ -250,7 +252,7 @@ export const SettingsPanel = memo(function SettingsPanel({
         // Keep the open form; the next auth/settings push can retry.
       }
     };
-    return hostClient.subscribe((message) => {
+    const unsubscribe = hostClient.subscribe((message) => {
       if (message.type === 'settings/updated') {
         const searchChanged =
           message.changedDomains?.some((domain) => domain === 'web' || domain === 'codeSearch') ===
@@ -266,6 +268,10 @@ export const SettingsPanel = memo(function SettingsPanel({
         );
       }
     });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, [hostClient, request]);
 
   useEffect(() => {
