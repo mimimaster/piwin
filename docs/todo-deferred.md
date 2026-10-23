@@ -69,7 +69,7 @@
 | D-MED-02 | ~~Historical attachment hydration~~ | Done via product transcript | done |
 | D-MED-03 | ~~File-picker attach~~ | Done | done |
 | D-MED-04 | Thumbnail cache / dimensions | optional quality | polish |
-| D-MED-05 | Composer paste latency (large images) | Three bottlenecks: (1) `fileToBase64` synchronous `String.fromCharCode` loop blocks main thread on 2MB+ images; (2) first paste with no active session triggers IPC `session/create` round-trip before image processing starts; (3) `media/save` IPC transmits full base64 string. Fix after media/IPC architecture refactor — candidate solutions: Web Worker for base64 encoding, optimistic preview via `URL.createObjectURL` before save, pre-create general session on startup, or Tauri native FS write to bypass JS encoding + IPC serialization entirely. | after architecture refactor |
+| D-MED-05 | ~~Composer paste latency (large images)~~ **Done (verified 2026-10-23)** — native FileReader encoding, paste paints a local chip with no session/create or save until Send, chunked `media/save-begin/chunk/finish`. Original analysis: | Three bottlenecks: (1) `fileToBase64` synchronous `String.fromCharCode` loop blocks main thread on 2MB+ images; (2) first paste with no active session triggers IPC `session/create` round-trip before image processing starts; (3) `media/save` IPC transmits full base64 string. Fix after media/IPC architecture refactor — candidate solutions: Web Worker for base64 encoding, optimistic preview via `URL.createObjectURL` before save, pre-create general session on startup, or Tauri native FS write to bypass JS encoding + IPC serialization entirely. | after architecture refactor |
 | D-WEB-01 | ~~Web settings + citations~~ | Done | done |
 | D-WEB-02 | ~~Project-remember network~~ | Done | done |
 | D-WEB-03 | ~~SSRF depth~~ | Done | done |
@@ -129,7 +129,7 @@
 | S2-write-boundary | Conversation-tree Stage 5 write-boundary (warn-only confirm + git calibration) | **Done 2026-08-21** — `needs-confirmation` + Desktop/CLI confirm + `injectBranchCalibrationOnce`. Worktree button still waits on SF-06 | done (warn-only) |
 | D-M2-03 | ~~Bash hard-gate~~ | Done | done |
 | D-M2-04 | ~~Secret refs MVP (env + optional keychain)~~ | **Done** — no raw key save; `apiKeyRef` + doctor status | done (MVP) |
-| D-M2-04b | Windows Credential Manager + migrate existing plaintext configs | macOS security CLI + env MVP only | polish |
+| D-M2-04b | ~~Windows Credential Manager + migrate existing plaintext configs~~ | **Done 2026-10-23** — Win32 CredRead/CredWrite via Windows PowerShell (secret on stdin), cached reads, `~/.piwin/secrets/*` moved in on first read; write falls back to the file store. Live round trip runs in the CI windows job only (not exercised on a real Windows install yet) | done (needs Windows smoke) |
 | D-M2-05 | ~~Host e2e smoke~~ | **Done** — `pnpm e2e:smoke` + CI; Tauri driver still optional | done (host smoke) |
 | D-M2-05b | Desktop UI e2e (Playwright) | **Local browser shell 2026-07-20** — `pnpm e2e:desktop` Vite+HostClient mock; Tauri WebDriver still residual | partial (browser) |
 | D-M2-06 | Hot-switch agentMock + restart host | restart process manually | polish |

@@ -640,7 +640,7 @@ for producer compatibility and the still-pending independent-adapter gate.
 ```text
 ~/.piwin/
   config.json                 # product config (host mode, providers, imageGeneration, Desktop composer/session restore)
-  credentials/                # secrets (prefer OS keychain)
+  secrets/                    # file-store fallback (0600); macOS keychain / Windows Credential Manager preferred
   pi-agent/                   # Host-owned Pi runtime: auth.json + catalog cache
   sessions-index/             # SQLite or JSONL index over Pi sessions
   sessions/<session-id>/      # transcript.sqlite3 + leftover non-payload files

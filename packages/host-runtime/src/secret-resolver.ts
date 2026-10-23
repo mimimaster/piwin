@@ -5,11 +5,12 @@
  * `oauth:<providerId>` is not a keychain entry. The token lives in
  * `{piwinRoot}/pi-agent/auth.json` and is owned by login/logout.
  *
- * Remote Hosts (Linux NAS / server) have no macOS keychain. Shell-updated keys
- * persist under `~/.piwin/secrets/` on the Host so `secrets/set` works there.
+ * Platform stores: macOS keychain, Windows Credential Manager. Hosts without
+ * one (Linux NAS / server) persist shell-updated keys under `~/.piwin/secrets/`
+ * (0600) so `secrets/set` works there. On Windows that file store is plaintext
+ * (chmod is a no-op), so a file found there is moved into Credential Manager
+ * the first time it is read.
  */
-import { spawn } from 'node:child_process';
-import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ModelProviderConfig } from '@piwin/contracts';
 import {
@@ -20,6 +21,18 @@ import {
 } from '@piwin/contracts';
 import { readOauthAccessToken } from '@piwin/agent-host';
 import { getPiwinPiAgentDir, getPiwinRoot } from './paths.js';
+import { deleteMacKeychain, readMacKeychain, writeMacKeychain } from './macos-keychain-store.js';
+import {
+  deleteFileSecret,
+  readFileSecret,
+  secretServiceName,
+  writeFileSecret,
+} from './secret-file-store.js';
+import {
+  createWindowsCredentialStore,
+  type WindowsCredentialStore,
+} from './windows-credential-store.js';
+import { createWindowsSecretDefaults } from './windows-secret-defaults.js';
 
 export type SecretResolveStatus = 'ok' | 'missing' | 'error';
 
@@ -58,18 +71,29 @@ export type CreateSecretResolverOptions = {
   /** Tests: skip macOS keychain and use the file store only. */
   preferFileStore?: boolean;
   deleteKeychain?: (ref: string) => Promise<void>;
+  /** Tests: platform whose native store the default read/write/delete use. */
+  platform?: NodeJS.Platform;
+  /** Tests: Windows Credential Manager stand-in. */
+  windowsStore?: WindowsCredentialStore;
 };
 
 export function createSecretResolver(options: CreateSecretResolverOptions = {}): SecretResolver {
   const env = options.env ?? process.env;
   const root = options.piwinRoot ?? getPiwinRoot();
   const preferFileStore = options.preferFileStore === true;
-  const readKeychain =
-    options.readKeychain ?? ((ref) => defaultReadSecret(ref, root, preferFileStore));
-  const writeKeychain =
-    options.writeKeychain ?? ((ref, secret) => defaultWriteSecret(ref, secret, root, preferFileStore));
-  const deleteKeychain =
-    options.deleteKeychain ?? ((ref) => defaultDeleteSecret(ref, root, preferFileStore));
+  const platform = options.platform ?? process.platform;
+  const defaults =
+    platform === 'win32' && !preferFileStore
+      ? createWindowsSecretDefaults(root, options.windowsStore ?? createWindowsCredentialStore())
+      : {
+          read: (ref: string) => defaultReadSecret(ref, root, preferFileStore, platform),
+          write: (ref: string, secret: string) =>
+            defaultWriteSecret(ref, secret, root, preferFileStore, platform),
+          delete: (ref: string) => defaultDeleteSecret(ref, root, preferFileStore, platform),
+        };
+  const readKeychain = options.readKeychain ?? defaults.read;
+  const writeKeychain = options.writeKeychain ?? defaults.write;
+  const deleteKeychain = options.deleteKeychain ?? defaults.delete;
 
   async function resolveProviderSecret(provider: ModelProviderConfig): Promise<string> {
     if (provider.apiKeyRef?.trim()) {
@@ -231,22 +255,14 @@ export function createSecretResolver(options: CreateSecretResolverOptions = {}):
   };
 }
 
-function secretServiceName(ref: string): string {
-  const service = ref.startsWith('keychain:') ? ref.slice('keychain:'.length) : ref;
-  const safe = service.trim().replace(/[^A-Za-z0-9._-]+/g, '_');
-  if (!safe) {
-    throw new Error('Invalid keychain service name');
-  }
-  return safe;
-}
-
 async function defaultReadSecret(
   ref: string,
   root: string,
   preferFileStore: boolean,
+  platform: NodeJS.Platform,
 ): Promise<string | null> {
   const service = secretServiceName(ref);
-  if (process.platform === 'darwin' && !preferFileStore) {
+  if (platform === 'darwin' && !preferFileStore) {
     const fromKeychain = await readMacKeychain(service);
     if (fromKeychain) {
       return fromKeychain;
@@ -260,9 +276,10 @@ async function defaultWriteSecret(
   secret: string,
   root: string,
   preferFileStore: boolean,
+  platform: NodeJS.Platform,
 ): Promise<void> {
   const service = secretServiceName(ref);
-  if (process.platform === 'darwin' && !preferFileStore) {
+  if (platform === 'darwin' && !preferFileStore) {
     try {
       await writeMacKeychain(service, secret);
       return;
@@ -273,121 +290,20 @@ async function defaultWriteSecret(
   await writeFileSecret(root, service, secret);
 }
 
-/**
- * macOS keychain via `security find-generic-password -w -s <service>`.
- * apiKeyRef format: `keychain:<service>` or bare service name.
- */
-async function readMacKeychain(service: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    const child = spawn('security', ['find-generic-password', '-w', '-s', service], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let stdout = '';
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => {
-      stdout += chunk;
-    });
-    child.on('error', () => resolve(null));
-    child.on('close', (code) => {
-      if (code !== 0) {
-        resolve(null);
-        return;
-      }
-      const value = stdout.trim();
-      resolve(value.length > 0 ? value : null);
-    });
-  });
-}
-
-async function writeMacKeychain(service: string, secret: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(
-      'security',
-      ['add-generic-password', '-U', '-a', 'piwin', '-s', service, '-w', secret],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
-    );
-    let stderr = '';
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk: string) => {
-      stderr += chunk;
-    });
-    child.on('error', (error) => {
-      reject(error);
-    });
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      reject(new Error(stderr.trim() || `keychain write failed (exit ${code ?? 'unknown'})`));
-    });
-  });
-}
-
-function secretFilePath(root: string, service: string): string {
-  return join(root, 'secrets', service);
-}
-
-async function readFileSecret(root: string, service: string): Promise<string | null> {
-  try {
-    const raw = await readFile(secretFilePath(root, service), 'utf8');
-    const value = raw.trim();
-    return value.length > 0 ? value : null;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return null;
-    }
-    throw error;
-  }
-}
-
 async function defaultDeleteSecret(
   ref: string,
   root: string,
   preferFileStore: boolean,
+  platform: NodeJS.Platform,
 ): Promise<void> {
   const service = secretServiceName(ref);
-  if (process.platform === 'darwin' && !preferFileStore) {
+  if (platform === 'darwin' && !preferFileStore) {
     await deleteMacKeychain(service).catch(() => undefined);
   }
   await deleteFileSecret(root, service);
 }
 
-async function deleteMacKeychain(service: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn('security', ['delete-generic-password', '-s', service], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    child.on('error', (error) => reject(error));
-    child.on('close', (code) => {
-      if (code === 0 || code === 44) {
-        resolve();
-        return;
-      }
-      reject(new Error(`keychain delete failed (exit ${code ?? 'unknown'})`));
-    });
-  });
-}
-
-async function deleteFileSecret(root: string, service: string): Promise<void> {
-  try {
-    await unlink(secretFilePath(root, service));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
-    throw error;
-  }
-}
-
-async function writeFileSecret(root: string, service: string, secret: string): Promise<void> {
-  const dir = join(root, 'secrets');
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const file = secretFilePath(root, service);
-  await writeFile(file, secret, { encoding: 'utf8', mode: 0o600 });
-  await chmod(file, 0o600);
-  await chmod(dir, 0o700);
-}
-
 /** @deprecated Use createSecretResolver write path; kept for existing imports. */
 export async function defaultWriteKeychain(ref: string, secret: string): Promise<void> {
-  await defaultWriteSecret(ref, secret, getPiwinRoot(), false);
+  await createSecretResolver().writeSecretByRef(ref, secret);
 }

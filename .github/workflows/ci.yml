@@ -34,6 +34,23 @@ jobs:
         continue-on-error: true
         run: pnpm audit --prod
 
+  # Windows-only Host paths that the other jobs cannot exercise (Credential
+  # Manager round trip through Windows PowerShell).
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Windows credential store
+        run: pnpm --filter @piwin/host-runtime exec vitest run src/windows-credential-store.test.ts src/secret-resolver.test.ts
+
   # Tauri crate tests and the browser-shell e2e. macOS because the Playwright
   # screenshot baselines are darwin captures and the crate links WebKit there.
   desktop:
