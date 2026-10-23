@@ -10,11 +10,11 @@ export {
 } from './mcp-config.js';
 export type { McpValidationIssue, McpValidationResult } from './mcp-config.js';
 export {
-  formatMcpCallResult,
   formatMcpExposedName,
   parseMcpExposedName,
   toMcpToolSummary,
 } from './tool-names.js';
+export { formatMcpCallResult, normalizeMcpToolResult } from './mcp-call-result.js';
 export {
   connectMcpStdio,
   connectHandcraftedMcpStdio,

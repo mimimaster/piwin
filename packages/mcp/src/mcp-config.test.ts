@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { expandEnvMap, tryValidateMcpConfig, validateMcpConfig } from './mcp-config.js';
-import { formatMcpCallResult, formatMcpExposedName, parseMcpExposedName } from './tool-names.js';
+import { formatMcpExposedName, parseMcpExposedName } from './tool-names.js';
+import { formatMcpCallResult } from './mcp-call-result.js';
 
 describe('validateMcpConfig', () => {
   it('accepts Cursor-compatible shape', () => {

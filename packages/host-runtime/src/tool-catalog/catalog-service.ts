@@ -7,7 +7,7 @@
  */
 
 import {
-  formatMcpCallResult,
+  normalizeMcpToolResult,
   listEnabledServers,
   parseMcpToolSelector,
   type McpLifecycleManager,
@@ -279,7 +279,7 @@ export function createToolCatalogService(options: ToolCatalogServiceOptions): To
         const payload = scope?.includeScriptPayload === true ? readMcpScriptPayload(result) : undefined;
         return {
           ok: true,
-          output: formatMcpCallResult(result),
+          ...normalizeMcpToolResult(result),
           details: { selector: trimmed },
           ...(payload ? { scriptPayload: payload } : {}),
         };

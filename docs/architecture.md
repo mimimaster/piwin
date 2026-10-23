@@ -395,6 +395,11 @@ pinned direct tools call the same Supervisor; sessions and UI never own MCP
 clients. The default model surface is gateway-only (`search`, `describe`,
 `call`, `status`); direct tools require explicit `pinnedSelectors`.
 
+Both MCP call paths normalize text and image content through `@piwin/mcp`.
+Screenshots use the existing `ToolResult.images` channel and become native Pi
+image blocks in SDK and RPC modes; image base64 never falls back to text.
+For a local desktop integration, see [Codex Computer Use](./guides/codex-computer-use.md).
+
 `pinnedSelectors` lives at the top level of `~/.piwin/mcp.json` and contains
 exact `serverId.toolName` selectors. The MCP tool catalog persists outline/filled
 pin state through `mcp/save`; pinning keeps a tool in the model surface but does

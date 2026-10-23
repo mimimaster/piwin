@@ -6,7 +6,7 @@ import type {
 } from '@piwin/contracts';
 import { formatError, createDefaultMcpExposurePolicy } from '@piwin/contracts';
 import {
-  formatMcpCallResult,
+  normalizeMcpToolResult,
   formatMcpExposedName,
   listEnabledServers,
   createMcpGenerationSnapshot,
@@ -158,7 +158,7 @@ function buildDirectHostTool(
       }
       return {
         ok: true,
-        output: formatMcpCallResult(result),
+        ...normalizeMcpToolResult(result),
         details: { selector },
       };
     },
