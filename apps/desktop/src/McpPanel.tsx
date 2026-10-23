@@ -21,6 +21,8 @@ import { McpServerRow } from './mcp-server-row.js';
 import {
   buildMcpToolCatalogEntries,
   getMcpConnectionFailure,
+  mcpServerCommandLine,
+  mcpServerCredentialKeys,
   resolveMcpServerRuntimeUiStatus,
 } from './mcp-visibility-model.js';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
@@ -574,10 +576,8 @@ export function McpPanel(props: McpPanelProps) {
                       health,
                     });
                     const toolCount = health?.toolCount ?? toolsByServerId[serverId]?.length ?? 0;
-                    const fullCommand = [server.command, ...(server.args ?? [])]
-                      .filter(Boolean)
-                      .join(' ');
-                    const envCount = Object.keys(server.env ?? {}).length;
+                    const fullCommand = mcpServerCommandLine(server);
+                    const credentials = mcpServerCredentialKeys(server);
                     const pinPrefix = `${serverId}.`;
                     const pinnedCount = (document.pinnedSelectors ?? []).filter((selector) =>
                       selector.startsWith(pinPrefix),
@@ -619,7 +619,8 @@ export function McpPanel(props: McpPanelProps) {
                         runtimeStatus={runtimeStatus}
                         toolCount={toolCount}
                         pinnedCount={pinnedCount}
-                        envCount={envCount}
+                        credentialCount={credentials.keys.length}
+                        credentialKind={credentials.kind}
                         expanded={expanded}
                         pinning={pinningServerId === serverId}
                         activity={{

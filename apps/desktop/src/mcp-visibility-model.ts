@@ -3,6 +3,7 @@
  * Catalog = capability sheet; invocation audit lives on the transcript side.
  */
 import type { McpServerConfig, McpServerHealth, McpToolSummary } from '@piwin/contracts';
+import { describeMcpServerLaunch, isRemoteMcpServerConfig } from '@piwin/contracts';
 
 export type McpToolExposure = 'direct' | 'gateway' | 'dormant-pin';
 
@@ -115,13 +116,25 @@ export function listMcpSchemaProperties(
   return rows;
 }
 
+/** `command args…` for stdio, the redacted URL for a remote server. */
 export function mcpServerCommandLine(server: McpServerConfig | undefined): string {
-  if (!server) return '';
-  return [server.command, ...(server.args ?? [])].filter(Boolean).join(' ');
+  return server ? describeMcpServerLaunch(server) : '';
 }
 
-export function mcpServerEnvKeys(server: McpServerConfig | undefined): string[] {
-  return Object.keys(server?.env ?? {}).sort((left, right) => left.localeCompare(right));
+/**
+ * Names (never values) of what a server reads its credentials from: env keys
+ * for stdio, header names for a remote server.
+ */
+export function mcpServerCredentialKeys(server: McpServerConfig | undefined): {
+  kind: 'env' | 'headers';
+  keys: string[];
+} {
+  const remote = server !== undefined && isRemoteMcpServerConfig(server);
+  const source = server === undefined ? undefined : remote ? server.headers : server.env;
+  return {
+    kind: remote ? 'headers' : 'env',
+    keys: Object.keys(source ?? {}).sort((left, right) => left.localeCompare(right)),
+  };
 }
 
 export type McpServerRuntimeUiStatus = 'stopped' | 'starting' | 'running' | 'error';

@@ -23,7 +23,9 @@ export type McpServerRowProps = {
   runtimeStatus: McpServerRuntimeUiStatus;
   toolCount: number;
   pinnedCount: number;
-  envCount: number;
+  credentialCount: number;
+  /** Env vars for a stdio server, headers for a remote one. */
+  credentialKind: 'env' | 'headers';
   expanded: boolean;
   pinning: boolean;
   activity: { id: string; animation: string; status: 'running' | 'error' | 'done' };
@@ -89,9 +91,15 @@ export function McpServerRow(props: McpServerRowProps): ReactElement {
                   {isChinese ? `${pinnedCount} 直调` : `${pinnedCount} pinned`}
                 </span>
               ) : null}
-              {props.envCount > 0 ? (
+              {props.credentialCount > 0 ? (
                 <span className="mcp-server-fact">
-                  {isChinese ? `${props.envCount} 个环境变量` : `${props.envCount} env vars`}
+                  {props.credentialKind === 'headers'
+                    ? isChinese
+                      ? `${props.credentialCount} 个请求头`
+                      : `${props.credentialCount} headers`
+                    : isChinese
+                      ? `${props.credentialCount} 个环境变量`
+                      : `${props.credentialCount} env vars`}
                 </span>
               ) : null}
             </span>

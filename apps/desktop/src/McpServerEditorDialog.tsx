@@ -8,6 +8,7 @@ import {
   Field,
   Modal,
   Notice,
+  SegmentedControl,
   Tabs,
   TabsContent,
   TabsList,
@@ -18,6 +19,15 @@ import {
 import type { McpConfigDocument, McpServerConfig, McpToolSummary } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { McpToolCatalogRow } from './mcp-tool-catalog-row.js';
+import {
+  emptyMcpServerFormDraft,
+  hasMcpServerEndpoint,
+  mcpFormDraftToServer,
+  mcpServerToFormDraft,
+  validateMcpServerFormDraft,
+  type McpServerFormDraft,
+  type McpServerFormErrors,
+} from './mcp-server-form-draft.js';
 import { buildMcpToolCatalogEntries } from './mcp-visibility-model.js';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 
@@ -50,47 +60,6 @@ export type McpServerEditorDialogProps = {
   onTogglePinned: (selector: string, pinned: boolean) => Promise<boolean>;
 };
 
-type ServerFormDraft = {
-  id: string;
-  command: string;
-  argsText: string;
-  envText: string;
-};
-
-function emptyDraft(): ServerFormDraft {
-  return { id: '', command: '', argsText: '', envText: '' };
-}
-
-function serverToDraft(id: string, server: McpServerConfig): ServerFormDraft {
-  return {
-    id,
-    command: server.command,
-    argsText: (server.args ?? []).join(' '),
-    envText: Object.entries(server.env ?? {})
-      .map(([key, value]) => `${key}=${value}`)
-      .join('\n'),
-  };
-}
-
-function draftToServer(draft: ServerFormDraft): McpServerConfig {
-  const args = draft.argsText
-    .split(/\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const env: Record<string, string> = {};
-  for (const line of draft.envText.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eq = trimmed.indexOf('=');
-    if (eq <= 0) continue;
-    env[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1);
-  }
-  const config: McpServerConfig = { command: draft.command.trim() };
-  if (args.length > 0) config.args = args;
-  if (Object.keys(env).length > 0) config.env = env;
-  return config;
-}
-
 function formatToolSelector(serverId: string, toolName: string): string {
   return `${serverId}.${toolName}`;
 }
@@ -98,10 +67,10 @@ function formatToolSelector(serverId: string, toolName: string): string {
 export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactElement {
   const isChinese = props.isChinese;
   const [tab, setTab] = useState<'form' | 'raw'>('form');
-  const [draft, setDraft] = useState<ServerFormDraft>(emptyDraft());
+  const [draft, setDraft] = useState<McpServerFormDraft>(emptyMcpServerFormDraft());
   const [rawJson, setRawJson] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{ id?: string; command?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<McpServerFormErrors>({});
   const [info, setInfo] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [tools, setTools] = useState<McpToolSummary[]>([]);
@@ -124,19 +93,11 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     setTogglingPinSelector(null);
 
     if (props.prefillDraft) {
-      const id = props.prefillId ?? '';
-      setDraft({
-        id,
-        command: props.prefillDraft.command,
-        argsText: (props.prefillDraft.args ?? []).join(' '),
-        envText: Object.entries(props.prefillDraft.env ?? {})
-          .map(([key, value]) => `${key}=${value}`)
-          .join('\n'),
-      });
+      setDraft(mcpServerToFormDraft(props.prefillId ?? '', props.prefillDraft));
     } else if (props.serverId && props.server) {
-      setDraft(serverToDraft(props.serverId, props.server));
+      setDraft(mcpServerToFormDraft(props.serverId, props.server));
     } else {
-      setDraft(emptyDraft());
+      setDraft(emptyMcpServerFormDraft());
     }
     setRawJson(`${JSON.stringify(props.document, null, 2)}\n`);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- document is intentionally omitted; pin saves must not reset the form
@@ -148,7 +109,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     setRawJson(`${JSON.stringify(props.document, null, 2)}\n`);
   }, [props.open, props.document, tab]);
 
-  function clearFieldError(field: 'id' | 'command'): void {
+  function clearFieldError(field: keyof McpServerFormErrors): void {
     setFieldErrors((current) => {
       if (!current[field]) return current;
       const next = { ...current };
@@ -159,18 +120,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
 
   /** Inline, per-field validation so errors sit next to the offending input. */
   function validateDraft(): boolean {
-    const id = draft.id.trim();
-    const next: { id?: string; command?: string } = {};
-    if (!id) {
-      next.id = isChinese ? '请填写服务器 ID。' : 'Server ID is required.';
-    } else if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
-      next.id = isChinese
-        ? '只能包含字母、数字、- 和 _。'
-        : 'Only letters, digits, - and _ are allowed.';
-    }
-    if (!draft.command.trim()) {
-      next.command = isChinese ? '请填写命令。' : 'Command is required.';
-    }
+    const next = validateMcpServerFormDraft(draft, isChinese);
     setFieldErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -180,7 +130,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     const id = draft.id.trim();
     setSaving(true);
     setError(null);
-    const ok = await props.onSave(id, draftToServer(draft), props.serverId);
+    const ok = await props.onSave(id, mcpFormDraftToServer(draft), props.serverId);
     setSaving(false);
     if (ok) {
       props.onOpenChange(false);
@@ -229,7 +179,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     const id = draft.id.trim();
     setLoadingTools(true);
     setError(null);
-    const result = await props.onPreviewTools(id, draftToServer(draft));
+    const result = await props.onPreviewTools(id, mcpFormDraftToServer(draft));
     setLoadingTools(false);
     setTools(result);
     setInfo(
@@ -248,7 +198,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     const id = draft.id.trim();
     setTestingConnection(true);
     setError(null);
-    const result = await props.onTestConnection(id, draftToServer(draft));
+    const result = await props.onTestConnection(id, mcpFormDraftToServer(draft));
     setTestingConnection(false);
     if (result.ok) {
       setInfo(result.message);
@@ -307,11 +257,12 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     (entry) => entry.exposure === 'direct' || entry.exposure === 'dormant-pin',
   ).length;
   // Probing and testing both persist the draft server first, so both need a
-  // complete id + command pair before they can run.
-  const canProbe = draftServerId.length > 0 && draft.command.trim().length > 0;
+  // complete id + endpoint (command or URL) before they can run.
+  const canProbe = draftServerId.length > 0 && hasMcpServerEndpoint(draft);
+  const isRemote = draft.transport === 'remote';
   const probeRequirementHint = isChinese
-    ? '先填写服务器 ID 与命令'
-    : 'Fill in the server ID and command first';
+    ? `先填写服务器 ID 与${isRemote ? '地址' : '命令'}`
+    : `Fill in the server ID and ${isRemote ? 'URL' : 'command'} first`;
   const pinnedCountLabel =
     tools.length > 0
       ? `${pinnedCountForServer}/${tools.length}`
@@ -384,53 +335,141 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
                     autoFocus
                   />
                 </Field>
-                <Field
-                  label={isChinese ? '命令' : 'Command'}
-                  description={
-                    isChinese ? '启动程序，如 npx、uvx、node' : 'Launcher, e.g. npx, uvx, node'
-                  }
-                  error={fieldErrors.command ?? null}
-                  required
-                >
-                  <TextInput
-                    value={draft.command}
-                    onChange={(event) => {
-                      setDraft({ ...draft, command: event.currentTarget.value });
-                      clearFieldError('command');
+                <Field label={isChinese ? '连接方式' : 'Transport'}>
+                  <SegmentedControl
+                    fullWidth
+                    value={draft.transport}
+                    onChange={(value) => {
+                      setDraft({ ...draft, transport: value === 'remote' ? 'remote' : 'stdio' });
+                      setFieldErrors({});
                     }}
-                    placeholder="npx"
-                    data-testid="mcp-editor-command"
+                    data={[
+                      { value: 'stdio', label: isChinese ? '本地命令' : 'Local command' },
+                      { value: 'remote', label: isChinese ? '远程地址' : 'Remote URL' },
+                    ]}
+                    testId="mcp-editor-transport"
                   />
                 </Field>
               </div>
-              <Field
-                label={isChinese ? '参数' : 'Args'}
-                description={isChinese ? '以空格分隔' : 'Space-separated'}
-              >
-                <TextInput
-                  value={draft.argsText}
-                  onChange={(event) => setDraft({ ...draft, argsText: event.currentTarget.value })}
-                  placeholder="-y @modelcontextprotocol/server-memory"
-                  data-testid="mcp-editor-args"
-                />
-              </Field>
-              <Field
-                label={isChinese ? '环境变量' : 'Environment'}
-                description={
-                  isChinese
-                    ? '每行一条 KEY=VALUE，可用 ${VAR} 引用系统变量'
-                    : 'One KEY=VALUE per line; ${VAR} reads from the environment'
-                }
-              >
-                <TextArea
-                  rows={3}
-                  value={draft.envText}
-                  onChange={(nextValue) => setDraft({ ...draft, envText: nextValue })}
-                  placeholder="API_KEY=${API_KEY}"
-                  testId="mcp-editor-env"
-                  nativeProps={{ spellCheck: false }}
-                />
-              </Field>
+              {isRemote ? (
+                <>
+                  <div className="mcp-form-grid">
+                    <Field
+                      label={isChinese ? '地址' : 'URL'}
+                      description={
+                        isChinese ? 'MCP 服务器的 HTTP 端点' : 'The MCP server\u2019s HTTP endpoint'
+                      }
+                      error={fieldErrors.url ?? null}
+                      required
+                    >
+                      <TextInput
+                        value={draft.url}
+                        onChange={(event) => {
+                          setDraft({ ...draft, url: event.currentTarget.value });
+                          clearFieldError('url');
+                        }}
+                        placeholder="https://mcp.example.com/mcp"
+                        data-testid="mcp-editor-url"
+                      />
+                    </Field>
+                    <Field
+                      label={isChinese ? '协议' : 'Protocol'}
+                      description={
+                        isChinese
+                          ? '自动：先试 Streamable HTTP，再回退 SSE'
+                          : 'Auto tries Streamable HTTP, then SSE'
+                      }
+                    >
+                      <SegmentedControl
+                        fullWidth
+                        value={draft.remoteType}
+                        onChange={(value) =>
+                          setDraft({
+                            ...draft,
+                            remoteType: value === 'http' || value === 'sse' ? value : 'auto',
+                          })
+                        }
+                        data={[
+                          { value: 'auto', label: isChinese ? '自动' : 'Auto' },
+                          { value: 'http', label: 'HTTP' },
+                          { value: 'sse', label: 'SSE' },
+                        ]}
+                        testId="mcp-editor-remote-type"
+                      />
+                    </Field>
+                  </div>
+                  <Field
+                    label={isChinese ? '请求头' : 'Headers'}
+                    description={
+                      isChinese
+                        ? '每行一条 Name: value，可用 ${VAR} 引用系统变量，避免把密钥写进配置'
+                        : 'One Name: value per line; ${VAR} reads from the environment so keys stay out of the config'
+                    }
+                  >
+                    <TextArea
+                      rows={3}
+                      value={draft.headersText}
+                      onChange={(nextValue) => setDraft({ ...draft, headersText: nextValue })}
+                      placeholder="Authorization: Bearer ${API_KEY}"
+                      testId="mcp-editor-headers"
+                      nativeProps={{ spellCheck: false }}
+                    />
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <div className="mcp-form-grid">
+                    <Field
+                      label={isChinese ? '命令' : 'Command'}
+                      description={
+                        isChinese ? '启动程序，如 npx、uvx、node' : 'Launcher, e.g. npx, uvx, node'
+                      }
+                      error={fieldErrors.command ?? null}
+                      required
+                    >
+                      <TextInput
+                        value={draft.command}
+                        onChange={(event) => {
+                          setDraft({ ...draft, command: event.currentTarget.value });
+                          clearFieldError('command');
+                        }}
+                        placeholder="npx"
+                        data-testid="mcp-editor-command"
+                      />
+                    </Field>
+                  </div>
+                  <Field
+                    label={isChinese ? '参数' : 'Args'}
+                    description={isChinese ? '以空格分隔' : 'Space-separated'}
+                  >
+                    <TextInput
+                      value={draft.argsText}
+                      onChange={(event) =>
+                        setDraft({ ...draft, argsText: event.currentTarget.value })
+                      }
+                      placeholder="-y @modelcontextprotocol/server-memory"
+                      data-testid="mcp-editor-args"
+                    />
+                  </Field>
+                  <Field
+                    label={isChinese ? '环境变量' : 'Environment'}
+                    description={
+                      isChinese
+                        ? '每行一条 KEY=VALUE，可用 ${VAR} 引用系统变量'
+                        : 'One KEY=VALUE per line; ${VAR} reads from the environment'
+                    }
+                  >
+                    <TextArea
+                      rows={3}
+                      value={draft.envText}
+                      onChange={(nextValue) => setDraft({ ...draft, envText: nextValue })}
+                      placeholder="API_KEY=${API_KEY}"
+                      testId="mcp-editor-env"
+                      nativeProps={{ spellCheck: false }}
+                    />
+                  </Field>
+                </>
+              )}
             </div>
 
             <section className="mcp-tools-preview" data-testid="mcp-tools-preview">
@@ -496,8 +535,8 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
                       ? '点击「探测工具」列出该服务器的工具并固定高频项（会先保存当前配置）。'
                       : 'Click "Probe tools" to list this server\u2019s tools and pin the ones you use most (the config is saved first).'
                     : isChinese
-                      ? '填写服务器 ID 与命令后，即可测试连接或探测工具。'
-                      : 'Fill in the server ID and command to test the connection or probe tools.'}
+                      ? `填写服务器 ID 与${isRemote ? '地址' : '命令'}后，即可测试连接或探测工具。`
+                      : `Fill in the server ID and ${isRemote ? 'URL' : 'command'} to test the connection or probe tools.`}
                 </p>
               ) : null}
               {catalogEntries.length > 0 ? (

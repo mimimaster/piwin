@@ -7,7 +7,7 @@ import type { McpServerConfig, McpServerHealth } from '@piwin/contracts';
 import { McpToolCatalogRow } from './mcp-tool-catalog-row.js';
 import {
   mcpServerCommandLine,
-  mcpServerEnvKeys,
+  mcpServerCredentialKeys,
   mcpServerRuntimeStatusLabel,
   type McpServerRuntimeUiStatus,
   type McpToolCatalogEntry,
@@ -33,7 +33,8 @@ export type McpServerDetailPanelProps = {
 export function McpServerDetailPanel(props: McpServerDetailPanelProps): ReactElement {
   const { isChinese, server, health } = props;
   const command = mcpServerCommandLine(server);
-  const envKeys = mcpServerEnvKeys(server);
+  const credentials = mcpServerCredentialKeys(server);
+  const isRemote = credentials.kind === 'headers';
   const startedAt = health?.startedAt
     ? new Date(health.startedAt).toLocaleString(isChinese ? 'zh-CN' : 'en')
     : null;
@@ -67,16 +68,18 @@ export function McpServerDetailPanel(props: McpServerDetailPanelProps): ReactEle
             <dd>{isChinese ? '开（一次）' : 'On (once)'}</dd>
           </>
         ) : null}
-        <dt>{isChinese ? '启动命令' : 'Command'}</dt>
+        <dt>{isRemote ? (isChinese ? '地址' : 'URL') : isChinese ? '启动命令' : 'Command'}</dt>
         <dd>
           <code className="mcp-server-detail-command">
             {command || (isChinese ? '(无命令)' : '(no command)')}
           </code>
         </dd>
-        <dt>{isChinese ? '环境变量' : 'Env keys'}</dt>
+        <dt>
+          {isRemote ? (isChinese ? '请求头' : 'Headers') : isChinese ? '环境变量' : 'Env keys'}
+        </dt>
         <dd className="mcp-server-detail-env">
-          {envKeys.length > 0
-            ? envKeys.map((key) => (
+          {credentials.keys.length > 0
+            ? credentials.keys.map((key) => (
                 <code key={key} className="mcp-env-key">
                   {key}
                 </code>
