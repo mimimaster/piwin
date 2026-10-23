@@ -14,11 +14,11 @@ export function MobileToolChain({
   tools,
   onEnterFlashcardStudy,
 }: MobileToolChainProps): ReactElement | null {
+  // Before the empty return: the chain starts empty while a turn streams.
+  const [batchOpen, setBatchOpen] = useState(true);
   if (!tools || tools.length === 0) {
     return null;
   }
-
-  const [batchOpen, setBatchOpen] = useState(true);
 
   // If only 1 tool, render it directly without batch capsule
   if (tools.length === 1 && tools[0] !== undefined) {

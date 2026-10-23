@@ -263,14 +263,16 @@ function LoopRow(props: {
 }
 
 export function SubagentReviewSummary(props: SubagentReviewSummaryProps): ReactElement | null {
-  if (props.enabled === false || !shouldPresentReviewLoop(props.loop)) {
-    return null;
-  }
-  const locale = props.locale ?? 'zh-CN';
+  // Hooks run before the hidden-state return so the hook order stays fixed
+  // when the review loop starts or the feature toggles.
   const reviews = useMemo(
     () => collectReviewsFromTaskResults(props.taskResults, props.reviews),
     [props.reviews, props.taskResults],
   );
+  if (props.enabled === false || !shouldPresentReviewLoop(props.loop)) {
+    return null;
+  }
+  const locale = props.locale ?? 'zh-CN';
   const verification = shouldShowVerificationRow(props.loop)
     ? reviewLoopVerificationCopy({ loop: props.loop, locale })
     : undefined;

@@ -131,17 +131,6 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
     interventionStatus === 'pending' && props.onInterventionEdit !== undefined;
   const showRetryEdit = props.onRetry !== undefined && !showInterventionEdit;
 
-  if (message.source === 'voice-delegation') {
-    return (
-      <VoiceHandoverCard
-        message={message}
-        {...(props.locale !== undefined ? { locale: props.locale } : {})}
-        {...(props.branchSwitcher !== undefined ? { branchSwitcher: props.branchSwitcher } : {})}
-        {...(props.onFeedback !== undefined ? { onFeedback: props.onFeedback } : {})}
-      />
-    );
-  }
-
   const interventionLabel =
     interventionStatus === 'pending'
       ? isChinese
@@ -253,6 +242,19 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
         setIsCollapsed((previous) => !previous);
       }
     : undefined;
+
+  // After every hook: a voice handover renders its own card, and the hook
+  // order must not depend on the message source.
+  if (message.source === 'voice-delegation') {
+    return (
+      <VoiceHandoverCard
+        message={message}
+        {...(props.locale !== undefined ? { locale: props.locale } : {})}
+        {...(props.branchSwitcher !== undefined ? { branchSwitcher: props.branchSwitcher } : {})}
+        {...(props.onFeedback !== undefined ? { onFeedback: props.onFeedback } : {})}
+      />
+    );
+  }
 
   if (isConversationSession) {
     return (

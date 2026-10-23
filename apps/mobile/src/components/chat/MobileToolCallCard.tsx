@@ -77,10 +77,11 @@ export function MobileToolCallCard({
   onEnterFlashcardStudy,
 }: MobileToolCallCardProps): ReactElement {
   const [expanded, setExpanded] = useState(defaultExpanded || tool.status === 'running');
+  const [copied, setCopied] = useState(false);
+  // After every hook: a streamed tool can gain its health presentation later.
   if (tool.presentation?.kind === 'health') {
     return <HealthToolCard presentation={tool.presentation} toolStatus={tool.status} />;
   }
-  const [copied, setCopied] = useState(false);
 
   const ToolIcon = resolveToolIcon(tool.name);
   const verb = resolveToolVerb(tool.name, tool.actionVerb);

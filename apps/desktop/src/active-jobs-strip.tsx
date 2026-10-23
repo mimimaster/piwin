@@ -101,10 +101,12 @@ export function formatJobElapsed(startedAt: string, now: number = Date.now()): s
 }
 
 export function ActiveJobsStrip(props: ActiveJobsStripProps): ReactElement | null {
+  // Hooks run before the empty-state return so the hook order stays fixed
+  // when jobs appear or drain.
+  const reduced = useReducedMotion() ?? false;
   if (props.jobs.length === 0) {
     return null;
   }
-  const reduced = useReducedMotion() ?? false;
   const copy = getDesktopCopy(props.locale ?? 'zh-CN').composer;
   return (
     <div className="composer-active-jobs-strip" data-testid="active-jobs-strip" role="status">

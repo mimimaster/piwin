@@ -255,7 +255,8 @@ export function createStreamdownComponents(optionsRef: {
   const renderCode = (props: StreamdownCodeProps): ReactElement =>
     props['data-block'] === undefined ? renderInlineCode(props) : <FenceCode {...props} />;
 
-  const renderAnchor = ({
+  // Rendered as an element by Streamdown, so it is a component and may use context.
+  const MarkdownAnchor = ({
     children,
     href,
     node: _node,
@@ -463,7 +464,7 @@ export function createStreamdownComponents(optionsRef: {
       ) : (
         <>{children}</>
       ),
-    a: renderAnchor,
+    a: MarkdownAnchor,
     img: renderImage,
     input: renderInput,
     section: renderSection,

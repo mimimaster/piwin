@@ -128,11 +128,11 @@ export function MarketplaceWorkspaceView(props: MarketplaceWorkspaceViewProps): 
       }),
     installFollowUp: (entry) => {
       const example = entry.examples[0];
-      const useExample = props.onUseExample;
-      if (!example || !useExample) return undefined;
+      const applyExample = props.onUseExample;
+      if (!example || !applyExample) return undefined;
       return {
         label: t('Try it', '试一下'),
-        onClick: () => useExample(localizedText(example.prompt, props.locale)),
+        onClick: () => applyExample(localizedText(example.prompt, props.locale)),
       };
     },
   });
