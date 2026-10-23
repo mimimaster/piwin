@@ -5,7 +5,7 @@
  * It goes away only once the app runs the new version (the check then
  * reports no update). Settings → General → Version shows the same store.
  */
-import { DOWNLOAD_PAGE_URL, appUpdatePercent } from './app-update.js';
+import { APP_UPDATE_STALLED_ERROR, DOWNLOAD_PAGE_URL, appUpdatePercent } from './app-update.js';
 import { getAppUpdateStore, useAppUpdateState, type AppUpdateState } from './app-update-store.js';
 import type { DesktopLocale } from './desktop-locale.js';
 import { openExternalUrl } from './open-external-url.js';
@@ -26,6 +26,7 @@ const COPY = {
     updateAnyway: '仍然更新',
     later: '稍后',
     failed: (error: string) => `更新失败：${error}`,
+    stalled: '下载 60 秒没有收到数据，已中断。',
     retry: '重试',
     download: '前往下载',
   },
@@ -42,6 +43,7 @@ const COPY = {
     updateAnyway: 'Update anyway',
     later: 'Later',
     failed: (error: string) => `Update failed: ${error}`,
+    stalled: 'The download received no data for 60 seconds and was stopped.',
     retry: 'Retry',
     download: 'Download',
   },
@@ -87,7 +89,8 @@ export function describeAppUpdateNotice(
       return {
         ...base,
         tone: 'error',
-        message: copy.failed(state.error ?? ''),
+        message:
+          state.error === APP_UPDATE_STALLED_ERROR ? copy.stalled : copy.failed(state.error ?? ''),
         primaryAction: { label: copy.retry, onSelect: () => handlers.install(false) },
         secondaryAction: { label: copy.download, onSelect: handlers.openDownloadPage },
       };

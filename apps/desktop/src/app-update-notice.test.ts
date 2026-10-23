@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { APP_UPDATE_STALLED_ERROR } from './app-update.js';
 import type { AppUpdateState } from './app-update-store.js';
 import { describeAppUpdateNotice, type AppUpdateNoticeHandlers } from './app-update-notice.js';
 
@@ -70,6 +71,17 @@ describe('describeAppUpdateNotice', () => {
     notice?.secondaryAction?.onSelect();
     expect(actions.install).toHaveBeenCalledWith(false);
     expect(actions.openDownloadPage).toHaveBeenCalled();
+  });
+
+  it('explains a stalled download and still offers retry', () => {
+    const actions = handlers();
+    const notice = describeState(
+      { status: 'failed', update: UPDATE, origin: 'notice', error: APP_UPDATE_STALLED_ERROR },
+      actions,
+    );
+    expect(notice).toMatchObject({ tone: 'error', message: '下载 60 秒没有收到数据，已中断。' });
+    notice?.primaryAction?.onSelect();
+    expect(actions.install).toHaveBeenCalledWith(false);
   });
 
   it('follows the desktop locale', () => {

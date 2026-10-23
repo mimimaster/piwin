@@ -66,7 +66,10 @@ so most installs ran stale.
 5. **Failures degrade to the download page.** A failed check stays silent; a
    failed install (unwritable location, translocated app, network) shows the
    error and keeps the "Download" button (the sidebar card also offers
-   "Retry").
+   "Retry"). A download that receives no bytes for 60 s is aborted and
+   reported as stalled (`app-update/download-stalled`); the plugin's own
+   `timeout` is a whole-request limit and would also cut slow healthy
+   downloads, so it stays unset.
 
 ## Consequences
 

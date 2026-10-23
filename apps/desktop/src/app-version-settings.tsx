@@ -6,7 +6,12 @@
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import { Button, ConfirmDialog, ProgressBar } from '@piwin/ui-kit';
-import { appUpdatePercent, DEVELOPMENT_BUILD_VERSION, DOWNLOAD_PAGE_URL } from './app-update.js';
+import {
+  APP_UPDATE_STALLED_ERROR,
+  appUpdatePercent,
+  DEVELOPMENT_BUILD_VERSION,
+  DOWNLOAD_PAGE_URL,
+} from './app-update.js';
 import { getAppUpdateStore, useAppUpdateState, type AppUpdateState } from './app-update-store.js';
 import { useDesktopLocale } from './desktop-locale-context.js';
 import { openExternalUrl } from './open-external-url.js';
@@ -25,6 +30,7 @@ const COPY = {
       percent === undefined ? '正在下载更新…' : `正在下载更新 ${percent}%`,
     restarting: '更新已安装，正在重启…',
     failed: (error: string) => `更新失败：${error}`,
+    stalled: '下载 60 秒没有收到数据，已中断。',
     download: '前往下载',
     changelog: '查看更新日志',
     busyTitle: '有会话正在运行',
@@ -45,6 +51,7 @@ const COPY = {
       percent === undefined ? 'Downloading the update…' : `Downloading the update ${percent}%`,
     restarting: 'Update installed, restarting…',
     failed: (error: string) => `Update failed: ${error}`,
+    stalled: 'The download received no data for 60 seconds and was stopped.',
     download: 'Download',
     changelog: 'View changelog',
     busyTitle: 'Sessions are running',
@@ -71,7 +78,9 @@ function describeUpdate(copy: Copy, installed: string, state: AppUpdateState): s
     case 'restarting':
       return `${base} · ${copy.restarting}`;
     case 'failed':
-      return `${base} · ${copy.failed(state.error ?? '')}`;
+      return `${base} · ${
+        state.error === APP_UPDATE_STALLED_ERROR ? copy.stalled : copy.failed(state.error ?? '')
+      }`;
     default:
       return `${base} · ${copy.updateAvailable(update.version)}`;
   }

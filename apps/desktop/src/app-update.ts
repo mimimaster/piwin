@@ -8,6 +8,9 @@ export const DOWNLOAD_PAGE_URL = 'https://docs.piwinwin.com/download';
 /** tauri.conf.json stays at this version in git; only release builds get a real one. */
 export const DEVELOPMENT_BUILD_VERSION = '0.0.0';
 
+/** Rust aborts a download that stops receiving bytes with this error (app_update_stall.rs). */
+export const APP_UPDATE_STALLED_ERROR = 'app-update/download-stalled';
+
 const UPDATE_AVAILABLE_EVENT = 'app-update://available';
 const UPDATE_PROGRESS_EVENT = 'app-update://progress';
 

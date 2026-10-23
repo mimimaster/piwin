@@ -1,5 +1,6 @@
 mod app_shutdown;
 mod app_update;
+mod app_update_stall;
 mod attention_notifications;
 #[cfg(target_os = "windows")]
 mod attention_notifications_windows;

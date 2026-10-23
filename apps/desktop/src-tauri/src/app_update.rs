@@ -6,6 +6,8 @@
 //!   graceful teardown reaps the Host before the new version starts.
 //! - Windows: the NSIS installer exits the app; `on_before_exit` reaps the
 //!   Host first so its files are not locked when the installer overwrites them.
+//!
+//! A download that stops receiving bytes is aborted (`app_update_stall`).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -16,6 +18,9 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_updater::{Update, Updater, UpdaterExt};
 
 use crate::app_shutdown;
+use crate::app_update_stall::{
+    DownloadStallWatch, DOWNLOAD_STALLED_ERROR, DOWNLOAD_STALL_TIMEOUT, DOWNLOAD_WATCH_TICK,
+};
 use crate::host_bridge::{host_request_blocking, HostBridgeState};
 
 /// Lets the window and the Host settle before the first network call.
@@ -201,37 +206,67 @@ async fn install_update(app: &AppHandle, force: bool) -> Result<AppUpdateInstall
         }
     }
 
-    let progress_handle = app.clone();
-    let finished_handle = app.clone();
-    let mut downloaded: u64 = 0;
-    let mut last_reported: u64 = 0;
-    update
-        .download_and_install(
-            move |chunk_length, total| {
-                downloaded += chunk_length as u64;
-                let step = total.map_or(PROGRESS_BYTES_STEP, |total| (total / 100).max(1));
-                if downloaded - last_reported < step {
-                    return;
-                }
-                last_reported = downloaded;
-                let _ = progress_handle.emit(
-                    UPDATE_PROGRESS_EVENT,
-                    AppUpdateProgress { downloaded, total, finished: false },
-                );
-            },
-            move || {
-                let _ = finished_handle.emit(
-                    UPDATE_PROGRESS_EVENT,
-                    AppUpdateProgress { downloaded: 0, total: None, finished: true },
-                );
-            },
-        )
-        .await
-        .map_err(|error| error.to_string())?;
+    download_and_install_watched(app, update).await?;
 
     // Windows never gets here: the installer has already exited the app.
     app.request_restart();
     Ok(AppUpdateInstallOutcome::Restarting)
+}
+
+/// Downloads and installs on its own task so a stalled download can be
+/// aborted: dropping the task drops the HTTP connection with it.
+async fn download_and_install_watched(app: &AppHandle, update: Update) -> Result<(), String> {
+    let watch = Arc::new(DownloadStallWatch::new());
+    let chunk_watch = Arc::clone(&watch);
+    let finished_watch = Arc::clone(&watch);
+    let progress_handle = app.clone();
+    let finished_handle = app.clone();
+    let settled = Arc::new(AtomicBool::new(false));
+    let task_settled = Arc::clone(&settled);
+    let task = tauri::async_runtime::spawn(async move {
+        let mut downloaded: u64 = 0;
+        let mut last_reported: u64 = 0;
+        let result = update
+            .download_and_install(
+                move |chunk_length, total| {
+                    chunk_watch.record_bytes();
+                    downloaded += chunk_length as u64;
+                    let step = total.map_or(PROGRESS_BYTES_STEP, |total| (total / 100).max(1));
+                    if downloaded - last_reported < step {
+                        return;
+                    }
+                    last_reported = downloaded;
+                    let _ = progress_handle.emit(
+                        UPDATE_PROGRESS_EVENT,
+                        AppUpdateProgress { downloaded, total, finished: false },
+                    );
+                },
+                move || {
+                    finished_watch.mark_download_finished();
+                    let _ = finished_handle.emit(
+                        UPDATE_PROGRESS_EVENT,
+                        AppUpdateProgress { downloaded: 0, total: None, finished: true },
+                    );
+                },
+            )
+            .await
+            .map_err(|error| error.to_string());
+        task_settled.store(true, Ordering::Release);
+        result
+    });
+
+    while !settled.load(Ordering::Acquire) {
+        if watch.is_stalled() {
+            task.abort();
+            eprintln!(
+                "[piwin desktop] update download stalled: no data for {}s, aborted",
+                DOWNLOAD_STALL_TIMEOUT.as_secs()
+            );
+            return Err(DOWNLOAD_STALLED_ERROR.to_string());
+        }
+        sleep(DOWNLOAD_WATCH_TICK).await;
+    }
+    task.await.map_err(|error| error.to_string())?
 }
 
 #[cfg(test)]
