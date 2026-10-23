@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+mod exit_reason;
 mod logs;
 mod pending;
 mod process;
@@ -19,6 +20,7 @@ mod resolve;
 mod streams;
 mod supervisor;
 
+use exit_reason::HostExitDiagnostics;
 use logs::{emit_log, emit_status};
 use pending::{
     assign_host_request_id, fail_all_pending, resolve_host_request_timeout, PendingResponse,
@@ -49,6 +51,8 @@ pub(crate) struct HostProcess {
     alive: Arc<AtomicBool>,
     /// Prevents the stdout reader from treating expected shutdown EOF as a crash.
     shutting_down: Arc<AtomicBool>,
+    /// Stderr tail and the settled death reason, surfaced to request callers.
+    diagnostics: Arc<HostExitDiagnostics>,
 }
 
 const HOST_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(750);
@@ -185,6 +189,7 @@ fn host_start_blocking(
         Arc::new(Mutex::new(HashMap::new()));
     let alive = Arc::new(AtomicBool::new(true));
     let shutting_down = Arc::new(AtomicBool::new(false));
+    let diagnostics = Arc::new(HostExitDiagnostics::default());
 
     spawn_stdout_reader(
         app.clone(),
@@ -192,12 +197,13 @@ fn host_start_blocking(
         Arc::clone(&pending),
         Arc::clone(&alive),
         Arc::clone(&shutting_down),
+        Arc::clone(&diagnostics),
         Arc::clone(&inner),
         Arc::clone(&lifecycle),
         Arc::clone(&mock_flag),
         restart_attempts,
     );
-    spawn_stderr_reader(app.clone(), stderr);
+    spawn_stderr_reader(app.clone(), stderr, Arc::clone(&diagnostics));
 
     let process = Arc::new(HostProcess {
         child: Mutex::new(child),
@@ -205,6 +211,7 @@ fn host_start_blocking(
         pending,
         alive,
         shutting_down,
+        diagnostics,
     });
     let mut guard = inner.lock().map_err(|error| error.to_string())?;
     *guard = Some(process);
@@ -370,7 +377,11 @@ pub fn host_request_blocking(
 
     // Fast-fail if the process is already known dead.
     if !process.alive.load(Ordering::Acquire) {
-        return Err("host process is dead (stdout closed). Restart with host_start.".to_string());
+        let reason = process
+            .diagnostics
+            .reason()
+            .unwrap_or_else(|| "stdout closed".to_string());
+        return Err(format!("host process died: {reason}"));
     }
 
     // Also check if the OS-level process has exited.

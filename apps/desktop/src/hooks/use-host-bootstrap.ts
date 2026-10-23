@@ -292,6 +292,9 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           statusReady: message.ready,
         });
         dispatch({ type: 'host/status', ready, mock: message.mock });
+        if (!ready && message.reason !== undefined) {
+          dispatch({ type: 'error', message: message.reason });
+        }
         if (ready && lastPushedHostReadyRef.current !== true) {
           setHostReadyEpoch((current) => current + 1);
         }

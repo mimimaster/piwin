@@ -4,6 +4,7 @@
 - **Date**: 2026-10-20
 - **Scope**: `apps/desktop/src-tauri` (`app_shutdown`, `host_bridge` supervisor), `@piwin/host-runtime` (root lease), `apps/cli` (`host serve`)
 - **Consults**: ADR 0006 (Desktop ↔ Host transport), ADR 0017 (sidecar bundling)
+- **Amended by**: ADR 0100 (lease checks owner identity; ownership failures exit 78 and are not respawned)
 
 ## Context
 

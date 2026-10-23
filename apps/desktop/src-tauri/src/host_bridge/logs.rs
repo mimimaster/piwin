@@ -19,6 +19,8 @@ pub(super) struct HostStatusPayload {
     state: String,
     /// Retry attempt number (1-based) when state == "reconnecting".
     attempt: Option<u32>,
+    /// Why the sidecar died, when state == "fatal" and it is known.
+    reason: Option<String>,
 }
 
 pub(super) fn emit_log(app: &AppHandle, level: &str, message: impl Into<String>) {
@@ -37,6 +39,19 @@ pub(super) fn emit_status(app: &AppHandle, state: &str, attempt: Option<u32>) {
         HostStatusPayload {
             state: state.to_string(),
             attempt,
+            reason: None,
+        },
+    );
+}
+
+/// Terminal state: the supervisor will not respawn the sidecar.
+pub(super) fn emit_fatal_status(app: &AppHandle, reason: Option<&str>) {
+    let _ = app.emit(
+        "host-status",
+        HostStatusPayload {
+            state: "fatal".to_string(),
+            attempt: None,
+            reason: reason.map(str::to_string),
         },
     );
 }

@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import {
+  inspectProcessWithPsSync,
+  isSameOwnerProcess,
+  type RootOwnerProcessFacts,
+} from './piwin-root-owner-process.js';
 
 const OWNER_SCHEMA_VERSION = 1;
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -16,6 +21,8 @@ export type PiwinRootOwner = {
   processStartedAt: string;
   acquiredAt: string;
   ownerKind: PiwinRootOwnerKind;
+  /** Executable of the owner process; tells a reused PID apart. Optional for older records. */
+  processExecPath?: string;
 };
 
 type PiwinRootHeartbeat = {
@@ -30,6 +37,8 @@ export type AcquirePiwinRootLeaseOptions = {
   hostInstanceId?: string;
   heartbeatIntervalMs?: number;
   onCompromised?: (error: PiwinRootLeaseCompromisedError) => void;
+  /** Test seam; defaults to a synchronous `ps` lookup. */
+  inspectOwnerProcess?: (processId: number) => RootOwnerProcessFacts | null;
 };
 
 export type PiwinRootLease = {
@@ -138,7 +147,8 @@ function parseOwner(value: unknown): PiwinRootOwner {
     typeof record.acquiredAt !== 'string' ||
     !Number.isFinite(Date.parse(record.acquiredAt)) ||
     typeof record.ownerKind !== 'string' ||
-    !validOwnerKinds.includes(record.ownerKind as PiwinRootOwnerKind)
+    !validOwnerKinds.includes(record.ownerKind as PiwinRootOwnerKind) ||
+    (record.processExecPath !== undefined && typeof record.processExecPath !== 'string')
   ) {
     throw new PiwinRootOwnershipUnknownError('invalid or unsupported piwin root owner record');
   }
@@ -151,6 +161,9 @@ function parseOwner(value: unknown): PiwinRootOwner {
     processStartedAt: record.processStartedAt,
     acquiredAt: record.acquiredAt,
     ownerKind: record.ownerKind as PiwinRootOwnerKind,
+    ...(typeof record.processExecPath === 'string'
+      ? { processExecPath: record.processExecPath }
+      : {}),
   };
 }
 
@@ -185,6 +198,22 @@ function isProcessAlive(processId: number): boolean | 'unknown' {
   }
 }
 
+type OwnerProcessInspector = (processId: number) => RootOwnerProcessFacts | null;
+
+/**
+ * `true` when the recorded owner process no longer exists: it exited, or its
+ * PID now belongs to a different process (reuse after exit or reboot).
+ * `'unknown'` when neither can be proven, e.g. a foreign-user PID that `ps`
+ * cannot describe.
+ */
+function isOwnerGone(owner: PiwinRootOwner, inspect: OwnerProcessInspector): boolean | 'unknown' {
+  const liveness = isProcessAlive(owner.processId);
+  if (liveness === false) return true;
+  const facts = inspect(owner.processId);
+  if (facts !== null && !isSameOwnerProcess(owner, facts, Date.now())) return true;
+  return liveness === true ? false : 'unknown';
+}
+
 function createOwner(options: AcquirePiwinRootLeaseOptions): PiwinRootOwner {
   const now = new Date().toISOString();
   return {
@@ -195,6 +224,7 @@ function createOwner(options: AcquirePiwinRootLeaseOptions): PiwinRootOwner {
     processStartedAt: new Date(Date.now() - process.uptime() * 1_000).toISOString(),
     acquiredAt: now,
     ownerKind: options.ownerKind,
+    processExecPath: process.execPath,
   };
 }
 
@@ -203,8 +233,9 @@ function reclaimDeadOwner(input: {
   lockDir: string;
   ownerPath: string;
   owner: PiwinRootOwner;
+  inspect: OwnerProcessInspector;
 }): boolean {
-  if (isProcessAlive(input.owner.processId) !== false) return false;
+  if (isOwnerGone(input.owner, input.inspect) !== true) return false;
 
   const confirmedOwner = readOwner(input.ownerPath);
   if (
@@ -213,7 +244,7 @@ function reclaimDeadOwner(input: {
   ) {
     return false;
   }
-  if (isProcessAlive(confirmedOwner.processId) !== false) return false;
+  if (isOwnerGone(confirmedOwner, input.inspect) !== true) return false;
 
   const tombstonePath = join(
     input.hostStateDir,
@@ -243,6 +274,7 @@ export function acquirePiwinRootLease(options: AcquirePiwinRootLeaseOptions): Pi
   const ownerPath = join(lockDir, 'owner.json');
   const heartbeatPath = join(lockDir, 'heartbeat.json');
   mkdirSync(hostStateDir, { recursive: true, mode: 0o700 });
+  const inspect = options.inspectOwnerProcess ?? inspectProcessWithPsSync;
 
   let acquired = false;
   for (let attempt = 0; attempt < MAX_ACQUISITION_ATTEMPTS; attempt += 1) {
@@ -258,14 +290,14 @@ export function acquirePiwinRootLease(options: AcquirePiwinRootLeaseOptions): Pi
       }
 
       const existingOwner = readOwner(ownerPath);
-      const liveness = isProcessAlive(existingOwner.processId);
-      if (liveness === true) throw new PiwinRootAlreadyOwnedError(existingOwner);
-      if (liveness === 'unknown') {
+      const gone = isOwnerGone(existingOwner, inspect);
+      if (gone === false) throw new PiwinRootAlreadyOwnedError(existingOwner);
+      if (gone === 'unknown') {
         throw new PiwinRootOwnershipUnknownError(
           `cannot prove whether piwin root owner process ${existingOwner.processId} is alive`,
         );
       }
-      reclaimDeadOwner({ hostStateDir, lockDir, ownerPath, owner: existingOwner });
+      reclaimDeadOwner({ hostStateDir, lockDir, ownerPath, owner: existingOwner, inspect });
     }
   }
 

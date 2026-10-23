@@ -8,6 +8,7 @@ import {
   HOST_SERVE_LOCAL_EGRESS_LIMITS,
   createJsonlStdioTransport,
 } from './host-serve-transport.js';
+import { reportDeterministicStartupFailure } from './host-serve-startup-failure.js';
 import { interceptSidecarLocalShellAccess } from './local-shell-access-serve.js';
 import { createSidecarMobileAccess, interceptSidecarMobileAccess } from './mobile-access-serve.js';
 import { LOCAL_JSONL_CLIENT_ID, createSidecarHostAuthority } from './sidecar-host-authority.js';
@@ -17,6 +18,7 @@ import {
   applyHostNetworkProxyFromConfig,
   applyPiwinPlaywrightBrowsersPath,
   stopOrphanedPiwinRootOwner,
+  waitForRootOwnerRelease,
 } from '@piwin/host-runtime';
 import {
   LocalShellAccess,
@@ -35,6 +37,8 @@ import {
  * `piwin host-serve` subcommand: argv handling, host lifecycle, and output.
  */
 
+const ROOT_OWNER_RELEASE_WAIT_MS = 5_000;
+
 export async function commandHostServe(argv: string[]): Promise<void> {
   const hostDataRoot = resolveHostDataRoot();
   const hostLogPath = installHostDiagnosticLog(hostDataRoot);
@@ -49,6 +53,15 @@ export async function commandHostServe(argv: string[]): Promise<void> {
     console.error(
       `[piwin host serve] root owner pid=${takeover.owner.processId} kind=${takeover.owner.ownerKind}: ${takeover.outcome}`,
     );
+  }
+  // A legitimate owner may be about to let go (a short CLI command, a previous
+  // sidecar still draining). Give it a moment before failing for good.
+  if (takeover.outcome === 'owned') {
+    await waitForRootOwnerRelease({
+      rootDir: hostDataRoot,
+      owner: takeover.owner,
+      timeoutMs: ROOT_OWNER_RELEASE_WAIT_MS,
+    });
   }
   const mode = parseMode(argv);
   const mock = parseMock(argv);
@@ -78,7 +91,14 @@ export async function commandHostServe(argv: string[]): Promise<void> {
   }
   const clientToolBroker = await createDeviceToolBrokerForHost(hostDataRoot);
   runtimeOptions.clientToolExecution = clientToolBroker;
-  const runtime = new HostRuntime(runtimeOptions);
+  let runtime: HostRuntime;
+  try {
+    runtime = new HostRuntime(runtimeOptions);
+  } catch (error) {
+    // Ownership failures repeat on every respawn; tell Desktop why and stop.
+    if (reportDeterministicStartupFailure(error, hostDataRoot)) return;
+    throw error;
+  }
   const authority = createSidecarHostAuthority(runtime);
   authority.start();
   const egressHub = authority.egressHub;

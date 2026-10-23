@@ -177,7 +177,14 @@ export type HostPushVariant =
       decision: PermissionDecision;
       runId?: string;
     }
-  | { type: 'host/status'; mode: HostMode; ready: boolean; mock: boolean }
+  | {
+      type: 'host/status';
+      mode: HostMode;
+      ready: boolean;
+      mock: boolean;
+      /** Why the Host is down for good (local sidecar gave up restarting); absent otherwise. */
+      reason?: string;
+    }
   | { type: 'host/log'; level: 'info' | 'warn' | 'error'; message: string }
   | { type: 'pty/output'; ptyId: string; data: string; at: string; sequence?: number }
   | { type: 'pty/exit'; ptyId: string; exitCode?: number | null }

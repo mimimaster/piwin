@@ -40,10 +40,10 @@ export abstract class HostClientLiveTransport extends HostClientPushLayer {
 
     this.stopLiveListeners();
 
-    this.unlistenHostStatus = await listen<{ state: string; attempt?: number }>(
+    this.unlistenHostStatus = await listen<{ state: string; attempt?: number; reason?: string | null }>(
       'host-status',
       (event) => {
-        const { state } = event.payload;
+        const { state, reason } = event.payload;
         // Rust supervisor emits "reconnecting" / "restarted" / "fatal".
         // On reconnecting, flip ready=false so the UI shows the reconnecting
         // pill; on restarted, the new host's host/status push will flip it
@@ -55,6 +55,8 @@ export abstract class HostClientLiveTransport extends HostClientPushLayer {
             mode: this.mode,
             ready: false,
             mock: this.hostMock,
+            // Only a fatal stop carries the reason, so the UI shows it once.
+            ...(state === 'fatal' && reason ? { reason } : {}),
           });
         }
       },

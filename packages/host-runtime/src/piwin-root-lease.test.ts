@@ -83,6 +83,69 @@ describe('piwin root lease', () => {
     }
   });
 
+  it('reclaims a lock whose PID now belongs to a different process', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-root-lease-reused-'));
+    // A live PID (ours) but a record from a process that started a day ago:
+    // after a reboot the number went to someone else.
+    const staleOwner = {
+      ...createOwner(process.pid),
+      processStartedAt: new Date(Date.now() - 86_400_000).toISOString(),
+    };
+    await writeExistingOwner(rootDir, staleOwner);
+
+    const lease = acquirePiwinRootLease({
+      rootDir,
+      ownerKind: 'test',
+      inspectOwnerProcess: () => ({ parentProcessId: 1, elapsedMs: 60_000, command: 'login-item' }),
+    });
+    try {
+      expect(lease.owner.leaseId).not.toBe(staleOwner.leaseId);
+    } finally {
+      lease.release();
+    }
+  });
+
+  it('reclaims a lock whose live PID runs a different executable', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-root-lease-exec-'));
+    const owner = { ...createOwner(process.pid), processExecPath: '/opt/piwin/piwin-host' };
+    await writeExistingOwner(rootDir, owner);
+
+    const lease = acquirePiwinRootLease({
+      rootDir,
+      ownerKind: 'test',
+      inspectOwnerProcess: () => ({ parentProcessId: 1, elapsedMs: 0, command: '/usr/bin/vim' }),
+    });
+    lease.release();
+  });
+
+  it('keeps rejecting a live owner whose identity matches', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-root-lease-same-'));
+    const owner = { ...createOwner(process.pid), processExecPath: '/opt/piwin/piwin-host' };
+    await writeExistingOwner(rootDir, owner);
+
+    expect(() =>
+      acquirePiwinRootLease({
+        rootDir,
+        ownerKind: 'test',
+        inspectOwnerProcess: () => ({
+          parentProcessId: 42,
+          elapsedMs: 0,
+          command: '/opt/piwin/piwin-host host-serve.mjs host serve',
+        }),
+      }),
+    ).toThrow(PiwinRootAlreadyOwnedError);
+  });
+
+  it('records its own executable for later identity checks', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-root-lease-record-'));
+    const lease = acquirePiwinRootLease({ rootDir, ownerKind: 'test' });
+    try {
+      expect(lease.owner.processExecPath).toBe(process.execPath);
+    } finally {
+      lease.release();
+    }
+  });
+
   it('fails closed when an existing owner record is malformed', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-root-lease-malformed-'));
     const lockDir = join(rootDir, '.host', 'owner.lock');

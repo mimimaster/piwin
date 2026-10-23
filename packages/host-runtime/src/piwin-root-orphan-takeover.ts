@@ -3,6 +3,11 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { readPiwinRootOwner, type PiwinRootOwner } from './piwin-root-lease.js';
+import {
+  inspectProcessWithPs,
+  isSameOwnerProcess,
+  type RootOwnerProcessFacts,
+} from './piwin-root-owner-process.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -11,11 +16,6 @@ const DEFAULT_ORPHAN_STOP_TIMEOUT_MS = 10_000;
 /** After SIGKILL the kernel reaps promptly; this only bounds a wedged exit. */
 const DEFAULT_ORPHAN_KILL_TIMEOUT_MS = 3_000;
 const ORPHAN_POLL_INTERVAL_MS = 100;
-/**
- * `ps` reports elapsed time in whole seconds; a larger gap between it and the
- * owner record's `processStartedAt` means the PID was reused by another process.
- */
-const PROCESS_START_TOLERANCE_MS = 10_000;
 const LAUNCHD_OR_INIT_PID = 1;
 /**
  * Asks a wedged Host to write a Node diagnostic report before SIGKILL. The
@@ -26,17 +26,13 @@ export const PIWIN_HOST_DIAGNOSTIC_REPORT_SIGNAL = 'SIGUSR2';
 const ORPHAN_SAMPLE_SECONDS = 3;
 const HOST_SERVE_ARGV = /(^|\s)host\s+serve(\s|$)/;
 
-export type RootOwnerProcessFacts = {
-  parentProcessId: number;
-  elapsedMs: number;
-  command: string;
-};
-
 export type OrphanedRootOwnerTakeover =
   /** No live foreign owner; the lease acquires (or reclaims) normally. */
   | { outcome: 'no-live-owner' }
   /** A live owner that is not an orphaned Host; the lease reports it. */
   | { outcome: 'owned'; owner: PiwinRootOwner }
+  /** The recorded PID now belongs to another process; the lease reclaims the lock. */
+  | { outcome: 'pid-reused'; owner: PiwinRootOwner }
   | { outcome: 'stopped' | 'killed'; owner: PiwinRootOwner }
   /** The orphan survived SIGKILL's bounded wait; the lease reports it. */
   | { outcome: 'still-running'; owner: PiwinRootOwner };
@@ -75,42 +71,6 @@ function isProcessAliveNow(processId: number): boolean {
   }
 }
 
-/** Parses `ps` `etime` (`[[dd-]hh:]mm:ss`) into milliseconds. */
-export function parsePsElapsed(elapsed: string): number | null {
-  const match = /^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)$/.exec(elapsed.trim());
-  if (!match) return null;
-  const [, days = '0', hours = '0', minutes = '0', seconds = '0'] = match;
-  return (
-    ((Number(days) * 24 + Number(hours)) * 60 + Number(minutes)) * 60_000 + Number(seconds) * 1_000
-  );
-}
-
-/** Parses one `ps -o ppid=,etime=,command=` row. */
-export function parsePsProcessRow(row: string): RootOwnerProcessFacts | null {
-  const match = /^\s*(\d+)\s+(\S+)\s+(.*)$/.exec(row.trim());
-  if (!match) return null;
-  const [, parent = '', elapsed = '', command = ''] = match;
-  const elapsedMs = parsePsElapsed(elapsed);
-  if (elapsedMs === null) return null;
-  return { parentProcessId: Number(parent), elapsedMs, command };
-}
-
-async function inspectProcessWithPs(processId: number): Promise<RootOwnerProcessFacts | null> {
-  if (process.platform === 'win32') return null;
-  try {
-    const { stdout } = await execFileAsync(
-      'ps',
-      ['-o', 'ppid=,etime=,command=', '-p', String(processId)],
-      { timeout: 5_000 },
-    );
-    return parsePsProcessRow(stdout);
-  } catch {
-    // ps exits non-zero when the PID is gone; either way there is no orphan
-    // to stop and the lease decides from liveness alone.
-    return null;
-  }
-}
-
 async function captureStackSampleWithSample(
   processId: number,
   diagnosticsDir: string,
@@ -137,9 +97,7 @@ export function isOrphanedHostOwner(
 ): boolean {
   if (facts.parentProcessId !== LAUNCHD_OR_INIT_PID) return false;
   if (!HOST_SERVE_ARGV.test(facts.command)) return false;
-  const recordedStartMs = Date.parse(owner.processStartedAt);
-  const observedStartMs = nowMs - facts.elapsedMs;
-  return Math.abs(observedStartMs - recordedStartMs) <= PROCESS_START_TOLERANCE_MS;
+  return isSameOwnerProcess(owner, facts, nowMs);
 }
 
 function readOwnerForTakeover(rootDir: string): PiwinRootOwner | null {
@@ -180,6 +138,10 @@ export async function stopOrphanedPiwinRootOwner(
   }
 
   const facts = await inspectProcess(owner.processId);
+  if (facts !== null && !isSameOwnerProcess(owner, facts, now())) {
+    // Never signal a stranger that inherited the PID; the lease fences the lock.
+    return { outcome: 'pid-reused', owner };
+  }
   if (facts === null || !isOrphanedHostOwner(owner, facts, now())) {
     return { outcome: 'owned', owner };
   }
@@ -236,4 +198,45 @@ export async function stopOrphanedPiwinRootOwner(
     return { outcome: 'killed', owner };
   }
   return { outcome: 'still-running', owner };
+}
+
+export type WaitForRootOwnerReleaseOptions = {
+  rootDir: string;
+  owner: PiwinRootOwner;
+  timeoutMs: number;
+  /** Test seams; default to the real process table and clock. */
+  isProcessAlive?: (processId: number) => boolean;
+  sleep?: (milliseconds: number) => Promise<void>;
+  now?: () => number;
+};
+
+/**
+ * Waits (bounded) for a live, legitimate owner to let go of the root — a
+ * short CLI command, or a previous sidecar still draining. Resolves true once
+ * the lock is free or held by a different lease, false on timeout. The lease
+ * acquisition afterwards stays the authority either way.
+ */
+export async function waitForRootOwnerRelease(
+  options: WaitForRootOwnerReleaseOptions,
+): Promise<boolean> {
+  const isAlive = options.isProcessAlive ?? isProcessAliveNow;
+  const sleep =
+    options.sleep ??
+    ((milliseconds: number): Promise<void> =>
+      new Promise((resolveSleep) => setTimeout(resolveSleep, milliseconds)));
+  const now = options.now ?? Date.now;
+  const released = (): boolean => {
+    const current = readOwnerForTakeover(options.rootDir);
+    return (
+      current === null ||
+      current.leaseId !== options.owner.leaseId ||
+      !isAlive(options.owner.processId)
+    );
+  };
+  const deadline = now() + options.timeoutMs;
+  while (now() < deadline) {
+    if (released()) return true;
+    await sleep(ORPHAN_POLL_INTERVAL_MS);
+  }
+  return released();
 }

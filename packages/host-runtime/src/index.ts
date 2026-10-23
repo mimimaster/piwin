@@ -421,10 +421,12 @@ export {
 export {
   PIWIN_HOST_DIAGNOSTIC_REPORT_SIGNAL,
   stopOrphanedPiwinRootOwner,
+  waitForRootOwnerRelease,
 } from './piwin-root-orphan-takeover.js';
 export type {
   OrphanedRootOwnerTakeover,
   StopOrphanedRootOwnerOptions,
+  WaitForRootOwnerReleaseOptions,
 } from './piwin-root-orphan-takeover.js';
 export type {
   AcquirePiwinRootLeaseOptions,

@@ -7,11 +7,14 @@ import type { PiwinRootOwner } from './piwin-root-lease.js';
 import {
   PIWIN_HOST_DIAGNOSTIC_REPORT_SIGNAL,
   isOrphanedHostOwner,
+  stopOrphanedPiwinRootOwner,
+  waitForRootOwnerRelease,
+} from './piwin-root-orphan-takeover.js';
+import {
   parsePsElapsed,
   parsePsProcessRow,
-  stopOrphanedPiwinRootOwner,
   type RootOwnerProcessFacts,
-} from './piwin-root-orphan-takeover.js';
+} from './piwin-root-owner-process.js';
 
 const NOW_MS = Date.parse('2026-10-20T02:10:30Z');
 const ORPHAN_PID = 29_799;
@@ -169,6 +172,53 @@ describe('orphaned piwin root owner takeover', () => {
     const result = await stopOrphanedPiwinRootOwner({ rootDir, ...table.options });
     expect(result.outcome).toBe('owned');
     expect(table.signals).toEqual([]);
+  });
+
+  it('never signals a stranger that inherited the owner PID', async () => {
+    const rootDir = await rootWithOwner(createOwner(NOW_MS - 3_600_000));
+    // A login item that got the PID after a reboot: started a minute ago.
+    const table = fakeProcessTable(
+      { parentProcessId: 1, elapsedMs: 60_000, command: '/usr/libexec/some-agent' },
+      ['SIGTERM'],
+    );
+    const result = await stopOrphanedPiwinRootOwner({ rootDir, ...table.options });
+    expect(result.outcome).toBe('pid-reused');
+    expect(table.signals).toEqual([]);
+  });
+
+  it('waits for a legitimate owner to let go, bounded', async () => {
+    const owner = createOwner(NOW_MS - 3_600_000);
+    const rootDir = await rootWithOwner(owner);
+    let clockMs = NOW_MS;
+    let alive = true;
+    const clock = {
+      sleep: async (milliseconds: number): Promise<void> => {
+        clockMs += milliseconds;
+        if (clockMs - NOW_MS >= 1_000) alive = false;
+      },
+      now: (): number => clockMs,
+    };
+    await expect(
+      waitForRootOwnerRelease({
+        rootDir,
+        owner,
+        timeoutMs: 5_000,
+        isProcessAlive: () => alive,
+        ...clock,
+      }),
+    ).resolves.toBe(true);
+    expect(clockMs - NOW_MS).toBeLessThan(5_000);
+
+    clockMs = NOW_MS;
+    await expect(
+      waitForRootOwnerRelease({
+        rootDir,
+        owner,
+        timeoutMs: 2_000,
+        isProcessAlive: () => true,
+        ...clock,
+      }),
+    ).resolves.toBe(false);
   });
 
   it('leaves a root without an owner to the lease', async () => {

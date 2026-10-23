@@ -1,6 +1,7 @@
 //! Restart supervision: bounded backoff after an unexpected sidecar death
 //! (host death must not require an app restart).
 
+use super::logs::emit_fatal_status;
 use super::*;
 
 /// Auto-restart backoff schedule (ADR: host death must not require app restart).
@@ -43,15 +44,19 @@ pub(super) fn supervise_restart(
     mock_flag: Arc<AtomicBool>,
     restart_attempts: Arc<AtomicU32>,
     uptime: Duration,
+    last_reason: String,
 ) {
     let mock = mock_flag.load(Ordering::Acquire);
-    let Some(first_index) =
-        next_restart_attempt(restart_attempts.load(Ordering::Acquire), uptime)
+    let Some(first_index) = next_restart_attempt(restart_attempts.load(Ordering::Acquire), uptime)
     else {
-        emit_fatal(&app);
+        emit_fatal(&app, &last_reason);
         return;
     };
-    for (index, delay) in RESTART_BACKOFF_SCHEDULE.iter().enumerate().skip(first_index) {
+    for (index, delay) in RESTART_BACKOFF_SCHEDULE
+        .iter()
+        .enumerate()
+        .skip(first_index)
+    {
         let attempt = (index + 1) as u32;
         restart_attempts.store(attempt, Ordering::Release);
         emit_status(&app, "reconnecting", Some(attempt));
@@ -108,16 +113,16 @@ pub(super) fn supervise_restart(
             }
         }
     }
-    emit_fatal(&app);
+    emit_fatal(&app, &last_reason);
 }
 
-fn emit_fatal(app: &AppHandle) {
-    emit_status(app, "fatal", None);
+fn emit_fatal(app: &AppHandle, last_reason: &str) {
+    emit_fatal_status(app, Some(last_reason));
     emit_log(
         app,
         "error",
         format!(
-            "host supervisor: exhausted {} restart attempts; restart piwin to retry",
+            "host supervisor: exhausted {} restart attempts (last exit: {last_reason}); restart piwin to retry",
             RESTART_BACKOFF_SCHEDULE.len()
         ),
     );
@@ -142,6 +147,9 @@ mod tests {
     #[test]
     fn a_stable_sidecar_earns_a_fresh_schedule() {
         let exhausted = RESTART_BACKOFF_SCHEDULE.len() as u32;
-        assert_eq!(next_restart_attempt(exhausted, RESTART_STABLE_UPTIME), Some(0));
+        assert_eq!(
+            next_restart_attempt(exhausted, RESTART_STABLE_UPTIME),
+            Some(0)
+        );
     }
 }
