@@ -87,7 +87,8 @@ export async function createWorktree(input: CreateWorktreeInput): Promise<Create
     : join(projectPath, '.piwin-worktrees');
   await mkdir(worktreeRoot, { recursive: true });
   const worktreePath = join(worktreeRoot, safeName);
-  const baseRef = input.baseRef?.trim() || 'HEAD';
+  // Caller-supplied refs reach `git branch` argv; a leading `-` is an option.
+  const baseRef = assertSafeRef(input.baseRef?.trim() || 'HEAD');
 
   // Create the generated branch from the captured base, then attach its worktree.
   const branchCheck = await runGitCommand({

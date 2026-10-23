@@ -49,6 +49,15 @@ describe('subagent worktrees', () => {
     expect(await isWorktreeBaseClean(projectPath)).toBe(true);
   });
 
+  it('refuses a base ref that git would read as an option', async () => {
+    const projectPath = await createRepository();
+    await expect(
+      createWorktree({ projectPath, name: 'unsafe-base', baseRef: '--output=/tmp/unsafe' }),
+    ).rejects.toThrow('ref has invalid characters');
+    const safe = await createWorktree({ projectPath, name: 'safe-base', baseRef: 'HEAD' });
+    expect(safe.worktreePath).toContain('safe-base');
+  });
+
   it('uses product storage and deletes the generated branch during forced cleanup', async () => {
     const projectPath = await createRepository();
     const storageRoot = await mkdtemp(join(tmpdir(), 'piwin-worktree-storage-'));

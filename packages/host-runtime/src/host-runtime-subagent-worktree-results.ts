@@ -13,7 +13,7 @@ import type {
   SubagentTaskResult,
   SubagentWorkspaceLease,
 } from '@piwin/contracts';
-import { deleteResultSnapshotRef, removeWorktree, runGitCommand } from '@piwin/git';
+import { deleteResultSnapshotRef, isWorktreeUsable, removeWorktree } from '@piwin/git';
 import { getSessionRecord, upsertSessionRecord, createSubagentRunStore } from '@piwin/session';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { indexRecordToSummary } from './session-summary-map.js';
@@ -75,12 +75,9 @@ export async function resolveRetainedSubagentWorktreeLease(
     );
   }
   if (!snapshot) {
-    const insideWorktree = await runGitCommand({
-      cwd: matchingLease.worktreePath,
-      args: ['rev-parse', '--is-inside-work-tree'],
-      allowFailure: true,
-    });
-    if (insideWorktree.stdout.trim() !== 'true') {
+    // `--is-inside-work-tree` walks up: a checkout whose `.git` is gone would
+    // report the enclosing repository, and the child would write there.
+    if (!(await isWorktreeUsable(matchingLease.worktreePath))) {
       throw new Error('subagent worktree is invalid; start a new isolated task to continue');
     }
   }
