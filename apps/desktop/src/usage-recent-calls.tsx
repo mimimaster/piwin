@@ -88,15 +88,15 @@ export function UsageRecentCalls({
                         {isZh ? '思考度' : 'Thinking'}
                       </th>
                       <th>{isZh ? '缓存' : 'Cache'}</th>
-                      <th title={isZh ? '首字延迟（Time to First Token）' : 'Time to first token'}>
+                      <th className="usage-num" title={isZh ? '首字延迟（Time to First Token）' : 'Time to first token'}>
                         {isZh ? '首字延迟' : 'First token'}
                       </th>
-                      <th title={isZh ? '每秒 Token 数（Tokens Per Second）' : 'Tokens per second'}>
+                      <th className="usage-num" title={isZh ? '每秒 Token 数（Tokens Per Second）' : 'Tokens per second'}>
                         TPS
                       </th>
                       <th>{isZh ? '直接输入 / 输出' : 'Direct input / output'}</th>
                       <th>{isZh ? '缓存读 / 写' : 'Cache read / write'}</th>
-                      <th>{isZh ? '总计' : 'Total'}</th>
+                      <th className="usage-num">{isZh ? '总计' : 'Total'}</th>
                       <th className="usage-num" title={isZh ? '按模型参考价估算的美元金额' : 'USD at model reference rates'}>
                         {isZh ? '估算费用' : 'Est. cost'}
                       </th>
@@ -126,26 +126,29 @@ export function UsageRecentCalls({
                           data-failed={entry.success === false ? 'true' : undefined}
                         >
                           <td className="usage-table-model" title={entry.modelId ?? undefined}>
-                            <strong>
-                              {entry.modelId ?? (isZh ? '未知模型' : 'Unknown model')}
-                            </strong>
-                            {entry.success === false ? (
-                              <span className="usage-call-chip usage-call-chip-failed">
-                                {isZh ? '失败' : 'Failed'}
-                              </span>
-                            ) : null}
-                            {entry.parentSessionId ? (
-                              <span
-                                className="usage-call-chip usage-call-chip-subagent"
-                                data-testid="usage-call-subagent"
-                                title={entry.sessionId}
-                              >
-                                {isZh ? '子代理' : 'Subagent'}
-                              </span>
-                            ) : null}
-                            {entry.source === 'host-estimate' ? (
-                              <span className="usage-call-chip">{isZh ? '估算' : 'Estimated'}</span>
-                            ) : null}
+                            {/* Chips sit beside the name so tagged rows keep the same height. */}
+                            <div className="usage-call-model">
+                              <strong>
+                                {entry.modelId ?? (isZh ? '未知模型' : 'Unknown model')}
+                              </strong>
+                              {entry.success === false ? (
+                                <span className="usage-call-chip usage-call-chip-failed">
+                                  {isZh ? '失败' : 'Failed'}
+                                </span>
+                              ) : null}
+                              {entry.parentSessionId ? (
+                                <span
+                                  className="usage-call-chip usage-call-chip-subagent"
+                                  data-testid="usage-call-subagent"
+                                  title={entry.sessionId}
+                                >
+                                  {isZh ? '子代理' : 'Subagent'}
+                                </span>
+                              ) : null}
+                              {entry.source === 'host-estimate' ? (
+                                <span className="usage-call-chip">{isZh ? '估算' : 'Estimated'}</span>
+                              ) : null}
+                            </div>
                           </td>
                           <td>
                             <span className="usage-key-label">
@@ -168,7 +171,7 @@ export function UsageRecentCalls({
                             </span>
                           </td>
                           <td
-                            className="usage-tps-cell"
+                            className="usage-num usage-tps-cell"
                             title={
                               entry.durationMs !== undefined
                                 ? `${isZh ? '总用时: ' : 'Total: '}${formatUsageDuration(entry.durationMs)}`
@@ -179,7 +182,7 @@ export function UsageRecentCalls({
                             {formatUsageDuration(entry.firstTokenMs)}
                           </td>
                           <td
-                            className="usage-tps-cell"
+                            className="usage-num usage-tps-cell"
                             data-testid="usage-call-tps"
                             title={entry.timingScope === 'turn'
                               ? isZh
@@ -207,7 +210,7 @@ export function UsageRecentCalls({
                               {isZh ? '写' : 'W'} {formatUsageCompact(entry.cacheWriteTokens)}
                             </span>
                           </td>
-                          <td title={formatUsageExact(entry.totalTokens)}>
+                          <td className="usage-num" title={formatUsageExact(entry.totalTokens)}>
                             <strong>{formatUsageCompact(entry.totalTokens)}</strong>
                           </td>
                           <td

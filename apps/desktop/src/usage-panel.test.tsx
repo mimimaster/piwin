@@ -283,6 +283,10 @@ describe('UsagePanel', () => {
 
     expect(container?.querySelector('[data-testid="usage-total"]')?.textContent).toBe('1.2k');
     expect(container?.querySelector('[data-testid="usage-cache-rate"]')?.textContent).toBe('19%');
+    // 600 direct + 400 output + 200 cache = 1.2k: the total card names the cache part.
+    expect(container?.querySelector('[data-testid="usage-total-cache"]')?.textContent).toBe('含缓存读写 200');
+    // 150 read ÷ 800 prompt total = 19%: the cache card shows its denominator.
+    expect(container?.querySelector('[data-testid="usage-cache-total"]')?.textContent).toBe('提示词共 800');
     expect(container?.querySelectorAll('.usage-summary-card')).toHaveLength(4);
     const requestCount = container?.querySelector('[data-testid="usage-request-count"]');
     expect(requestCount?.textContent).toBe('3');

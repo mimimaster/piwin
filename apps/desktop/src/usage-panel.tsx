@@ -312,6 +312,15 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                 </dd>
               </div>
             </dl>
+            {/* The two pairs exclude cache traffic; name the rest so the card adds up. */}
+            <span
+              className="usage-summary-meta"
+              data-testid="usage-total-cache"
+              title={formatUsageExact(cacheTrafficTokens)}
+            >
+              {isZh ? '含缓存读写' : 'Includes cache read/write'}{' '}
+              {formatUsageCompact(cacheTrafficTokens)}
+            </span>
           </section>
 
           <section
@@ -338,9 +347,17 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                 </dd>
               </div>
             </dl>
-            <span className="usage-summary-meta" data-testid="usage-cache-total">
-              {isZh ? '缓存流量' : 'Cache traffic'} {formatUsageCompact(cacheTrafficTokens)} ·{' '}
-              {isZh ? '提示词侧' : 'prompt-side'} {formatUsageCompact(cacheableInputTokens)}
+            {/* The rate's denominator, so 读取 ÷ 提示词共 reproduces the headline. */}
+            <span
+              className="usage-summary-meta"
+              data-testid="usage-cache-total"
+              title={
+                isZh
+                  ? '缓存率 = 缓存读取 ÷ 提示词总量（直接输入 + 缓存读写）'
+                  : 'Hit rate = cache read ÷ prompt total (direct input + cache read/write)'
+              }
+            >
+              {isZh ? '提示词共' : 'Prompt total'} {formatUsageCompact(cacheableInputTokens)}
             </span>
           </section>
 

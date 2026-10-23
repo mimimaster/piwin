@@ -101,6 +101,7 @@
 @import './styles/browser-session.css';
 @import './styles/usage-panel.css';
 @import './styles/usage-activity-heatmap.css';
+@import './styles/usage-recent-calls.css';
 @import './styles/region-session-search.css';
 @import './styles/region-overlays.css';
 @import './styles/host-workspace-picker.css';

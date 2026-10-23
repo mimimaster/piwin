@@ -37,13 +37,14 @@ test('usage statistics integrates reference USD cost into the existing page', as
   await toggle.click();
   await expect(page.getByTestId('usage-cost-details')).toHaveCount(0);
 
-  await expect(page.getByTestId('usage-call-row')).toHaveCount(100);
+  // 137 mock calls at the default 20 rows per page.
+  await expect(page.getByTestId('usage-call-row')).toHaveCount(20);
   await expect(page.getByTestId('usage-call-cost').first()).toHaveText('$0.0295');
   await page.getByTestId('usage-calls-next').click();
-  await expect(page.getByTestId('usage-call-row')).toHaveCount(37);
+  await expect(page.getByTestId('usage-calls-page')).toHaveText('第 2 / 7 页');
   await expect(page.getByTestId('usage-call-cost').first()).toHaveText(/\$/);
   await page.getByTestId('usage-calls-prev').click();
-  await expect(page.getByTestId('usage-call-row')).toHaveCount(100);
+  await expect(page.getByTestId('usage-calls-page')).toHaveText('第 1 / 7 页');
   await expect(page.getByTestId('usage-call-cost').first()).toHaveText('$0.0295');
 
   await page.getByTestId('usage-time-select').selectOption('all');
