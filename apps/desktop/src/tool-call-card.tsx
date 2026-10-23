@@ -1,5 +1,5 @@
 /**
- * Collapsible tool-call card — Paper/Noir theme (proto-shell.css .tool block).
+ * Collapsible tool-call card — Paper/Noir theme (docs/prototypes/proto-shell.css .tool block).
  * Write/edit tools with non-empty `changedPaths` render a DiffCard per path
  * once opened (the row shows +/− until then); the original raw output is
  * folded into a <details> below.

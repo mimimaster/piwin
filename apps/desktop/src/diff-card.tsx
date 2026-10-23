@@ -11,7 +11,7 @@
  * (Desktop has no turn-level undo surface yet — see D-WWG-08. The turn's
  * 「审查」 opens the git Changes panel, whose discard restores HEAD and would
  * also drop other sessions' edits, so the card does not point there.)
- * Visual structure mirrors the prototype diff card (ui-prototype-v7.html).
+ * Visual structure mirrors the prototype diff card (docs/prototypes/ui-prototype-v7.html).
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { GitFileDiff, HostResponse, ToolFileChange } from '@piwin/contracts';
