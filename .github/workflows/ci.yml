@@ -20,6 +20,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Script unit tests
         run: pnpm test:scripts
+      - name: Lint
+        run: pnpm lint
       - name: Typecheck
         run: pnpm typecheck
       - name: Test
@@ -31,3 +33,42 @@ jobs:
       - name: Prod audit (report-only)
         continue-on-error: true
         run: pnpm audit --prod
+
+  # Tauri crate tests and the browser-shell e2e. macOS because the Playwright
+  # screenshot baselines are darwin captures and the crate links WebKit there.
+  desktop:
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/desktop/src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Packaging placeholders
+        run: pnpm ensure:packaging-placeholders
+      - name: Cargo test
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Install Playwright Chromium
+        run: pnpm --dir apps/desktop e2e:install
+      - name: Desktop e2e
+        run: pnpm e2e:desktop
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/desktop/playwright-report
+          retention-days: 7
