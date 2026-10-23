@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { measureScrollEdgeOverflow } from '../scroll-edge-overflow';
+import { measureScrollEdgeOverflow } from '../conversation/scroll-edge-overflow';
 
 /**
  * Mirrors which edges of `element` hide content onto `data-overflow-above` /

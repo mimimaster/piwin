@@ -1,0 +1,311 @@
+/**
+ * Transcript shell + scrollport with jump-to-latest and floating chrome.
+ *
+ * Architecture (single source of truth):
+ * - `.transcript-viewport` is a non-scrolling relative shell.
+ * - `.chat-stream` is the only overflow-y scroll container (native scrollbar
+ *   hidden) so its content width matches `.composer-dock` with no gutter.
+ * - History ticks + floating scrollbar are absolute children of the shell,
+ *   never of the scrollport, so they stay pinned while content scrolls.
+ * - Edge fades are pointer-transparent overlays on `.transcript-viewport`;
+ *   the translucent window material masks `.chat-stream` instead
+ *   (styles/window-material.css). The bottom edge also gets a progressive
+ *   blur strip (styles/transcript-edge-blur.css).
+ *
+ * Scroll metrics come from `useTranscriptScroll` (ResizeObserver + activity),
+ * not mount/unmount of the floating track.
+ *
+ * Older history prepends invisibly near the top, or on wheel-up when the
+ * latest page fits and therefore cannot emit a scroll-away. Follow-tail
+ * opens do not auto-page on mount.
+ */
+import type { CSSProperties, ReactElement, ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
+import type { ChatMessageUi } from './chat-reducer';
+import type { SessionUserMessageAnchor, SessionUserMessageIndexData } from '@piwin/contracts';
+import { useTranscriptScroll } from '../hooks/use-transcript-scroll';
+import { HistoryTicksDrawer } from '../session/history-ticks-drawer';
+import { TranscriptScrollProvider } from './transcript-scroll-port';
+import { useTranscriptReveal } from '../hooks/use-transcript-reveal.js';
+import { useTranscriptHistoryPaging } from '../hooks/use-transcript-history-paging.js';
+import type { TranscriptReadingAnchorRestorer } from './transcript-reading-anchor.js';
+import { JumpToLatestButton } from './jump-to-latest-button';
+import { TranscriptFoldRail } from './transcript-fold-rail';
+import '../styles/transcript-opening.css';
+
+export type TranscriptViewportProps = {
+  messageCount: number;
+  activitySignal: string;
+  messages?: ChatMessageUi[];
+  historyIndex?: SessionUserMessageIndexData | null;
+  onJumpToHistoryAnchor?: (anchor: SessionUserMessageAnchor) => Promise<void> | void;
+  /** A bounded anchor window is visible while the live tail stays resident. */
+  historyViewActive?: boolean;
+  onReturnToLatest?: () => void;
+  sessionId?: string;
+  awaitingTranscript?: boolean;
+  canLoadOlder?: boolean;
+  canLoadNewer?: boolean;
+  /** The history view shows every row Host has and ends inside the live tail. */
+  historyCaughtUp?: boolean;
+  historyLoading?: boolean;
+  onLoadOlder?: (keepMessageId?: string) => Promise<void>;
+  onLoadNewer?: (keepMessageId?: string) => Promise<void>;
+  locale?: 'zh-CN' | 'en';
+  /** Newly submitted live turn that should restore follow-tail. */
+  liveTurnId?: string | null;
+  children: ReactNode;
+};
+
+export function TranscriptViewport(props: TranscriptViewportProps): ReactElement {
+  const handleLoadOlderRef = useRef<() => void>(() => {});
+  const scroll = useTranscriptScroll({
+    messageCount: props.messageCount,
+    activitySignal: props.activitySignal,
+    liveTurnId: props.liveTurnId ?? null,
+    historyViewActive: props.historyViewActive === true,
+    canLoadOlder: props.canLoadOlder === true,
+    onUnscrollableHistoryIntent: () => {
+      handleLoadOlderRef.current();
+    },
+  });
+  const opening = useTranscriptReveal({
+    ...(props.sessionId ? { sessionId: props.sessionId } : {}),
+    messageCount: props.messageCount,
+    awaitingTranscript: props.awaitingTranscript === true,
+    historyViewActive: props.historyViewActive === true,
+    scrollElementRef: scroll.containerRef,
+    jumpToLatest: scroll.jumpToLatest,
+  });
+
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef(false);
+  const readingAnchorRestorerRef = useRef<TranscriptReadingAnchorRestorer | null>(null);
+  const returnToLive = useCallback((): void => {
+    props.onReturnToLatest?.();
+    scroll.jumpToLatest();
+  }, [props.onReturnToLatest, scroll.jumpToLatest]);
+  const paging = useTranscriptHistoryPaging({
+    ...props,
+    scroll,
+    readingAnchorRestorerRef,
+    onReturnToLive: returnToLive,
+  });
+  handleLoadOlderRef.current = paging.loadOlder;
+  const openedSessionPinRef = useRef<{ sessionId: string; pinned: boolean } | null>(null);
+
+  useLayoutEffect(() => {
+    if (props.historyViewActive) {
+      scroll.detachFromTail();
+      return;
+    }
+    // Sidebar / ordinary session switches start at the live tail. History
+    // ticks and search still jump via the message scroller, not this memory.
+    if (!props.sessionId) {
+      return;
+    }
+    const previous = openedSessionPinRef.current;
+    if (previous?.sessionId !== props.sessionId) {
+      openedSessionPinRef.current = {
+        sessionId: props.sessionId,
+        pinned: props.messageCount > 0,
+      };
+      scroll.jumpToLatest();
+      return;
+    }
+    // Cold resume paints an empty placeholder first. Re-pin once the first
+    // page arrives, otherwise the virtualizer stays on the estimated bottom
+    // of a short list — the middle of the real transcript.
+    if (!previous.pinned && props.messageCount > 0) {
+      openedSessionPinRef.current = { sessionId: props.sessionId, pinned: true };
+      scroll.jumpToLatest();
+    }
+  }, [props.historyViewActive, props.messageCount, props.sessionId, scroll.detachFromTail, scroll.jumpToLatest]);
+
+  // Floating scrollbar geometry: thumb height = ratio * track height,
+  // thumb top = progress * (track height - thumb height).
+  const thumbHeightPct = Math.max(8, scroll.scrollRatio * 100);
+  const thumbTopPct = scroll.scrollProgress * (100 - thumbHeightPct);
+
+  /** Given a Y coordinate within the track, scroll the stream to that position. */
+  const scrollToTrackY = useCallback(
+    (clientY: number) => {
+      const track = trackRef.current;
+      const container = scroll.containerRef.current;
+      if (!track || !container) return;
+
+      const rect = track.getBoundingClientRect();
+      const fraction = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+      const maxScroll = container.scrollHeight - container.clientHeight;
+      container.scrollTop = fraction * maxScroll;
+    },
+    [scroll.containerRef],
+  );
+
+  const handleTrackMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (event.target !== trackRef.current) return;
+      event.preventDefault();
+      scrollToTrackY(event.clientY);
+    },
+    [scrollToTrackY],
+  );
+
+  const handleThumbMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      draggingRef.current = true;
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (!draggingRef.current) return;
+        scrollToTrackY(moveEvent.clientY);
+      };
+      const handleMouseUp = () => {
+        draggingRef.current = false;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    },
+    [scrollToTrackY],
+  );
+
+  const handleStreamScroll = useCallback((): void => {
+    scroll.handleScroll();
+    paging.onScroll();
+  }, [paging.onScroll, scroll]);
+
+  const locale = props.locale ?? 'zh-CN';
+  const handleJumpToHistoryAnchor = useCallback(async (anchor: SessionUserMessageAnchor) => {
+    paging.resetIntent();
+    await props.onJumpToHistoryAnchor?.(anchor);
+  }, [paging.resetIntent, props.onJumpToHistoryAnchor]);
+  const handleJumpToLatest = useCallback((): void => {
+    paging.resetIntent();
+    returnToLive();
+  }, [paging.resetIntent, returnToLive]);
+  const showJumpToLatest =
+    props.messageCount > 0 &&
+    (props.historyViewActive === true || scroll.showJumpToLatest);
+  const jumpToLatestLabel = props.historyViewActive
+    ? locale === 'zh-CN'
+      ? '返回最新消息'
+      : 'Return to latest messages'
+    : locale === 'zh-CN'
+      ? '跳到最新'
+      : 'Jump to latest';
+
+  return (
+        <TranscriptScrollProvider
+      sessionId={props.sessionId ?? null}
+      scrollElementRef={scroll.containerRef}
+      notifyContentGrew={scroll.notifyContentGrew}
+      detachFromTail={scroll.detachFromTail}
+      isFollowingTail={scroll.isFollowingTail}
+      beginProgrammaticScroll={scroll.beginProgrammaticScroll}
+      beginLocalFoldLayout={scroll.beginLocalFoldLayout}
+      readingAnchorRestorerRef={readingAnchorRestorerRef}
+    >
+      <div className={`transcript-viewport${opening ? ' is-opening' : ''}`}>
+        {opening || (props.awaitingTranscript && props.messageCount === 0 && !props.historyViewActive) ? (
+          <div className="transcript-opening-state" data-testid="transcript-opening-state" role="status">
+            <div className="transcript-opening-container">
+              <div className="transcript-opening-banner">
+                <span aria-hidden="true" className="transcript-opening-spinner" />
+                <span data-testid={props.awaitingTranscript ? 'transcript-awaiting-banner' : undefined}>
+                  {locale === 'zh-CN' ? '正在打开会话…' : 'Opening conversation…'}
+                </span>
+              </div>
+              <div className="transcript-opening-skeleton" aria-hidden="true">
+                <div className="transcript-skeleton-turn is-user">
+                  <div className="transcript-skeleton-body">
+                    <div className="transcript-skeleton-bar w-80 ml-auto" />
+                    <div className="transcript-skeleton-bar w-60 ml-auto" />
+                  </div>
+                  <div className="transcript-skeleton-avatar is-user" />
+                </div>
+                <div className="transcript-skeleton-turn is-assistant">
+                  <div className="transcript-skeleton-avatar is-assistant" />
+                  <div className="transcript-skeleton-body">
+                    <div className="transcript-skeleton-card">
+                      <div className="transcript-skeleton-tool-header">
+                        <span className="transcript-skeleton-tool-dot" />
+                        <div className="transcript-skeleton-bar w-40" />
+                      </div>
+                      <div className="transcript-skeleton-bar w-100" />
+                      <div className="transcript-skeleton-bar w-80" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        <HistoryTicksDrawer
+          messages={props.messages}
+          historyIndex={props.historyIndex}
+          onJumpToAnchor={handleJumpToHistoryAnchor}
+        />
+        <TranscriptFoldRail
+          scrollElementRef={scroll.containerRef}
+          beginProgrammaticScroll={scroll.beginProgrammaticScroll}
+          locale={locale}
+        />
+        <div
+          className="chat-stream"
+          data-testid="chat-stream"
+          data-artifact-layout-root="main"
+          data-artifact-layout-session={props.sessionId}
+          ref={scroll.containerRef}
+          aria-hidden={opening}
+          inert={opening}
+          style={
+            {
+              '--transcript-current-response-min-height': `${scroll.currentResponseMinHeight}px`,
+            } as CSSProperties
+          }
+          onScroll={handleStreamScroll}
+          role="log"
+          aria-label="Conversation"
+          aria-relevant="additions"
+          aria-live="off"
+          aria-busy={opening || props.activitySignal.includes('streaming')}
+        >
+          {props.children}
+        </div>
+        <div className="transcript-edge-blur" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        {showJumpToLatest ? (
+          <JumpToLatestButton label={jumpToLatestLabel} onClick={handleJumpToLatest} />
+        ) : null}
+        {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}
+        <div
+          className={
+            scroll.isOverflowing
+              ? 'chat-stream-floating-scrollbar is-visible'
+              : 'chat-stream-floating-scrollbar'
+          }
+          data-testid="chat-stream-floating-scrollbar"
+          aria-hidden="true"
+          ref={trackRef}
+          onMouseDown={handleTrackMouseDown}
+        >
+          <div
+            className="chat-stream-floating-scrollbar-thumb"
+            style={{
+              height: `${thumbHeightPct}%`,
+              top: `${thumbTopPct}%`,
+            }}
+            onMouseDown={handleThumbMouseDown}
+          />
+        </div>
+      </div>
+    </TranscriptScrollProvider>
+  );
+}

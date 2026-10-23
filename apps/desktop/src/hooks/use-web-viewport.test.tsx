@@ -3,7 +3,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useWebViewport } from './use-web-viewport.js';
-import { WEB_VIEWPORT_HEIGHT_VAR, WEB_VIEWPORT_KEYBOARD_INSET_VAR } from '../web-viewport.js';
+import { WEB_VIEWPORT_HEIGHT_VAR, WEB_VIEWPORT_KEYBOARD_INSET_VAR } from '../browser/web-viewport.js';
 
 describe('useWebViewport', () => {
   afterEach(() => {

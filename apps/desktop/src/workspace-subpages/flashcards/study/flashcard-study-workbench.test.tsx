@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import type { FlashcardModel, HostCommand, HostResponse } from '@piwin/contracts';
-import { PIWIN_APPEARANCE_DARK } from '../../../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK } from '../../../theme/appearance-tokens';
 import { FlashcardsWorkspaceView } from '../../FlashcardsWorkspaceView';
 import { createStudyHostFake, type StudyHarnessCard } from './study-test-harness';
 import { clearStudyResumePointer, clearStudyReturnContext } from './study-return-context';

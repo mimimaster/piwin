@@ -36,12 +36,12 @@
 
 | File | Responsibility |
 |------|----------------|
-| `apps/desktop/src/appearance-tokens.ts` | UI font stack: system first (Cursor-like) |
+| `apps/desktop/src/theme/appearance-tokens.ts` | UI font stack: system first (Cursor-like) |
 | `apps/desktop/src/styles/tokens.css` | Fallback `--font-sans` match |
-| `apps/desktop/src/file-tree-model.ts` **(new)** | Pure: flatten visible rows, filter, keyboard target, git status map |
-| `apps/desktop/src/file-tree-model.test.ts` **(new)** | Unit tests for pure model |
-| `apps/desktop/src/file-tree-panel.tsx` | Panel UI: tree-first, filter, keyboard, icons, git dots |
-| `apps/desktop/src/file-tree-panel.test.tsx` **(new)** | Component tests (filter, select, open callback) |
+| `apps/desktop/src/files/file-tree-model.ts` **(new)** | Pure: flatten visible rows, filter, keyboard target, git status map |
+| `apps/desktop/src/files/file-tree-model.test.ts` **(new)** | Unit tests for pure model |
+| `apps/desktop/src/files/file-tree-panel.tsx` | Panel UI: tree-first, filter, keyboard, icons, git dots |
+| `apps/desktop/src/files/file-tree-panel.test.tsx` **(new)** | Component tests (filter, select, open callback) |
 | `apps/desktop/src/file-type-icon.tsx` | Optional: `isDirectory` / open-folder hint if needed |
 | `apps/desktop/src/styles/region-inspector.css` | Tree density, filter bar, git dots; remove split-preview layout |
 | `apps/desktop/src/App.tsx` | Wire `onOpenFile` / `onInsertPath`; pass git request if needed |
@@ -53,9 +53,9 @@
 ## Task 1: Cursor-like UI font stack (system first)
 
 **Files:**
-- Modify: `apps/desktop/src/appearance-tokens.ts`
+- Modify: `apps/desktop/src/theme/appearance-tokens.ts`
 - Modify: `apps/desktop/src/styles/tokens.css`
-- Test: `apps/desktop/src/appearance-tokens.test.ts` (only if font string is asserted; otherwise visual/manual)
+- Test: `apps/desktop/src/theme/appearance-tokens.test.ts` (only if font string is asserted; otherwise visual/manual)
 
 **Interfaces:**
 - Produces: `SHARED_FONT` / `--font-sans` with system SF Pro first
@@ -94,7 +94,7 @@ Expected: PASS (variable set unchanged; only values of `--font` / applied font s
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/desktop/src/appearance-tokens.ts apps/desktop/src/styles/tokens.css
+git add apps/desktop/src/theme/appearance-tokens.ts apps/desktop/src/styles/tokens.css
 git commit -m "$(cat <<'EOF'
 style(desktop): prefer system SF Pro stack for UI fonts
 
@@ -112,8 +112,8 @@ EOF
 ## Task 2: Pure file-tree model (flatten, filter, keyboard, git map)
 
 **Files:**
-- Create: `apps/desktop/src/file-tree-model.ts`
-- Create: `apps/desktop/src/file-tree-model.test.ts`
+- Create: `apps/desktop/src/files/file-tree-model.ts`
+- Create: `apps/desktop/src/files/file-tree-model.test.ts`
 
 **Interfaces:**
 - Produces:
@@ -127,7 +127,7 @@ EOF
 - [ ] **Step 1: Write failing tests**
 
 ```ts
-// apps/desktop/src/file-tree-model.test.ts
+// apps/desktop/src/files/file-tree-model.test.ts
 import { describe, expect, it } from 'vitest';
 import type { GitChangedFile } from '@piwin/contracts';
 import {
@@ -450,7 +450,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/desktop/src/file-tree-model.ts apps/desktop/src/file-tree-model.test.ts
+git add apps/desktop/src/files/file-tree-model.ts apps/desktop/src/files/file-tree-model.test.ts
 git commit -m "$(cat <<'EOF'
 feat(desktop): pure file-tree model for filter, flatten, keyboard, git map
 
@@ -466,10 +466,10 @@ EOF
 ## Task 3: Tree-first layout + FileTypeIcon + open via DocPreview
 
 **Files:**
-- Modify: `apps/desktop/src/file-tree-panel.tsx`
+- Modify: `apps/desktop/src/files/file-tree-panel.tsx`
 - Modify: `apps/desktop/src/App.tsx` (wire `onOpenFile`)
 - Modify: `apps/desktop/src/styles/region-inspector.css` (remove split; tree full height)
-- Create: `apps/desktop/src/file-tree-panel.test.tsx`
+- Create: `apps/desktop/src/files/file-tree-panel.test.tsx`
 
 **Interfaces:**
 - Consumes: `FileTypeIcon` from `./file-type-icon`; model types from `./file-tree-model`
@@ -494,7 +494,7 @@ export type FileTreePanelProps = {
 - [ ] **Step 1: Write component test (open callback, no split preview)**
 
 ```tsx
-// apps/desktop/src/file-tree-panel.test.tsx
+// apps/desktop/src/files/file-tree-panel.test.tsx
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -630,7 +630,7 @@ Expected: PASS
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/desktop/src/file-tree-panel.tsx apps/desktop/src/file-tree-panel.test.tsx apps/desktop/src/App.tsx apps/desktop/src/styles/region-inspector.css
+git add apps/desktop/src/files/file-tree-panel.tsx apps/desktop/src/files/file-tree-panel.test.tsx apps/desktop/src/App.tsx apps/desktop/src/styles/region-inspector.css
 git commit -m "$(cat <<'EOF'
 feat(desktop): tree-first Files panel with type icons and DocPreview open
 
@@ -648,9 +648,9 @@ EOF
 ## Task 4: Filter input (client-side)
 
 **Files:**
-- Modify: `apps/desktop/src/file-tree-panel.tsx`
+- Modify: `apps/desktop/src/files/file-tree-panel.tsx`
 - Modify: `apps/desktop/src/styles/region-inspector.css`
-- Modify: `apps/desktop/src/file-tree-panel.test.tsx`
+- Modify: `apps/desktop/src/files/file-tree-panel.test.tsx`
 
 **Interfaces:**
 - Consumes: `filterTreeNodes` from `file-tree-model`
@@ -711,7 +711,7 @@ Header layout: keep title + refresh; filter full width below.
 - [ ] **Step 4: Tests pass + commit**
 
 ```bash
-git add apps/desktop/src/file-tree-panel.tsx apps/desktop/src/file-tree-panel.test.tsx apps/desktop/src/styles/region-inspector.css
+git add apps/desktop/src/files/file-tree-panel.tsx apps/desktop/src/files/file-tree-panel.test.tsx apps/desktop/src/styles/region-inspector.css
 git commit -m "$(cat <<'EOF'
 feat(desktop): client-side filter for workspace file tree
 
@@ -727,8 +727,8 @@ EOF
 ## Task 5: Keyboard navigation
 
 **Files:**
-- Modify: `apps/desktop/src/file-tree-panel.tsx`
-- Modify: `apps/desktop/src/file-tree-panel.test.tsx`
+- Modify: `apps/desktop/src/files/file-tree-panel.tsx`
+- Modify: `apps/desktop/src/files/file-tree-panel.test.tsx`
 - Modify: `apps/desktop/src/styles/region-inspector.css` (focus-visible ring on selected row)
 
 **Interfaces:**
@@ -796,7 +796,7 @@ Refactor `toggleNode` into `updateNodeExpanded(nodes, path, nextExpanded)` used 
 - [ ] **Step 4: Tests + commit**
 
 ```bash
-git add apps/desktop/src/file-tree-panel.tsx apps/desktop/src/file-tree-panel.test.tsx apps/desktop/src/styles/region-inspector.css
+git add apps/desktop/src/files/file-tree-panel.tsx apps/desktop/src/files/file-tree-panel.test.tsx apps/desktop/src/styles/region-inspector.css
 git commit -m "$(cat <<'EOF'
 feat(desktop): keyboard navigation for workspace file tree
 
@@ -812,8 +812,8 @@ EOF
 ## Task 6: Git status decorations
 
 **Files:**
-- Modify: `apps/desktop/src/file-tree-panel.tsx`
-- Modify: `apps/desktop/src/file-tree-panel.test.tsx`
+- Modify: `apps/desktop/src/files/file-tree-panel.tsx`
+- Modify: `apps/desktop/src/files/file-tree-panel.test.tsx`
 - Modify: `apps/desktop/src/styles/region-inspector.css`
 - Modify: `apps/desktop/src/App.tsx` only if request union needs `git/status` (prefer extending panel `request` type)
 
@@ -880,7 +880,7 @@ it('shows M badge for modified file', async () => {
 - [ ] **Step 4: Tests + commit**
 
 ```bash
-git add apps/desktop/src/file-tree-panel.tsx apps/desktop/src/file-tree-panel.test.tsx apps/desktop/src/styles/region-inspector.css
+git add apps/desktop/src/files/file-tree-panel.tsx apps/desktop/src/files/file-tree-panel.test.tsx apps/desktop/src/styles/region-inspector.css
 git commit -m "$(cat <<'EOF'
 feat(desktop): git status decorations on workspace file tree
 
@@ -896,9 +896,9 @@ EOF
 ## Task 7: Expand-state memory per project
 
 **Files:**
-- Create: `apps/desktop/src/file-tree-expand-memory.ts`
-- Create: `apps/desktop/src/file-tree-expand-memory.test.ts`
-- Modify: `apps/desktop/src/file-tree-panel.tsx`
+- Create: `apps/desktop/src/files/file-tree-expand-memory.ts`
+- Create: `apps/desktop/src/files/file-tree-expand-memory.test.ts`
+- Modify: `apps/desktop/src/files/file-tree-panel.tsx`
 
 **Interfaces:**
 
@@ -943,7 +943,7 @@ function collectExpanded(nodes: FileTreeNodeState[]): string[] { ... }
 - [ ] **Step 4: Tests + commit**
 
 ```bash
-git add apps/desktop/src/file-tree-expand-memory.ts apps/desktop/src/file-tree-expand-memory.test.ts apps/desktop/src/file-tree-panel.tsx
+git add apps/desktop/src/files/file-tree-expand-memory.ts apps/desktop/src/files/file-tree-expand-memory.test.ts apps/desktop/src/files/file-tree-panel.tsx
 git commit -m "$(cat <<'EOF'
 feat(desktop): persist file tree expand state per project
 

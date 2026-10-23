@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK } from '../../theme/appearance-tokens';
 import type { FlashcardItem } from '@piwin/contracts';
 import { TactileStudyStage } from './TactileStudyStage';
 import { flush } from '../workspace-subpages-test-helpers';

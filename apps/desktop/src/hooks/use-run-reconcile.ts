@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, type Dispatch } from 'react';
 import type { ExecutionRunRecord, SessionTranscriptMessage } from '@piwin/contracts';
 import { isRunActive } from '@piwin/contracts';
-import type { HostClient } from '../host-client.js';
-import type { ChatUiAction } from '../chat-reducer.js';
-import { planRunReconcile } from '../run-reconcile.js';
+import type { HostClient } from '../host/host-client.js';
+import type { ChatUiAction } from '../conversation/chat-reducer.js';
+import { planRunReconcile } from '../run-activity/run-reconcile.js';
 import { reconcilePendingPermissions } from './reconcile-pending-permissions.js';
-import { requestQueuedTurnQueue } from '../queued-turn-queue-request.js';
+import { requestQueuedTurnQueue } from '../conversation/queued-turn-queue-request.js';
 
 // A prompt acknowledgement arrives before provider execution. These are
 // bounded convergence checks for a terminal push that was lost after the Run

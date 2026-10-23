@@ -30,7 +30,7 @@ workbench by default; the existing interface stays reachable from settings.
    Switching is a navigation, not a live swap.
 3. **The workbench is bundled, not loaded from the Host.** A page served from
    `http://host` would lose the Tauri plugins and blank when the Host is down.
-4. **Shell runtime is explicit.** `apps/desktop/src/shell-runtime.ts` tells
+4. **Shell runtime is explicit.** `apps/desktop/src/tool-cards/shell-runtime.ts` tells
    `browser`, `desktop-tauri` and `mobile-tauri` apart. `isTauriRuntime()` now
    means the Desktop app only; the mobile shell paints `web` window chrome and
    uses the Tauri bridge only for what it has (WebSocket, Keychain, camera).
@@ -40,7 +40,7 @@ workbench by default; the existing interface stays reachable from settings.
    package still does not import Tauri. The workbench connect wall
    scans a pairing QR in the mobile shell; the credential stays in the
    Keychain and is primed into memory before the first hello
-   (`apps/desktop/src/device-admission.ts`). The client still identifies as
+   (`apps/desktop/src/devices/device-admission.ts`). The client still identifies as
    `clientType: 'desktop'` because it runs the Desktop capability set.
 6. **Classic is frozen.** Crash fixes only. It is removed once the default
    interface has feature parity and has gone four weeks without a switch back.
@@ -54,7 +54,7 @@ only execution authority.
 - Features reach the phone when they reach the workbench; no display mapping.
 - Device capabilities reach the default interface through shared modules, not
   through classic code: Apple Health (`@piwin/host-client` `device-tools/`,
-  wired by `apps/desktop/src/device-health.ts`; a turn opts in with the
+  wired by `apps/desktop/src/devices/device-health.ts`; a turn opts in with the
   `connected-source` context chip), local notifications
   (`desktop-attention-os-mobile.ts`), and external links (the shell's own `mobile_open_external` command; the
   shell plugin's JS `open` cannot launch anything on iOS).

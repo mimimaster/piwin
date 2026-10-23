@@ -7,7 +7,7 @@ import {
   type EnabledExtensionSessionBackend,
   type ExtensionSummary,
 } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 
 export function useEnabledSessionBackends(
   hostClient: HostClient | null | undefined,

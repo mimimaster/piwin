@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { DocPreviewPanel } from '../DocPreviewPanel.js';
+import { DocPreviewPanel } from '../documents/DocPreviewPanel.js';
 
 const SOURCE = Array.from({ length: 2000 }, (_, index) => {
   if (index === 78) return '/* multiline comment begins';

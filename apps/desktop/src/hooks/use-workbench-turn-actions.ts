@@ -9,13 +9,13 @@ import type {
   RunInterventionRecord,
   SessionPlan,
 } from '@piwin/contracts';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
-import type { HostClient } from '../host-client';
-import { isUnchangedCurrentTurnResend } from '../conversation-branch';
-import { pushError, type NotificationAction } from '../notification-queue';
-import { hostFailureNotice, isStaleInterventionError } from '../host-problem-copy.js';
-import { useDesktopLocale } from '../desktop-locale-context';
-import type { PlanTrayAction } from '../plan-todo-model.js';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
+import type { HostClient } from '../host/host-client';
+import { isUnchangedCurrentTurnResend } from '../conversation/conversation-branch';
+import { pushError, type NotificationAction } from '../notifications/notification-queue';
+import { hostFailureNotice, isStaleInterventionError } from '../host/host-problem-copy.js';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
+import type { PlanTrayAction } from '../plan/plan-todo-model.js';
 
 export type UseWorkbenchTurnActionsArgs = {
   hostClient: HostClient;

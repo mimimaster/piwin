@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { DesktopLocale } from '../desktop-locale.js';
+import type { DesktopLocale } from '../i18n/desktop-locale.js';
 import type { HostCommand, HostPush, HostResponse } from '@piwin/contracts';
 import type { HostRequestOptions } from '@piwin/host-client';
 import { KnowledgeWorkspaceView } from './KnowledgeWorkspaceView.js';

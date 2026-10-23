@@ -15,7 +15,7 @@ import type {
   TurnChangeFileEntry,
   TurnChangeSummary,
 } from '@piwin/contracts';
-import type { MockHostBackend } from '../host-client-mock.js';
+import type { MockHostBackend } from '../host/host-client-mock.js';
 
 const PROJECT = '/mock/piwin';
 export const TURN_CHANGES_SESSION_ID = 'fixture-turn-changes';

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactElement, type Reac
 import { FlashcardFace, TearDeckSurface } from '@piwin/ui-kit';
 import type { FlashcardItem, ReviewRating } from '@piwin/contracts';
 import { itemAnswerText, itemPreviewText } from '@piwin/flashcards/cloze';
-import type { DesktopLocale } from '../../desktop-locale';
-import { MarkdownView } from '../../MarkdownView';
+import type { DesktopLocale } from '../../i18n/desktop-locale';
+import { MarkdownView } from '../../markdown/MarkdownView';
 import { flashcardStudyCopy } from './study/study-copy';
 import { resolveStudyKeyboard, type StudyKeyboardTarget } from './study/study-keyboard';
 import { StudyRateBar } from './study/study-rate-bar';

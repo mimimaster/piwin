@@ -7,10 +7,10 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { SessionScope, SessionSearchHit } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import type { SessionListItemUi } from '../chat-reducer';
-import { groupSessionsByRecency, type SessionTimeGroup } from '../session-groups';
-import { sessionScopeKey } from '../session-scope-key';
+import type { HostClient } from '../host/host-client';
+import type { SessionListItemUi } from '../conversation/chat-reducer';
+import { groupSessionsByRecency, type SessionTimeGroup } from '../session/session-groups';
+import { sessionScopeKey } from '../session/session-scope-key';
 
 export type UseSessionListQueryInput = {
   hostClient: HostClient;

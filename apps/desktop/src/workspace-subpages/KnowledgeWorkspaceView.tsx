@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button, Dialog, EmptyState, Notice, Spinner } from '@piwin/ui-kit';
 import type { HostListDirData, HostPush, KnowledgeCitation, WikiDistillResult } from '@piwin/contracts';
-import { IconBook } from '../shell-icons';
-import { requestHostPickerEntry } from '../host-picker-create-entry.js';
-import { HostWorkspacePicker } from '../host-workspace-picker';
+import { IconBook } from '../tool-cards/shell-icons';
+import { requestHostPickerEntry } from '../host/host-picker-create-entry.js';
+import { HostWorkspacePicker } from '../host/host-workspace-picker';
 import { StudioTopbar } from './studio/studio-chrome';
 import { KnowledgeWikiView } from '../knowledge/KnowledgeWikiView.js';
 import { WikiSourceDrawer } from '../knowledge/WikiSourceDrawer.js';
@@ -13,7 +13,7 @@ import {
 } from '../knowledge/use-knowledge-bases.js';
 import { FlashcardsStudyView } from './flashcards/FlashcardsStudyView.js';
 import type { FlashcardStudyRequest } from './flashcards/study/study-session.js';
-import { runDoccardsGenerate } from '../doccards-generate-client.js';
+import { runDoccardsGenerate } from '../documents/doccards-generate-client.js';
 
 export type KnowledgeWorkspaceViewProps = {
   locale: 'zh-CN' | 'en';

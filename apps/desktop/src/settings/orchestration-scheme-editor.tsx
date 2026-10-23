@@ -20,7 +20,7 @@ import {
   type OrchestrationSchemeSettings,
 } from '@piwin/contracts';
 import { Button, Notice } from '@piwin/ui-kit';
-import { useConfirmDialog } from '../use-confirm-dialog';
+import { useConfirmDialog } from '../hooks/use-confirm-dialog';
 import type { OrchestrationCopy } from './orchestration-copy';
 import { OrchestrationSchemeForm } from './orchestration-scheme-form';
 import {

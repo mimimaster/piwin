@@ -1,6 +1,6 @@
 import { readKnowledgeToolDetails, type KnowledgeCitation } from '@piwin/contracts';
-import type { ChatMessageUi, ToolCardUi } from '../chat-reducer';
-import { getMessageTools } from '../flashcard-result-extract.js';
+import type { ChatMessageUi, ToolCardUi } from '../conversation/chat-reducer';
+import { getMessageTools } from '../flashcards/flashcard-result-extract.js';
 import {
   EMPTY_KNOWLEDGE_CITATION_INDEX,
   type KnowledgeCitationIndex,

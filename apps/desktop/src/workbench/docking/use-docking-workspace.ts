@@ -1,10 +1,10 @@
-import { mergeLiveSubscriptionIds } from '../../live-subscription-ids.js';
-import { useSideChatLiveSessionIds } from '../../side-chat-sessions.js';
+import { mergeLiveSubscriptionIds } from '../../live/live-subscription-ids.js';
+import { useSideChatLiveSessionIds } from '../../session/side-chat-sessions.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { HostClient } from '../../host-client.js';
-import { shouldRevealBrowserInspector } from '../../browser-inspector-reveal.js';
-import type { RightPanelTab } from '../../right-panel.js';
-import type { SurfaceTitlebar } from '../../surface-titlebar.js';
+import type { HostClient } from '../../host/host-client.js';
+import { shouldRevealBrowserInspector } from '../../browser/browser-inspector-reveal.js';
+import type { RightPanelTab } from '../../right-panel/right-panel.js';
+import type { SurfaceTitlebar } from '../../conversation/surface-titlebar.js';
 import { PERSIST_DEBOUNCE_MS } from './constants.js';
 import { tryOpenDockingTool } from './docking-tool-bridge.js';
 import { createWorkspaceIdFactory, type WorkspaceIdFactory } from './ids.js';

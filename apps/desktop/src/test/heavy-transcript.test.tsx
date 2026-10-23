@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
 import {
   appendBoundedLiveText,
   calculateUtf8ByteLength,
@@ -14,14 +14,14 @@ import {
   STREAMING_TEXT_RETENTION_OPTIONS,
   STREAMING_TEXT_TRUNCATION_MARKER,
   STREAMING_THINKING_RETENTION_OPTIONS,
-} from '../chat-reducer';
-import { MarkdownView } from '../MarkdownView';
+} from '../conversation/chat-reducer';
+import { MarkdownView } from '../markdown/MarkdownView';
 import {
   highlightCode,
   MAX_HIGHLIGHT_CODE_BYTES,
   MAX_HIGHLIGHT_LINES,
   shouldHighlightCode,
-} from '../syntax-highlight';
+} from '../markdown/syntax-highlight';
 import {
   create900LineCodeBlock,
   createHeavyTranscriptMessages,

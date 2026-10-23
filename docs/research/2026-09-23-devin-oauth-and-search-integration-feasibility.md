@@ -101,8 +101,8 @@ Desktop 侧有三处**人工白名单/穷尽表**需要补（否则卡片不显�
 
 | 文件 | 内容 |
 |------|------|
-| `apps/desktop/src/subscription-accounts.tsx:38-48` | `OAUTH_DISPLAY_PROVIDER_IDS` 显示顺序 |
-| `apps/desktop/src/subscription-accounts.tsx:50-100` | `CARD_COPY`（title / tagline 中英文 / 登录按钮文案），穷尽 Record |
+| `apps/desktop/src/models/subscription-accounts.tsx:38-48` | `OAUTH_DISPLAY_PROVIDER_IDS` 显示顺序 |
+| `apps/desktop/src/models/subscription-accounts.tsx:50-100` | `CARD_COPY`（title / tagline 中英文 / 登录按钮文案），穷尽 Record |
 | `apps/desktop/src/provider-icons.tsx:119-122` | 品牌图标 + 配色 |
 
 ### 2.2 登录流才是真正的工作量（已验证）

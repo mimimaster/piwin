@@ -2,7 +2,7 @@
  * Composer slash menu item shapes (commands · modes · skills · extension commands).
  */
 
-import type { AgentModeId } from '../agent-mode';
+import type { AgentModeId } from '../agents/agent-mode';
 
 /** `extension`: a command a Pi extension registered; sent verbatim for Pi to run. */
 /**

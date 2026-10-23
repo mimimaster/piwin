@@ -6,7 +6,7 @@ import { useCallback, useState, type ReactNode } from 'react';
 import type { HostCommand, HostPush, HostResponse } from '@piwin/contracts';
 import { DropdownMenuItem } from '@piwin/ui-kit';
 import { TurnChangeRecordDialog } from './turn-change-record-dialog.js';
-import { pickProjectDirectory } from '../pick-project-directory.js';
+import { pickProjectDirectory } from '../files/pick-project-directory.js';
 
 export type TurnChangeRecordEntryInput = {
   hostClient: {

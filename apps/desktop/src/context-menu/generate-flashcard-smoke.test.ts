@@ -4,9 +4,9 @@
  * Not a full Mock Host roundtrip / workbench harness.
  */
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatMessageUi } from '../chat-reducer.js';
-import { extractFlashcardRecords } from '../flashcard-result-extract.js';
-import type { HostClient } from '../host-client.js';
+import type { ChatMessageUi } from '../conversation/chat-reducer.js';
+import { extractFlashcardRecords } from '../flashcards/flashcard-result-extract.js';
+import type { HostClient } from '../host/host-client.js';
 import {
   createDesktopContextMenuValue,
   type DesktopContextMenuValueDeps,

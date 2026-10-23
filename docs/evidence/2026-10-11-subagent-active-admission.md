@@ -26,7 +26,7 @@ contract comments, architecture and ADR 0030 record the same semantics.
   chat-prompt budget assertions (2572 > 2500) and the catalog-action admission
   assertion for `flashcards:study-read`.
 - Root typecheck stopped on another concurrent UI change:
-  `apps/desktop/src/subagent-group-card.tsx:21`, unused `SubagentSpinner` import.
+  `apps/desktop/src/agents/subagent-group-card.tsx:21`, unused `SubagentSpinner` import.
 - Diff whitespace checks passed. Formatter differences reported for five
   touched files were all already present at HEAD; added lines need no changes.
 

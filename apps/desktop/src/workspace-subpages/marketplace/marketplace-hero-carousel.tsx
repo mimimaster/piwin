@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import type { DesktopLocale } from '../../desktop-locale.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
 
 export type MarketplaceHeroCarouselProps = {
   locale?: DesktopLocale | undefined;

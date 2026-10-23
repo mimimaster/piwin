@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { PiwinConfig } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens.js';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens.js';
 import { SettingsProvider, type SettingsContextValue } from './settings-context.js';
 import { DevinLoginFollowUp } from './devin-login-follow-up.js';
 

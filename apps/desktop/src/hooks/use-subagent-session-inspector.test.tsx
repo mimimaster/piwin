@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { HostResponse, SessionSummary, SessionTranscriptMessage } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import type { SubagentStreamState } from '../chat-reducer';
+import type { HostClient } from '../host/host-client';
+import type { SubagentStreamState } from '../conversation/chat-reducer';
 import {
   useSubagentSessionInspector,
   type SubagentInspectorController,

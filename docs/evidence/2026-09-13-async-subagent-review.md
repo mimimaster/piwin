@@ -37,9 +37,9 @@
 | Host async tools | `packages/host-runtime/src/subagent-async-tool.test.ts`, `subagent-tool-input.test.ts`, `subagent-orchestrator.test.ts` |
 | Settlement / phase | `packages/host-runtime/src/subagent-parent-settlement.test.ts`, `run-registry.test.ts` |
 | Presentation | `packages/agent-host/src/subagent-presentation.test.ts`, `packages/contracts/src/activity-summary.test.ts` |
-| Desktop inline | `apps/desktop/src/subagent-invocation-block.test.tsx`, `subagent-control-row.test.tsx`, `subagent-orchestration-view.test.ts` |
-| Tasks / waiting copy | `apps/desktop/src/SubAgentPanel.test.tsx`, `run-status.test.ts`, `run-activity-mappers.test.ts` |
-| Activity pill / terminal | `apps/desktop/src/composer-activity-pill.test.tsx`, `composer-activity-model.test.ts`, `terminal-job-monitor.test.tsx` |
+| Desktop inline | `apps/desktop/src/agents/subagent-invocation-block.test.tsx`, `subagent-control-row.test.tsx`, `subagent-orchestration-view.test.ts` |
+| Tasks / waiting copy | `apps/desktop/src/agents/SubAgentPanel.test.tsx`, `run-status.test.ts`, `run-activity-mappers.test.ts` |
+| Activity pill / terminal | `apps/desktop/src/composer/composer-activity-pill.test.tsx`, `composer-activity-model.test.ts`, `terminal-job-monitor.test.tsx` |
 | Blueprint gating | `packages/host-runtime/src/blueprint-compiler.test.ts` (async tools on capable generations) |
 
 ## Not verified in this worktree

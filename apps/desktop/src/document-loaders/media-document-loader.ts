@@ -7,8 +7,8 @@
  * local vault path needs no round-trip at all (the Tauri asset protocol already
  * reads it).
  */
-import type { ActiveDocument } from '../active-document.js';
-import { readMediaObjectUrlViaHost } from '../media-host-read.js';
+import type { ActiveDocument } from '../documents/active-document.js';
+import { readMediaObjectUrlViaHost } from '../media/media-host-read.js';
 import type { DocumentLoaderContext } from './document-loader-context.js';
 import { unavailableDocument } from './document-loader-context.js';
 

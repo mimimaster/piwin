@@ -7,7 +7,7 @@ import {
   IconSpark,
   IconStar,
   IconTrash,
-} from '../../shell-icons';
+} from '../../tool-cards/shell-icons';
 
 export type LibraryMediaCardModel = {
   id: string;

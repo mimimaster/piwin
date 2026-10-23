@@ -4,15 +4,15 @@ import {
   readAttentionPreferences,
   subscribeAttentionPreferences,
   writeAttentionPreferences,
-} from '../../attention-preferences';
+} from '../../notifications/attention-preferences';
 import {
   createDesktopAttentionOs,
   type AttentionAuthorization,
   type AttentionOsCapabilities,
   type DesktopAttentionOs,
-} from '../../desktop-attention-os';
-import { useDesktopLocale } from '../../desktop-locale-context';
-import { useConfirmDialog } from '../../use-confirm-dialog';
+} from '../../notifications/desktop-attention-os';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
+import { useConfirmDialog } from '../../hooks/use-confirm-dialog';
 import { FieldRow } from '../field-row';
 import { getNotificationsCopy, type NotificationsCopy } from '../notifications-copy';
 import { PageTitle } from '../page-title';

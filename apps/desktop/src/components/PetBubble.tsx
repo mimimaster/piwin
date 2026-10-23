@@ -6,7 +6,7 @@
  */
 import { useMemo } from 'react';
 import type { PetRuntimeSnapshot } from '@piwin/contracts';
-import { buildPetBubbleView } from '../pet-bubble-view.js';
+import { buildPetBubbleView } from '../pet/pet-bubble-view.js';
 import './pet-bubble.css';
 
 export type PetBubbleProps = {

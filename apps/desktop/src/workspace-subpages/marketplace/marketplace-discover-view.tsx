@@ -9,8 +9,8 @@ import type {
   MarketplaceSearchHit,
 } from '@piwin/contracts';
 import { Button, EmptyState } from '@piwin/ui-kit';
-import type { DesktopLocale } from '../../desktop-locale.js';
-import { IconExtension, IconSearch } from '../../shell-icons.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
+import { IconExtension, IconSearch } from '../../tool-cards/shell-icons.js';
 import { MarketplaceCatalogCard } from './marketplace-catalog-card.js';
 import { MarketplaceCommunitySection } from './marketplace-community-section.js';
 import { MarketplaceHeroCarousel } from './marketplace-hero-carousel.js';

@@ -8,7 +8,7 @@
  * pages register through `ensureSettingsLazyLoaded()` (Chromium lazy_load).
  */
 import type { ComponentType } from 'react';
-import type { DesktopTranslator } from '../desktop-locale';
+import type { DesktopTranslator } from '../i18n/desktop-locale';
 
 export type SettingsSectionId =
   | 'general'

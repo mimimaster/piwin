@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
 import { ContextMenuFromCatalog } from './ContextMenuFromCatalog.js';
 import { buildContextMenuItems } from './catalog.js';
 import type { ContextMenuTarget } from './types.js';

@@ -1,7 +1,7 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { Button, ConfirmDialog, IconButton, Notice, StatusBadge, TextInput, type StatusTone } from '@piwin/ui-kit';
 import type { KnowledgeBaseSummary, KnowledgeCitation, KnowledgeSearchResult } from '@piwin/contracts';
-import { IconCards, IconChat, IconEdit, IconTrash } from '../shell-icons';
+import { IconCards, IconChat, IconEdit, IconTrash } from '../tool-cards/shell-icons';
 import { isSearchableKnowledgeBase } from './knowledge-base-client.js';
 import { knowledgeBaseMeta, knowledgeStateCopy, type KnowledgeLocale } from './knowledge-base-copy.js';
 import { KnowledgeSearchPanel } from './KnowledgeSearchPanel.js';

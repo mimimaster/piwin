@@ -1,4 +1,4 @@
-import type { MockHostBackend } from '../host-client-mock.js';
+import type { MockHostBackend } from '../host/host-client-mock.js';
 
 /**
  * Every shape the project tree has to lay out: a worktree group whose primary

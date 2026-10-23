@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { HostCommand, HostResponse, ModelRef } from '@piwin/contracts';
 import { describeComposerModel } from './use-composer-model.js';
 import { commitSessionComposerProfile } from './commit-session-composer-profile.js';
-import type { ModelOption } from '../model-options';
+import type { ModelOption } from '../models/model-options';
 
 const gpt: ModelOption = {
   providerId: 'openai',

@@ -1,13 +1,13 @@
 /** Per-region opacity sliders for the native window material (macOS desktop). */
 import type { ReactElement } from 'react';
 import { Slider } from '@piwin/ui-kit';
-import type { DesktopCopy } from '../../desktop-locale.js';
-import { saveDesktopPreferences, type DesktopPreferences } from '../../ui-preferences.js';
+import type { DesktopCopy } from '../../i18n/desktop-locale.js';
+import { saveDesktopPreferences, type DesktopPreferences } from '../../platform/ui-preferences.js';
 import {
   DEFAULT_WINDOW_MATERIAL_OPACITY,
   WINDOW_MATERIAL_REGIONS,
   type WindowMaterialRegion,
-} from '../../window-material-preferences.js';
+} from '../../platform/window-material-preferences.js';
 import { FieldRow } from '../field-row.js';
 import { PageTitle } from '../page-title.js';
 

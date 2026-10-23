@@ -34,7 +34,7 @@ Many additional files differ from repository Prettier output. This dogfood slice
 
 ## Pre-existing test blocker
 
-`apps/desktop/src/steer-queue.test.tsx` expects `Sent in order after this response`, while the current component renders `Sent in order after this run · ⌘↵ to adjust after the current step`. The focused suite failed identically after the full-suite failure, so the baseline mismatch is stable rather than flaky.
+`apps/desktop/src/conversation/steer-queue.test.tsx` expects `Sent in order after this response`, while the current component renders `Sent in order after this run · ⌘↵ to adjust after the current step`. The focused suite failed identically after the full-suite failure, so the baseline mismatch is stable rather than flaky.
 
 The first sandboxed full-test attempt also hit `listen EPERM` in `packages/agent-host/src/pi-model-runtime.test.ts`. The same focused test passed 12/12 when loopback was available, and the later full run passed Agent Host 248/248. It is classified as an execution-environment denial, not a product failure.
 

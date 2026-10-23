@@ -5,7 +5,7 @@
  */
 import { lazy, Suspense, useState, type ReactElement } from 'react';
 import { SegmentedControl, Spinner } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 import { AppearancePage } from './appearance-page';
 import { ShortcutsPage } from './shortcuts-page';
@@ -13,23 +13,23 @@ import { Collapse, Select } from '@piwin/ui-kit';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { buildCapabilityMatrix } from '@piwin/contracts';
-import { getDesktopCopy, type DesktopLocale } from '../../desktop-locale';
-import { AgentLocator } from '../../agent-locator.js';
-import type { AgentLocatorAnimation } from '../../ui-preferences.js';
-import { DeviceHealthSettings } from '../../device-health-settings';
+import { getDesktopCopy, type DesktopLocale } from '../../i18n/desktop-locale';
+import { AgentLocator } from '../../agents/agent-locator.js';
+import type { AgentLocatorAnimation } from '../../platform/ui-preferences.js';
+import { DeviceHealthSettings } from '../../devices/device-health-settings';
 import { HostHealthSettings } from '../host-health-settings';
 import { NetworkProxySettings } from '../network-proxy-settings';
-import { HostTargetSettings } from '../../host-target-settings';
-import { ShellInterfaceSettings } from '../../shell-interface-settings';
-import { AppVersionSettings } from '../../app-version-settings';
-import { isMobileTauriRuntime } from '../../shell-runtime';
-import { MobileAccessSettings } from '../../mobile-access-settings';
+import { HostTargetSettings } from '../../host/host-target-settings';
+import { ShellInterfaceSettings } from '../../tool-cards/shell-interface-settings';
+import { AppVersionSettings } from '../../platform/app-version-settings';
+import { isMobileTauriRuntime } from '../../tool-cards/shell-runtime';
+import { MobileAccessSettings } from '../../devices/mobile-access-settings';
 import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 
 type GeneralSubTab = 'appearance' | 'general' | 'shortcuts' | 'pets';
 
 const DeferredPetPanel = lazy(async () => {
-  const module = await import('../../PetPanel');
+  const module = await import('../../pet/PetPanel');
   return { default: module.PetPanel };
 });
 

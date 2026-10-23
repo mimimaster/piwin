@@ -7,10 +7,10 @@
  * through the production theme map.
  */
 import { useEffect, useMemo, type ReactElement } from 'react';
-import { PIWIN_APPEARANCE_DARK, PIWIN_APPEARANCE_LIGHT } from '../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK, PIWIN_APPEARANCE_LIGHT } from '../theme/appearance-tokens';
 import { applyAppearanceToDocument } from '../theme/apply-appearance';
-import { mapThemeToArtifactVariables } from '../artifact-theme-map';
-import { MarkdownView } from '../MarkdownView';
+import { mapThemeToArtifactVariables } from '../artifact/artifact-theme-map';
+import { MarkdownView } from '../markdown/MarkdownView';
 import { ARTIFACT_VIZ_KINDS } from '@piwin/contracts';
 import { ARTIFACT_LINE_ANNOTATION_SAMPLE, ARTIFACT_VIZ_EXTRA_SAMPLES, ARTIFACT_VIZ_SAMPLES, artifactVizFigure } from '@piwin/artifact/fixtures';
 

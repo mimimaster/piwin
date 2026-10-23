@@ -22,12 +22,12 @@ import {
   type SubagentConfig,
 } from '@piwin/contracts';
 import { Button, Notice, Select, TextInput } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import {
   buildEnabledModelOptions,
   modelOptionsFromConfiguredModels,
   readConfiguredChatModelsData,
-} from '../../model-options';
+} from '../../models/model-options';
 import { FieldRow } from '../field-row';
 import { useSettings } from '../settings-context';
 import { buildOrchestrationCopy } from '../orchestration-copy';

@@ -6,7 +6,7 @@
  * - maxBytes: 10 MB total cache size
  * - maxSourceBytesPerEntry: 1 MB (oversized blocks bypass cache)
  */
-import { desktopMetrics } from '../diagnostic-metrics';
+import { desktopMetrics } from '../run-activity/diagnostic-metrics';
 import type { TokenLine } from './highlight-protocol';
 
 export type HighlightCacheEntry = {

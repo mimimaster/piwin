@@ -5,10 +5,10 @@ import {
   buildAppearanceTheme,
   isThemeAppearanceLocked,
   resolveSystemThemeMode,
-} from '../../appearance-tokens.js';
-import { getDesktopCopy } from '../../desktop-locale.js';
-import { useDesktopLocale } from '../../desktop-locale-context.js';
-import { DEFAULT_DARK_THEME_SETTINGS, DEFAULT_LIGHT_THEME_SETTINGS, saveDesktopPreferences, type AppearanceMode, type DesktopPreferences, type ConversationWidth, type ToolCallDensity } from '../../ui-preferences.js';
+} from '../../theme/appearance-tokens.js';
+import { getDesktopCopy } from '../../i18n/desktop-locale.js';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context.js';
+import { DEFAULT_DARK_THEME_SETTINGS, DEFAULT_LIGHT_THEME_SETTINGS, saveDesktopPreferences, type AppearanceMode, type DesktopPreferences, type ConversationWidth, type ToolCallDensity } from '../../platform/ui-preferences.js';
 import { FieldRow } from '../field-row.js';
 import { PageTitle } from '../page-title.js';
 import { useSettings } from '../settings-context.js';
@@ -16,8 +16,8 @@ import { AppearanceCustomFonts } from './appearance-custom-fonts.js';
 import { AppearanceModeControl, getAppearanceThemeSettings } from './appearance-theme-controls.js';
 import { AppearanceWindowMaterial } from './appearance-window-material.js';
 import { applyCustomFontsToDocument } from '../../theme/font-manager.js';
-import { readNativeWindowMaterial } from '../../window-chrome.js';
-import { DEFAULT_WINDOW_MATERIAL_OPACITY } from '../../window-material-preferences.js';
+import { readNativeWindowMaterial } from '../../platform/window-chrome.js';
+import { DEFAULT_WINDOW_MATERIAL_OPACITY } from '../../platform/window-material-preferences.js';
 
 function updatePreference<K extends keyof DesktopPreferences>(
   prefs: DesktopPreferences,

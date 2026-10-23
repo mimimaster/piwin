@@ -11,7 +11,7 @@ import type {
 } from '@piwin/contracts';
 import { SKILL_SOURCE_DISPLAY_ORDER, resourceSourceLabel } from '@piwin/contracts';
 import { Button, ProgressRing } from '@piwin/ui-kit';
-import type { DesktopLocale } from '../../desktop-locale.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
 import { activateOnKey, hasCatalogUpdate } from './marketplace-catalog-card.js';
 import {
   availabilityLabel,

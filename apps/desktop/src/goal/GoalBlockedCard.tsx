@@ -9,8 +9,8 @@
  */
 import { type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
-import { IconWarn } from '../shell-icons';
-import { useDesktopLocale } from '../desktop-locale-context';
+import { IconWarn } from '../tool-cards/shell-icons';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
 
 export type GoalBlockedCardProps = {
   reason: string;

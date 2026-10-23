@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { LiveCallView } from '@piwin/contracts';
-import { useDesktopLocale } from '../desktop-locale-context.js';
-import { IconClose, IconMic, IconRefresh } from '../shell-icons.js';
+import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
+import { IconClose, IconMic, IconRefresh } from '../tool-cards/shell-icons.js';
 import type { LivePeerSnapshot } from './live-peer.js';
 import { liveStillBoundTargetLabel, liveStartErrorLabel } from './live-call-copy.js';
 import { LiveReconnectBudget } from './live-reconnect-budget.js';

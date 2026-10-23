@@ -36,7 +36,7 @@ Public Google Antigravity codelabs describe a review-driven artifact lifecycle:
 
 - `packages/contracts/src/plan.ts` already defines `SessionPlan`, draft/approved/executing/done statuses, and step statuses.
 - `packages/session` validates and persists `plan.json`; `packages/agent-host` injects approved plans into model context and exposes `piwin_plan_set_step` in SDK mode.
-- `apps/desktop/src/plan-card.tsx` currently renders a session-level checklist only; it has no approval or execution callback.
+- `apps/desktop/src/plan/plan-card.tsx` currently renders a session-level checklist only; it has no approval or execution callback.
 - `PlanPanel` can manually create/approve plans, but the bundled `writing-plans` skill only emits generic Markdown guidance and no plan execution command exists.
 - Subagent sessions already support spawn/cancel/complete/merge and optional worktree isolation, but there is no plan-to-subagent orchestration.
 
@@ -70,12 +70,12 @@ Public Google Antigravity codelabs describe a review-driven artifact lifecycle:
 - Modify `skills/writing-plans/SKILL.md`: extend the existing bundled skill with the piwin plan artifact protocol (no new `write-plan` skill — keep one canonical planning skill).
 - Modify `apps/desktop/src/slash/slash-parse.ts` and `slash-catalog.ts`: add `/write-plan` as an alias of `writing-plans`.
 - Extend `packages/skills/src/skill-scanner.test.ts` and `apps/desktop/src/slash/slash-parse.test.ts`: assert bundled discovery, required protocol instructions, and alias resolution.
-- Modify `apps/desktop/src/plan-card.tsx`: approval copy, Process button, mode buttons, status/error/disabled states.
-- Modify `apps/desktop/src/chat-thread.tsx`: pass plan execution callback and render card in the assistant conversation surface.
+- Modify `apps/desktop/src/plan/plan-card.tsx`: approval copy, Process button, mode buttons, status/error/disabled states.
+- Modify `apps/desktop/src/conversation/chat-thread.tsx`: pass plan execution callback and render card in the assistant conversation surface.
 - Modify `apps/desktop/src/App.tsx` and `host-request-adapters.ts`: call typed plan commands, update local feedback, preserve session identity.
 - Modify `apps/desktop/src/styles/region-transcript.css`: card/button styling matching the supplied reference.
-- Modify `apps/desktop/src/plan-card.test.ts`, add `apps/desktop/src/plan-card.test.tsx` if needed: rendering and callback behavior.
-- Modify `apps/desktop/src/host-client-mock.ts`: deterministic plan execution mock responses/pushes.
+- Modify `apps/desktop/src/plan/plan-card.test.ts`, add `apps/desktop/src/plan-card.test.tsx` if needed: rendering and callback behavior.
+- Modify `apps/desktop/src/host/host-client-mock.ts`: deterministic plan execution mock responses/pushes.
 - Add/update `docs/adr/` only if execution isolation or subagent merge semantics differ from the existing ADR; otherwise update `docs/dev-plan.md` and this feature plan status.
 
 ---
@@ -268,11 +268,11 @@ Execution rules:
 ### Task 6: Add conversation Process card and execution-mode buttons
 
 **Files:**
-- Modify: `apps/desktop/src/plan-card.tsx`
+- Modify: `apps/desktop/src/plan/plan-card.tsx`
 - Create/Modify: `apps/desktop/src/plan-card.test.tsx`
-- Modify: `apps/desktop/src/chat-thread.tsx`
+- Modify: `apps/desktop/src/conversation/chat-thread.tsx`
 - Modify: `apps/desktop/src/App.tsx`
-- Modify: `apps/desktop/src/host-request-adapters.ts`
+- Modify: `apps/desktop/src/host/host-request-adapters.ts`
 - Modify: `apps/desktop/src/hooks/use-host-bootstrap.ts`
 - Modify: `apps/desktop/src/styles/region-transcript.css`
 
@@ -309,7 +309,7 @@ UI behavior:
 ### Task 7: Wire Desktop mock/host command paths and full verification
 
 **Files:**
-- Modify: `apps/desktop/src/host-client-mock.ts`
+- Modify: `apps/desktop/src/host/host-client-mock.ts`
 - Modify: relevant Desktop tests (`chat-thread.test.tsx`, `host-client-mock.test.ts`)
 - Modify: `docs/dev-plan.md`
 - Create/Modify: ADR only if the final worktree/apply policy differs from existing subagent decisions

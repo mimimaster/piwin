@@ -8,7 +8,7 @@ import type {
   HostResponse,
   KnowledgeBaseSummary,
 } from '@piwin/contracts';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens.js';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens.js';
 import { KnowledgeWorkspaceView, type KnowledgeWorkspaceViewProps } from './KnowledgeWorkspaceView.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;

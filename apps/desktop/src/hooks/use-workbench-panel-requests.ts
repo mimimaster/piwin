@@ -14,12 +14,12 @@ import {
 } from '@piwin/contracts';
 import type { FlashcardItem } from '@piwin/contracts';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
-import type { HostClient } from '../host-client';
-import { reviewCardsForItemIds } from '../resolve-conversation-flashcards';
-import type { FileTreeRequest } from '../file-tree-panel';
-import type { FlashcardsPanelProps } from '../FlashcardsPanel';
+import type { HostClient } from '../host/host-client';
+import { reviewCardsForItemIds } from '../flashcards/resolve-conversation-flashcards';
+import type { FileTreeRequest } from '../files/file-tree-panel';
+import type { FlashcardsPanelProps } from '../flashcards/FlashcardsPanel';
 import type { DoccardsHostRequest } from '../knowledge/knowledge-host-request';
-import type { NotesPanelProps } from '../NotesPanel';
+import type { NotesPanelProps } from '../notes/NotesPanel';
 
 export function isSpeechConfigured(config: PiwinConfig | null): boolean {
   const modelRef = config?.speech?.asr?.defaultModel;

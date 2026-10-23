@@ -3,21 +3,21 @@ import {
   resolveDesktopHostResolution,
   saveDesktopHostLaunchMode,
   subscribeDesktopHostLaunchModeChange,
-} from './desktop-host-launch';
-import { HostConnectWall, HostLaunchChooser } from './host-connect-wall';
-import { isDesktopShellOnlyBuild } from './desktop-shell-build';
+} from './platform/desktop-host-launch';
+import { HostConnectWall, HostLaunchChooser } from './host/host-connect-wall';
+import { isDesktopShellOnlyBuild } from './platform/desktop-shell-build';
 import {
   clearDesktopRemoteHostTarget,
   saveDesktopRemoteHostTarget,
   subscribeDesktopRemoteHostTargetChange,
-} from './remote-host-session';
+} from './host/remote-host-session';
 import {
   loadDesktopLocale,
   saveDesktopLocale,
   type DesktopLocale,
-} from './desktop-locale';
-import { DesktopLocaleProvider } from './desktop-locale-context';
-import { AppWorkbench, type AppProps } from './workbench-app';
+} from './i18n/desktop-locale';
+import { DesktopLocaleProvider } from './i18n/desktop-locale-context';
+import { AppWorkbench, type AppProps } from './workbench/workbench-app';
 
 export type { AppProps };
 

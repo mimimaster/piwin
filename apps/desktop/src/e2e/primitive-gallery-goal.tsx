@@ -5,7 +5,7 @@
  * renders the real component from static views.
  */
 import type { ReactElement, ReactNode } from 'react';
-import type { ChatMessageUi } from '../chat-ui-types';
+import type { ChatMessageUi } from '../conversation/chat-ui-types';
 import { GoalStickyStrip } from '../goal/GoalStickyStrip';
 import type { GoalSessionView } from '../goal/goal-session-model';
 

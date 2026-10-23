@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { type ModelRef, type PiwinConfig } from '@piwin/contracts';
-import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK } from '../../theme/appearance-tokens';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { DesktopLocaleProvider } from '../../desktop-locale-context';
+import { DesktopLocaleProvider } from '../../i18n/desktop-locale-context';
 import { SettingsProvider, type SettingsContextValue } from '../settings-context';
 import { CodeSearchPage } from './code-search-page';
 

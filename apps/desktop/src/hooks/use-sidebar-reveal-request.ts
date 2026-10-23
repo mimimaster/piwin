@@ -3,9 +3,9 @@
  * then scrolls to and focuses the session row once the tree repaints with it.
  */
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import type { SidebarMode } from '../sidebar-mode';
-import { planSidebarReveal } from '../sidebar-reveal-plan';
-import type { SidebarTreeRow, SidebarTreeRowsInput } from '../sidebar-tree-rows';
+import type { SidebarMode } from '../sidebar/sidebar-mode';
+import { planSidebarReveal } from '../sidebar/sidebar-reveal-plan';
+import type { SidebarTreeRow, SidebarTreeRowsInput } from '../sidebar/sidebar-tree-rows';
 
 export type SidebarRevealRequestOptions = {
   /** Bumped by the titlebar locate button; 0/undefined means no request yet. */

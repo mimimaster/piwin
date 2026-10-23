@@ -1,25 +1,25 @@
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
 import type { ThemeManifest, WebElementPickResult } from '@piwin/contracts';
-import { ArtifactCanvasPanel } from '../../artifact-canvas-panel.js';
-import type { ArtifactCanvasTarget } from '../../artifact-canvas-model.js';
-import { mapThemeToArtifactVariables } from '../../artifact-theme-map.js';
+import { ArtifactCanvasPanel } from '../../artifact/artifact-canvas-panel.js';
+import type { ArtifactCanvasTarget } from '../../artifact/artifact-canvas-model.js';
+import { mapThemeToArtifactVariables } from '../../artifact/artifact-theme-map.js';
 import {
   activeDocumentContent,
   activeDocumentFilePath,
   type ActiveDocument,
   type ActiveDocumentMedia,
-} from '../../active-document.js';
+} from '../../documents/active-document.js';
 import {
   DeferredBrowserSessionPanel,
   DeferredDocPreviewPanel,
   DeferredMediaDocPreview,
   DeferredSurfaceBoundary,
-} from '../../deferred-desktop-surfaces.js';
-import { WorkbenchReviewSurface } from '../../workbench-review-surface.js';
-import { FileDiffInspector } from '../../file-diff-inspector.js';
-import type { HostClient } from '../../host-client.js';
-import type { HostRequestAdapters } from '../../host-request-adapters.js';
-import { RemoteUnavailableSurface } from '../../remote-unavailable-surface.js';
+} from '../../conversation/deferred-desktop-surfaces.js';
+import { WorkbenchReviewSurface } from '../workbench-review-surface.js';
+import { FileDiffInspector } from '../../files/file-diff-inspector.js';
+import type { HostClient } from '../../host/host-client.js';
+import type { HostRequestAdapters } from '../../host/host-request-adapters.js';
+import { RemoteUnavailableSurface } from '../../host/remote-unavailable-surface.js';
 import type { WorkspaceView } from './types.js';
 
 export type DockToolHosts = {

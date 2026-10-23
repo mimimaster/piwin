@@ -33,13 +33,13 @@ import {
   type PendingAttachmentErrorKind,
   type PendingComposerAttachment,
   type PendingAttachmentUploadStatus,
-} from '../media-utils.js';
-import { beginComposerImagePreview } from '../media-preview-bitmap.js';
-import { MediaSaveHostRejectedError, saveMediaOverHost } from '../media-save-over-host.js';
-import type { DesktopCopy } from '../desktop-locale.js';
-import { PIWIN_PATH_MIME } from '../workspace-path-drag';
-import { backendCapabilitiesFor } from '../agent-backend-state.js';
-import { pushError } from '../notification-queue.js';
+} from '../media/media-utils.js';
+import { beginComposerImagePreview } from '../media/media-preview-bitmap.js';
+import { MediaSaveHostRejectedError, saveMediaOverHost } from '../media/media-save-over-host.js';
+import type { DesktopCopy } from '../i18n/desktop-locale.js';
+import { PIWIN_PATH_MIME } from '../workspace/workspace-path-drag';
+import { backendCapabilitiesFor } from '../agents/agent-backend-state.js';
+import { pushError } from '../notifications/notification-queue.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import { isComposerAttachmentRetained } from './composer-attachment-retention.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';

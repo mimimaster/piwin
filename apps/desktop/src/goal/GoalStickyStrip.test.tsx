@@ -3,9 +3,9 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
-import type { ChatMessageUi } from '../chat-ui-types';
-import { DesktopLocaleProvider } from '../desktop-locale-context';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
+import type { ChatMessageUi } from '../conversation/chat-ui-types';
+import { DesktopLocaleProvider } from '../i18n/desktop-locale-context';
 import { GoalStickyStrip } from './GoalStickyStrip';
 import type { GoalSessionView } from './goal-session-model';
 

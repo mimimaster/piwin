@@ -10,8 +10,8 @@
  * (the legacy alias retry): nothing is painted, so a real reason from an
  * earlier attempt is never overwritten by a later miss.
  */
-import { activeDocumentFromProjectRead } from '../preview-unavailable.js';
-import { localPreviewPathForPlan, planDocumentOpenPath } from '../document-open-path.js';
+import { activeDocumentFromProjectRead } from '../artifact/preview-unavailable.js';
+import { localPreviewPathForPlan, planDocumentOpenPath } from '../documents/document-open-path.js';
 import { readProjectPreviewWithFallback } from '../hooks/project-preview-open.js';
 import {
   settleUnavailable,

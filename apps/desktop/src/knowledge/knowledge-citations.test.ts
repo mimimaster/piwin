@@ -4,7 +4,7 @@ import {
   type KnowledgeCitation,
   type ToolPresentation,
 } from '@piwin/contracts';
-import type { ChatMessageUi, ToolCardUi } from '../chat-reducer';
+import type { ChatMessageUi, ToolCardUi } from '../conversation/chat-reducer';
 import { collectKnowledgeCitations } from './knowledge-citation-collect.js';
 import {
   citationsForRefs,

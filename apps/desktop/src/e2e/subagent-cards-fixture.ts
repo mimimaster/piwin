@@ -20,7 +20,7 @@ import type {
   SessionTranscriptMessage,
   SubagentInvocation,
 } from '@piwin/contracts';
-import type { MockHostBackend } from '../host-client-mock.js';
+import type { MockHostBackend } from '../host/host-client-mock.js';
 
 export const SUBAGENT_CARDS_SESSION_ID = 'showcase-subagent-cards';
 const PROJECT = '/mock/piwin';

@@ -15,7 +15,7 @@ import type {
   ToolPresentation,
 } from '@piwin/contracts';
 import { KNOWLEDGE_CITATIONS_DETAILS_KIND, WEB_SEARCH_DIAGNOSTICS_DETAILS_KIND } from '@piwin/contracts';
-import type { MockHostBackend } from '../host-client-mock.js';
+import type { MockHostBackend } from '../host/host-client-mock.js';
 import {
   SUBAGENT_CARDS_SESSION_ID,
   buildSubagentCardsTranscript,

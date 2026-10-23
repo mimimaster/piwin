@@ -12,10 +12,10 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PromptContextRef } from '@piwin/contracts';
-import type { PendingComposerAttachment } from '../media-utils.js';
-import { getDesktopCopy } from '../desktop-locale.js';
-import { useDesktopLocale } from '../desktop-locale-context.js';
-import { pushError } from '../notification-queue';
+import type { PendingComposerAttachment } from '../media/media-utils.js';
+import { getDesktopCopy } from '../i18n/desktop-locale.js';
+import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
+import { pushError } from '../notifications/notification-queue';
 import { useComposerAttachments } from './use-composer-attachments.js';
 import {
   MAX_RETAINED_SESSION_COMPOSER_SNAPSHOTS,

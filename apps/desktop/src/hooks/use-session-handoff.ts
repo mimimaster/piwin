@@ -10,13 +10,13 @@
 import { useCallback, useRef, type Dispatch } from 'react';
 import type { HostResponse, PromptContextRef, SessionHandoffData } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
-import type { NotificationAction } from '../notification-queue';
-import { pushError, pushInfo, pushSuccess } from '../notification-queue';
-import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
-import { useDesktopLocale } from '../desktop-locale-context';
-import { hostFailureNotice } from '../host-problem-copy';
+import type { HostClient } from '../host/host-client';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
+import type { NotificationAction } from '../notifications/notification-queue';
+import { pushError, pushInfo, pushSuccess } from '../notifications/notification-queue';
+import { transcriptOwnerBlocksDangerousAction } from '../conversation/transcript-owner-guard';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
+import { hostFailureNotice } from '../host/host-problem-copy';
 import { summaryToListItem } from './session-list-item';
 
 export type UseSessionHandoffArgs = {

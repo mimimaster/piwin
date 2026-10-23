@@ -9,7 +9,7 @@ import {
   type HostPush,
   type KnowledgeCitation,
 } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 import type { KnowledgeCitationActions } from '../knowledge/knowledge-citation-actions.js';
 import type { KnowledgeMountsValue } from '../knowledge/knowledge-mounts-context.js';
 import { useSessionKnowledgeMounts } from '../knowledge/use-session-knowledge-mounts.js';

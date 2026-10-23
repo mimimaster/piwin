@@ -1,15 +1,15 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import type { ToolCardUi } from '../chat-reducer.js';
-import type { ExploreFlowGroup } from '../explore-flow.js';
-import { ExploreFlowCapsule } from '../explore-flow-capsule.js';
-import { ToolCallCard } from '../tool-call-card.js';
-import { CitationCards } from '../CitationCards.js';
-import { ImageGenerationProgress } from '../image-generation-progress.js';
-import { VideoGenerationProgress } from '../video-generation-progress.js';
-import { WorkFoldHeader } from '../work-fold-header.js';
-import { RunStatusFooter } from '../run-status-footer.js';
-import { FlashcardStackView } from '../FlashcardView.js';
-import { FilesChangedBar } from '../files-changed-bar.js';
+import type { ToolCardUi } from '../conversation/chat-reducer.js';
+import type { ExploreFlowGroup } from '../conversation/explore-flow.js';
+import { ExploreFlowCapsule } from '../conversation/explore-flow-capsule.js';
+import { ToolCallCard } from '../tool-cards/tool-call-card.js';
+import { CitationCards } from '../conversation/CitationCards.js';
+import { ImageGenerationProgress } from '../media/image-generation-progress.js';
+import { VideoGenerationProgress } from '../media/video-generation-progress.js';
+import { WorkFoldHeader } from '../conversation/work-fold-header.js';
+import { RunStatusFooter } from '../run-activity/run-status-footer.js';
+import { FlashcardStackView } from '../flashcards/FlashcardView.js';
+import { FilesChangedBar } from '../files/files-changed-bar.js';
 import { galleryChangedFileTools, galleryChangedFilesRequest } from './gallery-changed-files.js';
 import type { FlashcardReviewCard } from '@piwin/contracts';
 

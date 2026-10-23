@@ -7,7 +7,7 @@ import {
   type LiveStartData,
   type LiveStatusData,
 } from '@piwin/contracts';
-import type { HostClient } from '../host-client.js';
+import type { HostClient } from '../host/host-client.js';
 import {
   canStartLive,
   liveAuthBlockError,

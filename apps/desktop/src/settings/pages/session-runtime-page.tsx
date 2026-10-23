@@ -30,7 +30,7 @@ import {
   type SessionRuntimeStatus,
 } from '@piwin/contracts';
 import { Button, TextInput } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { SettingsHostLogSection } from '../settings-host-log';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';

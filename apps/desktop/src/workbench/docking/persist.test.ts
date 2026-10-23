@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CONVERSATION_PANE_STORAGE_KEY } from '../../conversation-pane-storage.js';
-import { createConversationPaneLayout } from '../../conversation-pane-layout.js';
+import { CONVERSATION_PANE_STORAGE_KEY } from '../../conversation/conversation-pane-storage.js';
+import { createConversationPaneLayout } from '../../conversation/conversation-pane-layout.js';
 import { CONVERSATION_PANE_V1_BACKUP_SUFFIX } from './constants.js';
 import { createSequentialIdFactory } from './ids.js';
 import {

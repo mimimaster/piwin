@@ -5,9 +5,9 @@
  * is already active.
  */
 import { useEffect } from 'react';
-import type { HostClient } from '../host-client';
-import type { RightPanelTab } from '../right-panel';
-import { shouldRevealBrowserInspector } from '../browser-inspector-reveal';
+import type { HostClient } from '../host/host-client';
+import type { RightPanelTab } from '../right-panel/right-panel';
+import { shouldRevealBrowserInspector } from '../browser/browser-inspector-reveal';
 
 export function useBrowserInspectorReveal(
   hostClient: HostClient,

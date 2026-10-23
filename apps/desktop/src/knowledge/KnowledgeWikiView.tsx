@@ -11,7 +11,7 @@ import { WikiArticlePane } from './WikiArticlePane.js';
 import { WikiCopilotPane } from './WikiCopilotPane.js';
 import { WikiNavPane } from './WikiNavPane.js';
 import { WikiSourceDrawer } from './WikiSourceDrawer.js';
-import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
+import { isWorkbenchHostTeardownError } from '../workbench/workbench-host-teardown.js';
 import { STARTER_CONCEPTS, STARTER_CONCEPT_DETAILS } from './wiki-starter-concepts.js';
 import { formatWikilinksForMarkdown } from './format-wikilinks.js';
 export { formatWikilinksForMarkdown };

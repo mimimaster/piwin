@@ -2,11 +2,11 @@
 import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { SessionScope, SessionSummary } from '@piwin/contracts';
-import type { HostClient } from '../host-client.js';
-import type { ChatUiAction } from '../chat-reducer.js';
-import { pushError, type NotificationAction } from '../notification-queue.js';
-import { activateProjectOnHost } from '../remote-session-hydrate.js';
-import { isNoRepoProjectPath } from '../file-browse-root.js';
+import type { HostClient } from '../host/host-client.js';
+import type { ChatUiAction } from '../conversation/chat-reducer.js';
+import { pushError, type NotificationAction } from '../notifications/notification-queue.js';
+import { activateProjectOnHost } from '../host/remote-session-hydrate.js';
+import { isNoRepoProjectPath } from '../files/file-browse-root.js';
 
 type ProjectOpenArgs = {
   hostClient: HostClient;

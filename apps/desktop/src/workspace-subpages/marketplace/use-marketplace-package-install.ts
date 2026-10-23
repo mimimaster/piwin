@@ -10,7 +10,7 @@ import type {
   MarketplaceSearchHit,
 } from '@piwin/contracts';
 import { withMcpEnvPlaceholders } from '@piwin/contracts';
-import type { DesktopLocale } from '../../desktop-locale.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
 import { applyExtensionsToSession, describeExtensionChange } from './marketplace-session-apply.js';
 import type { MarketplaceToast } from './marketplace-types.js';
 

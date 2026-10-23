@@ -9,7 +9,7 @@
 import { useState, type ReactElement } from 'react';
 import type { TurnChangeFileDiff, TurnChangeFileEntry, TurnChangeSummary } from '@piwin/contracts';
 
-import { DiffCard, type DiffCardRequest } from '../diff-card';
+import { DiffCard, type DiffCardRequest } from '../tool-cards/diff-card';
 import type { Copy } from './turn-change-foot.js';
 import type { TurnChangeConflictView, TurnChangesApi } from './turn-changes-context.js';
 

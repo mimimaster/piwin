@@ -1,7 +1,7 @@
 import { useCallback, type MouseEvent, type ReactElement } from 'react';
 import { Spinner } from '@piwin/ui-kit';
 import type { WikiConceptDetail, WikiConceptItem } from '@piwin/contracts';
-import { MarkdownView } from '../MarkdownView.js';
+import { MarkdownView } from '../markdown/MarkdownView.js';
 import { formatWikilinksForMarkdown, slugifyWikiTarget, wikiLinkLabel } from './format-wikilinks.js';
 
 export type WikiArticlePaneProps = {

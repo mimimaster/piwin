@@ -5,7 +5,7 @@ import type {
   LiveStatusData,
   LiveStatusInput,
 } from '@piwin/contracts';
-import { isIosTauriRuntime } from '../shell-runtime.js';
+import { isIosTauriRuntime } from '../tool-cards/shell-runtime.js';
 
 export function withoutLiveCallBusy(
   missing: readonly LiveReadyMissing[],

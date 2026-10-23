@@ -9,7 +9,7 @@ import { useState, type ReactElement } from 'react';
 import { createDefaultWebConfig } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { vi } from 'vitest';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
 import type { SettingsSectionId } from './section-registry';
 import type { SettingsContextValue } from './settings-context';
 import { SettingsShell } from './settings-shell';

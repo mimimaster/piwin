@@ -9,25 +9,25 @@ import type {
   SessionSummary,
 } from '@piwin/contracts';
 import { toModelRef } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../chat-reducer';
-import type { NotificationAction } from '../notification-queue';
-import { pushError, pushSuccess } from '../notification-queue';
-import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
-import type { SessionRowMenuAction } from '../session-row-menu';
-import { pickOrPromptWorkspaceFolder } from '../workspace-open';
+import type { HostClient } from '../host/host-client';
+import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../conversation/chat-reducer';
+import type { NotificationAction } from '../notifications/notification-queue';
+import { pushError, pushSuccess } from '../notifications/notification-queue';
+import { appendHostLogEntry, type HostLogEntry } from '../host/HostLogPanel';
+import type { SessionRowMenuAction } from '../session/session-row-menu';
+import { pickOrPromptWorkspaceFolder } from '../workspace/workspace-open';
 import { summaryToListItem } from './session-list-item';
 import { useSessionExport } from './use-session-export.js';
-import { copySessionTranscript } from '../copy-session-transcript';
-import { isSessionBodyOffloaded } from '../session-storage-ui';
-import { forgetTranscriptScrollPosition } from '../transcript-scroll-memory';
-import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
-import { findSessionForLookup } from '../session-list-lookup';
+import { copySessionTranscript } from '../session/copy-session-transcript';
+import { isSessionBodyOffloaded } from '../session/session-storage-ui';
+import { forgetTranscriptScrollPosition } from '../conversation/transcript-scroll-memory';
+import { transcriptOwnerBlocksDangerousAction } from '../conversation/transcript-owner-guard';
+import { findSessionForLookup } from '../session/session-list-lookup';
 import { buildSessionCreateInput, resolveSessionCreateLocation } from './session-create-input.js';
-import { useDesktopLocale } from '../desktop-locale-context';
-import { findAdjacentSessionId } from '../session-navigation';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
+import { findAdjacentSessionId } from '../session/session-navigation';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
-import { logSessionChain, sessionChainErrorCode } from '../session-chain-log.js';
+import { logSessionChain, sessionChainErrorCode } from '../session/session-chain-log.js';
 import { resolveKnownSessionScope } from './session-actions-helpers.js';
 import { useSessionResume } from './use-session-resume.js';
 import { useSessionRunActions } from './use-session-run-actions.js';
@@ -36,10 +36,10 @@ import {
   hydrateSessionsFromHost,
   nextScopeRequestGeneration,
   resolveHydrateScope,
-} from '../session-list-hydrate.js';
-import { getSessionListScopeMeta } from '../session-list-scope.js';
+} from '../session/session-list-hydrate.js';
+import { getSessionListScopeMeta } from '../session/session-list-scope.js';
 import { useProjectOpen } from './use-project-open.js';
-import { isNoRepoProjectPath } from '../file-browse-root.js';
+import { isNoRepoProjectPath } from '../files/file-browse-root.js';
 import type { SessionOrchestrationRestore } from './use-composer-orchestration-controls';
 
 export type ModelOption = {

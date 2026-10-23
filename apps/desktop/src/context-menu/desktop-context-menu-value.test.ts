@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   resetSideChatComposerSeedForTests,
   takeSideChatComposerSeed,
-} from '../side-chat-composer-seed.js';
+} from '../session/side-chat-composer-seed.js';
 import type { PromptContextRef } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 import {
   appendQuotedComposerText,
   buildDesktopContextMenuCaps,

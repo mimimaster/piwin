@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HostCommand, HostResponse, TurnChangeOperationEntry, TurnChangeSummary } from '@piwin/contracts';
 import { TurnChangeRecordDialog } from './turn-change-record-dialog';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;

@@ -15,9 +15,9 @@ import type {
   PromptContextRef,
   ThinkingLevel,
 } from '@piwin/contracts';
-import { canUseThinkingLevel } from '../model-thinking-policy';
-import { resolveActiveComposerAgentId } from '../composer-dock-assembly.js';
-import { readArtifactHostTheme, readInlineArtifactWidth } from '../inline-artifact-width.js';
+import { canUseThinkingLevel } from '../models/model-thinking-policy';
+import { resolveActiveComposerAgentId } from '../composer/composer-dock-assembly.js';
+import { readArtifactHostTheme, readInlineArtifactWidth } from '../conversation/inline-artifact-width.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 
 /** Host-shaped `session/prompt` / queued-turn `input`, built from raw composer state. */

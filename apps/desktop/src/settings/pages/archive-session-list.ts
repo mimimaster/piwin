@@ -1,5 +1,5 @@
 import type { SessionSummary } from '@piwin/contracts';
-import { mapListedSessionItems } from '../../remote-session-hydrate';
+import { mapListedSessionItems } from '../../host/remote-session-hydrate';
 
 /**
  * Archive Management reads `session/list` directly. Local Host returns

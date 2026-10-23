@@ -147,9 +147,9 @@ Names may be adjusted during implementation only when an existing repository con
 
 ### Add
 
-- `apps/desktop/src/subagent-activity-model.ts`
+- `apps/desktop/src/agents/subagent-activity-model.ts`
   - pure child filtering, lifecycle normalization, latest-activity derivation, and stable sorting.
-- `apps/desktop/src/subagent-session-projection.ts`
+- `apps/desktop/src/agents/subagent-session-projection.ts`
   - pure persisted-history/live-tail reconciliation.
 - `apps/desktop/src/hooks/use-subagent-session-inspector.ts`
   - dialog selection, `session/messages` loading, stale-request protection, and terminal refresh.
@@ -167,15 +167,15 @@ Names may be adjusted during implementation only when an existing repository con
 
 ### Update
 
-- `apps/desktop/src/chat-reducer.ts`
+- `apps/desktop/src/conversation/chat-reducer.ts`
   - extract persisted transcript mapping; add child hydration action if not already available; keep normalized state only.
-- `apps/desktop/src/chat-thread.tsx`
+- `apps/desktop/src/conversation/chat-thread.tsx`
   - consume compact activity callbacks and shared mapped message rendering; do not own inspector state.
-- `apps/desktop/src/subagent-activity-card.tsx`
+- `apps/desktop/src/agents/subagent-activity-card.tsx`
   - reduce to a compact, keyboard-accessible launcher.
 - `apps/desktop/src/App.tsx`
   - compute the active-parent activity projection once; own inspector controller; wire ticker, dock, and dialog.
-- `apps/desktop/src/workspace-shell.tsx`
+- `apps/desktop/src/workspace/workspace-shell.tsx`
   - add one optional activity-dock slot between transcript and permission/composer surfaces.
 - `apps/desktop/src/hooks/use-session-actions.ts` or a narrower session projection module
   - reuse extracted persisted-message mapper where appropriate; avoid duplicate transcript conversion.
@@ -451,10 +451,10 @@ generic `Dialog.contentClassName` (no Subagent-specific API).
 
 **Added**
 
-- `apps/desktop/src/subagent-activity-model.ts` — pure activity model
+- `apps/desktop/src/agents/subagent-activity-model.ts` — pure activity model
   (`normalizeExecutionStatus`, `selectActiveSubagents`,
   `deriveSubagentDialogStatus`, `toInspectorSelection`).
-- `apps/desktop/src/subagent-session-projection.ts` — pure history/live-tail
+- `apps/desktop/src/agents/subagent-session-projection.ts` — pure history/live-tail
   reconciliation (`reconcileSubagentTranscript`).
 - `apps/desktop/src/hooks/use-subagent-session-inspector.ts` — inspector
   controller: selection, `session/messages` load with stale-response guard,
@@ -474,18 +474,18 @@ generic `Dialog.contentClassName` (no Subagent-specific API).
 
 **Modified**
 
-- `apps/desktop/src/chat-reducer.ts` — extracted `mapTranscriptMessagesToUi`;
+- `apps/desktop/src/conversation/chat-reducer.ts` — extracted `mapTranscriptMessagesToUi`;
   new `subagent/children-hydrate` action (parent-guarded); `subagent/updated`
   now parent-guarded; subagent maps cleared on `scope/set` / `project/set` /
   `session/set`.
 - `apps/desktop/src/hooks/use-session-actions.ts` — hydrates
   `session/list-children` into the reducer on resume.
-- `apps/desktop/src/subagent-activity-card.tsx` — rewritten as a compact,
+- `apps/desktop/src/agents/subagent-activity-card.tsx` — rewritten as a compact,
   keyboard-accessible launcher (real `<button>`); inline stream expansion and
   `Open session` footer removed.
-- `apps/desktop/src/chat-thread.tsx` — `onOpenSubagentSession` →
+- `apps/desktop/src/conversation/chat-thread.tsx` — `onOpenSubagentSession` →
   `onInspectSubagent`; removed `subagentStreams` threading.
-- `apps/desktop/src/workspace-shell.tsx` — new `activityDock` slot between
+- `apps/desktop/src/workspace/workspace-shell.tsx` — new `activityDock` slot between
   transcript and permission bar.
 - `apps/desktop/src/App.tsx` — `selectActiveSubagents` memo, inspector hook,
   `handleInspectSubagent` (inspect in place) vs `handleEnterSubagentSession`

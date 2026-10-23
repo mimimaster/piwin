@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { PiEnvironmentIngestCard } from '../../pi-environment-ingest.js';
-import { SubscriptionAccountsPanel } from '../../subscription-accounts.js';
+import { SubscriptionAccountsPanel } from '../../models/subscription-accounts.js';
 
 /** Settings → OAuth. Accounts live in Host pi-agent/auth.json; channels stay under Models. */
 export function OauthPage(): ReactElement {

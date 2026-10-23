@@ -13,11 +13,11 @@ import type {
   UserInstructionPayload,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import type { PendingComposerAttachment } from '../media-utils.js';
-import type { DesktopCopy, DesktopLocale } from '../desktop-locale.js';
+import type { PendingComposerAttachment } from '../media/media-utils.js';
+import type { DesktopCopy, DesktopLocale } from '../i18n/desktop-locale.js';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
-import { hostFailureNotice, isStaleQueuedTurnError } from '../host-problem-copy.js';
-import type { SteerQueueMessage } from '../steer-queue-model';
+import { hostFailureNotice, isStaleQueuedTurnError } from '../host/host-problem-copy.js';
+import type { SteerQueueMessage } from '../conversation/steer-queue-model';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import { parseComposerSlashSubmit } from '../slash';
 import { runComposerReservedCommand } from './composer-reserved-command.js';

@@ -4,7 +4,7 @@ import type {
   WebSearchSourceKind,
   WebSearchTestableSourceKind,
 } from '@piwin/contracts';
-import type { DesktopLocale, DesktopTranslator } from '../../desktop-locale.js';
+import type { DesktopLocale, DesktopTranslator } from '../../i18n/desktop-locale.js';
 import type { DraftSearchSource, DraftWeb } from '../web-draft';
 import type { SearchDelegateOption } from './web-page-model-ref.js';
 

@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import type { HostCommand, HostResponse, MediaLibraryItem } from '@piwin/contracts';
-import type { DesktopLocale } from '../../desktop-locale';
-import { IconCheck, IconTrash } from '../../shell-icons';
+import type { DesktopLocale } from '../../i18n/desktop-locale';
+import { IconCheck, IconTrash } from '../../tool-cards/shell-icons';
 import { LibraryInspectorDrawer } from './library-inspector-drawer';
 import { LibraryLightbox } from './library-lightbox';
 import type { ToastState } from './media-library-workspace-model';

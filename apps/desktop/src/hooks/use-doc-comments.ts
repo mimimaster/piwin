@@ -4,9 +4,9 @@
  * Sending merges them into the composer text and clears only that document.
  */
 import { useCallback, useState } from 'react';
-import type { ActiveDocument } from '../active-document';
-import type { LineCommentItem } from '../EnhancedMarkdownView';
-import { mergeComposerWithDocComments } from '../doc-comments';
+import type { ActiveDocument } from '../documents/active-document';
+import type { LineCommentItem } from '../markdown/EnhancedMarkdownView';
+import { mergeComposerWithDocComments } from '../documents/doc-comments';
 import { isReservedComposerSlashCommand } from '../slash/slash-parse.js';
 
 export type UseDocCommentsArgs = {

@@ -17,17 +17,17 @@ import {
   type ReactNode,
 } from 'react';
 import { Button, Notice, Spinner } from '@piwin/ui-kit';
-import { getDesktopCopy } from '../desktop-locale';
-import { useDesktopLocale } from '../desktop-locale-context';
-import { openExternalUrl } from '../open-external-url.js';
-import { IconChevronLeft } from '../shell-icons';
+import { getDesktopCopy } from '../i18n/desktop-locale';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
+import { openExternalUrl } from '../platform/open-external-url.js';
+import { IconChevronLeft } from '../tool-cards/shell-icons';
 
 const DOCS_HOME_URL = 'https://docs.piwinwin.com';
 import {
   WindowDragRegion,
   handleNativeWindowDragMouseDown,
-} from '../native-window-drag';
-import { scheduleIdleTask } from '../schedule-idle-task';
+} from '../platform/native-window-drag';
+import { scheduleIdleTask } from '../automation/schedule-idle-task';
 import {
   SETTINGS_GROUPS,
   SETTINGS_SECTIONS,

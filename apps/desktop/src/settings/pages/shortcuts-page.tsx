@@ -7,8 +7,8 @@ import {
   SHORTCUT_CATALOG,
   detectShortcutDisplayPlatform,
   formatShortcutChordTokens,
-} from '../../desktop-shortcut-catalog';
-import { useDesktopLocale } from '../../desktop-locale-context';
+} from '../../platform/desktop-shortcut-catalog';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 
 function ShortcutKeycaps(props: { chord: string; pcChord?: string }): ReactElement {
   const platform = detectShortcutDisplayPlatform();

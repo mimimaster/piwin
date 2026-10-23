@@ -9,7 +9,7 @@ import {
   type ReactElement,
 } from 'react';
 import type { HostCommand, HostResponse, MediaLibraryItem } from '@piwin/contracts';
-import type { DesktopLocale } from '../../desktop-locale';
+import type { DesktopLocale } from '../../i18n/desktop-locale';
 import {
   IconCompress,
   IconExpand,
@@ -17,7 +17,7 @@ import {
   IconSpark,
   IconStar,
   IconVideo,
-} from '../../shell-icons';
+} from '../../tool-cards/shell-icons';
 import { LazyMediaTile } from './lazy-media-tile';
 import { LibraryFileCard } from './library-file-card';
 import { groupLibraryItemsByDate } from './library-date-groups';
@@ -39,7 +39,7 @@ import { MediaLibraryWorkspaceHeader } from './media-library-workspace-header';
 import { MediaLibrarySelectionDock } from './media-library-selection-dock';
 import { MediaLibraryWorkspaceOverlays } from './media-library-workspace-overlays';
 import { MediaLibraryErrorState } from './media-library-error-state';
-import { isWorkbenchHostTeardownError } from '../../workbench-host-teardown.js';
+import { isWorkbenchHostTeardownError } from '../../workbench/workbench-host-teardown.js';
 
 export type { MediaLibraryFilter };
 

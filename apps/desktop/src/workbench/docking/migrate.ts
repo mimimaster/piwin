@@ -1,4 +1,4 @@
-import { listConversationPaneLeaves, type ConversationPaneLayout, type ConversationPaneNode } from '../../conversation-pane-layout.js';
+import { listConversationPaneLeaves, type ConversationPaneLayout, type ConversationPaneNode } from '../../conversation/conversation-pane-layout.js';
 import { DOCKING_COPY } from './copy.js';
 import type { WorkspaceIdFactory } from './ids.js';
 import { applyWorkspaceTemplate } from './layout-commands.js';

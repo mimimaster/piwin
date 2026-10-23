@@ -1,6 +1,6 @@
 import type { SessionScope } from '@piwin/contracts';
 import { classifyCompactionNoOp } from '@piwin/contracts';
-import type { ChatUiState } from '../chat-reducer';
+import type { ChatUiState } from '../conversation/chat-reducer';
 
 export function compactFailureMessage(error: string, locale: string): string {
   const lower = error.toLowerCase();

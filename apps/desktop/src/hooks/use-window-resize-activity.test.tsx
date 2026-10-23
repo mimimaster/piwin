@@ -3,7 +3,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useWindowResizeActivity } from './use-window-resize-activity.js';
-import { isPanelResizeActive } from '../panel-resize-activity.js';
+import { isPanelResizeActive } from '../platform/panel-resize-activity.js';
 
 describe('useWindowResizeActivity', () => {
   afterEach(() => {

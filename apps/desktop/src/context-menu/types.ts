@@ -3,7 +3,7 @@
  * Desktop view model only; Host sees PromptContextRef after map-to-ref.
  */
 import type { MediaAttachmentRef } from '@piwin/contracts';
-import type { DesktopLocale } from '../desktop-locale.js';
+import type { DesktopLocale } from '../i18n/desktop-locale.js';
 
 export type ContextMenuSurface =
   | 'file-tree-file'

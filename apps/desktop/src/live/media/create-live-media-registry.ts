@@ -3,7 +3,7 @@ import { createCodexWebrtcDriver } from './codex-webrtc-driver.js';
 import { createGeminiLiveDriver } from './gemini-live-driver.js';
 import { createOpenaiRealtimeDriver } from './openai-realtime-driver.js';
 import { DesktopLiveMediaDriverRegistry } from './live-media-driver-registry.js';
-import { isIosTauriRuntime } from '../../shell-runtime.js';
+import { isIosTauriRuntime } from '../../tool-cards/shell-runtime.js';
 import { createIosRealtimeTransport } from './ios-realtime-transport.js';
 
 export function createDesktopLiveMediaRegistry(input?: {

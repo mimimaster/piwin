@@ -4,7 +4,7 @@
  */
 import { useState, type ReactElement } from 'react';
 
-import { IconWarn } from '../shell-icons.js';
+import { IconWarn } from '../tool-cards/shell-icons.js';
 import type { TurnChangesApi } from './turn-changes-context.js';
 
 type Copy = (zh: string, en: string) => string;

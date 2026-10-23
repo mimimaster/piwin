@@ -3,16 +3,16 @@
  */
 import { useMemo } from 'react';
 import type { JobRecord, SessionPlan } from '@piwin/contracts';
-import type { ChatUiState } from '../chat-reducer';
+import type { ChatUiState } from '../conversation/chat-reducer';
 import {
   estimateTranscriptTokens,
   isChatCompactPendingOccupancy,
   selectContextRingView,
-} from '../context-telemetry-selector.js';
-import type { DesktopLocale } from '../desktop-locale';
-import { deriveRunStatus } from '../run-status';
-import { collectSessionTools } from '../tool-call-card';
-import { findLastUserMessage, transcriptActivitySignal } from '../workbench-chrome-assembly';
+} from '../context/context-telemetry-selector.js';
+import type { DesktopLocale } from '../i18n/desktop-locale';
+import { deriveRunStatus } from '../run-activity/run-status';
+import { collectSessionTools } from '../tool-cards/tool-call-card';
+import { findLastUserMessage, transcriptActivitySignal } from '../workbench/workbench-chrome-assembly';
 
 export function useWorkbenchDerivedView(input: {
   state: ChatUiState;

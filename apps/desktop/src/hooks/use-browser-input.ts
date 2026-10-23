@@ -14,7 +14,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { BrowserInputEvent, BrowserTargetIdentity } from '@piwin/contracts';
-import { viewportFromFilledDisplay } from '../browser-workbench-pointer';
+import { viewportFromFilledDisplay } from '../browser/browser-workbench-pointer';
 
 export type BrowserInputHost = {
   browserInput: (

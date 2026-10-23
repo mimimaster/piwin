@@ -3,16 +3,16 @@
  */
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
-import { appearanceToggleBlockedNotice, planAppearanceToggle } from '../appearance-toggle';
-import { buildAppearanceTheme } from '../appearance-tokens';
-import type { DesktopCommandId } from '../desktop-commands';
-import { saveDesktopLocale, type DesktopLocale } from '../desktop-locale';
-import type { NotificationAction } from '../notification-queue';
-import type { RightPanelTab } from '../right-panel';
-import { runDesktopCommand } from '../run-desktop-command';
-import type { ShellSettingsSection } from '../shell-navigation';
-import { useDesktopShortcuts } from '../use-desktop-shortcuts';
-import { saveDesktopPreferences, type DesktopPreferences } from '../ui-preferences';
+import { appearanceToggleBlockedNotice, planAppearanceToggle } from '../theme/appearance-toggle';
+import { buildAppearanceTheme } from '../theme/appearance-tokens';
+import type { DesktopCommandId } from '../platform/desktop-commands';
+import { saveDesktopLocale, type DesktopLocale } from '../i18n/desktop-locale';
+import type { NotificationAction } from '../notifications/notification-queue';
+import type { RightPanelTab } from '../right-panel/right-panel';
+import { runDesktopCommand } from '../run-activity/run-desktop-command';
+import type { ShellSettingsSection } from '../tool-cards/shell-navigation';
+import { useDesktopShortcuts } from './use-desktop-shortcuts';
+import { saveDesktopPreferences, type DesktopPreferences } from '../platform/ui-preferences';
 
 type ShellCommands = {
   openInspector: (tab?: RightPanelTab | null) => void;

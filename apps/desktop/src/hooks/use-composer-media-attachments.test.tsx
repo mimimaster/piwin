@@ -2,8 +2,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChatUiState } from '../chat-reducer';
-import type { HostClient } from '../host-client';
+import type { ChatUiState } from '../conversation/chat-reducer';
+import type { HostClient } from '../host/host-client';
 import { useComposerMedia } from './use-composer-media';
 import {
   createInitialTestChatUiState,
@@ -16,8 +16,8 @@ import {
 // deterministic by stubbing only the binary preparation helpers.
 // happy-dom cannot decode PNG bytes; keep lightbox object-URL behavior and
 // skip the async limited-bitmap fill so existing paste tests stay quiet.
-vi.mock('../media-preview-bitmap.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../media-preview-bitmap.js')>();
+vi.mock('../media/media-preview-bitmap.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../media/media-preview-bitmap.js')>();
   return {
     ...actual,
     beginComposerImagePreview: (file: File) => ({
@@ -26,8 +26,8 @@ vi.mock('../media-preview-bitmap.js', async (importOriginal) => {
   };
 });
 
-vi.mock('../media-utils.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../media-utils.js')>();
+vi.mock('../media/media-utils.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../media/media-utils.js')>();
   return {
     ...actual,
     prepareComposerAttachmentForSave: vi.fn(

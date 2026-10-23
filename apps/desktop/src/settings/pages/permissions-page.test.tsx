@@ -8,8 +8,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { PermissionPreset, PiwinConfig } from '@piwin/contracts';
 import { createDefaultWebConfig } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_LIGHT } from '../../appearance-tokens';
-import { DesktopLocaleProvider } from '../../desktop-locale-context';
+import { PIWIN_APPEARANCE_LIGHT } from '../../theme/appearance-tokens';
+import { DesktopLocaleProvider } from '../../i18n/desktop-locale-context';
 import { SettingsProvider, type SettingsContextValue } from '../settings-context';
 import { PermissionsPage } from './permissions-page';
 import { webToDraft } from '../web-draft';
@@ -17,7 +17,7 @@ import {
   DEFAULT_DARK_THEME_SETTINGS,
   DEFAULT_LIGHT_THEME_SETTINGS,
   type DesktopPreferences,
-} from '../../ui-preferences';
+} from '../../platform/ui-preferences';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;

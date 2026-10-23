@@ -5,9 +5,9 @@
  * Orchestration schemes live in the dedicated `subagents` section.
  */
 import type { ReactElement } from 'react';
-import { AutomationPanel } from '../../AutomationPanel';
-import { SubAgentPanel } from '../../SubAgentPanel';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { AutomationPanel } from '../../automation/AutomationPanel';
+import { SubAgentPanel } from '../../agents/SubAgentPanel';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 
 export function AgentPage(): ReactElement {

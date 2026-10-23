@@ -1,4 +1,4 @@
-import type { PendingComposerAttachment } from '../media-utils.js';
+import type { PendingComposerAttachment } from '../media/media-utils.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
 
 /** True when another holder still owns this chip's File / object URLs. */

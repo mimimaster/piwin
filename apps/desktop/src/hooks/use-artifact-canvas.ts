@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ArtifactCanvasTarget } from '../artifact-canvas-model';
+import type { ArtifactCanvasTarget } from '../artifact/artifact-canvas-model';
 
 export type UseArtifactCanvasResult = {
   activeTarget: ArtifactCanvasTarget | null;

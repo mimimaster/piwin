@@ -5,8 +5,8 @@ import type {
   FlashcardStudyCatalogPage,
   HostPush,
 } from '@piwin/contracts';
-import type { DesktopLocale } from '../../desktop-locale';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import type { DesktopLocale } from '../../i18n/desktop-locale';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useFlashcardsWorkspace } from './use-flashcards-workspace';
 import { CreateCardDialog } from './workspace-dialogs';
 import { FlashcardsDeckManager } from './flashcards-deck-manager';

@@ -6,7 +6,7 @@ import { PasswordInput, Select, Switch, TextInput } from '@piwin/ui-kit';
 import {
   IconRefresh,
   IconSpark,
-} from '../../shell-icons.js';
+} from '../../tool-cards/shell-icons.js';
 import { FieldRow } from '../field-row.js';
 import { PageTitle } from '../page-title.js';
 import {

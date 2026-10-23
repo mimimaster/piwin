@@ -2,7 +2,7 @@
  * Dispatch a context-menu action against Desktop callbacks (CM §9.6).
  */
 import type { PromptContextRef } from '@piwin/contracts';
-import { resolveProjectFilesystemRoot } from '../remote-session-hydrate.js';
+import { resolveProjectFilesystemRoot } from '../host/remote-session-hydrate.js';
 import { PRESET_TEMPLATES, type PresetTemplateId } from './presets.js';
 import {
   copyAsRefText,

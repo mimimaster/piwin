@@ -343,8 +343,8 @@ git commit -m "feat(agent-host): expose applyPolicy on piwin_subagent_run tool"
 ### Task 4: Desktop — reducer subagent/updated + subagentChildren (G2/G3 core)
 
 **Files:**
-- Modify: `apps/desktop/src/chat-reducer.ts`
-- Test: `apps/desktop/src/chat-reducer.test.ts`
+- Modify: `apps/desktop/src/conversation/chat-reducer.ts`
+- Test: `apps/desktop/src/conversation/chat-reducer.test.ts`
 
 **Interfaces:**
 - Consumes: `SessionSummary` from `@piwin/contracts`.
@@ -424,7 +424,7 @@ Expected: PASSES.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/desktop/src/chat-reducer.ts apps/desktop/src/chat-reducer.test.ts
+git add apps/desktop/src/conversation/chat-reducer.ts apps/desktop/src/conversation/chat-reducer.test.ts
 git commit -m "feat(desktop): track subagent child summaries in reducer"
 ```
 
@@ -489,7 +489,7 @@ git commit -m "feat(desktop): handle subagent/merged and subagent/updated pushes
 ### Task 6: Desktop — SubAgentPanel live list via external children (G2 polish)
 
 **Files:**
-- Modify: `apps/desktop/src/SubAgentPanel.tsx`
+- Modify: `apps/desktop/src/agents/SubAgentPanel.tsx`
 - Modify: `apps/desktop/src/settings/settings-context.tsx`
 - Modify: `apps/desktop/src/settings/settings-shell.tsx`
 - Modify: `apps/desktop/src/settings/pages/automation-page.tsx`
@@ -562,7 +562,7 @@ Expected: PASSES.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/desktop/src/SubAgentPanel.tsx apps/desktop/src/settings/settings-context.tsx apps/desktop/src/settings/settings-shell.tsx apps/desktop/src/settings/pages/automation-page.tsx apps/desktop/src/App.tsx apps/desktop/src/settings/settings-shell.test.tsx
+git add apps/desktop/src/agents/SubAgentPanel.tsx apps/desktop/src/settings/settings-context.tsx apps/desktop/src/settings/settings-shell.tsx apps/desktop/src/settings/pages/automation-page.tsx apps/desktop/src/App.tsx apps/desktop/src/settings/settings-shell.test.tsx
 git commit -m "feat(desktop): live subagent child list in SubAgentPanel"
 ```
 

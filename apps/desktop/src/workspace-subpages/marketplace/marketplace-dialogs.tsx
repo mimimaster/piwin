@@ -4,7 +4,7 @@
 import type { ReactElement } from 'react';
 import type { MarketplaceSearchHit } from '@piwin/contracts';
 import { Button, Dialog, Notice } from '@piwin/ui-kit';
-import type { DesktopLocale } from '../../desktop-locale.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
 
 export type PiPackageInstallDialogProps = {
   hit: MarketplaceSearchHit | null;

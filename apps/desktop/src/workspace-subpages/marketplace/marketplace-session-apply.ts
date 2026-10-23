@@ -4,7 +4,7 @@
  * into truthful user copy — "installed" is never reported as "live".
  */
 import type { ExtensionsApplyData, HostCommand, HostResponse } from '@piwin/contracts';
-import type { DesktopLocale } from '../../desktop-locale.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
 import type { MarketplaceToast } from './marketplace-types.js';
 
 export type SessionApplyOutcome =

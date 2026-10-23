@@ -7,8 +7,8 @@
  * show the empty state — it folds away instead.
  */
 import { useEffect, useRef } from 'react';
-import type { RightPanelTab } from '../right-panel';
-import { rightPanelTabKind } from '../right-panel-instances';
+import type { RightPanelTab } from '../right-panel/right-panel';
+import { rightPanelTabKind } from '../right-panel/right-panel-instances';
 
 export type UseSessionSwitchPanelResetArgs = {
   /** Must be the id that clears the Canvas target (`state.activeSessionId`). */

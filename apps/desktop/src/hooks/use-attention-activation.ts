@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { showUiNotification } from '@piwin/ui-kit';
-import { resolveAttentionJumpTarget, type AttentionJumpTarget } from '../attention-session-lookup';
-import type { ChatUiState } from '../chat-reducer';
-import type { AttentionActivation } from '../desktop-attention-os';
-import type { DesktopLocale } from '../desktop-locale';
+import { resolveAttentionJumpTarget, type AttentionJumpTarget } from '../notifications/attention-session-lookup';
+import type { ChatUiState } from '../conversation/chat-reducer';
+import type { AttentionActivation } from '../notifications/desktop-attention-os';
+import type { DesktopLocale } from '../i18n/desktop-locale';
 
 /**
  * How long a notification click may wait, after Host is ready and the session

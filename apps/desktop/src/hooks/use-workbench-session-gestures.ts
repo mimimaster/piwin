@@ -4,17 +4,17 @@
  */
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
 import type { SessionPlan } from '@piwin/contracts';
-import type { SidebarMode } from '../sidebar-mode';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
-import type { ArtifactCanvasTarget } from '../artifact-canvas-model';
-import type { DraftSessionItemUi } from '../draft-session';
-import type { HostClient } from '../host-client';
-import type { DocumentOpenInput } from '../tool-call-card';
-import type { RightPanelTab } from '../right-panel';
+import type { SidebarMode } from '../sidebar/sidebar-mode';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
+import type { ArtifactCanvasTarget } from '../artifact/artifact-canvas-model';
+import type { DraftSessionItemUi } from '../composer/draft-session';
+import type { HostClient } from '../host/host-client';
+import type { DocumentOpenInput } from '../tool-cards/tool-call-card';
+import type { RightPanelTab } from '../right-panel/right-panel';
 import type { ExtensionUiRequestState } from './use-host-bootstrap';
-import { tryOpenHtmlDocumentInBrowser } from '../open-html-in-browser.js';
-import { isOverlayShellLayout, type ShellLayoutMode } from '../shell-layout';
-import { resolveSessionPlanDocument } from '../plan-card.js';
+import { tryOpenHtmlDocumentInBrowser } from '../platform/open-html-in-browser.js';
+import { isOverlayShellLayout, type ShellLayoutMode } from '../tool-cards/shell-layout';
+import { resolveSessionPlanDocument } from '../plan/plan-card.js';
 
 const ARTIFACT_CANVAS_MIN_PANEL_WIDTH_PX = 560;
 

@@ -3,9 +3,9 @@ import type { PiEnvironmentPreviewData } from '@piwin/contracts';
 import { remoteCommandRequiresIdempotencyKey } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
-import { useDesktopLocale } from './desktop-locale-context.js';
+import { useDesktopLocale } from './i18n/desktop-locale-context.js';
 import { useSettings } from './settings/settings-context.js';
-import { useConfirmDialog } from './use-confirm-dialog.js';
+import { useConfirmDialog } from './hooks/use-confirm-dialog.js';
 
 export function PiEnvironmentIngestCard(): ReactElement | null {
   const { hostClient, setError, setInfo } = useSettings();

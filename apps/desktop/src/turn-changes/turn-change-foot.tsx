@@ -6,7 +6,7 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import type { TurnChangeBlockReason, TurnChangeSummary } from '@piwin/contracts';
 
-import { IconTerminal, IconWarn } from '../shell-icons.js';
+import { IconTerminal, IconWarn } from '../tool-cards/shell-icons.js';
 import type { TurnChangeRefusal } from './turn-change-gesture.js';
 
 export type Copy = (zh: string, en: string) => string;

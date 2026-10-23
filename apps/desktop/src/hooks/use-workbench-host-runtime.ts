@@ -18,30 +18,30 @@ import {
   resolveUnpinnedOrchestrationDefaultRole,
   type ThemeManifest,
 } from '@piwin/contracts';
-import { activeDocumentMedia } from '../active-document';
-import { collectSessionDocuments } from '../session-documents';
-import type { HostLogEntry } from '../HostLogPanel';
-import { useHostRequestAdapters } from '../host-request-adapters';
-import { buildEnabledModelOptions, modelOptionsFromConfiguredModels } from '../model-options';
+import { activeDocumentMedia } from '../documents/active-document';
+import { collectSessionDocuments } from '../session/session-documents';
+import type { HostLogEntry } from '../host/HostLogPanel';
+import { useHostRequestAdapters } from '../host/host-request-adapters';
+import { buildEnabledModelOptions, modelOptionsFromConfiguredModels } from '../models/model-options';
 import {
   createEmptyNotificationState,
   dismissDesktopNotification,
   emitDesktopNotification,
   notificationReducer,
   type NotificationAction,
-} from '../notification-queue';
-import { getDirectForkCountsByMessageId } from '../session-lineage-tree';
-import { readMediaPreviewViaHost } from '../transcript-media-preview';
-import { useInspectorFileDiff } from '../use-inspector-file-diff';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
-import type { HostClient } from '../host-client';
-import { resolveFileBrowseRoot, resolveNoRepoWorkspaceKey } from '../file-browse-root';
+} from '../notifications/notification-queue';
+import { getDirectForkCountsByMessageId } from '../session/session-lineage-tree';
+import { readMediaPreviewViaHost } from '../conversation/transcript-media-preview';
+import { useInspectorFileDiff } from './use-inspector-file-diff';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
+import type { HostClient } from '../host/host-client';
+import { resolveFileBrowseRoot, resolveNoRepoWorkspaceKey } from '../files/file-browse-root';
 import { useActiveDocument } from './use-active-document';
 import { useArtifactCanvas } from './use-artifact-canvas';
 import { useHostBootstrap } from './use-host-bootstrap';
 import { usePendingPermissionReconcile } from './use-pending-permission-reconcile';
-import { shouldRefreshJobList } from '../composer-activity-actions.js';
-import type { TerminalJobMonitorProps } from '../terminal-job-monitor';
+import { shouldRefreshJobList } from '../composer/composer-activity-actions.js';
+import type { TerminalJobMonitorProps } from '../terminal/terminal-job-monitor';
 import { useJobs } from './use-jobs';
 import { useRunReconcile } from './use-run-reconcile';
 import { useSessionLineage } from './use-session-lineage';

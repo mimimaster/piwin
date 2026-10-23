@@ -7,8 +7,8 @@
  * transcript. It keeps the pre-resolution routing so nothing regresses for
  * those cases, and it never invents a project root from `dirname()`.
  */
-import { localPreviewPathForPlan, planDocumentOpenPath } from '../document-open-path.js';
-import { projectRelativeAliasForPath } from '../resolve-project-file.js';
+import { localPreviewPathForPlan, planDocumentOpenPath } from '../documents/document-open-path.js';
+import { projectRelativeAliasForPath } from '../files/resolve-project-file.js';
 import type { DocumentLoaderContext } from './document-loader-context.js';
 import { beginLoading, settleUnavailable } from './document-loader-context.js';
 import { loadLocalFileDocument } from './local-file-document-loader.js';

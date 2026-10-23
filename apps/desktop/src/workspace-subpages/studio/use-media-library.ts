@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { HostCommand, HostResponse, MediaLibraryItem, MediaLibraryKind } from '@piwin/contracts';
-import { isWorkbenchHostTeardownError } from '../../workbench-host-teardown.js';
+import { isWorkbenchHostTeardownError } from '../../workbench/workbench-host-teardown.js';
 
 export type MediaLibraryRequest = (command: HostCommand) => Promise<HostResponse>;
 

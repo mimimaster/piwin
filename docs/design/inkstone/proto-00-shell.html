@@ -1044,9 +1044,9 @@
                         </div>
                         <div class="tc-terminal-box">
                           <div class="tc-terminal-cmd"><span class="prompt">❯</span> sleep 4; cd /Users/yorickjue/Developer/piwin-inkstone-v2 &amp;&amp; grep -rn "解答" apps/desktop/src</div>
-                          <div class="tc-terminal-out">apps/desktop/src/composer-card.tsx:142:  // <span class="hl">解答</span>与流式渲染逻辑 - 确保打字与状态切换不产生跳动
-apps/desktop/src/tool-call-card.tsx:88:   // 工具链<span class="hl">解答</span>卡片 - 单行折叠与多行展开渲染
-apps/desktop/src/turn-tool-group.tsx:45:  // 聚合<span class="hl">解答</span>流与时间线状态机收敛</div>
+                          <div class="tc-terminal-out">apps/desktop/src/composer/composer-card.tsx:142:  // <span class="hl">解答</span>与流式渲染逻辑 - 确保打字与状态切换不产生跳动
+apps/desktop/src/tool-cards/tool-call-card.tsx:88:   // 工具链<span class="hl">解答</span>卡片 - 单行折叠与多行展开渲染
+apps/desktop/src/turn-changes/turn-tool-group.tsx:45:  // 聚合<span class="hl">解答</span>流与时间线状态机收敛</div>
                         </div>
                         <div class="tc-auth-colophon">
                           <span>执行策略：工作区路径已加入信任目录 · 自动授权执行</span>
@@ -1241,9 +1241,9 @@ Tests  12 passed (12)</div>
                         </div>
                         <div class="tc-sub-stream">
                           <div class="tc-sub-row"><span class="tc-sub-node"></span><b style="color:var(--azure)">grep</b> <code>"queued-turn"</code> <span class="tc-meta ml">7 处 · 3 文件</span></div>
-                          <div class="tc-sub-row"><span class="tc-sub-node"></span><b style="color:var(--t1)">read</b> <code>apps/desktop/src/steer-queue-model.ts</code> <span class="tc-meta ml">88 行</span></div>
+                          <div class="tc-sub-row"><span class="tc-sub-node"></span><b style="color:var(--t1)">read</b> <code>apps/desktop/src/conversation/steer-queue-model.ts</code> <span class="tc-meta ml">88 行</span></div>
                           <div class="tc-sub-row"><span class="tc-sub-node"></span><b style="color:var(--azure)">grep</b> <code>triggerSteer</code> <span class="tc-meta ml">4 处</span></div>
-                          <div class="tc-sub-row"><span class="tc-sub-node"></span><b style="color:var(--t1)">read</b> <code>apps/desktop/src/composer-run-actions.tsx</code> <span class="tc-meta ml">212 行</span></div>
+                          <div class="tc-sub-row"><span class="tc-sub-node"></span><b style="color:var(--t1)">read</b> <code>apps/desktop/src/composer/composer-run-actions.tsx</code> <span class="tc-meta ml">212 行</span></div>
                         </div>
                       </div>
                     </div>

@@ -4,18 +4,18 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { DEFAULT_ATTENTION_PREFERENCES } from '@piwin/host-client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_LIGHT } from '../../appearance-tokens';
+import { PIWIN_APPEARANCE_LIGHT } from '../../theme/appearance-tokens';
 import {
   ATTENTION_PREFERENCES_KEY,
   readAttentionPreferences,
   writeAttentionPreferences,
-} from '../../attention-preferences';
+} from '../../notifications/attention-preferences';
 import type {
   AttentionAuthorization,
   AttentionOsCapabilities,
   DesktopAttentionOs,
-} from '../../desktop-attention-os';
-import { DesktopLocaleProvider } from '../../desktop-locale-context';
+} from '../../notifications/desktop-attention-os';
+import { DesktopLocaleProvider } from '../../i18n/desktop-locale-context';
 import { NotificationsPage } from './notifications-page';
 
 declare global {

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { IconAlertCircle, IconRefresh } from '../../shell-icons';
+import { IconAlertCircle, IconRefresh } from '../../tool-cards/shell-icons';
 
 export type MediaLibraryErrorStateProps = {
   error: string;

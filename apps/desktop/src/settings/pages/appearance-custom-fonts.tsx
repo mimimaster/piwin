@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactElement } from 'react';
 import { Button, Select } from '@piwin/ui-kit';
-import type { DesktopCopy } from '../../desktop-locale.js';
+import type { DesktopCopy } from '../../i18n/desktop-locale.js';
 import {
   saveDesktopPreferences,
   type CustomFontPreferences,
   type DesktopPreferences,
-} from '../../ui-preferences.js';
+} from '../../platform/ui-preferences.js';
 import { FieldRow } from '../field-row.js';
 import { parseFontMetadata } from '../../theme/font-parser.js';
 import {

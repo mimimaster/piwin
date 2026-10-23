@@ -5,19 +5,19 @@ import type {
   SessionTranscriptMessage,
   SessionUserMessageIndexData,
 } from '@piwin/contracts';
-import { chatUiReducer, createInitialChatUiState } from '../chat-reducer.js';
-import type { HostClient } from '../host-client.js';
+import { chatUiReducer, createInitialChatUiState } from '../conversation/chat-reducer.js';
+import type { HostClient } from '../host/host-client.js';
 import { useSessionTranscriptActions } from '../hooks/use-session-transcript-actions.js';
-import { createMockSessionTranscriptWindow } from '../mock-session-transcript-window.js';
+import { createMockSessionTranscriptWindow } from '../host/mock-session-transcript-window.js';
 import {
   canLoadNewerTranscript,
   canLoadOlderTranscript,
   historyViewCaughtUpWithLive,
-} from '../transcript-history-window.js';
-import { TranscriptViewport } from '../transcript-viewport.js';
-import { TranscriptTurnList } from '../transcript-turn-list.js';
-import { groupTranscriptTurns } from '../transcript-turns.js';
-import { messageAnchorId } from '../transcript-outline.js';
+} from '../conversation/transcript-history-window.js';
+import { TranscriptViewport } from '../conversation/transcript-viewport.js';
+import { TranscriptTurnList } from '../conversation/transcript-turn-list.js';
+import { groupTranscriptTurns } from '../conversation/transcript-turns.js';
+import { messageAnchorId } from '../conversation/transcript-outline.js';
 
 /**
  * Longer than the history-view cap (MAX_HISTORY_VIEW_MESSAGES) so walking it

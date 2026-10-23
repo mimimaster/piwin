@@ -3,8 +3,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostCommand, HostResponse, SessionSummary } from '@piwin/contracts';
-import type { HostClient } from '../host-client.js';
-import { chatUiReducer, createInitialChatUiState, type ChatUiAction } from '../chat-reducer.js';
+import type { HostClient } from '../host/host-client.js';
+import { chatUiReducer, createInitialChatUiState, type ChatUiAction } from '../conversation/chat-reducer.js';
 import { useProjectOpen } from './use-project-open.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;

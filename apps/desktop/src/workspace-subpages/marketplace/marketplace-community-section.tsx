@@ -7,7 +7,7 @@ import { useMemo, useState, type ReactElement } from 'react';
 import type { MarketplaceInstalledItem, MarketplaceSearchHit } from '@piwin/contracts';
 import { normalizeResourceId } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
-import type { DesktopLocale } from '../../desktop-locale.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
 import { MarketplacePiPackageCard } from './marketplace-pi-package-card.js';
 import { sortCommunityHits } from './marketplace-package-meta.js';
 import type { CommunitySort, MarketKindFilter } from './marketplace-types.js';

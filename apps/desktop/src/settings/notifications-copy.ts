@@ -1,4 +1,4 @@
-import type { DesktopLocale } from '../desktop-locale';
+import type { DesktopLocale } from '../i18n/desktop-locale';
 
 export type NotificationsCopy = {
   title: string;

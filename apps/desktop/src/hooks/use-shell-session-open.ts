@@ -1,14 +1,14 @@
 import { useCallback } from 'react';
-import type { ChatUiState } from '../chat-reducer';
-import { shouldBindSessionToSecondaryPane } from '../conversation-pane-bind';
+import type { ChatUiState } from '../conversation/chat-reducer';
+import { shouldBindSessionToSecondaryPane } from '../conversation/conversation-pane-bind';
 import {
   PRIMARY_CONVERSATION_PANE_ID,
   listConversationPaneLeaves,
-} from '../conversation-pane-layout';
-import { resolveEntityScope } from '../session-entities';
-import { sessionScopeKey } from '../session-scope-key';
-import type { ShellLayoutMode } from '../shell-layout';
-import type { ConversationPaneLayoutController } from '../use-conversation-pane-layout';
+} from '../conversation/conversation-pane-layout';
+import { resolveEntityScope } from '../session/session-entities';
+import { sessionScopeKey } from '../session/session-scope-key';
+import type { ShellLayoutMode } from '../tool-cards/shell-layout';
+import type { ConversationPaneLayoutController } from './use-conversation-pane-layout';
 import type { DockingWorkspaceController } from '../workbench/docking/use-docking-workspace';
 
 export type ShellSessionOpen = (sessionId: string) => Promise<void>;

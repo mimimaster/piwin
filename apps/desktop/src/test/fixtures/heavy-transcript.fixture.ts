@@ -5,7 +5,7 @@
  * - Assistant messages containing 900-line Markdown code blocks
  * - Long streaming assistant message with large thinking text (10,000+ chars)
  */
-import type { ChatMessageUi, ToolCardUi } from '../../chat-reducer';
+import type { ChatMessageUi, ToolCardUi } from '../../conversation/chat-reducer';
 
 export function create900LineCodeBlock(lang = 'tsx'): string {
   const lines: string[] = [];

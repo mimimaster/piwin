@@ -3,7 +3,7 @@
  * de-duplication, ordering, and README sanitizing. No I/O.
  */
 import type { MarketplaceCatalogEntry, MarketplaceSearchHit } from '@piwin/contracts';
-import type { DesktopLocale } from '../../desktop-locale.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
 import type { CommunitySort } from './marketplace-types.js';
 
 export function packageSourceLabel(hit: Pick<MarketplaceSearchHit, 'source' | 'curated'>): string {

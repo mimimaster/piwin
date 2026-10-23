@@ -4,8 +4,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { PiwinConfig } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens.js';
-import { DesktopLocaleProvider } from '../desktop-locale-context.js';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens.js';
+import { DesktopLocaleProvider } from '../i18n/desktop-locale-context.js';
 import { LiveSettings, type LiveSettingsHostRequest } from './live-settings.js';
 
 declare global {

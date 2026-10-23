@@ -4,8 +4,8 @@
  */
 import type { ReactElement, ReactNode, RefObject } from 'react';
 import type { MarketplaceCategory } from '@piwin/contracts';
-import type { DesktopLocale } from '../../desktop-locale.js';
-import { IconClose, IconSearch } from '../../shell-icons.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
+import { IconClose, IconSearch } from '../../tool-cards/shell-icons.js';
 import { categoryLabel, kindLabel } from './marketplace-copy.js';
 import type { MarketCategoryFilter, MarketKindFilter } from './marketplace-types.js';
 

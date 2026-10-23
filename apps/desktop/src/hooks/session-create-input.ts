@@ -13,7 +13,7 @@ import {
   sessionCreateInputForTransport,
   type DesktopHostTransport,
   type SessionCreateInputPayload,
-} from '../remote-session-hydrate.js';
+} from '../host/remote-session-hydrate.js';
 
 export function isExternalAgentId(agentId: string | undefined): boolean {
   return agentId !== undefined && agentId !== '' && agentId !== 'pi';

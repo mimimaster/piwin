@@ -190,21 +190,21 @@ describe('Desktop renderer resource boundaries', () => {
   it('keeps settings CSS and feature modules out of the cold main entries', () => {
     const mainStyles = readSource('./styles.css');
     const settingsStyles = readSource('./styles/settings.css');
-    const settingsPanel = readSource('./SettingsPanel.tsx');
+    const settingsPanel = readSource('./settings/SettingsPanel.tsx');
     const app = readSource('./App.tsx');
-    const deferredSurfaces = readSource('./deferred-desktop-surfaces.tsx');
-    const themeRoot = readSource('./desktop-theme-root.tsx');
+    const deferredSurfaces = readSource('./conversation/deferred-desktop-surfaces.tsx');
+    const themeRoot = readSource('./platform/desktop-theme-root.tsx');
     const mainEntry = readSource('./main.tsx');
-    const markdownMath = readSource('./markdown-math.ts');
+    const markdownMath = readSource('./markdown/markdown-math.ts');
     const composerMedia = readComposerHookSources();
-    const hostClient = readSource('./host-client.ts');
+    const hostClient = readSource('./host/host-client.ts');
     const mockHostClient = [
-      readSource('./host-client-mock.ts'),
-      readSource('./host-client-mock-lifecycle.ts'),
-      readSource('./host-client-mock-session-read.ts'),
-      readSource('./host-client-mock-turn.ts'),
+      readSource('./host/host-client-mock.ts'),
+      readSource('./host/host-client-mock-lifecycle.ts'),
+      readSource('./host/host-client-mock-session-read.ts'),
+      readSource('./host/host-client-mock-turn.ts'),
     ].join('\n');
-    const syntaxHighlight = readSource('./syntax-highlight.tsx');
+    const syntaxHighlight = readSource('./markdown/syntax-highlight.tsx');
 
     for (const settingsSheet of [
       'region-settings-shell.css',
@@ -236,16 +236,16 @@ describe('Desktop renderer resource boundaries', () => {
     ]) {
       expect(mainStyles).toContain(sharedSheet);
     }
-    expect(settingsPanel).toContain("import './styles/settings.css'");
-    expect(app).not.toContain("from './SettingsPanel'");
+    expect(settingsPanel).toContain("import '../styles/settings.css'");
+    expect(app).not.toContain("from './settings/SettingsPanel'");
     expect(app).not.toContain("from './KnowledgeCenterPanel'");
-    expect(deferredSurfaces).toContain("import('./SettingsPanel')");
+    expect(deferredSurfaces).toContain("import('../settings/SettingsPanel')");
     expect(deferredSurfaces).toContain('prefetchSettingsPanel');
-    expect(deferredSurfaces).toContain("import('./workspace-subpages/LibraryWorkspaceView.js')");
-    expect(deferredSurfaces).toContain("import('./workspace-subpages/KnowledgeWorkspaceView.js')");
-    expect(deferredSurfaces).toContain("import('./workspace-subpages/MarketplaceWorkspaceView.js')");
+    expect(deferredSurfaces).toContain("import('../workspace-subpages/LibraryWorkspaceView.js')");
+    expect(deferredSurfaces).toContain("import('../workspace-subpages/KnowledgeWorkspaceView.js')");
+    expect(deferredSurfaces).toContain("import('../workspace-subpages/MarketplaceWorkspaceView.js')");
     expect(themeRoot).not.toMatch(/import \{[^}]*PrimitiveGallery/);
-    expect(themeRoot).toContain("import('./e2e/primitive-gallery')");
+    expect(themeRoot).toContain("import('../e2e/primitive-gallery')");
     expect(themeRoot).toContain("import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true'");
     expect(mainEntry).not.toContain('katex/dist/katex.min.css');
     expect(markdownMath).toContain("import('katex')");
@@ -268,17 +268,17 @@ describe('Desktop renderer resource boundaries', () => {
     expect(settingsLazyLoad).toContain('ExtensionsPage');
     expect(settingsLazyLoad).toContain('KnowledgePage');
     expect(settingsPagesIndex).not.toContain('ModelsPage');
-    expect(generalPage).toContain("import('../../PetPanel')");
-    expect(generalPage).not.toContain("from '../../PetPanel'");
-    expect(deferredSurfaces).toContain("import('./browser-session-panel')");
-    expect(deferredSurfaces).toContain("import('./terminal-dock')");
-    expect(composerMedia).not.toContain("from '../file-tree-panel'");
-    expect(composerMedia).toContain("from '../workspace-path-drag'");
+    expect(generalPage).toContain("import('../../pet/PetPanel')");
+    expect(generalPage).not.toContain("from '../../pet/PetPanel'");
+    expect(deferredSurfaces).toContain("import('../browser/browser-session-panel')");
+    expect(deferredSurfaces).toContain("import('../terminal/terminal-dock')");
+    expect(composerMedia).not.toContain("from '../files/file-tree-panel'");
+    expect(composerMedia).toContain("from '../workspace/workspace-path-drag'");
     expect(hostClient).toContain("import type { MockHostBackend } from './host-client-mock'");
     expect(hostClient).toContain("import('./host-client-mock')");
     expect(mockHostClient).not.toMatch(/from '@piwin\/session['"]/);
     expect(mockHostClient).toContain("from '@piwin/session/fork-session-name'");
-    const planExecutionGate = readSource('./plan-execution-gate.tsx');
+    const planExecutionGate = readSource('./plan/plan-execution-gate.tsx');
     expect(planExecutionGate).not.toMatch(/from '@piwin\/session['"]/);
     expect(planExecutionGate).toContain("from '@piwin/session/classify-plan'");
     expect(syntaxHighlight).toContain("import type { Highlighter, ThemedToken } from 'shiki'");
@@ -305,8 +305,8 @@ describe('Desktop renderer resource boundaries', () => {
 
   it('keeps composer and transcript thumbs off the original File / asset URL', () => {
     const composerMedia = readComposerHookSources();
-    const mediaPreview = readSource('./MediaPreview.tsx');
-    const transcriptPreview = readSource('./transcript-media-preview.ts');
+    const mediaPreview = readSource('./media/MediaPreview.tsx');
+    const transcriptPreview = readSource('./conversation/transcript-media-preview.ts');
     expect(composerMedia).toContain('beginComposerImagePreview');
     expect(composerMedia).toContain('commitLimitedChipPreview');
     expect(transcriptPreview).toContain('createLimitedPreviewUrlFromHref');

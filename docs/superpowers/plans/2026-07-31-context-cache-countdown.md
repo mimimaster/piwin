@@ -4,7 +4,7 @@
 
 **Goal:** Show a live, second-precision countdown in the Context Usage popover that estimates when the host's cached context snapshot will expire, derived from `ContextUsageSnapshot.updatedAt` plus a product-defined 5-minute window, and explicitly labeled as an estimate (not a server-guaranteed TTL).
 
-**Architecture:** No contracts, host, or IPC changes — `ContextUsageSnapshot.updatedAt` already flows from `packages/agent-host` through `@piwin/contracts` into `apps/desktop/src/context-usage-ring.tsx`. Two pure helpers (`getCacheExpiryEstimateSeconds`, `formatCountdown`) plus a popover-gated 1-second React `useEffect` ticker render the countdown inside the existing popover. The countdown is hidden when `updatedAt` is missing, unparseable, or older than 5 minutes, and clamped at 5:00 for future/clock-skewed timestamps.
+**Architecture:** No contracts, host, or IPC changes — `ContextUsageSnapshot.updatedAt` already flows from `packages/agent-host` through `@piwin/contracts` into `apps/desktop/src/context/context-usage-ring.tsx`. Two pure helpers (`getCacheExpiryEstimateSeconds`, `formatCountdown`) plus a popover-gated 1-second React `useEffect` ticker render the countdown inside the existing popover. The countdown is hidden when `updatedAt` is missing, unparseable, or older than 5 minutes, and clamped at 5:00 for future/clock-skewed timestamps.
 
 **Tech Stack:** TypeScript (strict, ESM), React 19, Vitest 3 + happy-dom, `@piwin/contracts`, `@piwin/ui-kit`.
 
@@ -27,8 +27,8 @@
 
 | File | Responsibility | Action |
 |------|----------------|--------|
-| `apps/desktop/src/context-usage-ring.tsx` | Add `CACHE_EXPIRY_ESTIMATE_MS` constant, `getCacheExpiryEstimateSeconds` + `formatCountdown` pure helpers, popover-gated 1-second ticker, render estimate row in popover | Modify |
-| `apps/desktop/src/context-usage-ring.test.tsx` | Fake-timer coverage: initial 5:00, per-second decrement, expiry hide, invalid/missing `updatedAt` hide, future-timestamp clamp, popover-closed no-tick | Modify |
+| `apps/desktop/src/context/context-usage-ring.tsx` | Add `CACHE_EXPIRY_ESTIMATE_MS` constant, `getCacheExpiryEstimateSeconds` + `formatCountdown` pure helpers, popover-gated 1-second ticker, render estimate row in popover | Modify |
+| `apps/desktop/src/context/context-usage-ring.test.tsx` | Fake-timer coverage: initial 5:00, per-second decrement, expiry hide, invalid/missing `updatedAt` hide, future-timestamp clamp, popover-closed no-tick | Modify |
 | `apps/desktop/src/styles/region-composer.css` | Add `.context-usage-cache-estimate` styling (muted, small, gap from summary) | Modify |
 | `docs/todo-deferred.md` | Annotate CE-OBS-01..02 row: cache countdown is a client-side 5-min estimate, not a Pi TTL; replace with host-supplied TTL if Pi ever exposes one | Modify |
 
@@ -37,8 +37,8 @@
 ## Task 1: Pure helpers + failing tests
 
 **Files:**
-- Modify: `apps/desktop/src/context-usage-ring.test.tsx`
-- Modify: `apps/desktop/src/context-usage-ring.tsx`
+- Modify: `apps/desktop/src/context/context-usage-ring.test.tsx`
+- Modify: `apps/desktop/src/context/context-usage-ring.tsx`
 
 **Interfaces:**
 - Produces (module-private, exercised via component render):
@@ -49,7 +49,7 @@
 
 - [ ] **Step 1: Export the constant and stub the helpers**
 
-In `apps/desktop/src/context-usage-ring.tsx`, immediately after the existing imports (line 9, after `import { IconClose } from './shell-icons';`), add:
+In `apps/desktop/src/context/context-usage-ring.tsx`, immediately after the existing imports (line 9, after `import { IconClose } from './shell-icons';`), add:
 
 ```ts
 /**
@@ -93,7 +93,7 @@ function formatCountdown(totalSeconds: number): string {
 
 - [ ] **Step 2: Write the failing helper tests**
 
-At the top of `apps/desktop/src/context-usage-ring.test.tsx`, update the existing import block (currently lines 12-15) to also pull in the constant:
+At the top of `apps/desktop/src/context/context-usage-ring.test.tsx`, update the existing import block (currently lines 12-15) to also pull in the constant:
 
 ```ts
 import {
@@ -130,7 +130,7 @@ Expected: PASS — the constant is already exported and equals 300000. This step
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/desktop/src/context-usage-ring.tsx apps/desktop/src/context-usage-ring.test.tsx
+git add apps/desktop/src/context/context-usage-ring.tsx apps/desktop/src/context/context-usage-ring.test.tsx
 git commit -m "$(cat <<'EOF'
 feat(desktop): add cache expiry estimate helpers (5-min window)
 
@@ -151,8 +151,8 @@ EOF
 ## Task 2: Render the countdown in the popover (TDD)
 
 **Files:**
-- Modify: `apps/desktop/src/context-usage-ring.test.tsx`
-- Modify: `apps/desktop/src/context-usage-ring.tsx`
+- Modify: `apps/desktop/src/context/context-usage-ring.test.tsx`
+- Modify: `apps/desktop/src/context/context-usage-ring.tsx`
 
 **Interfaces:**
 - Consumes: `CACHE_EXPIRY_ESTIMATE_MS`, `getCacheExpiryEstimateSeconds`, `formatCountdown` from Task 1.
@@ -160,7 +160,7 @@ EOF
 
 - [ ] **Step 1: Add fake-timer setup to the existing describe block**
 
-In `apps/desktop/src/context-usage-ring.test.tsx`, inside `describe('ContextUsageRing', ...)`:
+In `apps/desktop/src/context/context-usage-ring.test.tsx`, inside `describe('ContextUsageRing', ...)`:
 
 1. Update the `beforeEach` (currently lines 86-92) to install fake timers and pin the system clock to the same `updatedAt` value used by `createBaseProps` (`'2026-07-26T00:00:00.000Z'`):
 
@@ -283,7 +283,7 @@ Expected: FAIL — the new tests fail because the popover does not render any "C
 
 - [ ] **Step 4: Wire the ticker and render the estimate**
 
-In `apps/desktop/src/context-usage-ring.tsx`:
+In `apps/desktop/src/context/context-usage-ring.tsx`:
 
 1. Update the React import (line 5) to include `useEffect`:
 
@@ -335,7 +335,7 @@ Expected: PASS — all existing tests plus the 7 new countdown tests. If the "de
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/desktop/src/context-usage-ring.tsx apps/desktop/src/context-usage-ring.test.tsx
+git add apps/desktop/src/context/context-usage-ring.tsx apps/desktop/src/context/context-usage-ring.test.tsx
 git commit -m "$(cat <<'EOF'
 feat(desktop): show inferred cache expiry countdown in usage popover
 

@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { RightPanelTab } from '../right-panel';
+import type { RightPanelTab } from '../right-panel/right-panel';
 import {
   useSessionSwitchPanelReset,
   type UseSessionSwitchPanelResetArgs,

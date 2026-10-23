@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens.js';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens.js';
 import type { LiveCallView } from '@piwin/contracts';
 import { LiveComposerButton } from './LiveComposerButton.js';
 

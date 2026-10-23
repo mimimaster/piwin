@@ -50,11 +50,11 @@
 | `apps/desktop/src/KnowledgeCenterPanel.test.tsx` | 3, 4 | 停自动跳；不默认 git 项目 |
 | `apps/desktop/src/DocCardsPanel.tsx` | 2 抽出 / 7 删除 | 过渡复用 checklist |
 | `apps/desktop/src/App.tsx` | 4, 6 | 忽略 initialSubTab；`handleOpenCardsPanel` |
-| `apps/desktop/src/composer-dock.tsx` | 6 | `onOpenCardsPanel` 下传 |
-| `apps/desktop/src/composer-plus-menu.tsx` | 6 | Flashcards 改道 |
+| `apps/desktop/src/composer/composer-dock.tsx` | 6 | `onOpenCardsPanel` 下传 |
+| `apps/desktop/src/composer/composer-plus-menu.tsx` | 6 | Flashcards 改道 |
 | `apps/desktop/src/slash/*` | 6 | `/flashcards` → `cards-panel` |
-| `apps/desktop/src/right-panel-sections.tsx` | 6 | 可见 Cards 瓷砖 |
-| `apps/desktop/src/right-panel-memory.ts` | 6 | `ALLOWED_KINDS` 含 `'cards'` |
+| `apps/desktop/src/right-panel/right-panel-sections.tsx` | 6 | 可见 Cards 瓷砖 |
+| `apps/desktop/src/right-panel/right-panel-memory.ts` | 6 | `ALLOWED_KINDS` 含 `'cards'` |
 
 本轮 **不做** `doccards/open-review-session`（设计里可选；degraded 结果页只「留在此文件夹」）。
 
@@ -67,7 +67,7 @@
 - Create: `apps/desktop/src/knowledge/knowledge-loop-state.test.ts`
 
 **Interfaces:**
-- Consumes: `selectedDocumentsReady` from `apps/desktop/src/doccards-progress.ts`; `DocumentManifest`, `IngestionJob`, `GenerationJob` from `@piwin/contracts`
+- Consumes: `selectedDocumentsReady` from `apps/desktop/src/documents/doccards-progress.ts`; `DocumentManifest`, `IngestionJob`, `GenerationJob` from `@piwin/contracts`
 - Produces: `deriveKnowledgeLoop(input: KnowledgeLoopInput): KnowledgeLoopView`, `generateDisabledCopy(...)`, types below
 
 - [ ] **Step 1: Write the failing test**
@@ -1018,7 +1018,7 @@ Only if Task 4 did not already add it.
 
 **Files:**
 - Modify: `apps/desktop/src/knowledge/KnowledgeReadyView.tsx`
-- Modify: `apps/desktop/src/knowledge-capabilities.ts` (optional helper)
+- Modify: `apps/desktop/src/knowledge/knowledge-capabilities.ts` (optional helper)
 
 - [ ] **Step 1: Test**
 
@@ -1033,12 +1033,12 @@ If already in Task 4, skip the extra commit.
 ### Task 6: PR5a — 恢复右栏 Cards 入口并改道 `/flashcards`
 
 **Files:**
-- Modify: `apps/desktop/src/right-panel-sections.tsx`
-- Modify: `apps/desktop/src/right-panel-memory.ts`
+- Modify: `apps/desktop/src/right-panel/right-panel-sections.tsx`
+- Modify: `apps/desktop/src/right-panel/right-panel-memory.ts`
 - Modify: `apps/desktop/src/App.tsx`
-- Modify: `apps/desktop/src/composer-dock.tsx`
-- Modify: `apps/desktop/src/composer-plus-menu.tsx`
-- Modify: `apps/desktop/src/composer-plus-menu.test.tsx`
+- Modify: `apps/desktop/src/composer/composer-dock.tsx`
+- Modify: `apps/desktop/src/composer/composer-plus-menu.tsx`
+- Modify: `apps/desktop/src/composer/composer-plus-menu.test.tsx`
 - Modify: `apps/desktop/src/slash/slash-types.ts`
 - Modify: `apps/desktop/src/slash/slash-parse.ts`
 - Modify: `apps/desktop/src/slash/slash-parse.test.ts`
@@ -1176,7 +1176,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/desktop/src/right-panel-sections.tsx apps/desktop/src/right-panel-memory.ts apps/desktop/src/App.tsx apps/desktop/src/composer-dock.tsx apps/desktop/src/composer-plus-menu.tsx apps/desktop/src/composer-plus-menu.test.tsx apps/desktop/src/slash apps/desktop/src/hooks/use-composer-media.ts
+git add apps/desktop/src/right-panel/right-panel-sections.tsx apps/desktop/src/right-panel/right-panel-memory.ts apps/desktop/src/App.tsx apps/desktop/src/composer/composer-dock.tsx apps/desktop/src/composer/composer-plus-menu.tsx apps/desktop/src/composer/composer-plus-menu.test.tsx apps/desktop/src/slash apps/desktop/src/hooks/use-composer-media.ts
 git commit -m "$(cat <<'EOF'
 feat(desktop): restore Flashcards inspector tile and route /flashcards to it
 

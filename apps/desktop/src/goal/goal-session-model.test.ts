@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GoalDisplayPayload } from '@piwin/contracts';
-import type { ChatMessageUi, ToolCardUi } from '../chat-ui-types';
+import type { ChatMessageUi, ToolCardUi } from '../conversation/chat-ui-types';
 import { deriveGoalSessionView, listGoalEvents } from './goal-session-model';
 
 function userMessage(text: string, options: { goalMode?: boolean } = {}): ChatMessageUi {

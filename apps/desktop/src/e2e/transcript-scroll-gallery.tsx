@@ -1,10 +1,10 @@
 import { TranscriptPagingGallery } from './transcript-paging-gallery.js';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
-import { TranscriptViewport } from '../transcript-viewport';
-import { TranscriptTurnList } from '../transcript-turn-list';
-import { groupTranscriptTurns } from '../transcript-turns';
-import type { ChatMessageUi } from '../chat-reducer';
+import { TranscriptViewport } from '../conversation/transcript-viewport';
+import { TranscriptTurnList } from '../conversation/transcript-turn-list';
+import { groupTranscriptTurns } from '../conversation/transcript-turns';
+import type { ChatMessageUi } from '../conversation/chat-reducer';
 
 /** Synthetic geometry only: no real session contents or Host writes. */
 export function TranscriptScrollGallery(): ReactElement {

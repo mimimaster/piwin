@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { globalMemoryGovernor } from '../memory-governor.js';
-import { getShikiTheme, normalizeLanguage, useShikiTheme } from '../syntax-highlight.js';
+import { globalMemoryGovernor } from '../notes/memory-governor.js';
+import { getShikiTheme, normalizeLanguage, useShikiTheme } from '../markdown/syntax-highlight.js';
 import { HighlightClient } from './highlight-client.js';
 import { hashSource, type TokenLine } from './highlight-protocol.js';
 

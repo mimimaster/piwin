@@ -5,10 +5,10 @@
 
 import { type ReactElement } from 'react';
 import { Button, IconButton, StatusBadge } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../desktop-locale-context.js';
-import { DocCardsProgressRing } from '../DocCardsProgressRing.js';
+import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
+import { DocCardsProgressRing } from '../documents/DocCardsProgressRing.js';
 import type { IngestionJob, ScannedDocFile, ScannedFileV2 } from '@piwin/contracts';
-import { IconFolder, IconRefresh, IconSettings } from '../shell-icons.js';
+import { IconFolder, IconRefresh, IconSettings } from '../tool-cards/shell-icons.js';
 
 export type KnowledgeUnindexedHeroProps = {
   folderPath: string;

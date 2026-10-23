@@ -14,8 +14,8 @@ import {
   lastSessionPersistUnchanged,
   planLastSessionPersist,
   type LastSessionPointer,
-} from '../workbench-session-lifecycle';
-import { saveDesktopPreferences, type DesktopPreferences } from '../ui-preferences';
+} from '../workbench/workbench-session-lifecycle';
+import { saveDesktopPreferences, type DesktopPreferences } from '../platform/ui-preferences';
 
 export type UseWorkbenchDesktopConfigArgs = {
   config: PiwinConfig | null;

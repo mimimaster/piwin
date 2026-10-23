@@ -7,7 +7,7 @@ import { useState, type ReactElement } from 'react';
 import type { MarketplacePiPackageSource } from '@piwin/contracts';
 import { parsePiPackageSourceInput } from '@piwin/contracts';
 import { Button, Dialog, Notice, TextInput } from '@piwin/ui-kit';
-import type { DesktopLocale } from '../../desktop-locale.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
 
 export type MarketplaceSourceInstallDialogProps = {
   open: boolean;

@@ -6,8 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { ChatMessageUi } from '../chat-reducer';
-import type { ArtifactCanvasTarget } from '../artifact-canvas-model';
+import type { ChatMessageUi } from '../conversation/chat-reducer';
+import type { ArtifactCanvasTarget } from '../artifact/artifact-canvas-model';
 import { useArtifactCanvasAutoReveal } from './use-artifact-canvas-auto-reveal';
 
 declare global {

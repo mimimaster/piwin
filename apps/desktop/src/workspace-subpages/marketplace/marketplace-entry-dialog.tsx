@@ -14,9 +14,9 @@ import type {
   MarketplaceRequirementsCheckData,
 } from '@piwin/contracts';
 import { Button, Dialog, IconButton, Notice, ProgressBar } from '@piwin/ui-kit';
-import type { DesktopLocale } from '../../desktop-locale.js';
-import { openExternalUrl } from '../../open-external-url.js';
-import { IconClose, IconExternalLink } from '../../shell-icons.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
+import { openExternalUrl } from '../../platform/open-external-url.js';
+import { IconClose, IconExternalLink } from '../../tool-cards/shell-icons.js';
 import {
   availabilityLabel,
   categoryLabel,

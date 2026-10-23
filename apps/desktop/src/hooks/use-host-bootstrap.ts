@@ -21,38 +21,38 @@ import type {
 } from '@piwin/contracts';
 import type { PetRuntimeSnapshot } from '@piwin/contracts';
 import { formatError, isPrimarySessionRecord, parseSessionContextSnapshot } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import { isRemoteCommandGapError } from '../remote-command-gap.js';
-import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
-import { toPermissionPromptUi } from '../permission-queue.js';
+import type { HostClient } from '../host/host-client';
+import { isRemoteCommandGapError } from '../host/remote-command-gap.js';
+import { isWorkbenchHostTeardownError } from '../workbench/workbench-host-teardown.js';
+import { toPermissionPromptUi } from '../settings/permission-queue.js';
 import {
   bootstrapExternalAgents,
   handleExternalAgentPush,
   syncReadyAgentCatalogs,
 } from './external-agent-bootstrap.js';
-import type { ChatUiAction } from '../chat-reducer';
-import type { NotificationAction } from '../notification-queue';
-import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
-import type { PtyOutputLine } from '../terminal-dock';
+import type { ChatUiAction } from '../conversation/chat-reducer';
+import type { NotificationAction } from '../notifications/notification-queue';
+import { appendHostLogEntry, type HostLogEntry } from '../host/HostLogPanel';
+import type { PtyOutputLine } from '../terminal/terminal-dock';
 import {
   PIWIN_APPEARANCE_DARK,
   isAppearanceFaceId,
   resolveDesktopAppearance,
-} from '../appearance-tokens';
-import { getDesktopCopy, type DesktopCopy } from '../desktop-locale';
-import { useDesktopLocale } from '../desktop-locale-context';
-import { createStreamEventBuffer } from '../stream-event-buffer';
+} from '../theme/appearance-tokens';
+import { getDesktopCopy, type DesktopCopy } from '../i18n/desktop-locale';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
+import { createStreamEventBuffer } from '../conversation/stream-event-buffer';
 import {
   hydrationSessionApplyActions,
   mapListedSessionItem,
   mapListedSessionItems,
   sessionUpdateFromIndexPush,
-} from '../remote-session-hydrate';
-import { readConfiguredChatModelsData } from '../model-options';
-import { resolveBootstrapSelectedModelKey } from '../composer-model-selection-policy.js';
-import { publishPetOverlayState } from '../pet-overlay-state-bridge.js';
+} from '../host/remote-session-hydrate';
+import { readConfiguredChatModelsData } from '../models/model-options';
+import { resolveBootstrapSelectedModelKey } from '../composer/composer-model-selection-policy.js';
+import { publishPetOverlayState } from '../pet/pet-overlay-state-bridge.js';
 import { useExtensionUiRequests } from './use-extension-ui-requests';
-import { readProjectedHostConfig } from '../remote-settings-hydrate.js';
+import { readProjectedHostConfig } from '../host/remote-settings-hydrate.js';
 import { mergeSettingsViewConfig } from '../settings/settings-view-config.js';
 import {
   appendBoundedPtyOutput,
@@ -60,12 +60,12 @@ import {
   MAX_EXTENSION_DEPLOYMENT_ANNOUNCEMENTS,
   MAX_SESSION_PLAN_CACHE,
   putRecordLru,
-} from '../record-budget';
+} from '../platform/record-budget';
 
 /** HMR must remount this subscribe effect; `hostClient` identity does not change. */
 const HOST_PUSH_LIVE_PATH = 'paced-v2';
 
-export type { ExtensionUiRequestState } from '../extension-ui-request-registry';
+export type { ExtensionUiRequestState } from '../extensions/extension-ui-request-registry';
 
 export type UseHostBootstrapArgs = {
   hostClient: HostClient;

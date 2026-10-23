@@ -3,7 +3,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HostCommand, HostPush, HostResponse, TurnChangeSummary } from '@piwin/contracts';
-import { ChatTurnFilesSummary } from '../chat-turn-files-summary';
+import { ChatTurnFilesSummary } from '../conversation/chat-turn-files-summary';
 import { TurnChangeBar } from './turn-change-bar';
 import { TurnChangePanel } from './turn-change-panel';
 import {

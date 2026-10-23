@@ -12,9 +12,9 @@ import {
   type ArtifactRenderPlan,
 } from '@piwin/artifact';
 import { Button, TextArea } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
-import { mapThemeToArtifactVariables } from '../../artifact-theme-map';
-import { ArtifactFrame } from '../../ArtifactFrame';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
+import { mapThemeToArtifactVariables } from '../../artifact/artifact-theme-map';
+import { ArtifactFrame } from '../../artifact/ArtifactFrame';
 import { useSettings } from '../settings-context';
 
 const SAMPLE_HTML = `<section style="font-family: system-ui; padding: 24px;">

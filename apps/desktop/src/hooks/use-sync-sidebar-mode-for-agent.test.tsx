@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useSyncSidebarModeForAgent } from './use-sync-sidebar-mode-for-agent';
-import type { SidebarMode } from '../sidebar-mode';
+import type { SidebarMode } from '../sidebar/sidebar-mode';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;

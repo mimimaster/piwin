@@ -6,7 +6,7 @@ import { type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
 import type { DocumentManifest, ScannedDocFile, ScannedFileV2 } from '@piwin/contracts';
 import { DEFAULT_MAX_FILES } from '@piwin/contracts';
-import { useDesktopLocale } from '../desktop-locale-context.js';
+import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
 
 export type KnowledgeFileChecklistProps = {
   files: ScannedDocFile[];

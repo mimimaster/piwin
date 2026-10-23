@@ -1,7 +1,7 @@
 import { type ReactElement } from 'react';
 import { Button, TextInput } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../desktop-locale-context.js';
-import { IconCards } from '../shell-icons.js';
+import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
+import { IconCards } from '../tool-cards/shell-icons.js';
 
 export type KnowledgeReadyViewProps = {
   folderName: string;

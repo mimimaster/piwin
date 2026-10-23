@@ -5,9 +5,9 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import type { McpServerHealth, McpServerRuntimeStatus, SkillSource } from '@piwin/contracts';
-import type { ComposerPlusSubmenu } from '../composer-plus-menu';
-import type { HostClient } from '../host-client';
-import { SKILLS_CHANGED_EVENT } from '../skills-changed.js';
+import type { ComposerPlusSubmenu } from '../composer/composer-plus-menu';
+import type { HostClient } from '../host/host-client';
+import { SKILLS_CHANGED_EVENT } from '../extensions/skills-changed.js';
 import { useSessionMcpSwitches } from './use-session-mcp-switches.js';
 
 export type ComposerMenuSkill = {

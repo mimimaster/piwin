@@ -8,7 +8,7 @@ import {
   clearWebViewportCssVars,
   readWebViewportMetrics,
   shouldResetDocumentScroll,
-} from '../web-viewport';
+} from '../browser/web-viewport';
 
 export function useWebViewport(): void {
   useEffect(() => {

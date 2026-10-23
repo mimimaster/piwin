@@ -164,17 +164,17 @@ flowchart LR
 
 | 文件 | 改动 |
 |------|------|
-| `apps/desktop/src/right-panel-sections.tsx` | `SECTION_META` 增加可见 `{ id: 'cards', labelEn: 'Flashcards', labelZh: '知识卡片' }`（用现有 `IconCards`） |
-| `apps/desktop/src/right-panel-memory.ts` | `ALLOWED_KINDS` 加入 `'cards'`，折叠后能恢复该 tab |
+| `apps/desktop/src/right-panel/right-panel-sections.tsx` | `SECTION_META` 增加可见 `{ id: 'cards', labelEn: 'Flashcards', labelZh: '知识卡片' }`（用现有 `IconCards`） |
+| `apps/desktop/src/right-panel/right-panel-memory.ts` | `ALLOWED_KINDS` 加入 `'cards'`，折叠后能恢复该 tab |
 | `apps/desktop/src/App.tsx` | 新增 `handleOpenCardsPanel` → `openRightTab('cards')`；把它传进 **composer dock**（`onOpenCardsPanel={handleOpenCardsPanel}`）。`handleOpenKnowledge` 不再因 `'cards'` 去 KC。**过渡一期：** 若仍有调用方走 `handleOpenKnowledge('cards')`，该分支必须转调 `handleOpenCardsPanel()`，避免漏改的入口重新打开内嵌 FSRS |
-| `apps/desktop/src/composer-dock.tsx` | 新增可选 `onOpenCardsPanel?: () => void`（**不要**把 Flashcards 塞进已有的 `onOpenKnowledge('cards')`）。原样传给 `composer-plus-menu`。slash 路径若经 dock / `use-composer-media`，同样调这个 prop |
+| `apps/desktop/src/composer/composer-dock.tsx` | 新增可选 `onOpenCardsPanel?: () => void`（**不要**把 Flashcards 塞进已有的 `onOpenKnowledge('cards')`）。原样传给 `composer-plus-menu`。slash 路径若经 dock / `use-composer-media`，同样调这个 prop |
 | `apps/desktop/src/slash/slash-parse.ts` | `/flashcards` `/cards` 不再返回 `kind: 'knowledge'`。新增 `kind: 'cards-panel'`（或等价 command），由 `use-composer-media.ts` 调 `onOpenCardsPanel` |
 | `apps/desktop/src/slash/slash-types.ts` + `slash-parse.test.ts` | 同步联合类型与断言 |
 | `apps/desktop/src/slash/slash-catalog.ts` | Flashcards 描述改为到期复习，不再写「打开知识中心」 |
-| `apps/desktop/src/composer-plus-menu.tsx` | 新增 `onOpenCardsPanel`；Flashcards 项只调它；Wiki 项改文案并开 KC |
-| `apps/desktop/src/composer-plus-menu.test.tsx` | 断言 Flashcards 调 `onOpenCardsPanel`，不调 `onOpenKnowledge('cards')` |
+| `apps/desktop/src/composer/composer-plus-menu.tsx` | 新增 `onOpenCardsPanel`；Flashcards 项只调它；Wiki 项改文案并开 KC |
+| `apps/desktop/src/composer/composer-plus-menu.test.tsx` | 断言 Flashcards 调 `onOpenCardsPanel`，不调 `onOpenKnowledge('cards')` |
 | `apps/desktop/src/hooks/use-composer-media.ts` | 处理新 slash kind → `onOpenCardsPanel` |
-| `apps/desktop/src/right-panel-home.tsx` / `right-panel-plus-menu.tsx` | 无逻辑改动（读 `SECTION_META`）；补测试点瓷砖能打开 `cardsContent` |
+| `apps/desktop/src/right-panel/right-panel-home.tsx` / `right-panel-plus-menu.tsx` | 无逻辑改动（读 `SECTION_META`）；补测试点瓷砖能打开 `cardsContent` |
 
 `RightPanel.sectionContent` 的 `case 'cards'` 与 `App.tsx` 的 `cardsContent={<DeferredFlashcardsPanel .../>}` **已经存在**，不要重写面板，只补入口。
 
@@ -852,13 +852,13 @@ A / B / C 见上。
 - `packages/host-runtime/src/doccards-review-session.ts`
 - `apps/desktop/src/KnowledgeCenterPanel.tsx`（HEAD 435 行）
 - `apps/desktop/src/DocCardsPanel.tsx`（未挂载，852 行）
-- `apps/desktop/src/DocCardSequenceView.tsx`
-- `apps/desktop/src/FlashcardsPanel.tsx`
-- `apps/desktop/src/right-panel-sections.tsx`
-- `apps/desktop/src/right-panel-memory.ts`
+- `apps/desktop/src/documents/DocCardSequenceView.tsx`
+- `apps/desktop/src/flashcards/FlashcardsPanel.tsx`
+- `apps/desktop/src/right-panel/right-panel-sections.tsx`
+- `apps/desktop/src/right-panel/right-panel-memory.ts`
 - `apps/desktop/src/slash/slash-parse.ts`
-- `apps/desktop/src/composer-plus-menu.tsx`
-- `apps/desktop/src/composer-dock.tsx`
+- `apps/desktop/src/composer/composer-plus-menu.tsx`
+- `apps/desktop/src/composer/composer-dock.tsx`
 - `apps/desktop/src/settings/pages/knowledge-page.tsx`
 
 ---

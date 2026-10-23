@@ -4,11 +4,11 @@
  */
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { type SessionListOrder } from '@piwin/contracts';
-import type { HostLogEntry } from '../HostLogPanel';
-import { listArchivedHydrationRequests } from '../workbench-chrome-assembly';
-import { resolveSessionScopeHintFromSearchHits } from '../workbench-session-lifecycle';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
-import type { HostClient } from '../host-client';
+import type { HostLogEntry } from '../host/HostLogPanel';
+import { listArchivedHydrationRequests } from '../workbench/workbench-chrome-assembly';
+import { resolveSessionScopeHintFromSearchHits } from '../workbench/workbench-session-lifecycle';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
+import type { HostClient } from '../host/host-client';
 import { useBranchActions } from './use-branch-actions';
 import { useSessionActions } from './use-session-actions';
 import { useSettingsSaveQueue } from './use-settings-save-queue';

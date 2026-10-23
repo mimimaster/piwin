@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { StudioTopbar } from '../../studio/studio-chrome';
-import type { DesktopLocale } from '../../../desktop-locale';
+import type { DesktopLocale } from '../../../i18n/desktop-locale';
 import { flashcardStudyCopy } from './study-copy';
 import { FlashcardStudyView } from './FlashcardStudyView';
 import {

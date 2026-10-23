@@ -1,7 +1,7 @@
 import {
   conversationPaneStorageKey,
   parseConversationPaneLayout,
-} from '../../conversation-pane-storage.js';
+} from '../../conversation/conversation-pane-storage.js';
 import {
   CONVERSATION_PANE_V1_BACKUP_SUFFIX,
   RIGHT_PANEL_GROUP_LIMIT_V1,

@@ -3,12 +3,12 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ExecutionRunRecord, HostCommand, HostResponse, ModelRef } from '@piwin/contracts';
-import { createInitialChatUiState, type ChatUiAction, type ChatUiState } from '../chat-reducer';
-import type { HostClient } from '../host-client';
+import { createInitialChatUiState, type ChatUiAction, type ChatUiState } from '../conversation/chat-reducer';
+import type { HostClient } from '../host/host-client';
 import {
   makeContextSnapshot,
   makeKnownOccupancy,
-} from '../context-telemetry-test-fixtures.js';
+} from '../context/context-telemetry-test-fixtures.js';
 import { useSessionResume } from './use-session-resume.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;

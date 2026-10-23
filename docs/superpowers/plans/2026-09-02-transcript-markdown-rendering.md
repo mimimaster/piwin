@@ -15,7 +15,7 @@
 - Apps never import `@earendil-works/pi-*`.
 - No new npm dependencies.
 - No `any`. No non-null assertion without a runtime check in the same block.
-- No file over 1000 lines. `apps/desktop/src/MarkdownView.test.tsx` is already 1034 lines — **do not add tests there**. Put new coverage in new colocated test files or `markdown-rendering.test.tsx` (68 lines).
+- No file over 1000 lines. `apps/desktop/src/markdown/MarkdownView.test.tsx` is already 1034 lines — **do not add tests there**. Put new coverage in new colocated test files or `markdown-rendering.test.tsx` (68 lines).
 - Tests required for every logic change (AGENTS.md §3.5).
 - Do **not** set Streamdown `mode` back to `static` after a live stream on the same mount (`usedStreamingRendererRef` in `MarkdownView.tsx`). That retention exists so Artifact iframes keep identity.
 - Do **not** enable `singleDollarTextMath`. `$HOME` / `$100` must stay prose. Existing tests in `MarkdownView.test.tsx` (`does not treat env vars or prices as KaTeX`, `still renders display math with $$ delimiters`) must stay green.
@@ -65,17 +65,17 @@ Tasks 2, 3, and 4 **must not** run as concurrent editors of `transcript-markdown
 ## File map
 
 ```text
-apps/desktop/src/markdown-rendering-phase.tsx          # Task 1: context + hook
-apps/desktop/src/markdown-rendering-phase.test.tsx     # Task 1
-apps/desktop/src/markdown-mermaid-phase.test.tsx       # Task 1: stream → complete same mount
-apps/desktop/src/MermaidBlock.tsx                      # Task 1: read phase, keep source while streaming
-apps/desktop/src/markdown-code-fence.tsx               # Task 1: always mount MermaidBlock
-apps/desktop/src/MarkdownView.tsx                      # Task 1: provide phase
+apps/desktop/src/markdown/markdown-rendering-phase.tsx          # Task 1: context + hook
+apps/desktop/src/markdown/markdown-rendering-phase.test.tsx     # Task 1
+apps/desktop/src/markdown/markdown-mermaid-phase.test.tsx       # Task 1: stream → complete same mount
+apps/desktop/src/markdown/MermaidBlock.tsx                      # Task 1: read phase, keep source while streaming
+apps/desktop/src/markdown/markdown-code-fence.tsx               # Task 1: always mount MermaidBlock
+apps/desktop/src/markdown/MarkdownView.tsx                      # Task 1: provide phase
 
 apps/desktop/src/styles/transcript-markdown.css        # Tasks 2–4: disjoint edits
-apps/desktop/src/markdown-rendering.test.tsx           # Task 2
-apps/desktop/src/markdown-streamdown.tsx               # Task 3: section renderer
-apps/desktop/src/markdown-footnotes.test.tsx           # Task 3
+apps/desktop/src/markdown/markdown-rendering.test.tsx           # Task 2
+apps/desktop/src/markdown/markdown-streamdown.tsx               # Task 3: section renderer
+apps/desktop/src/markdown/markdown-footnotes.test.tsx           # Task 3
 ```
 
 ---
@@ -110,12 +110,12 @@ Do **not** pass `defer={options.phase === 'streaming'}` as a prop from `markdown
 ### Task 1: Mermaid same-mount upgrade (MD-6)
 
 **Files:**
-- Create: `apps/desktop/src/markdown-rendering-phase.tsx`
-- Create: `apps/desktop/src/markdown-rendering-phase.test.tsx`
-- Create: `apps/desktop/src/markdown-mermaid-phase.test.tsx`
-- Modify: `apps/desktop/src/MermaidBlock.tsx`
-- Modify: `apps/desktop/src/markdown-code-fence.tsx`
-- Modify: `apps/desktop/src/MarkdownView.tsx` (wrap Streamdown only)
+- Create: `apps/desktop/src/markdown/markdown-rendering-phase.tsx`
+- Create: `apps/desktop/src/markdown/markdown-rendering-phase.test.tsx`
+- Create: `apps/desktop/src/markdown/markdown-mermaid-phase.test.tsx`
+- Modify: `apps/desktop/src/markdown/MermaidBlock.tsx`
+- Modify: `apps/desktop/src/markdown/markdown-code-fence.tsx`
+- Modify: `apps/desktop/src/markdown/MarkdownView.tsx` (wrap Streamdown only)
 
 **Interfaces:**
 - Consumes: existing `MarkdownRenderingPhase` from `markdown-code-fence.ts` (`'streaming' | 'completed' | 'explicit-artifact-review'`)
@@ -126,7 +126,7 @@ Do **not** pass `defer={options.phase === 'streaming'}` as a prop from `markdown
 
 - [ ] **Step 1: Write the failing same-mount test**
 
-Create `apps/desktop/src/markdown-mermaid-phase.test.tsx`. Copy the happy-dom `createRoot` + `act` harness from `markdown-rendering.test.tsx`. Mock mermaid before importing `MarkdownView`:
+Create `apps/desktop/src/markdown/markdown-mermaid-phase.test.tsx`. Copy the happy-dom `createRoot` + `act` harness from `markdown-rendering.test.tsx`. Mock mermaid before importing `MarkdownView`:
 
 ```tsx
 // @vitest-environment happy-dom
@@ -219,7 +219,7 @@ Expected: FAIL. After the completed re-render, `[data-testid="mermaid-stream-sou
 
 - [ ] **Step 3: Add the phase context**
 
-Create `apps/desktop/src/markdown-rendering-phase.tsx`:
+Create `apps/desktop/src/markdown/markdown-rendering-phase.tsx`:
 
 ```tsx
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
@@ -243,7 +243,7 @@ export function useMarkdownRenderingPhase(): MarkdownRenderingPhase {
 }
 ```
 
-Create `apps/desktop/src/markdown-rendering-phase.test.tsx` that renders a tiny consumer without a provider and expects `'completed'`.
+Create `apps/desktop/src/markdown/markdown-rendering-phase.test.tsx` that renders a tiny consumer without a provider and expects `'completed'`.
 
 - [ ] **Step 4: Always mount MermaidBlock; honor phase inside it**
 
@@ -318,12 +318,12 @@ Expected: PASS. Existing mermaid test `mermaid still renders (mounts MermaidBloc
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/desktop/src/markdown-rendering-phase.tsx \
-  apps/desktop/src/markdown-rendering-phase.test.tsx \
-  apps/desktop/src/markdown-mermaid-phase.test.tsx \
-  apps/desktop/src/MermaidBlock.tsx \
-  apps/desktop/src/markdown-code-fence.tsx \
-  apps/desktop/src/MarkdownView.tsx
+git add apps/desktop/src/markdown/markdown-rendering-phase.tsx \
+  apps/desktop/src/markdown/markdown-rendering-phase.test.tsx \
+  apps/desktop/src/markdown/markdown-mermaid-phase.test.tsx \
+  apps/desktop/src/markdown/MermaidBlock.tsx \
+  apps/desktop/src/markdown/markdown-code-fence.tsx \
+  apps/desktop/src/markdown/MarkdownView.tsx
 git commit -m "$(cat <<'EOF'
 fix(desktop): upgrade mermaid fences after stream without remount
 
@@ -339,7 +339,7 @@ EOF
 
 **Files:**
 - Modify: `apps/desktop/src/styles/transcript-markdown.css` (insert immediately after `.md-task-checkbox`, currently lines 155–161)
-- Modify: `apps/desktop/src/markdown-rendering.test.tsx`
+- Modify: `apps/desktop/src/markdown/markdown-rendering.test.tsx`
 
 **Interfaces:**
 - Consumes: existing `input.md-task-checkbox` from `markdown-streamdown.tsx` `renderInput`; GFM classes `contains-task-list` / `task-list-item` when Streamdown forwards them via `mergeMarkdownClassNames`
@@ -349,7 +349,7 @@ Do **not** edit `markdown-streamdown.tsx` in this task (Task 3 owns that file).
 
 - [ ] **Step 1: Extend the semantic Markdown test**
 
-Add to `apps/desktop/src/markdown-rendering.test.tsx`:
+Add to `apps/desktop/src/markdown/markdown-rendering.test.tsx`:
 
 ```tsx
 it('renders GFM task items as checkboxes inside list items', () => {
@@ -410,7 +410,7 @@ Expected: PASS. The existing `renders GFM task lists, strikethrough, callouts, a
 
 ```bash
 git add apps/desktop/src/styles/transcript-markdown.css \
-  apps/desktop/src/markdown-rendering.test.tsx
+  apps/desktop/src/markdown/markdown-rendering.test.tsx
 git commit -m "$(cat <<'EOF'
 fix(desktop): drop extra discs on GFM task list items
 
@@ -424,9 +424,9 @@ EOF
 ### Task 3: Footnote definitions (MD-1)
 
 **Files:**
-- Modify: `apps/desktop/src/markdown-streamdown.tsx` (add `section` renderer; do not change `renderList` / `renderInput`)
+- Modify: `apps/desktop/src/markdown/markdown-streamdown.tsx` (add `section` renderer; do not change `renderList` / `renderInput`)
 - Modify: `apps/desktop/src/styles/transcript-markdown.css` (**append** at end of file only)
-- Create: `apps/desktop/src/markdown-footnotes.test.tsx`
+- Create: `apps/desktop/src/markdown/markdown-footnotes.test.tsx`
 
 **Interfaces:**
 - Consumes: Streamdown/GFM footnote hast (`section` with `data-footnotes` and/or class `footnotes`; backref `a[data-footnote-backref]` / `.data-footnote-backref`; inline `sup > a`)
@@ -434,7 +434,7 @@ EOF
 
 - [ ] **Step 1: Write the failing footnote test**
 
-Create `apps/desktop/src/markdown-footnotes.test.tsx`. Reuse the `markdown-rendering.test.tsx` harness (copy the helper; do not import from that file — it has no exports).
+Create `apps/desktop/src/markdown/markdown-footnotes.test.tsx`. Reuse the `markdown-rendering.test.tsx` harness (copy the helper; do not import from that file — it has no exports).
 
 ```tsx
 describe('MarkdownView GFM footnotes', () => {
@@ -562,9 +562,9 @@ If definition text is still missing after the section class is applied, the rend
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/desktop/src/markdown-streamdown.tsx \
+git add apps/desktop/src/markdown/markdown-streamdown.tsx \
   apps/desktop/src/styles/transcript-markdown.css \
-  apps/desktop/src/markdown-footnotes.test.tsx
+  apps/desktop/src/markdown/markdown-footnotes.test.tsx
 git commit -m "$(cat <<'EOF'
 fix(desktop): render GFM footnote definitions as a footnote block
 

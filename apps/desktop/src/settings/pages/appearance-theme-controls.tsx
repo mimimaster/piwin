@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { Button, ColorInput, Select, SegmentedControl, IconLaptop, IconSun, IconMoon } from '@piwin/ui-kit';
-import type { DesktopCopy } from '../../desktop-locale.js';
-import { DEFAULT_DARK_THEME_SETTINGS, DEFAULT_LIGHT_THEME_SETTINGS, type AppearanceMode, type AppearanceThemeSettings, type DesktopPreferences } from '../../ui-preferences.js';
+import type { DesktopCopy } from '../../i18n/desktop-locale.js';
+import { DEFAULT_DARK_THEME_SETTINGS, DEFAULT_LIGHT_THEME_SETTINGS, type AppearanceMode, type AppearanceThemeSettings, type DesktopPreferences } from '../../platform/ui-preferences.js';
 import { AppearanceThemePreview } from './appearance-theme-preview.js';
 
 type ThemeMode = 'light' | 'dark';

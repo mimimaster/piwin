@@ -7,11 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
 import { SETTINGS_SECTIONS, visibleSettingsSections } from './section-registry';
 import { ensureSettingsLazyLoaded } from './settings-lazy-load';
 import { SettingsShell } from './settings-shell';
-import * as openExternalUrlModule from '../open-external-url.js';
+import * as openExternalUrlModule from '../platform/open-external-url.js';
 
 const SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS = 15_000;
 

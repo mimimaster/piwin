@@ -14,10 +14,10 @@ import {
 import {
   formatComposerModelKey,
   resolveComposerModelSelection,
-} from '../composer-model-selection-policy.js';
-import type { HostClient } from '../host-client.js';
-import { canUseThinkingLevel, resolveThinkingLevelForModel } from '../model-thinking-policy.js';
-import { modelOptionsFromConfiguredModels, type ModelOption } from '../model-options.js';
+} from '../composer/composer-model-selection-policy.js';
+import type { HostClient } from '../host/host-client.js';
+import { canUseThinkingLevel, resolveThinkingLevelForModel } from '../models/model-thinking-policy.js';
+import { modelOptionsFromConfiguredModels, type ModelOption } from '../models/model-options.js';
 import { commitSessionComposerProfile } from './commit-session-composer-profile.js';
 
 export type SessionComposerPromptFields = {

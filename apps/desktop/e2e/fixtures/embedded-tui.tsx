@@ -5,13 +5,13 @@ import { mockIPC } from '@tauri-apps/api/mocks';
 import { Button, PiwinUiProvider } from '@piwin/ui-kit';
 import {
   applyAppearanceToDocument, PIWIN_APPEARANCE_DARK, PIWIN_APPEARANCE_LIGHT,
-} from '../../src/appearance-tokens.js';
-import type { AgentCliHost } from '../../src/agent-cli-pty.js';
+} from '../../src/theme/appearance-tokens.js';
+import type { AgentCliHost } from '../../src/agents/agent-cli-pty.js';
 import type { HostServerMessage } from '@piwin/contracts';
-import { ContextBar } from '../../src/context-bar.js';
-import { ConversationShellSwitch } from '../../src/conversation-shell-switch.js';
-import { WorkbenchTuiStage, useWorkbenchTui } from '../../src/workbench-tui.js';
-import { WorkspaceShell } from '../../src/workspace-shell.js';
+import { ContextBar } from '../../src/context/context-bar.js';
+import { ConversationShellSwitch } from '../../src/conversation/conversation-shell-switch.js';
+import { WorkbenchTuiStage, useWorkbenchTui } from '../../src/workbench/workbench-tui.js';
+import { WorkspaceShell } from '../../src/workspace/workspace-shell.js';
 import '../../src/styles.css';
 
 const parameters = new URLSearchParams(location.search);

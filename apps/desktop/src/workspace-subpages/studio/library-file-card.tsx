@@ -1,5 +1,5 @@
 import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react';
-import { IconDocument, IconFile, IconTrash } from '../../shell-icons';
+import { IconDocument, IconFile, IconTrash } from '../../tool-cards/shell-icons';
 import { formatLibraryBytes, formatLibraryItemTitle, formatLibraryType } from './media-format';
 
 type LibraryFileItem = {

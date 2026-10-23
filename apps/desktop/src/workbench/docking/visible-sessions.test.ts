@@ -4,7 +4,7 @@ import {
   createConversationPaneLayout,
   PRIMARY_CONVERSATION_PANE_ID,
   splitConversationPane,
-} from '../../conversation-pane-layout.js';
+} from '../../conversation/conversation-pane-layout.js';
 import { WORKSPACE_LAYOUT_SCHEMA_VERSION } from './constants.js';
 import type { WorkspaceState } from './types.js';
 import { selectVisibleSessionIds } from './visible-sessions.js';

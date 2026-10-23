@@ -9,12 +9,12 @@ import {
   selectSessionPlan,
   shouldAnnounceExtensionDeploymentFailure,
 } from './use-host-bootstrap';
-import { toPermissionPromptUi } from '../permission-queue';
-import { MAX_EXTENSION_DEPLOYMENT_ANNOUNCEMENTS, MAX_SESSION_PLAN_CACHE } from '../record-budget';
+import { toPermissionPromptUi } from '../settings/permission-queue';
+import { MAX_EXTENSION_DEPLOYMENT_ANNOUNCEMENTS, MAX_SESSION_PLAN_CACHE } from '../platform/record-budget';
 import {
   PIWIN_APPEARANCE_DARK,
   PIWIN_APPEARANCE_LIGHT,
-} from '../appearance-tokens';
+} from '../theme/appearance-tokens';
 
 describe('resolveShellHostReady', () => {
   it('keeps remote shells online on hello when host/status enrichment fails', () => {

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { createLiveActivityBridge } from '@piwin/host-client';
-import { isMobileTauriRuntime } from '../shell-runtime.js';
+import { isMobileTauriRuntime } from '../tool-cards/shell-runtime.js';
 import { applyLiveSystemControl, projectLiveSystemActivity } from './live-system-activity.js';
 import type { LiveCallController } from './use-live-call.js';
 

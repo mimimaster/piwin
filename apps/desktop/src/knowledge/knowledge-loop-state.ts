@@ -1,5 +1,5 @@
 import type { DocumentManifest, GenerationJob, IngestionJob } from '@piwin/contracts';
-import { selectedDocumentsReady } from '../doccards-progress.js';
+import { selectedDocumentsReady } from '../documents/doccards-progress.js';
 
 export type KnowledgeLoopStage =
   | 'pick-folder'

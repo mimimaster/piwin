@@ -89,6 +89,6 @@ influences **default-model fallback** ordering.
   `sortProvidersByPriority`)
 - `packages/agent-host/src/provider-helpers.ts` (`resolveDefaultModelRef`)
 - `packages/agent-host/src/provider-validation.ts`
-- `apps/desktop/src/provider-draft.ts` (`resolveDefaultAfterProviderChange`)
-- `apps/desktop/src/provider-connection-fields.tsx` (Advanced → Priority, once added)
+- `apps/desktop/src/models/provider-draft.ts` (`resolveDefaultAfterProviderChange`)
+- `apps/desktop/src/models/provider-connection-fields.tsx` (Advanced → Priority, once added)
 - ADR 0004 (user-configured dual protocol surface)

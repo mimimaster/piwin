@@ -6,7 +6,7 @@
 import type { KeyboardEvent, ReactElement } from 'react';
 import type { MarketplaceCatalogEntry, MarketplaceInstalledItem } from '@piwin/contracts';
 import { Button, ProgressBar } from '@piwin/ui-kit';
-import type { DesktopLocale } from '../../desktop-locale.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
 import {
   availabilityLabel,
   entryName,

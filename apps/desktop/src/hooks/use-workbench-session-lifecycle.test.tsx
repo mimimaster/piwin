@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostCommand, HostResponse, ProjectRecord, ProjectWorktreeListing } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 import { useWorkbenchSessionLifecycle } from './use-workbench-session-lifecycle.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;

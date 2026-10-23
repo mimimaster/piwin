@@ -4,10 +4,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import type { GoalDisplayPayload } from '@piwin/contracts';
-import type { ToolCardUi } from '../chat-reducer';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
-import { DesktopLocaleProvider } from '../desktop-locale-context';
-import { TurnToolGroup, type TurnToolGroupProps } from '../turn-tool-group';
+import type { ToolCardUi } from '../conversation/chat-reducer';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
+import { DesktopLocaleProvider } from '../i18n/desktop-locale-context';
+import { TurnToolGroup, type TurnToolGroupProps } from '../turn-changes/turn-tool-group';
 import { GoalActionsProvider, type GoalActions } from './goal-actions-context';
 
 declare global {

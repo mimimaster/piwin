@@ -18,7 +18,7 @@ import {
   primaryLayoutSessionId,
   syncPrimarySessionView,
 } from './primary-layout.js';
-import { resolveConversationPaneShortcut } from '../../conversation-pane-shortcuts.js';
+import { resolveConversationPaneShortcut } from '../../conversation/conversation-pane-shortcuts.js';
 import type { Point, Rect } from './drag-hit-test.js';
 import type { DockDragResolution } from './use-docking-drag.js';
 import { useDockingDrag } from './use-docking-drag.js';
@@ -32,7 +32,7 @@ import { DockViewContent, type DockViewRenderContext } from './docking-surface-c
 import { placeSurfaceHosts, useDockingSurfaceHosts } from './surface-pool.js';
 import type { DockingWorkspaceController } from './use-docking-workspace.js';
 import type { DropEdge, WorkspaceGroup } from './types.js';
-import { SurfaceTitlebarProvider } from '../../surface-titlebar.js';
+import { SurfaceTitlebarProvider } from '../../conversation/surface-titlebar.js';
 
 export type DockingWorkspaceProps = Omit<DockViewRenderContext, 'onCloseView'> & {
   controller: DockingWorkspaceController;

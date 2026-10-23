@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_JOB_LOGS_BY_ID } from '../record-budget';
+import { MAX_JOB_LOGS_BY_ID } from '../platform/record-budget';
 import { rememberJobLog, retainListedJobLogs } from './use-jobs';
 
 describe('job log residency', () => {

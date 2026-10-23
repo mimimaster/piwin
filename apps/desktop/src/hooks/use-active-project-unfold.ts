@@ -8,8 +8,8 @@
  * across project-list refreshes.
  */
 import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import { activeProjectEnclosingFoldKeys } from '../sidebar-reveal-plan';
-import type { SidebarTreeRowsInput } from '../sidebar-tree-rows';
+import { activeProjectEnclosingFoldKeys } from '../sidebar/sidebar-reveal-plan';
+import type { SidebarTreeRowsInput } from '../sidebar/sidebar-tree-rows';
 
 export function useActiveProjectUnfold(
   treeInput: SidebarTreeRowsInput,

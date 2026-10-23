@@ -8,11 +8,11 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch } from 'react';
 import type { ExternalAgentStatus, SessionBackendBinding, SessionBackendOptions } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import type { ChatUiAction } from '../chat-reducer';
-import { agentDisplayName, backendOptionsFor } from '../agent-backend-state';
-import { resolveDraftBackendOptions, type DraftBackendSelections } from '../backend-draft-options';
-import type { ComposerDraftAgentOption } from '../composer-dock-types';
+import type { HostClient } from '../host/host-client';
+import type { ChatUiAction } from '../conversation/chat-reducer';
+import { agentDisplayName, backendOptionsFor } from '../agents/agent-backend-state';
+import { resolveDraftBackendOptions, type DraftBackendSelections } from '../agents/backend-draft-options';
+import type { ComposerDraftAgentOption } from '../composer/composer-dock-types';
 
 export type BackendSessionControls = {
   /** Non-null only for a session bound to a non-Pi backend, or a draft targeting one. */

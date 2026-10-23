@@ -5,8 +5,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { SessionSummary } from '@piwin/contracts';
 import { Button, IconButton, Select, Spinner, TextInput } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
-import { useConfirmDialog } from '../../use-confirm-dialog';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
+import { useConfirmDialog } from '../../hooks/use-confirm-dialog';
 import { archivedSessionsFromListData } from './archive-session-list';
 import {
   IconArchive,
@@ -17,7 +17,7 @@ import {
   IconSearch,
   IconTrash,
   IconUnarchive,
-} from '../../shell-icons';
+} from '../../tool-cards/shell-icons';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 import { formatTimestamp } from '../../format-timestamp';

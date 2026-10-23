@@ -1,0 +1,299 @@
+// @vitest-environment happy-dom
+import { describe, expect, it, beforeAll, beforeEach, afterEach } from 'vitest';
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import type { ContextUsageSnapshot, ModelRef } from '@piwin/contracts';
+import { loadProviderBrandIcons, PiwinUiProvider } from '@piwin/ui-kit';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
+import type { ChatMessageUi } from './chat-reducer';
+import {
+  buildConversationTurnUsageChip,
+  ConversationMessageHeader,
+} from './conversation-message-header';
+import { isReplyWriterSourceShown } from './reply-writer-source-view';
+
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
+describe('ConversationMessageHeader', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeAll(async () => {
+    await loadProviderBrandIcons();
+  });
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  const baseMessage: ChatMessageUi = {
+    id: 'msg-assistant-1',
+    role: 'assistant',
+    text: 'Hello, how can I help you?',
+    thinking: '',
+    tools: [],
+    attachments: [],
+    status: 'done',
+    createdAt: '2026-08-18T14:15:00.000Z',
+  };
+
+  const model: ModelRef = {
+    protocol: 'anthropic-compatible',
+    providerId: 'anthropic',
+    modelId: 'claude-sonnet-4',
+  };
+
+  it('renders provider icon, model name, provider name, and formatted time', () => {
+    act(() => {
+      root.render(
+        <ConversationMessageHeader
+          message={baseMessage}
+          model={model}
+          shortModelName="claude-sonnet-4"
+          modelLabel="Claude 3.7 Sonnet"
+          providerName="Anthropic"
+        />,
+      );
+    });
+
+    const header = container.querySelector('[data-testid="conversation-message-header"]');
+    expect(header).not.toBeNull();
+
+    const providerIcon = container.querySelector('.conversation-message-provider-icon');
+    expect(providerIcon).not.toBeNull();
+
+    const modelName = container.querySelector('[data-testid="conversation-message-model-name"]');
+    expect(modelName?.textContent).toBe('claude-sonnet-4');
+
+    const providerName = container.querySelector(
+      '[data-testid="conversation-message-provider-name"]',
+    );
+    expect(providerName?.textContent).toBe('Anthropic');
+    expect(providerName?.classList.contains('conversation-message-provider-badge')).toBe(true);
+
+    const time = container.querySelector('[data-testid="conversation-message-time"]');
+    expect(time).not.toBeNull();
+  });
+
+  it('resolves brand icon from modelId for custom proxy providers', () => {
+    const customGeminiModel: ModelRef = {
+      protocol: 'openai-compatible',
+      providerId: 'cpa-custom',
+      modelId: 'gemini-3.7-flash-high',
+    };
+
+    act(() => {
+      root.render(
+        <ConversationMessageHeader
+          message={baseMessage}
+          model={customGeminiModel}
+          shortModelName="gemini-3.7-flash-high"
+          providerName="Cpa"
+        />,
+      );
+    });
+
+    const providerIcon = container.querySelector('.conversation-message-provider-icon');
+    expect(providerIcon).not.toBeNull();
+    expect(providerIcon?.getAttribute('data-provider-brand')).toBe('Gemini');
+  });
+
+  it('renders only timestamp when model snapshot is absent (legacy rows)', () => {
+    act(() => {
+      root.render(<ConversationMessageHeader message={baseMessage} />);
+    });
+
+    const header = container.querySelector('[data-testid="conversation-message-header"]');
+    expect(header).not.toBeNull();
+
+    const modelName = container.querySelector('[data-testid="conversation-message-model-name"]');
+    expect(modelName).toBeNull();
+
+    const providerName = container.querySelector(
+      '[data-testid="conversation-message-provider-name"]',
+    );
+    expect(providerName).toBeNull();
+
+    const time = container.querySelector('[data-testid="conversation-message-time"]');
+    expect(time).not.toBeNull();
+  });
+
+  it('shows a reply-writer chip after a rewrite', () => {
+    act(() => {
+      root.render(
+        <ConversationMessageHeader
+          message={{
+            ...baseMessage,
+            replyWriter: {
+              language: 'zh-CN',
+              model: { protocol: 'openai-compatible', providerId: 'openai', modelId: 'gpt-4.1' },
+            },
+          }}
+          locale="zh-CN"
+        />,
+      );
+    });
+    const chip = container.querySelector('[data-testid="conversation-reply-writer-chip"]');
+    expect(chip?.textContent).toBe('由 gpt-4.1 整理');
+  });
+
+  it('reads the reply-writer chip from another row of the turn', () => {
+    act(() => {
+      root.render(
+        <ConversationMessageHeader
+          message={baseMessage}
+          replyWriterSource={{ id: 'msg-assistant-last', replyWriterPending: true }}
+          locale="zh-CN"
+        />,
+      );
+    });
+    const chip = container.querySelector('[data-testid="conversation-reply-writer-chip"]');
+    expect(chip?.textContent).toBe('正在整理输出…');
+    expect(chip?.classList.contains('is-pending')).toBe(true);
+  });
+
+  it('toggles the original draft when the rewrite kept one', () => {
+    const messageId = 'msg-toggle-1';
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+        <ConversationMessageHeader
+          message={{
+            ...baseMessage,
+            id: messageId,
+            replyWriter: {
+              language: 'zh-CN',
+              sourceText: 'worker draft',
+              model: { protocol: 'openai-compatible', providerId: 'openai', modelId: 'gpt-4.1' },
+            },
+          }}
+          locale="zh-CN"
+        />
+        </PiwinUiProvider>,
+      );
+    });
+    const chip = (): HTMLElement | null =>
+      container.querySelector('[data-testid="conversation-reply-writer-chip"]');
+    expect(chip()?.textContent).toBe('由 gpt-4.1 整理');
+    expect(chip()?.getAttribute('aria-pressed')).toBe('false');
+    act(() => {
+      chip()?.click();
+    });
+    expect(isReplyWriterSourceShown(messageId)).toBe(true);
+    expect(chip()?.textContent).toBe('委托前原稿');
+    expect(chip()?.getAttribute('aria-pressed')).toBe('true');
+    act(() => {
+      chip()?.click();
+    });
+    expect(isReplyWriterSourceShown(messageId)).toBe(false);
+    expect(chip()?.textContent).toBe('由 gpt-4.1 整理');
+  });
+
+  it('renders usage chip when provided', () => {
+    act(() => {
+      root.render(
+        <ConversationMessageHeader
+          message={baseMessage}
+          model={model}
+          shortModelName="claude-sonnet-4"
+          providerName="Anthropic"
+          usageChip={{
+            text: '1.2K → 486',
+            isEstimated: false,
+            tooltip: '1.2K prompt, 486 completion (450ms)',
+          }}
+        />,
+      );
+    });
+
+    const chip = container.querySelector('[data-testid="conversation-message-usage-chip"]');
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toBe('1.2K → 486');
+    expect(chip?.classList.contains('is-estimated')).toBe(false);
+  });
+
+  it('renders estimated usage chip with is-estimated class', () => {
+    act(() => {
+      root.render(
+        <ConversationMessageHeader
+          message={baseMessage}
+          model={model}
+          shortModelName="claude-sonnet-4"
+          providerName="Anthropic"
+          usageChip={{
+            text: '~1.2K → 486',
+            isEstimated: true,
+            tooltip: '估算 Token 消耗',
+          }}
+        />,
+      );
+    });
+
+    const chip = container.querySelector('[data-testid="conversation-message-usage-chip"]');
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toBe('~1.2K → 486');
+    expect(chip?.classList.contains('is-estimated')).toBe(true);
+  });
+});
+
+describe('buildConversationTurnUsageChip', () => {
+  it('formats prompt and completion tokens for assistant-usage', () => {
+    const usage: ContextUsageSnapshot = {
+      sessionId: 's-1',
+      updatedAt: '2026-08-18T14:15:00.000Z',
+      source: 'assistant-usage',
+      promptTokens: 1200,
+      completionTokens: 486,
+      totalTokens: 1686,
+      durationMs: 450,
+    };
+
+    const chip = buildConversationTurnUsageChip(usage, 'zh-CN');
+    expect(chip).not.toBeNull();
+    expect(chip?.text).toBe('1.2K → 486');
+    expect(chip?.isEstimated).toBe(false);
+    expect(chip?.tooltip).toContain('450ms');
+  });
+
+  it('adds estimate prefix for host-estimate', () => {
+    const usage: ContextUsageSnapshot = {
+      sessionId: 's-1',
+      updatedAt: '2026-08-18T14:15:00.000Z',
+      source: 'host-estimate',
+      promptTokens: 1500,
+      completionTokens: 300,
+      totalTokens: 1800,
+    };
+
+    const chip = buildConversationTurnUsageChip(usage, 'zh-CN');
+    expect(chip).not.toBeNull();
+    expect(chip?.text).toBe('~1.5K → 300');
+    expect(chip?.isEstimated).toBe(true);
+    expect(chip?.tooltip).toContain('估算');
+  });
+
+  it('returns null for pi-contextUsage or null/undefined', () => {
+    const windowUsage: ContextUsageSnapshot = {
+      sessionId: 's-1',
+      updatedAt: '2026-08-18T14:15:00.000Z',
+      source: 'pi-contextUsage',
+      promptTokens: 50000,
+    };
+
+    expect(buildConversationTurnUsageChip(windowUsage)).toBeNull();
+    expect(buildConversationTurnUsageChip(null)).toBeNull();
+    expect(buildConversationTurnUsageChip(undefined)).toBeNull();
+  });
+});

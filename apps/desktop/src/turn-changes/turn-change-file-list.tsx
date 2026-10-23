@@ -6,13 +6,13 @@
  */
 import { useState, type ReactElement } from 'react';
 import type { TurnChangeFileDiff, TurnChangeFileEntry, TurnChangeSummary } from '@piwin/contracts';
-import { DiffCard, type DiffCardRequest } from '../diff-card';
+import { DiffCard, type DiffCardRequest } from '../tool-cards/diff-card';
 import {
   changeStatusTag,
   FILES_CHANGED_VISIBLE_ROWS,
   formatDisplayPathParts,
   LineStat,
-} from '../files-changed-bar';
+} from '../files/files-changed-bar';
 import type { TurnChangesApi } from './turn-changes-context.js';
 
 type Copy = (zh: string, en: string) => string;

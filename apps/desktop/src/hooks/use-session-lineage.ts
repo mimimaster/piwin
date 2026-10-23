@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ProductSessionLineageView } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 
 function isLineageNode(value: unknown): value is ProductSessionLineageView['nodes'][number] {
   if (typeof value !== 'object' || value === null) return false;

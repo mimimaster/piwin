@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { act, useEffect, useState, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { HostCommand, HostResponse, HostServerMessage, LiveCallView } from '@piwin/contracts';
-import type { HostClient } from '../host-client.js';
+import type { HostClient } from '../host/host-client.js';
 import { useLiveCall, type LiveCallController } from './use-live-call.js';
 import type { LivePeer, LivePeerSnapshot } from './live-peer.js';
 

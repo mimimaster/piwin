@@ -9,22 +9,22 @@ import type {
   SideChatContextRef,
   SideChatOpenData,
 } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 import type { AddContextRefResult } from '../hooks/use-composer-context-refs';
-import { revealLocalFileInFolder } from '../local-file-actions.js';
+import { revealLocalFileInFolder } from '../files/local-file-actions.js';
 import {
   canRevealInLocalFileManager,
   revealDisabledHint,
-} from '../local-file-reveal-policy.js';
-import type { NotificationAction } from '../notification-queue';
-import type { RightPanelTab } from '../right-panel';
-import { resolveProjectFilesystemRoot } from '../remote-session-hydrate.js';
-import type { DocumentOpenInput } from '../tool-call-card';
-import type { DesktopLocale } from '../desktop-locale';
+} from '../files/local-file-reveal-policy.js';
+import type { NotificationAction } from '../notifications/notification-queue';
+import type { RightPanelTab } from '../right-panel/right-panel';
+import { resolveProjectFilesystemRoot } from '../host/remote-session-hydrate.js';
+import type { DocumentOpenInput } from '../tool-cards/tool-call-card';
+import type { DesktopLocale } from '../i18n/desktop-locale';
 import type { DesktopContextMenuValue } from './desktop-context-menu-context.js';
 import type { ContextMenuDispatchers } from './dispatch.js';
 import type { ContextMenuCapabilities } from './types.js';
-import { publishSideChatComposerSeed } from '../side-chat-composer-seed.js';
+import { publishSideChatComposerSeed } from '../session/side-chat-composer-seed.js';
 
 export type DesktopContextMenuValueDeps = {
   projectPath: string | null;

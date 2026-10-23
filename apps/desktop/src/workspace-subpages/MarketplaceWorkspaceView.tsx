@@ -17,10 +17,10 @@ import type {
   MarketplaceSearchHit,
 } from '@piwin/contracts';
 import { ConfirmDialog, Notice } from '@piwin/ui-kit';
-import { useConfirmDialog } from '../use-confirm-dialog';
-import type { DesktopLocale } from '../desktop-locale.js';
+import { useConfirmDialog } from '../hooks/use-confirm-dialog';
+import type { DesktopLocale } from '../i18n/desktop-locale.js';
 import { StudioTopbar } from './studio/studio-chrome.js';
-import { emitDesktopNotification } from '../notification-queue.js';
+import { emitDesktopNotification } from '../notifications/notification-queue.js';
 import { MarketplaceDiscoverControls } from './marketplace/marketplace-discover-controls.js';
 import { MarketplaceDiscoverView } from './marketplace/marketplace-discover-view.js';
 import { MarketplaceInstalledView } from './marketplace/marketplace-installed-view.js';

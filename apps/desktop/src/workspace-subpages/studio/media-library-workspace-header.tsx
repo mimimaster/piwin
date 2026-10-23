@@ -11,8 +11,8 @@ import {
   IconSearch,
   IconSliders,
   IconStar,
-} from '../../shell-icons';
-import { WindowDragRegion, handleNativeWindowDragMouseDown } from '../../native-window-drag';
+} from '../../tool-cards/shell-icons';
+import { WindowDragRegion, handleNativeWindowDragMouseDown } from '../../platform/native-window-drag';
 import { KIND_TABS, type ActiveKind } from './media-library-workspace-model';
 
 export type MediaLibraryWorkspaceHeaderProps = {

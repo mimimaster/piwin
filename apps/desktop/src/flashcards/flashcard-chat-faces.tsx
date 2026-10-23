@@ -1,6 +1,6 @@
 import type { ReactElement, RefObject, MouseEvent } from 'react';
 import type { FlashcardReviewCard } from '@piwin/contracts';
-import { MarkdownView } from '../MarkdownView';
+import { MarkdownView } from '../markdown/MarkdownView';
 import type { FlashcardChatCopy } from './flashcard-chat-copy';
 
 export function FlashcardChatFaces(props: {

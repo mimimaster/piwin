@@ -4,10 +4,10 @@
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
-import type { PermissionPromptUi } from './chat-reducer';
-import { PermissionFacts, canRememberPermissionForProject } from './permission-request-card';
-import { BackendPermissionActions, backendAgentLabel } from './backend-permission-actions';
-import { backendPermissionOptions } from './backend-permission-options';
+import type { PermissionPromptUi } from './conversation/chat-reducer';
+import { PermissionFacts, canRememberPermissionForProject } from './settings/permission-request-card';
+import { BackendPermissionActions, backendAgentLabel } from './agents/backend-permission-actions';
+import { backendPermissionOptions } from './agents/backend-permission-options';
 
 export type GateCardProps = {
   prompt: PermissionPromptUi;

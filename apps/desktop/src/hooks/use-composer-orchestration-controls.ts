@@ -15,8 +15,8 @@ import {
 import {
   resolveComposerOrchestrationForSessionChange,
   type ComposerOrchestrationControls,
-} from '../composer-orchestration-session';
-import type { HostClient } from '../host-client';
+} from '../composer/composer-orchestration-session';
+import type { HostClient } from '../host/host-client';
 import { commitSessionComposerProfile } from './commit-session-composer-profile.js';
 
 export type SessionOrchestrationRestore = {

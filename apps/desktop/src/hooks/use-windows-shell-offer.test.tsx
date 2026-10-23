@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { PiwinConfig } from '@piwin/contracts';
 
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 import { useWindowsShellOffer } from './use-windows-shell-offer';
 
 declare global {

@@ -24,23 +24,23 @@
 
 | File | Responsibility |
 |------|----------------|
-| `apps/desktop/src/shell-icons.tsx` | New/redrawn comment action icons |
-| `apps/desktop/src/EnhancedMarkdownView.tsx` | Line wrapper classes for has-comment; optional MD parser polish |
+| `apps/desktop/src/tool-cards/shell-icons.tsx` | New/redrawn comment action icons |
+| `apps/desktop/src/markdown/EnhancedMarkdownView.tsx` | Line wrapper classes for has-comment; optional MD parser polish |
 | `apps/desktop/src/styles/region-inspector.css` | Comment button, line highlight, MD typography |
 | `apps/desktop/src/styles/region-composer.css` | Doc-comment chip + attachment chip polish |
-| `apps/desktop/src/composer-dock.tsx` | Chip markup (SVG icons, no emoji) |
+| `apps/desktop/src/composer/composer-dock.tsx` | Chip markup (SVG icons, no emoji) |
 | `apps/desktop/src/App.tsx` | Stop textarea injection; format comments on send; clear after send |
-| `apps/desktop/src/doc-comments.ts` (new) | Pure helpers: format comments → prompt text |
-| `apps/desktop/src/doc-comments.test.ts` (new) | Unit tests for format helper |
-| `apps/desktop/src/composer-dock.test.tsx` | Chip render assertions |
+| `apps/desktop/src/documents/doc-comments.ts` (new) | Pure helpers: format comments → prompt text |
+| `apps/desktop/src/documents/doc-comments.test.ts` (new) | Unit tests for format helper |
+| `apps/desktop/src/composer/composer-dock.test.tsx` | Chip render assertions |
 
 ---
 
 ## Task 1: Redraw comment icon + blue action button
 
 **Files:**
-- Modify: `apps/desktop/src/shell-icons.tsx`
-- Modify: `apps/desktop/src/EnhancedMarkdownView.tsx` (icon usage)
+- Modify: `apps/desktop/src/tool-cards/shell-icons.tsx`
+- Modify: `apps/desktop/src/markdown/EnhancedMarkdownView.tsx` (icon usage)
 - Modify: `apps/desktop/src/styles/region-inspector.css` (`.line-comment-btn`)
 
 **Interfaces:**
@@ -183,7 +183,7 @@ Open a walkthrough/plan in the right panel, hover a list line → blue square bu
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/desktop/src/shell-icons.tsx apps/desktop/src/EnhancedMarkdownView.tsx apps/desktop/src/styles/region-inspector.css
+git add apps/desktop/src/tool-cards/shell-icons.tsx apps/desktop/src/markdown/EnhancedMarkdownView.tsx apps/desktop/src/styles/region-inspector.css
 git commit -m "$(cat <<'EOF'
 feat(desktop): blue Antigravity-style line comment action button
 
@@ -199,7 +199,7 @@ EOF
 ## Task 2: Highlight commented lines (light bg, deepen on hover)
 
 **Files:**
-- Modify: `apps/desktop/src/EnhancedMarkdownView.tsx` (`LineCommentWrapper` className)
+- Modify: `apps/desktop/src/markdown/EnhancedMarkdownView.tsx` (`LineCommentWrapper` className)
 - Modify: `apps/desktop/src/styles/region-inspector.css`
 
 **Interfaces:**
@@ -278,7 +278,7 @@ Add a comment on a list item → row shows light blue tint. Hover → tint deepe
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/desktop/src/EnhancedMarkdownView.tsx apps/desktop/src/styles/region-inspector.css
+git add apps/desktop/src/markdown/EnhancedMarkdownView.tsx apps/desktop/src/styles/region-inspector.css
 git commit -m "$(cat <<'EOF'
 feat(desktop): soft highlight for commented document lines
 
@@ -294,12 +294,12 @@ EOF
 ## Task 3: Composer doc-comment chip (Image 2 style) + send wiring
 
 **Files:**
-- Create: `apps/desktop/src/doc-comments.ts`
-- Create: `apps/desktop/src/doc-comments.test.ts`
-- Modify: `apps/desktop/src/composer-dock.tsx`
+- Create: `apps/desktop/src/documents/doc-comments.ts`
+- Create: `apps/desktop/src/documents/doc-comments.test.ts`
+- Modify: `apps/desktop/src/composer/composer-dock.tsx`
 - Modify: `apps/desktop/src/styles/region-composer.css`
 - Modify: `apps/desktop/src/App.tsx`
-- Modify: `apps/desktop/src/composer-dock.test.tsx` (if present; else add assertions)
+- Modify: `apps/desktop/src/composer/composer-dock.test.tsx` (if present; else add assertions)
 
 **Interfaces:**
 - Consumes: `docCommentsAttachment: { docTitle: string; commentCount: number } | null`
@@ -323,7 +323,7 @@ EOF
 
 - [ ] **Step 1: Write pure format helper + failing tests**
 
-`apps/desktop/src/doc-comments.ts`:
+`apps/desktop/src/documents/doc-comments.ts`:
 
 ```ts
 import type { LineCommentItem } from './EnhancedMarkdownView';
@@ -361,7 +361,7 @@ export function mergeComposerWithDocComments(
 }
 ```
 
-`apps/desktop/src/doc-comments.test.ts`:
+`apps/desktop/src/documents/doc-comments.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -723,10 +723,10 @@ pnpm --filter @piwin/desktop typecheck
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/desktop/src/doc-comments.ts apps/desktop/src/doc-comments.test.ts \
-  apps/desktop/src/composer-dock.tsx apps/desktop/src/styles/region-composer.css \
+git add apps/desktop/src/documents/doc-comments.ts apps/desktop/src/documents/doc-comments.test.ts \
+  apps/desktop/src/composer/composer-dock.tsx apps/desktop/src/styles/region-composer.css \
   apps/desktop/src/App.tsx apps/desktop/src/hooks/use-composer-media.ts \
-  apps/desktop/src/DocPreviewPanel.tsx apps/desktop/src/composer-dock.test.tsx
+  apps/desktop/src/documents/DocPreviewPanel.tsx apps/desktop/src/composer/composer-dock.test.tsx
 git commit -m "$(cat <<'EOF'
 feat(desktop): Walkthrough-style doc comment chip and send wiring
 
@@ -784,9 +784,9 @@ EOF
 ### 4B. Implementation (high-value only)
 
 **Files:**
-- Modify: `apps/desktop/src/EnhancedMarkdownView.tsx` (parser + render)
+- Modify: `apps/desktop/src/markdown/EnhancedMarkdownView.tsx` (parser + render)
 - Modify: `apps/desktop/src/styles/region-inspector.css`
-- Test: `apps/desktop/src/EnhancedMarkdownView.test.tsx` (create if missing)
+- Test: `apps/desktop/src/markdown/EnhancedMarkdownView.test.tsx` (create if missing)
 
 - [ ] **Step 1: Extend block types**
 
@@ -977,8 +977,8 @@ pnpm --filter @piwin/desktop typecheck
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/desktop/src/EnhancedMarkdownView.tsx \
-  apps/desktop/src/EnhancedMarkdownView.test.tsx \
+git add apps/desktop/src/markdown/EnhancedMarkdownView.tsx \
+  apps/desktop/src/markdown/EnhancedMarkdownView.test.tsx \
   apps/desktop/src/styles/region-inspector.css
 git commit -m "$(cat <<'EOF'
 feat(desktop): walkthrough markdown ordered lists, blockquotes, rhythm polish

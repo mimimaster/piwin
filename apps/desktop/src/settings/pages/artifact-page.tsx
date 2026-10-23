@@ -23,8 +23,8 @@ import {
   type PiwinConfig,
 } from '@piwin/contracts';
 import { Button, SegmentedControl, Switch, TextArea } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
-import { settingsSavedWithEffect } from '../../settings-effect-copy.js';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
+import { settingsSavedWithEffect } from '../settings-effect-copy.js';
 import { FieldRow } from '../field-row';
 import { useSettings } from '../settings-context';
 import { ArtifactAdvancedSettings } from './artifact-advanced-settings';

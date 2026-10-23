@@ -6,11 +6,11 @@ import {
   type MediaLibraryItem,
 } from '@piwin/contracts';
 import { LibraryMediaCard } from './library-media-card';
-import { MediaImageContextMenu } from '../../media-image-context-menu';
-import { buildLibraryMediaImageTarget } from '../../media-image-target';
+import { MediaImageContextMenu } from '../../media/media-image-context-menu';
+import { buildLibraryMediaImageTarget } from '../../media/media-image-target';
 import { formatLibraryBytes, formatLibraryItemTitle, formatLibraryType } from './media-format';
 import { localThumbPathForItem } from './local-media-tile-src';
-import { createPlayableMediaObjectUrl } from '../../playable-media-url';
+import { createPlayableMediaObjectUrl } from '../../artifact/playable-media-url';
 import { readLibraryMediaViaHost } from './media-library-src';
 import { useLocalMediaSrc } from './use-local-media-src';
 

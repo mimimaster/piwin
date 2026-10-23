@@ -16,7 +16,7 @@ import {
   type ActiveAtToken,
   type AtItem,
 } from '../at';
-import type { ComposerDockProps } from '../composer-dock-types';
+import type { ComposerDockProps } from '../composer/composer-dock-types';
 
 export interface UseComposerAtMenuOptions {
   projectPath?: string | null | undefined;

@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import type { UseSessionActionsArgs } from './use-session-actions.js';
-import { chooseSessionExportPath } from '../session-export-dialog.js';
-import { pushError } from '../notification-queue.js';
-import { appendHostLogEntry } from '../HostLogPanel.js';
+import { chooseSessionExportPath } from '../session/session-export-dialog.js';
+import { pushError } from '../notifications/notification-queue.js';
+import { appendHostLogEntry } from '../host/HostLogPanel.js';
 
 export function useSessionExport({
   state,

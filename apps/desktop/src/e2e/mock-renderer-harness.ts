@@ -1,4 +1,4 @@
-import type { MockHostBackend } from '../host-client-mock.js';
+import type { MockHostBackend } from '../host/host-client-mock.js';
 import { seedInkstoneHost } from './inkstone-host-fixture.js';
 import { seedChainShowcaseHost } from './chain-showcase-fixture.js';
 import { seedLongSessionHost } from './long-session-fixture.js';

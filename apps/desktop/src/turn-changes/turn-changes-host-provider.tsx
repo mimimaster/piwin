@@ -7,7 +7,7 @@
  */
 import { useCallback, type ReactElement, type ReactNode } from 'react';
 import type { HostPush } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 import { TurnChangesProvider, type TurnChangesRequest } from './turn-changes-context.js';
 
 export function TurnChangesHostProvider(props: {

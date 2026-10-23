@@ -14,7 +14,7 @@ import {
   selectExtensionUiRequest,
   type ExtensionUiRequestRegistry,
   type ExtensionUiRequestState,
-} from '../extension-ui-request-registry';
+} from '../extensions/extension-ui-request-registry';
 
 /** Typed answer drafts belong to one request; switching sessions must not carry text across. */
 type ExtensionUiInputDraft = { requestId: string; text: string };
