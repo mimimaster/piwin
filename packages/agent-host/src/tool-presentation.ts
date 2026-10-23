@@ -6,13 +6,18 @@
  *   [icon] [actionVerb] [path pill | query preview] [countTag] … [status] [duration]
  */
 import type {
+  AppleHealthMetricId,
   HealthToolCardSummary,
   ToolErrorView,
   ToolOutputView,
   ToolOutputTruncation,
   ToolPresentation,
 } from '@piwin/contracts';
-import { PERMISSION_DENIED_MESSAGE_PREFIX, projectBoundedHealthToolCardSummary } from '@piwin/contracts';
+import {
+  PERMISSION_DENIED_MESSAGE_PREFIX,
+  isAppleHealthMetricId,
+  projectBoundedHealthToolCardSummary,
+} from '@piwin/contracts';
 import { attachFlashcardPresentation } from './flashcard-presentation.js';
 import { attachGoalPresentation } from './goal-presentation.js';
 import { attachKnowledgePresentation } from './knowledge-presentation.js';
@@ -255,7 +260,10 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
         presentation.health = directHealth;
       } else {
         const metrics = Array.isArray(record.metrics)
-          ? record.metrics.filter((m): m is any => typeof m === 'string')
+          ? record.metrics.filter(
+              (metric): metric is AppleHealthMetricId =>
+                typeof metric === 'string' && isAppleHealthMetricId(metric),
+            )
           : [];
         const range =
           record.range && typeof record.range === 'object'
