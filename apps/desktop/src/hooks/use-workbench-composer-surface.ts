@@ -137,7 +137,9 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     selectedModelKey,
     selectedModelLabel: composer.selectedModelLabel,
     selectedModelContextWindow: composer.selectedModelContextWindow,
-    onSelectModel: composer.handleSelectModel,
+    onSelectModel: (modelKey: string) => {
+      void composer.handleSelectModel(modelKey);
+    },
     menuSkills,
     menuMcp,
     menuMcpSwitches: mcpSwitches,
@@ -168,7 +170,9 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     extensionUiInput: host.extensionUiInput,
     setExtensionUiInput: host.setExtensionUiInput,
     thinkingLevel,
-    onThinkingLevelChange: composer.handleThinkingLevelChange,
+    onThinkingLevelChange: (level: Parameters<typeof composer.handleThinkingLevelChange>[0]) => {
+      void composer.handleThinkingLevelChange(level);
+    },
     backendControls: composer.backendControls,
     draftAgentOptions: composer.draftAgentOptions,
     draftAgentId: composer.draftAgentId,

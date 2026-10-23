@@ -328,7 +328,11 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
   }
 
   function submitInstall() {
-    installKind === 'local' ? handleInstallLocal() : handleInstallGit();
+    if (installKind === 'local') {
+      handleInstallLocal();
+    } else {
+      handleInstallGit();
+    }
   }
 
   const friendlyInstallError = installError ? describeInstallError(installError, isChinese) : null;

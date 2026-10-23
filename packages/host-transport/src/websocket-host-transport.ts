@@ -254,7 +254,7 @@ export class WebSocketHostTransport implements HostTransport {
     return waitForHello ? this.helloPromise?.promise : undefined;
   }
 
-  private createHelloPromise(): Promise<HostHello> {
+  private createHelloPromise(): void {
     let resolveHello: (hello: HostHello) => void = () => undefined;
     let rejectHello: (error: Error) => void = () => undefined;
     const promise = new Promise<HostHello>((resolve, reject) => {
@@ -267,7 +267,6 @@ export class WebSocketHostTransport implements HostTransport {
       reject: rejectHello,
       timer: this.startAttemptTimer(promise),
     };
-    return promise;
   }
 
   private startAttemptTimer(promise: Promise<HostHello>): ReturnType<typeof setTimeout> {
@@ -490,7 +489,8 @@ export class WebSocketHostTransport implements HostTransport {
     }
     this.publishState({ kind: 'connecting' });
     if (this.helloPromise !== undefined) {
-      this.openSocket(true);
+      // The caller that created this handshake owns its rejection.
+      void this.openSocket(true);
       return;
     }
     const handshake = this.openSocket(true);

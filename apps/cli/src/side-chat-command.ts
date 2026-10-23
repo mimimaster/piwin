@@ -263,7 +263,8 @@ function waitForSideChatRun(
     if (unsubscribe) unsubscribe();
   };
   // Clean up on resolve/reject so the push listener doesn't leak.
-  promise.finally(() => cancel());
+  // `then(cancel, cancel)` settles either way; `finally` would re-reject unhandled.
+  void promise.then(cancel, cancel);
   return { promise, cancel };
 }
 

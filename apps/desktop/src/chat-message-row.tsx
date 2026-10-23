@@ -640,7 +640,7 @@ const ChatMessageRowContent = (
             showTreeOnLatestResponse={props.isLatestAssistantResponse === true}
             disabled={props.derivedActionsDisabled === true || props.streaming}
             {...(props.onForkFromMessage
-              ? { onFork: props.onForkFromMessage }
+              ? { onFork: (messageId: string) => void props.onForkFromMessage?.(messageId) }
               : { onFork: () => {} })}
             {...(props.onOpenForks ? { onOpenForks: props.onOpenForks } : {})}
             {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}

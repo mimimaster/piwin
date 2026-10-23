@@ -492,7 +492,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
                         event.preventDefault();
-                        installKind === 'local' ? handleInstallLocal() : handleInstallGit();
+                        void (installKind === 'local' ? handleInstallLocal() : handleInstallGit());
                       }
                     }}
                   />

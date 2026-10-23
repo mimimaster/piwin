@@ -392,7 +392,9 @@ export class TuiSubagentController {
         title: `${file.relativePath}  +${diff.additions} −${diff.deletions}`,
         lines,
         // Back to the file list: reviewing a result means reading several files.
-        onClose: () => this.showFiles(result, childSessionId).catch(this.options.onError),
+        onClose: () => {
+          this.showFiles(result, childSessionId).catch(this.options.onError);
+        },
       }),
     );
   }
