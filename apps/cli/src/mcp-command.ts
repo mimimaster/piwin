@@ -1,3 +1,4 @@
+import { describeMcpServerLaunch, type McpServerConfig } from '@piwin/contracts';
 import { getPiwinRoot } from '@piwin/host-runtime';
 import { listEnabledServers, loadMcpConfig, saveMcpConfig, tryValidateMcpConfig } from '@piwin/mcp';
 import { readFile } from 'node:fs/promises';
@@ -21,8 +22,7 @@ export async function commandMcp(argv: string[]): Promise<void> {
     }
     for (const [id, config] of servers) {
       const state = config.disabled ? 'off' : 'on';
-      const args = config.args?.join(' ') ?? '';
-      console.log(`${state}\t${id}\t${config.command} ${args}`.trimEnd());
+      console.log(`${state}\t${id}\t${describeMcpServerLaunch(config)}`.trimEnd());
     }
     const enabled = listEnabledServers(document);
     console.log(`enabled: ${enabled.length}/${servers.length}`);
@@ -57,38 +57,62 @@ export async function commandMcp(argv: string[]): Promise<void> {
 
   if (sub === 'add') {
     const id = argv[2];
-    const command = readOption(argv, '--command');
-    if (!id || !command) {
-      console.error('Usage: piwin mcp add <id> --command <cmd> [--args a,b] [--env KEY=VAL]');
+    const serverConfig = id ? readAddServerConfig(argv) : undefined;
+    if (!id || !serverConfig) {
+      console.error(
+        'Usage: piwin mcp add <id> --command <cmd> [--args a,b] [--env KEY=VAL]\n' +
+          '       piwin mcp add <id> --url <https://…> [--type http|sse] [--header "Name: value"]',
+      );
       process.exitCode = 1;
       return;
     }
     const document = await loadMcpConfig(root);
-    const serverConfig: {
-      command: string;
-      args?: string[];
-      env?: Record<string, string>;
-    } = { command };
-    const argsRaw = readOption(argv, '--args');
-    if (argsRaw) {
-      serverConfig.args = argsRaw
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean);
-    }
-    const envRaw = readOption(argv, '--env');
-    if (envRaw) {
-      const [envKey, ...rest] = envRaw.split('=');
-      if (envKey) {
-        serverConfig.env = { [envKey]: rest.join('=') };
-      }
-    }
     document.mcpServers[id] = serverConfig;
-    const path = await saveMcpConfig(root, document);
+    // Same validator the Host applies on load, so a bad entry fails here, not at start.
+    const checked = tryValidateMcpConfig(document);
+    if (!checked.ok) {
+      for (const issue of checked.issues) console.error(`${issue.path}: ${issue.message}`);
+      process.exitCode = 1;
+      return;
+    }
+    const path = await saveMcpConfig(root, checked.document);
     console.log(`saved ${id} -> ${path}`);
     return;
   }
 
   console.error(`Unknown mcp subcommand: ${sub}`);
   process.exitCode = 1;
+}
+
+/** `--command` makes a stdio server, `--url` a remote one; both or neither is a usage error. */
+function readAddServerConfig(argv: string[]): McpServerConfig | undefined {
+  const command = readOption(argv, '--command');
+  const url = readOption(argv, '--url');
+  if (url && !command) {
+    const type = readOption(argv, '--type');
+    const header = readOption(argv, '--header');
+    const separator = header?.indexOf(':') ?? -1;
+    return {
+      url,
+      ...(type === 'http' || type === 'sse' ? { type } : {}),
+      ...(header && separator > 0
+        ? { headers: { [header.slice(0, separator).trim()]: header.slice(separator + 1).trim() } }
+        : {}),
+    };
+  }
+  if (!command || url) return undefined;
+  const config: McpServerConfig = { command };
+  const argsRaw = readOption(argv, '--args');
+  if (argsRaw) {
+    config.args = argsRaw
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  const envRaw = readOption(argv, '--env');
+  if (envRaw) {
+    const [envKey, ...rest] = envRaw.split('=');
+    if (envKey) config.env = { [envKey]: rest.join('=') };
+  }
+  return config;
 }
