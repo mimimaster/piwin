@@ -37,6 +37,7 @@ import { fail, ok } from './response-helpers.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { fallbackPetSnapshot } from './pet-snapshot-fallback.js';
 import { isSubagentInvocationEvent } from './subagent-invocation-activity.js';
+import { logRollbackFailure } from './rollback-cleanup.js';
 
 export async function getNotesServices(deps: HostRuntimeKernel): Promise<{
   store: import('@piwin/notes').NoteStore;
@@ -354,7 +355,9 @@ export async function runCronJob(
     throw new Error(`cron type ${job.type} not enabled in this slice`);
   } catch (error) {
     if (promptSessionId !== undefined) {
-      await deps.disposeLiveSession(promptSessionId).catch(() => undefined);
+      await deps
+        .disposeLiveSession(promptSessionId)
+        .catch(logRollbackFailure('dispose-live-session', promptSessionId));
     }
     const message = formatError(error);
     const updated = {

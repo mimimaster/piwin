@@ -68,6 +68,7 @@ import { repairLegacySessionNames } from '../session-name-repair.js';
 import { createSessionMessageResponse } from '../session-message-response.js';
 
 import type { SessionProductCommandContext } from './session-product-command-context.js';
+import { logRollbackFailure } from '../rollback-cleanup.js';
 export type { SessionProductCommandContext } from './session-product-command-context.js';
 
 const PRODUCT_COMMAND_TYPES = new Set<HostCommand['type']>([
@@ -553,8 +554,12 @@ export async function handleSessionProductCommand(
           ...createSessionMessageResponse(created.id, messages, command.messageProjection),
         });
       } catch (error) {
-        await context.disposeLiveSession(created.id).catch(() => undefined);
-        await deleteSessionRecord(indexPath, created.id).catch(() => undefined);
+        await context
+          .disposeLiveSession(created.id)
+          .catch(logRollbackFailure('dispose-live-session', created.id));
+        await deleteSessionRecord(indexPath, created.id).catch(
+          logRollbackFailure('delete-session-record', created.id),
+        );
         await rm(getPiwinSessionDir(rootDir, created.id), { recursive: true, force: true });
         return fail(requestId, 'session/duplicate', `Duplicate failed: ${formatError(error)}`);
       }
@@ -727,8 +732,12 @@ export async function handleSessionProductCommand(
         });
       } catch (error) {
         await cleanupFailedMediaClone(mediaRoot, created.id);
-        await context.disposeLiveSession(created.id).catch(() => undefined);
-        await deleteSessionRecord(indexPath, created.id).catch(() => undefined);
+        await context
+          .disposeLiveSession(created.id)
+          .catch(logRollbackFailure('dispose-live-session', created.id));
+        await deleteSessionRecord(indexPath, created.id).catch(
+          logRollbackFailure('delete-session-record', created.id),
+        );
         await rm(getPiwinSessionDir(rootDir, created.id), { recursive: true, force: true });
         return fail(requestId, 'session/fork', `Fork failed: ${formatError(error)}`);
       }

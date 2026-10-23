@@ -26,6 +26,7 @@ import { fail, ok } from '../response-helpers.js';
 import { getPiwinRoot } from '../paths.js';
 import { createSecretResolver } from '../secret-resolver.js';
 import type { HostCommandContext } from './host-command-context.js';
+import { logRollbackFailure } from '../rollback-cleanup.js';
 
 const TYPES = new Set<HostCommand['type']>([
   'plugins/install',
@@ -113,7 +114,7 @@ export async function handlePluginCommand(
         const secretResolver = createSecretResolver();
         for (const secretName of removed.secrets) {
           const ref = pluginSecretRef(removed.id, secretName);
-          await deletePluginSecret(ref).catch(() => undefined);
+          await deletePluginSecret(ref).catch(logRollbackFailure('delete-plugin-secret', ref));
         }
 
         return ok(requestId, 'plugins/uninstall', { pluginId: removed.id, removed });

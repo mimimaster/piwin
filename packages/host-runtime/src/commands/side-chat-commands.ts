@@ -34,6 +34,7 @@ import {
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import { getPiwinRoot, getPiwinSessionDir, getPiwinSessionIndexPath } from '../paths.js';
+import { logRollbackFailure } from '../rollback-cleanup.js';
 
 export type SideChatCommandContext = {
   piwinRoot?: string;
@@ -171,8 +172,12 @@ export async function handleSideChatCommand(
         });
       } catch (error) {
         const message = formatError(error);
-        await context.disposeLiveSession(session.id).catch(() => undefined);
-        await deleteSessionRecord(indexPath, session.id).catch(() => undefined);
+        await context
+          .disposeLiveSession(session.id)
+          .catch(logRollbackFailure('dispose-live-session', session.id));
+        await deleteSessionRecord(indexPath, session.id).catch(
+          logRollbackFailure('delete-session-record', session.id),
+        );
         await rm(getPiwinSessionDir(rootDir, session.id), { recursive: true, force: true }).catch(
           () => undefined,
         );

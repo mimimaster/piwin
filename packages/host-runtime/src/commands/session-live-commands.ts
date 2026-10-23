@@ -141,6 +141,7 @@ import { handleSessionPromptCommand } from './session-prompt-command.js';
 import { truncateSessionFrom } from './session-truncate.js';
 import { retractPausedPrompt } from './retract-paused-prompt.js';
 import { normalizeSessionMcpServerIds } from '../session-mcp-overrides.js';
+import { logRollbackFailure } from '../rollback-cleanup.js';
 
 export type { SessionLiveContext } from './session-live-context.js';
 
@@ -308,7 +309,9 @@ export async function handleSessionLiveCommand(
           ? await context.resolveInstalledAgentIds()
           : [];
         if (!installedAgentIds.includes(requestedAgentId) || context.bindExternalAgentSession === undefined) {
-          await deleteSessionRecord(indexPath, sessionId).catch(() => undefined);
+          await deleteSessionRecord(indexPath, sessionId).catch(
+            logRollbackFailure('delete-session-record', sessionId),
+          );
           return fail(requestId, 'session/create', `unknown-agent: ${requestedAgentId}`);
         }
         try {
@@ -320,7 +323,9 @@ export async function handleSessionLiveCommand(
             createdRecord = bound;
           }
         } catch (error) {
-          await deleteSessionRecord(indexPath, sessionId).catch(() => undefined);
+          await deleteSessionRecord(indexPath, sessionId).catch(
+            logRollbackFailure('delete-session-record', sessionId),
+          );
           return fail(requestId, 'session/create', formatError(error));
         }
       }
