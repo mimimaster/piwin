@@ -31,7 +31,7 @@ export function Select({
         input: 'piwin-select-field',
         wrapper: 'piwin-select-wrapper',
       }}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
     />
   );
 }

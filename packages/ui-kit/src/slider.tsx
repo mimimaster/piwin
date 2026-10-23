@@ -20,7 +20,7 @@ export function Slider({ className, testId, ...props }: SliderProps): ReactEleme
         bar: 'piwin-slider-bar',
         thumb: 'piwin-slider-thumb',
       }}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
     />
   );
 }

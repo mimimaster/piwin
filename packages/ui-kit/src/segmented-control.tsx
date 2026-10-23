@@ -28,7 +28,7 @@ export function SegmentedControl({
         indicator: 'piwin-segmented-control-indicator',
         label: 'piwin-segmented-control-label',
       }}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
     />
   );
 }

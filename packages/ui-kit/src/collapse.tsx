@@ -29,7 +29,7 @@ export function Collapse({
       keepMountedMode={keepMountedMode}
       animateOpacity={animateOpacity}
       transitionDuration={transitionDuration}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
     />
   );
 }

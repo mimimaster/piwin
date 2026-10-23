@@ -42,7 +42,7 @@ export function Switch({
         label: 'piwin-switch-label',
       }}
       onChange={handleChange}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
     />
   );
 }

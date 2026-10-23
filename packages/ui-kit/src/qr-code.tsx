@@ -30,7 +30,7 @@ export function QrCode({ value, size = 200, label, testId }: QrCodeProps): React
       height={size}
       viewBox={`0 0 ${extent} ${extent}`}
       shapeRendering="crispEdges"
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
     >
       <rect width={extent} height={extent} fill="#ffffff" />
       <path d={path} fill="#000000" />

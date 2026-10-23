@@ -13,7 +13,7 @@ export function Card({ className, testId, children, ...props }: CardProps): Reac
   const rootClass = className ? `piwin-card ${className}` : 'piwin-card';
 
   return (
-    <MantineCard {...props} className={rootClass} data-testid={testId}>
+    <MantineCard {...props} className={rootClass} {...(testId !== undefined ? { 'data-testid': testId } : {})}>
       {children}
     </MantineCard>
   );

@@ -42,7 +42,7 @@ export function ProgressBar({
       aria-valuenow={isDeterminate ? clampedValue : undefined}
       aria-valuemin={isDeterminate ? 0 : undefined}
       aria-valuemax={isDeterminate ? 100 : undefined}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
     >
       <div
         className="ui-progress-bar-indicator"

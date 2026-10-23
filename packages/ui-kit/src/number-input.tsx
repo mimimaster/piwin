@@ -44,7 +44,7 @@ export function NumberInput({
         controls: 'piwin-number-input-controls',
         control: 'piwin-number-input-control',
       }}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
     />
   );
 }

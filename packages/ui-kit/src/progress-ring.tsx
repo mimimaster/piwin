@@ -65,7 +65,7 @@ export function ProgressRing({
       aria-valuenow={isDeterminate ? clampedValue : undefined}
       aria-valuemin={isDeterminate ? 0 : undefined}
       aria-valuemax={isDeterminate ? 100 : undefined}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
       data-value={isDeterminate ? clampedValue : undefined}
       data-tone={tone}
       style={{ width: size, height: size }}

@@ -43,7 +43,7 @@ export function ColorInput({
         onChange={handleTextChange}
         spellCheck={false}
         inputMode="text"
-        data-testid={testId}
+        {...(testId !== undefined ? { 'data-testid': testId } : {})}
         aria-label={props['aria-label']}
       />
     </div>

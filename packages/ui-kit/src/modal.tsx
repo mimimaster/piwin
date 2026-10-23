@@ -59,7 +59,7 @@ export function Modal({
         body: 'piwin-modal-body',
         overlay: 'piwin-modal-overlay',
       }}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
     >
       {/*
         Portaled to document.body, but React still bubbles synthetic events through

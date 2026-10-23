@@ -88,7 +88,7 @@ export function TextArea({
   return (
     <div
       className={rootClass}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
       data-disabled={disabled ? 'true' : 'false'}
       data-invalid={invalid ? 'true' : 'false'}
     >

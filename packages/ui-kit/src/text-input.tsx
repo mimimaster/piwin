@@ -52,7 +52,7 @@ export function TextInput({
         input: 'piwin-text-input-field',
         wrapper: 'piwin-text-input-wrapper',
       }}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
     />
   );
 }
@@ -80,7 +80,7 @@ export function PasswordInput({
         innerInput: 'piwin-password-input-field',
         wrapper: 'piwin-password-input-wrapper',
       }}
-      data-testid={testId}
+      {...(testId !== undefined ? { 'data-testid': testId } : {})}
     />
   );
 }
