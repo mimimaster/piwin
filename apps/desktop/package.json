@@ -16,7 +16,6 @@
     "package:shell": "tauri build --config src-tauri/tauri.conf.shell.json",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run --passWithNoTests",
-    "lint": "echo \"lint ok (desktop)\"",
     "tauri": "tauri",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",

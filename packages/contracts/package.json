@@ -15,8 +15,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "lint": "echo \"lint ok (contracts)\""
+    "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
     "typescript": "^5.7.3",

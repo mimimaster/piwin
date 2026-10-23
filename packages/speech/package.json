@@ -15,8 +15,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "lint": "echo \"lint ok (speech)\""
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@piwin/contracts": "workspace:*"

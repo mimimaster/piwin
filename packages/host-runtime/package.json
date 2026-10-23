@@ -25,8 +25,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "lint": "echo \"lint ok (host-runtime)\""
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@piwin/agent-plugins": "workspace:*",

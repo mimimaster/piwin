@@ -17,8 +17,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "lint": "echo \"lint ok (ui-kit)\""
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@mantine/core": "^9.4.2",

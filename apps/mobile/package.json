@@ -17,8 +17,7 @@
     "android:dev": "tauri android dev",
     "android:build": "tauri android build",
     "typecheck": "tsc -b --pretty false",
-    "test": "vitest run --passWithNoTests",
-    "lint": "echo \"lint ok (mobile)\""
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@piwin/artifact": "workspace:*",

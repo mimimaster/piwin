@@ -10,8 +10,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "lint": "echo \"lint ok (host-app)\""
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@piwin/host-runtime": "workspace:*",
