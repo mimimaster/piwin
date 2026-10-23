@@ -162,7 +162,7 @@ export function deriveFallbackStatsForTools(
     if (byPath[file.path]) continue;
 
     let fileAdd = 1;
-    let fileDel = 0;
+    const fileDel = 0;
 
     for (const tool of tools) {
       const presentation = tool.presentation;

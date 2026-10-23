@@ -381,7 +381,7 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
   let trailingUserTokens = 0;
   let trailingToolResultTokens = 0;
   let trailingSteerTokens = 0;
-  let trailingUnobserved = false;
+  const trailingUnobserved = false;
   let missingImageEstimate = false;
   let lastCompleted: OccupancyRequestUsage | undefined;
   let blockedRequest: OccupancyRequestUsage | undefined;

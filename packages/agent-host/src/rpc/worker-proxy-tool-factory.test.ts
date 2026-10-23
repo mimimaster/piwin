@@ -48,7 +48,7 @@ describe('buildWorkerProxyTools', () => {
 
   it('proxy executor calls the parent and returns the output', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
-      ok: true as true,
+      ok: true as const,
       output: 'search results here',
     }));
     const tools = buildWorkerProxyTools(blueprintWithTools(['web_search']), proxyCall, 'sess-1');
@@ -69,7 +69,7 @@ describe('buildWorkerProxyTools', () => {
 
   it('forwards tool-result images into Pi content for vision closed-loop', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
-      ok: true as true,
+      ok: true as const,
       output: '{"inspect":{"status":"native"}}',
       details: { attachments: [] },
       images: [{ mimeType: 'image/jpeg', dataBase64: '/9j/QQ==' }],
@@ -89,7 +89,7 @@ describe('buildWorkerProxyTools', () => {
 
   it('proxy executor throws permission-denied so Pi marks the tool as failed', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
-      ok: false as false,
+      ok: false as const,
       code: 'permission-denied' as const,
       message: 'user denied bash execution',
     }));
@@ -106,7 +106,7 @@ describe('buildWorkerProxyTools', () => {
 
   it('proxy executor throws aborted executions so Pi marks the tool as failed', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
-      ok: false as false,
+      ok: false as const,
       code: 'aborted' as const,
       message: 'tool execution aborted',
     }));
@@ -122,7 +122,7 @@ describe('buildWorkerProxyTools', () => {
 
   it('proxy executor throws tool-not-available so Pi marks the tool as failed', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
-      ok: false as false,
+      ok: false as const,
       code: 'tool-not-available' as const,
       message: 'tool not in registry',
     }));
@@ -138,7 +138,7 @@ describe('buildWorkerProxyTools', () => {
 
   it('proxy executor throws tool-disabled so Pi marks the tool as failed', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
-      ok: false as false,
+      ok: false as const,
       code: 'tool-disabled' as const,
       message: 'web tools family disabled',
     }));

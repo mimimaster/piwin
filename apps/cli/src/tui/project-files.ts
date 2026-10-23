@@ -104,7 +104,7 @@ export class ProjectFiles {
 
   /** Breadth-first, so the shallow files people mention most are indexed first. */
   private async walk(entries: ProjectDirEntry[]): Promise<void> {
-    let frontier = [''];
+    const frontier = [''];
     let visited = 0;
     while (frontier.length > 0 && visited < INDEX_MAX_DIRECTORIES && entries.length < INDEX_MAX_ENTRIES) {
       const batch = frontier.splice(0, Math.min(INDEX_CONCURRENCY, INDEX_MAX_DIRECTORIES - visited));

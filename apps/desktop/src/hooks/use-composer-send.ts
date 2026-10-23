@@ -482,7 +482,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
 
         // Include ready chips only; error chips stay visible for an explicit
         // Retry and are never silently dropped into the prompt.
-        let attachments: PromptAttachment[] = readResolvedComposerChips()
+        const attachments: PromptAttachment[] = readResolvedComposerChips()
           .filter(isPendingAttachmentReady)
           .map((item) => item.attachment);
         if (!text && attachments.length === 0 && contextRefs.length === 0) {

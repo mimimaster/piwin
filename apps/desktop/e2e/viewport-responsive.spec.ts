@@ -227,7 +227,6 @@ test.describe('responsive viewport smoke', () => {
     }
 
     // Persist matrix in test output for S0 discontinuity review.
-    // eslint-disable-next-line no-console
     console.log('PSR-S0 boundary matrix', JSON.stringify(records, null, 2));
 
     // Every boundary width was exercised.

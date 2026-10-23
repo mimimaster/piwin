@@ -173,7 +173,7 @@ export function normalizeOrchestrationScheme(
   }
 
   // MVP: only await-all is supported (synchronous spawn+merge). Accept any input.
-  const waitPolicy: 'await-all' = 'await-all';
+  const waitPolicy = 'await-all' as const;
   const scheme: OrchestrationSchemeSettings = {
     id,
     name,

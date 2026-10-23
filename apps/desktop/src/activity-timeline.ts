@@ -354,7 +354,7 @@ export function formatFilePillPath(
   searchDir?: string,
   projectPath?: string | null,
 ): { absolutePath: string; relativePath: string; displayPath: string } {
-  let clean = filePath.trim();
+  const clean = filePath.trim();
   let absolutePath = clean;
   let relativePath = clean;
   const filesystemRoot = resolveProjectFilesystemRoot(projectPath);

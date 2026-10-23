@@ -30,7 +30,6 @@ const CARDS = [
 
 async function flush(times = 14): Promise<void> {
   for (let i = 0; i < times; i += 1) {
-    // eslint-disable-next-line no-await-in-loop
     await act(async () => {
       await Promise.resolve();
     });

@@ -25,7 +25,6 @@ export function findButton(root: ParentNode, text: string): HTMLButtonElement | 
 /** Drain the microtask queue after fake-requester resolves. */
 export async function flush(times = 8): Promise<void> {
   for (let index = 0; index < times; index += 1) {
-    // eslint-disable-next-line no-await-in-loop
     await act(async () => {
       await Promise.resolve();
     });

@@ -125,7 +125,6 @@ export function classifyShellOutputLine(line: string): ShellOutputTone | null {
   return null;
 }
 
-// eslint-disable-next-line no-control-regex
 const ANSI_PATTERN = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
 
 export type ShellCommandShape = {

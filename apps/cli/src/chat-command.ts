@@ -65,7 +65,7 @@ export async function commandChat(argv: string[]): Promise<void> {
     }
     messageTokens.push(token);
   }
-  let message = messageTokens.join(' ').trim();
+  const message = messageTokens.join(' ').trim();
   const resolvedChatPrompt = resolveCliChatPrompt(message);
   const imagePath = readOption(argv, '--image');
   if (!message && !imagePath) {

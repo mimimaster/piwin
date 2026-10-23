@@ -26,7 +26,7 @@ function messages(start: number, end: number, text = 'hello'): SessionTranscript
   }));
 }
 function initial(): ChatUiState {
-  let state = chatUiReducer(createInitialChatUiState(), { type: 'session/set', sessionId: 'long' });
+  const state = chatUiReducer(createInitialChatUiState(), { type: 'session/set', sessionId: 'long' });
   return chatUiReducer(state, {
     type: 'session/load-messages',
     sessionId: 'long',

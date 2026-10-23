@@ -18,7 +18,7 @@ function loadOwnedSession(
   text: string,
   state = createInitialChatUiState(),
 ) {
-  let next = chatUiReducer(state, { type: 'session/set', sessionId });
+  const next = chatUiReducer(state, { type: 'session/set', sessionId });
   return chatUiReducer(next, {
     type: 'session/load-messages',
     sessionId,

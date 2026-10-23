@@ -49,7 +49,6 @@ function countMediaReads(request: ReturnType<typeof vi.fn>): number {
 
 async function flush(times = 12): Promise<void> {
   for (let index = 0; index < times; index += 1) {
-    // eslint-disable-next-line no-await-in-loop
     await act(async () => {
       await Promise.resolve();
     });

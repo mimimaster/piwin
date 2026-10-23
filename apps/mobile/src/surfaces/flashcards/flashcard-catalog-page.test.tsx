@@ -13,7 +13,6 @@ import { stripHostAbsolutePaths } from './catalog-paths.js';
 
 async function flush(times = 10): Promise<void> {
   for (let i = 0; i < times; i += 1) {
-    // eslint-disable-next-line no-await-in-loop
     await act(async () => {
       await Promise.resolve();
     });

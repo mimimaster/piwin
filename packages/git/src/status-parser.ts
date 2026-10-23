@@ -12,7 +12,7 @@ export function parsePorcelainStatus(stdout: string): ParsedGitStatus {
   const lines = stdout.split('\n').filter((line) => line.length > 0);
   let currentBranch: string | null = null;
   let isDetached = false;
-  let headCommit: string | null = null;
+  const headCommit: string | null = null;
   let upstreamBranch: string | null = null;
   let ahead = 0;
   let behind = 0;

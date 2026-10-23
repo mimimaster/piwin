@@ -68,7 +68,7 @@ function restoreDraftSearchSourceSecrets(
 ): WebSearchSource {
   const { apiKeyRef: draftRef, apiKeyEnv: draftEnv, ...rest } = draft;
   let apiKeyRef = isRedactedStoredSecret(draftRef) ? saved?.apiKeyRef : draftRef;
-  let apiKeyEnv = isRedactedStoredSecret(draftEnv) ? saved?.apiKeyEnv : draftEnv;
+  const apiKeyEnv = isRedactedStoredSecret(draftEnv) ? saved?.apiKeyEnv : draftEnv;
   if (!apiKeyRef?.trim() && rest.kind === 'devin') {
     apiKeyRef = saved?.apiKeyRef?.trim() || 'oauth:devin';
   }

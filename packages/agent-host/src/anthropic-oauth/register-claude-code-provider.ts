@@ -31,7 +31,7 @@ export type ClaudeCodeModelRuntime = Pick<PiModelRuntime, 'registerProvider'>;
 const DEFAULT_BASE = 'https://api.anthropic.com';
 
 async function ensureClaudeCodeApiKey(authPath: string): Promise<string | undefined> {
-  let apiKey = await readOauthAccessToken(authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID);
+  const apiKey = await readOauthAccessToken(authPath, CLAUDE_CODE_OAUTH_PROVIDER_ID);
   if (apiKey) {
     // Migrate leftover oauth-shaped copies so checkAuth can pass.
     const root = await readAuthFileRoot(authPath);

@@ -18,7 +18,6 @@ describe('artifact sandbox links', () => {
     vi.spyOn(window.parent, 'postMessage').mockImplementation((message: unknown) => {
       posted.push(message);
     });
-    // eslint-disable-next-line no-new-func
     const source = buildArtifactBridgeBootstrapScript('fence-1', false).replace(/^\s*<script[^>]*>/, '').replace(/<\/script>\s*$/, '');
     new Function(source)();
     return {

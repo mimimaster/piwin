@@ -195,7 +195,7 @@ function parseWriteStart(
   if (!keys.ok) return keys;
 
   // Scheduled MVP: mode defaults to scheduled; any other value is illegal.
-  let mode: 'scheduled' = 'scheduled';
+  let mode = 'scheduled' as const;
   if (value.mode !== undefined) {
     if (value.mode !== 'scheduled') {
       return fail('mode must be scheduled');
