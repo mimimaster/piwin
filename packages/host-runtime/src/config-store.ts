@@ -46,6 +46,7 @@ import { writeTextFileAtomic } from '@piwin/session';
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { normalizeArtifactConfig } from './config-store-artifact.js';
+import { normalizeProviders } from './config-store-providers.js';
 import {
   normalizeImageGenerationConfig,
   normalizeReplyWriterConfig,
@@ -190,11 +191,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   const record = value as Record<string, unknown>;
   const hostMode = record.hostMode === 'rpc' ? 'rpc' : 'sdk';
   const agentMock = record.agentMock === true;
-  const providers = Array.isArray(record.providers) ? record.providers : [];
   const normalized: PiwinConfig = {
     hostMode,
     agentMock,
-    providers: providers as PiwinConfig['providers'],
+    providers: normalizeProviders(record.providers),
     media: {
       maxPasteBytes:
         asPositiveNumber(asRecord(record.media)?.maxPasteBytes) ?? defaults.media.maxPasteBytes,
