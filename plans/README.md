@@ -5,8 +5,8 @@ Only these files may be created/updated by the advisor session: `plans/**`.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001 | Restore queued-turn leaf on starting rollback | P1 | S | — | TODO |
-| 002 | Sanitize worktree refs and refuse walk-up checkouts | P1 | S | — | TODO |
+| 001 | Restore queued-turn leaf on starting rollback | P1 | S | — | DONE |
+| 002 | Sanitize worktree refs and refuse walk-up checkouts | P1 | S | — | DONE |
 | 003 | Split `desktop-locale.ts` catalogs from persistence | P2 | M | — | TODO |
 | 004 | Split session product commands by index / lifecycle / derive | P2 | M | — | TODO |
 | 005 | Split `host-server-support.ts` by admission concern | P2 | M | — | TODO |
