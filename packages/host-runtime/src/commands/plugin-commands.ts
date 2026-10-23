@@ -110,11 +110,14 @@ export async function handlePluginCommand(
           await saveMcpConfig(rootDir, doc);
         }
 
-        // Remove keychain refs (best-effort).
+        // Remove stored secrets (best-effort): the resolver deletes from the
+        // same platform store and name the install wrote to.
         const secretResolver = createSecretResolver();
         for (const secretName of removed.secrets) {
           const ref = pluginSecretRef(removed.id, secretName);
-          await deletePluginSecret(ref).catch(logRollbackFailure('delete-plugin-secret', ref));
+          await secretResolver
+            .deleteSecretByRef(ref)
+            .catch(logRollbackFailure('delete-plugin-secret', ref));
         }
 
         return ok(requestId, 'plugins/uninstall', { pluginId: removed.id, removed });
@@ -162,17 +165,5 @@ export async function handlePluginCommand(
 
     default:
       return null;
-  }
-}
-
-/** Delete a keychain entry (best-effort). */
-async function deletePluginSecret(ref: string): Promise<void> {
-  const { execFile } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const execFileAsync = promisify(execFile);
-  try {
-    await execFileAsync('security', ['delete-generic-password', '-s', ref]);
-  } catch {
-    // best-effort; entry may not exist
   }
 }
