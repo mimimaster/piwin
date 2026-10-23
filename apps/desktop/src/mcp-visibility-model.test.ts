@@ -3,6 +3,7 @@ import {
   buildMcpToolCatalogEntries,
   getMcpConnectionFailure,
   listMcpSchemaProperties,
+  mcpServerRuntimeStatusLabel,
   resolveMcpServerRuntimeUiStatus,
 } from './mcp-visibility-model.js';
 
@@ -121,5 +122,12 @@ describe('mcp visibility model', () => {
       ),
     ).toBeNull();
     expect(getMcpConnectionFailure(undefined, true)).toBe('连接失败。');
+  });
+
+  it('labels every runtime status in both locales', () => {
+    expect(mcpServerRuntimeStatusLabel('running', true)).toBe('运行中');
+    expect(mcpServerRuntimeStatusLabel('error', false)).toBe('Error');
+    expect(mcpServerRuntimeStatusLabel('stopped', true)).toBe('已停止');
+    expect(mcpServerRuntimeStatusLabel('starting', false)).toBe('Starting');
   });
 });

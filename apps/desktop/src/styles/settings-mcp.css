@@ -10,23 +10,39 @@
 
 /* ── Server list ──────────────────────────────────────────────────────── */
 
-.mcp-header-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--s-7);
-  gap: var(--s-6);
+/* Count + one-line explanations on the left, the add action on the right.
+   Plain text, no boxes: this is reference copy, not feedback. */
+.mcp-list-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--s-7);
+  margin-bottom: var(--s-6);
 }
 
-.mcp-header-actions {
+.mcp-list-header-text {
   display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  flex-shrink: 0;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.mcp-configured-count {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-1);
+  margin-bottom: var(--s-1);
+}
+
+.mcp-list-header-text p {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+  color: var(--text-3);
 }
 
 .mcp-server-list-clean {
-  margin-top: var(--s-6);
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
@@ -49,46 +65,95 @@
   color: var(--text-3);
 }
 
-.mcp-server-card {
-  display: flex;
-  align-items: center;
-  gap: var(--s-6);
-  padding: var(--s-6);
+/* Row grid: [dot | name + facts / command | chevron] then a fixed actions
+   column. Every control lands on the same x in every row, and nothing in the
+   row changes size on hover or expand. */
+.mcp-server-card.ext-list-item {
+  display: block;
+  min-width: 0;
+  padding: var(--s-5) var(--s-6);
   background: var(--surface-2);
   border: 0;
   box-shadow: var(--elev-1);
   border-radius: var(--r-card);
-  transition:
-    background-color var(--t-2) var(--ease-out),
-    box-shadow var(--t-2) var(--ease-out);
+  transition: box-shadow var(--t-2) var(--ease-out);
 }
 
 .mcp-server-card:hover {
   box-shadow: var(--elev-2);
 }
 
+.mcp-server-card-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-6);
+}
+
 .mcp-server-card-body {
-  flex: 1;
+  appearance: none;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) 16px;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: var(--s-4);
+  row-gap: var(--s-2);
   min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
-.mcp-server-card-body:hover .mcp-server-id {
-  color: var(--iris-lift);
+.mcp-server-card-body > .mcp-status-dot-inline {
+  grid-column: 1;
+  grid-row: 1;
 }
 
 .mcp-server-card-title {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--s-4);
-  margin-bottom: var(--s-2);
+  min-width: 0;
+}
+
+.mcp-server-card-body > .mcp-command-snippet {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.mcp-server-expand-chevron {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  color: var(--text-4);
+}
+
+.mcp-server-card-body:hover .mcp-server-id,
+.mcp-server-card-body:hover .mcp-server-expand-chevron {
+  color: var(--text-1);
 }
 
 .mcp-server-id {
-  font-size: 14px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-1);
   transition: color var(--t-1) var(--ease-out);
+}
+
+.mcp-server-card.is-disabled .mcp-server-id {
+  color: var(--text-3);
 }
 
 /* ── Status dot ───────────────────────────────────────────────────────── */
@@ -139,57 +204,57 @@
   line-height: var(--lh-tight);
 }
 
-.mcp-server-card-meta {
-  font-size: var(--fs-chrome);
-  color: var(--text-4);
+/* Facts read as one quiet line after the name; only pinning gets color
+   (amber is this page's pinning color, see the header comment). */
+.mcp-server-facts {
   display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  flex-wrap: wrap;
+  align-items: baseline;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.mcp-server-fact + .mcp-server-fact::before {
+  content: '·';
+  margin: 0 var(--s-3);
+  color: var(--text-4);
+}
+
+.mcp-server-fact--pinned {
+  color: var(--amber);
 }
 
 .mcp-command-snippet {
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--text-3);
-  background: var(--void);
-  padding: var(--s-1) var(--s-3);
-  border-radius: var(--r-chip);
-  border: 0;
-  max-width: 380px;
-  white-space: nowrap;
+  display: block;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-tight);
+  color: var(--text-3);
+  background: none;
+  padding: 0;
+  border: 0;
 }
 
 .mcp-meta-badge {
   font-size: var(--fs-micro);
+  font-weight: 400;
   color: var(--text-3);
   background: var(--hover);
   border: 0;
-  padding: var(--s-1) var(--s-3);
+  padding: 1px var(--s-3);
   border-radius: var(--r-chip);
-}
-
-.mcp-tools-badge {
-  color: var(--iris-lift);
-  background: var(--iris-wash);
-}
-
-.mcp-pinned-badge {
-  color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 12%, transparent);
-}
-
-.mcp-env-badge {
-  color: var(--text-3);
 }
 
 .mcp-server-card-actions {
   display: flex;
   align-items: center;
-  gap: var(--s-5);
-  flex-shrink: 0;
+  gap: var(--s-3);
 }
 
 /* ── Dialog shared chrome (cherry-dialog) ─────────────────────────────── */
@@ -469,44 +534,6 @@
   padding-top: var(--s-2);
 }
 
-/* The pin explanation is persistent page content, not transient feedback.
-   Keep it in normal flow so it cannot cover the first server card. */
-.mcp-pin-tip {
-  margin-bottom: var(--s-5);
-}
-
-.mcp-pin-tip .ui-notice {
-  align-items: center;
-  gap: var(--s-5);
-  margin: 0;
-  padding: var(--s-4) var(--s-5);
-  border-radius: var(--r-control);
-  background: var(--iris-wash);
-  border: 0;
-}
-
-.mcp-pin-tip .ui-notice-body {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
-  gap: var(--s-4);
-  min-width: 0;
-}
-
-.mcp-pin-tip .ui-notice-title {
-  color: var(--text-1);
-  font-size: var(--fs-chrome);
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.mcp-pin-tip .ui-notice-message {
-  min-width: 0;
-  color: var(--text-3);
-  font-size: var(--fs-chrome);
-  line-height: var(--lh-tight);
-}
-
 /* ── Toolbars ─────────────────────────────────────────────────────────── */
 
 .settings-toolbar {
@@ -521,17 +548,6 @@
 .settings-toolbar > .piwin-select {
   flex: 1 1 180px;
   min-width: 0;
-}
-
-@media (max-width: 720px) {
-  .mcp-pin-tip .ui-notice-body {
-    grid-template-columns: 1fr;
-    gap: var(--s-1);
-  }
-
-  .mcp-pin-tip .ui-notice-title {
-    white-space: normal;
-  }
 }
 
 .settings-toolbar .piwin-button {
@@ -563,43 +579,20 @@
 
 /* ── Expandable server detail + tool catalog ─────────────────────────── */
 
-.mcp-server-card {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.mcp-server-card-summary {
-  display: flex;
-  align-items: center;
-  gap: var(--s-6);
-}
-
-.mcp-server-card-body {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  padding: 0;
-  width: 100%;
-}
-
-.mcp-server-expand-chevron {
-  margin-left: auto;
-  color: var(--text-4);
-  font-size: var(--fs-chrome);
-}
-
+/* Indented to the name column (dot + gap) so the detail hangs off the name. */
 .mcp-server-detail {
   margin-top: var(--s-5);
   padding-top: var(--s-5);
+  padding-left: calc(8px + var(--s-4));
   border-top: 1px solid var(--line-1);
   display: flex;
   flex-direction: column;
   gap: var(--s-6);
+  min-width: 0;
 }
 
 .mcp-server-detail-section h5 {
-  margin: 0 0 var(--s-3);
+  margin: 0;
   font-size: var(--fs-chrome);
   font-weight: 600;
   color: var(--text-2);
@@ -608,53 +601,68 @@
   gap: var(--s-3);
 }
 
+/* Key/value table: labels in one quiet column, values take the rest. */
 .mcp-server-detail-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--s-4);
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--s-7);
+  row-gap: var(--s-4);
+  align-items: baseline;
   margin: 0;
 }
 
 .mcp-server-detail-grid dt {
   margin: 0;
-  font-size: var(--fs-micro);
+  font-size: var(--fs-chrome);
   color: var(--text-4);
 }
 
 .mcp-server-detail-grid dd {
-  margin: var(--s-1) 0 0;
+  margin: 0;
+  min-width: 0;
   font-size: var(--fs-chrome);
   color: var(--text-1);
 }
 
-.mcp-server-detail-error dd {
-  color: var(--coral);
+.mcp-server-detail-aside {
+  margin-left: var(--s-5);
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
 }
 
+.mcp-server-detail-grid dd.mcp-server-detail-error {
+  color: var(--coral);
+  overflow-wrap: anywhere;
+}
+
+/* Long commands wrap inside their own well instead of widening the page. */
 .mcp-server-detail-command {
   display: block;
+  max-width: 100%;
+  box-sizing: border-box;
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
+  line-height: var(--lh-normal);
+  color: var(--text-2);
   background: var(--void);
   padding: var(--s-3) var(--s-4);
   border-radius: var(--r-chip);
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .mcp-server-detail-env {
-  margin: var(--s-3) 0 0;
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-2);
-  align-items: center;
 }
 
 .mcp-env-key {
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
+  color: var(--text-2);
   background: var(--hover);
-  padding: 1px var(--s-2);
+  padding: 1px var(--s-3);
   border-radius: var(--r-chip);
 }
 

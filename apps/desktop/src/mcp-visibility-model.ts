@@ -145,3 +145,18 @@ export function resolveMcpServerRuntimeUiStatus(input: {
   if (input.health?.status === 'stopping') return 'stopped';
   return input.health ? 'stopped' : 'running';
 }
+
+const MCP_RUNTIME_STATUS_LABELS: Record<McpServerRuntimeUiStatus, { zh: string; en: string }> = {
+  running: { zh: '运行中', en: 'Running' },
+  starting: { zh: '启动中', en: 'Starting' },
+  error: { zh: '运行错误', en: 'Error' },
+  stopped: { zh: '已停止', en: 'Stopped' },
+};
+
+export function mcpServerRuntimeStatusLabel(
+  status: McpServerRuntimeUiStatus,
+  isChinese: boolean,
+): string {
+  const label = MCP_RUNTIME_STATUS_LABELS[status];
+  return isChinese ? label.zh : label.en;
+}

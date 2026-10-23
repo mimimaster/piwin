@@ -2,17 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDesktopLocale } from './desktop-locale-context';
 import { mcpConfigSavedEffectMessage } from './settings-effect-copy.js';
 import { useConfirmDialog } from './use-confirm-dialog';
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  IconButton,
-  Notice,
-  Spinner,
-  Switch,
-  showUiNotification,
-} from '@piwin/ui-kit';
+import { Button, Notice, Spinner, showUiNotification } from '@piwin/ui-kit';
 import type {
   HostResponse,
   McpConfigDocument,
@@ -27,12 +17,12 @@ import { PageTitle } from './settings/page-title';
 import { CapabilityDiscoveryHint } from './settings/capability-discovery-hint';
 import { McpServerEditorDialog } from './McpServerEditorDialog';
 import { McpServerDetailPanel } from './mcp-server-detail-panel.js';
+import { McpServerRow } from './mcp-server-row.js';
 import {
   buildMcpToolCatalogEntries,
   getMcpConnectionFailure,
   resolveMcpServerRuntimeUiStatus,
 } from './mcp-visibility-model.js';
-import { IconPin, IconChevronDown, IconChevronRight } from './shell-icons';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type McpPanelProps = {
@@ -526,19 +516,18 @@ export function McpPanel(props: McpPanelProps) {
               />
             ) : null}
 
-            <div
-              className="mcp-tabs-toolbar"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 16,
-                gap: 12,
-              }}
-            >
-              <span className="mcp-configured-count" data-testid="mcp-configured-count">
-                {isChinese ? `已配置 ${serverIds.length} 个` : `${serverIds.length} configured`}
-              </span>
+            <header className="mcp-list-header">
+              <div className="mcp-list-header-text">
+                <span className="mcp-configured-count" data-testid="mcp-configured-count">
+                  {isChinese ? `已配置 ${serverIds.length} 个` : `${serverIds.length} configured`}
+                </span>
+                <CapabilityDiscoveryHint kind="mcp" />
+                <p className="muted mcp-pin-tip" data-testid="mcp-pin-tip">
+                  {isChinese
+                    ? '固定（Pin）后，该服务器的工具直接暴露给 Agent；未固定的工具仍可通过 piwin_toolbox 按需搜索调用。首次固定会探测工具列表。'
+                    : 'Pinning exposes a server’s tools to the Agent directly; unpinned tools stay reachable on demand through piwin_toolbox. The first pin probes the tool list.'}
+                </p>
+              </div>
               <Button
                 size="compact"
                 variant="primary"
@@ -547,22 +536,9 @@ export function McpPanel(props: McpPanelProps) {
               >
                 + {isChinese ? '添加服务器' : 'Add Server'}
               </Button>
-            </div>
+            </header>
 
-            <CapabilityDiscoveryHint kind="mcp" />
             <div className="mcp-tab-content">
-              <div className="mcp-pin-tip">
-                <Notice
-                  tone="info"
-                  title={isChinese ? '固定 MCP 工具会发生什么？' : 'What does pinning MCP tools do?'}
-                  testId="mcp-pin-tip"
-                >
-                  {isChinese
-                    ? 'Pin 后，该服务器当前发现的工具会直接暴露给 Agent，可直接调用；未 Pin 的工具仍通过 piwin_toolbox 按需搜索和调用。首次点击 Pin 会探测工具列表，取消 Pin 后恢复为目录调用。'
-                    : 'Pinning directly exposes the server’s discovered tools to the Agent for direct calls. Unpinned tools remain available through piwin_toolbox on demand. The first pin probes the tool list; unpinning restores catalog-only access.'}
-                </Notice>
-              </div>
-
               {error && serverIds.length === 0 ? (
                 <div className="ui-feedback-host" aria-live="polite" style={{ marginBottom: 16 }}>
                   <Notice tone="error" title={isChinese ? 'MCP 加载失败' : 'MCP load failed'}>
@@ -635,173 +611,40 @@ export function McpPanel(props: McpPanelProps) {
                           : 'done';
 
                     return (
-                      <li
+                      <McpServerRow
                         key={serverId}
-                        className={`ext-list-item mcp-server-card${expanded ? ' is-expanded' : ''}`}
-                        data-testid={`mcp-server-${serverId}`}
-                        data-activity-id={serverActivityId}
-                        data-activity-animation={serverActivitySpec.animation}
-                        data-tool-status={serverActivityStatus}
+                        serverId={serverId}
+                        commandLine={fullCommand}
+                        isEnabled={isEnabled}
+                        runtimeStatus={runtimeStatus}
+                        toolCount={toolCount}
+                        pinnedCount={pinnedCount}
+                        envCount={envCount}
+                        expanded={expanded}
+                        pinning={pinningServerId === serverId}
+                        activity={{
+                          id: serverActivityId,
+                          animation: serverActivitySpec.animation,
+                          status: serverActivityStatus,
+                        }}
+                        isChinese={isChinese}
+                        onToggleExpanded={() => toggleServerExpanded(serverId)}
+                        onToggleEnabled={(checked) => {
+                          void handleToggleServer(serverId, checked);
+                        }}
+                        onTogglePinned={() => {
+                          void handleToggleServerPinned(serverId);
+                        }}
+                        onEdit={() => openEditEditor(serverId)}
+                        onReload={() => void refreshHealth()}
+                        onDelete={() => void handleDeleteServer(serverId)}
                       >
-                        <div className="mcp-server-card-summary">
-                          <button
-                            type="button"
-                            className="mcp-server-card-body"
-                            aria-expanded={expanded}
-                            data-testid={`mcp-server-expand-${serverId}`}
-                            onClick={() => toggleServerExpanded(serverId)}
-                          >
-                            <div className="mcp-server-card-title">
-                              <span
-                                className={`mcp-status-dot-inline ${runtimeStatus}`}
-                                title={
-                                  runtimeStatus === 'running'
-                                    ? isChinese
-                                      ? '运行中'
-                                      : 'Running'
-                                    : runtimeStatus === 'starting'
-                                      ? isChinese
-                                        ? '启动中'
-                                        : 'Starting'
-                                      : runtimeStatus === 'error'
-                                        ? isChinese
-                                          ? '运行错误'
-                                          : 'Error'
-                                        : isChinese
-                                          ? '已停止'
-                                          : 'Stopped'
-                                }
-                              />
-                              <strong className="mcp-server-id">{serverId}</strong>
-                              {!isEnabled ? (
-                                <span className="mcp-disabled-pill">
-                                  {isChinese ? '已禁用' : 'disabled'}
-                                </span>
-                              ) : null}
-                              <span className="mcp-server-expand-chevron" aria-hidden>
-                                {expanded ? <IconChevronDown /> : <IconChevronRight />}
-                              </span>
-                            </div>
-                            <div className="mcp-server-card-meta">
-                              <code className="mcp-command-snippet" title={fullCommand}>
-                                {fullCommand || (isChinese ? '(无命令)' : '(no command)')}
-                              </code>
-                              {toolCount > 0 && (
-                                <span className="mcp-meta-badge mcp-tools-badge">
-                                  {isChinese ? `${toolCount} 个工具` : `${toolCount} tools`}
-                                </span>
-                              )}
-                              {pinnedCount > 0 && (
-                                <span
-                                  className="mcp-meta-badge mcp-pinned-badge"
-                                  title={
-                                    isChinese
-                                      ? `${pinnedCount} 个工具已固定为直接调用`
-                                      : `${pinnedCount} tool(s) pinned for direct call`
-                                  }
-                                  data-testid={`mcp-server-pinned-count-${serverId}`}
-                                >
-                                  {isChinese ? `${pinnedCount} 直调` : `${pinnedCount} pinned`}
-                                </span>
-                              )}
-                              {envCount > 0 && (
-                                <span className="mcp-meta-badge mcp-env-badge">
-                                  {isChinese ? `${envCount} 个环境变量` : `${envCount} env vars`}
-                                </span>
-                              )}
-                            </div>
-                          </button>
-                          <div className="mcp-server-card-actions">
-                            <Switch
-                              checked={isEnabled}
-                              onCheckedChange={(checked) => {
-                                void handleToggleServer(serverId, checked);
-                              }}
-                              onClick={(event) => event.stopPropagation()}
-                              aria-label={isChinese ? `切换 ${serverId}` : `Toggle ${serverId}`}
-                            />
-                            <IconButton
-                              label={
-                                pinnedCount > 0
-                                  ? isChinese
-                                    ? `取消固定 ${serverId} 的全部工具`
-                                    : `Unpin all tools from ${serverId}`
-                                  : isChinese
-                                    ? `固定 ${serverId} 的全部工具`
-                                    : `Pin all tools from ${serverId}`
-                              }
-                              title={
-                                pinnedCount > 0
-                                  ? isChinese
-                                    ? `${pinnedCount} 个工具已固定，点击取消固定`
-                                    : `${pinnedCount} tool(s) pinned; click to unpin`
-                                  : isChinese
-                                    ? '点击直接固定该服务器的全部工具'
-                                    : 'Click to directly pin all tools from this server'
-                              }
-                              className={
-                                pinnedCount > 0
-                                  ? 'mcp-server-pin-btn mcp-server-pin-btn--active'
-                                  : 'mcp-server-pin-btn'
-                              }
-                              aria-pressed={pinnedCount > 0}
-                              disabled={pinningServerId === serverId}
-                              data-testid={`mcp-server-pin-trigger-${serverId}`}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void handleToggleServerPinned(serverId);
-                              }}
-                            >
-                              <IconPin
-                                className={
-                                  pinnedCount > 0
-                                    ? 'mcp-server-pin-icon mcp-server-pin-icon--filled'
-                                    : 'mcp-server-pin-icon'
-                                }
-                                width={16}
-                                height={16}
-                              />
-                            </IconButton>
-                            <DropdownMenu
-                              align="end"
-                              side="bottom"
-                              label={isChinese ? '服务器操作' : 'Server actions'}
-                              trigger={
-                                <button
-                                  type="button"
-                                  className="mcp-row-menu-trigger"
-                                  aria-label={isChinese ? '更多操作' : 'More actions'}
-                                  onClick={(event) => event.stopPropagation()}
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                                    <circle cx="8" cy="4" r="1.5" />
-                                    <circle cx="8" cy="8" r="1.5" />
-                                    <circle cx="8" cy="12" r="1.5" />
-                                  </svg>
-                                </button>
-                              }
-                            >
-                              <DropdownMenuItem onSelect={() => openEditEditor(serverId)}>
-                                {isChinese ? '编辑' : 'Edit'}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => void refreshHealth()}>
-                                {isChinese ? '重新加载' : 'Reload'}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                danger
-                                onSelect={() => void handleDeleteServer(serverId)}
-                              >
-                                {isChinese ? '删除' : 'Delete'}
-                              </DropdownMenuItem>
-                            </DropdownMenu>
-                          </div>
-                        </div>
                         {expanded ? (
                           <McpServerDetailPanel
                             serverId={serverId}
                             server={server}
                             health={health}
+                            runtimeStatus={runtimeStatus}
                             tools={catalogEntries}
                             toolsLoading={toolsLoadingId === serverId}
                             toolsError={toolsErrorById[serverId] ?? null}
@@ -819,7 +662,7 @@ export function McpPanel(props: McpPanelProps) {
                             pinningSelector={pinningSelector}
                           />
                         ) : null}
-                      </li>
+                      </McpServerRow>
                     );
                   })}
                 </ul>

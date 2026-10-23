@@ -8,6 +8,8 @@ import { McpToolCatalogRow } from './mcp-tool-catalog-row.js';
 import {
   mcpServerCommandLine,
   mcpServerEnvKeys,
+  mcpServerRuntimeStatusLabel,
+  type McpServerRuntimeUiStatus,
   type McpToolCatalogEntry,
 } from './mcp-visibility-model.js';
 
@@ -15,6 +17,8 @@ export type McpServerDetailPanelProps = {
   serverId: string;
   server: McpServerConfig;
   health: McpServerHealth | undefined;
+  /** Same coarse status the row's dot shows; falls back to the raw health status. */
+  runtimeStatus?: McpServerRuntimeUiStatus;
   tools: readonly McpToolCatalogEntry[];
   toolsLoading: boolean;
   toolsError: string | null;
@@ -36,58 +40,50 @@ export function McpServerDetailPanel(props: McpServerDetailPanelProps): ReactEle
 
   return (
     <div className="mcp-server-detail" data-testid={`mcp-server-detail-${props.serverId}`}>
-      <section className="mcp-server-detail-section">
-        <h5>{isChinese ? '运行' : 'Runtime'}</h5>
-        <dl className="mcp-server-detail-grid">
-          <div>
-            <dt>{isChinese ? '状态' : 'Status'}</dt>
-            <dd>{health?.status ?? (isChinese ? '未知' : 'unknown')}</dd>
-          </div>
+      <dl className="mcp-server-detail-grid">
+        <dt>{isChinese ? '状态' : 'Status'}</dt>
+        <dd>
+          {props.runtimeStatus
+            ? mcpServerRuntimeStatusLabel(props.runtimeStatus, isChinese)
+            : (health?.status ?? (isChinese ? '未知' : 'unknown'))}
           {health?.pid !== undefined ? (
-            <div>
-              <dt>PID</dt>
-              <dd>
-                <code>{health.pid}</code>
-              </dd>
-            </div>
+            <span className="mcp-server-detail-aside">PID {health.pid}</span>
           ) : null}
           {startedAt ? (
-            <div>
-              <dt>{isChinese ? '启动时间' : 'Started'}</dt>
-              <dd>{startedAt}</dd>
-            </div>
+            <span className="mcp-server-detail-aside">
+              {isChinese ? `启动于 ${startedAt}` : `started ${startedAt}`}
+            </span>
           ) : null}
-          {health?.lastError ? (
-            <div className="mcp-server-detail-error">
-              <dt>{isChinese ? '最近错误' : 'Last error'}</dt>
-              <dd>{health.lastError}</dd>
-            </div>
-          ) : null}
-          {server.restartOnCrash === true ? (
-            <div>
-              <dt>{isChinese ? '崩溃重启' : 'Restart on crash'}</dt>
-              <dd>{isChinese ? '开（一次）' : 'On (once)'}</dd>
-            </div>
-          ) : null}
-        </dl>
-      </section>
-
-      <section className="mcp-server-detail-section">
-        <h5>{isChinese ? '启动' : 'Launch'}</h5>
-        <code className="mcp-server-detail-command">{command || (isChinese ? '(无命令)' : '(no command)')}</code>
-        {envKeys.length > 0 ? (
-          <p className="muted mcp-server-detail-env">
-            {isChinese ? '环境变量键：' : 'Env keys: '}
-            {envKeys.map((key) => (
-              <code key={key} className="mcp-env-key">
-                {key}
-              </code>
-            ))}
-          </p>
-        ) : (
-          <p className="muted">{isChinese ? '无环境变量。' : 'No environment variables.'}</p>
-        )}
-      </section>
+        </dd>
+        {health?.lastError ? (
+          <>
+            <dt>{isChinese ? '最近错误' : 'Last error'}</dt>
+            <dd className="mcp-server-detail-error">{health.lastError}</dd>
+          </>
+        ) : null}
+        {server.restartOnCrash === true ? (
+          <>
+            <dt>{isChinese ? '崩溃重启' : 'Restart on crash'}</dt>
+            <dd>{isChinese ? '开（一次）' : 'On (once)'}</dd>
+          </>
+        ) : null}
+        <dt>{isChinese ? '启动命令' : 'Command'}</dt>
+        <dd>
+          <code className="mcp-server-detail-command">
+            {command || (isChinese ? '(无命令)' : '(no command)')}
+          </code>
+        </dd>
+        <dt>{isChinese ? '环境变量' : 'Env keys'}</dt>
+        <dd className="mcp-server-detail-env">
+          {envKeys.length > 0
+            ? envKeys.map((key) => (
+                <code key={key} className="mcp-env-key">
+                  {key}
+                </code>
+              ))
+            : <span className="muted">{isChinese ? '无' : 'None'}</span>}
+        </dd>
+      </dl>
 
       <section className="mcp-server-detail-section">
         <div className="mcp-server-detail-tools-header">
@@ -98,7 +94,7 @@ export function McpServerDetailPanel(props: McpServerDetailPanelProps): ReactEle
               <span className="mcp-meta-badge">{isChinese ? '缓存' : 'cached'}</span>
             ) : null}
             {props.toolsSource === 'live' ? (
-              <span className="mcp-meta-badge mcp-tools-badge">
+              <span className="mcp-meta-badge">
                 {isChinese ? '实时' : 'live'}
               </span>
             ) : null}
