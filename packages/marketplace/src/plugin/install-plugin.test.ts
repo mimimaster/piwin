@@ -1,3 +1,4 @@
+import type { McpStdioServerConfig } from '@piwin/contracts';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -65,7 +66,8 @@ describe('installPlugin (local)', () => {
           writtenSecrets[ref] = value;
         },
         mergeMcpServer: async (serverId, config) => {
-          mergedServers[serverId] = config;
+          // Bundled plugins ship stdio servers.
+          mergedServers[serverId] = config as McpStdioServerConfig;
         },
       });
 
@@ -157,14 +159,15 @@ describe('installPlugin (local)', () => {
 
   it('installs bundled Cloudflare without a remote registry', async () => {
     const root = await mkdtemp(join(tmpdir(), 'piwin-install-'));
-    const mergedServers: Record<string, { command: string; args?: string[] }> = {};
+    const mergedServers: Record<string, McpStdioServerConfig> = {};
     try {
       const result = await installPlugin({
         piwinRoot: root,
         installSkill: copyLocalSkill,
         source: { kind: 'bundled', bundledId: 'cloudflare' },
         mergeMcpServer: async (serverId, config) => {
-          mergedServers[serverId] = config;
+          // Bundled plugins ship stdio servers.
+          mergedServers[serverId] = config as McpStdioServerConfig;
         },
       });
       expect(result.pluginId).toBe('cloudflare');
@@ -206,7 +209,7 @@ describe('installPlugin (local)', () => {
 
   it('resolves the GitHub PAT into mcp-remote args', async () => {
     const root = await mkdtemp(join(tmpdir(), 'piwin-install-'));
-    const mergedServers: Record<string, { args?: string[]; env?: Record<string, string> }> = {};
+    const mergedServers: Record<string, McpStdioServerConfig> = {};
     try {
       await expect(
         installPlugin({
@@ -222,7 +225,8 @@ describe('installPlugin (local)', () => {
         source: { kind: 'bundled', bundledId: 'github' },
         secrets: { GITHUB_PERSONAL_ACCESS_TOKEN: 'ghp_test' },
         mergeMcpServer: async (serverId, config) => {
-          mergedServers[serverId] = config;
+          // Bundled plugins ship stdio servers.
+          mergedServers[serverId] = config as McpStdioServerConfig;
         },
       });
       expect(result.pluginId).toBe('github');
@@ -239,14 +243,15 @@ describe('installPlugin (local)', () => {
 
   it('installs bundled HyperFrames without secrets', async () => {
     const root = await mkdtemp(join(tmpdir(), 'piwin-install-'));
-    const mergedServers: Record<string, { command: string; args?: string[] }> = {};
+    const mergedServers: Record<string, McpStdioServerConfig> = {};
     try {
       const result = await installPlugin({
         piwinRoot: root,
         installSkill: copyLocalSkill,
         source: { kind: 'bundled', bundledId: 'hyperframes' },
         mergeMcpServer: async (serverId, config) => {
-          mergedServers[serverId] = config;
+          // Bundled plugins ship stdio servers.
+          mergedServers[serverId] = config as McpStdioServerConfig;
         },
       });
       expect(result.pluginId).toBe('hyperframes');

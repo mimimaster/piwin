@@ -395,6 +395,10 @@ pinned direct tools call the same Supervisor; sessions and UI never own MCP
 clients. The default model surface is gateway-only (`search`, `describe`,
 `call`, `status`); direct tools require explicit `pinnedSelectors`.
 
+Servers are either stdio (`command`) or remote (`url`, Streamable HTTP with
+an SSE fallback, `${VAR}`-expanded `headers`); both live in the same
+Supervisor slot (ADR 0033 §3 amendment).
+
 Both MCP call paths normalize text and image content through `@piwin/mcp`.
 Screenshots use the existing `ToolResult.images` channel and become native Pi
 image blocks in SDK and RPC modes; image base64 never falls back to text.

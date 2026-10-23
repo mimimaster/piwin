@@ -88,7 +88,7 @@
 | D-MCP-02d-tool | ~~Server-level tool-call remember~~ | **Done 2026-07-20** — `allowedServerIds` covers connect + tool-call | done |
 | D-MCP-03 | Stock **RPC mode custom tools** | ADR 0008: Pi RPC has no dynamic register | P6 / ADR follow-up |
 | D-MCP-04 | ~~Official MCP SDK client + handcrafted fallback~~ | **Done 2026-07-20** — dual client via `PIWIN_MCP_CLIENT` | done |
-| D-MCP-05 | MCP SSE/HTTP transports (non-stdio) | stdio first-class only | later product |
+| D-MCP-05 | ~~MCP SSE/HTTP transports (non-stdio)~~ | **Done 2026-10-23** — `url` servers over Streamable HTTP with SSE fallback, `${VAR}` headers, Desktop editor + `piwin mcp add --url`, keyless registry remotes one-click (ADR 0033 §3 amendment). Residual: native OAuth (use `npx mcp-remote` bridge meanwhile) | done (residual OAuth) |
 
 ### 2.3 Artifact
 

@@ -14,12 +14,13 @@ import type {
   McpServerRuntimeStatus,
   McpToolSummary,
 } from '@piwin/contracts';
+import { describeMcpServerEndpoint, mcpServerTransportKind } from '@piwin/contracts';
 import {
   createEmptyMcpConfig,
   loadMcpConfig,
   validateMcpConfig,
 } from './mcp-config.js';
-import { spawnMcpStdio } from './mcp-client.js';
+import { spawnMcpServer } from './mcp-client.js';
 import type { McpOwnedProcess, McpTransportClient } from './mcp-transport.js';
 import { toMcpToolSummary } from './tool-names.js';
 import { fingerprintMcpServerConfig } from './mcp-fingerprint.js';
@@ -198,7 +199,8 @@ export function createMcpLifecycleManager(
     const health: McpServerHealth = {
       serverId: entry.serverId,
       status: entry.status,
-      command: entry.config.command,
+      command: describeMcpServerEndpoint(entry.config),
+      transport: mcpServerTransportKind(entry.config),
       disabled: entry.config.disabled === true,
       toolCount: entry.toolCount,
     };
@@ -537,10 +539,10 @@ export function createMcpLifecycleManager(
     const startOperation = (async (): Promise<void> => {
       let ownedProcess: McpOwnedProcess | null = null;
       try {
-        // This is the ownership hand-off. spawnMcpStdio returns the process
+        // This is the ownership hand-off. spawnMcpServer returns the process
         // handle before readiness, so every later path can close this exact
         // process even if initialize never responds.
-        ownedProcess = spawnMcpStdio(entry.serverId, entry.config, {
+        ownedProcess = spawnMcpServer(entry.serverId, entry.config, {
           signal: connectAbort.signal,
         });
         entry.ownedProcess = ownedProcess;

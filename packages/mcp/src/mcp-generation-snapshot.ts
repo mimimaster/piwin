@@ -1,5 +1,11 @@
 import { createHash } from 'node:crypto';
-import type { McpConfigDocument, McpServerConfig } from '@piwin/contracts';
+import {
+  isRemoteMcpServerConfig,
+  type McpConfigDocument,
+  type McpRemoteServerConfig,
+  type McpServerConfig,
+  type McpStdioServerConfig,
+} from '@piwin/contracts';
 import { fingerprintMcpServerConfig } from './mcp-fingerprint.js';
 
 /**
@@ -53,18 +59,24 @@ export function createMcpGenerationSnapshot(
   });
 }
 
+function cloneServerTransport(source: McpServerConfig): McpServerConfig {
+  if (isRemoteMcpServerConfig(source)) {
+    const remote: McpRemoteServerConfig = { url: source.url };
+    if (source.type !== undefined) remote.type = source.type;
+    if (source.headers !== undefined) remote.headers = Object.freeze({ ...source.headers });
+    return remote;
+  }
+  const stdio: McpStdioServerConfig = { command: source.command };
+  if (source.type !== undefined) stdio.type = source.type;
+  if (source.args !== undefined) stdio.args = Object.freeze([...source.args]) as string[];
+  if (source.env !== undefined) stdio.env = Object.freeze({ ...source.env });
+  return stdio;
+}
+
 function cloneAndFreezeMcpConfig(document: McpConfigDocument): McpConfigDocument {
   const servers: Record<string, McpServerConfig> = {};
   for (const [serverId, source] of Object.entries(document.mcpServers)) {
-    const config: McpServerConfig = { command: source.command };
-    if (source.args !== undefined) {
-      config.args = [...source.args];
-      Object.freeze(config.args);
-    }
-    if (source.env !== undefined) {
-      config.env = { ...source.env };
-      Object.freeze(config.env);
-    }
+    const config = cloneServerTransport(source);
     if (source.disabled !== undefined) {
       config.disabled = source.disabled;
     }

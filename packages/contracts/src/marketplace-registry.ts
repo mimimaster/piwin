@@ -15,7 +15,7 @@ export type McpRegistryCard = {
   installDraft?: McpServerConfig;
   /** Partial draft requiring user edits. */
   manualDraft?: Partial<McpServerConfig> & { id?: string };
-  /** When true, server needs non-stdio transport not fully supported yet. */
+  /** Remote-only server that needs a header (API key) the user must supply first. */
   requiresSse?: boolean;
   /** Environment variables the server needs and the registry gives no default for. */
   requiredEnv?: string[];

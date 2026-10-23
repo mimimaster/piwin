@@ -5,6 +5,7 @@ import type {
   McpRegistryCard,
   SkillStoreEntry,
 } from '@piwin/contracts';
+import { describeMcpServerLaunch } from '@piwin/contracts';
 import { listStaticMcpRegistry } from './mcp-registry.js';
 import { officialMcpServerId, searchOfficialMcpRegistry } from './mcp-official-registry.js';
 import { listSkillStoreEntries } from './skill-store.js';
@@ -62,8 +63,8 @@ function mcpCardToHit(card: McpRegistryCard): MarketplaceSearchHit {
     version: card.version ?? 'latest',
     description: card.description,
     source: 'mcp-registry',
-    // Remote-only servers have no local command; the empty string marks "not installable".
-    installCommand: draft ? `${draft.command} ${(draft.args ?? []).join(' ')}`.trim() : '',
+    // No draft (a remote that needs a key first) is marked "not installable" by ''.
+    installCommand: draft ? describeMcpServerLaunch(draft) : '',
     kind: 'mcp',
     mcpServerId: serverId,
     curated: card.source === 'static',
@@ -248,4 +249,3 @@ export async function searchMarketplaceSources(
   }
   return result;
 }
-

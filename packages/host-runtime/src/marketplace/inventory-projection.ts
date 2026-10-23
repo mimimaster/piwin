@@ -25,6 +25,7 @@ import {
   canUninstallSkill,
   isExtensionBlueprintEligible,
   isPinnedSkillOrigin,
+  isRemoteMcpServerConfig,
 } from '@piwin/contracts';
 import type { LoadedExtensionRef } from '../sessions/session-runtime-controller.js';
 
@@ -208,7 +209,9 @@ function mcpAvailability(
   if (config.disabled || health?.status === 'disabled') {
     return { availability: 'disabled' };
   }
-  const blankEnv = Object.entries(config.env ?? {})
+  // Blank env (stdio) or header (remote) values are placeholders still to fill.
+  const placeholders = isRemoteMcpServerConfig(config) ? config.headers : config.env;
+  const blankEnv = Object.entries(placeholders ?? {})
     .filter(([, value]) => value.trim() === '')
     .map(([name]) => name);
   if (blankEnv.length > 0) {

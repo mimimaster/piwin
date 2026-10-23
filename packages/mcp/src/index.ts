@@ -16,12 +16,15 @@ export {
 } from './tool-names.js';
 export { formatMcpCallResult, normalizeMcpToolResult } from './mcp-call-result.js';
 export {
+  connectMcpServer,
   connectMcpStdio,
   connectHandcraftedMcpStdio,
   listToolsForServer,
+  spawnMcpServer,
   spawnMcpStdio,
   spawnHandcraftedMcpStdio,
 } from './mcp-client.js';
+export { spawnRemoteMcp } from './mcp-client-remote.js';
 export { connectOfficialMcpStdio, spawnOfficialMcpStdio } from './mcp-client-official.js';
 export type {
   CreateMcpClientOptions,

@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import type { McpConfigDocument, McpServerConfig } from '@piwin/contracts';
+import { validateMcpServerEntry, type McpValidationIssue } from './mcp-server-config-validate.js';
 
 export function createEmptyMcpConfig(): McpConfigDocument {
   return { mcpServers: {}, pinnedSelectors: [] };
@@ -46,10 +47,7 @@ export async function saveMcpConfig(
   return configPath;
 }
 
-export type McpValidationIssue = {
-  path: string;
-  message: string;
-};
+export type { McpValidationIssue };
 
 export type McpValidationResult =
   | { ok: true; document: McpConfigDocument }
@@ -95,73 +93,13 @@ export function tryValidateMcpConfig(value: unknown): McpValidationResult {
       });
       continue;
     }
-    const serverRecord = serverValue as Record<string, unknown>;
-    if (typeof serverRecord.command !== 'string' || serverRecord.command.trim().length === 0) {
-      issues.push({
-        path: `mcpServers.${serverId}.command`,
-        message: 'command must be a non-empty string',
-      });
+    const config = validateMcpServerEntry(
+      serverId,
+      serverValue as Record<string, unknown>,
+      issues,
+    );
+    if (config === undefined) {
       continue;
-    }
-    const config: McpServerConfig = {
-      command: serverRecord.command.trim(),
-    };
-    if (Array.isArray(serverRecord.args)) {
-      const args = serverRecord.args.filter((item): item is string => typeof item === 'string');
-      if (args.length !== serverRecord.args.length) {
-        issues.push({
-          path: `mcpServers.${serverId}.args`,
-          message: 'args must be an array of strings',
-        });
-      } else if (args.length > 0) {
-        config.args = args;
-      }
-    } else if (serverRecord.args !== undefined) {
-      issues.push({
-        path: `mcpServers.${serverId}.args`,
-        message: 'args must be an array of strings',
-      });
-    }
-    if (serverRecord.env !== undefined) {
-      if (!serverRecord.env || typeof serverRecord.env !== 'object' || Array.isArray(serverRecord.env)) {
-        issues.push({
-          path: `mcpServers.${serverId}.env`,
-          message: 'env must be a string map',
-        });
-      } else {
-        const env: Record<string, string> = {};
-        let envOk = true;
-        for (const [envKey, envValue] of Object.entries(serverRecord.env as Record<string, unknown>)) {
-          if (typeof envValue !== 'string') {
-            issues.push({
-              path: `mcpServers.${serverId}.env.${envKey}`,
-              message: 'env values must be strings',
-            });
-            envOk = false;
-            break;
-          }
-          env[envKey] = envValue;
-        }
-        if (envOk && Object.keys(env).length > 0) {
-          config.env = env;
-        }
-      }
-    }
-    if (typeof serverRecord.disabled === 'boolean') {
-      config.disabled = serverRecord.disabled;
-    } else if (serverRecord.disabled !== undefined) {
-      issues.push({
-        path: `mcpServers.${serverId}.disabled`,
-        message: 'disabled must be a boolean',
-      });
-    }
-    if (typeof serverRecord.restartOnCrash === 'boolean') {
-      config.restartOnCrash = serverRecord.restartOnCrash;
-    } else if (serverRecord.restartOnCrash !== undefined) {
-      issues.push({
-        path: `mcpServers.${serverId}.restartOnCrash`,
-        message: 'restartOnCrash must be a boolean',
-      });
     }
     normalized[serverId] = config;
   }

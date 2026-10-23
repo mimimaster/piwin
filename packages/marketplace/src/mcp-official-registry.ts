@@ -1,11 +1,12 @@
 /**
  * Official MCP registry (registry.modelcontextprotocol.io, schema
- * 2025-12-11) → registry cards with a runnable stdio draft. piwin runs MCP
- * servers over stdio only, so a server becomes installable when it publishes
- * an npm (`npx`) or PyPI (`uvx`) package with stdio transport; remote-only
- * servers are listed with `requiresSse`.
+ * 2025-12-11) → registry cards with a runnable draft. A stdio package (npm via
+ * `npx`, PyPI via `uvx`) is preferred; otherwise a remote endpoint becomes a
+ * `url` draft when it needs no header the user must supply. Remote servers
+ * that need a secret header stay listed with `requiresSse` (not one-click).
  */
 import type { McpRegistryCard, McpServerConfig } from '@piwin/contracts';
+import { isRemoteMcpServerConfig } from '@piwin/contracts';
 
 export const OFFICIAL_MCP_REGISTRY_URL = 'https://registry.modelcontextprotocol.io/v0/servers';
 const NPM_IDENTIFIER = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
@@ -93,6 +94,35 @@ function stdioDraft(
   return { draft, required, ...(pinned ? { version: pinned } : {}) };
 }
 
+/**
+ * First registry remote the Host can reach without user input. Required
+ * headers (usually an API key) have no safe default, so such remotes are
+ * skipped; fixed header values are kept.
+ */
+function remoteDraft(server: RegistryRecord): McpServerConfig | undefined {
+  for (const remote of asArray(server.remotes).map((value) => asRecord(value))) {
+    const url = readString(remote, 'url');
+    const kind = readString(remote, 'type');
+    if (!url || !/^https?:\/\//i.test(url) || url.includes('{')) continue;
+    if (kind !== 'streamable-http' && kind !== 'sse') continue;
+    const headers: Record<string, string> = {};
+    let needsInput = false;
+    for (const header of asArray(remote?.headers).map((value) => asRecord(value))) {
+      const name = readString(header, 'name');
+      const value = readString(header, 'value') ?? readString(header, 'default');
+      if (name && value && !value.includes('{')) headers[name] = value;
+      else if (header?.isRequired === true) needsInput = true;
+    }
+    if (needsInput) continue;
+    return {
+      type: kind === 'sse' ? 'sse' : 'http',
+      url,
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    };
+  }
+  return undefined;
+}
+
 /** One registry `server` object → card, or undefined when it has no name. */
 export function cardFromOfficialServer(value: unknown): McpRegistryCard | undefined {
   const server = asRecord(value);
@@ -122,7 +152,9 @@ export function cardFromOfficialServer(value: unknown): McpRegistryCard | undefi
     if (runnable.version) card.version = runnable.version;
   } else {
     card.version = readString(server, 'version') ?? 'latest';
-    card.requiresSse = asArray(server.remotes).length > 0;
+    const remote = remoteDraft(server);
+    if (remote) card.installDraft = remote;
+    else card.requiresSse = asArray(server.remotes).length > 0;
   }
   return card;
 }
@@ -181,13 +213,13 @@ export async function searchOfficialMcpRegistry(
     signal: options.signal ? AbortSignal.any([options.signal, timeout]) : timeout,
   });
   if (!response.ok) throw new Error(`MCP registry search failed: HTTP ${response.status}`);
-  // The registry returns names alphabetically; servers piwin can run locally go first
-  // so a short result list is not all remote-only endpoints.
+  // The registry returns names alphabetically; local packages go first, then
+  // remotes that work without a key, so a short list is not all key-gated endpoints.
   const parsed = parseOfficialRegistryServers(await response.json());
-  const cards = [
-    ...parsed.filter((card) => card.installDraft),
-    ...parsed.filter((card) => !card.installDraft),
-  ];
+  const rank = (card: McpRegistryCard): number =>
+    card.installDraft === undefined ? 2 : isRemoteMcpServerConfig(card.installDraft) ? 1 : 0;
+  // Array.prototype.sort is stable, so the registry order holds within a rank.
+  const cards = [...parsed].sort((left, right) => rank(left) - rank(right));
   if (searchCache.size >= CACHE_MAX_ENTRIES) {
     const oldest = searchCache.keys().next().value;
     if (oldest !== undefined) searchCache.delete(oldest);

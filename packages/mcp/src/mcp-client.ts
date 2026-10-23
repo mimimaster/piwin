@@ -1,5 +1,11 @@
 import { spawn } from 'node:child_process';
-import type { McpServerConfig, McpToolSummary } from '@piwin/contracts';
+import {
+  isRemoteMcpServerConfig,
+  type McpServerConfig,
+  type McpStdioServerConfig,
+  type McpToolSummary,
+} from '@piwin/contracts';
+import { spawnRemoteMcp } from './mcp-client-remote.js';
 import { expandEnvMap } from './mcp-config.js';
 import { isMcpRemoteBridge } from './mcp-connection-policy.js';
 import { closeMcpProcessTree } from './mcp-process-tree.js';
@@ -19,7 +25,7 @@ import type {
  */
 export function spawnHandcraftedMcpStdio(
   serverId: string,
-  config: McpServerConfig,
+  config: McpStdioServerConfig,
   signal?: AbortSignal,
 ): McpOwnedProcess {
   if (signal?.aborted) {
@@ -279,7 +285,7 @@ export function spawnHandcraftedMcpStdio(
 
 export async function connectHandcraftedMcpStdio(
   serverId: string,
-  config: McpServerConfig,
+  config: McpStdioServerConfig,
   signal?: AbortSignal,
 ): Promise<McpTransportClient> {
   const owned = spawnHandcraftedMcpStdio(serverId, config, signal);
@@ -299,7 +305,7 @@ export async function connectHandcraftedMcpStdio(
  */
 export function spawnMcpStdio(
   serverId: string,
-  config: McpServerConfig,
+  config: McpStdioServerConfig,
   options: CreateMcpClientOptions = {},
 ): McpOwnedProcess {
   if (options.signal?.aborted) {
@@ -418,9 +424,37 @@ export function spawnMcpStdio(
   };
 }
 
-export async function connectMcpStdio(
+/**
+ * Start any configured server: spawn a stdio process or open a remote HTTP
+ * session. Returns the owned handle before readiness, like spawnMcpStdio.
+ */
+export function spawnMcpServer(
   serverId: string,
   config: McpServerConfig,
+  options: CreateMcpClientOptions = {},
+): McpOwnedProcess {
+  return isRemoteMcpServerConfig(config)
+    ? spawnRemoteMcp(serverId, config, options.signal)
+    : spawnMcpStdio(serverId, config, options);
+}
+
+export async function connectMcpServer(
+  serverId: string,
+  config: McpServerConfig,
+  options: CreateMcpClientOptions = {},
+): Promise<McpTransportClient> {
+  const owned = spawnMcpServer(serverId, config, options);
+  try {
+    return await owned.ready;
+  } catch (error) {
+    await owned.close();
+    throw error;
+  }
+}
+
+export async function connectMcpStdio(
+  serverId: string,
+  config: McpStdioServerConfig,
   options: CreateMcpClientOptions = {},
 ): Promise<McpTransportClient> {
   const owned = spawnMcpStdio(serverId, config, options);
@@ -452,7 +486,7 @@ export async function listToolsForServer(
   if (config.disabled) {
     return [];
   }
-  const session = await connectMcpStdio(serverId, config);
+  const session = await connectMcpServer(serverId, config);
   try {
     const tools = await session.listTools();
     return tools.map((tool) =>

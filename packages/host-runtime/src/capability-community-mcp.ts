@@ -5,7 +5,12 @@
  * registry's own package draft, never one the model composed.
  */
 import type { McpRegistryCard, ToolResult } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import {
+  describeMcpServerEndpoint,
+  describeMcpServerLaunch,
+  formatError,
+  isRemoteMcpServerConfig,
+} from '@piwin/contracts';
 import { officialMcpServerId } from '@piwin/marketplace';
 import type { McpLifecycleManager } from '@piwin/mcp';
 import { connectMcpDraft } from './capability-mcp-connect.js';
@@ -40,9 +45,11 @@ function describeCard(card: McpRegistryCard, configured: Set<string>): Record<st
     source: 'official MCP registry (not reviewed by piwin)',
     ...(card.repositoryUrl ? { repository: card.repositoryUrl } : {}),
     runnable: Boolean(draft),
-    ...(draft ? { command: `${draft.command} ${(draft.args ?? []).join(' ')}`.trim() } : {}),
+    ...(draft ? { command: describeMcpServerLaunch(draft) } : {}),
     ...(card.requiredEnv?.length ? { requiredEnv: card.requiredEnv } : {}),
-    ...(draft ? {} : { note: 'Remote-only endpoint; piwin runs local stdio MCP servers only.' }),
+    ...(draft
+      ? {}
+      : { note: 'Remote endpoint that needs an API key header; the user adds it in Settings → MCP.' }),
     installed: configured.has(officialMcpServerId(registryName(card))),
   };
 }
@@ -86,7 +93,7 @@ export async function installCommunityMcp(
     return {
       ok: false,
       code: 'invalid-input',
-      message: `"${card.title}" only offers a remote endpoint; piwin runs local stdio MCP servers only.`,
+      message: `"${card.title}" is a remote endpoint that needs an API key header; ask the user to add it in Settings → MCP.`,
     };
   }
   try {
@@ -97,7 +104,11 @@ export async function installCommunityMcp(
       serverId: officialMcpServerId(registryName(card)),
       draft: card.installDraft,
       ...(card.requiredEnv ? { requiredEnv: card.requiredEnv } : {}),
-      prerequisites: [card.installDraft.command],
+      prerequisites: [
+        isRemoteMcpServerConfig(card.installDraft)
+          ? `network access to ${describeMcpServerEndpoint(card.installDraft)}`
+          : card.installDraft.command,
+      ],
     });
   } catch (error) {
     return { ok: false, code: 'execution-failed', message: `Installing "${entryId}" failed: ${formatError(error)}` };

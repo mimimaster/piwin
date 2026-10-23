@@ -1,16 +1,76 @@
 /** MCP config — Cursor/Claude compatible shape */
 
-export type McpServerConfig = {
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
+type McpServerCommonConfig = {
   disabled?: boolean;
   /**
-   * When true, lifecycle manager restarts the server **once** after an unexpected crash.
-   * Default false (safe); never loops forever.
+   * When true, lifecycle manager restarts the server **once** after an unexpected crash
+   * (stdio) or a dropped connection (remote). Default false (safe); never loops forever.
    */
   restartOnCrash?: boolean;
 };
+
+/** A local server the Host spawns and talks to over stdin/stdout. */
+export type McpStdioServerConfig = McpServerCommonConfig & {
+  type?: 'stdio';
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: never;
+};
+
+/**
+ * A server the Host reaches over HTTP. `http` is Streamable HTTP, `sse` the
+ * legacy HTTP+SSE transport; without `type` the Host tries Streamable HTTP and
+ * falls back to SSE. Header values expand `${VAR}` from the Host environment,
+ * so tokens can stay out of mcp.json.
+ */
+export type McpRemoteServerConfig = McpServerCommonConfig & {
+  type?: 'http' | 'sse';
+  url: string;
+  headers?: Record<string, string>;
+  command?: never;
+};
+
+export type McpServerConfig = McpStdioServerConfig | McpRemoteServerConfig;
+
+export type McpServerTransportKind = 'stdio' | 'http' | 'sse';
+
+export function isRemoteMcpServerConfig(
+  config: McpServerConfig,
+): config is McpRemoteServerConfig {
+  return typeof config.url === 'string';
+}
+
+/** Transport the config asks for; `http` also covers the untyped auto mode. */
+export function mcpServerTransportKind(config: McpServerConfig): McpServerTransportKind {
+  if (!isRemoteMcpServerConfig(config)) return 'stdio';
+  return config.type === 'sse' ? 'sse' : 'http';
+}
+
+/**
+ * What to show for a server in status lists: the command for stdio, the URL
+ * for remote servers with credentials and the query string removed (both
+ * commonly carry tokens).
+ */
+export function describeMcpServerEndpoint(config: McpServerConfig): string {
+  if (!isRemoteMcpServerConfig(config)) return config.command;
+  try {
+    const parsed = new URL(config.url);
+    parsed.username = '';
+    parsed.password = '';
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return config.url.split(/[?#]/, 1)[0] ?? config.url;
+  }
+}
+
+/** One-line launch description: `command args…` for stdio, the redacted URL for remote. */
+export function describeMcpServerLaunch(config: McpServerConfig): string {
+  if (isRemoteMcpServerConfig(config)) return describeMcpServerEndpoint(config);
+  return [config.command, ...(config.args ?? [])].join(' ').trim();
+}
 
 export type McpConfigDocument = {
   mcpServers: Record<string, McpServerConfig>;
@@ -97,7 +157,9 @@ export type McpServerRuntimeStatus =
 export type McpServerHealth = {
   serverId: string;
   status: McpServerRuntimeStatus;
+  /** Display endpoint: the command for stdio, a redacted URL for remote servers. */
   command: string;
+  transport?: McpServerTransportKind;
   disabled: boolean;
   toolCount: number;
   lastError?: string;

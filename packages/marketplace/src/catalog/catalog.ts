@@ -9,7 +9,7 @@ import type {
   MarketplaceCatalogEntry,
   MarketplaceCategory,
 } from '@piwin/contracts';
-import { normalizeResourceId } from '@piwin/contracts';
+import { isRemoteMcpServerConfig, normalizeResourceId } from '@piwin/contracts';
 import { isExactNpmVersion, isNpmPackageName } from '../search-pi-packages.js';
 import { EXTENSION_CATALOG } from './extensions.js';
 import { MCP_CATALOG } from './mcp.js';
@@ -84,9 +84,15 @@ export function validateCatalogEntry(entry: MarketplaceCatalogEntry): string[] {
     if (install.serverId !== entry.capabilityId) {
       issues.push(`${entry.entryId}: MCP serverId must equal capabilityId`);
     }
-    const packageArg = (install.draft.args ?? []).find((arg) => !arg.startsWith('-'));
-    if (!packageArg || !PINNED_RUNNER_PACKAGE.test(packageArg)) {
-      issues.push(`${entry.entryId}: MCP command must pin its package version`);
+    if (isRemoteMcpServerConfig(install.draft)) {
+      if (!install.draft.url.startsWith('https://')) {
+        issues.push(`${entry.entryId}: remote MCP url must use https`);
+      }
+    } else {
+      const packageArg = (install.draft.args ?? []).find((arg) => !arg.startsWith('-'));
+      if (!packageArg || !PINNED_RUNNER_PACKAGE.test(packageArg)) {
+        issues.push(`${entry.entryId}: MCP command must pin its package version`);
+      }
     }
   }
   return issues;

@@ -130,6 +130,33 @@ The slot contains at least:
 No code may clear a pending start promise, abort controller, or close promise
 without first awaiting or superseding the corresponding operation token.
 
+#### Remote servers (amendment 2026-10-23)
+
+A server entry with `url` instead of `command` is a remote server
+(`McpRemoteServerConfig`: `url`, optional `type: "http" | "sse"`, optional
+`headers`). It occupies the same slot and follows the same states, cooldown,
+and single `restartOnCrash` retry as a stdio server:
+
+- `spawnMcpServer` dispatches on the config; a remote handle has
+  `pid === undefined` and `close()` ends the HTTP session (Streamable HTTP
+  sends the session DELETE first).
+- `type: "http"` uses Streamable HTTP, `type: "sse"` the legacy HTTP+SSE
+  transport. Without `type` the Host tries Streamable HTTP and falls back to
+  SSE only when the POST is answered 400/404/405; `streamable-http` is
+  accepted as a spelling of `http`.
+- Header values expand `${VAR}` from the Host environment like stdio `env`,
+  so keys stay out of `mcp.json`. Fingerprints hash expanded headers; values
+  are never persisted in metadata. Status surfaces show the URL without
+  credentials or query string.
+- Only `onclose` counts as an exit; HTTP transports report transient stream
+  errors through `onerror` and reconnect on their own.
+- Native remote servers authenticate with headers only. Servers that need an
+  OAuth browser flow keep using the `npx mcp-remote <url>` stdio bridge, which
+  already gets the longer connect timeout.
+- The official registry turns a remote-only entry into a one-click `url`
+  draft when it needs no header the user must supply; key-gated remotes stay
+  listed with `requiresSse` and are added from Settings → MCP.
+
 ### 4. Supervisor API and lazy behavior
 
 The public service is named `McpSupervisor`. A compatibility type alias may

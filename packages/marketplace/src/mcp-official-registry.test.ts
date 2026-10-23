@@ -61,10 +61,26 @@ describe('cardFromOfficialServer', () => {
     expect(card?.requiredEnv).toBeUndefined();
   });
 
-  it('marks remote-only servers as not runnable locally', () => {
+  it('turns a remote-only server into a url draft when it needs no key', () => {
     const card = cardFromOfficialServer({
       name: 'ac.snag/snag',
       remotes: [{ type: 'streamable-http', url: 'https://mcp.snag.ac/mcp' }],
+    });
+    expect(card?.installDraft).toEqual({ type: 'http', url: 'https://mcp.snag.ac/mcp' });
+    expect(card?.requiresSse).toBeUndefined();
+  });
+
+  it('keeps a remote that needs a secret header out of one-click install', () => {
+    const card = cardFromOfficialServer({
+      name: 'io.example/keyed',
+      remotes: [
+        {
+          type: 'sse',
+          url: 'https://mcp.example.io/sse',
+          headers: [{ name: 'Authorization', isRequired: true, isSecret: true }],
+        },
+        { type: 'streamable-http', url: 'https://{tenant}.example.io/mcp' },
+      ],
     });
     expect(card?.installDraft).toBeUndefined();
     expect(card?.requiresSse).toBe(true);
@@ -138,12 +154,24 @@ describe('searchOfficialMcpRegistry', () => {
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
-  it('lists locally runnable servers before remote-only ones', async () => {
+  it('lists local packages, then keyless remotes, then key-gated remotes', async () => {
     const fetchFn = vi.fn(async () => ({
       ok: true,
       json: async () => ({
         servers: [
-          { server: { name: 'a.remote/only', remotes: [{ type: 'streamable-http', url: 'https://x' }] } },
+          {
+            server: {
+              name: 'a.remote/keyed',
+              remotes: [
+                {
+                  type: 'streamable-http',
+                  url: 'https://keyed.example/mcp',
+                  headers: [{ name: 'X-Api-Key', isRequired: true }],
+                },
+              ],
+            },
+          },
+          { server: { name: 'b.remote/open', remotes: [{ type: 'streamable-http', url: 'https://x.example/mcp' }] } },
           { server: NPM_SERVER },
         ],
       }),
@@ -151,7 +179,8 @@ describe('searchOfficialMcpRegistry', () => {
     const cards = await searchOfficialMcpRegistry({ query: 'order', fetch: fetchFn as unknown as typeof fetch });
     expect(cards.map((card) => card.id)).toEqual([
       'official:com.pulsemcp/remote-filesystem',
-      'official:a.remote/only',
+      'official:b.remote/open',
+      'official:a.remote/keyed',
     ]);
   });
 

@@ -3,9 +3,10 @@
  * The SDK Client is retained for protocol behavior; stdio ownership is
  * provided by OwnedMcpStdioTransport so the Supervisor owns the full tree.
  */
-import type { McpServerConfig } from '@piwin/contracts';
+import type { McpStdioServerConfig } from '@piwin/contracts';
 import { expandEnvMap } from './mcp-config.js';
 import { OwnedMcpStdioTransport } from './owned-mcp-stdio-transport.js';
+import { readOnlyHintOf } from './mcp-tool-annotations.js';
 import type {
   McpListedTool,
   McpOwnedProcess,
@@ -24,7 +25,7 @@ function toStringEnv(source: NodeJS.ProcessEnv): Record<string, string> {
 
 export async function spawnOfficialMcpStdio(
   serverId: string,
-  config: McpServerConfig,
+  config: McpStdioServerConfig,
   signal?: AbortSignal,
 ): Promise<McpOwnedProcess> {
   if (signal?.aborted) {
@@ -169,7 +170,7 @@ export async function spawnOfficialMcpStdio(
 
 export async function connectOfficialMcpStdio(
   serverId: string,
-  config: McpServerConfig,
+  config: McpStdioServerConfig,
   signal?: AbortSignal,
 ): Promise<McpTransportClient> {
   const owned = await spawnOfficialMcpStdio(serverId, config, signal);
@@ -179,15 +180,4 @@ export async function connectOfficialMcpStdio(
     await owned.close();
     throw error;
   }
-}
-
-function readOnlyHintOf(tool: object): boolean | undefined {
-  if (!('annotations' in tool)) {
-    return undefined;
-  }
-  const annotations = tool.annotations;
-  if (!annotations || typeof annotations !== 'object' || !('readOnlyHint' in annotations)) {
-    return undefined;
-  }
-  return annotations.readOnlyHint === true ? true : undefined;
 }
