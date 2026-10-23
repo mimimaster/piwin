@@ -3,13 +3,13 @@
  * Host commands stay here so App does not own flashcard/walkthrough wiring.
  */
 import { normalizeArtifactLinkUrl } from '@piwin/artifact';
-import { openExternalLink } from '../open-external-url.js';
+import { openExternalLink } from '../platform/open-external-url.js';
 import { useCallback, useEffect, type Dispatch } from 'react';
 import { formatError, type WalkthroughArtifact } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
-import type { HostClient } from '../host-client';
-import { pushError, type NotificationAction } from '../notification-queue';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
+import type { HostClient } from '../host/host-client';
+import { pushError, type NotificationAction } from '../notifications/notification-queue';
 import { showUiNotification } from '@piwin/ui-kit';
 
 export type UseWorkbenchArtifactActionsArgs = {

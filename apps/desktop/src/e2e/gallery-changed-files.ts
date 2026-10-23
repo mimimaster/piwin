@@ -1,7 +1,7 @@
 /** Write tools and a canned git summary for the galleries that render FilesChangedBar. */
 import type { HostResponse } from '@piwin/contracts';
-import type { ToolCardUi } from '../chat-reducer.js';
-import type { FilesChangedBarRequest } from '../files-changed-bar.js';
+import type { ToolCardUi } from '../conversation/chat-reducer.js';
+import type { FilesChangedBarRequest } from '../files/files-changed-bar.js';
 
 const GALLERY_FILES = [
   { path: 'apps/desktop/src/composer-run-actions.tsx', additions: 64, deletions: 12, status: 'modified' },

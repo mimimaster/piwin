@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { ModelCatalogStatus, ModelCatalogSyncResult } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../desktop-locale-context';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { catalogSyncErrorCopy } from './model-catalog-sync-copy';
 import { useSettings } from './settings-context';
 

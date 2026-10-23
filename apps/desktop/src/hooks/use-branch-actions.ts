@@ -21,23 +21,23 @@ import type {
 } from '@piwin/contracts';
 import { readExplicitSkillIntent, toModelRef } from '@piwin/contracts';
 import type { TranscriptBranchPoint } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import type { ChatMessageUi, ChatUiAction } from '../chat-reducer';
-import type { NotificationAction } from '../notification-queue';
-import { pushError, pushInfo } from '../notification-queue';
-import { canUseThinkingLevel } from '../model-thinking-policy';
+import type { HostClient } from '../host/host-client';
+import type { ChatMessageUi, ChatUiAction } from '../conversation/chat-reducer';
+import type { NotificationAction } from '../notifications/notification-queue';
+import { pushError, pushInfo } from '../notifications/notification-queue';
+import { canUseThinkingLevel } from '../models/model-thinking-policy';
 import {
   foregroundMismatchNotice,
   readForegroundProblem,
   requestPromptWithForeground,
-} from '../prompt-foreground';
+} from '../composer/prompt-foreground';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
-import { clipMessagesAfterId, clipMessagesBeforeId } from '../conversation-branch.js';
-import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
-import type { AgentModeId } from '../agent-mode';
+import { clipMessagesAfterId, clipMessagesBeforeId } from '../conversation/conversation-branch.js';
+import { transcriptOwnerBlocksDangerousAction } from '../conversation/transcript-owner-guard';
+import type { AgentModeId } from '../agents/agent-mode';
 import type { ModelOption } from './use-session-actions';
 import type { ForegroundRunMismatchProblem } from '@piwin/contracts';
-import type { DesktopLocale } from '../desktop-locale.js';
+import type { DesktopLocale } from '../i18n/desktop-locale.js';
 
 export type UseBranchActionsArgs = {
   hostClient: Pick<HostClient, 'request' | 'subscribe'> & {

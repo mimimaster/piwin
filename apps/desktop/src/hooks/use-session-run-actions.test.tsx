@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostCommand } from '@piwin/contracts';
-import type { HostClient } from '../host-client.js';
+import type { HostClient } from '../host/host-client.js';
 import { createInitialTestChatUiState } from './composer-media-test-harness.js';
 import { useSessionRunActions } from './use-session-run-actions.js';
 

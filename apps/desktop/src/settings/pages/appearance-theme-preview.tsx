@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
-import { buildAppearanceTheme } from '../../appearance-tokens.js';
-import type { AppearanceThemeSettings } from '../../ui-preferences.js';
+import { buildAppearanceTheme } from '../../theme/appearance-tokens.js';
+import type { AppearanceThemeSettings } from '../../platform/ui-preferences.js';
 
 /** A token-driven miniature of the real three-panel shell, never a screenshot
  * that goes stale when the user edits a color. */

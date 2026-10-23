@@ -1,0 +1,99 @@
+/**
+ * StageHeader — the 42px header over the stage column in Inkstone themes
+ * (proto-00-shell.html line 201-207).
+ *
+ * Structure:
+ *   <header class="tb stage-header">
+ *     <div class="title">
+ *       <span class="lamp" data-st="running" />
+ *       <span class="sq" data-st="waiting" />
+ *       <span class="tt">{title}</span>
+ *       {sessionTreeControl}
+ *       {modeBadge}
+ *       {originBadge}
+ *     </div>
+ *     {trailing}  <!-- project · branch chips on the right -->
+ *     {status}
+ *   </header>
+ */
+import type { ReactElement, ReactNode } from 'react';
+import type { PermissionPreset, ProductSessionOrigin } from '@piwin/contracts';
+import { IconGit } from '@piwin/ui-kit';
+import type { RunStatusView } from '../run-activity/run-status.js';
+import { describeSessionOriginBadge } from '../session/session-origin-badge-copy';
+
+export type StageHeaderProps = {
+  title: string;
+  runState?: RunStatusView | undefined;
+  sessionTreeControl?: ReactNode | undefined;
+  permissionMode?: PermissionPreset | null | undefined;
+  onOpenPermissions?: (() => void) | undefined;
+  origin?: ProductSessionOrigin | null | undefined;
+  onReturnToRoot?: (() => void) | undefined;
+  /** Right-side chrome (project · branch chips). Keeps the transcript taller
+   *  than a separate session-context row. */
+  trailing?: ReactNode | undefined;
+  locale?: 'zh-CN' | 'en' | undefined;
+  onStop?: (() => void) | undefined;
+};
+
+function shellStateKind(kind?: RunStatusView['kind']): 'idle' | 'running' | 'waiting' {
+  switch (kind) {
+    case 'waiting-permission':
+      return 'waiting';
+    case 'preparing':
+    case 'connecting-model':
+    case 'waiting-first-token':
+    case 'working':
+    case 'planning':
+    case 'compacting':
+    case 'stopping':
+      return 'running';
+    default:
+      return 'idle';
+  }
+}
+
+export function StageHeader(props: StageHeaderProps): ReactElement {
+  const shellState = shellStateKind(props.runState?.kind);
+  const isChinese = (props.locale ?? 'zh-CN') === 'zh-CN';
+
+  return (
+    <header className="tb stage-header" data-testid="stage-header" data-state={shellState}>
+      <div className="title">
+        {shellState === 'running' ? (
+          <span className="lamp" data-st="running" aria-hidden />
+        ) : null}
+        {shellState === 'waiting' ? (
+          <span className="sq" data-st="waiting" aria-hidden />
+        ) : null}
+        <span className="tt" id="session-title" title={props.title}>
+          {props.title}
+        </span>
+        {props.sessionTreeControl ? (
+          <span className="context-bar-session-tree-slot">{props.sessionTreeControl}</span>
+        ) : null}
+        {props.origin ? (
+          <button
+            type="button"
+            className="context-bar-origin-badge"
+            data-testid="stage-origin-badge"
+            data-origin-kind={props.origin.kind}
+            title={describeSessionOriginBadge(props.origin, isChinese).title}
+            onClick={props.onReturnToRoot}
+          >
+            <IconGit width={12} height={12} stroke={1.8} />
+            <span>
+              {describeSessionOriginBadge(props.origin, isChinese).label}
+            </span>
+          </button>
+        ) : null}
+      </div>
+      {props.trailing ? (
+        <div className="stage-header-trailing" data-testid="stage-header-trailing">
+          {props.trailing}
+        </div>
+      ) : null}
+    </header>
+  );
+}

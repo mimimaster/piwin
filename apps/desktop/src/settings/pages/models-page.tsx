@@ -2,12 +2,12 @@
 import { useCallback, useState, type ReactElement, type ReactNode } from 'react';
 import { Tabs, TabsContent } from '@piwin/ui-kit';
 import { ModelCatalogSyncControl } from '../model-catalog-sync-control';
-import { ProviderSettings } from '../../ProviderSettings';
-import { VisionDelegationSettings } from '../../VisionDelegationSettings';
-import { ReplyWriterSettings } from '../../ReplyWriterSettings';
-import { ImageGenerationSettings } from '../../ImageGenerationSettings';
-import { VideoGenerationSettings } from '../../VideoGenerationSettings';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { ProviderSettings } from '../../models/ProviderSettings';
+import { VisionDelegationSettings } from '../../media/VisionDelegationSettings';
+import { ReplyWriterSettings } from '../ReplyWriterSettings';
+import { ImageGenerationSettings } from '../../media/ImageGenerationSettings';
+import { VideoGenerationSettings } from '../../media/VideoGenerationSettings';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useSettings } from '../settings-context';
 import { AsrModelSettings } from '../asr-model-settings.js';
 import {

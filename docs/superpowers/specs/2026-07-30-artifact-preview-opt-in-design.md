@@ -168,7 +168,7 @@ Do **not** name the switch “HTML mode” in UI — that confuses with raw `htm
 
 ### 5.1 Desktop preference (primary runtime control)
 
-Extend `DesktopPreferences` in `apps/desktop/src/ui-preferences.ts`:
+Extend `DesktopPreferences` in `apps/desktop/src/platform/ui-preferences.ts`:
 
 ```ts
 export type DesktopPreferences = {
@@ -349,13 +349,13 @@ Both bind to the same `artifactPreviewEnabled` preference.
 
 | File | Change |
 |------|--------|
-| `apps/desktop/src/ui-preferences.ts` | Add `artifactPreviewEnabled`; load/save; default `false`. |
-| `apps/desktop/src/ui-preferences.test.ts` | Round-trip + default false. |
+| `apps/desktop/src/platform/ui-preferences.ts` | Add `artifactPreviewEnabled`; load/save; default `false`. |
+| `apps/desktop/src/platform/ui-preferences.test.ts` | Round-trip + default false. |
 | `apps/desktop/src/settings/pages/appearance-page.tsx` | Switch + EN/ZH copy; include in reset-to-defaults. |
 | `apps/desktop/src/App.tsx` | Pass `preferences.artifactPreviewEnabled` + `config?.artifact?.maxBytes` into `ChatThread`. `config` is already held in App state via `use-host-bootstrap`; no new IPC needed. |
-| `apps/desktop/src/chat-thread.tsx` | Add `artifactPreviewEnabled`, `artifactMaxBytes` props; plumb into `MarkdownView`. |
-| `apps/desktop/src/MarkdownView.tsx` | Implement §7 policy; flashcard exception; pass `maxBytes` + `htmlUiModeEnabled=capability` into evaluate; gate Preview/iframe on capability. |
-| `apps/desktop/src/host-client-mock.ts` | Change mock `artifact.htmlUiModeDefault` to `false` to match new host default. |
+| `apps/desktop/src/conversation/chat-thread.tsx` | Add `artifactPreviewEnabled`, `artifactMaxBytes` props; plumb into `MarkdownView`. |
+| `apps/desktop/src/markdown/MarkdownView.tsx` | Implement §7 policy; flashcard exception; pass `maxBytes` + `htmlUiModeEnabled=capability` into evaluate; gate Preview/iframe on capability. |
+| `apps/desktop/src/host/host-client-mock.ts` | Change mock `artifact.htmlUiModeDefault` to `false` to match new host default. |
 | `apps/desktop/src/settings/settings-shell.test.tsx` | Already uses `false`; leave as-is (verify still green). |
 | `packages/agent-host/src/config-store.ts` | Change `defaults.artifact.htmlUiModeDefault` from `true` to `false` (consistency with R1 + Markdown-first product default). |
 | `docs/adr/0005-artifact-and-media.md` | Short amendment: capability opt-in default off on Desktop; host `htmlUiModeDefault` default lowered to `false`. |
@@ -365,7 +365,7 @@ Both bind to the same `artifactPreviewEnabled` preference.
 
 | File | Change |
 |------|--------|
-| `apps/desktop/src/MarkdownView.test.tsx` (new if none) | Policy tests: off→no Preview; on→Preview for artifact-html; streaming→no iframe; flashcard off→Preview card. |
+| `apps/desktop/src/markdown/MarkdownView.test.tsx` (new if none) | Policy tests: off→no Preview; on→Preview for artifact-html; streaming→no iframe; flashcard off→Preview card. |
 | `apps/desktop/src/flashcard-artifact.ts` (optional small module) | `isFlashcardArtifactSource` + tests. |
 
 ### Do not change (v1)

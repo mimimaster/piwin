@@ -45,7 +45,7 @@ Only operator connections (`connection.deviceId === undefined`, i.e. authenticat
 ### 4. Desktop UI adaptation
 
 In `apps/desktop`:
-- Extract shared UI elements (`PairingCredentialCard` with a scannable `QrCode`, `PairedDeviceList`) into `apps/desktop/src/mobile-access-pairing-views.tsx`.
+- Extract shared UI elements (`PairingCredentialCard` with a scannable `QrCode`, `PairedDeviceList`) into `apps/desktop/src/devices/mobile-access-pairing-views.tsx`.
 - `MobileAccessSettings` picks a panel:
   - Local sidecar (`transport === 'live'`): `mobile-access-local-panel.tsx` (ADR 0076).
   - Thin-shell or remote attach: `mobile-access-remote-panel.tsx`:
@@ -60,7 +60,7 @@ In `apps/desktop`:
 A hello carries exactly one admission key. A shell may hold several (a freshly
 scanned pairing token, a stored device credential, a saved door token), so the
 client picks one before the hello: pairing token, then device credential, then
-door token (`selectAdmissionKey` in `apps/desktop/src/device-admission.ts`).
+door token (`selectAdmissionKey` in `apps/desktop/src/devices/device-admission.ts`).
 
 A rejected hello's `error` frame carries an optional `reason`
 (`HostHelloRejectReason` in `@piwin/contracts`) next to the English `message`.

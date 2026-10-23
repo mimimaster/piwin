@@ -50,7 +50,7 @@ Asserted: one worktree path, two worker Runs / one child session, two reviewer c
 
 **§9.6** — apply succeeds, then verification submit `failed`. Result stays `applied`, verification is `failed` (not delivered), parent file is not undone.
 
-Desktop fixture: `apps/desktop/src/subagent-review-loop-view.fixture.test.ts` feeds the §9.1 fact set to F1. One connected loop; v1 stale / superseded; v2 head; approved / applied / verified phases stay distinct.
+Desktop fixture: `apps/desktop/src/agents/subagent-review-loop-view.fixture.test.ts` feeds the §9.1 fact set to F1. One connected loop; v1 stale / superseded; v2 head; approved / applied / verified phases stay distinct.
 
 ## Known limits
 

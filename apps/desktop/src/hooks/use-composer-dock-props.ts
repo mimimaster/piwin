@@ -24,30 +24,30 @@ import type {
   ThinkingLevel,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import type { AgentModeId } from '../agent-mode';
-import { useStructuralValue } from '../use-structural-value.js';
-import type { ChatUiState } from '../chat-reducer';
-import type { ComposerDockProps, ComposerModelOption } from '../composer-dock';
-import type { ComposerPlusSubmenu } from '../composer-plus-menu';
-import { saveDesktopHostLaunchMode } from '../desktop-host-launch';
-import type { HostClient } from '../host-client';
+import type { AgentModeId } from '../agents/agent-mode';
+import { useStructuralValue } from './use-structural-value.js';
+import type { ChatUiState } from '../conversation/chat-reducer';
+import type { ComposerDockProps, ComposerModelOption } from '../composer/composer-dock';
+import type { ComposerPlusSubmenu } from '../composer/composer-plus-menu';
+import { saveDesktopHostLaunchMode } from '../platform/desktop-host-launch';
+import type { HostClient } from '../host/host-client';
 import type { AddContextRefResult, PendingContextRefItem } from './use-composer-context-refs';
 import type { ExtensionUiRequestState } from './use-host-bootstrap';
-import type { PendingComposerAttachment } from '../media-utils';
-import type { OrchestrationSchemeOption } from '../OrchestrationSchemeControl';
+import type { PendingComposerAttachment } from '../media/media-utils';
+import type { OrchestrationSchemeOption } from '../agents/OrchestrationSchemeControl';
 import { showErrorNotification } from '@piwin/ui-kit';
-import type { HandoffSummaryPreview } from '../handoff-summary-chip';
-import { hostFailureNotice } from '../host-problem-copy';
-import { useDesktopLocale } from '../desktop-locale-context.js';
+import type { HandoffSummaryPreview } from '../session/handoff-summary-chip';
+import { hostFailureNotice } from '../host/host-problem-copy';
+import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
 import {
   useSubagentStopController,
   type SubagentStopController,
-} from '../subagent-stop-controller';
+} from '../agents/subagent-stop-controller';
 import {
   estimateTranscriptTokens,
   isChatCompactPendingOccupancy,
   selectContextRingView,
-} from '../context-telemetry-selector.js';
+} from '../context/context-telemetry-selector.js';
 import {
   liveStartErrorLabel,
   useLiveCall,
@@ -58,24 +58,24 @@ import { readDelegatedTurnResult } from '../live/live-session-result.js';
 import {
   clearDesktopRemoteHostTarget,
   formatDesktopRemoteHostDisplay,
-} from '../remote-host-session';
-import type { RightPanelTab } from '../right-panel';
-import type { ShellSettingsSection } from '../shell-navigation';
-import type { SteerQueueMessage } from '../steer-queue';
+} from '../host/remote-host-session';
+import type { RightPanelTab } from '../right-panel/right-panel';
+import type { ShellSettingsSection } from '../tool-cards/shell-navigation';
+import type { SteerQueueMessage } from '../conversation/steer-queue';
 import {
   isGoalExtensionEnabled,
   listSessionUserPrompts,
   resolveComposerLayoutMode,
-} from '../composer-dock-assembly';
-import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
-import { resolveActiveComposerAgentId } from '../composer-dock-assembly';
-import { isConversationSessionChrome } from '../is-conversation-session';
-import type { SidebarMode } from '../sidebar-mode';
+} from '../composer/composer-dock-assembly';
+import { desktopForegroundMutationsEnabled } from '../platform/foreground-admission.js';
+import { resolveActiveComposerAgentId } from '../composer/composer-dock-assembly';
+import { isConversationSessionChrome } from '../conversation/is-conversation-session';
+import type { SidebarMode } from '../sidebar/sidebar-mode';
 import { useAtWorkspaceFiles } from './use-at-workspace-files';
 import {
   deriveSubagentOrchestrationView,
-} from '../subagent-orchestration-view.js';
-import { EMPTY_SUBAGENT_ORCHESTRATION_VIEW } from '../composer-activity-model.js';
+} from '../agents/subagent-orchestration-view.js';
+import { EMPTY_SUBAGENT_ORCHESTRATION_VIEW } from '../composer/composer-activity-model.js';
 
 export type UseComposerDockPropsArgs = {
   hostClient: HostClient;
@@ -140,7 +140,7 @@ export type UseComposerDockPropsArgs = {
   /** ADR 0082: backend-owned catalog + setters for the active agent session. */
   backendControls: import('./use-backend-session-controls.js').BackendSessionControls;
   /** ADR 0082: agent choices for an unsent new-session draft. */
-  draftAgentOptions: readonly import('../composer-dock-types.js').ComposerDraftAgentOption[];
+  draftAgentOptions: readonly import('../composer/composer-dock-types.js').ComposerDraftAgentOption[];
   /** ADR 0082: selected agent for the draft ('pi' unless the user switched). */
   draftAgentId: string;
   onDraftAgentChange: (agentId: string) => void;

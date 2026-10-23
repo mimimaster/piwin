@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import type { ProjectListDirData } from '@piwin/contracts';
 import { collectWorkspaceFileIndex, type AtWorkspaceEntry } from '../at/at-file-index';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 
 export function useAtWorkspaceFiles(args: {
   hostClient: HostClient;

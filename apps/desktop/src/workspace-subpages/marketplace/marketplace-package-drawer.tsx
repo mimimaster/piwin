@@ -11,10 +11,10 @@ import type {
   MarketplaceSearchHit,
 } from '@piwin/contracts';
 import { Button, Dialog, IconButton, Notice } from '@piwin/ui-kit';
-import type { DesktopLocale } from '../../desktop-locale.js';
-import { MarkdownView } from '../../MarkdownView.js';
-import { openExternalUrl } from '../../open-external-url.js';
-import { IconCheck, IconClose, IconCopy, IconExternalLink } from '../../shell-icons.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
+import { MarkdownView } from '../../markdown/MarkdownView.js';
+import { openExternalUrl } from '../../platform/open-external-url.js';
+import { IconCheck, IconClose, IconCopy, IconExternalLink } from '../../tool-cards/shell-icons.js';
 import { isPackageInstallable } from './marketplace-pi-package-card.js';
 import {
   formatRelativeDate,

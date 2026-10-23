@@ -4,12 +4,12 @@
  * `onUpdate` replaces source on the same target id without reopening the tab.
  */
 import { useEffect, useRef } from 'react';
-import type { ChatMessageUi, RunTerminalState } from '../chat-reducer';
-import type { ArtifactCanvasTarget } from '../artifact-canvas-model';
+import type { ChatMessageUi, RunTerminalState } from '../conversation/chat-reducer';
+import type { ArtifactCanvasTarget } from '../artifact/artifact-canvas-model';
 import {
   advanceArtifactCanvasAutoReveal,
   createArtifactCanvasAutoRevealState,
-} from '../artifact-canvas-auto-reveal';
+} from '../artifact/artifact-canvas-auto-reveal';
 
 export function useArtifactCanvasAutoReveal(input: {
   activeSessionId: string | null;

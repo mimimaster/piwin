@@ -5,17 +5,17 @@ import type {
   PromptContextRef,
   ThinkingLevel,
 } from '@piwin/contracts';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
-import type { AgentModeId } from '../agent-mode';
-import type { ComposerAgentModeSessionChange } from '../composer-agent-mode-session';
-import type { BusyRunChoice } from '../prompt-foreground';
-import type { HostClient } from '../host-client';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
+import type { AgentModeId } from '../agents/agent-mode';
+import type { ComposerAgentModeSessionChange } from '../composer/composer-agent-mode-session';
+import type { BusyRunChoice } from '../composer/prompt-foreground';
+import type { HostClient } from '../host/host-client';
 
 export type UseComposerMediaArgs = {
   hostClient: HostClient;
   state: ChatUiState;
   dispatch: Dispatch<ChatUiAction>;
-  dispatchNotification?: Dispatch<import('../notification-queue').NotificationAction>;
+  dispatchNotification?: Dispatch<import('../notifications/notification-queue').NotificationAction>;
   agentMode: AgentModeId;
   onAgentModeChange?: (mode: AgentModeId) => void;
   /** Composer Run Mode for this session; sent on each prompt so Host can gate tools. */

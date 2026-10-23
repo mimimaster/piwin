@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ExecutionRunRecord, HostCommand, HostResponse } from '@piwin/contracts';
-import type { HostClient, HostSequenceGapHandler } from '../host-client.js';
-import type { ChatUiAction } from '../chat-reducer.js';
+import type { HostClient, HostSequenceGapHandler } from '../host/host-client.js';
+import type { ChatUiAction } from '../conversation/chat-reducer.js';
 import { useRunReconcile } from './use-run-reconcile.js';
 
 type ScriptedResponse =

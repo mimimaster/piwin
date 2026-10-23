@@ -1,12 +1,12 @@
 /**
  * Composer dock bindings assembled from host/session/composer runtimes.
  */
-import type { ChatUiState } from '../chat-reducer';
-import type { ExtensionUiResolvePayload } from '../extension-ui-prompt';
-import type { HostClient } from '../host-client';
-import type { ShellSettingsSection } from '../shell-navigation';
+import type { ChatUiState } from '../conversation/chat-reducer';
+import type { ExtensionUiResolvePayload } from '../extensions/extension-ui-prompt';
+import type { HostClient } from '../host/host-client';
+import type { ShellSettingsSection } from '../tool-cards/shell-navigation';
 import { useCallback, useMemo } from 'react';
-import { resolveActiveComposerAgentId } from '../composer-dock-assembly.js';
+import { resolveActiveComposerAgentId } from '../composer/composer-dock-assembly.js';
 import { shouldMoveExternalDraftToConversations } from './session-create-input.js';
 import { useComposerDockProps } from './use-composer-dock-props';
 import { useIosLiveActivity } from '../live/use-ios-live-activity.js';

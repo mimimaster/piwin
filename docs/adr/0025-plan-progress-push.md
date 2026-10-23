@@ -7,7 +7,7 @@ Accepted (2026-08-03)
 ## Context
 
 Desktop already renders plan progress as `N / M tasks done` on `PlanCard`
-(`apps/desktop/src/plan-card.tsx`), driven by `SessionPlan` and the host push
+(`apps/desktop/src/plan/plan-card.tsx`), driven by `SessionPlan` and the host push
 `plan/updated`.
 
 Model-facing tools already exist in SDK mode:
@@ -129,5 +129,5 @@ Prefer one thin seam over a new subsystem. Restore the same SessionPlan with
 - `packages/agent-host/src/plan-create-tool.ts`
 - `packages/agent-host/src/sdk-adapter.ts` (`onPlanUpdated`)
 - `packages/agent-host/src/host-runtime.ts`
-- `apps/desktop/src/plan-card.tsx`
+- `apps/desktop/src/plan/plan-card.tsx`
 - `docs/todo-deferred.md` CE-TODO-01

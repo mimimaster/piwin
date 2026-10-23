@@ -7,7 +7,7 @@
  */
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
 import type { SessionListOrder, SessionScope } from '@piwin/contracts';
-import type { SessionRowMenuAction } from '../session-row-menu';
+import type { SessionRowMenuAction } from '../session/session-row-menu';
 
 export type SessionMenuState = {
   sessionId: string;

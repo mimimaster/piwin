@@ -8,7 +8,7 @@ import {
   type PiwinConfig,
 } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK } from '../../theme/appearance-tokens';
 import type { SettingsContextValue } from '../settings-context';
 import { buildOrchestrationCopy } from '../orchestration-copy';
 import { SubagentProfilesPage } from './subagents-page';
@@ -19,7 +19,7 @@ declare global {
 
 let settings: SettingsContextValue;
 vi.mock('../settings-context', () => ({ useSettings: () => settings }));
-vi.mock('../../desktop-locale-context', () => ({ useDesktopLocale: () => ({ locale: 'zh-CN' }) }));
+vi.mock('../../i18n/desktop-locale-context', () => ({ useDesktopLocale: () => ({ locale: 'zh-CN' }) }));
 
 const LIGHT = { providerId: 'test', modelId: 'light', protocol: 'openai-compatible' as const };
 function config(model = LIGHT): PiwinConfig {

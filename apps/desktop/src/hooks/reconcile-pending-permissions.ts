@@ -1,7 +1,7 @@
 import type { Dispatch } from 'react';
 import type { HostCommand, HostResponse } from '@piwin/contracts';
-import type { ChatUiAction } from '../chat-reducer';
-import { parsePendingPermissionList } from '../permission-queue';
+import type { ChatUiAction } from '../conversation/chat-reducer';
+import { parsePendingPermissionList } from '../settings/permission-queue';
 
 export type PendingPermissionHostClient = {
   supportsCommand?(type: HostCommand['type']): boolean;

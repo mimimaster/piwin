@@ -12,12 +12,12 @@ import {
   type PermissionDecision,
   type PermissionRememberScope,
 } from '@piwin/contracts';
-import type { ChatUiAction } from '../chat-reducer';
-import type { PermissionPromptUi } from '../chat-ui-types';
-import type { HostClient } from '../host-client';
-import { toPermissionPromptUi } from '../permission-queue';
-import { claimPermissionRequests, releasePermissionClaims } from '../permission-claims';
-import { resolvePermissionPrompt } from '../permission-resolve';
+import type { ChatUiAction } from '../conversation/chat-reducer';
+import type { PermissionPromptUi } from '../conversation/chat-ui-types';
+import type { HostClient } from '../host/host-client';
+import { toPermissionPromptUi } from '../settings/permission-queue';
+import { claimPermissionRequests, releasePermissionClaims } from '../settings/permission-claims';
+import { resolvePermissionPrompt } from '../settings/permission-resolve';
 import { reconcilePendingPermissions } from './reconcile-pending-permissions';
 
 export type ConversationPanePermissions = {

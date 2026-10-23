@@ -11,11 +11,11 @@ import type {
   PiwinConfig,
 } from '@piwin/contracts';
 import { Button, IconButton, Notice, Select, Spinner, Switch, TextInput } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import {
   hooksArmedEffectMessage,
   hooksSavedEffectMessage,
-} from '../../settings-effect-copy.js';
+} from '../settings-effect-copy.js';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';

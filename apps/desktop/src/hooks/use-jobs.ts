@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { JobRecord } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import { MAX_JOB_LOGS_BY_ID, putRecordLru, retainRecordKeys } from '../record-budget';
+import type { HostClient } from '../host/host-client';
+import { MAX_JOB_LOGS_BY_ID, putRecordLru, retainRecordKeys } from '../platform/record-budget';
 
 export function useJobs(
   hostClient: HostClient,

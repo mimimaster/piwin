@@ -39,7 +39,7 @@ The design inventory is directionally correct, with four required additions foun
 
 1. `packages/host-server/src/remote-projection.ts` currently rewrites `session/list` to `{ sessions }` and would silently discard `totalCount` and `truncated`. It must project the new metadata without exposing Host paths.
 2. `packages/host-server/src/host-server.ts` validates remote `session/list`; it must validate optional `order` and `maxItems` while keeping project-path restrictions unchanged.
-3. `apps/desktop/src/host-client-mock.ts` implements both list commands. Its `session/list` branch must match Host ordering, truncation, and response metadata or browser-shell tests will exercise different semantics from Tauri/remote Hosts.
+3. `apps/desktop/src/host/host-client-mock.ts` implements both list commands. Its `session/list` branch must match Host ordering, truncation, and response metadata or browser-shell tests will exercise different semantics from Tauri/remote Hosts.
 4. `sessionScopeKey` currently lives in the page-window module that will be deleted, but App search and the generation guard still need it. Move it to a focused Desktop module instead of retaining page-state code.
 
 The reducer also needs per-scope list metadata. Without it the new `truncation-hint` row has no source of truth, and local add/delete/resume mutations can make the displayed hidden count stale.
@@ -155,8 +155,8 @@ Files:
 - update `packages/host-server/src/remote-projection.test.ts`
 - update `packages/host-server/src/host-server.ts`
 - update `packages/host-server/src/host-server.test.ts`
-- update `apps/desktop/src/host-client-mock.ts`
-- update `apps/desktop/src/host-client-mock.test.ts`
+- update `apps/desktop/src/host/host-client-mock.ts`
+- update `apps/desktop/src/host/host-client-mock.test.ts`
 
 Work:
 
@@ -177,9 +177,9 @@ Acceptance:
 
 Files:
 
-- add `apps/desktop/src/session-scope-key.ts` with a colocated test
-- update `apps/desktop/src/chat-reducer.ts`
-- update `apps/desktop/src/chat-reducer.test.ts`
+- add `apps/desktop/src/session/session-scope-key.ts` with a colocated test
+- update `apps/desktop/src/conversation/chat-reducer.ts`
+- update `apps/desktop/src/conversation/chat-reducer.test.ts`
 
 Work:
 
@@ -264,8 +264,8 @@ Acceptance:
 
 Files:
 
-- add `apps/desktop/src/sidebar-tree-rows.ts`
-- add `apps/desktop/src/sidebar-tree-rows.test.ts`
+- add `apps/desktop/src/sidebar/sidebar-tree-rows.ts`
+- add `apps/desktop/src/sidebar/sidebar-tree-rows.test.ts`
 
 Required row union:
 
@@ -308,8 +308,8 @@ Tests:
 
 Files:
 
-- add `apps/desktop/src/session-row-item.tsx`
-- update `apps/desktop/src/project-session-sidebar.tsx`
+- add `apps/desktop/src/session/session-row-item.tsx`
+- update `apps/desktop/src/sidebar/project-session-sidebar.tsx`
 - keep row behavior tests in `project-session-sidebar.test.tsx` unless a focused component suite improves clarity
 
 Work:
@@ -329,9 +329,9 @@ Acceptance:
 
 Files:
 
-- update `apps/desktop/src/project-session-sidebar.tsx`
+- update `apps/desktop/src/sidebar/project-session-sidebar.tsx`
 - update `apps/desktop/src/styles/region-sidebar.css`
-- update `apps/desktop/src/project-session-sidebar.test.tsx`
+- update `apps/desktop/src/sidebar/project-session-sidebar.test.tsx`
 
 Work:
 
@@ -351,8 +351,8 @@ Work:
 
 Files:
 
-- update `apps/desktop/src/project-session-sidebar.tsx`
-- extend `apps/desktop/src/project-session-sidebar.test.tsx`
+- update `apps/desktop/src/sidebar/project-session-sidebar.tsx`
+- extend `apps/desktop/src/sidebar/project-session-sidebar.test.tsx`
 
 Work:
 
@@ -397,8 +397,8 @@ Delete:
 
 Update:
 
-- `apps/desktop/src/desktop-locale.ts`
-- `apps/desktop/src/desktop-locale.test.ts`
+- `apps/desktop/src/i18n/desktop-locale.ts`
+- `apps/desktop/src/i18n/desktop-locale.test.ts`
 - `apps/desktop/src/styles/region-sidebar.css`
 - any imports/comments/tests still describing Desktop page windows
 

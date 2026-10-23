@@ -4,7 +4,7 @@
  * sidebar marketplace page. One shared line so the three panels agree.
  */
 import type { ReactElement } from 'react';
-import { useDesktopLocale } from '../desktop-locale-context';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
 
 export function CapabilityDiscoveryHint(props: { kind: 'skill' | 'mcp' }): ReactElement {
   const { locale } = useDesktopLocale();

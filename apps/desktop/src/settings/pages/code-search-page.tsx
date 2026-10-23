@@ -17,7 +17,7 @@ import {
   type PiwinConfig,
 } from '@piwin/contracts';
 import { Button, Switch } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { PageTitle } from '../page-title';
 import { CodeSearchAdvanced, type CodeSearchBudgetDrafts } from '../code-search-advanced';
 import {

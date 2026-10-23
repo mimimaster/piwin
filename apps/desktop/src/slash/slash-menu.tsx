@@ -5,7 +5,7 @@ import { useEffect, useRef, type ReactElement } from 'react';
 import { groupSlashItems } from './slash-match';
 import { isReservedSlashExecuteName } from './slash-parse';
 import type { SlashItem } from './slash-types';
-import { useDesktopLocale } from '../desktop-locale-context';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
 
 const GROUP_LABEL_ZH: Record<string, string> = {
   Command: '命令',

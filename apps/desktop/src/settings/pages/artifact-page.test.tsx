@@ -9,8 +9,8 @@ import {
   type PiwinConfig,
 } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens.js';
-import { DesktopLocaleProvider } from '../../desktop-locale-context.js';
+import { PIWIN_APPEARANCE_DARK } from '../../theme/appearance-tokens.js';
+import { DesktopLocaleProvider } from '../../i18n/desktop-locale-context.js';
 import { SettingsProvider, type SettingsContextValue } from '../settings-context.js';
 import { ArtifactPage } from './artifact-page.js';
 

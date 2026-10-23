@@ -8,7 +8,7 @@ import type {
   PromptAttachment,
   PromptContextRef,
 } from '@piwin/contracts';
-import type { ChatMessageUi } from '../chat-reducer.js';
+import type { ChatMessageUi } from '../conversation/chat-reducer.js';
 import {
   buildBranchPromptInput,
   buildContinuePromptInput,

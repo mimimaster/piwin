@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { Notice } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../desktop-locale-context';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
 
 export type SettingsFeedbackTone = 'info' | 'success' | 'warning';
 

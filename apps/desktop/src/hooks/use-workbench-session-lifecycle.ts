@@ -12,17 +12,17 @@ import {
   type SetStateAction,
 } from 'react';
 import type { PiwinConfig, ProjectRecord, ProjectWorktreeListing, SessionListOrder, SessionScope } from '@piwin/contracts';
-import type { ChatUiAction } from '../chat-reducer';
-import type { HostClient } from '../host-client';
-import { pushError, type NotificationAction } from '../notification-queue';
+import type { ChatUiAction } from '../conversation/chat-reducer';
+import type { HostClient } from '../host/host-client';
+import { pushError, type NotificationAction } from '../notifications/notification-queue';
 import {
   isRemoteDesktopTransport,
   mapListedProjects,
   mapListedWorktrees,
   mergeRecentProjects,
-} from '../remote-session-hydrate';
-import { PROJECT_SIDEBAR_GIT_CHANGED } from '../project-sidebar-events';
-import { checkoutAliasPaths } from '../sidebar-repo-groups';
+} from '../host/remote-session-hydrate';
+import { PROJECT_SIDEBAR_GIT_CHANGED } from '../sidebar/project-sidebar-events';
+import { checkoutAliasPaths } from '../sidebar/sidebar-repo-groups';
 import {
   applyRegisteredProjectsToHiddenSuppressions,
   filterPathsAgainstSuppression,
@@ -31,7 +31,7 @@ import {
   releasePendingSidebarRemoval,
   rememberHiddenSidebarPath,
   suppressedSidebarPaths,
-} from '../sidebar-project-removal-suppression';
+} from '../sidebar/sidebar-project-removal-suppression';
 import {
   mapWithConcurrency,
   planLastSessionRestore,
@@ -40,7 +40,7 @@ import {
   planRemoteSessionCatchUp,
   shouldApplySidebarProjectList,
   shouldHydrateInitialGeneralSessions,
-} from '../workbench-session-lifecycle';
+} from '../workbench/workbench-session-lifecycle';
 
 export type WorkbenchHydrateSessions = (
   projectPathOrScope?: string | { kind: 'general' } | { kind: 'project'; projectPath: string },

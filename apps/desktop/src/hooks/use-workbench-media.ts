@@ -11,7 +11,7 @@ import {
   appendQuotedComposerText,
   focusComposerInput,
 } from '../context-menu/desktop-context-menu-value.js';
-import { mediaAttachmentFromLibraryItem } from '../media-image-target.js';
+import { mediaAttachmentFromLibraryItem } from '../media/media-image-target.js';
 
 export function useWorkbenchMedia({
   streaming,

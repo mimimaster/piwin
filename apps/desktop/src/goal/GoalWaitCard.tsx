@@ -7,7 +7,7 @@
  * animation); settled it collapses to a past-tense statement of fact.
  */
 import { type ReactElement } from 'react';
-import { useDesktopLocale } from '../desktop-locale-context';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
 
 export type GoalWaitCardProps = {
   reason: string;

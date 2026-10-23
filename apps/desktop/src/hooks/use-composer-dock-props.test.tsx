@@ -3,16 +3,16 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { SessionBackendOptions } from '@piwin/contracts';
-import { createInitialChatUiState } from '../chat-reducer.js';
-import { applyContextTelemetry } from '../context-telemetry-reducer.js';
-import { makeContextSnapshot, makeKnownOccupancy } from '../context-telemetry-test-fixtures.js';
+import { createInitialChatUiState } from '../conversation/chat-reducer.js';
+import { applyContextTelemetry } from '../context/context-telemetry-reducer.js';
+import { makeContextSnapshot, makeKnownOccupancy } from '../context/context-telemetry-test-fixtures.js';
 import { useComposerDockProps } from './use-composer-dock-props.js';
 
 const stable = vi.hoisted(() => ({ live: {}, stop: { isStopping: false }, files: [] }));
-vi.mock('../desktop-locale-context.js', () => ({ useDesktopLocale: () => ({ locale: 'zh-CN' }) }));
+vi.mock('../i18n/desktop-locale-context.js', () => ({ useDesktopLocale: () => ({ locale: 'zh-CN' }) }));
 vi.mock('../live/use-live-call.js', () => ({ useLiveCall: () => stable.live, liveStartErrorLabel: String }));
 vi.mock('../live/live-intended-session-sync.js', () => ({ useLiveIntendedSessionSync: () => {} }));
-vi.mock('../subagent-stop-controller.js', () => ({ useSubagentStopController: () => stable.stop }));
+vi.mock('../agents/subagent-stop-controller.js', () => ({ useSubagentStopController: () => stable.stop }));
 vi.mock('./use-at-workspace-files.js', () => ({ useAtWorkspaceFiles: () => stable.files }));
 
 type Arguments = Parameters<typeof useComposerDockProps>[0];

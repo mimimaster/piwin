@@ -1,5 +1,5 @@
 import type { SessionTranscriptMessage } from '@piwin/contracts';
-import type { MockHostBackend } from '../host-client-mock.js';
+import type { MockHostBackend } from '../host/host-client-mock.js';
 
 /** The prototype scenario through the real session/host/rendering path.
  * Only installed by the explicit build-time E2E flag and query parameter. */

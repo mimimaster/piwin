@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { PiwinConfig } from '@piwin/contracts';
 
-import type { HostClient } from '../host-client';
-import type { HostRequestAdapters } from '../host-request-adapters';
-import { isWindowsDesktopPlatform } from '../window-chrome';
-import { shouldOfferGitBash } from '../windows-shell-offer';
+import type { HostClient } from '../host/host-client';
+import type { HostRequestAdapters } from '../host/host-request-adapters';
+import { isWindowsDesktopPlatform } from '../platform/window-chrome';
+import { shouldOfferGitBash } from '../platform/windows-shell-offer';
 
 /**
  * Whether this Windows Host can run the `bash` tool as bash at all.

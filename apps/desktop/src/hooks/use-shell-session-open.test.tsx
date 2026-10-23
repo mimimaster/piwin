@@ -2,13 +2,13 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createInitialChatUiState, type ChatUiState } from '../chat-reducer';
+import { createInitialChatUiState, type ChatUiState } from '../conversation/chat-reducer';
 import {
   CONVERSATION_PANE_LAYOUT_VERSION,
   PRIMARY_CONVERSATION_PANE_ID,
   createConversationPaneLayout,
   type ConversationPaneLayout,
-} from '../conversation-pane-layout';
+} from '../conversation/conversation-pane-layout';
 import {
   useShellSessionOpen,
   type ShellSessionOpen,

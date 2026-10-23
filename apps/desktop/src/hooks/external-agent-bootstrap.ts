@@ -7,9 +7,9 @@
  */
 import type { Dispatch } from 'react';
 import type { ExternalAgentStatus, HostServerMessage } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import type { ChatUiAction } from '../chat-reducer';
-import { isAgentReady } from '../agent-backend-state';
+import type { HostClient } from '../host/host-client';
+import type { ChatUiAction } from '../conversation/chat-reducer';
+import { isAgentReady } from '../agents/agent-backend-state';
 
 /** Fire the agent's session-catalog sync; failures are logged, never user-facing. */
 export function syncAgentCatalog(

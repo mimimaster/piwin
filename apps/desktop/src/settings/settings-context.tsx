@@ -20,15 +20,15 @@ import type {
   SubagentInvocation,
   SearchRoutePreviewInput,
 } from '@piwin/contracts';
-import type { SkillsPanelProps } from '../SkillsPanel';
-import type { McpPanelProps } from '../McpPanel';
-import type { ExtensionsPanelProps } from '../ExtensionsPanel';
-import type { PluginsPanelProps } from '../PluginsPanel';
-import type { PromptsPanelProps } from '../PromptsPanel';
-import type { PetPanelProps } from '../PetPanel';
-import type { AutomationPanelProps } from '../AutomationPanel';
-import type { SubAgentPanelProps } from '../SubAgentPanel';
-import type { DesktopPreferences } from '../ui-preferences';
+import type { SkillsPanelProps } from '../extensions/SkillsPanel';
+import type { McpPanelProps } from '../mcp/McpPanel';
+import type { ExtensionsPanelProps } from '../extensions/ExtensionsPanel';
+import type { PluginsPanelProps } from '../extensions/PluginsPanel';
+import type { PromptsPanelProps } from '../extensions/PromptsPanel';
+import type { PetPanelProps } from '../pet/PetPanel';
+import type { AutomationPanelProps } from '../automation/AutomationPanel';
+import type { SubAgentPanelProps } from '../agents/SubAgentPanel';
+import type { DesktopPreferences } from '../platform/ui-preferences';
 import type { SettingsSectionId } from './section-registry';
 import type { DraftWeb } from './web-draft';
 

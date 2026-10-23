@@ -1,8 +1,8 @@
 import type { ReactElement, ReactNode } from 'react';
-import { getDesktopCopy, type DesktopLocale } from '../../desktop-locale';
-import { useDesktopLocale } from '../../desktop-locale-context';
-import { WindowDragRegion, handleNativeWindowDragMouseDown } from '../../native-window-drag';
-import { IconChevronLeft, IconClose, IconSearch } from '../../shell-icons';
+import { getDesktopCopy, type DesktopLocale } from '../../i18n/desktop-locale';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
+import { WindowDragRegion, handleNativeWindowDragMouseDown } from '../../platform/native-window-drag';
+import { IconChevronLeft, IconClose, IconSearch } from '../../tool-cards/shell-icons';
 
 export type StudioTopbarProps = {
   testId: string;

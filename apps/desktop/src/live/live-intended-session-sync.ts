@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { HostClient } from '../host-client.js';
+import type { HostClient } from '../host/host-client.js';
 
 export async function syncLiveIntendedSession(input: {
   hostClient: HostClient;

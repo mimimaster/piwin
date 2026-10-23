@@ -16,7 +16,7 @@ import type {
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { Button, Switch, TextInput } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
@@ -26,8 +26,8 @@ import {
   draftToColdStorage,
   type SessionColdStorageDraft,
 } from '../cold-storage-draft';
-import { canExecuteColdStoragePlan } from '../../session-storage-ui';
-import { chooseHostDirectory, chooseSessionPackPath } from '../../session-pack-dialog';
+import { canExecuteColdStoragePlan } from '../../session/session-storage-ui';
+import { chooseHostDirectory, chooseSessionPackPath } from '../../session/session-pack-dialog';
 
 export function SessionColdStoragePage(): ReactElement {
   const { locale } = useDesktopLocale();

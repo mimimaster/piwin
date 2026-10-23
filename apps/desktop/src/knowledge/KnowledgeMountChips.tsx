@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { IconBook, IconClose } from '../shell-icons';
+import { IconBook, IconClose } from '../tool-cards/shell-icons';
 import { useKnowledgeMounts } from './knowledge-mounts-context.js';
 
 /** Composer chips for the knowledge bases this conversation answers from. */

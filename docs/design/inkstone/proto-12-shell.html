@@ -6,7 +6,7 @@
 <title>Inkstone · 终端笺</title>
 <!--
   proto-12 · bash 工具行的展开形态。三个方向并排比较，数据是本地演示，不执行任何命令。
-  2026-09-23 选定 A（墨线），实现见 apps/desktop/src/shell-tool-body.tsx。
+  2026-09-23 选定 A（墨线），实现见 apps/desktop/src/tool-cards/shell-tool-body.tsx。
   Tokens 逐字取自 proto-01-transcript.html 的 .app[data-face]；结构语汇沿用 .tr / .node /
   .think / .dc / .gate / .seal，不新造颜色。
 -->
@@ -490,7 +490,7 @@ function render() {
     <div class="head"><span class="av">C</span><span>Sonnet 4.6</span><span>17:30</span></div>
     <div class="work-h">${icon('bulb')}<span><b>已工作 2m 14s</b> · ${TOOLS.length + 1} 个工具 · <span class="fail">${fails} 次失败</span></span></div>
     <div class="thread">
-      <div class="blk"><div class="tr" style="cursor:default"><span class="node done"></span>${icon('file', 's14')}<b>read</b><code>apps/desktop/src/composer-dock.tsx</code><span class="meta">412 行 · 30ms</span></div></div>
+      <div class="blk"><div class="tr" style="cursor:default"><span class="node done"></span>${icon('file', 's14')}<b>read</b><code>apps/desktop/src/composer/composer-dock.tsx</code><span class="meta">412 行 · 30ms</span></div></div>
       ${TOOLS.map((t) => `<div class="blk${t.open ? ' open' : ''}" data-blk="${t.id}">${rowHtml(t)}<div class="fb">${bodyFor[dir](t)}</div></div>`).join('')}
     </div>
     <div class="prose"><p>token 已列出。typecheck 通过；<code>composer-dock</code> 有 1 个用例失败（排队 Enter）；<code>dev:host</code> 是常驻进程，超时属预期；build 仍在跑。</p></div>

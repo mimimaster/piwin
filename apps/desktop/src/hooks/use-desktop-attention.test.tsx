@@ -2,14 +2,14 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createInitialChatUiState, type ChatUiState, type SessionListItemUi } from '../chat-reducer';
-import { createConversationPaneLayout } from '../conversation-pane-layout';
-import type { HostClient } from '../host-client';
+import { createInitialChatUiState, type ChatUiState, type SessionListItemUi } from '../conversation/chat-reducer';
+import { createConversationPaneLayout } from '../conversation/conversation-pane-layout';
+import type { HostClient } from '../host/host-client';
 import {
   bindSideChat,
   resetSideChatBindingsForTests,
   takeSideChatBinding,
-} from '../side-chat-sessions';
+} from '../session/side-chat-sessions';
 import type { DesktopAttentionArgs } from './use-desktop-attention';
 
 declare global {
@@ -55,11 +55,11 @@ const {
   };
 });
 
-vi.mock('../desktop-attention-controller', () => ({
+vi.mock('../notifications/desktop-attention-controller', () => ({
   createDesktopAttentionController: createControllerMock,
 }));
 
-vi.mock('../desktop-attention-os', () => ({
+vi.mock('../notifications/desktop-attention-os', () => ({
   createDesktopAttentionOs: () => ({
     getCapabilities: async () => ({
       nativeCenter: false,
@@ -78,7 +78,7 @@ vi.mock('../desktop-attention-os', () => ({
   }),
 }));
 
-vi.mock('../window-focus-signal', () => ({
+vi.mock('../platform/window-focus-signal', () => ({
   getWindowPresence: getWindowPresenceMock,
   subscribeWindowPresence: (
     listener: (snapshot: { focused: boolean; documentVisible: boolean }) => void,

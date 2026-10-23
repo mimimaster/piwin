@@ -34,9 +34,9 @@
 - Modify `packages/artifact/src/streaming.ts` so an open `svg` fence is closed synthetically only for source-safe Markdown streaming normalization.
 - Modify `packages/artifact/src/evaluate.ts` and `packages/artifact/src/index.ts` to expose the generic descriptor evaluator while retaining the existing HTML-named evaluator.
 - Modify `packages/artifact/src/parser.test.ts`, `security.test.ts`, `streaming.test.ts`, and `evaluate.test.ts` for parser, security, streaming, and srcdoc coverage.
-- Modify `apps/desktop/src/MarkdownView.tsx` to show `Preview SVG` for an SVG Artifact decision without changing the capability or streaming gates.
-- Modify `apps/desktop/src/ArtifactFrame.tsx` to label blocked/source states as SVG when appropriate.
-- Modify `apps/desktop/src/MarkdownView.test.tsx` for capability-off, capability-on, and streaming SVG behavior.
+- Modify `apps/desktop/src/markdown/MarkdownView.tsx` to show `Preview SVG` for an SVG Artifact decision without changing the capability or streaming gates.
+- Modify `apps/desktop/src/artifact/ArtifactFrame.tsx` to label blocked/source states as SVG when appropriate.
+- Modify `apps/desktop/src/markdown/MarkdownView.test.tsx` for capability-off, capability-on, and streaming SVG behavior.
 - Modify `docs/artifact-research.md`, `docs/adr/0005-artifact-and-media.md`, and `docs/todo-deferred.md` to distinguish shipped heavy SVG previews from the still-deferred light renderer.
 
 ---
@@ -412,9 +412,9 @@ Expected: all evaluator tests pass and the artifact package typecheck exits with
 ### Task 4: Expose the SVG preview affordance in Desktop
 
 **Files:**
-- Modify: `apps/desktop/src/MarkdownView.tsx`
-- Modify: `apps/desktop/src/ArtifactFrame.tsx`
-- Test: `apps/desktop/src/MarkdownView.test.tsx`
+- Modify: `apps/desktop/src/markdown/MarkdownView.tsx`
+- Modify: `apps/desktop/src/artifact/ArtifactFrame.tsx`
+- Test: `apps/desktop/src/markdown/MarkdownView.test.tsx`
 
 **Interfaces:**
 - Capability-off behavior remains `data-testid="code-fence-source"` with no `artifact-preview-toggle` for `svg`.
@@ -424,7 +424,7 @@ Expected: all evaluator tests pass and the artifact package typecheck exits with
 
 - [ ] **Step 1: Add failing Desktop tests**
 
-Add this fixture beside the existing Markdown fixtures in `apps/desktop/src/MarkdownView.test.tsx`:
+Add this fixture beside the existing Markdown fixtures in `apps/desktop/src/markdown/MarkdownView.test.tsx`:
 
 ```ts
 const SVG_FENCE =
@@ -474,7 +474,7 @@ Expected: the capability-on test fails because the current button always says `P
 
 - [ ] **Step 3: Update the Markdown button label without changing the policy gates**
 
-In `apps/desktop/src/MarkdownView.tsx`, immediately before the `return` that renders `.artifact-with-source`, derive the label from the decision:
+In `apps/desktop/src/markdown/MarkdownView.tsx`, immediately before the `return` that renders `.artifact-with-source`, derive the label from the decision:
 
 ```tsx
 const previewLabel =
@@ -487,7 +487,7 @@ Replace only the button's closed-state text with `{artifactPreviewOpen ? 'Hide p
 
 - [ ] **Step 4: Update ArtifactFrame content labels**
 
-In `apps/desktop/src/ArtifactFrame.tsx`, add this pure helper before `ArtifactFrame`:
+In `apps/desktop/src/artifact/ArtifactFrame.tsx`, add this pure helper before `ArtifactFrame`:
 
 ```tsx
 function getArtifactContentLabel(type: 'html' | 'svg'): string {

@@ -8,8 +8,8 @@
  * it renders only while Goal is active and its one action is to leave.
  */
 import type { ReactElement } from 'react';
-import { IconClose } from '../shell-icons';
-import { useDesktopLocale } from '../desktop-locale-context';
+import { IconClose } from '../tool-cards/shell-icons';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
 
 export type GoalModeChipProps = {
   disabled: boolean;

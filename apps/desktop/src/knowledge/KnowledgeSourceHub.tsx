@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import { Button, ConfirmDialog, IconButton, Notice, TextInput } from '@piwin/ui-kit';
 import type { KnowledgeBaseSummary, KnowledgeCitation, KnowledgeSearchResult } from '@piwin/contracts';
-import { IconEdit, IconTrash } from '../shell-icons.js';
+import { IconEdit, IconTrash } from '../tool-cards/shell-icons.js';
 import { isSearchableKnowledgeBase } from './knowledge-base-client.js';
 import { knowledgeStateCopy, type KnowledgeLocale } from './knowledge-base-copy.js';
 import { KnowledgeChunkInspector } from './KnowledgeChunkInspector.js';

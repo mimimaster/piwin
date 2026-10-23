@@ -1,4 +1,4 @@
-import { listConversationPaneLeaves, type ConversationPaneLayout } from '../../conversation-pane-layout.js';
+import { listConversationPaneLeaves, type ConversationPaneLayout } from '../../conversation/conversation-pane-layout.js';
 import { listStageGroupIds } from './topology.js';
 import type { WorkspaceState } from './types.js';
 

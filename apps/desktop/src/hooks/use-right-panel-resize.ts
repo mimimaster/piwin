@@ -13,10 +13,10 @@ import {
   shouldCollapseRightPanel,
   shouldExpandRightPanel,
   RIGHT_PANEL_STAGE_MIN_PX,
-} from '../right-panel-width';
-import { isOverlayShellLayout, type ShellLayoutMode } from '../shell-layout';
+} from '../right-panel/right-panel-width';
+import { isOverlayShellLayout, type ShellLayoutMode } from '../tool-cards/shell-layout';
 import { usePanelWidthCommit } from './use-panel-width-commit.js';
-import { beginPanelResize } from '../panel-resize-activity.js';
+import { beginPanelResize } from '../platform/panel-resize-activity.js';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
 function writeRightPanelWidthCss(shell: HTMLElement | null, widthPx: number): void {

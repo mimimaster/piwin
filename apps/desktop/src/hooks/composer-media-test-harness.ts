@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { expect, vi } from 'vitest';
-import { createInitialChatUiState, type ChatUiState } from '../chat-reducer';
+import { createInitialChatUiState, type ChatUiState } from '../conversation/chat-reducer';
 import type { useComposerMedia } from './use-composer-media';
 
 export type ComposerMediaResult = ReturnType<typeof useComposerMedia>;

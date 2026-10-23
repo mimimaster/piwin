@@ -97,7 +97,7 @@ bound to an address.
 - The shell stores that list while connected. When the saved address stays
   unreachable for 6 s it dials the others in parallel with the device
   credential and saves the best one that admits it
-  (`apps/desktop/src/host-endpoint-roaming.ts`). Admission by the credential is
+  (`apps/desktop/src/host/host-endpoint-roaming.ts`). Admission by the credential is
   the proof that it is the same Host. An unpaired shell never roams.
 - The same cleartext caveat as the original pairing applies: the credential is
   presented to an address learned from the Host over `ws://`.

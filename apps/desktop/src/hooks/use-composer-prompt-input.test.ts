@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import { createInitialChatUiState } from '../chat-reducer';
+import { createInitialChatUiState } from '../conversation/chat-reducer';
 import type { UseComposerMediaArgs } from './composer-media-args';
 import {
   useComposerPromptInput,

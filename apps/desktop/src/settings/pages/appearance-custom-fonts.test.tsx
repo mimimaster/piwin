@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_LIGHT } from '../../appearance-tokens.js';
+import { PIWIN_APPEARANCE_LIGHT } from '../../theme/appearance-tokens.js';
 import { AppearanceCustomFonts } from './appearance-custom-fonts.js';
-import { getDesktopCopy } from '../../desktop-locale.js';
+import { getDesktopCopy } from '../../i18n/desktop-locale.js';
 import {
   clearCustomFonts,
   saveCustomFont,
@@ -14,7 +14,7 @@ import {
   DEFAULT_DARK_THEME_SETTINGS,
   DEFAULT_LIGHT_THEME_SETTINGS,
   type DesktopPreferences,
-} from '../../ui-preferences.js';
+} from '../../platform/ui-preferences.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;

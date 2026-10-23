@@ -3,9 +3,9 @@ import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type { HostClient } from '../../host-client';
-import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens';
-import { DesktopLocaleProvider } from '../../desktop-locale-context';
+import type { HostClient } from '../../host/host-client';
+import { PIWIN_APPEARANCE_DARK } from '../../theme/appearance-tokens';
+import { DesktopLocaleProvider } from '../../i18n/desktop-locale-context';
 import {
   DockToolHostsProvider,
   DockToolSurface,

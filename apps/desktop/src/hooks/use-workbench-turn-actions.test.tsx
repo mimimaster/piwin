@@ -3,9 +3,9 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { HostCommand, HostResponse, PlanDisplayPayload, SessionPlan } from '@piwin/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DesktopLocaleProvider } from '../desktop-locale-context';
-import { createInitialChatUiState } from '../chat-reducer';
-import type { HostClient } from '../host-client';
+import { DesktopLocaleProvider } from '../i18n/desktop-locale-context';
+import { createInitialChatUiState } from '../conversation/chat-reducer';
+import type { HostClient } from '../host/host-client';
 import { buildPlanExecutionPrompt, useWorkbenchTurnActions } from './use-workbench-turn-actions';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;

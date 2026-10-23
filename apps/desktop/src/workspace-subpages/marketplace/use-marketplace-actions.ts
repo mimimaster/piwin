@@ -15,7 +15,7 @@ import type {
   McpServerHealth,
   SkillsUpdateData,
 } from '@piwin/contracts';
-import type { DesktopLocale } from '../../desktop-locale.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
 import { describeSkillSourceUpdate, entryName } from './marketplace-copy.js';
 import { applyExtensionsToSession, describeExtensionChange } from './marketplace-session-apply.js';
 import type { MarketOperation, MarketplaceToast } from './marketplace-types.js';

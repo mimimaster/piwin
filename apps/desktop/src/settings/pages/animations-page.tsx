@@ -18,11 +18,11 @@ import {
   type AnimationSize,
 } from '@piwin/ui-kit';
 import { SegmentedControl } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
-import { AgentLocator } from '../../agent-locator.js';
-import type { AgentLocatorAnimation } from '../../ui-preferences.js';
+import { AgentLocator } from '../../agents/agent-locator.js';
+import type { AgentLocatorAnimation } from '../../platform/ui-preferences.js';
 
 const SIZE_VARIANT_GROUPS: ReadonlyArray<{
   labelZh: string;

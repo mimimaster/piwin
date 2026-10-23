@@ -14,15 +14,15 @@ import {
 } from 'react';
 import type { QueuedTurnRecord } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import type { DesktopCopy, DesktopLocale } from '../desktop-locale.js';
-import { hostFailureNotice, isStaleQueuedTurnError } from '../host-problem-copy.js';
-import { requestQueuedTurnQueue } from '../queued-turn-queue-request.js';
-import { chipsFromPromptAttachments } from '../composer-attachment-chips.js';
+import type { DesktopCopy, DesktopLocale } from '../i18n/desktop-locale.js';
+import { hostFailureNotice, isStaleQueuedTurnError } from '../host/host-problem-copy.js';
+import { requestQueuedTurnQueue } from '../conversation/queued-turn-queue-request.js';
+import { chipsFromPromptAttachments } from '../composer/composer-attachment-chips.js';
 import {
   isFailedMediaAttachment,
   isPendingAttachmentReady,
   type PendingComposerAttachment,
-} from '../media-utils.js';
+} from '../media/media-utils.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 
 type ParkedComposer = {

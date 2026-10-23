@@ -16,14 +16,14 @@ import {
   type ArtifactFixture,
   type ArtifactFixtureId,
 } from '@piwin/artifact/fixtures';
-import { ArtifactCanvasPanel } from '../artifact-canvas-panel';
-import { MediaPreviewReadProvider } from '../media-preview-read-context';
+import { ArtifactCanvasPanel } from '../artifact/artifact-canvas-panel';
+import { MediaPreviewReadProvider } from '../media/media-preview-read-context';
 import {
   collectArtifactCanvasTargets,
   createArtifactCanvasTarget,
   type ArtifactCanvasTarget,
-} from '../artifact-canvas-model';
-import { MarkdownView } from '../MarkdownView';
+} from '../artifact/artifact-canvas-model';
+import { MarkdownView } from '../markdown/MarkdownView';
 import { CodePreviewGallery } from './code-preview-gallery.js';
 import { DocSelectionGallery } from './doc-selection-gallery.js';
 import { ArtifactKitShowcase } from './artifact-kit-showcase.js';

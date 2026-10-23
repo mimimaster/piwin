@@ -20,11 +20,11 @@ import {
   type WalkthroughConfig,
 } from '@piwin/contracts';
 import { Button, SegmentedControl, Switch, TextArea, TextInput } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
-import { chooseSessionExportPath } from '../../session-export-dialog';
+import { chooseSessionExportPath } from '../../session/session-export-dialog';
 import { SessionRuntimePage } from './session-runtime-page.js';
 import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 

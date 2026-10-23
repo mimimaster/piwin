@@ -8,7 +8,7 @@ import {
   IconCopy,
   IconSpark,
   IconTrash,
-} from '../../shell-icons';
+} from '../../tool-cards/shell-icons';
 import { useModalFocus } from './use-modal-focus';
 
 export type MediaLightboxStat = { label: string; value: string };

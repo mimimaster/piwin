@@ -1,0 +1,109 @@
+import type { SessionTuiRenderer } from '../hooks/use-workbench-cli.js';
+import type { ReactElement, ReactNode } from 'react';
+import type { ThemeManifest } from '@piwin/contracts';
+import type { SessionListItemUi } from '../conversation/chat-reducer.js';
+import { ConversationPaneWorkspace } from '../conversation/conversation-pane-workspace.js';
+import type { ConversationPaneLayoutController } from '../hooks/use-conversation-pane-layout.js';
+import type { HostClient } from '../host/host-client.js';
+import type { ArtifactCanvasTarget } from '../artifact/artifact-canvas-model.js';
+import type { DocumentOpenInput } from '../tool-cards/tool-call-card.js';
+import type { MediaPreviewReader } from '../conversation/transcript-media-preview.js';
+import { DockingWorkspace } from './docking/docking-workspace.js';
+import type { DockingWorkspaceController } from './docking/use-docking-workspace.js';
+
+export type WorkbenchConversationStageProps = {
+  primaryPane: ReactNode;
+  dockingEnabled: boolean;
+  docking: DockingWorkspaceController;
+  conversationPanesEnabled: boolean;
+  conversationPaneController: ConversationPaneLayoutController;
+  phoneSinglePane: boolean;
+  primarySessionName: string;
+  primarySessionId: string | null;
+  onPromoteSession?: (sessionId: string) => void;
+  sessions: readonly SessionListItemUi[];
+  hostClient: HostClient;
+  activeTheme: ThemeManifest;
+  artifactThemeKey: string | number;
+  artifactInlineEnabled: boolean;
+  /** Canvas capability. Omitted → follows the Inline value. */
+  artifactCanvasEnabled?: boolean;
+  readMedia: MediaPreviewReader | null;
+  locale: 'zh-CN' | 'en';
+  keyboardEnabled: boolean;
+  activeProjectScopeKey?: string;
+  onCreateConversation: (paneId: string) => Promise<string | null>;
+  onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
+  onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
+  fileBrowseRoot?: string | null;
+  /** Terminal mode is on: render a session as the CLI TUI instead of the GUI chat (null keeps the GUI). */
+  renderSessionTui?: SessionTuiRenderer | undefined;
+};
+
+export function WorkbenchConversationStage(props: WorkbenchConversationStageProps): ReactElement {
+  if (props.conversationPanesEnabled && props.dockingEnabled) {
+    return (
+      <DockingWorkspace
+        controller={props.docking}
+        phoneSinglePane={props.phoneSinglePane}
+        primaryPane={props.primaryPane}
+        primarySessionId={props.primarySessionId}
+        {...(props.onPromoteSession ? { onPromoteSession: props.onPromoteSession } : {})}
+        keyboardEnabled={props.keyboardEnabled}
+        {...(props.activeProjectScopeKey !== undefined
+          ? { activeProjectScopeKey: props.activeProjectScopeKey }
+          : {})}
+        sessions={props.sessions}
+        hostClient={props.hostClient}
+        activeTheme={props.activeTheme}
+        artifactThemeKey={props.artifactThemeKey}
+        artifactInlineEnabled={props.artifactInlineEnabled}
+        artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
+        readMedia={props.readMedia}
+        locale={props.locale}
+        onCreateConversation={() => props.onCreateConversation('docking')}
+        onOpenDocument={(doc, target) => {
+          props.onOpenDocument?.(doc, target);
+          if (props.dockingEnabled) props.docking.openToolView('doc');
+        }}
+        onOpenArtifactCanvas={(target) => {
+          props.onOpenArtifactCanvas?.(target);
+          if (props.dockingEnabled) props.docking.openToolView('canvas');
+        }}
+        {...(props.fileBrowseRoot !== undefined ? { fileBrowseRoot: props.fileBrowseRoot } : {})}
+        renderSessionTui={props.renderSessionTui}
+      />
+    );
+  }
+  if (props.conversationPanesEnabled) {
+    return (
+      <ConversationPaneWorkspace
+        controller={props.conversationPaneController}
+        phoneSinglePane={props.phoneSinglePane}
+        primaryPane={props.primaryPane}
+        primarySessionName={props.primarySessionName}
+        sessions={props.sessions}
+        hostClient={props.hostClient}
+        activeTheme={props.activeTheme}
+        artifactThemeKey={props.artifactThemeKey}
+        artifactInlineEnabled={props.artifactInlineEnabled}
+        artifactCanvasEnabled={props.artifactCanvasEnabled ?? props.artifactInlineEnabled}
+        readMedia={props.readMedia}
+        locale={props.locale}
+        keyboardEnabled={props.keyboardEnabled}
+        onCreateConversation={props.onCreateConversation}
+        onOpenDocument={(doc, target) => {
+          props.onOpenDocument?.(doc, target);
+          if (props.dockingEnabled) props.docking.openToolView('doc');
+        }}
+        onOpenArtifactCanvas={(target) => {
+          props.onOpenArtifactCanvas?.(target);
+          if (props.dockingEnabled) props.docking.openToolView('canvas');
+        }}
+        {...(props.fileBrowseRoot !== undefined ? { fileBrowseRoot: props.fileBrowseRoot } : {})}
+        renderSessionTui={props.renderSessionTui}
+      />
+    );
+  }
+  return <>{props.primaryPane}</>;
+}

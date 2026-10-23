@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
-import { PetOverlayApp } from './pet-overlay-app';
-import { installDevelopmentPerformanceTimelineGuard } from './development-performance-timeline';
+import { PetOverlayApp } from './pet/pet-overlay-app';
+import { installDevelopmentPerformanceTimelineGuard } from './platform/development-performance-timeline';
 import './pet-overlay.css';
 
 const disposePerformanceTimelineGuard = import.meta.env.DEV

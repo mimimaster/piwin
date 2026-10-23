@@ -24,9 +24,9 @@ import {
 import {
   PIWIN_APPEARANCE_DARK,
   PIWIN_APPEARANCE_LIGHT,
-} from '../appearance-tokens';
-import { FlashcardStackView } from '../FlashcardView';
-import { FilesChangedBar } from '../files-changed-bar';
+} from '../theme/appearance-tokens';
+import { FlashcardStackView } from '../flashcards/FlashcardView';
+import { FilesChangedBar } from '../files/files-changed-bar';
 import { galleryChangedFileTools, galleryChangedFilesRequest } from './gallery-changed-files';
 import { GoalGalleryStates } from './primitive-gallery-goal';
 

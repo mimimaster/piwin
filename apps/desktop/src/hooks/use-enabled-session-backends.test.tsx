@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EnabledExtensionSessionBackend, ExtensionSummary, HostResponse, HostServerMessage } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 import { backendExtension } from '../test/fixtures/extension-backend.fixtures';
 import { useEnabledSessionBackends } from './use-enabled-session-backends';
 

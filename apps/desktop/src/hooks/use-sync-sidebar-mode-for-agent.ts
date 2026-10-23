@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { isPiwinConversationAgent } from '../is-conversation-session';
-import type { SidebarMode } from '../sidebar-mode';
+import { isPiwinConversationAgent } from '../conversation/is-conversation-session';
+import type { SidebarMode } from '../sidebar/sidebar-mode';
 
 /**
  * Project-scoped external agents (Grok in a repo folder) live in the code

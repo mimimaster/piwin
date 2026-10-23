@@ -67,7 +67,7 @@ No full rollback needed — the existing tool structure (router → HTTP → med
 - Image **editing** is a documented follow-up and is **not** wired in this plan.
 - The new settings page must follow the existing `settings/pages/*` pattern: registered via `section-registry.ts`, reads `useSettings()` context, saves through `saveConfig`.
 - **Working-tree hygiene (subagent-driven execution):** the branch working tree carries unrelated, uncommitted user changes (artifact code-first work in `apps/desktop/src/*` and `packages/artifact/*`, plus a `tool-presentation.ts` fix). Implementer subagents must **stage only the files named in their task** — never `git add -A`, `git add .`, or `git commit -am`. The `pnpm typecheck`/`pnpm test` baseline is already green with these changes present; do not "fix" failures in unrelated files.
-- **i18n is one file:** Desktop copy lives in `apps/desktop/src/desktop-locale.ts` (a single `DesktopTranslator` type + `getDesktopTranslator(locale)` returning both zh-CN and en). There is no `apps/desktop/src/locales/*` directory. Adding a settings section also requires adding its `labelKey` to `DesktopTranslator['settings']['nav']` (the `SettingsSectionMeta.labelKey` type is `keyof nav`).
+- **i18n is one file:** Desktop copy lives in `apps/desktop/src/i18n/desktop-locale.ts` (a single `DesktopTranslator` type + `getDesktopTranslator(locale)` returning both zh-CN and en). There is no `apps/desktop/src/locales/*` directory. Adding a settings section also requires adding its `labelKey` to `DesktopTranslator['settings']['nav']` (the `SettingsSectionMeta.labelKey` type is `keyof nav`).
 
 ---
 
@@ -83,9 +83,9 @@ No full rollback needed — the existing tool structure (router → HTTP → med
 | `apps/desktop/src/settings/section-registry.ts` | add `image-generation` section id | Modify (Task 3) |
 | `apps/desktop/src/settings/pages/image-generation-page.tsx` | new settings page: screenshot-style image model config | Create (Task 3) |
 | `apps/desktop/src/settings/pages/index.ts` | register `ImageGenerationPage` | Modify (Task 3) |
-| `apps/desktop/src/ImageGenerationSettings.tsx` | main config component (provider picker, route, timeout, model, key) | Create (Task 3) |
-| `apps/desktop/src/ImageGenerationSettings.test.tsx` | render + config save test | Create (Task 3) |
-| `apps/desktop/src/desktop-locale.ts` | add `nav.imageGeneration` + image-gen copy (single-file i18n; no `locales/*` dir) | Modify (Task 3) |
+| `apps/desktop/src/media/ImageGenerationSettings.tsx` | main config component (provider picker, route, timeout, model, key) | Create (Task 3) |
+| `apps/desktop/src/media/ImageGenerationSettings.test.tsx` | render + config save test | Create (Task 3) |
+| `apps/desktop/src/i18n/desktop-locale.ts` | add `nav.imageGeneration` + image-gen copy (single-file i18n; no `locales/*` dir) | Modify (Task 3) |
 | `skills/imagegen/SKILL.md` | update guidance to mention config-driven routes | Verify (Task 4) |
 | `docs/adr/0021-image-generation-skill.md` | update ADR for config-driven routing + settings page | Modify (Task 4) |
 | `docs/architecture.md` | update package map + config notes | Modify (Task 4) |
@@ -409,9 +409,9 @@ git commit -m "refactor(agent-host): config-driven image_gen routing with capabi
 - Modify: `apps/desktop/src/settings/section-registry.ts` — add `'image-generation'` to `SettingsSectionId` and `SETTINGS_SECTIONS`
 - Create: `apps/desktop/src/settings/pages/image-generation-page.tsx`
 - Modify: `apps/desktop/src/settings/pages/index.ts` — register `ImageGenerationPage`
-- Create: `apps/desktop/src/ImageGenerationSettings.tsx` — main config component
-- Create: `apps/desktop/src/ImageGenerationSettings.test.tsx` — render + save test
-- Modify: `apps/desktop/src/desktop-locale.ts` — `nav.imageGeneration` + image-gen page copy (single-file i18n; no `locales/*` dir)
+- Create: `apps/desktop/src/media/ImageGenerationSettings.tsx` — main config component
+- Create: `apps/desktop/src/media/ImageGenerationSettings.test.tsx` — render + save test
+- Modify: `apps/desktop/src/i18n/desktop-locale.ts` — `nav.imageGeneration` + image-gen page copy (single-file i18n; no `locales/*` dir)
 
 **UI layout (matching screenshot):**
 
@@ -497,14 +497,14 @@ Edit `apps/desktop/src/settings/section-registry.ts`:
 
 - [ ] **Step 2: Add i18n strings**
 
-Edit `apps/desktop/src/desktop-locale.ts` (single-file i18n — there is no `locales/*` dir):
+Edit `apps/desktop/src/i18n/desktop-locale.ts` (single-file i18n — there is no `locales/*` dir):
 - Add `imageGeneration: string` to `DesktopTranslator['settings']['nav']` (required: `SettingsSectionMeta.labelKey` is typed `keyof DesktopTranslator['settings']['nav']`, so the section won't typecheck without it), and return it from `getDesktopTranslator` in both `zh-CN` and `en` (e.g. 图像生成 / Image Generation).
 - Add an `imageGeneration` sub-object under `settings` in `DesktopTranslator` for page copy: page title, provider, API endpoint, custom request path, timeout, API key, model ID, discover models, model label, model description, set as default, add model, remove model, no models configured. Provide both locales.
 - Add a `settings.nav.imageGeneration` label so the new nav item renders.
 
 - [ ] **Step 3: Write the failing test**
 
-Create `apps/desktop/src/ImageGenerationSettings.test.tsx`:
+Create `apps/desktop/src/media/ImageGenerationSettings.test.tsx`:
 - Render with a config that has one provider with one image-generation model
 - Assert: provider dropdown shows the provider, model row shows the model ID, custom request path is visible
 - Assert: saving updates `config.providers[0].models[0].routes['image-generation'].path`
@@ -566,7 +566,7 @@ Expected: PASS.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add apps/desktop/src/settings/section-registry.ts apps/desktop/src/settings/pages/image-generation-page.tsx apps/desktop/src/settings/pages/index.ts apps/desktop/src/ImageGenerationSettings.tsx apps/desktop/src/ImageGenerationSettings.test.tsx apps/desktop/src/desktop-locale.ts
+git add apps/desktop/src/settings/section-registry.ts apps/desktop/src/settings/pages/image-generation-page.tsx apps/desktop/src/settings/pages/index.ts apps/desktop/src/media/ImageGenerationSettings.tsx apps/desktop/src/media/ImageGenerationSettings.test.tsx apps/desktop/src/i18n/desktop-locale.ts
 git commit -m "feat(desktop): image generation settings page with config-driven model routing"
 ```
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MediaLibraryItem } from '@piwin/contracts';
-import { createPlayableMediaObjectUrl } from '../../playable-media-url';
+import { createPlayableMediaObjectUrl } from '../../artifact/playable-media-url';
 import { readLibraryMediaViaHost, type MediaLibraryHost } from './media-library-src';
 
 export function usePlayableLibrarySrc(input: {

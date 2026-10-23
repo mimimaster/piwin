@@ -16,15 +16,15 @@ import {
   type SetStateAction,
 } from 'react';
 import type { PromptContextRef, SessionScope } from '@piwin/contracts';
-import type { PendingComposerAttachment } from '../media-utils.js';
-import { decideDraftTransition } from '../draft-transition';
+import type { PendingComposerAttachment } from '../media/media-utils.js';
+import { decideDraftTransition } from '../composer/draft-transition';
 import {
   draftRowLabel,
   findLatestDraftForScope,
   sortDraftSessions,
   type DraftSessionItemUi,
-} from '../draft-session';
-import { shouldResetComposerOrchestrationOnSessionChange } from '../composer-orchestration-session';
+} from '../composer/draft-session';
+import { shouldResetComposerOrchestrationOnSessionChange } from '../composer/composer-orchestration-session';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
 import {
@@ -33,7 +33,7 @@ import {
   loadComposerDraftStore,
   readComposerDraftPartitionId,
   saveComposerDraftStore,
-} from '../composer-draft-persistence.js';
+} from '../composer/composer-draft-persistence.js';
 
 /**
  * Cap on per-session unsent composer snapshots. Each snapshot pins its

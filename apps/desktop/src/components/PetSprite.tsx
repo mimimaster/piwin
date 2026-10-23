@@ -9,7 +9,7 @@ import {
   PET_SPRITE_ROWS,
 } from '@piwin/contracts';
 import { PetBubble } from './PetBubble';
-import { buildPetBubbleView } from '../pet-bubble-view.js';
+import { buildPetBubbleView } from '../pet/pet-bubble-view.js';
 import {
   PET_ACTION_DURATION_MS,
   PET_IDLE_ACTION_INTERVAL_MS,

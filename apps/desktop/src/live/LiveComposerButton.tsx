@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { IconButton } from '@piwin/ui-kit';
 import { liveMissingLabel } from './use-live-call.js';
 import type { LiveCallView, LiveReadyMissing } from '@piwin/contracts';
-import { IconMic } from '../shell-icons.js';
+import { IconMic } from '../tool-cards/shell-icons.js';
 
 export type LiveComposerButtonProps = {
   enabled: boolean;

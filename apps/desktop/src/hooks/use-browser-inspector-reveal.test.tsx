@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { HostPush } from '@piwin/contracts';
-import { HostClient } from '../host-client';
-import type { RightPanelTab } from '../right-panel';
+import { HostClient } from '../host/host-client';
+import type { RightPanelTab } from '../right-panel/right-panel';
 import { useBrowserInspectorReveal } from './use-browser-inspector-reveal';
 
 declare global {

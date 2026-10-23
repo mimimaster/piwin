@@ -14,7 +14,7 @@ import {
   type OrchestrationSchemeSettings,
 } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
 import { buildOrchestrationCopy } from './orchestration-copy';
 import { OrchestrationSchemeEditor } from './orchestration-scheme-editor';
 

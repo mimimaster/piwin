@@ -12,15 +12,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionSummary, SessionTranscriptMessage } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import type { ChatMessageUi, SubagentStreamState } from '../chat-reducer';
-import type { SubagentInspectorSelection } from '../subagent-activity-model';
+import type { HostClient } from '../host/host-client';
+import type { ChatMessageUi, SubagentStreamState } from '../conversation/chat-reducer';
+import type { SubagentInspectorSelection } from '../agents/subagent-activity-model';
 import {
   deriveSubagentInspectorStatus,
   type ActiveSubagentStatus,
-} from '../subagent-activity-model';
-import { reconcileSubagentTranscript } from '../subagent-session-projection';
-import { retainBoundedSessionTranscript } from '../transcript-page-cache';
+} from '../agents/subagent-activity-model';
+import { reconcileSubagentTranscript } from '../agents/subagent-session-projection';
+import { retainBoundedSessionTranscript } from '../conversation/transcript-page-cache';
 
 export type SubagentInspectorOptions = {
   hostClient: HostClient;

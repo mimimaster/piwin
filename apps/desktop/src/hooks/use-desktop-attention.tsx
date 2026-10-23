@@ -8,39 +8,39 @@ import {
   type ReactNode,
 } from 'react';
 import { showUiNotification } from '@piwin/ui-kit';
-import { selectAttentionSessionIds } from '../attention-badge-model';
-import { AttentionOptInBanner } from '../attention-opt-in-banner';
-import { shouldShowAttentionOptIn } from '../attention-opt-in-policy';
+import { selectAttentionSessionIds } from '../notifications/attention-badge-model';
+import { AttentionOptInBanner } from '../notifications/attention-opt-in-banner';
+import { shouldShowAttentionOptIn } from '../notifications/attention-opt-in-policy';
 import {
   ATTENTION_OPT_IN_DISMISSED_KEY,
   readAttentionPreferences,
   subscribeAttentionPreferences,
-} from '../attention-preferences';
-import { describeSessionForAttention } from '../attention-session-describe';
+} from '../notifications/attention-preferences';
+import { describeSessionForAttention } from '../notifications/attention-session-describe';
 import {
   resolveAttentionJumpTarget,
   type AttentionJumpTarget,
-} from '../attention-session-lookup';
-import { selectAttentionVisibility } from '../attention-visibility';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
+} from '../notifications/attention-session-lookup';
+import { selectAttentionVisibility } from '../notifications/attention-visibility';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
 import {
   createDesktopAttentionController,
   type DesktopAttentionSnapshot,
   type InAppAttentionNotice,
-} from '../desktop-attention-controller';
+} from '../notifications/desktop-attention-controller';
 import {
   createDesktopAttentionOs,
   type AttentionAuthorization,
   type DesktopAttentionOs,
-} from '../desktop-attention-os';
-import type { DesktopLocale } from '../desktop-locale';
-import type { HostClient } from '../host-client';
-import { rightPanelTabKind } from '../right-panel-instances';
-import { isRightPanelTab } from '../right-panel-memory';
-import type { RightPanelTab } from '../right-panel-sections';
-import { getSideChatBinding, useSideChatLiveSessionIds } from '../side-chat-sessions';
-import type { ConversationPaneLayoutController } from '../use-conversation-pane-layout';
-import { getWindowPresence, subscribeWindowPresence } from '../window-focus-signal';
+} from '../notifications/desktop-attention-os';
+import type { DesktopLocale } from '../i18n/desktop-locale';
+import type { HostClient } from '../host/host-client';
+import { rightPanelTabKind } from '../right-panel/right-panel-instances';
+import { isRightPanelTab } from '../right-panel/right-panel-memory';
+import type { RightPanelTab } from '../right-panel/right-panel-sections';
+import { getSideChatBinding, useSideChatLiveSessionIds } from '../session/side-chat-sessions';
+import type { ConversationPaneLayoutController } from './use-conversation-pane-layout';
+import { getWindowPresence, subscribeWindowPresence } from '../platform/window-focus-signal';
 import { useAttentionActivation } from './use-attention-activation';
 import { selectVisibleSessionIds } from '../workbench/docking/visible-sessions';
 import type { DockingWorkspaceController } from '../workbench/docking/use-docking-workspace';

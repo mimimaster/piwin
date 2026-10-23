@@ -13,8 +13,8 @@
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { TurnChangeFileEntry, TurnChangePathConflict, TurnChangeSummary } from '@piwin/contracts';
-import { LineStat } from '../files-changed-bar';
-import { IconGit, IconRevert, IconTerminal } from '../shell-icons.js';
+import { LineStat } from '../files/files-changed-bar';
+import { IconGit, IconRevert, IconTerminal } from '../tool-cards/shell-icons.js';
 import { TurnChangeFileList } from './turn-change-file-list.js';
 import { TurnChangeConflictList } from './turn-change-conflict-view.js';
 import {

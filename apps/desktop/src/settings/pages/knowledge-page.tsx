@@ -9,7 +9,7 @@ import type {
   KnowledgeConnectionTestCommand,
   KnowledgeConnectionTestResult,
 } from '@piwin/contracts';
-import { useDesktopLocale } from '../../desktop-locale-context.js';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context.js';
 import { useSettings } from '../settings-context.js';
 import {
   DEFAULT_OLLAMA_EMBEDDING_URL,

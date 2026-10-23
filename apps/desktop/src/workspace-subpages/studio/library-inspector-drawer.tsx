@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import type { HostCommand, HostResponse, MediaLibraryItem } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
-import type { DesktopLocale } from '../../desktop-locale';
+import type { DesktopLocale } from '../../i18n/desktop-locale';
 import {
   IconCheck,
   IconClose,
@@ -11,7 +11,7 @@ import {
   IconFile,
   IconSpark,
   IconTrash,
-} from '../../shell-icons';
+} from '../../tool-cards/shell-icons';
 import { formatLibraryBytes, formatLibraryType } from './media-format';
 import { usePlayableLibrarySrc } from './use-playable-library-src';
 

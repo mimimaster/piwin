@@ -5,15 +5,15 @@
 import { useCallback, type Dispatch } from 'react';
 import type { PiwinConfig, SettingsMutation } from '@piwin/contracts';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
-import type { DesktopLocale } from '../desktop-locale';
-import type { HostClient } from '../host-client';
-import { pushError, type NotificationAction } from '../notification-queue';
-import { enqueueSettingsApply } from '../settings-apply-chain.js';
+import type { DesktopLocale } from '../i18n/desktop-locale';
+import type { HostClient } from '../host/host-client';
+import { pushError, type NotificationAction } from '../notifications/notification-queue';
+import { enqueueSettingsApply } from '../settings/settings-apply-chain.js';
 import {
   executeSettingsSaveCycle,
   settingsApplyCommand,
   settingsSaveThrownNotice,
-} from '../settings-save-queue';
+} from '../settings/settings-save-queue';
 
 export type UseSettingsSaveQueueArgs = {
   hostClient: HostClient;

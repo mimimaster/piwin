@@ -15,18 +15,18 @@ import {
   type SetStateAction,
 } from 'react';
 import { toModelRef, type ModelRef, type PiwinConfig, type ThinkingLevel } from '@piwin/contracts';
-import { composerProfileSettingsMutations } from '../host-request-adapters';
+import { composerProfileSettingsMutations } from '../host/host-request-adapters';
 import {
   findComposerModelByKey,
   findComposerModelByRef,
   formatComposerModelKey,
   resolveComposerModelSelection,
-} from '../composer-model-selection-policy';
-import type { HostClient } from '../host-client';
-import type { SessionListItemUi } from '../chat-reducer';
-import { pushError, type NotificationAction } from '../notification-queue';
-import { resolveThinkingLevelForModel } from '../model-thinking-policy';
-import type { ModelOption } from '../model-options';
+} from '../composer/composer-model-selection-policy';
+import type { HostClient } from '../host/host-client';
+import type { SessionListItemUi } from '../conversation/chat-reducer';
+import { pushError, type NotificationAction } from '../notifications/notification-queue';
+import { resolveThinkingLevelForModel } from '../models/model-thinking-policy';
+import type { ModelOption } from '../models/model-options';
 import { commitSessionComposerProfile } from './commit-session-composer-profile.js';
 
 export type ComposerModelRestoreProfile = {

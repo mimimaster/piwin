@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import type { HostCommand, HostResponse, PermissionRulesFile } from '@piwin/contracts';
 import { Button, Notice, TextArea } from '@piwin/ui-kit';
-import { IconClose } from '../../shell-icons.js';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { IconClose } from '../../tool-cards/shell-icons.js';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 import {

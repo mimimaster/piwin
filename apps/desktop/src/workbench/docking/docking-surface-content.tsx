@@ -1,14 +1,14 @@
-import type { SessionTuiRenderer } from '../../use-workbench-cli.js';
+import type { SessionTuiRenderer } from '../../hooks/use-workbench-cli.js';
 import type { ReactElement } from 'react';
-import type { SessionListItemUi } from '../../chat-ui-types.js';
-import type { HostClient } from '../../host-client.js';
+import type { SessionListItemUi } from '../../conversation/chat-ui-types.js';
+import type { HostClient } from '../../host/host-client.js';
 import type { ThemeManifest } from '@piwin/contracts';
-import { ConversationPaneSession } from '../../conversation-pane-session.js';
-import type { ArtifactCanvasTarget } from '../../artifact-canvas-model.js';
-import type { DocumentOpenInput } from '../../tool-call-card.js';
-import type { MediaPreviewReader } from '../../transcript-media-preview.js';
+import { ConversationPaneSession } from '../../conversation/conversation-pane-session.js';
+import type { ArtifactCanvasTarget } from '../../artifact/artifact-canvas-model.js';
+import type { DocumentOpenInput } from '../../tool-cards/tool-call-card.js';
+import type { MediaPreviewReader } from '../../conversation/transcript-media-preview.js';
 import { DockToolSurface } from './dock-tool-hosts.js';
-import { IconBrowser, IconCanvas, IconDocument, IconGit } from '../../shell-icons.js';
+import { IconBrowser, IconCanvas, IconDocument, IconGit } from '../../tool-cards/shell-icons.js';
 import type { WorkspaceView } from './types.js';
 
 export type DockViewRenderContext = {

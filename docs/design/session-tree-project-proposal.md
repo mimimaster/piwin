@@ -287,8 +287,8 @@ Pi 自己的 `/tree` **也不会**在切树时回滚磁盘。
 
 - Pi：`pi-coding-agent` 的 `docs/sessions.md`（Branching with `/tree`）、`docs/compaction.md`（Branch Summarization）、`SessionManager.branch` / `branchWithSummary` / `getTree`
 - piwin 线性重放：`packages/agent-host/src/seeded-pi-session.ts`
-- 桌面会话树：`apps/desktop/src/conversation-tree-popover.tsx`、`branch-points-panel.tsx`、`message-branch-switcher.tsx`、`chat-message-edit-card.tsx`
-- 重新生成挂载：`apps/desktop/src/chat-thread.tsx`（`onRegenerate` 未按项目会话关掉）
-- 切树确认：`apps/desktop/src/branch-switch-confirm-dialog.tsx`
+- 桌面会话树：`apps/desktop/src/conversation/conversation-tree-popover.tsx`、`branch-points-panel.tsx`、`message-branch-switcher.tsx`、`chat-message-edit-card.tsx`
+- 重新生成挂载：`apps/desktop/src/conversation/chat-thread.tsx`（`onRegenerate` 未按项目会话关掉）
+- 切树确认：`apps/desktop/src/session/branch-switch-confirm-dialog.tsx`
 
 可读网页版摘要（非正式）：`docs/design/session-tree-plan.html`

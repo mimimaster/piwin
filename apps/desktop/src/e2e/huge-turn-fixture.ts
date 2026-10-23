@@ -11,7 +11,7 @@
  * Installed only when `VITE_PIWIN_E2E_FIXTURES=true` and `?e2eHugeTurn=1`.
  */
 import type { SessionToolCardView, SessionTranscriptMessage } from '@piwin/contracts';
-import type { MockHostBackend } from '../host-client-mock.js';
+import type { MockHostBackend } from '../host/host-client-mock.js';
 
 const PROJECT = '/mock/piwin';
 export const HUGE_TURN_SESSION_ID = 'fixture-huge-turn';

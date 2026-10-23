@@ -11,10 +11,10 @@
  * unambiguous, complete search is used; several matches are reported as such
  * and an incomplete walk resolves nothing.
  */
-import type { HostClient } from '../host-client';
-import type { ProjectReadPreviewInput } from '../preview-unavailable.js';
-import { completeProjectImagePreview, predecodeImage } from '../project-image-preview-read.js';
-import { resolveProjectFilePath } from '../resolve-project-file.js';
+import type { HostClient } from '../host/host-client';
+import type { ProjectReadPreviewInput } from '../artifact/preview-unavailable.js';
+import { completeProjectImagePreview, predecodeImage } from '../sidebar/project-image-preview-read.js';
+import { resolveProjectFilePath } from '../files/resolve-project-file.js';
 
 export type ProjectPreviewOpenResult =
   | {

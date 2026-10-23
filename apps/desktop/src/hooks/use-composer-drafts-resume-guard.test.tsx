@@ -2,8 +2,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createInitialChatUiState, type ChatUiState } from '../chat-reducer';
-import type { HostClient } from '../host-client';
+import { createInitialChatUiState, type ChatUiState } from '../conversation/chat-reducer';
+import type { HostClient } from '../host/host-client';
 import { useComposerMedia } from './use-composer-media';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;

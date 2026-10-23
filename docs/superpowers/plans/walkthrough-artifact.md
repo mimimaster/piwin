@@ -257,7 +257,7 @@ Source spec: `docs/specs/walkthrough-artifact.md` (authoritative; read relevant 
 
 **Deliverables:**
 
-1. Modify `apps/desktop/src/chat-reducer.ts`:
+1. Modify `apps/desktop/src/conversation/chat-reducer.ts`:
    - Add `walkthroughsByMessageId: Record<string, WalkthroughArtifact>` to ChatUiState
    - Add actions: `walkthrough/hydrate`, `walkthrough/updated`, `walkthrough/remove`
    - Session switch clears old map
@@ -266,7 +266,7 @@ Source spec: `docs/specs/walkthrough-artifact.md` (authoritative; read relevant 
    - Handle `walkthrough/updated` push → dispatch
    - On session load, call `walkthrough/list` to hydrate
 
-3. Create `apps/desktop/src/walkthrough-action.tsx`:
+3. Create `apps/desktop/src/conversation/walkthrough-action.tsx`:
    - Hover/focus reveals Generate Walkthrough button on eligible final assistant messages
    - Streaming → no button; completed final → button; middle assistant → no button; disabled config → no button
    - Click calls onGenerateWalkthrough(messageId)
@@ -274,12 +274,12 @@ Source spec: `docs/specs/walkthrough-artifact.md` (authoritative; read relevant 
    - Ready → show card
    - Error → safe error message + Retry
 
-4. Create `apps/desktop/src/walkthrough-card.tsx`:
+4. Create `apps/desktop/src/conversation/walkthrough-card.tsx`:
    - Renders ready artifact markdown (source-only, no iframe/HTML execution)
    - View and Regenerate buttons
    - Safe markdown rendering
 
-5. Modify `apps/desktop/src/chat-thread.tsx`:
+5. Modify `apps/desktop/src/conversation/chat-thread.tsx`:
    - Add walkthroughsByMessageId, onGenerateWalkthrough, onCancelWalkthrough props
    - Pass artifact to WalkthroughAction/WalkthroughCard per message
    - memo comparator includes walkthrough artifact ref, callback refs, enabled state
@@ -289,7 +289,7 @@ Source spec: `docs/specs/walkthrough-artifact.md` (authoritative; read relevant 
    - sessionDocuments derives Walkthrough doc items from walkthroughsByMessageId (virtual path `walkthroughs/<encoded-message-id>.md`)
    - Pass walkthrough props to ChatThread
 
-7. Modify `apps/desktop/src/host-client-mock.ts`:
+7. Modify `apps/desktop/src/host/host-client-mock.ts`:
    - walkthrough/list returns deterministic artifacts
    - walkthrough/generate publishes generating then delayed ready
    - walkthrough/cancel publishes error(cancelled)
@@ -297,7 +297,7 @@ Source spec: `docs/specs/walkthrough-artifact.md` (authoritative; read relevant 
    - No provider → model-unavailable
    - No real network
 
-8. Create `apps/desktop/src/walkthrough-action.test.tsx` and `apps/desktop/src/walkthrough-card.test.tsx`:
+8. Create `apps/desktop/src/conversation/walkthrough-action.test.tsx` and `apps/desktop/src/conversation/walkthrough-card.test.tsx`:
    - All 14 desktop component test cases from spec §15.6 (split across the two files as appropriate)
 
 9. Modify `apps/desktop/src/styles/region-transcript.css` if needed for walkthrough card styling

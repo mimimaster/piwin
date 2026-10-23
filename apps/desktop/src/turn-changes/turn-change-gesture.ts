@@ -13,7 +13,7 @@
 import type { HostCommand, HostResponse, TurnChangePathConflict, TurnChangeSummary } from '@piwin/contracts';
 import { createIdempotencyKey } from '@piwin/host-client';
 
-import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
+import { isWorkbenchHostTeardownError } from '../workbench/workbench-host-teardown.js';
 
 export type TurnChangesRequest = (
   command: HostCommand,

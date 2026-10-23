@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens.js';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens.js';
 import { KnowledgeUnindexedHero, type KnowledgeUnindexedHeroProps } from './KnowledgeUnindexedHero.js';
 
 describe('KnowledgeUnindexedHero', () => {

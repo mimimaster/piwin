@@ -4,7 +4,7 @@
  */
 import { useState, type ReactElement } from 'react';
 import { SegmentedControl } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 import { ArtifactPage } from './artifact-page';
 import { ArtifactPlaygroundPage } from './artifact-playground-page';

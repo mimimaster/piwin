@@ -15,7 +15,7 @@ import {
   type SessionBackendCapabilities,
   type SessionBackendOperation,
 } from '@piwin/contracts';
-import { backendCapabilitiesFor } from '../agent-backend-state';
+import { backendCapabilitiesFor } from '../agents/agent-backend-state';
 
 export type SessionCapabilityGate = {
   /** True for Pi sessions and for any operation the backend reports as supported. */

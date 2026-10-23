@@ -119,13 +119,13 @@ specs for decisions A and B.
 > handler was removed.
 
 **Files:**
-- `apps/desktop/src/SettingsPanel.tsx`
-- `apps/desktop/src/AutomationPanel.tsx`
+- `apps/desktop/src/settings/SettingsPanel.tsx`
+- `apps/desktop/src/automation/AutomationPanel.tsx`
 - `apps/desktop/src/KnowledgeCenterPanel.tsx`
-- `apps/desktop/src/host-request-adapters.ts`
+- `apps/desktop/src/host/host-request-adapters.ts`
 - `apps/desktop/src/settings/settings-context.tsx`
 - `apps/desktop/src/settings/pages/*` (whole-document writes)
-- `apps/desktop/src/host-client-mock.ts`
+- `apps/desktop/src/host/host-client-mock.ts`
 
 **Steps:**
 - [x] Enumerate every Desktop panel/hook that issues `config/set` or
@@ -204,9 +204,9 @@ no longer constructs `ProcessRegistry` (only its own test does).
 **Files:**
 - `apps/desktop/src/hooks/use-managed-processes.ts` - switch `process/list|logs|stop`
   requests to `job/*` commands and `JobRecord`/`JobHostPush` payloads
-- `apps/desktop/src/run-status.ts` - replace `ManagedProcessRecord` with
+- `apps/desktop/src/run-activity/run-status.ts` - replace `ManagedProcessRecord` with
   `JobRecord`
-- `apps/desktop/src/host-client-mock.ts` - replace the mock process map with a
+- `apps/desktop/src/host/host-client-mock.ts` - replace the mock process map with a
   mock job map emitting `job/*` pushes
 - `apps/desktop/src/hooks/use-host-bootstrap.ts` - already consumes `job/*`;
   drop any remaining `process/*` push handling
@@ -352,13 +352,13 @@ after deleting `ActiveRunRegistry.noteAgentEvent`:
 ### C3. Migrate Desktop and CLI to `RunHostPush`
 
 **Files:**
-- `apps/desktop/src/chat-reducer.ts` - consume `run/updated` (phase from the
+- `apps/desktop/src/conversation/chat-reducer.ts` - consume `run/updated` (phase from the
   record) and `run/terminal`
-- `apps/desktop/src/stream-event-buffer.ts` - drop `run/phase`, `run/terminal`
+- `apps/desktop/src/conversation/stream-event-buffer.ts` - drop `run/phase`, `run/terminal`
   from the AgentEvent buffer; keep `RunHostPush`
 - `apps/desktop/src/hooks/use-host-bootstrap.ts`
-- `apps/desktop/src/chat-thread.tsx`, `chat-thread.test.tsx`, `chat-reducer.test.ts`
-- `apps/desktop/src/host-client-mock.ts` - emit `run/updated`/`run/terminal`
+- `apps/desktop/src/conversation/chat-thread.tsx`, `chat-thread.test.tsx`, `chat-reducer.test.ts`
+- `apps/desktop/src/host/host-client-mock.ts` - emit `run/updated`/`run/terminal`
   pushes
 - `apps/cli/src/index.ts` - `run/terminal` completion detection switches to
   `RunHostPush`

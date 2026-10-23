@@ -3,10 +3,10 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostCommand, HostResponse, SessionHandoffData } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import { DesktopLocaleProvider } from '../desktop-locale-context';
-import type { NotificationAction } from '../notification-queue';
-import { pushError, pushInfo } from '../notification-queue';
+import type { HostClient } from '../host/host-client';
+import { DesktopLocaleProvider } from '../i18n/desktop-locale-context';
+import type { NotificationAction } from '../notifications/notification-queue';
+import { pushError, pushInfo } from '../notifications/notification-queue';
 import {
   handoffProgressNotificationId,
   useSessionHandoff,

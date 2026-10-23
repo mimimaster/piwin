@@ -6,8 +6,8 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import type { AgentModeId } from '../agent-mode';
-import type { ComposerDockProps } from '../composer-dock-types';
+import type { AgentModeId } from '../agents/agent-mode';
+import type { ComposerDockProps } from '../composer/composer-dock-types';
 import {
   detectActiveSlashToken,
   filterSlashItems,

@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { StatusBadge } from '@piwin/ui-kit';
 import type { KnowledgeBaseSummary } from '@piwin/contracts';
-import { IconBook, IconFolder, IconNote } from '../shell-icons';
+import { IconBook, IconFolder, IconNote } from '../tool-cards/shell-icons';
 import { knowledgeBaseMeta, knowledgeStateCopy, type KnowledgeLocale } from './knowledge-base-copy.js';
 
 export type KnowledgeBaseListProps = {

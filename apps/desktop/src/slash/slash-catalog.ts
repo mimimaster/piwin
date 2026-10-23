@@ -3,7 +3,7 @@
  * commands registered by enabled Pi extensions.
  */
 import type { SkillSource } from '@piwin/contracts';
-import { AGENT_MODES, type AgentModeId } from '../agent-mode';
+import { AGENT_MODES, type AgentModeId } from '../agents/agent-mode';
 import type { SlashItem } from './slash-types';
 
 export type SlashSkillInput = {

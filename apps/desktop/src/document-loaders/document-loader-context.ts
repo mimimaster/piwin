@@ -7,8 +7,8 @@
  * That ladder used to be copy-pasted four times inside `use-active-document`.
  */
 import type { DocumentPathAttempt, DocumentTargetRef } from '@piwin/contracts';
-import type { ActiveDocument } from '../active-document.js';
-import type { HostClient } from '../host-client.js';
+import type { ActiveDocument } from '../documents/active-document.js';
+import type { HostClient } from '../host/host-client.js';
 
 export type ToolSnapshotRequest = {
   messageId?: string | undefined;

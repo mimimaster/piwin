@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import { itemAnswerText, itemPreviewText } from '@piwin/flashcards/cloze';
-import { IconCards, IconTrash } from '../../shell-icons';
+import { IconCards, IconTrash } from '../../tool-cards/shell-icons';
 import type { FlashcardTile } from './group-flashcard-tiles';
 import { tileCards } from './group-flashcard-tiles';
 

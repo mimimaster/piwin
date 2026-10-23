@@ -22,7 +22,7 @@ import {
   Dialog,
   SegmentedControl,
 } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { WebSearchLogPanel } from '../web-search-log-panel';
 import { useSettings } from '../settings-context';
 import {
@@ -33,9 +33,9 @@ import {
   webToDraft,
   type DraftSearchSource,
 } from '../web-draft';
-import { requestHostPickerEntry } from '../../host-picker-create-entry.js';
-import { HostWorkspacePicker } from '../../host-workspace-picker';
-import { pickLocalFile } from '../../pick-project-directory';
+import { requestHostPickerEntry } from '../../host/host-picker-create-entry.js';
+import { HostWorkspacePicker } from '../../host/host-workspace-picker';
+import { pickLocalFile } from '../../files/pick-project-directory';
 import { WebPageSearchTab } from './web-page-search-tab';
 import { WebPageFetchTab } from './web-page-fetch-tab';
 import { modelRefKey, type SearchDelegateOption } from './web-page-model-ref.js';

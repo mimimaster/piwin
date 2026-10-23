@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { Button, Notice, Spinner } from '@piwin/ui-kit';
-import { IconCards, IconPlus, IconSearch, IconSpark } from '../../shell-icons';
-import type { DesktopLocale } from '../../desktop-locale';
+import { IconCards, IconPlus, IconSearch, IconSpark } from '../../tool-cards/shell-icons';
+import type { DesktopLocale } from '../../i18n/desktop-locale';
 import { FlashcardGallery } from './flashcard-gallery';
 import type { FlashcardTile } from './group-flashcard-tiles';
 import { flashcardStudyCopy } from './study/study-copy';

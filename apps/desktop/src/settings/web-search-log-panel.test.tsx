@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HostResponse, WebSearchLogEntry } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
 import { parseWebSearchSourceInfo, WebSearchLogPanel, type WebSearchLogPanelProps } from './web-search-log-panel';
 
 declare global {

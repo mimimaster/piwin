@@ -27,16 +27,16 @@
 
 | File | Responsibility | Action |
 |------|----------------|--------|
-| `apps/desktop/src/ui-preferences.ts` | Add `artifactPreviewEnabled` field + storage key + load/save | Modify |
-| `apps/desktop/src/ui-preferences.test.ts` | Round-trip + default-false coverage | Modify |
+| `apps/desktop/src/platform/ui-preferences.ts` | Add `artifactPreviewEnabled` field + storage key + load/save | Modify |
+| `apps/desktop/src/platform/ui-preferences.test.ts` | Round-trip + default-false coverage | Modify |
 | `apps/desktop/src/flashcard-artifact.ts` | Pure `isFlashcardArtifactSource(source)` helper | Create |
 | `apps/desktop/src/flashcard-artifact.test.ts` | Helper unit tests (positive, negative, comment edge) | Create |
-| `apps/desktop/src/MarkdownView.tsx` | Implement §7 policy: capability gate, flashcard exception, `maxBytes` wiring, `htmlUiModeEnabled=capability` | Modify |
-| `apps/desktop/src/MarkdownView.test.tsx` | Policy tests (capability on/off, streaming, flashcard, byte-stability, mermaid) | Create |
-| `apps/desktop/src/chat-thread.tsx` | Add `artifactPreviewEnabled`, `artifactMaxBytes` props; plumb to `MarkdownView` | Modify |
+| `apps/desktop/src/markdown/MarkdownView.tsx` | Implement §7 policy: capability gate, flashcard exception, `maxBytes` wiring, `htmlUiModeEnabled=capability` | Modify |
+| `apps/desktop/src/markdown/MarkdownView.test.tsx` | Policy tests (capability on/off, streaming, flashcard, byte-stability, mermaid) | Create |
+| `apps/desktop/src/conversation/chat-thread.tsx` | Add `artifactPreviewEnabled`, `artifactMaxBytes` props; plumb to `MarkdownView` | Modify |
 | `apps/desktop/src/App.tsx` | Pass `preferences.artifactPreviewEnabled` + `config?.artifact?.maxBytes` to `ChatThread` | Modify |
 | `apps/desktop/src/settings/pages/appearance-page.tsx` | Add Artifact preview switch + EN/ZH copy; include in reset-to-defaults | Modify |
-| `apps/desktop/src/host-client-mock.ts` | Change mock `htmlUiModeDefault` to `false` | Modify |
+| `apps/desktop/src/host/host-client-mock.ts` | Change mock `htmlUiModeDefault` to `false` | Modify |
 | `packages/agent-host/src/config-store.ts` | Change `defaults.artifact.htmlUiModeDefault` to `false` | Modify |
 | `packages/agent-host/src/config-store.test.ts` | Update default assertion if present | Modify (verify) |
 | `docs/adr/0005-artifact-and-media.md` | Amendment bullet for opt-in default + host default lowered | Modify |
@@ -47,15 +47,15 @@
 ## Task 1: `artifactPreviewEnabled` preference
 
 **Files:**
-- Modify: `apps/desktop/src/ui-preferences.ts`
-- Modify: `apps/desktop/src/ui-preferences.test.ts`
+- Modify: `apps/desktop/src/platform/ui-preferences.ts`
+- Modify: `apps/desktop/src/platform/ui-preferences.test.ts`
 
 **Interfaces:**
 - Produces: `DesktopPreferences.artifactPreviewEnabled: boolean` (default `false`); storage key `piwin.desktop.artifactPreviewEnabled`; parsed via `readBool`-style helper.
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to `apps/desktop/src/ui-preferences.test.ts`. Update the two existing `toEqual<DesktopPreferences>({...})` blocks (lines ~54-60 and ~156-162) to include `artifactPreviewEnabled: false`, then add a new describe block:
+Add to `apps/desktop/src/platform/ui-preferences.test.ts`. Update the two existing `toEqual<DesktopPreferences>({...})` blocks (lines ~54-60 and ~156-162) to include `artifactPreviewEnabled: false`, then add a new describe block:
 
 ```ts
 describe('artifactPreviewEnabled', () => {
@@ -103,7 +103,7 @@ Expected: FAIL — `artifactPreviewEnabled` does not exist on type / is `undefin
 
 - [ ] **Step 3: Implement the preference**
 
-In `apps/desktop/src/ui-preferences.ts`:
+In `apps/desktop/src/platform/ui-preferences.ts`:
 
 1. Add to `DesktopPreferences` type (after `workDetailsExpanded`):
 ```ts
@@ -146,7 +146,7 @@ Expected: PASS (all tests including the two updated `toEqual` blocks).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/desktop/src/ui-preferences.ts apps/desktop/src/ui-preferences.test.ts
+git add apps/desktop/src/platform/ui-preferences.ts apps/desktop/src/platform/ui-preferences.test.ts
 git commit -m "$(cat <<'EOF'
 feat(desktop): add artifactPreviewEnabled preference (default false)
 
@@ -270,8 +270,8 @@ EOF
 ## Task 3: `MarkdownView` rendering policy
 
 **Files:**
-- Modify: `apps/desktop/src/MarkdownView.tsx`
-- Create: `apps/desktop/src/MarkdownView.test.tsx`
+- Modify: `apps/desktop/src/markdown/MarkdownView.tsx`
+- Create: `apps/desktop/src/markdown/MarkdownView.test.tsx`
 
 **Interfaces:**
 - Consumes: `isFlashcardArtifactSource` from `./flashcard-artifact` (Task 2).
@@ -279,7 +279,7 @@ EOF
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `apps/desktop/src/MarkdownView.test.tsx`:
+Create `apps/desktop/src/markdown/MarkdownView.test.tsx`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -402,7 +402,7 @@ Run: `grep -l "render(" apps/desktop/src/**/*.test.tsx | head -3` then read one 
 
 - [ ] **Step 4: Implement the policy in `MarkdownView.tsx`**
 
-Open `apps/desktop/src/MarkdownView.tsx`. Apply these changes:
+Open `apps/desktop/src/markdown/MarkdownView.tsx`. Apply these changes:
 
 1. Add import at top (after the `@piwin/artifact` import block):
 ```ts
@@ -713,7 +713,7 @@ Expected: PASS (all pre-existing tests still green — the new prop defaults pre
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/desktop/src/MarkdownView.tsx apps/desktop/src/MarkdownView.test.tsx
+git add apps/desktop/src/markdown/MarkdownView.tsx apps/desktop/src/markdown/MarkdownView.test.tsx
 git commit -m "$(cat <<'EOF'
 feat(desktop): gate heavy Artifact path behind artifactPreviewEnabled
 
@@ -812,7 +812,7 @@ EOF
 ## Task 5: Plumb preference + maxBytes from App → ChatThread → MarkdownView
 
 **Files:**
-- Modify: `apps/desktop/src/chat-thread.tsx`
+- Modify: `apps/desktop/src/conversation/chat-thread.tsx`
 - Modify: `apps/desktop/src/App.tsx`
 
 **Interfaces:**
@@ -821,7 +821,7 @@ EOF
 
 - [ ] **Step 1: Extend `ChatThreadProps`**
 
-In `apps/desktop/src/chat-thread.tsx`, add to `ChatThreadProps` (after `onArtifactAction?`):
+In `apps/desktop/src/conversation/chat-thread.tsx`, add to `ChatThreadProps` (after `onArtifactAction?`):
 
 ```ts
   /** When false (default), MarkdownView hides the heavy Artifact path. */
@@ -899,7 +899,7 @@ Expected: PASS. If any snapshot/structural test on `ChatThread` or `App` breaks 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/desktop/src/chat-thread.tsx apps/desktop/src/App.tsx
+git add apps/desktop/src/conversation/chat-thread.tsx apps/desktop/src/App.tsx
 git commit -m "$(cat <<'EOF'
 feat(desktop): wire artifactPreviewEnabled + maxBytes into chat
 
@@ -920,7 +920,7 @@ EOF
 
 **Files:**
 - Modify: `packages/agent-host/src/config-store.ts`
-- Modify: `apps/desktop/src/host-client-mock.ts`
+- Modify: `apps/desktop/src/host/host-client-mock.ts`
 - Verify: `packages/agent-host/src/config-store.test.ts` (update if it asserts the old default)
 
 **Interfaces:**
@@ -944,7 +944,7 @@ In `packages/agent-host/src/config-store.ts`, change line ~46:
 
 - [ ] **Step 3: Update the Desktop mock**
 
-In `apps/desktop/src/host-client-mock.ts`, change line ~72:
+In `apps/desktop/src/host/host-client-mock.ts`, change line ~72:
 
 ```ts
     artifact: { maxBytes: 100 * 1024, htmlUiModeDefault: false },
@@ -962,7 +962,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/agent-host/src/config-store.ts apps/desktop/src/host-client-mock.ts packages/agent-host/src/config-store.test.ts
+git add packages/agent-host/src/config-store.ts apps/desktop/src/host/host-client-mock.ts packages/agent-host/src/config-store.test.ts
 git commit -m "$(cat <<'EOF'
 chore(host): lower htmlUiModeDefault to false
 

@@ -8,7 +8,7 @@ import {
   type PiwinConfig,
 } from '@piwin/contracts';
 import { Button, Dialog, Field, Notice, Select, StatusBadge, TextInput } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../desktop-locale-context.js';
+import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
 import { LiveSettings, type LiveSettingsHostRequest } from '../live/live-settings.js';
 
 type AsrModelOption = {

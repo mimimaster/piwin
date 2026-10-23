@@ -1390,7 +1390,7 @@ only when clearly marked historical/superseded.
 
 ### Desktop mock rule
 
-Do not expand `apps/desktop/src/host-client-mock.ts` with the new Run/Job/
+Do not expand `apps/desktop/src/host/host-client-mock.ts` with the new Run/Job/
 subagent lifecycle. Keep it as a bounded UI fixture. New lifecycle integration
 tests use the real Node Host with a mock Agent backend.
 

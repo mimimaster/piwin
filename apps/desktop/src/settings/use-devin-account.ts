@@ -15,10 +15,10 @@ import {
   type SubscriptionAccountState,
 } from '@piwin/contracts';
 
-import { readAuthPromptOpenUrl } from '../auth-prompt-form.js';
-import { readDesktopClientPrincipalId } from '../desktop-client-principal.js';
+import { readAuthPromptOpenUrl } from '../models/auth-prompt-form.js';
+import { readDesktopClientPrincipalId } from '../platform/desktop-client-principal.js';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
-import { openExternalUrl } from '../open-external-url.js';
+import { openExternalUrl } from '../platform/open-external-url.js';
 import { useSettings } from './settings-context.js';
 
 export const DEVIN_PROVIDER_ID = 'devin';

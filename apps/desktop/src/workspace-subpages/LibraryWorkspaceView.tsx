@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import type { HostCommand, HostResponse, MediaLibraryItem } from '@piwin/contracts';
-import type { DesktopLocale } from '../desktop-locale';
+import type { DesktopLocale } from '../i18n/desktop-locale';
 import { MediaLibraryWorkspace, type MediaLibraryFilter } from './studio/media-library-workspace';
 
 export type LibraryWorkspaceViewProps = {

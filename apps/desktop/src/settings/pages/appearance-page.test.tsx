@@ -10,8 +10,8 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import {
   PIWIN_APPEARANCE_DARK,
   PIWIN_APPEARANCE_LIGHT,
-} from '../../appearance-tokens';
-import { DesktopLocaleProvider } from '../../desktop-locale-context';
+} from '../../theme/appearance-tokens';
+import { DesktopLocaleProvider } from '../../i18n/desktop-locale-context';
 import { SettingsProvider, type SettingsContextValue } from '../settings-context';
 import { AppearancePage } from './appearance-page';
 import { webToDraft } from '../web-draft';
@@ -19,7 +19,7 @@ import {
   DEFAULT_DARK_THEME_SETTINGS,
   DEFAULT_LIGHT_THEME_SETTINGS,
   type DesktopPreferences,
-} from '../../ui-preferences';
+} from '../../platform/ui-preferences';
 import type { SettingsConfigRequest } from '../settings-context';
 
 declare global {

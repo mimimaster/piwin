@@ -1,5 +1,5 @@
 import type { HostCommand, HostResponse, MediaReadVariant, MediaThumbEdge } from '@piwin/contracts';
-import { readMediaObjectUrlViaHost } from '../../media-host-read';
+import { readMediaObjectUrlViaHost } from '../../media/media-host-read';
 
 export type MediaLibraryHost = {
   request: (command: HostCommand) => Promise<HostResponse>;

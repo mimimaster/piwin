@@ -2,7 +2,7 @@ import { useCallback, useState, type ReactElement } from 'react';
 import type { FlashcardReviewCard } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import { collapseToPhysicalCards } from '@piwin/flashcards/cloze';
-import { IconCards } from '../shell-icons';
+import { IconCards } from '../tool-cards/shell-icons';
 import { FlashcardView } from './flashcard-chat-view';
 import { flashcardChatCopy } from './flashcard-chat-copy';
 

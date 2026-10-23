@@ -7,7 +7,7 @@
  * (stage 1fr + panel track) — chat width adjusts in-flow; no OS setSize.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { RightPanelTab } from '../right-panel';
+import type { RightPanelTab } from '../right-panel/right-panel';
 import {
   COMPACT_SHELL_MAX_WIDTH,
   deriveShellLayoutState,
@@ -17,8 +17,8 @@ import {
   type ResolveLayoutModeOptions,
   type ShellLayoutMode,
   type ShellOverlay,
-} from '../shell-layout';
-import { isTauriRuntime } from '../tauri-pty';
+} from '../tool-cards/shell-layout';
+import { isTauriRuntime } from '../host/tauri-pty';
 import {
   canGoShellBack,
   canGoShellForward,
@@ -31,7 +31,7 @@ import {
   resolveShellSubPage,
   type ShellNavigationState,
   type ShellSettingsSection,
-} from '../shell-navigation';
+} from '../tool-cards/shell-navigation';
 import { normalizeSettingsSection, type SettingsSectionId } from '../settings/section-registry';
 
 export type { InspectorPlacement, ShellLayoutMode, ShellOverlay, SettingsSectionId, ShellSettingsSection };

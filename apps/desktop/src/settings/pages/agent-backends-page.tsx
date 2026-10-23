@@ -9,8 +9,8 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import type { ExtensionSummary, ExternalAgentStatus } from '@piwin/contracts';
 import { Button, Notice, Switch } from '@piwin/ui-kit';
-import { AgentLocatorMark } from '../../agent-locator';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { AgentLocatorMark } from '../../agents/agent-locator';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useSettings } from '../settings-context';
 
 type LoadState =

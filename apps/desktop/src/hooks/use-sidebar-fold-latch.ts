@@ -4,8 +4,8 @@
  * `sidebar-fold-latch.ts` for the policy.
  */
 import { useEffect, type Dispatch, type SetStateAction } from 'react';
-import { autoOpenedFolderKeys } from '../sidebar-fold-latch';
-import type { SidebarTreeRow, SidebarTreeRowsInput } from '../sidebar-tree-rows';
+import { autoOpenedFolderKeys } from '../sidebar/sidebar-fold-latch';
+import type { SidebarTreeRow, SidebarTreeRowsInput } from '../sidebar/sidebar-tree-rows';
 
 export function useSidebarFoldLatch(
   rows: readonly SidebarTreeRow[],

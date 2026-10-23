@@ -9,20 +9,20 @@ import type {
   SessionTranscriptMessage,
 } from '@piwin/contracts';
 import { parseSessionContextSnapshot } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 import type { SessionOrchestrationRestore } from './use-composer-orchestration-controls';
-import { requestQueuedTurnQueue } from '../queued-turn-queue-request.js';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
-import type { NotificationAction } from '../notification-queue';
-import { pushError, pushInfo } from '../notification-queue';
-import { resolveSessionOutline } from '../transcript-outline';
-import { nativeHistorySyncFailure, syncNativeHistory } from '../native-history-sync.js';
-import { chooseSessionPackPath } from '../session-pack-dialog';
-import { isSessionBodyOffloaded } from '../session-storage-ui';
-import { activateProjectOnHost } from '../remote-session-hydrate';
-import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
-import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
-import { hostReconnectNotice } from '../host-problem-copy.js';
+import { requestQueuedTurnQueue } from '../conversation/queued-turn-queue-request.js';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
+import type { NotificationAction } from '../notifications/notification-queue';
+import { pushError, pushInfo } from '../notifications/notification-queue';
+import { resolveSessionOutline } from '../conversation/transcript-outline';
+import { nativeHistorySyncFailure, syncNativeHistory } from '../platform/native-history-sync.js';
+import { chooseSessionPackPath } from '../session/session-pack-dialog';
+import { isSessionBodyOffloaded } from '../session/session-storage-ui';
+import { activateProjectOnHost } from '../host/remote-session-hydrate';
+import { isWorkbenchHostTeardownError } from '../workbench/workbench-host-teardown.js';
+import { shouldBlockRemoteHostGesture } from '../host/host-reconnect-gate.js';
+import { hostReconnectNotice } from '../host/host-problem-copy.js';
 import {
   beginResumeRequest,
   bumpSelectionEpoch,
@@ -32,14 +32,14 @@ import {
   selectSessionForResume,
   takeIfResumeCurrent,
   type SessionSelectionGuard,
-} from '../session-resume-guard.js';
+} from '../session/session-resume-guard.js';
 
 export function useSessionResume(input: {
   hostClient: HostClient;
   state: ChatUiState;
   dispatch: Dispatch<ChatUiAction>;
   dispatchNotification: Dispatch<NotificationAction>;
-  locale: import('../desktop-locale.js').DesktopLocale;
+  locale: import('../i18n/desktop-locale.js').DesktopLocale;
   showArchivedSessions: boolean;
   resolveSessionScopeHint?: (sessionId: string) => SessionScope | undefined;
   hydrateSessions: (

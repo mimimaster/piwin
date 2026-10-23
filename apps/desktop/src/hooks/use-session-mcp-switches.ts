@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatError } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 
 export type SessionMcpSwitches = {
   /** False on Hosts that cannot scope MCP to a session (remote / older Hosts). */

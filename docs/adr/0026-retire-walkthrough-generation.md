@@ -92,4 +92,4 @@ The `enabled` flag only controls which prompt is used, not whether generation ha
 - `packages/agent-host/src/commands/plan-commands.ts` (`triggerPlanCompletionWalkthrough`)
 - `packages/agent-host/src/walkthrough-source.ts` (`assembleUserPrompt`)
 - `apps/desktop/src/settings/pages/session-page.tsx`
-- `apps/desktop/src/walkthrough-action.tsx`
+- `apps/desktop/src/conversation/walkthrough-action.tsx`

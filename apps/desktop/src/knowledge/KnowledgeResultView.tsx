@@ -1,7 +1,7 @@
 import { type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
 import type { KnowledgeLoopView } from './knowledge-loop-state.js';
-import { useDesktopLocale } from '../desktop-locale-context.js';
+import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
 
 export type KnowledgeResultViewProps = {
   resultKind: Exclude<KnowledgeLoopView['resultKind'], 'none'>;

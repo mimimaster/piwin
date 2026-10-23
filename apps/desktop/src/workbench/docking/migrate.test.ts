@@ -6,7 +6,7 @@ import {
   createConversationPaneLayout,
   listConversationPaneLeaves,
   splitConversationPane,
-} from '../../conversation-pane-layout.js';
+} from '../../conversation/conversation-pane-layout.js';
 import { DOCKING_COPY } from './copy.js';
 import { createSequentialIdFactory } from './ids.js';
 import { migrateConversationPaneLayout, migrateDamagedLayout } from './migrate.js';

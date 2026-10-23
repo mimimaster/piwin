@@ -8,7 +8,7 @@ import {
   IconEdit,
   IconFolder,
   IconTrash,
-} from '../shell-icons.js';
+} from '../tool-cards/shell-icons.js';
 import { isSearchableKnowledgeBase } from './knowledge-base-client.js';
 import { knowledgeStateCopy, type KnowledgeLocale } from './knowledge-base-copy.js';
 

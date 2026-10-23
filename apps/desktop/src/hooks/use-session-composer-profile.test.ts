@@ -8,8 +8,8 @@ import {
   useSessionComposerProfile,
   type SessionComposerProfileState,
 } from './use-session-composer-profile.js';
-import type { HostClient, HostClientListener } from '../host-client.js';
-import type { ModelOption } from '../model-options.js';
+import type { HostClient, HostClientListener } from '../host/host-client.js';
+import type { ModelOption } from '../models/model-options.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;

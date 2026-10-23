@@ -8,8 +8,8 @@
  */
 import { type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
-import { IconCheckCircle, IconFile } from '../shell-icons';
-import { useDesktopLocale } from '../desktop-locale-context';
+import { IconCheckCircle, IconFile } from '../tool-cards/shell-icons';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
 
 export type GoalDeliveryCardProps = {
   summary: string;

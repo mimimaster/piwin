@@ -236,7 +236,7 @@ final architecture.
 
 **Files:**
 
-- `apps/desktop/src/SubAgentPanel.tsx`
+- `apps/desktop/src/agents/SubAgentPanel.tsx`
 - Desktop wiring that provides its request callback
 - `packages/host-runtime/src/commands/session-live-commands.ts`
 - `packages/host-runtime/src/commands/session-live-commands.test.ts`
@@ -403,7 +403,7 @@ compatibility model.
 - `packages/contracts/src/index.ts`
 - `packages/host-runtime/src/process-tools.ts`
 - `apps/desktop/src/hooks/use-managed-processes.ts`
-- `apps/desktop/src/host-client-mock.ts`
+- `apps/desktop/src/host/host-client-mock.ts`
 
 **Steps:**
 
@@ -513,7 +513,7 @@ terminal state.
 **Files:**
 
 - `apps/desktop/src/hooks/use-host-bootstrap.ts`
-- `apps/desktop/src/chat-reducer.ts`
+- `apps/desktop/src/conversation/chat-reducer.ts`
 - run-status UI/reducers/tests
 - `apps/cli/src/index.ts`
 - CLI host-stream formatting/tests

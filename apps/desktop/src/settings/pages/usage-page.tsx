@@ -4,7 +4,7 @@
  * current project or global. Reads request + projectPath from useSettings().
  */
 import type { ReactElement } from 'react';
-import { UsagePanel } from '../../usage-panel';
+import { UsagePanel } from '../../usage/usage-panel';
 import { useSettings } from '../settings-context';
 
 export function UsagePage(): ReactElement {

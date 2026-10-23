@@ -3,9 +3,9 @@ import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExternalAgentStatus, SessionBackendBinding, SessionBackendOptions } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import type { ChatUiAction } from '../chat-reducer';
-import { setBackendOptions } from '../agent-backend-state';
+import type { HostClient } from '../host/host-client';
+import type { ChatUiAction } from '../conversation/chat-reducer';
+import { setBackendOptions } from '../agents/agent-backend-state';
 import { draftAgentOptionsFrom, useBackendSessionControls } from './use-backend-session-controls';
 
 function options(overrides: Partial<SessionBackendOptions> = {}): SessionBackendOptions {

@@ -24,12 +24,12 @@
 ## Task 1: Render document-internal file paths as chips
 
 **Files:**
-- Modify: `apps/desktop/src/EnhancedMarkdownView.tsx`
-- Modify: `apps/desktop/src/DocPreviewPanel.tsx`
-- Test: `apps/desktop/src/EnhancedMarkdownView.test.tsx`
+- Modify: `apps/desktop/src/markdown/EnhancedMarkdownView.tsx`
+- Modify: `apps/desktop/src/documents/DocPreviewPanel.tsx`
+- Test: `apps/desktop/src/markdown/EnhancedMarkdownView.test.tsx`
 
 **Interfaces:**
-- Consumes: `PathChip` and `fileNameFromPath` from `apps/desktop/src/path-chip.tsx`; `onOpenDocument` callback from `DocPreviewPanel`.
+- Consumes: `PathChip` and `fileNameFromPath` from `apps/desktop/src/files/path-chip.tsx`; `onOpenDocument` callback from `DocPreviewPanel`.
 - Produces: `EnhancedMarkdownView` renders `.md`/file paths as `PathChip`; clicking a chip opens the target document in the right panel.
 
 ### Step 1: Add `onOpenDocument` prop to `EnhancedMarkdownView`
@@ -144,10 +144,10 @@ pnpm --filter @piwin/desktop test -- src/EnhancedMarkdownView.test.tsx
 **Files:**
 - Create: `apps/desktop/src/line-comment.tsx`
 - Create: `apps/desktop/src/line-comment.test.tsx`
-- Modify: `apps/desktop/src/EnhancedMarkdownView.tsx`
-- Modify: `apps/desktop/src/DocPreviewPanel.tsx`
-- Modify: `apps/desktop/src/media-utils.ts`
-- Modify: `apps/desktop/src/composer-dock.tsx`
+- Modify: `apps/desktop/src/markdown/EnhancedMarkdownView.tsx`
+- Modify: `apps/desktop/src/documents/DocPreviewPanel.tsx`
+- Modify: `apps/desktop/src/media/media-utils.ts`
+- Modify: `apps/desktop/src/composer/composer-dock.tsx`
 - Modify: `apps/desktop/src/hooks/use-composer-media.ts`
 - Modify: `apps/desktop/src/App.tsx`
 - Modify: `apps/desktop/src/styles/region-inspector.css`
@@ -351,7 +351,7 @@ function blockSourceText(block: EnhancedBlock): string {
 
 ### Step 4: Extend `PendingComposerAttachment` to support comments
 
-Modify `apps/desktop/src/media-utils.ts`:
+Modify `apps/desktop/src/media/media-utils.ts`:
 
 ```ts
 import type { MediaAttachmentRef } from '@piwin/contracts';

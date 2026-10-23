@@ -3,7 +3,7 @@
  * extension commands, with availability derived from the session state.
  */
 import { useMemo } from 'react';
-import type { ComposerDockProps } from '../composer-dock-types';
+import type { ComposerDockProps } from '../composer/composer-dock-types';
 import { buildSlashCatalog } from './slash-catalog';
 import type { SlashItem } from './slash-types';
 

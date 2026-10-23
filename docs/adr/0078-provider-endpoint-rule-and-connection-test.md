@@ -61,7 +61,7 @@ fallback.
   - `auth-failed` (401/403), `model-rejected` (other HTTP), `unreachable`
     (DNS/TLS/timeout) and `invalid-config` → red.
   - On a chat 404, the copy suggests the other OpenAI transport.
-- Shells map outcomes to tone and copy (`apps/desktop/src/provider-connection-verdict.ts`).
+- Shells map outcomes to tone and copy (`apps/desktop/src/models/provider-connection-verdict.ts`).
   They never parse error strings.
 
 The "fetch models" action in the model list still calls `models/discover`. A

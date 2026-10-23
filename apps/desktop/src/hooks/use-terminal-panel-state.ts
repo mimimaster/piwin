@@ -5,12 +5,12 @@
  * recent-directories list. Output never pulses chrome and never opens the panel.
  */
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import type { PtyOutputLine } from '../terminal-dock';
-import { saveDesktopPreferences, type DesktopPreferences } from '../ui-preferences';
+import type { PtyOutputLine } from '../terminal/terminal-dock';
+import { saveDesktopPreferences, type DesktopPreferences } from '../platform/ui-preferences';
 import {
   isDesktopTerminalFilesystemPath,
   resolveInteractiveTerminalCwd,
-} from '../interactive-terminal-binding';
+} from '../conversation/interactive-terminal-binding';
 
 export type UseTerminalPanelStateInput = {
   projectPath: string | null | undefined;

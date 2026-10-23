@@ -12,8 +12,8 @@ import type {
   SessionRuntimeStatus,
 } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens';
-import { DesktopLocaleProvider } from '../../desktop-locale-context';
+import { PIWIN_APPEARANCE_DARK } from '../../theme/appearance-tokens';
+import { DesktopLocaleProvider } from '../../i18n/desktop-locale-context';
 import { SettingsProvider, type SettingsContextValue } from '../settings-context';
 import { buildSessionRuntimeRetentionDraft, SessionRuntimePage } from './session-runtime-page';
 import { webToDraft } from '../web-draft';

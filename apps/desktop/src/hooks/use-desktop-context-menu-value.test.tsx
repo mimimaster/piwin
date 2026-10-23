@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 import type { DesktopContextMenuValue } from '../context-menu';
 import type { DesktopContextMenuValueDeps } from '../context-menu/desktop-context-menu-value';
 import { useDesktopContextMenuValue } from './use-desktop-context-menu-value.js';

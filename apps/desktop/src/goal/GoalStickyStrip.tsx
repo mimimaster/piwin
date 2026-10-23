@@ -18,9 +18,9 @@
  */
 import { useMemo, useState, type ReactElement } from 'react';
 import { Popover } from '@piwin/ui-kit';
-import type { ChatMessageUi } from '../chat-ui-types';
-import { useDesktopLocale } from '../desktop-locale-context';
-import { IconCheck, IconClose } from '../shell-icons';
+import type { ChatMessageUi } from '../conversation/chat-ui-types';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
+import { IconCheck, IconClose } from '../tool-cards/shell-icons';
 import { GoalTimeline, jumpToGoalTimelineEvent } from './GoalTimeline';
 import { listGoalEvents, type GoalPhase, type GoalSessionView } from './goal-session-model';
 

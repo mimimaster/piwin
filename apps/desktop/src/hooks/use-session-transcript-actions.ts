@@ -12,11 +12,11 @@ import {
   SESSION_TRANSCRIPT_WINDOW_MAX_ITEMS,
   SESSION_USER_MESSAGE_INDEX_DEFAULT_TICKS,
 } from '@piwin/contracts';
-import type { HostClient } from '../host-client.js';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer.js';
-import type { NotificationAction } from '../notification-queue.js';
-import { pushError } from '../notification-queue.js';
-import { requestSessionTranscriptPage } from '../session-transcript-page-request.js';
+import type { HostClient } from '../host/host-client.js';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer.js';
+import type { NotificationAction } from '../notifications/notification-queue.js';
+import { pushError } from '../notifications/notification-queue.js';
+import { requestSessionTranscriptPage } from '../session/session-transcript-page-request.js';
 
 export function useSessionTranscriptActions(input: {
   hostClient: Pick<HostClient, 'request'>;

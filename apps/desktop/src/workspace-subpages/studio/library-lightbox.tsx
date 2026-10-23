@@ -1,9 +1,9 @@
 import type { ReactElement } from 'react';
 import type { HostCommand, HostResponse, MediaLibraryItem } from '@piwin/contracts';
-import type { DesktopLocale } from '../../desktop-locale';
-import { IconFile } from '../../shell-icons';
-import { MediaImageContextMenu } from '../../media-image-context-menu';
-import { buildLibraryMediaImageTarget } from '../../media-image-target';
+import type { DesktopLocale } from '../../i18n/desktop-locale';
+import { IconFile } from '../../tool-cards/shell-icons';
+import { MediaImageContextMenu } from '../../media/media-image-context-menu';
+import { buildLibraryMediaImageTarget } from '../../media/media-image-target';
 import { MediaLightbox } from './media-lightbox';
 import { usePlayableLibrarySrc } from './use-playable-library-src';
 

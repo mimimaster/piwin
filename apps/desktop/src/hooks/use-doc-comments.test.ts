@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { mergeComposerWithDocComments } from '../doc-comments';
+import { mergeComposerWithDocComments } from '../documents/doc-comments';
 import { documentCommentKey } from './use-doc-comments.js';
-import type { ActiveDocument } from '../active-document';
+import type { ActiveDocument } from '../documents/active-document';
 
 function readyDoc(partial: Partial<Extract<ActiveDocument, { status: 'ready' }>>): ActiveDocument {
   return {

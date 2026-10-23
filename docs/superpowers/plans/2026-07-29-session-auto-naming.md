@@ -48,7 +48,7 @@
 - `packages/agent-host/src/commands/session-live-commands.ts` — store prompt ModelRef into runtime map.
 - `apps/desktop/src/hooks/use-host-bootstrap.ts` — handle `session/name-updated` push.
 - `apps/desktop/src/hooks/use-session-actions.ts` — manual rename leaves `nameSource` to host (host sets `'user'`).
-- `apps/desktop/src/host-client-mock.ts` — mock `session/auto-name` + push.
+- `apps/desktop/src/host/host-client-mock.ts` — mock `session/auto-name` + push.
 
 ---
 
@@ -1149,7 +1149,7 @@ git commit -m "feat(agent-host): wire auto-name trigger on run/terminal + record
 
 **Files:**
 - Modify: `apps/desktop/src/hooks/use-host-bootstrap.ts:96-145` (add name-updated handler)
-- Modify: `apps/desktop/src/host-client-mock.ts` (mock the push + command)
+- Modify: `apps/desktop/src/host/host-client-mock.ts` (mock the push + command)
 - Test: `apps/desktop/src/hooks/use-host-bootstrap.test.ts` (if exists) or manual
 
 **Interfaces:**
@@ -1177,7 +1177,7 @@ Place it before the `transcript/append` check (or alongside the other `if (messa
 
 - [ ] **Step 2: Add mock support in host-client-mock**
 
-In `apps/desktop/src/host-client-mock.ts`, find the `session/rename` mock (around line 1884) and add a `session/auto-name` mock alongside it:
+In `apps/desktop/src/host/host-client-mock.ts`, find the `session/rename` mock (around line 1884) and add a `session/auto-name` mock alongside it:
 
 ```ts
       case 'session/auto-name': {
@@ -1207,7 +1207,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/desktop/src/hooks/use-host-bootstrap.ts apps/desktop/src/host-client-mock.ts
+git add apps/desktop/src/hooks/use-host-bootstrap.ts apps/desktop/src/host/host-client-mock.ts
 git commit -m "feat(desktop): subscribe to session/name-updated push + mock auto-name command"
 ```
 

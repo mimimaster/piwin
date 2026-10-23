@@ -10,17 +10,17 @@
  * truth before an unavailable state is shown.
  */
 import { useCallback, useRef, useState } from 'react';
-import type { HostClient } from '../host-client';
-import type { DocumentOpenInput } from '../tool-call-card';
-import { isBareExtensionPath } from '../document-open-path';
-import { createDocumentRequestId, type ActiveDocument } from '../active-document';
+import type { HostClient } from '../host/host-client';
+import type { DocumentOpenInput } from '../tool-cards/tool-call-card';
+import { isBareExtensionPath } from '../documents/document-open-path';
+import { createDocumentRequestId, type ActiveDocument } from '../documents/active-document';
 import {
   requestedMarkupKind,
   resolveDocumentContentFromMessages,
   type DocumentContentMessage,
-} from '../resolve-document-content';
-import { hostResolvesDocumentPaths, requestDocumentPathResolution } from '../document-path-resolve';
-import { dispatchDocumentTarget } from '../document-target-dispatch';
+} from '../documents/resolve-document-content';
+import { hostResolvesDocumentPaths, requestDocumentPathResolution } from '../documents/document-path-resolve';
+import { dispatchDocumentTarget } from '../documents/document-target-dispatch';
 import { openViaLegacyPlanner } from '../document-loaders/legacy-path-open';
 import {
   unavailableDocument,

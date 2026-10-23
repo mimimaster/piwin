@@ -38,32 +38,32 @@
 | 文件 | 责任 |
 |---|---|
 | `apps/desktop/package.json` | 添加 `framer-motion`、`lucide-react` 依赖 |
-| `apps/desktop/src/run-activity-types.ts` | `RunActivityInput`、`ActivityIconSource` 类型 |
-| `apps/desktop/src/run-activity-strings.ts` | 根据状态/语言/工具名/计划步骤生成轮播文案 |
-| `apps/desktop/src/run-activity-strings.test.ts` | 文案映射单元测试 |
-| `apps/desktop/src/run-activity-icon.ts` | 根据状态解析 icon 源（imagegen 路径 / Lucide fallback） |
-| `apps/desktop/src/run-activity-icon.test.ts` | icon 映射单元测试 |
-| `apps/desktop/src/RunActivityIcon.tsx` | 渲染 `ActivityIconSource`，img 加载失败自动回退 Lucide |
-| `apps/desktop/src/RunActivityIcon.test.tsx` | icon 组件测试 |
-| `apps/desktop/src/run-activity-hooks.ts` | `useRunActivityPhrases`：管理轮播索引 + 15s 超时切换 |
-| `apps/desktop/src/run-activity-hooks.test.ts` | hook 测试 |
-| `apps/desktop/src/run-activity-mappers.ts` | 把 `RunStatusView` / `TurnPresentation` / `SessionRunPhase` 转成 `RunActivityInput` |
-| `apps/desktop/src/run-activity-mappers.test.ts` | 映射器测试 |
-| `apps/desktop/src/run-status.ts` | 扩展 `RunStatusView` 增加 `planStep` |
-| `apps/desktop/src/run-status.test.ts` | 更新 `deriveRunStatus` 测试 |
-| `apps/desktop/src/RunActivitySplash.tsx` | 完整版动画组件（icon + 文字轮播） |
-| `apps/desktop/src/RunActivitySplash.test.tsx` | 完整组件测试 |
-| `apps/desktop/src/RunActivityInline.tsx` | 紧凑版，用于 `ContextBar` |
-| `apps/desktop/src/RunActivityInline.test.tsx` | 紧凑组件测试 |
+| `apps/desktop/src/run-activity/run-activity-types.ts` | `RunActivityInput`、`ActivityIconSource` 类型 |
+| `apps/desktop/src/run-activity/run-activity-strings.ts` | 根据状态/语言/工具名/计划步骤生成轮播文案 |
+| `apps/desktop/src/run-activity/run-activity-strings.test.ts` | 文案映射单元测试 |
+| `apps/desktop/src/run-activity/run-activity-icon.ts` | 根据状态解析 icon 源（imagegen 路径 / Lucide fallback） |
+| `apps/desktop/src/run-activity/run-activity-icon.test.ts` | icon 映射单元测试 |
+| `apps/desktop/src/run-activity/RunActivityIcon.tsx` | 渲染 `ActivityIconSource`，img 加载失败自动回退 Lucide |
+| `apps/desktop/src/run-activity/RunActivityIcon.test.tsx` | icon 组件测试 |
+| `apps/desktop/src/run-activity/run-activity-hooks.ts` | `useRunActivityPhrases`：管理轮播索引 + 15s 超时切换 |
+| `apps/desktop/src/run-activity/run-activity-hooks.test.ts` | hook 测试 |
+| `apps/desktop/src/run-activity/run-activity-mappers.ts` | 把 `RunStatusView` / `TurnPresentation` / `SessionRunPhase` 转成 `RunActivityInput` |
+| `apps/desktop/src/run-activity/run-activity-mappers.test.ts` | 映射器测试 |
+| `apps/desktop/src/run-activity/run-status.ts` | 扩展 `RunStatusView` 增加 `planStep` |
+| `apps/desktop/src/run-activity/run-status.test.ts` | 更新 `deriveRunStatus` 测试 |
+| `apps/desktop/src/run-activity/RunActivitySplash.tsx` | 完整版动画组件（icon + 文字轮播） |
+| `apps/desktop/src/run-activity/RunActivitySplash.test.tsx` | 完整组件测试 |
+| `apps/desktop/src/run-activity/RunActivityInline.tsx` | 紧凑版，用于 `ContextBar` |
+| `apps/desktop/src/run-activity/RunActivityInline.test.tsx` | 紧凑组件测试 |
 | `apps/desktop/src/RunActivitySlot.tsx` | 聊天流占位卡（模型尚未响应时的助手气泡占位） |
 | `apps/desktop/src/RunActivitySlot.test.tsx` | 占位卡测试 |
 | `apps/desktop/src/styles/run-activity.css` | 动效样式 |
 | `apps/desktop/src/styles.css` | import `run-activity.css` |
-| `apps/desktop/src/context-bar.tsx` | 用 `RunActivityInline` 替换静态 `context-bar-status-label` |
-| `apps/desktop/src/context-bar.test.tsx` | 更新 ContextBar 测试断言 |
-| `apps/desktop/src/turn-work-details.tsx` | 用 `RunActivitySplash` 替换 `.turn-waiting-line` |
-| `apps/desktop/src/chat-thread.tsx` | 在消息列表末尾按需渲染 `RunActivitySlot`，透传 locale 到工作详情 |
-| `apps/desktop/src/chat-thread.test.tsx` | 验证 Slot 显隐与 locale 到 `TurnWorkDetails` 的透传 |
+| `apps/desktop/src/context/context-bar.tsx` | 用 `RunActivityInline` 替换静态 `context-bar-status-label` |
+| `apps/desktop/src/context/context-bar.test.tsx` | 更新 ContextBar 测试断言 |
+| `apps/desktop/src/turn-changes/turn-work-details.tsx` | 用 `RunActivitySplash` 替换 `.turn-waiting-line` |
+| `apps/desktop/src/conversation/chat-thread.tsx` | 在消息列表末尾按需渲染 `RunActivitySlot`，透传 locale 到工作详情 |
+| `apps/desktop/src/conversation/chat-thread.test.tsx` | 验证 Slot 显隐与 locale 到 `TurnWorkDetails` 的透传 |
 | `apps/desktop/src/App.tsx` | 把 locale 传给 `ChatThread` |
 
 ## 参考文档
@@ -72,11 +72,11 @@
 - `docs/prd.md`
 - `docs/architecture.md`
 - `packages/contracts/src/host.ts`（`SessionRunPhase`）
-- `apps/desktop/src/run-status.ts`
-- `apps/desktop/src/run-presentation.ts`
-- `apps/desktop/src/chat-thread.tsx`
-- `apps/desktop/src/context-bar.tsx`
-- `apps/desktop/src/turn-work-details.tsx`
+- `apps/desktop/src/run-activity/run-status.ts`
+- `apps/desktop/src/run-activity/run-presentation.ts`
+- `apps/desktop/src/conversation/chat-thread.tsx`
+- `apps/desktop/src/context/context-bar.tsx`
+- `apps/desktop/src/turn-changes/turn-work-details.tsx`
 - `apps/desktop/src/styles/region-context-bar.css`
 - `apps/desktop/src/styles/region-transcript.css`
 
@@ -86,7 +86,7 @@
 
 **Files:**
 - Modify: `apps/desktop/package.json`
-- Create: `apps/desktop/src/run-activity-types.ts`
+- Create: `apps/desktop/src/run-activity/run-activity-types.ts`
 
 **Interfaces:**
 - Produces: `RunActivityInput`, `ActivityIconSource`
@@ -120,7 +120,7 @@
 Run: `pnpm install`
 Expected: `node_modules` 更新，lockfile 变化。
 
-- [ ] **Step 3：创建 `apps/desktop/src/run-activity-types.ts`**
+- [ ] **Step 3：创建 `apps/desktop/src/run-activity/run-activity-types.ts`**
 
 ```ts
 import type { RunStatusKind } from './run-status.js';
@@ -148,7 +148,7 @@ Expected: 通过（新文件尚未被引用，不应报错）。
 - [ ] **Step 5：Commit**
 
 ```bash
-git add apps/desktop/package.json pnpm-lock.yaml apps/desktop/src/run-activity-types.ts
+git add apps/desktop/package.json pnpm-lock.yaml apps/desktop/src/run-activity/run-activity-types.ts
 git commit -m "chore(apps/desktop): add framer-motion + lucide-react and run activity types"
 ```
 
@@ -157,8 +157,8 @@ git commit -m "chore(apps/desktop): add framer-motion + lucide-react and run act
 ## Task 2：文案生成器 `run-activity-strings`
 
 **Files:**
-- Create: `apps/desktop/src/run-activity-strings.ts`
-- Create: `apps/desktop/src/run-activity-strings.test.ts`
+- Create: `apps/desktop/src/run-activity/run-activity-strings.ts`
+- Create: `apps/desktop/src/run-activity/run-activity-strings.test.ts`
 
 **Interfaces:**
 - Consumes: `RunActivityInput`（Task 1）
@@ -166,7 +166,7 @@ git commit -m "chore(apps/desktop): add framer-motion + lucide-react and run act
 
 - [ ] **Step 1：写失败测试**
 
-Create `apps/desktop/src/run-activity-strings.test.ts`:
+Create `apps/desktop/src/run-activity/run-activity-strings.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -308,7 +308,7 @@ Expected: PASS。
 - [ ] **Step 5：Commit**
 
 ```bash
-git add apps/desktop/src/run-activity-strings.ts apps/desktop/src/run-activity-strings.test.ts
+git add apps/desktop/src/run-activity/run-activity-strings.ts apps/desktop/src/run-activity/run-activity-strings.test.ts
 git commit -m "feat(apps/desktop): run activity phrase builder with carousel and taking-too-long"
 ```
 
@@ -317,8 +317,8 @@ git commit -m "feat(apps/desktop): run activity phrase builder with carousel and
 ## Task 3：图标解析器 `run-activity-icon`
 
 **Files:**
-- Create: `apps/desktop/src/run-activity-icon.ts`
-- Create: `apps/desktop/src/run-activity-icon.test.ts`
+- Create: `apps/desktop/src/run-activity/run-activity-icon.ts`
+- Create: `apps/desktop/src/run-activity/run-activity-icon.test.ts`
 
 **Interfaces:**
 - Consumes: `RunActivityInput`
@@ -326,7 +326,7 @@ git commit -m "feat(apps/desktop): run activity phrase builder with carousel and
 
 - [ ] **Step 1：写失败测试**
 
-Create `apps/desktop/src/run-activity-icon.test.ts`:
+Create `apps/desktop/src/run-activity/run-activity-icon.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -436,7 +436,7 @@ Expected: PASS。
 - [ ] **Step 5：Commit**
 
 ```bash
-git add apps/desktop/src/run-activity-icon.ts apps/desktop/src/run-activity-icon.test.ts
+git add apps/desktop/src/run-activity/run-activity-icon.ts apps/desktop/src/run-activity/run-activity-icon.test.ts
 git commit -m "feat(apps/desktop): run activity icon resolver with lucide + imagegen paths"
 ```
 
@@ -445,8 +445,8 @@ git commit -m "feat(apps/desktop): run activity icon resolver with lucide + imag
 ## Task 4：图标组件 `RunActivityIcon`
 
 **Files:**
-- Create: `apps/desktop/src/RunActivityIcon.tsx`
-- Create: `apps/desktop/src/RunActivityIcon.test.tsx`
+- Create: `apps/desktop/src/run-activity/RunActivityIcon.tsx`
+- Create: `apps/desktop/src/run-activity/RunActivityIcon.test.tsx`
 
 **Interfaces:**
 - Consumes: `ActivityIconSource`
@@ -454,7 +454,7 @@ git commit -m "feat(apps/desktop): run activity icon resolver with lucide + imag
 
 - [ ] **Step 1：写失败测试**
 
-Create `apps/desktop/src/RunActivityIcon.test.tsx`:
+Create `apps/desktop/src/run-activity/RunActivityIcon.test.tsx`:
 
 ```tsx
 // @vitest-environment happy-dom
@@ -601,7 +601,7 @@ Expected: PASS。
 - [ ] **Step 5：Commit**
 
 ```bash
-git add apps/desktop/src/RunActivityIcon.tsx apps/desktop/src/RunActivityIcon.test.tsx
+git add apps/desktop/src/run-activity/RunActivityIcon.tsx apps/desktop/src/run-activity/RunActivityIcon.test.tsx
 git commit -m "feat(apps/desktop): RunActivityIcon with img + lucide fallback"
 ```
 
@@ -610,8 +610,8 @@ git commit -m "feat(apps/desktop): RunActivityIcon with img + lucide fallback"
 ## Task 5：轮播 Hook `useRunActivityPhrases`
 
 **Files:**
-- Create: `apps/desktop/src/run-activity-hooks.ts`
-- Create: `apps/desktop/src/run-activity-hooks.test.ts`
+- Create: `apps/desktop/src/run-activity/run-activity-hooks.ts`
+- Create: `apps/desktop/src/run-activity/run-activity-hooks.test.ts`
 
 **Interfaces:**
 - Consumes: `RunActivityInput`, `buildBasePhrases`, `buildTakingTooLongPhrases`
@@ -619,7 +619,7 @@ git commit -m "feat(apps/desktop): RunActivityIcon with img + lucide fallback"
 
 - [ ] **Step 1：写失败测试**
 
-Create `apps/desktop/src/run-activity-hooks.test.ts`:
+Create `apps/desktop/src/run-activity/run-activity-hooks.test.ts`:
 
 ```ts
 // @vitest-environment happy-dom
@@ -793,7 +793,7 @@ Expected: PASS。
 - [ ] **Step 5：Commit**
 
 ```bash
-git add apps/desktop/src/run-activity-hooks.ts apps/desktop/src/run-activity-hooks.test.ts
+git add apps/desktop/src/run-activity/run-activity-hooks.ts apps/desktop/src/run-activity/run-activity-hooks.test.ts
 git commit -m "feat(apps/desktop): useRunActivityPhrases hook with 15s taking-too-long switch"
 ```
 
@@ -802,10 +802,10 @@ git commit -m "feat(apps/desktop): useRunActivityPhrases hook with 15s taking-to
 ## Task 6：状态映射器与 `run-status` `planStep` 扩展
 
 **Files:**
-- Create: `apps/desktop/src/run-activity-mappers.ts`
-- Create: `apps/desktop/src/run-activity-mappers.test.ts`
-- Modify: `apps/desktop/src/run-status.ts`
-- Modify: `apps/desktop/src/run-status.test.ts`
+- Create: `apps/desktop/src/run-activity/run-activity-mappers.ts`
+- Create: `apps/desktop/src/run-activity/run-activity-mappers.test.ts`
+- Modify: `apps/desktop/src/run-activity/run-status.ts`
+- Modify: `apps/desktop/src/run-activity/run-status.test.ts`
 
 **Interfaces:**
 - Consumes: `RunStatusView`, `TurnPresentation`, `ChatMessageUi`, `SessionRunPhase`
@@ -813,7 +813,7 @@ git commit -m "feat(apps/desktop): useRunActivityPhrases hook with 15s taking-to
 
 - [ ] **Step 1：写失败测试**
 
-Create `apps/desktop/src/run-activity-mappers.test.ts`:
+Create `apps/desktop/src/run-activity/run-activity-mappers.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -1037,7 +1037,7 @@ export type RunStatusView = {
 
 - [ ] **Step 5：更新 `run-status.test.ts`**
 
-在 `apps/desktop/src/run-status.test.ts` 末尾追加：
+在 `apps/desktop/src/run-activity/run-status.test.ts` 末尾追加：
 
 ```ts
   it('includes planStep when planning', () => {
@@ -1072,7 +1072,7 @@ Expected: PASS。
 - [ ] **Step 7：Commit**
 
 ```bash
-git add apps/desktop/src/run-activity-mappers.ts apps/desktop/src/run-activity-mappers.test.ts apps/desktop/src/run-status.ts apps/desktop/src/run-status.test.ts
+git add apps/desktop/src/run-activity/run-activity-mappers.ts apps/desktop/src/run-activity/run-activity-mappers.test.ts apps/desktop/src/run-activity/run-status.ts apps/desktop/src/run-activity/run-status.test.ts
 git commit -m "feat(apps/desktop): run activity mappers and run-status planStep"
 ```
 
@@ -1081,8 +1081,8 @@ git commit -m "feat(apps/desktop): run activity mappers and run-status planStep"
 ## Task 7：`RunActivitySplash` 完整动画组件
 
 **Files:**
-- Create: `apps/desktop/src/RunActivitySplash.tsx`
-- Create: `apps/desktop/src/RunActivitySplash.test.tsx`
+- Create: `apps/desktop/src/run-activity/RunActivitySplash.tsx`
+- Create: `apps/desktop/src/run-activity/RunActivitySplash.test.tsx`
 
 **Interfaces:**
 - Consumes: `useRunActivityPhrases`, `resolveActivityIcon`, `RunActivityIcon`, `RunActivityInput`
@@ -1090,7 +1090,7 @@ git commit -m "feat(apps/desktop): run activity mappers and run-status planStep"
 
 - [ ] **Step 1：写失败测试**
 
-Create `apps/desktop/src/RunActivitySplash.test.tsx`:
+Create `apps/desktop/src/run-activity/RunActivitySplash.test.tsx`:
 
 ```tsx
 // @vitest-environment happy-dom
@@ -1240,7 +1240,7 @@ Expected: PASS。
 - [ ] **Step 5：Commit**
 
 ```bash
-git add apps/desktop/src/RunActivitySplash.tsx apps/desktop/src/RunActivitySplash.test.tsx
+git add apps/desktop/src/run-activity/RunActivitySplash.tsx apps/desktop/src/run-activity/RunActivitySplash.test.tsx
 git commit -m "feat(apps/desktop): RunActivitySplash with framer-motion text carousel"
 ```
 
@@ -1249,8 +1249,8 @@ git commit -m "feat(apps/desktop): RunActivitySplash with framer-motion text car
 ## Task 8：`RunActivityInline` 紧凑版 + `RunActivitySlot` 占位卡
 
 **Files:**
-- Create: `apps/desktop/src/RunActivityInline.tsx`
-- Create: `apps/desktop/src/RunActivityInline.test.tsx`
+- Create: `apps/desktop/src/run-activity/RunActivityInline.tsx`
+- Create: `apps/desktop/src/run-activity/RunActivityInline.test.tsx`
 - Create: `apps/desktop/src/RunActivitySlot.tsx`
 - Create: `apps/desktop/src/RunActivitySlot.test.tsx`
 
@@ -1260,7 +1260,7 @@ git commit -m "feat(apps/desktop): RunActivitySplash with framer-motion text car
 
 - [ ] **Step 1：写 `RunActivityInline` 失败测试**
 
-Create `apps/desktop/src/RunActivityInline.test.tsx`:
+Create `apps/desktop/src/run-activity/RunActivityInline.test.tsx`:
 
 ```tsx
 // @vitest-environment happy-dom
@@ -1561,7 +1561,7 @@ Expected: PASS。
 - [ ] **Step 7：Commit**
 
 ```bash
-git add apps/desktop/src/RunActivityInline.tsx apps/desktop/src/RunActivityInline.test.tsx apps/desktop/src/RunActivitySlot.tsx apps/desktop/src/RunActivitySlot.test.tsx
+git add apps/desktop/src/run-activity/RunActivityInline.tsx apps/desktop/src/run-activity/RunActivityInline.test.tsx apps/desktop/src/RunActivitySlot.tsx apps/desktop/src/RunActivitySlot.test.tsx
 git commit -m "feat(apps/desktop): RunActivityInline and RunActivitySlot components"
 ```
 
@@ -1570,11 +1570,11 @@ git commit -m "feat(apps/desktop): RunActivityInline and RunActivitySlot compone
 ## Task 9：接入现有 UI（ContextBar / TurnWorkDetails / ChatThread / App）并补充样式
 
 **Files:**
-- Modify: `apps/desktop/src/context-bar.tsx`
-- Modify: `apps/desktop/src/context-bar.test.tsx`
-- Modify: `apps/desktop/src/turn-work-details.tsx`
-- Modify: `apps/desktop/src/chat-thread.tsx`
-- Modify: `apps/desktop/src/chat-thread.test.tsx`
+- Modify: `apps/desktop/src/context/context-bar.tsx`
+- Modify: `apps/desktop/src/context/context-bar.test.tsx`
+- Modify: `apps/desktop/src/turn-changes/turn-work-details.tsx`
+- Modify: `apps/desktop/src/conversation/chat-thread.tsx`
+- Modify: `apps/desktop/src/conversation/chat-thread.test.tsx`
 - Modify: `apps/desktop/src/App.tsx`
 - Create: `apps/desktop/src/styles/run-activity.css`
 - Modify: `apps/desktop/src/styles.css`
@@ -1681,7 +1681,7 @@ import { turnPresentationToActivityInput } from './run-activity-mappers.js';
             locale={props.locale}
 ```
 
-并在 `apps/desktop/src/chat-thread.test.tsx` 的现有 `ChatThread render isolation (E1)` suite 中新增以下覆盖（复用该文件已有的 `root`、`container`、`PiwinUiProvider` 与完整 `composerCard` fixture）：
+并在 `apps/desktop/src/conversation/chat-thread.test.tsx` 的现有 `ChatThread render isolation (E1)` suite 中新增以下覆盖（复用该文件已有的 `root`、`container`、`PiwinUiProvider` 与完整 `composerCard` fixture）：
 
 1. `streaming: true`、末条消息为 user、没有 `permissionPrompt` 时，渲染 `[data-testid="run-activity-slot"]`，并传入 `locale="en"` 后断言文本为 `Connecting to model…`。
 2. rerender 为末条 assistant streaming message（模拟 `message/start` 已到达）后，slot 不存在。
@@ -1866,7 +1866,7 @@ Expected: PASS。
 - [ ] **Step 9：Commit**
 
 ```bash
-git add apps/desktop/src/context-bar.tsx apps/desktop/src/context-bar.test.tsx apps/desktop/src/turn-work-details.tsx apps/desktop/src/chat-thread.tsx apps/desktop/src/chat-thread.test.tsx apps/desktop/src/App.tsx apps/desktop/src/styles/run-activity.css apps/desktop/src/styles.css
+git add apps/desktop/src/context/context-bar.tsx apps/desktop/src/context/context-bar.test.tsx apps/desktop/src/turn-changes/turn-work-details.tsx apps/desktop/src/conversation/chat-thread.tsx apps/desktop/src/conversation/chat-thread.test.tsx apps/desktop/src/App.tsx apps/desktop/src/styles/run-activity.css apps/desktop/src/styles.css
 git commit -m "feat(apps/desktop): wire RunActivitySplash/Inline/Slot into UI"
 ```
 

@@ -12,39 +12,39 @@ import type {
   SessionScope,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import type { SkillActivityView } from '../chat-reducer';
+import type { SkillActivityView } from '../conversation/chat-reducer';
 import {
   isFailedMediaAttachment,
   isPendingAttachmentReady,
   type PendingAttachmentUploadStatus,
   type PendingComposerAttachment,
-} from '../media-utils.js';
-import type { DesktopCopy, DesktopLocale } from '../desktop-locale.js';
+} from '../media/media-utils.js';
+import type { DesktopCopy, DesktopLocale } from '../i18n/desktop-locale.js';
 import { applySkillToPrompt, parseComposerSlashSubmit } from '../slash';
 import { runComposerReservedCommand } from './composer-reserved-command.js';
-import { composerSessionListName } from '../composer-session-list-name';
-import { buildComposerSendSessionUpdate } from '../composer-send-session-update.js';
-import { resolveEntityScope } from '../session-entities.js';
+import { composerSessionListName } from '../composer/composer-session-list-name';
+import { buildComposerSendSessionUpdate } from '../composer/composer-send-session-update.js';
+import { resolveEntityScope } from '../session/session-entities.js';
 import {
   foregroundMismatchNotice,
   readForegroundProblem,
   requestPromptWithForeground,
-} from '../prompt-foreground';
+} from '../composer/prompt-foreground';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
-import { requestQueuedTurnQueue } from '../queued-turn-queue-request.js';
-import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js';
-import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
-import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
-import { flattenUnsafeRemoteContextRefs } from '../remote-context-refs.js';
+import { requestQueuedTurnQueue } from '../conversation/queued-turn-queue-request.js';
+import { hostFailureNotice, hostReconnectNotice } from '../host/host-problem-copy.js';
+import { shouldBlockRemoteHostGesture } from '../host/host-reconnect-gate.js';
+import { desktopForegroundMutationsEnabled } from '../platform/foreground-admission.js';
+import { flattenUnsafeRemoteContextRefs } from '../host/remote-context-refs.js';
 import {
   shouldRestoreLiveComposer,
   sendOwnerLockKey,
   acquireSendOwnerLock,
   releaseSendOwnerLock,
-} from '../composer-send-owner.js';
-import { logSessionChain, sessionChainErrorCode } from '../session-chain-log.js';
-import { sessionScopeKey } from '../session-scope-key.js';
-import { resolveNoRepoSendPath, sameHostPath } from '../file-browse-root.js';
+} from '../composer/composer-send-owner.js';
+import { logSessionChain, sessionChainErrorCode } from '../session/session-chain-log.js';
+import { sessionScopeKey } from '../session/session-scope-key.js';
+import { resolveNoRepoSendPath, sameHostPath } from '../files/file-browse-root.js';
 import { isImagePromptAttachment, useComposerPromptInput } from './use-composer-prompt-input.js';
 import { resolveDraftCreateScopeForAgent } from './session-create-input.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';

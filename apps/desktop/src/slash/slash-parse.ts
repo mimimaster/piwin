@@ -1,7 +1,7 @@
 /**
  * Detect active slash tokens and parse whole-message slash submits.
  */
-import type { AgentModeId } from '../agent-mode';
+import type { AgentModeId } from '../agents/agent-mode';
 import type { ActiveSlashToken, ParsedSlashSubmit, ReservedSlashCommandId } from './slash-types';
 import { formatSkillPrompt } from '@piwin/contracts';
 

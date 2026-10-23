@@ -51,14 +51,14 @@ packages/agent-host/src/commands/host-command-context.ts (modify) — add petSta
 apps/cli/src/host-serve-command-lane.ts           (modify) — serialize new install command
 apps/desktop/src/components/PetSprite.tsx         (create) — canvas renderer + interaction
 apps/desktop/src/components/pet-sprite.css        (create) — drag/floating styles
-apps/desktop/src/PetPanel.tsx                      (modify) — registry browse + install
-apps/desktop/src/host-client.ts                    (modify) — timeout for new install command
-apps/desktop/src/host-client-mock.ts              (modify) — mock new commands + pet/state
-apps/desktop/src/host-request-adapters.ts         (modify) — new command union
+apps/desktop/src/pet/PetPanel.tsx                      (modify) — registry browse + install
+apps/desktop/src/host/host-client.ts                    (modify) — timeout for new install command
+apps/desktop/src/host/host-client-mock.ts              (modify) — mock new commands + pet/state
+apps/desktop/src/host/host-request-adapters.ts         (modify) — new command union
 apps/desktop/src/hooks/use-host-bootstrap.ts       (modify) — subscribe to pet/state
 apps/desktop/src/App.tsx                           (modify) — mount floating PetSprite
 apps/desktop/src/settings/settings-context.tsx    (modify) — extend requestPet union
-apps/desktop/src/SettingsPanel.tsx                (modify) — extend requestPet union
+apps/desktop/src/settings/SettingsPanel.tsx                (modify) — extend requestPet union
 apps/desktop/src/settings/pages/pets-page.tsx     (no change — uses PetPanel)
 ```
 
@@ -2655,12 +2655,12 @@ git commit -m "desktop: mount PetSprite and subscribe to pet/state pushes"
 ## Task 16: Desktop — PetPanel registry browse + install
 
 **Files:**
-- Modify: `apps/desktop/src/PetPanel.tsx`
-- Modify: `apps/desktop/src/host-request-adapters.ts`
-- Modify: `apps/desktop/src/host-client.ts`
-- Modify: `apps/desktop/src/host-client-mock.ts`
+- Modify: `apps/desktop/src/pet/PetPanel.tsx`
+- Modify: `apps/desktop/src/host/host-request-adapters.ts`
+- Modify: `apps/desktop/src/host/host-client.ts`
+- Modify: `apps/desktop/src/host/host-client-mock.ts`
 - Modify: `apps/desktop/src/settings/settings-context.tsx`
-- Modify: `apps/desktop/src/SettingsPanel.tsx`
+- Modify: `apps/desktop/src/settings/SettingsPanel.tsx`
 
 **Interfaces:**
 - Consumes: `PetStoreQueryResult`, `PetInstallResult` from `@piwin/contracts`.
@@ -2668,7 +2668,7 @@ git commit -m "desktop: mount PetSprite and subscribe to pet/state pushes"
 
 - [ ] **Step 1: Extend the request union in host-request-adapters**
 
-In `apps/desktop/src/host-request-adapters.ts`, replace the `requestPet` type (lines 91-95):
+In `apps/desktop/src/host/host-request-adapters.ts`, replace the `requestPet` type (lines 91-95):
 
 ```typescript
   requestPet: (command: {
@@ -2707,7 +2707,7 @@ Add the forwarding branches in the `requestPet` implementation (after the existi
 
 - [ ] **Step 2: Extend the timeout in host-client**
 
-In `apps/desktop/src/host-client.ts`, add `pet/install-registry` to the operation-timeout case (after line 51 `pet/install-local`):
+In `apps/desktop/src/host/host-client.ts`, add `pet/install-registry` to the operation-timeout case (after line 51 `pet/install-local`):
 
 ```typescript
     case 'pet/install-registry':
@@ -2715,7 +2715,7 @@ In `apps/desktop/src/host-client.ts`, add `pet/install-registry` to the operatio
 
 - [ ] **Step 3: Extend the mock**
 
-In `apps/desktop/src/host-client-mock.ts`, after the `pet/install-local` case (line 1166), add:
+In `apps/desktop/src/host/host-client-mock.ts`, after the `pet/install-local` case (line 1166), add:
 
 ```typescript
       case 'pet/store-query':
@@ -2756,7 +2756,7 @@ In `apps/desktop/src/settings/settings-context.tsx`, the `requestPet` type is im
 
 - [ ] **Step 5: Add registry UI to PetPanel**
 
-In `apps/desktop/src/PetPanel.tsx`, replace the `PetPanelProps` type (lines 7-16):
+In `apps/desktop/src/pet/PetPanel.tsx`, replace the `PetPanelProps` type (lines 7-16):
 
 ```typescript
 export type PetPanelProps = {
@@ -2918,7 +2918,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/desktop/src/PetPanel.tsx apps/desktop/src/host-request-adapters.ts apps/desktop/src/host-client.ts apps/desktop/src/host-client-mock.ts
+git add apps/desktop/src/pet/PetPanel.tsx apps/desktop/src/host/host-request-adapters.ts apps/desktop/src/host/host-client.ts apps/desktop/src/host/host-client-mock.ts
 git commit -m "desktop: add registry browse + install to PetPanel"
 ```
 

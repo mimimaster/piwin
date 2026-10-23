@@ -1,0 +1,37 @@
+import { useMemo, useRef } from 'react';
+import type { ChatMessageUi } from '../conversation/chat-reducer.js';
+import {
+  EMPTY_TRANSCRIPT_TURN_ID_REGISTRY,
+  groupTranscriptTurns,
+  registerTranscriptTurnIds,
+  reuseUnchangedTranscriptTurns,
+  type TranscriptTurn,
+  type TranscriptTurnIdRegistry,
+} from '../conversation/transcript-turns.js';
+
+/**
+ * Turns whose ids survive history paging: a page that prepends to (or a window
+ * trim that evicts from) a turn leaves the turn it belongs to unchanged.
+ *
+ * The registry is derived only from the previous grouping, so recomputing on
+ * the same messages (StrictMode double render) yields the same ids. Message ids
+ * are unique across sessions, so switching sessions needs no explicit reset.
+ *
+ * Turn objects are stable too: a turn whose messages did not change keeps its
+ * previous object, so a token only replaces the live turn.
+ */
+export function useStableTranscriptTurns(
+  messages: readonly ChatMessageUi[],
+): TranscriptTurn[] {
+  const registryRef = useRef<TranscriptTurnIdRegistry>(EMPTY_TRANSCRIPT_TURN_ID_REGISTRY);
+  const previousTurnsRef = useRef<readonly TranscriptTurn[]>([]);
+  return useMemo(() => {
+    const turns = reuseUnchangedTranscriptTurns(
+      previousTurnsRef.current,
+      groupTranscriptTurns(messages, registryRef.current),
+    );
+    registryRef.current = registerTranscriptTurnIds(turns);
+    previousTurnsRef.current = turns;
+    return turns;
+  }, [messages]);
+}

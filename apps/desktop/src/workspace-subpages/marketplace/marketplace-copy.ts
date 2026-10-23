@@ -13,7 +13,7 @@ import type {
   MarketplaceRequirementStatus,
   MarketplaceVerification,
 } from '@piwin/contracts';
-import type { DesktopLocale } from '../../desktop-locale.js';
+import type { DesktopLocale } from '../../i18n/desktop-locale.js';
 import type { MarketOperation, MarketplaceToast } from './marketplace-types.js';
 
 type Pair = readonly [en: string, zh: string];

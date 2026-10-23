@@ -81,7 +81,7 @@ packages/host-server/src/live-remote-gate.test.ts
 apps/desktop/src/live/live-intended-session-sync.ts      # Task 3
 apps/desktop/src/live/live-intended-session-sync.test.ts
 apps/desktop/src/hooks/use-composer-dock-props.ts        # Task 3: one hook call
-apps/desktop/src/host-client-mock-live.ts                # Task 3
+apps/desktop/src/host/host-client-mock-live.ts                # Task 3
 
 docs/specs/2026-09-01-live-intended-session-hold.md      # Task 4
 ```
@@ -732,7 +732,7 @@ EOF
 - Create: `apps/desktop/src/live/live-intended-session-sync.ts`
 - Create: `apps/desktop/src/live/live-intended-session-sync.test.ts`
 - Modify: `apps/desktop/src/hooks/use-composer-dock-props.ts` (call the hook next to `useLiveCall`; do not grow this file beyond the call)
-- Modify: `apps/desktop/src/host-client-mock-live.ts`
+- Modify: `apps/desktop/src/host/host-client-mock-live.ts`
 
 **Interfaces:**
 - Consumes: `HostCommand` member `voice/live/set-intended-session` from Task 2; `HostClient.request`; `live.status?.call?.callId` from `useLiveCall` (already constructed in this file).
@@ -876,7 +876,7 @@ git add \
   apps/desktop/src/live/live-intended-session-sync.ts \
   apps/desktop/src/live/live-intended-session-sync.test.ts \
   apps/desktop/src/hooks/use-composer-dock-props.ts \
-  apps/desktop/src/host-client-mock-live.ts
+  apps/desktop/src/host/host-client-mock-live.ts
 git commit -m "$(cat <<'EOF'
 fix(desktop): report Live intended session on focus change
 

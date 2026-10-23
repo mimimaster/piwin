@@ -443,7 +443,7 @@ code{font:12.5px var(--mono);color:var(--t1);background:var(--code);padding:1px 
         <ul>
          <li><b>系统提示</b><span class="src">Host 装配</span><span class="ml">约 3.1k</span></li>
          <li><b>AGENTS.md</b><span class="src">项目</span><span class="ml">约 4.6k</span></li>
-         <li><b>apps/desktop/src/composer-card.tsx</b><span class="src">本地文件</span><span class="ml">约 3.9k</span></li>
+         <li><b>apps/desktop/src/composer/composer-card.tsx</b><span class="src">本地文件</span><span class="ml">约 3.9k</span></li>
          <li><b>技能 · karpathy-guidelines</b><span class="src">Host 装配</span><span class="ml">约 0.6k</span></li>
          <li><b>web_fetch · docs.claude.com</b><span class="src warn">外部网页（不可信）</span><span class="ml">约 0.2k</span></li>
         </ul>
@@ -466,15 +466,15 @@ code{font:12.5px var(--mono);color:var(--t1);background:var(--code);padding:1px 
        <div class="think">Enter 在运行中应进 SteerQueue 而不是 transcript；⌘Enter 仍走 triggerSteer。先读 composer-card.tsx 第 5 段的键盘分发，再改 handleSend 的 streaming 分支。</div>
        <div class="thread">
         <div class="blk" id="b04" data-n="04">
-         <div class="tr"><span class="node done"></span><b>read</b><code>apps/desktop/src/composer-card.tsx</code><span class="meta">1.2k 行 · 40ms</span></div>
+         <div class="tr"><span class="node done"></span><b>read</b><code>apps/desktop/src/composer/composer-card.tsx</code><span class="meta">1.2k 行 · 40ms</span></div>
          <div class="fw open">
           <div class="tr" data-fold style="cursor:pointer"><span class="node done"></span><svg class="i s14"><use href="#search"/></svg><b>探索了 3 个文件</b><span>· 2 次搜索</span><span class="meta">6 工具 · 1.8s<svg class="i s12 chev"><use href="#chevd"/></svg></span></div>
           <div class="fb">
            <div class="tr sub"><span class="node sm done"></span><b>grep</b><code>"queued-turn"</code><span class="meta">7 处 · 3 文件</span></div>
            <div class="tr sub"><span class="node sm done"></span><svg class="i s14"><use href="#brain"/></svg><span>已思考 3 秒</span><span class="meta">思考</span></div>
-           <div class="tr sub"><span class="node sm done"></span><b>read</b><code>apps/desktop/src/steer-queue-model.ts</code><span class="meta">88 行</span></div>
+           <div class="tr sub"><span class="node sm done"></span><b>read</b><code>apps/desktop/src/conversation/steer-queue-model.ts</code><span class="meta">88 行</span></div>
            <div class="tr sub"><span class="node sm done"></span><b>grep</b><code>triggerSteer</code><span class="meta">4 处</span></div>
-           <div class="tr sub"><span class="node sm done"></span><b>read</b><code>apps/desktop/src/composer-run-actions.tsx</code><span class="meta">212 行</span></div>
+           <div class="tr sub"><span class="node sm done"></span><b>read</b><code>apps/desktop/src/composer/composer-run-actions.tsx</code><span class="meta">212 行</span></div>
           </div>
          </div>
          <div class="fw open">
@@ -483,7 +483,7 @@ code{font:12.5px var(--mono);color:var(--t1);background:var(--code);padding:1px 
   expected "steer" to be "queue"
   at composer-dock.test.tsx:148:7</div></div>
          </div>
-         <div class="tr"><span class="node done"></span><b>write_file</b><code>apps/desktop/src/composer-run-actions.tsx</code><span class="meta"><span class="pm"><span class="plus">+48</span> <span class="minus">−12</span></span><span class="seal mini" title="已批准 · 允许一次">允</span></span></div>
+         <div class="tr"><span class="node done"></span><b>write_file</b><code>apps/desktop/src/composer/composer-run-actions.tsx</code><span class="meta"><span class="pm"><span class="plus">+48</span> <span class="minus">−12</span></span><span class="seal mini" title="已批准 · 允许一次">允</span></span></div>
         </div>
         <div class="blk" id="b05" data-n="05">
          <div class="dc">
@@ -590,7 +590,7 @@ code{font:12.5px var(--mono);color:var(--t1);background:var(--code);padding:1px 
       <div class="subs fb">
        <div class="subs-h"><svg class="i s12"><use href="#eye"/></svg>只读子会话 · 12 条 · 只观察，不导航</div>
        <div class="thread az">
-        <div class="tr"><span class="node bg"></span><b>read</b><code>apps/desktop/src/composer-card.tsx</code><span class="meta">1.2k 行</span></div>
+        <div class="tr"><span class="node bg"></span><b>read</b><code>apps/desktop/src/composer/composer-card.tsx</code><span class="meta">1.2k 行</span></div>
         <div class="tr"><span class="node bg"></span><b>grep</b><code>triggerSteer</code><span class="meta">4 处</span></div>
         <div class="tr"><span class="node bg"></span><b>bash</b><code>pnpm vitest composer-dock --run</code><span class="meta">46 通过</span></div>
        </div>
@@ -690,7 +690,7 @@ provider=anthropic model=claude-sonnet-4-6 request_id=req_01J8…</div>
        <div class="code-h"><svg class="i s12"><use href="#file"/></svg>composer-card.tsx<span class="sep">·</span>TypeScript<span class="sep">·</span>L612–618<button class="ib s20 ml" title="复制"><svg class="i s12"><use href="#copy"/></svg></button></div>
        <pre><div class="cl"><span class="g">612</span><span class="l"><span class="k">if</span> (event.key === <span class="s">'Enter'</span> && !event.shiftKey && !isRecentlyComposing) {</span></div><div class="cl"><span class="g">613</span><span class="l">  event.<span class="fx">preventDefault</span>();</span></div><div class="cl"><span class="g">614</span><span class="l">  <span class="c">// streaming 时 handleSend 自己会转成 queued-turn</span></span></div><div class="cl"><span class="g">615</span><span class="l">  <span class="k">if</span> (canKeyboardSend || reserved) <span class="fx">triggerSend</span>();</span></div><div class="cl"><span class="g">616</span><span class="l">}</span></div></pre>
       </div>
-      <p>路径成芯片：<span class="pc"><svg class="i s12"><use href="#file"/></svg>apps/desktop/src/steer-queue.tsx</span>；glob 不成芯片：<code>apps/desktop/src/**/*.test.tsx</code>。</p>
+      <p>路径成芯片：<span class="pc"><svg class="i s12"><use href="#file"/></svg>apps/desktop/src/conversation/steer-queue.tsx</span>；glob 不成芯片：<code>apps/desktop/src/**/*.test.tsx</code>。</p>
      </div>
      <div class="blk prose" id="b22" data-n="22">
       <div class="mer">
@@ -757,7 +757,7 @@ provider=anthropic model=claude-sonnet-4-6 request_id=req_01J8…</div>
       </div>
       <div class="fb">
        <div class="thread" id="livethread">
-        <div class="tr"><span class="node done"></span><b>write_file</b><code>apps/desktop/src/composer-run-actions.test.tsx</code><span class="meta"><span class="pm"><span class="plus">+31</span></span><span class="seal mini" title="已批准 · 允许本次会话">允</span></span></div>
+        <div class="tr"><span class="node done"></span><b>write_file</b><code>apps/desktop/src/composer/composer-run-actions.test.tsx</code><span class="meta"><span class="pm"><span class="plus">+31</span></span><span class="seal mini" title="已批准 · 允许本次会话">允</span></span></div>
         <div class="blk tr-gate" id="b24" data-n="24" data-st="waiting"><span class="node wait"></span>
          <div class="gate">
           <div><div class="mic">需要你批准 · 命令</div><div class="cmd"><b>bash</b> <code>git push --force-with-lease origin feat/composer-queue</code></div><div class="facts"><span>工作目录 · ~/Projects/piwin</span><span class="dg">风险 · 破坏性命令模式</span><span>规则 · ask-all</span></div></div>

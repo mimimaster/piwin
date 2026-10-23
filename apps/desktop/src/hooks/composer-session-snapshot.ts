@@ -1,5 +1,5 @@
 import type { PromptContextRef } from '@piwin/contracts';
-import type { PendingComposerAttachment } from '../media-utils.js';
+import type { PendingComposerAttachment } from '../media/media-utils.js';
 
 /**
  * Unsent composer state (text + chips + refs) parked per live session or

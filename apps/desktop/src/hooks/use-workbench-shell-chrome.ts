@@ -17,26 +17,26 @@ import {
   type ModelRef,
   type ThinkingLevel,
 } from '@piwin/contracts';
-import type { AgentModeId } from '../agent-mode';
-import type { ChatUiState } from '../chat-reducer';
-import { getDesktopCopy, loadDesktopLocale, type DesktopLocale } from '../desktop-locale';
-import type { HostClient } from '../host-client';
+import type { AgentModeId } from '../agents/agent-mode';
+import type { ChatUiState } from '../conversation/chat-reducer';
+import { getDesktopCopy, loadDesktopLocale, type DesktopLocale } from '../i18n/desktop-locale';
+import type { HostClient } from '../host/host-client';
 import { useComposerPlusMenu } from './use-composer-plus-menu';
 import { useRightPanelResize } from './use-right-panel-resize';
 import { useSessionListChrome } from './use-session-list-chrome';
 import { useSessionListQuery } from './use-session-list-query';
 import { useSessionSwitchPanelReset } from './use-session-switch-panel-reset';
-import { isOverlayShellLayout } from '../shell-layout';
+import { isOverlayShellLayout } from '../tool-cards/shell-layout';
 import { useShellLayout } from './use-shell-layout';
-import { loadSidebarMode, saveSidebarMode, type SidebarMode } from '../sidebar-mode';
+import { loadSidebarMode, saveSidebarMode, type SidebarMode } from '../sidebar/sidebar-mode';
 import { useSidebarResize } from './use-sidebar-resize';
 import { useTerminalPanelState } from './use-terminal-panel-state';
-import type { RightPanelTab } from '../right-panel';
-import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from '../right-panel-width';
-import { useConfirmDialog } from '../use-confirm-dialog';
-import { loadDesktopPreferences, type DesktopPreferences } from '../ui-preferences';
-import { appShellCssVars, desktopPreferencesCssVars } from '../workbench-preferences-style';
-import { applyWindowMaterialToDocument } from '../window-material-preferences';
+import type { RightPanelTab } from '../right-panel/right-panel';
+import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from '../right-panel/right-panel-width';
+import { useConfirmDialog } from './use-confirm-dialog';
+import { loadDesktopPreferences, type DesktopPreferences } from '../platform/ui-preferences';
+import { appShellCssVars, desktopPreferencesCssVars } from '../workbench/workbench-preferences-style';
+import { applyWindowMaterialToDocument } from '../platform/window-material-preferences';
 import type { SessionOrchestrationRestore } from './use-composer-orchestration-controls';
 
 export type UseWorkbenchShellChromeArgs = {

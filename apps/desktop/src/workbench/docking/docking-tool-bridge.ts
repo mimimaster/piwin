@@ -1,5 +1,5 @@
-import type { RightPanelTab } from '../../right-panel.js';
-import { rightPanelTabKind } from '../../right-panel-instances.js';
+import type { RightPanelTab } from '../../right-panel/right-panel.js';
+import { rightPanelTabKind } from '../../right-panel/right-panel-instances.js';
 import type { MovableToolKind } from './types.js';
 
 /** Inspector tabs whose surface moves into the docking workspace. */

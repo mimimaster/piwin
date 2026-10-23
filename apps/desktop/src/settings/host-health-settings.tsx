@@ -18,7 +18,7 @@ import {
   type PiwinConfig,
 } from '@piwin/contracts';
 import { Button, ConfirmDialog, Notice, Select, Switch, TextInput } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../desktop-locale-context';
+import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { FieldRow } from './field-row';
 import { PageTitle } from './page-title';
 import { useSettings } from './settings-context';

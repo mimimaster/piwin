@@ -20,14 +20,14 @@ import type {
   SessionRetractPausedPromptData,
   SessionTranscriptPageInfo,
 } from '@piwin/contracts';
-import { chipsFromPromptAttachments } from '../composer-attachment-chips.js';
-import type { PendingComposerAttachment } from '../media-utils.js';
+import { chipsFromPromptAttachments } from '../composer/composer-attachment-chips.js';
+import type { PendingComposerAttachment } from '../media/media-utils.js';
 import {
   findPausedPromptRetractCandidate,
   hasOutputAfterPrompt,
   mergeRetractedDraft,
   type PausedPromptRetractCandidate,
-} from '../paused-prompt-retract-policy.js';
+} from '../conversation/paused-prompt-retract-policy.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
 

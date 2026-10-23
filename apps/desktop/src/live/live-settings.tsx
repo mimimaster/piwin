@@ -20,7 +20,7 @@ import {
   Select,
   StatusBadge,
 } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../desktop-locale-context.js';
+import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
 
 export type LiveSettingsHostRequest = (command: HostCommand) => Promise<HostResponse>;
 

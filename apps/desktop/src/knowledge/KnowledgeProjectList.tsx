@@ -5,9 +5,9 @@
 
 import { useMemo, useState, type ReactElement } from 'react';
 import { Button, IconButton, TextInput } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../desktop-locale-context.js';
-import { IconFolder, IconFolderOpen, IconPlus } from '../shell-icons.js';
-import { pickProjectDirectory } from '../pick-project-directory.js';
+import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
+import { IconFolder, IconFolderOpen, IconPlus } from '../tool-cards/shell-icons.js';
+import { pickProjectDirectory } from '../files/pick-project-directory.js';
 
 export type KnowledgeProjectItem = {
   path: string;

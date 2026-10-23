@@ -1,5 +1,5 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import { readSessionKeyedValue, writeSessionKeyedValue } from '../../session-keyed-memory.js';
+import { readSessionKeyedValue, writeSessionKeyedValue } from '../../session/session-keyed-memory.js';
 import type { WorkspaceIdFactory } from './ids.js';
 import {
   captureRightLayout,

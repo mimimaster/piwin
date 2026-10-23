@@ -11,7 +11,7 @@ import type {
   MarketplaceInstalledItem,
   MarketplaceSearchHit,
 } from '@piwin/contracts';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens.js';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens.js';
 import { findButton, flush, setInputValue } from './workspace-subpages-test-helpers.js';
 import { MarketplaceWorkspaceView } from './MarketplaceWorkspaceView.js';
 

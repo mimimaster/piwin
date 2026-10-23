@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactElement, RefCallback } from 'react';
-import { ConversationPaneEmptyState } from '../../conversation-pane-empty-state.js';
+import { ConversationPaneEmptyState } from '../../conversation/conversation-pane-empty-state.js';
 import {
   ContextMenu,
   ContextMenuItem,
@@ -15,7 +15,7 @@ import {
   IconClose,
   IconCompress,
   IconExpand,
-} from '../../shell-icons.js';
+} from '../../tool-cards/shell-icons.js';
 import { DOCKING_COPY } from './copy.js';
 import type { DockViewRenderContext } from './docking-surface-content.js';
 import { resolveViewTitle } from './docking-surface-content.js';

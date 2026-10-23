@@ -11,12 +11,12 @@
  * values). Do not merge or widen them.
  */
 import { useCallback, useMemo } from 'react';
-import { appendComposerProposal } from '../artifact-canvas-model';
-import { SubAgentPanel } from '../SubAgentPanel';
-import { useLatestCallback } from '../use-latest-callback';
-import { useStableHandlers } from '../use-stable-handlers';
-import { useStructuralValue } from '../use-structural-value';
-import type { ChatUiState } from '../chat-ui-types';
+import { appendComposerProposal } from '../artifact/artifact-canvas-model';
+import { SubAgentPanel } from '../agents/SubAgentPanel';
+import { useLatestCallback } from './use-latest-callback';
+import { useStableHandlers } from './use-stable-handlers';
+import { useStructuralValue } from './use-structural-value';
+import type { ChatUiState } from '../conversation/chat-ui-types';
 import { useWorkbenchAppModel } from './use-workbench-app-model';
 import type { WorkbenchShellChrome } from './use-workbench-shell-chrome';
 import type { useWorkbenchKnowledge } from './use-workbench-knowledge';

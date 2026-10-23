@@ -9,13 +9,13 @@
  */
 import { useState, type ReactElement } from 'react';
 import { SegmentedControl } from '@piwin/ui-kit';
-import { useDesktopLocale } from '../../desktop-locale-context';
+import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
-import { SkillsPanel } from '../../SkillsPanel';
-import { McpPanel } from '../../McpPanel';
-import { PromptsPanel } from '../../PromptsPanel';
-import { PluginsPanel } from '../../PluginsPanel';
-import { ExtensionsPanel } from '../../ExtensionsPanel';
+import { SkillsPanel } from '../../extensions/SkillsPanel';
+import { McpPanel } from '../../mcp/McpPanel';
+import { PromptsPanel } from '../../extensions/PromptsPanel';
+import { PluginsPanel } from '../../extensions/PluginsPanel';
+import { ExtensionsPanel } from '../../extensions/ExtensionsPanel';
 import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 
 type ExtensionsSubTab = 'extensions' | 'skills' | 'tools' | 'prompts' | 'plugins';

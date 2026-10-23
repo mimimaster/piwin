@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
-import { DocPreviewPanel } from '../DocPreviewPanel.js';
-import type { LineCommentItem } from '../EnhancedMarkdownView.js';
+import { DocPreviewPanel } from '../documents/DocPreviewPanel.js';
+import type { LineCommentItem } from '../markdown/EnhancedMarkdownView.js';
 import {
   DesktopContextMenuProvider,
   type ContextMenuDispatchers,

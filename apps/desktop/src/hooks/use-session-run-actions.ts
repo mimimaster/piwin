@@ -7,27 +7,27 @@ import type {
   SessionResumeRunAcceptedData,
 } from '@piwin/contracts';
 import { classifyCompactionNoOp, formatError, isPauseContinueUtterance } from '@piwin/contracts';
-import type { HostClient } from '../host-client';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
+import type { HostClient } from '../host/host-client';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
 import type { Dispatch } from 'react';
-import type { NotificationAction } from '../notification-queue';
-import { pushError, pushInfo } from '../notification-queue';
-import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
-import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
-import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js';
+import type { NotificationAction } from '../notifications/notification-queue';
+import { pushError, pushInfo } from '../notifications/notification-queue';
+import { shouldBlockRemoteHostGesture } from '../host/host-reconnect-gate.js';
+import { desktopForegroundMutationsEnabled } from '../platform/foreground-admission.js';
+import { hostFailureNotice, hostReconnectNotice } from '../host/host-problem-copy.js';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 import { compactFailureMessage } from './session-actions-helpers.js';
 import { reconcilePendingPermissions } from './reconcile-pending-permissions.js';
-import { activeSessionPermissionQueue } from '../permission-queue.js';
-import { withoutClaimedPermissionPrompts } from '../permission-claims.js';
-import { resolvePermissionPrompt } from '../permission-resolve.js';
+import { activeSessionPermissionQueue } from '../settings/permission-queue.js';
+import { withoutClaimedPermissionPrompts } from '../settings/permission-claims.js';
+import { resolvePermissionPrompt } from '../settings/permission-resolve.js';
 
 export function useSessionRunActions(input: {
   hostClient: HostClient;
   state: ChatUiState;
   dispatch: Dispatch<ChatUiAction>;
   dispatchNotification: Dispatch<NotificationAction>;
-  locale: import('../desktop-locale.js').DesktopLocale;
+  locale: import('../i18n/desktop-locale.js').DesktopLocale;
 }) {
   const { hostClient, state, dispatch, dispatchNotification, locale } = input;
 

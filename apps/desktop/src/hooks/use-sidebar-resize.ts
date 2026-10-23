@@ -10,10 +10,10 @@ import {
   saveSidebarWidth,
   shouldCollapseSidebar,
   shouldExpandSidebar,
-} from '../sidebar-width';
-import { isOverlayShellLayout, type ShellLayoutMode } from '../shell-layout';
+} from '../sidebar/sidebar-width';
+import { isOverlayShellLayout, type ShellLayoutMode } from '../tool-cards/shell-layout';
 import { usePanelWidthCommit } from './use-panel-width-commit.js';
-import { beginPanelResize } from '../panel-resize-activity.js';
+import { beginPanelResize } from '../platform/panel-resize-activity.js';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
 function writeSidebarWidthCss(shell: HTMLElement | null, widthPx: number): void {

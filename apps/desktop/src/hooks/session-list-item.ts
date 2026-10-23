@@ -1,5 +1,5 @@
 import type { SessionSummary } from '@piwin/contracts';
-import type { SessionListItemUi } from '../chat-reducer';
+import type { SessionListItemUi } from '../conversation/chat-reducer';
 
 export function summaryToListItem(
   session: SessionSummary,

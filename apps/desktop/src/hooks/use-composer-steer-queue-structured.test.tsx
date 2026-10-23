@@ -2,13 +2,13 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 import { useComposerMedia } from './use-composer-media';
 import { createInitialTestChatUiState, type ComposerMediaResult, pasteImage } from './composer-media-test-harness';
 
 // Canvas decoding is unrelated to preserving the attachment draft.
-vi.mock('../media-preview-bitmap.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../media-preview-bitmap.js')>();
+vi.mock('../media/media-preview-bitmap.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../media/media-preview-bitmap.js')>();
   return { ...actual, beginComposerImagePreview: (file: File) => ({ lightboxUrl: URL.createObjectURL(file) }) };
 });
 

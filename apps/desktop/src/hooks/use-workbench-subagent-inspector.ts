@@ -4,14 +4,14 @@
  */
 import { useCallback, useMemo } from 'react';
 import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
-import type { ChatUiAction, ChatUiState, PermissionPromptUi } from '../chat-reducer';
+import type { ChatUiAction, ChatUiState, PermissionPromptUi } from '../conversation/chat-reducer';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
-import type { HostClient } from '../host-client';
-import { hostFailureNotice } from '../host-problem-copy.js';
-import type { DesktopLocale } from '../desktop-locale';
-import type { ModelOption } from '../model-options';
-import { pushError, type NotificationAction } from '../notification-queue';
-import type { DesktopPreferences } from '../ui-preferences';
+import type { HostClient } from '../host/host-client';
+import { hostFailureNotice } from '../host/host-problem-copy.js';
+import type { DesktopLocale } from '../i18n/desktop-locale';
+import type { ModelOption } from '../models/model-options';
+import { pushError, type NotificationAction } from '../notifications/notification-queue';
+import type { DesktopPreferences } from '../platform/ui-preferences';
 import {
   useSubagentSessionInspector,
   type SubagentInspectorController,
@@ -19,9 +19,9 @@ import {
 import type {
   SubagentInspectorPanelData,
   SubagentInspectorToggle,
-} from '../subagent-inspector-context';
-import type { SubagentInspectorSelection } from '../subagent-activity-model';
-import { backendOptionForDecision, backendPermissionOptions } from '../backend-permission-options.js';
+} from '../agents/subagent-inspector-context';
+import type { SubagentInspectorSelection } from '../agents/subagent-activity-model';
+import { backendOptionForDecision, backendPermissionOptions } from '../agents/backend-permission-options.js';
 import type { Dispatch } from 'react';
 
 export type UseWorkbenchSubagentInspectorArgs = {

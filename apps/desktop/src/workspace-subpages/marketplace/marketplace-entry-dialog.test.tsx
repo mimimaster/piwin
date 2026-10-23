@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import type { MarketplaceCatalogEntry } from '@piwin/contracts';
-import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens.js';
+import { PIWIN_APPEARANCE_DARK } from '../../theme/appearance-tokens.js';
 import { MarketplaceEntryDialog } from './marketplace-entry-dialog.js';
 
 declare global {

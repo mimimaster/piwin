@@ -6,8 +6,8 @@ import type {
   ReviewRating,
 } from '@piwin/contracts';
 import type { FlashcardStudyController, FlashcardStudyViewModel } from '@piwin/host-client';
-import { IconCheck, IconRefresh, IconRevert } from '../../../shell-icons';
-import { MarkdownView } from '../../../MarkdownView';
+import { IconCheck, IconRefresh, IconRevert } from '../../../tool-cards/shell-icons';
+import { MarkdownView } from '../../../markdown/MarkdownView';
 import { flashcardStudyErrorMessage, type FlashcardStudyCopy } from './study-copy';
 import { resolveStudyKeyboard, type StudyKeyboardTarget } from './study-keyboard';
 import { StudyRateBar } from './study-rate-bar';

@@ -4,9 +4,9 @@
  */
 import type { ReactElement } from 'react';
 import { StatusBadge } from '@piwin/ui-kit';
-import { HostLogPanel } from '../HostLogPanel';
-import { useDesktopLocale } from '../desktop-locale-context.js';
-import { useHostLog } from '../host-log-context';
+import { HostLogPanel } from '../host/HostLogPanel';
+import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
+import { useHostLog } from '../host/host-log-context';
 import { PageTitle } from './page-title';
 
 export function SettingsHostLogSection(): ReactElement | null {

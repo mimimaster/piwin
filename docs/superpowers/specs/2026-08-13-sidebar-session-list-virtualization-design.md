@@ -221,12 +221,12 @@ Broader decomposition of the sidebar is deliberately out of scope.
 | `apps/desktop/src/session-list-page-state.ts` (+ test) | Delete |
 | `apps/desktop/src/session-sidebar-page.ts` (+ test) | Delete |
 | `apps/desktop/src/session-list-page-request.ts` | Delete (Desktop-only) |
-| `apps/desktop/src/chat-reducer.ts` | Drop `sessionListsWindowed` and both `*_WINDOW_MAX_ITEMS` truncations; replace `session/hydrate-page` with `session/hydrate-scope` carrying `totalCount` and `truncated` |
+| `apps/desktop/src/conversation/chat-reducer.ts` | Drop `sessionListsWindowed` and both `*_WINDOW_MAX_ITEMS` truncations; replace `session/hydrate-page` with `session/hydrate-scope` carrying `totalCount` and `truncated` |
 | `apps/desktop/src/App.tsx` | Drop `sessionListWindows` state, `handleSessionPageChange`, `handleSessionWindowReset` |
 | `apps/desktop/src/hooks/use-session-actions.ts` | `hydrateSessions` calls `session/list`; keep the request-generation guard against out-of-order responses; drop window merging |
-| `apps/desktop/src/desktop-locale.ts` | Remove `seeAll`, `showLess`, `loadMoreSessions`, `loadingSessions`; add `olderSessionsHidden(count)` (zh-CN + en) |
+| `apps/desktop/src/i18n/desktop-locale.ts` | Remove `seeAll`, `showLess`, `loadMoreSessions`, `loadingSessions`; add `olderSessionsHidden(count)` (zh-CN + en) |
 | `apps/desktop/src/styles/region-sidebar.css` | Remove `.session-list-lazy-boundary` and `.session-list-disclosure*` rules |
-| `apps/desktop/src/project-session-sidebar.tsx` | Remove `expandedProjectSessionLists`, `generalSessionListExpanded`, `fillExpandedSessionWindow`, `resetSessionWindow`, `loadSessionWindowPage`, `pendingSessionWindowLoads`, `SESSION_LIST_PREVIEW_SIZE`; mount the virtualizer; extract the two files in §3.3 |
+| `apps/desktop/src/sidebar/project-session-sidebar.tsx` | Remove `expandedProjectSessionLists`, `generalSessionListExpanded`, `fillExpandedSessionWindow`, `resetSessionWindow`, `loadSessionWindowPage`, `pendingSessionWindowLoads`, `SESSION_LIST_PREVIEW_SIZE`; mount the virtualizer; extract the two files in §3.3 |
 
 Explicitly retained: `packages/contracts/src/session-list-page.ts` and its Host
 implementation, ADR 0039 §5 remote projection, ADR 0039 §6/§7 transcript paging,

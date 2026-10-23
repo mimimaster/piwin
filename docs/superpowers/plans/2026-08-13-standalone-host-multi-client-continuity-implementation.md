@@ -40,9 +40,9 @@
 | `packages/host-runtime/src/commands/session-product-commands.ts` | List by `scopeRef` |
 | `packages/host-server/src/remote-projection.ts` | Use shared `projectId`; project `projectId` on session summaries |
 | `packages/host-server/src/host-server.ts` | Require `foreground`; attach `problem`; richer hydration |
-| `apps/desktop/src/remote-host-session.ts` | Persist endpoint + token; build `@piwin/host-client` |
-| `apps/desktop/src/host-client.ts` | `transport: 'remote'` adapter |
-| `apps/desktop/src/host-target-settings.tsx` | Connect UI |
+| `apps/desktop/src/host/remote-host-session.ts` | Persist endpoint + token; build `@piwin/host-client` |
+| `apps/desktop/src/host/host-client.ts` | `transport: 'remote'` adapter |
+| `apps/desktop/src/host/host-target-settings.tsx` | Connect UI |
 | `apps/desktop/src/composer` / prompt call sites | Send `foreground` when remote (and for continuity UX) |
 | `apps/mobile/src/App.tsx` + `mobile-host-connection.ts` | Paged project/General list; hydrate; `if-idle` / confirm |
 
@@ -450,12 +450,12 @@ git commit -m "feat(host-server): require prompt admission and hydrate live runs
 ### Task 5: Desktop / Windows remote attach to standalone Host
 
 **Files:**
-- Create: `apps/desktop/src/remote-host-session.ts`
-- Create: `apps/desktop/src/remote-host-session.test.ts`
-- Create: `apps/desktop/src/host-target-settings.tsx`
-- Modify: `apps/desktop/src/host-client.ts` (add `transport: 'remote'`)
+- Create: `apps/desktop/src/host/remote-host-session.ts`
+- Create: `apps/desktop/src/host/remote-host-session.test.ts`
+- Create: `apps/desktop/src/host/host-target-settings.tsx`
+- Modify: `apps/desktop/src/host/host-client.ts` (add `transport: 'remote'`)
 - Modify: `apps/desktop/src/App.tsx` (construct client from saved target)
-- Modify: `apps/desktop/src/runtime-target-chip.tsx` (enable Remote when a target is saved and connected)
+- Modify: `apps/desktop/src/composer/runtime-target-chip.tsx` (enable Remote when a target is saved and connected)
 - Modify: Desktop locale strings for the connect form
 
 **Interfaces:**
@@ -476,7 +476,7 @@ export function createDesktopRemoteHostClient(target: DesktopRemoteHostTarget): 
 
 Persist under `localStorage` key `piwin.desktop.remote-host-target` (same pattern as mobile). Empty endpoint means “use local sidecar”.
 
-Desktop’s existing `HostClient` (`apps/desktop/src/host-client.ts`) keeps mock + live JSONL. Add:
+Desktop’s existing `HostClient` (`apps/desktop/src/host/host-client.ts`) keeps mock + live JSONL. Add:
 
 ```ts
 transport?: boolean | 'auto' | 'mock' | 'live' | 'remote';
@@ -504,7 +504,7 @@ it('round-trips endpoint and token', () => {
 });
 ```
 
-For the adapter, mock `WebSocketHostTransport` or inject a fake `@piwin/host-client` if the Desktop test harness already fakes HostClient — keep this test on persistence and “remote mode does not spawn sidecar” (assert `transport === 'remote'` skips Tauri invoke). Look at `apps/desktop/src/host-client.test.ts` and add a case that remote connect never calls the JSONL bridge.
+For the adapter, mock `WebSocketHostTransport` or inject a fake `@piwin/host-client` if the Desktop test harness already fakes HostClient — keep this test on persistence and “remote mode does not spawn sidecar” (assert `transport === 'remote'` skips Tauri invoke). Look at `apps/desktop/src/host/host-client.test.ts` and add a case that remote connect never calls the JSONL bridge.
 
 - [ ] **Step 2: Run — expect FAIL**
 
@@ -525,9 +525,9 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/desktop/src/remote-host-session.ts apps/desktop/src/remote-host-session.test.ts \
-  apps/desktop/src/host-target-settings.tsx apps/desktop/src/host-client.ts \
-  apps/desktop/src/App.tsx apps/desktop/src/runtime-target-chip.tsx
+git add apps/desktop/src/host/remote-host-session.ts apps/desktop/src/host/remote-host-session.test.ts \
+  apps/desktop/src/host/host-target-settings.tsx apps/desktop/src/host/host-client.ts \
+  apps/desktop/src/App.tsx apps/desktop/src/composer/runtime-target-chip.tsx
 git commit -m "feat(desktop): attach to a standalone Host over WebSocket"
 ```
 
@@ -536,10 +536,10 @@ git commit -m "feat(desktop): attach to a standalone Host over WebSocket"
 ### Task 6: Desktop composer uses `if-idle` / confirmed `replace-run` on the remote Host
 
 **Files:**
-- Modify: the Desktop `session/prompt` call sites in `apps/desktop/src/App.tsx`, `apps/desktop/src/hooks/use-composer-media.ts`, `apps/desktop/src/side-chat-panel.tsx`
+- Modify: the Desktop `session/prompt` call sites in `apps/desktop/src/App.tsx`, `apps/desktop/src/hooks/use-composer-media.ts`, `apps/desktop/src/session/side-chat-panel.tsx`
 - Modify: chat reducer / notice copy for `foreground-run-mismatch` and `superseded-by-new-prompt`
-- Create: `apps/desktop/src/prompt-foreground.ts`
-- Create: `apps/desktop/src/prompt-foreground.test.ts`
+- Create: `apps/desktop/src/composer/prompt-foreground.ts`
+- Create: `apps/desktop/src/composer/prompt-foreground.test.ts`
 
 **Interfaces:**
 - Consumes: `PromptForegroundAdmission`, `ForegroundRunMismatchProblem`

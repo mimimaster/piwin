@@ -4,9 +4,9 @@
  */
 import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
-import type { HostLogEntry } from '../HostLogPanel';
+import type { HostLogEntry } from '../host/HostLogPanel';
 import { useArtifactCanvasAutoReveal } from './use-artifact-canvas-auto-reveal';
-import { resolveArtifactSurfacesForScope } from '../artifact-surfaces';
+import { resolveArtifactSurfacesForScope } from '../artifact/artifact-surfaces';
 import { useDocComments } from './use-doc-comments';
 import { useDesktopContextMenuValue } from './use-desktop-context-menu-value';
 import { useWorkbenchCommands } from './use-workbench-commands';
@@ -16,12 +16,12 @@ import { useWorkbenchDerivedView } from './use-workbench-derived-view';
 import { useWorkbenchHostRuntime } from './use-workbench-host-runtime';
 import { useWorkbenchSessionGestures } from './use-workbench-session-gestures';
 import { useWorkbenchSessionRuntime } from './use-workbench-session-runtime';
-import type { SessionRowMenuAction } from '../session-row-menu';
+import type { SessionRowMenuAction } from '../session/session-row-menu';
 import { useWorkbenchSubagentInspector } from './use-workbench-subagent-inspector';
 import { useWorkbenchTurnActions } from './use-workbench-turn-actions';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
 import type { WorkbenchShellChrome } from './use-workbench-shell-chrome';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 
 export type UseWorkbenchAppModelArgs = {
   hostClient: HostClient;

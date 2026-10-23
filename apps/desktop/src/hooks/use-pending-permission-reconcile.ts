@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { Dispatch } from 'react';
-import type { ChatUiAction } from '../chat-reducer';
-import type { HostClient } from '../host-client';
+import type { ChatUiAction } from '../conversation/chat-reducer';
+import type { HostClient } from '../host/host-client';
 import { reconcilePendingPermissions } from './reconcile-pending-permissions';
 
 /**

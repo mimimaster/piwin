@@ -5,10 +5,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import type { HostResponse, WebSearchLogEntry, WebSearchLogPage, WebSearchLogStatusFilter } from '@piwin/contracts';
 import { Button, Select } from '@piwin/ui-kit';
-import { IconRefresh } from '../shell-icons.js';
-import { isRemoteCommandGapError } from '../remote-command-gap.js';
-import { formatToolDuration } from '../tool-call-head';
-import { nativeSearchVendorLabel, WebSearchSourceAttempts } from '../web-search-diagnostics-display';
+import { IconRefresh } from '../tool-cards/shell-icons.js';
+import { isRemoteCommandGapError } from '../host/remote-command-gap.js';
+import { formatToolDuration } from '../tool-cards/tool-call-head';
+import { nativeSearchVendorLabel, WebSearchSourceAttempts } from '../browser/web-search-diagnostics-display';
 
 export const WEB_SEARCH_LOG_PAGE_SIZES = [20, 50, 100] as const;
 const DEFAULT_PAGE_SIZE = 20;

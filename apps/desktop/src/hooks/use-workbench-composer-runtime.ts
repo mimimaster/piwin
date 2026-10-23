@@ -2,15 +2,15 @@
  * Composer model, context chips, and media/send stack.
  */
 import { useCallback, useRef, type Dispatch, type MutableRefObject } from 'react';
-import type { AgentModeId } from '../agent-mode';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
+import type { AgentModeId } from '../agents/agent-mode';
+import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
 import {
   resolveComposerAgentModeForSessionChange,
   type ComposerAgentModeSessionChange,
-} from '../composer-agent-mode-session';
-import type { HostClient } from '../host-client';
-import { resolveActiveComposerAgentId, resolveActiveComposerBackendBinding } from '../composer-dock-assembly.js';
-import { isConversationSessionChrome } from '../is-conversation-session';
+} from '../composer/composer-agent-mode-session';
+import type { HostClient } from '../host/host-client';
+import { resolveActiveComposerAgentId, resolveActiveComposerBackendBinding } from '../composer/composer-dock-assembly.js';
+import { isConversationSessionChrome } from '../conversation/is-conversation-session';
 import { useSyncSidebarModeForAgent } from './use-sync-sidebar-mode-for-agent';
 import { useComposerContextRefs } from './use-composer-context-refs';
 import { useComposerMedia } from './use-composer-media';

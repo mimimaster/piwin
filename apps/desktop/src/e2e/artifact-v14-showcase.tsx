@@ -6,12 +6,12 @@
  * mapped through the production theme map.
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { PIWIN_APPEARANCE_DARK, PIWIN_APPEARANCE_LIGHT } from '../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK, PIWIN_APPEARANCE_LIGHT } from '../theme/appearance-tokens';
 import { applyAppearanceToDocument } from '../theme/apply-appearance';
-import { mapThemeToArtifactVariables } from '../artifact-theme-map';
-import { ArtifactCanvasPanel } from '../artifact-canvas-panel';
-import { collectArtifactCanvasTargets } from '../artifact-canvas-model';
-import { MarkdownView } from '../MarkdownView';
+import { mapThemeToArtifactVariables } from '../artifact/artifact-theme-map';
+import { ArtifactCanvasPanel } from '../artifact/artifact-canvas-panel';
+import { collectArtifactCanvasTargets } from '../artifact/artifact-canvas-model';
+import { MarkdownView } from '../markdown/MarkdownView';
 
 const SESSION = 'e2e-v14-showcase';
 

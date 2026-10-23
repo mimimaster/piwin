@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
-import { DesktopLocaleProvider } from '../desktop-locale-context';
+import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
+import { DesktopLocaleProvider } from '../i18n/desktop-locale-context';
 import { SettingsFeedbackToast } from './settings-feedback-toast';
 
 declare global {

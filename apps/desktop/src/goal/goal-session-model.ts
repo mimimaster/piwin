@@ -9,7 +9,7 @@
  * else, so no reducer state or event type is needed.
  */
 import type { AgentModeId, GoalDisplayPayload } from '@piwin/contracts';
-import type { ChatMessageUi, ToolCardUi } from '../chat-ui-types';
+import type { ChatMessageUi, ToolCardUi } from '../conversation/chat-ui-types';
 
 export type GoalPhase =
   /** Not in Goal mode; the strip does not mount. */

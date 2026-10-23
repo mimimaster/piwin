@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { IconClose, IconStar, IconTrash } from '../../shell-icons';
+import { IconClose, IconStar, IconTrash } from '../../tool-cards/shell-icons';
 
 export type MediaLibrarySelectionDockProps = {
   translate: (english: string, chinese: string) => string;

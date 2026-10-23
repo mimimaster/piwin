@@ -2,9 +2,9 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { HostClient } from '../host-client';
+import type { HostClient } from '../host/host-client';
 import { useActiveDocument } from './use-active-document';
-import type { DocumentContentMessage } from '../resolve-document-content';
+import type { DocumentContentMessage } from '../documents/resolve-document-content';
 import type { DocumentPathAttempt, DocumentTargetRef } from '@piwin/contracts';
 
 /** Host answers for `preview/resolve-path`, or an unsupported Host. */
