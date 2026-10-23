@@ -82,3 +82,23 @@ html[data-window-material][data-theme-mode='dark']:has(.app-shell:not([data-layo
   :is(.settings-hub-tabs, .session-hub-tabs, .usage-calls-scroll thead th, .proto-bar) {
   background-color: color-mix(in srgb, var(--wm-solid-s2) 94%, transparent);
 }
+
+/* At rest nothing is under the hub tab strip, and the dense fill reads as a
+   dark band across the glass. Fade the fill in over the first few pixels of
+   scroll instead. Engines without scroll timelines finish the animation at
+   once (fill: both), which is the dense fill above. */
+@keyframes wm-hub-tabs-occlude {
+  from {
+    background-color: transparent;
+  }
+  to {
+    background-color: color-mix(in srgb, var(--wm-solid-s2) 94%, transparent);
+  }
+}
+
+html[data-window-material][data-theme-mode='dark']:has(.app-shell:not([data-layout='phone']))
+  :is(.settings-hub-tabs, .session-hub-tabs) {
+  animation: wm-hub-tabs-occlude linear both;
+  animation-timeline: scroll(nearest block);
+  animation-range: 0 16px;
+}
