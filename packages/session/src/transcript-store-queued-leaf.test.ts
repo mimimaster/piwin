@@ -100,6 +100,126 @@ describe('SessionTranscriptStore queued-turn leaf', () => {
     store.close();
   });
 
+  for (const rollbackTo of ['pending', 'failed'] as const) {
+    it(`returns the leaf to the reply when starting rolls back to ${rollbackTo}`, async () => {
+      const store = await openStore(`rollback-${rollbackTo}`);
+      await store.appendMessage(
+        messageInput({
+          id: 'user-1',
+          runtimeGenerationId: USER_AUTHORED_GENERATION,
+          backendMessageId: 'user-1',
+          role: 'user',
+          text: 'start',
+        }),
+      );
+      await store.appendMessage(
+        messageInput({ id: 'asst-1', runtimeGenerationId: 'gen-1', backendMessageId: 'asst-1' }),
+      );
+      await store.createQueuedTurn({
+        queuedTurnId: 'queued-1',
+        sessionId: `session-rollback-${rollbackTo}`,
+        userMessageId: 'queued-user',
+        mode: 'next',
+        input: { text: 'do this next' },
+        fingerprint: 'fp-1',
+        submittedAt: '2026-09-18T17:34:00.000Z',
+      });
+      await store.appendMessage(
+        messageInput({ id: 'asst-2', runtimeGenerationId: 'gen-1', backendMessageId: 'asst-2' }),
+      );
+      await store.transitionQueuedTurn({
+        queuedTurnId: 'queued-1',
+        expectedRevision: 1,
+        from: ['pending'],
+        to: 'starting',
+        updatedAt: '2026-09-18T17:37:04.000Z',
+      });
+      expect(await store.getActiveLeaf()).toBe('queued-user');
+
+      const rolledBack = await store.transitionQueuedTurn({
+        queuedTurnId: 'queued-1',
+        expectedRevision: 2,
+        from: ['starting'],
+        to: rollbackTo,
+        updatedAt: '2026-09-18T17:37:05.000Z',
+      });
+      expect(rolledBack).toMatchObject({ status: rollbackTo });
+      expect(await store.getActiveLeaf()).toBe('asst-2');
+      // The queued row keeps hanging off the leaf it attached to, like a fresh create.
+      expect(await store.getParentMessageId('queued-user')).toBe('asst-2');
+
+      // The run that is still streaming continues on the reply, not under the hidden row.
+      await store.appendMessage(
+        messageInput({ id: 'asst-3', runtimeGenerationId: 'gen-1', backendMessageId: 'asst-3' }),
+      );
+      expect(await store.getParentMessageId('asst-3')).toBe('asst-2');
+      expect(await store.getActiveLeaf()).toBe('asst-3');
+      expect(await store.listBranchPoints({ previewChars: 40 })).toEqual([]);
+
+      if (rollbackTo === 'pending') {
+        // A later admission splices onto the new leaf without forming a cycle.
+        await store.transitionQueuedTurn({
+          queuedTurnId: 'queued-1',
+          expectedRevision: 3,
+          from: ['pending'],
+          to: 'starting',
+          updatedAt: '2026-09-18T17:37:06.000Z',
+        });
+        expect(await store.getActiveLeaf()).toBe('queued-user');
+        expect(await store.getParentMessageId('queued-user')).toBe('asst-3');
+        expect((await store.listTail(10)).map((message) => message.id)).toEqual([
+          'user-1',
+          'asst-1',
+          'asst-2',
+          'asst-3',
+          'queued-user',
+        ]);
+      }
+      store.close();
+    });
+  }
+
+  it('keeps a newer leaf when starting rolls back after another write moved it', async () => {
+    const store = await openStore('rollback-guard');
+    await store.appendMessage(
+      messageInput({
+        id: 'user-1',
+        runtimeGenerationId: USER_AUTHORED_GENERATION,
+        backendMessageId: 'user-1',
+        role: 'user',
+      }),
+    );
+    await store.createQueuedTurn({
+      queuedTurnId: 'queued-1',
+      sessionId: 'session-rollback-guard',
+      userMessageId: 'queued-user',
+      mode: 'next',
+      input: { text: 'next' },
+      fingerprint: 'fp-1',
+      submittedAt: '2026-09-18T17:34:00.000Z',
+    });
+    await store.transitionQueuedTurn({
+      queuedTurnId: 'queued-1',
+      expectedRevision: 1,
+      from: ['pending'],
+      to: 'starting',
+      updatedAt: '2026-09-18T17:37:04.000Z',
+    });
+    await store.appendMessage(
+      messageInput({ id: 'asst-1', runtimeGenerationId: 'gen-2', backendMessageId: 'asst-1' }),
+    );
+    expect(await store.getActiveLeaf()).toBe('asst-1');
+    await store.transitionQueuedTurn({
+      queuedTurnId: 'queued-1',
+      expectedRevision: 2,
+      from: ['starting'],
+      to: 'failed',
+      updatedAt: '2026-09-18T17:37:05.000Z',
+    });
+    expect(await store.getActiveLeaf()).toBe('asst-1');
+    store.close();
+  });
+
   it('attaches a converted queued row onto the current leaf', async () => {
     const store = await openStore('convert-leaf');
     await store.appendMessage(

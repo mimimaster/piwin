@@ -496,6 +496,7 @@ export type TranscriptStoreCore = {
   currentUserMessageRevision(): number;
   insertMessageRow(input: TranscriptStoreMessageInput): void;
   attachToActiveLeaf(messageId: string): void;
+  detachFromActiveLeaf(messageId: string): void;
 };
 
 export async function openSessionTranscriptStore(
@@ -815,6 +816,26 @@ export async function openSessionTranscriptStore(
       'UPDATE transcript_meta SET active_leaf_message_id = ? WHERE session_id = ?',
     ).run(messageId, options.sessionId);
   }
+  /**
+   * Inverse of attachToActiveLeaf for a row that was spliced on but never
+   * started: the leaf goes back to the row's parent. The row keeps its parent
+   * so it hangs off the reply like a fresh queued create. Only applies while
+   * the row is still the leaf; a newer write that moved the leaf wins.
+   */
+  function detachFromActiveLeaf(messageId: string): void {
+    const leafRow = db
+      .prepare('SELECT active_leaf_message_id FROM transcript_meta WHERE session_id = ?')
+      .get(options.sessionId) as { active_leaf_message_id: string | null } | undefined;
+    if (leafRow?.active_leaf_message_id !== messageId) {
+      return;
+    }
+    const parentRow = db
+      .prepare('SELECT parent_message_id FROM transcript_message WHERE id = ?')
+      .get(messageId) as { parent_message_id: string | null } | undefined;
+    db.prepare(
+      'UPDATE transcript_meta SET active_leaf_message_id = ? WHERE session_id = ?',
+    ).run(parentRow?.parent_message_id ?? null, options.sessionId);
+  }
   const core: TranscriptStoreCore = {
     db,
     options,
@@ -826,6 +847,7 @@ export async function openSessionTranscriptStore(
     currentUserMessageRevision,
     insertMessageRow,
     attachToActiveLeaf,
+    detachFromActiveLeaf,
   };
 
   return {

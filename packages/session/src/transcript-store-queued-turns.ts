@@ -47,6 +47,7 @@ export function createTranscriptQueuedTurnsOps(
     currentQueueRevision,
     insertMessageRow,
     attachToActiveLeaf,
+    detachFromActiveLeaf,
   } = core;
 
   const ops: Pick<
@@ -367,6 +368,12 @@ export function createTranscriptQueuedTurnsOps(
                WHERE id = ?
                  AND sequence < (SELECT MAX(sequence) FROM transcript_message)`,
             ).run(row.user_message_id);
+          }
+          // Admission that rolls back (retry -> pending, failStarting -> failed,
+          // cancel) leaves a row the tree hides; the live reply must own the leaf
+          // again or new replies parent under it and a later start forms a cycle.
+          if (row.status === 'starting' && input.to !== 'started' && input.to !== 'starting') {
+            detachFromActiveLeaf(row.user_message_id);
           }
           bumpQueueRevision();
           db.exec('COMMIT');
