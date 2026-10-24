@@ -63,3 +63,10 @@ export function withTimeout<T>(
     );
   });
 }
+
+export function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, milliseconds);
+    timer.unref?.();
+  });
+}

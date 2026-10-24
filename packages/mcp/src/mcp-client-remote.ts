@@ -11,6 +11,7 @@ import type { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/cl
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { expandEnvMap } from './mcp-config.js';
 import { readOnlyHintOf } from './mcp-tool-annotations.js';
+import { errorMessage } from './mcp-operation-errors.js';
 import type { McpListedTool, McpOwnedProcess, McpTransportClient } from './mcp-transport.js';
 
 type RemoteTransportKind = 'http' | 'sse';
@@ -227,8 +228,4 @@ function isStreamableHttpUnsupported(error: unknown): boolean {
 
 function redactUrl(url: URL): string {
   return `${url.protocol}//${url.host}${url.pathname}`;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

@@ -27,7 +27,9 @@ import { fingerprintMcpServerConfig } from './mcp-fingerprint.js';
 import { createMcpMetadataCatalog, type McpMetadataCatalog } from './mcp-metadata-catalog.js';
 import type { McpGenerationSnapshot } from './mcp-generation-snapshot.js';
 import { resolveMcpConnectTimeoutMs } from './mcp-connection-policy.js';
-import { waitForAbortable, withTimeout } from './mcp-operation-timeout.js';
+import { delay, waitForAbortable, withTimeout } from './mcp-operation-timeout.js';
+import { errorMessage, isAbortError, isTimeoutError, throwIfAborted } from './mcp-operation-errors.js';
+import { ignoreRejection, safeClose, safeCloseOwnedProcess } from './mcp-transport-close.js';
 
 const CRASH_RESTART_BACKOFF_MS = 500;
 const DEFAULT_CONNECT_TIMEOUT_MS = 12_000;
@@ -889,58 +891,6 @@ export function createMcpLifecycleManager(
 }
 
 export const createMcpSupervisor = createMcpLifecycleManager;
-
-async function safeCloseOwnedProcess(ownedProcess: McpOwnedProcess): Promise<void> {
-  try {
-    await ownedProcess.close();
-  } catch {
-    // The supervisor has already waited for the transport's close boundary.
-  }
-}
-
-async function safeClose(client: McpTransportClient | null): Promise<void> {
-  if (!client) {
-    return;
-  }
-  try {
-    await client.close();
-  } catch {
-    // Cleanup is best effort; the process owner remains the primary boundary.
-  }
-}
-
-async function ignoreRejection(promise: Promise<void>): Promise<void> {
-  try {
-    await promise;
-  } catch {
-    // The initiating operation already recorded the failure on its entry.
-  }
-}
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, milliseconds);
-    timer.unref?.();
-  });
-}
-
-function throwIfAborted(signal?: AbortSignal): void {
-  if (signal?.aborted) {
-    throw new Error('MCP operation aborted');
-  }
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('aborted');
-}
-
-function isTimeoutError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('timeout');
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
