@@ -228,4 +228,76 @@ describe('createFileRecordStore', () => {
       await store?.dispose();
     }
   });
+  describe('terminal history retention', () => {
+    const nowMs = Date.parse('2026-10-24T12:00:00.000Z');
+    const retention = { maxTerminalRecords: 3, minTerminalRecords: 1, terminalMaxAgeMs: 60_000 };
+
+    function endedRecord(jobId: string, endedAgoMs: number, status: JobRecord['status'] = 'exited'): JobRecord {
+      return makeRecord({ jobId, status, endedAt: new Date(nowMs - endedAgoMs).toISOString() });
+    }
+
+    it('prunes history beyond the policy on load and rewrites the file', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-record-store-'));
+      const filePath = join(dir, 'records.json');
+      const preExisting: Record<string, JobRecord> = {};
+      for (let index = 0; index < 6; index += 1) {
+        preExisting[`t-${index}`] = endedRecord(`t-${index}`, (index + 1) * 1000);
+      }
+      preExisting['active'] = makeRecord({ jobId: 'active', status: 'running' });
+      await writeFile(filePath, JSON.stringify(preExisting, null, 2), 'utf8');
+
+      const store = createFileRecordStore(filePath, {
+        flushDebounceMs: 10,
+        retention,
+        now: () => nowMs,
+      });
+      expect(store.loadAll().map((r) => r.jobId).sort()).toEqual(['active', 't-0', 't-1', 't-2']);
+
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      const parsed = JSON.parse(await readFile(filePath, 'utf8')) as Record<string, JobRecord>;
+      expect(Object.keys(parsed).sort()).toEqual(['active', 't-0', 't-1', 't-2']);
+      await store.dispose();
+    });
+
+    it('prunes the oldest terminal record when a new one ends', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-record-store-'));
+      const filePath = join(dir, 'records.json');
+      const store = createFileRecordStore(filePath, { retention, now: () => nowMs });
+      store.save(makeRecord({ jobId: 'active', status: 'running' }));
+      store.save(endedRecord('t-old', 3000));
+      store.save(endedRecord('t-mid', 2000, 'failed'));
+      store.save(endedRecord('t-new', 1000, 'cancelled'));
+      expect(store.loadAll()).toHaveLength(4);
+
+      store.save(endedRecord('t-latest', 0, 'interrupted'));
+      expect(store.loadAll().map((r) => r.jobId).sort()).toEqual([
+        'active',
+        't-latest',
+        't-mid',
+        't-new',
+      ]);
+      await store.dispose();
+    });
+
+    it('drops expired terminal records above the floor', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-record-store-'));
+      const filePath = join(dir, 'records.json');
+      const store = createFileRecordStore(filePath, { retention, now: () => nowMs });
+      store.save(endedRecord('expired', 120_000));
+      store.save(endedRecord('recent', 1000));
+      expect(store.loadAll().map((r) => r.jobId)).toEqual(['recent']);
+      await store.dispose();
+    });
+  });
+
+  it('writes compact JSON', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-record-store-'));
+    const filePath = join(dir, 'records.json');
+    const store = createFileRecordStore(filePath);
+    store.save(makeRecord({ jobId: 'job-a' }));
+    await store.dispose();
+    const raw = await readFile(filePath, 'utf8');
+    expect(raw).not.toContain('\n');
+    expect(JSON.parse(raw)).toHaveProperty('job-a');
+  });
 });

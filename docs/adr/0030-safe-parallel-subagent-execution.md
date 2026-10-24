@@ -413,3 +413,20 @@ Detail and rationale: `docs/specs/2026-10-01-subagent-worktree-lifecycle.md`.
 - The lead has `piwin_subagent_result_discard` for a candidate it will not
   apply: owner-only, exact revision, refused for running/applied/applying
   results, a no-op when nothing is pending.
+
+## Addendum 2026-10-24: bounded durable Job history
+
+`{PIWIN_ROOT}/jobs/records.json` exists for host-start reconciliation, but it
+kept every terminal JobRecord forever and was re-serialized in full on each
+Job change. Retention now lives in `@piwin/process` (`job-record-retention.ts`):
+
+- Non-terminal records (`starting`/`running`/`ready`/`stopping`) are never
+  pruned, so a restart can still mark them `interrupted`.
+- Terminal records keep the newest 500; beyond the newest 64 (the registry's
+  resident terminal cap), those ended more than 7 days ago are dropped.
+- Pruning runs when the store loads and whenever a terminal record is saved;
+  a load that prunes rewrites the file right away.
+- The file is written as compact JSON (machine-only).
+
+Visible history is unaffected: `job/list`, `job/get` and log reads serve the
+registry's in-memory entries, which never exceed what the store retains.

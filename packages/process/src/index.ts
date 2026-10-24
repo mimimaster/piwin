@@ -14,6 +14,7 @@ export type {
   JobRecordStore,
   JobRecordStoreOptions,
 } from './job-record-store.js';
+export type { JobRecordRetentionPolicy } from './job-record-retention.js';
 
 export { createJobLogStore } from './job-log-store.js';
 export type {
