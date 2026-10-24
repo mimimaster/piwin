@@ -552,16 +552,14 @@ export class HostClient {
       if (hostChanged) {
         this.lastSeq = 0;
         this.pendingPushes.clear();
-        this.replayInFlight = false;
-        this.replayRequestId = undefined;
+        this.clearReplayInFlight();
       }
       // Future cursor vs a restarted Host with the same advertised id: clamp so
       // we do not filter every new push as already-seen.
       if (message.currentSeq < this.lastSeq) {
         this.lastSeq = message.currentSeq;
         this.pendingPushes.clear();
-        this.replayInFlight = false;
-        this.replayRequestId = undefined;
+        this.clearReplayInFlight();
       }
       this.hostInstanceId = message.hostInstanceId;
       this.persistCursor();
@@ -591,8 +589,7 @@ export class HostClient {
         this.replayRequestId !== undefined &&
         (message.requestId === undefined || message.requestId === this.replayRequestId)
       ) {
-        this.replayInFlight = false;
-        this.replayRequestId = undefined;
+        this.clearReplayInFlight();
       }
       if (message.requestId === undefined) {
         // Handshake / decode faults before hello may take the client down.
@@ -624,8 +621,7 @@ export class HostClient {
     }
 
     if (message.type === 'replay/done') {
-      this.replayInFlight = false;
-      this.replayRequestId = undefined;
+      this.clearReplayInFlight();
       // `currentSeq` is the server-side cursor fence, not merely the last
       // record visible through this client's live subscription. During replay
       // the Host advances its egress channel across filtered tail records
@@ -657,24 +653,10 @@ export class HostClient {
     }
 
     if (message.type === 'snapshot') {
-      try {
-        for (const listener of this.snapshotListeners) {
-          listener(message);
-        }
-      } catch (error) {
-        this.publishState({
-          kind: 'error',
-          reason: toError(error, 'Host snapshot failed').message,
-        });
+      if (!this.notifyFullSync(this.snapshotListeners, message, 'Host snapshot failed')) {
         return;
       }
-      this.hostInstanceId = message.status.hostInstanceId;
-      this.lastSeq = message.currentSeq;
-      this.pendingPushes.clear();
-      this.replayInFlight = false;
-      this.replayRequestId = undefined;
-      this.persistCursor();
-      this.publishState({ kind: 'ready' });
+      this.adoptFullSync(message.status.hostInstanceId, message.currentSeq);
       return;
     }
 
@@ -694,24 +676,46 @@ export class HostClient {
         this.publishState({ kind: 'error', reason: 'Invalid Host hydration frame' });
         return;
       }
-      try {
-        for (const listener of this.hydrationListeners) {
-          listener(message);
-        }
-      } catch (error) {
-        this.publishState({
-          kind: 'error',
-          reason: toError(error, 'Host hydration failed').message,
-        });
+      if (!this.notifyFullSync(this.hydrationListeners, message, 'Host hydration failed')) {
         return;
       }
-      this.hostInstanceId = message.snapshot.hostInstanceId;
-      this.lastSeq = message.snapshot.snapshotSeq;
-      this.pendingPushes.clear();
-      this.replayInFlight = false;
-      this.replayRequestId = undefined;
-      this.persistCursor();
-      this.publishState({ kind: 'ready' });
+      this.adoptFullSync(message.snapshot.hostInstanceId, message.snapshot.snapshotSeq);
+    }
+  }
+
+  /** Forget replay bookkeeping; a replay requested later starts from a clean slate. */
+  private clearReplayInFlight(): void {
+    this.replayInFlight = false;
+    this.replayRequestId = undefined;
+  }
+
+  /**
+   * Adopt the Host's cursor after a full sync (snapshot or hydration): everything
+   * before it is already in the frame, so queued live pushes are dropped.
+   */
+  private adoptFullSync(hostInstanceId: string, seq: number): void {
+    this.hostInstanceId = hostInstanceId;
+    this.lastSeq = seq;
+    this.pendingPushes.clear();
+    this.clearReplayInFlight();
+    this.persistCursor();
+    this.publishState({ kind: 'ready' });
+  }
+
+  /** A listener that throws fails the sync visibly; it must not leave the cursor half-adopted. */
+  private notifyFullSync<T>(
+    listeners: Iterable<(frame: T) => void>,
+    frame: T,
+    failure: string,
+  ): boolean {
+    try {
+      for (const listener of listeners) {
+        listener(frame);
+      }
+      return true;
+    } catch (error) {
+      this.publishState({ kind: 'error', reason: toError(error, failure).message });
+      return false;
     }
   }
 
