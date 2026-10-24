@@ -5,7 +5,6 @@ import type {
   ActiveLoginStatus,
   AuthLoginFinishedData,
   AuthLoginInput,
-  AuthPromptPayload,
   AuthStatusData,
   HostPush,
   PiwinConfig,
@@ -49,13 +48,13 @@ import {
   upsertSubscriptionProvider,
 } from './seed-subscription-provider.js';
 import { resolveConfiguredDefaultModelRef } from './provider-helpers.js';
-import { selectSubscriptionLoginMethod } from './select-subscription-login-method.js';
 import {
   readSubscriptionExtensionProviders,
   extensionDisplayName,
   type SubscriptionExtensionProvider,
 } from './subscription-extension-providers.js';
-import { eventToPayload, promptToPayload } from './subscription-auth-prompt-payload.js';
+import { SubscriptionLoginOwnership } from './subscription-login-ownership.js';
+import { answerLoginPrompt, relayLoginEvent } from './subscription-login-bridge.js';
 import { SubscriptionAuthWatcher } from './subscription-auth-watcher.js';
 import { mergeSubscriptionCatalogModels, type ConfiguredChatModels } from './subscription-model-overlay.js';
 import { assertCodexCallbackPortFree } from './subscription-oauth-callback-port.js';
@@ -92,9 +91,7 @@ export class SubscriptionAuthService {
   private lastOauthProviderIds = new Set<string>();
   private readonly syncErrorProviderIds = new Set<string>();
   private readonly needsReauthProviderIds = new Set<string>();
-  private readonly deviceConnections = new Map<string, number>();
-  private ownerConnected = true;
-  private trackedDeviceConnections = false;
+  private readonly ownership = new SubscriptionLoginOwnership();
 
   constructor(
     options: SubscriptionAuthServiceOptions = {},
@@ -173,31 +170,19 @@ export class SubscriptionAuthService {
   }
 
   noteDeviceConnected(deviceId: string): void {
-    const id = deviceId.trim();
-    if (!id) {
-      return;
+    if (this.ownership.noteDeviceConnected(deviceId)) {
+      this.syncOwnerConnected();
     }
-    this.trackedDeviceConnections = true;
-    this.deviceConnections.set(id, (this.deviceConnections.get(id) ?? 0) + 1);
-    this.syncOwnerConnected();
   }
 
   noteDeviceDisconnected(deviceId: string): void {
-    const id = deviceId.trim();
-    if (!id) {
-      return;
+    if (this.ownership.noteDeviceDisconnected(deviceId)) {
+      this.syncOwnerConnected();
     }
-    const next = (this.deviceConnections.get(id) ?? 0) - 1;
-    if (next <= 0) {
-      this.deviceConnections.delete(id);
-    } else {
-      this.deviceConnections.set(id, next);
-    }
-    this.syncOwnerConnected();
   }
 
   setOwnerConnected(connected: boolean): void {
-    this.ownerConnected = connected;
+    this.ownership.setConnected(connected);
   }
 
   async chatResolveInput(): Promise<ResolveChatModelAccounts> {
@@ -315,7 +300,7 @@ export class SubscriptionAuthService {
     void this.runLogin(input.providerId, abort.signal).finally(() => {
       clearTimeout(idle);
     });
-    this.ownerConnected = true;
+    this.ownership.setConnected(true);
     this.emitUpdated();
     console.log(
       `[piwin-host] auth/login start provider=${input.providerId} loginId=${loginId} preferLoopback=${String(this.active.preferLoopback)}`,
@@ -373,7 +358,7 @@ export class SubscriptionAuthService {
       return { error: 'The login owner is still connected.', code: 'auth-not-owner' };
     }
     active.ownerDeviceId = deviceId;
-    this.ownerConnected = true;
+    this.ownership.setConnected(true);
     return {};
   }
 
@@ -580,52 +565,11 @@ export class SubscriptionAuthService {
     if (!active) {
       throw new Error('login-cancelled');
     }
-    if (prompt.type === 'select') {
-      const method = selectSubscriptionLoginMethod(prompt.options);
-      if (method) {
-        return method;
-      }
-    }
-    if (
-      prompt.message?.includes('press Enter for browser login') ||
-      // Extension OAuth flows commonly offer "browser login or paste a key";
-      // shells drive the browser path, so accept it before any URL arrives.
-      (this.isExtensionProvider(active.providerId) &&
-        prompt.type === 'text' &&
-        !active.authUrl &&
-        prompt.message?.includes('browser login'))
-    ) {
-      return '';
-    }
-    const promptId = randomUUID();
-    const payload = promptToPayload(active, promptId, prompt);
-    active.currentPrompt = payload;
-    this.push?.({ type: 'auth/prompt', prompt: payload });
-    return new Promise<string>((resolve, reject) => {
-      active.pending = { promptId, resolve, reject };
-      const signal = prompt.signal;
-      if (!signal) {
-        return;
-      }
-      const onAbort = (): void => {
-        if (active.pending?.promptId !== promptId) {
-          return;
-        }
-        delete active.pending;
-        const cancelled: AuthPromptPayload = {
-          ...payload,
-          kind: 'prompt-cancelled',
-          expectsResponse: false,
-        };
-        active.currentPrompt = cancelled;
-        this.push?.({ type: 'auth/prompt', prompt: cancelled });
-        reject(new Error('prompt-cancelled'));
-      };
-      if (signal.aborted) {
-        onAbort();
-        return;
-      }
-      signal.addEventListener('abort', onAbort, { once: true });
+    return answerLoginPrompt({
+      active,
+      prompt,
+      isExtensionProvider: this.isExtensionProvider(active.providerId),
+      emit: (message) => this.push?.(message),
     });
   }
 
@@ -634,22 +578,12 @@ export class SubscriptionAuthService {
     if (!active) {
       return;
     }
-    const payload = eventToPayload(active, randomUUID(), event);
-    active.currentPrompt = payload;
-    if (payload.kind === 'auth_url') {
-      active.authUrl = payload;
-    }
-    const openUrl =
-      payload.kind === 'auth_url'
-        ? payload.url
-        : payload.kind === 'device_code'
-          ? payload.verificationUri
-          : undefined;
-    if (openUrl && active.openAuthUrlOnHost) {
-      console.log(`[piwin-host] auth/prompt ${payload.kind} opening ${openUrl}`);
-      this.openAuthUrl?.(openUrl);
-    }
-    this.push?.({ type: 'auth/prompt', prompt: payload });
+    relayLoginEvent({
+      active,
+      event,
+      emit: (message) => this.push?.(message),
+      openAuthUrl: this.openAuthUrl,
+    });
   }
 
   private async relocateChannel(config: PiwinConfig, oldId: string): Promise<string> {
@@ -790,17 +724,11 @@ export class SubscriptionAuthService {
   }
 
   private isOwnerStillConnected(): boolean {
-    if (!this.active) {
-      return this.ownerConnected;
-    }
-    if (!this.trackedDeviceConnections) {
-      return this.ownerConnected;
-    }
-    return (this.deviceConnections.get(this.active.ownerDeviceId) ?? 0) > 0;
+    return this.ownership.isConnected(this.active?.ownerDeviceId);
   }
 
   private syncOwnerConnected(): void {
-    this.ownerConnected = this.isOwnerStillConnected();
+    this.ownership.setConnected(this.isOwnerStillConnected());
   }
 
   async ensureLoggedInProviders(): Promise<PiwinConfig> {

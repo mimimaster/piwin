@@ -1,60 +1,19 @@
 /**
  * Host IPC handlers: catalog.
  */
-import type {
-  HostCommand,
-  HostResponse,
-  MediaReadData,
-  SpeechTranscribeData,
-  ConfiguredChatModel,
-} from '@piwin/contracts';
-import {
-  MEDIA_READ_WIRE_SAFE_BYTES,
-  MEDIA_THUMB_EDGE_STANDARD_PX,
-  SPEECH_MAX_DURATION_MS,
-  canToggleSkill,
-  createDefaultWebConfig,
-  formatError,
-  isMediaThumbEdge,
-  isExtensionProvider,
-  modelSupportsCapability,
-  projectConfiguredChatModels,
-} from '@piwin/contracts';
+import type { HostCommand, HostResponse, MediaReadData, SpeechTranscribeData, ConfiguredChatModel } from '@piwin/contracts';
+import { MEDIA_READ_WIRE_SAFE_BYTES, MEDIA_THUMB_EDGE_STANDARD_PX, SPEECH_MAX_DURATION_MS, canToggleSkill, createDefaultWebConfig, formatError, isMediaThumbEdge, isExtensionProvider, modelSupportsCapability, projectConfiguredChatModels } from '@piwin/contracts';
 import { lookupCatalogByModelId } from '@piwin/agent-host';
-import {
-  applySettingsMutations,
-  SettingsRevisionConflictError,
-  SettingsService,
-} from '../settings/settings-service.js';
+import { applySettingsMutations, SettingsRevisionConflictError, SettingsService } from '../settings/settings-service.js';
 import { isSubscriptionProvider } from '@piwin/contracts';
 import { createMediaService } from '@piwin/media';
 import { createExtensionRevisionStore, installExtension } from '@piwin/extensions';
-import {
-  ensureBundledSkillsInstalled,
-  installSkill,
-  readSkillPreview,
-  SkillUninstallError,
-  uninstallUserSkill,
-} from '@piwin/skills';
+import { ensureBundledSkillsInstalled, installSkill, readSkillPreview, SkillUninstallError, uninstallUserSkill } from '@piwin/skills';
 import { loadDiscoveredResources } from '../discovered-resources.js';
 import { getPiAgentDir } from '../paths.js';
 import { listSkillStoreEntries } from '@piwin/marketplace';
-import {
-  getActiveTheme,
-  installThemeFromLocalPath,
-  listThemes,
-  setActiveTheme,
-} from '@piwin/theme';
-import {
-  deletePet,
-  installPetFromLocalPath,
-  installPetFromLocalPaths,
-  installPetFromRegistry,
-  listPets,
-  queryRemotePetStore,
-  scanLocalPets,
-  setActivePet,
-} from '@piwin/pet';
+import { getActiveTheme, installThemeFromLocalPath, listThemes, setActiveTheme } from '@piwin/theme';
+import { deletePet, installPetFromLocalPath, installPetFromLocalPaths, installPetFromRegistry, listPets, queryRemotePetStore, scanLocalPets, setActivePet } from '@piwin/pet';
 import { loadPiwinConfig, savePiwinConfig } from '../config-store.js';
 import { ensureBundledExtensionsInstalled } from '../ensure-bundled-extensions.js';
 import { ensureBundledPromptsInstalled } from '../ensure-bundled-prompts.js';
@@ -66,12 +25,7 @@ import { testProviderConnection } from '../provider-connection-test.js';
 import { prepareProviderProbe } from './provider-probe-context.js';
 import { testImageGenerationModel } from '../image-generation-test.js';
 import { decodeBase64Audio, transcribeOpenAiCompatible } from '@piwin/speech';
-import {
-  DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
-  VisionDelegationCache,
-  delegateImageToVisionModel,
-  sharedVisionDelegationCache,
-} from '../vision-delegation.js';
+import { DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT, VisionDelegationCache, delegateImageToVisionModel, sharedVisionDelegationCache } from '../vision-delegation.js';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -88,13 +42,7 @@ import { probeWindsurfToken } from '../code-search/backends/windsurf-backend.js'
 import { buildSearchRoutePreview } from '../capabilities/search-route-preview.js';
 import type { HostCommandContext } from './host-command-context.js';
 import { loadCatalogResources, pushExtensionCatalog } from './catalog-resources.js';
-
-/**
- * In-flight pet install/query AbortControllers keyed by request id, so the
- * desktop can cancel a long-running download via `pet/cancel`. Entries are
- * removed by the owning request's `finally` block on completion.
- */
-const activePetAborts = new Map<string, AbortController>();
+import { handlePetCatalogCommand } from './catalog-pet-commands.js';
 
 const TYPES = new Set<HostCommand['type']>([
   'media/read',
@@ -176,6 +124,10 @@ export async function handleCatalogCommand(
   const modelCatalog = await handleModelCatalogCommand(command, requestId, context);
   if (modelCatalog) {
     return modelCatalog;
+  }
+  const petCatalog = await handlePetCatalogCommand(command, requestId, context);
+  if (petCatalog) {
+    return petCatalog;
   }
   switch (command.type) {
     case 'speech/transcribe': {
@@ -514,76 +466,6 @@ export async function handleCatalogCommand(
       const installed = await installThemeFromLocalPath(rootDir, command.sourcePath);
       return ok(requestId, 'theme/install-local', installed);
     }
-    case 'pet/list': {
-      const rootDir = getPiwinRoot(context.piwinRoot);
-      const data = await listPets(rootDir);
-      return ok(requestId, 'pet/list', data);
-    }
-    case 'pet/get-active': {
-      const pet = context.petStateStore.snapshot().pet;
-      return ok(requestId, 'pet/get-active', { pet });
-    }
-    case 'pet/set-active': {
-      const rootDir = getPiwinRoot(context.piwinRoot);
-      const pet = await setActivePet(rootDir, command.petId);
-      context.petStateStore.setBase(pet);
-      return ok(requestId, 'pet/set-active', { pet });
-    }
-    case 'pet/scan-local': {
-      const preview = await scanLocalPets(command.sourcePath);
-      return ok(requestId, 'pet/scan-local', preview);
-    }
-    case 'pet/install-local': {
-      const rootDir = getPiwinRoot(context.piwinRoot);
-      const installed = await installPetFromLocalPath(rootDir, command.sourcePath);
-      return ok(requestId, 'pet/install-local', installed);
-    }
-    case 'pet/install-local-batch': {
-      const rootDir = getPiwinRoot(context.piwinRoot);
-      const result = await installPetFromLocalPaths(rootDir, command.sourcePaths);
-      return ok(requestId, 'pet/install-local-batch', result);
-    }
-    case 'pet/store-query': {
-      const rootDir = getPiwinRoot(context.piwinRoot);
-      const controller = new AbortController();
-      if (requestId) activePetAborts.set(requestId, controller);
-      try {
-        const results = await queryRemotePetStore(rootDir, command.query.query, controller.signal);
-        return ok(requestId, 'pet/store-query', { results });
-      } finally {
-        if (requestId) activePetAborts.delete(requestId);
-      }
-    }
-    case 'pet/install-registry': {
-      const rootDir = getPiwinRoot(context.piwinRoot);
-      const controller = new AbortController();
-      if (requestId) activePetAborts.set(requestId, controller);
-      try {
-        const installed = await installPetFromRegistry(rootDir, command.url, controller.signal);
-        return ok(requestId, 'pet/install-registry', installed);
-      } finally {
-        if (requestId) activePetAborts.delete(requestId);
-      }
-    }
-    case 'pet/cancel': {
-      const controller = activePetAborts.get(command.requestId);
-      if (controller) {
-        controller.abort();
-        activePetAborts.delete(command.requestId);
-      }
-      return ok(requestId, 'pet/cancel', { cancelled: true });
-    }
-    case 'pet/delete': {
-      const rootDir = getPiwinRoot(context.piwinRoot);
-      const result = await deletePet(rootDir, command.petId);
-      if (result.fallbackPet) {
-        context.petStateStore.setBase(result.fallbackPet);
-      } else if (context.petStateStore.snapshot().pet.petId === command.petId) {
-        context.petStateStore.setBase(fallbackPetSnapshot());
-      }
-      return ok(requestId, 'pet/delete', { deleted: true, fallbackPet: result.fallbackPet });
-    }
-
     case 'config/get': {
       const configRoot = getPiwinRoot(context.piwinRoot);
       const config = await loadPiwinConfig(configRoot);
