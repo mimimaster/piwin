@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Updated | 2026-10-23 |
+| Updated | 2026-10-24 |
 | Backlog | [`todo-deferred.md`](./todo-deferred.md) |
 | Depth program | [`specs/product-depth-competitive-alignment.md`](./specs/product-depth-competitive-alignment.md) |
 | Optimization program | [`specs/product-optimization-program.md`](./specs/product-optimization-program.md) **Active** |
@@ -38,7 +38,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Interactive PTY (xterm) | green (Tauri) | portable-pty + xterm; no second Node shell-preview architecture in the target state |
 | Host Server / multi-client | yellow (in tree) | `@piwin/host-server` + `apps/host`: WebSocket transport, device pairing (ADR 0075), LAN phone access (ADR 0076), origin/exposure guards. Desktop can attach to a standalone Host; Mobile (ADR 0084) and CLI TUI (ADR 0086) use the remote protocol. Owner to confirm release status |
 | Personal Gateway / tunnel | red | Optional W4 transport layer after Host Server; ADR 0027 protocol seams retained |
-| Flashcard study workbench (ADR 0066) | yellow | **In tree, not released.** Desktop page, Mobile catalog+study, CLI `piwin study`, Host rounds/operations, unique CardStore, existing tear-off. Real-device V04/V09/V22 **not run**; visual fixtures **not captured**; root typecheck / mobile build still fail on pre-existing artifact types. Mobile source is excerpt-only; v1 online-only; CLI has no animation. Do not claim dual-device video or 已上线. |
+| Flashcard study workbench (ADR 0066) | yellow | **In tree, not released.** Desktop page, Mobile catalog+study, CLI `piwin study`, Host rounds/operations, unique CardStore, existing tear-off. Real-device V04/V09/V22 **not run**; visual fixtures **not captured**; root `pnpm typecheck` is green again (2026-10-24). Mobile source is excerpt-only; v1 online-only; CLI has no animation. Do not claim dual-device video or 已上线. |
 
 ## Architecture health
 
@@ -48,6 +48,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | App shell modularity | green | App ~800 lines orchestration + hooks/components |
 | host-client mock isolation | green | `host-client-mock.ts` |
 | HostRuntime modularity | transition | target extraction to `@piwin/host-runtime`; `@piwin/agent-host` narrows to the Pi boundary |
+| Desktop installer (ADR 0017) | yellow | Bundles the Host sidecar and a pinned Node (`pnpm package:desktop`); macOS DMG is signed and notarized, Windows NSIS via `pnpm release:desktop`. Clean-machine smoke (S5) still pending, so do not call it public-ready yet |
 | Host deployment | yellow | Local sidecar plus standalone Host (`apps/host`, `pnpm package:host`) with paired remote clients (ADR 0036/0075) |
 | ui-kit primitives | green | Menu/Popover/Confirm/Notice/Status/Tabs/Field + Button/Dialog |
 | Lint / CI gates | green | Real ESLint (typed no-floating-promises, hooks rules, no empty catch); CI runs lint, typecheck incl. mobile, tests, boundaries, host smoke, plus macOS (cargo test, desktop e2e) and Windows (credential store) jobs |

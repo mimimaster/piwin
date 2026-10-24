@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Active — M2 done; Host Server/multi-client target added; see todo-deferred |
+| Status | Active — M-tables below are historical; current truth is [`product-status.md`](./product-status.md) and the backlog is [`todo-deferred.md`](./todo-deferred.md) (updated 2026-10-24) |
 | Date | 2026-08-12 |
 | Based on | `docs/prd.md` v0.2, locked product decisions |
 | Repo | `~/Projects/piwin` |

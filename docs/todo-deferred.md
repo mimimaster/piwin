@@ -37,7 +37,7 @@
    Duplicate from response-level Fork.
 8. **Product-Shell Repair (PSR-*) — Active 2026-07-22:** developer-preview desktop shell repair —  
    plan [`docs/plans/2026-07-22-desktop-product-shell-repair.md`](plans/2026-07-22-desktop-product-shell-repair.md).  
-   **D1 lock:** remains developer preview; bundled Node/host sidecar distribution is intentionally deferred (not a completed release path).
+   **D1 lock (superseded 2026-10-24):** the bundled Host + Node sidecar is implemented (ADR 0017, `pnpm package:desktop`, `pnpm release:desktop`). Clean-machine smoke (S5) is still pending before it is called public-ready.
 9. **Product-level Session Fork (SF-*) — Ready for implementation 2026-08-04:** user-triggered response branching, a discoverable response-level Duplicate entry, and lightweight product lineage without coupling v1 to Pi JSONL active-leaf restore —
    spec [`docs/specs/session-fork-product-adaptation.md`](specs/session-fork-product-adaptation.md).
 
@@ -151,6 +151,7 @@
 | D-ENG-03 | ~~Unsigned desktop package path~~ | **Done** — `pnpm package:desktop` + `docs/release-desktop.md` | done (unsigned) |
 | D-ENG-03b | Code signing / notarization when certs available | `pnpm notarize:desktop` + workflow Notarize step; needs App Store Connect API secrets and Developer ID p12 on GitHub-hosted | later delivery |
 | D-ENG-04 | cleanup corrupt `*.ts ***` filenames if any | eng hygiene | eng |
+| D-ENG-05 | Production files still close to the 1000-line cap after the 2026-10-24 split pass: `apps/mobile/src/hooks/use-mobile-host.ts` (971; `handleConnect` is ~217 lines inside the hook), `apps/desktop/src/workspace-subpages/studio/media-library-workspace.tsx` (952), `packages/host-client/src/host-client.ts` (953; `createHello` and the push pipeline are the next seams) | Why deferred: no direct test for the mobile hook, and the desktop component has no visual regression covering the split. Move `handleConnect` into its own hook with a test first. | polish, before the next feature in these files |
 | D-WWG-01 | **Read-before-write for `write_file`**: Host hashes a file when Pi `read` finishes (agent-host passes the path to a Host port) and records it in the session file ledger; a `write_file` over an existing file then refuses once if this session never read it or it changed since. Closes the remaining gap in ADR 0069 rev. 2026-09-29 (first whole-file overwrite long after a read). | Host `edit` removes most whole-file overwrites of existing files; measure how many unread overwrites remain before adding a worker→Host read pipe. Spec: docs site `workspace-concurrency` §7. | after 1–2 weeks of `edit` data |
 | D-WWG-02 | ~~Stop shell from marking the whole turn incomplete~~ **Done 2026-09-29 (ADR 0083)**: per-command audits; command-changed files outside the turn's Host writes are excluded from undo. Residual: those files are listed, not undoable. | Undoing command-written files would need their before-bytes, which a fingerprint does not keep. | done (residual later) |
 | D-WWG-03 | Run long tests/builds against a snapshot or scratch worktree so other sessions can edit while the result maps to a known version. | pnpm monorepo `node_modules` per worktree is costly; the mixed-version note covers the risk today. | later |
@@ -280,7 +281,7 @@
 
 > Plan: [`docs/plans/2026-07-22-desktop-product-shell-repair.md`](plans/2026-07-22-desktop-product-shell-repair.md)  
 > Locks D1–D10 from product review. Removal-first; no new agent kernel, dashboard, or visual redesign.  
-> **D1 (developer preview):** workspace `pnpm`/`tsx` host bridge only. Bundled Node runtime / installed-app sidecar packaging is **intentionally deferred** — not a completed release path.
+> **D1 (superseded 2026-10-24):** the installed-app sidecar packaging is implemented (ADR 0017). Only the S5 clean-machine smoke remains before public release.
 
 | ID | Item | Status |
 |----|------|--------|
@@ -292,9 +293,9 @@
 | PSR-S5 | Core vs Advanced Settings; transcript-visible subagent activity (no permanent panel) | **Done 2026-07-22** |
 | PSR-S6 | Delete obsolete rail/dock paths; CSS ownership consolidation | **Done 2026-07-22** |
 | PSR-S7 | Verification, docs, developer-preview release gate | **Done 2026-07-22** (browser e2e; Tauri smoke checklist in docs/notes) |
-| PSR-D1 | Bundled host/Node runtime for installed Desktop | **Deferred by D1** — developer preview only. See also evidence-plan §5: packaged host distribution (bundled executable/Node, resource resolution, signing/notarization, clean-machine verification) requires a separate plan. |
+| PSR-D1 | Bundled host/Node runtime for installed Desktop | **Implemented 2026-10-24 (ADR 0017)** — bundled Host + pinned Node in the app, signed/notarized macOS DMG, Windows NSIS via `pnpm release:desktop`. Residual: S5 clean-machine smoke (`docs/plans/2026-07-26-host-sidecar-bundling-execution-plan.md`). |
 | PSR-D2 | Desktop RPC mode / selectable `PiwinConfig.hostMode` on Desktop | **Deferred by D2** — Desktop SDK-only until worker isolation ships |
-| PSR-D3 | First-run provider wizard / readiness gate blocking trust | **Deferred by D7** — out of scope |
+| PSR-D3 | First-run provider wizard / readiness gate blocking trust | **Dropped by owner 2026-10-24** — will not build. Deferred by D7 before this. |
 | PSR-D4 | Pi JSONL multi-leaf session tree UI | **Deferred** — product shell remains linear |
 | PSR-D5 | Provider-specific context compression beyond honest over-limit | **Deferred** |
 | PSR-D6 | Terminal outside Tauri / CLI PTY parity | **Deferred by D3 scope** |
@@ -371,10 +372,17 @@ SF-06 follows core adoption, and SF-07 remains independently spike-gated.
 
 ---
 
+### 2.16 Bundled providers
+
+| ID | Item | Why deferred / unfinished | Suggested |
+|----|------|---------------------------|-----------|
+| D-ZEN-01 | **OpenCode Zen free tier is gated to the OpenCode client.** `packages/agent-host/bundled-extensions/piwin-opencode-zen` (built-in, enabled by default on fresh installs) lists `*-free` models. A plain request to `opencode.ai/zen/v1/chat/completions` returns HTTP 403 `FreeTierError`: "free tier can only be used from within OpenCode" (checked 2026-10-24 with `big-pickle`, `glm-5.3-flash-free`, `deepseek-v4.1-flash-free`). The extension's `buildZenHeaders` (`src/zen-request.js`) sends an `opencode/…` user-agent and `x-opencode-session` headers, which is how it reaches the free tier, i.e. it impersonates the OpenCode client. Not verified whether that path currently succeeds; deliberately not tested, because it means getting around the provider's restriction. | Owner decision needed: keep the client impersonation (against the provider's stated free-tier rule), or drop it and keep only a paid key path (BYOK, real key, `openai-compatible` base URL `https://opencode.ai/zen/v1`). The Zen extension notice also says availability depends on IP. | decide, then fix in one slice (ADR 0077 amendment) |
+
 ## 3. Done archive (recent)
 
 | Date | Item | Where |
 |------|------|-------|
+| 2026-10-24 | File-size pass: split `tui-app` (clock + composer dialogs), `subscription-auth-service` (login ownership + prompt bridge), `browser-runtime` (launch), `job-registry` (readiness probe), `mcp-lifecycle-manager` (close/error helpers), `session-product-commands` (→ `session-derive-commands`), `catalog-commands` (→ `catalog-pet-commands`); host-client replay dedupe. Docs truth: PSR-D1 implemented, root typecheck green | cli, host-runtime, browser, process, mcp, host-client, docs |
 | 2026-07-27 | QW-BTN-01/02/03 retire legacy `.btn` / `.icon-btn` (NotesPanel + FlashcardsPanel → ui-kit `Button`) | desktop + `ui-foundations.css` |
 | 2026-07-20 | M2 Agent Window MVP | `docs/specs/m2-execution-plan.md` |
 | 2026-07-20 | M3 media + tools-web kernel/CLI | `docs/specs/m3-media-web.md` |
