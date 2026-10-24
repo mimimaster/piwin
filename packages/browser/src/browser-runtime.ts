@@ -16,8 +16,14 @@ import {
   BrowserUnavailableError,
   isDeadBrowserError,
 } from './browser-errors.js';
-import { browserChromiumInstallHint, classifyBrowserLaunchError } from './install-status.js';
 import type { EnsureOwnedChromium } from './ensure-playwright-chromium.js';
+import {
+  closeQuietly,
+  defaultLaunchPersistentContext,
+  launchChromiumContext,
+  launchTimeoutError,
+  type BrowserLaunchPersistentContext,
+} from './browser-launch.js';
 import {
   assertLoopbackCdpEndpoint,
   defaultConnectOverCdp,
@@ -43,18 +49,7 @@ import { createBrowserLeaseTracker } from './browser-lease-tracker.js';
 
 const DEFAULT_LAUNCH_TIMEOUT_MS = 15_000;
 
-export type BrowserPersistentLaunchOptions = {
-  headless: boolean;
-  viewport: { width: number; height: number };
-  deviceScaleFactor?: number;
-  userAgent?: string;
-  args?: string[];
-};
-
-export type BrowserLaunchPersistentContext = (
-  userDataDir: string,
-  options: BrowserPersistentLaunchOptions,
-) => Promise<BrowserContext>;
+export type { BrowserPersistentLaunchOptions, BrowserLaunchPersistentContext } from './browser-launch.js';
 
 export type BrowserRuntimeOptions = {
   headless: boolean;
@@ -382,32 +377,15 @@ export function createBrowserRuntime(
     let launched: BrowserContext | undefined;
 
     const work = (async (): Promise<Page> => {
-      try {
-        const scale = options.deviceScaleFactor ?? 1;
-        const args: string[] = [...(options.args ?? [])];
-        if (scale > 1 && !args.some((arg) => arg.startsWith('--force-device-scale-factor'))) {
-          args.push(`--force-device-scale-factor=${scale}`);
-        }
-        launched = await launchPersistentContext(options.profileDir, {
-          headless: options.headless,
-          viewport,
-          ...(options.deviceScaleFactor !== undefined
-            ? { deviceScaleFactor: options.deviceScaleFactor }
-            : {}),
-          ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
-          ...(args.length > 0 ? { args } : {}),
-        });
-      } catch (error) {
-        const reason = classifyBrowserLaunchError(error);
-        throw new BrowserUnavailableError(
-          reason === 'binary-missing'
-            ? `headless Chromium could not be launched. ${browserChromiumInstallHint()}`
-            : reason === 'profile-in-use'
-              ? 'browser profile is already in use by another Chromium'
-              : `headless Chromium failed to start (${error instanceof Error ? error.message : String(error)})`,
-          { cause: error, reason },
-        );
-      }
+      launched = await launchChromiumContext({
+        profileDir: options.profileDir,
+        headless: options.headless,
+        viewport,
+        ...(options.deviceScaleFactor !== undefined ? { deviceScaleFactor: options.deviceScaleFactor } : {}),
+        ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
+        ...(options.args !== undefined ? { args: options.args } : {}),
+        launchPersistentContext,
+      });
 
       if (closed || guard.cancelled || epoch !== bindEpoch) {
         await closeQuietly(launched);
@@ -952,25 +930,4 @@ export function createBrowserRuntime(
   };
 }
 
-function defaultLaunchPersistentContext(
-  userDataDir: string,
-  launchOptions: BrowserPersistentLaunchOptions,
-): Promise<BrowserContext> {
-  return import('playwright-core').then(({ chromium }) =>
-    chromium.launchPersistentContext(userDataDir, launchOptions),
-  );
-}
 
-function launchTimeoutError(timeoutMs: number): BrowserUnavailableError {
-  return new BrowserUnavailableError(`browser launch timed out after ${timeoutMs}ms`);
-}
-
-async function closeQuietly(target: { close: () => Promise<unknown> } | undefined): Promise<void> {
-  if (target === undefined) return;
-  try {
-    await target.close();
-  } catch (error) {
-    if (isDeadBrowserError(error)) return;
-    console.warn('[browser] cleanup failed', error instanceof Error ? error.message : error);
-  }
-}
