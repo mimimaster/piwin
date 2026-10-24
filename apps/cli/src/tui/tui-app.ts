@@ -45,9 +45,7 @@ import { hostData, type TuiHostLink } from './tui-host-link.js';
 import { mountTuiLayout } from './tui-layout.js';
 import { readTuiSessionIndex } from './tui-session-index.js';
 import { StatusHint } from './status-hint.js';
-import { QueryListOverlay } from './query-list-overlay.js';
 import { describeHostFailure } from './host-failure-text.js';
-import { editTextExternally } from './external-editor.js';
 import { ComposerBadgeFrame } from './composer-badge-frame.js';
 import { QueueStrip, stripRows } from './queue-strip.js';
 import { handleQueueStripKey } from './queue-strip-keys.js';
@@ -74,6 +72,8 @@ import { TuiSessionFeatures } from './tui-session-features.js';
 import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
+import { TuiTurnClock } from './tui-turn-clock.js';
+import { editComposerExternally, openPromptHistorySearch } from './tui-composer-dialogs.js';
 import { TuiRewindController } from './tui-rewind-controller.js';
 import { TuiUsageController } from './tui-usage-controller.js';
 import { ProjectFiles } from './project-files.js';
@@ -131,10 +131,8 @@ export class TuiApp {
   );
   private readonly statusLine = new StatusLine();
   private readonly loader: Loader;
-  /** When the in-flight turn began; drives the elapsed counter on the activity line. */
-  private turnStartedAt: number | undefined;
-  private elapsedTimer: ReturnType<typeof setInterval> | undefined;
-  private subagentTimer: ReturnType<typeof setInterval> | undefined;
+  /** Elapsed counter on the activity line and the running-subagent redraw. */
+  private readonly clock = new TuiTurnClock();
 
   private transcript: TranscriptState = EMPTY_TRANSCRIPT;
   private sessionId: string | undefined;
@@ -311,9 +309,11 @@ export class TuiApp {
         this.attachments.pasteClipboardImage().catch((error: unknown) => this.reportError(error));
       },
       cyclePermissionPreset: () => this.composer.cyclePermissionPreset(),
-      openHistorySearch: () => this.openHistorySearch(),
+      openHistorySearch: () =>
+        openPromptHistorySearch({ modals: this.modals, editor: this.editor, tui: this.tui, history: this.history }),
       openRewind: () => this.rewind.open(),
-      editInExternalEditor: () => this.editInExternalEditor(),
+      editInExternalEditor: () =>
+        editComposerExternally({ tui: this.tui, editor: this.editor, flashHint: (text) => this.flashHint(text) }),
       toggleToolOutput: () => this.transcriptView.toggleToolOutput(),
       openLatestArtifact: () => this.artifacts.openLatest(),
       openLatestImage: () => {
@@ -391,9 +391,7 @@ export class TuiApp {
   public dispose(): void {
     this.statusHint.dispose();
     this.usage.dispose();
-    this.stopElapsedTimer();
-    if (this.subagentTimer !== undefined) clearInterval(this.subagentTimer);
-    this.subagentTimer = undefined;
+    this.clock.dispose();
     this.loader.stop();
     for (const dispose of this.disposers.splice(0)) dispose();
   }
@@ -673,42 +671,6 @@ export class TuiApp {
     this.history.add(text);
   }
 
-  /** Ctrl+G: give the terminal to `$EDITOR` for the composer text, then take it back. */
-  private editInExternalEditor(): void {
-    const result = (() => {
-      this.tui.stop();
-      try {
-        // Pasted blocks are folded in the composer; the editor should see all of it.
-        return editTextExternally(this.editor.getExpandedText());
-      } finally {
-        this.tui.start();
-        this.tui.requestRender(true);
-      }
-    })();
-    if (result.kind === 'edited') this.editor.setText(result.text);
-    else if (result.kind === 'failed') this.flashHint(result.reason);
-  }
-
-  private openHistorySearch(): void {
-    const { modals } = this;
-    modals.show(
-      new QueryListOverlay<string>({
-        title: '历史提示词',
-        footer: '↑↓ 选择 · Enter 填入输入框 · Esc 取消',
-        emptyHint: '还没有发送过的提示词',
-        noMatchHint: '没有匹配的提示词',
-        search: (query) => this.history.search(query),
-        label: (text) => text,
-        onPick: (text) => {
-          modals.close();
-          this.editor.setText(text);
-          this.tui.requestRender();
-        },
-        onCancel: () => modals.close(),
-      }),
-    );
-  }
-
   /** The session this shell shows, once it has one. */
   public currentSessionId(): string | undefined {
     return this.sessionId;
@@ -854,14 +816,14 @@ export class TuiApp {
     const hasLoader = this.activitySlot.children.length > 0;
     if (running) {
       const phase = this.foreground.kind === 'active' ? this.foreground.phase : undefined;
-      if (this.turnStartedAt === undefined) this.startElapsedTimer();
+      if (this.clock.turnStartedAt === undefined) this.clock.startTurn(() => this.tickTurn());
       this.loader.setMessage(this.describeActivity(phase));
       if (!hasLoader) {
         this.activitySlot.addChild(this.loader);
         this.loader.start();
       }
     } else {
-      this.stopElapsedTimer();
+      this.clock.stopTurn();
       if (hasLoader) {
         this.loader.stop();
         this.activitySlot.clear();
@@ -876,31 +838,18 @@ export class TuiApp {
   }
 
   private describeActivity(phase: string | undefined): string {
-    const elapsed = this.turnStartedAt === undefined ? 0 : Date.now() - this.turnStartedAt;
-    return `${describeRunPhase(phase)} · ${formatElapsed(elapsed)} · Esc 中断`;
+    return `${describeRunPhase(phase)} · ${formatElapsed(this.clock.elapsedMs())} · Esc 中断`;
   }
 
-  /** Tick the activity line once a second for the turn in flight. */
-  private startElapsedTimer(): void {
-    this.stopElapsedTimer();
-    this.turnStartedAt = Date.now();
-    this.elapsedTimer = setInterval(() => {
-      if (this.foreground.kind !== 'active') {
-        this.stopElapsedTimer();
-        return;
-      }
-      this.loader.setMessage(this.describeActivity(this.foreground.phase));
-      if (!this.openingSession) this.statusLine.setContent(this.describeStatus());
-      this.tui.requestRender();
-    }, 1000);
-    // Never keep the process alive just for the counter.
-    this.elapsedTimer.unref?.();
-  }
-
-  private stopElapsedTimer(): void {
-    if (this.elapsedTimer !== undefined) clearInterval(this.elapsedTimer);
-    this.elapsedTimer = undefined;
-    this.turnStartedAt = undefined;
+  /** Once a second while a turn is in flight; the counter stops with the turn. */
+  private tickTurn(): void {
+    if (this.foreground.kind !== 'active') {
+      this.clock.stopTurn();
+      return;
+    }
+    this.loader.setMessage(this.describeActivity(this.foreground.phase));
+    if (!this.openingSession) this.statusLine.setContent(this.describeStatus());
+    this.tui.requestRender();
   }
 
   private syncGitBranch(force: boolean): void {
@@ -922,13 +871,7 @@ export class TuiApp {
     const running = subagents.hasRunningInvocations();
     const second = running ? Math.floor(Date.now() / 1000) : 0;
     this.transcriptView.setSubagentRuns(subagents.lookupRun, subagents.liveVersion * 100_000 + (second % 100_000), subagents.lookupRunByToolCall);
-    if (running && this.subagentTimer === undefined) {
-      this.subagentTimer = setInterval(() => this.refreshChrome(), 1000);
-      this.subagentTimer.unref?.();
-    } else if (!running && this.subagentTimer !== undefined) {
-      clearInterval(this.subagentTimer);
-      this.subagentTimer = undefined;
-    }
+    this.clock.syncSubagents(running, () => this.refreshChrome());
   }
 
   private describeArtifacts(): string | undefined {
@@ -956,7 +899,7 @@ export class TuiApp {
     ].filter((part): part is string => part !== undefined && part.length > 0);
     const native = this.sessionAgentId === undefined;
     const running = this.foreground.kind === 'active'
-      ? { phase: this.foreground.phase, elapsedMs: this.turnStartedAt === undefined ? 0 : Date.now() - this.turnStartedAt }
+      ? { phase: this.foreground.phase, elapsedMs: this.clock.elapsedMs() }
       : undefined;
     const values: StatusValues = {
       session: this.sessionName ?? (this.sessionId === undefined ? '新会话' : '未命名会话'),
