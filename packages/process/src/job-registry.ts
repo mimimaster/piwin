@@ -19,7 +19,6 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { createConnection } from 'node:net';
 import type {
   JobCleanupResult,
   JobController,
@@ -55,6 +54,7 @@ import {
   type SupervisedProcess,
 } from './process-supervisor.js';
 import { observeProcessClose } from './process-close-observer.js';
+import { probeReadiness } from './job-readiness-probe.js';
 import type { JobRecordStore } from './job-record-store.js';
 
 /** Default maximum concurrent jobs. */
@@ -583,47 +583,25 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
     entry.readinessTimer = timer;
     if (typeof timer.unref === 'function') timer.unref();
 
-    if (probe.type === 'tcp') {
-      probeTcp(host, probe.port, abort.signal)
-        .then((success) => {
-          if (
-            success &&
-            entry.record.status === 'running' &&
-            !entry.stopInProgress &&
-            !entry.terminalOverride
-          ) {
-            clearTimeout(timer);
-            entry.record.status = 'ready';
-            entry.record.readyAt = nowIso(now);
-            emit({ type: 'job/ready', job: publicRecord(entry) });
-            emit({ type: 'job/updated', job: publicRecord(entry) });
-            persistRecord(entry);
-          }
-        })
-        .catch(() => {
-          // probe failed — timeout handler will deal with it
-        });
-    } else if (probe.type === 'http') {
-      probeHttp(host, probe.port, probe.path ?? '/', abort.signal)
-        .then((success) => {
-          if (
-            success &&
-            entry.record.status === 'running' &&
-            !entry.stopInProgress &&
-            !entry.terminalOverride
-          ) {
-            clearTimeout(timer);
-            entry.record.status = 'ready';
-            entry.record.readyAt = nowIso(now);
-            emit({ type: 'job/ready', job: publicRecord(entry) });
-            emit({ type: 'job/updated', job: publicRecord(entry) });
-            persistRecord(entry);
-          }
-        })
-        .catch(() => {
-          // probe failed — timeout handler will deal with it
-        });
-    }
+    probeReadiness(probe, host, abort.signal)
+      .then((success) => {
+        if (
+          success &&
+          entry.record.status === 'running' &&
+          !entry.stopInProgress &&
+          !entry.terminalOverride
+        ) {
+          clearTimeout(timer);
+          entry.record.status = 'ready';
+          entry.record.readyAt = nowIso(now);
+          emit({ type: 'job/ready', job: publicRecord(entry) });
+          emit({ type: 'job/updated', job: publicRecord(entry) });
+          persistRecord(entry);
+        }
+      })
+      .catch(() => {
+        // probe failed — timeout handler will deal with it
+      });
   }
 
   async function handleReadinessTimeout(entry: JobEntry): Promise<void> {
@@ -673,30 +651,6 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
         entry.pendingExitCode ?? override?.exitCode ?? null,
         override?.lastError ?? errorMessage,
       );
-    }
-  }
-
-  async function probeTcp(host: string, port: number, signal: AbortSignal): Promise<boolean> {
-    return new Promise((resolve) => {
-      const conn = createConnection({ host, port }, () => {
-        conn.destroy();
-        resolve(true);
-      });
-      conn.on('error', () => resolve(false));
-      signal.addEventListener('abort', () => {
-        conn.destroy();
-        resolve(false);
-      }, { once: true });
-    });
-  }
-
-  async function probeHttp(host: string, port: number, path: string, signal: AbortSignal): Promise<boolean> {
-    try {
-      const url = `http://${host}:${port}${path}`;
-      const response = await fetch(url, { signal });
-      return response.ok || response.status < 500;
-    } catch {
-      return false;
     }
   }
 
