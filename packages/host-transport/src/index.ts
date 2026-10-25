@@ -1,5 +1,6 @@
 export * from './host-transport.js';
 export * from './host-handshake-error.js';
+export * from './host-socket-closed-error.js';
 export * from './host-push-policy.js';
 export * from './host-push-audience.js';
 export * from './protocol-codec.js';

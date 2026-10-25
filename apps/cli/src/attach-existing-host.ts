@@ -1,5 +1,5 @@
 import type { HostAttachTarget } from '@piwin/contracts';
-import { HostClient } from '@piwin/host-client';
+import { HostClient, isLoopbackHostEndpoint } from '@piwin/host-client';
 import { getPiwinRoot } from '@piwin/host-runtime/paths';
 import { WebSocketHostTransport } from '@piwin/host-transport';
 import { createNodeHostWebSocket } from './node-host-websocket.js';
@@ -33,7 +33,7 @@ export async function resolveCliHostAttachTarget(
   const legacy = readCliHostAttachTarget(env);
   if (legacy !== undefined) {
     if (
-      !isLoopbackEndpoint(legacy.endpoint) &&
+      !isLoopbackHostEndpoint(legacy.endpoint) &&
       (legacy.deviceCredential !== undefined || legacy.authToken !== undefined)
     ) {
       const migrated = await migrateLegacyCliTarget({
@@ -58,15 +58,6 @@ export function isRemoteHostTarget(target: CliHostAttachTarget): target is CliRe
 /** Human label for messages: the endpoint or the Host's name. */
 export function describeCliHostTarget(target: CliHostAttachTarget): string {
   return isRemoteHostTarget(target) ? target.remoteHost.entry.hostName : target.endpoint;
-}
-
-function isLoopbackEndpoint(endpoint: string): boolean {
-  try {
-    const hostname = new URL(endpoint).hostname;
-    return hostname === 'localhost' || hostname === '[::1]' || /^127\./.test(hostname);
-  } catch {
-    return false;
-  }
 }
 
 export function readCliHostAttachTarget(

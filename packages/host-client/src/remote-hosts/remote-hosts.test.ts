@@ -8,7 +8,7 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import { groupHostBookByUser, HostBook } from './host-book.js';
 import { HostDialPlan } from './host-dial-plan.js';
-import { createMemoryKeyValueStorage } from './key-value-storage.js';
+import { createMemoryKeyValueStorage, createNativeSecretStorage } from './key-value-storage.js';
 import { migrateLegacyHost, type LegacyHostConnection } from './legacy-host-migrator.js';
 import { classifyPairingInput, dialFirstReachable } from './pair-remote-host.js';
 import { RemoteHostVault } from './remote-host-vault.js';
@@ -319,5 +319,41 @@ describe('migrateLegacyHost', () => {
       error: { message: expect.stringContaining('another key') },
     });
     expect(await hostBook.list()).toEqual([]);
+  });
+});
+
+describe('createNativeSecretStorage', () => {
+  it('drives the mobile commands by default and the Desktop ones by prefix', async () => {
+    const calls: Array<[string, Record<string, unknown>]> = [];
+    const invoke = async (command: string, args: Record<string, unknown>) => {
+      calls.push([command, args]);
+      return command.endsWith('_read') ? '' : undefined;
+    };
+    const mobile = createNativeSecretStorage(invoke);
+    const desktop = createNativeSecretStorage(invoke, 'desktop_secret');
+    expect(await mobile.read('k')).toBeUndefined();
+    await desktop.write('k', 'v');
+    await desktop.remove('k');
+    expect(calls).toEqual([
+      ['mobile_credential_read', { endpoint: 'k' }],
+      ['desktop_secret_write', { endpoint: 'k', payload: 'v' }],
+      ['desktop_secret_clear', { endpoint: 'k' }],
+    ]);
+  });
+});
+
+describe('classifyChannelFailure', () => {
+  it('names relay and channel close codes and leaves Host reasons alone', async () => {
+    const { classifyChannelFailure } = await import('./channel-failure.js');
+    const { HostHandshakeError, HostSocketClosedError } = await import('@piwin/host-transport');
+    expect(classifyChannelFailure(new HostSocketClosedError('x', 4404))).toBe('host-unavailable');
+    expect(classifyChannelFailure(new HostSocketClosedError('x', 4429))).toBe('relay-limited');
+    expect(classifyChannelFailure(new HostSocketClosedError('x', 4403))).toBe('relay-forbidden');
+    expect(classifyChannelFailure(new HostHandshakeError('x', 4004))).toBe('host-key-mismatch');
+    expect(
+      classifyChannelFailure(new HostHandshakeError('x', 4004, 'authentication-failed')),
+    ).toBeUndefined();
+    expect(classifyChannelFailure(new HostSocketClosedError('x', 1006))).toBeUndefined();
+    expect(classifyChannelFailure(new Error('x'))).toBeUndefined();
   });
 });

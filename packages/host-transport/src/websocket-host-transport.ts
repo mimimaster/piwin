@@ -1,6 +1,7 @@
 import type { HostClientHello, HostHello, HostHelloRejectReason } from '@piwin/contracts';
 import { isHostHelloRejectReason, REMOTE_CHANNEL_CLOSE } from '@piwin/contracts';
 import { HostHandshakeError } from './host-handshake-error.js';
+import { HostSocketClosedError } from './host-socket-closed-error.js';
 import { decodeHostWireMessage, encodeHostWireMessage } from './protocol-codec.js';
 import type {
   HostClientHelloFactory,
@@ -405,7 +406,10 @@ export class WebSocketHostTransport implements HostTransport {
           event.code,
           this.handshakeRejectReason,
         )
-      : new Error(`Host WebSocket closed before handshake (${event.code}): ${reason}`);
+      : new HostSocketClosedError(
+          `Host WebSocket closed before handshake (${event.code}): ${reason}`,
+          event.code,
+        );
     if (this.closing) {
       this.failHello(error);
       return;

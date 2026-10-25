@@ -17,7 +17,7 @@ import {
 import { parsePairingString, type ParsedPairingData } from '../pairing-code.js';
 import type { HostBook } from './host-book.js';
 import { HostDialPlan, type DialChoice } from './host-dial-plan.js';
-import { RemoteHostVault } from './remote-host-vault.js';
+import { RemoteHostVault, type RemoteHostSecrets } from './remote-host-vault.js';
 
 export type PairingInput =
   { kind: 'channel'; link: PairingLinkV3 } | { kind: 'legacy'; data: ParsedPairingData };
@@ -82,6 +82,27 @@ export async function dialFirstReachable(
     }
   }
   throw lastError;
+}
+
+/**
+ * One dial of an already paired Host with its stored client key and device
+ * credential, over the first reachable path. Used for one-shot commands and
+ * to verify a channel before a legacy record is dropped.
+ */
+export function dialPairedHost(input: {
+  entry: HostBookEntry;
+  secrets: RemoteHostSecrets;
+  dial: ChannelDialer;
+  hello: Omit<HostClientHello, 'pairingToken' | 'deviceCredential' | 'authToken' | 'lastSeq'>;
+}): Promise<{ hello: HostHello; close: () => Promise<void>; choice: DialChoice }> {
+  const hello: HostClientHello = {
+    ...input.hello,
+    lastSeq: 0,
+    deviceCredential: input.secrets.credential,
+  };
+  return dialFirstReachable(new HostDialPlan(input.entry), (choice) =>
+    input.dial({ choice, target: input.entry, clientKeyPair: input.secrets.clientKeyPair, hello }),
+  );
 }
 
 /**

@@ -24,22 +24,29 @@ export function createMemoryKeyValueStorage(): KeyValueStorage {
   };
 }
 
+/** Command-name prefix of a shell's secret store: `<prefix>_read` / `_write` / `_clear`. */
+export type NativeSecretCommandPrefix = 'mobile_credential' | 'desktop_secret';
+
 /**
- * Keychain-backed storage over the shell's `mobile_credential_*` commands,
- * which store an opaque string per key (the key is hashed natively). Reused so
- * ADR 0101 secrets need no new native surface.
+ * OS-credential-store storage over a shell's `<prefix>_*` commands, which keep
+ * an opaque string per key. The mobile shell's `mobile_credential_*` (key
+ * hashed natively) and the Desktop shell's `desktop_secret_*` share the
+ * `{ endpoint, payload }` argument shape.
  */
-export function createNativeSecretStorage(invoke: DeviceCredentialInvoke): KeyValueStorage {
+export function createNativeSecretStorage(
+  invoke: DeviceCredentialInvoke,
+  prefix: NativeSecretCommandPrefix = 'mobile_credential',
+): KeyValueStorage {
   return {
     read: async (key) => {
-      const payload = await invoke('mobile_credential_read', { endpoint: key });
+      const payload = await invoke(`${prefix}_read`, { endpoint: key });
       return typeof payload === 'string' && payload.length > 0 ? payload : undefined;
     },
     write: async (key, value) => {
-      await invoke('mobile_credential_write', { endpoint: key, payload: value });
+      await invoke(`${prefix}_write`, { endpoint: key, payload: value });
     },
     remove: async (key) => {
-      await invoke('mobile_credential_clear', { endpoint: key });
+      await invoke(`${prefix}_clear`, { endpoint: key });
     },
   };
 }

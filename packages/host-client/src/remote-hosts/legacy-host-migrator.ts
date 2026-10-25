@@ -103,6 +103,19 @@ export async function migrateLegacyHost(input: {
   }
 }
 
+/**
+ * A loopback attach is the Host's own operator door (ADR 0101 §6), not a
+ * remote shell: shells keep it as is instead of migrating it.
+ */
+export function isLoopbackHostEndpoint(endpoint: string): boolean {
+  try {
+    const hostname = new URL(endpoint).hostname;
+    return hostname === 'localhost' || hostname === '[::1]' || /^127\./.test(hostname);
+  } catch {
+    return false;
+  }
+}
+
 let migrationRequests = 0;
 
 /** Default legacy connection: the old cleartext hello over a plain WebSocket. */

@@ -1,9 +1,9 @@
-import type { HostBookEntry, HostClientHello, HostHello } from '@piwin/contracts';
+import type { HostBookEntry, HostHello } from '@piwin/contracts';
 import {
   createChannelDialer,
   createLegacyConnector,
   createRemoteHostTransport,
-  dialFirstReachable,
+  dialPairedHost,
   HostDialPlan,
   migrateLegacyHost,
   type HostBook,
@@ -104,19 +104,18 @@ export function dialEntry(
   secrets: RemoteHostSecrets,
   clientId: string,
 ): Promise<{ hello: HostHello; close: () => Promise<void> }> {
-  const dial = createChannelDialer(createNodeRelayInnerSocket);
-  const hello: HostClientHello = {
-    type: 'client/hello',
-    protocolVersion: 1,
-    clientType: 'cli',
-    clientVersion: CLI_CLIENT_VERSION,
-    clientId,
-    lastSeq: 0,
-    deviceCredential: secrets.credential,
-  };
-  return dialFirstReachable(new HostDialPlan(entry), (choice) =>
-    dial({ choice, target: entry, clientKeyPair: secrets.clientKeyPair, hello }),
-  );
+  return dialPairedHost({
+    entry,
+    secrets,
+    dial: createChannelDialer(createNodeRelayInnerSocket),
+    hello: {
+      type: 'client/hello',
+      protocolVersion: 1,
+      clientType: 'cli',
+      clientVersion: CLI_CLIENT_VERSION,
+      clientId,
+    },
+  });
 }
 
 /**
