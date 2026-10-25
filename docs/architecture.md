@@ -62,6 +62,13 @@ apps/*  ↛  Pi packages
 apps/gateway (optional) → host-transport + contracts only
 ```
 
+`apps/gateway` is the self-hosted relay of ADR 0101: Hosts and remote shells
+dial out to it and exchange Noise IK–encrypted frames it cannot read. It
+authenticates Hosts by signature against key-derived relay user ids and keeps
+no traffic state; `scripts/check-package-boundaries.mjs` enforces its
+contracts + host-transport–only dependency rule. Operator guide:
+[`guides/remote-relay.md`](./guides/remote-relay.md).
+
 CLI command dispatch loads only the selected handler. The public Node-only
 `@piwin/host-runtime/paths` entry exports root resolution without loading the
 Host composition graph; an attached TUI defers local Host implementations.

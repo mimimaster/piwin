@@ -1,0 +1,12 @@
+# Allow-list: the relay needs only these workspace packages.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!packages/contracts
+!packages/host-transport
+!apps/gateway
+**/node_modules
+**/dist
+**/*.tsbuildinfo

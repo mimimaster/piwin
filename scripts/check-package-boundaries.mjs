@@ -37,6 +37,7 @@ const violations = [];
 
 checkAgentHostDependencies();
 checkProductionImports();
+checkGatewayBoundary();
 checkRootTypeScriptReferences();
 checkAgentHostLegacyExports();
 checkArchitectureDeletionGates();
@@ -142,6 +143,37 @@ function checkProductionImports() {
         if (moduleSpecifier === '@piwin/agent-host') {
           violations.push(`${formatPath(filePath)} imports agent-host directly`);
         }
+      }
+    }
+  }
+}
+
+/**
+ * ADR 0101 / AGENTS.md §1.13: the relay is transport-only. It may use
+ * contracts and host-transport, never the Host, runtime or Pi.
+ */
+function checkGatewayBoundary() {
+  const gatewayDirectory = join(repositoryRoot, 'apps', 'gateway');
+  const packageJsonPath = join(gatewayDirectory, 'package.json');
+  if (!existsSync(packageJsonPath)) {
+    return;
+  }
+  const allowed = new Set(['@piwin/contracts', '@piwin/host-transport']);
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+  const dependencies = {
+    ...(packageJson.dependencies ?? {}),
+    ...(packageJson.optionalDependencies ?? {}),
+    ...(packageJson.devDependencies ?? {}),
+  };
+  for (const dependencyName of Object.keys(dependencies)) {
+    if (dependencyName.startsWith('@piwin/') && !allowed.has(dependencyName)) {
+      violations.push(`apps/gateway depends on ${dependencyName}; only contracts and host-transport are allowed`);
+    }
+  }
+  for (const filePath of listProductionSourceFiles(join(gatewayDirectory, 'src'))) {
+    for (const moduleSpecifier of extractModuleSpecifiers(readFileSync(filePath, 'utf8'))) {
+      if (moduleSpecifier.startsWith('@piwin/') && !allowed.has(moduleSpecifier)) {
+        violations.push(`${formatPath(filePath)} imports ${moduleSpecifier}; the relay is transport-only`);
       }
     }
   }
@@ -316,7 +348,8 @@ function isExcludedDirectory(directoryName) {
 
 function extractModuleSpecifiers(sourceText) {
   const moduleSpecifiers = new Set();
-  const importPattern = /(?:from\s*|import\s*\(|require\s*\()(['"])([^'"\n]+)\1/g;
+  // Also bare side-effect imports (`import 'x';`), which have no `from`.
+  const importPattern = /(?:from\s*|import\s*\(|import\s+|require\s*\()(['"])([^'"\n]+)\1/g;
   for (const match of sourceText.matchAll(importPattern)) {
     const moduleSpecifier = match[2];
     if (moduleSpecifier) {

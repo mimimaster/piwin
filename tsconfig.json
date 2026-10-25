@@ -30,6 +30,7 @@
     { "path": "packages/host-client" },
     { "path": "packages/host-server" },
     { "path": "apps/cli" },
-    { "path": "apps/host" }
+    { "path": "apps/host" },
+    { "path": "apps/gateway" }
   ]
 }
