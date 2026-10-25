@@ -14,6 +14,7 @@ import { installExternalLinkGuard } from './platform/external-link-guard';
 import { isTauriRuntime } from './host/tauri-pty';
 import { primeDeviceCredential } from './devices/device-admission';
 import { loadDesktopRemoteHostTarget } from './host/remote-host-session';
+import { primeChannelHost } from './host/channel-host-book';
 import { isDesktopTauriRuntime, isMobileTauriRuntime } from './tool-cards/shell-runtime';
 import { getAppUpdateStore } from './platform/app-update-store';
 import { configureArtifactKitDelivery } from '@piwin/artifact';
@@ -84,14 +85,24 @@ const root = createRoot(rootElement);
 if (isMobileTauriRuntime()) {
   // The workbench builds its Host client synchronously; a paired phone needs
   // its Keychain credential in memory before that first hello.
-  const savedEndpoint = loadDesktopRemoteHostTarget()?.endpoint;
-  void (savedEndpoint === undefined ? Promise.resolve() : primeDeviceCredential(savedEndpoint)).finally(
+  const saved = loadDesktopRemoteHostTarget();
+  const priming =
+    saved === undefined
+      ? Promise.resolve()
+      : saved.hostId !== undefined
+        ? primeChannelHost(saved.hostId).then(() => undefined)
+        : primeDeviceCredential(saved.endpoint);
+  void priming.finally(
     () => {
       root.render(<DesktopThemeRoot />);
     },
   );
 } else {
-  void nativeWindowMaterialReady.finally(() => {
+  // A browser tab attached over the channel needs its host book entry in memory too.
+  const savedHostId = loadDesktopRemoteHostTarget()?.hostId;
+  const channelReady =
+    savedHostId === undefined ? Promise.resolve() : primeChannelHost(savedHostId).then(() => undefined);
+  void Promise.allSettled([nativeWindowMaterialReady, channelReady]).finally(() => {
     root.render(<DesktopThemeRoot />);
   });
 }

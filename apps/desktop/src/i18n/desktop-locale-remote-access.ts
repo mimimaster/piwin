@@ -29,6 +29,10 @@ export type RemoteAccessCopy = {
   deviceOperator: string;
   deviceLegacy: string;
   deviceMigrated: string;
+  pairLinkLabel: string;
+  pairLinkPlaceholder: string;
+  pairWithLink: string;
+  pairing: string;
 };
 
 const CLOSE_HINTS_ZH: Record<number, string> = {
@@ -75,6 +79,10 @@ export const REMOTE_ACCESS_COPY: Record<DesktopLocale, RemoteAccessCopy> = {
     deviceOperator: '管理员',
     deviceLegacy: '旧版连接',
     deviceMigrated: '已迁移',
+    pairLinkLabel: '配对链接',
+    pairLinkPlaceholder: 'piwin://pair?v=3…',
+    pairWithLink: '用链接配对',
+    pairing: '正在配对…',
   },
   en: {
     sectionTitle: 'Remote access',
@@ -105,6 +113,10 @@ export const REMOTE_ACCESS_COPY: Record<DesktopLocale, RemoteAccessCopy> = {
     deviceOperator: 'admin',
     deviceLegacy: 'older connection',
     deviceMigrated: 'migrated',
+    pairLinkLabel: 'Pairing link',
+    pairLinkPlaceholder: 'piwin://pair?v=3…',
+    pairWithLink: 'Pair with link',
+    pairing: 'Pairing…',
   },
 };
 

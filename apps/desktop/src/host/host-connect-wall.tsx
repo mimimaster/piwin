@@ -1,5 +1,15 @@
-import { useId, useState, type ReactElement } from 'react';
-import { Button, Collapse, Field, PasswordInput, TextInput, showErrorNotification } from '@piwin/ui-kit';
+import { useEffect, useId, useState, type ReactElement } from 'react';
+import type { PairingLinkV3 } from '@piwin/contracts';
+import { classifyPairingInput } from '@piwin/host-client';
+import { HostHandshakeError } from '@piwin/host-transport';
+import {
+  Button,
+  Collapse,
+  Field,
+  PasswordInput,
+  TextInput,
+  showErrorNotification,
+} from '@piwin/ui-kit';
 import { getDesktopCopy } from '../i18n/desktop-locale.js';
 import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
 import { desktopShellDefaultEndpoint } from '../platform/desktop-shell-build.js';
@@ -7,9 +17,17 @@ import { formatError } from '@piwin/contracts';
 import { canScanPairingCode, scanPairingCode } from './pairing-code-scanner.js';
 import { probeDesktopRemoteHost } from '../run-activity/probe-desktop-remote-host.js';
 import {
+  DESKTOP_HOST_CLIENT_VERSION,
+  desktopRemoteClientId,
   loadDesktopRemoteHostTarget,
   type DesktopRemoteHostTarget,
 } from './remote-host-session.js';
+import {
+  canPairOverChannel,
+  channelHostDisplayEndpoint,
+  pairWorkbenchChannelHost,
+} from './channel-host-book.js';
+import { getRemoteAccessCopy } from '../i18n/desktop-locale-remote-access.js';
 
 export type HostConnectWallProps = {
   /** After a successful probe; caller persists target + launch mode. */
@@ -31,6 +49,9 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
   );
   const [authToken, setAuthToken] = useState(saved?.authToken ?? '');
   const [busy, setBusy] = useState(false);
+  const remoteCopy = getRemoteAccessCopy(locale);
+  const channelPairing = canPairOverChannel();
+  const [pairLink, setPairLink] = useState('');
 
   const [scanning, setScanning] = useState(false);
   const scannerAvailable = canScanPairingCode();
@@ -71,16 +92,73 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
     await connectWith({ endpoint, authToken });
   }
 
+  /** ADR 0101: pair over the encrypted channel from a v3 link or QR. */
+  async function pairChannel(link: PairingLinkV3): Promise<void> {
+    setBusy(true);
+    try {
+      const entry = await pairWorkbenchChannelHost({
+        link,
+        clientId: desktopRemoteClientId(),
+        clientVersion: DESKTOP_HOST_CLIENT_VERSION,
+      });
+      props.onConnected({ endpoint: channelHostDisplayEndpoint(entry), hostId: entry.hostId });
+    } catch (pairError) {
+      showErrorNotification(
+        pairError instanceof HostHandshakeError && pairError.reason !== undefined
+          ? copy.rejectReasons[pairError.reason]
+          : copy.connectFailed(formatError(pairError)),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePairLink(raw: string): Promise<void> {
+    try {
+      const input = classifyPairingInput(raw);
+      if (input.kind === 'channel') {
+        await pairChannel(input.link);
+        return;
+      }
+      setEndpoint(input.data.endpoint);
+      await connectWith({
+        endpoint: input.data.endpoint,
+        authToken: input.data.authToken ?? '',
+        ...(input.data.pairingToken === undefined ? {} : { pairingToken: input.data.pairingToken }),
+      });
+    } catch (linkError) {
+      showErrorNotification(formatError(linkError));
+    }
+  }
+
+  // A browser opened from `https://relay/#pair=…`: pair once, then drop the
+  // secret from the address bar and history.
+  useEffect(() => {
+    if (!channelPairing || !window.location.hash.startsWith('#pair=')) {
+      return;
+    }
+    const href = window.location.href;
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    void handlePairLink(href);
+    // Runs once on mount by design.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // A pairing token is single use, so a scan connects straight away instead of
   // parking the token in a field the user then has to submit.
   async function handleScan(): Promise<void> {
     setScanning(true);
     try {
-      const pairing = await scanPairingCode();
-      if (pairing === undefined) {
+      const scanned = await scanPairingCode();
+      if (scanned === undefined) {
         showErrorNotification(copy.scanEmpty);
         return;
       }
+      if (scanned.kind === 'channel') {
+        await pairChannel(scanned.link);
+        return;
+      }
+      const pairing = scanned.data;
       setEndpoint(pairing.endpoint);
       setAuthToken(pairing.authToken ?? '');
       await connectWith({
@@ -132,6 +210,31 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
         )}
         <Collapse expanded={manualOpen} testId="host-gate-manual">
           <div id={manualId} className="host-gate-manual">
+            {channelPairing ? (
+              <Field label={remoteCopy.pairLinkLabel}>
+                <div className="remote-access-row">
+                  <TextInput
+                    value={pairLink}
+                    onChange={(event) => setPairLink(event.currentTarget.value)}
+                    placeholder={remoteCopy.pairLinkPlaceholder}
+                    autoComplete="off"
+                    spellCheck={false}
+                    disabled={busy}
+                    testId="host-gate-pair-link"
+                  />
+                  <Button
+                    variant="primary"
+                    disabled={busy || pairLink.trim().length === 0}
+                    onClick={() => {
+                      void handlePairLink(pairLink.trim());
+                    }}
+                    data-testid="host-gate-pair-link-submit"
+                  >
+                    {busy ? remoteCopy.pairing : remoteCopy.pairWithLink}
+                  </Button>
+                </div>
+              </Field>
+            ) : null}
             <Field label={copy.endpointLabel}>
               <TextInput
                 value={endpoint}

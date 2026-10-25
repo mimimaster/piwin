@@ -85,7 +85,10 @@ describe('HostConnectWall', () => {
   });
 
   it('reports a failed scan as a toast and releases the buttons', async () => {
-    scanner.scan.mockResolvedValue({ endpoint: 'ws://192.168.1.20:8790', pairingToken: 'pair' });
+    scanner.scan.mockResolvedValue({
+      kind: 'legacy',
+      data: { endpoint: 'ws://192.168.1.20:8790', pairingToken: 'pair' },
+    });
     scanner.probe.mockRejectedValue(new Error('boom'));
     renderWall();
     await act(async () => {
@@ -100,7 +103,10 @@ describe('HostConnectWall', () => {
   });
 
   it('localizes a classified Host refusal instead of showing its English message', async () => {
-    scanner.scan.mockResolvedValue({ endpoint: 'ws://192.168.1.20:8790', pairingToken: 'pair' });
+    scanner.scan.mockResolvedValue({
+      kind: 'legacy',
+      data: { endpoint: 'ws://192.168.1.20:8790', pairingToken: 'pair' },
+    });
     scanner.probe.mockResolvedValue({
       ok: false,
       error: 'Host rejected the connection (4004): Pairing token is invalid or expired',

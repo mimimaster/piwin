@@ -1,4 +1,5 @@
 import type { HostClientCapabilities } from '@piwin/contracts';
+import { isRemoteId } from '@piwin/contracts';
 import {
   HostClient,
   type HostClientCursor,
@@ -14,13 +15,18 @@ import {
 } from '../devices/device-admission.js';
 import { hasTauriBridge } from '../tool-cards/shell-runtime.js';
 import { createTauriHostWebSocket } from './tauri-host-websocket.js';
+import { peekChannelHost } from './channel-host-book.js';
+import { createChannelDesktopHostClient } from './channel-host-client.js';
 
 /** Keep in sync with apps/desktop/package.json version for Host minClient checks. */
 export const DESKTOP_HOST_CLIENT_VERSION = '0.0.0';
 
 export type DesktopRemoteHostTarget = {
+  /** Legacy attach address; for a channel Host, the address shown in the chip. */
   endpoint: string;
   authToken?: string;
+  /** ADR 0101: a host book entry; the client dials the channel instead of `endpoint`. */
+  hostId?: string;
 };
 
 /**
@@ -143,6 +149,22 @@ export function createDesktopRemoteHostClient(
 ): HostClient {
   const resolved = resolveDesktopRemoteHostClientOptions(options);
   const endpoint = target.endpoint.trim();
+  if (target.hostId !== undefined) {
+    const channel = peekChannelHost(target.hostId);
+    if (channel === undefined) {
+      throw new Error('This Host is not in the host book on this device; pair it again');
+    }
+    const suffix = encodeURIComponent(`channel:${target.hostId}`);
+    return createChannelDesktopHostClient({
+      ...channel,
+      clientId: resolved.clientId ?? getOrCreateClientId(),
+      clientVersion: DESKTOP_HOST_CLIENT_VERSION,
+      capabilities: DESKTOP_REMOTE_HOST_CLIENT_CAPABILITIES,
+      autoReconnect: resolved.autoReconnect,
+      lastSeqStore: createLocalStorageLastSeqStore(`${LAST_SEQ_KEY}.${suffix}`),
+      cursorStore: createLocalStorageCursorStore(`${CURSOR_KEY}.${suffix}`),
+    });
+  }
   const storageSuffix = encodeURIComponent(endpoint);
   const transport = new WebSocketHostTransport({
     endpoint,
@@ -219,6 +241,9 @@ function parseDesktopRemoteHostTarget(value: unknown): DesktopRemoteHostTarget |
   if (!isRemoteHostEndpoint(endpoint)) {
     return undefined;
   }
+  if (isRemoteId(value.hostId)) {
+    return { endpoint, hostId: value.hostId };
+  }
   if (value.authToken === undefined) {
     return { endpoint };
   }
@@ -242,6 +267,11 @@ function notifyDesktopRemoteHostTargetListeners(): void {
   for (const listener of targetListeners) {
     listener();
   }
+}
+
+/** This shell installation's client id (also its pairing `clientId`). */
+export function desktopRemoteClientId(): string {
+  return getOrCreateClientId();
 }
 
 function getOrCreateClientId(): string {
@@ -327,5 +357,9 @@ export function sameDesktopRemoteHostTarget(
   if (left === undefined || right === undefined) {
     return false;
   }
-  return left.endpoint === right.endpoint && left.authToken === right.authToken;
+  return (
+    left.endpoint === right.endpoint &&
+    left.authToken === right.authToken &&
+    left.hostId === right.hostId
+  );
 }
