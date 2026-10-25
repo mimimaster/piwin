@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, type ReactElement } from 'react';
 import type { PairingLinkV3 } from '@piwin/contracts';
-import { classifyPairingInput } from '@piwin/host-client';
+import { classifyChannelFailure, classifyPairingInput } from '@piwin/host-client';
 import { HostHandshakeError } from '@piwin/host-transport';
 import {
   Button,
@@ -28,6 +28,7 @@ import {
   pairWorkbenchChannelHost,
 } from './channel-host-book.js';
 import { getRemoteAccessCopy } from '../i18n/desktop-locale-remote-access.js';
+import { PairedHostList } from './paired-host-list.js';
 
 export type HostConnectWallProps = {
   /** After a successful probe; caller persists target + launch mode. */
@@ -103,10 +104,13 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
       });
       props.onConnected({ endpoint: channelHostDisplayEndpoint(entry), hostId: entry.hostId });
     } catch (pairError) {
+      const failure = classifyChannelFailure(pairError);
       showErrorNotification(
         pairError instanceof HostHandshakeError && pairError.reason !== undefined
           ? copy.rejectReasons[pairError.reason]
-          : copy.connectFailed(formatError(pairError)),
+          : failure !== undefined
+            ? remoteCopy.channelFailures[failure]
+            : copy.connectFailed(formatError(pairError)),
       );
     } finally {
       setBusy(false);
@@ -177,6 +181,9 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
     <div className="host-gate" data-testid="host-connect-wall">
       <div className="host-gate-card">
         <h1 className="host-gate-title">{gate.connectTitle}</h1>
+        {channelPairing ? (
+          <PairedHostList onConnect={(target) => props.onConnected(target)} disabled={busy} />
+        ) : null}
         {scannerAvailable ? (
           <>
             <p className="host-gate-description">{copy.scanHint}</p>

@@ -2,6 +2,7 @@
  * ADR 0101 remote-access settings copy (relay, relay user, legacy clients).
  * Kept apart from the phone-access copy so each file stays small.
  */
+import type { ChannelFailureKind } from '@piwin/host-client';
 import type { DesktopLocale } from './desktop-locale.js';
 
 export type RemoteAccessCopy = {
@@ -33,6 +34,15 @@ export type RemoteAccessCopy = {
   pairLinkPlaceholder: string;
   pairWithLink: string;
   pairing: string;
+  pairedHostsLabel: string;
+  pairedHostMeta: (input: { userName: string; relay: boolean; operator: boolean }) => string;
+  connectHost: string;
+  forgetHost: string;
+  forgetTitle: (hostName: string) => string;
+  forgetDescription: string;
+  cancel: string;
+  secretsMissing: string;
+  channelFailures: Record<ChannelFailureKind, string>;
 };
 
 const CLOSE_HINTS_ZH: Record<number, string> = {
@@ -83,6 +93,21 @@ export const REMOTE_ACCESS_COPY: Record<DesktopLocale, RemoteAccessCopy> = {
     pairLinkPlaceholder: 'piwin://pair?v=3…',
     pairWithLink: '用链接配对',
     pairing: '正在配对…',
+    pairedHostsLabel: '已配对的 Host',
+    pairedHostMeta: ({ userName, relay, operator }) =>
+      [userName, relay ? '中转' : '直连', ...(operator ? ['管理员'] : [])].join(' · '),
+    connectHost: '连接',
+    forgetHost: '移除',
+    forgetTitle: (hostName) => `移除 ${hostName}？`,
+    forgetDescription: '这台设备会删除与它的配对密钥。之后要再连接，需要在 Host 上生成新的配对码。',
+    cancel: '取消',
+    secretsMissing: '这台设备上找不到它的配对密钥，请重新配对。',
+    channelFailures: {
+      'host-unavailable': 'Host 不在线，或不在这个中转上。请确认电脑开着并已连上中转。',
+      'host-key-mismatch': 'Host 的身份和配对时不一致，请在 Host 上生成新的配对码重新配对。',
+      'relay-limited': '中转暂时不接受更多连接，请稍后再试。',
+      'relay-forbidden': '中转拒绝了这个连接，请检查中转地址或用户是否被停用。',
+    },
   },
   en: {
     sectionTitle: 'Remote access',
@@ -117,6 +142,25 @@ export const REMOTE_ACCESS_COPY: Record<DesktopLocale, RemoteAccessCopy> = {
     pairLinkPlaceholder: 'piwin://pair?v=3…',
     pairWithLink: 'Pair with link',
     pairing: 'Pairing…',
+    pairedHostsLabel: 'Paired Hosts',
+    pairedHostMeta: ({ userName, relay, operator }) =>
+      [userName, relay ? 'relay' : 'direct', ...(operator ? ['admin'] : [])].join(' · '),
+    connectHost: 'Connect',
+    forgetHost: 'Remove',
+    forgetTitle: (hostName) => `Remove ${hostName}?`,
+    forgetDescription:
+      'This device deletes its pairing keys for this Host. Connecting again needs a new pairing code from the Host.',
+    cancel: 'Cancel',
+    secretsMissing: 'This device no longer has the pairing keys for this Host; pair it again.',
+    channelFailures: {
+      'host-unavailable':
+        'The Host is offline or not on this relay. Check that the computer is on and connected to the relay.',
+      'host-key-mismatch':
+        'The Host identity does not match the one you paired with. Pair again with a new code from the Host.',
+      'relay-limited': 'The relay is not taking more connections right now; try again shortly.',
+      'relay-forbidden':
+        'The relay refused this connection. Check the relay address, or whether the user is disabled.',
+    },
   },
 };
 

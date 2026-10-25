@@ -1,9 +1,8 @@
 /**
- * ADR 0101 shell state for the workbench (mobile shell, browser): the host
- * book in localStorage (no secrets) and per-Host secrets in the platform's
- * secret store — the Keychain in the mobile shell, IndexedDB in a browser.
- * The Desktop Tauri shell has no secret store yet and keeps its legacy
- * endpoint attach until it gains one.
+ * ADR 0101 shell state for the workbench (Desktop thin shell, mobile shell,
+ * browser): the host book in localStorage (no secrets) and per-Host secrets in
+ * the platform's secret store — the OS credential store in both Tauri shells,
+ * IndexedDB in a browser.
  *
  * Like device-admission.ts, entries and secrets are primed into memory so the
  * synchronous Host client factory can use them.
@@ -20,7 +19,12 @@ import {
 } from '@piwin/host-client';
 import { createNativeRelayInnerSocket, type RelayInnerSocketFactory } from '@piwin/host-transport';
 import { describeThisDevice } from '../devices/device-admission.js';
-import { isMobileTauriRuntime, readShellRuntime } from '../tool-cards/shell-runtime.js';
+import {
+  hasTauriBridge,
+  isDesktopTauriRuntime,
+  isMobileTauriRuntime,
+  readShellRuntime,
+} from '../tool-cards/shell-runtime.js';
 
 const primedEntries = new Map<string, HostBookEntry>();
 const primedSecrets = new Map<string, RemoteHostSecrets>();
@@ -29,12 +33,12 @@ let sharedVault: RemoteHostVault | undefined | null;
 
 /** Where this runtime can keep channel secrets; undefined = channel pairing unavailable. */
 function secretStorage(): KeyValueStorage | undefined {
-  if (isMobileTauriRuntime()) {
-    return createNativeSecretStorage(async (command, args) => {
-      const { invoke } = await import('@tauri-apps/api/core');
-      return invoke(command, args);
-    });
-  }
+  const invokeNative = async (command: string, args: Record<string, unknown>) => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke(command, args);
+  };
+  if (isMobileTauriRuntime()) return createNativeSecretStorage(invokeNative);
+  if (isDesktopTauriRuntime()) return createNativeSecretStorage(invokeNative, 'desktop_secret');
   if (readShellRuntime() === 'browser' && typeof indexedDB !== 'undefined') {
     return createIndexedDbStorage();
   }
@@ -52,7 +56,8 @@ export function channelHostBook(): HostBook {
   return sharedBook;
 }
 
-function channelVault(): RemoteHostVault | undefined {
+/** This runtime's channel secret vault; undefined where secrets cannot be kept. */
+export function channelVault(): RemoteHostVault | undefined {
   if (sharedVault === undefined) {
     const storage = secretStorage();
     sharedVault = storage === undefined ? null : new RemoteHostVault(storage);
@@ -62,7 +67,7 @@ function channelVault(): RemoteHostVault | undefined {
 
 /** The platform socket under the channel: the native plugin in Tauri, WebSocket in a browser. */
 export function channelInnerSocketFactory(): RelayInnerSocketFactory {
-  if (isMobileTauriRuntime()) {
+  if (hasTauriBridge()) {
     return (url) =>
       createNativeRelayInnerSocket(url, async (endpoint) => {
         const { default: PluginWebSocket } = await import('@tauri-apps/plugin-websocket');

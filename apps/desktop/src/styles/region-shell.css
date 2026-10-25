@@ -369,6 +369,41 @@
   width: 100%;
 }
 
+/* ADR 0101 host book on the connect wall: one fixed-height row per paired Host. */
+.paired-host-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.paired-host-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.paired-host-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.paired-host-name,
+.paired-host-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paired-host-meta {
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+
 /* Preserve the Desktop view without adding a box to its composer-first layout. */
 .conversation-desktop-surface { display: contents; }
 .conversation-desktop-surface[hidden],

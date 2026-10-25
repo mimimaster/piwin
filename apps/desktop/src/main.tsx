@@ -15,6 +15,7 @@ import { isTauriRuntime } from './host/tauri-pty';
 import { primeDeviceCredential } from './devices/device-admission';
 import { loadDesktopRemoteHostTarget } from './host/remote-host-session';
 import { primeChannelHost } from './host/channel-host-book';
+import { startLegacyChannelMigration } from './host/channel-legacy-migration';
 import { isDesktopTauriRuntime, isMobileTauriRuntime } from './tool-cards/shell-runtime';
 import { getAppUpdateStore } from './platform/app-update-store';
 import { configureArtifactKitDelivery } from '@piwin/artifact';
@@ -82,27 +83,22 @@ if (!rootElement) {
 // No StrictMode: it remounts the workbench and dispose() kills the Host socket
 // mid-hello (`Host transport closed`). Sidecar / remote Host are process-owned.
 const root = createRoot(rootElement);
-if (isMobileTauriRuntime()) {
-  // The workbench builds its Host client synchronously; a paired phone needs
-  // its Keychain credential in memory before that first hello.
-  const saved = loadDesktopRemoteHostTarget();
-  const priming =
-    saved === undefined
-      ? Promise.resolve()
-      : saved.hostId !== undefined
-        ? primeChannelHost(saved.hostId).then(() => undefined)
-        : primeDeviceCredential(saved.endpoint);
-  void priming.finally(
-    () => {
-      root.render(<DesktopThemeRoot />);
-    },
-  );
-} else {
-  // A browser tab attached over the channel needs its host book entry in memory too.
-  const savedHostId = loadDesktopRemoteHostTarget()?.hostId;
-  const channelReady =
-    savedHostId === undefined ? Promise.resolve() : primeChannelHost(savedHostId).then(() => undefined);
-  void Promise.allSettled([nativeWindowMaterialReady, channelReady]).finally(() => {
-    root.render(<DesktopThemeRoot />);
-  });
-}
+// The workbench builds its Host client synchronously, so a saved remote Host's
+// secrets (host book entry + channel key, or a legacy device credential) must
+// be in memory before that first hello.
+const saved = loadDesktopRemoteHostTarget();
+const savedHostReady =
+  saved === undefined
+    ? Promise.resolve()
+    : saved.hostId !== undefined
+      ? primeChannelHost(saved.hostId).then(() => undefined)
+      : primeDeviceCredential(saved.endpoint);
+// The phone shell has no native window material to wait for.
+const firstPaintReady = isMobileTauriRuntime()
+  ? savedHostReady
+  : Promise.allSettled([nativeWindowMaterialReady, savedHostReady]);
+void firstPaintReady.finally(() => {
+  root.render(<DesktopThemeRoot />);
+  // ADR 0101 §10: a legacy attach moves onto the channel in the background.
+  startLegacyChannelMigration();
+});
