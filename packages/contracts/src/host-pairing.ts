@@ -8,6 +8,7 @@
  */
 import type { MobileAccessPairingCodeData, MobileAccessDeviceListData } from './mobile-access.js';
 import type { RemoteAccessStatusData } from './host-remote-access.js';
+import { readRemoteAccessStatusData } from './host-remote-access.js';
 import type { RemoteDeviceRole } from './remote-channel.js';
 import { isRemoteDeviceRole } from './remote-channel.js';
 
@@ -128,6 +129,10 @@ export function readHostPairingStatusData(value: unknown): HostPairingStatusData
     if (candidates.length > 0) {
       status.endpointCandidates = candidates.slice(0, MAX_ENDPOINT_CANDIDATES);
     }
+  }
+  const remote = readRemoteAccessStatusData(record.remote);
+  if (remote !== undefined) {
+    status.remote = remote;
   }
   return status;
 }

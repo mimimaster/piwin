@@ -4,7 +4,7 @@ import {
   isHostRemoteAccessCommandType,
   isLegacyAccessMode,
 } from './host-remote-access.js';
-import { isHostPairingCommand } from './host-pairing.js';
+import { isHostPairingCommand, readHostPairingStatusData } from './host-pairing.js';
 import { decodeRelayControlFrame } from './remote-channel.js';
 import { projectPairedDeviceSummary, readMobileAccessDeviceListData } from './mobile-access.js';
 
@@ -96,5 +96,27 @@ describe('paired device summary', () => {
     expect(
       projectPairedDeviceSummary({ id: 'd', name: 'n', createdAt: 'a', lastSeenAt: 'b' }),
     ).not.toHaveProperty('secureChannel');
+  });
+});
+
+describe('pairing status remote block', () => {
+  const remote = {
+    hostId: 'ZyXwVuTsRqPoNmLkJiHg-_',
+    hostName: 'Server',
+    user: { userId: 'AbCdEfGhIjKlMnOpQrSt_-', name: 'owner' },
+    relay: { enabled: true, url: 'wss://relay.example.com', state: 'error', lastCloseCode: 4401 },
+    direct: { enabled: true, url: 'ws://10.0.0.2:8790' },
+    legacyAccess: 'migrate-only',
+  };
+  const base = { enabled: true, canManage: true, pairedDeviceCount: 1, hostInstanceId: 'h' };
+
+  it('keeps a valid remote block', () => {
+    expect(readHostPairingStatusData({ ...base, remote })?.remote).toEqual(remote);
+  });
+
+  it('drops a malformed one without losing the rest of the status', () => {
+    const status = readHostPairingStatusData({ ...base, remote: { ...remote, legacyAccess: 'x' } });
+    expect(status).toMatchObject(base);
+    expect(status).not.toHaveProperty('remote');
   });
 });

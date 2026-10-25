@@ -9,7 +9,7 @@ import type {
   ChannelMigrateResult,
   RemoteDeviceRole,
 } from './remote-channel.js';
-import { isRemoteDeviceRole } from './remote-channel.js';
+import { isRemoteDeviceRole, isRemoteId } from './remote-channel.js';
 
 export type LegacyAccessMode = 'full' | 'migrate-only' | 'off';
 export const LEGACY_ACCESS_MODES: readonly LegacyAccessMode[] = ['full', 'migrate-only', 'off'];
@@ -110,6 +110,52 @@ export function isHostRemoteAccessCommand(value: unknown): value is HostRemoteAc
     default:
       return false;
   }
+}
+
+const RELAY_STATES = new Set<RelayConnectionState>(['off', 'connecting', 'ready', 'error']);
+
+/** Reads the `remote` block of `host/pairing-status`; undefined when malformed. */
+export function readRemoteAccessStatusData(value: unknown): RemoteAccessStatusData | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const record = value as Record<string, unknown>;
+  const relay = record.relay as Record<string, unknown> | undefined;
+  const direct = record.direct as Record<string, unknown> | undefined;
+  const user = record.user as Record<string, unknown> | undefined;
+  if (
+    !isRemoteId(record.hostId) ||
+    typeof record.hostName !== 'string' ||
+    !isLegacyAccessMode(record.legacyAccess) ||
+    typeof relay !== 'object' ||
+    relay === null ||
+    typeof relay.enabled !== 'boolean' ||
+    !RELAY_STATES.has(relay.state as RelayConnectionState) ||
+    typeof direct !== 'object' ||
+    direct === null ||
+    typeof direct.enabled !== 'boolean'
+  ) {
+    return undefined;
+  }
+  const validUser =
+    typeof user === 'object' &&
+    user !== null &&
+    isRemoteId(user.userId) &&
+    typeof user.name === 'string';
+  return {
+    hostId: record.hostId,
+    hostName: record.hostName,
+    ...(validUser ? { user: { userId: user.userId as string, name: user.name as string } } : {}),
+    relay: {
+      enabled: relay.enabled,
+      state: relay.state as RelayConnectionState,
+      ...(typeof relay.url === 'string' ? { url: relay.url } : {}),
+      ...(typeof relay.lastCloseCode === 'number' ? { lastCloseCode: relay.lastCloseCode } : {}),
+    },
+    direct: {
+      enabled: direct.enabled,
+      ...(typeof direct.url === 'string' ? { url: direct.url } : {}),
+    },
+    legacyAccess: record.legacyAccess,
+  };
 }
 
 /** Role requested for a pairing code; absent means `member`. */
