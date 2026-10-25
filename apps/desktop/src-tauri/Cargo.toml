@@ -19,6 +19,8 @@ tauri = { version = "2", features = ["protocol-asset", "macos-private-api"] }
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-websocket = "2.4.2"
+# OS credential store for ADR 0101 channel secrets (same crate as the mobile shell).
+tauri-plugin-keyring-store = "0.2.0"
 # In-app update (ADR 0097): signed bundles from dl.piwinwin.com/updater.
 tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }

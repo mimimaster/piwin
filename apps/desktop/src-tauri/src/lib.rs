@@ -5,6 +5,7 @@ mod attention_notifications;
 #[cfg(target_os = "windows")]
 mod attention_notifications_windows;
 mod attention_toast;
+mod channel_secret_store;
 mod host_bridge;
 mod memory_pressure;
 mod pet_overlay;
@@ -69,7 +70,10 @@ pub fn run() {
             attention_notifications::attention_take_pending_activation,
             attention_notifications::attention_open_system_settings,
             app_update::app_update_check,
-            app_update::app_update_install
+            app_update::app_update_install,
+            channel_secret_store::desktop_secret_read,
+            channel_secret_store::desktop_secret_write,
+            channel_secret_store::desktop_secret_clear
         ])
         .setup(|application| {
             piwin_artifact_webview::install_artifact_bridge(application.handle())?;
