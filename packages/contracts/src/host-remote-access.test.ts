@@ -120,3 +120,27 @@ describe('pairing status remote block', () => {
     expect(status).not.toHaveProperty('remote');
   });
 });
+
+describe('local phone-access data carries ADR 0101 fields', () => {
+  it('keeps v3 links on pairing codes and the role on create-code', async () => {
+    const { readMobileAccessPairingCodeData, isLocalMobileAccessCommand } =
+      await import('./mobile-access.js');
+    const code = {
+      endpoint: 'ws://10.0.0.2:8790',
+      pairingToken: 't',
+      hostInstanceId: 'h',
+      protocolVersion: 1,
+      expiresAt: 1,
+      uri: 'piwin://pair?x',
+      channelUri: 'piwin://pair?v=3&x',
+      webUri: 'https://relay.example.com/#pair=x',
+    };
+    expect(readMobileAccessPairingCodeData(code)).toEqual(code);
+    expect(
+      isLocalMobileAccessCommand({ type: 'mobile-access/create-pairing-code', role: 'operator' }),
+    ).toBe(true);
+    expect(
+      isLocalMobileAccessCommand({ type: 'mobile-access/create-pairing-code', role: 'root' }),
+    ).toBe(false);
+  });
+});

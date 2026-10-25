@@ -5,6 +5,8 @@
  * `HostRuntime.handleCommand`. HostServer must never admit them from WebSocket
  * clients — keep them off the remote allowlist.
  */
+import type { RemoteAccessStatusData } from './host-remote-access.js';
+import { readRemoteAccessStatusData } from './host-remote-access.js';
 
 export const LOCAL_MOBILE_ACCESS_COMMAND_TYPES = [
   'mobile-access/status',
@@ -30,7 +32,12 @@ export type LocalMobileAccessCommand =
   | { id?: string; type: 'mobile-access/status' }
   | { id?: string; type: 'mobile-access/start'; profileId: string; advertisedEndpoint?: string }
   | { id?: string; type: 'mobile-access/stop' }
-  | { id?: string; type: 'mobile-access/create-pairing-code' }
+  | {
+      id?: string;
+      type: 'mobile-access/create-pairing-code';
+      /** ADR 0101: role the enrolling device gets; absent means `member`. */
+      role?: 'member' | 'operator';
+    }
   | { id?: string; type: 'mobile-access/list-devices' }
   | { id?: string; type: 'mobile-access/revoke-device'; deviceId: string };
 
@@ -70,6 +77,8 @@ export type MobileAccessStatusData = {
   bindUrl?: string;
   advertisedEndpoint?: string;
   hostInstanceId?: string;
+  /** ADR 0101 relay / direct channel state of the sidecar Host. */
+  remote?: RemoteAccessStatusData;
 };
 
 export type MobileAccessPairingCodeData = {
@@ -108,9 +117,10 @@ export function isLocalMobileAccessCommand(value: unknown): value is LocalMobile
   switch (value.type) {
     case 'mobile-access/status':
     case 'mobile-access/stop':
-    case 'mobile-access/create-pairing-code':
     case 'mobile-access/list-devices':
       return true;
+    case 'mobile-access/create-pairing-code':
+      return value.role === undefined || value.role === 'member' || value.role === 'operator';
     case 'mobile-access/start': {
       if (typeof value.profileId !== 'string' || value.profileId.trim().length === 0) {
         return false;
@@ -169,6 +179,10 @@ export function readMobileAccessStatusData(value: unknown): MobileAccessStatusDa
   if (typeof value.lastError === 'string' && value.lastError.length > 0) {
     status.lastError = value.lastError;
   }
+  const remote = readRemoteAccessStatusData(value.remote);
+  if (remote !== undefined) {
+    status.remote = remote;
+  }
   return status;
 }
 
@@ -209,6 +223,12 @@ export function readMobileAccessPairingCodeData(
     protocolVersion: value.protocolVersion,
     expiresAt: value.expiresAt,
     uri: value.uri,
+    ...(typeof value.channelUri === 'string' && value.channelUri.length > 0
+      ? { channelUri: value.channelUri }
+      : {}),
+    ...(typeof value.webUri === 'string' && value.webUri.length > 0
+      ? { webUri: value.webUri }
+      : {}),
   };
 }
 
