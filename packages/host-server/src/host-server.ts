@@ -27,7 +27,18 @@ import {
   sweepIdleHostClientConnections,
   type HostClientConnection,
 } from './host-client-connection.js';
-import { acceptHostSocket } from './host-connection-accept.js';
+import {
+  acceptHostPeer,
+  acceptHostSocket,
+  type HostConnectionAcceptHost,
+} from './host-connection-accept.js';
+import type { ChannelPeerSession } from './channel-peer-session.js';
+import type { HostRemoteAccess } from './host-remote-access.js';
+import { isOperator } from './host-remote-access-commands.js';
+import {
+  isAllowedWhileMigrateOnly,
+  SECURE_CHANNEL_REQUIRED_MESSAGE,
+} from './legacy-access-gate.js';
 import {
   clearPendingBrowserFrame,
   deliverBrowserFrame as deliverBrowserFrameToConnections,
@@ -97,6 +108,11 @@ export type HostServerOptions = {
   pairingEnabled?: boolean;
   /** Address pairing codes point phones at; defaults to the bound URL. */
   pairingAdvertisedEndpoint?: string;
+  /**
+   * ADR 0101 remote access: serves the direct channel route on this listener,
+   * admits relay and direct channel peers, and answers remote-access commands.
+   */
+  remoteAccess?: HostRemoteAccess;
 };
 
 export type HostServerAddress = {
@@ -150,6 +166,7 @@ export class HostServer {
   private readonly clientToolRouter: ClientToolFrameRouter | undefined;
   private readonly webRoot: string | undefined;
   private listener: HostListener | undefined;
+  private readonly remoteAccess: HostRemoteAccess | undefined;
   private readonly sender: HostConnectionSender;
   private livenessTimer: ReturnType<typeof setInterval> | undefined;
   private browserFrameDetach: (() => void) | undefined;
@@ -177,8 +194,13 @@ export class HostServer {
     this.piwinRoot = options.piwinRoot;
     this.devicePairing = options.devicePairing;
     this.devicePairingStore = options.devicePairingStore;
-    this.pairingEnabled = options.pairingEnabled ?? (this.devicePairing !== undefined);
+    this.pairingEnabled = options.pairingEnabled ?? this.devicePairing !== undefined;
     this.pairingAdvertisedEndpoint = options.pairingAdvertisedEndpoint?.trim() || undefined;
+    this.remoteAccess = options.remoteAccess;
+    this.remoteAccess?.setPeerAcceptor((peer) => this.acceptChannelPeer(peer));
+    this.remoteAccess?.setDirectUrlProvider(
+      () => this.pairingAdvertisedEndpoint ?? this.listEndpointCandidates()[0] ?? this.boundUrl,
+    );
     this.allowedOrigins =
       options.allowedOrigins === undefined ? undefined : new Set(options.allowedOrigins);
     this.clientToolBroker = options.clientToolBroker;
@@ -288,6 +310,9 @@ export class HostServer {
         });
       },
       onConnection: (socket, request) => this.handleConnection(socket, request),
+      ...(this.remoteAccess === undefined
+        ? {}
+        : { onChannelUpgrade: this.remoteAccess.directUpgradeHandler }),
       onError: (error) => this.onError(error),
     });
     this.listener = listener;
@@ -379,20 +404,28 @@ export class HostServer {
   }
 
   private handleConnection(socket: WebSocket, request: IncomingMessage): void {
-    acceptHostSocket(
-      {
-        connections: this.connections,
-        allowedOrigins: this.allowedOrigins,
-        sender: this.sender,
-        clientToolBroker: this.clientToolBroker,
-        mirrorLeaseReaper: this.mirrorLeaseReaper,
-        handleWireMessage: (target, serialized) => this.handleWireMessage(target, serialized),
-        onError: (error) => this.onError(error),
-        onConnectionEvent: (event) => this.onConnectionEvent(event),
-      },
-      socket,
-      request,
-    );
+    acceptHostSocket(this.connectionAcceptHost(), socket, request);
+  }
+
+  /** ADR 0101: a relay or direct channel peer finished its handshake. */
+  private acceptChannelPeer(peer: ChannelPeerSession): void {
+    acceptHostPeer(this.connectionAcceptHost(), peer, {
+      directLoopback: false,
+      ...(peer.channelPublicKey === undefined ? {} : { channelPublicKey: peer.channelPublicKey }),
+    });
+  }
+
+  private connectionAcceptHost(): HostConnectionAcceptHost {
+    return {
+      connections: this.connections,
+      allowedOrigins: this.allowedOrigins,
+      sender: this.sender,
+      clientToolBroker: this.clientToolBroker,
+      mirrorLeaseReaper: this.mirrorLeaseReaper,
+      handleWireMessage: (target, serialized) => this.handleWireMessage(target, serialized),
+      onError: (error) => this.onError(error),
+      onConnectionEvent: (event) => this.onConnectionEvent(event),
+    };
   }
 
   private sweepIdleConnections(): void {
@@ -424,6 +457,18 @@ export class HostServer {
         return;
       }
       await acceptHostHello(this.helloAcceptHost(), connection, message);
+      return;
+    }
+
+    if (connection.migrateOnly && !isAllowedWhileMigrateOnly(message)) {
+      this.sender.sendError(
+        connection,
+        'command-not-allowed',
+        SECURE_CHANNEL_REQUIRED_MESSAGE,
+        'requestId' in message && typeof message.requestId === 'string'
+          ? message.requestId
+          : undefined,
+      );
       return;
     }
 
@@ -501,6 +546,7 @@ export class HostServer {
       devicePairing: this.devicePairing,
       devicePairingStore: this.devicePairingStore,
       pairingEnabled: this.pairingEnabled,
+      legacyAccess: this.remoteAccess?.legacyAccess() ?? 'full',
       egressHub: this.egressHub,
       clientToolBroker: this.clientToolBroker,
       onError: this.onError,
@@ -567,6 +613,12 @@ export class HostServer {
       loopbackHost: isLoopbackHost(this.host),
       sender: this.sender,
       pairingContext: (connection) => this.pairingCommandContext(connection),
+      remoteAccessContext: (connection) => ({
+        access: this.remoteAccess,
+        pairing: this.devicePairing,
+        pairingStore: this.devicePairingStore,
+        connection,
+      }),
       projectionContext: (connection) => this.projectionContext(connection),
     };
   }
@@ -580,6 +632,13 @@ export class HostServer {
       advertisedEndpoint: this.pairingAdvertisedEndpoint ?? this.boundUrl,
       listEndpointCandidates: () => this.listEndpointCandidates(),
       callerDeviceId: connection.deviceId,
+      callerIsOperator: isOperator(connection),
+      ...(this.remoteAccess === undefined
+        ? {}
+        : {
+            remoteStatus: () => this.remoteAccess?.status(),
+            channelLinks: this.remoteAccess.channelLinks,
+          }),
       pairingEnabled: this.pairingEnabled,
       setEnabled: async (enabled, advertisedEndpoint) => {
         await this.setPairingEnabled(enabled, advertisedEndpoint);

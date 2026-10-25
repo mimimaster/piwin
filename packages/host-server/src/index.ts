@@ -20,3 +20,8 @@ export * from './device-capability-registry.js';
 export * from './device-tool-broker.js';
 export * from './client-tool-frame-router.js';
 export * from './create-device-tool-broker.js';
+export * from './host-identity-store.js';
+export * from './relay-user-store.js';
+export * from './remote-access-settings-store.js';
+export * from './host-remote-access.js';
+export type { RelayConnectorStatus } from './relay-connector.js';

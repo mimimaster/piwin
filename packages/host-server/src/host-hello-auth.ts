@@ -1,14 +1,17 @@
 import type {
   HostClientHello,
   HostHelloRejectReason,
+  RemoteDeviceRole,
   TrustedDeviceCredential,
 } from '@piwin/contracts';
 import { isTrustedDeviceCredential } from '@piwin/contracts';
-import { DevicePairingError, type HostDevicePairing } from './device-pairing.js';
+import { deviceRoleOf, DevicePairingError, type HostDevicePairing } from './device-pairing.js';
 
 export type HostHelloAuthSuccess = {
   ok: true;
+  admittedBy: 'loopback' | 'token' | 'device';
   pairedDeviceId?: string;
+  pairedDeviceRole?: RemoteDeviceRole;
   issuedDeviceSecret?: string;
 };
 
@@ -27,6 +30,12 @@ export type HostHelloAuthContext = {
   allowAnonymousHello: boolean;
   persistEnrollment: (pairing: HostDevicePairing) => Promise<void>;
   tokensEqual: (expected: string, provided: string | undefined) => boolean;
+  /**
+   * ADR 0101: the client static key when the hello arrived over the
+   * end-to-end channel. Only device keys are valid there, and a device must
+   * be bound to exactly this key.
+   */
+  channelPublicKey?: string;
 };
 
 /**
@@ -39,7 +48,8 @@ export async function authenticateHostHello(
   context: HostHelloAuthContext,
 ): Promise<HostHelloAuthResult> {
   const hasDeviceCredential = message.deviceCredential !== undefined;
-  const hasPairingToken = message.pairingToken !== undefined && message.pairingToken.trim().length > 0;
+  const hasPairingToken =
+    message.pairingToken !== undefined && message.pairingToken.trim().length > 0;
   const hasAuthToken = message.authToken !== undefined && message.authToken.length > 0;
   const keyCount = Number(hasDeviceCredential) + Number(hasPairingToken) + Number(hasAuthToken);
   if (keyCount > 1) {
@@ -50,9 +60,23 @@ export async function authenticateHostHello(
     };
   }
 
+  if (
+    context.channelPublicKey !== undefined &&
+    (hasAuthToken || (!hasPairingToken && !hasDeviceCredential))
+  ) {
+    // The channel admits devices only: no token door, no anonymous hello.
+    return hasAuthToken
+      ? {
+          ok: false,
+          reason: 'authentication-failed',
+          message: 'Tokens are not accepted on the encrypted channel',
+        }
+      : { ok: false, reason: 'pairing-required', message: 'A paired device is required' };
+  }
+
   if (!hasPairingToken && !hasDeviceCredential && !hasAuthToken) {
     if (context.allowAnonymousHello) {
-      return { ok: true };
+      return { ok: true, admittedBy: 'loopback' };
     }
     // Never fall through to success without a key: with no token configured
     // (e.g. pairing switched off at runtime) that would admit anyone.
@@ -81,11 +105,14 @@ export async function authenticateHostHello(
           message.pairingToken ?? '',
           message.deviceName ?? message.clientId,
           message.clientId,
+          context.channelPublicKey,
         );
         await context.persistEnrollment(context.devicePairing);
         return {
           ok: true,
+          admittedBy: 'device',
           pairedDeviceId: completion.credential.deviceId,
+          pairedDeviceRole: deviceRoleOf(completion.device),
           issuedDeviceSecret: completion.credential.deviceSecret,
         };
       } catch (error) {
@@ -108,6 +135,7 @@ export async function authenticateHostHello(
     const device = context.devicePairing.authenticate(
       message.deviceCredential as TrustedDeviceCredential,
       message.clientId,
+      context.channelPublicKey,
     );
     if (device === undefined) {
       return {
@@ -116,7 +144,12 @@ export async function authenticateHostHello(
         message: 'Device credential is invalid or revoked',
       };
     }
-    return { ok: true, pairedDeviceId: device.id };
+    return {
+      ok: true,
+      admittedBy: 'device',
+      pairedDeviceId: device.id,
+      pairedDeviceRole: deviceRoleOf(device),
+    };
   }
 
   // A presented authToken can only be validated against a configured token.
@@ -126,14 +159,14 @@ export async function authenticateHostHello(
   // closed so an arbitrary token cannot take operator control.
   if (context.authToken === undefined) {
     return context.allowAnonymousHello
-      ? { ok: true }
+      ? { ok: true, admittedBy: 'loopback' }
       : { ok: false, reason: 'authentication-failed', message: 'Host authentication failed' };
   }
   if (!context.tokensEqual(context.authToken, message.authToken)) {
     return { ok: false, reason: 'authentication-failed', message: 'Host authentication failed' };
   }
 
-  return { ok: true };
+  return { ok: true, admittedBy: 'token' };
 }
 
 export function isWildcardHostBind(host: string): boolean {

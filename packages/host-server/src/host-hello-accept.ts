@@ -4,6 +4,7 @@ import type {
   HostHello,
   HostHelloRejectReason,
   HostWireMessage,
+  LegacyAccessMode,
   RemoteCapabilitySummary,
 } from '@piwin/contracts';
 import { HOST_PROTOCOL_VERSION, LIVE_SUBSCRIPTION_MAX_SESSION_IDS } from '@piwin/contracts';
@@ -44,6 +45,8 @@ export type HostHelloAcceptHost = {
   devicePairing: HostDevicePairing | undefined;
   devicePairingStore: HostDevicePairingFileStore | undefined;
   pairingEnabled?: boolean;
+  /** ADR 0101 §10: what a non-loopback, non-channel connection may still do. */
+  legacyAccess: LegacyAccessMode;
   egressHub: HostEgressHub;
   clientToolBroker: DeviceToolBroker | undefined;
   onError: (error: Error) => void;
@@ -150,6 +153,24 @@ export async function acceptHostHello(
     return;
   }
 
+  const viaChannel = connection.channelPublicKey !== undefined;
+  const legacyNetwork = !viaChannel && !connection.directLoopback;
+  if (legacyNetwork && host.legacyAccess === 'off') {
+    host.onConnectionEvent({
+      phase: 'hello-reject',
+      connectionId: connection.connectionId,
+      code: 4004,
+      reason: 'secure-channel-required',
+    });
+    sendHelloReject(host, connection, {
+      code: 'authentication-required',
+      reason: 'secure-channel-required',
+      message: 'This Host only accepts the end-to-end encrypted channel',
+    });
+    connection.socket.close(4004, 'Secure channel required');
+    return;
+  }
+
   const admission = await authenticateHostHello(message, {
     authToken: host.authToken,
     devicePairing: host.pairingEnabled === false ? undefined : host.devicePairing,
@@ -163,6 +184,9 @@ export async function acceptHostHello(
       }
     },
     tokensEqual: authTokensEqual,
+    ...(connection.channelPublicKey === undefined
+      ? {}
+      : { channelPublicKey: connection.channelPublicKey }),
   });
   if (!admission.ok) {
     host.onConnectionEvent({
@@ -207,8 +231,26 @@ export async function acceptHostHello(
       )
     : [];
   connection.deviceId = admission.pairedDeviceId;
+  connection.deviceRole = admission.pairedDeviceRole;
+  connection.admittedBy = admission.admittedBy;
+  connection.migrateOnly = legacyNetwork && host.legacyAccess === 'migrate-only';
   connection.idempotencyScope = admission.pairedDeviceId ?? message.clientId.trim();
   clearTimeout(connection.handshakeTimer);
+  if (connection.migrateOnly) {
+    // No pushes, replay or client tools: this connection exists to migrate.
+    host.send(
+      connection,
+      createHostHelloPayload(host, admission.pairedDeviceId, admission.issuedDeviceSecret),
+    );
+    host.onConnectionEvent({
+      phase: 'hello-ok',
+      connectionId: connection.connectionId,
+      clientId: connection.clientId,
+      ...(connection.deviceId === undefined ? {} : { deviceId: connection.deviceId }),
+      reason: 'migrate-only',
+    });
+    return;
+  }
   const egressClientId = `client:${message.clientId}:${randomUUID()}`;
   connection.egressClientId = egressClientId;
   const currentSeq = host.egressHub.getCurrentSeq();

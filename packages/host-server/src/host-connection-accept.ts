@@ -11,7 +11,7 @@ import type { HostConnectionEvent } from './host-connection-lifecycle.js';
 import { isDirectLoopbackRequest } from './host-connection-origin.js';
 import type { HostConnectionSender } from './host-connection-send.js';
 import type { DeviceToolBroker } from './device-tool-broker.js';
-import { wrapWsPeerSocket } from './host-peer-socket.js';
+import { wrapWsPeerSocket, type HostPeerSocket } from './host-peer-socket.js';
 
 /** Server state an accepted socket joins; supplied by HostServer. */
 export type HostConnectionAcceptHost = {
@@ -50,9 +50,26 @@ export function acceptHostSocket(
     socket.close(4009, 'Origin not allowed');
     return;
   }
-  const connection = createHostClientConnection({
-    socket: wrapWsPeerSocket(socket),
+  acceptHostPeer(host, wrapWsPeerSocket(socket), {
     directLoopback: isDirectLoopbackRequest(request),
+  });
+}
+
+/**
+ * Joins any peer socket to the server: a `ws` socket from `acceptHostSocket`
+ * or an ADR 0101 channel peer (never loopback; carries its channel key).
+ */
+export function acceptHostPeer(
+  host: HostConnectionAcceptHost,
+  socket: HostPeerSocket,
+  options: { directLoopback: boolean; channelPublicKey?: string },
+): void {
+  const connection = createHostClientConnection({
+    socket,
+    directLoopback: options.directLoopback,
+    ...(options.channelPublicKey === undefined
+      ? {}
+      : { channelPublicKey: options.channelPublicKey }),
     onHandshakeTimeout: (pending) => {
       host.sender.sendError(pending, 'authentication-required', 'Host hello is required');
       socket.close(4001, 'Host hello required');

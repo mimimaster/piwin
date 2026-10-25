@@ -114,7 +114,9 @@ describe('authenticateHostHello', () => {
     );
     expect(result).toEqual({
       ok: true,
+      admittedBy: 'device',
       pairedDeviceId: completion.credential.deviceId,
+      pairedDeviceRole: 'member',
     });
   });
 
@@ -160,6 +162,7 @@ describe('authenticateHostHello', () => {
     };
     expect(await authenticateHostHello(hello, { ...base, allowAnonymousHello: true })).toEqual({
       ok: true,
+      admittedBy: 'loopback',
     });
     expect(await authenticateHostHello(hello, { ...base, allowAnonymousHello: false })).toEqual({
       ok: false,
@@ -186,7 +189,7 @@ describe('authenticateHostHello', () => {
     } as const;
     const ok = await authenticateHostHello({ ...hello, authToken: 'door' }, context);
     const rejected = await authenticateHostHello({ ...hello, authToken: 'wrong' }, context);
-    expect(ok).toEqual({ ok: true });
+    expect(ok).toEqual({ ok: true, admittedBy: 'token' });
     expect(rejected).toEqual({
       ok: false,
       reason: 'authentication-failed',

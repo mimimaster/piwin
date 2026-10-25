@@ -1,5 +1,6 @@
 import type { HostPairingCommand, HostWireMessage } from '@piwin/contracts';
-import { isHostPairingCommandType } from '@piwin/contracts';
+import { isHostPairingCommandType, isHostRemoteAccessCommandType } from '@piwin/contracts';
+import type { HostRemoteAccessCommand } from '@piwin/contracts';
 import { applyBrowserLeaseCommand } from './browser-mirror-leases.js';
 import type { HostClientConnection } from './host-client-connection.js';
 import { evaluateHostCommandAdmission } from './host-command-admission.js';
@@ -14,6 +15,10 @@ import {
 } from './host-pairing-commands.js';
 import { rememberRemoteMediaAsset, resolveRemoteCommand, toError } from './host-server-support.js';
 import { isLiveOwnerConnection } from './live-remote-gate.js';
+import {
+  handleHostRemoteAccessCommand,
+  type HostRemoteAccessCommandContext,
+} from './host-remote-access-commands.js';
 import { projectRemoteResponse, type RemoteProjectionContext } from './remote-projection.js';
 import type { HostRuntimePort } from './host-runtime-port.js';
 import { stampSubscriptionAuthCommand } from './stamp-subscription-auth.js';
@@ -28,6 +33,7 @@ export type HostCommandDispatchHost = {
   loopbackHost: boolean;
   sender: Pick<HostConnectionSender, 'sendError' | 'sendResponse'>;
   pairingContext: (connection: HostClientConnection) => HostPairingCommandContext;
+  remoteAccessContext: (connection: HostClientConnection) => HostRemoteAccessCommandContext;
   projectionContext: (connection: HostClientConnection) => RemoteProjectionContext;
 };
 
@@ -41,6 +47,18 @@ export async function dispatchHostCommand(
   connection: HostClientConnection,
   frame: CommandFrame,
 ): Promise<void> {
+  if (isHostRemoteAccessCommandType(frame.command.type)) {
+    const response = await handleHostRemoteAccessCommand(
+      frame.command as HostRemoteAccessCommand,
+      host.remoteAccessContext(connection),
+    );
+    await host.sender.sendResponse(connection, {
+      type: 'response',
+      requestId: frame.requestId,
+      response,
+    });
+    return;
+  }
   if (isHostPairingCommandType(frame.command.type)) {
     const response = await handleHostPairingCommand(
       frame.command as HostPairingCommand,

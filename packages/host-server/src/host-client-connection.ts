@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { HostWireMessage } from '@piwin/contracts';
+import type { HostWireMessage, RemoteDeviceRole } from '@piwin/contracts';
 import { decodeHostWireMessage } from '@piwin/host-transport';
 import {
   HOST_IDLE_CONNECTION_MS,
@@ -34,6 +34,14 @@ export type HostClientConnection = {
   deviceId: string | undefined;
   /** Peer is this machine and no proxy relayed it; see `isDirectLoopbackRequest`. */
   directLoopback: boolean;
+  /** ADR 0101: the client static key of an end-to-end channel connection. */
+  channelPublicKey: string | undefined;
+  /** How hello admitted the connection; set with `authenticated`. */
+  admittedBy: 'loopback' | 'token' | 'device' | undefined;
+  /** ADR 0101 role of the admitted device (`member` when absent on the record). */
+  deviceRole: RemoteDeviceRole | undefined;
+  /** ADR 0101 §10 `migrate-only`: a legacy connection that may only migrate. */
+  migrateOnly: boolean;
   idempotencyScope: string;
   connectionId: string;
   clientId: string | undefined;
@@ -75,6 +83,8 @@ export function createHostClientConnection(options: {
   socket: HostPeerSocket;
   /** Defaults to false: a connection must prove it is local to skip auth. */
   directLoopback?: boolean;
+  /** Set for ADR 0101 channel peers. */
+  channelPublicKey?: string;
   onHandshakeTimeout: (connection: HostClientConnection) => void;
   handshakeTimeoutMs?: number;
 }): HostClientConnection {
@@ -94,6 +104,10 @@ export function createHostClientConnection(options: {
     egressDetach: () => undefined,
     deviceId: undefined,
     directLoopback: options.directLoopback ?? false,
+    channelPublicKey: options.channelPublicKey,
+    admittedBy: undefined,
+    deviceRole: undefined,
+    migrateOnly: false,
     idempotencyScope: '',
     connectionId: randomUUID(),
     clientId: undefined,
