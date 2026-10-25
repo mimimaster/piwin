@@ -30,6 +30,8 @@ jobs:
         run: pnpm test:architecture
       - name: Host e2e smoke
         run: pnpm e2e:smoke
+      - name: Relay e2e smoke (ADR 0101)
+        run: pnpm e2e:relay
       - name: Prod audit (report-only)
         continue-on-error: true
         run: pnpm audit --prod
