@@ -11,6 +11,7 @@ import type {
   HostPairingCommand,
   HostPairingStatusData,
   HostResponse,
+  RemoteAccessStatusData,
 } from '@piwin/contracts';
 import { isHostPairingCommand } from '@piwin/contracts';
 import type { HostDevicePairing } from './device-pairing.js';
@@ -20,6 +21,7 @@ import {
   listPairedDevices,
   mintPairingCode,
   revokePairedDevice,
+  type PairingChannelLinks,
   type PairingRegistry,
 } from './pairing-operations.js';
 
@@ -40,6 +42,15 @@ export type HostPairingCommandContext = {
   listEndpointCandidates?: () => string[];
   /** Set when the caller authenticated as a paired device. */
   callerDeviceId: string | undefined;
+  /**
+   * ADR 0101: loopback, token-door and `operator`-role devices manage
+   * pairing. Defaults to "not a paired device" for older callers.
+   */
+  callerIsOperator?: boolean;
+  /** ADR 0101 relay / direct channel state for `host/pairing-status`. */
+  remoteStatus?: () => RemoteAccessStatusData | undefined;
+  /** ADR 0101 v3 links for minted codes. */
+  channelLinks?: PairingChannelLinks;
   onRevoked: (deviceId: string) => void;
   /** Explicit enable flag when dynamic toggle is supported. */
   pairingEnabled?: boolean;
@@ -65,8 +76,9 @@ export async function handleHostPairingCommand(
   }
   const registry: PairingRegistry | undefined =
     context.pairing === undefined ? undefined : { pairing: context.pairing, store: context.store };
-  const isOperator = context.callerDeviceId === undefined;
-  const isEnabled = context.pairingEnabled ?? (registry !== undefined);
+  const isOperator = context.callerIsOperator ?? context.callerDeviceId === undefined;
+  const remote = context.remoteStatus?.();
+  const isEnabled = context.pairingEnabled ?? registry !== undefined;
 
   if (command.type === 'host/pairing-status') {
     const canManage = isOperator && (registry !== undefined || context.setEnabled !== undefined);
@@ -82,6 +94,9 @@ export async function handleHostPairingCommand(
     const candidates = isEnabled ? (context.listEndpointCandidates?.() ?? []) : [];
     if (candidates.length > 0) {
       status.endpointCandidates = candidates;
+    }
+    if (remote !== undefined) {
+      status.remote = remote;
     }
     return respond({ data: status });
   }
@@ -127,6 +142,8 @@ export async function handleHostPairingCommand(
           data: await mintPairingCode(registry, {
             advertisedEndpoint: command.advertisedEndpoint ?? context.advertisedEndpoint ?? '',
             hostInstanceId: context.hostInstanceId,
+            ...(command.role === undefined ? {} : { role: command.role }),
+            ...(context.channelLinks === undefined ? {} : { channelLinks: context.channelLinks }),
           }),
         });
       case 'host/pairing-list-devices':

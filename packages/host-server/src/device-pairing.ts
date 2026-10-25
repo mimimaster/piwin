@@ -3,12 +3,22 @@ import type {
   HostHelloRejectReason,
   PairingCompletion,
   PairingToken,
+  RemoteDeviceRole,
   TrustedDeviceCredential,
   TrustedDevicePublic,
 } from '@piwin/contracts';
+import {
+  isChannelPublicKey,
+  parsePairingState,
+  publicDevice,
+  type HostDevicePairingState,
+} from './device-pairing-state.js';
+
+export type { HostDevicePairingState } from './device-pairing-state.js';
 
 type PendingPairing = {
   expiresAt: number;
+  role: RemoteDeviceRole;
 };
 
 type StoredDevice = TrustedDevicePublic;
@@ -21,20 +31,8 @@ export type DevicePairingOptions = {
   maxDevices?: number;
 };
 
-/**
- * On-disk representation of the Host pairing authority.
- *
- * Raw device secrets are absent. Pending token values are SHA-256 digests so a
- * restart can preserve expiry without persisting a usable enrollment secret.
- */
-export type HostDevicePairingState = {
-  version: 1;
-  pending: Array<{
-    tokenHash: string;
-    expiresAt: number;
-  }>;
-  devices: TrustedDevicePublic[];
-};
+/** ADR 0101 result of binding a channel key to an existing (legacy) device. */
+export type ChannelBindResult = 'bound' | 'already-bound' | 'conflict' | 'unknown';
 
 const DEFAULT_TOKEN_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_MAX_PENDING_TOKENS = 32;
@@ -60,7 +58,11 @@ export class DevicePairingError extends Error {
 
 /**
  * Host-owned, bounded enrollment store. Raw device secrets only exist in the
- * return value of completePairing and are never retained by this class.
+ * return value of an enrollment and are never retained by this class.
+ *
+ * ADR 0101: a device may carry a channel key (the X25519 static key it proved
+ * in its Noise handshake) and a role. A channel connection authenticates only
+ * when its handshake key matches the bound one.
  */
 export class HostDevicePairing {
   private readonly now: () => number;
@@ -82,7 +84,8 @@ export class HostDevicePairing {
     if (this.maxDevices <= 0) throw new Error('Paired-device cap must be positive');
   }
 
-  public mintToken(): PairingToken {
+  /** `role` is what the enrolling device becomes; only operators may mint `operator` codes. */
+  public mintToken(role: RemoteDeviceRole = 'member'): PairingToken {
     this.pruneExpiredTokens();
     while (this.pending.size >= this.maxPendingTokens) {
       const oldest = this.pending.keys().next().value;
@@ -92,59 +95,79 @@ export class HostDevicePairing {
 
     const token = this.encodeRandom(PAIRING_TOKEN_BYTES);
     const expiresAt = this.now() + this.tokenTtlMs;
-    this.pending.set(hashSecret(token), { expiresAt });
+    this.pending.set(hashSecret(token), { expiresAt, role });
     return { token, expiresAt };
+  }
+
+  /** ADR 0101 early drop: an unknown channel key is only worth answering while a code is live. */
+  public hasPendingTokens(): boolean {
+    this.pruneExpiredTokens();
+    return this.pending.size > 0;
   }
 
   /**
    * Consume a one-time token. A `clientId` identifies the installation: its
    * earlier enrollments are dropped so re-pairing the same phone (for example
    * after it lost its credential) keeps one device record.
+   *
+   * `channelPublicKey` comes from the Noise handshake of the connection that
+   * presented the token, never from a message field.
    */
-  public completePairing(token: string, deviceName?: string, clientId?: string): PairingCompletion {
+  public completePairing(
+    token: string,
+    deviceName?: string,
+    clientId?: string,
+    channelPublicKey?: string,
+  ): PairingCompletion {
     this.pruneExpiredTokens();
-    const normalizedToken = token.trim();
-    const tokenHash = hashSecret(normalizedToken);
+    const tokenHash = hashSecret(token.trim());
     const pending = this.pending.get(tokenHash);
     if (pending === undefined || pending.expiresAt <= this.now()) {
       this.pending.delete(tokenHash);
       throw new DevicePairingError('pairing-token-invalid', 'Pairing token is invalid or expired');
     }
-    const normalizedClientId = normalizeClientId(clientId);
-    if (normalizedClientId !== undefined) {
-      for (const [existingId, existing] of this.devices) {
-        if (existing.clientId === normalizedClientId) this.devices.delete(existingId);
-      }
-    }
-    this.ensureDeviceCapacity();
+    const completion = this.enroll({
+      deviceName,
+      clientId,
+      role: pending.role,
+      channelPublicKey,
+    });
     this.pending.delete(tokenHash);
+    return completion;
+  }
 
-    const deviceId = `device-${this.encodeRandom(18)}`;
-    const deviceSecret = this.encodeRandom(DEVICE_SECRET_BYTES);
-    const createdAt = new Date(this.now()).toISOString();
-    const device: StoredDevice = {
-      id: deviceId,
-      name: normalizeDeviceName(deviceName),
-      secretHash: hashSecret(deviceSecret),
-      createdAt,
-      lastSeenAt: createdAt,
-      ...(normalizedClientId === undefined ? {} : { clientId: normalizedClientId }),
-    };
-    this.devices.set(deviceId, device);
-
-    return {
-      credential: { deviceId, deviceSecret },
-      device: publicDevice(device),
-    };
+  /**
+   * ADR 0101 §10: a token-door caller (thin shell, CLI) migrating to the
+   * channel becomes an operator device. Its credential is returned once.
+   */
+  public enrollMigratedOperator(input: {
+    deviceName?: string;
+    clientId: string;
+    channelPublicKey: string;
+  }): PairingCompletion {
+    const completion = this.enroll({
+      deviceName: input.deviceName,
+      clientId: input.clientId,
+      role: 'operator',
+      channelPublicKey: input.channelPublicKey,
+    });
+    const device = this.devices.get(completion.device.id);
+    if (device === undefined) {
+      return completion;
+    }
+    device.migratedAt = device.createdAt;
+    return { ...completion, device: publicDevice(device) };
   }
 
   /**
    * `clientId` backfills enrollments made before installations were recorded,
-   * so their next re-pair also replaces them.
+   * so their next re-pair also replaces them. `channelPublicKey` is set for
+   * channel connections: it must equal the device's bound key.
    */
   public authenticate(
     credential: TrustedDeviceCredential,
     clientId?: string,
+    channelPublicKey?: string,
   ): TrustedDevicePublic | undefined {
     const device = this.devices.get(credential.deviceId);
     if (device === undefined || device.revokedAt !== undefined) return undefined;
@@ -153,12 +176,43 @@ export class HostDevicePairing {
     if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
       return undefined;
     }
+    if (channelPublicKey !== undefined && device.channelPublicKey !== channelPublicKey) {
+      return undefined;
+    }
     device.lastSeenAt = new Date(this.now()).toISOString();
     const normalizedClientId = normalizeClientId(clientId);
     if (device.clientId === undefined && normalizedClientId !== undefined) {
       device.clientId = normalizedClientId;
     }
     return publicDevice(device);
+  }
+
+  /** Active device bound to this channel key, if any (ADR 0101 early drop). */
+  public findByChannelKey(channelPublicKey: string): TrustedDevicePublic | undefined {
+    for (const device of this.devices.values()) {
+      if (device.revokedAt === undefined && device.channelPublicKey === channelPublicKey) {
+        return publicDevice(device);
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * ADR 0101 §10 migration of a legacy device. Idempotent for the same key;
+   * a different key on an already bound device is a conflict, so a stolen
+   * legacy credential cannot take over a migrated device.
+   */
+  public bindChannelKey(deviceId: string, channelPublicKey: string): ChannelBindResult {
+    if (!isChannelPublicKey(channelPublicKey)) {
+      throw new Error('Channel key must be a base64url X25519 public key');
+    }
+    const device = this.devices.get(deviceId);
+    if (device === undefined || device.revokedAt !== undefined) return 'unknown';
+    if (device.channelPublicKey === channelPublicKey) return 'already-bound';
+    if (device.channelPublicKey !== undefined) return 'conflict';
+    device.channelPublicKey = channelPublicKey;
+    device.migratedAt = new Date(this.now()).toISOString();
+    return 'bound';
   }
 
   public revoke(deviceId: string): boolean {
@@ -184,6 +238,7 @@ export class HostDevicePairing {
       pending: [...this.pending.entries()].map(([tokenHash, pending]) => ({
         tokenHash,
         expiresAt: pending.expiresAt,
+        ...(pending.role === 'member' ? {} : { role: pending.role }),
       })),
       devices: this.list(),
     };
@@ -194,12 +249,49 @@ export class HostDevicePairing {
     this.pending.clear();
     this.devices.clear();
     for (const pending of parsed.pending) {
-      this.pending.set(pending.tokenHash, { expiresAt: pending.expiresAt });
+      this.pending.set(pending.tokenHash, {
+        expiresAt: pending.expiresAt,
+        role: pending.role ?? 'member',
+      });
     }
     for (const device of parsed.devices) {
       this.devices.set(device.id, { ...device });
     }
     this.pruneExpiredTokens();
+  }
+
+  private enroll(input: {
+    deviceName: string | undefined;
+    clientId: string | undefined;
+    role: RemoteDeviceRole;
+    channelPublicKey: string | undefined;
+  }): PairingCompletion {
+    if (input.channelPublicKey !== undefined && !isChannelPublicKey(input.channelPublicKey)) {
+      throw new Error('Channel key must be a base64url X25519 public key');
+    }
+    const normalizedClientId = normalizeClientId(input.clientId);
+    if (normalizedClientId !== undefined) {
+      for (const [existingId, existing] of this.devices) {
+        if (existing.clientId === normalizedClientId) this.devices.delete(existingId);
+      }
+    }
+    this.ensureDeviceCapacity();
+
+    const deviceId = `device-${this.encodeRandom(18)}`;
+    const deviceSecret = this.encodeRandom(DEVICE_SECRET_BYTES);
+    const createdAt = new Date(this.now()).toISOString();
+    const device: StoredDevice = {
+      id: deviceId,
+      name: normalizeDeviceName(input.deviceName),
+      secretHash: hashSecret(deviceSecret),
+      createdAt,
+      lastSeenAt: createdAt,
+      ...(normalizedClientId === undefined ? {} : { clientId: normalizedClientId }),
+      ...(input.channelPublicKey === undefined ? {} : { channelPublicKey: input.channelPublicKey }),
+      ...(input.role === 'member' ? {} : { role: input.role }),
+    };
+    this.devices.set(deviceId, device);
+    return { credential: { deviceId, deviceSecret }, device: publicDevice(device) };
   }
 
   private ensureDeviceCapacity(): void {
@@ -223,6 +315,11 @@ export class HostDevicePairing {
   }
 }
 
+/** The device's role; records predating ADR 0101 are members. */
+export function deviceRoleOf(device: Pick<TrustedDevicePublic, 'role'>): RemoteDeviceRole {
+  return device.role ?? 'member';
+}
+
 function hashSecret(secret: string): string {
   return createHash('sha256').update(secret).digest('hex');
 }
@@ -235,101 +332,4 @@ function normalizeDeviceName(value: string | undefined): string {
 function normalizeClientId(value: string | undefined): string | undefined {
   const normalized = value?.trim().slice(0, MAX_CLIENT_ID_LENGTH);
   return normalized === undefined || normalized.length === 0 ? undefined : normalized;
-}
-
-function publicDevice(device: StoredDevice): TrustedDevicePublic {
-  return {
-    id: device.id,
-    name: device.name,
-    secretHash: device.secretHash,
-    createdAt: device.createdAt,
-    lastSeenAt: device.lastSeenAt,
-    ...(device.revokedAt === undefined ? {} : { revokedAt: device.revokedAt }),
-    ...(device.clientId === undefined ? {} : { clientId: device.clientId }),
-  };
-}
-
-function parsePairingState(
-  value: unknown,
-  maxPendingTokens: number,
-  maxDevices: number,
-): HostDevicePairingState {
-  if (!isRecord(value) || value.version !== 1) {
-    throw new Error('Invalid paired-device store version');
-  }
-  if (!Array.isArray(value.pending) || !Array.isArray(value.devices)) {
-    throw new Error('Invalid paired-device store shape');
-  }
-  if (value.pending.length > maxPendingTokens || value.devices.length > maxDevices) {
-    throw new Error('Paired-device store exceeds configured bounds');
-  }
-
-  const pending: HostDevicePairingState['pending'] = [];
-  const pendingHashes = new Set<string>();
-  for (const candidate of value.pending) {
-    if (!isRecord(candidate)) {
-      throw new Error('Invalid pending pairing entry');
-    }
-    const tokenHash = candidate.tokenHash;
-    const expiresAt = candidate.expiresAt;
-    if (
-      typeof tokenHash !== 'string' ||
-      !/^[0-9a-f]{64}$/.test(tokenHash) ||
-      pendingHashes.has(tokenHash) ||
-      typeof expiresAt !== 'number' ||
-      !Number.isFinite(expiresAt) ||
-      expiresAt <= 0
-    ) {
-      throw new Error('Invalid pending pairing entry');
-    }
-    pendingHashes.add(tokenHash);
-    pending.push({ tokenHash, expiresAt });
-  }
-
-  const devices: TrustedDevicePublic[] = [];
-  const deviceIds = new Set<string>();
-  for (const candidate of value.devices) {
-    if (!isRecord(candidate)) {
-      throw new Error('Invalid paired-device entry');
-    }
-    const id = candidate.id;
-    const name = candidate.name;
-    const secretHash = candidate.secretHash;
-    const createdAt = candidate.createdAt;
-    const lastSeenAt = candidate.lastSeenAt;
-    const revokedAt = candidate.revokedAt;
-    const clientId = candidate.clientId;
-    if (
-      typeof id !== 'string' ||
-      id.length === 0 ||
-      deviceIds.has(id) ||
-      typeof name !== 'string' ||
-      name.length === 0 ||
-      typeof secretHash !== 'string' ||
-      !/^[0-9a-f]{64}$/.test(secretHash) ||
-      typeof createdAt !== 'string' ||
-      createdAt.length === 0 ||
-      typeof lastSeenAt !== 'string' ||
-      lastSeenAt.length === 0 ||
-      (revokedAt !== undefined && (typeof revokedAt !== 'string' || revokedAt.length === 0)) ||
-      (clientId !== undefined && (typeof clientId !== 'string' || clientId.length === 0))
-    ) {
-      throw new Error('Invalid paired-device entry');
-    }
-    deviceIds.add(id);
-    devices.push({
-      id,
-      name,
-      secretHash,
-      createdAt,
-      lastSeenAt,
-      ...(revokedAt === undefined ? {} : { revokedAt }),
-      ...(clientId === undefined ? {} : { clientId }),
-    });
-  }
-  return { version: 1, pending, devices };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }

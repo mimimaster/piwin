@@ -5,7 +5,11 @@
  * operator-facing `host/pairing-*` commands, so both mint the same QR payload
  * and revoke with the same side effects.
  */
-import type { MobileAccessPairingCodeData, PairedDeviceSummary } from '@piwin/contracts';
+import type {
+  MobileAccessPairingCodeData,
+  PairedDeviceSummary,
+  RemoteDeviceRole,
+} from '@piwin/contracts';
 import { projectPairedDeviceSummary } from '@piwin/contracts';
 import type { HostDevicePairing } from './device-pairing.js';
 import type { HostDevicePairingFileStore } from './device-pairing-store.js';
@@ -15,6 +19,13 @@ export type PairingRegistry = {
   pairing: HostDevicePairing;
   store: HostDevicePairingFileStore | undefined;
 };
+
+/** ADR 0101: builds the v3 channel links for a freshly minted token, when the channel is set up. */
+export type PairingChannelLinks = (token: {
+  pairingToken: string;
+  expiresAt: number;
+  role: RemoteDeviceRole;
+}) => { channelUri: string; webUri?: string } | undefined;
 
 async function persistPairing(registry: PairingRegistry): Promise<void> {
   if (registry.store === undefined) {
@@ -26,20 +37,31 @@ async function persistPairing(registry: PairingRegistry): Promise<void> {
 /** A new code replaces any unused one: only the newest QR is ever valid. */
 export async function mintPairingCode(
   registry: PairingRegistry,
-  input: { advertisedEndpoint: string; hostInstanceId: string },
+  input: {
+    advertisedEndpoint: string;
+    hostInstanceId: string;
+    role?: RemoteDeviceRole;
+    channelLinks?: PairingChannelLinks;
+  },
 ): Promise<MobileAccessPairingCodeData> {
   const advertised = input.advertisedEndpoint.trim();
   if (advertised.length === 0) {
     throw new Error('An advertised WebSocket endpoint is required to mint a pairing QR');
   }
   registry.pairing.invalidatePendingTokens();
-  const minted = registry.pairing.mintToken();
+  const role = input.role ?? 'member';
+  const minted = registry.pairing.mintToken(role);
   await persistPairing(registry);
   const payload = createPairingQrPayload({
     advertisedEndpoint: advertised,
     pairingToken: minted.token,
     hostInstanceId: input.hostInstanceId,
     expiresAt: minted.expiresAt,
+  });
+  const links = input.channelLinks?.({
+    pairingToken: minted.token,
+    expiresAt: minted.expiresAt,
+    role,
   });
   return {
     endpoint: payload.endpoint,
@@ -48,6 +70,7 @@ export async function mintPairingCode(
     protocolVersion: payload.protocolVersion,
     expiresAt: payload.expiresAt,
     uri: pairingQrUri(payload),
+    ...(links === undefined ? {} : links),
   };
 }
 
