@@ -25,3 +25,4 @@ export * from './native-live-audio.js';
 export * from './media-upload.js';
 export * from './subagent-report-text.js';
 export * from './subagent-preview-projection.js';
+export * from './remote-hosts/index.js';
