@@ -1,4 +1,5 @@
 import { REMOTE_CHANNEL_MAX_FRAME_BYTES } from '@piwin/contracts';
+import { copyBytes } from './byte-arrays.js';
 
 /** Bytes of the big-endian peer id in front of every relay frame. */
 export const RELAY_PEER_PREFIX_BYTES = 4;
@@ -17,7 +18,7 @@ export function packRelayFrame(peer: number, payload: Uint8Array): Uint8Array {
     throw new RangeError('Relay frame exceeds the maximum frame size');
   }
   const frame = new Uint8Array(RELAY_PEER_PREFIX_BYTES + payload.length);
-  new DataView(frame.buffer).setUint32(0, peer, false);
+  new DataView(frame.buffer, frame.byteOffset, frame.byteLength).setUint32(0, peer, false);
   frame.set(payload, RELAY_PEER_PREFIX_BYTES);
   return frame;
 }
@@ -43,8 +44,8 @@ export function rewriteRelayFramePeer(frame: Uint8Array, peer: number): Uint8Arr
   if (frame.length < RELAY_PEER_PREFIX_BYTES) {
     throw new RangeError('Relay frame is shorter than its peer prefix');
   }
-  const copy = frame.slice();
-  new DataView(copy.buffer).setUint32(0, peer, false);
+  const copy = copyBytes(frame);
+  new DataView(copy.buffer, copy.byteOffset, copy.byteLength).setUint32(0, peer, false);
   return copy;
 }
 

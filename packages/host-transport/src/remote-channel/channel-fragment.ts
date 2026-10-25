@@ -1,6 +1,7 @@
 import { HOST_WIRE_HARD_FRAME_BYTES } from '../protocol-codec.js';
 import { NOISE_MAX_PLAINTEXT_BYTES } from './noise/noise-cipher-state.js';
 import { RemoteChannelError } from './remote-channel-error.js';
+import { copyBytes } from './byte-arrays.js';
 
 /** In-channel message kinds (ADR 0101 §4). */
 export const CHANNEL_KIND_TEXT = 0x01;
@@ -72,7 +73,7 @@ export class ChannelReassembler {
       throw new RemoteChannelError('frame-too-large', 'Channel message exceeds the frame limit');
     }
     this.pendingKind = kind;
-    this.pending.push(body.slice());
+    this.pending.push(copyBytes(body));
     if ((flags & FLAG_MORE) !== 0) {
       return undefined;
     }

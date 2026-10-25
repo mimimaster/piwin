@@ -1,5 +1,5 @@
 import { x25519 } from '@noble/curves/ed25519.js';
-import { concatBytes } from '../concat-bytes.js';
+import { concatBytes, copyBytes } from '../byte-arrays.js';
 import { RemoteChannelError } from '../remote-channel-error.js';
 import type { NoiseCipherState } from './noise-cipher-state.js';
 import { NOISE_MAX_MESSAGE_BYTES, NOISE_TAG_BYTES } from './noise-cipher-state.js';
@@ -27,7 +27,7 @@ export function noiseKeyPairFromSecret(secretKey: Uint8Array): NoiseKeyPair {
   if (secretKey.length !== NOISE_DH_BYTES) {
     throw new RemoteChannelError('handshake-failed', 'X25519 secret key must be 32 bytes');
   }
-  return { secretKey: secretKey.slice(), publicKey: x25519.getPublicKey(secretKey) };
+  return { secretKey: copyBytes(secretKey), publicKey: x25519.getPublicKey(secretKey) };
 }
 
 /**
@@ -66,7 +66,10 @@ export class NoiseIkHandshake {
     this.role = input.role;
     this.localStatic = input.staticKeyPair;
     this.localEphemeral = input.ephemeralKeyPair ?? generateNoiseKeyPair();
-    this.remoteStatic = input.remoteStaticPublicKey?.slice();
+    this.remoteStatic =
+      input.remoteStaticPublicKey === undefined
+        ? undefined
+        : copyBytes(input.remoteStaticPublicKey);
     this.state = new NoiseSymmetricState(NOISE_IK_PROTOCOL_NAME);
     this.state.mixHash(input.prologue);
     // Pre-message pattern `<- s`: both sides hash the responder's static key.
@@ -101,7 +104,7 @@ export class NoiseIkHandshake {
 
   /** Initiator: known from the start. Responder: known after reading message 1. */
   public get remoteStaticPublicKey(): Uint8Array | undefined {
-    return this.remoteStatic?.slice();
+    return this.remoteStatic === undefined ? undefined : copyBytes(this.remoteStatic);
   }
 
   public get handshakeHash(): Uint8Array {
@@ -157,7 +160,7 @@ export class NoiseIkHandshake {
       throw new RemoteChannelError('handshake-failed', 'Noise message 1 is truncated');
     }
     const remoteEphemeral = message.subarray(0, NOISE_DH_BYTES);
-    this.remoteEphemeral = remoteEphemeral.slice();
+    this.remoteEphemeral = copyBytes(remoteEphemeral);
     this.state.mixHash(remoteEphemeral);
     this.state.mixKey(dh(this.localStatic.secretKey, remoteEphemeral));
     const remoteStatic = this.state.decryptAndHash(
@@ -188,7 +191,7 @@ export class NoiseIkHandshake {
       throw new RemoteChannelError('handshake-failed', 'Noise message 2 is truncated');
     }
     const remoteEphemeral = message.subarray(0, NOISE_DH_BYTES);
-    this.remoteEphemeral = remoteEphemeral.slice();
+    this.remoteEphemeral = copyBytes(remoteEphemeral);
     this.state.mixHash(remoteEphemeral);
     this.state.mixKey(dh(this.localEphemeral.secretKey, remoteEphemeral));
     this.state.mixKey(dh(this.localStatic.secretKey, remoteEphemeral));

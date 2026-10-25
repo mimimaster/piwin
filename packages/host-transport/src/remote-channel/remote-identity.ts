@@ -1,7 +1,7 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { REMOTE_DISPLAY_NAME_MAX_LENGTH, REMOTE_ID_LENGTH } from '@piwin/contracts';
 import { encodeBase64Url } from './base64url.js';
-import { concatBytes } from './concat-bytes.js';
+import { concatBytes } from './byte-arrays.js';
 
 const ID_DIGEST_BYTES = 16;
 const textEncoder = new TextEncoder();

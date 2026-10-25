@@ -8,6 +8,17 @@ import {
 } from './relay-envelope.js';
 
 describe('relay envelope', () => {
+  it('rewrites a pooled Node Buffer without touching shared memory (ws hands out Buffers)', () => {
+    // Small Buffer.from allocations share one pool, so byteOffset is not 0.
+    const neighbour = Buffer.from([0xaa, 0xbb, 0xcc, 0xdd]);
+    const frame = Buffer.from(packRelayFrame(999, Uint8Array.of(1, 2, 3)));
+    expect(frame.byteOffset).toBeGreaterThan(0);
+    const stamped = rewriteRelayFramePeer(frame, 7);
+    expect(unpackRelayFrame(stamped)).toEqual({ peer: 7, payload: Uint8Array.of(1, 2, 3) });
+    expect(unpackRelayFrame(frame)?.peer).toBe(999);
+    expect([...neighbour]).toEqual([0xaa, 0xbb, 0xcc, 0xdd]);
+  });
+
   it('prefixes the payload with a big-endian u32 peer id', () => {
     const frame = packRelayFrame(0x01020304, Uint8Array.of(9, 8));
     expect(Array.from(frame)).toEqual([1, 2, 3, 4, 9, 8]);

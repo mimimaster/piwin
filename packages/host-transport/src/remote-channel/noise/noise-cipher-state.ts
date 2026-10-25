@@ -1,5 +1,6 @@
 import { chacha20poly1305 } from '@noble/ciphers/chacha.js';
 import { RemoteChannelError } from '../remote-channel-error.js';
+import { copyBytes } from '../byte-arrays.js';
 
 export const NOISE_KEY_BYTES = 32;
 export const NOISE_TAG_BYTES = 16;
@@ -42,14 +43,14 @@ export class NoiseCipherState {
     if (key.length !== NOISE_KEY_BYTES) {
       throw new RemoteChannelError('handshake-failed', 'Noise cipher key must be 32 bytes');
     }
-    this.key = key.slice();
+    this.key = copyBytes(key);
     this.nonce = 0;
   }
 
   public encryptWithAd(ad: Uint8Array, plaintext: Uint8Array): Uint8Array {
     const key = this.key;
     if (key === undefined) {
-      return plaintext.slice();
+      return copyBytes(plaintext);
     }
     const nonce = this.takeNonce();
     return chacha20poly1305(key, encodeNonce(nonce), ad).encrypt(plaintext);
@@ -58,7 +59,7 @@ export class NoiseCipherState {
   public decryptWithAd(ad: Uint8Array, ciphertext: Uint8Array): Uint8Array {
     const key = this.key;
     if (key === undefined) {
-      return ciphertext.slice();
+      return copyBytes(ciphertext);
     }
     const nonce = this.takeNonce();
     try {

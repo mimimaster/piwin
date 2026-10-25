@@ -1,6 +1,6 @@
 import { hmac } from '@noble/hashes/hmac.js';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { concatBytes } from '../concat-bytes.js';
+import { concatBytes, copyBytes } from '../byte-arrays.js';
 import { NoiseCipherState } from './noise-cipher-state.js';
 
 const HASH_BYTES = 32;
@@ -22,11 +22,11 @@ export class NoiseSymmetricState {
       initial = sha256(name);
     }
     this.hash = initial;
-    this.chainingKey = initial.slice();
+    this.chainingKey = copyBytes(initial);
   }
 
   public get handshakeHash(): Uint8Array {
-    return this.hash.slice();
+    return copyBytes(this.hash);
   }
 
   public mixKey(inputKeyMaterial: Uint8Array): void {

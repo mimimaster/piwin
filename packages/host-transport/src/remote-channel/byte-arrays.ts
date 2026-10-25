@@ -9,3 +9,13 @@ export function concatBytes(...parts: Uint8Array[]): Uint8Array {
   }
   return out;
 }
+
+/**
+ * A detached copy. Not `bytes.slice()`: on a Node `Buffer` (what `ws` hands
+ * out) `slice` returns a view into shared pool memory, not a copy.
+ */
+export function copyBytes(bytes: Uint8Array): Uint8Array {
+  const copy = new Uint8Array(bytes.length);
+  copy.set(bytes);
+  return copy;
+}
