@@ -46,6 +46,8 @@ describe('createTauriHostWebSocket', () => {
     inner.emit({ type: 'Text', data: '{"type":"host/hello"}' });
     expect(messages).toEqual(['{"type":"host/hello"}']);
     socket.send('hello');
+    // Sends are chained so frames stay in order; the native call follows a microtask.
+    await Promise.resolve();
     expect(inner.send).toHaveBeenCalledWith('hello');
   });
 

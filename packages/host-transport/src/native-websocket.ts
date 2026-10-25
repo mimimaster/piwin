@@ -1,4 +1,5 @@
 import type { WebSocketLike } from './websocket-host-transport.js';
+import type { RelayInnerSocket } from './remote-channel/relay-secure-socket.js';
 
 const CONNECTING = 0;
 const OPEN = 1;
@@ -12,9 +13,11 @@ export type NativeHostWebSocketMessage =
   | { type: 'Pong'; data: number[] }
   | { type: 'Close'; data: { code: number; reason: string } | null };
 
+export type NativeHostWebSocketOutbound = string | { type: 'Binary'; data: number[] };
+
 export type NativeHostWebSocketSocket = {
   addListener: (listener: (message: NativeHostWebSocketMessage) => void) => () => void;
-  send: (message: string) => Promise<void>;
+  send: (message: NativeHostWebSocketOutbound) => Promise<void>;
   disconnect: () => Promise<void>;
 };
 
@@ -30,6 +33,17 @@ export function createNativeHostWebSocket(
   endpoint: string,
   connect: NativeHostWebSocketConnect,
 ): WebSocketLike {
+  return new NativeHostWebSocket(endpoint, serializeNativeConnect(connect));
+}
+
+/**
+ * The same native socket as the inner transport of an ADR 0101 channel
+ * (`RelaySecureSocket`), which sends binary frames.
+ */
+export function createNativeRelayInnerSocket(
+  endpoint: string,
+  connect: NativeHostWebSocketConnect,
+): RelayInnerSocket {
   return new NativeHostWebSocket(endpoint, serializeNativeConnect(connect));
 }
 
@@ -92,7 +106,7 @@ async function connectWithBudget(
   });
 }
 
-class NativeHostWebSocket implements WebSocketLike {
+class NativeHostWebSocket implements WebSocketLike, RelayInnerSocket {
   public readyState = CONNECTING;
   public onopen: (() => void) | null = null;
   public onmessage: ((event: { data: unknown }) => void) | null = null;
@@ -103,18 +117,25 @@ class NativeHostWebSocket implements WebSocketLike {
   private unsubscribeInner: (() => void) | undefined;
   private closed = false;
   private connectGeneration = 0;
+  /** Native sends are async calls; chaining keeps frames in order (Noise nonces cannot skip). */
+  private sendTail: Promise<void> = Promise.resolve();
 
   public constructor(endpoint: string, connect: NativeHostWebSocketConnect) {
     void this.open(endpoint, connect);
   }
 
-  public send(data: string): void {
-    if (this.readyState !== OPEN || this.inner === undefined) {
+  public send(data: string | Uint8Array): void {
+    const inner = this.inner;
+    if (this.readyState !== OPEN || inner === undefined) {
       throw new Error('Host WebSocket is not open');
     }
-    void this.inner.send(data).catch((error: unknown) => {
-      this.fail(error);
-    });
+    const message: NativeHostWebSocketOutbound =
+      typeof data === 'string' ? data : { type: 'Binary', data: Array.from(data) };
+    this.sendTail = this.sendTail
+      .then(() => inner.send(message))
+      .catch((error: unknown) => {
+        this.fail(error);
+      });
   }
 
   public close(code?: number, reason?: string): void {
