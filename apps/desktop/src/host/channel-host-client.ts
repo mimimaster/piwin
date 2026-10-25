@@ -11,6 +11,7 @@ import {
   channelInnerSocketFactory,
   updatePrimedChannelHost,
 } from './channel-host-book.js';
+import { reportChannelPath } from './channel-path-store.js';
 
 /**
  * Workbench Host client over the ADR 0101 channel: relay first, direct
@@ -49,6 +50,7 @@ export function createChannelDesktopHostClient(input: {
         })
         .catch((error: unknown) => console.warn('[piwin] host book update failed', error));
     },
+    onPath: (path) => reportChannelPath(entry.hostId, path),
     transportOptions: { autoReconnect: input.autoReconnect, heartbeatIntervalMs: 30_000 },
   });
   return new HostClient({

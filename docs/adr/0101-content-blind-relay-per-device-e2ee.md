@@ -280,8 +280,8 @@ backoff, `wake()` and replay are reused unchanged.
 
 | Shell | Pair | Key store | Notes |
 |-------|------|-----------|-------|
-| Phone | Scan QR or paste link | Keychain | The connect wall lists paired Hosts (user, relay or direct, admin) to switch to or remove. Channel failures are named (`4404` "Host offline or not on this relay", `4004` "pair again"). The native socket gains binary send. A current-path indicator is not shown yet (`onPath` is in place). |
-| Desktop thin shell | Paste link | OS credential store (Keychain / Credential Manager / Secret Service) through `desktop_secret_*` | Same connect wall as the phone. The endpoint + token form stays during the migration window. |
+| Phone | Scan QR or paste link | Keychain | The connect wall lists paired Hosts (user, relay or direct, admin) to switch to or remove. Channel failures are named (`4404` "Host offline or not on this relay", `4004` "pair again"). The native socket gains binary send. The runtime chip names the Host and its live path (`MacBook · 中转` / `· 直连`). |
+| Desktop thin shell | Paste link | OS credential store (Keychain / Credential Manager / Secret Service) through `desktop_secret_*` | Same connect wall and runtime chip as the phone. The endpoint + token form stays during the migration window. |
 | Bundled Desktop | — | — | Its own sidecar over loopback, as today. Settings → Phone access → "Remote access" manages the relay URL and enroll token, the relay user, `legacyAccess` and admin pairing codes; the device list marks admin and older connections. |
 | CLI / `piwin tui` | `piwin pair '<link>'` | `~/.piwin/client/` 0600 | `piwin hosts list \| use \| alias \| forget`. `PIWIN_HOST=<alias>` selects a Host. A non-loopback `PIWIN_HOST_URL` migrates once during the window; afterwards it is loopback-only. |
 | Browser | Open `https://relay/#pair=…` or paste the link | IndexedDB | Served by the relay (`--web-root`) or by the Host listener. The `#pair=` fragment is cleared from the address bar before pairing. |

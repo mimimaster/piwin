@@ -35,6 +35,8 @@ export type RemoteAccessCopy = {
   pairWithLink: string;
   pairing: string;
   pairedHostsLabel: string;
+  pathRelay: string;
+  pathDirect: string;
   pairedHostMeta: (input: { userName: string; relay: boolean; operator: boolean }) => string;
   connectHost: string;
   forgetHost: string;
@@ -94,6 +96,8 @@ export const REMOTE_ACCESS_COPY: Record<DesktopLocale, RemoteAccessCopy> = {
     pairWithLink: '用链接配对',
     pairing: '正在配对…',
     pairedHostsLabel: '已配对的 Host',
+    pathRelay: '中转',
+    pathDirect: '直连',
     pairedHostMeta: ({ userName, relay, operator }) =>
       [userName, relay ? '中转' : '直连', ...(operator ? ['管理员'] : [])].join(' · '),
     connectHost: '连接',
@@ -143,6 +147,8 @@ export const REMOTE_ACCESS_COPY: Record<DesktopLocale, RemoteAccessCopy> = {
     pairWithLink: 'Pair with link',
     pairing: 'Pairing…',
     pairedHostsLabel: 'Paired Hosts',
+    pathRelay: 'relay',
+    pathDirect: 'direct',
     pairedHostMeta: ({ userName, relay, operator }) =>
       [userName, relay ? 'relay' : 'direct', ...(operator ? ['admin'] : [])].join(' · '),
     connectHost: 'Connect',

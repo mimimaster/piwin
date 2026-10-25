@@ -55,10 +55,8 @@ import {
 } from '../live/use-live-call.js';
 import { useLiveIntendedSessionSync } from '../live/live-intended-session-sync.js';
 import { readDelegatedTurnResult } from '../live/live-session-result.js';
-import {
-  clearDesktopRemoteHostTarget,
-  formatDesktopRemoteHostDisplay,
-} from '../host/remote-host-session';
+import { clearDesktopRemoteHostTarget } from '../host/remote-host-session';
+import { useRuntimeRemoteHostLabel } from '../host/remote-host-label';
 import type { RightPanelTab } from '../right-panel/right-panel';
 import type { ShellSettingsSection } from '../tool-cards/shell-navigation';
 import type { SteerQueueMessage } from '../conversation/steer-queue';
@@ -484,9 +482,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   }, [agentMode, goalExtensionEnabled, setAgentMode]);
 
   const runtimeRemoteConnected = hostClient.getTransport() === 'remote';
-  const runtimeRemoteHostLabel = runtimeRemoteConnected
-    ? formatDesktopRemoteHostDisplay(hostClient.getRemoteTarget()?.endpoint ?? '')
-    : undefined;
+  const runtimeRemoteHostLabel = useRuntimeRemoteHostLabel(hostClient);
 
   const atWorkspaceFiles = useAtWorkspaceFiles({
     hostClient,

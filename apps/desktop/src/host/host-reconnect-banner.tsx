@@ -3,9 +3,9 @@ import { Button } from '@piwin/ui-kit';
 import { isDesktopShellOnlyBuild } from '../platform/desktop-shell-build.js';
 import { getDesktopCopy, type DesktopLocale } from '../i18n/desktop-locale';
 import { retryHostConnectionNow } from './host-wake-events.js';
+import { describeDesktopRemoteHostName } from './remote-host-label.js';
 import {
   clearDesktopRemoteHostTarget,
-  formatDesktopRemoteHostDisplay,
   loadDesktopRemoteHostTarget,
 } from './remote-host-session.js';
 
@@ -42,8 +42,7 @@ export function HostReconnectBanner(props: { locale: DesktopLocale }): ReactElem
     );
   }
 
-  const endpoint = loadDesktopRemoteHostTarget()?.endpoint ?? '';
-  const host = formatDesktopRemoteHostDisplay(endpoint) ?? 'Host';
+  const host = describeDesktopRemoteHostName(loadDesktopRemoteHostTarget()) ?? 'Host';
   return (
     <div
       className="transcript-awaiting-banner host-unreachable-banner"
@@ -54,7 +53,11 @@ export function HostReconnectBanner(props: { locale: DesktopLocale }): ReactElem
     >
       <span>{copy.hostUnreachable(host)}</span>
       <span className="host-unreachable-actions">
-        <Button variant="secondary" onClick={retryHostConnectionNow} data-testid="host-reconnect-retry">
+        <Button
+          variant="secondary"
+          onClick={retryHostConnectionNow}
+          data-testid="host-reconnect-retry"
+        >
           {copy.hostRetry}
         </Button>
         {/* Clearing the target returns a shell-only build to its connect wall.
