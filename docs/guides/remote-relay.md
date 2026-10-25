@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Living document — relay server shipped; Host and shell sides land in later phases |
+| Status | Living document — relay server and Host side shipped; shells land in later phases |
 | Related | [ADR 0101](../adr/0101-content-blind-relay-per-device-e2ee.md), [apps/gateway](../../apps/gateway/README.md) |
 
 The piwin relay (`apps/gateway`) lets every remote shell — phone, Desktop thin
@@ -81,7 +81,28 @@ Disabling a user or denying a Host closes its live connections.
 
 Defaults per user: 8 Hosts, 32 connected shells per Host.
 
-## 4. What the relay can and cannot see
+## 4. Point your Host at the relay
+
+Standalone Host (`apps/host`):
+
+| Variable | Meaning |
+|----------|---------|
+| `PIWIN_HOST_RELAY_URL` | Relay address (`wss://relay.example.com`) |
+| `PIWIN_RELAY_ENROLL_TOKEN` | One-time enroll token; forgotten once the relay admits the Host |
+| `PIWIN_HOST_USER_NAME` | Name of the relay user created on first start (default: OS user) |
+| `PIWIN_HOST_LEGACY_ACCESS` | `full` (default), `migrate-only` or `off` for pre-relay clients |
+
+On first start the Host creates its identity under `~/.piwin/devices/`
+(`host-identity.json`, `relay-user.json`, `remote-access.json`). While no
+operator device exists it prints an operator pairing link
+(`piwin://pair?v=3…`): open it on the shell that should administer the Host.
+
+The bundled Desktop serves the same channel on its phone-access listener and
+connects to the relay while phone access is on; Desktop settings for the
+relay arrive with the shell work (P5). Until then an operator shell can send
+`host/remote-access-configure`.
+
+## 5. What the relay can and cannot see
 
 | Sees | Cannot |
 |------|--------|
@@ -97,7 +118,7 @@ The browser shell is the one exception to "the relay cannot read": a browser
 runs whatever JavaScript the relay serves. On a relay you run yourself that is
 you. Native shells do not depend on it.
 
-## 5. Close codes
+## 6. Close codes
 
 | Code | Meaning | Shell behavior |
 |------|---------|----------------|

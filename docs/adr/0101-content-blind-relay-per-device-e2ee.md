@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Accepted — not yet implemented** (owner decisions 2026-10-25) |
+| Status | **Accepted — partially implemented** (owner decisions 2026-10-25; P0–P3 shipped: protocol, relay, Host side) |
 | Date | 2026-10-25 |
 | Scope | `@piwin/contracts`, `@piwin/host-transport`, `@piwin/host-server`, `@piwin/host-client`, new `apps/gateway`, `apps/desktop`, `apps/mobile`, `apps/cli` (incl. `tui`), `apps/host` |
 | Amends | [0027](./0027-personal-remote-gateway-seams.md) (gateway topology, `RemoteConfig`), [0075](./0075-operator-host-pairing.md) (operator identity, token door), [0076](./0076-bundled-phone-access-lan.md) (cleartext LAN listener), [0086](./0086-cli-tui-on-remote-protocol.md) (TUI attach target) |
@@ -105,7 +105,9 @@ hostId = base64url( SHA-256("piwin-host-v1\0" ‖ hostSignPub) )[0..16 bytes]
   The UI groups entries by user. Each entry is one connection to one Host.
 - Rotating a Host identity forces re-pair for that Host. Rotating the user
   key requires re-registering on the relay (§8) and re-signing each Host. No
-  client re-pairs, because clients pin `hostKey`, not the user key.
+  client re-pairs, because clients pin `hostKey`, not the user key; the new
+  `userId` (part of every connect URL) reaches them through the
+  `host/endpoints` push (P4).
 
 ### 3. Relay users (account stand-in)
 
@@ -243,8 +245,11 @@ https://relay.example.com/#pair=<base64url(JSON of the same fields)>
   the prefix on client frames and routes Host frames to one peer. There is no
   broadcast. Clients always send a prefix, and the direct listener ignores
   it.
-- **Text control** comes only from the relay: `peer-joined`, `peer-left`,
-  `host-replaced`.
+- **Text control** comes from the relay (`peer-joined`, `peer-left`,
+  `host-replaced`), with one Host→relay exception after ready:
+  `{"t":"peer-close","peer","code","reason"?}` closes one of that Host's
+  clients (revocation, failed handshake); `code` must be 4000–4999. Any other
+  Host text after ready closes the Host with `4400`.
 - **Close codes**:
 
   | Code | Meaning |
@@ -302,22 +307,27 @@ it.
   relay URL must be `wss://`, except `ws://` on localhost.
   `legacyAccess` is `full | migrate-only | off`; its default follows the
   release schedule in §10.
-- `host/pairing-status` reports user, `hostId`, relay state
-  (`off | connecting | ready | error` plus last close code) and direct state.
+- `host/pairing-status` carries a `remote` block (`RemoteAccessStatusData`):
+  host id and name, user, relay state (`off | connecting | ready | error` plus
+  last close code), direct state and `legacyAccess`.
 - `host/remote-access-configure` is operator-only. `host/pairing-create-code`
-  takes `role`.
+  takes `role`; pairing codes add `channelUri` (`piwin://pair?v=3…`) and, with
+  a relay, `webUri` (`https://relay/#pair=…`).
 - `host/relay-user-*` operator commands:
   - `create { name }`
   - `rename`
   - `export { passphrase }` → bundle
   - `import { bundle, passphrase }`
   - `enrollment-line`
-- **Standalone Host bootstrap.** `piwin host serve` / `apps/host` with
-  `PIWIN_HOST_RELAY_URL` (and optional `PIWIN_RELAY_ENROLL_TOKEN`) creates a
-  relay user on first start if none exists, using `PIWIN_HOST_USER_NAME` or
-  the OS username. While no operator device exists, it prints an operator
-  pairing link and QR. `piwin host pair [--operator]` mints more codes over
-  loopback.
+- **Standalone Host bootstrap.** `apps/host` (and `piwin host serve`)
+  creates its identity and a relay user on first start, using
+  `PIWIN_HOST_USER_NAME` or the OS username; `PIWIN_HOST_RELAY_URL`,
+  `PIWIN_RELAY_ENROLL_TOKEN` and `PIWIN_HOST_LEGACY_ACCESS` apply settings.
+  While no operator device exists, it prints an operator v3 pairing link.
+  `piwin host pair [--operator]` (P5) mints more codes over loopback.
+- The bundled Desktop's phone-access listener carries the direct channel
+  route and runs the relay connector while the listener runs; a damaged
+  identity disables remote access but not LAN phone access.
 - `apps/gateway` ships as a Node bin and a Docker image:
   - `--port`, `--host`, `--trust-proxy`, `--users <path>`, `--web-root`;
   - TLS through a reverse proxy (the guide has a Caddy example).
