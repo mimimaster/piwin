@@ -1,6 +1,6 @@
 import type { HostPush, PromptAttachment } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import { connectCliAttachedHost, readCliHostAttachTarget } from './attach-existing-host.js';
+import { connectCliAttachedHost, resolveCliHostAttachTarget } from './attach-existing-host.js';
 import { createChatOutput, parseOutputFormat } from './chat-output.js';
 import { resolveCliChatPrompt } from './chat-prompt.js';
 import {
@@ -76,7 +76,7 @@ export async function commandChat(argv: string[]): Promise<void> {
     return;
   }
 
-  const attachTarget = readCliHostAttachTarget();
+  const attachTarget = await resolveCliHostAttachTarget();
   const attachments: PromptAttachment[] = [];
   if (imagePath && !attachTarget) {
     const saved = await saveLocalCliImageAttachment(imagePath);
@@ -127,7 +127,7 @@ export async function commandChat(argv: string[]): Promise<void> {
   if (attachTarget) {
     if (projectPath && !/^project-[a-f0-9]{24}$/.test(projectPath)) {
       console.error(
-        'PIWIN_HOST_URL is set; --project must be a Host projectId, not a local folder.',
+        'Attached to a Host; --project must be a Host projectId, not a local folder.',
       );
       process.exitCode = 1;
       return;

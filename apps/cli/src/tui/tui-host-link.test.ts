@@ -7,7 +7,8 @@ vi.mock('@piwin/host-server', () => {
   throw new Error('Attached CLI loaded local Host-server');
 });
 vi.mock('../attach-existing-host.js', () => ({
-  readCliHostAttachTarget: () => ({ endpoint: 'ws://test-host' }),
+  resolveCliHostAttachTarget: async () => ({ endpoint: 'ws://test-host' }),
+  describeCliHostTarget: (target: { endpoint: string }) => target.endpoint,
   connectCliAttachedHost: async () => ({ close: vi.fn(), request: vi.fn() }),
 }));
 

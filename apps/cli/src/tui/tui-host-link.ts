@@ -3,7 +3,11 @@ import type { HostCommand, HostResponse } from '@piwin/contracts';
 import { remoteCommandRequiresIdempotencyKey } from '@piwin/contracts';
 import type { HostClient } from '@piwin/host-client';
 import { getPiwinRoot } from '@piwin/host-runtime/paths';
-import { connectCliAttachedHost, readCliHostAttachTarget } from '../attach-existing-host.js';
+import {
+  connectCliAttachedHost,
+  describeCliHostTarget,
+  resolveCliHostAttachTarget,
+} from '../attach-existing-host.js';
 
 /**
  * The TUI always speaks the remote Host protocol, including to a Host it
@@ -28,13 +32,13 @@ export type TuiHostLinkOptions = {
 const TUI_ATTACH_OPTIONS = { autoReconnect: true, liveSubscriptions: true } as const;
 
 export async function openTuiHostLink(options: TuiHostLinkOptions): Promise<TuiHostLink> {
-  const target = readCliHostAttachTarget();
+  const target = await resolveCliHostAttachTarget();
   if (target !== undefined) {
     const client = await connectCliAttachedHost(target, undefined, TUI_ATTACH_OPTIONS);
     return {
       client,
       kind: 'attached',
-      endpoint: target.endpoint,
+      endpoint: describeCliHostTarget(target),
       request: createLinkRequest(client),
       dispose: () => client.close(),
     };

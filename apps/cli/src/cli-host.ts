@@ -6,7 +6,7 @@ import {
   executeHostRequestAttempt,
 } from '@piwin/host-client';
 import { HostRuntime, applyHostNetworkProxyFromConfig } from '@piwin/host-runtime';
-import { connectCliAttachedHost, readCliHostAttachTarget } from './attach-existing-host.js';
+import { connectCliAttachedHost, resolveCliHostAttachTarget } from './attach-existing-host.js';
 
 export type CliHostRequestOptions = {
   idempotencyKey?: string;
@@ -26,13 +26,14 @@ export function newCliGestureKey(): CliHostRequestOptions {
 }
 
 /**
- * One Host per `~/.piwin`. When `PIWIN_HOST_URL` is set, attach instead of
- * constructing a second `HostRuntime`.
+ * One Host per `~/.piwin`. When a Host is selected (`PIWIN_HOST`,
+ * `PIWIN_HOST_URL` or `piwin hosts use`), attach instead of constructing a
+ * second `HostRuntime`.
  */
 export async function openCliHost(
   options: ConstructorParameters<typeof HostRuntime>[0],
 ): Promise<CliHostHandle> {
-  const target = readCliHostAttachTarget();
+  const target = await resolveCliHostAttachTarget(process.env, options.piwinRoot);
   if (target) {
     const client = await connectCliAttachedHost(target, options.piwinRoot);
     const unsubscribe =

@@ -46,6 +46,12 @@ Usage:
   piwin scheme list [--mock]
   piwin scheme show <id> [--mock]
   piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass|unrestricted]
+  piwin pair '<piwin://pair?v=3…>' [--alias <name>]     (pair this CLI with a Host; ADR 0101)
+  piwin hosts list | use <host>|--local | alias <host> <name> | forget <host>
+  piwin host pair [--operator]                         (on the attached Host)
+  piwin relay status | configure --url <wss://…> [--enroll-token t] | --off | legacy full|migrate-only|off
+  piwin relay user create|rename <name> | enrollment-line | export | import <bundle|@file>
+  (attach: PIWIN_HOST=<alias|hostId>, or PIWIN_HOST_URL=ws://127.0.0.1:<port> on the Host's machine)
   piwin skill list [--project <path>]
   piwin skill install skills.sh:<owner>/<repo>/<skill> | --local <dir> | --git <url> [--name <id>]
   piwin skill update <skill-id>
@@ -240,6 +246,21 @@ async function main(argv: string[]): Promise<void> {
   if (command === 'kb') {
     const { runKbCommand } = await import('./kb-command.js');
     await runKbCommand(argv);
+    return;
+  }
+  if (command === 'pair') {
+    const { commandPair } = await import('./remote-host-command.js');
+    process.exitCode = await commandPair(argv);
+    return;
+  }
+  if (command === 'hosts') {
+    const { commandHosts } = await import('./remote-host-command.js');
+    process.exitCode = await commandHosts(argv);
+    return;
+  }
+  if (command === 'relay' || (command === 'host' && argv[1] === 'pair')) {
+    const { commandRelay } = await import('./relay-command.js');
+    process.exitCode = await commandRelay(argv);
     return;
   }
   if (command === 'host' && argv[1] === 'serve') {
