@@ -4,6 +4,7 @@
 |-------|-------|
 | Status | **Accepted** |
 | Date | 2026-09-25 |
+| Amended by | [ADR 0101](./0101-content-blind-relay-per-device-e2ee.md) (accepted, pending implementation): operator = loopback or a device paired with `role: 'operator'`; the shared `authToken` door is removed on network listeners after the migration window (§10) |
 | Related | [0036-host-server-multi-client-deployment.md](./0036-host-server-multi-client-deployment.md), [0037-mobile-remote-shell.md](./0037-mobile-remote-shell.md), [0076-bundled-phone-access-lan.md](./0076-bundled-phone-access-lan.md) |
 
 ## Context
