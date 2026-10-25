@@ -16,3 +16,5 @@ export * from './remote-channel/noise/noise-cipher-state.js';
 export * from './remote-channel/noise/noise-ik-handshake.js';
 export * from './remote-channel/noise/noise-channel.js';
 export * from './remote-channel/relay-secure-socket.js';
+export * from './remote-channel/relay-host-auth.js';
+export * from './remote-channel/relay-enrollment-line.js';

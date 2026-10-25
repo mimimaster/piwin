@@ -100,6 +100,8 @@ export type RelayHostAuthFrame = {
   userSig: string;
   /** First-auth self-enrollment against the relay's enroll token. */
   enrollToken?: string;
+  /** Display name recorded when the relay self-enrolls this user. Label only. */
+  userName?: string;
 };
 
 export type RelayHostReadyFrame = { t: 'ready' };
@@ -134,13 +136,14 @@ export function decodeRelayControlFrame(text: string): RelayControlFrame | undef
     case 'challenge':
       return isBoundedString(record.nonce) ? { t: 'challenge', nonce: record.nonce } : undefined;
     case 'auth': {
-      const { hostPub, userPub, hostSig, userSig, enrollToken } = record;
+      const { hostPub, userPub, hostSig, userSig, enrollToken, userName } = record;
       if (
         !isBoundedString(hostPub) ||
         !isBoundedString(userPub) ||
         !isBoundedString(hostSig) ||
         !isBoundedString(userSig) ||
-        (enrollToken !== undefined && !isBoundedString(enrollToken))
+        (enrollToken !== undefined && !isBoundedString(enrollToken)) ||
+        (userName !== undefined && !isBoundedString(userName))
       ) {
         return undefined;
       }
@@ -151,6 +154,7 @@ export function decodeRelayControlFrame(text: string): RelayControlFrame | undef
         hostSig,
         userSig,
         ...(enrollToken === undefined ? {} : { enrollToken }),
+        ...(userName === undefined ? {} : { userName }),
       };
     }
     case 'ready':

@@ -61,7 +61,7 @@ describe('decodeRelayControlFrame', () => {
     });
     expect(
       decodeRelayControlFrame(
-        '{"t":"auth","hostPub":"h","userPub":"u","hostSig":"hs","userSig":"us","enrollToken":"e"}',
+        '{"t":"auth","hostPub":"h","userPub":"u","hostSig":"hs","userSig":"us","enrollToken":"e","userName":"Yo"}',
       ),
     ).toEqual({
       t: 'auth',
@@ -70,6 +70,7 @@ describe('decodeRelayControlFrame', () => {
       hostSig: 'hs',
       userSig: 'us',
       enrollToken: 'e',
+      userName: 'Yo',
     });
     expect(decodeRelayControlFrame('{"t":"ready"}')).toEqual({ t: 'ready' });
     expect(decodeRelayControlFrame('{"t":"host-replaced"}')).toEqual({ t: 'host-replaced' });
@@ -98,6 +99,7 @@ describe('decodeRelayControlFrame', () => {
       `{"t":"challenge","nonce":"${'x'.repeat(513)}"}`,
       '{"t":"auth","hostPub":"h","userPub":"u","hostSig":"hs"}',
       '{"t":"auth","hostPub":"h","userPub":"u","hostSig":"hs","userSig":"us","enrollToken":7}',
+      '{"t":"auth","hostPub":"h","userPub":"u","hostSig":"hs","userSig":"us","userName":""}',
       '{"t":"peer-joined","peer":0}',
       '{"t":"peer-joined","peer":1.5}',
       '{"t":"peer-joined","peer":4294967296}',
