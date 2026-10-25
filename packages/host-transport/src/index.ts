@@ -18,3 +18,5 @@ export * from './remote-channel/noise/noise-channel.js';
 export * from './remote-channel/relay-secure-socket.js';
 export * from './remote-channel/relay-host-auth.js';
 export * from './remote-channel/relay-enrollment-line.js';
+export * from './remote-channel/relay-user-bundle.js';
+export * from './remote-channel/pairing-link-v3.js';
