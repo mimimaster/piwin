@@ -1,5 +1,10 @@
 import type { HostCommand, HostServerMessage } from '@piwin/contracts';
-import { isLocalMobileAccessCommand, isLocalMobileAccessCommandType } from '@piwin/contracts';
+import {
+  isHostRemoteAccessCommand,
+  isHostRemoteAccessCommandType,
+  isLocalMobileAccessCommand,
+  isLocalMobileAccessCommandType,
+} from '@piwin/contracts';
 import {
   createMobileAccessController,
   type HostCommandIdempotencyRegistry,
@@ -27,7 +32,9 @@ export async function createSidecarMobileAccess(options: {
     onError: (error) => {
       console.error(`[piwin host serve] phone-access error: ${error.message}`);
     },
-    ...(options.clientToolBroker === undefined ? {} : { clientToolBroker: options.clientToolBroker }),
+    ...(options.clientToolBroker === undefined
+      ? {}
+      : { clientToolBroker: options.clientToolBroker }),
     ...(options.egressHub === undefined ? {} : { egressHub: options.egressHub }),
     ...(options.idempotencyRegistry === undefined
       ? {}
@@ -36,14 +43,29 @@ export async function createSidecarMobileAccess(options: {
 }
 
 /**
- * Intercept local `mobile-access/*` before HostRuntime. Returns true when the
- * frame was handled here and must not be dispatched as a HostCommand.
+ * Intercept local `mobile-access/*` and ADR 0101 `host/remote-access-*` /
+ * `host/relay-user-*` before HostRuntime. Returns true when the frame was
+ * handled here and must not be dispatched as a HostCommand.
  */
 export async function interceptSidecarMobileAccess(
   controller: MobileAccessController | undefined,
   command: HostCommand,
   send: MobileAccessServeSend,
 ): Promise<boolean> {
+  if (isHostRemoteAccessCommandType(command.type)) {
+    await send(
+      controller === undefined || !isHostRemoteAccessCommand(command)
+        ? {
+            type: 'response',
+            command: command.type,
+            success: false,
+            error: 'Remote access is unavailable on this sidecar',
+            ...(command.id === undefined ? {} : { id: command.id }),
+          }
+        : await controller.handleRemoteAccess(command),
+    );
+    return true;
+  }
   if (!isLocalMobileAccessCommandType(command.type)) {
     return false;
   }

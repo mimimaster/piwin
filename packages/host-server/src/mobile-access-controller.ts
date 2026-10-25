@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import type {
+  HostRemoteAccessCommand,
   HostResponse,
   LocalMobileAccessCommand,
   MobileAccessEndpointCandidate,
@@ -32,6 +33,7 @@ import {
 } from './pairing-operations.js';
 import { assertPairingEndpointIsDialable } from './pairing-qr.js';
 import { openHostRemoteAccessAtRoot, type HostRemoteAccess } from './host-remote-access.js';
+import { handleHostRemoteAccessCommand } from './host-remote-access-commands.js';
 
 const BIND_HOST_BY_PROFILE: Readonly<Record<string, string>> = {
   [MOBILE_ACCESS_LOOPBACK_PROFILE_ID]: '127.0.0.1',
@@ -121,6 +123,26 @@ export class MobileAccessController {
     });
   }
 
+  /**
+   * ADR 0101 remote-access and relay-user commands from the sidecar's own
+   * shell, which is this Host's operator (loopback by construction).
+   */
+  public handleRemoteAccess(command: HostRemoteAccessCommand): Promise<HostResponse> {
+    return this.serialize(() =>
+      handleHostRemoteAccessCommand(command, {
+        access: this.options.remoteAccess,
+        pairing: this.pairing,
+        pairingStore: this.options.pairingStore,
+        connection: {
+          admittedBy: 'loopback',
+          channelPublicKey: undefined,
+          deviceId: undefined,
+          deviceRole: undefined,
+        },
+      }),
+    );
+  }
+
   /** Reopen the listener when the operator left phone access on. Never rejects. */
   public resume(): Promise<void> {
     return this.serialize(async () => {
@@ -161,7 +183,7 @@ export class MobileAccessController {
         await this.saveSettings({ ...this.settings, enabled: false });
         return this.statusData();
       case 'mobile-access/create-pairing-code':
-        return this.createPairingCode();
+        return this.createPairingCode(command.role);
       case 'mobile-access/list-devices':
         return { devices: this.listDevices() };
       case 'mobile-access/revoke-device':
@@ -192,6 +214,10 @@ export class MobileAccessController {
     }
     if (this.lastError !== undefined) {
       status.lastError = this.lastError;
+    }
+    const remote = this.options.remoteAccess?.status();
+    if (remote !== undefined) {
+      status.remote = remote;
     }
     return status;
   }
@@ -257,7 +283,9 @@ export class MobileAccessController {
     await server.stop(PHONE_ACCESS_DISABLED_REASON);
   }
 
-  private async createPairingCode(): Promise<MobileAccessPairingCodeData> {
+  private async createPairingCode(
+    role: 'member' | 'operator' = 'member',
+  ): Promise<MobileAccessPairingCodeData> {
     const advertised = this.effectiveAdvertisedEndpoint();
     if (this.server === undefined || advertised === undefined) {
       throw new Error('Enable phone access before creating a pairing code');
@@ -266,6 +294,7 @@ export class MobileAccessController {
     return mintPairingCode(this.registry(), {
       advertisedEndpoint: advertised,
       hostInstanceId: this.instanceId,
+      role,
       ...(remoteAccess === undefined ? {} : { channelLinks: remoteAccess.channelLinks }),
     });
   }

@@ -17,6 +17,36 @@ describe('interceptSidecarMobileAccess', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('routes ADR 0101 remote-access commands to the controller and refuses bad payloads', async () => {
+    const handleRemoteAccess = vi.fn(async (command: { type: string }) => ({
+      type: 'response' as const,
+      command: command.type,
+      success: true as const,
+      data: { ok: true },
+    }));
+    const sent: HostServerMessage[] = [];
+    const controller = { handleRemoteAccess } as unknown as MobileAccessController;
+    const record = async (message: HostServerMessage): Promise<void> => {
+      sent.push(message);
+    };
+    expect(
+      await interceptSidecarMobileAccess(
+        controller,
+        { type: 'host/relay-user-enrollment-line' },
+        record,
+      ),
+    ).toBe(true);
+    expect(
+      await interceptSidecarMobileAccess(
+        controller,
+        { type: 'host/relay-user-create' } as unknown as HostCommand,
+        record,
+      ),
+    ).toBe(true);
+    expect(handleRemoteAccess).toHaveBeenCalledTimes(1);
+    expect(sent[1]).toMatchObject({ success: false });
+  });
+
   it('answers mobile-access commands locally', async () => {
     const handle = vi.fn(async (command: { type: string }) => ({
       type: 'response' as const,

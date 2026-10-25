@@ -61,3 +61,39 @@ describe('phone-access controller with ADR 0101 remote access', () => {
     expect(devices).toMatchObject({ success: true, data: { devices: [{ secureChannel: true }] } });
   });
 });
+
+describe('phone-access controller remote-access commands', () => {
+  it('reports remote status, applies operator commands and mints operator codes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-sidecar-remote-ops-'));
+    cleanups.push(() => rm(root, { recursive: true, force: true, maxRetries: 3 }));
+    const controller = await createMobileAccessController({
+      runtime: new FakeRuntime(),
+      instanceId: 'sidecar',
+      piwinRoot: root,
+      bindPort: 0,
+    });
+    cleanups.push(() => controller.dispose());
+    await controller.handle({ type: 'mobile-access/start', profileId: 'loopback' });
+
+    const status = await controller.handle({ type: 'mobile-access/status' });
+    expect(status).toMatchObject({ success: true, data: { remote: { legacyAccess: 'full' } } });
+
+    const configured = await controller.handleRemoteAccess({
+      type: 'host/remote-access-configure',
+      legacyAccess: 'migrate-only',
+    });
+    expect(configured).toMatchObject({ success: true, data: { legacyAccess: 'migrate-only' } });
+    expect(
+      await controller.handleRemoteAccess({ type: 'host/relay-user-enrollment-line' }),
+    ).toMatchObject({ success: true, data: { line: expect.stringMatching(/^piwin-user:v1:/) } });
+
+    const code = await controller.handle({
+      type: 'mobile-access/create-pairing-code',
+      role: 'operator',
+    });
+    if (!code.success) throw new Error(code.error);
+    expect(
+      parsePairingLinkV3((code.data as MobileAccessPairingCodeData).channelUri ?? '')?.role,
+    ).toBe('operator');
+  });
+});
