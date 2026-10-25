@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import type {
+  HostCommand,
   LocalMobileAccessCommand,
   MobileAccessPairingCodeData,
   MobileAccessStatusData,
@@ -24,6 +25,8 @@ import { FieldRow } from '../settings/field-row.js';
 import { PageTitle } from '../settings/page-title.js';
 import type { SettingsContextValue } from '../settings/settings-context.js';
 import { PairedDeviceList, PairingCredentialCard } from './mobile-access-pairing-views.js';
+import { RemoteAccessSection, remoteAccessDeviceNote } from './remote-access-section.js';
+import { getRemoteAccessCopy } from '../i18n/desktop-locale-remote-access.js';
 
 /** Picks up a phone that just paired (and a Wi-Fi change) while the page is open. */
 const STATUS_POLL_MS = 4000;
@@ -45,12 +48,13 @@ export function LocalMobileAccessPanel(props: {
   const [devices, setDevices] = useState<PairedDeviceSummary[]>([]);
   const [customOpen, setCustomOpen] = useState(false);
   const [customDraft, setCustomDraft] = useState('');
+  const [operatorCode, setOperatorCode] = useState(false);
   // Read inside refresh without making refresh (and the poll) depend on them.
   const pairingRef = useRef<MobileAccessPairingCodeData | undefined>(undefined);
   const deviceCountRef = useRef<number | undefined>(undefined);
 
   const send = useCallback(
-    async (command: LocalMobileAccessCommand): Promise<unknown> => {
+    async (command: LocalMobileAccessCommand | HostCommand): Promise<unknown> => {
       const response = await request(command);
       if (!response.success) {
         throw new Error(response.error);
@@ -60,11 +64,17 @@ export function LocalMobileAccessPanel(props: {
     [request],
   );
 
-  const mintCode = useCallback(async (): Promise<void> => {
-    const next = readMobileAccessPairingCodeData(await send({ type: 'mobile-access/create-pairing-code' }));
-    pairingRef.current = next;
-    setPairing(next);
-  }, [send]);
+  const mintCode = useCallback(
+    async (role: 'member' | 'operator' = 'member'): Promise<void> => {
+      const next = readMobileAccessPairingCodeData(
+        await send({ type: 'mobile-access/create-pairing-code', role }),
+      );
+      pairingRef.current = next;
+      setPairing(next);
+      setOperatorCode(role === 'operator');
+    },
+    [send],
+  );
 
   const clearCode = useCallback((): void => {
     pairingRef.current = undefined;
@@ -84,7 +94,8 @@ export function LocalMobileAccessPanel(props: {
     setStatus(nextStatus);
     setDevices(readMobileAccessDeviceListData(devicesData)?.devices ?? []);
     const deviceCountChanged =
-      deviceCountRef.current !== undefined && deviceCountRef.current !== nextStatus?.pairedDeviceCount;
+      deviceCountRef.current !== undefined &&
+      deviceCountRef.current !== nextStatus?.pairedDeviceCount;
     deviceCountRef.current = nextStatus?.pairedDeviceCount;
     if (nextStatus?.listening !== true || nextStatus.advertisedEndpoint === undefined) {
       clearCode();
@@ -155,7 +166,9 @@ export function LocalMobileAccessPanel(props: {
 
   function handleAddressChange(value: string): void {
     if (value === CUSTOM_ADDRESS) {
-      setCustomDraft(status?.advertisedEndpointSource === 'custom' ? (status.advertisedEndpoint ?? '') : '');
+      setCustomDraft(
+        status?.advertisedEndpointSource === 'custom' ? (status.advertisedEndpoint ?? '') : '',
+      );
       setCustomOpen(true);
       return;
     }
@@ -270,7 +283,9 @@ export function LocalMobileAccessPanel(props: {
       </div>
 
       {error !== undefined ? <Notice tone="error">{error}</Notice> : null}
-      {startError !== undefined ? <Notice tone="error">{copy.startFailed(startError)}</Notice> : null}
+      {startError !== undefined ? (
+        <Notice tone="error">{copy.startFailed(startError)}</Notice>
+      ) : null}
       {listening && status?.advertisedEndpoint === undefined ? (
         <Notice tone="warning">{copy.noNetworkAddress}</Notice>
       ) : null}
@@ -283,16 +298,32 @@ export function LocalMobileAccessPanel(props: {
           busy={busy}
           canRegenerate={listening}
           onRegenerate={() => {
-            void runAction(mintCode);
+            void runAction(() => mintCode());
           }}
+          note={operatorCode ? getRemoteAccessCopy(locale).operatorCodeHint : undefined}
         />
       ) : null}
       {listening ? <p className="mobile-access-listen-meta">{copy.securityHint}</p> : null}
+
+      {listening && status?.remote !== undefined ? (
+        <RemoteAccessSection
+          remote={status.remote}
+          locale={locale}
+          send={send}
+          onChanged={() => {
+            void refresh().catch((refreshError: unknown) => setError(formatError(refreshError)));
+          }}
+          onOperatorCode={() => {
+            void runAction(() => mintCode('operator'));
+          }}
+        />
+      ) : null}
 
       <PairedDeviceList
         devices={devices}
         copy={copy}
         busy={busy}
+        deviceNote={status?.remote === undefined ? undefined : remoteAccessDeviceNote(locale)}
         onRevoke={(deviceId) => {
           void runAction(async () => {
             await send({ type: 'mobile-access/revoke-device', deviceId });
@@ -308,6 +339,8 @@ function selectedAddress(status: MobileAccessStatusData | undefined): string {
   if (status?.advertisedEndpointSource !== 'custom' || status.advertisedEndpoint === undefined) {
     return AUTO_ADDRESS;
   }
-  const match = status.endpointCandidates?.find((candidate) => candidate.url === status.advertisedEndpoint);
+  const match = status.endpointCandidates?.find(
+    (candidate) => candidate.url === status.advertisedEndpoint,
+  );
   return match?.url ?? CUSTOM_ADDRESS;
 }

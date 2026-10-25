@@ -14,31 +14,41 @@ export function PairingCredentialCard(props: {
   busy: boolean;
   canRegenerate: boolean;
   onRegenerate: () => void;
+  /** Shown under the expiry, e.g. that this code grants admin rights. */
+  note?: string | undefined;
 }): ReactElement {
   const { pairing, copy } = props;
+  // ADR 0101: shells pair over the encrypted channel when the Host offers it.
+  const link = pairing.channelUri ?? pairing.uri;
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     setCopied(false);
-  }, [pairing.uri]);
+  }, [link]);
   const handleCopy = async (): Promise<void> => {
-    await navigator.clipboard.writeText(pairing.uri);
+    await navigator.clipboard.writeText(link);
     setCopied(true);
   };
   return (
     <div className="mobile-access-pairing-card" data-testid="mobile-access-pairing">
       <div className="mobile-access-pairing-body">
         <div className="mobile-access-qr-frame">
-          <QrCode value={pairing.uri} size={184} label={copy.qrLabel} testId="mobile-access-qr" />
+          <QrCode value={link} size={184} label={copy.qrLabel} testId="mobile-access-qr" />
         </div>
         <div className="mobile-access-pairing-text">
           <span className="mobile-access-pairing-title">{copy.qrTitle}</span>
           <p className="mobile-access-pairing-hint">{copy.qrHint}</p>
-          <code className="mobile-access-pairing-endpoint" data-testid="mobile-access-pairing-endpoint">
+          <code
+            className="mobile-access-pairing-endpoint"
+            data-testid="mobile-access-pairing-endpoint"
+          >
             {pairing.endpoint}
           </code>
           <span className="mobile-access-pairing-expiry">
             {copy.pairingExpires(new Date(pairing.expiresAt).toLocaleString(props.locale))}
           </span>
+          {props.note === undefined ? null : (
+            <span className="mobile-access-pairing-expiry">{props.note}</span>
+          )}
           <div className="mobile-access-action-row">
             <Button
               variant="secondary"
@@ -54,7 +64,7 @@ export function PairingCredentialCard(props: {
       </div>
       <span className="mobile-access-pairing-uri-label">{copy.uriLabel}</span>
       <div className="mobile-access-pairing-input-row">
-        <TextInput value={pairing.uri} readOnly testId="mobile-access-pairing-uri" />
+        <TextInput value={link} readOnly testId="mobile-access-pairing-uri" />
         <Button
           variant="secondary"
           disabled={props.busy}
@@ -80,6 +90,8 @@ export function PairedDeviceList(props: {
   /** Absent when the viewer may not revoke (a paired phone). */
   onRevoke?: ((deviceId: string) => void) | undefined;
   emptyHint?: string | undefined;
+  /** ADR 0101 role / channel note appended to the last-seen line. */
+  deviceNote?: ((device: PairedDeviceSummary) => string | undefined) | undefined;
 }): ReactElement {
   const { copy } = props;
   return (
@@ -120,7 +132,10 @@ export function PairedDeviceList(props: {
                   {device.name}
                   {device.revoked ? copy.revokedSuffix : ''}
                 </span>
-                <span className="mobile-access-device-meta">{copy.lastSeen(device.lastSeenAt)}</span>
+                <span className="mobile-access-device-meta">
+                  {copy.lastSeen(device.lastSeenAt)}
+                  {props.deviceNote?.(device) ?? ''}
+                </span>
               </div>
               {!device.revoked && props.onRevoke ? (
                 <Button

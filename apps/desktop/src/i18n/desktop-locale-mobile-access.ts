@@ -99,7 +99,7 @@ export const MOBILE_ACCESS_COPY: Record<DesktopLocale, MobileAccessCopy> = {
     hostPairingUnsupportedTitle: 'Host 不支持远程配对',
     hostPairingUnsupportedDesc: '当前连接的 Host 版本较低，未提供配对管理接口。请更新 Host 服务端。',
     hostLoopbackWarning:
-      '这台 Host 只对本机开放，手机连不上。请在它前面配置 TLS 反向代理并设置 PIWIN_HOST_ADVERTISED_URL 和 PIWIN_HOST_TOKEN，或切换到本机 Host 直接扫码。',
+      '这台 Host 只对本机开放，手机不能直连。可以在下方「远程访问」里配置中转，或切换到本机 Host 直接扫码。',
     statusEnabled: '已开启',
     statusDisabled: '未开启',
     statusUnsupported: '不支持',
@@ -152,7 +152,7 @@ export const MOBILE_ACCESS_COPY: Record<DesktopLocale, MobileAccessCopy> = {
     hostPairingUnsupportedDesc:
       'The connected Host is too old to manage pairing. Please update the Host service.',
     hostLoopbackWarning:
-      'This Host is only reachable from its own machine, so a phone cannot connect. Put a TLS reverse proxy in front and set PIWIN_HOST_ADVERTISED_URL and PIWIN_HOST_TOKEN, or switch to this Mac’s Host and scan directly.',
+      'This Host is only reachable from its own machine, so a phone cannot connect directly. Set up a relay under Remote access below, or switch to this Mac’s Host and scan directly.',
     statusEnabled: 'On',
     statusDisabled: 'Off',
     statusUnsupported: 'Unsupported',

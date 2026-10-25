@@ -22,6 +22,8 @@ import { FieldRow } from '../settings/field-row.js';
 import { PageTitle } from '../settings/page-title.js';
 import type { SettingsContextValue } from '../settings/settings-context.js';
 import { PairedDeviceList, PairingCredentialCard } from './mobile-access-pairing-views.js';
+import { RemoteAccessSection, remoteAccessDeviceNote } from './remote-access-section.js';
+import { getRemoteAccessCopy } from '../i18n/desktop-locale-remote-access.js';
 
 type HostRequest = NonNullable<NonNullable<SettingsContextValue['hostClient']>['request']>;
 
@@ -40,6 +42,7 @@ export function RemoteMobileAccessPanel(props: {
   const [devices, setDevices] = useState<PairedDeviceSummary[]>([]);
   const [pairing, setPairing] = useState<MobileAccessPairingCodeData | undefined>();
   const pairingRef = useRef<MobileAccessPairingCodeData | undefined>(undefined);
+  const [operatorCode, setOperatorCode] = useState(false);
 
   const send = useCallback(
     async (command: HostCommand): Promise<unknown> => {
@@ -57,9 +60,15 @@ export function RemoteMobileAccessPanel(props: {
     setPairing(next);
   }, []);
 
-  const mintCode = useCallback(async (): Promise<void> => {
-    showCode(readMobileAccessPairingCodeData(await send({ type: 'host/pairing-create-code' })));
-  }, [send, showCode]);
+  const mintCode = useCallback(
+    async (role: 'member' | 'operator' = 'member'): Promise<void> => {
+      showCode(
+        readMobileAccessPairingCodeData(await send({ type: 'host/pairing-create-code', role })),
+      );
+      setOperatorCode(role === 'operator');
+    },
+    [send, showCode],
+  );
 
   const refresh = useCallback(async (): Promise<void> => {
     const response = await request({ type: 'host/pairing-status' });
@@ -76,7 +85,8 @@ export function RemoteMobileAccessPanel(props: {
       return;
     }
     setDevices(
-      readMobileAccessDeviceListData(await send({ type: 'host/pairing-list-devices' }))?.devices ?? [],
+      readMobileAccessDeviceListData(await send({ type: 'host/pairing-list-devices' }))?.devices ??
+        [],
     );
     if (data.canManage && pairingRef.current === undefined) {
       await mintCode();
@@ -193,7 +203,24 @@ export function RemoteMobileAccessPanel(props: {
                   busy={busy}
                   canRegenerate={canManage}
                   onRegenerate={() => {
-                    void runAction(mintCode);
+                    void runAction(() => mintCode());
+                  }}
+                  note={operatorCode ? getRemoteAccessCopy(locale).operatorCodeHint : undefined}
+                />
+              ) : null}
+
+              {canManage && status?.remote !== undefined ? (
+                <RemoteAccessSection
+                  remote={status.remote}
+                  locale={locale}
+                  send={send}
+                  onChanged={() => {
+                    void refresh().catch((refreshError: unknown) =>
+                      setError(formatError(refreshError)),
+                    );
+                  }}
+                  onOperatorCode={() => {
+                    void runAction(() => mintCode('operator'));
                   }}
                 />
               ) : null}
@@ -202,6 +229,9 @@ export function RemoteMobileAccessPanel(props: {
                 devices={devices}
                 copy={copy}
                 busy={busy}
+                deviceNote={
+                  status?.remote === undefined ? undefined : remoteAccessDeviceNote(locale)
+                }
                 {...(canManage
                   ? {
                       onRevoke: (deviceId: string) => {
@@ -251,7 +281,9 @@ function GuideCard(props: {
         <div className="mobile-access-guide-text">
           <h4 className="mobile-access-guide-title">{props.title}</h4>
           <p className="mobile-access-guide-desc">{props.description}</p>
-          {props.footer !== null ? <div className="mobile-access-guide-footer">{props.footer}</div> : null}
+          {props.footer !== null ? (
+            <div className="mobile-access-guide-footer">{props.footer}</div>
+          ) : null}
         </div>
       </div>
     </div>

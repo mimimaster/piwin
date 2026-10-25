@@ -205,6 +205,7 @@ export async function handleMockHostCommands(
             pairedDeviceCount: 0,
             hostInstanceId: 'mock-host',
             advertisedEndpoint: 'ws://127.0.0.1:8787',
+            remote: MOCK_REMOTE_ACCESS,
           },
         };
       case 'host/pairing-create-code':
@@ -215,11 +216,24 @@ export async function handleMockHostCommands(
           success: true,
           data: {
             pairingToken: 'mock-token',
-            uri: 'piwin://pair?endpoint=ws%3A%2F%2F127.0.0.1%3A8787&token=mock-token',
-            expiresAt: new Date(Date.now() + 600000).toISOString(),
+            uri: 'piwin://pair?endpoint=ws%3A%2F%2F127.0.0.1%3A8787&pairingToken=mock-token',
+            channelUri: `piwin://pair?v=3&userId=${MOCK_REMOTE_ACCESS.user.userId}&hostId=${MOCK_REMOTE_ACCESS.hostId}&role=${command.role ?? 'member'}&pairingToken=mock-token`,
+            expiresAt: Date.now() + 600000,
+            protocolVersion: 1,
             endpoint: 'ws://127.0.0.1:8787',
             hostInstanceId: 'mock-host',
           },
+        };
+      case 'host/remote-access-configure':
+      case 'host/relay-user-rename':
+        return { id, type: 'response', command: command.type, success: true, data: MOCK_REMOTE_ACCESS };
+      case 'host/relay-user-enrollment-line':
+        return {
+          id,
+          type: 'response',
+          command: command.type,
+          success: true,
+          data: { line: 'piwin-user:v1:mock-key:Mock User' },
         };
       case 'host/pairing-list-devices':
         return {
@@ -246,3 +260,13 @@ export async function handleMockHostCommands(
   }
 }
 
+
+/** Browser preview: a Host with ADR 0101 remote access, relay off. */
+const MOCK_REMOTE_ACCESS = {
+  hostId: 'MockHostIdAAAAAAAAAAAA',
+  hostName: 'Mock Host',
+  user: { userId: 'MockUserIdAAAAAAAAAAAA', name: 'Mock User' },
+  relay: { enabled: false, state: 'off' as const },
+  direct: { enabled: true, url: 'ws://127.0.0.1:8787' },
+  legacyAccess: 'full' as const,
+};
