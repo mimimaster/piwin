@@ -23,6 +23,7 @@ const fakes = vi.hoisted(() => ({
   scan: vi.fn(),
   pair: vi.fn(),
   showError: vi.fn(),
+  paired: [] as unknown[],
 }));
 
 vi.mock('./pairing-code-scanner.js', () => ({
@@ -35,6 +36,9 @@ vi.mock('./channel-host-book.js', () => ({
   channelHostDisplayEndpoint: (entry: { relayUrl?: string; directUrl?: string }) =>
     entry.relayUrl ?? entry.directUrl ?? '',
   peekChannelHost: () => undefined,
+  channelHostBook: () => ({ list: async () => fakes.paired }),
+  channelVault: () => ({ clear: async () => undefined }),
+  primeChannelHost: async () => true,
 }));
 vi.mock('@piwin/ui-kit', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@piwin/ui-kit')>()),
@@ -64,6 +68,7 @@ describe('HostConnectWall over the ADR 0101 channel', () => {
     localStorage.clear();
     vi.clearAllMocks();
     fakes.canPair = true;
+    fakes.paired = [];
   });
 
   function renderWall(onConnected = vi.fn()): typeof onConnected {
@@ -134,6 +139,27 @@ describe('HostConnectWall over the ADR 0101 channel', () => {
     fakes.canPair = false;
     renderWall();
     expect(container?.querySelector('[data-testid="host-gate-pair-link"]')).toBeNull();
+  });
+
+  it('lists paired Hosts and connects to one by host id', async () => {
+    fakes.paired = [{ ...LINK, pairedAt: 'now' }];
+    const onConnected = renderWall();
+    await settle();
+    const row = container?.querySelector(`[data-testid="paired-host-${LINK.hostId}"]`);
+    expect(row?.textContent).toContain('MacBook');
+    expect(row?.textContent).toContain('relay');
+    await act(async () => {
+      (
+        container?.querySelector(
+          `[data-testid="paired-host-connect-${LINK.hostId}"]`,
+        ) as HTMLButtonElement
+      ).click();
+    });
+    await settle();
+    expect(onConnected).toHaveBeenCalledWith({
+      endpoint: 'wss://relay.example.com',
+      hostId: LINK.hostId,
+    });
   });
 
   it('pairs once from a #pair= browser link and clears it from the address bar', async () => {
