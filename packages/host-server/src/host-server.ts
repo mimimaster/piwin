@@ -1,63 +1,41 @@
 import { randomUUID } from 'node:crypto';
-import { createServer as createHttpServer, type IncomingMessage, type Server as HttpServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import type { IncomingMessage } from 'node:http';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type {
-  HostMode,
-  HostPairingCommand,
-  HostWireMessage,
-  RemoteCapabilitySummary,
-} from '@piwin/contracts';
-import { isHostPairingCommandType } from '@piwin/contracts';
-import { handleHostPairingCommand } from './host-pairing-commands.js';
+import type { HostMode, HostWireMessage, RemoteCapabilitySummary } from '@piwin/contracts';
+import type { HostPairingCommandContext } from './host-pairing-commands.js';
 import { listMobileAccessEndpointCandidates } from './mobile-access-endpoints.js';
-import type { HostRuntime } from '@piwin/host-runtime';
-import { WebSocket, WebSocketServer } from 'ws';
-import {
-  decodeHostWireMessage,
-  encodeHostWireMessage,
-  HOST_WIRE_HARD_FRAME_BYTES,
-  HostProtocolError,
-} from '@piwin/host-transport';
+import type { WebSocket } from 'ws';
+import { decodeHostWireMessage } from '@piwin/host-transport';
 import {
   createRemoteCapabilities,
   projectRemotePush,
-  projectRemoteResponse,
   type RemoteProjectionContext,
 } from './remote-projection.js';
 import { HostEgressHub } from './host-egress-hub.js';
 import { HostReplayJournal } from './host-replay-journal.js';
-import {
-  HostCommandIdempotencyRegistry,
-  admitAndExecuteHostCommand,
-} from './host-command-idempotency-registry.js';
+import { HostCommandIdempotencyRegistry } from './host-command-idempotency-registry.js';
 import { HostDevicePairing } from './device-pairing.js';
 import { HostDevicePairingFileStore } from './device-pairing-store.js';
 import type { PairingRegistry } from './pairing-operations.js';
-import { isDirectLoopbackRequest } from './host-connection-origin.js';
-import { enrichHostListenError } from './listen-busy.js';
 import type { DeviceToolBroker } from './device-tool-broker.js';
 import { ClientToolFrameRouter } from './client-tool-frame-router.js';
+import { HOST_LIVENESS_SWEEP_MS, type HostConnectionEvent } from './host-connection-lifecycle.js';
 import {
-  HOST_LIVENESS_SWEEP_MS,
-  waitForSocketSendBudget,
-  type HostConnectionEvent,
-} from './host-connection-lifecycle.js';
-import {
-  attachHostClientSocketWiring,
   CONNECTING_READY_STATE,
-  createHostClientConnection,
-  isAllowedHostClientOrigin,
   OPEN_READY_STATE,
   sweepIdleHostClientConnections,
   type HostClientConnection,
 } from './host-client-connection.js';
+import { acceptHostSocket } from './host-connection-accept.js';
 import {
   clearPendingBrowserFrame,
   deliverBrowserFrame as deliverBrowserFrameToConnections,
 } from './browser-frame-dispatch.js';
-import { evaluateHostCommandAdmission } from './host-command-admission.js';
+import { dispatchHostCommand, type HostCommandDispatchHost } from './host-command-dispatch.js';
+import { createHostConnectionSender, type HostConnectionSender } from './host-connection-send.js';
+import { startHostListener, stopHostListener, type HostListener } from './host-server-listener.js';
+import type { HostRuntimePort } from './host-runtime-port.js';
 import {
   applyLiveSubscriptionUpdate,
   replayHostConnection,
@@ -67,30 +45,19 @@ import { acceptHostHello, type HostHelloAcceptHost } from './host-hello-accept.j
 import {
   formatWebSocketUrl,
   isLoopbackHost,
-  rememberRemoteMediaAsset,
   rememberRemoteMediaRefsFromPush,
-  resolveRemoteCommand,
   toError,
   isWildcardHost,
 } from './host-server-support.js';
-import { stampSubscriptionAuthCommand } from './stamp-subscription-auth.js';
 import { serveWebShell } from './web-shell.js';
 import {
-  applyBrowserLeaseCommand,
   createDisconnectedMirrorLeaseReaper,
   type DisconnectedMirrorLeaseReaper,
 } from './browser-mirror-leases.js';
 import { isLiveOwnerConnection } from './live-remote-gate.js';
 import { handleDeviceHealthRequest, isDeviceHealthRequest } from './device-health-http.js';
 
-export type HostRuntimePort = Pick<
-  HostRuntime,
-  'handleCommand' | 'attachPushSink' | 'attachBrowserFrameSink'
-> & {
-  runWithDevicePrincipal?: HostRuntime['runWithDevicePrincipal'];
-  /** Present when the runtime keeps background health summaries (ADR 0062 M2). */
-  healthSummarySync?: HostRuntime['healthSummarySync'];
-};
+export type { HostRuntimePort } from './host-runtime-port.js';
 
 export type HostServerOptions = {
   runtime: HostRuntimePort;
@@ -146,7 +113,6 @@ const DEFAULT_PORT = 8787;
 // (size caps, path traversal), not a role.
 
 export class HostServer {
-  private httpServer: HttpServer | undefined;
   /** A revoked phone's stored health summaries go with its credential. */
   private forgetDeviceHealthSummaries(deviceId: string): void {
     void this.runtime
@@ -183,7 +149,8 @@ export class HostServer {
   private readonly clientToolBroker: DeviceToolBroker | undefined;
   private readonly clientToolRouter: ClientToolFrameRouter | undefined;
   private readonly webRoot: string | undefined;
-  private server: WebSocketServer | undefined;
+  private listener: HostListener | undefined;
+  private readonly sender: HostConnectionSender;
   private livenessTimer: ReturnType<typeof setInterval> | undefined;
   private browserFrameDetach: (() => void) | undefined;
   private readonly mirrorLeaseReaper: DisconnectedMirrorLeaseReaper;
@@ -225,6 +192,10 @@ export class HostServer {
     };
     this.onError = options.onError ?? (() => undefined);
     this.onConnectionEvent = options.onConnectionEvent ?? (() => undefined);
+    this.sender = createHostConnectionSender({
+      onError: this.onError,
+      onConnectionEvent: this.onConnectionEvent,
+    });
     this.hostBuildId = options.hostBuildId?.trim() || undefined;
     this.minClientVersion = options.minClientVersion?.trim() || undefined;
     const webRoot = options.webRoot?.trim();
@@ -277,7 +248,7 @@ export class HostServer {
   }
 
   public async start(): Promise<HostServerAddress> {
-    if (this.server !== undefined) {
+    if (this.listener !== undefined) {
       throw new Error('Host server is already started');
     }
     this.browserFrameDetach = this.runtime.attachBrowserFrameSink((header, bytes) => {
@@ -294,70 +265,44 @@ export class HostServer {
     }
 
     const webRoot = this.webRoot;
-    // Host owns the HTTP server so plain requests (Web shell, device health
-    // ingress) and the WebSocket upgrade share one port. `ws` only exposes a
-    // request hook on a server it was handed, not on one it created itself.
-    const httpServer = createHttpServer();
-    const server = new WebSocketServer({
-      server: httpServer,
-      maxPayload: HOST_WIRE_HARD_FRAME_BYTES,
+    const { listener, listening } = startHostListener({
+      host: this.host,
+      port: this.port,
+      onRequest: (request, response) => {
+        const handled = isDeviceHealthRequest(request)
+          ? handleDeviceHealthRequest(request, response, {
+              authenticate:
+                this.devicePairing === undefined
+                  ? undefined
+                  : (credential) => this.devicePairing?.authenticate(credential),
+              sync: this.runtime.healthSummarySync?.(),
+            })
+          : webRoot === undefined
+            ? Promise.resolve(void response.writeHead(404).end())
+            : serveWebShell(webRoot, request, response);
+        void handled.catch((error: unknown) => {
+          this.onError(toError(error, 'Host HTTP request failed'));
+          if (!response.headersSent) {
+            response.writeHead(500).end();
+          }
+        });
+      },
+      onConnection: (socket, request) => this.handleConnection(socket, request),
+      onError: (error) => this.onError(error),
     });
-    this.httpServer = httpServer;
-    httpServer.on('request', (request, response) => {
-      const handled = isDeviceHealthRequest(request)
-        ? handleDeviceHealthRequest(request, response, {
-            authenticate:
-              this.devicePairing === undefined
-                ? undefined
-                : (credential) => this.devicePairing?.authenticate(credential),
-            sync: this.runtime.healthSummarySync?.(),
-          })
-        : webRoot === undefined
-          ? Promise.resolve(void response.writeHead(404).end())
-          : serveWebShell(webRoot, request, response);
-      void handled.catch((error: unknown) => {
-        this.onError(toError(error, 'Host HTTP request failed'));
-        if (!response.headersSent) {
-          response.writeHead(500).end();
-        }
-      });
-    });
-    httpServer.listen(this.port, this.host);
-    this.server = server;
-    server.on('connection', (socket, request) => this.handleConnection(socket, request));
+    this.listener = listener;
     this.livenessTimer = setInterval(() => this.sweepIdleConnections(), HOST_LIVENESS_SWEEP_MS);
     this.livenessTimer.unref?.();
 
-    let listening = false;
-    const listeningPromise = new Promise<HostServerAddress>((resolve, reject) => {
-      server.on('error', (error) => {
-        const normalized = toError(error, 'Host WebSocket server error');
-        if (!listening) {
-          reject(enrichHostListenError(normalized, this.host, this.port));
-          return;
-        }
-        this.onError(normalized);
-      });
-      server.once('listening', () => {
-        listening = true;
-        const address = server.address();
-        if (address === null || typeof address === 'string') {
-          reject(new Error('Host WebSocket server did not expose a TCP address'));
-          return;
-        }
-        const info = address as AddressInfo;
-        this.boundUrl = formatWebSocketUrl(this.host, info.port);
-        this.boundPort = info.port;
-        resolve({ host: this.host, port: info.port, url: this.boundUrl });
-      });
-    });
-
     try {
       this.egressHub.start();
-      return await listeningPromise;
+      const { port } = await listening;
+      this.boundUrl = formatWebSocketUrl(this.host, port);
+      this.boundPort = port;
+      return { host: this.host, port, url: this.boundUrl };
     } catch (error) {
       await this.stop();
-      throw enrichHostListenError(error, this.host, this.port);
+      throw error;
     }
   }
 
@@ -413,36 +358,10 @@ export class HostServer {
       this.unsubscribeIngest?.();
     }
 
-    const server = this.server;
-    this.server = undefined;
-    if (server === undefined) {
-      return;
-    }
-
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        for (const client of server.clients) {
-          try {
-            client.terminate();
-          } catch {
-            // Ignore terminate races during forced shutdown.
-          }
-        }
-        server.close(() => resolve());
-      }, 2_000);
-      server.close(() => {
-        clearTimeout(timer);
-        resolve();
-      });
-    });
-    // `ws` leaves a server it was handed open; the port is ours to release.
-    const httpServer = this.httpServer;
-    this.httpServer = undefined;
-    if (httpServer !== undefined) {
-      await new Promise<void>((resolve) => {
-        httpServer.close(() => resolve());
-        httpServer.closeAllConnections();
-      });
+    const listener = this.listener;
+    this.listener = undefined;
+    if (listener !== undefined) {
+      await stopHostListener(listener);
     }
   }
 
@@ -460,53 +379,20 @@ export class HostServer {
   }
 
   private handleConnection(socket: WebSocket, request: IncomingMessage): void {
-    if (
-      !isAllowedHostClientOrigin({
-        origin: request.headers.origin,
+    acceptHostSocket(
+      {
+        connections: this.connections,
         allowedOrigins: this.allowedOrigins,
-      })
-    ) {
-      this.onConnectionEvent({
-        phase: 'hello-reject',
-        connectionId: 'pre-hello',
-        code: 4009,
-        reason: 'Origin not allowed',
-      });
-      socket.close(4009, 'Origin not allowed');
-      return;
-    }
-    const connection = createHostClientConnection({
+        sender: this.sender,
+        clientToolBroker: this.clientToolBroker,
+        mirrorLeaseReaper: this.mirrorLeaseReaper,
+        handleWireMessage: (target, serialized) => this.handleWireMessage(target, serialized),
+        onError: (error) => this.onError(error),
+        onConnectionEvent: (event) => this.onConnectionEvent(event),
+      },
       socket,
-      directLoopback: isDirectLoopbackRequest(request),
-      onHandshakeTimeout: (pending) => {
-        this.sendError(pending, 'authentication-required', 'Host hello is required');
-        socket.close(4001, 'Host hello required');
-      },
-    });
-    this.connections.add(connection);
-    this.onConnectionEvent({ phase: 'accept', connectionId: connection.connectionId });
-    attachHostClientSocketWiring({
-      connection,
-      handleWireMessage: (target, serialized) => this.handleWireMessage(target, serialized),
-      sendError: (target, code, message, requestId) =>
-        this.sendError(target, code, message, requestId),
-      onError: (error) => this.onError(error),
-      onClose: (closed, code, reason) => {
-        clearTimeout(closed.handshakeTimer);
-        this.clientToolBroker?.detach(closed.connectionId);
-        closed.egressDetach();
-        this.connections.delete(closed);
-        this.mirrorLeaseReaper.schedule(closed.browserMirrorLeases);
-        this.onConnectionEvent({
-          phase: 'close',
-          connectionId: closed.connectionId,
-          ...(closed.clientId === undefined ? {} : { clientId: closed.clientId }),
-          ...(closed.deviceId === undefined ? {} : { deviceId: closed.deviceId }),
-          code,
-          reason,
-        });
-      },
-    });
+      request,
+    );
   }
 
   private sweepIdleConnections(): void {
@@ -524,13 +410,17 @@ export class HostServer {
     try {
       message = decodeHostWireMessage(serialized);
     } catch (error) {
-      this.sendError(connection, 'bad-message', toError(error, 'Invalid Host message').message);
+      this.sender.sendError(
+        connection,
+        'bad-message',
+        toError(error, 'Invalid Host message').message,
+      );
       return;
     }
 
     if (!connection.authenticated) {
       if (message.type !== 'client/hello') {
-        this.sendError(connection, 'not-authenticated', 'Host hello is required');
+        this.sender.sendError(connection, 'not-authenticated', 'Host hello is required');
         return;
       }
       await acceptHostHello(this.helloAcceptHost(), connection, message);
@@ -539,7 +429,11 @@ export class HostServer {
 
     if (message.type === 'client-tool/result' || message.type === 'client-tool/capabilities') {
       if (this.clientToolRouter === undefined || connection.deviceId === undefined) {
-        this.sendError(connection, 'bad-message', `Unexpected Host message type: ${message.type}`);
+        this.sender.sendError(
+          connection,
+          'bad-message',
+          `Unexpected Host message type: ${message.type}`,
+        );
         return;
       }
       if (message.type === 'client-tool/result') {
@@ -565,7 +459,7 @@ export class HostServer {
       // Ping must not wait behind session/prompt or a tool-output flood.
       // The desktop heartbeat treats a missed reply as a dead Host.
       if (message.command.type === 'host/ping') {
-        await this.sendResponse(connection, {
+        await this.sender.sendResponse(connection, {
           type: 'response',
           requestId: message.requestId,
           response: {
@@ -587,7 +481,11 @@ export class HostServer {
         message.sinceSeq,
       );
     } else {
-      this.sendError(connection, 'bad-message', `Unexpected Host message type: ${message.type}`);
+      this.sender.sendError(
+        connection,
+        'bad-message',
+        `Unexpected Host message type: ${message.type}`,
+      );
     }
   }
 
@@ -607,9 +505,9 @@ export class HostServer {
       clientToolBroker: this.clientToolBroker,
       onError: this.onError,
       onConnectionEvent: this.onConnectionEvent,
-      send: (target, message) => this.send(target, message),
+      send: (target, message) => this.sender.send(target, message),
       sendError: (target, code, message, requestId) =>
-        this.sendError(target, code, message, requestId),
+        this.sender.sendError(target, code, message, requestId),
       projectOutboundPush: (frame, target) => this.projectOutboundPush(frame, target),
       projectOutboundBatch: (frame, target) => this.projectOutboundBatch(frame, target),
       hydrationHost: (target) => this.hydrationHost(target),
@@ -658,110 +556,40 @@ export class HostServer {
     connection: HostClientConnection,
     frame: Extract<HostWireMessage, { type: 'command' }>,
   ): Promise<void> {
-    if (isHostPairingCommandType(frame.command.type)) {
-      // Owned by this server's pairing registry, never by HostRuntime.
-      const response = await handleHostPairingCommand(frame.command as HostPairingCommand, {
-        pairing: this.devicePairing,
-        store: this.devicePairingStore,
-        hostInstanceId: this.instanceId,
-        advertisedEndpoint: this.pairingAdvertisedEndpoint ?? this.boundUrl,
-        listEndpointCandidates: () => this.listEndpointCandidates(),
-        callerDeviceId: connection.deviceId,
-        pairingEnabled: this.pairingEnabled,
-        setEnabled: async (enabled, advertisedEndpoint) => {
-          await this.setPairingEnabled(enabled, advertisedEndpoint);
-        },
-        onRevoked: (deviceId) => {
-          this.clientToolBroker?.forgetDevice(deviceId);
-          this.disconnectDevice(deviceId, 'device revoked');
-          this.forgetDeviceHealthSummaries(deviceId);
-        },
-      });
-      await this.sendResponse(connection, { type: 'response', requestId: frame.requestId, response });
-      return;
-    }
-    const admission = evaluateHostCommandAdmission({
-      command: frame.command,
-      liveOwner: isLiveOwnerConnection({
-        loopbackHost: isLoopbackHost(this.host),
-        ...(connection.deviceId === undefined ? {} : { pairedDeviceId: connection.deviceId }),
-      }),
-    });
-    if (admission.kind === 'reject-error-frame') {
-      this.sendError(connection, 'command-not-allowed', admission.message, frame.requestId);
-      return;
-    }
-    if (admission.kind === 'reject-response') {
-      await this.sendResponse(connection, {
-        type: 'response',
-        requestId: frame.requestId,
-        response: {
-          type: 'response',
-          command: admission.command,
-          success: false,
-          error: admission.error,
-          problem: {
-            code: 'command-not-allowed',
-            retryable: false,
-            data: { reason: admission.reason },
-          },
-        },
-      });
-      return;
-    }
+    await dispatchHostCommand(this.commandDispatchHost(), connection, frame);
+  }
 
-    // The binary frame channel is gated on this client actually mirroring the
-    // workbench (spec §4.1.2): remember its lease while it is the panel owner.
-    const browserLeaseCommand =
-      frame.command.type === 'browser/start' || frame.command.type === 'browser/stop'
-        ? frame.command
-        : undefined;
+  private commandDispatchHost(): HostCommandDispatchHost {
+    return {
+      runtime: this.runtime,
+      idempotencyRegistry: this.idempotencyRegistry,
+      remoteMediaPaths: this.remoteMediaPaths,
+      loopbackHost: isLoopbackHost(this.host),
+      sender: this.sender,
+      pairingContext: (connection) => this.pairingCommandContext(connection),
+      projectionContext: (connection) => this.projectionContext(connection),
+    };
+  }
 
-    try {
-      const safeResponse = await admitAndExecuteHostCommand({
-        registry: this.idempotencyRegistry,
-        principalId: connection.idempotencyScope,
-        idempotencyKey: frame.idempotencyKey,
-        command: frame.command,
-        execute: async () => {
-          const remoteCommand = resolveRemoteCommand(
-            stampSubscriptionAuthCommand(frame.command, {
-              devicePrincipalId: connection.idempotencyScope,
-            }),
-            this.remoteMediaPaths,
-          );
-          const executeCommand = () =>
-            frame.idempotencyKey
-              ? this.runtime.handleCommand(remoteCommand, {
-                  idempotencyKey: frame.idempotencyKey,
-                })
-              : this.runtime.handleCommand(remoteCommand);
-          const response = this.runtime.runWithDevicePrincipal
-            ? await this.runtime.runWithDevicePrincipal(connection.idempotencyScope, executeCommand)
-            : await executeCommand();
-          rememberRemoteMediaAsset(this.remoteMediaPaths, remoteCommand, response);
-          return projectRemoteResponse(frame.command, response, this.projectionContext(connection));
-        },
-      });
-      if (browserLeaseCommand !== undefined && safeResponse.success) {
-        applyBrowserLeaseCommand(connection.browserMirrorLeases, browserLeaseCommand);
-        if (connection.browserMirrorLeases.size === 0) {
-          connection.pendingBrowserFrame = undefined;
-        }
-      }
-      await this.sendResponse(connection, {
-        type: 'response',
-        requestId: frame.requestId,
-        response: safeResponse,
-      });
-    } catch (error) {
-      this.sendError(
-        connection,
-        'request-failed',
-        toError(error, 'Host command failed').message,
-        frame.requestId,
-      );
-    }
+  /** Pairing commands are owned by this server's registry, never by HostRuntime. */
+  private pairingCommandContext(connection: HostClientConnection): HostPairingCommandContext {
+    return {
+      pairing: this.devicePairing,
+      store: this.devicePairingStore,
+      hostInstanceId: this.instanceId,
+      advertisedEndpoint: this.pairingAdvertisedEndpoint ?? this.boundUrl,
+      listEndpointCandidates: () => this.listEndpointCandidates(),
+      callerDeviceId: connection.deviceId,
+      pairingEnabled: this.pairingEnabled,
+      setEnabled: async (enabled, advertisedEndpoint) => {
+        await this.setPairingEnabled(enabled, advertisedEndpoint);
+      },
+      onRevoked: (deviceId) => {
+        this.clientToolBroker?.forgetDevice(deviceId);
+        this.disconnectDevice(deviceId, 'device revoked');
+        this.forgetDeviceHealthSummaries(deviceId);
+      },
+    };
   }
 
   private hydrationHost(connection: HostClientConnection): HostHydrationHost {
@@ -774,9 +602,9 @@ export class HostServer {
       egressHub: this.egressHub,
       onError: this.onError,
       onConnectionEvent: this.onConnectionEvent,
-      send: (_target, message) => this.send(connection, message),
+      send: (_target, message) => this.sender.send(connection, message),
       sendError: (_target, code, message, requestId) =>
-        this.sendError(connection, code, message, requestId),
+        this.sender.sendError(connection, code, message, requestId),
     };
   }
 
@@ -797,66 +625,6 @@ export class HostServer {
         ? {}
         : { browserFrameBinary: true }),
     };
-  }
-
-  private async sendResponse(
-    connection: HostClientConnection,
-    message: Extract<HostWireMessage, { type: 'response' }>,
-  ): Promise<void> {
-    const writable = await waitForSocketSendBudget(() => connection.socket.bufferedAmount);
-    if (!writable) {
-      this.onConnectionEvent({
-        phase: 'slow-consumer',
-        connectionId: connection.connectionId,
-        ...(connection.clientId === undefined ? {} : { clientId: connection.clientId }),
-        reason: 'response-backpressure-timeout',
-      });
-      connection.socket.close(4008, 'slow-consumer on response');
-      return;
-    }
-    this.send(connection, message);
-  }
-
-  private send(connection: HostClientConnection, message: HostWireMessage): void {
-    if (connection.socket.readyState !== OPEN_READY_STATE) {
-      return;
-    }
-    try {
-      connection.socket.send(encodeHostWireMessage(message));
-    } catch (error) {
-      this.onError(toError(error, 'Unable to send Host message'));
-      // Oversized command responses must not tear down the whole session —
-      // push an error frame when possible; only close on hard failures.
-      if (error instanceof HostProtocolError && message.type === 'response') {
-        try {
-          connection.socket.send(
-            encodeHostWireMessage({
-              type: 'error',
-              code: 'request-failed',
-              message: error.message,
-              requestId: message.requestId,
-            }),
-          );
-          return;
-        } catch {
-          // Fall through to close.
-        }
-      }
-      connection.socket.close(1011, 'Host send failed');
-    }
-  }
-
-  private sendError(
-    connection: HostClientConnection,
-    code: Extract<HostWireMessage, { type: 'error' }>['code'],
-    message: string,
-    requestId?: string,
-  ): void {
-    const errorFrame =
-      requestId === undefined
-        ? { type: 'error' as const, code, message }
-        : { type: 'error' as const, requestId, code, message };
-    this.send(connection, errorFrame);
   }
 
   /**
