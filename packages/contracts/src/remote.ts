@@ -101,6 +101,15 @@ export type TrustedDevicePublic = {
    * installation replaces this record instead of listing the device twice.
    */
   clientId?: string;
+  /**
+   * ADR 0101: base64url X25519 static key the device proved in its Noise
+   * handshake. Set at channel pairing or migration; never from a message field.
+   */
+  channelPublicKey?: string;
+  /** ADR 0101: absent means `member`. */
+  role?: 'member' | 'operator';
+  /** ADR 0101: when a legacy device bound its channel key. */
+  migratedAt?: string;
 };
 
 /**

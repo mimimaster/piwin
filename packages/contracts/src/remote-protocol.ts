@@ -614,6 +614,8 @@ export const HOST_HELLO_REJECT_REASONS = [
   'device-capacity-full',
   'device-credential-revoked',
   'authentication-failed',
+  /** ADR 0101: this listener only accepts the end-to-end channel now. */
+  'secure-channel-required',
 ] as const;
 
 export type HostHelloRejectReason = (typeof HOST_HELLO_REJECT_REASONS)[number];

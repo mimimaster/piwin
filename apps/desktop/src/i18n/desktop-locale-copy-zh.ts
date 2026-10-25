@@ -37,6 +37,7 @@ export const DESKTOP_COPY_ZH_CN: DesktopCopy = {
         'device-capacity-full': 'Host 的已配对设备数量已满，请先在电脑端移除不用的设备。',
         'device-credential-revoked': '此设备的授权已失效，请重新扫码配对。',
         'authentication-failed': 'Token 不正确，请核对后重试。',
+        'secure-channel-required': '电脑端已升级为加密连接，请在电脑上重新生成配对码并扫码。',
       },
       instanceId: (id) => `hostInstanceId：${id}`,
       invalidEndpoint: '请输入 ws:// 或 wss:// 地址',

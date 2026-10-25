@@ -7,6 +7,9 @@
  * A paired device may read status but never mint codes or revoke devices.
  */
 import type { MobileAccessPairingCodeData, MobileAccessDeviceListData } from './mobile-access.js';
+import type { RemoteAccessStatusData } from './host-remote-access.js';
+import type { RemoteDeviceRole } from './remote-channel.js';
+import { isRemoteDeviceRole } from './remote-channel.js';
 
 export const HOST_PAIRING_COMMAND_TYPES = [
   'host/pairing-status',
@@ -20,10 +23,21 @@ export type HostPairingCommandType = (typeof HOST_PAIRING_COMMAND_TYPES)[number]
 
 export type HostPairingCommand =
   | { id?: string; type: 'host/pairing-status' }
-  | { id?: string; type: 'host/pairing-create-code'; advertisedEndpoint?: string }
+  | {
+      id?: string;
+      type: 'host/pairing-create-code';
+      advertisedEndpoint?: string;
+      /** ADR 0101: role the enrolling device gets; absent means `member`. */
+      role?: RemoteDeviceRole;
+    }
   | { id?: string; type: 'host/pairing-list-devices' }
   | { id?: string; type: 'host/pairing-revoke-device'; deviceId: string }
-  | { id?: string; type: 'host/pairing-set-enabled'; enabled: boolean; advertisedEndpoint?: string };
+  | {
+      id?: string;
+      type: 'host/pairing-set-enabled';
+      enabled: boolean;
+      advertisedEndpoint?: string;
+    };
 
 export type HostPairingStatusData = {
   /** Paired devices are admitted (on by default; `PIWIN_HOST_PAIRING=0` or the Desktop switch turns it off). */
@@ -41,6 +55,8 @@ export type HostPairingStatusData = {
    * Empty unless the Host listens on all interfaces.
    */
   endpointCandidates?: string[];
+  /** ADR 0101 relay / direct channel state, when this Host has it. */
+  remote?: RemoteAccessStatusData;
 };
 
 export type HostPairingCodeData = MobileAccessPairingCodeData;
@@ -78,7 +94,7 @@ export function isHostPairingCommand(value: unknown): value is HostPairingComman
     return typeof record.enabled === 'boolean' && advertisedValid;
   }
   if (record.type === 'host/pairing-create-code') {
-    return advertisedValid;
+    return advertisedValid && (record.role === undefined || isRemoteDeviceRole(record.role));
   }
   return true;
 }

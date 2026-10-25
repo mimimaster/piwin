@@ -40,6 +40,11 @@ export type PairedDeviceSummary = {
   createdAt: string;
   lastSeenAt: string;
   revoked: boolean;
+  /** ADR 0101: absent means `member`. */
+  role?: 'member' | 'operator';
+  /** ADR 0101: present (true) once the device has a bound channel key; absent = legacy. */
+  secureChannel?: boolean;
+  migratedAt?: string;
 };
 
 /** A phone-reachable address the sidecar found on this machine's interfaces. */
@@ -74,6 +79,10 @@ export type MobileAccessPairingCodeData = {
   protocolVersion: number;
   expiresAt: number;
   uri: string;
+  /** ADR 0101 pairing link v3 (`piwin://pair?v=3…`), when the channel is set up. */
+  channelUri?: string;
+  /** The same link for the relay-served browser shell (`https://relay/#pair=…`). */
+  webUri?: string;
 };
 
 export type MobileAccessDeviceListData = {
@@ -82,7 +91,9 @@ export type MobileAccessDeviceListData = {
 
 const LOCAL_MOBILE_ACCESS_COMMAND_TYPE_SET = new Set<string>(LOCAL_MOBILE_ACCESS_COMMAND_TYPES);
 
-export function isLocalMobileAccessCommandType(value: unknown): value is LocalMobileAccessCommandType {
+export function isLocalMobileAccessCommandType(
+  value: unknown,
+): value is LocalMobileAccessCommandType {
   return typeof value === 'string' && LOCAL_MOBILE_ACCESS_COMMAND_TYPE_SET.has(value);
 }
 
@@ -113,7 +124,11 @@ export function isLocalMobileAccessCommand(value: unknown): value is LocalMobile
 }
 
 export function readMobileAccessStatusData(value: unknown): MobileAccessStatusData | undefined {
-  if (!isRecord(value) || typeof value.listening !== 'boolean' || typeof value.pairedDeviceCount !== 'number') {
+  if (
+    !isRecord(value) ||
+    typeof value.listening !== 'boolean' ||
+    typeof value.pairedDeviceCount !== 'number'
+  ) {
     return undefined;
   }
   const status: MobileAccessStatusData = {
@@ -126,7 +141,11 @@ export function readMobileAccessStatusData(value: unknown): MobileAccessStatusDa
   if (typeof value.bindHost === 'string' && value.bindHost.length > 0) {
     status.bindHost = value.bindHost;
   }
-  if (typeof value.bindPort === 'number' && Number.isSafeInteger(value.bindPort) && value.bindPort >= 0) {
+  if (
+    typeof value.bindPort === 'number' &&
+    Number.isSafeInteger(value.bindPort) &&
+    value.bindPort >= 0
+  ) {
     status.bindPort = value.bindPort;
   }
   if (typeof value.bindUrl === 'string' && value.bindUrl.length > 0) {
@@ -163,7 +182,9 @@ function isEndpointCandidate(value: unknown): value is MobileAccessEndpointCandi
   );
 }
 
-export function readMobileAccessPairingCodeData(value: unknown): MobileAccessPairingCodeData | undefined {
+export function readMobileAccessPairingCodeData(
+  value: unknown,
+): MobileAccessPairingCodeData | undefined {
   if (
     !isRecord(value) ||
     typeof value.endpoint !== 'string' ||
@@ -191,7 +212,9 @@ export function readMobileAccessPairingCodeData(value: unknown): MobileAccessPai
   };
 }
 
-export function readMobileAccessDeviceListData(value: unknown): MobileAccessDeviceListData | undefined {
+export function readMobileAccessDeviceListData(
+  value: unknown,
+): MobileAccessDeviceListData | undefined {
   if (!isRecord(value) || !Array.isArray(value.devices)) {
     return undefined;
   }
@@ -212,6 +235,9 @@ export function projectPairedDeviceSummary(input: {
   createdAt: string;
   lastSeenAt: string;
   revokedAt?: string;
+  role?: 'member' | 'operator';
+  channelPublicKey?: string;
+  migratedAt?: string;
 }): PairedDeviceSummary {
   return {
     id: input.id,
@@ -219,6 +245,9 @@ export function projectPairedDeviceSummary(input: {
     createdAt: input.createdAt,
     lastSeenAt: input.lastSeenAt,
     revoked: input.revokedAt !== undefined,
+    ...(input.role === undefined ? {} : { role: input.role }),
+    ...(input.channelPublicKey === undefined ? {} : { secureChannel: true }),
+    ...(input.migratedAt === undefined ? {} : { migratedAt: input.migratedAt }),
   };
 }
 
@@ -243,6 +272,11 @@ function readPairedDeviceSummary(value: unknown): PairedDeviceSummary | undefine
     createdAt: value.createdAt,
     lastSeenAt: value.lastSeenAt,
     revoked: value.revoked,
+    ...(value.role === 'member' || value.role === 'operator' ? { role: value.role } : {}),
+    ...(typeof value.secureChannel === 'boolean' ? { secureChannel: value.secureChannel } : {}),
+    ...(typeof value.migratedAt === 'string' && value.migratedAt.length > 0
+      ? { migratedAt: value.migratedAt }
+      : {}),
   };
 }
 

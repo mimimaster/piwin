@@ -37,6 +37,7 @@ export const DESKTOP_COPY_EN: DesktopCopy = {
         'device-capacity-full': 'The Host has reached its paired-device limit. Remove an unused device first.',
         'device-credential-revoked': 'This device is no longer authorised. Scan a pairing code again.',
         'authentication-failed': 'The token is incorrect. Check it and try again.',
+        'secure-channel-required': 'Your computer now only accepts encrypted connections. Generate a new pairing code on it and scan again.',
       },
       instanceId: (id) => `hostInstanceId: ${id}`,
       invalidEndpoint: 'Enter a ws:// or wss:// URL',

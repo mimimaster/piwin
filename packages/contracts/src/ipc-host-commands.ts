@@ -7,6 +7,7 @@ import type { PlatformHostCommand } from './ipc-platform-commands.js';
 import type { SessionHostCommand } from './ipc-session-commands.js';
 import type { HostTurnChangeCommand } from './ipc-commands-turn-changes.js';
 import type { HostPairingCommand } from './host-pairing.js';
+import type { HostRemoteAccessCommand } from './host-remote-access.js';
 
 export type { KnowledgeHostCommand, PlatformHostCommand, SessionHostCommand, HostTurnChangeCommand };
 
@@ -17,5 +18,6 @@ export type HostCommand =
   | PlatformHostCommand
   | HostTurnChangeCommand
   | HostPairingCommand
+  | HostRemoteAccessCommand
   | AgentCliHostCommand
   | BackendUserInputRespondCommand;

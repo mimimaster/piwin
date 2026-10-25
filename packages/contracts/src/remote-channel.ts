@@ -108,6 +108,11 @@ export type RelayHostReadyFrame = { t: 'ready' };
 export type RelayPeerJoinedFrame = { t: 'peer-joined'; peer: number };
 export type RelayPeerLeftFrame = { t: 'peer-left'; peer: number };
 export type RelayHostReplacedFrame = { t: 'host-replaced' };
+/**
+ * Host → relay after ready: close one client (revocation, failed handshake).
+ * `code` must be an application close code (4000–4999).
+ */
+export type RelayPeerCloseFrame = { t: 'peer-close'; peer: number; code: number; reason?: string };
 
 export type RelayControlFrame =
   | RelayHostChallengeFrame
@@ -115,7 +120,8 @@ export type RelayControlFrame =
   | RelayHostReadyFrame
   | RelayPeerJoinedFrame
   | RelayPeerLeftFrame
-  | RelayHostReplacedFrame;
+  | RelayHostReplacedFrame
+  | RelayPeerCloseFrame;
 
 const MAX_PEER_ID = 0xffff_ffff;
 const MAX_CONTROL_FIELD_LENGTH = 512;
@@ -161,6 +167,20 @@ export function decodeRelayControlFrame(text: string): RelayControlFrame | undef
       return { t: 'ready' };
     case 'host-replaced':
       return { t: 'host-replaced' };
+    case 'peer-close': {
+      const { peer, code, reason } = record;
+      if (
+        !isPeerId(peer) ||
+        typeof code !== 'number' ||
+        !Number.isInteger(code) ||
+        code < 4000 ||
+        code > 4999 ||
+        (reason !== undefined && (typeof reason !== 'string' || reason.length > 120))
+      ) {
+        return undefined;
+      }
+      return { t: 'peer-close', peer, code, ...(reason === undefined ? {} : { reason }) };
+    }
     case 'peer-joined':
     case 'peer-left':
       return isPeerId(record.peer) ? { t: record.t, peer: record.peer } : undefined;
