@@ -4,7 +4,7 @@
 |-------|-------|
 | Status | **Accepted** |
 | Date | 2026-09-26 |
-| Amended by | [ADR 0101](./0101-content-blind-relay-per-device-e2ee.md) (accepted, pending implementation): the LAN listener becomes the direct fallback path speaking the Noise channel (`/v1/connect`); a self-hosted relay is the primary path; `mobile-access.json` migrates to `remote-access.json` |
+| Amended by | [ADR 0101](./0101-content-blind-relay-per-device-e2ee.md) (implemented 2026-10-25): the LAN listener becomes the direct fallback path speaking the Noise channel (`/v1/u/<userId>/connect`); a self-hosted relay is the primary path; `mobile-access.json` migrates to `remote-access.json` |
 | Related | [0037-mobile-remote-shell.md](./0037-mobile-remote-shell.md), [0075-operator-host-pairing.md](./0075-operator-host-pairing.md), [hybrid mobile continuity spec](../superpowers/specs/2026-08-13-hybrid-host-mobile-continuity-design.md) |
 
 ## Context

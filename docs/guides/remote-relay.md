@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Living document — relay server and Host side shipped; shells land in later phases |
+| Status | Living document — relay, Host side and every shell shipped; legacy cutover follows the timeline in §7 |
 | Related | [ADR 0101](../adr/0101-content-blind-relay-per-device-e2ee.md), [apps/gateway](../../apps/gateway/README.md) |
 
 The piwin relay (`apps/gateway`) lets every remote shell — phone, Desktop thin
@@ -98,11 +98,65 @@ operator device exists it prints an operator pairing link
 (`piwin://pair?v=3…`): open it on the shell that should administer the Host.
 
 The bundled Desktop serves the same channel on its phone-access listener and
-connects to the relay while phone access is on; Desktop settings for the
-relay arrive with the shell work (P5). Until then an operator shell can send
-`host/remote-access-configure`.
+connects to the relay while phone access is on. Configure it under
+**Settings → Phone access → Remote access**:
 
-## 5. What the relay can and cannot see
+- relay address and enroll token, with the relay's state and a hint for the
+  last close code;
+- the relay user: rename it, copy its `piwin-user:v1:…` line for a shared relay;
+- the policy for pre-relay clients (`legacyAccess`, see §7);
+- **Admin pairing code**: a one-time code whose device may manage pairing and
+  relay settings. The normal code pairs a member device.
+
+From a terminal, an operator shell (`PIWIN_HOST` naming an admin device, or a
+loopback `PIWIN_HOST_URL`) does the same:
+
+```bash
+piwin relay status
+piwin relay configure --url wss://relay.example.com [--enroll-token <token>]
+piwin relay configure --off
+piwin relay legacy full|migrate-only|off
+piwin relay user rename "New name"
+piwin relay user enrollment-line
+piwin host pair [--operator]
+```
+
+`piwin relay user create|export|import` moves the relay user between machines
+so several Hosts share one user. Export and import read the passphrase from
+`--passphrase-file` or `PIWIN_RELAY_PASSPHRASE`.
+
+## 5. Pair your shells
+
+Every remote shell pairs the same way: a one-time `piwin://pair?v=3…` code
+from the Host (QR or link) or the browser form
+`https://relay.example.com/#pair=…`. Pairing pins the Host's key; the shell
+keeps a host book (no secrets) and, per Host, a device key and credential in
+the platform's secret store.
+
+| Shell | Pair | Secrets |
+|-------|------|---------|
+| Phone | scan the QR, or paste the link | iOS / Android keystore |
+| Desktop thin shell | paste the link on the connect wall | Keychain / Credential Manager / Secret Service |
+| Browser | open the `#pair=` link (cleared from the address bar at once), or paste it | IndexedDB of the relay's origin |
+| CLI / TUI | `piwin pair '<link>' [--alias <name>]` | owner-only files under `~/.piwin/client/` |
+
+The connect wall lists every paired Host to switch to or remove. In the CLI:
+
+```bash
+piwin hosts list
+piwin hosts use <alias|hostId|name>  # default for later commands
+piwin hosts use --local              # back to an in-process Host
+piwin hosts alias <alias|hostId|name> <alias>
+piwin hosts forget <alias|hostId|name>
+PIWIN_HOST=<alias|hostId> piwin tui
+```
+
+Shells dial the relay first and fall back to the Host's direct address when
+the relay cannot be reached, then return to the relay after a reconnect or
+wake. When the Host's relay or address changes it pushes the new one, and the
+host book follows.
+
+## 6. What the relay can and cannot see
 
 | Sees | Cannot |
 |------|--------|
@@ -118,17 +172,47 @@ The browser shell is the one exception to "the relay cannot read": a browser
 runs whatever JavaScript the relay serves. On a relay you run yourself that is
 you. Native shells do not depend on it.
 
-## 6. Close codes
+## 7. Moving existing shells
+
+Shells paired before the relay keep working and move themselves onto the
+encrypted channel; nobody scans again.
+
+- **Phone, Desktop thin shell, browser**: after startup, a saved address with
+  a device credential or access token runs `host/channel-migrate` once over
+  the old connection, checks the new channel, then forgets the old
+  credential. An older Host or a failure keeps the old connection and the
+  next launch tries again. Loopback addresses are the Host's own admin door
+  and are left alone.
+- **CLI**: a non-loopback `PIWIN_HOST_URL` with `PIWIN_HOST_TOKEN` or
+  `PIWIN_HOST_DEVICE_*` migrates on first use and prints the `PIWIN_HOST=`
+  to use instead.
+
+The Host's `legacyAccess` setting closes the old path in steps across
+releases (N = the release that ships the relay):
+
+| Release | Default | Old connections |
+|---------|---------|-----------------|
+| N | `full` | work as before and migrate |
+| N+1 | `migrate-only` | may only migrate; other commands are refused with "pair again" |
+| N+2 | removed | the old path, access tokens, `{ token }` and v1/v2 codes are gone |
+
+`off` refuses old connections now; they are told to pair again.
+Set it early with `PIWIN_HOST_LEGACY_ACCESS`, `piwin relay legacy`, or the
+Remote access settings once every shell shows as migrated in the device list.
+
+## 8. Close codes
 
 | Code | Meaning | Shell behavior |
 |------|---------|----------------|
 | 4400 | Malformed request | stop |
 | 4401 | Host authentication failed | stop (Host) |
 | 4403 | User disabled or Host denied | stop (Host) |
-| 4404 | Not available (Host offline, unknown, or not yours) | retry, show "电脑离线" |
+| 4404 | Not available (Host offline, unknown, or not yours) | retry; "Host is offline or not on this relay" |
 | 4409 | Replaced by a newer connection of the same Host | — |
 | 4413 | Frame too large | stop |
 | 4429 | Limit reached (Hosts, shells, rate, send buffer) | retry later |
+| 4004 | Channel handshake failed: the Host key does not match the pinned one (shell-side) | stop; pair again |
+| 4007 | Channel broke after the handshake (shell-side) | reconnect with a new handshake |
 
 HTTP `429` on upgrade means the client IP opened too many connections in a
 minute; `400` means the URL is not a channel route.

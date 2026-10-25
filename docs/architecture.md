@@ -143,11 +143,18 @@ Windows/Linux machine, NAS, or server.
 Local:
   Desktop/CLI shell → local Host Server → HostRuntime → agent-host → Pi
 
-Remote:
-  Desktop/Windows/Mobile/CLI shell
-      → private network or optional Gateway/tunnel
-      → Host Server → HostRuntime → agent-host → Pi
+Remote (ADR 0101, relay first):
+  Desktop thin shell / Mobile / CLI / browser
+      → self-hosted relay (apps/gateway, content-blind) ← Host dials out
+        or, as fallback, the Host's direct channel route (/v1/u/…)
+      → Noise IK channel → Host Server → HostRuntime → agent-host → Pi
 ```
+
+Every remote shell pairs per device from a one-time v3 code, pins the Host
+key, and keeps a host book plus per-Host secrets in its platform store; the
+relay forwards ciphertext only. Pre-relay shells (endpoint + token or device
+credential) migrate themselves over one last legacy connection, and the
+Host's `legacyAccess` setting retires that path across releases.
 
 One Host process owns one configured `~/.piwin` data root. Multiple clients
 observe and control that Host through `HostCommand` / `HostPush`; they do not
@@ -1034,8 +1041,8 @@ or open a second CardStore.
 | Session index DB | SQLite |
 | Default host mode | SDK |
 | Local Host deployment | Tauri-owned Host Server sidecar |
-| Remote Host deployment | Standalone Host Server over private transport |
-| Optional network relay | Gateway/tunnel only; never the Agent authority |
+| Remote Host deployment | Standalone Host Server or bundled sidecar, reached through a self-hosted relay with direct fallback (ADR 0101) |
+| Network relay | `apps/gateway`, self-hosted, content-blind; never the Agent authority |
 
 ## 14. Capability honesty (2026-07-24)
 

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Accepted — partially implemented** (owner decisions 2026-10-25; P0–P3 shipped: protocol, relay, Host side) |
+| Status | **Accepted — implemented** (owner decisions 2026-10-25; P0–P5 shipped: protocol, relay, Host side, client layer, every shell; legacy cutover follows §10 across releases) |
 | Date | 2026-10-25 |
 | Scope | `@piwin/contracts`, `@piwin/host-transport`, `@piwin/host-server`, `@piwin/host-client`, new `apps/gateway`, `apps/desktop`, `apps/mobile`, `apps/cli` (incl. `tui`), `apps/host` |
 | Amends | [0027](./0027-personal-remote-gateway-seams.md) (gateway topology, `RemoteConfig`), [0075](./0075-operator-host-pairing.md) (operator identity, token door), [0076](./0076-bundled-phone-access-lan.md) (cleartext LAN listener), [0086](./0086-cli-tui-on-remote-protocol.md) (TUI attach target) |
@@ -280,11 +280,11 @@ backoff, `wake()` and replay are reused unchanged.
 
 | Shell | Pair | Key store | Notes |
 |-------|------|-----------|-------|
-| Phone | Scan QR | Keychain | Host book grouped by user. Shows the current path. `4404` shows "电脑离线". The native socket gains binary send. |
-| Desktop thin shell | Paste link or scan | Keychain (Tauri) | Replaces the endpoint + token form. Usually `operator`. |
-| Bundled Desktop | — | — | Its own sidecar over loopback, as today. Settings → "远程访问" manages the relay user, relay URL, direct listener, pairing and devices. |
-| CLI / `piwin tui` | `piwin pair '<link>'` | `~/.piwin/client/hosts/` 0600 | `piwin hosts list \| use \| forget`. `PIWIN_HOST=<alias>` selects a Host. `PIWIN_HOST_URL` is loopback-only. |
-| Browser | Open `https://relay/#pair=…` | IndexedDB | Served by the relay (`--web-root`) or by the Host listener. |
+| Phone | Scan QR or paste link | Keychain | The connect wall lists paired Hosts (user, relay or direct, admin) to switch to or remove. Channel failures are named (`4404` "Host offline or not on this relay", `4004` "pair again"). The native socket gains binary send. A current-path indicator is not shown yet (`onPath` is in place). |
+| Desktop thin shell | Paste link | OS credential store (Keychain / Credential Manager / Secret Service) through `desktop_secret_*` | Same connect wall as the phone. The endpoint + token form stays during the migration window. |
+| Bundled Desktop | — | — | Its own sidecar over loopback, as today. Settings → Phone access → "Remote access" manages the relay URL and enroll token, the relay user, `legacyAccess` and admin pairing codes; the device list marks admin and older connections. |
+| CLI / `piwin tui` | `piwin pair '<link>'` | `~/.piwin/client/` 0600 | `piwin hosts list \| use \| alias \| forget`. `PIWIN_HOST=<alias>` selects a Host. A non-loopback `PIWIN_HOST_URL` migrates once during the window; afterwards it is loopback-only. |
+| Browser | Open `https://relay/#pair=…` or paste the link | IndexedDB | Served by the relay (`--web-root`) or by the Host listener. The `#pair=` fragment is cleared from the address bar before pairing. |
 
 The browser shell trusts whoever serves its JavaScript. With self-hosted
 relays that is the user. This is documented. Native shells do not depend on
@@ -392,6 +392,11 @@ response: {
    entry and retry on the next start.
 5. The CLI prints once that the env vars can be removed and names the new
    alias.
+
+The workbench shells (phone, Desktop thin shell, browser) run the migrator in
+the background after the first render, never for a loopback target, and on
+success switch the saved target to the host id so the open workbench
+reconnects over the channel.
 
 **Security.**
 

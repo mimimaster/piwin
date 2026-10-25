@@ -4,7 +4,7 @@
 |-------|-------|
 | Status | **Accepted — protocol seams retained; topology superseded by ADR 0036** |
 | Date | 2026-08-03 |
-| Amended by | [ADR 0101](./0101-content-blind-relay-per-device-e2ee.md) (accepted, pending implementation): relay-first topology with a self-hosted content-blind relay and per-device Noise IK; removes `RemoteConfig.gatewayUrl` / `tokenRef` / `e2ee` |
+| Amended by | [ADR 0101](./0101-content-blind-relay-per-device-e2ee.md) (implemented 2026-10-25): relay-first topology with a self-hosted content-blind relay and per-device Noise IK; `RemoteConfig.gatewayUrl` / `tokenRef` / `e2ee` are removed in N+2 (ADR 0101 §10) |
 | Related | [`specs/w4-remote-gateway.md`](../specs/w4-remote-gateway.md), [`specs/host-server-multi-client.md`](../specs/host-server-multi-client.md), ADR 0036, ADR 0006 (sidecar transport), ADR 0015 (async turn transport), [`ipc-transport-discipline.md`](../ipc-transport-discipline.md) |
 
 ## Context

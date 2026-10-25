@@ -37,7 +37,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Hooks / cron | yellow | Thin post-event; cron needs host up |
 | Interactive PTY (xterm) | green (Tauri) | portable-pty + xterm; no second Node shell-preview architecture in the target state |
 | Host Server / multi-client | yellow (in tree) | `@piwin/host-server` + `apps/host`: WebSocket transport, device pairing (ADR 0075), LAN phone access (ADR 0076), origin/exposure guards. Desktop can attach to a standalone Host; Mobile (ADR 0084) and CLI TUI (ADR 0086) use the remote protocol. Owner to confirm release status |
-| Personal Gateway / tunnel | red | Optional W4 transport layer after Host Server; ADR 0027 protocol seams retained |
+| Remote relay (ADR 0101) | yellow (in tree) | Self-hosted content-blind relay (`apps/gateway`, Docker); Noise IK channel per device; Host relay connector + direct channel route; pairing via v3 code / link / `#pair=` on phone, Desktop thin shell, browser, CLI/TUI (`piwin pair`, `piwin hosts`, `PIWIN_HOST`); Desktop settings Remote access; automatic legacy migration. Not run on a real phone or a packaged Desktop build yet; release cadence for `legacyAccess` not started |
 | Flashcard study workbench (ADR 0066) | yellow | **In tree, not released.** Desktop page, Mobile catalog+study, CLI `piwin study`, Host rounds/operations, unique CardStore, existing tear-off. Real-device V04/V09/V22 **not run**; visual fixtures **not captured**; root `pnpm typecheck` is green again (2026-10-24). Mobile source is excerpt-only; v1 online-only; CLI has no animation. Do not claim dual-device video or 已上线. |
 
 ## Architecture health
@@ -49,7 +49,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | host-client mock isolation | green | `host-client-mock.ts` |
 | HostRuntime modularity | transition | target extraction to `@piwin/host-runtime`; `@piwin/agent-host` narrows to the Pi boundary |
 | Desktop installer (ADR 0017) | yellow | Bundles the Host sidecar and a pinned Node (`pnpm package:desktop`); macOS DMG is signed and notarized, Windows NSIS via `pnpm release:desktop`. Clean-machine smoke (S5) still pending, so do not call it public-ready yet |
-| Host deployment | yellow | Local sidecar plus standalone Host (`apps/host`, `pnpm package:host`) with paired remote clients (ADR 0036/0075) |
+| Host deployment | yellow | Local sidecar plus standalone Host (`apps/host`, `pnpm package:host`) with paired remote clients (ADR 0036/0075), reachable through a self-hosted relay (ADR 0101) |
 | ui-kit primitives | green | Menu/Popover/Confirm/Notice/Status/Tabs/Field + Button/Dialog |
 | Lint / CI gates | green | Real ESLint (typed no-floating-promises, hooks rules, no empty catch); CI runs lint, typecheck incl. mobile, tests, boundaries, host smoke, plus macOS (cargo test, desktop e2e) and Windows (credential store) jobs |
 | Desktop UI modernization | green | Shell IA + run strip + palette + confirms + CSS split + viewport e2e + visual baselines (darwin) |

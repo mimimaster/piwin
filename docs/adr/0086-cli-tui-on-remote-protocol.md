@@ -4,7 +4,7 @@
 |-------|-------|
 | Status | **Accepted** |
 | Date | 2026-10-08 |
-| Amended by | [ADR 0101](./0101-content-blind-relay-per-device-e2ee.md) (accepted, pending implementation): remote attach uses a paired host-book entry (`piwin pair`, `PIWIN_HOST=<alias>`); `PIWIN_HOST_URL` is loopback-only and `PIWIN_HOST_TOKEN` / `PIWIN_HOST_DEVICE_*` are auto-migrated, then removed after the migration window (§10) |
+| Amended by | [ADR 0101](./0101-content-blind-relay-per-device-e2ee.md) (implemented 2026-10-25): remote attach uses a paired host-book entry (`piwin pair`, `PIWIN_HOST=<alias>`); a non-loopback `PIWIN_HOST_URL` with `PIWIN_HOST_TOKEN` / `PIWIN_HOST_DEVICE_*` migrates once and becomes loopback-only, and those variables are removed after the migration window (§10) |
 | Related | [0003-dual-mode-host.md](./0003-dual-mode-host.md), [0037-mobile-remote-shell.md](./0037-mobile-remote-shell.md), AGENTS.md §1 |
 
 ## Context
