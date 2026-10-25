@@ -217,6 +217,49 @@ export type PairingLinkV3 = {
   expiresAt: number;
 };
 
+/**
+ * Where a paired shell reaches this Host (ADR 0101 §6). Sent on every
+ * `host/hello` and pushed as `host/endpoints` when it changes, so a shell's
+ * host book follows a relay move or a new relay user. The Host key is not
+ * here: shells pin it at pairing and never take a new one from the wire.
+ */
+export type HostEndpointsData = {
+  userId: string;
+  userName: string;
+  hostId: string;
+  hostName: string;
+  relayUrl?: string;
+  directUrl?: string;
+};
+
+const MAX_ENDPOINT_TEXT = 2_048;
+
+export function readHostEndpointsData(value: unknown): HostEndpointsData | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const record = value as Record<string, unknown>;
+  const { userId, userName, hostId, hostName, relayUrl, directUrl } = record;
+  const text = (item: unknown): item is string =>
+    typeof item === 'string' && item.length > 0 && item.length <= MAX_ENDPOINT_TEXT;
+  if (
+    !isRemoteId(userId) ||
+    !isRemoteId(hostId) ||
+    !text(userName) ||
+    !text(hostName) ||
+    (relayUrl !== undefined && !text(relayUrl)) ||
+    (directUrl !== undefined && !text(directUrl))
+  ) {
+    return undefined;
+  }
+  return {
+    userId,
+    userName,
+    hostId,
+    hostName,
+    ...(relayUrl === undefined ? {} : { relayUrl }),
+    ...(directUrl === undefined ? {} : { directUrl }),
+  };
+}
+
 /** Public identity of a relay user; the private key never leaves its owner. */
 export type RelayUserPublic = {
   userId: string;

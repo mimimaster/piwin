@@ -2,6 +2,7 @@ import { hostname, userInfo } from 'node:os';
 import { join } from 'node:path';
 import type {
   ChannelMigrateResult,
+  HostEndpointsData,
   HostRemoteAccessCommand,
   LegacyAccessMode,
   RemoteAccessStatusData,
@@ -61,6 +62,7 @@ export class HostRemoteAccess {
   private peerAcceptor: ((peer: ChannelPeerSession) => void) | undefined;
   private directUrlProvider: () => string | undefined = () => undefined;
   private readonly direct: { handler: HostChannelUpgradeHandler; close: () => void };
+  private readonly endpointListeners = new Set<(endpoints: HostEndpointsData) => void>();
 
   private constructor(
     options: HostRemoteAccessOptions,
@@ -173,6 +175,18 @@ export class HostRemoteAccess {
     };
   };
 
+  /** Addresses and ids shells keep in their host book (on hello, pushed on change). */
+  public endpoints(): HostEndpointsData {
+    const { hostKey: _hostKey, ...endpoints } = this.migrationTarget();
+    return endpoints;
+  }
+
+  /** Called after a change that moves shells: relay address, relay user, names. */
+  public onEndpointsChanged(listener: (endpoints: HostEndpointsData) => void): () => void {
+    this.endpointListeners.add(listener);
+    return () => this.endpointListeners.delete(listener);
+  }
+
   /** Everything a shell needs to reach this Host on the channel (pairing links, migration). */
   public migrationTarget(): MigrationTarget {
     const relayUrl = this.settings.relay.enabled ? this.settings.relay.url : undefined;
@@ -207,18 +221,21 @@ export class HostRemoteAccess {
       ...(command.legacyAccess === undefined ? {} : { legacyAccess: command.legacyAccess }),
     });
     this.restartRelay();
+    this.announceEndpoints();
     return this.status();
   }
 
   public async createUser(name: string): Promise<RemoteAccessStatusData> {
     this.user = await this.options.userStore.create(name);
     this.restartRelay();
+    this.announceEndpoints();
     return this.status();
   }
 
   public async renameUser(name: string): Promise<RemoteAccessStatusData> {
     this.user = await this.options.userStore.rename(name);
     this.restartRelay();
+    this.announceEndpoints();
     return this.status();
   }
 
@@ -230,11 +247,17 @@ export class HostRemoteAccess {
   public async importUser(bundle: string, passphrase: string): Promise<RemoteAccessStatusData> {
     this.user = await this.options.userStore.importBundle(bundle, passphrase);
     this.restartRelay();
+    this.announceEndpoints();
     return this.status();
   }
 
   public enrollmentLine(): Promise<string> {
     return this.options.userStore.enrollmentLine();
+  }
+
+  private announceEndpoints(): void {
+    const endpoints = this.endpoints();
+    for (const listener of this.endpointListeners) listener(endpoints);
   }
 
   private acceptPeer(peer: ChannelPeerSession): void {

@@ -13,6 +13,7 @@ import type {
   HostWireMessage,
 } from '@piwin/contracts';
 import {
+  readHostEndpointsData,
   clientToolFrameByteCap,
   parseClientToolCapabilityAdvertisements,
   parseClientToolWireFrame,
@@ -21,6 +22,7 @@ import {
 const HOST_WIRE_TYPES = new Set<HostWireMessage['type']>([
   'client/hello',
   'host/hello',
+  'host/endpoints',
   'command',
   'response',
   'push',
@@ -97,6 +99,9 @@ export function decodeHostWireMessage(serialized: string): HostWireMessage {
 
 function validateRequiredFields(message: Record<string, unknown>): void {
   const messageType = message.type;
+  if (messageType === 'host/endpoints' && readHostEndpointsData(message.endpoints) === undefined) {
+    throw new HostProtocolError('host/endpoints requires valid endpoints');
+  }
   if (
     (messageType === 'client/hello' ||
       messageType === 'host/hello' ||

@@ -12,6 +12,7 @@ import type { AttachmentContentKind } from './attachment.js';
 import type { HostCommand, HostPush, HostPushBatchFrame, HostResponse } from './ipc.js';
 import type { QueuedTurnRecord } from './queued-turn.js';
 import type { TrustedDeviceCredential } from './remote.js';
+import type { HostEndpointsData } from './remote-channel.js';
 import type { SessionListPageResult } from './session-list-page.js';
 import type {
   ClientToolCancelFrame,
@@ -314,6 +315,14 @@ export type HostHello = {
   deviceId?: string;
   /** Returned only immediately after pairing enrollment. Never log this field. */
   deviceSecret?: string;
+  /** ADR 0101: current relay/direct addresses and ids; refreshes the shell's host book. */
+  endpoints?: HostEndpointsData;
+};
+
+/** ADR 0101: Host → client when its addresses or relay user change. */
+export type HostEndpointsFrame = {
+  type: 'host/endpoints';
+  endpoints: HostEndpointsData;
 };
 
 export type RemoteHostStatusData = {
@@ -638,6 +647,7 @@ export type HostErrorFrame = {
 export type HostWireMessage =
   | HostClientHello
   | HostHello
+  | HostEndpointsFrame
   | HostCommandFrame
   | HostResponseFrame
   | HostPushFrame

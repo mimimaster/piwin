@@ -167,6 +167,7 @@ export class HostServer {
   private readonly webRoot: string | undefined;
   private listener: HostListener | undefined;
   private readonly remoteAccess: HostRemoteAccess | undefined;
+  private readonly unsubscribeEndpoints: (() => void) | undefined;
   private readonly sender: HostConnectionSender;
   private livenessTimer: ReturnType<typeof setInterval> | undefined;
   private browserFrameDetach: (() => void) | undefined;
@@ -198,6 +199,13 @@ export class HostServer {
     this.pairingAdvertisedEndpoint = options.pairingAdvertisedEndpoint?.trim() || undefined;
     this.remoteAccess = options.remoteAccess;
     this.remoteAccess?.setPeerAcceptor((peer) => this.acceptChannelPeer(peer));
+    this.unsubscribeEndpoints = this.remoteAccess?.onEndpointsChanged((endpoints) => {
+      for (const connection of this.connections) {
+        if (connection.authenticated && !connection.migrateOnly) {
+          this.sender.send(connection, { type: 'host/endpoints', endpoints });
+        }
+      }
+    });
     this.remoteAccess?.setDirectUrlProvider(
       () => this.pairingAdvertisedEndpoint ?? this.listEndpointCandidates()[0] ?? this.boundUrl,
     );
@@ -340,6 +348,7 @@ export class HostServer {
   }
 
   public async stop(closeReason = 'Host server stopping'): Promise<void> {
+    this.unsubscribeEndpoints?.();
     this.browserFrameDetach?.();
     this.browserFrameDetach = undefined;
     this.mirrorLeaseReaper.dispose();
@@ -547,6 +556,7 @@ export class HostServer {
       devicePairingStore: this.devicePairingStore,
       pairingEnabled: this.pairingEnabled,
       legacyAccess: this.remoteAccess?.legacyAccess() ?? 'full',
+      endpoints: this.remoteAccess?.endpoints(),
       egressHub: this.egressHub,
       clientToolBroker: this.clientToolBroker,
       onError: this.onError,

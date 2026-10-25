@@ -333,3 +333,23 @@ describe('ADR 0101 legacy access and migration (golden)', () => {
     await transport.close();
   });
 });
+
+describe('ADR 0101 endpoints for host books', () => {
+  it('sends endpoints on hello and pushes a change to live channel clients', async () => {
+    const target = await host();
+    const { clientKey, credential } = await pairOverChannel(target);
+    const transport = channelTransport(target, { deviceCredential: credential }, { clientKey });
+    const hostHello = await transport.connect();
+    expect(hostHello.endpoints).toEqual(target.access.endpoints());
+    expect(hostHello.endpoints).not.toHaveProperty('hostKey');
+
+    const pushed = new Promise<unknown>((resolve) =>
+      transport.subscribe((message) => {
+        if (message.type === 'host/endpoints') resolve(message.endpoints);
+      }),
+    );
+    await target.access.renameUser('Renamed Owner');
+    expect(await pushed).toMatchObject({ userName: 'Renamed Owner', hostName: 'Test Host' });
+    await transport.close();
+  });
+});

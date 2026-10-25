@@ -4,6 +4,7 @@ import type {
   HostHello,
   HostHelloRejectReason,
   HostWireMessage,
+  HostEndpointsData,
   LegacyAccessMode,
   RemoteCapabilitySummary,
 } from '@piwin/contracts';
@@ -47,6 +48,8 @@ export type HostHelloAcceptHost = {
   pairingEnabled?: boolean;
   /** ADR 0101 §10: what a non-loopback, non-channel connection may still do. */
   legacyAccess: LegacyAccessMode;
+  /** ADR 0101: addresses shells refresh their host book from. */
+  endpoints: HostEndpointsData | undefined;
   egressHub: HostEgressHub;
   clientToolBroker: DeviceToolBroker | undefined;
   onError: (error: Error) => void;
@@ -86,6 +89,7 @@ export function createHostHelloPayload(
     ...(host.minClientVersion === undefined ? {} : { minClientVersion: host.minClientVersion }),
     ...(deviceId === undefined ? {} : { deviceId }),
     ...(deviceSecret === undefined ? {} : { deviceSecret }),
+    ...(host.endpoints === undefined ? {} : { endpoints: host.endpoints }),
   };
 }
 
