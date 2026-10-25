@@ -2,7 +2,8 @@ import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { HostBookEntry } from '@piwin/contracts';
 import { HostBook, RemoteHostVault, type KeyValueStorage } from '@piwin/host-client';
-import { readOwnerOnlyTextFile, writeOwnerOnlyTextFile } from '@piwin/host-server';
+// The subpath keeps attached-client commands off the Host runtime (no Pi load).
+import { readOwnerOnlyTextFile, writeOwnerOnlyTextFile } from '@piwin/host-server/owner-only-file';
 
 /** CLI copy of ADR 0101 shell state, under `<piwinRoot>/client/` (owner-only files). */
 export type CliRemoteHosts = {

@@ -10,6 +10,11 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./owner-only-file": {
+      "types": "./src/owner-only-json-file.ts",
+      "import": "./src/owner-only-json-file.ts",
+      "default": "./src/owner-only-json-file.ts"
     }
   },
   "scripts": {
