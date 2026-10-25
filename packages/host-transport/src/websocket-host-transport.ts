@@ -1,5 +1,5 @@
 import type { HostClientHello, HostHello, HostHelloRejectReason } from '@piwin/contracts';
-import { isHostHelloRejectReason } from '@piwin/contracts';
+import { isHostHelloRejectReason, REMOTE_CHANNEL_CLOSE } from '@piwin/contracts';
 import { HostHandshakeError } from './host-handshake-error.js';
 import { decodeHostWireMessage, encodeHostWireMessage } from './protocol-codec.js';
 import type {
@@ -48,8 +48,18 @@ const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 const HEARTBEAT_TIMEOUT_MS = 10_000;
 /** A wake probe answers "did the OS kill this socket while we were suspended?" — fail fast. */
 const WAKE_PROBE_TIMEOUT_MS = 4_000;
-/** Close codes that mean "do not auto-reconnect" (auth / protocol / origin). */
-const FATAL_CLOSE_CODES = new Set([4002, 4003, 4004, 4009]);
+/**
+ * Close codes that mean "do not auto-reconnect" (auth / protocol / origin, and
+ * ADR 0101 channel requests a retry cannot fix).
+ */
+const FATAL_CLOSE_CODES = new Set<number>([
+  4002,
+  4003,
+  4004,
+  4009,
+  REMOTE_CHANNEL_CLOSE.badRequest,
+  REMOTE_CHANNEL_CLOSE.frameTooLarge,
+]);
 
 export class WebSocketHostTransport implements HostTransport {
   private readonly endpoint: string;
