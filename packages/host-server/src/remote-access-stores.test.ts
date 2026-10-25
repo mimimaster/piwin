@@ -110,6 +110,16 @@ describe('RemoteAccessSettingsStore', () => {
     });
   });
 
+  it('falls back to defaults when the legacy file it migrates from is damaged', async () => {
+    const directory = await tempDir();
+    const legacy = join(directory, 'mobile-access.json');
+    await writeFile(legacy, '{not json');
+    const store = new RemoteAccessSettingsStore(join(directory, 'remote-access.json'), {
+      legacyMobileAccessPath: legacy,
+    });
+    expect(await store.load()).toEqual(defaultRemoteAccessSettings());
+  });
+
   it('round-trips settings and keeps the relay off without a URL', async () => {
     const store = new RemoteAccessSettingsStore(join(await tempDir(), 'remote-access.json'));
     await store.save({

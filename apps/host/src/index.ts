@@ -11,11 +11,17 @@ import {
   HostDevicePairingFileStore,
   HostServer,
   createDeviceToolBrokerForHost,
+  openHostRemoteAccessAtRoot,
   type HostConnectionEvent,
+  type HostRemoteAccess,
 } from '@piwin/host-server';
 import { parseHostAllowedOrigins } from './allowed-origins.js';
 import { createHostPairingAnnouncement, resolveAdvertisedEndpoint } from './pairing-print.js';
 import { findRemoteExposureWithoutToken } from './remote-exposure-guard.js';
+import {
+  applyRemoteAccessEnvironment,
+  createOperatorPairingAnnouncement,
+} from './remote-access-startup.js';
 import { resolveAgentWorkerScript } from './resolve-agent-worker-script.js';
 
 const mode = process.env.PIWIN_HOST_MODE === 'rpc' ? 'rpc' : 'sdk';
@@ -77,6 +83,28 @@ if (pairingEnabled) {
   devicePairingStore = store;
 }
 
+// ADR 0101: the end-to-end channel (direct route + optional relay) rides on device pairing.
+let remoteAccess: HostRemoteAccess | undefined;
+if (devicePairing !== undefined) {
+  try {
+    const userName = process.env.PIWIN_HOST_USER_NAME?.trim();
+    remoteAccess = await openHostRemoteAccessAtRoot({
+      piwinRoot,
+      pairing: devicePairing,
+      ...(userName === undefined || userName.length === 0 ? {} : { defaultUserName: userName }),
+      onError: (error) => console.error(`[piwin-host] remote access: ${error.message}`),
+    });
+    for (const line of await applyRemoteAccessEnvironment(remoteAccess, process.env)) {
+      console.log(line);
+    }
+  } catch (error) {
+    await runtime.dispose();
+    console.error(`[piwin-host] failed to set up remote access: ${toError(error).message}`);
+    process.exitCode = 1;
+    throw error;
+  }
+}
+
 if (authToken !== undefined && !isLoopbackBind(host) && !allowCleartext) {
   console.warn(
     '[piwin-host] warning: door token will ride a cleartext WebSocket on a non-loopback bind. Prefer Tailscale Serve / TLS reverse proxy, or set PIWIN_HOST_ALLOW_CLEARTEXT=1 for a trusted private network.',
@@ -98,6 +126,7 @@ const server = new HostServer({
   ...(webRoot === undefined ? {} : { webRoot }),
   ...(devicePairing === undefined ? {} : { devicePairing }),
   ...(devicePairingStore === undefined ? {} : { devicePairingStore }),
+  ...(remoteAccess === undefined ? {} : { remoteAccess }),
   // Codes minted from a shell point phones at the same address the startup QR does.
   ...(process.env.PIWIN_HOST_ADVERTISED_URL?.trim()
     ? { pairingAdvertisedEndpoint: process.env.PIWIN_HOST_ADVERTISED_URL.trim() }
@@ -121,6 +150,17 @@ try {
   console.log(
     `[piwin-host] listening at ${address.url} (${mode}${mock ? ', mock' : ''}; build=${hostBuildId}${webRoot === undefined ? '' : '; web'})`,
   );
+  remoteAccess?.start();
+  if (remoteAccess !== undefined && devicePairing !== undefined) {
+    const operatorAnnouncement = await createOperatorPairingAnnouncement({
+      pairing: devicePairing,
+      store: devicePairingStore,
+      access: remoteAccess,
+    });
+    if (operatorAnnouncement !== undefined) {
+      console.log(operatorAnnouncement);
+    }
+  }
   if (devicePairing !== undefined && devicePairingStore !== undefined) {
     try {
       const advertisedEndpoint = resolveAdvertisedEndpoint(
@@ -156,6 +196,7 @@ const shutdown = async (): Promise<void> => {
     return;
   }
   shuttingDown = true;
+  remoteAccess?.dispose();
   await server.stop();
   await runtime.dispose();
 };

@@ -45,18 +45,25 @@ export class RemoteAccessSettingsStore {
 
   /**
    * Missing file: migrate `enabled`, `port` and the address override from
-   * `mobile-access.json`, else defaults. A damaged file throws.
+   * `mobile-access.json` (defaults when that is absent or damaged). A damaged
+   * remote-access.json throws.
    */
   public async load(): Promise<RemoteAccessSettings> {
     const stored = await this.file.read();
     if (stored !== undefined) {
       return parseRemoteAccessSettings(stored);
     }
-    const legacy = await this.legacyMobileAccess?.read();
-    if (legacy === undefined) {
+    let phone: ReturnType<typeof readMobileAccessSettings>;
+    try {
+      const legacy = await this.legacyMobileAccess?.read();
+      if (legacy === undefined) {
+        return defaultRemoteAccessSettings();
+      }
+      phone = readMobileAccessSettings(legacy);
+    } catch {
+      // The old file is only a migration source; its owner reports the damage.
       return defaultRemoteAccessSettings();
     }
-    const phone = readMobileAccessSettings(legacy);
     return {
       ...defaultRemoteAccessSettings(),
       direct: {

@@ -31,6 +31,7 @@ import {
   type PairingRegistry,
 } from './pairing-operations.js';
 import { assertPairingEndpointIsDialable } from './pairing-qr.js';
+import { openHostRemoteAccessAtRoot, type HostRemoteAccess } from './host-remote-access.js';
 
 const BIND_HOST_BY_PROFILE: Readonly<Record<string, string>> = {
   [MOBILE_ACCESS_LOOPBACK_PROFILE_ID]: '127.0.0.1',
@@ -63,6 +64,11 @@ export type MobileAccessControllerOptions = {
   clientToolBroker?: import('./device-tool-broker.js').DeviceToolBroker;
   egressHub?: HostEgressHub;
   idempotencyRegistry?: HostCommandIdempotencyRegistry;
+  /**
+   * ADR 0101: channel route, relay connector and remote-access commands on the
+   * phone listener. Runs while the listener runs.
+   */
+  remoteAccess?: HostRemoteAccess;
 };
 
 /**
@@ -133,6 +139,7 @@ export class MobileAccessController {
   public dispose(): Promise<void> {
     return this.serialize(async () => {
       await this.closeListener();
+      this.options.remoteAccess?.dispose();
     });
   }
 
@@ -217,6 +224,7 @@ export class MobileAccessController {
         this.server = started.server;
         this.bindAddress = started.address;
         this.profileId = profile;
+        this.options.remoteAccess?.start();
       }
       const settings: MobileAccessSettings = { enabled: true };
       if (this.bindAddress !== undefined && this.bindAddress.port > 0) {
@@ -243,6 +251,7 @@ export class MobileAccessController {
     if (server === undefined) {
       return;
     }
+    this.options.remoteAccess?.stop();
     this.pairing.invalidatePendingTokens();
     await this.persistPairing();
     await server.stop(PHONE_ACCESS_DISABLED_REASON);
@@ -253,9 +262,11 @@ export class MobileAccessController {
     if (this.server === undefined || advertised === undefined) {
       throw new Error('Enable phone access before creating a pairing code');
     }
+    const remoteAccess = this.options.remoteAccess;
     return mintPairingCode(this.registry(), {
       advertisedEndpoint: advertised,
       hostInstanceId: this.instanceId,
+      ...(remoteAccess === undefined ? {} : { channelLinks: remoteAccess.channelLinks }),
     });
   }
 
@@ -314,6 +325,10 @@ export class MobileAccessController {
       port,
       instanceId: this.instanceId,
       devicePairing: this.pairing,
+      ...(this.settings.advertisedEndpoint === undefined
+        ? {}
+        : { pairingAdvertisedEndpoint: this.settings.advertisedEndpoint }),
+      ...(options.remoteAccess === undefined ? {} : { remoteAccess: options.remoteAccess }),
       ...(options.pairingStore === undefined ? {} : { devicePairingStore: options.pairingStore }),
       ...(options.onError === undefined ? {} : { onError: options.onError }),
       ...(options.clientToolBroker === undefined ? {} : { clientToolBroker: options.clientToolBroker }),
@@ -363,9 +378,21 @@ export async function createMobileAccessController(options: {
     options.onError?.(error instanceof Error ? error : new Error(String(error)));
     settings = { enabled: false };
   }
+  let remoteAccess: HostRemoteAccess | undefined;
+  try {
+    remoteAccess = await openHostRemoteAccessAtRoot({
+      piwinRoot: options.piwinRoot,
+      pairing,
+      ...(options.onError === undefined ? {} : { onError: options.onError }),
+    });
+  } catch (error) {
+    // A damaged identity must not take LAN phone access down with it.
+    options.onError?.(error instanceof Error ? error : new Error(String(error)));
+  }
   return new MobileAccessController({
     runtime: options.runtime,
     pairing,
+    ...(remoteAccess === undefined ? {} : { remoteAccess }),
     pairingStore,
     settingsStore,
     settings,

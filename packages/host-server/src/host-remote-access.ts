@@ -55,6 +55,8 @@ export class HostRemoteAccess {
   private settings: RemoteAccessSettings;
   private readonly hostName: string;
   private connector: RelayConnector | undefined;
+  /** Between start() and stop(): configuration changes reconnect the relay right away. */
+  private running = false;
   private relayStatus: RelayConnectorStatus = { state: 'off' };
   private peerAcceptor: ((peer: ChannelPeerSession) => void) | undefined;
   private directUrlProvider: () => string | undefined = () => undefined;
@@ -104,12 +106,21 @@ export class HostRemoteAccess {
   }
 
   public start(): void {
+    this.running = true;
     this.restartRelay();
   }
 
-  public dispose(): void {
+  /** Stops the relay connection; the Host can `start()` it again (listener restarts). */
+  public stop(): void {
+    this.running = false;
     this.connector?.stop();
     this.connector = undefined;
+    this.relayStatus = { state: 'off' };
+  }
+
+  /** Stops the relay and closes the direct route for good. */
+  public dispose(): void {
+    this.stop();
     this.direct.close();
   }
 
@@ -239,7 +250,7 @@ export class HostRemoteAccess {
     this.connector = undefined;
     this.relayStatus = { state: 'off' };
     const { enabled, url, enrollToken } = this.settings.relay;
-    if (!enabled || url === undefined) {
+    if (!this.running || !enabled || url === undefined) {
       return;
     }
     const backoff = this.options.relayBackoffMs;

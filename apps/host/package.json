@@ -13,6 +13,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@piwin/contracts": "workspace:*",
     "@piwin/host-runtime": "workspace:*",
     "@piwin/host-server": "workspace:*"
   },

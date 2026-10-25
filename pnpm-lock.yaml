@@ -290,6 +290,9 @@ importers:
 
   apps/host:
     dependencies:
+      '@piwin/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@piwin/host-runtime':
         specifier: workspace:*
         version: link:../../packages/host-runtime
