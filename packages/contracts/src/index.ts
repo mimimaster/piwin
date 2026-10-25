@@ -152,6 +152,7 @@ export * from './host-entry.js';
 export * from './child-process-env.js';
 export * from './network-proxy.js';
 export * from './remote-idempotency.js';
+export * from './remote-channel.js';
 export * from './host-command-request.js';
 export * from './speech.js';
 export * from './settings.js';
