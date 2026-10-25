@@ -1,6 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { OwnerOnlyJsonFile } from './owner-only-json-file.js';
 
 /**
  * Phone-access preference that must survive sidecar restarts.
@@ -19,56 +17,27 @@ export type MobileAccessSettings = {
 export const DEFAULT_MOBILE_ACCESS_SETTINGS: MobileAccessSettings = { enabled: true };
 
 export class MobileAccessSettingsFileStore {
-  private readonly filePath: string;
-  private writeTail: Promise<void> = Promise.resolve();
+  private readonly file: OwnerOnlyJsonFile;
 
   public constructor(filePath: string) {
-    const normalized = filePath.trim();
-    if (normalized.length === 0) {
-      throw new Error('Phone-access settings path is required');
-    }
-    this.filePath = normalized;
+    this.file = new OwnerOnlyJsonFile(filePath, 'phone-access settings');
   }
 
   /** Missing file → defaults. Unreadable/corrupt file throws so the caller can report it. */
   public async load(): Promise<MobileAccessSettings> {
-    await this.writeTail;
-    let raw: string;
-    try {
-      raw = await readFile(this.filePath, 'utf8');
-    } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-        return { ...DEFAULT_MOBILE_ACCESS_SETTINGS };
-      }
-      throw new Error(`Unable to read phone-access settings: ${toMessage(error)}`);
+    const parsed = await this.file.read();
+    if (parsed === undefined) {
+      return { ...DEFAULT_MOBILE_ACCESS_SETTINGS };
     }
     try {
-      return readMobileAccessSettings(JSON.parse(raw) as unknown);
+      return readMobileAccessSettings(parsed);
     } catch (error) {
       throw new Error(`Unable to parse phone-access settings: ${toMessage(error)}`);
     }
   }
 
   public save(settings: MobileAccessSettings): Promise<void> {
-    const operation = this.writeTail.then(() => this.write(settings));
-    this.writeTail = operation.catch(() => undefined);
-    return operation;
-  }
-
-  private async write(settings: MobileAccessSettings): Promise<void> {
-    await mkdir(dirname(this.filePath), { recursive: true, mode: 0o700 });
-    const temporaryPath = `${this.filePath}.tmp-${process.pid}-${randomUUID()}`;
-    try {
-      await writeFile(temporaryPath, `${JSON.stringify({ version: 1, ...settings }, null, 2)}\n`, {
-        encoding: 'utf8',
-        mode: 0o600,
-        flag: 'wx',
-      });
-      await rename(temporaryPath, this.filePath);
-    } catch (error) {
-      await unlink(temporaryPath).catch(() => undefined);
-      throw error;
-    }
+    return this.file.write({ version: 1, ...settings });
   }
 }
 
