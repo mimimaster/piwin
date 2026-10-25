@@ -181,6 +181,29 @@ describe('peer routing', () => {
     expect(left).toEqual({ t: 'peer-left', peer: joined.peer });
   });
 
+  it('lets a Host close one of its peers with peer-close, and only its own', async () => {
+    const identity = createTestIdentity();
+    const other = createTestIdentity();
+    const { url } = await relay({ registered: [identity, other] });
+    const host = await connectReadyHost(url, identity);
+    const otherHost = await connectReadyHost(url, other);
+    const client = openProbe(connectUrl(url, identity));
+    await client.opened;
+    const otherClient = openProbe(connectUrl(url, other));
+    await otherClient.opened;
+    const joined = await waitFor(() => host.texts.find((frame) => frame.t === 'peer-joined'), host);
+    if (joined.t !== 'peer-joined') throw new Error('unexpected frame');
+    // Same peer number in another room must not be reachable.
+    otherHost.socket.send(JSON.stringify({ t: 'peer-close', peer: 999, code: 4004 }));
+    host.socket.send(
+      JSON.stringify({ t: 'peer-close', peer: joined.peer, code: 4004, reason: 'revoked' }),
+    );
+    expect(await client.closed).toEqual({ code: 4004, reason: 'revoked' });
+    expect(otherClient.socket.readyState).toBe(otherClient.socket.OPEN);
+    host.socket.send('{"t":"ready"}');
+    expect((await host.closed).code).toBe(REMOTE_CHANNEL_CLOSE.badRequest);
+  });
+
   it('closes a Host that tries to broadcast to peer 0', async () => {
     const identity = createTestIdentity();
     const { url } = await relay({ registered: [identity] });

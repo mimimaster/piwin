@@ -44,7 +44,7 @@ export function runRelayHostSession(
       return;
     }
     if (!isBinary) {
-      socket.close(REMOTE_CHANNEL_CLOSE.badRequest, 'text after auth');
+      closePeerOnRequest(toBytes(data).toString());
       return;
     }
     routeHostFrame(toBytes(data));
@@ -151,6 +151,18 @@ export function runRelayHostSession(
     if (target !== undefined) {
       sendWithinBudget(context, target, bytes);
     }
+  }
+
+  /** The only text a ready Host may send: close one of its own clients. */
+  function closePeerOnRequest(text: string): void {
+    const frame = decodeRelayControlFrame(text);
+    if (frame?.t !== 'peer-close') {
+      socket.close(REMOTE_CHANNEL_CLOSE.badRequest, 'unexpected text');
+      return;
+    }
+    context.rooms
+      .findPeer(route.userId, route.hostId, frame.peer)
+      ?.close(frame.code, frame.reason ?? 'closed by host');
   }
 
   function reject(code: number, detail: string): void {
