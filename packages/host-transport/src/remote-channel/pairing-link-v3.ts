@@ -118,6 +118,11 @@ function validate(value: Record<string, unknown>): PairingLinkV3 | undefined {
  * direct address may be `ws://` because the channel itself is encrypted.
  * Returns null for an invalid URL.
  */
+export function normalizeChannelUrl(value: unknown, requireTls: boolean): string | undefined {
+  const normalized = channelUrl(value, requireTls);
+  return normalized === null ? undefined : normalized;
+}
+
 function channelUrl(value: unknown, requireTls: boolean): string | null {
   if (typeof value !== 'string' || value.length > MAX_URL_LENGTH) return null;
   let url: URL;

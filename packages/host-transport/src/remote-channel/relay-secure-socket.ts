@@ -53,6 +53,15 @@ export type RelaySecureSocketOptions = {
   rekeyInterval?: number;
   /** Test vectors only. */
   ephemeralKeyPair?: NoiseKeyPair;
+  /**
+   * Path feedback for a dial plan: `onOpen` after the handshake, `onClose`
+   * with whether the channel had opened. Independent of the transport's own
+   * `onopen`/`onclose`, which it assigns after construction.
+   */
+  observer?: {
+    onOpen?: () => void;
+    onClose?: (event: { code: number; reason: string }, opened: boolean) => void;
+  };
 };
 
 const textEncoder = new TextEncoder();
@@ -77,12 +86,15 @@ export class RelaySecureSocket implements WebSocketLike {
   private readonly inner: RelayInnerSocket;
   private readonly handshake: NoiseIkHandshake;
   private readonly rekeyInterval: number | undefined;
+  private readonly observer: RelaySecureSocketOptions['observer'];
+  private opened = false;
   private readonly reassembler = new ChannelReassembler();
   private channel: NoiseChannel | undefined;
   private failure: { code: number; reason: string } | undefined;
 
   public constructor(options: RelaySecureSocketOptions) {
     this.rekeyInterval = options.rekeyInterval;
+    this.observer = options.observer;
     this.handshake = NoiseIkHandshake.initiator({
       prologue: remoteChannelPrologue(options.userId, options.hostId),
       staticKeyPair: options.clientStaticKeyPair,
@@ -184,6 +196,8 @@ export class RelaySecureSocket implements WebSocketLike {
       return;
     }
     this.state = OPEN;
+    this.opened = true;
+    this.observer?.onOpen?.();
     this.onopen?.();
   }
 
@@ -208,7 +222,9 @@ export class RelaySecureSocket implements WebSocketLike {
     }
     this.state = CLOSED;
     this.channel?.close();
-    this.onclose?.(this.failure ?? event);
+    const closeEvent = this.failure ?? event;
+    this.observer?.onClose?.(closeEvent, this.opened);
+    this.onclose?.(closeEvent);
   }
 
   private failChannel(reason: string): void {

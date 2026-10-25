@@ -284,6 +284,36 @@ describe('RelaySecureSocket', () => {
     expect(fixture.socket.readyState).toBe(3);
   });
 
+  it('reports open and close to its observer, with whether it had opened', async () => {
+    const events: string[] = [];
+    const hostStatic = generateNoiseKeyPair();
+    let inner: FakeInnerSocket | undefined;
+    const socket = new RelaySecureSocket({
+      url: URL,
+      userId: USER_ID,
+      hostId: HOST_ID,
+      hostKey: hostStatic.publicKey,
+      clientStaticKeyPair: generateNoiseKeyPair(),
+      createInnerSocket: (url) => {
+        inner = new FakeInnerSocket(url);
+        new FakeHost(inner, hostStatic);
+        return inner;
+      },
+      observer: {
+        onOpen: () => events.push('open'),
+        onClose: (event, opened) => events.push(`close:${event.code}:${String(opened)}`),
+      },
+    });
+    const opened = new Promise<void>((resolve) => {
+      socket.onopen = () => resolve();
+    });
+    inner?.open();
+    await opened;
+    socket.close(1000, 'bye');
+    await flush();
+    expect(events).toEqual(['open', 'close:1000:true']);
+  });
+
   it('refuses to send before the channel is open', () => {
     const fixture = setup();
     expect(() => fixture.socket.send('{}')).toThrow();
