@@ -11,6 +11,7 @@ import type { HostConnectionEvent } from './host-connection-lifecycle.js';
 import { isDirectLoopbackRequest } from './host-connection-origin.js';
 import type { HostConnectionSender } from './host-connection-send.js';
 import type { DeviceToolBroker } from './device-tool-broker.js';
+import { wrapWsPeerSocket } from './host-peer-socket.js';
 
 /** Server state an accepted socket joins; supplied by HostServer. */
 export type HostConnectionAcceptHost = {
@@ -50,7 +51,7 @@ export function acceptHostSocket(
     return;
   }
   const connection = createHostClientConnection({
-    socket,
+    socket: wrapWsPeerSocket(socket),
     directLoopback: isDirectLoopbackRequest(request),
     onHandshakeTimeout: (pending) => {
       host.sender.sendError(pending, 'authentication-required', 'Host hello is required');

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { HostWireMessage } from '@piwin/contracts';
 import { decodeHostWireMessage } from '@piwin/host-transport';
-import type { WebSocket } from 'ws';
 import {
   HOST_IDLE_CONNECTION_MS,
   isHostIngressBypassCommand,
@@ -13,6 +12,7 @@ import {
   requestIdFromSerializedWire,
   toError,
 } from './host-server-support.js';
+import type { HostPeerSocket } from './host-peer-socket.js';
 
 /** Ready state of an open socket; mirrors `ws` (this module stays DOM-free). */
 export const OPEN_READY_STATE = 1;
@@ -22,7 +22,7 @@ export const HANDSHAKE_TIMEOUT_MS = 10_000;
 
 /** One accepted client socket plus everything the Host tracks for it. */
 export type HostClientConnection = {
-  socket: WebSocket;
+  socket: HostPeerSocket;
   authenticated: boolean;
   hydrationEnabled: boolean;
   liveSubscriptions: boolean;
@@ -72,7 +72,7 @@ export function isAllowedHostClientOrigin(input: {
  * a client that never says hello cannot hold a connection slot forever.
  */
 export function createHostClientConnection(options: {
-  socket: WebSocket;
+  socket: HostPeerSocket;
   /** Defaults to false: a connection must prove it is local to skip auth. */
   directLoopback?: boolean;
   onHandshakeTimeout: (connection: HostClientConnection) => void;
@@ -128,12 +128,11 @@ export type HostClientSocketWiring = {
 export function attachHostClientSocketWiring(wiring: HostClientSocketWiring): void {
   const { connection } = wiring;
   const { socket } = connection;
-  socket.on('pong', () => {
+  socket.onPong(() => {
     connection.lastInboundAt = Date.now();
   });
-  socket.on('message', (data) => {
+  socket.onMessage((serialized) => {
     connection.lastInboundAt = Date.now();
-    const serialized = data.toString();
     // Heartbeat and turn-control must not wait behind session/list / media /
     // settings floods. Decode only enough to short-circuit; everything else
     // stays serialized.
@@ -166,10 +165,10 @@ export function attachHostClientSocketWiring(wiring: HostClientSocketWiring): vo
         );
       });
   });
-  socket.on('close', (code, reasonBuffer) => {
-    wiring.onClose(connection, code, reasonBuffer.toString());
+  socket.onClose((code, reason) => {
+    wiring.onClose(connection, code, reason);
   });
-  socket.on('error', (error) => wiring.onError(toError(error, 'Host client socket error')));
+  socket.onError((error) => wiring.onError(toError(error, 'Host client socket error')));
 }
 
 /**
