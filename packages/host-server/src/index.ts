@@ -25,3 +25,4 @@ export * from './relay-user-store.js';
 export * from './remote-access-settings-store.js';
 export * from './host-remote-access.js';
 export type { RelayConnectorStatus } from './relay-connector.js';
+export { readOwnerOnlyTextFile, writeOwnerOnlyTextFile } from './owner-only-json-file.js';

@@ -26,14 +26,9 @@ export class OwnerOnlyJsonFile {
   /** Undefined when the file does not exist; throws when it exists but cannot be read or parsed. */
   public async read(): Promise<unknown> {
     await this.writeTail;
-    let raw: string;
-    try {
-      raw = await readFile(this.filePath, 'utf8');
-    } catch (error) {
-      if (isErrno(error, 'ENOENT')) {
-        return undefined;
-      }
-      throw new Error(`Unable to read ${this.label}: ${toErrorMessage(error)}`);
+    const raw = await readOwnerOnlyTextFile(this.filePath, this.label);
+    if (raw === undefined) {
+      return undefined;
     }
     try {
       return JSON.parse(raw) as unknown;
@@ -52,25 +47,45 @@ export class OwnerOnlyJsonFile {
     await this.writeTail;
   }
 
-  private async writeNow(value: unknown): Promise<void> {
-    await mkdir(dirname(this.filePath), { recursive: true, mode: 0o700 });
-    const temporaryPath = `${this.filePath}.tmp-${process.pid}-${randomUUID()}`;
-    try {
-      await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, {
-        encoding: 'utf8',
-        mode: 0o600,
-        flag: 'wx',
-      });
-      await rename(temporaryPath, this.filePath);
-      await chmod(this.filePath, 0o600);
-    } catch (error) {
-      try {
-        await unlink(temporaryPath);
-      } catch {
-        // Preserve the original write/rename error; cleanup is best effort.
-      }
-      throw new Error(`Unable to persist ${this.label}: ${toErrorMessage(error)}`);
+  private writeNow(value: unknown): Promise<void> {
+    return writeOwnerOnlyTextFile(this.filePath, `${JSON.stringify(value, null, 2)}\n`, this.label);
+  }
+}
+
+/** Reads a text file; undefined when it does not exist. */
+export async function readOwnerOnlyTextFile(
+  filePath: string,
+  label = 'file',
+): Promise<string | undefined> {
+  try {
+    return await readFile(filePath, 'utf8');
+  } catch (error) {
+    if (isErrno(error, 'ENOENT')) {
+      return undefined;
     }
+    throw new Error(`Unable to read ${label}: ${toErrorMessage(error)}`);
+  }
+}
+
+/** Atomic (temp file + rename), owner-only (0600) write; parent created 0700. */
+export async function writeOwnerOnlyTextFile(
+  filePath: string,
+  text: string,
+  label = 'file',
+): Promise<void> {
+  await mkdir(dirname(filePath), { recursive: true, mode: 0o700 });
+  const temporaryPath = `${filePath}.tmp-${process.pid}-${randomUUID()}`;
+  try {
+    await writeFile(temporaryPath, text, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+    await rename(temporaryPath, filePath);
+    await chmod(filePath, 0o600);
+  } catch (error) {
+    try {
+      await unlink(temporaryPath);
+    } catch {
+      // Preserve the original write/rename error; cleanup is best effort.
+    }
+    throw new Error(`Unable to persist ${label}: ${toErrorMessage(error)}`);
   }
 }
 
