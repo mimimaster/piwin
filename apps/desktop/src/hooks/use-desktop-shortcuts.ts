@@ -56,6 +56,12 @@ export function useDesktopShortcuts(options: {
         options.onCommand('stop-run');
         return;
       }
+      // Usually pressed while typing in the composer, so it stays live there.
+      if (key === 'a' && event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        options.onCommand('capture-screenshot');
+        return;
+      }
 
       // Do not fire action shortcuts while typing, except palette and stop above.
       if (editable) {

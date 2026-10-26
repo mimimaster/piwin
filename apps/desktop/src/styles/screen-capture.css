@@ -1,0 +1,57 @@
+/* Built-in screenshot editor + permission dialog (spec 2026-10-25). */
+
+.screen-capture-stage {
+  position: relative;
+  height: calc(100vh - 190px);
+  min-height: 240px;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+  cursor: crosshair;
+  border-radius: var(--r-control);
+}
+
+.screen-capture-stage--text {
+  cursor: text;
+}
+
+.screen-capture-image,
+.screen-capture-overlay {
+  position: absolute;
+  pointer-events: none;
+}
+
+.screen-capture-text-input {
+  position: absolute;
+  min-width: 120px;
+  padding: 0;
+  border: none;
+  outline: 1px dashed currentColor;
+  background: transparent;
+  line-height: 1.2;
+}
+
+.screen-capture-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding-top: var(--s-5);
+}
+
+.screen-capture-toolbar-spacer {
+  flex: 1;
+}
+
+.screen-capture-permission p {
+  margin: 0 0 var(--s-5);
+}
+
+.screen-capture-permission-note {
+  color: var(--text-muted);
+}
+
+.screen-capture-permission-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-4);
+}

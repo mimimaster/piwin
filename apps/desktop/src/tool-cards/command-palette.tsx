@@ -22,6 +22,7 @@ import {
   IconFile,
   IconFolder,
   IconGit,
+  IconImage,
   IconPanelRight,
   IconPlus,
   IconSearch,
@@ -177,5 +178,7 @@ function commandIcon(icon: DesktopCommandIcon): ReactElement {
       return <IconBrowser width={size} height={size} />;
     case 'document':
       return <IconDocument width={size} height={size} />;
+    case 'image':
+      return <IconImage width={size} height={size} />;
   }
 }

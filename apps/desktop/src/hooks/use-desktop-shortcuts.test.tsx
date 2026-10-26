@@ -69,4 +69,11 @@ describe('useDesktopShortcuts', () => {
     expect(commands).toEqual([]);
     expect(palette.opened).toBe(1);
   });
+
+  it('starts a screenshot with ⇧⌘A even while typing in the composer (SC-T06)', () => {
+    const { commands, target } = mount('<textarea data-testid="composer-input"></textarea>');
+    press(target, { key: 'A', metaKey: true, shiftKey: true });
+    press(target, { key: 'a', metaKey: true });
+    expect(commands).toEqual(['capture-screenshot']);
+  });
 });

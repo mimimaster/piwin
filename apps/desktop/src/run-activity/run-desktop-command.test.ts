@@ -16,11 +16,18 @@ function createDeps(overrides: Partial<RunDesktopCommandDeps> = {}): RunDesktopC
     toggleSessions: vi.fn(),
     toggleInspector: vi.fn(),
     openInspector: vi.fn(),
+    captureScreenshot: vi.fn(),
     ...overrides,
   };
 }
 
 describe('runDesktopCommand', () => {
+  it('starts a screenshot', () => {
+    const deps = createDeps();
+    runDesktopCommand('capture-screenshot', deps);
+    expect(deps.captureScreenshot).toHaveBeenCalledOnce();
+  });
+
   it('opens the session search dialog', () => {
     const deps = createDeps();
     runDesktopCommand('search-sessions', deps);

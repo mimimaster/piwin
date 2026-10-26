@@ -143,6 +143,7 @@
 @import './styles/window-material-overlays.css';
 @import './styles/window-material-pages.css';
 @import './styles/window-material-cards.css';
+@import './styles/screen-capture.css';
 /* Memory-governor degradation overlay. Cross-cutting override layer, not a
    region: keyed off html[data-memory-pressure] and must import last so its
    !important strips beat every region sheet above. */

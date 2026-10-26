@@ -30,6 +30,10 @@ import {
 import { SubagentStopProvider } from '../agents/subagent-stop-controller';
 import { TurnChangesHostProvider } from '../turn-changes/turn-changes-host-provider.js';
 import { DockToolHostsProvider } from './docking/dock-tool-hosts.js';
+import {
+  ScreenCaptureContext,
+  type ScreenCaptureEntry,
+} from '../screen-capture/screen-capture-context.js';
 
 type MountsValue = Parameters<typeof KnowledgeMountsProvider>[0]['value'];
 type CitationActionsValue = Parameters<typeof KnowledgeCitationActionsProvider>[0]['value'];
@@ -52,6 +56,7 @@ export function WorkbenchWorkspaceProviders(props: {
   knowledgeMounts: MountsValue;
   knowledgeCitationActions: CitationActionsValue;
   onOpenReview: () => void;
+  screenCapture: ScreenCaptureEntry;
   children: ReactNode;
 }): ReactElement {
   return (
@@ -78,7 +83,9 @@ export function WorkbenchWorkspaceProviders(props: {
                       <KnowledgeMountsProvider value={props.knowledgeMounts}>
                         <KnowledgeCitationActionsProvider value={props.knowledgeCitationActions}>
                           <DockToolHostsProvider value={props.dockToolHosts}>
-                            {props.children}
+                            <ScreenCaptureContext.Provider value={props.screenCapture}>
+                              {props.children}
+                            </ScreenCaptureContext.Provider>
                           </DockToolHostsProvider>
                         </KnowledgeCitationActionsProvider>
                       </KnowledgeMountsProvider>

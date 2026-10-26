@@ -13,6 +13,7 @@ mod pty_host;
 mod pty_tui;
 mod reveal_in_file_manager;
 mod save_user_file;
+mod screen_capture;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -39,6 +40,7 @@ pub fn run() {
         .manage(ShutdownState::default())
         .manage(AttentionNotificationState::default())
         .manage(AppUpdateState::default())
+        .manage(screen_capture::ScreenCaptureState::default())
         .invoke_handler(tauri::generate_handler![
             host_start,
             host_stop,
@@ -73,7 +75,14 @@ pub fn run() {
             app_update::app_update_install,
             channel_secret_store::desktop_secret_read,
             channel_secret_store::desktop_secret_write,
-            channel_secret_store::desktop_secret_clear
+            channel_secret_store::desktop_secret_clear,
+            screen_capture::screen_capture_capabilities,
+            screen_capture::screen_capture_authorization_status,
+            screen_capture::screen_capture_request_authorization,
+            screen_capture::screen_capture_open_system_settings,
+            screen_capture::screen_capture_restart_app,
+            screen_capture::screen_capture_take,
+            screen_capture::screen_capture_read
         ])
         .setup(|application| {
             piwin_artifact_webview::install_artifact_bridge(application.handle())?;

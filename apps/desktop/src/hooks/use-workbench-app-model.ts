@@ -22,6 +22,7 @@ import { useWorkbenchTurnActions } from './use-workbench-turn-actions';
 import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
 import type { WorkbenchShellChrome } from './use-workbench-shell-chrome';
 import type { HostClient } from '../host/host-client';
+import { useWorkbenchScreenCapture } from '../screen-capture/use-workbench-screen-capture';
 
 export type UseWorkbenchAppModelArgs = {
   hostClient: HostClient;
@@ -165,6 +166,13 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     composer: composer.composer,
     send: composer.handleSend,
   });
+  const screenCapture = useWorkbenchScreenCapture({
+    state,
+    locale: chrome.desktopLocale,
+    canAttachFiles: composer.canAttachFiles,
+    enqueueAttachmentFile: composer.enqueueAttachmentFile,
+    dispatchNotification: host.dispatchNotification,
+  });
   const commands = useWorkbenchCommands({
     activeTheme,
     preferences: chrome.preferences,
@@ -178,6 +186,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     handleOpenWorkspaceClick: session.handleOpenWorkspaceClick,
     handleAbort: session.handleAbort,
     openSessionSearch: chrome.sessionListChrome.openSessionSearch,
+    captureScreenshot: screenCapture.start,
   });
   const derived = useWorkbenchDerivedView({
     state,
@@ -251,5 +260,6 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     ...subagent,
     ...turn,
     handleSessionMenuAction,
+    screenCapture,
   };
 }

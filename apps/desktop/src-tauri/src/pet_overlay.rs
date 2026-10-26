@@ -3,7 +3,7 @@
 use tauri::webview::WebviewWindowBuilder;
 use tauri::Manager;
 
-const PET_OVERLAY_LABEL: &str = "pet-overlay";
+pub(crate) const PET_OVERLAY_LABEL: &str = "pet-overlay";
 
 fn prepare_pet_overlay_window(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     window.set_visible_on_all_workspaces(true)?;

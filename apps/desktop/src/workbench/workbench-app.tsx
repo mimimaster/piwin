@@ -38,6 +38,7 @@ import { findViewGroupId, isStageGroupId } from './docking/topology.js';
 import { sessionScopeKey } from '../session/session-scope-key';
 import { useWorkbenchKnowledge } from '../hooks/use-workbench-knowledge';
 import { isInkstoneThemeId } from '../theme/appearance-tokens';
+import { ScreenCaptureLayer } from '../screen-capture/screen-capture-layer';
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -308,6 +309,12 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     tasksChildren,
   });
 
+  const screenCapture = model.screenCapture;
+  const screenCaptureEntry = useMemo(
+    () => ({ supported: screenCapture.supported, start: screenCapture.start }),
+    [screenCapture.supported, screenCapture.start],
+  );
+
   return (
     <WorkbenchWorkspaceProviders
       locale={desktopLocale}
@@ -326,6 +333,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       knowledgeMounts={stableKnowledgeMounts}
       knowledgeCitationActions={stableCitationActions}
       onOpenReview={openReviewTab}
+      screenCapture={screenCaptureEntry}
     >
       <WorkbenchShellFrame
         state={state}
@@ -379,6 +387,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
         handleRemixToComposer={handleRemixToComposer}
         onThemeApplied={onThemeApplied}
       />
+      <ScreenCaptureLayer controller={screenCapture} />
     </WorkbenchWorkspaceProviders>
   );
 }

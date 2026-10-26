@@ -68,6 +68,13 @@ export const SHORTCUT_CATALOG: readonly ShortcutCatalogGroup[] = [
         chord: '⌘L',
       },
       {
+        id: 'capture-screenshot',
+        commandId: 'capture-screenshot',
+        titleEn: 'Take Screenshot',
+        titleZh: '截屏并标注',
+        chord: '⇧⌘A',
+      },
+      {
         id: 'open-settings',
         commandId: 'open-settings',
         titleEn: 'Open Settings',

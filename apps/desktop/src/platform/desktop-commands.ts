@@ -17,6 +17,7 @@ export type DesktopCommandId =
   | 'toggle-sidebar'
   | 'toggle-right-panel'
   | 'stop-run'
+  | 'capture-screenshot'
   | 'switch-tab-1'
   | 'switch-tab-2'
   | 'switch-tab-3'
@@ -39,7 +40,8 @@ export type DesktopCommandIcon =
   | 'file'
   | 'changes'
   | 'browser'
-  | 'document';
+  | 'document'
+  | 'image';
 
 export type DesktopCommand = {
   id: DesktopCommandId;
@@ -121,6 +123,15 @@ export const DESKTOP_COMMANDS: DesktopCommand[] = [
     icon: 'stop',
     keywords: ['stop', 'abort', 'cancel', 'interrupt', '停止'],
     shortcut: '⌘.',
+  },
+  {
+    id: 'capture-screenshot',
+    title: 'Take Screenshot',
+    titleZh: '截屏并标注',
+    group: 'composer',
+    icon: 'image',
+    keywords: ['screenshot', 'capture', 'screen', 'annotate', 'snip', '截屏', '截图', '标注'],
+    shortcut: '⇧⌘A',
   },
   {
     id: 'toggle-inspector',

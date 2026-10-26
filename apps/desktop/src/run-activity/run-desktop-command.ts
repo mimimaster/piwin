@@ -24,6 +24,7 @@ export type RunDesktopCommandDeps = {
   toggleSessions: () => void;
   toggleInspector: (tab?: RightPanelTab | null) => void;
   openInspector: (tab: RightPanelTab) => void;
+  captureScreenshot: () => void;
 };
 
 export function runDesktopCommand(commandId: DesktopCommandId, deps: RunDesktopCommandDeps): void {
@@ -55,6 +56,9 @@ export function runDesktopCommand(commandId: DesktopCommandId, deps: RunDesktopC
       return;
     case 'stop-run':
       void deps.onStopRun();
+      return;
+    case 'capture-screenshot':
+      deps.captureScreenshot();
       return;
     default: {
       const tab = DESKTOP_COMMAND_OPEN_TAB[commandId];

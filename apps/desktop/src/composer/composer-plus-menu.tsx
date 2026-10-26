@@ -30,6 +30,7 @@ import {
 import { DEVICE_HEALTH_COPY } from '../devices/device-health-copy';
 import { useDeviceHealth } from '../hooks/use-device-health';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
+import { useScreenCaptureEntry } from '../screen-capture/screen-capture-context';
 import type { SessionMcpSwitches } from '../hooks/use-session-mcp-switches';
 import type { SlashExtensionCommandInput } from '../slash';
 
@@ -109,6 +110,12 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
     health.enabled && onAddContextRef !== undefined
       ? () => onAddContextRef(APPLE_HEALTH_CONTEXT_REF)
       : undefined;
+  // Offered only where an image attachment would be accepted (ADR 0082).
+  const screenCapture = useScreenCaptureEntry();
+  const startScreenCapture =
+    screenCapture?.supported === true && props.onAttachImage && !imageDisabledReason
+      ? screenCapture.start
+      : undefined;
   const hasAttachments = Boolean(
     props.onAttachFile || props.onAttachImage || imageDisabledReason || attachAppleHealth,
   );
@@ -163,6 +170,15 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
             <IconImage width={16} height={16} />
           </span>
           <span className="plus-menu-label">{isZh ? '添加图片' : 'Attach image'}</span>
+        </DropdownMenuItem>
+      ) : null}
+
+      {startScreenCapture ? (
+        <DropdownMenuItem onSelect={startScreenCapture} testId="plus-menu-screenshot">
+          <span className="plus-menu-icon">
+            <IconImage width={16} height={16} />
+          </span>
+          <span className="plus-menu-label">{isZh ? '截屏并标注' : 'Take screenshot'}</span>
         </DropdownMenuItem>
       ) : null}
 

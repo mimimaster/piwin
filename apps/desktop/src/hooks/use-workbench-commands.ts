@@ -39,6 +39,7 @@ export type UseWorkbenchCommandsArgs = {
   handleOpenWorkspaceClick: () => void | Promise<void>;
   handleAbort: () => void | Promise<void>;
   openSessionSearch: () => void;
+  captureScreenshot: () => void;
 };
 
 export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
@@ -55,6 +56,7 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
     handleOpenWorkspaceClick,
     handleAbort,
     openSessionSearch,
+    captureScreenshot,
   } = args;
 
   const handleToggleAppearance = useCallback((): void => {
@@ -122,9 +124,11 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
           shell.toggleInspector(tab);
         },
         openInspector: openRightTab,
+        captureScreenshot,
       });
     },
     [
+      captureScreenshot,
       handleAbort,
       handleOpenWorkspaceClick,
       handleStartNewSession,
