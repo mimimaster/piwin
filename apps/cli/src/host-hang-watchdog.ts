@@ -7,6 +7,11 @@ import {
 } from './host-diagnostic-report.js';
 import { HOST_HANG_WATCHDOG_WORKER_SOURCE } from './host-hang-watchdog-worker-source.js';
 import {
+  hostJitSymbolMapPath,
+  hostJitSymbolsDirectory,
+  pruneHostJitSymbolMaps,
+} from './host-jit-symbols.js';
+import {
   formatInFlightCommands,
   type InFlightCommandSnapshot,
 } from './host-serve-inflight-commands.js';
@@ -128,6 +133,7 @@ export function startHostHangWatchdog(options: HostHangWatchdogOptions): HostHan
       heartbeat: heartbeat.buffer,
       logFilePath: options.logFilePath,
       diagnosticsDir: options.diagnosticsDir,
+      jitSymbolMapPath: hostJitSymbolMapPath(options.diagnosticsDir, process.pid),
       pid: process.pid,
       platform: process.platform,
       pollMs: settings.pollMs,
@@ -166,6 +172,13 @@ export function startHostHangWatchdog(options: HostHangWatchdogOptions): HostHan
   } catch (error) {
     log(
       `[piwin host serve] diagnostics prune failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  try {
+    pruneHostJitSymbolMaps(hostJitSymbolsDirectory(options.diagnosticsDir), process.pid);
+  } catch (error) {
+    log(
+      `[piwin host serve] JIT symbol map prune failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 

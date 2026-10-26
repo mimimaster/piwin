@@ -11,11 +11,17 @@
  * Heartbeat layout (BigInt64Array over `workerData.heartbeat`), written by the
  * main thread once per beat: [0] beat time (epoch ms), [1] main heap used
  * bytes, [2] main heap limit bytes.
+ *
+ * Each sample is symbolized here, on this thread, right after it is written:
+ * the Host may be killed while still blocked, and its JIT symbol map is
+ * pruned once it has exited.
  */
+import { HOST_JIT_SYMBOLIZER_SOURCE } from './host-jit-symbolizer-source.js';
+
 export const HOST_HANG_WATCHDOG_WORKER_SOURCE = String.raw`
 'use strict';
 const { workerData } = require('node:worker_threads');
-const { appendFileSync, mkdirSync } = require('node:fs');
+const { appendFileSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs');
 const { execFile } = require('node:child_process');
 const { join } = require('node:path');
 
@@ -76,9 +82,34 @@ function captureNativeStack(lagMs) {
     { timeout: (settings.sampleSeconds + 20) * 1000 },
     (error) => {
       write(error ? 'stack sample failed: ' + error.message : 'stack sample written: ' + file);
+      if (!error) symbolizeSampleFile(file);
     },
   );
 }
+
+function symbolizeSampleFile(file) {
+  let symbolMap;
+  try {
+    symbolMap = readFileSync(settings.jitSymbolMapPath, 'utf8');
+  } catch (error) {
+    write('stack sample not symbolized: no JIT symbol map at ' + settings.jitSymbolMapPath +
+      ' (the Host was launched without --perf-basic-prof-only-functions)');
+    return;
+  }
+  try {
+    const result = symbolizeHangSample(readFileSync(file, 'utf8'), symbolMap);
+    if (result.resolved === 0) {
+      write('stack sample not symbolized: no JIT frame matched the symbol map');
+      return;
+    }
+    writeFileSync(file, result.text);
+    write('stack sample symbolized: ' + result.resolved + ' JIT frames; main thread stuck in ' +
+      (result.culprit === undefined ? '(unknown)' : result.culprit));
+  } catch (error) {
+    write('stack sample symbolization failed: ' + (error && error.message));
+  }
+}
+${HOST_JIT_SYMBOLIZER_SOURCE}
 
 function poll() {
   const now = Date.now();

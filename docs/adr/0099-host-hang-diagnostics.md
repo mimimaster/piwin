@@ -58,6 +58,28 @@ Every timer is unref'd:
    An older Host without the handler dies on SIGUSR2's default action, which
    counts as `killed`.
 
+5. **JIT symbol map (amended 2026-10-24).** A real hang left three samples
+   whose main thread sat in `RegExp.prototype.test` called from a `???` JIT
+   frame, so the stuck function could not be named. Desktop now launches the
+   packaged macOS Host with `--perf-basic-prof-only-functions
+   --perf-basic-prof-path=~/.piwin/diagnostics/jit-symbols
+   --interpreted-frames-native-stack`
+   (`apps/desktop/src-tauri/src/host_bridge/jit_symbols.rs`), so V8 writes
+   `perf-<pid>.map` (address range → `JS:<name> <file>:<line>:<col>`). Right
+   after each sample, the watchdog worker renames every matching `???` frame
+   in the sample file and logs `stack sample symbolized: N JIT frames; main
+   thread stuck in <frame>`, the main thread's hottest, deepest named frame
+   (`apps/cli/src/host-jit-symbolizer-source.ts`). This has to be a launch
+   flag: `v8.setFlagsFromString` after startup writes no map, and code
+   compiled before the flag cannot be named later. Neither alternative works
+   either: an inspector `Debugger.pause` from the worker is not delivered
+   while V8 is inside a regex, and a CPU profile would need to be running
+   before the hang. Maps of exited Hosts are deleted when the Host starts.
+   The dev tier (pnpm/tsx), the TUI child and the CLI `piwin host serve`
+   launch without the flags, and their samples log `not symbolized`. To get
+   names there, set the flags in `NODE_OPTIONS` (the `~/bin/node` wrapper
+   drops V8 flags; call the real binary).
+
 `~/.piwin/diagnostics` keeps the newest 20 `host-hang-*` / `host-report-*` /
 `orphan-host-*` files; older ones are pruned when the Host starts.
 
@@ -68,8 +90,13 @@ Every timer is unref'd:
   report/sample. Together these separate a blocked loop (GC vs. sync code vs.
   syscall) from a handler that never resolves.
 - A fully blocked loop cannot run the SIGUSR2 handler, so that case relies on
-  the native samples. JS frames show up mostly as JIT addresses; GC, syscall
-  and native-addon frames are symbolized.
+  the native samples. In the packaged macOS Host, JS frames are named from
+  the JIT symbol map (decision 5); GC, syscall and native-addon frames are
+  symbolized by `sample` itself.
+- The symbol map grows for the Host's whole life (one line per compiled
+  function; a short run with the full CLI loaded wrote ~3 MB) and lives under
+  `~/.piwin/diagnostics/jit-symbols`, not `/tmp`. Pruning only deletes maps
+  whose pid is no longer alive.
 - Native sampling is macOS-only. Other platforms get the log lines and the
   report only.
 - The standalone `apps/host` server (`host-listen.mjs`) does not start the

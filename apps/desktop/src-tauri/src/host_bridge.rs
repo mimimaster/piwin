@@ -13,6 +13,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 mod exit_reason;
+mod jit_symbols;
 mod logs;
 mod pending;
 mod process;
@@ -21,6 +22,7 @@ mod streams;
 mod supervisor;
 
 use exit_reason::HostExitDiagnostics;
+use jit_symbols::with_jit_symbol_args;
 use logs::{emit_log, emit_status};
 use pending::{
     assign_host_request_id, fail_all_pending, resolve_host_request_timeout, PendingResponse,
@@ -136,6 +138,9 @@ fn host_start_blocking(
         .ok()
         .and_then(|path| path.canonicalize().ok());
     let (program, args, tier, assets_root, cwd) = resolve_host_command(mock, resource_dir)?;
+    // Only the Host gets the symbol map: the TUI child shares the program but
+    // has no hang watchdog to read it.
+    let args = with_jit_symbol_args(args, tier, desktop_piwin_root(&app, tier).as_deref());
     emit_log(
         &app,
         "info",
@@ -221,6 +226,17 @@ fn host_start_blocking(
     Ok(serde_json::json!({ "started": true, "mock": mock }))
 }
 
+/// The config root a Desktop-launched CLI child owns. Packaged builds always
+/// own ~/.piwin; dev mode honours a PIWIN_ROOT override.
+fn desktop_piwin_root(app: &AppHandle, tier: HostCommandTier) -> Option<PathBuf> {
+    if tier != HostCommandTier::Packaged {
+        if let Ok(root) = std::env::var("PIWIN_ROOT") {
+            return Some(PathBuf::from(root));
+        }
+    }
+    app.path().home_dir().ok().map(|home| home.join(".piwin"))
+}
+
 /// Environment every CLI child of Desktop needs: the config root it owns, the
 /// Playwright cache beside it, and where a packaged bundle finds its externals.
 fn cli_child_environment(
@@ -230,13 +246,7 @@ fn cli_child_environment(
     assets_root: Option<&PathBuf>,
 ) -> Vec<(&'static str, std::ffi::OsString)> {
     let mut environment: Vec<(&'static str, std::ffi::OsString)> = Vec::new();
-    // Force packaged builds to own ~/.piwin; in dev mode allow PIWIN_ROOT override.
-    let piwin_root = if tier != HostCommandTier::Packaged && std::env::var("PIWIN_ROOT").is_ok() {
-        std::env::var("PIWIN_ROOT").ok().map(PathBuf::from)
-    } else {
-        app.path().home_dir().ok().map(|home| home.join(".piwin"))
-    };
-    if let Some(root) = piwin_root.as_ref() {
+    if let Some(root) = desktop_piwin_root(app, tier).as_ref() {
         environment.push(("PIWIN_ROOT", root.clone().into_os_string()));
         // Playwright snapshots PLAYWRIGHT_BROWSERS_PATH on first import. Set it
         // before JS loads so first-use Chromium lands in ~/.piwin/playwright.
