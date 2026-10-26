@@ -92,13 +92,18 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
   const { activeDocument, activeDraftId, activeMedia, activeSessionName } = model;
   const { activeSessionOrigin, activitySignal, addContextRef, addWebElement } = model;
   const { artifactCanvas, artifactThemeKey, assemblySummariesByRunId } = model;
-  const { backendServiceSessionIds, branchPoints, branchResend, composerCard } = model;
+  const { backendServiceSessionIds, branchPoints, composerCard } = model;
   const { composerLayoutMode, config, continueTurn, dispatchNotification, draftAgentId } = model;
   const { draftAgentOptions, draftSessions, effectiveRunMode, enqueueAttachmentFile } = model;
   const { extensionUiRequest, fileBrowseRoot, forkCountsByMessageId, handleAbort } = model;
   const { handleAddDocComment, handleArtifactAction, handleCancelMessageEdit } = model;
   const { handleCancelWalkthrough, handleCommentLine, handleCompactAbort } = model;
-  const { handleDeleteDocComment, handleEditAndResendMessage, handleEditDocComment } = model;
+  const {
+    handleBranchResendMessage,
+    handleDeleteDocComment,
+    handleEditAndResendMessage,
+    handleEditDocComment,
+  } = model;
   const { handleExtensionUiResolve, handleForkSession, handleGenerateWalkthrough } = model;
   const { handleInspectSubagent, handleInterventionCancel, handleInterventionEdit } = model;
   const { handleJumpToHistoryAnchor, handleJumpToTranscriptMessage } = model;
@@ -333,7 +338,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             onRetry={handleRetryMessage}
             onRetryTurn={retryTurn}
             onContinueTurn={continueTurn}
-            onBranchResend={branchResend}
+            onBranchResend={handleBranchResendMessage}
             onSwitchBranch={switchBranch}
             onInterventionEdit={handleInterventionEdit}
             onInterventionCancel={handleInterventionCancel}

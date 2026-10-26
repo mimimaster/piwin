@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { HostCommand, HostResponse, PlanDisplayPayload, SessionPlan } from '@piwin/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DesktopLocaleProvider } from '../i18n/desktop-locale-context';
-import { createInitialChatUiState } from '../conversation/chat-reducer';
+import { createInitialChatUiState, type ChatUiState } from '../conversation/chat-reducer';
 import type { HostClient } from '../host/host-client';
 import { buildPlanExecutionPrompt, useWorkbenchTurnActions } from './use-workbench-turn-actions';
 
@@ -148,5 +148,82 @@ describe('plan card prompt handoff', () => {
 
     expect(sendPrompt).not.toHaveBeenCalled();
     expect(dispatchNotification).toHaveBeenCalledOnce();
+  });
+});
+
+describe('edit-resend carry', () => {
+  let root: Root | undefined;
+  let container: HTMLDivElement | undefined;
+
+  afterEach(() => {
+    act(() => root?.unmount());
+    container?.remove();
+    root = undefined;
+    container = undefined;
+  });
+
+  it('re-sends a turn whose carried attachment was dropped instead of retrying it', () => {
+    const branchResend = vi.fn();
+    const retryTurn = vi.fn();
+    const state = {
+      ...createInitialChatUiState(),
+      activeSessionId: 'session-1',
+      messages: [
+        {
+          id: 'u1',
+          role: 'user' as const,
+          text: 'keep this text',
+          attachments: [
+            {
+              id: 'att-1',
+              kind: 'media' as const,
+              path: '/home/user/.piwin/media/att-1.png',
+              mimeType: 'image/png',
+              byteSize: 1024,
+              source: 'paste' as const,
+            },
+          ],
+        },
+      ],
+    } as unknown as ChatUiState;
+    let captured: ReturnType<typeof useWorkbenchTurnActions> | undefined;
+
+    function Harness(): null {
+      captured = useWorkbenchTurnActions({
+        hostClient: { request: vi.fn() } as unknown as HostClient,
+        state,
+        sessionPlan: null,
+        sendPrompt: vi.fn(),
+        dispatch: vi.fn(),
+        dispatchNotification: vi.fn(),
+        setEditingMessageId: vi.fn(),
+        branchResend,
+        retryTurn,
+      });
+      return null;
+    }
+
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    act(() => {
+      root?.render(
+        <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+          <Harness />
+        </DesktopLocaleProvider>,
+      );
+    });
+
+    act(() => {
+      captured?.handleEditAndResendMessage('u1', 'keep this text', {
+        attachments: [],
+        contextRefs: [],
+      });
+    });
+
+    expect(retryTurn).not.toHaveBeenCalled();
+    expect(branchResend).toHaveBeenCalledWith('u1', 'keep this text', {
+      carry: { attachments: [], contextRefs: [] },
+    });
   });
 });

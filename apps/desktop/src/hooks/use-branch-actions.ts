@@ -32,7 +32,11 @@ import {
   requestPromptWithForeground,
 } from '../composer/prompt-foreground';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
-import { clipMessagesAfterId, clipMessagesBeforeId } from '../conversation/conversation-branch.js';
+import {
+  clipMessagesAfterId,
+  clipMessagesBeforeId,
+  type EditResendCarry,
+} from '../conversation/conversation-branch.js';
 import { transcriptOwnerBlocksDangerousAction } from '../conversation/transcript-owner-guard';
 import type { AgentModeId } from '../agents/agent-mode';
 import type { ModelOption } from './use-session-actions';
@@ -223,7 +227,7 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     async (
       messageId: string,
       nextText: string,
-      options?: { confirm?: boolean },
+      options?: { confirm?: boolean; carry?: EditResendCarry },
     ): Promise<void> => {
       if (!activeSessionId) {
         dispatchNotification(pushError('No active session to branch.'));
@@ -242,8 +246,10 @@ export function useBranchActions(args: UseBranchActionsArgs) {
         return;
       }
       const text = nextText.trim();
-      const attachments = target.attachments;
-      const contextRefs = target.contextRefs;
+      // The edit card lets the user drop a carried attachment; when it does, the
+      // wire payload must follow the card, not the stored message.
+      const attachments = options?.carry?.attachments ?? target.attachments;
+      const contextRefs = options?.carry?.contextRefs ?? target.contextRefs;
       if (
         !text &&
         attachments.length === 0 &&

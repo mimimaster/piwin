@@ -11,7 +11,10 @@ import type {
 } from '@piwin/contracts';
 import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
 import type { HostClient } from '../host/host-client';
-import { isUnchangedCurrentTurnResend } from '../conversation/conversation-branch';
+import {
+  isUnchangedCurrentTurnResend,
+  type EditResendCarry,
+} from '../conversation/conversation-branch';
 import { pushError, type NotificationAction } from '../notifications/notification-queue';
 import { hostFailureNotice, isStaleInterventionError } from '../host/host-problem-copy.js';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
@@ -25,7 +28,11 @@ export type UseWorkbenchTurnActionsArgs = {
   dispatch: Dispatch<ChatUiAction>;
   dispatchNotification: Dispatch<NotificationAction>;
   setEditingMessageId: Dispatch<SetStateAction<string | null>>;
-  branchResend: (messageId: string, text: string) => void | Promise<void>;
+  branchResend: (
+    messageId: string,
+    text: string,
+    options?: { confirm?: boolean; carry?: EditResendCarry },
+  ) => void | Promise<void>;
   retryTurn: (userMessageId: string, options: { keepPrevious: boolean }) => void | Promise<void>;
 };
 
@@ -142,14 +149,24 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
   );
 
   const handleEditAndResendMessage = useCallback(
-    (messageId: string, text: string): void => {
-      if (isUnchangedCurrentTurnResend(state.messages, messageId, { text })) {
+    (messageId: string, text: string, carry?: EditResendCarry): void => {
+      // A dropped attachment is a content change, so it must not take the
+      // retry shortcut — retry re-sends the turn the Host already stored.
+      if (isUnchangedCurrentTurnResend(state.messages, messageId, { text, ...carry })) {
         void retryTurn(messageId, { keepPrevious: false });
         return;
       }
-      void branchResend(messageId, text);
+      void branchResend(messageId, text, carry ? { carry } : {});
     },
     [branchResend, retryTurn, state.messages],
+  );
+
+  /** Transcript 开分支 button: same carry, explicit sibling branch. */
+  const handleBranchResendMessage = useCallback(
+    (messageId: string, text: string, carry?: EditResendCarry): void => {
+      void branchResend(messageId, text, carry ? { carry } : {});
+    },
+    [branchResend],
   );
 
   const handleMessageFeedback = useCallback(
@@ -232,6 +249,7 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
     handleInterventionEdit,
     handleInterventionCancel,
     handleEditAndResendMessage,
+    handleBranchResendMessage,
     handleMessageFeedback,
     handlePlanExecute,
     handlePlanAction,

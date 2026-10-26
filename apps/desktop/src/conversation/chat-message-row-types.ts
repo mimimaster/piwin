@@ -27,6 +27,7 @@ import type {
 } from './chat-reducer';
 import type { SubagentInspectorSelection } from '../agents/subagent-activity-model';
 import type { ExploreFlowRole } from './explore-flow';
+import type { EditResendCarry } from './conversation-branch';
 import type { DocumentOpenInput } from '../tool-cards/tool-call-card';
 import type { FilesChangedBarRequest } from './chat-turn-files-summary';
 import type { ToolCallDensity, WorkDetailsExpanded } from '../platform/ui-preferences';
@@ -82,11 +83,11 @@ export type ChatMessageRowProps = {
    */
   onEdit?: ((messageId: string) => void) | undefined;
   onCancelEdit?: (() => void) | undefined;
-  onEditResend?: ((messageId: string, text: string) => void) | undefined;
+  onEditResend?: ((messageId: string, text: string, carry?: EditResendCarry) => void) | undefined;
   onRetry?: ((messageId: string) => void) | undefined;
   onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;
   onContinueTurn?: () => void;
-  onBranchResend?: (messageId: string, text: string) => void;
+  onBranchResend?: (messageId: string, text: string, carry?: EditResendCarry) => void;
   branchPoints?: TranscriptBranchPoint[];
   onSwitchBranch?: (headMessageId: string) => void;
   onInterventionEdit?: (messageId: string, text: string) => void | Promise<void>;

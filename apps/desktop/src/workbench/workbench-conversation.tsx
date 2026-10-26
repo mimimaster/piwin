@@ -33,6 +33,7 @@ import { isEventHandlerPropName, memoWithLatestCallbacks } from '../conversation
 import { useTranscriptComposerCard } from '../conversation/transcript-composer-card';
 import { buildEmptyStageAgentControl } from '../conversation/empty-stage-agent-control.js';
 import type { ChatMessageUi, ChatUiState, SessionListItemUi } from '../conversation/chat-reducer';
+import type { EditResendCarry } from '../conversation/conversation-branch';
 import { ComposerDock, type ComposerDockProps } from '../composer/composer-dock';
 import type { DesktopLocale } from '../i18n/desktop-locale';
 import { EmptyStageLanding } from '../conversation/empty-stage-landing';
@@ -117,11 +118,11 @@ export type WorkbenchTranscriptProps = {
   onInspectSubagent: (selection: SubagentInspectorSelection) => void;
   onEdit: (messageId: string) => void;
   onCancelEdit: () => void;
-  onEditResend: (messageId: string, text: string) => void;
+  onEditResend: (messageId: string, text: string, carry?: EditResendCarry) => void;
   onRetry: (messageId: string) => void;
   onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;
   onContinueTurn?: () => void;
-  onBranchResend: (messageId: string, text: string) => void;
+  onBranchResend: (messageId: string, text: string, carry?: EditResendCarry) => void;
   onSwitchBranch: (headMessageId: string) => void;
   onInterventionEdit: (messageId: string, text: string) => void | Promise<void>;
   onInterventionCancel: (messageId: string) => void | Promise<void>;

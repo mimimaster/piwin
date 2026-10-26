@@ -7,6 +7,7 @@ import { isAssistantContentEmpty } from './assistant-message-content';
 import { MarkdownView } from '../markdown/MarkdownView';
 import { CitationCards } from './CitationCards';
 import { MessageAttachments } from './message-attachments';
+import { MessageEditSurface } from './message-edit-surface';
 import { findActiveBranchPoint } from './conversation-branch.js';
 import { MessageBranchSwitcher } from './message-branch-switcher.js';
 import { mapThemeToArtifactVariables } from '../artifact/artifact-theme-map';
@@ -39,7 +40,6 @@ import { UserMessageContent } from './conversation-user-message';
 import { SystemMessageContent } from './system-message-content';
 import { resolveAssistantRenderingPhase } from './streaming-caret';
 import { useDesktopContextMenu, type ContextMenuTarget } from '../context-menu';
-import { MessageEditCard } from './chat-message-edit-card';
 import { TurnErrorCard } from '../turn-changes/turn-error-card';
 import { TurnTruncationCard } from '../turn-changes/turn-truncation-card';
 import { RunIdleLoopCard } from '../run-activity/run-idle-loop-card';
@@ -422,7 +422,7 @@ const ChatMessageRowContent = (
             {...(onCancelGeneration ? { onCancel: onCancelGeneration } : {})}
           />
         ) : null}
-        {message.role === 'assistant' || isEditingThis ? (
+        {message.role === 'assistant' ? (
           <MessageAttachments
             attachments={message.attachments}
             {...(message.contextRefs ? { contextRefs: message.contextRefs } : {})}
@@ -438,24 +438,25 @@ const ChatMessageRowContent = (
             {...(props.knownFilePaths ? { knownFilePaths: props.knownFilePaths } : {})}
           />
         ) : isEditingThis ? (
-          <MessageEditCard
+          <MessageEditSurface
             messageId={message.id}
             initialText={message.text}
-            composerCard={props.composerCard}
-            {...(message.attachments.length > 0 ||
-            (message.contextRefs !== undefined && message.contextRefs.length > 0)
-              ? { hasCarryContent: true }
-              : {})}
+            attachments={message.attachments}
+            {...(message.contextRefs !== undefined ? { contextRefs: message.contextRefs } : {})}
+            {...(props.composerCard !== undefined ? { composerCard: props.composerCard } : {})}
             onCancel={() => props.onCancelEdit?.()}
-            onResend={(text) => {
+            onResend={(text, carry) => {
               if (canEditPendingIntervention && props.onInterventionEdit) {
                 void props.onInterventionEdit(message.id, text);
                 return;
               }
-              props.onEditResend?.(message.id, text);
+              props.onEditResend?.(message.id, text, carry);
             }}
-            {...(props.onBranchResend
-              ? { onOpenBranch: (text) => props.onBranchResend?.(message.id, text) }
+            {...(props.onBranchResend !== undefined
+              ? {
+                  onOpenBranch: (text, carry) =>
+                    props.onBranchResend?.(message.id, text, carry),
+                }
               : {})}
             interventionEdit={canEditPendingIntervention}
             currentTurn={props.lastUserMessageId === message.id}

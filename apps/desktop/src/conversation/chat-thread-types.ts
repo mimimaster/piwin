@@ -34,6 +34,7 @@ import type { AgentLocatorAnimation, ToolCallDensity, WorkDetailsExpanded } from
 import type { ComposerDockProps } from '../composer/composer-dock';
 import type { DiffCardRequest } from '../tool-cards/diff-card';
 import type { ModelOption } from '../models/model-options';
+import type { EditResendCarry } from './conversation-branch';
 
 export type ChatThreadProps = {
   messages: ChatMessageUi[];
@@ -77,10 +78,10 @@ export type ChatThreadProps = {
   /** Edit / retry; omitted where the session cannot be rewound (see ChatMessageRowProps). */
   onEdit?: ((messageId: string) => void) | undefined;
   onCancelEdit?: (() => void) | undefined;
-  onEditResend?: ((messageId: string, text: string) => void) | undefined;
+  onEditResend?: ((messageId: string, text: string, carry?: EditResendCarry) => void) | undefined;
   onRetry?: ((messageId: string) => void) | undefined;
   /** Resend a user turn as a sibling branch (changed-text or explicit 开分支). */
-  onBranchResend?: (messageId: string, text: string) => void;
+  onBranchResend?: (messageId: string, text: string, carry?: EditResendCarry) => void;
   /** Re-run the same user turn without creating a prompt sibling. */
   onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;
   onContinueTurn?: () => void;

@@ -498,6 +498,41 @@ button.att:focus-visible {
   min-width: 0;
 }
 
+/* Edit-mode only: a carried attachment can be dropped before resending. */
+.att-removable {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.att-remove {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--t3, var(--text-3, var(--t2, var(--text-2))));
+  cursor: pointer;
+}
+
+.att-remove:hover {
+  background: var(--coral, var(--danger));
+  color: var(--on-iris, var(--on-accent));
+}
+
+.att-remove:focus-visible {
+  outline: 2px solid var(--azure, var(--focus-ring, Highlight));
+  outline-offset: 1px;
+}
+
 .message-context-refs {
   display: flex;
   flex-wrap: wrap;

@@ -5,9 +5,20 @@
 
 import {
   isPromptForkPoint,
+  type PromptAttachment,
   type PromptContextRef,
   type TranscriptBranchPoint,
 } from '@piwin/contracts';
+
+/**
+ * What the in-transcript edit card sends back with a new version: the turn's
+ * carried attachments/refs as the user left them. A dropped chip must not ride
+ * along on the wire, so the resend reads this instead of the stored message.
+ */
+export type EditResendCarry = {
+  attachments: PromptAttachment[];
+  contextRefs: PromptContextRef[];
+};
 
 /** The switcher mounts on the active sibling head at a fork. */
 export function findActiveBranchPoint(
