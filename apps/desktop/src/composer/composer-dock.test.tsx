@@ -829,7 +829,7 @@ describe('ComposerDock host status', () => {
             attachmentCount: 1,
           },
         ]}
-        queuedEdit={{ messageId: 'one', position: 1 }}
+        queuedEdit={{ messageId: 'one' }}
         onQueuedEditCancel={handleCancel}
         onSteer={handleSteer}
         onSend={handleSend}
@@ -842,9 +842,10 @@ describe('ComposerDock host status', () => {
 
     const dock = container.querySelector('[data-testid="composer-dock"]');
     expect(dock?.classList.contains('is-queued-edit')).toBe(true);
-    expect(container.querySelector('[data-testid="composer-queued-edit-banner"]')).not.toBeNull();
-    expect(container.textContent).toContain('Editing queued message');
-    expect(container.textContent).toContain('Change text, add images');
+    // The queue row and header carry the edit state; the composer has no banner of its own.
+    expect(container.querySelector('[data-testid="steer-queue-subtitle"]')?.textContent).toBe(
+      '↵ save · Esc cancel',
+    );
 
     const textarea = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
     expect(textarea?.placeholder).toContain('paste an image');

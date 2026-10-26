@@ -189,7 +189,6 @@ export type DesktopCopy = {
     saveQueuedMessage: string;
     cancelQueuedEdit: string;
     queuedEditingBadge: string;
-    queuedEditTitle: string;
     queuedEditHint: string;
     queuedEditSaveHint: string;
     queuedEditPlaceholder: string;

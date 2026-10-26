@@ -146,6 +146,9 @@ describe('SteerQueue', () => {
     expect(row?.classList.contains('is-editing')).toBe(true);
     expect(row?.getAttribute('aria-current')).toBe('true');
     expect(container.textContent).toContain('Editing');
+    expect(container.querySelector('[data-testid="steer-queue-subtitle"]')?.textContent).toBe(
+      '↵ save · Esc cancel',
+    );
     expect(container.querySelector('[data-testid="steer-queue-edit-button-queued-2"]')).toBeNull();
     expect(container.querySelector('[data-testid="steer-queue-send-queued-2"]')).toBeNull();
     expect(container.querySelector('[data-testid="steer-queue-remove-queued-2"]')).toBeNull();

@@ -267,94 +267,17 @@
   background: color-mix(in srgb, var(--coral) 14%, transparent);
 }
 
-/* ─── Queued-turn edit banner (inside the composer card) ─────────────── */
+/* ─── Composer while it holds a queued turn ─────────────────────────── */
 
 /* The composer temporarily belongs to a queue row, so the card wears an iris
-   rim instead of the ordinary streaming ember. Under a queue lid the banner
-   stays square so the two surfaces stay one object. */
+   rim instead of the ordinary streaming ember. The row itself carries the
+   "editing" pill and the cancel button; the queue header carries the keys. */
 .composer-card-v2.is-queued-edit,
 .composer-card-v2.is-queued-edit.is-streaming,
 .composer-card-v2.is-queued-edit:focus-within {
   box-shadow:
     var(--elev-3),
     0 0 0 1px var(--iris);
-}
-
-.composer-queued-edit {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  box-sizing: border-box;
-  padding: var(--s-2) var(--s-5);
-  min-height: 32px;
-  border-bottom: 1px solid color-mix(in srgb, var(--iris) 22%, var(--line-1));
-  border-radius: var(--r-panel) var(--r-panel) 0 0;
-  background: var(--iris-wash);
-  color: var(--text-1);
-  font-size: var(--fs-chrome);
-  line-height: 1.3;
-}
-
-.composer-dock.has-steer-queue .composer-queued-edit {
-  border-radius: 0;
-}
-
-.composer-queued-edit-icon {
-  display: inline-grid;
-  place-items: center;
-  flex: 0 0 auto;
-  color: var(--iris-lift);
-}
-
-.composer-queued-edit-index {
-  display: inline-grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  border-radius: var(--r-chip);
-  background: var(--iris);
-  color: var(--void);
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.composer-queued-edit-title {
-  flex: 0 0 auto;
-  font-weight: 650;
-}
-
-.composer-queued-edit-hint {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-3);
-  font-size: var(--fs-micro);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.composer-queued-edit-cancel {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
-  padding: 0;
-  border: none;
-  border-radius: var(--r-control);
-  background: transparent;
-  color: var(--text-3);
-  cursor: pointer;
-  transition:
-    color var(--t-1) var(--ease-out),
-    background-color var(--t-1) var(--ease-out);
-}
-
-.composer-queued-edit-cancel:hover {
-  color: var(--text-1);
-  background: var(--hover);
 }
 
 .composer-billing-notice {

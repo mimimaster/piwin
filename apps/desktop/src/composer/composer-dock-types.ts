@@ -258,7 +258,7 @@ export type ComposerDockProps = {
    * Queued turn currently held by the composer input. Send saves it back to
    * the queue instead of admitting a new turn; `position` is 1-based.
    */
-  queuedEdit?: { messageId: string; position: number } | null;
+  queuedEdit?: { messageId: string } | null;
   onQueuedEditCancel?: () => void;
   /**
    * Newest-first user prompts from the active session transcript.

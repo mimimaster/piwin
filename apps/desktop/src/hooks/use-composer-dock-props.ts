@@ -466,8 +466,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     if (queuedTurnEditId === null) {
       return null;
     }
-    const index = steerQueueMessages.findIndex((message) => message.id === queuedTurnEditId);
-    return index < 0 ? null : { messageId: queuedTurnEditId, position: index + 1 };
+    const held = steerQueueMessages.some((message) => message.id === queuedTurnEditId);
+    return held ? { messageId: queuedTurnEditId } : null;
   }, [queuedTurnEditId, steerQueueMessages]);
 
   const goalExtensionEnabled = useMemo(

@@ -23,7 +23,6 @@ import {
   toComposerKeyEvent,
 } from './composer-key-handling';
 import { ComposerModalEditor } from './ComposerModalEditor';
-import { ComposerQueuedEditBanner } from './composer-queued-edit-banner';
 import { composerSubscriptionBillingNotice } from '../models/subscription-billing-notice.js';
 import { getDesktopCopy } from '../i18n/desktop-locale';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
@@ -342,16 +341,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         <div className="composer-v2-drop-overlay">
           <div className="composer-v2-drop-content"><span className="composer-v2-drop-text">{copy.dropFiles}</span></div>
         </div>
-      ) : null}
-
-      {queuedEdit ? (
-        <ComposerQueuedEditBanner
-          position={queuedEdit.position}
-          title={copy.queuedEditTitle}
-          hint={copy.queuedEditHint}
-          cancelLabel={copy.cancelQueuedEdit}
-          onCancel={() => props.onQueuedEditCancel?.()}
-        />
       ) : null}
 
       {composerSubscriptionBillingNotice(selectedModel, locale === 'en' ? 'en' : 'zh-CN')}

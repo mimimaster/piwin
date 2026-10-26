@@ -62,7 +62,11 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
             {props.messages.length}
           </span>
         </div>
-        <span className="steer-queue-subtitle">{copy.queuedHint}</span>
+        {/* While a row is held by the composer, the queue-order hint is
+            irrelevant; the header says how to leave the edit instead. */}
+        <span className="steer-queue-subtitle" data-testid="steer-queue-subtitle">
+          {props.editingMessageId ? copy.queuedEditHint : copy.queuedHint}
+        </span>
       </div>
 
       <ol className="steer-queue-list">
