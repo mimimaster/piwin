@@ -219,7 +219,7 @@ describe('session context state store', () => {
       completionTokens: 80,
       totalTokens: 280,
       // Same recordedAt: measurement id breaks the tie, so a2 is the latest.
-      latestRequest: { messageId: 'a2' },
+      latestRequest: { messageId: 'a2', promptTokens: 20, cacheReadTokens: 80 },
       durationMs: 1000,
       durationMsCompletionTokens: 50,
     });

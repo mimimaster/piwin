@@ -46,7 +46,7 @@ a client.
 4. **Desktop** renders widgets as text blocks above or below the composer and
    notices as toasts. Statuses and the working message join the built-in
    composer stats line under the card (turns · steps · tok/s, session tokens ·
-   cache hit rate, read via `usage/get-session`), so extension status looks like
+   the latest request's prompt-cache hit rate, read via `usage/get-session`), so extension status looks like
    the product's own stats instead of a separate chip row. **CLI** prints
    notices and status changes as log lines. **Mobile** ignores both pushes for
    now.

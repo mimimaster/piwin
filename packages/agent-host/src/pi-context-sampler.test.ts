@@ -470,6 +470,66 @@ describe('pi-context-sampler', () => {
     );
   });
 
+  it('re-keys the measurement leaf to the first response of each run', () => {
+    let runId = 'run-1';
+    const sampler = createPiContextSampler({
+      sessionId: identity.sessionId,
+      runtimeGenerationId: identity.runtimeGenerationId,
+      getRunId: () => runId,
+      now: () => new Date(sampledAt),
+      getContextUsage: () => ({ tokens: 1_000, contextWindow: 8_000 }),
+    });
+    const secondMessageId = normalizeGenerationMessageId(identity, 'm-2');
+    const thirdMessageId = normalizeGenerationMessageId(identity, 'm-3');
+    const leaves = (events: AgentEvent[]): Array<string | null> =>
+      measurements(events).map((sample) => sample.contextBoundary.activeLeafMessageId);
+
+    const firstRun = replay(sampler, [
+      { type: 'message_start', messageId: 'm-1', role: 'assistant' },
+      {
+        type: 'message_update',
+        messageId: 'm-1',
+        assistantMessageEvent: { type: 'text_delta', delta: 'first run' },
+      },
+    ]);
+    expect(leaves(firstRun).at(-1)).toBe(normalizedMessageId);
+
+    runId = 'run-2';
+    // Before run-2 has response evidence the Host still holds run-1's leaf.
+    const beforeEvidence = replay(sampler, [
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'tool-1',
+        toolName: 'read',
+        isError: false,
+        output: 'abcd',
+      },
+    ]);
+    expect(leaves(beforeEvidence)).toEqual([normalizedMessageId]);
+
+    const secondRun = replay(sampler, [
+      { type: 'message_start', messageId: 'm-2', role: 'assistant' },
+      {
+        type: 'message_update',
+        messageId: 'm-2',
+        assistantMessageEvent: { type: 'text_delta', delta: 'second run' },
+      },
+      { type: 'message_start', messageId: 'm-3', role: 'assistant' },
+      {
+        type: 'message_update',
+        messageId: 'm-3',
+        assistantMessageEvent: { type: 'text_delta', delta: 'same run, later step' },
+      },
+    ]);
+    // The leaf follows the run's first response and stays there for the run.
+    expect(leaves(secondRun)).toEqual([secondMessageId, secondMessageId]);
+    expect(measurements(secondRun).map((sample) => sample.messageId)).toEqual([
+      secondMessageId,
+      secondMessageId,
+    ]);
+    expect(leaves(secondRun)).not.toContain(thirdMessageId);
+  });
+
   it('notes first visible output after assistant message/start', () => {
     const state: AssistantRequestTimingState = {};
     noteAssistantRequestTiming({ type: 'message/start', messageId: 'm-1', role: 'user' }, state, 1);

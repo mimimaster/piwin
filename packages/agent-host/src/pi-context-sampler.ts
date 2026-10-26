@@ -375,6 +375,7 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
   let baselineInvalidated = false;
   let currentMessageId: string | undefined;
   let evidenceMessageId: string | undefined;
+  let evidenceRunId: string | undefined;
   let streamingText = '';
   let streamingThinking = '';
   let streamingToolArgs = '';
@@ -611,10 +612,21 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
   };
 
   function noteEvidence(messageId: string | undefined): void {
-    if (!messageId || evidenceMessageId) {
+    if (!messageId) {
+      return;
+    }
+    // The Host resets response evidence at every run start and moves the
+    // context leaf to that run's first response message. Evidence is keyed by
+    // run so later runs stop reporting the first run's leaf, which the Host
+    // would drop as a boundary mismatch. Until a new run's first evidence,
+    // samples keep the previous leaf, matching the Host's pre-evidence leaf.
+    const runId = input.getRunId?.();
+    const sameRun = runId === undefined || runId === evidenceRunId;
+    if (evidenceMessageId && sameRun) {
       return;
     }
     evidenceMessageId = messageId;
+    evidenceRunId = runId;
     currentMessageId = messageId;
   }
 

@@ -54,7 +54,10 @@ describe('buildStatusMetrics', () => {
     sessionId: 's', userTurnCount: 3, entryCount: 5,
     promptTokens: 300_000, completionTokens: 38_000, cacheReadTokens: 900_000, cacheWriteTokens: 0, totalTokens: 1_238_000,
     estimatedCostUsd: 0.42, pricedEntryCount: 5,
-    latestRequest: { messageId: 'm', completionTokens: 860, durationMs: 10_820, firstTokenMs: 820, firstTokenKind: 'reasoning' as const },
+    latestRequest: {
+      messageId: 'm', promptTokens: 3_000, cacheReadTokens: 4_000, cacheWriteTokens: 3_000,
+      completionTokens: 860, durationMs: 10_820, firstTokenMs: 820, firstTokenKind: 'reasoning' as const,
+    },
   };
   it('combines totals, last request and context', () => {
     const m = buildStatusMetrics({ totals, context: { tokensUsed: 92_000, tokensLimit: 200_000, estimated: true } });
@@ -64,7 +67,8 @@ describe('buildStatusMetrics', () => {
     expect(m.userTurnCount).toBe(3);
     expect(m.inputTokens).toBe(1_200_000);
     expect(m.outputTokens).toBe(38_000);
-    expect(Math.round((m.cacheHitRate ?? 0) * 100)).toBe(75);
+    // The latest request's 40%, not the session's 75% average.
+    expect(Math.round((m.cacheHitRate ?? 0) * 100)).toBe(40);
     expect(m.costUsd).toBe(0.42);
     expect(m.context).toEqual({ used: 92_000, limit: 200_000, ratio: 0.46, estimated: true, tone: 'ok' });
   });
@@ -77,6 +81,10 @@ describe('buildStatusMetrics', () => {
     const m = buildStatusMetrics({ totals, lastRequest: { completionTokens: 100, durationMs: 2100, firstTokenMs: 3100 } });
     expect(m.ttftMs).toBe(3100);
     expect(m.ttftTone).toBe('warn');
+  });
+  it('omits the cache rate when the latest request reports no prompt split', () => {
+    expect(buildStatusMetrics({ totals, lastRequest: { completionTokens: 100 } }).cacheHitRate).toBeUndefined();
+    expect(buildStatusMetrics({ lastRequest: { cacheReadTokens: 900, promptTokens: 100 } }).cacheHitRate).toBe(0.9);
   });
   it('omits a zero turn count', () => {
     expect(buildStatusMetrics({ totals: { ...totals, userTurnCount: 0 } }).userTurnCount).toBeUndefined();

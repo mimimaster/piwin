@@ -163,14 +163,18 @@ export type SessionUsageTotals = UsageBucket & {
   sessionId: string;
   userTurnCount: number;
   /**
-   * Output and timing of the most recently recorded request, for the stats
-   * line's tok/s. Read with the totals so both refresh on the same push.
+   * Prompt split, output and timing of the most recently recorded request,
+   * for the stats line's cache hit rate and tok/s. Read with the totals so both refresh on the same push.
    */
   latestRequest?: SessionLatestRequestTiming;
 };
 
 export type SessionLatestRequestTiming = UsageReasoningTiming & {
   messageId: string;
+  /** Prompt split of this one request, for the stats line's cache hit rate. */
+  promptTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   completionTokens?: number;
   durationMs?: number;
   firstTokenMs?: number;

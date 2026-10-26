@@ -39,6 +39,13 @@ export function readSessionUsageTotals(db: DatabaseSync, sessionId: string): Ses
       });
       latestRequest = {
         messageId: measurement.messageId,
+        ...(measurement.promptTokens !== undefined ? { promptTokens: measurement.promptTokens } : {}),
+        ...(measurement.cacheReadTokens !== undefined
+          ? { cacheReadTokens: measurement.cacheReadTokens }
+          : {}),
+        ...(measurement.cacheWriteTokens !== undefined
+          ? { cacheWriteTokens: measurement.cacheWriteTokens }
+          : {}),
         ...(measurement.completionTokens !== undefined
           ? { completionTokens: measurement.completionTokens }
           : {}),

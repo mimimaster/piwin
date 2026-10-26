@@ -1,7 +1,7 @@
 /**
  * Composer status bar (below the composer card), three sections:
  * Pi extension status │ this turn (elapsed · first token · speed) │
- * resources (context bar · turns · tokens · cache · cost). Pure; the component only
+ * resources (context bar · turns · tokens · latest-request cache · cost). Pure; the component only
  * renders it. Metrics come from the shared contracts helper the CLI uses too.
  */
 import {
@@ -144,7 +144,7 @@ export function buildComposerStatusBar(input: ComposerStatsLineInput): ComposerS
       key: 'cache', priority: 3,
       text: `${Math.round(metrics.cacheHitRate * 100)}%`,
       label: zh ? '缓存' : 'cache',
-      title: zh ? '缓存命中 = 缓存读取 ÷ 全部输入' : 'Cache hit = cache reads ÷ all input',
+      title: zh ? '最近一次请求的提示词缓存命中 = 缓存读取 ÷ 全部输入' : 'Prompt cache hit of the latest request = cache reads ÷ all input',
     });
   }
   // Shown whenever the Host priced at least one request; unpriced sessions omit it.

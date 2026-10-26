@@ -53,11 +53,15 @@ describe('buildComposerStatusBar', () => {
   it('splits the turn (last duration · first token · speed) from the resources', () => {
     const bar = buildComposerStatusBar({
       totals,
-      lastRequest: { messageId: 'm1', completionTokens: 200, durationMs: 1500, firstTokenMs: 500, firstTokenKind: 'reasoning' },
+      lastRequest: {
+        messageId: 'm1', promptTokens: 500, cacheReadTokens: 9_500,
+        completionTokens: 200, durationMs: 1500, firstTokenMs: 500, firstTokenKind: 'reasoning',
+      },
       locale: 'zh-CN',
     });
     expect(texts(bar.turn)).toEqual(['上轮 1.50s', '首字 0.50s', '200 tok/s']);
-    expect(texts(bar.resources)).toEqual(['2 轮', '↑8k ↓2k', '缓存 75%']);
+    // Cache follows the latest request (95%), not the session average (75%).
+    expect(texts(bar.resources)).toEqual(['2 轮', '↑8k ↓2k', '缓存 95%']);
     expect(bar.resources[0]?.title).toContain('2 轮 · 5 步');
     expect(bar.resources[1]?.title).toContain('2 轮 · 5 步');
   });
@@ -144,7 +148,10 @@ describe('generationTokensPerSecond', () => {
 describe('ComposerStatsLine', () => {
   const withTiming: SessionUsageTotals = {
     ...totals,
-    latestRequest: { messageId: 'm', completionTokens: 200, durationMs: 1500, firstTokenMs: 500, firstTokenKind: 'reasoning' },
+    latestRequest: {
+      messageId: 'm', promptTokens: 1000, cacheReadTokens: 6000, cacheWriteTokens: 1000,
+      completionTokens: 200, durationMs: 1500, firstTokenMs: 500, firstTokenKind: 'reasoning',
+    },
   };
 
   it('renders extension status, the turn and the resources in one status row', () => {

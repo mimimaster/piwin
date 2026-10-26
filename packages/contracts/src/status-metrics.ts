@@ -9,6 +9,9 @@ export type StatusTone = 'ok' | 'warn' | 'critical';
 export type StatusTier = 'wide' | 'medium' | 'narrow';
 
 export type StatusRequestTiming = {
+  promptTokens?: number | undefined;
+  cacheReadTokens?: number | undefined;
+  cacheWriteTokens?: number | undefined;
   completionTokens?: number | undefined;
   durationMs?: number | undefined;
   firstTokenMs?: number | undefined;
@@ -37,6 +40,7 @@ export type StatusMetrics = {
   /** All input incl. cache reads/writes. */
   inputTokens?: number;
   outputTokens?: number;
+  /** Prompt-cache hit rate of the latest request (not the session average). */
   cacheHitRate?: number;
   /** Only when the Host priced at least one request. */
   costUsd?: number;
@@ -110,13 +114,21 @@ export function buildStatusMetrics(input: StatusMetricsInput): StatusMetrics {
       });
       if (speed !== null) metrics.tokensPerSecond = speed;
     }
+    // The latest request shows whether the cache holds right now; a session
+    // average hides a miss behind earlier hits.
+    if (finite(request.promptTokens) || finite(request.cacheReadTokens) || finite(request.cacheWriteTokens)) {
+      const hit = computePromptCacheHitRate({
+        promptTokens: finite(request.promptTokens) ? request.promptTokens : 0,
+        cacheReadTokens: finite(request.cacheReadTokens) ? request.cacheReadTokens : 0,
+        cacheWriteTokens: finite(request.cacheWriteTokens) ? request.cacheWriteTokens : 0,
+      });
+      if (hit !== null) metrics.cacheHitRate = hit;
+    }
   }
   if (totals && totals.entryCount > 0) {
     if (totals.userTurnCount > 0) metrics.userTurnCount = totals.userTurnCount;
     metrics.inputTokens = totals.promptTokens + totals.cacheReadTokens + totals.cacheWriteTokens;
     metrics.outputTokens = totals.completionTokens;
-    const hit = computePromptCacheHitRate(totals);
-    if (hit !== null) metrics.cacheHitRate = hit;
     if (finite(totals.estimatedCostUsd) && (totals.pricedEntryCount ?? 1) > 0) metrics.costUsd = totals.estimatedCostUsd;
   }
   const context = input.context;
