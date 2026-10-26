@@ -7,12 +7,7 @@
 import { useState, type ReactElement } from 'react';
 import type { TurnChangeFileDiff, TurnChangeFileEntry, TurnChangeSummary } from '@piwin/contracts';
 import { DiffCard, type DiffCardRequest } from '../tool-cards/diff-card';
-import {
-  changeStatusTag,
-  FILES_CHANGED_VISIBLE_ROWS,
-  formatDisplayPathParts,
-  LineStat,
-} from '../files/files-changed-bar';
+import { ChangedFileRowContent, FILES_CHANGED_VISIBLE_ROWS } from '../files/files-changed-bar';
 import type { TurnChangesApi } from './turn-changes-context.js';
 
 type Copy = (zh: string, en: string) => string;
@@ -63,8 +58,6 @@ export function TurnChangeFileList(props: TurnChangeFileListProps): ReactElement
     <div className="turn-change-bar-files">
       <ul className="files-changed-bar-list" data-testid="turn-change-bar-files">
         {visible.map((file) => {
-          const parts = formatDisplayPathParts(file.relativePath, props.projectPath);
-          const tag = changeStatusTag(file.kind);
           const diff = diffs[file.fileId];
           const open = openFileId === file.fileId;
           return (
@@ -76,14 +69,13 @@ export function TurnChangeFileList(props: TurnChangeFileListProps): ReactElement
                 onClick={() => openFile(file)}
                 data-testid="turn-change-bar-file"
               >
-                <span className={`files-changed-bar-row-tag ${tag.tone}`}>{tag.letter}</span>
-                <span className="files-changed-bar-row-path">
-                  <span className="files-changed-bar-row-name">{parts.fileName}</span>
-                  {parts.dirPath ? <span className="files-changed-bar-row-dir">{parts.dirPath}</span> : null}
-                </span>
-                {file.additions !== null && file.deletions !== null ? (
-                  <LineStat className="files-changed-bar-row-stat" additions={file.additions} deletions={file.deletions} />
-                ) : null}
+                <ChangedFileRowContent
+                  path={file.relativePath}
+                  status={file.kind}
+                  projectPath={props.projectPath}
+                  additions={file.additions}
+                  deletions={file.deletions}
+                />
               </button>
               {open ? (
                 typeof diff === 'string' ? (

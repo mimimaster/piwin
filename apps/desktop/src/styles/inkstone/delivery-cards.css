@@ -165,34 +165,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .fcb .files-changed-bar-row-tag {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  background: var(--l1);
-  font: 600 11px/1 var(--mono);
-  color: var(--t3);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .fcb .files-changed-bar-row-tag.add {
-  background: var(--pine-wash);
-  color: var(--pine);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .fcb .files-changed-bar-row-tag.del {
-  background: var(--crimson-wash);
-  color: var(--crimson);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .fcb .files-changed-bar-row-tag.ren {
-  background: var(--azure-wash);
-  color: var(--azure);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .fcb .files-changed-bar-row-path {
   gap: 8px;
 }
@@ -201,6 +173,16 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .fcb .files-changed-bar-row-name {
   font: 12px var(--mono);
   color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-name.add {
+  color: var(--pine);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .fcb .files-changed-bar-row-name.del {
+  color: var(--crimson);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])

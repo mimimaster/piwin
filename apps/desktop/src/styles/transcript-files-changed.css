@@ -128,26 +128,11 @@ button.files-changed-bar-row:hover {
   background: var(--hover);
 }
 
-.files-changed-bar-row-tag {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  background: var(--surface-3);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-3);
-}
-
-.files-changed-bar-row-tag.add {
-  color: var(--mint);
-}
-
-.files-changed-bar-row-tag.del {
-  color: var(--coral);
+/* 16px, same footprint as the old status letter, so the "more" row's
+   left padding still lines up with the file names. */
+.files-changed-bar-row-icon svg {
+  width: 100%;
+  height: 100%;
 }
 
 .files-changed-bar-row-path {
@@ -170,6 +155,17 @@ button.files-changed-bar-row:hover {
   text-overflow: ellipsis;
   font-family: var(--font-mono);
   color: var(--text-1);
+}
+
+/* Change status lives on the name: added green, deleted red and struck,
+   modified/renamed keep the default ink. */
+.files-changed-bar-row-name.add {
+  color: var(--mint);
+}
+
+.files-changed-bar-row-name.del {
+  color: var(--coral);
+  text-decoration: line-through;
 }
 
 /* The directory yields first; the file name only truncates once it is gone. */

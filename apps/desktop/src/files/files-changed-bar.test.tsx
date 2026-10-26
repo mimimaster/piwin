@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ReactElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { loadMaterialFileIcons } from '@piwin/ui-kit';
 import {
+  ChangedFileRowContent,
+  changeStatusTone,
   MAX_GIT_DIFF_SUMMARY_CACHE_ENTRIES,
   clearGitDiffSummaryCacheForTests,
   FilesChangedBar,
@@ -42,6 +46,36 @@ describe('formatDisplayPathParts', () => {
     const parts = formatDisplayPathParts(full, null);
     expect(parts.fileName).toBe('file.ts');
     expect(parts.dirPath).toBe('/some/abs/path/');
+  });
+});
+
+describe('changed file row', () => {
+  it('maps change statuses to a name tone, unknown as modified', () => {
+    expect(changeStatusTone('added')).toBe('add');
+    expect(changeStatusTone('untracked')).toBe('add');
+    expect(changeStatusTone('deleted')).toBe('del');
+    expect(changeStatusTone('conflicted')).toBe('del');
+    expect(changeStatusTone('renamed')).toBe('ren');
+    expect(changeStatusTone('modified')).toBe('mod');
+    expect(changeStatusTone(undefined)).toBe('mod');
+    expect(changeStatusTone('something-new')).toBe('mod');
+  });
+
+  it('leads with the file-type icon and tints the name instead of a status letter', async () => {
+    await loadMaterialFileIcons();
+    const markup = renderToStaticMarkup(
+      <ChangedFileRowContent path="/p/src/served.min.js" status="added" projectPath="/p" additions={3} deletions={0} />,
+    );
+    expect(markup).toContain('file-icon-javascript');
+    expect(markup).toContain('files-changed-bar-row-name add');
+    expect(markup).not.toContain('row-tag');
+  });
+
+  it('never draws a dotless file name as a folder', async () => {
+    await loadMaterialFileIcons();
+    const markup = renderToStaticMarkup(<ChangedFileRowContent path="Makefile" status="deleted" />);
+    expect(markup).not.toContain('file-icon-folder');
+    expect(markup).toContain('files-changed-bar-row-name del');
   });
 });
 

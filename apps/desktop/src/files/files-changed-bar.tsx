@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { GitDiffSummary, HostResponse } from '@piwin/contracts';
+import { FileTypeIcon } from '@piwin/ui-kit';
 import type { ToolCardUi } from '../conversation/chat-reducer';
 import {
   collectCallFileChangeStats,
@@ -259,21 +260,49 @@ export function LineStat(props: {
   );
 }
 
-const MODIFIED_TAG = { letter: 'M', tone: 'mod' };
-const STATUS_TAGS: Record<string, { letter: string; tone: string }> = {
-  added: { letter: 'A', tone: 'add' },
-  untracked: { letter: 'A', tone: 'add' },
-  modified: MODIFIED_TAG,
-  typechange: MODIFIED_TAG,
-  deleted: { letter: 'D', tone: 'del' },
-  renamed: { letter: 'R', tone: 'ren' },
-  copied: { letter: 'C', tone: 'ren' },
-  conflicted: { letter: 'U', tone: 'del' },
+export type ChangeStatusTone = 'add' | 'mod' | 'del' | 'ren';
+
+const STATUS_TONES: Record<string, ChangeStatusTone> = {
+  added: 'add',
+  untracked: 'add',
+  modified: 'mod',
+  typechange: 'mod',
+  deleted: 'del',
+  renamed: 'ren',
+  copied: 'ren',
+  conflicted: 'del',
 };
 
-/** Single-letter tag (A/M/D/…) and tone for a change status. */
-export function changeStatusTag(status: string | undefined): { letter: string; tone: string } {
-  return STATUS_TAGS[status ?? 'modified'] ?? MODIFIED_TAG;
+/** Tone a change status tints the file name with (unknown → modified). */
+export function changeStatusTone(status: string | undefined): ChangeStatusTone {
+  return STATUS_TONES[status ?? 'modified'] ?? 'mod';
+}
+
+/**
+ * Body of one changed-file row, shared by the per-call bar and the turn-change
+ * card: file-type icon, name tinted by change status, directory, line stat.
+ */
+export function ChangedFileRowContent(props: {
+  path: string;
+  status: string | undefined;
+  projectPath?: string | null | undefined;
+  additions?: number | null | undefined;
+  deletions?: number | null | undefined;
+}): ReactElement {
+  const parts = formatDisplayPathParts(props.path, props.projectPath);
+  const tone = changeStatusTone(props.status);
+  return (
+    <>
+      <FileTypeIcon className="files-changed-bar-row-icon" filePathOrExt={parts.fileName} size={16} isFile />
+      <span className="files-changed-bar-row-path">
+        <span className={`files-changed-bar-row-name ${tone}`}>{parts.fileName}</span>
+        {parts.dirPath ? <span className="files-changed-bar-row-dir">{parts.dirPath}</span> : null}
+      </span>
+      {typeof props.additions === 'number' && typeof props.deletions === 'number' ? (
+        <LineStat className="files-changed-bar-row-stat" additions={props.additions} deletions={props.deletions} />
+      ) : null}
+    </>
+  );
 }
 
 function FilesChangedRow(props: {
@@ -282,25 +311,14 @@ function FilesChangedRow(props: {
   stat?: MessageChangedFileStat | undefined;
   onReview?: (() => void) | undefined;
 }): ReactElement {
-  const parts = formatDisplayPathParts(props.file.path, props.projectPath);
-  const tag = changeStatusTag(props.stat?.status);
   const content = (
-    <>
-      <span className={`files-changed-bar-row-tag ${tag.tone}`}>{tag.letter}</span>
-      <span className="files-changed-bar-row-path">
-        <span className="files-changed-bar-row-name">{parts.fileName}</span>
-        {parts.dirPath ? (
-          <span className="files-changed-bar-row-dir">{parts.dirPath}</span>
-        ) : null}
-      </span>
-      {props.stat ? (
-        <LineStat
-          className="files-changed-bar-row-stat"
-          additions={props.stat.additions}
-          deletions={props.stat.deletions}
-        />
-      ) : null}
-    </>
+    <ChangedFileRowContent
+      path={props.file.path}
+      status={props.stat?.status}
+      projectPath={props.projectPath}
+      additions={props.stat?.additions}
+      deletions={props.stat?.deletions}
+    />
   );
 
   return (
