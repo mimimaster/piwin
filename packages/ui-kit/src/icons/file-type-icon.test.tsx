@@ -36,6 +36,13 @@ describe('FileTypeIcon', () => {
     expect(resolveFileTypeInfo('logo.svg').kind).toBe('svg');
   });
 
+  it('treats a dotless name as a file when the caller says so', () => {
+    expect(markupFor('Dockerfile')).toContain('file-icon-folder');
+    const markup = renderToStaticMarkup(createElement(FileTypeIcon, { filePathOrExt: 'Dockerfile', isFile: true }));
+    expect(markup).not.toContain('file-icon-folder');
+    expect(markup).toContain('file-icon-docker');
+  });
+
   it('renders known file types as official material SVG markup', () => {
     const markup = markupFor('source.ts');
     expect(markup).toContain('file-icon-typescript');

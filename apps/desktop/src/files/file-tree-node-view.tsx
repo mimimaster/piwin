@@ -142,7 +142,7 @@ export const FileTreeNodeView = memo(function FileTreeNodeView(
         </span>
       ) : (
         <span className="file-tree-icon" aria-hidden>
-          <FileTypeIcon filePathOrExt={node.entry.name} />
+          <FileTypeIcon filePathOrExt={node.entry.name} isFile />
         </span>
       )}
       <span className="file-tree-name">{node.entry.name}</span>

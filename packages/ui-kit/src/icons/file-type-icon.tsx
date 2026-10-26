@@ -126,12 +126,18 @@ export type FileTypeIconProps = {
   filePathOrExt: string;
   className?: string | undefined;
   size?: string | number | undefined;
+  /**
+   * The caller knows this is a file. Without it, a bare name with no dot
+   * (`Makefile`, `Dockerfile`) is guessed to be a folder.
+   */
+  isFile?: boolean | undefined;
 };
 
 export function FileTypeIcon({
   filePathOrExt,
   className = '',
   size = '1.1em',
+  isFile = false,
 }: FileTypeIconProps): ReactElement {
   const [, setReady] = useState(() => areMaterialFileIconsReady());
   useEffect(() => {
@@ -147,7 +153,7 @@ export function FileTypeIcon({
 
   const cleanPath = filePathOrExt.replace(/\\/g, '/');
   const cleanName = cleanPath.split('/').pop() || filePathOrExt;
-  const isFolder = filePathOrExt.endsWith('/') || !cleanName.includes('.');
+  const isFolder = !isFile && (filePathOrExt.endsWith('/') || !cleanName.includes('.'));
 
   const icon: MaterialIcon = isFolder
     ? { name: 'folder', svg: DEFAULT_FOLDER_SVG }
