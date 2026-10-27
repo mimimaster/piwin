@@ -1,10 +1,13 @@
 import { Buffer } from 'node:buffer';
+import { collectSpanTurnMarks, type UserMessageTurnMarks } from './transcript-store-turn-marks.js';
 import {
   SESSION_USER_MESSAGE_INDEX_MAX_BYTES,
   SESSION_USER_MESSAGE_INDEX_MAX_TICKS,
   SESSION_USER_MESSAGE_INDEX_MIN_TICKS,
   SESSION_USER_MESSAGE_PREVIEW_CHARS,
+  SESSION_USER_MESSAGE_TURN_MARKS,
   type SessionUserMessageAnchor,
+  type SessionUserMessageTurnMark,
   type SessionUserMessageIndexData,
   type SessionUserMessageIndexQuery,
 } from '@piwin/contracts';
@@ -16,6 +19,7 @@ export type UserMessageIndexRow = {
   spanStartOrdinal: number;
   spanEndOrdinal: number;
   preview: string;
+  marks?: readonly SessionUserMessageTurnMark[];
 };
 
 export function validateUserMessageIndexQuery(
@@ -42,15 +46,19 @@ export function createUserMessageIndexData(input: {
   totalUserMessages: number;
   maximumTicks: number;
   rows: readonly UserMessageIndexRow[];
+  /** Marked turns by ordinal; each anchor carries the union over its span. */
+  turnMarks?: UserMessageTurnMarks;
 }): SessionUserMessageIndexData {
-  const anchors = input.rows.map((row) => ({
-    messageId: row.messageId,
-    ordinal: row.ordinal,
-    createdAt: row.createdAt,
-    preview: normalizePreview(row.preview),
-    spanStartOrdinal: row.spanStartOrdinal,
-    spanEndOrdinal: row.spanEndOrdinal,
-  }));
+  const turnMarks = input.turnMarks;
+  const anchors = input.rows.map((row) =>
+    rowToAnchor({
+      ...row,
+      preview: normalizePreview(row.preview),
+      ...(turnMarks
+        ? { marks: collectSpanTurnMarks(turnMarks, row.spanStartOrdinal, row.spanEndOrdinal) }
+        : {}),
+    }),
+  );
   const fitted = fitAnchorsToByteBudget(anchors, input.maximumTicks);
   return {
     sessionId: input.sessionId,
@@ -129,10 +137,15 @@ export function sampleUserMessageIndexRows(
     const representativeIndex = Math.min(rows.length - 1, bucketStart);
     const representative = rows[representativeIndex];
     if (!representative) continue;
+    const marks = unionRowMarks(rows.slice(bucketStart, bucketEnd));
     sampled.push({
-      ...representative,
-      spanStartOrdinal: rows[bucketStart]?.ordinal ?? representative.ordinal,
-      spanEndOrdinal: rows[bucketEnd - 1]?.ordinal ?? representative.ordinal,
+      messageId: representative.messageId,
+      createdAt: representative.createdAt,
+      ordinal: representative.ordinal,
+      preview: representative.preview,
+      spanStartOrdinal: rows[bucketStart]?.spanStartOrdinal ?? representative.spanStartOrdinal,
+      spanEndOrdinal: rows[bucketEnd - 1]?.spanEndOrdinal ?? representative.spanEndOrdinal,
+      ...(marks.length > 0 ? { marks } : {}),
     });
   }
   return sampled;
@@ -142,24 +155,25 @@ function sampleAnchors(
   anchors: readonly SessionUserMessageAnchor[],
   maximumTicks: number,
 ): SessionUserMessageAnchor[] {
-  return sampleUserMessageIndexRows(
-    anchors.map((anchor) => ({
-      messageId: anchor.messageId,
-      createdAt: anchor.createdAt,
-      ordinal: anchor.ordinal,
-      spanStartOrdinal: anchor.spanStartOrdinal,
-      spanEndOrdinal: anchor.spanEndOrdinal,
-      preview: anchor.preview,
-    })),
-    maximumTicks,
-  ).map((row) => ({
+  return sampleUserMessageIndexRows(anchors, maximumTicks).map(rowToAnchor);
+}
+
+function rowToAnchor(row: UserMessageIndexRow): SessionUserMessageAnchor {
+  return {
     messageId: row.messageId,
     ordinal: row.ordinal,
     createdAt: row.createdAt,
     preview: row.preview,
     spanStartOrdinal: row.spanStartOrdinal,
     spanEndOrdinal: row.spanEndOrdinal,
-  }));
+    ...(row.marks && row.marks.length > 0 ? { marks: [...row.marks] } : {}),
+  };
+}
+
+function unionRowMarks(rows: readonly UserMessageIndexRow[]): SessionUserMessageTurnMark[] {
+  const found = new Set<SessionUserMessageTurnMark>();
+  for (const row of rows) for (const mark of row.marks ?? []) found.add(mark);
+  return SESSION_USER_MESSAGE_TURN_MARKS.filter((mark) => found.has(mark));
 }
 
 function serializedAnchorBytes(anchors: readonly SessionUserMessageAnchor[]): number {

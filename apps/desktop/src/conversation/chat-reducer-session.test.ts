@@ -112,3 +112,28 @@ describe('session/load-messages selection authority (T03)', () => {
     );
   });
 });
+
+describe('session/clear-active warm cache', () => {
+  function opened() {
+    let state = chatUiReducer(createInitialChatUiState(), { type: 'session/set', sessionId: 'long' });
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 'long',
+      messages: [userMessage('u1', 'hello')],
+    });
+    return state;
+  }
+
+  it('keeps the session left for a New Agent draft warm, so coming back paints at once', () => {
+    let state = chatUiReducer(opened(), { type: 'session/clear-active', stashTranscript: true });
+    expect(state.activeSessionId).toBeNull();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'long', awaitTranscript: true });
+    expect(state.messages.map((message) => message.id)).toEqual(['u1']);
+  });
+
+  it('does not keep a deleted or archived session warm', () => {
+    let state = chatUiReducer(opened(), { type: 'session/clear-active' });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'long', awaitTranscript: true });
+    expect(state.messages).toEqual([]);
+  });
+});

@@ -1,0 +1,48 @@
+/* ─── Jump controls: unseen badge, return point, scrollbar turn readout ─
+   Both reuse `.jump-to-latest-btn` (region-transcript.css) for the circle and
+   its glass material. The return control takes the bottom slot on its own and
+   stacks above jump-to-latest when both show. Position only — no transform. */
+
+.jump-to-latest-btn.transcript-return-point-btn.is-stacked {
+  bottom: calc(var(--s-5) + var(--h-md) + var(--s-2));
+}
+
+.jump-to-latest-badge {
+  position: absolute;
+  top: calc(var(--s-1) * -1);
+  right: calc(var(--s-1) * -1);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  background: var(--iris);
+  color: var(--on-iris);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* Turn readout while dragging the whole-session scrollbar
+   (TranscriptTurnScrollbar). Same flyout surface as the history tick
+   preview, placed left of the tick rail rather than over it: the rail sits
+   at right --s-5 and is 24px + --s-3 wide (transcript-history-ticks.css),
+   the track at right --s-2 and 4px wide. Pointer-transparent so the drag
+   never stalls. */
+.chat-stream-floating-scrollbar-label {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + var(--s-5) + var(--s-3) + 24px - var(--s-2));
+  transform: translateY(-50%);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-panel);
+  background: var(--surface-4);
+  box-shadow: var(--elev-4);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}

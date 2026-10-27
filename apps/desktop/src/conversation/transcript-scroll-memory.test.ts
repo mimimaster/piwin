@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   clearTranscriptScrollPositionsForTests,
@@ -8,6 +9,16 @@ import {
   rememberTranscriptScrollPosition,
 } from './transcript-scroll-memory';
 import { TRANSCRIPT_TURN_MAX_MEASURED_HEIGHT_PX } from './transcript-turn-height';
+import type { TranscriptScrollPosition } from './transcript-scroll-memory';
+
+function readingAt(messageId: string): TranscriptScrollPosition {
+  return {
+    followTail: false,
+    anchor: { messageId, offset: 12 },
+    lastSeenMessageId: messageId,
+    lastUserMessageId: null,
+  };
+}
 
 describe('transcript scroll memory', () => {
   beforeEach(() => {
@@ -15,34 +26,20 @@ describe('transcript scroll memory', () => {
   });
 
   it('restores a remembered session position', () => {
-    rememberTranscriptScrollPosition('session-a', { scrollTop: 420, followTail: false });
-    expect(readTranscriptScrollPosition('session-a')).toEqual({
-      scrollTop: 420,
-      followTail: false,
-    });
+    rememberTranscriptScrollPosition('session-a', readingAt('msg-7'));
+    expect(readTranscriptScrollPosition('session-a')).toEqual(readingAt('msg-7'));
   });
 
-  it('bounds retained session entries with LRU eviction', () => {
-    for (let index = 0; index < 20; index += 1) {
-      rememberTranscriptScrollPosition(`session-${index}`, {
-        scrollTop: index,
-        followTail: false,
-      });
+  it('keeps positions beyond the in-memory LRU through the persisted store', () => {
+    for (let index = 0; index < 21; index += 1) {
+      rememberTranscriptScrollPosition(`session-${index}`, readingAt(`msg-${index}`));
     }
-    expect(readTranscriptScrollPosition('session-0')).not.toBeNull();
-
-    rememberTranscriptScrollPosition('session-20', { scrollTop: 20, followTail: true });
-
-    expect(readTranscriptScrollPosition('session-1')).toBeNull();
-    expect(readTranscriptScrollPosition('session-0')).not.toBeNull();
-    expect(readTranscriptScrollPosition('session-20')).not.toBeNull();
+    // session-0 left the 20-session memory LRU but is still on disk.
+    expect(readTranscriptScrollPosition('session-0')).toEqual(readingAt('msg-0'));
   });
 
   it('forgets presentation state when a session is deleted', () => {
-    rememberTranscriptScrollPosition('deleted-session', {
-      scrollTop: 120,
-      followTail: false,
-    });
+    rememberTranscriptScrollPosition('deleted-session', readingAt('msg-1'));
     rememberTranscriptTurnHeight('deleted-session', 'turn-1', 480);
     forgetTranscriptScrollPosition('deleted-session');
     expect(readTranscriptScrollPosition('deleted-session')).toBeNull();
@@ -75,7 +72,7 @@ describe('transcript scroll memory', () => {
     }
     expect(readTranscriptTurnHeight('session-0', 'turn-a')).toBe(200);
 
-    rememberTranscriptScrollPosition('session-20', { scrollTop: 20, followTail: false });
+    rememberTranscriptScrollPosition('session-20', readingAt('msg-20'));
 
     expect(readTranscriptTurnHeight('session-1', 'turn-a')).toBeNull();
     expect(readTranscriptTurnHeight('session-0', 'turn-a')).toBe(200);

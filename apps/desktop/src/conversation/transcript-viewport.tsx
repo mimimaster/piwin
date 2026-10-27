@@ -13,14 +13,18 @@
  *   blur strip (styles/transcript-edge-blur.css).
  *
  * Scroll metrics come from `useTranscriptScroll` (ResizeObserver + activity),
- * not mount/unmount of the floating track.
+ * not mount/unmount of the floating track. The track places the resident
+ * window among all session turns (TranscriptTurnScrollbar).
  *
  * Older history prepends invisibly near the top, or on wheel-up when the
  * latest page fits and therefore cannot emit a scroll-away. Follow-tail
  * opens do not auto-page on mount.
+ *
+ * Reopening a session lands on the message the reader left on (see
+ * useTranscriptReadingRestore); a reader who left at the tail reopens there.
  */
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
-import { useCallback, useLayoutEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
 import type { SessionUserMessageAnchor, SessionUserMessageIndexData } from '@piwin/contracts';
 import { useTranscriptScroll } from '../hooks/use-transcript-scroll';
@@ -29,9 +33,18 @@ import { TranscriptScrollProvider } from './transcript-scroll-port';
 import { useTranscriptReveal } from '../hooks/use-transcript-reveal.js';
 import { useTranscriptHistoryPaging } from '../hooks/use-transcript-history-paging.js';
 import type { TranscriptReadingAnchorRestorer } from './transcript-reading-anchor.js';
-import { JumpToLatestButton } from './jump-to-latest-button';
+import { JUMP_TO_LATEST_BUTTON_ICON_PX, JumpToLatestButton } from './jump-to-latest-button';
 import { TranscriptFoldRail } from './transcript-fold-rail';
+import { readTranscriptScrollPosition } from './transcript-scroll-memory.js';
+import { useTranscriptReadingRestore } from '../hooks/use-transcript-reading-restore.js';
+import { useTranscriptUnseenCount } from '../hooks/use-transcript-unseen-count.js';
+import { useTranscriptReturnPoint } from '../hooks/use-transcript-return-point.js';
+import { IconBack } from '../tool-cards/shell-icons';
+import { TranscriptTurnScrollbar } from './transcript-turn-scrollbar';
+import { countIndexedUserMessages } from './indexed-user-message.js';
+import { resolveResidentTurnSpan } from './transcript-turn-scale.js';
 import '../styles/transcript-opening.css';
+import '../styles/transcript-jump-controls.css';
 
 export type TranscriptViewportProps = {
   messageCount: number;
@@ -51,23 +64,60 @@ export type TranscriptViewportProps = {
   historyLoading?: boolean;
   onLoadOlder?: (keepMessageId?: string) => Promise<void>;
   onLoadNewer?: (keepMessageId?: string) => Promise<void>;
+  /** Turn ordinal of the history view's first row (Host page ordinal); places it in the session. */
+  historyTurnStart?: number | undefined;
+  /** Bring a non-resident message in (Host transcript window) to restore a reading position. */
+  onSeekToMessage?: (messageId: string) => Promise<void> | void;
   locale?: 'zh-CN' | 'en';
   /** Newly submitted live turn that should restore follow-tail. */
   liveTurnId?: string | null;
   children: ReactNode;
 };
 
+const NO_MESSAGES: readonly ChatMessageUi[] = [];
+
 export function TranscriptViewport(props: TranscriptViewportProps): ReactElement {
   const handleLoadOlderRef = useRef<() => void>(() => {});
+  // Read once: the viewport remounts per session (keyed by its owner).
+  const [remembered] = useState(() =>
+    props.sessionId ? readTranscriptScrollPosition(props.sessionId) : null,
+  );
+  // Coming back to a reader who left mid-run: the turn that was already
+  // running is not a new send and must not pull them down to the tail.
+  const suppressedLiveTurnId =
+    remembered && !remembered.followTail ? remembered.lastUserMessageId : null;
+  const liveTurnId =
+    props.liveTurnId && props.liveTurnId !== suppressedLiveTurnId ? props.liveTurnId : null;
+  const messages = props.messages ?? NO_MESSAGES;
   const scroll = useTranscriptScroll({
     messageCount: props.messageCount,
     activitySignal: props.activitySignal,
-    liveTurnId: props.liveTurnId ?? null,
+    liveTurnId,
     historyViewActive: props.historyViewActive === true,
     canLoadOlder: props.canLoadOlder === true,
     onUnscrollableHistoryIntent: () => {
       handleLoadOlderRef.current();
     },
+  });
+  const readingAnchorRestorerRef = useRef<TranscriptReadingAnchorRestorer | null>(null);
+  const { lastSeenMessageId, unseenCount } = useTranscriptUnseenCount({
+    initialLastSeenMessageId:
+      remembered && !remembered.followTail ? remembered.lastSeenMessageId : null,
+    followTail: scroll.followTail,
+    messages,
+    historyViewActive: props.historyViewActive === true,
+  });
+  const reading = useTranscriptReadingRestore({
+    sessionId: props.sessionId ?? null,
+    remembered,
+    scroll,
+    readingAnchorRestorerRef,
+    messages,
+    awaitingTranscript: props.awaitingTranscript === true,
+    historyViewActive: props.historyViewActive === true,
+    liveTurnId,
+    lastSeenMessageId,
+    onSeekToMessage: props.onSeekToMessage,
   });
   const opening = useTranscriptReveal({
     ...(props.sessionId ? { sessionId: props.sessionId } : {}),
@@ -76,11 +126,9 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     historyViewActive: props.historyViewActive === true,
     scrollElementRef: scroll.containerRef,
     jumpToLatest: scroll.jumpToLatest,
+    settlePosition: reading.settleOpenPosition,
   });
 
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const draggingRef = useRef(false);
-  const readingAnchorRestorerRef = useRef<TranscriptReadingAnchorRestorer | null>(null);
   const returnToLive = useCallback((): void => {
     props.onReturnToLatest?.();
     scroll.jumpToLatest();
@@ -92,6 +140,12 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     onReturnToLive: returnToLive,
   });
   handleLoadOlderRef.current = paging.loadOlder;
+  const { returnPoint, markJumpOrigin, returnToPoint } = useTranscriptReturnPoint({
+    reading,
+    isFollowingTail: scroll.isFollowingTail,
+    liveTurnId,
+    resetPagingIntent: paging.resetIntent,
+  });
   const openedSessionPinRef = useRef<{ sessionId: string; pinned: boolean } | null>(null);
 
   useLayoutEffect(() => {
@@ -99,8 +153,8 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       scroll.detachFromTail();
       return;
     }
-    // Sidebar / ordinary session switches start at the live tail. History
-    // ticks and search still jump via the message scroller, not this memory.
+    // Opening a session lands where the reader left it: the remembered
+    // message, or the live tail when they left there (or never read it).
     if (!props.sessionId) {
       return;
     }
@@ -110,7 +164,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
         sessionId: props.sessionId,
         pinned: props.messageCount > 0,
       };
-      scroll.jumpToLatest();
+      reading.openAtRememberedPosition();
       return;
     }
     // Cold resume paints an empty placeholder first. Re-pin once the first
@@ -118,85 +172,57 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     // of a short list — the middle of the real transcript.
     if (!previous.pinned && props.messageCount > 0) {
       openedSessionPinRef.current = { sessionId: props.sessionId, pinned: true };
-      scroll.jumpToLatest();
+      reading.openAtRememberedPosition();
     }
-  }, [props.historyViewActive, props.messageCount, props.sessionId, scroll.detachFromTail, scroll.jumpToLatest]);
-
-  // Floating scrollbar geometry: thumb height = ratio * track height,
-  // thumb top = progress * (track height - thumb height).
-  const thumbHeightPct = Math.max(8, scroll.scrollRatio * 100);
-  const thumbTopPct = scroll.scrollProgress * (100 - thumbHeightPct);
-
-  /** Given a Y coordinate within the track, scroll the stream to that position. */
-  const scrollToTrackY = useCallback(
-    (clientY: number) => {
-      const track = trackRef.current;
-      const container = scroll.containerRef.current;
-      if (!track || !container) return;
-
-      const rect = track.getBoundingClientRect();
-      const fraction = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
-      const maxScroll = container.scrollHeight - container.clientHeight;
-      container.scrollTop = fraction * maxScroll;
-    },
-    [scroll.containerRef],
-  );
-
-  const handleTrackMouseDown = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (event.target !== trackRef.current) return;
-      event.preventDefault();
-      scrollToTrackY(event.clientY);
-    },
-    [scrollToTrackY],
-  );
-
-  const handleThumbMouseDown = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      draggingRef.current = true;
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (!draggingRef.current) return;
-        scrollToTrackY(moveEvent.clientY);
-      };
-      const handleMouseUp = () => {
-        draggingRef.current = false;
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    },
-    [scrollToTrackY],
-  );
+  }, [
+    props.historyViewActive,
+    props.messageCount,
+    props.sessionId,
+    reading.openAtRememberedPosition,
+    scroll.detachFromTail,
+  ]);
 
   const handleStreamScroll = useCallback((): void => {
     scroll.handleScroll();
     paging.onScroll();
-  }, [paging.onScroll, scroll]);
+    reading.onScroll();
+  }, [paging.onScroll, reading.onScroll, scroll]);
 
   const locale = props.locale ?? 'zh-CN';
+  const residentUserMessages = useMemo(() => countIndexedUserMessages(messages), [messages]);
+  const turnSpan = resolveResidentTurnSpan({
+    totalUserMessages: props.historyIndex?.totalUserMessages ?? null,
+    residentUserMessages,
+    historyFirstOrdinal: props.historyTurnStart,
+    historyViewActive: props.historyViewActive === true,
+  });
   const handleJumpToHistoryAnchor = useCallback(async (anchor: SessionUserMessageAnchor) => {
     paging.resetIntent();
     await props.onJumpToHistoryAnchor?.(anchor);
   }, [paging.resetIntent, props.onJumpToHistoryAnchor]);
   const handleJumpToLatest = useCallback((): void => {
+    markJumpOrigin();
     paging.resetIntent();
     returnToLive();
-  }, [paging.resetIntent, returnToLive]);
+  }, [markJumpOrigin, paging.resetIntent, returnToLive]);
   const showJumpToLatest =
     props.messageCount > 0 &&
     (props.historyViewActive === true || scroll.showJumpToLatest);
-  const jumpToLatestLabel = props.historyViewActive
+  const baseJumpToLatestLabel = props.historyViewActive
     ? locale === 'zh-CN'
       ? '返回最新消息'
       : 'Return to latest messages'
     : locale === 'zh-CN'
       ? '跳到最新'
       : 'Jump to latest';
+  const jumpToLatestLabel =
+    unseenCount === 0
+      ? baseJumpToLatestLabel
+      : locale === 'zh-CN'
+        ? `${baseJumpToLatestLabel}（${unseenCount} 条新消息）`
+        : `${baseJumpToLatestLabel} (${unseenCount} new)`;
+  const returnPointLabel = locale === 'zh-CN' ? '返回刚才位置' : 'Back to where you were';
+  const showReturnPoint = returnPoint !== null && props.messageCount > 0;
 
   return (
         <TranscriptScrollProvider
@@ -207,6 +233,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       isFollowingTail={scroll.isFollowingTail}
       beginProgrammaticScroll={scroll.beginProgrammaticScroll}
       beginLocalFoldLayout={scroll.beginLocalFoldLayout}
+      markJumpOrigin={markJumpOrigin}
       readingAnchorRestorerRef={readingAnchorRestorerRef}
     >
       <div className={`transcript-viewport${opening ? ' is-opening' : ''}`}>
@@ -248,6 +275,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           messages={props.messages}
           historyIndex={props.historyIndex}
           onJumpToAnchor={handleJumpToHistoryAnchor}
+          locale={locale}
         />
         <TranscriptFoldRail
           scrollElementRef={scroll.containerRef}
@@ -282,29 +310,35 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           <span />
         </div>
         {showJumpToLatest ? (
-          <JumpToLatestButton label={jumpToLatestLabel} onClick={handleJumpToLatest} />
+          <JumpToLatestButton
+            label={jumpToLatestLabel}
+            onClick={handleJumpToLatest}
+            badgeCount={unseenCount}
+          />
+        ) : null}
+        {showReturnPoint ? (
+          <JumpToLatestButton
+            label={returnPointLabel}
+            onClick={returnToPoint}
+            testId="transcript-return-point-btn"
+            className={
+              showJumpToLatest ? 'transcript-return-point-btn is-stacked' : 'transcript-return-point-btn'
+            }
+            icon={
+              <IconBack width={JUMP_TO_LATEST_BUTTON_ICON_PX} height={JUMP_TO_LATEST_BUTTON_ICON_PX} />
+            }
+          />
         ) : null}
         {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}
-        <div
-          className={
-            scroll.isOverflowing
-              ? 'chat-stream-floating-scrollbar is-visible'
-              : 'chat-stream-floating-scrollbar'
-          }
-          data-testid="chat-stream-floating-scrollbar"
-          aria-hidden="true"
-          ref={trackRef}
-          onMouseDown={handleTrackMouseDown}
-        >
-          <div
-            className="chat-stream-floating-scrollbar-thumb"
-            style={{
-              height: `${thumbHeightPct}%`,
-              top: `${thumbTopPct}%`,
-            }}
-            onMouseDown={handleThumbMouseDown}
-          />
-        </div>
+        <TranscriptTurnScrollbar
+          isOverflowing={scroll.isOverflowing}
+          scrollRatio={scroll.scrollRatio}
+          scrollProgress={scroll.scrollProgress}
+          span={turnSpan}
+          historyIndex={props.historyIndex ?? null}
+          onJumpToAnchor={handleJumpToHistoryAnchor}
+          locale={locale}
+        />
       </div>
     </TranscriptScrollProvider>
   );

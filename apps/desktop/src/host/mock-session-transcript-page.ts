@@ -7,6 +7,7 @@ import {
   type SessionTranscriptPageQuery,
   type SessionTranscriptPageResult,
 } from '@piwin/contracts';
+import { countIndexedUserMessages } from '../conversation/indexed-user-message.js';
 
 const CURSOR_PATTERN = /^mock\.([a-f0-9]{8})\.(\d+)\.(\d+)\.(\d+)$/;
 const TRUNCATION_MARKER = '\n[message truncated in UI history; full content remains on Host]';
@@ -57,6 +58,7 @@ export function createMockSessionTranscriptPage(
     totalCount: projected.length,
     startIndex,
     endIndex,
+    userOrdinalStart: countIndexedUserMessages(projected.slice(0, startIndex)),
     messageBytes,
     turnSummaries: selectSessionTurnSummaries(buildSessionTurnSummaries(messages, revision), startIndex, endIndex),
   };

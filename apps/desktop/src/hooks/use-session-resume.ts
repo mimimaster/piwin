@@ -529,7 +529,7 @@ export function useSessionResume(input: {
       scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
     }): Promise<void> => {
       bumpToDraft();
-      dispatch({ type: 'session/clear-active' });
+      dispatch({ type: 'session/clear-active', stashTranscript: true });
     },
     [bumpToDraft, dispatch],
   );

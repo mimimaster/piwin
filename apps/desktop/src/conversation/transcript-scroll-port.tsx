@@ -42,6 +42,11 @@ export type TranscriptScrollPort = {
    * viewport off the row they just clicked.
    */
   beginLocalFoldLayout: () => void;
+  /**
+   * A deliberate jump (history tick) is about to move the reader. Call once,
+   * before the first scroll, so the viewport can offer the way back.
+   */
+  markJumpOrigin: () => void;
 };
 
 const TranscriptScrollContext = createContext<TranscriptScrollPort | null>(null);
@@ -55,6 +60,7 @@ export function TranscriptScrollProvider(props: {
   isFollowingTail?: () => boolean;
   beginProgrammaticScroll?: () => void;
   beginLocalFoldLayout?: () => void;
+  markJumpOrigin?: () => void;
   /** Owner-held slot for the list's anchor restorer (history paging lives above this provider). */
   readingAnchorRestorerRef?: MutableRefObject<TranscriptReadingAnchorRestorer | null>;
   children: ReactNode;
@@ -77,6 +83,8 @@ export function TranscriptScrollProvider(props: {
   beginProgrammaticScrollRef.current = props.beginProgrammaticScroll;
   const beginLocalFoldLayoutRef = useRef(props.beginLocalFoldLayout);
   beginLocalFoldLayoutRef.current = props.beginLocalFoldLayout;
+  const markJumpOriginRef = useRef(props.markJumpOrigin);
+  markJumpOriginRef.current = props.markJumpOrigin;
 
   const registerMessageScroller = useCallback((scroller: TranscriptMessageScroller) => {
     messageScrollerRef.current = scroller;
@@ -117,6 +125,10 @@ export function TranscriptScrollProvider(props: {
     beginLocalFoldLayoutRef.current?.();
   }, []);
 
+  const markJumpOrigin = useCallback((): void => {
+    markJumpOriginRef.current?.();
+  }, []);
+
   const scrollToMessage = useCallback((messageId: string): boolean => {
     detachFromTailRef.current?.();
     return messageScrollerRef.current?.(messageId) ?? false;
@@ -139,6 +151,7 @@ export function TranscriptScrollProvider(props: {
       beginProgrammaticScroll,
       beginLocalFoldLayout,
       notifyContentGrew,
+      markJumpOrigin,
     }),
     [
       props.sessionId,
@@ -152,6 +165,7 @@ export function TranscriptScrollProvider(props: {
       beginProgrammaticScroll,
       beginLocalFoldLayout,
       notifyContentGrew,
+      markJumpOrigin,
     ],
   );
 

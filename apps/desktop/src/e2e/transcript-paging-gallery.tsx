@@ -129,6 +129,7 @@ export function TranscriptPagingGallery() {
           activitySignal="paging"
           historyIndex={state.userMessageIndex}
           historyViewActive={state.historyView !== null}
+          historyTurnStart={state.historyView?.window.userOrdinalStart}
           canLoadOlder={canLoadOlderTranscript(state)}
           canLoadNewer={canLoadNewerTranscript(state)}
           historyCaughtUp={historyViewCaughtUpWithLive(state)}

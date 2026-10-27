@@ -271,6 +271,8 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
         onLoadNewer={onLoadNewer}
         historyLoading={transcriptHistoryLoading}
         onLoadOlder={onLoadOlder}
+        onSeekToMessage={onLoadEarlierWork}
+        historyTurnStart={state.historyView?.window.userOrdinalStart}
         locale={locale}
         liveTurnId={!historyViewActive && state.streaming ? lastUserMessageId : null}
         {...(activeSessionId ? { sessionId: activeSessionId } : {})}

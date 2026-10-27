@@ -12,7 +12,6 @@
  * depend on a scroll event that stick-to-bottom may not emit.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { TranscriptScrollPosition } from '../conversation/transcript-scroll-memory';
 import { computeCurrentResponseMinHeight } from '../conversation/transcript-response-viewport.js';
 import {
   isPanelResizeActive,
@@ -463,27 +462,6 @@ export function useTranscriptScroll(options: {
     // follow-tail alone only when still following; detach only on real away.
   }, [detachFromTail, setFollowTail, stickToBottomAcrossFrames]);
 
-  const restorePosition = useCallback(
-    (position: TranscriptScrollPosition): void => {
-      const element = containerRef.current;
-      userDetachedRef.current = !position.followTail;
-      setFollowTail(position.followTail);
-      if (!element) {
-        return;
-      }
-      beginProgrammaticScroll();
-      element.scrollTop = position.followTail
-        ? element.scrollHeight
-        : Math.max(0, position.scrollTop);
-      lastScrollGeometryRef.current = {
-        scrollTop: element.scrollTop,
-        scrollHeight: element.scrollHeight,
-      };
-      applyMetrics(element);
-    },
-    [applyMetrics, beginProgrammaticScroll, setFollowTail],
-  );
-
   // Wheel / trackpad: detach immediately so ResizeObserver sticks cannot yank
   // the viewport back while the user is reading history.
   useEffect(() => {
@@ -634,7 +612,6 @@ export function useTranscriptScroll(options: {
     isFollowingTail,
     beginProgrammaticScroll,
     beginLocalFoldLayout,
-    restorePosition,
     /** Immediate follow-tail stick for nested growers (Artifact iframe height). */
     notifyContentGrew: stickToBottomAcrossFrames,
     scrollProgress,

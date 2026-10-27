@@ -365,6 +365,38 @@ describe('transcript turn window', () => {
     expect(body.parentElement?.style.height).toBe('251px');
   });
 
+  it('marks turns laid out at a remembered height their mount confirmed', async () => {
+    const turns = createTurns(6);
+    for (const turn of turns) {
+      // The test body measures 120px; turn-user-5 was remembered wrong.
+      rememberTranscriptTurnHeight('session-cached', turn.id, turn.id === 'turn-user-5' ? 300 : 120);
+    }
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, writable: true, value: 640 },
+      offsetWidth: { configurable: true, writable: true, value: 900 },
+      clientHeight: { configurable: true, writable: true, value: 640 },
+      scrollHeight: { configurable: true, writable: true, value: 1_000 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    });
+
+    await act(async () => {
+      root.render(
+        <TranscriptScrollProvider sessionId="session-cached" scrollElementRef={scrollElementRef}>
+          <TranscriptTurnList turns={turns} pinnedMessageId={null} renderTurn={renderTurn} />
+        </TranscriptScrollProvider>,
+      );
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+
+    const marks = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-testid="transcript-turn-window-item"]'),
+    ).map((slot) => [slot.querySelector<HTMLElement>('[data-turn-id]')?.dataset.turnId, slot.dataset.heightCached]);
+    expect(marks.length).toBeGreaterThan(1);
+    expect(marks.find(([turnId]) => turnId === 'turn-user-0')?.[1]).toBe('true');
+    expect(marks.find(([turnId]) => turnId === 'turn-user-5')?.[1]).toBeUndefined();
+  });
+
   it('reserves the full measured height of a mounted turn above the cache ceiling', async () => {
     const turns = createTurns(21);
     turnHeightOverrides.set('turn-user-0', 6_000);

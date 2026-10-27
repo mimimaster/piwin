@@ -34,6 +34,58 @@ function selectInside(textNode: Text, start: number, end: number): Selection {
   return selection;
 }
 
+type ShadowFixture = { bubble: HTMLElement; host: HTMLElement; shadow: ShadowRoot; text: Text };
+
+function mountShadowArtifact(content: string): ShadowFixture {
+  const bubble = document.createElement('article');
+  const host = document.createElement('div');
+  host.className = 'artifact-static';
+  bubble.appendChild(host);
+  document.body.appendChild(bubble);
+  const shadow = host.attachShadow({ mode: 'open' });
+  const style = document.createElement('style');
+  style.textContent = ':host { color: red; }';
+  const root = document.createElement('div');
+  root.textContent = content;
+  shadow.append(style, root);
+  const text = root.firstChild;
+  if (!(text instanceof Text)) {
+    throw new Error('expected artifact text');
+  }
+  return { bubble, host, shadow, text };
+}
+
+/**
+ * WebKit's view of a selection inside a shadow tree: `getRangeAt` reports a
+ * collapsed range before the host; only `getComposedRanges` naming the root
+ * returns the real boundaries.
+ */
+function webkitShadowSelection(fixture: ShadowFixture, start: number, end: number): Selection {
+  const parent = fixture.host.parentNode;
+  if (!parent) {
+    throw new Error('expected host parent');
+  }
+  const hostIndex = Array.prototype.indexOf.call(parent.childNodes, fixture.host);
+  const rescoped = document.createRange();
+  rescoped.setStart(parent, hostIndex);
+  rescoped.setEnd(parent, hostIndex);
+  const inner = {
+    startContainer: fixture.text,
+    startOffset: start,
+    endContainer: fixture.text,
+    endOffset: end,
+  };
+  const fake = {
+    rangeCount: 1,
+    isCollapsed: true,
+    getRangeAt: () => rescoped,
+    getComposedRanges: (options?: { shadowRoots?: ShadowRoot[] }) =>
+      options?.shadowRoots?.includes(fixture.shadow) ? [inner] : [rescoped],
+    toString: () => (fixture.text.textContent ?? '').slice(start, end),
+  };
+  return fake as unknown as Selection;
+}
+
 describe('computeTranscriptSelectionTarget', () => {
   afterEach(() => {
     window.getSelection()?.removeAllRanges();
@@ -224,6 +276,24 @@ describe('computeTranscriptSelectionTarget', () => {
     expect(looksLikeSerializedHtml('<div style="color:red">Hello</div>')).toBe(true);
     expect(stripSerializedHtml('<div style="color:red">Hello</div>')).toBe('Hello');
     expect(looksLikeSerializedHtml('use <div> as a wrapper')).toBe(false);
+  });
+
+  it('reads a WebKit shadow-tree selection through getComposedRanges', () => {
+    const fixture = mountShadowArtifact('Hello card body');
+    const selection = webkitShadowSelection(fixture, 6, 10);
+    expect(computeTranscriptSelectionTarget(fixture.bubble, selection)).toEqual({
+      surface: 'selection',
+      selectedText: 'card',
+      label: 'card',
+    });
+  });
+
+  it('keeps the selection target for a code fence wrapping a WebKit shadow selection', () => {
+    const fixture = mountShadowArtifact('Hello card body');
+    const selection = webkitShadowSelection(fixture, 0, 5);
+    expect(
+      resolveCodeFenceContextMenuTarget(fixture.bubble, '<style>p{}</style><p>Hello</p>', 'html', selection),
+    ).toEqual({ surface: 'selection', selectedText: 'Hello', label: 'Hello' });
   });
 });
 

@@ -60,7 +60,7 @@ describe('resumeDraft bumps the session resume guard', () => {
     act(() => latest().resumeDraft(draftId ?? 'missing-draft'));
 
     expect(onLeaveActiveSession).toHaveBeenCalledOnce();
-    expect(dispatch).toHaveBeenCalledWith({ type: 'session/clear-active' });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'session/clear-active', stashTranscript: true });
     const leaveOrder = onLeaveActiveSession.mock.invocationCallOrder[0];
     const clearIndex = dispatch.mock.calls.findIndex(
       (call) => (call[0] as { type?: string } | undefined)?.type === 'session/clear-active',

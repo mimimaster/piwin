@@ -13,6 +13,14 @@ export type SessionUserMessageIndexQuery = {
   maximumTicks: number;
 };
 
+/**
+ * Notable events inside a turn (a user message and everything up to the next
+ * one), so a navigation rail can show where errors, artifacts, compactions
+ * and branch points sit. Order here is display priority, highest first.
+ */
+export const SESSION_USER_MESSAGE_TURN_MARKS = ['error', 'compaction', 'branch', 'artifact'] as const;
+export type SessionUserMessageTurnMark = (typeof SESSION_USER_MESSAGE_TURN_MARKS)[number];
+
 export type SessionUserMessageAnchor = {
   /** Stable product message id used for seeking. */
   messageId: string;
@@ -24,6 +32,12 @@ export type SessionUserMessageAnchor = {
   spanStartOrdinal: number;
   /** Last user-message ordinal represented by this anchor, inclusive. */
   spanEndOrdinal: number;
+  /**
+   * Union of turn marks across the whole span, in
+   * `SESSION_USER_MESSAGE_TURN_MARKS` order. Omitted when the span has none
+   * (and on older Hosts).
+   */
+  marks?: SessionUserMessageTurnMark[];
 };
 
 export type SessionUserMessageIndexData = {

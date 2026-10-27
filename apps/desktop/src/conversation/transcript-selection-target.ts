@@ -2,6 +2,11 @@
  * Live window selection → context-menu `selection` target for a chat bubble.
  * Transcript prose has no file path; keep `kind: 'selection'` (do not upgrade to file).
  */
+import {
+  isCollapsedBoundary,
+  readSelectionBoundaries,
+  readSelectionRanges,
+} from '@piwin/ui-kit';
 import type { ContextMenuTarget } from '../context-menu/types.js';
 
 export const TRANSCRIPT_SELECTION_MAX_CHARS = 8000;
@@ -16,6 +21,28 @@ export const TRANSCRIPT_SELECTION_NESTED_HOST_SELECTOR = [
   '[data-testid="media-preview-container"]',
   '[data-testid="media-image-context-menu"]',
 ].join(', ');
+
+/** Shadow hosts in the transcript: the static Artifact preview (ArtifactStatic). */
+const TRANSCRIPT_SHADOW_HOST_SELECTOR = '.artifact-static';
+
+/**
+ * Open shadow roots under `scope`. WebKit only reports a selection inside one
+ * of them when it is named to `getComposedRanges`.
+ */
+export function transcriptShadowRoots(
+  scope: ParentNode | null = typeof document === 'undefined' ? null : document,
+): ShadowRoot[] {
+  if (!scope) {
+    return [];
+  }
+  const roots: ShadowRoot[] = [];
+  for (const host of scope.querySelectorAll(TRANSCRIPT_SHADOW_HOST_SELECTOR)) {
+    if (host.shadowRoot) {
+      roots.push(host.shadowRoot);
+    }
+  }
+  return roots;
+}
 
 const SKIPPED_SELECTION_TAGS = new Set(['STYLE', 'SCRIPT', 'NOSCRIPT', 'TEMPLATE']);
 
@@ -169,13 +196,16 @@ export function stripSerializedHtml(text: string): string {
  * Plain visible text for a live selection. Skips `<style>` / `<script>` (Artifact
  * static preview stores theme CSS in Shadow DOM) and strips serialized HTML.
  */
-export function visibleTextFromSelection(selection: Selection): string {
-  if (selection.rangeCount === 0) {
+export function visibleTextFromSelection(
+  selection: Selection,
+  shadowRoots: readonly ShadowRoot[] = transcriptShadowRoots(),
+): string {
+  const ranges = readSelectionRanges(selection, shadowRoots);
+  if (ranges.length === 0) {
     return '';
   }
   const parts: string[] = [];
-  for (let index = 0; index < selection.rangeCount; index += 1) {
-    const range = selection.getRangeAt(index);
+  for (const range of ranges) {
     const walked: string[] = [];
     walkVisibleText(range.commonAncestorContainer, range, walked);
     if (walked.join('').trim().length === 0) {
@@ -210,17 +240,24 @@ export function computeTranscriptSelectionTarget(
   bubbleRoot: Element,
   selection: Selection | null = typeof window === 'undefined' ? null : window.getSelection(),
 ): ContextMenuTarget | null {
-  if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+  if (!selection) {
     return null;
   }
-  const range = selection.getRangeAt(0);
-  if (!isNodeInsideHost(bubbleRoot, range.commonAncestorContainer)) {
+  // WebKit reports a selection inside the Artifact shadow tree as collapsed at
+  // the host; read it through the bubble's shadow roots instead.
+  const shadowRoots = transcriptShadowRoots(bubbleRoot);
+  const [boundary] = readSelectionBoundaries(selection, shadowRoots);
+  if (!boundary || isCollapsedBoundary(boundary)) {
+    return null;
+  }
+  const [range] = readSelectionRanges(selection, shadowRoots);
+  if (!range || !isNodeInsideHost(bubbleRoot, range.commonAncestorContainer)) {
     return null;
   }
   if (isNestedSurfaceSelection(bubbleRoot, range)) {
     return null;
   }
-  const selectedText = visibleTextFromSelection(selection).slice(
+  const selectedText = visibleTextFromSelection(selection, shadowRoots).slice(
     0,
     TRANSCRIPT_SELECTION_MAX_CHARS,
   );

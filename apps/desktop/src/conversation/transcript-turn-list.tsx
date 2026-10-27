@@ -24,7 +24,7 @@ import {
   TRANSCRIPT_TURN_OVERSCAN,
 } from './transcript-turn-policy.js';
 import { useTranscriptScrollPort, type TranscriptScrollPort } from './transcript-scroll-port';
-import { scrollTranscriptToMessage } from '../session/history-ticks-drawer';
+import { scrollTranscriptToMessage } from '../session/history-anchor-jump';
 import { readTranscriptTurnHeight, rememberTranscriptTurnHeight } from './transcript-scroll-memory';
 import {
   normalizeTranscriptTurnHeight,
@@ -238,6 +238,9 @@ function VirtualizedTranscriptTurns(
   // Column width of the mounted turns, for the width-keyed height memory.
   // Unknown until the first measure; the memory treats that as a match.
   const columnWidthRef = useRef<number | undefined>(undefined);
+  // Turns laid out at a remembered real height that their mount confirmed.
+  // The opening cover lifts early when every mounted turn is one of them.
+  const cachedSizeByTurnIdRef = useRef(new Map<string, number>());
   const estimateSize = useCallback(
     (turnIndex: number) => {
       const turn = props.turns[turnIndex];
@@ -245,7 +248,13 @@ function VirtualizedTranscriptTurns(
         props.scrollPort.sessionId && turn
           ? readTranscriptTurnHeight(props.scrollPort.sessionId, turn.id, columnWidthRef.current)
           : null;
-      return resolveTranscriptTurnEstimate({ turn, cachedHeight });
+      const estimate = resolveTranscriptTurnEstimate({ turn, cachedHeight });
+      if (turn && cachedHeight !== null && estimate === normalizeTranscriptTurnHeight(cachedHeight)) {
+        cachedSizeByTurnIdRef.current.set(turn.id, estimate);
+      } else if (turn) {
+        cachedSizeByTurnIdRef.current.delete(turn.id);
+      }
+      return estimate;
     },
     [props.scrollPort.sessionId, props.turns],
   );
@@ -266,6 +275,10 @@ function VirtualizedTranscriptTurns(
       const rawHeight = readMountedTranscriptTurnHeight({ element, entry });
       const normalized = normalizeTranscriptTurnHeight(rawHeight);
       const turnId = element.dataset.turnId;
+      const cachedSize = turnId ? cachedSizeByTurnIdRef.current.get(turnId) : undefined;
+      if (turnId && cachedSize !== undefined && (normalized === null || Math.abs(normalized - cachedSize) > 1)) {
+        cachedSizeByTurnIdRef.current.delete(turnId);
+      }
       // The observer already carries the width; no extra layout read.
       const observedWidth =
         entry?.borderBoxSize?.[0]?.inlineSize ?? entry?.contentRect?.width;
@@ -491,6 +504,7 @@ function VirtualizedTranscriptTurns(
             data-live-tail={
               virtualItem.index === props.turns.length - 1 ? 'true' : undefined
             }
+            data-height-cached={cachedSizeByTurnIdRef.current.has(turn.id) ? 'true' : undefined}
             style={{
               height: `${virtualItem.size}px`,
               transform: `translateY(${virtualItem.start - scrollMargin}px)`,

@@ -430,7 +430,7 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
       restoreDraftComposerSnapshot(draft);
       if (sessionId !== null) {
         args.onLeaveActiveSession?.();
-        args.dispatch({ type: 'session/clear-active' });
+        args.dispatch({ type: 'session/clear-active', stashTranscript: true });
       }
     },
     [

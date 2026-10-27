@@ -630,7 +630,15 @@ export type ChatUiAction =
   | { type: 'session/remove'; sessionId: string }
   | { type: 'session/mark-archived-active'; archived: boolean }
   | { type: 'session/hide-from-list'; sessionId: string }
-  | { type: 'session/clear-active' }
+  | {
+      type: 'session/clear-active';
+      /**
+       * Leaving for a New Agent draft keeps the outgoing session warm, like a
+       * switch to another session. Deletes, archives and Host resets leave it
+       * out: the session is gone or its rows are no longer trusted.
+       */
+      stashTranscript?: boolean;
+    }
   | {
       type: 'session/branch-switched';
       sessionId: string;

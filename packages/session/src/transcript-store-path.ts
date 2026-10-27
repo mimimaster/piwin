@@ -75,3 +75,23 @@ export function countPathIndexedUserMessages(db: DatabaseSync, sessionId: string
     .get(sessionId) as { count: number };
   return row.count;
 }
+
+/** Non-empty user messages on the active path strictly before a sequence. */
+export function countPathIndexedUserMessagesBeforeSequence(
+  db: DatabaseSync,
+  sessionId: string,
+  sequence: number,
+): number {
+  const row = db
+    .prepare(
+      withActivePath(
+        `SELECT COUNT(*) AS count FROM transcript_message
+         JOIN active_path ON transcript_message.id = active_path.id
+         WHERE transcript_message.role = 'user'
+           AND length(trim(transcript_message.text)) > 0
+           AND transcript_message.sequence < ?`,
+      ),
+    )
+    .get(sessionId, sequence) as { count: number };
+  return row.count;
+}

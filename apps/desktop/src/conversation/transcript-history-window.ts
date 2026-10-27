@@ -10,6 +10,7 @@ import {
   measureTranscriptCacheBytes,
   measureTranscriptMessageBytes,
 } from './transcript-page-cache.js';
+import { countIndexedUserMessages, isIndexedUserMessage } from './indexed-user-message.js';
 
 type HistoryAction = Extract<
   ChatUiAction,
@@ -48,6 +49,16 @@ export function reduceTranscriptHistory(state: ChatUiState, action: HistoryActio
   const anchorIndex = action.window.startIndex + action.window.anchorOffset;
   let startIndex =
     direction === 'newer' ? anchorIndex - current.length + 1 : action.window.startIndex;
+  // Turn ordinal of the window start, tracked like startIndex. A newer page
+  // overlaps the current tail through its anchor; the current rows before
+  // that overlap precede the incoming page's first user message.
+  let userOrdinalStart =
+    action.window.userOrdinalStart === undefined
+      ? undefined
+      : direction === 'newer'
+        ? action.window.userOrdinalStart -
+          countIndexedUserMessages(current.slice(0, current.length - incomingAnchor - 1))
+        : action.window.userOrdinalStart;
   // Evict the far edge, keeping a contiguous window around the reader — and
   // never the message on screen. When a long invisible run (a closed tool
   // fold) sits between the reader and the loading edge, the "far" edge is
@@ -71,6 +82,11 @@ export function reduceTranscriptHistory(state: ChatUiState, action: HistoryActio
   if (evictCount > 0) {
     if (direction === 'older') messages = messages.slice(0, messages.length - evictCount);
     else {
+      if (userOrdinalStart !== undefined) {
+        for (const evicted of messages.slice(0, evictCount)) {
+          if (isIndexedUserMessage(evicted)) userOrdinalStart += 1;
+        }
+      }
       messages = messages.slice(evictCount);
       startIndex += evictCount;
     }
@@ -88,6 +104,7 @@ export function reduceTranscriptHistory(state: ChatUiState, action: HistoryActio
         ...action.window,
         startIndex,
         endIndex: startIndex + messages.length,
+        ...(userOrdinalStart === undefined ? {} : { userOrdinalStart }),
         anchorOffset: messages.findIndex((message) => message.id === action.window.anchorMessageId),
         messageBytes: measureTranscriptCacheBytes(messages),
       },

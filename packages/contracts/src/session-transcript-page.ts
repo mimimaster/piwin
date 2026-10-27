@@ -48,6 +48,12 @@ export type SessionTranscriptPageInfo = {
   endIndex: number;
   /** Serialized UTF-8 bytes retained by the page's message array. */
   messageBytes: number;
+  /**
+   * Non-empty user messages on the active path before `startIndex` — the
+   * ordinal (as in the user-message index) the page's first user message has.
+   * Lets a client place the page within the whole session. Absent on older Hosts.
+   */
+  userOrdinalStart?: number;
   /** Complete totals for turns intersecting this page. Absent on older Hosts. */
   turnSummaries?: SessionTurnSummary[];
   /** Messages whose UI projection was clipped to honor the byte boundary. */

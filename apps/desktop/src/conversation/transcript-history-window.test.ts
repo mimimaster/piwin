@@ -197,3 +197,71 @@ describe('history view reaching the live tail', () => {
     expect(historyViewCaughtUpWithLive(stale)).toBe(false);
   });
 });
+
+describe('history view turn ordinal', () => {
+  /** Alternating user/assistant rows: ordinal of the first user row at or after `index`. */
+  const ordinalAt = (index: number): number => Math.ceil(index / 2);
+  function turns(start: number, end: number): SessionTranscriptMessage[] {
+    return Array.from({ length: end - start }, (_, offset) => {
+      const index = start + offset;
+      return {
+        id: `m${index}`,
+        role: index % 2 === 0 ? 'user' : 'assistant',
+        text: `row ${index}`,
+        status: 'done',
+        createdAt: '2026-09-21',
+      };
+    });
+  }
+  function windowAction(
+    state: ChatUiState,
+    type: 'seek' | 'older' | 'newer',
+    start: number,
+    end: number,
+  ): ChatUiState {
+    const anchor = type === 'older' ? end - 1 : start;
+    const window = {
+      revision: 'r1',
+      totalCount: TOTAL,
+      startIndex: start,
+      endIndex: end,
+      userOrdinalStart: ordinalAt(start),
+      messageBytes: 100,
+      anchorMessageId: `m${anchor}`,
+      anchorOffset: anchor - start,
+    };
+    return type === 'seek'
+      ? chatUiReducer(state, {
+          type: 'session/seek-messages',
+          sessionId: 'long',
+          epoch: state.userMessageIndexEpoch,
+          messages: turns(start, end),
+          window,
+        })
+      : chatUiReducer(state, {
+          type: 'session/page-history',
+          sessionId: 'long',
+          epoch: state.userMessageIndexEpoch,
+          direction: type,
+          messages: turns(start, end),
+          window,
+        });
+  }
+
+  it('tracks the first resident turn through seeks, paging and eviction', () => {
+    let state = windowAction(initial(), 'seek', 401, 441);
+    expect(state.historyView?.window.userOrdinalStart).toBe(ordinalAt(401));
+    state = windowAction(state, 'older', 361, 402);
+    expect(state.historyView?.window.startIndex).toBe(361);
+    expect(state.historyView?.window.userOrdinalStart).toBe(ordinalAt(361));
+    // Page newer past the cap so the start edge evicts.
+    for (let step = 0; step < 40 && (state.historyView?.window.startIndex ?? 0) <= 361; step += 1) {
+      const last = state.historyView?.messages.at(-1)?.id ?? '';
+      const lastIndex = Number(last.slice(1));
+      state = windowAction(state, 'newer', lastIndex, lastIndex + 41);
+    }
+    const window = state.historyView?.window;
+    expect(window && window.startIndex > 361).toBe(true);
+    expect(window?.userOrdinalStart).toBe(ordinalAt(window?.startIndex ?? -1));
+  });
+});

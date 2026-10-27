@@ -24,6 +24,7 @@ import {
 } from '@piwin/contracts';
 import type { TranscriptStoreCore, SessionTranscriptStore } from './transcript-store.js';
 import { projectTranscriptMessagesForUi } from './transcript-ui-projection.js';
+import { createTranscriptTurnMarksReader } from './transcript-store-turn-marks.js';
 import {
   createUserMessageIndexData,
   validateUserMessageIndexQuery,
@@ -36,6 +37,7 @@ import {
 } from './transcript-store-bounds.js';
 import {
   countPathIndexedUserMessages,
+  countPathIndexedUserMessagesBeforeSequence,
   countPathRows,
   countPathRowsBeforeSequence,
   withActivePath,
@@ -383,6 +385,7 @@ export function createTranscriptPagesOps(
   const { db, options, ensureOpen, currentRevision, currentUserMessageRevision } = core;
 
   const readTurnSummaries = createTranscriptTurnSummaryReader(db, options.sessionId);
+  const readTurnMarks = createTranscriptTurnMarksReader(db, options.sessionId);
   return {
       async transcriptPage(query) {
         ensureOpen();
@@ -468,6 +471,15 @@ export function createTranscriptPagesOps(
           totalCount,
           startIndex,
           endIndex,
+          ...(oldestSelectedSequence === undefined
+            ? {}
+            : {
+                userOrdinalStart: countPathIndexedUserMessagesBeforeSequence(
+                  db,
+                  options.sessionId,
+                  oldestSelectedSequence,
+                ),
+              }),
           messageBytes,
           turnSummaries: readTurnSummaries(transcriptRevisionToken(options.sessionId, revision), startIndex, endIndex),
         };
@@ -502,6 +514,7 @@ export function createTranscriptPagesOps(
           totalUserMessages,
           maximumTicks: query.maximumTicks,
           rows,
+          turnMarks: readTurnMarks(transcriptRevisionToken(options.sessionId, currentRevision())),
         });
       },
 
@@ -562,6 +575,11 @@ export function createTranscriptPagesOps(
           totalCount,
           startIndex: countPathRowsBeforeSequence(db, options.sessionId, firstSequence),
           endIndex: countPathRowsBeforeSequence(db, options.sessionId, lastSequence) + 1,
+          userOrdinalStart: countPathIndexedUserMessagesBeforeSequence(
+            db,
+            options.sessionId,
+            firstSequence,
+          ),
           messageBytes: selected.messageBytes,
           anchorMessageId: query.anchorMessageId,
           anchorOffset: selected.anchorOffset,

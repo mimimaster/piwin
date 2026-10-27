@@ -17,6 +17,7 @@ type RevealOptions = {
   historyViewActive: boolean;
   scrollElementRef: RefObject<HTMLDivElement | null>;
   jumpToLatest: () => void;
+  settlePosition?: () => boolean;
 };
 
 type RevealHarnessProps = RevealOptions & {
@@ -106,6 +107,7 @@ function RevealHarness(props: RevealHarnessProps): ReactElement {
     historyViewActive: props.historyViewActive,
     scrollElementRef: props.scrollElementRef,
     jumpToLatest: props.jumpToLatest,
+    ...(props.settlePosition ? { settlePosition: props.settlePosition } : {}),
   });
   return (
     <div
@@ -242,6 +244,26 @@ describe('useTranscriptReveal', () => {
     expect(isRevealing()).toBe(false);
   });
 
+  it('lifts the cover on a remembered reading position instead of the tail', () => {
+    const scenario = createScenario();
+    let arrived = false;
+    const settlePosition = vi.fn(() => {
+      scenario.geometry.top = 900;
+      return arrived;
+    });
+    renderScenario({ ...scenario, settlePosition });
+
+    // Not on its message yet (still being seeked in): stay covered.
+    advance(400);
+    expect(isRevealing()).toBe(true);
+    arrived = true;
+    advance(400);
+
+    expect(isRevealing()).toBe(false);
+    expect(scenario.jumpToLatest).not.toHaveBeenCalled();
+    expect(scenario.geometry.top).toBe(900);
+  });
+
   it('waits for awaiting transcript data before starting the reveal clock', () => {
     const scenario = createScenario({ messageCount: 0, awaitingTranscript: true });
     renderScenario(scenario);
@@ -308,6 +330,47 @@ describe('useTranscriptReveal', () => {
     media.remove();
     notifyGeometry();
     advance(220);
+    expect(isRevealing()).toBe(false);
+  });
+
+  function appendTurnWindow(shell: HTMLElement, cached: boolean): void {
+    const list = document.createElement('div');
+    list.className = 'transcript-turn-window';
+    const slot = document.createElement('div');
+    slot.className = 'transcript-turn-window-item';
+    if (cached) slot.dataset.heightCached = 'true';
+    const body = document.createElement('div');
+    slot.append(body);
+    list.append(slot);
+    shell.append(list);
+    const rect = { top: 0, left: 0, right: 600, bottom: 300, width: 600, height: 300, x: 0, y: 0 };
+    for (const element of [slot, body]) {
+      vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({ ...rect, toJSON: () => rect } as DOMRect);
+    }
+  }
+
+  it('lifts the cover after a few quiet frames when every turn was laid out from cached heights', () => {
+    const scenario = createScenario();
+    renderScenario(scenario);
+    const shell = scenario.scrollElementRef.current;
+    if (!shell) throw new Error('missing shell');
+    appendTurnWindow(shell, true);
+    notifyGeometry();
+    // 50ms of quiet frames instead of 180ms.
+    advance(100);
+    expect(isRevealing()).toBe(false);
+  });
+
+  it('keeps the full stable window while any turn still runs on an estimate', () => {
+    const scenario = createScenario();
+    renderScenario(scenario);
+    const shell = scenario.scrollElementRef.current;
+    if (!shell) throw new Error('missing shell');
+    appendTurnWindow(shell, false);
+    notifyGeometry();
+    advance(100);
+    expect(isRevealing()).toBe(true);
+    advance(120);
     expect(isRevealing()).toBe(false);
   });
 

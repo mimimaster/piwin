@@ -4,7 +4,12 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { TranscriptViewport } from './transcript-viewport';
-import { clearTranscriptScrollPositionsForTests } from './transcript-scroll-memory';
+import {
+  clearTranscriptScrollPositionsForTests,
+  rememberTranscriptScrollPosition,
+} from './transcript-scroll-memory';
+import type { ChatMessageUi } from './chat-reducer';
+import { useTranscriptScrollPort, type TranscriptScrollPort } from './transcript-scroll-port';
 import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
 
 declare global {
@@ -34,6 +39,11 @@ function MessageRows(props: { offsets: Record<string, number> }): ReactElement {
       ))}
     </>
   );
+}
+
+function ScrollPortProbe(props: { portRef: { current: TranscriptScrollPort | null } }): null {
+  props.portRef.current = useTranscriptScrollPort();
+  return null;
 }
 
 function TranscriptGeometry(props: { scrollHeight: number }): ReactElement {
@@ -90,6 +100,9 @@ describe('TranscriptViewport session scroll recovery', () => {
       liveTurnId?: string;
       messageCount?: number;
       rows?: Record<string, number>;
+      messages?: ChatMessageUi[];
+      onSeekToMessage?: (messageId: string) => Promise<void>;
+      portRef?: { current: TranscriptScrollPort | null };
     } = {},
   ): Promise<void> {
     await act(async () => {
@@ -100,7 +113,7 @@ describe('TranscriptViewport session scroll recovery', () => {
             sessionId={sessionId}
             messageCount={options.messageCount ?? 1}
             activitySignal={options.activitySignal ?? 'idle'}
-            messages={[]}
+            messages={options.messages ?? []}
             locale="en"
             canLoadOlder={options.canLoadOlder === true}
             historyViewActive={options.historyViewActive === true}
@@ -111,9 +124,11 @@ describe('TranscriptViewport session scroll recovery', () => {
             {...(options.onLoadOlder ? { onLoadOlder: options.onLoadOlder } : {})}
             {...(options.onLoadNewer ? { onLoadNewer: options.onLoadNewer } : {})}
             {...(options.onReturnToLatest ? { onReturnToLatest: options.onReturnToLatest } : {})}
+            {...(options.onSeekToMessage ? { onSeekToMessage: options.onSeekToMessage } : {})}
           >
             <TranscriptGeometry scrollHeight={options.scrollHeight ?? 1_000} />
             {options.rows ? <MessageRows offsets={options.rows} /> : null}
+            {options.portRef ? <ScrollPortProbe portRef={options.portRef} /> : null}
           </TranscriptViewport>
         </PiwinUiProvider>,
       );
@@ -146,6 +161,182 @@ describe('TranscriptViewport session scroll recovery', () => {
     const restoredElement = container.querySelector<HTMLDivElement>('.chat-stream');
     expect(restoredElement?.scrollTop).toBe(1_000);
     expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
+  });
+
+  function chatMessage(id: string, role: ChatMessageUi['role']): ChatMessageUi {
+    return { id, role, text: `${id} text`, thinking: '', tools: [], attachments: [], status: 'done' };
+  }
+
+  function streamElement(): HTMLDivElement {
+    const element = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!element) throw new Error('Expected the transcript scroll element');
+    return element;
+  }
+
+  async function scrollReaderTo(scrollTop: number): Promise<void> {
+    await act(async () => {
+      const element = streamElement();
+      element.scrollTop = scrollTop;
+      element.dispatchEvent(new Event('scroll'));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+  }
+
+  const READING_ROWS = { r1: 0, r2: 300, r3: 600, r4: 900 };
+
+  it('reopens a session on the message the reader left it on', async () => {
+    await renderSession('reading-a', { rows: READING_ROWS, messageCount: 4 });
+    await finishOpening();
+    // r2 starts 20px above the viewport top.
+    await scrollReaderTo(320);
+
+    await renderSession('reading-b', { rows: READING_ROWS, messageCount: 4 });
+    await finishOpening();
+    expect(streamElement().scrollTop).toBe(1_000);
+
+    await renderSession('reading-a', { rows: READING_ROWS, messageCount: 4 });
+    await finishOpening();
+    expect(streamElement().scrollTop).toBe(320);
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).not.toBeNull();
+  });
+
+  it('does not pull a returning reader to the tail for the turn that was already running', async () => {
+    rememberTranscriptScrollPosition('running-session', {
+      followTail: false,
+      anchor: { messageId: 'r2', offset: 0 },
+      lastSeenMessageId: null,
+      lastUserMessageId: 'prompt-1',
+    });
+    await renderSession('running-session', { rows: READING_ROWS, messageCount: 4 });
+    await finishOpening();
+    expect(streamElement().scrollTop).toBe(300);
+
+    await renderSession('running-session', {
+      rows: READING_ROWS,
+      messageCount: 4,
+      liveTurnId: 'prompt-1',
+      activitySignal: 'streaming-1',
+    });
+    expect(streamElement().scrollTop).toBe(300);
+
+    // The reader's own new send still follows its reply.
+    await renderSession('running-session', {
+      rows: READING_ROWS,
+      messageCount: 4,
+      liveTurnId: 'prompt-2',
+      activitySignal: 'streaming-2',
+    });
+    expect(streamElement().scrollTop).toBe(1_000);
+  });
+
+  it('counts messages that arrived after the reader left the tail', async () => {
+    const first = [chatMessage('u1', 'user'), chatMessage('a1', 'assistant')];
+    await renderSession('unseen-session', { messages: first, messageCount: 2 });
+    await finishOpening();
+    await scrollReaderTo(200);
+    expect(container.querySelector('[data-testid="jump-to-latest-badge"]')).toBeNull();
+
+    const grown = [...first, chatMessage('t1', 'tool'), chatMessage('u2', 'user'), chatMessage('a2', 'assistant')];
+    await renderSession('unseen-session', { messages: grown, messageCount: 5 });
+    const button = container.querySelector('[data-testid="jump-to-latest-btn"]');
+    expect(container.querySelector('[data-testid="jump-to-latest-badge"]')?.textContent).toBe('2');
+    expect(button?.getAttribute('aria-label')).toBe('Jump to latest (2 new)');
+
+    act(() => (button as HTMLButtonElement | null)?.click());
+    expect(container.querySelector('[data-testid="jump-to-latest-badge"]')).toBeNull();
+  });
+
+  it('offers the way back after jumping to latest from history', async () => {
+    await renderSession('return-session', { rows: READING_ROWS, messageCount: 4 });
+    await finishOpening();
+    await scrollReaderTo(620);
+    expect(container.querySelector('[data-testid="transcript-return-point-btn"]')).toBeNull();
+
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="jump-to-latest-btn"]')?.click());
+    expect(streamElement().scrollTop).toBe(1_000);
+    const back = container.querySelector<HTMLButtonElement>('[data-testid="transcript-return-point-btn"]');
+    expect(back?.getAttribute('aria-label')).toBe('Back to where you were');
+    // Alone in the bottom slot while jump-to-latest is hidden.
+    expect(back?.classList.contains('is-stacked')).toBe(false);
+
+    act(() => back?.click());
+    expect(streamElement().scrollTop).toBe(620);
+    expect(container.querySelector('[data-testid="transcript-return-point-btn"]')).toBeNull();
+  });
+
+  it('offers the way back after a history tick jump', async () => {
+    const portRef: { current: TranscriptScrollPort | null } = { current: null };
+    await renderSession('tick-session', { rows: READING_ROWS, messageCount: 4, portRef });
+    await finishOpening();
+    await scrollReaderTo(320);
+
+    // What the ticks drawer does: mark, then move the reader.
+    await act(async () => {
+      portRef.current?.markJumpOrigin();
+      portRef.current?.detachFromTail();
+      streamElement().scrollTop = 500;
+      streamElement().dispatchEvent(new Event('scroll'));
+    });
+    const back = container.querySelector<HTMLButtonElement>('[data-testid="transcript-return-point-btn"]');
+    // Jump-to-latest is also showing, so the way back stacks above it.
+    expect(back?.classList.contains('is-stacked')).toBe(true);
+
+    act(() => back?.click());
+    expect(streamElement().scrollTop).toBe(320);
+  });
+
+  it('does not offer a way back for a jump made from the live tail', async () => {
+    const portRef: { current: TranscriptScrollPort | null } = { current: null };
+    await renderSession('tick-tail-session', { rows: READING_ROWS, messageCount: 4, portRef });
+    await finishOpening();
+    act(() => portRef.current?.markJumpOrigin());
+    expect(container.querySelector('[data-testid="transcript-return-point-btn"]')).toBeNull();
+  });
+
+  it('seeks a remembered message that is no longer resident once the open refresh lands', async () => {
+    rememberTranscriptScrollPosition('seek-session', {
+      followTail: false,
+      anchor: { messageId: 'old-7', offset: 0 },
+      lastSeenMessageId: null,
+      lastUserMessageId: null,
+    });
+    let finishSeek: () => void = () => {};
+    const onSeekToMessage = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSeek = resolve;
+        }),
+    );
+    await renderSession('seek-session', {
+      rows: READING_ROWS,
+      messageCount: 4,
+      awaitingTranscript: true,
+      onSeekToMessage,
+    });
+    // The resume refresh would replace a history window, so no seek yet.
+    expect(onSeekToMessage).not.toHaveBeenCalled();
+
+    await renderSession('seek-session', { rows: READING_ROWS, messageCount: 4, onSeekToMessage });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(onSeekToMessage).toHaveBeenCalledWith('old-7');
+
+    // The seek window commits before the Host request settles; the viewport
+    // lands on the message as soon as it mounts.
+    await renderSession('seek-session', {
+      rows: { ...READING_ROWS, 'old-7': 450 },
+      messageCount: 5,
+      historyViewActive: true,
+      onSeekToMessage,
+    });
+    expect(streamElement().scrollTop).toBe(450);
+    await act(async () => {
+      finishSeek();
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+    expect(streamElement().scrollTop).toBe(450);
+    expect(onSeekToMessage).toHaveBeenCalledOnce();
   });
 
   it('follows a growing tail but stays stable through 100 updates after scroll-away', async () => {

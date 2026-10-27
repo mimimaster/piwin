@@ -72,3 +72,19 @@ export function alignTranscriptReadingAnchor(
   }
   return true;
 }
+
+/**
+ * How far the anchor's message sits from where the anchor wants it, or null
+ * when the message is not mounted. Lets a settle loop tell "scheduled" from
+ * "actually there".
+ */
+export function measureTranscriptReadingAnchorDrift(
+  container: HTMLElement,
+  anchor: TranscriptReadingAnchor,
+): number | null {
+  const element = document.getElementById(messageAnchorId(anchor.messageId));
+  if (!element || !container.contains(element)) {
+    return null;
+  }
+  return element.getBoundingClientRect().top - container.getBoundingClientRect().top - anchor.offset;
+}

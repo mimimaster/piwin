@@ -663,6 +663,10 @@ export function reduceChatSession(
     case 'session/clear-active':
       return {
         ...state,
+        warmSessionCache:
+          action.stashTranscript === true
+            ? stashOwnedTranscript(state.warmSessionCache, state)
+            : state.warmSessionCache,
         activeSessionId: null,
         transcriptOwnerSessionId: null,
         // New Agent is only a client-side draft until the first send creates
