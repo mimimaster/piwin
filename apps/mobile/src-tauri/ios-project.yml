@@ -61,8 +61,13 @@ targets:
         NSLocalNetworkUsageDescription: 'Piwin 需要访问局域网中的 Piwin Host，才能在手机上使用应用。'
         NSHealthShareUsageDescription: 'Piwin reads only the Apple Health categories you allow (such as steps, activity, sleep, heart rate and weight) to create the health summaries you ask for. After you agree in the app, these summaries are sent to your own Piwin Host and then to the AI model provider you configured there. Health data is never used for advertising or sold.'
         NSHealthUpdateUsageDescription: 'Piwin never writes to or changes your Apple Health data. It only reads the categories you allow to create the health summaries you ask for.'
+    # XcodeGen regenerates this file from `properties` on every project
+    # generation; keys written only in the .entitlements file get wiped.
     entitlements:
       path: ../../HealthKit.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.background-delivery: true
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full
