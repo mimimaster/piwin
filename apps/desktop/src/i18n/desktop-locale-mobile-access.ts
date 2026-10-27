@@ -8,12 +8,10 @@ export type MobileAccessCopy = {
   title: string;
   description: string;
   listenLabel: string;
-  listenDescription: string;
-  listeningOn: (port: number) => string;
-  statusListening: string;
-  statusIdle: string;
   qrTitle: string;
   qrHint: string;
+  /** Pairing over the relay: the phone can be on any network. */
+  qrHintRelay: string;
   qrLabel: string;
   pairingExpires: (at: string) => string;
   generate: string;
@@ -35,21 +33,12 @@ export type MobileAccessCopy = {
   startFailed: (message: string) => string;
   securityHint: string;
   devices: string;
-  noDevices: string;
-  emptyDevicesHint: string;
   revoke: string;
   revokedSuffix: string;
   lastSeen: (at: string) => string;
   switchToLocal: string;
-  hostPairingDesc: string;
-  remoteListenDescription: string;
-  hostPairingDisabledTitle: string;
-  hostPairingDisabledDesc: string;
   hostPairingUnsupportedTitle: string;
   hostPairingUnsupportedDesc: string;
-  hostLoopbackWarning: string;
-  statusEnabled: string;
-  statusDisabled: string;
   statusUnsupported: string;
   readOnlyHint: string;
 };
@@ -59,12 +48,9 @@ export const MOBILE_ACCESS_COPY: Record<DesktopLocale, MobileAccessCopy> = {
     title: '手机接入',
     description: '用手机扫码连接这台电脑上的 Host，随时查看和操作会话。',
     listenLabel: '允许手机接入',
-    listenDescription: '开启后在局域网监听；只有扫码配对过的设备才能连接。',
-    listeningOn: (port) => `正在监听端口 ${port}（所有网卡）`,
-    statusListening: '已开启',
-    statusIdle: '未开启',
     qrTitle: '用手机扫码连接',
     qrHint: '打开 Piwin 手机 App，选择「扫码连接」。手机需要和这台电脑在同一 Wi‑Fi，或同一 Tailscale 网络。',
+    qrHintRelay: '打开 Piwin 手机 App，选择「扫码连接」。已开启中转，手机在任何网络下都能连上。',
     qrLabel: '手机配对二维码',
     pairingExpires: (at) => `二维码有效至 ${at}，只能使用一次`,
     generate: '刷新二维码',
@@ -86,22 +72,12 @@ export const MOBILE_ACCESS_COPY: Record<DesktopLocale, MobileAccessCopy> = {
     startFailed: (message) => `手机接入没有启动：${message}`,
     securityHint: '局域网连接不加密（ws://），请只在自己信任的网络里使用；出门在外建议用 Tailscale。',
     devices: '已配对设备',
-    noDevices: '还没有配对设备',
-    emptyDevicesHint: '用手机扫描上方二维码即可完成配对。',
     revoke: '撤销',
     revokedSuffix: ' · 已撤销',
     lastSeen: (at) => `最后活跃：${at}`,
     switchToLocal: '切换至本机 Host',
-    hostPairingDesc: '让手机连接当前这台 Host。',
-    remoteListenDescription: '只有扫码配对过的设备才能连接这台 Host。',
-    hostPairingDisabledTitle: '这台 Host 已关闭手机接入',
-    hostPairingDisabledDesc: '打开上方开关即可允许手机配对，无需重启 Host。',
     hostPairingUnsupportedTitle: 'Host 不支持远程配对',
     hostPairingUnsupportedDesc: '当前连接的 Host 版本较低，未提供配对管理接口。请更新 Host 服务端。',
-    hostLoopbackWarning:
-      '这台 Host 只对本机开放，手机不能直连。可以在下方「远程访问」里配置中转，或切换到本机 Host 直接扫码。',
-    statusEnabled: '已开启',
-    statusDisabled: '未开启',
     statusUnsupported: '不支持',
     readOnlyHint: '当前以配对设备身份连接，无权管理配对凭证或设备。',
   },
@@ -109,13 +85,11 @@ export const MOBILE_ACCESS_COPY: Record<DesktopLocale, MobileAccessCopy> = {
     title: 'Phone access',
     description: 'Scan a QR code with your phone to reach the Host on this computer.',
     listenLabel: 'Allow phone access',
-    listenDescription: 'Listens on your local network; only devices paired by QR can connect.',
-    listeningOn: (port) => `Listening on port ${port} (all interfaces)`,
-    statusListening: 'On',
-    statusIdle: 'Off',
     qrTitle: 'Scan with your phone',
     qrHint:
       'Open the Piwin phone app and choose “Scan to connect”. The phone must be on the same Wi‑Fi as this computer, or the same Tailscale network.',
+    qrHintRelay:
+      'Open the Piwin phone app and choose “Scan to connect”. The relay is on, so the phone can connect from any network.',
     qrLabel: 'Phone pairing QR code',
     pairingExpires: (at) => `Valid until ${at}, single use`,
     generate: 'Refresh QR code',
@@ -138,23 +112,13 @@ export const MOBILE_ACCESS_COPY: Record<DesktopLocale, MobileAccessCopy> = {
     securityHint:
       'LAN connections are not encrypted (ws://). Use them only on networks you trust; use Tailscale when away.',
     devices: 'Paired devices',
-    noDevices: 'No paired devices yet',
-    emptyDevicesHint: 'Scan the QR code above with your phone to pair.',
     revoke: 'Revoke',
     revokedSuffix: ' · revoked',
     lastSeen: (at) => `Last seen: ${at}`,
     switchToLocal: 'Switch to this Mac’s Host',
-    hostPairingDesc: 'Let phones connect to the Host you are attached to.',
-    remoteListenDescription: 'Only devices paired by QR can connect to this Host.',
-    hostPairingDisabledTitle: 'Phone access is off on this Host',
-    hostPairingDisabledDesc: 'Turn on the switch above to allow phone pairing; no Host restart needed.',
     hostPairingUnsupportedTitle: 'Host pairing not supported',
     hostPairingUnsupportedDesc:
       'The connected Host is too old to manage pairing. Please update the Host service.',
-    hostLoopbackWarning:
-      'This Host is only reachable from its own machine, so a phone cannot connect directly. Set up a relay under Remote access below, or switch to this Mac’s Host and scan directly.',
-    statusEnabled: 'On',
-    statusDisabled: 'Off',
     statusUnsupported: 'Unsupported',
     readOnlyHint: 'Connected as a paired device. Managing pairing credentials or devices is not permitted.',
   },

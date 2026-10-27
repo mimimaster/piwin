@@ -3,6 +3,7 @@
  * Imported only through `ensureSettingsLazyLoaded()`.
  */
 import { registerSettingsSection } from '../section-registry';
+import { ConnectionPage } from './connection-page';
 import { NotificationsPage } from './notifications-page';
 import { PermissionsPage } from './permissions-page';
 import { ModelsPage } from './models-page';
@@ -21,6 +22,7 @@ import { SessionColdStoragePage } from './session-cold-storage-page';
 import { UsagePage } from './usage-page';
 import { ArchivePage } from './archive-page';
 
+registerSettingsSection('connection', ConnectionPage);
 registerSettingsSection('notifications', NotificationsPage);
 registerSettingsSection('permissions', PermissionsPage);
 registerSettingsSection('models', ModelsPage);

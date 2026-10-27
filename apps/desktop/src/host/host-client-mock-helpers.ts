@@ -327,3 +327,15 @@ export function validateMockQueuedTurnInput(input: PromptInput): string | undefi
   }
   return undefined;
 }
+
+type MockStreamProbeEntry = { messageId: string; text: string; at: number };
+
+/**
+ * e2e render-lag probe: when a test installs `globalThis.__piwinStreamProbe`
+ * (an array), each mock text delta notes what had been pushed and when, so
+ * the test can time push → paint. Absent in every normal run.
+ */
+export function recordMockStreamProbe(messageId: string, text: string): void {
+  const probe = (globalThis as { __piwinStreamProbe?: MockStreamProbeEntry[] }).__piwinStreamProbe;
+  if (Array.isArray(probe)) probe.push({ messageId, text, at: performance.now() });
+}

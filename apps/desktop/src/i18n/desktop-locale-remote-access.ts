@@ -6,10 +6,7 @@ import type { ChannelFailureKind } from '@piwin/host-client';
 import type { DesktopLocale } from './desktop-locale.js';
 
 export type RemoteAccessCopy = {
-  sectionTitle: string;
-  sectionDescription: string;
   relayLabel: string;
-  relayDescription: string;
   relayUrlLabel: string;
   relayUrlPlaceholder: string;
   enrollTokenLabel: string;
@@ -26,6 +23,7 @@ export type RemoteAccessCopy = {
   legacyDescription: string;
   legacyModes: Record<'full' | 'migrate-only' | 'off', string>;
   operatorCode: string;
+  operatorCodeAction: string;
   operatorCodeHint: string;
   deviceOperator: string;
   deviceLegacy: string;
@@ -62,11 +60,7 @@ const CLOSE_HINTS_EN: Record<number, string> = {
 
 export const REMOTE_ACCESS_COPY: Record<DesktopLocale, RemoteAccessCopy> = {
   'zh-CN': {
-    sectionTitle: '远程访问',
-    sectionDescription:
-      '通过你自建的中转，手机、其他电脑和终端在任何网络下都能连上这台电脑，全程端到端加密。',
     relayLabel: '使用中转',
-    relayDescription: '开启后，已配对的设备优先经中转连接；连不上中转时再走局域网直连。',
     relayUrlLabel: '中转地址',
     relayUrlPlaceholder: 'wss://relay.example.com',
     enrollTokenLabel: '登记口令（可选）',
@@ -80,14 +74,15 @@ export const REMOTE_ACCESS_COPY: Record<DesktopLocale, RemoteAccessCopy> = {
     copyEnrollmentLine: '复制登记行',
     copied: '已复制',
     legacyLabel: '旧版客户端',
-    legacyDescription: '还没升级的手机和终端走旧的明文连接。迁移完成后可以只允许迁移，或完全关闭。',
+    legacyDescription: '还没升级的手机和终端仍走旧连接；都迁移完后可以关闭。',
     legacyModes: {
       full: '照常使用',
       'migrate-only': '只允许迁移',
       off: '关闭',
     },
-    operatorCode: '生成管理员配对码',
-    operatorCodeHint: '用这个二维码配对的设备拥有管理权限（配对、中转设置）。',
+    operatorCode: '管理员配对码',
+    operatorCodeAction: '生成',
+    operatorCodeHint: '用它配对的设备可以管理配对和中转。',
     deviceOperator: '管理员',
     deviceLegacy: '旧版连接',
     deviceMigrated: '已迁移',
@@ -114,12 +109,7 @@ export const REMOTE_ACCESS_COPY: Record<DesktopLocale, RemoteAccessCopy> = {
     },
   },
   en: {
-    sectionTitle: 'Remote access',
-    sectionDescription:
-      'Through a relay you run, phones, other computers and terminals reach this computer from any network, end-to-end encrypted.',
     relayLabel: 'Use a relay',
-    relayDescription:
-      'Paired devices connect through the relay first and fall back to the local network.',
     relayUrlLabel: 'Relay address',
     relayUrlPlaceholder: 'wss://relay.example.com',
     enrollTokenLabel: 'Enroll token (optional)',
@@ -137,8 +127,9 @@ export const REMOTE_ACCESS_COPY: Record<DesktopLocale, RemoteAccessCopy> = {
     legacyDescription:
       'Phones and terminals that have not updated use the old cleartext connection. Once they migrated, allow migration only, or turn it off.',
     legacyModes: { full: 'Allowed', 'migrate-only': 'Migration only', off: 'Off' },
-    operatorCode: 'Generate an admin pairing code',
-    operatorCodeHint: 'A device paired with this code can manage pairing and relay settings.',
+    operatorCode: 'Admin pairing code',
+    operatorCodeAction: 'Generate',
+    operatorCodeHint: 'A device paired with it can manage pairing and the relay.',
     deviceOperator: 'admin',
     deviceLegacy: 'older connection',
     deviceMigrated: 'migrated',

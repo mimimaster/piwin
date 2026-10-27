@@ -252,7 +252,7 @@ describe('MobileAccessSettings', () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain('Phone access is off on this Host');
+    expect(container.textContent).toContain('Turn on to let phones connect to this computer');
     expect(container.textContent).not.toContain('PIWIN_HOST_PAIRING');
     const switchEl = container.querySelector('[data-testid="mobile-access-listen"]') as HTMLInputElement;
     expect(switchEl).not.toBeNull();
@@ -337,10 +337,9 @@ describe('MobileAccessSettings', () => {
     });
 
     expect(request).toHaveBeenCalledWith(expect.objectContaining({ type: 'host/pairing-set-enabled', enabled: true }));
-    expect(container.querySelector('[data-testid="mobile-access-pairing"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="mobile-access-qr"]')).not.toBeNull();
-    // A loopback-only Host cannot be dialled by a phone; say so instead of showing a dead QR silently.
-    expect(container.textContent).toContain('only reachable from its own machine');
+    // A loopback-only Host cannot be dialled by a phone: point at the relay step, show no dead QR.
+    expect(container.querySelector('[data-testid="mobile-access-qr"]')).toBeNull();
+    expect(container.textContent).toContain('only accepts connections from its own machine');
   });
 
   it('enables code generation and device management when remote Host supports pairing', async () => {
@@ -414,8 +413,8 @@ describe('MobileAccessSettings', () => {
     });
 
     // Check advertised endpoint and device
-    const advertisedInput = container.querySelector('[data-testid="mobile-access-advertised"]') as HTMLInputElement;
-    expect(advertisedInput?.value).toBe('wss://host.example.com:8787');
+    const advertised = container.querySelector('[data-testid="mobile-access-advertised"]');
+    expect(advertised?.textContent).toBe('wss://host.example.com:8787');
     expect(container.querySelector('[data-testid="mobile-access-device-phone-1"]')).not.toBeNull();
 
     // Click generate pairing code

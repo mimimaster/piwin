@@ -252,8 +252,7 @@ html:is(
     margin-bottom: 16px;
   }
 
-  .settings-main .mobile-access-empty-devices,
-  .settings-main .mobile-access-pairing-card,
+  .settings-main .mobile-access-pairing-card:not(.is-bare),
   .settings-main .mobile-access-device-item {
     background: var(--s2);
     box-shadow: 0 0 0 1px var(--l2);

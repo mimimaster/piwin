@@ -465,6 +465,8 @@ export type RemoteSessionTranscriptPageInfo = {
   totalCount: number;
   startIndex: number;
   endIndex: number;
+  /** See `SessionTranscriptPageInfo.userOrdinalStart`. */
+  userOrdinalStart?: number;
   messageBytes: number;
   truncatedMessageIds?: string[];
   olderCursor?: string;

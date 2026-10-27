@@ -10,11 +10,8 @@ export type DesktopCopy = {
   chinese: string;
   english: string;
   hostTarget: {
-    title: string;
-    description: string;
     endpointLabel: string;
     endpointPlaceholder: string;
-    endpointHint: string;
     tokenLabel: string;
     tokenPlaceholder: string;
     connect: string;
@@ -27,12 +24,16 @@ export type DesktopCopy = {
     manualEntry: string;
     connectFailed: (detail: string) => string;
     rejectReasons: Record<HostHelloRejectReason, string>;
-    instanceId: (id: string) => string;
+    /** Nothing answered at the address (socket closed before the hello). */
+    unreachable: string;
+    /** Added after `unreachable` for a wss:// address, which may be the relay. */
+    unreachableRelayHint: string;
+    /** A ws:// or wss:// address was pasted into the pairing-link field. */
+    addressInPairLink: string;
+    pairLinkHint: string;
+    /** Folded address + token form (pre-ADR 0101 Hosts). */
+    legacyEntry: string;
     invalidEndpoint: string;
-    statusLive: string;
-    statusRemote: string;
-    statusDisconnected: string;
-    shellOnlyNote: string;
   };
   hostGate: {
     chooserTitle: string;

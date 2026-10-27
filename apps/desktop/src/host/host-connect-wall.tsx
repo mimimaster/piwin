@@ -1,7 +1,4 @@
 import { useEffect, useId, useState, type ReactElement } from 'react';
-import type { PairingLinkV3 } from '@piwin/contracts';
-import { classifyChannelFailure, classifyPairingInput } from '@piwin/host-client';
-import { HostHandshakeError } from '@piwin/host-transport';
 import {
   Button,
   Collapse,
@@ -13,20 +10,13 @@ import {
 import { getDesktopCopy } from '../i18n/desktop-locale.js';
 import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
 import { desktopShellDefaultEndpoint } from '../platform/desktop-shell-build.js';
-import { formatError } from '@piwin/contracts';
-import { canScanPairingCode, scanPairingCode } from './pairing-code-scanner.js';
-import { probeDesktopRemoteHost } from '../run-activity/probe-desktop-remote-host.js';
+import { canScanPairingCode } from './pairing-code-scanner.js';
 import {
-  DESKTOP_HOST_CLIENT_VERSION,
-  desktopRemoteClientId,
   loadDesktopRemoteHostTarget,
   type DesktopRemoteHostTarget,
 } from './remote-host-session.js';
-import {
-  canPairOverChannel,
-  channelHostDisplayEndpoint,
-  pairWorkbenchChannelHost,
-} from './channel-host-book.js';
+import { canPairOverChannel } from './channel-host-book.js';
+import { useHostAttach } from './use-host-attach.js';
 import { getRemoteAccessCopy } from '../i18n/desktop-locale-remote-access.js';
 import { PairedHostList } from './paired-host-list.js';
 
@@ -49,90 +39,31 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
     saved?.endpoint ?? desktopShellDefaultEndpoint() ?? 'ws://127.0.0.1:8787',
   );
   const [authToken, setAuthToken] = useState(saved?.authToken ?? '');
-  const [busy, setBusy] = useState(false);
   const remoteCopy = getRemoteAccessCopy(locale);
   const channelPairing = canPairOverChannel();
   const [pairLink, setPairLink] = useState('');
 
-  const [scanning, setScanning] = useState(false);
   const scannerAvailable = canScanPairingCode();
   // Where a camera can pair, scanning is the path and the address form folds.
   const [manualOpen, setManualOpen] = useState(!scannerAvailable);
   const manualId = useId();
+  // Hosts that predate the encrypted channel still need address + token.
+  const [legacyOpen, setLegacyOpen] = useState(!channelPairing);
+  const legacyId = useId();
 
-  async function connectWith(input: {
-    endpoint: string;
-    authToken: string;
-    pairingToken?: string;
-  }): Promise<void> {
-    setBusy(true);
-    try {
-      const result = await probeDesktopRemoteHost({
-        endpoint: input.endpoint,
-        authToken: input.authToken,
-        ...(input.pairingToken === undefined ? {} : { pairingToken: input.pairingToken }),
-        invalidEndpointMessage: copy.invalidEndpoint,
-      });
-      if (!result.ok) {
-        showErrorNotification(
-          result.reason === undefined
-            ? copy.connectFailed(result.error)
-            : copy.rejectReasons[result.reason],
-        );
-        return;
-      }
-      props.onConnected(result.target, result.hostInstanceId);
-    } catch (connectError) {
-      showErrorNotification(copy.connectFailed(formatError(connectError)));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const attach = useHostAttach({
+    onConnected: props.onConnected,
+    onError: showErrorNotification,
+  });
+  const busy = attach.busy;
+  const scanning = attach.scanning;
 
   async function handleConnect(): Promise<void> {
-    await connectWith({ endpoint, authToken });
-  }
-
-  /** ADR 0101: pair over the encrypted channel from a v3 link or QR. */
-  async function pairChannel(link: PairingLinkV3): Promise<void> {
-    setBusy(true);
-    try {
-      const entry = await pairWorkbenchChannelHost({
-        link,
-        clientId: desktopRemoteClientId(),
-        clientVersion: DESKTOP_HOST_CLIENT_VERSION,
-      });
-      props.onConnected({ endpoint: channelHostDisplayEndpoint(entry), hostId: entry.hostId });
-    } catch (pairError) {
-      const failure = classifyChannelFailure(pairError);
-      showErrorNotification(
-        pairError instanceof HostHandshakeError && pairError.reason !== undefined
-          ? copy.rejectReasons[pairError.reason]
-          : failure !== undefined
-            ? remoteCopy.channelFailures[failure]
-            : copy.connectFailed(formatError(pairError)),
-      );
-    } finally {
-      setBusy(false);
-    }
+    await attach.connectWithAddress({ endpoint, authToken });
   }
 
   async function handlePairLink(raw: string): Promise<void> {
-    try {
-      const input = classifyPairingInput(raw);
-      if (input.kind === 'channel') {
-        await pairChannel(input.link);
-        return;
-      }
-      setEndpoint(input.data.endpoint);
-      await connectWith({
-        endpoint: input.data.endpoint,
-        authToken: input.data.authToken ?? '',
-        ...(input.data.pairingToken === undefined ? {} : { pairingToken: input.data.pairingToken }),
-      });
-    } catch (linkError) {
-      showErrorNotification(formatError(linkError));
-    }
+    await attach.pairWithLink(raw);
   }
 
   // A browser opened from `https://relay/#pair=…`: pair once, then drop the
@@ -147,35 +78,6 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
     // Runs once on mount by design.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // A pairing token is single use, so a scan connects straight away instead of
-  // parking the token in a field the user then has to submit.
-  async function handleScan(): Promise<void> {
-    setScanning(true);
-    try {
-      const scanned = await scanPairingCode();
-      if (scanned === undefined) {
-        showErrorNotification(copy.scanEmpty);
-        return;
-      }
-      if (scanned.kind === 'channel') {
-        await pairChannel(scanned.link);
-        return;
-      }
-      const pairing = scanned.data;
-      setEndpoint(pairing.endpoint);
-      setAuthToken(pairing.authToken ?? '');
-      await connectWith({
-        endpoint: pairing.endpoint,
-        authToken: pairing.authToken ?? '',
-        ...(pairing.pairingToken === undefined ? {} : { pairingToken: pairing.pairingToken }),
-      });
-    } catch (scanError) {
-      showErrorNotification(formatError(scanError));
-    } finally {
-      setScanning(false);
-    }
-  }
 
   return (
     <div className="host-gate" data-testid="host-connect-wall">
@@ -192,7 +94,7 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
                 variant="primary"
                 disabled={busy || scanning}
                 onClick={() => {
-                  void handleScan();
+                  void attach.scanAndPair();
                 }}
                 data-testid="host-gate-scan"
               >
@@ -209,6 +111,9 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
               </Button>
             </div>
           </>
+        ) : // With channel pairing the link is the way in; the address form is the older path.
+        channelPairing ? (
+          <p className="host-gate-description">{copy.pairLinkHint}</p>
         ) : (
           <>
             <p className="host-gate-description">{gate.connectDescription}</p>
@@ -242,39 +147,59 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
                 </div>
               </Field>
             ) : null}
-            <Field label={copy.endpointLabel}>
-              <TextInput
-                value={endpoint}
-                onChange={(event) => setEndpoint(event.currentTarget.value)}
-                placeholder={copy.endpointPlaceholder}
-                autoComplete="off"
-                spellCheck={false}
-                disabled={busy}
-                testId="host-gate-endpoint"
-              />
-            </Field>
-            <Field label={copy.tokenLabel}>
-              <PasswordInput
-                value={authToken}
-                onChange={(event) => setAuthToken(event.currentTarget.value)}
-                placeholder={copy.tokenPlaceholder}
-                autoComplete="off"
-                disabled={busy}
-                testId="host-gate-token"
-              />
-            </Field>
-            <div className="ui-field-row host-gate-actions">
-              <Button
-                variant={scannerAvailable ? 'secondary' : 'primary'}
-                disabled={busy || scanning}
-                onClick={() => {
-                  void handleConnect();
-                }}
-                data-testid="host-gate-connect"
-              >
-                {busy && !scanning ? copy.connecting : copy.connect}
-              </Button>
-              {allowLocal ? (
+            {channelPairing ? (
+              <div className="ui-field-row host-gate-actions">
+                <Button
+                  variant="ghost"
+                  size="compact"
+                  aria-expanded={legacyOpen}
+                  aria-controls={legacyId}
+                  onClick={() => setLegacyOpen((open) => !open)}
+                  data-testid="host-gate-legacy-toggle"
+                >
+                  {copy.legacyEntry}
+                </Button>
+              </div>
+            ) : null}
+            <Collapse expanded={legacyOpen} testId="host-gate-legacy">
+              <div id={legacyId} className="host-gate-manual">
+                <Field label={copy.endpointLabel}>
+                  <TextInput
+                    value={endpoint}
+                    onChange={(event) => setEndpoint(event.currentTarget.value)}
+                    placeholder={copy.endpointPlaceholder}
+                    autoComplete="off"
+                    spellCheck={false}
+                    disabled={busy}
+                    testId="host-gate-endpoint"
+                  />
+                </Field>
+                <Field label={copy.tokenLabel}>
+                  <PasswordInput
+                    value={authToken}
+                    onChange={(event) => setAuthToken(event.currentTarget.value)}
+                    placeholder={copy.tokenPlaceholder}
+                    autoComplete="off"
+                    disabled={busy}
+                    testId="host-gate-token"
+                  />
+                </Field>
+                <div className="ui-field-row host-gate-actions">
+                  <Button
+                    variant={scannerAvailable || channelPairing ? 'secondary' : 'primary'}
+                    disabled={busy || scanning}
+                    onClick={() => {
+                      void handleConnect();
+                    }}
+                    data-testid="host-gate-connect"
+                  >
+                    {busy && !scanning ? copy.connecting : copy.connect}
+                  </Button>
+                </div>
+              </div>
+            </Collapse>
+            {allowLocal ? (
+              <div className="ui-field-row host-gate-actions">
                 <Button
                   variant="secondary"
                   disabled={busy}
@@ -285,8 +210,8 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
                 >
                   {copy.useThisMac}
                 </Button>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </div>
         </Collapse>
       </div>

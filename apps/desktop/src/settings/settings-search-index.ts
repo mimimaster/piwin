@@ -7,9 +7,14 @@ import {
 /** Search terms for controls that are rendered inside a section rather than in its nav label. */
 const SETTINGS_SEARCH_TERMS: Readonly<Record<SettingsSectionId, readonly string[]>> = {
   general: [
-    'appearance', 'theme', 'themes', 'font', 'typography', 'language', 'host', 'animation',
-    'locator', 'shortcut', 'shortcuts', 'keyboard', 'companion', 'pet',
-    '外观', '主题', '字体', '语言', '动效', '快捷键', '键盘', '灵动伴侣', '桌宠',
+    'appearance', 'theme', 'themes', 'font', 'typography', 'language', 'animation',
+    'locator', 'shortcut', 'shortcuts', 'keyboard', 'companion', 'pet', 'health', 'version',
+    '外观', '主题', '字体', '语言', '动效', '快捷键', '键盘', '灵动伴侣', '桌宠', '健康', '版本',
+  ],
+  connection: [
+    'host', 'remote', 'relay', 'phone', 'mobile', 'pairing', 'device', 'devices', 'proxy',
+    'qr', 'capabilities',
+    '远程', '中转', '手机', '配对', '设备', '代理', '二维码', '扫码', 'Host 能力',
   ],
   notifications: [
     'notification', 'notifications', 'alert', 'badge', 'sound', 'dock', 'attention',

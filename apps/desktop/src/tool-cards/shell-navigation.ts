@@ -9,6 +9,7 @@
 
 export type ShellSettingsSection =
   | 'general'
+  | 'connection'
   | 'notifications'
   | 'appearance'
   | 'permissions'

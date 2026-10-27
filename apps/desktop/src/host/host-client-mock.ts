@@ -26,6 +26,7 @@ import {
   validateMockQueuedTurnInput,
   waitForMockAbort,
   type MockBuiltinThemeId,
+  recordMockStreamProbe,
 } from './host-client-mock-helpers.js';
 import type {
   AgentEvent,
@@ -727,6 +728,7 @@ export class MockHostBackend {
           delta: chunk,
           runId,
         });
+        recordMockStreamProbe(assistantId, assembled);
         // Keep the renderer stress fixture in streaming state until Stop is
         // pressed. This makes the cancellation test independent of timer
         // speed and prevents a natural completion from racing the click.

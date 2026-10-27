@@ -12,6 +12,7 @@ import {
 
 const ALL_SECTION_IDS: SettingsSectionId[] = [
   'general',
+  'connection',
   'notifications',
   'permissions',
   'models',
@@ -88,9 +89,14 @@ describe('section registry', () => {
     expect(Object.keys(LEGACY_SETTINGS_REDIRECTS).length).toBeGreaterThanOrEqual(13);
   });
 
-  it('places notifications immediately after general in the application group', () => {
+  it('places connection, then notifications, right after general in the application group', () => {
     const ids = SETTINGS_SECTIONS.map((section) => section.id);
-    expect(ids.indexOf('notifications')).toBe(ids.indexOf('general') + 1);
+    expect(ids.indexOf('connection')).toBe(ids.indexOf('general') + 1);
+    expect(ids.indexOf('notifications')).toBe(ids.indexOf('connection') + 1);
+    expect(SETTINGS_SECTIONS.find((section) => section.id === 'connection')).toMatchObject({
+      group: 'application',
+      labelKey: 'connection',
+    });
     expect(SETTINGS_SECTIONS.find((section) => section.id === 'notifications')).toMatchObject({
       group: 'application',
       labelKey: 'notifications',

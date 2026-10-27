@@ -110,7 +110,7 @@ describe('HostConnectWall', () => {
     scanner.probe.mockResolvedValue({
       ok: false,
       error: 'Host rejected the connection (4004): Pairing token is invalid or expired',
-      reason: 'pairing-token-invalid',
+      failure: { kind: 'rejected', reason: 'pairing-token-invalid' },
     });
     renderWall();
     await act(async () => {

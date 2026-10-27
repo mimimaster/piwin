@@ -15,8 +15,10 @@ import type {
   RemoteSessionTranscriptPageInfo,
   RemoteTranscriptMessage,
   SessionContextSnapshot,
+  SessionUserMessageTurnMark,
 } from '@piwin/contracts';
 import {
+  SESSION_USER_MESSAGE_TURN_MARKS,
   createUnknownSessionContextSnapshot,
   parseAssistantUsageMeasurement,
   parseSessionContextSnapshot,
@@ -217,6 +219,12 @@ export function projectSessionTranscriptPage(
   };
 }
 
+function projectTurnMarks(value: unknown): { marks?: SessionUserMessageTurnMark[] } {
+  if (!Array.isArray(value)) return {};
+  const marks = SESSION_USER_MESSAGE_TURN_MARKS.filter((mark) => value.includes(mark));
+  return marks.length > 0 ? { marks } : {};
+}
+
 export function projectSessionUserMessageIndex(data: unknown): unknown {
   const record = asRecord(data);
   if (record === undefined) return data;
@@ -247,6 +255,7 @@ export function projectSessionUserMessageIndex(data: unknown): unknown {
         typeof anchor.spanEndOrdinal === 'number' && Number.isSafeInteger(anchor.spanEndOrdinal)
           ? anchor.spanEndOrdinal
           : anchor.ordinal,
+      ...projectTurnMarks(anchor.marks),
     });
   }
   const dropped = rawAnchors.length > anchors.length;
@@ -421,6 +430,9 @@ function projectSessionTranscriptPageInfo(
     endIndex: safeNonNegativeInteger(record.endIndex),
     messageBytes: safeNonNegativeInteger(record.messageBytes),
   };
+  if (typeof record.userOrdinalStart === 'number' && Number.isSafeInteger(record.userOrdinalStart) && record.userOrdinalStart >= 0) {
+    info.userOrdinalStart = record.userOrdinalStart;
+  }
   if (Array.isArray(record.turnSummaries)) info.turnSummaries = projectRemoteTurnSummaries(record.turnSummaries);
   if (typeof record.olderCursor === 'string' && record.olderCursor.length <= 512) {
     info.olderCursor = record.olderCursor;

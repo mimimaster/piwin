@@ -1,5 +1,8 @@
-import { formatError, type HostHelloRejectReason } from '@piwin/contracts';
-import { HostHandshakeError } from '@piwin/host-transport';
+import { formatError } from '@piwin/contracts';
+import {
+  classifyHostConnectFailure,
+  type HostConnectFailure,
+} from '../host/host-connect-failure.js';
 import { primeDeviceCredential } from '../devices/device-admission.js';
 import {
   createDesktopRemoteHostClient,
@@ -15,9 +18,10 @@ export type ProbeDesktopRemoteHostResult =
   | { ok: true; target: DesktopRemoteHostTarget; hostInstanceId?: string }
   | {
       ok: false;
+      /** Raw detail, kept for logs. */
       error: string;
-      /** Set when the Host classified its refusal; the caller localizes from it. */
-      reason?: HostHelloRejectReason;
+      /** What went wrong, for the caller to put into words. */
+      failure: HostConnectFailure;
     };
 
 /**
@@ -33,7 +37,11 @@ export async function probeDesktopRemoteHost(input: {
 }): Promise<ProbeDesktopRemoteHostResult> {
   const normalizedEndpoint = input.endpoint.trim();
   if (!isDesktopRemoteHostEndpoint(normalizedEndpoint)) {
-    return { ok: false, error: input.invalidEndpointMessage };
+    return {
+      ok: false,
+      error: input.invalidEndpointMessage,
+      failure: { kind: 'message', text: input.invalidEndpointMessage },
+    };
   }
 
   const trimmedToken = input.authToken?.trim() ?? '';
@@ -50,7 +58,7 @@ export async function probeDesktopRemoteHost(input: {
   if (live !== undefined && live.isReady() && sameDesktopRemoteHostTarget(live.target, target)) {
     const status = await live.requestStatus();
     if (!status.ok) {
-      return { ok: false, error: status.error };
+      return { ok: false, error: status.error, failure: { kind: 'other', detail: status.error } };
     }
     return status.hostInstanceId === undefined
       ? { ok: true, target }
@@ -69,7 +77,7 @@ export async function probeDesktopRemoteHost(input: {
     await probe.connect();
     const status = await probe.request({ type: 'host/status' });
     if (!status.success) {
-      return { ok: false, error: status.error };
+      return { ok: false, error: status.error, failure: { kind: 'other', detail: status.error } };
     }
     const hostInstanceId =
       readRemoteHostInstanceId(status.data) ?? probe.getHostHello()?.hostInstanceId;
@@ -77,9 +85,7 @@ export async function probeDesktopRemoteHost(input: {
       ? { ok: true, target }
       : { ok: true, target, hostInstanceId };
   } catch (error) {
-    return error instanceof HostHandshakeError && error.reason !== undefined
-      ? { ok: false, error: formatError(error), reason: error.reason }
-      : { ok: false, error: formatError(error) };
+    return { ok: false, error: formatError(error), failure: classifyHostConnectFailure(error) };
   } finally {
     try {
       await probe?.close();

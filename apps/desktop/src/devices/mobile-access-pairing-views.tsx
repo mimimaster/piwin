@@ -3,9 +3,44 @@
  * listener and a remote Host's pairing management.
  */
 import { useEffect, useState, type ReactElement } from 'react';
-import type { MobileAccessPairingCodeData, PairedDeviceSummary } from '@piwin/contracts';
+import type {
+  MobileAccessPairingCodeData,
+  PairedDeviceSummary,
+  RemoteAccessStatusData,
+} from '@piwin/contracts';
 import { Button, QrCode, TextInput } from '@piwin/ui-kit';
 import type { MobileAccessCopy } from '../i18n/desktop-locale-mobile-access.js';
+
+/**
+ * How a phone holding this code reaches the Host: through the relay (any
+ * network), over the LAN, or not at all (loopback-only Host, no relay).
+ */
+export type PairingReach =
+  { kind: 'relay'; relayUrl: string } | { kind: 'lan' } | { kind: 'local' };
+
+/** A ready relay wins; otherwise a loopback-only Host can't be reached from a phone. */
+export function pairingReachFor(
+  remote: RemoteAccessStatusData | undefined,
+  advertisedEndpoint: string | undefined,
+): PairingReach {
+  const relay = remote?.relay;
+  if (relay?.enabled === true && relay.state === 'ready' && relay.url !== undefined) {
+    return { kind: 'relay', relayUrl: relay.url };
+  }
+  return isLoopbackEndpoint(advertisedEndpoint) ? { kind: 'local' } : { kind: 'lan' };
+}
+
+export function isLoopbackEndpoint(endpoint: string | undefined): boolean {
+  if (endpoint === undefined) {
+    return false;
+  }
+  try {
+    const hostname = new URL(endpoint).hostname;
+    return hostname === 'localhost' || hostname === '[::1]' || hostname.startsWith('127.');
+  } catch {
+    return false;
+  }
+}
 
 export function PairingCredentialCard(props: {
   pairing: MobileAccessPairingCodeData;
@@ -14,12 +49,17 @@ export function PairingCredentialCard(props: {
   busy: boolean;
   canRegenerate: boolean;
   onRegenerate: () => void;
+  reach: PairingReach;
+  /** Inside a guide step the step already names the action: no frame, no title. */
+  bare?: boolean;
   /** Shown under the expiry, e.g. that this code grants admin rights. */
   note?: string | undefined;
 }): ReactElement {
-  const { pairing, copy } = props;
+  const { pairing, copy, reach } = props;
   // ADR 0101: shells pair over the encrypted channel when the Host offers it.
   const link = pairing.channelUri ?? pairing.uri;
+  const hint = reach.kind === 'relay' ? copy.qrHintRelay : copy.qrHint;
+  const shownAddress = reach.kind === 'relay' ? reach.relayUrl : pairing.endpoint;
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     setCopied(false);
@@ -29,19 +69,26 @@ export function PairingCredentialCard(props: {
     setCopied(true);
   };
   return (
-    <div className="mobile-access-pairing-card" data-testid="mobile-access-pairing">
+    <div
+      className={
+        props.bare === true ? 'mobile-access-pairing-card is-bare' : 'mobile-access-pairing-card'
+      }
+      data-testid="mobile-access-pairing"
+    >
       <div className="mobile-access-pairing-body">
         <div className="mobile-access-qr-frame">
           <QrCode value={link} size={184} label={copy.qrLabel} testId="mobile-access-qr" />
         </div>
         <div className="mobile-access-pairing-text">
-          <span className="mobile-access-pairing-title">{copy.qrTitle}</span>
-          <p className="mobile-access-pairing-hint">{copy.qrHint}</p>
+          {props.bare === true ? null : (
+            <span className="mobile-access-pairing-title">{copy.qrTitle}</span>
+          )}
+          <p className="mobile-access-pairing-hint">{hint}</p>
           <code
             className="mobile-access-pairing-endpoint"
             data-testid="mobile-access-pairing-endpoint"
           >
-            {pairing.endpoint}
+            {shownAddress}
           </code>
           <span className="mobile-access-pairing-expiry">
             {copy.pairingExpires(new Date(pairing.expiresAt).toLocaleString(props.locale))}
@@ -89,69 +136,48 @@ export function PairedDeviceList(props: {
   busy: boolean;
   /** Absent when the viewer may not revoke (a paired phone). */
   onRevoke?: ((deviceId: string) => void) | undefined;
-  emptyHint?: string | undefined;
   /** ADR 0101 role / channel note appended to the last-seen line. */
   deviceNote?: ((device: PairedDeviceSummary) => string | undefined) | undefined;
-}): ReactElement {
+}): ReactElement | null {
   const { copy } = props;
+  // The pairing step already says what to do when nothing is paired yet.
+  if (props.devices.length === 0) {
+    return null;
+  }
   return (
     <div className="mobile-access-devices-section" data-testid="mobile-access-devices">
       <h4 className="settings-section-subtitle">{copy.devices}</h4>
-      {props.devices.length === 0 ? (
-        <div className="mobile-access-empty-devices">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="mobile-access-empty-icon"
-            aria-hidden="true"
+      <ul className="mobile-access-device-list">
+        {props.devices.map((device) => (
+          <li
+            key={device.id}
+            className="mobile-access-device-item"
+            data-testid={`mobile-access-device-${device.id}`}
           >
-            <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
-            <path d="M12 18h.01" />
-          </svg>
-          <div className="mobile-access-empty-text">
-            <p className="mobile-access-empty-title">{copy.noDevices}</p>
-            <p className="mobile-access-empty-desc">{props.emptyHint ?? copy.emptyDevicesHint}</p>
-          </div>
-        </div>
-      ) : (
-        <ul className="mobile-access-device-list">
-          {props.devices.map((device) => (
-            <li
-              key={device.id}
-              className="mobile-access-device-item"
-              data-testid={`mobile-access-device-${device.id}`}
-            >
-              <div className="mobile-access-device-info">
-                <span className="mobile-access-device-name">
-                  {device.name}
-                  {device.revoked ? copy.revokedSuffix : ''}
-                </span>
-                <span className="mobile-access-device-meta">
-                  {copy.lastSeen(device.lastSeenAt)}
-                  {props.deviceNote?.(device) ?? ''}
-                </span>
-              </div>
-              {!device.revoked && props.onRevoke ? (
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  disabled={props.busy}
-                  onClick={() => props.onRevoke?.(device.id)}
-                  data-testid={`mobile-access-revoke-${device.id}`}
-                >
-                  {copy.revoke}
-                </Button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
+            <div className="mobile-access-device-info">
+              <span className="mobile-access-device-name">
+                {device.name}
+                {device.revoked ? copy.revokedSuffix : ''}
+              </span>
+              <span className="mobile-access-device-meta">
+                {copy.lastSeen(device.lastSeenAt)}
+                {props.deviceNote?.(device) ?? ''}
+              </span>
+            </div>
+            {!device.revoked && props.onRevoke ? (
+              <Button
+                variant="secondary"
+                size="compact"
+                disabled={props.busy}
+                onClick={() => props.onRevoke?.(device.id)}
+                data-testid={`mobile-access-revoke-${device.id}`}
+              >
+                {copy.revoke}
+              </Button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

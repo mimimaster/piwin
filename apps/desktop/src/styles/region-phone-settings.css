@@ -48,7 +48,6 @@ html:has(.app-shell[data-layout='phone']) {
   }
 
   /* Form rows are sized for a wide card; let them shrink with the screen. */
-  .settings-main .host-target-form,
   .settings-main .host-target-fields,
   .settings-main .host-target-fields > * {
     min-width: 0;

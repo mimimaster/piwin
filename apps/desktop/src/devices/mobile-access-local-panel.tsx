@@ -1,7 +1,8 @@
 /**
- * Phone access for the bundled app: the sidecar listens on the LAN and this
- * panel shows a QR the phone scans. On by default; the switch is remembered by
- * the sidecar (`~/.piwin/devices/mobile-access.json`).
+ * Phone access for the bundled app, as a guided setup: 1 allow phone access
+ * (the sidecar's listener), 2 reach it from anywhere (relay, optional),
+ * 3 scan to pair. Rarely touched settings fold under Advanced. The switch is
+ * remembered by the sidecar (`~/.piwin/devices/mobile-access.json`).
  */
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import type {
@@ -18,15 +19,22 @@ import {
   readMobileAccessPairingCodeData,
   readMobileAccessStatusData,
 } from '@piwin/contracts';
-import { Button, Field, Notice, Select, StatusBadge, Switch, TextInput } from '@piwin/ui-kit';
+import { Button, GuideStep, Notice, Select, Switch, TextInput } from '@piwin/ui-kit';
 import type { MobileAccessCopy } from '../i18n/desktop-locale-mobile-access.js';
 import { isDesktopRemoteHostEndpoint } from '../host/remote-host-session.js';
 import { FieldRow } from '../settings/field-row.js';
 import { PageTitle } from '../settings/page-title.js';
 import type { SettingsContextValue } from '../settings/settings-context.js';
-import { PairedDeviceList, PairingCredentialCard } from './mobile-access-pairing-views.js';
-import { RemoteAccessSection, remoteAccessDeviceNote } from './remote-access-section.js';
+import {
+  PairedDeviceList,
+  PairingCredentialCard,
+  pairingReachFor,
+} from './mobile-access-pairing-views.js';
+import { RemoteAccessAdvanced, remoteAccessDeviceNote } from './remote-access-advanced.js';
+import { RelayStep } from './relay-step.js';
 import { getRemoteAccessCopy } from '../i18n/desktop-locale-remote-access.js';
+import { getConnectionGuideCopy } from '../i18n/desktop-locale-connection-guide.js';
+import { AdvancedFold } from '../settings/advanced-fold.js';
 
 /** Picks up a phone that just paired (and a Wi-Fi change) while the page is open. */
 const STATUS_POLL_MS = 4000;
@@ -41,6 +49,7 @@ export function LocalMobileAccessPanel(props: {
   locale: string;
 }): ReactElement {
   const { request, copy, locale } = props;
+  const guide = getConnectionGuideCopy(locale);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [status, setStatus] = useState<MobileAccessStatusData | undefined>();
@@ -207,130 +216,152 @@ export function LocalMobileAccessPanel(props: {
       : [{ value: CUSTOM_ADDRESS, label: copy.addressCustom }]),
   ];
   const startError = !listening && error === undefined ? status?.lastError : undefined;
+  const remote = status?.remote;
+  const reach = pairingReachFor(remote, status?.advertisedEndpoint);
+  const pairIndex = remote === undefined ? 2 : 3;
+  const refreshQuietly = (): void => {
+    void refresh().catch((refreshError: unknown) => setError(formatError(refreshError)));
+  };
 
   return (
     <div
       className="settings-section settings-section-card mobile-access-card"
       data-testid="mobile-access-settings"
     >
-      <PageTitle
-        title={copy.title}
-        description={copy.description}
-        trailing={
-          <StatusBadge
-            tone={listening ? 'success' : 'neutral'}
-            label={listening ? copy.statusListening : copy.statusIdle}
-          />
-        }
-      />
-      <div className="mobile-access-content">
-        <FieldRow
-          label={copy.listenLabel}
-          description={
-            listening && status?.bindPort !== undefined
-              ? `${copy.listenDescription} ${copy.listeningOn(status.bindPort)}`
-              : copy.listenDescription
+      <PageTitle title={copy.title} />
+      <div className="connection-guide">
+        <GuideStep
+          index={1}
+          title={guide.stepAllow}
+          summary={listening ? guide.stepAllowOn : guide.stepAllowOff}
+          state={listening ? 'done' : 'active'}
+          trailing={
+            <Switch
+              checked={listening}
+              disabled={busy}
+              onCheckedChange={(checked) => {
+                void handleListenChange(checked);
+              }}
+              testId="mobile-access-listen"
+              aria-label={copy.listenLabel}
+            />
           }
+          testId="mobile-access-step-allow"
         >
-          <Switch
-            checked={listening}
-            disabled={busy}
-            onCheckedChange={(checked) => {
-              void handleListenChange(checked);
-            }}
-            testId="mobile-access-listen"
-            aria-label={copy.listenLabel}
+          {startError !== undefined ? (
+            <Notice tone="error">{copy.startFailed(startError)}</Notice>
+          ) : null}
+        </GuideStep>
+
+        {listening && remote !== undefined ? (
+          <RelayStep
+            index={2}
+            remote={remote}
+            locale={locale}
+            send={send}
+            onChanged={refreshQuietly}
           />
-        </FieldRow>
+        ) : null}
 
         {listening ? (
-          <div className="mobile-access-field">
-            <Field label={copy.advertisedLabel} description={copy.advertisedHint}>
-              <Select
-                value={addressValue}
-                data={addressOptions}
-                disabled={busy}
-                onChange={(event) => {
-                  handleAddressChange(event.currentTarget.value);
-                }}
-                testId="mobile-access-address"
-                aria-label={copy.advertisedLabel}
-              />
-            </Field>
-            {customOpen ? (
-              <div className="mobile-access-custom-row">
-                <TextInput
-                  value={customDraft}
-                  onChange={(event) => setCustomDraft(event.currentTarget.value)}
-                  placeholder={copy.advertisedPlaceholder}
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={busy}
-                  testId="mobile-access-advertised"
-                />
-                <Button
-                  variant="secondary"
-                  disabled={busy}
-                  onClick={handleApplyCustom}
-                  data-testid="mobile-access-apply-address"
-                >
-                  {copy.apply}
-                </Button>
-              </div>
+          <GuideStep
+            index={pairIndex}
+            title={guide.stepPair}
+            state={devices.length > 0 ? 'done' : 'active'}
+            testId="mobile-access-step-pair"
+          >
+            {status?.advertisedEndpoint === undefined ? (
+              <Notice tone="warning">{copy.noNetworkAddress}</Notice>
             ) : null}
-          </div>
+            {reach.kind === 'local' ? <Notice tone="warning">{guide.pairLocalOnly}</Notice> : null}
+            {pairing !== undefined && reach.kind !== 'local' ? (
+              <PairingCredentialCard
+                pairing={pairing}
+                copy={copy}
+                locale={locale}
+                busy={busy}
+                canRegenerate={listening}
+                onRegenerate={() => {
+                  void runAction(() => mintCode());
+                }}
+                reach={reach}
+                bare
+                note={operatorCode ? getRemoteAccessCopy(locale).operatorCodeHint : undefined}
+              />
+            ) : null}
+          </GuideStep>
         ) : null}
       </div>
 
       {error !== undefined ? <Notice tone="error">{error}</Notice> : null}
-      {startError !== undefined ? (
-        <Notice tone="error">{copy.startFailed(startError)}</Notice>
-      ) : null}
-      {listening && status?.advertisedEndpoint === undefined ? (
-        <Notice tone="warning">{copy.noNetworkAddress}</Notice>
-      ) : null}
 
-      {pairing !== undefined ? (
-        <PairingCredentialCard
-          pairing={pairing}
+      {listening ? (
+        <PairedDeviceList
+          devices={devices}
           copy={copy}
-          locale={locale}
           busy={busy}
-          canRegenerate={listening}
-          onRegenerate={() => {
-            void runAction(() => mintCode());
-          }}
-          note={operatorCode ? getRemoteAccessCopy(locale).operatorCodeHint : undefined}
-        />
-      ) : null}
-      {listening ? <p className="mobile-access-listen-meta">{copy.securityHint}</p> : null}
-
-      {listening && status?.remote !== undefined ? (
-        <RemoteAccessSection
-          remote={status.remote}
-          locale={locale}
-          send={send}
-          onChanged={() => {
-            void refresh().catch((refreshError: unknown) => setError(formatError(refreshError)));
-          }}
-          onOperatorCode={() => {
-            void runAction(() => mintCode('operator'));
+          deviceNote={remote === undefined ? undefined : remoteAccessDeviceNote(locale)}
+          onRevoke={(deviceId) => {
+            void runAction(async () => {
+              await send({ type: 'mobile-access/revoke-device', deviceId });
+              await refresh();
+            });
           }}
         />
       ) : null}
 
-      <PairedDeviceList
-        devices={devices}
-        copy={copy}
-        busy={busy}
-        deviceNote={status?.remote === undefined ? undefined : remoteAccessDeviceNote(locale)}
-        onRevoke={(deviceId) => {
-          void runAction(async () => {
-            await send({ type: 'mobile-access/revoke-device', deviceId });
-            await refresh();
-          });
-        }}
-      />
+      {listening ? (
+        <AdvancedFold label={guide.advanced} testId="mobile-access-advanced">
+          <FieldRow label={copy.advertisedLabel} description={copy.advertisedHint}>
+            <Select
+              value={addressValue}
+              data={addressOptions}
+              disabled={busy}
+              onChange={(event) => {
+                handleAddressChange(event.currentTarget.value);
+              }}
+              testId="mobile-access-address"
+              aria-label={copy.advertisedLabel}
+            />
+          </FieldRow>
+          {customOpen ? (
+            <div className="mobile-access-custom-row">
+              <TextInput
+                value={customDraft}
+                onChange={(event) => setCustomDraft(event.currentTarget.value)}
+                placeholder={copy.advertisedPlaceholder}
+                autoComplete="off"
+                spellCheck={false}
+                disabled={busy}
+                testId="mobile-access-advertised"
+              />
+              <Button
+                variant="secondary"
+                disabled={busy}
+                onClick={handleApplyCustom}
+                data-testid="mobile-access-apply-address"
+              >
+                {copy.apply}
+              </Button>
+            </div>
+          ) : null}
+          {/* Channel pairing (ADR 0101) encrypts the LAN path too; only legacy codes ride plain ws://. */}
+          {pairing !== undefined && pairing.channelUri === undefined ? (
+            <p className="mobile-access-listen-meta">{copy.securityHint}</p>
+          ) : null}
+          {remote !== undefined ? (
+            <RemoteAccessAdvanced
+              remote={remote}
+              locale={locale}
+              send={send}
+              onChanged={refreshQuietly}
+              onOperatorCode={() => {
+                void runAction(() => mintCode('operator'));
+              }}
+            />
+          ) : null}
+        </AdvancedFold>
+      ) : null}
     </div>
   );
 }

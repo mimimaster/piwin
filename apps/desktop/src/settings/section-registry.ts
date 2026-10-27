@@ -12,6 +12,7 @@ import type { DesktopTranslator } from '../i18n/desktop-locale';
 
 export type SettingsSectionId =
   | 'general'
+  | 'connection'
   | 'notifications'
   | 'permissions'
   | 'models'
@@ -42,6 +43,13 @@ export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionI
   shortcuts: 'general',
   pets: 'general',
   animations: 'general',
+
+  // Host target, phone access, relay and proxy left General for their own page
+  'phone-access': 'connection',
+  'mobile-access': 'connection',
+  'remote-access': 'connection',
+  'remote-host': 'connection',
+  proxy: 'connection',
 
   // Consolidated sections into Models
   vision: 'models',
@@ -79,6 +87,7 @@ export type SettingsSectionMeta = {
 /** Nav order within each group follows array order. */
 export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'general', group: 'application', labelKey: 'general' },
+  { id: 'connection', group: 'application', labelKey: 'connection' },
   { id: 'notifications', group: 'application', labelKey: 'notifications' },
   { id: 'permissions', group: 'application', labelKey: 'permissions' },
   { id: 'models', group: 'agent', labelKey: 'models' },

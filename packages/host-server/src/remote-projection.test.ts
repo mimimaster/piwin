@@ -945,6 +945,68 @@ describe('remote transcript attachment projection', () => {
     });
   });
 
+  it('keeps turn marks and the page user ordinal for remote navigation rails', () => {
+    const index = projectRemoteResponse(
+      {
+        type: 'session/user-message-index',
+        query: { sessionId: 'session-1', maximumTicks: 16 },
+      },
+      {
+        type: 'response',
+        command: 'session/user-message-index',
+        success: true,
+        data: {
+          sessionId: 'session-1',
+          revision: 'rev-1',
+          totalUserMessages: 1,
+          mode: 'exact',
+          anchors: [
+            {
+              messageId: 'user-1',
+              ordinal: 0,
+              createdAt: '2026-10-01T00:00:00.000Z',
+              preview: 'question',
+              spanStartOrdinal: 0,
+              spanEndOrdinal: 0,
+              marks: ['artifact', 'unknown-kind', 'error'],
+            },
+          ],
+          anchorBytes: 0,
+        },
+      },
+      context,
+    );
+    if (!index.success) throw new Error(index.error);
+    expect(index.data).toMatchObject({ anchors: [{ marks: ['error', 'artifact'] }] });
+
+    const page = projectRemoteResponse(
+      {
+        type: 'session/transcript-page',
+        query: { sessionId: 'session-1', limit: 16, maximumBytes: 256 * 1024 },
+      },
+      {
+        type: 'response',
+        command: 'session/transcript-page',
+        success: true,
+        data: {
+          status: 'page',
+          messages: [],
+          page: {
+            revision: 'rev-1',
+            totalCount: 40,
+            startIndex: 20,
+            endIndex: 40,
+            userOrdinalStart: 10,
+            messageBytes: 2,
+          },
+        },
+      },
+      context,
+    );
+    if (!page.success) throw new Error(page.error);
+    expect(page.data).toMatchObject({ page: { userOrdinalStart: 10 } });
+  });
+
   it('keeps media attachments on session/transcript-page as remote-asset refs', () => {
     const projected = projectRemoteResponse(
       {

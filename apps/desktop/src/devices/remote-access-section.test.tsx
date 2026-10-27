@@ -25,7 +25,13 @@ const REMOTE = {
 
 type Command = HostCommand | LocalMobileAccessCommand;
 
-function sidecar(requested: Command[]) {
+const RELAY_READY = {
+  ...REMOTE,
+  relay: { enabled: true, url: 'wss://relay.example.com:8443', state: 'ready' },
+};
+type RelayReadyRemote = typeof RELAY_READY;
+
+function sidecar(requested: Command[], remote: typeof REMOTE | RelayReadyRemote = REMOTE) {
   return vi.fn(async (command: Command): Promise<HostResponse> => {
     requested.push(command);
     const ok = (data: unknown): HostResponse => ({
@@ -41,7 +47,7 @@ function sidecar(requested: Command[]) {
           pairedDeviceCount: 1,
           enabled: true,
           advertisedEndpoint: 'ws://192.168.1.5:8790',
-          remote: REMOTE,
+          remote,
         });
       case 'mobile-access/list-devices':
         return ok({
@@ -70,7 +76,7 @@ function sidecar(requested: Command[]) {
         });
       case 'host/remote-access-configure':
         return ok({
-          ...REMOTE,
+          ...remote,
           legacyAccess: (command as { legacyAccess?: string }).legacyAccess ?? 'full',
         });
       default:
@@ -102,12 +108,15 @@ describe('remote access in phone-access settings (ADR 0101)', () => {
     }
   });
 
-  async function render(requested: Command[]): Promise<HTMLDivElement> {
+  async function render(
+    requested: Command[],
+    remote: typeof REMOTE | RelayReadyRemote = REMOTE,
+  ): Promise<HTMLDivElement> {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
     const contextValue = {
-      hostClient: { getTransport: () => 'live', request: sidecar(requested) },
+      hostClient: { getTransport: () => 'live', request: sidecar(requested, remote) },
     } as unknown as SettingsContextValue;
     act(() => {
       root?.render(
@@ -169,6 +178,42 @@ describe('remote access in phone-access settings (ADR 0101)', () => {
       type: 'host/remote-access-configure',
       legacyAccess: 'migrate-only',
     });
+  });
+
+  it('saves the relay address and enroll token in one command', async () => {
+    const requested: Command[] = [];
+    const view = await render(requested);
+    await act(async () => {
+      type(
+        view.querySelector('[data-testid="remote-access-relay-url"]') as HTMLInputElement,
+        'wss://relay.example.com:8443',
+      );
+      type(
+        view.querySelector('[data-testid="remote-access-enroll-token"]') as HTMLInputElement,
+        'enroll-secret',
+      );
+    });
+    await act(async () => {
+      (view.querySelector('[data-testid="remote-access-relay-save"]') as HTMLButtonElement).click();
+    });
+    await flush();
+    expect(requested).toContainEqual({
+      type: 'host/remote-access-configure',
+      relay: { enabled: true, url: 'wss://relay.example.com:8443', enrollToken: 'enroll-secret' },
+    });
+    expect(
+      (view.querySelector('[data-testid="remote-access-enroll-token"]') as HTMLInputElement).value,
+    ).toBe('');
+  });
+
+  it('tells the phone it can pair from any network once the relay is ready', async () => {
+    const view = await render([], RELAY_READY);
+    const card = view.querySelector('[data-testid="mobile-access-pairing"]');
+    expect(card?.textContent).toContain('from any network');
+    expect(card?.textContent).not.toContain('same Wi‑Fi');
+    expect(view.querySelector('[data-testid="mobile-access-pairing-endpoint"]')?.textContent).toBe(
+      'wss://relay.example.com:8443',
+    );
   });
 
   it('mints an admin code into the pairing card with its note', async () => {

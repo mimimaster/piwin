@@ -61,6 +61,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       todoConflict: isChinese ? '待办事项已被另一端修改' : 'Another client changed these todos.',
       nav: {
         general: isChinese ? '通用与外观' : 'General & Appearance',
+        connection: isChinese ? '连接与设备' : 'Connection & Devices',
         notifications: isChinese ? '通知' : 'Notifications',
         models: isChinese ? '模型' : 'Models & Providers',
         oauth: isChinese ? 'OAuth 登录' : 'OAuth Login',

@@ -495,7 +495,10 @@ test.describe('desktop shell (vite + host mock)', () => {
     await waitForHostReady(page);
     await expect(page.getByTestId('shell-preview-pill')).toHaveCount(0);
     await page.getByTestId('settings-open-shelf-btn').click();
+    await page.getByTestId('settings-nav-connection').click();
+    await page.getByTestId('connection-subtabs-control').getByText(/当前 Host|^Host$/).click();
     await expect(page.getByTestId('capability-matrix')).toBeVisible();
+    await page.getByTestId('capability-matrix-toggle').click();
     await expect(page.getByTestId('capability-row-pty')).toContainText(
       /交互终端|Interactive terminal/,
     );

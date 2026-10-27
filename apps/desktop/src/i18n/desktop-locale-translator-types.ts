@@ -51,6 +51,7 @@ export type DesktopTranslator = {
     todoConflict: string;
     nav: {
       general: string;
+      connection: string;
       notifications: string;
       models: string;
       oauth: string;

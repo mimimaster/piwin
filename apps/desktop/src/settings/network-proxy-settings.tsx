@@ -101,16 +101,16 @@ export function NetworkProxySettings(): ReactElement | null {
         title={zh ? '网络代理' : 'Network proxy'}
         description={
           zh
-            ? 'Host 的登录、模型调用和联网工具都走这里设置的代理。Agent 中的命令也会继承这个代理。'
-            : 'Sign-in, model calls and web tools on the Host use this proxy. Agent commands inherit it too.'
+            ? '登录、模型调用、联网工具和 Agent 里的命令都走这个代理。'
+            : 'Sign-in, model calls, web tools and agent commands go through this proxy.'
         }
       />
       <FieldRow
         label={zh ? '代理地址' : 'Proxy URL'}
         description={
           zh
-            ? '留空：沿用 Host 启动时的 HTTP(S)_PROXY。direct：强制直连。或填 http://127.0.0.1:7890 这样的地址。'
-            : 'Empty: keep the HTTP(S)_PROXY the Host started with. direct: always connect directly. Or a URL such as http://127.0.0.1:7890.'
+            ? '留空沿用 HTTP(S)_PROXY，填 direct 强制直连。'
+            : 'Empty keeps HTTP(S)_PROXY; direct always connects directly.'
         }
       >
         <>
@@ -137,8 +137,8 @@ export function NetworkProxySettings(): ReactElement | null {
           label={zh ? '系统代理' : 'System proxy'}
           description={
             zh
-              ? '读取这台 Host 当前的系统代理（如 Clash、Surge 开启的），并保存为上面的代理地址。'
-              : "Read this Host's current system proxy (as set by Clash, Surge, …) and save it as the proxy URL above."
+              ? '读取 Clash、Surge 等开启的系统代理并填入。'
+              : 'Read the system proxy set by Clash, Surge, … and use it.'
           }
         >
           <Button

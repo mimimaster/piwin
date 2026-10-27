@@ -98,15 +98,22 @@ operator device exists it prints an operator pairing link
 (`piwin://pair?v=3…`): open it on the shell that should administer the Host.
 
 The bundled Desktop serves the same channel on its phone-access listener and
-connects to the relay while phone access is on. Configure it under
-**Settings → Phone access → Remote access**:
+connects to the relay while phone access is on. Settings → Connection &
+Devices → **Phone & remote access** walks through it in three steps:
 
-- relay address and enroll token, with the relay's state and a hint for the
-  last close code;
-- the relay user: rename it, copy its `piwin-user:v1:…` line for a shared relay;
-- the policy for pre-relay clients (`legacyAccess`, see §7);
-- **Admin pairing code**: a one-time code whose device may manage pairing and
-  relay settings. The normal code pairs a member device.
+1. **Allow phone access** — the switch for the phone-access listener.
+2. **Reach it from anywhere** (optional) — the relay address, plus the enroll
+   token when the relay asks for one, saved together. Once set it collapses to
+   one line with the relay's state, an on/off switch and Edit; a close-code
+   hint appears if the relay refuses the Host.
+3. **Scan to pair** — the QR and link. A Host that only listens on loopback
+   shows no QR until step 2 is done.
+
+**Advanced** holds what most people never touch: the phone address written
+into the QR, the relay user (rename it, copy its `piwin-user:v1:…` line for a
+shared relay), the policy for pre-relay clients (`legacyAccess`, see §7), and
+the **admin pairing code** — a one-time code whose device may manage pairing
+and relay settings (the normal code pairs a member device).
 
 From a terminal, an operator shell (`PIWIN_HOST` naming an admin device, or a
 loopback `PIWIN_HOST_URL`) does the same:
@@ -136,7 +143,7 @@ the platform's secret store.
 | Shell | Pair | Secrets |
 |-------|------|---------|
 | Phone | scan the QR, or paste the link | iOS / Android keystore |
-| Desktop thin shell | paste the link on the connect wall | Keychain / Credential Manager / Secret Service |
+| Desktop | paste the link on the connect wall, or under Settings → Connection & Devices → Host | Keychain / Credential Manager / Secret Service |
 | Browser | open the `#pair=` link (cleared from the address bar at once), or paste it | IndexedDB of the relay's origin |
 | CLI / TUI | `piwin pair '<link>' [--alias <name>]` | owner-only files under `~/.piwin/client/` |
 

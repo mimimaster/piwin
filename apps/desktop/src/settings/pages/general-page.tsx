@@ -1,7 +1,8 @@
 /**
  * Settings → General page.
- * Unified application preferences: General & Host Capabilities, Appearance & Themes,
- * Keyboard Shortcuts, and Companion (Pet).
+ * Application preferences: General, Appearance & Themes, Keyboard Shortcuts,
+ * Health and Companion (Pet). Host, phone access and proxy live on the
+ * Connection page.
  */
 import { lazy, Suspense, useState, type ReactElement } from 'react';
 import { SegmentedControl, Spinner } from '@piwin/ui-kit';
@@ -9,103 +10,37 @@ import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 import { AppearancePage } from './appearance-page';
 import { ShortcutsPage } from './shortcuts-page';
-import { Collapse, Select } from '@piwin/ui-kit';
+import { Select } from '@piwin/ui-kit';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
-import { buildCapabilityMatrix } from '@piwin/contracts';
 import { getDesktopCopy, type DesktopLocale } from '../../i18n/desktop-locale';
 import { AgentLocator } from '../../agents/agent-locator.js';
 import type { AgentLocatorAnimation } from '../../platform/ui-preferences.js';
 import { DeviceHealthSettings } from '../../devices/device-health-settings';
 import { HostHealthSettings } from '../host-health-settings';
-import { NetworkProxySettings } from '../network-proxy-settings';
-import { HostTargetSettings } from '../../host/host-target-settings';
 import { ShellInterfaceSettings } from '../../tool-cards/shell-interface-settings';
 import { AppVersionSettings } from '../../platform/app-version-settings';
 import { isMobileTauriRuntime } from '../../tool-cards/shell-runtime';
-import { MobileAccessSettings } from '../../devices/mobile-access-settings';
 import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 
-type GeneralSubTab = 'appearance' | 'general' | 'shortcuts' | 'pets';
+type GeneralSubTab = 'appearance' | 'general' | 'shortcuts' | 'health' | 'pets';
 
 const DeferredPetPanel = lazy(async () => {
   const module = await import('../../pet/PetPanel');
   return { default: module.PetPanel };
 });
 
-const CAPABILITY_LABEL_ZH: Record<string, string> = {
-  customTools: '自定义工具（Web / MCP / 记忆 / 进程）',
-  productTranscript: '产品层会话恢复',
-  mcpLifecycle: 'MCP 生命周期',
-  sessionLifecycle: '会话重命名 / 归档 / 复制',
-  sessionSearch: '会话搜索',
-  memory: '记忆工具',
-  process: '托管进程',
-  pty: '交互终端（PTY）',
-  automation: '自动化（定时 / Hooks）',
-  extensions: 'Pi 扩展',
-  rpcIsolation: 'RPC 进程隔离',
-};
-
-const CAPABILITY_LABEL_EN: Record<string, string> = {
-  customTools: 'Custom tools (Web / MCP / Memory / Process)',
-  productTranscript: 'Product transcript restoration',
-  mcpLifecycle: 'MCP lifecycle',
-  sessionLifecycle: 'Session rename / archive / duplicate',
-  sessionSearch: 'Session search',
-  memory: 'Memory tools',
-  process: 'Managed processes',
-  pty: 'Interactive terminal (PTY)',
-  automation: 'Automation (cron / hooks)',
-  extensions: 'Pi extensions',
-  rpcIsolation: 'RPC process isolation',
-};
-
-const CAPABILITY_NOTE_ZH: Record<string, string> = {
-  'Host path is shell preview; interactive PTY is Tauri desktop (ADR 0013)':
-    'Host 路径为 Shell 预览；交互式终端由桌面端提供',
-  'Hooks are post-event only; optional': '事件钩子仅在事件结束后触发；可选',
-  'Host mode is SDK (in-process)': '运行模式为 SDK（进程内）',
-  'RPC host uses SDK session backend': 'RPC 模式使用 SDK 会话后端',
-  'Use SDK host mode (or live RPC with SDK fallback)': '使用 SDK 模式（或带 SDK 回退的 RPC）',
-  'Not available': '不可用',
-  'Superseded by real PTY': '已被真实 PTY 取代',
-  'RPC mode: SDK backend (no process isolation)': 'RPC 模式：SDK 后端（无进程隔离）',
-  'Mock RPC — isolation not simulated': '测试模式 — 未模拟隔离',
-};
-
-function localizeCapabilityNote(
-  note: string | undefined,
-  locale: DesktopLocale,
-): string | undefined {
-  if (!note) return undefined;
-  if (locale === 'en') return note;
-  return CAPABILITY_NOTE_ZH[note] ?? note;
-}
-
-function getCapabilityLabel(capabilityId: string, fallback: string, locale: DesktopLocale): string {
-  if (locale === 'en') return CAPABILITY_LABEL_EN[capabilityId] ?? fallback;
-  return CAPABILITY_LABEL_ZH[capabilityId] ?? fallback;
-}
-
 function GeneralPreferencesSection(): ReactElement {
   const { locale, setLocale } = useDesktopLocale();
   const copy = getDesktopCopy(locale);
-  const settings = useSettings();
-  const { hostStatus } = settings;
-  const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
 
   return (
     <>
-      <div className="settings-section settings-section-card general-card" data-testid="settings-general-base">
-        <PageTitle
-          title={locale === 'zh-CN' ? '基础偏好' : 'General Preferences'}
-          description={
-            locale === 'zh-CN'
-              ? '桌面端界面显示与语言选项。'
-              : 'Desktop display and language preferences.'
-          }
-        />
+      <div
+        className="settings-section settings-section-card general-card"
+        data-testid="settings-general-base"
+      >
+        <PageTitle title={locale === 'zh-CN' ? '基础偏好' : 'General Preferences'} />
         <FieldRow label={copy.language} description={copy.languageDescription}>
           <Select
             value={locale}
@@ -123,78 +58,6 @@ function GeneralPreferencesSection(): ReactElement {
 
       <AppVersionSettings />
       <ShellInterfaceSettings />
-
-      <DeviceHealthSettings />
-
-      <HostHealthSettings />
-
-      <HostTargetSettings />
-
-      <NetworkProxySettings />
-
-      {/* Pairing a phone is an operator task done at the computer. */}
-      {isMobileTauriRuntime() ? null : <MobileAccessSettings />}
-
-      {hostStatus ? (
-        <div className="settings-section settings-section-card host-capabilities-card" data-testid="capability-matrix">
-          <button
-            type="button"
-            className="settings-collapsible-trigger"
-            onClick={() => setCapabilitiesOpen((v) => !v)}
-            aria-expanded={capabilitiesOpen}
-            data-testid="capability-matrix-toggle"
-          >
-            <PageTitle
-              title={locale === 'zh-CN' ? 'Host 能力 (高级)' : 'Host capabilities (Advanced)'}
-              description={
-                locale === 'zh-CN'
-                  ? '查看当前 Host 支持的底层服务矩阵与运行规格。'
-                  : 'Runtime capability and isolation matrix for the active Host.'
-              }
-            />
-            <svg
-              className={`settings-collapsible-chevron ${capabilitiesOpen ? 'open' : ''}`}
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </button>
-
-          <Collapse expanded={capabilitiesOpen} testId="capability-matrix-collapse">
-            <ul className="capability-matrix-list">
-              {buildCapabilityMatrix(hostStatus.capabilities, {
-                mode: hostStatus.mode,
-                mock: hostStatus.mock,
-              }).map((row) => (
-                <li
-                  key={row.id}
-                  className={
-                    row.available ? 'capability-row available' : 'capability-row unavailable'
-                  }
-                  data-testid={`capability-row-${row.id}`}
-                >
-                  <span className="capability-mark" aria-hidden>
-                    {row.available ? '●' : '○'}
-                  </span>
-                  <span className="capability-body">
-                    <strong>{getCapabilityLabel(row.id, row.label, locale)}</strong>
-                    {localizeCapabilityNote(row.note, locale) ? (
-                      <span className="muted"> — {localizeCapabilityNote(row.note, locale)}</span>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Collapse>
-        </div>
-      ) : null}
     </>
   );
 }
@@ -206,7 +69,10 @@ function AnimationLocatorCard(): ReactElement {
   const locatorAnimation = preferences.agentLocatorAnimation ?? 'radial-bellow';
 
   return (
-    <div className="settings-section settings-section-card animation-locator-config" data-testid="settings-locator-animation">
+    <div
+      className="settings-section settings-section-card animation-locator-config"
+      data-testid="settings-locator-animation"
+    >
       <PageTitle
         title={isChinese ? 'Agent 定位动效' : 'Agent locator animation'}
         description={
@@ -215,7 +81,10 @@ function AnimationLocatorCard(): ReactElement {
             : 'The marker shown in the transcript while a run is active.'
         }
       />
-      <div className="animation-locator-config-row" style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12 }}>
+      <div
+        className="animation-locator-config-row"
+        style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12 }}
+      >
         <SegmentedControl
           value={locatorAnimation}
           onChange={(value) => {
@@ -257,12 +126,17 @@ export function GeneralPage(): ReactElement {
   const isChinese = locale === 'zh-CN';
   const settings = useSettings();
   const { requestPet, onPetActiveChanged } = settings;
+  // A phone has no keyboard shortcuts or desktop companion to configure.
+  const onPhone = isMobileTauriRuntime();
   const petsAvailable = settingsHostSupportsCommand(settings, 'pet/list');
   const [activeTab, setActiveTab] = useState<GeneralSubTab>('general');
   useResetSettingsMainScroll(activeTab);
 
   return (
-    <div className="settings-card settings-hub-page general-hub-page" data-testid="settings-general">
+    <div
+      className="settings-card settings-hub-page general-hub-page"
+      data-testid="settings-general"
+    >
       <div className="settings-hub-tabs">
         <SegmentedControl
           value={activeTab}
@@ -271,56 +145,70 @@ export function GeneralPage(): ReactElement {
           data={[
             { value: 'general', label: isChinese ? '基础设置' : 'General' },
             { value: 'appearance', label: isChinese ? '外观与主题' : 'Appearance' },
-            { value: 'shortcuts', label: isChinese ? '快捷键' : 'Shortcuts' },
-            {
-              value: 'pets',
-              label: isChinese ? '桌宠' : 'Companion',
-              disabled: !petsAvailable,
-            },
+            ...(onPhone
+              ? []
+              : [{ value: 'shortcuts', label: isChinese ? '快捷键' : 'Shortcuts' }]),
+            { value: 'health', label: isChinese ? '健康' : 'Health' },
+            ...(onPhone
+              ? []
+              : [
+                  {
+                    value: 'pets',
+                    label: isChinese ? '桌宠' : 'Companion',
+                    disabled: !petsAvailable,
+                  },
+                ]),
           ]}
           testId="general-subtabs-control"
         />
       </div>
 
       <div className="settings-hub-panels">
-      {activeTab === 'appearance' && (
-        <div data-testid="general-tab-appearance">
-          <AppearancePage />
-          <div style={{ marginTop: 16 }}>
-            <AnimationLocatorCard />
+        {activeTab === 'appearance' && (
+          <div data-testid="general-tab-appearance">
+            <AppearancePage />
+            <div style={{ marginTop: 16 }}>
+              <AnimationLocatorCard />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {activeTab === 'general' && (
-        <div data-testid="general-tab-base">
-          <GeneralPreferencesSection />
-        </div>
-      )}
+        {activeTab === 'general' && (
+          <div data-testid="general-tab-base">
+            <GeneralPreferencesSection />
+          </div>
+        )}
 
-      {activeTab === 'shortcuts' && (
-        <div data-testid="general-tab-shortcuts">
-          <ShortcutsPage />
-        </div>
-      )}
+        {activeTab === 'shortcuts' && (
+          <div data-testid="general-tab-shortcuts">
+            <ShortcutsPage />
+          </div>
+        )}
 
-      {activeTab === 'pets' && (
-        <div className="settings-card" data-testid="general-tab-pets">
-          <Suspense
-            fallback={
-              <div className="deferred-surface-fallback" data-testid="settings-pets-loading">
-                <Spinner label={isChinese ? '正在加载桌宠' : 'Loading companion'} />
-              </div>
-            }
-          >
-            <DeferredPetPanel
-              request={requestPet}
-              onActiveChanged={onPetActiveChanged}
-              variant="inline"
-            />
-          </Suspense>
-        </div>
-      )}
+        {activeTab === 'health' && (
+          <div data-testid="general-tab-health">
+            <DeviceHealthSettings />
+            <HostHealthSettings />
+          </div>
+        )}
+
+        {activeTab === 'pets' && (
+          <div className="settings-card" data-testid="general-tab-pets">
+            <Suspense
+              fallback={
+                <div className="deferred-surface-fallback" data-testid="settings-pets-loading">
+                  <Spinner label={isChinese ? '正在加载桌宠' : 'Loading companion'} />
+                </div>
+              }
+            >
+              <DeferredPetPanel
+                request={requestPet}
+                onActiveChanged={onPetActiveChanged}
+                variant="inline"
+              />
+            </Suspense>
+          </div>
+        )}
       </div>
     </div>
   );
