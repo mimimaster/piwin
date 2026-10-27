@@ -35,6 +35,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(HostBridgeState::default())
         .manage(PtyHostState::default())
         .manage(ShutdownState::default())
@@ -91,6 +92,7 @@ pub fn run() {
             memory_pressure::spawn_memory_pressure_monitor(application.handle().clone());
             // ADR 0097: no-op for development and shell-only builds.
             app_update::spawn_update_checks(application.handle().clone());
+            screen_capture::shortcut::install(application.handle());
             // The window title is "piwin" so the Dock menu / Window list name it;
             // `hiddenTitle` (macOS) and custom chrome (Windows) keep it off the titlebar.
             if let Some(main_window) = application.get_webview_window("main") {

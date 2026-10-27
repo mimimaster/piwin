@@ -1,14 +1,41 @@
 /* Built-in screenshot editor + permission dialog (spec 2026-10-25). */
 
+/* Full-screen and chromeless: the screenshot sits on a dim backdrop with a
+   small floating strip under it, like a system capture overlay. */
+.screen-capture-editor .piwin-modal-content.piwin-modal-content {
+  background: rgba(12, 11, 10, 0.86);
+  border: none;
+  border-radius: 0;
+  backdrop-filter: blur(6px);
+}
+
+.screen-capture-editor .piwin-modal-body {
+  height: 100%;
+  padding: 0;
+}
+
+.screen-capture-editor .piwin-modal-event-boundary {
+  height: 100%;
+}
+
+.screen-capture-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  padding: 28px 28px 20px;
+}
+
 .screen-capture-stage {
   position: relative;
-  height: calc(100vh - 190px);
+  flex: 1;
+  align-self: stretch;
   min-height: 240px;
   overflow: hidden;
   user-select: none;
   touch-action: none;
   cursor: crosshair;
-  border-radius: var(--r-control);
 }
 
 .screen-capture-stage--text {
@@ -19,6 +46,10 @@
 .screen-capture-overlay {
   position: absolute;
   pointer-events: none;
+}
+
+.screen-capture-image {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14), 0 18px 48px -16px rgba(0, 0, 0, 0.6);
 }
 
 .screen-capture-text-input {
@@ -34,12 +65,52 @@
 .screen-capture-toolbar {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
-  padding-top: var(--s-5);
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(30, 28, 25, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px) saturate(1.4);
 }
 
-.screen-capture-toolbar-spacer {
-  flex: 1;
+.screen-capture-toolbar-group {
+  display: flex;
+  gap: 2px;
+}
+
+.screen-capture-toolbar-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.screen-capture-toolbar .piwin-icon-button {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.screen-capture-toolbar .piwin-icon-button:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.screen-capture-toolbar .piwin-icon-button[aria-pressed='true'] {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.screen-capture-toolbar .piwin-icon-button:disabled {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.screen-capture-toolbar .piwin-icon-button.screen-capture-confirm,
+.screen-capture-toolbar .piwin-icon-button.screen-capture-confirm:hover:not(:disabled) {
+  color: var(--on-zhu, #fff);
+  background: var(--zhu, #b03a24);
+}
+
+.screen-capture-toolbar .piwin-icon-button.screen-capture-confirm:hover:not(:disabled) {
+  background: var(--zhu-lift, #d4553d);
 }
 
 .screen-capture-permission p {

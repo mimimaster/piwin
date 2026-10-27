@@ -68,13 +68,19 @@ export function AnnotationEditor(props: AnnotationEditorProps): ReactElement {
   const [stageSize, setStageSize] = useState<ImageSize>({ width: 0, height: 0 });
   const [exporting, setExporting] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  // State, not just a ref: the modal may attach the stage after the first layout pass.
+  const [stageElement, setStageElement] = useState<HTMLDivElement | null>(null);
+  const attachStage = useCallback((element: HTMLDivElement | null): void => {
+    stageRef.current = element;
+    setStageElement(element);
+  }, []);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
   const style = useMemo(() => annotationStyle(image), [image]);
   const transform = useMemo(() => fitViewTransform(image, stageSize), [image, stageSize]);
 
   useLayoutEffect(() => {
-    const stage = stageRef.current;
+    const stage = stageElement;
     if (stage === null) {
       return undefined;
     }
@@ -85,7 +91,7 @@ export function AnnotationEditor(props: AnnotationEditorProps): ReactElement {
     const observer = new ResizeObserver(measure);
     observer.observe(stage);
     return () => observer.disconnect();
-  }, []);
+  }, [stageElement]);
 
   const toImagePoint = useCallback(
     (event: { clientX: number; clientY: number }): ImagePoint => {
@@ -258,75 +264,81 @@ export function AnnotationEditor(props: AnnotationEditorProps): ReactElement {
       onOpenChange={(open) => {
         if (!open) onCancel();
       }}
-      title={isZh ? '标注截图' : 'Annotate screenshot'}
-      size="calc(100vw - 48px)"
+      fullScreen
+      withCloseButton={false}
       className="screen-capture-editor"
       testId="screen-capture-editor"
       closeOnClickOutside={false}
       closeOnEscape={false}
     >
       <div
-        ref={stageRef}
-        className={`screen-capture-stage screen-capture-stage--${tool}`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={() => setDrag(null)}
+        className="screen-capture-frame"
+        role="group"
+        aria-label={isZh ? '标注截图' : 'Annotate screenshot'}
       >
-        <img
-          ref={imageRef}
-          src={props.imageUrl}
-          alt=""
-          draggable={false}
-          className="screen-capture-image"
-          style={imageBox}
-        />
-        <svg
-          className="screen-capture-overlay"
-          style={imageBox}
-          viewBox={`0 0 ${image.width} ${image.height}`}
-          aria-hidden
+        <div
+          ref={attachStage}
+          className={`screen-capture-stage screen-capture-stage--${tool}`}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={() => setDrag(null)}
         >
-          <AnnotationShapesSvg shapes={history.present.shapes} style={style} />
-          <AnnotationShapesSvg shapes={draftShapes} style={style} />
-          {visibleCrop !== null ? <CropMaskSvg crop={visibleCrop} image={image} /> : null}
-        </svg>
-        {textDraft !== null && textAnchor !== null ? (
-          // Inline on-canvas field, not a form control, so ui-kit TextInput does not fit.
-          <input
-            autoFocus
-            className="screen-capture-text-input"
-            value={textDraft.value}
-            placeholder={isZh ? '输入文字，回车确认' : 'Type, then Enter'}
-            onChange={(event) => setTextDraft({ ...textDraft, value: event.target.value })}
-            onKeyDown={handleTextKey}
-            onPointerDown={(event) => event.stopPropagation()}
-            style={{
-              left: textAnchor.x,
-              top: textAnchor.y,
-              fontSize: style.fontSize * transform.scale,
-              fontFamily: ANNOTATION_FONT_FAMILY,
-              fontWeight: ANNOTATION_FONT_WEIGHT,
-              color: style.color,
-            }}
+          <img
+            ref={imageRef}
+            src={props.imageUrl}
+            alt=""
+            draggable={false}
+            className="screen-capture-image"
+            style={imageBox}
           />
-        ) : null}
+          <svg
+            className="screen-capture-overlay"
+            style={imageBox}
+            viewBox={`0 0 ${image.width} ${image.height}`}
+            aria-hidden
+          >
+            <AnnotationShapesSvg shapes={history.present.shapes} style={style} />
+            <AnnotationShapesSvg shapes={draftShapes} style={style} />
+            {visibleCrop !== null ? <CropMaskSvg crop={visibleCrop} image={image} /> : null}
+          </svg>
+          {textDraft !== null && textAnchor !== null ? (
+            // Inline on-canvas field, not a form control, so ui-kit TextInput does not fit.
+            <input
+              autoFocus
+              className="screen-capture-text-input"
+              value={textDraft.value}
+              placeholder={isZh ? '输入文字，回车确认' : 'Type, then Enter'}
+              onChange={(event) => setTextDraft({ ...textDraft, value: event.target.value })}
+              onKeyDown={handleTextKey}
+              onPointerDown={(event) => event.stopPropagation()}
+              style={{
+                left: textAnchor.x,
+                top: textAnchor.y,
+                fontSize: style.fontSize * transform.scale,
+                fontFamily: ANNOTATION_FONT_FAMILY,
+                fontWeight: ANNOTATION_FONT_WEIGHT,
+                color: style.color,
+              }}
+            />
+          ) : null}
+        </div>
+        <AnnotationToolbar
+          locale={locale}
+          tool={tool}
+          onToolChange={(next) => {
+            commitText();
+            setTool(next);
+          }}
+          canUndo={canUndoAnnotation(history)}
+          canRedo={canRedoAnnotation(history)}
+          onUndo={() => setHistory(undoAnnotation)}
+          onRedo={() => setHistory(redoAnnotation)}
+          exporting={exporting}
+          onCancel={onCancel}
+          onConfirm={confirm}
+        />
       </div>
-      <AnnotationToolbar
-        locale={locale}
-        tool={tool}
-        onToolChange={(next) => {
-          commitText();
-          setTool(next);
-        }}
-        canUndo={canUndoAnnotation(history)}
-        canRedo={canRedoAnnotation(history)}
-        onUndo={() => setHistory(undoAnnotation)}
-        onRedo={() => setHistory(redoAnnotation)}
-        exporting={exporting}
-        onCancel={onCancel}
-        onConfirm={confirm}
-      />
     </Modal>
   );
 }

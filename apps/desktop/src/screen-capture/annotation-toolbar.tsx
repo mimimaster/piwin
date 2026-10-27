@@ -1,14 +1,37 @@
 import type { ReactElement } from 'react';
-import { Redo2, Undo2 } from 'lucide-react';
-import { Button, IconButton, SegmentedControl } from '@piwin/ui-kit';
+import {
+  Check,
+  Crop,
+  MoveUpRight,
+  Redo2,
+  Square,
+  Type,
+  Undo2,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
+import { IconButton } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../i18n/desktop-locale.js';
+import {
+  detectShortcutDisplayPlatform,
+  formatShortcutChordTokens,
+} from '../platform/desktop-shortcut-catalog.js';
 import type { AnnotationTool } from './annotation-model.js';
 
-const TOOL_ORDER: readonly AnnotationTool[] = ['rect', 'arrow', 'text', 'crop'];
+const BUTTON_SIZE = 30;
 
-const TOOL_LABELS: Record<DesktopLocale, Record<AnnotationTool, string>> = {
-  'zh-CN': { rect: '矩形 R', arrow: '箭头 A', text: '文字 T', crop: '裁剪 C' },
-  en: { rect: 'Box R', arrow: 'Arrow A', text: 'Text T', crop: 'Crop C' },
+type ToolEntry = { tool: AnnotationTool; icon: LucideIcon; key: string };
+
+const TOOLS: readonly ToolEntry[] = [
+  { tool: 'rect', icon: Square, key: 'R' },
+  { tool: 'arrow', icon: MoveUpRight, key: 'A' },
+  { tool: 'text', icon: Type, key: 'T' },
+  { tool: 'crop', icon: Crop, key: 'C' },
+];
+
+const TOOL_NAMES: Record<DesktopLocale, Record<AnnotationTool, string>> = {
+  'zh-CN': { rect: '矩形', arrow: '箭头', text: '文字', crop: '裁剪' },
+  en: { rect: 'Box', arrow: 'Arrow', text: 'Text', crop: 'Crop' },
 };
 
 export type AnnotationToolbarProps = {
@@ -24,42 +47,70 @@ export type AnnotationToolbarProps = {
   onConfirm: () => void;
 };
 
-function isAnnotationTool(value: string): value is AnnotationTool {
-  return (TOOL_ORDER as readonly string[]).includes(value);
+function chordLabel(chord: string): string {
+  const platform = detectShortcutDisplayPlatform();
+  return formatShortcutChordTokens(chord, platform).join(platform === 'apple' ? '' : '+');
 }
 
+/** Floating icon strip; names and keys live in tooltips, not on the buttons. */
 export function AnnotationToolbar(props: AnnotationToolbarProps): ReactElement {
   const isZh = props.locale === 'zh-CN';
+  const names = TOOL_NAMES[props.locale];
   return (
-    <div className="screen-capture-toolbar">
-      <SegmentedControl
-        testId="screen-capture-tools"
-        value={props.tool}
-        onChange={(value) => {
-          if (isAnnotationTool(value)) {
-            props.onToolChange(value);
-          }
-        }}
-        data={TOOL_ORDER.map((tool) => ({ value: tool, label: TOOL_LABELS[props.locale][tool] }))}
-      />
-      <IconButton label={isZh ? '撤销' : 'Undo'} disabled={!props.canUndo} onClick={props.onUndo}>
-        <Undo2 size={16} />
+    <div
+      className="screen-capture-toolbar"
+      role="toolbar"
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <div className="screen-capture-toolbar-group" data-testid="screen-capture-tools">
+        {TOOLS.map(({ tool, icon: Icon, key }) => (
+          <IconButton
+            size={BUTTON_SIZE}
+            key={tool}
+            label={`${names[tool]}  ${key}`}
+            aria-pressed={props.tool === tool}
+            data-tool={tool}
+            onClick={() => props.onToolChange(tool)}
+          >
+            <Icon />
+          </IconButton>
+        ))}
+      </div>
+      <span className="screen-capture-toolbar-divider" aria-hidden />
+      <IconButton
+        size={BUTTON_SIZE}
+        label={`${isZh ? '撤销' : 'Undo'}  ${chordLabel('⌘Z')}`}
+        disabled={!props.canUndo}
+        onClick={props.onUndo}
+      >
+        <Undo2 />
       </IconButton>
-      <IconButton label={isZh ? '重做' : 'Redo'} disabled={!props.canRedo} onClick={props.onRedo}>
-        <Redo2 size={16} />
+      <IconButton
+        size={BUTTON_SIZE}
+        label={`${isZh ? '重做' : 'Redo'}  ${chordLabel('⇧⌘Z')}`}
+        disabled={!props.canRedo}
+        onClick={props.onRedo}
+      >
+        <Redo2 />
       </IconButton>
-      <span className="screen-capture-toolbar-spacer" />
-      <Button variant="ghost" onClick={props.onCancel}>
-        {isZh ? '取消' : 'Cancel'}
-      </Button>
-      <Button
-        variant="primary"
+      <span className="screen-capture-toolbar-divider" aria-hidden />
+      <IconButton
+        size={BUTTON_SIZE}
+        label={isZh ? '取消  Esc' : 'Cancel  Esc'}
+        onClick={props.onCancel}
+      >
+        <X />
+      </IconButton>
+      <IconButton
+        size={BUTTON_SIZE}
+        label={isZh ? '添加到对话  ↵' : 'Add to chat  ↵'}
+        className="screen-capture-confirm"
         disabled={props.exporting}
         onClick={props.onConfirm}
         data-testid="screen-capture-confirm"
       >
-        {isZh ? '添加到对话' : 'Add to chat'}
-      </Button>
+        <Check />
+      </IconButton>
     </div>
   );
 }

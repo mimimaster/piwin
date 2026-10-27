@@ -70,8 +70,8 @@ export const SHORTCUT_CATALOG: readonly ShortcutCatalogGroup[] = [
       {
         id: 'capture-screenshot',
         commandId: 'capture-screenshot',
-        titleEn: 'Take Screenshot',
-        titleZh: '截屏并标注',
+        titleEn: 'Take Screenshot (system-wide)',
+        titleZh: '截屏并标注（全局）',
         chord: '⇧⌘A',
       },
       {

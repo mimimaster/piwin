@@ -10,12 +10,23 @@ use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
-use crate::pet_overlay::{raise_main_window, PET_OVERLAY_LABEL};
+use window_restore::{hide_piwin_windows, restore_piwin_windows};
 
+
+#[cfg(any(target_os = "linux", test))]
+mod file_uri;
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(any(target_os = "windows", test))]
+mod raster;
+pub(crate) mod shortcut;
+mod window_restore;
+#[cfg(target_os = "windows")]
+mod windows;
 
 /// Lets the hide animation finish so the capture does not catch piwin fading out.
 const WINDOW_SETTLE_DELAY: Duration = Duration::from_millis(200);
@@ -76,8 +87,11 @@ pub(crate) enum ScreenCaptureAuthorization {
     Authorized,
     /// macOS preflight cannot tell "never asked" from "denied".
     NotDeterminedOrDenied,
-    /// Built only on platforms without capture support yet (spec SC-D09).
-    #[cfg_attr(target_os = "macos", allow(dead_code))]
+    /// Built only on platforms without capture support.
+    #[cfg_attr(
+        any(target_os = "macos", target_os = "windows", target_os = "linux"),
+        allow(dead_code)
+    )]
     Unsupported,
 }
 
@@ -97,6 +111,14 @@ pub(crate) enum ScreenCaptureOutcome {
     },
 }
 
+/// Why a platform capture produced no image (cancel is `Ok(None)`, not an error).
+enum CaptureError {
+    /// No capture backend on this machine (e.g. Linux without a portal or tool).
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    Unsupported,
+    Failed(String),
+}
+
 fn failed(code: &str) -> ScreenCaptureOutcome {
     ScreenCaptureOutcome::Failed {
         code: code.to_string(),
@@ -106,8 +128,9 @@ fn failed(code: &str) -> ScreenCaptureOutcome {
 #[tauri::command]
 pub(crate) fn screen_capture_capabilities() -> ScreenCaptureCapabilities {
     ScreenCaptureCapabilities {
-        supported: cfg!(target_os = "macos"),
-        system_region_picker: cfg!(target_os = "macos"),
+        supported: cfg!(any(target_os = "macos", target_os = "windows", target_os = "linux")),
+        // Windows copies the whole monitor; the region is cropped in the editor.
+        system_region_picker: cfg!(any(target_os = "macos", target_os = "linux")),
     }
 }
 
@@ -174,7 +197,12 @@ fn authorization_status() -> ScreenCaptureAuthorization {
             ScreenCaptureAuthorization::NotDeterminedOrDenied
         }
     }
-    #[cfg(not(target_os = "macos"))]
+    // No capture grant exists on Windows or for the Linux portal / tools.
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    {
+        ScreenCaptureAuthorization::Authorized
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         ScreenCaptureAuthorization::Unsupported
     }
@@ -195,7 +223,8 @@ async fn take_with_hidden_windows(app: &AppHandle, state: &ScreenCaptureState) -
         run_platform_capture(&output)
     })
     .await;
-    restore_piwin_windows(app, &hidden);
+    let captured = matches!(capture, Ok(Ok(Some(_))));
+    restore_piwin_windows(app, &hidden, captured);
 
     match capture {
         Ok(Ok(Some(bytes))) => match png_dimensions(&bytes) {
@@ -215,7 +244,8 @@ async fn take_with_hidden_windows(app: &AppHandle, state: &ScreenCaptureState) -
             }
         },
         Ok(Ok(None)) => ScreenCaptureOutcome::Cancelled,
-        Ok(Err(error)) => {
+        Ok(Err(CaptureError::Unsupported)) => failed(ERROR_UNSUPPORTED),
+        Ok(Err(CaptureError::Failed(error))) => {
             eprintln!("[piwin] screen capture failed: {error}");
             failed(ERROR_FAILED)
         }
@@ -226,47 +256,27 @@ async fn take_with_hidden_windows(app: &AppHandle, state: &ScreenCaptureState) -
     }
 }
 
-fn run_platform_capture(output: &Path) -> Result<Option<Vec<u8>>, String> {
+fn run_platform_capture(output: &Path) -> Result<Option<Vec<u8>>, CaptureError> {
     #[cfg(target_os = "macos")]
     {
-        macos::capture_interactive(output)?;
-        collect_capture_file(output).map_err(|error| error.to_string())
+        macos::capture_interactive(output).map_err(CaptureError::Failed)?;
+        collect_capture_file(output).map_err(|error| CaptureError::Failed(error.to_string()))
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
         let _ = output;
-        Err(ERROR_UNSUPPORTED.to_string())
+        windows::capture_cursor_monitor()
+            .map(Some)
+            .map_err(CaptureError::Failed)
     }
-}
-
-/// Which windows this capture hid, so only those come back.
-struct HiddenWindows {
-    pet_overlay: bool,
-}
-
-fn hide_piwin_windows(app: &AppHandle) -> HiddenWindows {
-    if let Some(main) = app.get_webview_window("main") {
-        if let Err(error) = main.hide() {
-            eprintln!("[piwin] screen capture could not hide main window: {error}");
-        }
+    #[cfg(target_os = "linux")]
+    {
+        linux::capture_interactive(output)
     }
-    // Plain hide, not pet_overlay_hide: that one destroys the overlay.
-    let pet_overlay = app
-        .get_webview_window(PET_OVERLAY_LABEL)
-        .filter(|window| window.is_visible().unwrap_or(false))
-        .map(|window| window.hide().is_ok())
-        .unwrap_or(false);
-    HiddenWindows { pet_overlay }
-}
-
-fn restore_piwin_windows(app: &AppHandle, hidden: &HiddenWindows) {
-    if hidden.pet_overlay {
-        if let Some(window) = app.get_webview_window(PET_OVERLAY_LABEL) {
-            let _ = window.show();
-        }
-    }
-    if let Err(error) = raise_main_window(app) {
-        eprintln!("[piwin] screen capture could not restore main window: {error}");
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        let _ = output;
+        Err(CaptureError::Unsupported)
     }
 }
 

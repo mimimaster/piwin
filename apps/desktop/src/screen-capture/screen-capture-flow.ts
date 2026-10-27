@@ -78,6 +78,26 @@ export async function runScreenCapture(
   };
 }
 
+/**
+ * Outcomes that leave something for the user to read or answer in piwin.
+ * After a global-shortcut trigger piwin may be behind another app; captures
+ * and cancels need nothing (native restore already handled the window).
+ */
+export function screenCaptureNeedsAppInFront(result: ScreenCaptureFlowResult): boolean {
+  switch (result.kind) {
+    case 'blocked':
+    case 'refused':
+    case 'unsupported':
+    case 'needs-permission':
+    case 'failed':
+      return true;
+    case 'busy':
+    case 'cancelled':
+    case 'captured':
+      return false;
+  }
+}
+
 /** `screenshot-20261025-145301.png`, local time. */
 export function screenshotFileName(date: Date): string {
   const pad = (value: number): string => String(value).padStart(2, '0');

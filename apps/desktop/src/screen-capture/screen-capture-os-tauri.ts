@@ -6,6 +6,9 @@ import type {
   ScreenCaptureOutcome,
 } from './screen-capture-os.js';
 
+/** Mirrors `SHORTCUT_EVENT` in `src-tauri/src/screen_capture/shortcut.rs`. */
+export const SCREEN_CAPTURE_SHORTCUT_EVENT = 'screen-capture://shortcut';
+
 const UNSUPPORTED_CAPABILITIES: ScreenCaptureCapabilities = {
   supported: false,
   systemRegionPicker: false,
@@ -31,6 +34,14 @@ export function createTauriScreenCaptureOs(): DesktopScreenCaptureOs {
       invokeScreenCapture<ScreenCaptureAuthorization>('screen_capture_request_authorization'),
     openSystemSettings: () => invokeScreenCapture<void>('screen_capture_open_system_settings'),
     restartApp: () => invokeScreenCapture<void>('screen_capture_restart_app'),
+    revealApp: () => invokeScreenCapture<void>('show_main_window'),
+    async onShortcut(listener) {
+      if (!isDesktopTauriRuntime()) {
+        return () => undefined;
+      }
+      const { listen } = await import('@tauri-apps/api/event');
+      return listen(SCREEN_CAPTURE_SHORTCUT_EVENT, () => listener());
+    },
     take: () => invokeScreenCapture<ScreenCaptureOutcome>('screen_capture_take'),
     async read(id) {
       const buffer = await invokeScreenCapture<ArrayBuffer>('screen_capture_read', { id });

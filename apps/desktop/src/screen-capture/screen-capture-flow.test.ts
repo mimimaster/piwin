@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   runScreenCapture,
+  screenCaptureNeedsAppInFront,
   screenshotFileName,
   type ScreenCaptureFlowDeps,
 } from './screen-capture-flow.js';
@@ -24,6 +25,8 @@ function fakeOs(overrides: {
     requestAuthorization: vi.fn(async () => 'authorized' as const),
     openSystemSettings: vi.fn(async () => undefined),
     restartApp: vi.fn(async () => undefined),
+    revealApp: vi.fn(async () => undefined),
+    onShortcut: vi.fn(async () => () => undefined),
     take: vi.fn(
       async () =>
         overrides.outcome ?? {
@@ -111,5 +114,16 @@ describe('screenshotFileName', () => {
     expect(screenshotFileName(new Date(2026, 0, 5, 9, 3, 7))).toBe(
       'screenshot-20260105-090307.png',
     );
+  });
+});
+
+describe('screenCaptureNeedsAppInFront', () => {
+  it('brings piwin forward only when the user has something to read or answer', () => {
+    expect(screenCaptureNeedsAppInFront({ kind: 'needs-permission' })).toBe(true);
+    expect(screenCaptureNeedsAppInFront({ kind: 'refused', reason: 'no images' })).toBe(true);
+    expect(screenCaptureNeedsAppInFront({ kind: 'blocked' })).toBe(true);
+    expect(screenCaptureNeedsAppInFront({ kind: 'failed', code: 'X' })).toBe(true);
+    expect(screenCaptureNeedsAppInFront({ kind: 'cancelled' })).toBe(false);
+    expect(screenCaptureNeedsAppInFront({ kind: 'busy' })).toBe(false);
   });
 });

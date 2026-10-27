@@ -97,6 +97,20 @@ describe('AnnotationEditor', () => {
     );
   });
 
+  it('shows icon-only tools and switches with a click or a key', () => {
+    const pressed = (): string | null | undefined =>
+      document.querySelector('[data-tool][aria-pressed="true"]')?.getAttribute('data-tool');
+    const arrow = document.querySelector<HTMLButtonElement>('[data-tool="arrow"]');
+    if (!arrow) throw new Error('arrow tool not rendered');
+    expect(arrow.textContent).toBe('');
+    expect(arrow.getAttribute('aria-label')).toContain('Arrow');
+    expect(pressed()).toBe('rect');
+    act(() => arrow.click());
+    expect(pressed()).toBe('arrow');
+    key({ key: 'c' });
+    expect(pressed()).toBe('crop');
+  });
+
   it('cancels on Escape', () => {
     key({ key: 'Escape' });
     expect(onCancel).toHaveBeenCalledOnce();

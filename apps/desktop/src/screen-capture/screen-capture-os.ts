@@ -32,6 +32,10 @@ export interface DesktopScreenCaptureOs {
   openSystemSettings(): Promise<void>;
   /** Relaunch so a new macOS Screen Recording grant takes effect. */
   restartApp(): Promise<void>;
+  /** Bring the main window forward; a global-shortcut trigger may come from another app. */
+  revealApp(): Promise<void>;
+  /** System-wide shortcut presses (⇧⌘A / Ctrl+Shift+A). Resolves to an unsubscribe. */
+  onShortcut(listener: () => void): Promise<() => void>;
   take(): Promise<ScreenCaptureOutcome>;
   read(id: string): Promise<Uint8Array>;
 }

@@ -13,6 +13,7 @@ import type { AnnotationTool, ImageSize } from './annotation-model.js';
 import {
   runScreenCapture,
   screenCaptureFailureMessage,
+  screenCaptureNeedsAppInFront,
   screenCaptureUnsupportedMessage,
   screenshotFileName,
 } from './screen-capture-flow.js';
@@ -91,14 +92,26 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
     return () => URL.revokeObjectURL(url);
   }, [phase]);
 
+  const reveal = useCallback((): void => {
+    os.revealApp().catch((error: unknown) => {
+      console.error('[piwin] screen capture could not bring piwin forward', error);
+    });
+  }, [os]);
+
   const start = useCallback((): void => {
-    // A second trigger while capturing or editing is ignored (spec §5.1).
-    if (phaseRef.current.kind !== 'idle') {
+    const current = phaseRef.current.kind;
+    if (current !== 'idle') {
+      // A second trigger is ignored (spec §5.1); an open editor or prompt comes forward.
+      if (current === 'editing' || current === 'permission') reveal();
       return;
     }
-    setPhase({ kind: 'running' });
+    const running: ScreenCapturePhase = { kind: 'running' };
+    // Set now, not on render: one key press can reach both the global and the in-app shortcut.
+    phaseRef.current = running;
+    setPhase(running);
     runScreenCapture({ os, canAttach, imageRefusal })
       .then((result) => {
+        if (screenCaptureNeedsAppInFront(result)) reveal();
         switch (result.kind) {
           case 'captured': {
             const blob = new Blob([result.bytes.slice()], { type: 'image/png' });
@@ -130,10 +143,31 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
         setPhase({ kind: 'idle' });
       })
       .catch((error: unknown) => {
+        reveal();
         reportError(error);
         setPhase({ kind: 'idle' });
       });
-  }, [canAttach, dispatchNotification, imageRefusal, locale, os, reportError]);
+  }, [canAttach, dispatchNotification, imageRefusal, locale, os, reportError, reveal]);
+
+  // The system-wide shortcut works while piwin is in the background.
+  const startRef = useRef(start);
+  startRef.current = start;
+  useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+    os.onShortcut(() => startRef.current())
+      .then((stop) => {
+        if (active) unsubscribe = stop;
+        else stop();
+      })
+      .catch((error: unknown) => {
+        console.error('[piwin] screen capture shortcut listener failed', error);
+      });
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, [os]);
 
   const confirm = useCallback(
     (png: Blob): void => {
