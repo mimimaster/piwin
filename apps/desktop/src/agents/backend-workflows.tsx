@@ -20,7 +20,9 @@ export function BackendWorkflowSequence(props: Props & {
 }): ReactElement | null {
   const data = { workflows: props.workflows };
   const error = props.error;
-  if (!data?.workflows.length && !error) return null;
+  // A failed read only matters next to workflows it would update; with none,
+  // the alert sat under every reply (e.g. a Host without the command).
+  if (!data.workflows.length) return null;
   return (
     <div
       className="thread turn-tool-sequence backend-workflows-sequence"

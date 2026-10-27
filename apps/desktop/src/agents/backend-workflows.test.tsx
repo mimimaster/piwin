@@ -102,6 +102,15 @@ describe('BackendWorkflows', () => {
     expect(container.textContent).not.toContain('is not a function');
     expect(container.querySelector('[data-testid="backend-workflows-sequence"]')).toBeNull();
   });
+  it('shows no alert when a read fails and there are no workflows', async () => {
+    const request = vi.fn().mockResolvedValue({ success: false, error: 'Unknown command: agents/workflows' });
+    await act(async () => root.render(<PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+      <BackendWorkflows sessionId="session-1" request={request} locale="zh-CN" />
+    </PiwinUiProvider>));
+    expect(request).toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector('[data-testid="backend-workflows-sequence"]')).toBeNull();
+  });
   it('keeps polling after foreground completion and preserves progress through a read failure', async () => {
     vi.useFakeTimers();
     const snapshot = { workflowId: 'wf_1', sessionId: 'session-1', agentId: 'grok', name: 'deep-research', objective: 'topic',
