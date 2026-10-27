@@ -164,7 +164,7 @@ export function ArtifactViewerToolbar(props: ArtifactViewerToolbarProps): ReactE
   );
 }
 
-/** Centers a fixed-width preview; the hatched gutter marks “outside the canvas”. */
+/** Centers a fixed-width preview; the recessed gutter marks “outside the canvas”. */
 export function ArtifactViewerStage(props: {
   width: ArtifactViewerWidth;
   children: ReactNode;

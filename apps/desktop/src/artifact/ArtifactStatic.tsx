@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type ReactElement,
+} from 'react';
 import {
   EMOJI_ICON_CSS,
   MIN_ARTIFACT_IFRAME_HEIGHT,
@@ -16,6 +24,7 @@ import {
 } from '@piwin/artifact';
 import { ArtifactLayoutBadge } from './artifact-layout-badge.js';
 import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
+import { copyArtifactSelectionText } from './artifact-selection-copy.js';
 import { authorizeStaticArtifactStyles } from './artifact-static-styles.js';
 import {
   sanitizeStaticArtifactSource,
@@ -235,6 +244,13 @@ export function ArtifactStatic({
     return () => observer.disconnect();
   }, [sanitizedSource, themeCss, reportKitCss]);
 
+  const copySelectionAsText = (event: ClipboardEvent<HTMLDivElement>): void => {
+    const shadowRoot = hostRef.current?.shadowRoot;
+    if (shadowRoot) {
+      copyArtifactSelectionText(event, shadowRoot);
+    }
+  };
+
   const chrome = localViewportHeight ?? resolveLocalArtifactViewportHeight(hostRef.current);
   const hint = artifactOverflowHintCopy(locale);
 
@@ -274,6 +290,7 @@ export function ArtifactStatic({
       />
       <div
         ref={hostRef}
+        onCopy={copySelectionAsText}
         className="artifact-static"
         data-testid="artifact-static"
         data-artifact-type={type}

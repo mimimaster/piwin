@@ -542,3 +542,27 @@ trusted host chrome, and nothing reaches the draft until the user clicks.
 The host checks the source and `channelId` exactly as it does for other
 bridge messages. A replaced document (stream → final, theme remount) clears
 the button.
+
+## Amendment (2026-10-27): plain-text copy and shadow-tree selections
+
+Copying a selection out of an Artifact puts **plain text only** on the
+clipboard. The browser's native copy adds a `text/html` twin carrying the
+model's markup and inline styles, which a paste into an editor or chat box turns
+back into tags and formatting.
+
+- Sandbox frames (Inline and Canvas): the bridge bootstrap embeds
+  `srcdoc-copy.ts`, a document `copy` listener that writes
+  `Selection#toString()` as `text/plain`. It skips copies the Artifact already
+  handled (`defaultPrevented`) and copies out of form fields.
+- Static preview (`ArtifactStatic`, Shadow DOM): the host's `onCopy` runs
+  `copyArtifactSelectionText`, which takes over only when the whole selection
+  sits inside that shadow root.
+
+WebKit (the Tauri webview) re-scopes `Selection#getRangeAt` for a selection
+inside a shadow tree to the shadow host. Context-menu selection snapshots and
+the transcript selection target therefore read boundaries through
+`Selection#getComposedRanges` with the shadow roots in play
+(`@piwin/ui-kit` `readSelectionBoundaries`), and restoring a snapshot leaves an
+intact selection untouched. Before this, right-clicking a selection in a static
+Artifact wiped its highlight and fell back to the code-fence target, so the
+menu's Copy put the HTML source on the clipboard.

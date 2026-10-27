@@ -18,6 +18,7 @@ import { buildArtifactLayoutProbeRuntime } from './layout-probe.js';
 import { buildArtifactLeftAccentRuntime } from './left-accent-straighten.js';
 import { buildArtifactContrastProbeRuntime } from './srcdoc-contrast-probe.js';
 import { buildScrollContinuityRuntime } from './srcdoc-scroll-continuity.js';
+import { buildPlainTextCopyRuntime } from './srcdoc-copy.js';
 import { buildSelectionRuntime } from './srcdoc-selection.js';
 import type { ArtifactFrameMode } from './types.js';
 
@@ -328,6 +329,7 @@ export function buildArtifactBridgeBootstrapScript(
   ${buildCanvasStageFitRuntime()}
   ${buildScrollContinuityRuntime()}
   ${buildSelectionRuntime()}
+  ${buildPlainTextCopyRuntime()}
   var applyFrameMode = function (mode) {
     var next = acceptFrameMode(mode);
     currentFrameMode = next;
