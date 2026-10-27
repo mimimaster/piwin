@@ -7,7 +7,12 @@ import {
   type ReactNode,
 } from 'react';
 import { IconChevronRight } from './icons/shell-icons.js';
-import { restoreSelectionRanges, snapshotSelectionRanges } from './selection-ranges.js';
+import {
+  restoreSelectionRanges,
+  shadowRootsInEventPath,
+  snapshotSelectionRanges,
+  type SelectionBoundary,
+} from './selection-ranges.js';
 
 export type DropdownMenuProps = {
   open?: boolean;
@@ -260,22 +265,29 @@ export type ContextMenuProps = {
  * and put the ranges back so the highlight does not vanish.
  */
 export function ContextMenu(props: ContextMenuProps): ReactElement {
-  const savedRangesRef = useRef<Range[]>([]);
+  const savedRangesRef = useRef<SelectionBoundary[]>([]);
+  // A selection inside a shadow tree (static Artifact preview) only reads
+  // faithfully through the roots the right-click passed through.
+  const shadowRootsRef = useRef<ShadowRoot[]>([]);
+  const restoreSelection = (): void => {
+    restoreSelectionRanges(savedRangesRef.current, undefined, shadowRootsRef.current);
+  };
   return (
     <ContextMenuPrimitive.Root
       modal={props.modal ?? false}
       onOpenChange={(open) => {
         if (open) {
-          restoreSelectionRanges(savedRangesRef.current);
-          requestAnimationFrame(() => restoreSelectionRanges(savedRangesRef.current));
+          restoreSelection();
+          requestAnimationFrame(restoreSelection);
         }
         props.onOpenChange?.(open);
       }}
     >
       <ContextMenuPrimitive.Trigger
         asChild
-        onContextMenu={() => {
-          savedRangesRef.current = snapshotSelectionRanges();
+        onContextMenu={(event) => {
+          shadowRootsRef.current = shadowRootsInEventPath(event.nativeEvent);
+          savedRangesRef.current = snapshotSelectionRanges(undefined, shadowRootsRef.current);
         }}
       >
         {props.children}

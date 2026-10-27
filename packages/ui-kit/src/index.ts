@@ -14,6 +14,8 @@ export { Dialog } from './dialog.js';
 export type { DialogProps } from './dialog.js';
 
 export { EmptyState } from './empty-state.js';
+export { GuideStep } from './guide-step.js';
+export type { GuideStepProps, GuideStepState } from './guide-step.js';
 export type { EmptyStateProps, EmptyStateSuggestion } from './empty-state.js';
 
 export { Spinner } from './spinner.js';
@@ -73,7 +75,16 @@ export {
 } from './popover.js';
 export type { PopoverProps, PopoverContentProps, VirtualAnchorRect } from './popover.js';
 
-export { restoreSelectionRanges, snapshotSelectionRanges } from './selection-ranges.js';
+export {
+  isCollapsedBoundary,
+  rangeFromSelectionBoundary,
+  readSelectionBoundaries,
+  readSelectionRanges,
+  restoreSelectionRanges,
+  shadowRootsInEventPath,
+  snapshotSelectionRanges,
+  type SelectionBoundary,
+} from './selection-ranges.js';
 
 export { ConfirmDialog } from './confirm-dialog.js';
 export type { ConfirmDialogProps, ConfirmDialogTone } from './confirm-dialog.js';

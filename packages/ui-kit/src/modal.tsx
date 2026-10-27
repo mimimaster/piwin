@@ -21,6 +21,10 @@ export type ModalProps = {
   closeOnClickOutside?: boolean | undefined;
   /** Allow closing by pressing Escape. */
   closeOnEscape?: boolean | undefined;
+  /** Cover the whole viewport (editors that bring their own chrome). */
+  fullScreen?: boolean | undefined;
+  /** Header close button; with no title as well, the header is not rendered. */
+  withCloseButton?: boolean | undefined;
 };
 
 /** Piwin-branded Mantine Modal for in-settings editing dialogs.
@@ -35,11 +39,15 @@ export function Modal({
   testId,
   closeOnClickOutside,
   closeOnEscape,
+  fullScreen,
+  withCloseButton,
 }: ModalProps): ReactElement {
   const rootClass = className ? `piwin-modal ${className}` : 'piwin-modal';
   const contentClass = className ? `piwin-modal-content ${className}` : 'piwin-modal-content';
   const clickOutsideProp = closeOnClickOutside !== undefined ? { closeOnClickOutside } : undefined;
   const escapeProp = closeOnEscape !== undefined ? { closeOnEscape } : undefined;
+  const fullScreenProp = fullScreen !== undefined ? { fullScreen } : undefined;
+  const closeButtonProp = withCloseButton !== undefined ? { withCloseButton } : undefined;
 
   return (
     <MantineModal
@@ -50,6 +58,8 @@ export function Modal({
       centered
       {...clickOutsideProp}
       {...escapeProp}
+      {...fullScreenProp}
+      {...closeButtonProp}
       className={rootClass}
       classNames={{
         root: rootClass,
