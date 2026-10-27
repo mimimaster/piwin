@@ -2,15 +2,14 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { HistoryTicksDrawer } from './history-ticks-drawer';
+import { formatFullTimestamp, truncateMessageText } from './history-tick-bubble';
 import {
-  HistoryTicksDrawer,
-  formatFullTimestamp,
   getHistoryTickWaveScale,
   getHistoryTickWaveStyle,
   resolveCollapsedTickIndex,
-  scrollTranscriptToMessage,
-  truncateMessageText,
-} from './history-ticks-drawer';
+} from './history-tick-geometry';
+import { scrollTranscriptToMessage } from './history-anchor-jump';
 import type { ChatMessageUi } from '../conversation/chat-reducer';
 import type { SessionUserMessageIndexData } from '@piwin/contracts';
 
@@ -156,6 +155,62 @@ describe('HistoryTicksDrawer component', () => {
       createdAt: '2026-07-31T17:27:00Z',
     },
   ];
+
+  it('merges ticks into segments that fit a short rail and tints marked turns', () => {
+    const anchors = Array.from({ length: 12 }, (_, ordinal) => ({
+      messageId: `turn-${ordinal}`,
+      ordinal,
+      createdAt: '2026-10-01T00:00:00Z',
+      preview: `request ${ordinal}`,
+      spanStartOrdinal: ordinal,
+      spanEndOrdinal: ordinal,
+      ...(ordinal === 4 ? { marks: ['artifact' as const] } : {}),
+      ...(ordinal === 5 ? { marks: ['error' as const] } : {}),
+    }));
+    // 50px of rail holds 4 ticks at the 11px pitch.
+    const clientHeight = vi
+      .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains('history-ticks-drawer') ? 50 : 0;
+      });
+    act(() => {
+      root?.render(
+        <HistoryTicksDrawer
+          locale="zh-CN"
+          historyIndex={{
+            sessionId: 'session-dense',
+            revision: 'rev-1',
+            totalUserMessages: 12,
+            mode: 'exact',
+            anchors,
+            anchorBytes: 0,
+          }}
+        />,
+      );
+    });
+    clientHeight.mockRestore();
+
+    const ticks = Array.from(container?.querySelectorAll<HTMLElement>('.border-tick-line') ?? []);
+    expect(ticks.map((tick) => tick.dataset.testid)).toEqual([
+      'history-tick-turn-0',
+      'history-tick-turn-3',
+      'history-tick-turn-6',
+      'history-tick-turn-9',
+    ]);
+    expect(ticks[1]?.dataset.mark).toBe('error');
+    expect(ticks[1]?.dataset.tickCount).toBe('3');
+    expect(ticks[0]?.dataset.mark).toBeUndefined();
+    const drawer = container?.querySelector('[data-testid="history-ticks-drawer"]');
+    expect(drawer?.getAttribute('data-history-segmented')).toBe('true');
+
+    act(() => {
+      ticks[1]?.focus();
+    });
+    expect(document.querySelector('.history-bubble-position')?.textContent).toBe('4–6 / 12');
+    expect(document.querySelector('[data-testid="history-bubble-marks"]')?.textContent).toBe(
+      '出错 · Artifact',
+    );
+  });
 
   it('returns null when there are no user messages', () => {
     act(() => {

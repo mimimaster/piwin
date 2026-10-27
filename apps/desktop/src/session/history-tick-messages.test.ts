@@ -44,4 +44,18 @@ describe('history ticks while refreshing', () => {
       buildHistoryTickMessages([message('new', '2026-09-21')], null).map((tick) => tick.id),
     ).toEqual(['new']);
   });
+  it('numbers appended local turns after the indexed ones and carries marks', () => {
+    const marked: SessionUserMessageIndexData = {
+      ...index,
+      anchors: index.anchors.map((anchor) =>
+        anchor.ordinal === 99 ? { ...anchor, marks: ['error' as const] } : anchor,
+      ),
+    };
+    const ticks = buildHistoryTickMessages([message('new', '2026-09-21')], marked);
+    expect(ticks.map((tick) => [tick.id, tick.ordinal, tick.marks])).toEqual([
+      ['m0', 0, []],
+      ['m99', 99, ['error']],
+      ['new', 100, []],
+    ]);
+  });
 });

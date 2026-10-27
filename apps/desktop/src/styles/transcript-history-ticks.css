@@ -12,9 +12,13 @@
 .history-ticks-drawer {
   position: absolute;
   top: 48px;
+  /* The box spans the height the rail may use; the drawer measures it to
+     merge dense ticks into segments (resolveHistoryTickCapacity). Only the
+     strip takes the pointer, so the empty box below it stays click-through. */
+  bottom: 16px;
   /* Clear the floating scrollbar (right: --s-2, 4px wide). */
   right: var(--s-5);
-  max-height: calc(100% - 64px);
+  pointer-events: none;
   z-index: 30;
   font-family: inherit;
   font-size: var(--fs-chrome);
@@ -30,6 +34,7 @@
   /* Pad / gap must match COLLAPSED_TICK_* in history-ticks-drawer.tsx. */
   padding: var(--history-tick-pad-y, 8px) 0 var(--history-tick-pad-y, 8px) var(--s-3);
   cursor: pointer;
+  pointer-events: auto;
   background: transparent;
   border: none;
   box-shadow: none;
@@ -92,6 +97,33 @@
 .border-tick-line.is-reading {
   transform: scaleX(1.75);
   opacity: 0.42;
+}
+
+/* Turn marks from the Host index tint the tick, highest priority only
+   (SESSION_USER_MESSAGE_TURN_MARKS order). Raised rest opacity so a marked
+   turn reads among quiet hairlines; the hover wave still takes over. */
+.border-tick-line[data-mark] {
+  opacity: 0.6;
+}
+
+.border-tick-line[data-mark='error'] {
+  background: var(--coral);
+}
+
+.border-tick-line[data-mark='compaction'] {
+  background: var(--amber);
+}
+
+.border-tick-line[data-mark='branch'] {
+  background: var(--sky);
+}
+
+.border-tick-line[data-mark='artifact'] {
+  background: var(--iris);
+}
+
+.border-tick-line[data-mark].is-reading {
+  opacity: 0.85;
 }
 
 /* Keyboard focus mirrors the hover peak (HISTORY_TICK_WAVE_PROFILE[0]). */
@@ -161,6 +193,12 @@
   flex: none;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
+}
+
+.history-bubble-marks {
+  margin-bottom: var(--s-3);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
 }
 
 .history-bubble-text {
