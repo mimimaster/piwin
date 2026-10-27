@@ -663,6 +663,68 @@ describe('ComposerDock host status', () => {
     expect(handleResolve).toHaveBeenCalledWith({ value: 'Use a new branch' });
   });
 
+  it('lets the user type a custom answer while a select question is pending', () => {
+    const handleComposerChange = vi.fn();
+    const handleResolve = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="Use the main branch"
+        onComposerChange={handleComposerChange}
+        extensionUiRequest={{
+          sessionId: 'session-1',
+          requestId: 'request-1',
+          kind: 'select',
+          title: 'Which branch?',
+          options: ['main', 'dev'],
+        }}
+        onExtensionUiResolve={handleResolve}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const textarea = container.querySelector(
+      '[data-testid="composer-input"]',
+    ) as HTMLTextAreaElement;
+    expect(textarea.readOnly).toBe(false);
+
+    act(() => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      setValue?.call(textarea, 'Use the main branch!');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(handleComposerChange).toHaveBeenCalledWith('Use the main branch!');
+
+    act(() => {
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(handleResolve).toHaveBeenCalledWith({ value: 'Use the main branch' });
+  });
+
+  it('keeps the composer read-only while a yes/no confirm question is pending', () => {
+    const handleComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        onComposerChange={handleComposerChange}
+        extensionUiRequest={{
+          sessionId: 'session-1',
+          requestId: 'request-1',
+          kind: 'confirm',
+          title: 'Proceed?',
+        }}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const textarea = container.querySelector(
+      '[data-testid="composer-input"]',
+    ) as HTMLTextAreaElement;
+    expect(textarea.readOnly).toBe(true);
+  });
+
   it('queues Enter and steers Command+Enter while streaming', () => {
     const handleSteer = vi.fn();
     const handleFollowUp = vi.fn();

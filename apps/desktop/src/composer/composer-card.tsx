@@ -70,6 +70,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const extensionUiRequest = props.extensionUiRequest ?? null;
   const isExtensionUiActive = extensionUiRequest !== null;
   const isExtensionUiInput = extensionUiRequest?.kind === 'input';
+  // A select question takes a typed custom answer from the main draft; a
+  // confirm question is yes/no only, so typed text would silently mean "no".
+  const isExtensionUiConfirm = extensionUiRequest?.kind === 'confirm';
   const extensionUiInput = props.extensionUiInput ?? '';
   const canComposeText = !isExtensionUiActive;
   const composerValue = isExtensionUiInput ? extensionUiInput : props.composer;
@@ -401,7 +404,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           onChange={(event) => {
             if (isExtensionUiInput) {
               props.onExtensionUiInputChange?.(event.target.value);
-            } else if (!isExtensionUiActive) {
+            } else if (!isExtensionUiConfirm) {
               props.onComposerChange(event.target.value);
             }
             setCaretIndex(event.target.selectionStart ?? event.target.value.length);
@@ -423,15 +426,17 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           onKeyUp={syncCaretFromTextarea}
           onPaste={(event) => props.onPaste(event)}
           onKeyDown={handleComposerKeyDown}
-          readOnly={false}
+          readOnly={isExtensionUiConfirm}
           placeholder={
             isExtensionUiInput
               ? (extensionUiRequest?.placeholder ?? copy.typeYourAnswer)
-              : isExtensionUiActive
-                ? interruptionCopy.selectOrCustomPlaceholder
-                : queuedEdit
-                  ? copy.queuedEditPlaceholder
-                  : getAgentPlaceholder(props.agentMode, copy, props.isConversationSession === true)
+              : isExtensionUiConfirm
+                ? interruptionCopy.agentWaiting
+                : isExtensionUiActive
+                  ? interruptionCopy.selectOrCustomPlaceholder
+                  : queuedEdit
+                    ? copy.queuedEditPlaceholder
+                    : getAgentPlaceholder(props.agentMode, copy, props.isConversationSession === true)
           }
           rows={1}
         />
