@@ -30,6 +30,7 @@ import {
   IconDownload,
   IconExpand,
 } from '../tool-cards/shell-icons';
+import { readMediaAspect, rememberMediaAspect } from './media-aspect-memory.js';
 
 function fileNameFromPath(path: string): string {
   return path.split('/').pop() ?? 'attachment';
@@ -180,6 +181,12 @@ export function MediaPreview(props: {
     props.attachment.contentKind ?? contentKindForMimeType(props.attachment.mimeType);
   const isFileCard = contentKind === 'text' || contentKind === 'document';
   const isVideo = isVideoMimeType(props.attachment.mimeType);
+  const heroAspect = props.hero && !isVideo ? readMediaAspect(props.attachment) : null;
+  // Same box the decoded image takes: full width, proportional, capped like
+  // `.media-preview-image.is-hero` (max-height 520px).
+  const heroAspectStyle = heroAspect
+    ? { aspectRatio: `${heroAspect.width} / ${heroAspect.height}`, maxHeight: 520 }
+    : undefined;
   const isAssistant = props.role === 'assistant' || props.hero === true;
   const canOpenLightbox =
     Boolean(fullUrl) &&
@@ -331,6 +338,7 @@ export function MediaPreview(props: {
         data-media-preview-loading="true"
         data-testid="media-preview-loading"
         aria-hidden="true"
+        style={heroAspectStyle}
       />
     );
   }
@@ -421,6 +429,19 @@ export function MediaPreview(props: {
               alt={fileLabel}
               decoding="async"
               draggable={false}
+              // Intrinsic proportions before decode: a hero's `height: auto`
+              // reserves its real box instead of 0px.
+              {...(heroAspect ? { width: heroAspect.width, height: heroAspect.height } : {})}
+              onLoad={
+                props.hero
+                  ? (event) =>
+                      rememberMediaAspect(
+                        props.attachment.id,
+                        event.currentTarget.naturalWidth,
+                        event.currentTarget.naturalHeight,
+                      )
+                  : undefined
+              }
               onError={() => setLoadFailed(true)}
             />
           </button>
