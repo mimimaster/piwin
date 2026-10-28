@@ -21,6 +21,9 @@ export type { EmptyStateProps, EmptyStateSuggestion } from './empty-state.js';
 export { Spinner } from './spinner.js';
 export type { SpinnerProps } from './spinner.js';
 
+export { Skeleton } from './skeleton.js';
+export type { SkeletonProps } from './skeleton.js';
+
 export { QrCode } from './qr-code.js';
 export type { QrCodeProps } from './qr-code.js';
 

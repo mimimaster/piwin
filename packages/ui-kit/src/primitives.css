@@ -11,6 +11,7 @@
 @import './empty-state.css';
 @import './guide-step.css';
 @import './progress-bar.css';
+@import './skeleton.css';
 @import './primitive-controls.css';
 @import './primitive-overlays.css';
 @import './primitive-animations.css';

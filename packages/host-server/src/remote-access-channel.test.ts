@@ -74,6 +74,15 @@ describe('ADR 0101 channel admission (golden)', () => {
     expect(code.webUri).toBeUndefined();
   });
 
+  it('leaves the direct path out when the phone address is the relay address', async () => {
+    const relayUrl = 'wss://relay.example.com:8443';
+    const target = await host({ relayUrl });
+    target.access.setDirectUrlProvider(() => `${relayUrl}/`);
+    const link = target.access.migrationTarget();
+    expect(link.relayUrl).toBe(relayUrl);
+    expect(link.directUrl).toBeUndefined();
+  });
+
   it('reconnects with the credential and the same key', async () => {
     const target = await host();
     const { clientKey, credential } = await pairOverChannel(target);

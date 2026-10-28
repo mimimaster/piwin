@@ -13,6 +13,9 @@ export function SegmentedControl({
   testId,
   size = 'sm',
   radius = 'md',
+  // Mantine's item separators use its own grey ramp, off the piwin palette,
+  // and the pill already marks the choice (Inkstone .subtab has none).
+  withItemsBorders = false,
   ...props
 }: SegmentedControlProps): ReactElement {
   const rootClass = className ? `piwin-segmented-control ${className}` : 'piwin-segmented-control';
@@ -22,6 +25,7 @@ export function SegmentedControl({
       {...props}
       size={size}
       radius={radius}
+      withItemsBorders={withItemsBorders}
       className={rootClass}
       classNames={{
         root: 'piwin-segmented-control',

@@ -1,0 +1,79 @@
+/* Skeleton: content-shaped loading placeholder (skeleton.tsx).
+   Bars use the same ink-wash family as hover fills so they sit on any
+   surface; the shimmer is a moving highlight, never a size change. */
+
+.ui-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 4px 0;
+  /* Quick loads finish inside the delay and never flash a placeholder. */
+  opacity: 0;
+  animation: ui-skeleton-in 220ms ease-out 150ms forwards;
+}
+
+.ui-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ui-skeleton-bar,
+.ui-skeleton-dot {
+  flex: none;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text-1, #000) 6%, transparent) 25%,
+    color-mix(in srgb, var(--text-1, #000) 11%, transparent) 45%,
+    color-mix(in srgb, var(--text-1, #000) 6%, transparent) 65%
+  );
+  background-size: 240% 100%;
+  animation: ui-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.ui-skeleton-bar {
+  height: 10px;
+  border-radius: 5px;
+}
+
+.ui-skeleton-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.ui-skeleton--list .ui-skeleton-bar {
+  flex: 0 1 auto;
+}
+
+.ui-skeleton--block .ui-skeleton-bar {
+  height: 120px;
+  border-radius: 8px;
+}
+
+@keyframes ui-skeleton-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ui-skeleton-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton {
+    animation-duration: 1ms;
+  }
+
+  .ui-skeleton-bar,
+  .ui-skeleton-dot {
+    animation: none;
+  }
+}

@@ -190,7 +190,13 @@ export class HostRemoteAccess {
   /** Everything a shell needs to reach this Host on the channel (pairing links, migration). */
   public migrationTarget(): MigrationTarget {
     const relayUrl = this.settings.relay.enabled ? this.settings.relay.url : undefined;
-    const directUrl = this.settings.direct.enabled ? this.directUrlProvider() : undefined;
+    const advertised = this.settings.direct.enabled ? this.directUrlProvider() : undefined;
+    // A relay address typed in as the phone address is not a second path to
+    // this Host: dialing it "directly" only reaches the relay again.
+    const directUrl =
+      advertised !== undefined && sameSocketUrl(advertised, this.settings.relay.url)
+        ? undefined
+        : advertised;
     return {
       userId: this.user.userId,
       userName: this.user.name,
@@ -346,4 +352,10 @@ export function openHostRemoteAccessAtRoot(
       legacyMobileAccessPath: join(devices, 'mobile-access.json'),
     }),
   });
+}
+
+function sameSocketUrl(left: string, right: string | undefined): boolean {
+  if (right === undefined) return false;
+  const normalize = (url: string) => url.trim().replace(/\/+$/, '').toLowerCase();
+  return normalize(left) === normalize(right);
 }
