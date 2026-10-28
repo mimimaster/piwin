@@ -110,6 +110,7 @@ export const DESKTOP_COPY_ZH_CN: DesktopCopy = {
       missingPack: '包缺失',
       deleteSessionPermanently: '永久删除会话',
       sessionActions: '会话操作',
+      swipe: { more: '更多', pin: '置顶', unpin: '取消置顶', archive: '归档', restore: '恢复', delete: '删除' },
       projects: '项目',
       noRepo: '无仓库',
       recentProjects: '最近项目',

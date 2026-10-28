@@ -100,6 +100,8 @@ export type DesktopCopy = {
     missingPack: string;
     deleteSessionPermanently: string;
     sessionActions: string;
+    /** Short labels for the touch swipe actions on a session row. */
+    swipe: { more: string; pin: string; unpin: string; archive: string; restore: string; delete: string };
     projects: string;
     noRepo: string;
     recentProjects: string;

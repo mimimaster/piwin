@@ -114,6 +114,7 @@ export const DESKTOP_COPY_EN: DesktopCopy = {
       missingPack: 'Pack missing',
       deleteSessionPermanently: 'Delete session permanently',
       sessionActions: 'Session actions',
+      swipe: { more: 'More', pin: 'Pin', unpin: 'Unpin', archive: 'Archive', restore: 'Restore', delete: 'Delete' },
       projects: 'Projects',
       noRepo: 'No Repo',
       recentProjects: 'Recent projects',

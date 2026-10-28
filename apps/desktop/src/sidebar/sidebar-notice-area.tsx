@@ -9,10 +9,18 @@ import { Button, Notice, ProgressBar } from '@piwin/ui-kit';
 import { useAppUpdateNotice } from '../platform/app-update-notice.js';
 import type { DesktopLocale } from '../i18n/desktop-locale.js';
 import type { SidebarNotice } from './sidebar-notice.js';
+import {
+  offlineSnapshotNotice,
+  useOfflineSessionSnapshot,
+} from '../session/offline-session-snapshot.js';
 
 export function useSidebarNotices(locale: DesktopLocale): SidebarNotice[] {
   const appUpdate = useAppUpdateNotice(locale);
-  return appUpdate ? [appUpdate] : [];
+  const offlineSnapshot = useOfflineSessionSnapshot();
+  const notices: SidebarNotice[] = [];
+  if (offlineSnapshot !== null) notices.push(offlineSnapshotNotice(offlineSnapshot, locale));
+  if (appUpdate) notices.push(appUpdate);
+  return notices;
 }
 
 function SidebarNoticeCard({ notice }: { notice: SidebarNotice }): ReactElement {

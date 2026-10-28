@@ -105,6 +105,7 @@ export function SessionRowItem({
   copy,
   projectSubtitle,
   isPinnedSection,
+  hideActionCluster = false,
 }: {
   session: SessionListItemUi | DraftSessionItemUi;
   activeSessionId: string | null;
@@ -128,6 +129,8 @@ export function SessionRowItem({
   waitingPermissionSessionIds?: Record<string, true> | undefined;
   /** Set when the session runs in a linked worktree rather than the repository's own checkout. */
   worktree?: { name: string; branch: string | null } | undefined;
+  /** Touch rows reveal the same actions by swiping (swipeable-session-row.tsx). */
+  hideActionCluster?: boolean | undefined;
 }): ReactElement {
   const isDraft = 'isDraft' in session && session.isDraft === true;
   const isPinned = 'isPinned' in session && session.isPinned === true;
@@ -383,110 +386,112 @@ export function SessionRowItem({
           </span>
         ) : null}
       </button>
-      <div
-        className={
-          isDraft
-            ? 'session-row-actions session-row-actions--draft'
-            : isArchived
-              ? 'session-row-actions session-row-actions--archived'
-              : 'session-row-actions'
-        }
-      >
-        {isArchived ? (
-          <>
-            <button
-              type="button"
-              className={
-                isPinned
-                  ? 'session-action-btn session-pin-btn active'
-                  : 'session-action-btn session-pin-btn'
-              }
-              data-testid="session-pin-btn"
-              title={isPinned ? copy.unpinSession : copy.pinSession}
-              aria-label={isPinned ? copy.unpinSession : copy.pinSession}
-              onClick={(event) => {
-                event.stopPropagation();
-                onTogglePin?.(session.id, isPinned);
-              }}
-            >
-              <IconBookmark width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
-            </button>
-            <button
-              type="button"
-              className="session-action-btn session-unarchive-btn"
-              data-testid="session-unarchive-btn"
-              title={copy.restoreSession}
-              aria-label={copy.restoreSession}
-              onClick={(event) => {
-                event.stopPropagation();
-                onUnarchiveSession?.(session.id);
-              }}
-            >
-              <IconUnarchive width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
-            </button>
-            <button
-              type="button"
-              className="session-action-btn session-delete-btn"
-              data-testid="session-delete-btn"
-              title={copy.deleteSessionPermanently}
-              aria-label={copy.deleteSessionPermanently}
-              onClick={(event) => {
-                event.stopPropagation();
-                onDeleteSession?.(session.id);
-              }}
-            >
-              <IconTrash width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="session-action-btn session-menu-btn"
-              data-testid="session-menu-btn"
-              title={copy.sessionActions}
-              aria-label={copy.sessionActions}
-              onClick={(event) => {
-                event.stopPropagation();
-                const rect = event.currentTarget.getBoundingClientRect();
-                onOpenSessionMenu(session.id, rect.right - 8, rect.bottom + 4);
-              }}
-            >
-              <IconMoreVertical width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
-            </button>
-            <button
-              type="button"
-              className={
-                isPinned
-                  ? 'session-action-btn session-pin-btn active'
-                  : 'session-action-btn session-pin-btn'
-              }
-              data-testid="session-pin-btn"
-              title={isPinned ? copy.unpinSession : copy.pinSession}
-              aria-label={isPinned ? copy.unpinSession : copy.pinSession}
-              onClick={(event) => {
-                event.stopPropagation();
-                onTogglePin?.(session.id, isPinned);
-              }}
-            >
-              <IconBookmark width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
-            </button>
-            <button
-              type="button"
-              className="session-action-btn session-archive-btn"
-              data-testid="session-archive-btn"
-              title={copy.archived}
-              aria-label={copy.archived}
-              onClick={(event) => {
-                event.stopPropagation();
-                onArchiveSession?.(session.id);
-              }}
-            >
-              <IconArchive width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
-            </button>
-          </>
-        )}
-      </div>
+      {hideActionCluster ? null : (
+        <div
+          className={
+            isDraft
+              ? 'session-row-actions session-row-actions--draft'
+              : isArchived
+                ? 'session-row-actions session-row-actions--archived'
+                : 'session-row-actions'
+          }
+        >
+          {isArchived ? (
+            <>
+              <button
+                type="button"
+                className={
+                  isPinned
+                    ? 'session-action-btn session-pin-btn active'
+                    : 'session-action-btn session-pin-btn'
+                }
+                data-testid="session-pin-btn"
+                title={isPinned ? copy.unpinSession : copy.pinSession}
+                aria-label={isPinned ? copy.unpinSession : copy.pinSession}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onTogglePin?.(session.id, isPinned);
+                }}
+              >
+                <IconBookmark width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
+              </button>
+              <button
+                type="button"
+                className="session-action-btn session-unarchive-btn"
+                data-testid="session-unarchive-btn"
+                title={copy.restoreSession}
+                aria-label={copy.restoreSession}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onUnarchiveSession?.(session.id);
+                }}
+              >
+                <IconUnarchive width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
+              </button>
+              <button
+                type="button"
+                className="session-action-btn session-delete-btn"
+                data-testid="session-delete-btn"
+                title={copy.deleteSessionPermanently}
+                aria-label={copy.deleteSessionPermanently}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDeleteSession?.(session.id);
+                }}
+              >
+                <IconTrash width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="session-action-btn session-menu-btn"
+                data-testid="session-menu-btn"
+                title={copy.sessionActions}
+                aria-label={copy.sessionActions}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  onOpenSessionMenu(session.id, rect.right - 8, rect.bottom + 4);
+                }}
+              >
+                <IconMoreVertical width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
+              </button>
+              <button
+                type="button"
+                className={
+                  isPinned
+                    ? 'session-action-btn session-pin-btn active'
+                    : 'session-action-btn session-pin-btn'
+                }
+                data-testid="session-pin-btn"
+                title={isPinned ? copy.unpinSession : copy.pinSession}
+                aria-label={isPinned ? copy.unpinSession : copy.pinSession}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onTogglePin?.(session.id, isPinned);
+                }}
+              >
+                <IconBookmark width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
+              </button>
+              <button
+                type="button"
+                className="session-action-btn session-archive-btn"
+                data-testid="session-archive-btn"
+                title={copy.archived}
+                aria-label={copy.archived}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onArchiveSession?.(session.id);
+                }}
+              >
+                <IconArchive width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

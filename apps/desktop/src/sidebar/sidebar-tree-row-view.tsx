@@ -16,7 +16,7 @@ import type { DesktopCopy, DesktopLocale } from '../i18n/desktop-locale';
 import type { SessionRowRunPhase } from '../session/session-row-working';
 import { NO_REPO_SIDEBAR_KEY, type SidebarTreeRow } from './sidebar-tree-rows';
 import { projectDisplayName } from './project-display-name';
-import { SessionRowItem } from '../session/session-row-item';
+import { SwipeableSessionRow } from '../session/swipeable-session-row';
 import {
   ContextMenu,
   ContextMenuItem,
@@ -559,7 +559,7 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
         : 'sidebar-tree-row sidebar-tree-row--general-session';
     return (
       <div className={rowClass}>
-        <SessionRowItem
+        <SwipeableSessionRow
           session={row.session}
           projectSubtitle={row.projectSubtitle}
           worktree={row.worktree}

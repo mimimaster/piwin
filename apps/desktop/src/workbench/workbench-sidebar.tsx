@@ -22,6 +22,7 @@ import type { ShellSettingsSection } from '../tool-cards/shell-navigation';
 import { SIDEBAR_DEFAULT_WIDTH_PX } from '../sidebar/sidebar-width';
 import { listArchivedHydrationRequests } from './workbench-chrome-assembly';
 import { memoWithLatestCallbacks } from '../conversation/memo-with-latest-callbacks';
+import { blockedByOfflineSessionSnapshot } from '../session/offline-session-snapshot';
 
 export type WorkbenchSidebarHydrateSessions = (
   projectPathOrScope?: string | { kind: 'general' } | { kind: 'project'; projectPath: string },
@@ -240,18 +241,32 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
           await onNewSession({ scope: { kind: 'general' } });
         })();
       }}
-      onResumeSession={(sessionId) => void onResumeSession(sessionId)}
+      onResumeSession={(sessionId) => {
+        if (blockedByOfflineSessionSnapshot(locale)) return;
+        void onResumeSession(sessionId);
+      }}
       onResumeDraft={onResumeDraft}
       draftSessions={draftSessions}
       activeDraftId={activeDraftId}
       sessionMenu={sessionMenu}
-      onOpenSessionMenu={onOpenSessionMenu}
-      onTogglePin={(sessionId, currentlyPinned) =>
-        void onSessionMenuAction(sessionId, currentlyPinned ? 'unpin' : 'pin')
-      }
-      onArchiveSession={(sessionId) => void onSessionMenuAction(sessionId, 'archive')}
-      onUnarchiveSession={(sessionId) => void onSessionMenuAction(sessionId, 'unarchive')}
+      onOpenSessionMenu={(sessionId, x, y) => {
+        if (blockedByOfflineSessionSnapshot(locale)) return;
+        onOpenSessionMenu(sessionId, x, y);
+      }}
+      onTogglePin={(sessionId, currentlyPinned) => {
+        if (blockedByOfflineSessionSnapshot(locale)) return;
+        void onSessionMenuAction(sessionId, currentlyPinned ? 'unpin' : 'pin');
+      }}
+      onArchiveSession={(sessionId) => {
+        if (blockedByOfflineSessionSnapshot(locale)) return;
+        void onSessionMenuAction(sessionId, 'archive');
+      }}
+      onUnarchiveSession={(sessionId) => {
+        if (blockedByOfflineSessionSnapshot(locale)) return;
+        void onSessionMenuAction(sessionId, 'unarchive');
+      }}
       onDeleteSession={(sessionId) => {
+        if (blockedByOfflineSessionSnapshot(locale)) return;
         onRequestDeleteSession(
           sessionId,
           resolveSessionDisplayName(

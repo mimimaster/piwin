@@ -21,6 +21,7 @@
 @import './styles/region-sidebar-tree.css';
 @import './styles/sidebar-tree-edge-fade.css';
 @import './styles/region-sidebar-session.css';
+@import './styles/region-sidebar-swipe.css';
 @import './styles/region-sidebar-notices.css';
 @import './styles/ink-line-node.css';
 @import './styles/region-context-bar.css';

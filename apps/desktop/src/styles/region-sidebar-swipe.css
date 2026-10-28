@@ -1,0 +1,14 @@
+/* Touch session rows slide left to reveal their actions
+   (session/swipeable-session-row.tsx). Structure comes from
+   @piwin/ui-kit swipe-row.css; this file only fits it to the sidebar. */
+
+.session-row-swipe,
+.session-row-swipe > .ui-swipe-row {
+  width: 100%;
+}
+
+.session-row-swipe > .ui-swipe-row {
+  border-radius: var(--r-control);
+  --ui-swipe-action-fg: var(--content-on-accent, #fff);
+  --ui-swipe-content-bg: var(--surface-sidebar, var(--sidebar));
+}

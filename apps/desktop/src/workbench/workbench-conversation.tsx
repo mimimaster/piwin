@@ -36,6 +36,7 @@ import type { ChatMessageUi, ChatUiState, SessionListItemUi } from '../conversat
 import type { EditResendCarry } from '../conversation/conversation-branch';
 import { ComposerDock, type ComposerDockProps } from '../composer/composer-dock';
 import { getDesktopCopy, type DesktopLocale } from '../i18n/desktop-locale';
+import { blockedByOfflineSessionSnapshot } from '../session/offline-session-snapshot';
 import { EmptyStageLanding } from '../conversation/empty-stage-landing';
 import { ExtensionUiPrompt, type ExtensionUiResolvePayload } from '../extensions/extension-ui-prompt';
 import type { HostClient } from '../host/host-client';
@@ -396,7 +397,10 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
           <EmptyStageLanding
             locale={locale}
             sessions={scopeSessions}
-            onResumeSession={(sessionId) => void onOpenSession(sessionId)}
+            onResumeSession={(sessionId) => {
+              if (blockedByOfflineSessionSnapshot(locale)) return;
+              void onOpenSession(sessionId);
+            }}
               draftAgentId={landingAgent.agentId}
             {...(landingAgent.agentOptions !== undefined ? { draftAgentOptions: landingAgent.agentOptions } : {})}
             onSelectDraftAgent={(agentId) => {

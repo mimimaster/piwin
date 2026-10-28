@@ -14,6 +14,7 @@ import { useSessionActions } from './use-session-actions';
 import { useSettingsSaveQueue } from './use-settings-save-queue';
 import { useWorkbenchDesktopConfig } from './use-workbench-desktop-config';
 import { useWorkbenchSessionLifecycle } from './use-workbench-session-lifecycle';
+import { useSessionListSnapshot } from './use-session-list-snapshot';
 import type { WorkbenchHostRuntime } from './use-workbench-host-runtime';
 import type { WorkbenchShellChrome } from './use-workbench-shell-chrome';
 
@@ -189,22 +190,32 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     state.userMessageIndexEpoch,
   ]);
 
-  const { recentProjects, worktrees, handleRemoveProjectFromSidebar } = useWorkbenchSessionLifecycle({
+  const { recentProjects, setRecentProjects, worktrees, handleRemoveProjectFromSidebar } =
+    useWorkbenchSessionLifecycle({
+      hostClient,
+      hostReady: state.hostReady,
+      projectPath: state.projectPath,
+      activeSessionId: state.activeSessionId,
+      config: host.config,
+      setConfig: host.setConfig,
+      dispatch,
+      dispatchNotification: host.dispatchNotification,
+      hydrateSessions,
+      handleOpenProject,
+      handleResumeSession,
+      showArchivedSessions,
+      remoteCatchUpEpoch: host.remoteCatchUpEpoch,
+      saveSettingsInOrder,
+      generalWorkspacePath: host.generalWorkspacePath ?? null,
+    });
+  useSessionListSnapshot({
     hostClient,
     hostReady: state.hostReady,
-    projectPath: state.projectPath,
-    activeSessionId: state.activeSessionId,
-    config: host.config,
-    setConfig: host.setConfig,
+    generalSessions: state.generalSessions,
+    projectSessionsByPath: state.projectSessionsByPath,
+    recentProjects,
+    setRecentProjects,
     dispatch,
-    dispatchNotification: host.dispatchNotification,
-    hydrateSessions,
-    handleOpenProject,
-    handleResumeSession,
-    showArchivedSessions,
-    remoteCatchUpEpoch: host.remoteCatchUpEpoch,
-    saveSettingsInOrder,
-    generalWorkspacePath: host.generalWorkspacePath ?? null,
   });
   const handleSessionListOrderChange = useCallback(
     (order: SessionListOrder): void => {

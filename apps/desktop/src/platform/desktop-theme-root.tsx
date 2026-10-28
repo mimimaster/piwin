@@ -14,7 +14,7 @@ import {
   type ReactElement,
 } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
-import { PiwinUiProvider } from '@piwin/ui-kit';
+import { PiwinUiProvider, SwipeRowGroup } from '@piwin/ui-kit';
 import { App } from '../App';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { SessionDragProvider } from '../workbench/docking/docking-session-drag.js';
@@ -223,7 +223,11 @@ export function DesktopThemeRoot() {
   } else {
     body = (
       <SessionDragProvider>
-        <App activeTheme={activeTheme} onThemeApplied={applyResolvedTheme} />
+        {/* Touch session rows share one swipe group: opening a row closes the
+            previous one, and the open row survives virtualized remounts. */}
+        <SwipeRowGroup>
+          <App activeTheme={activeTheme} onThemeApplied={applyResolvedTheme} />
+        </SwipeRowGroup>
       </SessionDragProvider>
     );
   }
