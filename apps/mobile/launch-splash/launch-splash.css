@@ -1,0 +1,431 @@
+/* Launch splash: the 砚 seal is stamped onto paper while the app bundle boots.
+   Inlined into the entry page, so it paints before any app stylesheet loads.
+   The native LaunchScreen uses the same paper/ink background (see
+   src-tauri/ios/launch), so the hand-off from iOS to the webview has no flash. */
+
+html {
+  background: #f6f5f4;
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    background: #181716;
+  }
+}
+
+#launch-splash {
+  --ls-bg: #f6f5f4;
+  --ls-zhu: #c6412a;
+  --ls-on-zhu: #fff7f0;
+  --ls-t1: #1d1b17;
+  --ls-t3: #726b61;
+  --ls-wash: rgba(198, 65, 42, 0.13);
+  --ls-shade: rgba(60, 45, 20, 0.28);
+  --ls-vignette: rgba(60, 45, 20, 0.07);
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: var(--ls-bg);
+  background-image: radial-gradient(120% 85% at 50% 42%, transparent 52%, var(--ls-vignette));
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 360ms ease,
+    opacity 480ms cubic-bezier(0.4, 0, 0.2, 1) 60ms;
+}
+
+/* Before the face is known the splash follows the system, like the native LaunchScreen. */
+@media (prefers-color-scheme: dark) {
+  #launch-splash:not([data-face]) {
+    --ls-bg: #181716;
+    --ls-zhu: #e25a3d;
+    --ls-on-zhu: #1c0b07;
+    --ls-t1: #ebe5da;
+    --ls-t3: #8b8378;
+    --ls-wash: rgba(226, 90, 61, 0.16);
+    --ls-shade: rgba(0, 0, 0, 0.55);
+    --ls-vignette: rgba(0, 0, 0, 0.38);
+  }
+}
+
+#launch-splash[data-face='ink'] {
+  --ls-bg: #181716;
+  --ls-zhu: #e25a3d;
+  --ls-on-zhu: #1c0b07;
+  --ls-t1: #ebe5da;
+  --ls-t3: #8b8378;
+  --ls-wash: rgba(226, 90, 61, 0.16);
+  --ls-shade: rgba(0, 0, 0, 0.55);
+  --ls-vignette: rgba(0, 0, 0, 0.38);
+}
+
+#launch-splash .ls-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Optical centre sits a little above the geometric one. */
+  transform: translateY(-4vh);
+  transition:
+    transform 560ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 420ms ease;
+}
+
+/* ── Seal ─────────────────────────────────────────────── */
+
+#launch-splash .ls-seal-wrap {
+  position: relative;
+  width: 84px;
+  height: 90px;
+}
+
+#launch-splash .ls-seal {
+  position: relative;
+  display: block;
+  overflow: visible;
+  will-change: transform, opacity;
+  animation: ls-stamp 640ms cubic-bezier(0.3, 0, 0.2, 1) 180ms both;
+}
+
+#launch-splash .ls-seal-body {
+  fill: var(--ls-zhu);
+}
+
+#launch-splash .ls-seal-frame {
+  fill: none;
+  stroke: var(--ls-on-zhu);
+  stroke-width: 1.6;
+}
+
+#launch-splash .ls-seal-glyph {
+  fill: var(--ls-on-zhu);
+  font: 600 48px/1 'Songti SC', 'STSong', 'Noto Serif CJK SC', serif;
+}
+
+/* Ink bleeding into the paper under the seal. */
+#launch-splash .ls-wash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 280px;
+  height: 280px;
+  margin: -140px 0 0 -140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--ls-wash) 0%, transparent 64%);
+  opacity: 0;
+  animation: ls-bleed 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) 520ms both;
+}
+
+/* Shadow of the seal as it comes down; it vanishes on contact. */
+#launch-splash .ls-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  width: 78px;
+  height: 14px;
+  margin-left: -39px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--ls-shade), transparent);
+  opacity: 0;
+  animation: ls-shadow 640ms ease-out 180ms both;
+}
+
+/* Pressure ripple at the moment of impact. */
+#launch-splash .ls-ring {
+  position: absolute;
+  inset: -4px;
+  border: 1.5px solid var(--ls-zhu);
+  border-radius: 9px;
+  opacity: 0;
+  animation: ls-ring 720ms cubic-bezier(0.1, 0.6, 0.3, 1) 520ms both;
+}
+
+/* Ink droplets flung from the seal's edge. */
+#launch-splash .ls-drop {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: var(--ls-zhu);
+  opacity: 0;
+  animation: ls-fling 560ms cubic-bezier(0.1, 0.7, 0.3, 1) 520ms both;
+}
+
+#launch-splash .ls-drop-1 {
+  --ls-dx: -58px;
+  --ls-dy: -34px;
+}
+
+#launch-splash .ls-drop-2 {
+  --ls-dx: 61px;
+  --ls-dy: -22px;
+  width: 3.5px;
+  height: 3.5px;
+}
+
+#launch-splash .ls-drop-3 {
+  --ls-dx: 52px;
+  --ls-dy: 41px;
+  width: 4px;
+  height: 4px;
+}
+
+#launch-splash .ls-drop-4 {
+  --ls-dx: -49px;
+  --ls-dy: 46px;
+  width: 3px;
+  height: 3px;
+}
+
+/* ── Wordmark ─────────────────────────────────────────── */
+
+#launch-splash .ls-word {
+  margin-top: 34px;
+  /* Trailing letter-spacing would push the word off-centre. */
+  padding-left: 0.36em;
+  color: var(--ls-t1);
+  font: 500 26px/1.1 'Iowan Old Style', 'Songti SC', Georgia, serif;
+  letter-spacing: 0.36em;
+  -webkit-clip-path: inset(0 100% 0 0);
+  clip-path: inset(0 100% 0 0);
+  animation: ls-write 620ms cubic-bezier(0.65, 0, 0.35, 1) 760ms both;
+}
+
+#launch-splash .ls-brush {
+  display: block;
+  margin-top: 8px;
+  overflow: visible;
+}
+
+#launch-splash .ls-brush path {
+  fill: none;
+  stroke: var(--ls-zhu);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  opacity: 0.85;
+  animation: ls-stroke 520ms cubic-bezier(0.55, 0, 0.3, 1) 980ms both;
+}
+
+#launch-splash .ls-sub {
+  margin-top: 14px;
+  padding-left: 0.3em;
+  color: var(--ls-t3);
+  font: 400 12px/1.4 -apple-system, BlinkMacSystemFont, 'PingFang SC', system-ui, sans-serif;
+  letter-spacing: 0.3em;
+  opacity: 0;
+  animation: ls-rise 520ms ease-out 1120ms both;
+}
+
+/* ── Waiting (bundle slower than the stamp) ───────────── */
+
+#launch-splash .ls-wait {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom) + 56px);
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+#launch-splash .ls-wait i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ls-t3);
+  animation: ls-pulse 1200ms ease-in-out infinite;
+}
+
+#launch-splash .ls-wait i:nth-child(2) {
+  animation-delay: 160ms;
+}
+
+#launch-splash .ls-wait i:nth-child(3) {
+  animation-delay: 320ms;
+}
+
+#launch-splash.is-waiting .ls-wait {
+  opacity: 1;
+}
+
+#launch-splash.is-waiting .ls-seal-wrap {
+  animation: ls-breathe 2400ms ease-in-out infinite;
+}
+
+/* ── Exit ─────────────────────────────────────────────── */
+
+#launch-splash.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#launch-splash.is-leaving .ls-stage {
+  transform: translateY(-4vh) scale(1.08);
+  opacity: 0;
+}
+
+#launch-splash.is-leaving .ls-wait {
+  opacity: 0;
+}
+
+/* Same-session reloads and reduced motion skip the ceremony: final frame at once. */
+#launch-splash.is-quick *,
+#launch-splash.is-quick *::before,
+#launch-splash.is-quick *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #launch-splash *,
+  #launch-splash *::before,
+  #launch-splash *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  #launch-splash.is-leaving .ls-stage {
+    transform: translateY(-4vh);
+  }
+}
+
+/* ── Keyframes ────────────────────────────────────────── */
+
+@keyframes ls-stamp {
+  0% {
+    opacity: 0;
+    transform: translateY(-30px) scale(1.6) rotate(-10deg);
+  }
+  40% {
+    opacity: 1;
+  }
+  56% {
+    transform: translateY(0) scale(0.92) rotate(-1deg);
+  }
+  74% {
+    transform: translateY(0) scale(1.035) rotate(-2.6deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(-2deg);
+  }
+}
+
+@keyframes ls-shadow {
+  0% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  62%,
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes ls-bleed {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+}
+
+@keyframes ls-ring {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.96) rotate(-2deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.75) rotate(-2deg);
+  }
+}
+
+@keyframes ls-fling {
+  0% {
+    opacity: 0.95;
+    transform: translate(0, 0) scale(0.4);
+  }
+  100% {
+    opacity: 0.5;
+    transform: translate(var(--ls-dx), var(--ls-dy)) scale(1);
+  }
+}
+
+@keyframes ls-write {
+  0% {
+    opacity: 0.2;
+    letter-spacing: 0.5em;
+    -webkit-clip-path: inset(0 100% 0 0);
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    opacity: 1;
+    letter-spacing: 0.36em;
+    -webkit-clip-path: inset(0 -12% 0 0);
+    clip-path: inset(0 -12% 0 0);
+  }
+}
+
+@keyframes ls-stroke {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ls-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ls-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes ls-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.025);
+  }
+}

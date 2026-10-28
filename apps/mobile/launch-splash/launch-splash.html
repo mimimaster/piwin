@@ -1,0 +1,37 @@
+<div id="launch-splash" role="status" aria-label="piwin 正在启动">
+  <div class="ls-stage" aria-hidden="true">
+    <div class="ls-seal-wrap">
+      <span class="ls-wash"></span>
+      <span class="ls-shadow"></span>
+      <span class="ls-ring"></span>
+      <span class="ls-drop ls-drop-1"></span>
+      <span class="ls-drop ls-drop-2"></span>
+      <span class="ls-drop ls-drop-3"></span>
+      <span class="ls-drop ls-drop-4"></span>
+      <svg class="ls-seal" viewBox="0 0 84 90" width="84" height="90" focusable="false">
+        <defs>
+          <!-- Worn-stamp texture: roughened edges plus small ink voids. -->
+          <filter id="ls-ink" x="-8%" y="-8%" width="116%" height="116%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.45" numOctaves="2" seed="11" result="edge" />
+            <feDisplacementMap in="SourceGraphic" in2="edge" scale="2.2" xChannelSelector="R" yChannelSelector="G" result="rough" />
+            <feTurbulence type="fractalNoise" baseFrequency="0.32" numOctaves="3" seed="4" result="speck" />
+            <!-- Steep alpha ramp: only the brightest noise patches become voids, with crisp edges. -->
+            <feColorMatrix in="speck" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -26 0 0 0 17.4" result="voids" />
+            <feComposite in="rough" in2="voids" operator="in" />
+          </filter>
+        </defs>
+        <g filter="url(#ls-ink)">
+          <rect class="ls-seal-body" x="2" y="2" width="80" height="86" rx="5" />
+          <rect class="ls-seal-frame" x="8.5" y="8.5" width="67" height="73" rx="2.5" />
+          <text class="ls-seal-glyph" x="42" y="46" text-anchor="middle" dominant-baseline="central">砚</text>
+        </g>
+      </svg>
+    </div>
+    <div class="ls-word">piwin</div>
+    <svg class="ls-brush" viewBox="0 0 132 12" width="132" height="12" focusable="false">
+      <path d="M5 7.4 C 28 3.2, 58 9.6, 84 5.6 S 118 4.4, 127 6.2" pathLength="100" />
+    </svg>
+    <div class="ls-sub">砚台 · 私有编程代理</div>
+  </div>
+  <div class="ls-wait" aria-hidden="true"><i></i><i></i><i></i></div>
+</div>

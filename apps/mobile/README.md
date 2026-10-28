@@ -82,10 +82,26 @@ this app.
 background reaching the canvas edges. It uses the shared Inkstone artwork
 without the Desktop Dock inset. iOS applies the outside icon mask itself.
 
-`pnpm icons:ios` regenerates the 18 iPhone/iPad icon sizes and updates the
+`pnpm ios:assets` regenerates the 18 iPhone/iPad icon sizes and updates the
 existing Xcode asset catalog. Native initialization, development and shell
 builds run this sync so an older catalog cannot retain the small padded icon.
 Replacing the app icon requires a new native build installed on the device.
+
+## Launch screen and splash
+
+Cold start is two layers that share one paper/ink background, so there is no
+white flash between them:
+
+1. Native `LaunchScreen.storyboard` — plain paper (`#f6f5f4`), ink (`#181716`)
+   in dark appearance. The tracked source is `src-tauri/ios/launch/`;
+   `pnpm ios:assets` copies it into the generated Xcode project. iOS caches
+   launch screens, so delete and reinstall the app to see a change.
+2. Web launch splash (`launch-splash/`) — the 砚 seal is stamped onto the paper,
+   then the wordmark is written in. It is inlined into both shell entry pages
+   (classic via the Vite plugin, web workbench via `build-shell-dist`) and leaves
+   once the app has rendered into `#root`, after at least 1.6 s. Reloads within
+   the same session and *Reduce Motion* skip the animation; a 12 s fail-safe
+   removes it if the app never boots.
 
 ## Live voice and Dynamic Island
 

@@ -13,6 +13,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { injectShellInterfaceBoot } from '@piwin/host-client';
+import { injectLaunchSplash } from '../launch-splash/inject-launch-splash.js';
 
 const mobileRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const desktopRoot = resolve(mobileRoot, '../desktop');
@@ -41,6 +42,7 @@ rmSync(join(distRoot, 'pet-overlay.html'), { force: true });
 run(mobileRoot, ['exec', 'vite', 'build', '--base', '/classic/', '--outDir', classicDist]);
 
 const webEntry = join(distRoot, 'index.html');
-writeFileSync(webEntry, injectShellInterfaceBoot(readFileSync(webEntry, 'utf8')));
+// The classic page already carries the splash through the Vite plugin.
+writeFileSync(webEntry, injectLaunchSplash(injectShellInterfaceBoot(readFileSync(webEntry, 'utf8'))));
 
 console.log(`mobile shell front end assembled at ${distRoot}`);

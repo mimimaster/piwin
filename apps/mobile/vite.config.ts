@@ -1,13 +1,17 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { injectLaunchSplash } from './launch-splash/inject-launch-splash.js';
 
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
   test: {
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'launch-splash/**/*.test.ts'],
   },
-  plugins: [react()],
+  plugins: [
+    react(),
+    { name: 'piwin-launch-splash', transformIndexHtml: (html) => injectLaunchSplash(html) },
+  ],
   clearScreen: false,
   server: {
     port: 1421,
