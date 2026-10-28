@@ -161,7 +161,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 @media (max-width: 600px) {
   html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-landing-list {
-    grid-template-columns: 1fr;
+    /* Not a bare 1fr: it would grow to a nowrap title and hide the ellipsis. */
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

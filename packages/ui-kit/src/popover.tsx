@@ -26,7 +26,18 @@ export type PopoverProps = {
   autoFocus?: boolean;
   onOpenAutoFocus?: (event: Event) => void;
   onCloseAutoFocus?: (event: Event) => void;
+  /**
+   * `sheet`: a full-width panel that rises above the trigger, for phones where
+   * a narrow anchored box leaves a long list a few rows tall. The shell
+   * decides when; the default stays a box anchored to the trigger.
+   */
+  presentation?: PopoverPresentation;
 };
+
+export type PopoverPresentation = 'anchored' | 'sheet';
+
+/** Gap between the sheet and the trigger row it rises from. */
+const SHEET_SIDE_OFFSET = 8;
 
 function applyVirtualAnchorRect(element: HTMLElement, rect: DOMRect): void {
   element.style.position = 'fixed';
@@ -86,6 +97,7 @@ function popoverContentProps(props: {
   autoFocus?: boolean;
   onOpenAutoFocus?: (event: Event) => void;
   onCloseAutoFocus?: (event: Event) => void;
+  presentation?: PopoverPresentation;
 }): {
   className: string;
   sideOffset: number;
@@ -98,6 +110,8 @@ function popoverContentProps(props: {
   onOpenAutoFocus: (event: Event) => void;
   onCloseAutoFocus: (event: Event) => void;
 } {
+  const sheet = props.presentation === 'sheet';
+  const baseClass = sheet ? 'ui-popover-content ui-popover-sheet' : 'ui-popover-content';
   const contentProps: {
     className: string;
     sideOffset: number;
@@ -110,14 +124,12 @@ function popoverContentProps(props: {
     onOpenAutoFocus: (event: Event) => void;
     onCloseAutoFocus: (event: Event) => void;
   } = {
-    className: props.contentClassName
-      ? `ui-popover-content ${props.contentClassName}`
-      : 'ui-popover-content',
-    sideOffset: 6,
+    className: props.contentClassName ? `${baseClass} ${props.contentClassName}` : baseClass,
+    sideOffset: sheet ? SHEET_SIDE_OFFSET : 6,
     collisionPadding: 8,
     avoidCollisions: true,
-    align: props.align ?? 'start',
-    side: props.side ?? 'bottom',
+    align: sheet ? 'center' : (props.align ?? 'start'),
+    side: sheet ? 'top' : (props.side ?? 'bottom'),
     onOpenAutoFocus: (event) => {
       props.onOpenAutoFocus?.(event);
       if (!props.onOpenAutoFocus && props.autoFocus !== true) {
@@ -146,6 +158,8 @@ export function Popover(props: PopoverProps): ReactElement {
     rootProps.onOpenChange = props.onOpenChange;
   }
 
+  // A sheet is as wide as the viewport less the collision padding (CSS), so
+  // Radix's collision shift lands it edge to edge whatever the trigger's x.
   const contentProps = popoverContentProps(props);
 
   return (

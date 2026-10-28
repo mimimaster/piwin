@@ -38,8 +38,10 @@ import type { DesktopLocale } from '../i18n/desktop-locale';
 import {
   createDeferredSettingsPanel,
   DeferredSurfaceBoundary,
+  getLoadedSettingsPanel,
   prefetchSettingsPanel,
 } from '../conversation/deferred-desktop-surfaces';
+import { SettingsLoadingFrame } from '../settings/settings-loading-frame';
 import { scheduleIdleTask } from '../automation/schedule-idle-task';
 import type { HostClient } from '../host/host-client';
 import type { HostRequestAdapters } from '../host/host-request-adapters';
@@ -373,7 +375,12 @@ export function WorkbenchSettingsOverlay(
   props: WorkbenchSettingsOverlayProps,
 ): ReactElement | null {
   const [loadGeneration, setLoadGeneration] = useState(0);
-  const LazyPanel = useMemo(() => createDeferredSettingsPanel(), [loadGeneration]);
+  // Chosen once per generation (it bumps on close and on retry): swapping the
+  // lazy wrapper for the loaded panel mid-visit would remount settings.
+  const Panel = useMemo(
+    () => getLoadedSettingsPanel() ?? createDeferredSettingsPanel(),
+    [loadGeneration],
+  );
 
   useEffect(() => {
     if (props.settingsOpen) {
@@ -395,8 +402,11 @@ export function WorkbenchSettingsOverlay(
         onRetry={() => setLoadGeneration((generation) => generation + 1)}
         onClose={props.onCloseSettings}
       >
-        <DeferredSurfaceBoundary label={isChinese ? '正在加载设置' : 'Loading settings'}>
-          <LazyPanel
+        <DeferredSurfaceBoundary
+          label={isChinese ? '正在加载设置' : 'Loading settings'}
+          fallback={<SettingsLoadingFrame locale={props.locale} onClose={props.onCloseSettings} />}
+        >
+          <Panel
             hostStatus={props.hostStatus}
             hostClient={props.hostClient}
             request={props.requestConfig}

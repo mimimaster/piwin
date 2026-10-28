@@ -1,4 +1,7 @@
 import type { ReactElement } from 'react';
+import { ComposerToolbarContext } from './composer-toolbar-context';
+import { ComposerModeControl } from './composer-mode-control';
+import { usePhoneShellLayout } from '../hooks/use-phone-shell-layout';
 import { IconButton } from '@piwin/ui-kit';
 import { ComposerPlusMenu } from './composer-plus-menu';
 import { BackendComposerControls } from '../agents/backend-composer-controls';
@@ -86,6 +89,13 @@ export function ComposerCardToolbar({
     ? (props.activeAgentId ?? backendOptions?.agentId ?? 'pi')
     : (props.draftAgentId ?? backendOptions?.agentId ?? 'pi');
   const isExternalActive = currentAgentId !== 'pi';
+  const phone = usePhoneShellLayout();
+  const piAgentChrome = !isExternalActive && props.isConversationSession !== true;
+  const runModeOffered = piAgentChrome && Boolean(props.onRunModeChange && props.runModePreset);
+  const schemesOffered =
+    piAgentChrome && Boolean(props.onOrchestrationSchemeChange && props.orchestrationSchemeOptions);
+  // A phone row has no room for both pills beside the model name.
+  const mergedModes = phone && runModeOffered && schemesOffered;
   const externalLabel =
     agentOptions.find((option) => option.agentId === currentAgentId)?.label ??
     agentDisplayName(currentAgentId);
@@ -198,8 +208,25 @@ export function ComposerCardToolbar({
       </div>
 
       <div className="composer-v2-toolbar-right">
+        {mergedModes && props.onRunModeChange && props.runModePreset && props.onOrchestrationSchemeChange && props.orchestrationSchemeOptions ? (
+          <ComposerModeControl
+            runDisabled={isStreamingRun}
+            runMode={props.runModePreset}
+            onRunModeChange={props.onRunModeChange}
+            onRunModeSetDefault={props.onRunModeSetDefault}
+            onOpenPermissionsSettings={props.onOpenPermissionsSettings}
+            yoloDisabled={props.runModeYoloDisabled}
+            schemeId={props.orchestrationSchemeId ?? 'off'}
+            schemeOptions={props.orchestrationSchemeOptions}
+            onSchemeChange={props.onOrchestrationSchemeChange}
+            delegationDisabled={props.delegationDisabled ?? false}
+            onDelegationDisabledChange={props.onDelegationDisabledChange}
+            onOpenSchemeSettings={props.onOpenOrchestrationSchemeSettings}
+          />
+        ) : null}
+
         {/* Grok keeps the CLI's own permission behavior; do not offer piwin run modes. */}
-        {!isExternalActive && props.isConversationSession !== true && props.onRunModeChange && props.runModePreset ? (
+        {!mergedModes && runModeOffered && props.onRunModeChange && props.runModePreset ? (
           <RunModeControl
             disabled={isStreamingRun}
             value={props.runModePreset}
@@ -213,10 +240,7 @@ export function ComposerCardToolbar({
         ) : null}
 
         {/* An external backend owns its own session; Pi schemes do not apply. */}
-        {!isExternalActive &&
-        props.isConversationSession !== true &&
-        props.onOrchestrationSchemeChange &&
-        props.orchestrationSchemeOptions ? (
+        {!mergedModes && schemesOffered && props.onOrchestrationSchemeChange && props.orchestrationSchemeOptions ? (
           <OrchestrationSchemeControl
             disabled={false}
             value={props.orchestrationSchemeId ?? 'off'}
@@ -273,7 +297,18 @@ export function ComposerCardToolbar({
           />
         ) : null}
 
-        {/* Context usage lives in the status bar under the composer card. */}
+        {/* Context usage lives in the status bar under the card; a phone has it here. */}
+        {props.contextInToolbar === true && props.embedded !== true ? (
+          <ComposerToolbarContext
+            totals={props.sessionUsageTotals ?? null}
+            lastRequest={props.contextRingView?.lastRequest}
+            extensionSurface={props.extensionSurface}
+            locale={locale === 'zh-CN' ? 'zh-CN' : 'en'}
+            contextView={props.contextRingView}
+            isRunning={isStreamingRun}
+            onOpenModelSettings={props.onOpenModelSettings}
+          />
+        ) : null}
 
         <ComposerActionSlot
           copy={copy}

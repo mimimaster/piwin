@@ -1,7 +1,7 @@
 /**
  * Context occupancy ring. Renders selector output only — no occupancy math.
  */
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { formatCompactTokens } from '@piwin/contracts';
 import { IconButton, Popover } from '@piwin/ui-kit';
 import { IconChevronRight, IconClose } from '../tool-cards/shell-icons';
@@ -40,6 +40,8 @@ export type ContextUsageRingProps = {
   onOpenModelSettings?: () => void;
   /** `bar`: the status bar's thin bar with numbers; same popover. */
   variant?: 'ring' | 'bar';
+  /** More rows under the usage details (the phone puts the session counters here). */
+  details?: ReactNode;
 };
 
 function ContextUsageBarTrigger(props: { view: ContextRingViewModel }): ReactElement {
@@ -186,6 +188,7 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
           view={view}
           {...(cacheEstimate !== undefined ? { cacheEstimate } : {})}
         />
+        {props.details}
         {props.onOpenModelSettings ? (
           <footer className="context-usage-popover-footer">
             <button

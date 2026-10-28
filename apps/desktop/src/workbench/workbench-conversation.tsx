@@ -61,6 +61,7 @@ import type { DesktopPreferences } from '../platform/ui-preferences';
 import type { ExtensionUiRequestState } from '../hooks/use-host-bootstrap';
 import { resolveActiveComposerAgentId } from '../composer/composer-dock-assembly';
 import { isConversationSessionChrome } from '../conversation/is-conversation-session';
+import { getSessionListScopeMeta } from '../session/session-list-scope';
 import type { SidebarMode } from '../sidebar/sidebar-mode';
 
 /**
@@ -397,6 +398,10 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
           <EmptyStageLanding
             locale={locale}
             sessions={scopeSessions}
+            sessionsLoading={
+              (getSessionListScopeMeta(state.sessionListScopes, state.activeScope)?.queryStatus ??
+                'idle') === 'idle'
+            }
             onResumeSession={(sessionId) => {
               if (blockedByOfflineSessionSnapshot(locale)) return;
               void onOpenSession(sessionId);

@@ -397,7 +397,12 @@ export function applyAppearanceToDocument(
   // Inkstone faces over a native material (macOS vibrancy, Windows 11 Mica)
   // only; everything else stays opaque. The marker is written by
   // window-chrome.ts `applyNativeWindowMaterialToDocument`.
-  if (root.dataset.nativeWindowMaterial !== undefined && INKSTONE_DOCUMENT_THEME_IDS.has(theme.id)) {
+  // An uploaded wallpaper (platform/wallpaper-document.ts) switches the same
+  // translucent region styling on without a native material.
+  if (
+    (root.dataset.nativeWindowMaterial !== undefined || root.dataset.wallpaper === 'on') &&
+    INKSTONE_DOCUMENT_THEME_IDS.has(theme.id)
+  ) {
     root.dataset.windowMaterial = 'on';
   } else {
     delete root.dataset.windowMaterial;

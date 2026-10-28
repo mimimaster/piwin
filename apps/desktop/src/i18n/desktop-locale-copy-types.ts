@@ -309,6 +309,15 @@ export type DesktopCopy = {
     windowMaterialSidebar: string;
     windowMaterialStage: string;
     windowMaterialRightPanel: string;
+    wallpaper: string;
+    wallpaperDescription: string;
+    wallpaperImage: string;
+    wallpaperUpload: string;
+    wallpaperChange: string;
+    wallpaperRemove: string;
+    wallpaperBlur: string;
+    wallpaperDim: string;
+    wallpaperError: string;
     typography: string;
     typographyDescription: string;
     assistantTextSize: string;

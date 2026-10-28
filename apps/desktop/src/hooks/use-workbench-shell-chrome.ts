@@ -37,6 +37,8 @@ import { useConfirmDialog } from './use-confirm-dialog';
 import { loadDesktopPreferences, type DesktopPreferences } from '../platform/ui-preferences';
 import { appShellCssVars, desktopPreferencesCssVars } from '../workbench/workbench-preferences-style';
 import { applyWindowMaterialToDocument } from '../platform/window-material-preferences';
+import { effectiveWindowMaterialOpacity } from '../platform/wallpaper-preferences';
+import { applyWallpaperToDocument } from '../platform/wallpaper-document';
 import type { SessionOrchestrationRestore } from './use-composer-orchestration-controls';
 
 export type UseWorkbenchShellChromeArgs = {
@@ -205,9 +207,13 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     setPreferences,
   });
   const preferencesStyle = useMemo(() => desktopPreferencesCssVars(preferences), [preferences]);
+  const materialOpacity = effectiveWindowMaterialOpacity(preferences);
   useLayoutEffect(() => {
-    applyWindowMaterialToDocument(document.documentElement, preferences.windowMaterial);
-  }, [preferences.windowMaterial]);
+    applyWindowMaterialToDocument(document.documentElement, materialOpacity);
+  }, [materialOpacity]);
+  useLayoutEffect(() => {
+    applyWallpaperToDocument(document.documentElement, preferences.wallpaper);
+  }, [preferences.wallpaper]);
   const appShellStyle = useMemo(
     () =>
       appShellCssVars({

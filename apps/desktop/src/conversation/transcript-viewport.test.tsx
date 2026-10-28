@@ -761,6 +761,9 @@ describe('TranscriptViewport session scroll recovery', () => {
 
     act(() => {
       scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -80, bubbles: true }));
+      // Far enough that the tail is out of view (viewport 200px, content 1000px).
+      scrollElement.scrollTop = 300;
+      scrollElement.dispatchEvent(new Event('scroll'));
     });
     expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).not.toBeNull();
   });
@@ -779,6 +782,13 @@ describe('TranscriptViewport session scroll recovery', () => {
       scrollElement.dispatchEvent(new Event('scroll'));
     });
     expect(scrollElement.scrollTop).toBe(960);
+    // The tail is still on screen: no button over the last card's actions.
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
+
+    act(() => {
+      scrollElement.scrollTop = 300;
+      scrollElement.dispatchEvent(new Event('scroll'));
+    });
     expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).not.toBeNull();
   });
 });

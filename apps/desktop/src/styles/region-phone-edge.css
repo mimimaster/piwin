@@ -52,15 +52,6 @@ html:has(.app-shell[data-layout='phone']) body,
   padding: 4px 10px 6px;
 }
 
-/* Turn and token counters are an operator read-out; on a phone only the
-   context bar stays, so the line costs as little transcript as possible. */
-.app-shell[data-layout='phone'] .composer-dock.layout-docked > .composer-stats-line .composer-stats-extensions,
-.app-shell[data-layout='phone'] .composer-dock.layout-docked > .composer-stats-line .composer-stats-turn,
-.app-shell[data-layout='phone'] .composer-dock.layout-docked > .composer-stats-line .composer-stats-item,
-.app-shell[data-layout='phone'] .composer-dock.layout-docked > .composer-stats-line .composer-stats-separator {
-  display: none;
-}
-
 .app-shell[data-layout='phone'] .composer-dock.layout-docked .composer-v2-input-area {
   padding: 8px 12px 0;
 }

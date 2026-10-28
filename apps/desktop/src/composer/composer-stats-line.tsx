@@ -16,7 +16,7 @@ import type { ContextRingViewModel } from '../context/context-telemetry-selector
 import { ContextUsageRing } from '../context/context-usage-ring';
 
 /** Seconds since the turn started, ticking once a second while it runs. */
-function useRunningElapsed(isRunning: boolean): number | undefined {
+export function useRunningElapsed(isRunning: boolean): number | undefined {
   const [startedAt, setStartedAt] = useState<number | undefined>(undefined);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

@@ -140,11 +140,13 @@
 @import './styles/region-phone-edge.css';
 @import './styles/region-phone-touch.css';
 @import './styles/region-phone-glass.css';
+@import './styles/composer-picker-sheets.css';
 @import './styles/conversation-shell-switch.css';
 @import './styles/window-material.css';
 @import './styles/window-material-overlays.css';
 @import './styles/window-material-pages.css';
 @import './styles/window-material-cards.css';
+@import './styles/wallpaper.css';
 @import './styles/screen-capture.css';
 /* Memory-governor degradation overlay. Cross-cutting override layer, not a
    region: keyed off html[data-memory-pressure] and must import last so its

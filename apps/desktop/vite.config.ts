@@ -71,6 +71,7 @@ export default defineConfig({
       input: {
         main: resolve(desktopRoot, 'index.html'),
         petOverlay: resolve(desktopRoot, 'pet-overlay.html'),
+        screenCapture: resolve(desktopRoot, 'screen-capture.html'),
       },
     },
   },

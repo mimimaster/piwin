@@ -14,6 +14,7 @@ import { ComposerContextRail } from './composer-context-rail';
 import { ExtensionSurfaceStrip } from '../extensions/extension-surface-strip';
 import { ComposerStatsLine } from './composer-stats-line';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
+import { usePhoneShellLayout } from '../hooks/use-phone-shell-layout';
 import type { ComposerDockProps } from './composer-dock-types';
 
 export type { ComposerDockProps, ComposerModelOption } from './composer-dock-types';
@@ -21,6 +22,8 @@ export { ComposerCard } from './composer-card';
 
 export function ComposerDock(props: ComposerDockProps): ReactElement {
   const { locale } = useDesktopLocale();
+  // A phone spends no transcript line on status: the ring sits in the toolbar.
+  const contextInToolbar = usePhoneShellLayout();
   const isStreamingRun =
     props.streaming ||
     props.runPhase === 'streaming' ||
@@ -95,9 +98,9 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
         />
       ) : null}
       <ExtensionSurfaceStrip surface={props.extensionSurface} placement="aboveEditor" />
-      <ComposerCard {...props} />
+      <ComposerCard {...props} contextInToolbar={contextInToolbar} />
       <ExtensionSurfaceStrip surface={props.extensionSurface} placement="belowEditor" />
-      <ComposerStatsLine
+      {contextInToolbar ? null : <ComposerStatsLine
         totals={props.sessionUsageTotals ?? null}
         lastRequest={props.contextRingView?.lastRequest}
         extensionSurface={props.extensionSurface}
@@ -105,7 +108,7 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
         contextView={props.contextRingView}
         isRunning={isStreamingRun}
         onOpenModelSettings={props.onOpenModelSettings}
-      />
+      />}
     </footer>
   );
 }

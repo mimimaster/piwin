@@ -40,9 +40,23 @@ describe('describeComposerModel', () => {
       providerId: 'openai',
       modelId: 'gpt',
     });
-    expect(described.label).toBe('Default model');
+    // The composer names the model a send will use, not a generic placeholder.
+    expect(described.label).toBe('GPT');
     expect(described.contextWindow).toBe(128_000);
     expect(described.promptModel?.modelId).toBe('gpt');
+  });
+
+  it('names a Host default that the configured list does not carry', () => {
+    const described = describeComposerModel([gpt, sonnet], '', {
+      providerId: 'opencode-zen',
+      modelId: 'space-bunny-free',
+    });
+    expect(described.label).toBe('space-bunny-free');
+    expect(described.promptModel).toBeNull();
+  });
+
+  it('falls back to a placeholder only when the Host names no default', () => {
+    expect(describeComposerModel([gpt], '', {}).label).toBe('Default model');
   });
 });
 

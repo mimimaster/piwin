@@ -117,6 +117,27 @@ describe('EmptyStageLanding', () => {
     expect(container.querySelector('[data-testid="empty-stage-inkstone-seal"]')).not.toBeNull();
   });
 
+  it('holds the recent list space while the scope is still loading', () => {
+    const container = renderLanding([], undefined, { sessionsLoading: true });
+    const placeholder = container.querySelector('[data-testid="empty-stage-landing-loading"]');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder?.querySelectorAll('.empty-stage-landing-row')).toHaveLength(4);
+    expect(container.querySelector('[data-testid="empty-stage-landing-row"]')).toBeNull();
+  });
+
+  it('shows real rows, not the placeholder, once sessions are known', () => {
+    const container = renderLanding([session({ id: 'abc', name: 'Docker notes' })], undefined, {
+      sessionsLoading: true,
+    });
+    expect(container.querySelector('[data-testid="empty-stage-landing-loading"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="empty-stage-landing-row"]')).toHaveLength(1);
+  });
+
+  it('drops the placeholder when a loaded scope has nothing to resume', () => {
+    const container = renderLanding([], undefined, { sessionsLoading: false });
+    expect(container.querySelector('[data-testid="empty-stage-landing-loading"]')).toBeNull();
+  });
+
   it('resumes the clicked session', () => {
     const onResumeSession = vi.fn();
     const container = renderLanding(

@@ -237,6 +237,42 @@
   letter-spacing: var(--tracking-micro);
 }
 
+/* What happened and what to do next, above the folded raw text. */
+.turn-error-hint {
+  margin: 0;
+  font-size: var(--fs-body, 13.5px);
+  line-height: 1.6;
+  color: var(--text-1);
+}
+
+.turn-error-detail-fold > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  cursor: pointer;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  list-style: none;
+}
+
+.turn-error-detail-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.turn-error-detail-fold > summary::after {
+  content: '›';
+  transition: transform var(--t-1) var(--ease-out);
+}
+
+.turn-error-detail-fold[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.turn-error-detail-fold[open] > .turn-error-detail {
+  margin-top: var(--s-2);
+}
+
 .turn-error-detail {
   margin: 0;
   padding: 10px 12px;

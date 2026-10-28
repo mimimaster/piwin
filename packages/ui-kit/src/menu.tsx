@@ -229,6 +229,11 @@ export type DropdownMenuSubContentProps = {
   className?: string | undefined;
   testId?: string | undefined;
   label?: string | undefined;
+  /**
+   * Gap to the parent row. Negative overlaps the parent menu: a phone has no
+   * room beside it, so the submenu settles over it instead of off-screen.
+   */
+  sideOffset?: number | undefined;
 };
 
 export function DropdownMenuSubContent(props: DropdownMenuSubContentProps): ReactElement {
@@ -236,7 +241,8 @@ export function DropdownMenuSubContent(props: DropdownMenuSubContentProps): Reac
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.SubContent
         className={props.className ? `ui-menu-content ${props.className}` : 'ui-menu-content'}
-        sideOffset={4}
+        sideOffset={props.sideOffset ?? 4}
+        collisionPadding={8}
         {...(props.testId ? { 'data-testid': props.testId } : {})}
         {...(props.label ? { 'aria-label': props.label } : {})}
       >

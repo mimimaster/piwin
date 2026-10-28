@@ -78,6 +78,32 @@ only execution authority.
 - The bundle grows by the workbench (~50 MB unpacked, 3.9 MB main chunk).
 - Phone-layout defects in the workbench are now phone-app defects; they are
   fixed once for the browser and the app.
+- Composer parity with Desktop (2026-10-28): the remote session projection
+  now carries each row's model and thinking level, and `session/resume`
+  carries the conversation's orchestration scheme and delegation switch.
+  Before that a phone showed its own draft scheme and the global default model
+  on Desktop's conversations. In the phone layout the composer status row is
+  gone: context usage is the toolbar ring, and the turn and session counters
+  sit in its popover. The Conversations tab still hides run mode and
+  orchestration on both shells, as before.
+- Composer pickers on a phone (2026-10-28): model, run mode and orchestration
+  open as full-width sheets above the toolbar (ui-kit Popover
+  `presentation="sheet"`) instead of narrow anchored boxes. A touch screen no
+  longer focuses model search on open, so the keyboard does not cover the
+  list. Orchestration rows stack name over a two-line description, and
+  "Delegation disabled" is a switch. The toolbar pill drops the effort suffix
+  and the chevrons, and model names lose the vendor prefix OpenRouter repeats
+  ("DeepSeek: DeepSeek V4.1 Flash" → "DeepSeek V4.1 Flash"). + submenus
+  settle over the menu rather than flying off the right edge.
+- Phone usability pass (2026-10-28, plan `2026-10-28-phone-usability-wishlist.md`):
+  the composer names the model a send will use instead of "Default model";
+  jump-to-latest stays hidden within half a screen of the end; the landing
+  holds its recent-list space while loading; settings reuses its loaded
+  chunk and shows its own frame on first load. Routine per-turn assembly
+  capsules are hidden on a phone (untrusted sources still show). Error cards
+  lead with a plain-words hint by failure code, raw text folded; remote
+  transcripts now carry each row's structured `failure`. In project mode a
+  phone merges run mode and orchestration into one pill and sheet.
 - The phone document is a fixed frame. Conversations and other content scroll
   within their own regions; edge gestures do not move the outer page. The
   session drawer scrolls vertically only, with long titles and expanded touch

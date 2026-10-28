@@ -19,7 +19,9 @@ import type {
 } from '@piwin/contracts';
 import {
   SESSION_USER_MESSAGE_TURN_MARKS,
+  boundAgentFailureText,
   createUnknownSessionContextSnapshot,
+  isAgentFailure,
   parseAssistantUsageMeasurement,
   parseSessionContextSnapshot,
   parseSessionStorageInfo,
@@ -83,6 +85,8 @@ export function projectHostSessionForRemoteClient(
   if (projected.task !== undefined) mapped.task = projected.task;
   if (projected.subagentRole !== undefined) mapped.subagentRole = projected.subagentRole;
   if (projected.subagentModel !== undefined) mapped.subagentModel = projected.subagentModel;
+  if (projected.model !== undefined) mapped.model = projected.model;
+  if (projected.thinkingLevel !== undefined) mapped.thinkingLevel = projected.thinkingLevel;
   if (projected.projectId !== undefined) mapped.projectId = projected.projectId;
   if (projected.storage !== undefined) mapped.storage = projected.storage;
   if (projected.scope === 'project' && projected.projectId) {
@@ -166,6 +170,11 @@ export function projectSessionResume(
   const projectedModel = projectModelRef(record?.model);
   if (projectedModel !== undefined) {
     resume.model = projectedModel;
+  }
+  // Without these a remote shell paints its own draft scheme over the conversation's.
+  copyBoundedString(record ?? {}, 'orchestrationSchemeId', resume, 'orchestrationSchemeId', 256);
+  if (record?.delegationDisabled === true) {
+    resume.delegationDisabled = true;
   }
   const outline = Array.isArray(record?.outline) ? record.outline : [];
   const projectedOutline: RemoteSessionOutlineNode[] = [];
@@ -351,6 +360,9 @@ function projectSessions(data: unknown): RemoteSessionSummary[] {
     copyBoundedString(record, 'subagentRole', summary, 'subagentRole', 256);
     const subagentModel = projectModelRef(record.subagentModel);
     if (subagentModel !== undefined) summary.subagentModel = subagentModel;
+    const model = projectModelRef(record.model);
+    if (model !== undefined) summary.model = model;
+    copyBoundedString(record, 'thinkingLevel', summary, 'thinkingLevel', 64);
     if (scopeIsProject(record)) {
       const projectPath = projectPathFromSessionRecord(record);
       if (projectPath !== undefined) {
@@ -483,6 +495,16 @@ function projectTranscriptMessages(
     }
     if (isTranscriptOutcome(item.outcome)) {
       transcript.outcome = item.outcome;
+    }
+    // Without the code a remote shell can only say "generation failed".
+    if (isAgentFailure(item.failure)) {
+      transcript.failure = {
+        code: item.failure.code,
+        origin: item.failure.origin,
+        retriable: item.failure.retriable,
+        message: boundAgentFailureText(item.failure.message, 4_096),
+        ...(item.failure.httpStatus === undefined ? {} : { httpStatus: item.failure.httpStatus }),
+      };
     }
     const attachments = projectRemoteTranscriptAttachments(item.attachments, remoteMediaPaths);
     if (attachments.length > 0) {

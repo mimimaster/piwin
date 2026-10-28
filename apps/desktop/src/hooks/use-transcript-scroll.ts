@@ -71,6 +71,18 @@ export function isScrollOverflowing(scrollRatio: number): boolean {
 }
 
 /**
+ * Within half a screen of the end the latest content is already in view; a
+ * jump button there only covers the last card's own buttons (retry, copy).
+ */
+export const JUMP_TO_LATEST_MIN_SCREENS = 0.5;
+
+/** Screens of content below the viewport, from progress (0–1) and visible/content ratio. */
+export function screensBelowViewport(scrollProgress: number, scrollRatio: number): number {
+  if (!isScrollOverflowing(scrollRatio) || scrollRatio <= 0) return 0;
+  return Math.max(0, 1 - scrollProgress) * (1 / scrollRatio - 1);
+}
+
+/**
  * Pure helper for tests: should a scroll-top decrease demote follow-tail.
  */
 export function shouldDetachFollowTailFromScrollDelta(options: {
@@ -612,7 +624,8 @@ export function useTranscriptScroll(options: {
   return {
     containerRef,
     followTail,
-    showJumpToLatest: !followTail && isScrollOverflowing(scrollRatio),
+    showJumpToLatest:
+      !followTail && screensBelowViewport(scrollProgress, scrollRatio) > JUMP_TO_LATEST_MIN_SCREENS,
     jumpToLatest,
     handleScroll,
     setFollowTail,

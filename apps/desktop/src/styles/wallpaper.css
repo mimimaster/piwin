@@ -1,0 +1,78 @@
+/* Wallpaper layer (platform/wallpaper-document.ts). Desktop and compact
+   layouts only: the phone layout stays opaque and hides the layer.
+
+   The layer sits under the shell and carries the picture; the region fills in
+   window-material.css (`html[data-window-material]`, switched on by the
+   wallpaper) mix their surface colour over it. Blur is a filter on this one
+   layer (scaled up so its blurred edge stays off screen), never a
+   backdrop-filter. The veil is the theme void colour, so it lightens paper
+   and darkens ink. */
+.app-wallpaper {
+  display: none;
+}
+
+html[data-wallpaper='on']:has(.app-shell:not([data-layout='phone'])) .app-wallpaper {
+  display: block;
+  position: fixed;
+  inset: 0;
+  /* Below the shell, above the (transparent) document canvas. */
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background-color: var(--void);
+}
+
+html[data-wallpaper='on']:has(.app-shell:not([data-layout='phone'])) .app-wallpaper::before,
+html[data-wallpaper='on']:has(.app-shell:not([data-layout='phone'])) .app-wallpaper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+html[data-wallpaper='on']:has(.app-shell:not([data-layout='phone'])) .app-wallpaper::before {
+  background-image: var(--wallpaper-image, none);
+  background-size: cover;
+  background-position: center;
+  filter: blur(var(--wallpaper-blur, 0px));
+  /* Keeps the blurred border (which fades to transparent) outside the window. */
+  transform: scale(1.08);
+}
+
+html[data-wallpaper='on']:has(.app-shell:not([data-layout='phone'])) .app-wallpaper::after {
+  background: color-mix(in srgb, var(--void) var(--wallpaper-dim, 0%), transparent);
+}
+
+/* Ink thins every region to 60-80% of its slider (window-material.css) so the
+   desktop shows through dark material. A wallpaper is busier than the desktop
+   blur, so ink keeps most of each slider's coverage here: light text on a
+   picture needs the body. The backdrop still thins, since no panel can read
+   clearer than the backdrop under it. */
+html[data-wallpaper='on'][data-window-material][data-theme-mode='dark'] {
+  --window-material-sidebar-fill: calc(var(--window-material-sidebar-opacity, 15%) * 0.95);
+  --window-material-stage-fill: calc(var(--window-material-stage-opacity, 55%) * 0.9);
+  --window-material-right-panel-fill: calc(
+    var(--window-material-right-panel-opacity, 35%) * 0.9
+  );
+}
+
+/* The console is the one right-panel surface that stays opaque on paper (it is
+   painted from --term-bg, and xterm paints its own canvas). Over a wallpaper
+   it would hide the picture across the whole tab, so paper takes the same
+   glass treatment ink already has: xterm clears its canvas and the docked body
+   paints a translucent console tone. */
+html[data-wallpaper='on'][data-window-material]:not([data-theme-mode='dark']) {
+  --xterm-canvas: #00000000;
+}
+
+html[data-wallpaper='on'][data-window-material]:not([data-theme-mode='dark'])
+  .app-shell:not([data-layout='phone'])
+  :is(.terminal-dock-body, .pty-input-row) {
+  background: color-mix(in srgb, var(--term-bg) 55%, transparent);
+}
+
+html[data-wallpaper='on'][data-window-material]:not([data-theme-mode='dark'])
+  .app-shell:not([data-layout='phone'])
+  .terminal-dock-body
+  .xterm-surface {
+  background: transparent;
+}

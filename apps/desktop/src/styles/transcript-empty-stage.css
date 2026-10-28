@@ -108,7 +108,9 @@
 
 @media (max-width: 600px) {
   .empty-stage-landing-list {
-    grid-template-columns: 1fr;
+    /* minmax(0, …): a bare 1fr grows to a nowrap title's width and pushes
+       the ellipsis off-screen. */
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -169,6 +171,39 @@
   font-family: var(--mono, var(--font-mono));
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+/* Recent list while the scope loads: rows of the real height hold the space,
+   so the welcome and composer do not jump up when titles arrive. The bars
+   fade in late; a quick answer never shows them. */
+.empty-stage-landing-history.is-loading .empty-stage-landing-row {
+  cursor: default;
+}
+
+.empty-stage-landing-history.is-loading .empty-stage-landing-row:hover {
+  background: transparent;
+}
+
+.empty-stage-landing-placeholder {
+  height: 10px;
+  margin-left: 13px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--text-1) 8%, transparent);
+  opacity: 0;
+  animation: empty-stage-placeholder-in 240ms ease-out 300ms forwards;
+}
+
+@keyframes empty-stage-placeholder-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-stage-landing-placeholder {
+    animation: none;
+    opacity: 1;
+  }
 }
 
 /* ─── Engine Selection Cards ─────────────────────────────────────────── */

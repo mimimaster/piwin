@@ -387,6 +387,9 @@ export type RemoteSessionSummary = {
   task?: string;
   subagentRole?: string;
   subagentModel?: ModelRef;
+  /** Last composer model of this session, so a remote shell shows the same picker as Desktop. */
+  model?: ModelRef;
+  thinkingLevel?: string;
   /** Remote-safe storage residency. Host pack paths are never included. */
   storage?: import('./session-storage.js').RemoteSessionStorageInfo;
 };
@@ -425,6 +428,8 @@ export type RemoteTranscriptMessage = {
   endedAt?: string;
   outcome?: 'completed' | 'cancelled' | 'failed';
   terminalMessage?: string;
+  /** Structured failure of a terminal assistant row: the error card's title and next step. */
+  failure?: import('./agent-failure.js').AgentFailure;
   thinking?: string;
   /** Immutable generation-time identity used by shells after history reload. */
   model?: ModelRef;
@@ -502,6 +507,9 @@ export type RemoteSessionResumeData = {
   name?: string;
   model?: ModelRef;
   thinkingLevel?: string;
+  /** Mirrors `SessionResumeData`: the conversation's own scheme; absent means freehand. */
+  orchestrationSchemeId?: string;
+  delegationDisabled?: boolean;
   contextUsage?: import('./usage.js').ContextUsageSnapshot;
   contextSnapshot: import('./context-telemetry.js').SessionContextSnapshot;
   lastRequestUsage: import('./assistant-usage.js').AssistantUsageMeasurement | null;

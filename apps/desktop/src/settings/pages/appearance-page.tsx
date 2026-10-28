@@ -14,9 +14,11 @@ import { PageTitle } from '../page-title.js';
 import { useSettings } from '../settings-context.js';
 import { AppearanceCustomFonts } from './appearance-custom-fonts.js';
 import { AppearanceModeControl, getAppearanceThemeSettings } from './appearance-theme-controls.js';
+import { AppearanceWallpaper } from './appearance-wallpaper.js';
 import { AppearanceWindowMaterial } from './appearance-window-material.js';
 import { applyCustomFontsToDocument } from '../../theme/font-manager.js';
 import { readNativeWindowMaterial } from '../../platform/window-chrome.js';
+import { deleteWallpaperImage } from '../../platform/wallpaper-storage.js';
 import { DEFAULT_WINDOW_MATERIAL_OPACITY } from '../../platform/window-material-preferences.js';
 
 function updatePreference<K extends keyof DesktopPreferences>(
@@ -61,6 +63,10 @@ export function AppearancePage(): ReactElement {
       windowMaterial: { ...DEFAULT_WINDOW_MATERIAL_OPACITY },
     };
     delete nextPreferences.customFonts;
+    if (preferences.wallpaper) {
+      delete nextPreferences.wallpaper;
+      void deleteWallpaperImage(preferences.wallpaper.id);
+    }
     onPreferencesChange(nextPreferences);
     saveDesktopPreferences(nextPreferences);
     applyCustomFontsToDocument(undefined);
@@ -124,9 +130,18 @@ export function AppearancePage(): ReactElement {
         </FieldRow>
       </section>
 
-      {/* The material only exists behind the macOS / Windows 11 window;
-          elsewhere these sliders would move nothing. */}
-      {readNativeWindowMaterial() !== undefined && !themePackageActive ? (
+      {!themePackageActive ? (
+        <AppearanceWallpaper
+          preferences={preferences}
+          onChange={onPreferencesChange}
+          copy={copy}
+        />
+      ) : null}
+
+      {/* The material only exists behind the macOS / Windows 11 window, or
+          over a wallpaper; elsewhere these sliders would move nothing. */}
+      {(readNativeWindowMaterial() !== undefined || preferences.wallpaper !== undefined) &&
+      !themePackageActive ? (
         <AppearanceWindowMaterial
           preferences={preferences}
           onChange={onPreferencesChange}

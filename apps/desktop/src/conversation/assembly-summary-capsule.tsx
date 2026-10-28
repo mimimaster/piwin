@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react';
 import type { ContextSummaryPush } from '@piwin/contracts';
 import { IconChevronDown } from '../tool-cards/shell-icons';
 import { useTranscriptLocalFoldMeasure } from '../hooks/use-transcript-local-fold-measure.js';
+import { usePhoneShellLayout } from '../hooks/use-phone-shell-layout';
 
 export function resolveAssemblySummaryForUserMessage(input: {
   messageId: string;
@@ -69,14 +70,30 @@ function isUntrustedOrigin(origin: ContextSummaryPush['contributions'][number]['
   return origin === 'external-web' || origin === 'mcp' || origin === 'tool';
 }
 
+/**
+ * Whether a phone should spend a transcript line on this turn's assembly.
+ * The routine read-out (token estimate, user message) is operator detail;
+ * untrusted sources in the turn, or a missed capture, are worth a look.
+ */
+export function isNotableAssembly(summary: ContextSummaryPush | undefined): boolean {
+  if (summary === undefined) return false;
+  if (summary.coverage === 'capture-missed') return true;
+  return summary.contributions.some((item) => isUntrustedOrigin(item.trustOrigin));
+}
+
 export function AssemblySummaryCapsule(props: {
   summary?: ContextSummaryPush;
   preparing?: boolean;
   locale: 'zh-CN' | 'en';
-}): ReactElement {
+}): ReactElement | null {
   const [open, setOpen] = useState(false);
   const foldMeasure = useTranscriptLocalFoldMeasure(open);
+  const phone = usePhoneShellLayout();
   const zh = props.locale === 'zh-CN';
+
+  if (phone && !isNotableAssembly(props.summary)) {
+    return null;
+  }
 
   if (props.summary === undefined) {
     return (

@@ -3,6 +3,8 @@ import {
   computeScrollProgress,
   isNearBottom,
   isScrollOverflowing,
+  JUMP_TO_LATEST_MIN_SCREENS,
+  screensBelowViewport,
   shouldDetachFollowTailFromScrollDelta,
   shouldDetachFollowTailFromWheelDelta,
   shouldRequestOlderHistoryFromFittedWheel,
@@ -244,5 +246,19 @@ describe('shouldRequestOlderHistoryFromFittedWheel', () => {
         canLoadOlder: true,
       }),
     ).toBe(false);
+  });
+});
+
+describe('screensBelowViewport', () => {
+  it('measures how much transcript lies under the viewport', () => {
+    // Content four screens tall, scrolled to the very top: three screens below.
+    expect(screensBelowViewport(0, 0.25)).toBeCloseTo(3);
+    // A few pixels up from the end: nothing worth a jump button.
+    expect(screensBelowViewport(0.98, 0.25)).toBeLessThan(JUMP_TO_LATEST_MIN_SCREENS);
+    expect(screensBelowViewport(0.5, 0.25)).toBeGreaterThan(JUMP_TO_LATEST_MIN_SCREENS);
+  });
+
+  it('is zero when everything fits', () => {
+    expect(screensBelowViewport(0, 1)).toBe(0);
   });
 });

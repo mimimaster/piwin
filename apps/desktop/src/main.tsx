@@ -21,6 +21,8 @@ import { getAppUpdateStore } from './platform/app-update-store';
 import { configureArtifactKitDelivery } from '@piwin/artifact';
 import { resolveArtifactSchemeOrigin } from './artifact/artifact-frame-stream';
 import { applyWindowMaterialToDocument } from './platform/window-material-preferences';
+import { effectiveWindowMaterialOpacity } from './platform/wallpaper-preferences';
+import { applyWallpaperToDocument } from './platform/wallpaper-document';
 import './styles.css';
 
 // Pre-paint: use last known built-in theme (or Appearance prefs) so the first
@@ -32,7 +34,11 @@ applyWindowChromeToDocument(document.documentElement);
 const nativeWindowMaterialReady = applyNativeWindowMaterialToDocument(document.documentElement);
 const startupPreferences = loadDesktopPreferences();
 applyAppearanceToDocument(resolveStartupAppearance(), startupPreferences.customFonts);
-applyWindowMaterialToDocument(document.documentElement, startupPreferences.windowMaterial);
+applyWindowMaterialToDocument(
+  document.documentElement,
+  effectiveWindowMaterialOpacity(startupPreferences),
+);
+applyWallpaperToDocument(document.documentElement, startupPreferences.wallpaper);
 // Registers the shipped faces, then re-applies so their sanitized families
 // replace the Inter / JetBrains / Noto stacks unless a custom role is set.
 void loadAndRegisterAllCustomFonts(startupPreferences.customFonts);

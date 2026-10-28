@@ -182,6 +182,33 @@
   padding: var(--s-7);
 }
 
+/* First load of the settings chunk: the page's frame, not a spinner on black. */
+.settings-loading-frame {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+  padding: calc(env(safe-area-inset-top, 0px) + var(--s-3)) var(--s-5) var(--s-5);
+}
+
+.settings-loading-frame-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--h-md);
+}
+
+.settings-loading-frame-title {
+  font-size: var(--fs-title, 17px);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.settings-loading-frame-rows {
+  max-width: 640px;
+}
+
 /* Library / Flashcards are a full-window jump, same idea as settings. */
 .app-shell.studio-open > .settings-workspace-suspended,
 .app-shell.studio-open > .sidebar,

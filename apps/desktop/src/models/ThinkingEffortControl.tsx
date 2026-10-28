@@ -11,6 +11,8 @@ import { IconClose, IconSearch, IconSpark } from '../tool-cards/shell-icons';
 import { getSupportedThinkingLevels } from './model-thinking-policy';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { formatThinkingLabel } from '../usage/usage-panel-statistics.js';
+import { usePhoneShellLayout } from '../hooks/use-phone-shell-layout';
+import { usesOnScreenKeyboard } from '../tool-cards/shell-runtime';
 
 export type ThinkingEffortModelOption = {
   key: string;
@@ -81,6 +83,7 @@ export function ThinkingEffortControl({
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const [open, setOpen] = useState(false);
+  const phone = usePhoneShellLayout();
   const [modelSearchQuery, setModelSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const selectedModel = useMemo(
@@ -121,15 +124,16 @@ export function ThinkingEffortControl({
   }
 
   // Put the caret in the search field on open; reset the query on close so the
-  // next open starts from a clean, unfiltered list.
+  // next open starts from a clean, unfiltered list. A touch screen skips the
+  // caret: it would raise the keyboard over the list the user came to tap.
   useEffect(() => {
-    if (open) {
+    if (open && !usesOnScreenKeyboard()) {
       const timer = window.setTimeout(() => {
         searchInputRef.current?.focus();
       }, 0);
       return () => window.clearTimeout(timer);
     }
-    setModelSearchQuery('');
+    if (!open) setModelSearchQuery('');
     return undefined;
   }, [open]);
 
@@ -141,6 +145,7 @@ export function ThinkingEffortControl({
         onOpenChange={setOpen}
         side="top"
         align="start"
+        presentation={phone ? 'sheet' : 'anchored'}
         label="Model and thinking"
         testId="thinking-effort-popover"
         contentClassName={
@@ -358,9 +363,11 @@ function shortenModelLabel(label: string): string {
   // "Cpa / deepseek-v4-flash" → prefer the model segment after " / ".
   const slashParts = trimmedLabel.split(/\s*\/\s*/);
   const preferred = slashParts.length > 1 ? slashParts[slashParts.length - 1]! : trimmedLabel;
-  const lastSegment = preferred.includes('/')
+  const pathTail = preferred.includes('/')
     ? preferred.slice(preferred.lastIndexOf('/') + 1)
     : preferred;
+  // OpenRouter-style names repeat the vendor: "DeepSeek: DeepSeek V4.1 Flash".
+  const lastSegment = pathTail.replace(/^[^:]{1,24}:\s+(?=\S)/, '');
   if (lastSegment.length <= 20) {
     return lastSegment;
   }

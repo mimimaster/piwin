@@ -161,6 +161,8 @@ export type ComposerDockProps = {
   handoffSupported?: boolean;
   contextUsage: ContextUsageSnapshot | null;
   contextRingView?: import('../context/context-telemetry-selector.js').ContextRingViewModel;
+  /** Phone: the context ring rides the toolbar instead of the status row (set by the dock). */
+  contextInToolbar?: boolean;
   modelContextWindow?: number;
   onOpenModelSettings?: () => void;
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;

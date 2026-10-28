@@ -5,9 +5,10 @@
 | Status | macOS implemented · Windows / Linux implemented, not yet tried on real machines · packaged-app gates pending |
 | Related | [product spec](../specs/2026-10-25-desktop-screenshot-annotation.md) (local doc), [ADR 0062](../adr/0062-client-device-tools-and-apple-health.md) |
 
-Desktop can capture part of your screen, let you mark it up, and attach it to
-the current message. Capture runs on the computer in front of you, so it works
-the same whether the Host is the local sidecar or a remote machine.
+Desktop captures part of your screen QQ-style: pick a region, mark it up in
+place, finish, and the image is on the clipboard. Capture runs on the computer
+in front of you, so it works the same whether the Host is the local sidecar or
+a remote machine.
 
 ## Taking a screenshot
 
@@ -21,33 +22,55 @@ Any of these starts a capture:
   cannot take images.
 - Command palette (**⌘K**) → **Take Screenshot**.
 
-piwin hides its windows, then the system picker appears:
+## macOS and Windows: the capture overlay
 
-| Platform | Picker |
-|----------|--------|
-| macOS | The system crosshair. Drag a region, or press Space to pick a window. |
-| Linux | The desktop's own screenshot UI through xdg-desktop-portal (GNOME, KDE, most Wayland and X11 desktops). Without a portal, the first of `grim`+`slurp`, `gnome-screenshot`, `spectacle`, `maim`, `scrot` found on PATH. The portal saves the shot in the desktop's screenshot folder, as a normal system screenshot would. |
-| Windows | No picker: piwin copies the whole monitor under the pointer and opens the editor with **Crop** selected. Drag the area to keep. |
+piwin hides its windows and freezes the monitor under the pointer. Everything
+else happens on that frozen screen:
 
-**Esc** cancels and nothing is kept. After a cancel piwin only comes back to
-the front if it was in front before.
-
-## Marking it up
+1. **Pick a region.** Drag a rectangle; the size in pixels shows at its corner.
+   A plain click takes the whole screen.
+2. **Adjust or mark it up.** A toolbar appears under the region (above it when
+   there is no room). With no tool picked, drag inside the region to move it,
+   drag the handles to resize, or use the arrow keys (Shift: 10 px). Pick a
+   tool to draw inside the region; pick it again to go back to adjusting.
+3. **Finish** with **✓**, **Enter**, or a **double-click** inside the region.
 
 | Tool | Key | How |
 |------|-----|-----|
 | Box | R | Drag |
+| Ellipse | E | Drag |
 | Arrow | A | Drag from tail to tip |
+| Pen | P | Draw freehand |
+| Mosaic | M | Paint over what to hide (a click hides a short word) |
 | Text | T | Click, type, Enter (Esc discards) |
-| Crop | C | Drag the area to keep |
 
-The editor fills the window; tools are icons in a small strip under the image
-(hover for the name and key). **⌘Z** / **⇧⌘Z** (Ctrl on Windows / Linux) undo
-and redo. **Enter** or **✓** attaches the image; **Esc** or **✕** throws it
-away. Marks are always red.
+**⌘Z** / **⇧⌘Z** (Ctrl on Windows) undo and redo marks. **Right-click** drops
+the region and starts over; right-click again, **Esc** or **✕** leaves without
+keeping anything. Marks are always red.
 
-The image is attached like a pasted image: large captures are shrunk before
-upload, and nothing reaches the Host until you confirm.
+Where the image goes:
+
+- Always: the **clipboard**, ready to paste into any app.
+- Also the **composer**, when piwin was the app in front when you started
+  (the **+** menu, the palette, or the shortcut inside piwin). It is attached
+  like a pasted image: large captures are shrunk before upload.
+- Started from another app, piwin stays in the background and focus goes back
+  to the app you were in.
+
+If the composer cannot take the image (no trusted project, or a model without
+image input), piwin says so; the image is still on the clipboard.
+
+## Linux: the desktop's picker, then the editor
+
+Linux has no silent capture that works on every desktop, so the desktop draws
+the region picker: xdg-desktop-portal (GNOME, KDE, most Wayland and X11
+desktops), or without a portal the first of `grim`+`slurp`,
+`gnome-screenshot`, `spectacle`, `maim`, `scrot` found on PATH. The portal
+saves the shot in the desktop's screenshot folder, as a normal system
+screenshot would.
+
+The same editor then opens inside piwin with the whole shot as the region.
+**✓** attaches it to the composer. It is not copied to the clipboard on Linux.
 
 ## Screen Recording permission (macOS)
 

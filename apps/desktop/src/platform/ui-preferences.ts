@@ -11,6 +11,7 @@ import {
 } from '../theme/deck-palette.js';
 import type { CustomFontPreferences } from '../theme/font-manager.js';
 import { sanitizeFontFamilyName } from '../theme/font-parser.js';
+import { parseWallpaperPreferences, type WallpaperPreferences } from './wallpaper-preferences.js';
 import { parseWindowMaterialOpacity, type WindowMaterialOpacity } from './window-material-preferences.js';
 
 export type { CustomFontPreferences } from '../theme/font-manager.js';
@@ -192,6 +193,8 @@ export type DesktopPreferences = {
   customFonts?: CustomFontPreferences | undefined;
   /** Per-region opacity over the native window material (macOS desktop). */
   windowMaterial?: WindowMaterialOpacity;
+  /** Uploaded wallpaper behind the shell, with its own clearer region opacities. */
+  wallpaper?: WallpaperPreferences | undefined;
 };
 
 const TOOL_DENSITY_KEY = 'piwin.desktop.toolCallDensity';
@@ -211,6 +214,7 @@ const AGENT_LOCATOR_ANIMATION_KEY = 'piwin.desktop.agentLocatorAnimation';
 const BROWSER_VIEWPORT_KEY = 'piwin.desktop.browserViewport';
 const CUSTOM_FONTS_KEY = 'piwin.desktop.customFonts';
 const WINDOW_MATERIAL_KEY = 'piwin.desktop.windowMaterial';
+const WALLPAPER_KEY = 'piwin.desktop.wallpaper';
 /** Last successfully applied theme id — used for pre-paint bootstrap (no FOUC). */
 const LAST_THEME_ID_KEY = 'piwin.desktop.lastThemeId';
 
@@ -364,6 +368,7 @@ export function loadDesktopPreferences(): DesktopPreferences {
   const recentDirsRaw = readString(TERMINAL_RECENT_DIRS_KEY);
   const locatorAnimationRaw = readString(AGENT_LOCATOR_ANIMATION_KEY);
   const windowMaterialRaw = readString(WINDOW_MATERIAL_KEY);
+  const wallpaper = parseWallpaperPreferences(readString(WALLPAPER_KEY));
   return {
     assistantTextSize: parseSizeOption(readString(ASSISTANT_TEXT_SIZE_KEY), 'default'),
     codeTextSize: parseSizeOption(readString(CODE_TEXT_SIZE_KEY), 'default'),
@@ -393,6 +398,7 @@ export function loadDesktopPreferences(): DesktopPreferences {
     ...(windowMaterialRaw
       ? { windowMaterial: parseWindowMaterialOpacity(windowMaterialRaw) }
       : {}),
+    ...(wallpaper ? { wallpaper } : {}),
   };
 }
 
@@ -419,6 +425,15 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   }
   if (prefs.windowMaterial) {
     writeString(WINDOW_MATERIAL_KEY, JSON.stringify(prefs.windowMaterial));
+  }
+  if (prefs.wallpaper) {
+    writeString(WALLPAPER_KEY, JSON.stringify(prefs.wallpaper));
+  } else {
+    try {
+      localStorage.removeItem(WALLPAPER_KEY);
+    } catch {
+      // ignore
+    }
   }
   if (prefs.customFonts && Object.keys(prefs.customFonts).length > 0) {
     writeString(CUSTOM_FONTS_KEY, JSON.stringify(prefs.customFonts));

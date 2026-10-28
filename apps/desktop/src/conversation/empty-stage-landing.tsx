@@ -25,7 +25,37 @@ export type EmptyStageLandingProps = {
   draftAgentOptions?: readonly ComposerDraftAgentOption[] | undefined;
   onSelectDraftAgent?: ((agentId: string) => void) | undefined;
   onOpenAgentSettings?: (() => void) | undefined;
+  /** The scope's list has not answered yet: hold its space so nothing jumps. */
+  sessionsLoading?: boolean | undefined;
 };
+
+/** Widths of the placeholder titles, one per recent row. */
+const PLACEHOLDER_TITLE_WIDTHS = [62, 48, 74, 55] as const;
+
+function RecentSessionsPlaceholder(props: { isChinese: boolean }): ReactElement {
+  return (
+    <div
+      className="empty-stage-landing-history is-loading"
+      data-testid="empty-stage-landing-loading"
+      role="status"
+      aria-label={props.isChinese ? '正在载入最近会话' : 'Loading recent sessions'}
+    >
+      <div className="empty-stage-landing-header" aria-hidden="true">
+        <span className="empty-stage-landing-label">{props.isChinese ? '最近' : 'Recent'}</span>
+        <span className="empty-stage-landing-divider" />
+      </div>
+      <ul className="empty-stage-landing-list" aria-hidden="true">
+        {PLACEHOLDER_TITLE_WIDTHS.map((width) => (
+          <li key={width}>
+            <span className="empty-stage-landing-row">
+              <span className="empty-stage-landing-placeholder" style={{ width: `${width}%` }} />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function resolveSessionTitle(session: SessionListItemUi, locale: DesktopLocale): string {
   const name = session.name.trim();
@@ -157,6 +187,8 @@ export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
             })}
           </ul>
         </div>
+      ) : props.sessionsLoading === true ? (
+        <RecentSessionsPlaceholder isChinese={isChinese} />
       ) : null}
     </div>
   );

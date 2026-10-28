@@ -64,6 +64,11 @@ describe('TurnErrorCard', () => {
       'Invalid API key',
     );
     expect(container.querySelector('.turn-error-category-tag')?.textContent).toBe('auth');
+    // A known failure leads with what to do; the provider text is folded away.
+    expect(container.querySelector('[data-testid="turn-error-hint"]')?.textContent).toContain('重新登录');
+    const fold = container.querySelector<HTMLDetailsElement>('[data-testid="turn-error-detail-fold"]');
+    expect(fold).not.toBeNull();
+    expect(fold?.open).toBe(false);
   });
 
   it('does not classify a structured stream stall as network', () => {

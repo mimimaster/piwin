@@ -76,7 +76,7 @@ export {
   PopoverVirtualAnchor,
   virtualAnchorFromRange,
 } from './popover.js';
-export type { PopoverProps, PopoverContentProps, VirtualAnchorRect } from './popover.js';
+export type { PopoverProps, PopoverContentProps, PopoverPresentation, VirtualAnchorRect } from './popover.js';
 
 export {
   isCollapsedBoundary,

@@ -30,6 +30,7 @@ import {
 import { DEVICE_HEALTH_COPY } from '../devices/device-health-copy';
 import { useDeviceHealth } from '../hooks/use-device-health';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
+import { usePhoneShellLayout } from '../hooks/use-phone-shell-layout';
 import { useScreenCaptureEntry } from '../screen-capture/screen-capture-context';
 import type { SessionMcpSwitches } from '../hooks/use-session-mcp-switches';
 import type { SlashExtensionCommandInput } from '../slash';
@@ -98,8 +99,12 @@ function connectorMeta(server: ComposerMcpOption, isZh: boolean): string | null 
   return null;
 }
 
+/** A phone has no room beside the menu: submenus settle over it instead. */
+const PHONE_SUBMENU_OFFSET = -224;
+
 export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
   const { locale } = useDesktopLocale();
+  const submenuOffset = usePhoneShellLayout() ? PHONE_SUBMENU_OFFSET : undefined;
   const isZh = locale === 'zh-CN';
   const imageDisabledReason = props.attachImageDisabledReason?.trim() || undefined;
   // Only the mobile shell with Apple Health connected offers this; the chip it
@@ -205,7 +210,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
               </span>
               <span className="plus-menu-label">{isZh ? '技能' : 'Skills'}</span>
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="plus-submenu" label="Skills">
+            <DropdownMenuSubContent className="plus-submenu" label="Skills" sideOffset={submenuOffset}>
               <DropdownMenuLabel className="plus-menu-caption muted">
                 {isZh ? '技能' : 'Skills'}
               </DropdownMenuLabel>
@@ -253,7 +258,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
                 <span className="plus-menu-count">{enabledConnectorCount}</span>
               ) : null}
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="plus-submenu plus-connectors" label="Connectors">
+            <DropdownMenuSubContent className="plus-submenu plus-connectors" label="Connectors" sideOffset={submenuOffset}>
               <DropdownMenuLabel className="plus-menu-caption muted">
                 {isZh ? '本会话的 MCP 服务器' : 'MCP servers in this session'}
               </DropdownMenuLabel>
@@ -324,7 +329,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
                 <span className="plus-menu-count">{extensionCommandCount}</span>
               ) : null}
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="plus-submenu plus-extensions" label="Extensions">
+            <DropdownMenuSubContent className="plus-submenu plus-extensions" label="Extensions" sideOffset={submenuOffset}>
               <DropdownMenuLabel className="plus-menu-caption muted">
                 {isZh ? '已启用的扩展命令' : 'Extension commands'}
               </DropdownMenuLabel>

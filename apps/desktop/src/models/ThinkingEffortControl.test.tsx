@@ -492,3 +492,67 @@ describe('ThinkingEffortControl', () => {
     expect(queryPopover()).toBeNull();
   });
 });
+
+describe('ThinkingEffortControl on a phone', () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  const realMatchMedia = window.matchMedia;
+
+  function emulate(matches: (query: string) => boolean): void {
+    window.matchMedia = ((query: string) => ({
+      matches: matches(query),
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+  }
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    vi.useFakeTimers();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+    window.matchMedia = realMatchMedia;
+    vi.useRealTimers();
+  });
+
+  it('names the model without the vendor prefix OpenRouter repeats', () => {
+    emulate(() => false);
+    render(createBaseProps({ modelLabel: 'OpenRouter / DeepSeek: DeepSeek V4.1 Flash' }), root);
+    expect(queryTrigger().querySelector('.thinking-effort-model')?.textContent).toBe(
+      'DeepSeek V4.1 Flash',
+    );
+  });
+
+  it('opens as a sheet and leaves the keyboard down on a touch screen', () => {
+    emulate((query) => query.includes('pointer: coarse') || query.includes('max-width'));
+    render(createBaseProps(), root);
+    activateTrigger();
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(queryPopover()?.classList.contains('ui-popover-sheet')).toBe(true);
+    expect(document.activeElement).not.toBe(queryModelSearchInput());
+  });
+
+  it('still puts the caret in search with a mouse', () => {
+    emulate(() => false);
+    render(createBaseProps(), root);
+    activateTrigger();
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(queryPopover()?.classList.contains('ui-popover-sheet')).toBe(false);
+    expect(document.activeElement).toBe(queryModelSearchInput());
+  });
+});

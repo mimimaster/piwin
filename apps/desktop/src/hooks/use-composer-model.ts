@@ -83,7 +83,9 @@ export function describeComposerModel(
       })
     : null;
   return {
-    label: selected?.label ?? 'Default model',
+    // Name the model a send will use. The Host default may be missing from the
+    // configured list (catalog-only free models) yet still serve the turn.
+    label: selected?.label ?? fallback?.label ?? defaults.modelId ?? 'Default model',
     contextWindow: fallback?.contextWindow,
     promptModel,
   };

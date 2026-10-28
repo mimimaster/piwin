@@ -298,6 +298,41 @@
   box-shadow: var(--shadow-overlay);
 }
 
+/* ── Sheet presentation ───────────────────────────────────────── */
+/* A popover that rises full width above its trigger (phones). It is the
+   viewport less Radix's 8px collision padding on each side, so the collision
+   shift settles it edge to edge. The doubled class outranks a feature's own
+   `.ui-popover-content.x` size. */
+.ui-popover-content.ui-popover-sheet.ui-popover-sheet {
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 16px));
+  min-width: 0;
+  max-width: none;
+  max-height: min(72dvh, var(--radix-popover-content-available-height, 72dvh));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--r-panel, 14px);
+  animation: overlay-sheet-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes overlay-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-popover-content.ui-popover-sheet.ui-popover-sheet {
+    animation: none;
+  }
+}
+
 /* ── Mantine bridge ──────────────────────────────────────────────── */
 /* Mantine variables inherit validated piwin theme tokens, never hard-coded
    feature colors. Targets Mantine's stable static root classes (public

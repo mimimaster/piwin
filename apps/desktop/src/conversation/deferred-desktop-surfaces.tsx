@@ -1,9 +1,25 @@
 import { lazy, Suspense, type ReactElement, type ReactNode } from 'react';
 import { Spinner } from '@piwin/ui-kit';
 
+type SettingsPanelComponent = typeof import('../settings/SettingsPanel').SettingsPanel;
+
+/** Set once the chunk has loaded; later opens render it without suspending. */
+let loadedSettingsPanel: SettingsPanelComponent | null = null;
+
 /** Same specifier as React.lazy so Vite/Rollup emit one SettingsPanel chunk. */
-function loadSettingsPanel(): Promise<{ default: typeof import('../settings/SettingsPanel').SettingsPanel }> {
-  return import('../settings/SettingsPanel').then((module) => ({ default: module.SettingsPanel }));
+function loadSettingsPanel(): Promise<{ default: SettingsPanelComponent }> {
+  return import('../settings/SettingsPanel').then((module) => {
+    loadedSettingsPanel = module.SettingsPanel;
+    return { default: module.SettingsPanel };
+  });
+}
+
+/**
+ * The panel itself once loaded (idle prefetch usually does this at start-up).
+ * A fresh lazy() per open would suspend for a frame every time even so.
+ */
+export function getLoadedSettingsPanel(): SettingsPanelComponent | null {
+  return loadedSettingsPanel;
 }
 
 export const DeferredSettingsPanel = lazy(loadSettingsPanel);
@@ -95,6 +111,8 @@ export const DeferredMarketplaceWorkspaceView = lazy(async () => {
 export type DeferredSurfaceBoundaryProps = {
   children: ReactNode;
   label: string;
+  /** The surface's own frame while it loads; defaults to a centered spinner. */
+  fallback?: ReactNode;
 };
 
 /** Keep a deferred feature load from suspending the surrounding shell. */
@@ -102,9 +120,11 @@ export function DeferredSurfaceBoundary(props: DeferredSurfaceBoundaryProps): Re
   return (
     <Suspense
       fallback={
-        <div className="deferred-surface-fallback" data-testid="deferred-surface-fallback">
-          <Spinner label={props.label} />
-        </div>
+        props.fallback ?? (
+          <div className="deferred-surface-fallback" data-testid="deferred-surface-fallback">
+            <Spinner label={props.label} />
+          </div>
+        )
       }
     >
       {props.children}

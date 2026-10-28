@@ -1,4 +1,4 @@
-/** Per-region opacity sliders for the native window material (macOS desktop). */
+/** Per-region opacity sliders for the native window material or the wallpaper. */
 import type { ReactElement } from 'react';
 import { Slider } from '@piwin/ui-kit';
 import type { DesktopCopy } from '../../i18n/desktop-locale.js';
@@ -20,7 +20,11 @@ export function AppearanceWindowMaterial(props: {
   onChange: (preferences: DesktopPreferences) => void;
   copy: DesktopCopy['appearance'];
 }): ReactElement {
-  const opacity = props.preferences.windowMaterial ?? DEFAULT_WINDOW_MATERIAL_OPACITY;
+  // While a wallpaper is set the sliders tune its own, clearer opacity set;
+  // the regular set is kept as it was and returns when the wallpaper is removed.
+  const wallpaper = props.preferences.wallpaper;
+  const opacity =
+    wallpaper?.opacity ?? props.preferences.windowMaterial ?? DEFAULT_WINDOW_MATERIAL_OPACITY;
   const regionLabels: Record<WindowMaterialRegion, string> = {
     backdrop: props.copy.windowMaterialBackdrop,
     sidebar: props.copy.windowMaterialSidebar,
@@ -29,7 +33,10 @@ export function AppearanceWindowMaterial(props: {
   };
 
   function withRegionOpacity(region: WindowMaterialRegion, value: number): DesktopPreferences {
-    return { ...props.preferences, windowMaterial: { ...opacity, [region]: value } };
+    const next = { ...opacity, [region]: value };
+    return wallpaper
+      ? { ...props.preferences, wallpaper: { ...wallpaper, opacity: next } }
+      : { ...props.preferences, windowMaterial: next };
   }
 
   return (

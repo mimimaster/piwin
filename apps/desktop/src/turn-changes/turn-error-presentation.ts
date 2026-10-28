@@ -20,9 +20,58 @@ export type TurnErrorPresentationInput = {
 
 export type TurnErrorCardPresentation = {
   title: string;
+  /** What happened and what to do next, in plain words. Null when unknown. */
+  hint: string | null;
+  /** Raw provider text. Folded away when a hint already says what matters. */
   detail: string;
   category: TurnErrorCategory;
   showCategoryTag: boolean;
+};
+
+type HintCopy = { zh: string; en: string };
+
+/** Keyed by failure code: the code, not the prose, says what went wrong. */
+const FAILURE_HINTS: Partial<Record<AgentFailure['code'], HintCopy>> = {
+  'provider-authentication': {
+    zh: '模型服务没认出密钥，或登录已过期。到模型设置里重新登录或更新密钥。',
+    en: 'The model service did not accept the key, or the sign-in expired. Sign in again or update the key in model settings.',
+  },
+  'provider-rate-limit': {
+    zh: '请求太频繁，或免费额度用完了。稍等一会儿再试，或换一个模型。',
+    en: 'Too many requests, or the free allowance ran out. Wait a moment and retry, or switch models.',
+  },
+  'provider-quota': {
+    zh: '账户额度或余额不足。到服务商那里充值，或换一个模型。',
+    en: 'The account is out of quota or credit. Top up with the provider, or switch models.',
+  },
+  'context-limit-exceeded': {
+    zh: '这段对话超出了模型的上下文窗口。压缩上下文后重试，或开一个新会话。',
+    en: 'The conversation no longer fits the model’s context window. Compact it and retry, or start a new session.',
+  },
+  'model-stream-missing-finish': {
+    zh: '模型的回复中途断了。直接重试通常就好。',
+    en: 'The model’s reply broke off. Retrying usually works.',
+  },
+  'model-stream-stalled': {
+    zh: '模型的回复中途断了。直接重试通常就好。',
+    en: 'The model’s reply broke off. Retrying usually works.',
+  },
+  'model-request-timeout': {
+    zh: '模型太久没有回应。可以重试，或换一个响应更快的模型。',
+    en: 'The model took too long to answer. Retry, or switch to a faster model.',
+  },
+  'provider-unavailable': {
+    zh: '连不上模型服务。检查网络或代理设置后重试。',
+    en: 'Could not reach the model service. Check the network or proxy settings, then retry.',
+  },
+  'provider-http-error': {
+    zh: '模型服务拒绝了这次请求，原因见详情。必要时换一个模型。',
+    en: 'The model service refused this request; the details say why. Switch models if it keeps happening.',
+  },
+  'backend-worker-crash': {
+    zh: '后台进程意外退出了。重试会重新启动它。',
+    en: 'The background process exited unexpectedly. Retrying starts it again.',
+  },
 };
 
 /**
@@ -86,13 +135,20 @@ export function presentTurnErrorCard(input: {
       ? classification.titleZh
       : classification.titleEn;
   const baseDetail = extraUsageDetail ?? formatTurnErrorDetail(input.error, isChinese);
-  const detail =
-    input.failure?.code === 'provider-image-input-rejected'
-      ? `${imageInputRejectedHint(isChinese)}\n\n${baseDetail}`
-      : baseDetail;
+  const hintCopy = input.failure ? FAILURE_HINTS[input.failure.code] : undefined;
+  const hint = extraUsageDetail
+    ? null
+    : input.failure?.code === 'provider-image-input-rejected'
+      ? imageInputRejectedHint(isChinese)
+      : hintCopy
+        ? isChinese
+          ? hintCopy.zh
+          : hintCopy.en
+        : null;
   return {
     title,
-    detail,
+    hint,
+    detail: baseDetail,
     category: classification.category,
     // "unknown" as a visible tag reads like a raw dump — hide it.
     showCategoryTag: classification.category !== 'unknown',

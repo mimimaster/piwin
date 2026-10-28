@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ContextSummaryPush } from '@piwin/contracts';
-import { resolveAssemblySummaryForUserMessage } from './assembly-summary-capsule';
+import { isNotableAssembly, resolveAssemblySummaryForUserMessage } from './assembly-summary-capsule';
 
 function summary(runId: string): ContextSummaryPush {
   return {
@@ -68,5 +68,27 @@ describe('resolveAssemblySummaryForUserMessage', () => {
         summariesByRunId: summaries,
       })?.runId,
     ).toBe('run-assistant');
+  });
+});
+
+describe('isNotableAssembly', () => {
+  function contribution(trustOrigin: ContextSummaryPush['contributions'][number]['trustOrigin']): ContextSummaryPush['contributions'][number] {
+    return { id: trustOrigin, kind: 'user', label: 'User', trustOrigin, canOpenOnClient: false, redactionState: 'none' };
+  }
+
+  it('lets a phone skip the routine read-out', () => {
+    const routine = summary('run-1');
+    routine.contributions = [contribution('user'), contribution('piwin')];
+    expect(isNotableAssembly(routine)).toBe(false);
+    expect(isNotableAssembly(undefined)).toBe(false);
+  });
+
+  it('keeps turns that mixed in untrusted sources or lost their record', () => {
+    const web = summary('run-2');
+    web.contributions = [contribution('user'), contribution('external-web')];
+    expect(isNotableAssembly(web)).toBe(true);
+    const missed = summary('run-3');
+    missed.coverage = 'capture-missed';
+    expect(isNotableAssembly(missed)).toBe(true);
   });
 });

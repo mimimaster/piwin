@@ -38,7 +38,7 @@ export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
 
   const isChinese = locale === 'zh-CN' || locale.startsWith('zh');
   const presentation = presentTurnErrorCard({ error, failure, locale });
-  const { title, detail, category, showCategoryTag } = presentation;
+  const { title, hint, detail, category, showCategoryTag } = presentation;
 
   const handleCopy = async (): Promise<void> => {
     try {
@@ -86,9 +86,24 @@ export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
           {showCategoryTag ? <span className="turn-error-category-tag">{category}</span> : null}
         </div>
 
-        <div className="turn-error-detail" data-testid="turn-error-detail">
-          {detail}
-        </div>
+        {hint ? (
+          <>
+            <p className="turn-error-hint" data-testid="turn-error-hint">
+              {hint}
+            </p>
+            {/* The plain-words hint carries the point; raw provider text is one tap away. */}
+            <details className="turn-error-detail-fold" data-testid="turn-error-detail-fold">
+              <summary>{isChinese ? '详情' : 'Details'}</summary>
+              <div className="turn-error-detail" data-testid="turn-error-detail">
+                {detail}
+              </div>
+            </details>
+          </>
+        ) : (
+          <div className="turn-error-detail" data-testid="turn-error-detail">
+            {detail}
+          </div>
+        )}
 
         <div className="turn-error-actions">
           {onContinue ? (

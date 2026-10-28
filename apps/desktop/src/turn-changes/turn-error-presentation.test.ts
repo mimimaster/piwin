@@ -24,6 +24,8 @@ describe('presentTurnErrorCard', () => {
       }),
     ).toEqual({
       title: '生成失败',
+      // No code to explain it: the raw detail stays the message, unfolded.
+      hint: null,
       detail: 'Unexpected error.',
       category: 'unknown',
       showCategoryTag: false,
@@ -116,8 +118,31 @@ describe('presentTurnErrorCard image input rejection', () => {
       locale: 'zh-CN',
     });
     expect(card.title).toBe('模型不接受图片输入');
-    expect(card.detail).toContain('「视觉」标识');
-    expect(card.detail.endsWith(message)).toBe(true);
+    expect(card.hint).toContain('「视觉」标识');
+    expect(card.detail).toBe(message);
+  });
+});
+
+describe('presentTurnErrorCard hints', () => {
+  it('says what a rate limit means and what to do, keeping the raw text as detail', () => {
+    const message = '429: {"type":"FreeUsageLimitError","message":"Rate limit exceeded. Please try again later."}';
+    const card = presentTurnErrorCard({
+      error: message,
+      failure: { code: 'provider-rate-limit', origin: 'provider', message, retriable: true, httpStatus: 429 },
+      locale: 'zh-CN',
+    });
+    expect(card.title).toBe('模型调用受限');
+    expect(card.hint).toContain('换一个模型');
+    expect(card.detail).toBe(message);
+  });
+
+  it('speaks English to an English shell', () => {
+    const card = presentTurnErrorCard({
+      error: 'context length exceeded',
+      failure: { code: 'context-limit-exceeded', origin: 'provider', message: 'context length exceeded', retriable: false },
+      locale: 'en',
+    });
+    expect(card.hint).toContain('context window');
   });
 });
 

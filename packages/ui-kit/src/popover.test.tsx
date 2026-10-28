@@ -158,3 +158,52 @@ describe('Popover autofocus behavior', () => {
     host.remove();
   });
 });
+
+describe('Popover sheet presentation', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function renderPopover(presentation?: 'anchored' | 'sheet'): HTMLElement | null {
+    act(() => {
+      root.render(
+        <Popover
+          open={true}
+          side="bottom"
+          align="start"
+          contentClassName="picker"
+          testId="sheet-popover"
+          trigger={<button type="button">Trigger</button>}
+          {...(presentation ? { presentation } : {})}
+        >
+          <span>Rows</span>
+        </Popover>,
+      );
+    });
+    return document.querySelector<HTMLElement>('[data-testid="sheet-popover"]');
+  }
+
+  it('rises above the trigger, full width, keeping the feature class', () => {
+    const content = renderPopover('sheet');
+    expect(content?.className).toBe('ui-popover-content ui-popover-sheet picker');
+    expect(content?.getAttribute('data-side')).toBe('top');
+    expect(content?.getAttribute('data-align')).toBe('center');
+  });
+
+  it('stays an anchored box by default', () => {
+    const content = renderPopover();
+    expect(content?.className).toBe('ui-popover-content picker');
+    expect(content?.getAttribute('data-side')).toBe('bottom');
+  });
+});
