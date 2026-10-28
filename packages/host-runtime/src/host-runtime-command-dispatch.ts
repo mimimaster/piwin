@@ -30,6 +30,7 @@ import {
 } from './host-runtime-types.js';
 import { PiwinRootLeaseCompromisedError } from './piwin-root-lease.js';
 import { handleAgentCliCommand } from './grok/agent-cli-service.js';
+import { handleHostTerminalCommand } from './terminal/host-terminal-registry.js';
 import { handleExternalAgentCommand } from './grok/grok-host-commands.js';
 
 const ROOT_LEASE_UNAVAILABLE_ERROR =
@@ -108,6 +109,8 @@ export async function handleCommandWithTranscriptLease(
         }
       }
     }
+    const terminal = await handleHostTerminalCommand(deps, command, requestId);
+    if (terminal !== null) return terminal;
     const agentCli = await handleAgentCliCommand(deps, command, requestId);
     if (agentCli !== null) return agentCli;
     const ctx = await deps.buildDomainContext();

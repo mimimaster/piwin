@@ -218,6 +218,10 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
     try { await deps.agentCliService.dispose(); } catch (error) { shutdownErrors.push(error); }
     deps.agentCliService = undefined;
   }
+  if (deps.hostTerminals) {
+    try { await deps.hostTerminals.dispose(); } catch (error) { shutdownErrors.push(error); }
+    deps.hostTerminals = undefined;
+  }
   if (deps.externalAgents) {
     try {
       await deps.externalAgents.dispose();

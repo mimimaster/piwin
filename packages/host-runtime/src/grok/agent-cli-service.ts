@@ -24,10 +24,7 @@ import {
   isValidTerminalSize,
 } from '@piwin/contracts';
 import { listProjects } from '@piwin/project';
-import {
-  InteractiveTerminalManager,
-  resolveTrustedCwd,
-} from '@piwin/process';
+import { resolveTrustedCwd } from '@piwin/process';
 import { getSessionRecord, upsertSessionRecord } from '@piwin/session';
 import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
 import { ensureGeneralWorkspace, isGeneralWorkspacePath } from '../general-workspace.js';
@@ -41,7 +38,7 @@ import {
 } from '../native-cli-ownership.js';
 import { AgentCliError } from './native-cli-error.js';
 import { NativeCliCatalogObserver } from './native-cli-catalog.js';
-import { NativeCliOutputBuffer } from './native-cli-output.js';
+import { hostTerminals, type HostTerminalOwner, type HostTerminalRegistry } from '../terminal/host-terminal-registry.js';
 import { snapshotNativeCliHistory } from './native-cli-history.js';
 import { markExternalConversationActivity } from './grok-catalog-sync.js';
 import { resolveNativeCliLaunch } from './native-cli-launch.js';
@@ -50,12 +47,18 @@ type SessionPty = { ptyId: string; agentId: string };
 
 /** Host composition of native vendor terminals, including remote Desktop clients. */
 export class AgentCliService {
-  private readonly terminals: InteractiveTerminalManager;
+  private readonly terminals: HostTerminalRegistry;
+  private readonly terminalOwner: HostTerminalOwner = {
+    onWrite: (ptyId, data) => this.noteNativeSubmit(ptyId, data),
+    // Client pty/close hides the terminal only. Write ownership is retained
+    // across disconnect/reconnect until agents/cli-sync completes.
+    onClientClose: (ptyId) => ![...this.sessionPtys.values()].some((entry) => entry.ptyId === ptyId),
+    onExit: (ptyId) => this.handlePtyExit(ptyId),
+  };
   private readonly syncing = new Map<string, Promise<void>>();
   private readonly sessionPtys = new Map<string, SessionPty>();
   private readonly ownership: AgentCliOwnershipController;
   private readonly catalog: NativeCliCatalogObserver;
-  private readonly output = new Map<string, NativeCliOutputBuffer>();
 
   public constructor(private readonly deps: HostRuntimeKernel) {
     this.ownership = deps.agentCliOwnership ?? new AgentCliOwnershipController({
@@ -63,18 +66,7 @@ export class AgentCliService {
     });
     deps.agentCliOwnership = this.ownership;
     this.catalog = new NativeCliCatalogObserver(deps, this.ownership);
-    this.terminals = new InteractiveTerminalManager({
-      onData: (ptyId, data) => {
-        let buffer = this.output.get(ptyId);
-        if (buffer === undefined) { buffer = new NativeCliOutputBuffer(); this.output.set(ptyId, buffer); }
-        buffer.append(data);
-        deps.push({ type: 'pty/output', ptyId, data, at: new Date().toISOString(), sequence: buffer.getSequence() });
-      },
-      onExit: (ptyId, exitCode) => {
-        deps.push({ type: 'pty/exit', ptyId, exitCode });
-        this.handlePtyExit(ptyId);
-      },
-    });
+    this.terminals = hostTerminals(deps);
   }
 
   public getOwnership(sessionId: string): AgentCliOwnership {
@@ -109,16 +101,6 @@ export class AgentCliService {
         case 'agents/cli-sync': return ok(requestId, command.type, await this.sync(command.sessionId, command.preserveNative === true));
         case 'agents/cli-snapshot': return ok(requestId, command.type, await this.sync(command.sessionId, true));
         case 'agents/cli-status': return ok(requestId, command.type, this.status(command.sessionId));
-        case 'pty/write':
-          this.terminals.write(command.ptyId, command.data);
-          this.noteNativeSubmit(command.ptyId, command.data);
-          return ok(requestId, command.type, {});
-        case 'pty/resize':
-          this.terminals.resize(command.ptyId, command.cols, command.rows);
-          return ok(requestId, command.type, {});
-        case 'pty/close':
-          await this.closePty(command.ptyId);
-          return ok(requestId, command.type, {});
         default: return null;
       }
     } catch (error) {
@@ -129,7 +111,7 @@ export class AgentCliService {
   public async dispose(): Promise<void> {
     await this.catalog.dispose();
     await Promise.allSettled(this.syncing.values());
-    await this.terminals.dispose();
+    // Terminals belong to the Host-wide registry, disposed with the runtime.
   }
 
   private status(sessionId: string): AgentCliStatusData {
@@ -168,9 +150,8 @@ export class AgentCliService {
       if (existing !== undefined) {
         if (existing.agentId !== input.agentId) throw cliError('session-unavailable', 'agent-cli-session-unavailable');
         const ownership = this.ownership.get(sessionId);
-        const buffer = this.output.get(existing.ptyId);
-        const initialOutput = buffer?.read().join('');
-        return { ptyId: existing.ptyId, sessionId, ownership, ...(buffer !== undefined && initialOutput ? { initialOutput, initialOutputThrough: buffer.getSequence() } : {}) };
+        const replay = this.terminals.replay(existing.ptyId);
+        return { ptyId: existing.ptyId, sessionId, ownership, ...(replay === undefined ? {} : { initialOutput: replay.output, initialOutputThrough: replay.through }) };
       }
 
       const busy = this.ownership.tryBeginNative(
@@ -219,7 +200,7 @@ export class AgentCliService {
       // Structured ACP observer must be idle/disposed before the interactive PTY.
       await this.suspendStructuredRuntime(sessionId);
 
-      const ptyId = await this.terminals.open(launch);
+      const ptyId = await this.terminals.open(launch, this.terminalOwner);
       this.sessionPtys.set(sessionId, { ptyId, agentId: input.agentId });
       this.ownership.confirmNative(sessionId, ptyId);
       this.catalog.start(record);
@@ -397,7 +378,6 @@ export class AgentCliService {
   }
 
   private handlePtyExit(ptyId: string): void {
-    this.output.delete(ptyId);
     for (const [sessionId, entry] of this.sessionPtys) {
       if (entry.ptyId !== ptyId) continue;
       this.sessionPtys.delete(sessionId);
@@ -409,13 +389,6 @@ export class AgentCliService {
       }
       return;
     }
-  }
-
-  private async closePty(ptyId: string): Promise<void> {
-    // Client pty/close hides the terminal only. Write ownership is retained
-    // across disconnect/reconnect until agents/cli-sync completes.
-    if ([...this.sessionPtys.values()].some((entry) => entry.ptyId === ptyId)) return;
-    await this.terminals.close(ptyId);
   }
 
   private async requireTrustedProject(cwd: string): Promise<void> {
@@ -435,7 +408,7 @@ function cliError(code: AgentCliFailureCode, message: string): Error {
 export async function handleAgentCliCommand(
   deps: HostRuntimeKernel, command: HostCommand, requestId: string | undefined,
 ): Promise<HostResponse | null> {
-  if (!['agents/cli-open', 'agents/cli-sync', 'agents/cli-snapshot', 'agents/cli-status', 'pty/write', 'pty/resize', 'pty/close'].includes(command.type)) {
+  if (!['agents/cli-open', 'agents/cli-sync', 'agents/cli-snapshot', 'agents/cli-status'].includes(command.type)) {
     return null;
   }
   deps.agentCliService ??= new AgentCliService(deps);
