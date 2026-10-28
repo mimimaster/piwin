@@ -1,0 +1,67 @@
+/* Swipe-to-reveal rows (swipe-row.tsx). Actions stay hidden until the row
+   moves; vertical pans stay native scrolling.
+   Consumers tune colors through the --ui-swipe-* variables. */
+
+.ui-swipe-row {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ui-swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  visibility: hidden;
+}
+
+.ui-swipe-actions[data-revealed='true'] {
+  visibility: visible;
+}
+
+.ui-swipe-action {
+  flex: 1;
+  border: 0;
+  padding: 0 4px;
+  color: var(--ui-swipe-action-fg, #fff);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ui-swipe-action--neutral {
+  background: var(--ui-swipe-neutral-bg, var(--text-3, #7a7a7a));
+}
+
+.ui-swipe-action--accent {
+  background: var(--ui-swipe-accent-bg, var(--accent, #b9822f));
+}
+
+.ui-swipe-action--danger {
+  background: var(--ui-swipe-danger-bg, var(--danger, #c0392b));
+}
+
+.ui-swipe-content {
+  position: relative;
+  touch-action: pan-y;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Opaque only while slid, so a closed row keeps the surface it sits on
+   (glass drawers included). */
+.ui-swipe-row[data-open='true'] > .ui-swipe-content {
+  background: var(--ui-swipe-content-bg, var(--panel, Canvas));
+}
+
+.ui-swipe-content--dragging {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-swipe-content {
+    transition: none;
+  }
+}

@@ -153,6 +153,11 @@ export type { ColorInputProps } from './color-input.js';
 export { Card } from './card.js';
 export type { CardProps } from './card.js';
 
+export { SwipeRow, SwipeRowGroup } from './swipe-row.js';
+export type { SwipeAction, SwipeActionTone, SwipeRowProps } from './swipe-row.js';
+export { lockSwipeAxis, swipeDragOffset, swipeSettlesOpen, SWIPE_AXIS_LOCK_PX } from './swipe-gesture.js';
+export type { SwipeAxis } from './swipe-gesture.js';
+
 export { FlashcardFace } from './flashcard-face.js';
 export type { FlashcardFaceProps } from './flashcard-face.js';
 export {

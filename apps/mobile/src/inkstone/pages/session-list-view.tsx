@@ -5,7 +5,7 @@ import { Dot, Pill } from '../inkstone-ui.js';
 import type { InkstoneHostContextValue } from '../host/inkstone-host-context.js';
 import { blockedByOfflineSnapshot } from '../host/offline-guard.js';
 import type { SessionSection, SessionSectionRow } from './session-sections.js';
-import { SwipeRow, type SwipeAction } from '../swipe-row.js';
+import { SwipeRow, type SwipeAction } from '@piwin/ui-kit';
 import type { InkstoneAction } from '../inkstone-state.js';
 
 /** Which row is slid open; opening one closes the rest, as in iOS lists. */
@@ -40,7 +40,7 @@ function sessionSwipeActions(
     {
       key: 'pin',
       label: row.pinned ? '取消置顶' : '置顶',
-      tone: 'lamp',
+      tone: 'accent',
       onPress: guarded(() => {
         void host.handlePinSession(row.sessionId, row.pinned).then((ok) => {
           if (ok) dispatch({ type: 'toast', message: row.pinned ? '已取消置顶' : '已置顶' });

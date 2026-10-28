@@ -58,8 +58,18 @@ only execution authority.
   `connected-source` context chip), local notifications
   (`desktop-attention-os-mobile.ts`), and external links (the shell's own `mobile_open_external` command; the
   shell plugin's JS `open` cannot launch anything on iOS).
-  Voice input and Live use the workbench's own browser capture; classic's
-  on-device hold-to-talk recognition is not ported.
+  Voice input and Live use the workbench's own browser capture (recording +
+  Host `speech/transcribe`). Classic has no on-device recognition left to
+  port: after the Inkstone rewrite its dictation sheet is a plain text field
+  (corrected 2026-10-28).
+- Classic-only conveniences were ported to the default interface on
+  2026-10-28 ([plan](../plans/2026-10-28-default-interface-classic-parity.md)):
+  the offline session-list snapshot (remote Hosts only; read-only rows, a
+  sidebar notice, session actions blocked until the Host answers) and
+  swipe-to-reveal session rows on coarse pointers. The swipe row moved to
+  `@piwin/ui-kit` and classic now uses it from there. Per-session drafts
+  already existed in the workbench. Nothing classic-only remains, so the
+  removal condition in §6 is down to four weeks without a switch back.
 - The bundle grows by the workbench (~50 MB unpacked, 3.9 MB main chunk).
 - Phone-layout defects in the workbench are now phone-app defects; they are
   fixed once for the browser and the app.

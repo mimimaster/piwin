@@ -121,14 +121,14 @@ describe('InkstoneApp with a Host', () => {
     });
     rendered = renderInkstone(fakeHostContext(host));
     expect(document.querySelector('[aria-label$="的更多操作"]')).toBeNull();
-    const content = document.querySelector('.swipe-content');
+    const content = document.querySelector('.ui-swipe-content');
     if (content === null) throw new Error('swipe row missing');
     swipe(content, -160);
-    expect(content.closest('.swipe-row')?.querySelector('.swipe-actions')?.getAttribute('aria-hidden')).toBe('false');
+    expect(content.closest('.ui-swipe-row')?.querySelector('.ui-swipe-actions')?.getAttribute('aria-hidden')).toBe('false');
 
-    click([...document.querySelectorAll('.swipe-action')].find((node) => node.textContent === '置顶'));
+    click([...document.querySelectorAll('.ui-swipe-action')].find((node) => node.textContent === '置顶'));
     expect(pinned).toEqual([['s2', false]]);
-    expect(document.querySelector('.swipe-actions')?.getAttribute('aria-hidden')).toBe('true');
+    expect(document.querySelector('.ui-swipe-actions')?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('shows no Live capsule when there is no Host call', () => {
