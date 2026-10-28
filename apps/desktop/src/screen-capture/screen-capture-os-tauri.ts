@@ -11,7 +11,7 @@ export const SCREEN_CAPTURE_SHORTCUT_EVENT = 'screen-capture://shortcut';
 
 const UNSUPPORTED_CAPABILITIES: ScreenCaptureCapabilities = {
   supported: false,
-  systemRegionPicker: false,
+  mode: 'overlay',
 };
 
 async function invokeScreenCapture<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -42,7 +42,8 @@ export function createTauriScreenCaptureOs(): DesktopScreenCaptureOs {
       const { listen } = await import('@tauri-apps/api/event');
       return listen(SCREEN_CAPTURE_SHORTCUT_EVENT, () => listener());
     },
-    take: () => invokeScreenCapture<ScreenCaptureOutcome>('screen_capture_take'),
+    take: ({ deliverToComposer }) =>
+      invokeScreenCapture<ScreenCaptureOutcome>('screen_capture_take', { deliverToComposer }),
     async read(id) {
       const buffer = await invokeScreenCapture<ArrayBuffer>('screen_capture_read', { id });
       return new Uint8Array(buffer);

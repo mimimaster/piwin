@@ -11,7 +11,7 @@ function fakeOs(authorization: ScreenCaptureAuthorization) {
   let shortcutListener: (() => void) | undefined;
   const unsubscribe = vi.fn();
   const os: DesktopScreenCaptureOs = {
-    capabilities: vi.fn(async () => ({ supported: true, systemRegionPicker: true })),
+    capabilities: vi.fn(async () => ({ supported: true, mode: 'overlay' as const })),
     authorizationStatus: vi.fn(async () => authorization),
     requestAuthorization: vi.fn(async () => authorization),
     openSystemSettings: vi.fn(async () => undefined),
@@ -46,6 +46,7 @@ describe('useScreenCapture', () => {
         attachImage: vi.fn(),
         dispatchNotification: vi.fn(),
         os,
+        piwinInFront: () => false,
       });
       return null;
     }

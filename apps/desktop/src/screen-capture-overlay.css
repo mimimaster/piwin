@@ -1,0 +1,19 @@
+/* Capture overlay window: the frozen screenshot fills it edge to edge. */
+@import '@piwin/ui-kit/styles.css';
+@import './styles/screen-capture.css';
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  /* Transparent until the screenshot paints: the live screen shows through. */
+  background: transparent;
+}
+
+#root > .screen-capture-stage {
+  position: fixed;
+  inset: 0;
+}

@@ -1,6 +1,8 @@
 /**
- * Screenshot entry point: capture → annotate → composer attachment.
- * Shared by the shortcut, the command palette and the composer "+" menu.
+ * Screenshot entry point, shared by the shortcut, the command palette and the
+ * composer "+" menu. Overlay platforms: capture → pick + annotate on the
+ * overlay → clipboard (+ composer when piwin was in front). Linux: OS region
+ * picker → editor in the main window → composer.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch } from 'react';
 import type { DesktopLocale } from '../i18n/desktop-locale.js';
@@ -9,9 +11,11 @@ import {
   pushInfo,
   type NotificationAction,
 } from '../notifications/notification-queue.js';
-import type { AnnotationTool, ImageSize } from './annotation-model.js';
+import type { ImageSize } from './annotation-model.js';
 import {
   runScreenCapture,
+  screenCaptureCopiedInsteadMessage,
+  screenCaptureCopyFailedMessage,
   screenCaptureFailureMessage,
   screenCaptureNeedsAppInFront,
   screenCaptureUnsupportedMessage,
@@ -24,7 +28,7 @@ export type ScreenCapturePhase =
   | { kind: 'idle' }
   | { kind: 'running' }
   | { kind: 'permission' }
-  | { kind: 'editing'; imageUrl: string; image: ImageSize; initialTool: AnnotationTool };
+  | { kind: 'editing'; imageUrl: string; image: ImageSize };
 
 export type UseScreenCaptureArgs = {
   locale: DesktopLocale;
@@ -34,6 +38,8 @@ export type UseScreenCaptureArgs = {
   attachImage: (file: File) => void;
   dispatchNotification: Dispatch<NotificationAction>;
   os?: DesktopScreenCaptureOs;
+  /** Defaults to `document.hasFocus()`; injectable for tests. */
+  piwinInFront?: () => boolean;
 };
 
 export type ScreenCaptureController = {
@@ -52,6 +58,7 @@ export type ScreenCaptureController = {
 export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureController {
   const { locale, canAttach, imageRefusal, attachImage, dispatchNotification } = args;
   const os = useMemo(() => args.os ?? createTauriScreenCaptureOs(), [args.os]);
+  const piwinInFront = args.piwinInFront ?? documentHasFocus;
   const [phase, setPhase] = useState<ScreenCapturePhase>({ kind: 'idle' });
   const [supported, setSupported] = useState(false);
   const phaseRef = useRef(phase);
@@ -109,25 +116,33 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
     // Set now, not on render: one key press can reach both the global and the in-app shortcut.
     phaseRef.current = running;
     setPhase(running);
-    runScreenCapture({ os, canAttach, imageRefusal })
+    runScreenCapture({ os, canAttach, imageRefusal, piwinInFront })
       .then((result) => {
         if (screenCaptureNeedsAppInFront(result)) reveal();
         switch (result.kind) {
-          case 'captured': {
+          case 'edit': {
             const blob = new Blob([result.bytes.slice()], { type: 'image/png' });
             setPhase({
               kind: 'editing',
               imageUrl: URL.createObjectURL(blob),
               image: { width: result.width, height: result.height },
-              initialTool: result.systemRegionPicker ? 'rect' : 'crop',
             });
             return;
           }
+          case 'attach':
+            attachImage(screenshotFile(new Blob([result.bytes.slice()], { type: 'image/png' })));
+            break;
           case 'needs-permission':
             setPhase({ kind: 'permission' });
             return;
           case 'refused':
-            dispatchNotification(pushError(result.reason));
+            dispatchNotification(
+              pushError(
+                result.copied
+                  ? screenCaptureCopiedInsteadMessage(locale, result.reason)
+                  : result.reason,
+              ),
+            );
             break;
           case 'unsupported':
             dispatchNotification(pushInfo(screenCaptureUnsupportedMessage(locale)));
@@ -135,9 +150,13 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
           case 'failed':
             reportError(result.code);
             break;
+          case 'copy-failed':
+            dispatchNotification(pushError(screenCaptureCopyFailedMessage(locale)));
+            break;
           case 'blocked':
           case 'busy':
           case 'cancelled':
+          case 'copied':
             break;
         }
         setPhase({ kind: 'idle' });
@@ -147,7 +166,17 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
         reportError(error);
         setPhase({ kind: 'idle' });
       });
-  }, [canAttach, dispatchNotification, imageRefusal, locale, os, reportError, reveal]);
+  }, [
+    attachImage,
+    canAttach,
+    dispatchNotification,
+    imageRefusal,
+    locale,
+    os,
+    piwinInFront,
+    reportError,
+    reveal,
+  ]);
 
   // The system-wide shortcut works while piwin is in the background.
   const startRef = useRef(start);
@@ -171,7 +200,7 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
 
   const confirm = useCallback(
     (png: Blob): void => {
-      attachImage(new File([png], screenshotFileName(new Date()), { type: 'image/png' }));
+      attachImage(screenshotFile(png));
       setPhase({ kind: 'idle' });
     },
     [attachImage],
@@ -203,4 +232,12 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
     authorize,
     restart,
   };
+}
+
+function screenshotFile(png: Blob): File {
+  return new File([png], screenshotFileName(new Date()), { type: 'image/png' });
+}
+
+function documentHasFocus(): boolean {
+  return typeof document !== 'undefined' && document.hasFocus();
 }

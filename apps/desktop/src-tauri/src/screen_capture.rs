@@ -1,32 +1,39 @@
 //! Built-in screenshot capture (spec docs/specs/2026-10-25-desktop-screenshot-annotation.md).
 //!
-//! Capture runs on the machine in front of the user, never on the Host. The
-//! PNG stays in memory here until the webview reads it once; nothing reaches
-//! the Host media library unless the user confirms the annotated result.
+//! Capture runs on the machine in front of the user, never on the Host.
+//! macOS and Windows take a silent capture of the monitor under the pointer
+//! and open the QQ-style overlay on it (`overlay.rs`): pick a region,
+//! annotate, finish, and the PNG is on the clipboard. Linux keeps the desktop
+//! portal's own region picker and the in-window editor. Nothing reaches the
+//! Host media library unless the image is attached to the composer.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use tauri::{AppHandle, State};
 
+use store::CaptureStore;
 use window_restore::{hide_piwin_windows, restore_piwin_windows};
 
-
+mod capture_flow;
 #[cfg(any(target_os = "linux", test))]
 mod file_uri;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
+pub(crate) mod overlay;
 #[cfg(any(target_os = "windows", test))]
 mod raster;
 pub(crate) mod shortcut;
+mod store;
 mod window_restore;
 #[cfg(target_os = "windows")]
 mod windows;
+#[cfg(target_os = "windows")]
+mod windows_clipboard;
 
 /// Lets the hide animation finish so the capture does not catch piwin fading out.
 const WINDOW_SETTLE_DELAY: Duration = Duration::from_millis(200);
@@ -41,44 +48,23 @@ pub(crate) const ERROR_NOT_FOUND: &str = "SCREEN_CAPTURE_NOT_FOUND";
 pub(crate) struct ScreenCaptureState {
     busy: AtomicBool,
     store: CaptureStore,
+    overlay: overlay::OverlaySlot,
 }
 
-/// Holds only the latest capture; a read hands it out once and forgets it.
-#[derive(Default)]
-struct CaptureStore {
-    latest: Mutex<Option<StoredCapture>>,
-    counter: AtomicU64,
-}
-
-struct StoredCapture {
-    id: String,
-    bytes: Vec<u8>,
-}
-
-impl CaptureStore {
-    fn put(&self, bytes: Vec<u8>) -> String {
-        let sequence = self.counter.fetch_add(1, Ordering::SeqCst);
-        let id = format!("capture-{}-{sequence}", unix_millis());
-        if let Ok(mut latest) = self.latest.lock() {
-            *latest = Some(StoredCapture { id: id.clone(), bytes });
-        }
-        id
-    }
-
-    fn take(&self, id: &str) -> Option<Vec<u8>> {
-        let mut latest = self.latest.lock().ok()?;
-        if latest.as_ref().map(|capture| capture.id.as_str()) != Some(id) {
-            return None;
-        }
-        latest.take().map(|capture| capture.bytes)
-    }
+#[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum ScreenCaptureMode {
+    /// piwin's own full-screen overlay picks the region and annotates.
+    Overlay,
+    /// The OS picks the region; the editor opens inside the main window.
+    SystemPicker,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ScreenCaptureCapabilities {
     supported: bool,
-    system_region_picker: bool,
+    mode: ScreenCaptureMode,
 }
 
 #[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug)]
@@ -99,11 +85,16 @@ pub(crate) enum ScreenCaptureAuthorization {
 #[serde(tag = "status", rename_all = "camelCase")]
 pub(crate) enum ScreenCaptureOutcome {
     Captured {
-        id: String,
+        /// Set when the webview should read the image (composer or editor).
+        id: Option<String>,
         width: u32,
         height: u32,
         #[serde(rename = "byteLength")]
         byte_length: usize,
+        /// The overlay already annotated it; otherwise the editor still has to.
+        annotated: bool,
+        /// The finished image is on the system clipboard.
+        copied: bool,
     },
     Cancelled,
     Failed {
@@ -129,8 +120,11 @@ fn failed(code: &str) -> ScreenCaptureOutcome {
 pub(crate) fn screen_capture_capabilities() -> ScreenCaptureCapabilities {
     ScreenCaptureCapabilities {
         supported: cfg!(any(target_os = "macos", target_os = "windows", target_os = "linux")),
-        // Windows copies the whole monitor; the region is cropped in the editor.
-        system_region_picker: cfg!(any(target_os = "macos", target_os = "linux")),
+        mode: if cfg!(target_os = "linux") {
+            ScreenCaptureMode::SystemPicker
+        } else {
+            ScreenCaptureMode::Overlay
+        },
     }
 }
 
@@ -163,15 +157,18 @@ pub(crate) fn screen_capture_restart_app(app: AppHandle) {
     app.request_restart();
 }
 
+/// `deliver_to_composer`: piwin was in front when the capture started, so the
+/// result is also read back for the composer (it always goes to the clipboard).
 #[tauri::command]
 pub(crate) async fn screen_capture_take(
     app: AppHandle,
     state: State<'_, ScreenCaptureState>,
+    deliver_to_composer: bool,
 ) -> Result<ScreenCaptureOutcome, String> {
     if state.busy.swap(true, Ordering::SeqCst) {
         return Ok(failed(ERROR_BUSY));
     }
-    let outcome = take_with_hidden_windows(&app, &state).await;
+    let outcome = take_with_hidden_windows(&app, &state, deliver_to_composer).await;
     state.busy.store(false, Ordering::SeqCst);
     Ok(outcome)
 }
@@ -208,7 +205,11 @@ fn authorization_status() -> ScreenCaptureAuthorization {
     }
 }
 
-async fn take_with_hidden_windows(app: &AppHandle, state: &ScreenCaptureState) -> ScreenCaptureOutcome {
+async fn take_with_hidden_windows(
+    app: &AppHandle,
+    state: &ScreenCaptureState,
+    deliver_to_composer: bool,
+) -> ScreenCaptureOutcome {
     match authorization_status() {
         ScreenCaptureAuthorization::Authorized => {}
         // SC-R11: without the grant macOS hands back a wallpaper-only image.
@@ -216,70 +217,17 @@ async fn take_with_hidden_windows(app: &AppHandle, state: &ScreenCaptureState) -
         ScreenCaptureAuthorization::Unsupported => return failed(ERROR_UNSUPPORTED),
     }
 
+    let previous = capture_flow::PreviousApp::record();
     let hidden = hide_piwin_windows(app);
-    let output = capture_temp_path();
-    let capture = tauri::async_runtime::spawn_blocking(move || {
-        std::thread::sleep(WINDOW_SETTLE_DELAY);
-        run_platform_capture(&output)
-    })
-    .await;
-    let captured = matches!(capture, Ok(Ok(Some(_))));
-    restore_piwin_windows(app, &hidden, captured);
-
-    match capture {
-        Ok(Ok(Some(bytes))) => match png_dimensions(&bytes) {
-            Some((width, height)) => {
-                let byte_length = bytes.len();
-                let id = state.store.put(bytes);
-                ScreenCaptureOutcome::Captured {
-                    id,
-                    width,
-                    height,
-                    byte_length,
-                }
-            }
-            None => {
-                eprintln!("[piwin] screen capture produced an unreadable PNG");
-                failed(ERROR_FAILED)
-            }
-        },
-        Ok(Ok(None)) => ScreenCaptureOutcome::Cancelled,
-        Ok(Err(CaptureError::Unsupported)) => failed(ERROR_UNSUPPORTED),
-        Ok(Err(CaptureError::Failed(error))) => {
-            eprintln!("[piwin] screen capture failed: {error}");
-            failed(ERROR_FAILED)
-        }
-        Err(error) => {
-            eprintln!("[piwin] screen capture task failed: {error}");
-            failed(ERROR_FAILED)
-        }
+    let (outcome, end) = capture_flow::capture_and_finish(app, state, deliver_to_composer).await;
+    if !restore_piwin_windows(app, &hidden, end) {
+        // The overlay activated piwin; give the user back the app they were in.
+        previous.reactivate();
     }
+    outcome
 }
 
-fn run_platform_capture(output: &Path) -> Result<Option<Vec<u8>>, CaptureError> {
-    #[cfg(target_os = "macos")]
-    {
-        macos::capture_interactive(output).map_err(CaptureError::Failed)?;
-        collect_capture_file(output).map_err(|error| CaptureError::Failed(error.to_string()))
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let _ = output;
-        windows::capture_cursor_monitor()
-            .map(Some)
-            .map_err(CaptureError::Failed)
-    }
-    #[cfg(target_os = "linux")]
-    {
-        linux::capture_interactive(output)
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-    {
-        let _ = output;
-        Err(CaptureError::Unsupported)
-    }
-}
-
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 fn capture_temp_path() -> PathBuf {
     std::env::temp_dir().join(format!(
         "piwin-capture-{}-{}.png",
@@ -291,6 +239,7 @@ fn capture_temp_path() -> PathBuf {
 /// The capture tool writes no file when the user cancels, so presence of a
 /// non-empty file is the success signal (exit codes are not relied on).
 /// The temp file is always removed.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 fn collect_capture_file(path: &Path) -> std::io::Result<Option<Vec<u8>>> {
     let bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
@@ -367,28 +316,27 @@ mod tests {
     }
 
     #[test]
-    fn store_reads_once_and_newest_wins() {
-        let store = CaptureStore::default();
-        let first = store.put(vec![1]);
-        let second = store.put(vec![2]);
-        assert_ne!(first, second);
-        assert_eq!(store.take(&first), None);
-        assert_eq!(store.take(&second), Some(vec![2]));
-        assert_eq!(store.take(&second), None);
-    }
-
-    #[test]
     fn outcome_serializes_to_the_frontend_shape() {
         let captured = serde_json::to_value(ScreenCaptureOutcome::Captured {
-            id: "a".into(),
+            id: None,
             width: 3,
             height: 4,
             byte_length: 5,
+            annotated: true,
+            copied: true,
         })
         .unwrap();
         assert_eq!(
             captured,
-            serde_json::json!({ "status": "captured", "id": "a", "width": 3, "height": 4, "byteLength": 5 })
+            serde_json::json!({
+                "status": "captured",
+                "id": null,
+                "width": 3,
+                "height": 4,
+                "byteLength": 5,
+                "annotated": true,
+                "copied": true
+            })
         );
         assert_eq!(
             serde_json::to_value(ScreenCaptureOutcome::Cancelled).unwrap(),
@@ -397,6 +345,10 @@ mod tests {
         assert_eq!(
             serde_json::to_value(ScreenCaptureAuthorization::NotDeterminedOrDenied).unwrap(),
             serde_json::json!("not-determined-or-denied")
+        );
+        assert_eq!(
+            serde_json::to_value(screen_capture_capabilities()).unwrap()["mode"],
+            serde_json::json!(if cfg!(target_os = "linux") { "system-picker" } else { "overlay" })
         );
     }
 }

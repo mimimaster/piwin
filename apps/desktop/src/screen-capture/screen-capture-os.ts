@@ -3,16 +3,33 @@
  * user's machine, never the Host; `screen-capture-os-tauri.ts` implements it.
  */
 
+/**
+ * `overlay` (macOS, Windows): piwin's own full-screen overlay picks the region,
+ * annotates and copies to the clipboard. `system-picker` (Linux): the desktop
+ * portal picks the region and the editor opens inside the main window.
+ */
+export type ScreenCaptureMode = 'overlay' | 'system-picker';
+
 export type ScreenCaptureCapabilities = {
   supported: boolean;
-  /** true: the OS draws the region picker (macOS). false: crop happens in the editor. */
-  systemRegionPicker: boolean;
+  mode: ScreenCaptureMode;
 };
 
 export type ScreenCaptureAuthorization = 'authorized' | 'not-determined-or-denied' | 'unsupported';
 
 export type ScreenCaptureOutcome =
-  | { status: 'captured'; id: string; width: number; height: number; byteLength: number }
+  | {
+      status: 'captured';
+      /** Set when the image should be read back (composer or editor). */
+      id: string | null;
+      width: number;
+      height: number;
+      byteLength: number;
+      /** The overlay already annotated it; otherwise the editor still has to. */
+      annotated: boolean;
+      /** The finished image is on the system clipboard. */
+      copied: boolean;
+    }
   | { status: 'cancelled' }
   | { status: 'failed'; code: string };
 
@@ -36,6 +53,7 @@ export interface DesktopScreenCaptureOs {
   revealApp(): Promise<void>;
   /** System-wide shortcut presses (⇧⌘A / Ctrl+Shift+A). Resolves to an unsubscribe. */
   onShortcut(listener: () => void): Promise<() => void>;
-  take(): Promise<ScreenCaptureOutcome>;
+  /** `deliverToComposer`: also hand the result back for the composer, not only the clipboard. */
+  take(options: { deliverToComposer: boolean }): Promise<ScreenCaptureOutcome>;
   read(id: string): Promise<Uint8Array>;
 }

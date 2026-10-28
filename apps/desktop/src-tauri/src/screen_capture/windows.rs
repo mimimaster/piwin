@@ -1,21 +1,24 @@
 //! Windows capture (spec SC-D03): a GDI copy of the whole monitor under the
-//! cursor. Windows has no capture tool that hands a region back to the caller,
-//! so the region is picked afterwards with the editor's crop tool.
+//! cursor. The region is picked afterwards on the capture overlay, which
+//! covers that same monitor.
 //!
 //! Tauri marks the process per-monitor DPI aware, so monitor rectangles and
 //! the copied bitmap are both in physical pixels.
 
 use std::ffi::c_void;
 
-use windows::Win32::Foundation::POINT;
+use windows::Win32::Foundation::{HWND, POINT};
 use windows::Win32::Graphics::Gdi::{
     BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits,
     GetMonitorInfoW, MonitorFromPoint, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER,
     BI_RGB, CAPTUREBLT, DIB_RGB_COLORS, HBITMAP, HDC, HGDIOBJ, MONITORINFO,
     MONITOR_DEFAULTTOPRIMARY, SRCCOPY,
 };
-use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetCursorPos, GetForegroundWindow, SetForegroundWindow,
+};
 
+use super::overlay::{MonitorShot, OverlayBounds};
 use super::raster::encode_bgra_png;
 
 struct ScreenRect {
@@ -26,10 +29,36 @@ struct ScreenRect {
 }
 
 /// PNG of the monitor the pointer is on (the primary one if that fails).
-pub(super) fn capture_cursor_monitor() -> Result<Vec<u8>, String> {
+pub(super) fn capture_cursor_monitor() -> Result<MonitorShot, String> {
     let rect = cursor_monitor_rect()?;
     let bgra = copy_screen_rect(&rect)?;
-    encode_bgra_png(rect.width as u32, rect.height as u32, &bgra)
+    let png = encode_bgra_png(rect.width as u32, rect.height as u32, &bgra)?;
+    Ok(MonitorShot {
+        png,
+        bounds: OverlayBounds::Physical {
+            x: rect.left,
+            y: rect.top,
+            width: rect.width as u32,
+            height: rect.height as u32,
+        },
+    })
+}
+
+/// The window in front before the capture, as a raw handle value (HWND is
+/// not `Send`). Zero when there is none.
+pub(super) fn foreground_window() -> isize {
+    // SAFETY: argument-less query.
+    unsafe { GetForegroundWindow() }.0 as isize
+}
+
+/// Hands focus back after the overlay took it. piwin is the foreground
+/// process at this point, so Windows allows the switch.
+pub(super) fn restore_foreground_window(handle: isize) {
+    if handle == 0 {
+        return;
+    }
+    // SAFETY: a stale handle is rejected by the call, not undefined behaviour.
+    let _ = unsafe { SetForegroundWindow(HWND(handle as *mut c_void)) };
 }
 
 fn cursor_monitor_rect() -> Result<ScreenRect, String> {

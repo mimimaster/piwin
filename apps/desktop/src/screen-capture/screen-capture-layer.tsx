@@ -1,5 +1,7 @@
 import type { ReactElement } from 'react';
-import { AnnotationEditor } from './AnnotationEditor.js';
+import { Modal } from '@piwin/ui-kit';
+import { ScreenshotEditor } from './ScreenshotEditor.js';
+import { wholeImage } from './selection-geometry.js';
 import { ScreenCapturePermissionDialog } from './screen-capture-permission-dialog.js';
 import type { ScreenCaptureController } from './use-screen-capture.js';
 
@@ -21,17 +23,34 @@ export function ScreenCaptureLayer({
     );
   }
   if (phase.kind === 'editing') {
+    // Linux: the OS already picked the region, so the editor starts at step 2.
     return (
-      <AnnotationEditor
-        key={phase.imageUrl}
-        imageUrl={phase.imageUrl}
-        image={phase.image}
-        initialTool={phase.initialTool}
-        locale={controller.locale}
-        onCancel={controller.close}
-        onConfirm={controller.confirm}
-        onExportFailed={controller.exportFailed}
-      />
+      <Modal
+        open
+        onOpenChange={(open) => {
+          if (!open) controller.close();
+        }}
+        fullScreen
+        withCloseButton={false}
+        className="screen-capture-editor"
+        testId="screen-capture-editor"
+        closeOnClickOutside={false}
+        closeOnEscape={false}
+      >
+        <div className="screen-capture-frame">
+          <ScreenshotEditor
+            key={phase.imageUrl}
+            imageUrl={phase.imageUrl}
+            image={phase.image}
+            initialSelection={wholeImage(phase.image)}
+            locale={controller.locale}
+            doneLabel={controller.locale === 'zh-CN' ? '添加到对话' : 'Add to chat'}
+            onCancel={controller.close}
+            onDone={controller.confirm}
+            onExportFailed={controller.exportFailed}
+          />
+        </div>
+      </Modal>
     );
   }
   return null;

@@ -1,8 +1,9 @@
 /**
- * Screenshot annotation model (spec 2026-10-25 §6).
+ * Screenshot annotation model (spec 2026-10-25 §6, QQ-style revision §12.6).
  *
  * Every coordinate is in image pixels, so export does not depend on window
- * size or display scale. The view only maps through a `ViewTransform`.
+ * size or display scale. The view only maps through a `ViewTransform`. The
+ * selected region is editor state, not history: like QQ, undo removes marks.
  */
 
 export type ImagePoint = { x: number; y: number };
@@ -11,24 +12,25 @@ export type ImageRect = { x: number; y: number; width: number; height: number };
 
 export type ImageSize = { width: number; height: number };
 
-export type AnnotationTool = 'rect' | 'arrow' | 'text' | 'crop';
+export type AnnotationTool = 'rect' | 'ellipse' | 'arrow' | 'pen' | 'mosaic' | 'text';
 
 export type AnnotationShape =
   | { kind: 'rect'; id: string; rect: ImageRect }
+  | { kind: 'ellipse'; id: string; rect: ImageRect }
   | { kind: 'arrow'; id: string; from: ImagePoint; to: ImagePoint }
+  | { kind: 'pen'; id: string; points: readonly ImagePoint[] }
+  | { kind: 'mosaic'; id: string; points: readonly ImagePoint[] }
   | { kind: 'text'; id: string; at: ImagePoint; text: string };
 
+/** Distributes over the union so each variant keeps its own fields. */
+type WithoutId<Shape> = Shape extends unknown ? Omit<Shape, 'id'> : never;
+
 /** A shape before the model assigns its id. */
-export type AnnotationShapeDraft =
-  | { kind: 'rect'; rect: ImageRect }
-  | { kind: 'arrow'; from: ImagePoint; to: ImagePoint }
-  | { kind: 'text'; at: ImagePoint; text: string };
+export type AnnotationShapeDraft = WithoutId<AnnotationShape>;
 
 export type AnnotationDocument = {
   image: ImageSize;
   shapes: readonly AnnotationShape[];
-  /** `null` keeps the whole image. */
-  crop: ImageRect | null;
 };
 
 export type AnnotationHistory = {
@@ -37,15 +39,16 @@ export type AnnotationHistory = {
   future: readonly AnnotationDocument[];
 };
 
-export type AnnotationAction =
-  { type: 'add-shape'; shape: AnnotationShapeDraft } | { type: 'set-crop'; crop: ImageRect | null };
-
 export type AnnotationStyle = {
   color: string;
   strokeWidth: number;
   fontSize: number;
   textHaloWidth: number;
   arrowHeadLength: number;
+  /** Width of the mosaic brush, in image pixels. */
+  mosaicBrushWidth: number;
+  /** Edge of one mosaic block, in image pixels. */
+  mosaicBlockSize: number;
 };
 
 /** Maps image pixels to view pixels: `view = image * scale + offset`. */
@@ -57,7 +60,7 @@ export const MIN_SHAPE_SIZE_PX = 4;
 const ARROW_HEAD_HALF_ANGLE_RAD = (28 * Math.PI) / 180;
 
 export function createAnnotationHistory(image: ImageSize): AnnotationHistory {
-  return { past: [], present: { image, shapes: [], crop: null }, future: [] };
+  return { past: [], present: { image, shapes: [] }, future: [] };
 }
 
 export function canUndoAnnotation(history: AnnotationHistory): boolean {
@@ -93,36 +96,23 @@ export function redoAnnotation(history: AnnotationHistory): AnnotationHistory {
 }
 
 /**
- * Apply one edit. A degenerate edit (tiny drag, empty text, crop equal to the
- * current one) returns the same history so it never becomes an undo step.
+ * Add one mark. A degenerate mark (tiny drag, empty text) returns the same
+ * history so it never becomes an undo step.
  */
-export function applyAnnotationAction(
+export function addAnnotationShape(
   history: AnnotationHistory,
-  action: AnnotationAction,
+  draft: AnnotationShapeDraft,
 ): AnnotationHistory {
-  const nextDocument = nextAnnotationDocument(history.present, action);
-  if (nextDocument === history.present) {
+  const document = history.present;
+  const shape = finalizeShape(draft, document);
+  if (shape === null) {
     return history;
   }
-  return { past: [...history.past, history.present], present: nextDocument, future: [] };
-}
-
-function nextAnnotationDocument(
-  document: AnnotationDocument,
-  action: AnnotationAction,
-): AnnotationDocument {
-  if (action.type === 'set-crop') {
-    const crop = action.crop === null ? null : normalizeCropRect(action.crop, document.image);
-    if (sameRect(crop, document.crop)) {
-      return document;
-    }
-    return { ...document, crop };
-  }
-  const shape = finalizeShape(action.shape, document);
-  if (shape === null) {
-    return document;
-  }
-  return { ...document, shapes: [...document.shapes, shape] };
+  return {
+    past: [...history.past, document],
+    present: { ...document, shapes: [...document.shapes, shape] },
+    future: [],
+  };
 }
 
 function finalizeShape(
@@ -130,26 +120,72 @@ function finalizeShape(
   document: AnnotationDocument,
 ): AnnotationShape | null {
   const id = `${draft.kind}-${document.shapes.length + 1}`;
-  if (draft.kind === 'rect') {
-    const rect = clampRectToImage(draft.rect, document.image);
-    if (rect.width < MIN_SHAPE_SIZE_PX || rect.height < MIN_SHAPE_SIZE_PX) {
-      return null;
+  const { image } = document;
+  switch (draft.kind) {
+    case 'rect':
+    case 'ellipse': {
+      const rect = clampRectToImage(draft.rect, image);
+      if (rect.width < MIN_SHAPE_SIZE_PX || rect.height < MIN_SHAPE_SIZE_PX) {
+        return null;
+      }
+      return { kind: draft.kind, id, rect };
     }
-    return { kind: 'rect', id, rect };
-  }
-  if (draft.kind === 'arrow') {
-    const from = clampPointToImage(draft.from, document.image);
-    const to = clampPointToImage(draft.to, document.image);
-    if (Math.hypot(to.x - from.x, to.y - from.y) < MIN_SHAPE_SIZE_PX) {
-      return null;
+    case 'arrow': {
+      const from = clampPointToImage(draft.from, image);
+      const to = clampPointToImage(draft.to, image);
+      if (Math.hypot(to.x - from.x, to.y - from.y) < MIN_SHAPE_SIZE_PX) {
+        return null;
+      }
+      return { kind: 'arrow', id, from, to };
     }
-    return { kind: 'arrow', id, from, to };
+    case 'pen': {
+      const points = draft.points.map((point) => clampPointToImage(point, image));
+      if (strokeLength(points) < MIN_SHAPE_SIZE_PX) {
+        return null;
+      }
+      return { kind: 'pen', id, points };
+    }
+    case 'mosaic': {
+      // A single dab is a valid mosaic: one click hides a short word.
+      const points = draft.points.map((point) => clampPointToImage(point, image));
+      return points.length === 0 ? null : { kind: 'mosaic', id, points };
+    }
+    case 'text': {
+      const text = draft.text.replace(/\s+/g, ' ').trim();
+      if (text.length === 0) {
+        return null;
+      }
+      return { kind: 'text', id, at: clampPointToImage(draft.at, image), text };
+    }
   }
-  const text = draft.text.replace(/\s+/g, ' ').trim();
-  if (text.length === 0) {
-    return null;
+}
+
+/**
+ * Append a freehand sample unless it is closer than `minDistance` to the
+ * last one; pointer events fire far more often than a stroke needs.
+ */
+export function appendStrokePoint(
+  points: readonly ImagePoint[],
+  point: ImagePoint,
+  minDistance: number,
+): readonly ImagePoint[] {
+  const last = points[points.length - 1];
+  if (last !== undefined && Math.hypot(point.x - last.x, point.y - last.y) < minDistance) {
+    return points;
   }
-  return { kind: 'text', id, at: clampPointToImage(draft.at, document.image), text };
+  return [...points, point];
+}
+
+function strokeLength(points: readonly ImagePoint[]): number {
+  let length = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    if (previous !== undefined && current !== undefined) {
+      length += Math.hypot(current.x - previous.x, current.y - previous.y);
+    }
+  }
+  return length;
 }
 
 /** Rect spanned by two drag points, in either direction, clamped to the image. */
@@ -169,34 +205,15 @@ export function clampRectToImage(rect: ImageRect, image: ImageSize): ImageRect {
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
-/**
- * Crop rect rounded to whole pixels (canvas export needs integers). A crop
- * too small to be intentional, or covering the whole image, means "no crop".
- */
-export function normalizeCropRect(rect: ImageRect, image: ImageSize): ImageRect | null {
-  const clamped = clampRectToImage(rect, image);
-  const x = Math.round(clamped.x);
-  const y = Math.round(clamped.y);
-  const width = Math.round(clamped.x + clamped.width) - x;
-  const height = Math.round(clamped.y + clamped.height) - y;
-  if (width < MIN_SHAPE_SIZE_PX || height < MIN_SHAPE_SIZE_PX) {
-    return null;
-  }
-  if (x === 0 && y === 0 && width === image.width && height === image.height) {
-    return null;
-  }
-  return { x, y, width, height };
-}
-
-/** Region the export keeps: the crop, or the whole image. */
-export function exportRegion(document: AnnotationDocument): ImageRect {
-  return (
-    document.crop ?? { x: 0, y: 0, width: document.image.width, height: document.image.height }
-  );
-}
-
 export function clampPointToImage(point: ImagePoint, image: ImageSize): ImagePoint {
   return { x: clamp(point.x, 0, image.width), y: clamp(point.y, 0, image.height) };
+}
+
+export function clampPointToRect(point: ImagePoint, rect: ImageRect): ImagePoint {
+  return {
+    x: clamp(point.x, rect.x, rect.x + rect.width),
+    y: clamp(point.y, rect.y, rect.y + rect.height),
+  };
 }
 
 /** Sizes scale with the image's long edge so Retina and 1x captures look alike. */
@@ -210,6 +227,8 @@ export function annotationStyle(image: ImageSize): AnnotationStyle {
     fontSize,
     textHaloWidth: fontSize / 8,
     arrowHeadLength: strokeWidth * 4,
+    mosaicBrushWidth: Math.max(16, Math.round(longEdge / 60)),
+    mosaicBlockSize: Math.max(8, Math.round(longEdge / 160)),
   };
 }
 
@@ -241,6 +260,16 @@ export function arrowGeometry(
   return { head: [left, { ...to }, right], shaftEnd };
 }
 
+/** SVG path for a freehand stroke; one point becomes a zero-length dot. */
+export function strokePath(points: readonly ImagePoint[]): string {
+  const [first, ...rest] = points;
+  if (first === undefined) {
+    return '';
+  }
+  const tail = rest.length === 0 ? [first] : rest;
+  return `M${first.x} ${first.y}${tail.map((point) => `L${point.x} ${point.y}`).join('')}`;
+}
+
 /** Fit the image inside the view, centered, never enlarged past 1:1. */
 export function fitViewTransform(image: ImageSize, view: ImageSize): ViewTransform {
   if (image.width <= 0 || image.height <= 0 || view.width <= 0 || view.height <= 0) {
@@ -268,18 +297,16 @@ export function imageToViewPoint(point: ImagePoint, transform: ViewTransform): I
   };
 }
 
-function sameRect(left: ImageRect | null, right: ImageRect | null): boolean {
-  if (left === null || right === null) {
-    return left === right;
-  }
-  return (
-    left.x === right.x &&
-    left.y === right.y &&
-    left.width === right.width &&
-    left.height === right.height
-  );
+export function imageToViewRect(rect: ImageRect, transform: ViewTransform): ImageRect {
+  const origin = imageToViewPoint(rect, transform);
+  return {
+    x: origin.x,
+    y: origin.y,
+    width: rect.width * transform.scale,
+    height: rect.height * transform.scale,
+  };
 }
 
-function clamp(value: number, min: number, max: number): number {
+export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }

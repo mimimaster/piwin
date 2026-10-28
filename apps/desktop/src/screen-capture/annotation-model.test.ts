@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addAnnotationShape,
   annotationStyle,
-  applyAnnotationAction,
+  appendStrokePoint,
   arrowGeometry,
   canRedoAnnotation,
-  canUndoAnnotation,
   createAnnotationHistory,
-  exportRegion,
   fitViewTransform,
   imageToViewPoint,
-  normalizeCropRect,
   rectFromPoints,
+  strokePath,
   redoAnnotation,
   undoAnnotation,
   viewToImagePoint,
@@ -20,46 +19,10 @@ import {
 const IMAGE = { width: 1000, height: 600 };
 
 function addRect(history: AnnotationHistory, x: number): AnnotationHistory {
-  return applyAnnotationAction(history, {
-    type: 'add-shape',
-    shape: { kind: 'rect', rect: { x, y: 10, width: 50, height: 40 } },
-  });
+  return addAnnotationShape(history, { kind: 'rect', rect: { x, y: 10, width: 50, height: 40 } });
 }
 
-describe('crop normalization (SC-T01)', () => {
-  it('flips a crop dragged up and to the left', () => {
-    expect(normalizeCropRect({ x: 300, y: 200, width: -100, height: -50 }, IMAGE)).toEqual({
-      x: 200,
-      y: 150,
-      width: 100,
-      height: 50,
-    });
-  });
-
-  it('clamps a crop that runs past the image edges', () => {
-    expect(normalizeCropRect({ x: -20, y: 500, width: 200, height: 300 }, IMAGE)).toEqual({
-      x: 0,
-      y: 500,
-      width: 180,
-      height: 100,
-    });
-  });
-
-  it('treats zero area, a tiny drag, or the whole image as no crop', () => {
-    expect(normalizeCropRect({ x: 10, y: 10, width: 0, height: 80 }, IMAGE)).toBeNull();
-    expect(normalizeCropRect({ x: 10, y: 10, width: 2, height: 2 }, IMAGE)).toBeNull();
-    expect(normalizeCropRect({ x: -5, y: -5, width: 2000, height: 2000 }, IMAGE)).toBeNull();
-  });
-
-  it('rounds the crop to whole pixels', () => {
-    expect(normalizeCropRect({ x: 10.4, y: 20.6, width: 99.3, height: 50.2 }, IMAGE)).toEqual({
-      x: 10,
-      y: 21,
-      width: 100,
-      height: 50,
-    });
-  });
-
+describe('drag rects (SC-T01)', () => {
   it('builds a drag rect in any direction', () => {
     expect(rectFromPoints({ x: 80, y: 90 }, { x: 20, y: 30 }, IMAGE)).toEqual({
       x: 20,
@@ -68,15 +31,29 @@ describe('crop normalization (SC-T01)', () => {
       height: 60,
     });
   });
+});
 
-  it('exports the crop when set and the whole image otherwise', () => {
-    let history = createAnnotationHistory(IMAGE);
-    expect(exportRegion(history.present)).toEqual({ x: 0, y: 0, width: 1000, height: 600 });
-    history = applyAnnotationAction(history, {
-      type: 'set-crop',
-      crop: { x: 100, y: 100, width: 200, height: 100 },
-    });
-    expect(exportRegion(history.present)).toEqual({ x: 100, y: 100, width: 200, height: 100 });
+describe('freehand strokes', () => {
+  it('skips samples closer than the step', () => {
+    let points = appendStrokePoint([], { x: 0, y: 0 }, 2);
+    points = appendStrokePoint(points, { x: 1, y: 0 }, 2);
+    points = appendStrokePoint(points, { x: 3, y: 0 }, 2);
+    expect(points).toEqual([
+      { x: 0, y: 0 },
+      { x: 3, y: 0 },
+    ]);
+  });
+
+  it('keeps a mosaic dab but drops a pen tap', () => {
+    const start = createAnnotationHistory(IMAGE);
+    expect(addAnnotationShape(start, { kind: 'pen', points: [{ x: 5, y: 5 }] })).toBe(start);
+    const dab = addAnnotationShape(start, { kind: 'mosaic', points: [{ x: 5, y: 5 }] });
+    expect(dab.present.shapes).toHaveLength(1);
+  });
+
+  it('draws a single point as a zero-length path', () => {
+    expect(strokePath([{ x: 4, y: 5 }])).toBe('M4 5L4 5');
+    expect(strokePath([])).toBe('');
   });
 });
 
@@ -102,41 +79,28 @@ describe('undo and redo (SC-T02)', () => {
     ]);
   });
 
-  it('makes crop undoable', () => {
-    let history = applyAnnotationAction(createAnnotationHistory(IMAGE), {
-      type: 'set-crop',
-      crop: { x: 0, y: 0, width: 300, height: 300 },
-    });
-    expect(history.present.crop).not.toBeNull();
-    history = undoAnnotation(history);
-    expect(history.present.crop).toBeNull();
-    expect(canUndoAnnotation(history)).toBe(false);
-  });
-
   it('does not record degenerate edits as undo steps', () => {
     const start = createAnnotationHistory(IMAGE);
-    const tinyRect = applyAnnotationAction(start, {
-      type: 'add-shape',
-      shape: { kind: 'rect', rect: { x: 5, y: 5, width: 2, height: 30 } },
+    const tinyRect = addAnnotationShape(start, {
+      kind: 'rect',
+      rect: { x: 5, y: 5, width: 2, height: 30 },
     });
-    const emptyText = applyAnnotationAction(start, {
-      type: 'add-shape',
-      shape: { kind: 'text', at: { x: 5, y: 5 }, text: '   ' },
+    const emptyText = addAnnotationShape(start, { kind: 'text', at: { x: 5, y: 5 }, text: '   ' });
+    const shortArrow = addAnnotationShape(start, {
+      kind: 'arrow',
+      from: { x: 5, y: 5 },
+      to: { x: 6, y: 6 },
     });
-    const shortArrow = applyAnnotationAction(start, {
-      type: 'add-shape',
-      shape: { kind: 'arrow', from: { x: 5, y: 5 }, to: { x: 6, y: 6 } },
-    });
-    const noCropChange = applyAnnotationAction(start, { type: 'set-crop', crop: null });
-    for (const result of [tinyRect, emptyText, shortArrow, noCropChange]) {
+    for (const result of [tinyRect, emptyText, shortArrow]) {
       expect(result).toBe(start);
     }
   });
 
   it('collapses whitespace in text and clamps its anchor', () => {
-    const history = applyAnnotationAction(createAnnotationHistory(IMAGE), {
-      type: 'add-shape',
-      shape: { kind: 'text', at: { x: 1200, y: -4 }, text: '  login \n button  ' },
+    const history = addAnnotationShape(createAnnotationHistory(IMAGE), {
+      kind: 'text',
+      at: { x: 1200, y: -4 },
+      text: '  login \n button  ',
     });
     expect(history.present.shapes[0]).toEqual({
       kind: 'text',

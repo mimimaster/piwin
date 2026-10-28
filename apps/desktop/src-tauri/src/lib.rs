@@ -84,7 +84,11 @@ pub fn run() {
             screen_capture::screen_capture_open_system_settings,
             screen_capture::screen_capture_restart_app,
             screen_capture::screen_capture_take,
-            screen_capture::screen_capture_read
+            screen_capture::screen_capture_read,
+            screen_capture::overlay::screen_capture_overlay_image,
+            screen_capture::overlay::screen_capture_overlay_ready,
+            screen_capture::overlay::screen_capture_overlay_finish,
+            screen_capture::overlay::screen_capture_overlay_cancel
         ])
         .setup(|application| {
             piwin_artifact_webview::install_artifact_bridge(application.handle())?;
@@ -123,6 +127,11 @@ pub fn run() {
                 }
                 // Overlay close is hide=destroy, not app quit. Missing window
                 // never reaches this handler (no-op).
+                return;
+            }
+
+            // Closing the capture overlay cancels that capture, never the app.
+            if window.label() == screen_capture::overlay::OVERLAY_LABEL {
                 return;
             }
 
