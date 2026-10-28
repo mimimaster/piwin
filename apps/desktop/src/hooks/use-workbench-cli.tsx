@@ -6,15 +6,15 @@ import { resolveActiveComposerAgentId } from '../composer/composer-dock-assembly
 import { ConversationShellSwitch } from '../conversation/conversation-shell-switch.js';
 import { WorkbenchTuiStage, useWorkbenchTui } from '../workbench/workbench-tui.js';
 import {
-  canOfferConversationCli,
-  canOpenEmbeddedTui,
   defaultsToConversationCli,
   isNativeCliEligible,
+  resolveConversationCliRoute,
 } from '../terminal/terminal-feature.js';
 import { prefetchTuiPane } from '../conversation/deferred-desktop-surfaces.js';
 import { isTauriPtyAvailable } from '../host/tauri-pty.js';
 import { useCliImagePreview } from '../terminal/cli-image-preview.js';
 import { backendCapabilitiesFor } from '../agents/agent-backend-state.js';
+import { usesOnScreenKeyboard } from '../tool-cards/shell-runtime.js';
 
 /**
  * Renders a split pane's session as the terminal shell. Terminal mode is one
@@ -35,6 +35,8 @@ export function useWorkbenchCli(input: {
   onResumeSession: (sessionId: string, options?: { refresh: boolean; nativeHistorySynced?: true }) => void | Promise<void>;
   onError: (error: unknown) => void;
   onWriterBusy?: (busy: boolean) => void;
+  /** The Host can run Pi's TUI for shells without a terminal (`capabilities.embeddedTui`). */
+  hostRunsTui?: boolean;
 }): {
   active: boolean;
   sendBlocked: boolean;
@@ -63,19 +65,18 @@ export function useWorkbenchCli(input: {
     ? adoptedEngine.current.agentId : resolveActiveComposerAgentId(state) ?? state.draftAgentId ?? 'pi';
   const capabilities = backendCapabilitiesFor(state.backendCapabilitiesBySession, state.activeSessionId);
   const agentStatus = state.externalAgents.find((agent) => agent.agentId === agentId);
-  const transportOk = canOpenEmbeddedTui({
-    nativePtyAvailable: isTauriPtyAvailable(), transport: hostClient.getTransport(),
-    remoteTargetAvailable: hostClient.getRemoteTarget() !== undefined,
-  });
-  const available = canOfferConversationCli({
+  const route = resolveConversationCliRoute({
     agentId,
     nativePtyAvailable: isTauriPtyAvailable(),
     transport: hostClient.getTransport(),
     remoteTargetAvailable: hostClient.getRemoteTarget() !== undefined,
+    hostRunsTui: input.hostRunsTui === true,
     ...(capabilities === undefined ? {} : { capabilities }),
     ...(agentStatus === undefined ? {} : { agentStatus }),
   });
-  const usesNativeHandoff = transportOk && isNativeCliEligible({
+  const available = route !== null;
+  const [touchFirst] = useState(() => usesOnScreenKeyboard());
+  const usesNativeHandoff = available && isNativeCliEligible({
     agentId,
     ...(capabilities === undefined ? {} : { capabilities }),
     ...(agentStatus === undefined ? {} : { agentStatus }),
@@ -87,7 +88,7 @@ export function useWorkbenchCli(input: {
   // Hide a defaulted CLI in the render that leaves Grok, before the effect
   // resets it, so a Pi conversation never mounts the TUI for one frame.
   const revertingDefault = shellDefault.current.applied && available &&
-    shellDefault.current.contextKey !== contextKey && !defaultsToConversationCli(agentId);
+    shellDefault.current.contextKey !== contextKey && !defaultsToConversationCli(agentId, { touchFirst });
   const cliActive = tui.active && !revertingDefault;
   const cliMounted = tui.mounted && !revertingDefault;
   const selected = useRef(cliActive);
@@ -150,7 +151,7 @@ export function useWorkbenchCli(input: {
   useEffect(() => {
     if (!available || shellDefault.current.contextKey === contextKey) return;
     shellDefault.current.contextKey = contextKey;
-    if (!defaultsToConversationCli(agentId)) {
+    if (!defaultsToConversationCli(agentId, { touchFirst })) {
       if (shellDefault.current.applied) { selected.current = false; tui.reset(); }
       shellDefault.current.applied = false;
       return;

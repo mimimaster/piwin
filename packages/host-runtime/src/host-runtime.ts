@@ -70,6 +70,12 @@ export class HostRuntime extends HostRuntimeSessionSurface {
   }
 
 
+  /** ADR 0102: this Host can run the terminal shell for shells without one (`tui/open`). */
+  runsEmbeddedTui(): boolean {
+    return this.options.embeddedTui !== undefined;
+  }
+
+
   noteAuthDeviceConnected(deviceId: string): void {
     this.subscriptionAuth?.noteDeviceConnected(deviceId);
   }

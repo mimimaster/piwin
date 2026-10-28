@@ -103,6 +103,7 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'agents/cli-sync',
   'agents/cli-snapshot',
   'agents/cli-status',
+  'tui/open',
   'pty/write',
   'pty/resize',
   'pty/close',
@@ -297,6 +298,8 @@ export type RemoteCapabilitySummary = {
   hostListDir?: boolean;
   /** Host accepts exclusive file/folder creation from the workspace picker. */
   hostCreateEntry?: boolean;
+  /** ADR 0102: Host runs the terminal shell for this connection (`tui/open`). Absent on older Hosts. */
+  embeddedTui?: boolean;
 };
 
 export type HostHello = {

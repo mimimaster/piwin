@@ -9,6 +9,7 @@ import {
   createJsonlStdioTransport,
 } from './host-serve-transport.js';
 import { reportDeterministicStartupFailure } from './host-serve-startup-failure.js';
+import { sidecarEmbeddedTuiPorts } from './embedded-tui-serve.js';
 import { interceptSidecarLocalShellAccess } from './local-shell-access-serve.js';
 import { createSidecarMobileAccess, interceptSidecarMobileAccess } from './mobile-access-serve.js';
 import { LOCAL_JSONL_CLIENT_ID, createSidecarHostAuthority } from './sidecar-host-authority.js';
@@ -91,6 +92,15 @@ export async function commandHostServe(argv: string[]): Promise<void> {
   }
   const clientToolBroker = await createDeviceToolBrokerForHost(hostDataRoot);
   runtimeOptions.clientToolExecution = clientToolBroker;
+  // The loopback entrance needs the runtime, so the TUI asks for it lazily.
+  let localShellAccess: LocalShellAccess | undefined;
+  const embeddedTui = sidecarEmbeddedTuiPorts(async () => {
+    if (localShellAccess === undefined) throw new Error('local-shell-access-unavailable');
+    return localShellAccess.open();
+  });
+  if (embeddedTui !== undefined) {
+    runtimeOptions.embeddedTui = embeddedTui;
+  }
   let runtime: HostRuntime;
   try {
     runtime = new HostRuntime(runtimeOptions);
@@ -179,9 +189,9 @@ export async function commandHostServe(argv: string[]): Promise<void> {
     );
   }
 
-  // Entrance for shells on this machine (the TUI in a Desktop pane). Nothing
-  // listens until Desktop asks for it.
-  const localShellAccess = new LocalShellAccess({
+  // Entrance for shells on this machine (the TUI in a Desktop pane, or one
+  // this Host runs for a phone). Nothing listens until one asks for it.
+  const shellAccess = new LocalShellAccess({
     runtime,
     instanceId: hostInstanceId,
     piwinRoot: hostDataRoot,
@@ -192,6 +202,7 @@ export async function commandHostServe(argv: string[]): Promise<void> {
       console.error(`[piwin host serve] local-shell-access error: ${error.message}`);
     },
   });
+  localShellAccess = shellAccess;
 
   let shutdownPromise: Promise<void> | undefined;
   const shutdown = (): Promise<void> => {
@@ -204,7 +215,7 @@ export async function commandHostServe(argv: string[]): Promise<void> {
       await transport.stop();
       await dispatcher.drain();
       await mobileAccess?.dispose();
-      await localShellAccess.dispose();
+      await shellAccess.dispose();
       egressHub.flush();
       localEgress.flushNow();
       localEgress.dispose();
@@ -233,7 +244,7 @@ export async function commandHostServe(argv: string[]): Promise<void> {
     void (async (): Promise<void> => {
       const handled =
         (await interceptSidecarMobileAccess(mobileAccess, request.command, send)) ||
-        (await interceptSidecarLocalShellAccess(localShellAccess, request.command, send));
+        (await interceptSidecarLocalShellAccess(shellAccess, request.command, send));
       if (!handled) {
         dispatcher.dispatch(request);
       }

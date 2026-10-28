@@ -153,6 +153,7 @@ export function getStatus(deps: HostRuntimeKernel): HostStatusData {
       sessionExport: true,
       // ADR 0013: real Tauri PTY not shipped — do not claim interactive PTY.
       pty: false,
+      embeddedTui: deps.options.embeddedTui !== undefined,
       // ADR 0030: subagent worktree is available when the orchestrator is composed.
       // The mock lifecycle stand-in never creates worktrees.
       subagentWorktree: deps.subagentOrchestrator !== null && deps.options.mock !== true,

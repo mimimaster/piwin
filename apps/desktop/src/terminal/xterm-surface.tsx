@@ -15,6 +15,7 @@ import type { HostAttachTarget } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { TAURI_PTY_TRANSPORT, type XtermPty } from './xterm-pty-transport.js';
 import { connectXtermPty } from './xterm-pty-connection.js';
+import { createXtermSurfaceHandle, type XtermSurfaceHandle } from './xterm-surface-handle.js';
 import { listenForTuiSession } from './xterm-tui-session';
 import { readDeckXtermFontFamily, readDeckXtermTheme } from './xterm-theme';
 import { attachXtermWebglRenderer, type XtermRenderer } from './xterm-webgl-renderer';
@@ -59,6 +60,10 @@ export type XtermSurfaceProps = {
    * FitAddon otherwise keeps a scrollbar gutter that shows up as a right-hand band.
    */
   fullBleed?: boolean | undefined;
+  /** Rewrites keyboard input before it reaches the program (the touch key bar's sticky Ctrl). */
+  inputTransform?: ((data: string) => string) | undefined;
+  /** Receives the handle once the program runs, and null when it stops. */
+  onHandle?: ((handle: XtermSurfaceHandle | null) => void) | undefined;
 };
 
 const MIN_OPEN_WIDTH = 40;
@@ -94,6 +99,10 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   const onTuiSessionRef = useRef(props.onTuiSession);
   const onTitleRef = useRef(props.onTitle);
   const onOpenImageRef = useRef(props.onOpenImage);
+  const inputTransformRef = useRef(props.inputTransform);
+  inputTransformRef.current = props.inputTransform;
+  const onHandleRef = useRef(props.onHandle);
+  onHandleRef.current = props.onHandle;
   const contextMenu = useDesktopContextMenu();
   // CM-13: terminal-selection menu target, captured on right-click.
   // The menu stays mounted so a single right-click opens it; last non-null
@@ -229,9 +238,10 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
         /* empty */
       }
 
-      terminal.onData((data) => {
+      terminal.onData((typed) => {
         const ptyId = ptyIdRef.current;
         if (!ptyId) return;
+        const data = inputTransformRef.current?.(typed) ?? typed;
         void transport.write(ptyId, data).catch(() => {
           /* drop write if session already closed */
         });
@@ -258,6 +268,12 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
           onOpen: (ptyId) => {
             ptyIdRef.current = ptyId;
             onStatusRef.current('open', ptyId);
+            onHandleRef.current?.(createXtermSurfaceHandle({
+              transport,
+              ptyId: () => ptyIdRef.current,
+              size: () => terminalRef.current === null ? null : { cols: terminalRef.current.cols, rows: terminalRef.current.rows },
+              focus: () => terminalRef.current?.focus(),
+            }));
             if (visibleRef.current && (props.tui !== undefined || props.pty !== undefined)) terminal.focus();
             applyResize();
           },
@@ -265,6 +281,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
           onExit: (event) => {
             terminal.writeln('\r\n[process exited]');
             ptyIdRef.current = null;
+            onHandleRef.current?.(null);
             onStatusRef.current('exited', event.pty_id);
           },
         });
@@ -323,6 +340,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       resizeObserver?.disconnect();
       connection.abort();
       ptyIdRef.current = null;
+      onHandleRef.current?.(null);
       stopListeningForTuiSession();
       titleSubscription.dispose();
       detachImageLinks?.();

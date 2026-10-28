@@ -112,6 +112,7 @@ export {
   applyHostNetworkProxyFromConfig,
 } from './network-proxy/host-network-proxy.js';
 export { createRemoteProjectId, isRemoteProjectId } from './remote-project-id.js';
+export type { EmbeddedTuiPorts } from './tui/embedded-tui-service.js';
 export {
   listInterruptedTranscriptMigrations,
   repairInterruptedTranscriptMigration,

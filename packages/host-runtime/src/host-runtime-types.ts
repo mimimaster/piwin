@@ -1,3 +1,4 @@
+import type { EmbeddedTuiPorts } from './tui/embedded-tui-service.js';
 import type {
   CreateSessionInput,
   HostCommand,
@@ -155,6 +156,11 @@ export type HostRuntimeOptions = {
   /** Explicit internal worker artifact for source-mode diagnostics/soak. */
   agentWorkerScript?: string;
   onPush?: (message: HostPush) => void;
+  /**
+   * ADR 0102: run the terminal shell on this machine for shells that cannot
+   * (`tui/open`). Only `host serve` provides it; absent, the capability is off.
+   */
+  embeddedTui?: EmbeddedTuiPorts;
   /**
    * Explicit test seam used only by the JSONL integration harness. Production
    * callers omit it and always create sessions through the Pi adapter.

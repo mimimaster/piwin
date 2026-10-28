@@ -8,7 +8,27 @@ export type InteractiveTerminalInput = {
   cwd: string;
   cols: number;
   rows: number;
+  /** Laid over the Host's own environment; `null` removes an inherited variable. */
+  environment?: Readonly<Record<string, string | null>>;
 };
+
+/** The child's environment: the Host's, a real terminal, then the caller's overrides. */
+export function interactiveTerminalEnvironment(
+  inherited: NodeJS.ProcessEnv,
+  overrides: InteractiveTerminalInput['environment'],
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(inherited)) {
+    if (value !== undefined) env[key] = value;
+  }
+  env.TERM = 'xterm-256color';
+  env.COLORTERM = 'truecolor';
+  for (const [key, value] of Object.entries(overrides ?? {})) {
+    if (value === null) delete env[key];
+    else env[key] = value;
+  }
+  return env;
+}
 
 export class InteractiveTerminalError extends Error {
   public override readonly name = 'InteractiveTerminalError';
@@ -70,7 +90,7 @@ export class InteractiveTerminalManager {
     const { spawn } = await import('node-pty');
     return spawn(input.executable, input.args, {
       name: 'xterm-256color', cwd: input.cwd, cols: input.cols, rows: input.rows,
-      env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+      env: interactiveTerminalEnvironment(process.env, input.environment),
     });
   }
 

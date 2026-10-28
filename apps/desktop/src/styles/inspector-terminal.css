@@ -323,3 +323,26 @@
   pointer-events: none;
   z-index: 2;
 }
+
+/* Touch key bar under a phone terminal (terminal-key-bar.tsx). One row that
+   scrolls sideways rather than wrapping, so the terminal never loses a line. */
+.terminal-key-bar {
+  display: flex;
+  gap: var(--s-1);
+  padding: var(--s-1) var(--s-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 0 0 auto;
+  border-top: 1px solid var(--line-1);
+}
+.terminal-key-bar::-webkit-scrollbar { display: none; }
+.terminal-key-bar-key {
+  flex: 0 0 auto;
+  min-width: 40px;
+  font-variant-numeric: tabular-nums;
+  touch-action: manipulation;
+}
+.terminal-key-bar-key[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}

@@ -6,6 +6,7 @@ import {
   defaultsToConversationCli,
   isNativeCliEligible,
   isPiEmbeddedTuiAgent,
+  resolveConversationCliRoute,
 } from './terminal-feature';
 
 describe('embedded TUI availability', () => {
@@ -85,5 +86,47 @@ describe('conversation CLI default', () => {
     for (const agentId of ['pi', 'claude-code', 'codex', 'mystery']) {
       expect(defaultsToConversationCli(agentId)).toBe(false);
     }
+  });
+});
+
+describe('conversation CLI route', () => {
+  const desktop = { nativePtyAvailable: true, transport: 'live' as const };
+  const phone = { nativePtyAvailable: false, transport: 'remote' as const };
+
+  it('keeps Desktop on its own terminal for Pi and on the Host for native agents', () => {
+    expect(resolveConversationCliRoute({ ...desktop, agentId: 'pi' })).toBe('desktop-pty');
+    expect(resolveConversationCliRoute({ ...desktop, agentId: 'grok' })).toBe('host-pty');
+    // A Host that can run the TUI does not move Desktop off its own terminal.
+    expect(resolveConversationCliRoute({ ...desktop, agentId: 'pi', hostRunsTui: true })).toBe('desktop-pty');
+  });
+
+  it('streams terminals from the Host on a phone', () => {
+    expect(resolveConversationCliRoute({ ...phone, agentId: 'grok' })).toBe('host-pty');
+    expect(resolveConversationCliRoute({ ...phone, agentId: 'pi', hostRunsTui: true })).toBe('host-pty');
+  });
+
+  it('offers nothing for Pi on a phone when the Host cannot run the TUI', () => {
+    expect(resolveConversationCliRoute({ ...phone, agentId: 'pi' })).toBeNull();
+    expect(canOfferConversationCli({ ...phone, agentId: 'pi', hostRunsTui: false })).toBe(false);
+  });
+
+  it('needs a Host connection when there is no terminal of its own', () => {
+    expect(resolveConversationCliRoute({ nativePtyAvailable: false, transport: 'mock', agentId: 'grok', hostRunsTui: true })).toBeNull();
+    expect(resolveConversationCliRoute({ nativePtyAvailable: false, transport: 'mock', agentId: 'pi', hostRunsTui: true })).toBeNull();
+  });
+
+  it('keeps native agents that the Host refuses off every route', () => {
+    expect(resolveConversationCliRoute({
+      ...phone,
+      agentId: 'claude-code',
+      capabilities: { ...createPiSessionCapabilities(), agentId: 'claude-code', nativeCli: { supported: false, reason: 'off' } },
+    })).toBeNull();
+  });
+});
+
+describe('conversation CLI default on touch screens', () => {
+  it('opens Grok in the conversation view on a touch-first screen', () => {
+    expect(defaultsToConversationCli('grok', { touchFirst: true })).toBe(false);
+    expect(defaultsToConversationCli('grok', { touchFirst: false })).toBe(true);
   });
 });

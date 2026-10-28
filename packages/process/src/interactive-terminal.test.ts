@@ -37,3 +37,20 @@ describe('real Host interactive terminals', () => {
     await vi.waitFor(() => expect(exits).toHaveLength(1));
   });
 });
+
+describe('interactive terminal environment', () => {
+  it('starts from the Host environment and applies overrides and removals', async () => {
+    const { interactiveTerminalEnvironment } = await import('./interactive-terminal.js');
+    const env = interactiveTerminalEnvironment(
+      { HOME: '/home/a', EDITOR: 'vi', PIWIN_HOST: 'other', EMPTY: undefined },
+      { EDITOR: '', PIWIN_HOST: null, PIWIN_HOST_URL: 'ws://127.0.0.1:1' },
+    );
+    expect(env).toEqual({
+      HOME: '/home/a',
+      EDITOR: '',
+      PIWIN_HOST_URL: 'ws://127.0.0.1:1',
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor',
+    });
+  });
+});

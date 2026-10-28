@@ -4,6 +4,7 @@ import {
   AGENT_CLI_MAX_INPUT_CHARS,
   isAgentCliOpenInput,
   isBackendUserInputRespondCommand,
+  isEmbeddedTuiOpenInput,
   isValidTerminalSize,
   isValidHostEntryName,
   isFlashcardStudyCommandType,
@@ -80,6 +81,12 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
       // Shape/spawn-override rejection is shared with contracts; remote still
       // applies opaque project-id policy and session-id length bounds.
       return isAgentCliOpenInput(input) &&
+        (input.sessionId === undefined || isSafeRemoteId(input.sessionId)) &&
+        isSafeRemoteProjectLocator(input.projectPath);
+    }
+    case 'tui/open': {
+      const input: unknown = command.input;
+      return isEmbeddedTuiOpenInput(input) &&
         (input.sessionId === undefined || isSafeRemoteId(input.sessionId)) &&
         isSafeRemoteProjectLocator(input.projectPath);
     }

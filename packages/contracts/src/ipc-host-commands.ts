@@ -1,6 +1,7 @@
 /** Composed HostCommand union. Public IPC command type. */
 
 import type { AgentCliHostCommand } from './agent-cli.js';
+import type { EmbeddedTuiHostCommand } from './embedded-tui.js';
 import type { BackendUserInputRespondCommand } from './backend-user-input-host.js';
 import type { KnowledgeHostCommand } from './ipc-knowledge-commands.js';
 import type { PlatformHostCommand } from './ipc-platform-commands.js';
@@ -20,4 +21,5 @@ export type HostCommand =
   | HostPairingCommand
   | HostRemoteAccessCommand
   | AgentCliHostCommand
+  | EmbeddedTuiHostCommand
   | BackendUserInputRespondCommand;

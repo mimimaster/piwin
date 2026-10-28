@@ -100,6 +100,11 @@ export type HostStatusData = {
      * When false, desktop exposes Shell preview (line-oriented piped shell) only.
      */
     pty?: boolean;
+    /**
+     * ADR 0102: `tui/open` starts the terminal shell on the Host's machine, for
+     * shells that cannot open a terminal themselves. Absent on older Hosts.
+     */
+    embeddedTui?: boolean;
     /** CE-SUB worktree isolation. */
     subagentWorktree?: boolean;
     subagentDeliveryV1?: boolean;

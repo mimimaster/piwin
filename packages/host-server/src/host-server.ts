@@ -219,6 +219,7 @@ export class HostServer {
     this.capabilities = {
       ...createRemoteCapabilities(),
       ...(options.clientToolBroker === undefined ? {} : { clientToolRequests: true as const }),
+      ...(options.runtime.runsEmbeddedTui?.() === true ? { embeddedTui: true as const } : {}),
     };
     this.onError = options.onError ?? (() => undefined);
     this.onConnectionEvent = options.onConnectionEvent ?? (() => undefined);

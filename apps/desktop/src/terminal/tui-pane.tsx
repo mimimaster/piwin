@@ -7,14 +7,24 @@
  * conversation in the active scope. When the TUI itself starts a conversation
  * it announces the session, Desktop opens that session, and the pane keeps the
  * running process instead of restarting it on the id it already shows.
+ *
+ * Where the process runs: Pi's TUI in Desktop's own terminal, or — on a shell
+ * without one (phone, browser) — on the Host's machine (ADR 0102); native
+ * agent CLIs always on the Host. Touch screens get a key bar for the keys a
+ * phone keyboard lacks.
  */
-import { useMemo, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { HostAttachTarget } from '@piwin/contracts';
 import { Button, Notice, Spinner } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../i18n/desktop-locale';
 import type { AgentCliHost } from '../agents/agent-cli-pty.js';
 import { createAgentCliPty } from '../agents/agent-cli-pty.js';
 import { isTauriPtyAvailable } from '../host/tauri-pty';
+import { usesOnScreenKeyboard } from '../tool-cards/shell-runtime';
+import { createHostTuiPty } from './host-tui-pty';
+import { TerminalKeyBar } from './terminal-key-bar';
+import { applyTerminalCtrl } from './terminal-key-sequences';
+import type { XtermSurfaceHandle } from './xterm-surface-handle';
 import { XtermSurface, type PtyStatus } from './xterm-surface';
 
 export type TuiPaneProps = {
@@ -90,8 +100,21 @@ export function TuiPane(props: TuiPaneProps): ReactElement {
   const onSessionRef = useRef(props.onSessionChange);
   onSessionRef.current = props.onSessionChange;
   const snapshot = shown.current;
-  const agentPty = useMemo(() => {
-    if (agentId === 'pi' || props.hostClient === undefined) return undefined;
+  const nativePty = isTauriPtyAvailable();
+  const [touchFirst] = useState(() => usesOnScreenKeyboard());
+  const [ctrlArmed, setCtrlArmed] = useState(false);
+  const ctrlArmedRef = useRef(false);
+  ctrlArmedRef.current = ctrlArmed;
+  const handleRef = useRef<XtermSurfaceHandle | null>(null);
+  const hostPty = useMemo(() => {
+    if (props.hostClient === undefined) return undefined;
+    if (agentId === 'pi') {
+      if (nativePty) return undefined;
+      return createHostTuiPty(props.hostClient, {
+        ...(snapshot.sessionId === null ? {} : { sessionId: snapshot.sessionId }),
+        ...(snapshot.projectPath === null ? {} : { projectPath: snapshot.projectPath }),
+      });
+    }
     return createAgentCliPty(props.hostClient, {
       agentId,
       ...(snapshot.sessionId === null ? {} : { sessionId: snapshot.sessionId }),
@@ -100,9 +123,20 @@ export function TuiPane(props: TuiPaneProps): ReactElement {
       shown.current.reported = sessionId;
       onSessionRef.current?.(sessionId);
     });
-  }, [agentId, props.hostClient, snapshot.process, generation]);
+  }, [agentId, props.hostClient, snapshot.process, generation, nativePty]);
 
-  if (!isTauriPtyAvailable() || (agentId !== 'pi' && agentPty === undefined)) {
+  // Output sent while the Host connection was down is lost; have the program repaint.
+  useEffect(() => {
+    if (hostPty === undefined || props.hostClient === undefined) return undefined;
+    let ready = true;
+    return props.hostClient.subscribe((push) => {
+      if (push.type !== 'host/status') return;
+      if (push.ready && !ready) handleRef.current?.redraw();
+      ready = push.ready;
+    });
+  }, [hostPty, props.hostClient]);
+
+  if (hostPty === undefined && (agentId !== 'pi' || !nativePty)) {
     return <div className="muted terminal-empty">{copy.unavailable}</div>;
   }
 
@@ -137,10 +171,16 @@ export function TuiPane(props: TuiPaneProps): ReactElement {
           cwd=""
           visible={props.visible}
           {...(shown.current.projectPath ? { projectPath: shown.current.projectPath } : {})}
-          pty={agentPty}
-          onOpenImage={agentPty === undefined ? undefined : props.onOpenImage}
+          pty={hostPty}
+          onOpenImage={hostPty === undefined || agentId === 'pi' ? undefined : props.onOpenImage}
           fullBleed={agentId !== 'pi'}
-          tui={agentId === 'pi' ? {
+          inputTransform={(data) => {
+            if (!ctrlArmedRef.current) return data;
+            setCtrlArmed(false);
+            return applyTerminalCtrl(data);
+          }}
+          onHandle={(handle) => { handleRef.current = handle; }}
+          tui={agentId === 'pi' && hostPty === undefined ? {
             ...(shown.current.sessionId === null ? {} : { sessionId: shown.current.sessionId }),
             ...(shown.current.remoteTarget === undefined ? {} : { remoteTarget: shown.current.remoteTarget }),
           } : undefined}
@@ -153,6 +193,14 @@ export function TuiPane(props: TuiPaneProps): ReactElement {
           }}
         />
       </div>
+      {touchFirst && status.kind === 'open' ? (
+        <TerminalKeyBar
+          locale={props.locale}
+          ctrlArmed={ctrlArmed}
+          onCtrlChange={setCtrlArmed}
+          onSend={(data) => handleRef.current?.send(data)}
+        />
+      ) : null}
     </div>
   );
 }

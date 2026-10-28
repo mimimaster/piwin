@@ -70,6 +70,11 @@ only execution authority.
   `@piwin/ui-kit` and classic now uses it from there. Per-session drafts
   already existed in the workbench. Nothing classic-only remains, so the
   removal condition in §6 is down to four weeks without a switch back.
+- The conversation / CLI switch reaches the phone (2026-10-28,
+  [ADR 0102](./0102-host-run-terminal-shell.md)): native agent CLIs stream from
+  the Host as on Desktop, and Pi's TUI runs on a sidecar Host's machine. Touch
+  screens get a key bar (Ctrl, Esc, Tab, arrows, `/`, paste); Grok opens in the
+  conversation view on a phone.
 - The bundle grows by the workbench (~50 MB unpacked, 3.9 MB main chunk).
 - Phone-layout defects in the workbench are now phone-app defects; they are
   fixed once for the browser and the app.

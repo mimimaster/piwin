@@ -141,6 +141,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
     onResumeSession: handleResumeSession,
     onError: (error) => dispatch({ type: 'error', message: formatError(error) }),
     onWriterBusy: (busy) => dispatch({ type: 'native-cli/writer-busy', busy }),
+    hostRunsTui: hostStatus?.capabilities.embeddedTui === true,
   });
   return (
     <div

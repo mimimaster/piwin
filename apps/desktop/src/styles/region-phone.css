@@ -62,10 +62,11 @@ html:has(.app-shell[data-layout='phone']) {
    One compact row under the status bar. The drag strip moves an OS window and
    the turn ticks are a pointer-hover affordance; back/forward and the two
    appearance switches are desktop chrome (history is the drawer on a phone,
-   appearance lives in Settings). Their width goes to the session title. */
+   appearance lives in Settings). Their width goes to the session title. The
+   conversation/CLI switch stays: the Host can run the terminal (ADR 0102). */
 .app-shell[data-layout='phone'] > .context-bar > .context-bar-drag,
 .app-shell[data-layout='phone'] > .context-bar .context-bar-history,
-.app-shell[data-layout='phone'] > .context-bar .context-bar-controls > .seg,
+.app-shell[data-layout='phone'] > .context-bar .context-bar-controls > .seg:not(.conversation-shell-switch),
 .app-shell[data-layout='phone'] .history-ticks-border-strip {
   display: none;
 }

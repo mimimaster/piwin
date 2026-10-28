@@ -70,6 +70,7 @@ import type { SubagentTaskResult } from '@piwin/contracts';
 import type { ComposedSessionHostTools, HostRuntimeOptions } from './host-runtime-types.js';
 import type { AgentCliService } from './grok/agent-cli-service.js';
 import type { HostTerminalRegistry } from './terminal/host-terminal-registry.js';
+import type { EmbeddedTuiService } from './tui/embedded-tui-service.js';
 import type { AgentCliOwnershipController } from './native-cli-ownership.js';
 import type { BackendUserInputPendingController } from './backend-user-input-pending.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
@@ -95,6 +96,7 @@ export class HostRuntimeFields {
   agentCliOwnership: AgentCliOwnershipController | undefined = undefined;
   /** Interactive terminals on the Host's machine, created on first use. */
   hostTerminals: HostTerminalRegistry | undefined = undefined;
+  embeddedTuiService: EmbeddedTuiService | undefined = undefined;
   backendUserInputPending: BackendUserInputPendingController | undefined = undefined;
   /** Last Grok catalog change per backend session (drives replay on stale projection). */
   externalCatalogChanges = new Map<string, number>();

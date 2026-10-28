@@ -35,6 +35,7 @@ Product Depth locked decision **L4** (user 2026-07-21): **Tauri for PTY**.
 5. **CLI** does not require full xterm; optional later thin spawn is out of this ADR’s desktop path.
 6. Do **not** add Electron solely for terminal.
 7. **Host-owned PTY byte streams over the remote protocol are a separate design** (ipc R10 `allowPtyRemote`). That flag does not gate Desktop Tauri PTY. When the local sidecar is not running, `pty_open` verifies the cwd exists locally instead of calling `project/authorize-terminal`.
+   *Amended 2026-10-28 ([ADR 0102](./0102-host-run-terminal-shell.md)):* that design now exists for program terminals only — native agent CLIs (ADR 0082) and the Host-run `piwin tui` for shells without a terminal of their own, sharing one Host terminal registry and the `pty/*` stream. It never opens a login shell. Desktop's interactive Terminal dock and Desktop's own TUI stay on Tauri, and `capabilities.pty` keeps its meaning; Host-run TUI support is `capabilities.embeddedTui`.
 
 ## Architecture
 

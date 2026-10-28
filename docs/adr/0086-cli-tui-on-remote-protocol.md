@@ -220,6 +220,14 @@ window: raw mode failed with `EIO`. `execFile` drops the `detached` option;
 the probe now uses `spawn` with `detached: true`, which gives the shell its own
 session and no terminal to take.
 
+## Host-run TUI (2026-10-28)
+
+On shells without a terminal of their own (phone, browser), the Host starts
+the same `piwin tui --embedded` on its machine and streams it over the Host
+connection; it attaches back through the same loopback entrance. See
+[ADR 0102](./0102-host-run-terminal-shell.md). Desktop keeps launching the TUI
+in its own terminal.
+
 ## Not done
 
 - Still Desktop-only: rendering an artifact in place (the TUI exports it to a

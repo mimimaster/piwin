@@ -14,6 +14,12 @@ const pty = vi.hoisted(() => ({
   mounts: 0,
   announce: undefined as ((sessionId: string) => void) | undefined,
   stop: undefined as (() => void) | undefined,
+  open: undefined as (() => void) | undefined,
+  surface: undefined as {
+    pty?: unknown;
+    inputTransform?: (data: string) => string;
+    onHandle?: (handle: { send: (data: string) => void; redraw: () => void; focus: () => void } | null) => void;
+  } | undefined,
 }));
 
 vi.mock('../host/tauri-pty', () => ({ isTauriPtyAvailable: () => pty.available }));
@@ -24,7 +30,12 @@ vi.mock('./xterm-surface', () => ({
     fullBleed?: boolean;
     onTuiSession?: (sessionId: string) => void;
     onStatus?: (kind: string, ptyId: string | null) => void;
+    pty?: unknown;
+    inputTransform?: (data: string) => string;
+    onHandle?: (handle: { send: (data: string) => void; redraw: () => void; focus: () => void } | null) => void;
   }) => {
+    pty.surface = props;
+    pty.open = () => props.onStatus?.('open', 'pty-1');
     // One id per mounted process: a remount shows as a new id.
     const mount = useRef(0);
     if (mount.current === 0) mount.current = pty.mounts += 1;
@@ -38,6 +49,7 @@ vi.mock('./xterm-surface', () => ({
         data-mount={mount.current}
         data-host={props.tui?.remoteTarget?.endpoint ?? 'local'}
         data-full-bleed={props.fullBleed === true ? 'true' : 'false'}
+        data-route={props.pty === undefined ? 'desktop' : 'host'}
       />
     );
   },
@@ -201,5 +213,80 @@ describe('TuiPane', () => {
       expect(surface()?.dataset.fullBleed).toBe('true');
       expect(container.textContent).not.toContain('runs in the desktop app');
     }
+  });
+});
+
+describe('TuiPane on a shell without its own terminal', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let pushes: Set<(push: { type: string; ready?: boolean }) => void>;
+  let hostClient: AgentCliHost;
+
+  beforeEach(() => {
+    pty.available = false;
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    pushes = new Set();
+    hostClient = {
+      request: vi.fn(),
+      subscribe: vi.fn((listener) => {
+        pushes.add(listener as never);
+        return () => { pushes.delete(listener as never); };
+      }),
+    };
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    pty.available = true;
+    vi.unstubAllGlobals();
+  });
+
+  function render(): void {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TuiPane sessionId="session-1" locale="zh-CN" agentId="pi" hostClient={hostClient} />
+        </PiwinUiProvider>,
+      );
+    });
+  }
+
+  it('runs Pi\'s terminal shell on the Host', () => {
+    render();
+    const surface = container.querySelector<HTMLElement>('[data-testid="xterm-stub"]');
+    expect(surface?.dataset.route).toBe('host');
+    expect(container.textContent).not.toContain('桌面应用');
+  });
+
+  it('asks the program to repaint after the Host connection comes back', () => {
+    render();
+    const handle = { send: vi.fn(), redraw: vi.fn(), focus: vi.fn() };
+    act(() => pty.surface?.onHandle?.(handle));
+    act(() => { for (const listener of pushes) listener({ type: 'host/status', ready: false }); });
+    expect(handle.redraw).not.toHaveBeenCalled();
+    act(() => { for (const listener of pushes) listener({ type: 'host/status', ready: true }); });
+    expect(handle.redraw).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the key bar on touch screens and applies the sticky Ctrl once', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(pointer: coarse)', media: query, addEventListener: () => undefined, removeEventListener: () => undefined }));
+    render();
+    expect(container.querySelector('[data-testid="terminal-key-bar"]')).toBeNull();
+    act(() => pty.open?.());
+    const handle = { send: vi.fn(), redraw: vi.fn(), focus: vi.fn() };
+    act(() => pty.surface?.onHandle?.(handle));
+    expect(container.querySelector('[data-testid="terminal-key-bar"]')).not.toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="terminal-key-escape"]')?.click());
+    expect(handle.send).toHaveBeenCalledWith('\x1b');
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="terminal-key-ctrl"]')?.click());
+    let typed = '';
+    act(() => { typed = pty.surface?.inputTransform?.('c') ?? ''; });
+    expect(typed).toBe('\x03');
+    act(() => { typed = pty.surface?.inputTransform?.('c') ?? ''; });
+    expect(typed).toBe('c');
   });
 });

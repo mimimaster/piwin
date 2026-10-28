@@ -83,6 +83,8 @@ export function getHostRequestTimeoutMs(
     case 'agents/cli-open':
     case 'agents/cli-sync':
     case 'agents/cli-snapshot':
+    // Starts a process and, the first time, the loopback entrance.
+    case 'tui/open':
     case 'speech/transcribe':
     case 'mcp/start':
     case 'mcp/stop':
