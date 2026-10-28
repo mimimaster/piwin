@@ -287,8 +287,11 @@ See the lead Decision for the live contract. Details: ADR 0029 and
 
 Generated rasters live once, in `~/.piwin/media/<session>/`. An Artifact may
 reference them with `<img data-piwin-media="<mediaId>">`. `materializeArtifact`
-rewrites those tags to caller-supplied `blob:` URLs. Copy/export keep the
-attribute, never the pixels.
+rewrites those tags to caller-supplied, size-capped `data:image` URLs (a
+`blob:` URL is unreadable from the sandbox's opaque origin). Desktop resolves
+each id from this session's vault: the local vault file first (the same
+asset-URL route the transcript hero uses), then Host `media/read` when the
+shell has no local copy. Copy/export keep the attribute, never the pixels.
 
 `self-contained` means HTML/CSS/JS do not depend on the public network. It
 does not mean inlining PNG bytes as `data:image`. Base64 galleries still hit

@@ -17,6 +17,10 @@ import { resetArtifactInitQueueForTests } from './artifact-init-queue.js';
 import { resetArtifactLiveHostRegistryForTests } from './artifact-live-host-registry.js';
 import { subscribeNativeArtifactBridge } from './artifact-native-bridge.js';
 import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
+import {
+  clearArtifactHeightsForTests,
+  readRememberedArtifactHeight,
+} from './artifact-height-memory.js';
 
 vi.mock('./artifact-native-bridge.js', () => ({
   subscribeNativeArtifactBridge: vi.fn(async () => () => undefined),
@@ -343,5 +347,69 @@ describe('artifact overflow reachability', () => {
     expect(hint?.getAttribute('tabindex')).toBeNull();
     const focusableInHint = hint?.querySelectorAll('a,button,input,select,textarea,[tabindex]');
     expect(focusableInHint?.length ?? 0).toBe(0);
+  });
+});
+
+describe('artifact height memory', () => {
+  let previousActEnvironment: boolean | undefined;
+
+  beforeEach(() => {
+    previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    clearArtifactHeightsForTests();
+    resetArtifactInitQueueForTests();
+    resetArtifactLiveHostRegistryForTests();
+    vi.mocked(subscribeNativeArtifactBridge).mockResolvedValue(() => undefined);
+  });
+
+  afterEach(() => {
+    clearArtifactHeightsForTests();
+    resetArtifactInitQueueForTests();
+    resetArtifactLiveHostRegistryForTests();
+    globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+  });
+
+  it('remounts a final inline document at the height it reported last time', async () => {
+    const plan = makeRenderPlan('artifact-remember-1');
+    const first = renderFrame(plan);
+    await flushFrame();
+    const bootstrap = first.container.querySelector<HTMLElement>('.artifact-iframe-stage')?.style.height;
+    act(() => {
+      dispatchSize(
+        first.container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe'),
+        plan.intent.descriptor.id,
+        913,
+        0,
+      );
+    });
+    expect(first.container.querySelector<HTMLElement>('.artifact-iframe-stage')?.style.height).toBe('913px');
+    expect(bootstrap).not.toBe('913px');
+    act(() => first.root.unmount());
+    first.container.remove();
+    resetArtifactLiveHostRegistryForTests();
+
+    const second = renderFrame(plan);
+    await flushFrame();
+    // No size message yet: the stage already holds the remembered height.
+    expect(second.container.querySelector<HTMLElement>('.artifact-iframe-stage')?.style.height).toBe('913px');
+    act(() => second.root.unmount());
+    second.container.remove();
+  });
+
+  it('does not remember a stream preview that is still changing size', async () => {
+    const plan = makeStreamPlan('<div>growing</div>');
+    const first = renderFrame(plan);
+    await flushFrame();
+    act(() => {
+      dispatchSize(
+        first.container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe'),
+        plan.intent.descriptor.id,
+        777,
+        0,
+      );
+    });
+    act(() => first.root.unmount());
+    first.container.remove();
+    expect(readRememberedArtifactHeight(plan.intent.descriptor.id, null)).toBeNull();
   });
 });

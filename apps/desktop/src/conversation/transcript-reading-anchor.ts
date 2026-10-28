@@ -10,6 +10,7 @@
  * reader is looking at is the only stable reference.
  */
 import { messageAnchorId } from './transcript-outline.js';
+import { transcriptVisibleTop } from './transcript-visible-top.js';
 
 export type TranscriptReadingAnchor = {
   messageId: string;
@@ -26,7 +27,7 @@ const MESSAGE_ID_PREFIX = messageAnchorId('');
 export function captureTranscriptReadingAnchor(
   container: HTMLElement,
 ): TranscriptReadingAnchor | null {
-  const containerTop = container.getBoundingClientRect().top;
+  const containerTop = transcriptVisibleTop(container);
   let best: { element: Element; top: number } | null = null;
   for (const element of container.querySelectorAll(`[id^="${MESSAGE_ID_PREFIX}"]`)) {
     const rect = element.getBoundingClientRect();
@@ -64,7 +65,7 @@ export function alignTranscriptReadingAnchor(
     return false;
   }
   const delta =
-    element.getBoundingClientRect().top - container.getBoundingClientRect().top - anchor.offset;
+    element.getBoundingClientRect().top - transcriptVisibleTop(container) - anchor.offset;
   if (Math.abs(delta) >= 1) {
     hooks.beforeScroll?.();
     container.scrollTop += delta;
@@ -86,5 +87,5 @@ export function measureTranscriptReadingAnchorDrift(
   if (!element || !container.contains(element)) {
     return null;
   }
-  return element.getBoundingClientRect().top - container.getBoundingClientRect().top - anchor.offset;
+  return element.getBoundingClientRect().top - transcriptVisibleTop(container) - anchor.offset;
 }

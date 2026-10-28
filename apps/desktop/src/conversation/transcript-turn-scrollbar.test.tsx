@@ -50,7 +50,7 @@ describe('TranscriptTurnScrollbar', () => {
     container.remove();
   });
 
-  function render(onJumpToAnchor: (anchor: SessionUserMessageAnchor) => void, markJumpOrigin = vi.fn()) {
+  function render(onJumpToAnchor: (anchor: SessionUserMessageAnchor) => void, beginDeliberateJump = vi.fn()) {
     const scrollElementRef = createRef<HTMLDivElement | null>() as { current: HTMLDivElement | null };
     scrollElementRef.current = stream;
     act(() => {
@@ -58,7 +58,7 @@ describe('TranscriptTurnScrollbar', () => {
         <TranscriptScrollProvider
           sessionId="session-long"
           scrollElementRef={scrollElementRef}
-          markJumpOrigin={markJumpOrigin}
+          beginDeliberateJump={beginDeliberateJump}
         >
           <TranscriptTurnScrollbar
             isOverflowing
@@ -90,7 +90,7 @@ describe('TranscriptTurnScrollbar', () => {
       '[data-testid="chat-stream-floating-scrollbar-thumb"]',
     );
     if (!thumb) throw new Error('missing thumb');
-    return { track, thumb, markJumpOrigin };
+    return { track, thumb, beginDeliberateJump };
   }
 
   function mouse(target: EventTarget, type: string, clientY: number): void {
@@ -109,7 +109,7 @@ describe('TranscriptTurnScrollbar', () => {
 
   it('scrolls pixels inside the resident turns and seeks once on release outside them', () => {
     const onJumpToAnchor = vi.fn();
-    const { thumb, markJumpOrigin } = render(onJumpToAnchor);
+    const { thumb, beginDeliberateJump } = render(onJumpToAnchor);
     mouse(thumb, 'mousedown', 95);
     mouse(document, 'mousemove', 90);
     // Turn 450 of 500 is halfway through the resident 400..500.
@@ -127,7 +127,7 @@ describe('TranscriptTurnScrollbar', () => {
     expect(onJumpToAnchor).not.toHaveBeenCalled();
 
     mouse(document, 'mouseup', 21);
-    expect(markJumpOrigin).toHaveBeenCalledTimes(1);
+    expect(beginDeliberateJump).toHaveBeenCalledTimes(1);
     expect(onJumpToAnchor).toHaveBeenCalledTimes(1);
     expect(onJumpToAnchor.mock.calls[0]?.[0]).toMatchObject({ messageId: 'turn-100' });
     expect(container.querySelector('[data-testid="turn-scrollbar-label"]')).toBeNull();

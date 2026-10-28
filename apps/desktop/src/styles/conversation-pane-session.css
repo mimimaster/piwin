@@ -103,7 +103,11 @@
   --transcript-current-response-min-height: 0px;
 }
 
-.conversation-pane-loading,
+/* Loading is a skeleton of the transcript itself, not a boxed message. */
+.conversation-pane-loading {
+  padding: var(--s-5) 0;
+}
+
 .conversation-pane-empty-copy {
   padding: var(--s-5);
   border-radius: var(--r-control);

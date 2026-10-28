@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button } from '@piwin/ui-kit';
+import { Button, Skeleton } from '@piwin/ui-kit';
 import type {
   FlashcardItem,
   HostResponse,
@@ -352,6 +352,9 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
         <div className="flashcards-status-banner is-error" role="alert">
           <IconAlertCircle className="flashcards-status-icon" />
           <span>{error}</span>
+          <Button size="compact" variant="ghost" onClick={() => void loadData()}>
+            {t('Retry', '重试')}
+          </Button>
         </div>
       )}
       {info && (
@@ -495,8 +498,8 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
       ) : (
         /* Cards List View */
         <div className="flashcards-list-section">
-          {loading ? (
-            <p className="flashcards-loading-hint">{t('Loading cards…', '正在加载闪卡…')}</p>
+          {loading && cards.length === 0 ? (
+            <Skeleton variant="list" label={t('Loading cards…', '正在加载闪卡…')} rows={[78, 62, 84]} />
           ) : cards.length === 0 ? (
             <div className="flashcards-empty-card">
               <div className="flashcards-empty-icon-wrap">

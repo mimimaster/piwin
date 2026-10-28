@@ -6,9 +6,6 @@
  */
 import type { UsageModelKeyTotal, UsageRollup } from '@piwin/contracts';
 
-/** DOM id linking the 费用明细 toggle to the table it reveals. */
-export const USAGE_COST_DETAILS_ID = 'usage-cost-details';
-
 export type UsageCostState = 'unsupported' | 'empty' | 'complete' | 'partial' | 'unpriced';
 
 export type UsageCostOverview = {
@@ -57,14 +54,18 @@ export function formatUsageUsdSummary(value: number | undefined): string {
   }).format(value);
 }
 
-/** Most expensive first; unpriced rows last, then by tokens. */
-export function sortUsageCostRows(rows: readonly UsageModelKeyTotal[]): UsageModelKeyTotal[] {
-  return [...rows].sort((left, right) => {
-    const leftCost = left.estimatedCostUsd ?? -1;
-    const rightCost = right.estimatedCostUsd ?? -1;
-    if (rightCost !== leftCost) return rightCost - leftCost;
-    return right.totalTokens - left.totalTokens;
-  });
+/** Averages (per day, per call) keep a third decimal below $1 so small rates stay distinct. */
+export function formatUsageUsdAverage(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value) || value < 0) return '—';
+  if (value === 0) return '$0.00';
+  if (value < 0.001) return '<$0.001';
+  const digits = value >= 1 ? 2 : 3;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value);
 }
 
 export type UsageCostReferenceMapping = { modelId: string; reference: string };

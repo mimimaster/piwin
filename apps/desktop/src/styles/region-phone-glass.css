@@ -1,0 +1,288 @@
+/* Phone layout: glass chrome.
+   On a phone the chrome floats over the conversation the way iOS bars do:
+   the transcript scrolls up under a frosted titleband and down under a
+   frosted composer slab, and drawers, menus, dialogs and toasts are glass
+   over whatever they cover.
+
+   Cost: each glass surface is one backdrop-filter layer. They are limited to
+   phone-scoped selectors listed in renderer-resource-boundaries.test.ts, and
+   memory-degradation.css strips every blur under pressure; the fills turn
+   solid here at the same moment so text never sits on unblurred content.
+   The desktop stage stays a solid canvas (see that test).
+
+   Like the other phone sheets this file carries no !important: geometry that
+   theme rules pin is moved through tokens (phone-layout-contract.test.ts). */
+
+/* ── Material tokens ───────────────────────────────────────────────
+   Solid fallbacks first; WebKit before iOS 16.2 has no color-mix(), and a
+   var() that resolves to an invalid colour would paint nothing at all.
+   Defined on <body>, not <html>: a custom property resolves its var()s where
+   it is declared, and the paper tone below re-points --bg/--s* on <body>. */
+html:has(.app-shell[data-layout='phone']) body {
+  --phone-glass-filter: blur(22px) saturate(1.8);
+  --phone-glass-bar: var(--bg);
+  --phone-glass-slab: var(--slab);
+  --phone-glass-drawer: var(--s1);
+  --phone-glass-overlay: var(--s4);
+  --phone-glass-overlay-dense: var(--s4);
+  --phone-glass-overlay-thin: var(--s4);
+  /* How far the transcript runs under the top of the composer slab. A fixed
+     strip, so it does not depend on the slab growing with what is typed. */
+  --phone-composer-overlap: 28px;
+}
+
+@supports (background: color-mix(in srgb, red 50%, transparent)) {
+  html:has(.app-shell[data-layout='phone']) body {
+    --phone-glass-bar: color-mix(in srgb, var(--bg) 66%, transparent);
+    /* The slab is the one dark object on paper; thinner than this it turns a
+       muddy grey over light text and its labels lose contrast. */
+    --phone-glass-slab: color-mix(in srgb, var(--slab) 88%, transparent);
+    --phone-glass-drawer: color-mix(in srgb, var(--s1) 78%, transparent);
+    --phone-glass-overlay: color-mix(in srgb, var(--s4) 70%, transparent);
+    /* Dialogs carry forms and longer reading: denser glass. */
+    --phone-glass-overlay-dense: color-mix(in srgb, var(--s4) 84%, transparent);
+    /* Toasts carry one line over the stage. */
+    --phone-glass-overlay-thin: color-mix(in srgb, var(--s4) 58%, transparent);
+  }
+
+  /* On ink the ground and the bar are both near-black, so the same fill reads
+     as a solid band; a thinner one lets the light text under it show. */
+  html[data-theme-id='piwin-inkstone-ink']:has(.app-shell[data-layout='phone']) body {
+    --phone-glass-bar: color-mix(in srgb, var(--bg) 52%, transparent);
+  }
+}
+
+html:has(.app-shell[data-layout='phone']):is([data-memory-pressure], [data-memory-parked]) body {
+  --phone-glass-bar: var(--bg);
+  --phone-glass-slab: var(--slab);
+  --phone-glass-drawer: var(--s1);
+  --phone-glass-overlay: var(--s4);
+  --phone-glass-overlay-dense: var(--s4);
+  --phone-glass-overlay-thin: var(--s4);
+}
+
+/* ── Ground tone ───────────────────────────────────────────────────
+   Owner direction (2026-10-28): the warm ground — yellow paper, brown ink —
+   tires the eye over a long read on a phone. Each ground surface is laid at
+   --phone-ground-tint over the neutral grey of the same lightness, so the
+   layering (sunken < rail < canvas < card < raised) and the contrast with
+   text stay, and only the warm cast thins out. The theme writes these names
+   inline on <html>, so they are re-pointed on <body>, which everything on
+   screen (portals included) sits in. Text, lines, accents and the composer
+   slab keep their warm ink. */
+@supports (background: color-mix(in srgb, red 50%, transparent)) {
+  html[data-theme-id='piwin-inkstone-paper']:has(.app-shell[data-layout='phone']) body {
+    --phone-ground-tint: 30%;
+    --phone-ground-sunken: color-mix(in srgb, #e6e1d7 var(--phone-ground-tint), #e1e1e1);
+    --phone-ground-rail: color-mix(in srgb, #f0ece4 var(--phone-ground-tint), #ececec);
+    --phone-ground-canvas: color-mix(in srgb, #f8f6f0 var(--phone-ground-tint), #f5f5f5);
+    --phone-ground-card: color-mix(in srgb, #fffdf8 var(--phone-ground-tint), #fcfcfc);
+    --phone-ground-raised: #fff;
+    --phone-ground-code: color-mix(in srgb, #efece4 var(--phone-ground-tint), #ebebeb);
+  }
+
+  html[data-theme-id='piwin-inkstone-ink']:has(.app-shell[data-layout='phone']) body {
+    --phone-ground-tint: 30%;
+    --phone-ground-sunken: color-mix(in srgb, #0b0a09 var(--phone-ground-tint), #0a0a0a);
+    --phone-ground-rail: color-mix(in srgb, #141210 var(--phone-ground-tint), #121212);
+    --phone-ground-canvas: color-mix(in srgb, #191714 var(--phone-ground-tint), #171717);
+    --phone-ground-card: color-mix(in srgb, #201d19 var(--phone-ground-tint), #1d1d1d);
+    --phone-ground-raised: color-mix(in srgb, #2a2621 var(--phone-ground-tint), #262626);
+    --phone-ground-code: color-mix(in srgb, #0f0e0c var(--phone-ground-tint), #0e0e0e);
+  }
+
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']):has(
+      .app-shell[data-layout='phone']
+    )
+    body {
+    --void: var(--phone-ground-sunken);
+    --sunken: var(--phone-ground-sunken);
+    --term-bg: var(--phone-ground-sunken);
+    --wb-term-bg: var(--phone-ground-sunken);
+    --s1: var(--phone-ground-rail);
+    --rail: var(--phone-ground-rail);
+    --sidebar: var(--phone-ground-rail);
+    --surface-1: var(--phone-ground-rail);
+    --surface-rail: var(--phone-ground-rail);
+    --surface-sidebar: var(--phone-ground-rail);
+    --s2: var(--phone-ground-canvas);
+    --bg: var(--phone-ground-canvas);
+    --canvas: var(--phone-ground-canvas);
+    --surface-2: var(--phone-ground-canvas);
+    --surface-canvas: var(--phone-ground-canvas);
+    --s3: var(--phone-ground-card);
+    --card: var(--phone-ground-card);
+    --composer: var(--phone-ground-card);
+    --control: var(--phone-ground-card);
+    --panel: var(--phone-ground-card);
+    --surface: var(--phone-ground-card);
+    --surface-3: var(--phone-ground-card);
+    --surface-control: var(--phone-ground-card);
+    --surface-inset: var(--phone-ground-card);
+    --surface-overlay: var(--phone-ground-card);
+    --user-bubble: var(--phone-ground-card);
+    --s4: var(--phone-ground-raised);
+    --surface-4: var(--phone-ground-raised);
+    --surface-raised: var(--phone-ground-raised);
+    --surface-control-hover: var(--phone-ground-raised);
+    --code: var(--phone-ground-code);
+  }
+}
+
+/* ── Stage under the titleband ─────────────────────────────────────
+   The stage spans the titleband row too; every view keeps its old place
+   through the top padding, and only a conversation transcript reaches back
+   up into that strip so it can scroll under the glass. Inkstone owns the
+   grid that reads --shell-stage-row. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone'] {
+  --shell-stage-row: 1 / -1;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone']
+  > .workspace {
+  padding-top: var(--titleband-box-height);
+  box-sizing: border-box;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell[data-layout='phone']
+  > .workspace
+  .docking-primary-slot
+  > .chat-column:not(.chat-column-empty) {
+  /* The workspace clips at its padding box, so this strip stays visible. */
+  margin-top: calc(-1 * var(--titleband-box-height));
+  --phone-stage-top: var(--titleband-box-height);
+}
+
+.app-shell[data-layout='phone'] > .context-bar {
+  /* inkstone/titlebar.css pins the band's fill; it reads this token. */
+  --titleband-fill: var(--phone-glass-bar);
+  -webkit-backdrop-filter: var(--phone-glass-filter);
+  backdrop-filter: var(--phone-glass-filter);
+}
+
+/* ── Transcript chrome ─────────────────────────────────────────────
+   --phone-stage-top is the strip under the titleband (0 when the transcript
+   does not reach under it); the composer overlap is the strip under the slab.
+   scroll-padding-top also tells transcriptVisibleTop() where reading starts. */
+.app-shell[data-layout='phone'] .chat-column:not(.chat-column-empty) .chat-stream {
+  --transcript-top-pad: calc(26px + var(--phone-stage-top, 0px));
+  --transcript-output-floor-gap: calc(clamp(72px, 8vh, 96px) + var(--phone-composer-overlap));
+  scroll-padding-top: var(--phone-stage-top, 0px);
+}
+
+/* The frozen prompt / fold rail hangs just under the titleband, as a second
+   pane of the same glass. */
+.app-shell[data-layout='phone'] .chat-column:not(.chat-column-empty) .transcript-fold-rail {
+  top: var(--phone-stage-top, 0px);
+  background: var(--phone-glass-bar);
+  -webkit-backdrop-filter: var(--phone-glass-filter);
+  backdrop-filter: var(--phone-glass-filter);
+}
+
+.app-shell[data-layout='phone'] .chat-column:not(.chat-column-empty) .chat-stream-floating-scrollbar {
+  top: calc(var(--s-4) + var(--phone-stage-top, 0px));
+  bottom: calc(var(--s-4) + var(--phone-composer-overlap));
+}
+
+.app-shell[data-layout='phone'] .chat-column:not(.chat-column-empty) .jump-to-latest-btn {
+  bottom: calc(var(--s-5) + var(--phone-composer-overlap));
+}
+
+/* The soft edge sits where the reading area ends, just above the slab. */
+.app-shell[data-layout='phone'] .chat-column:not(.chat-column-empty) .transcript-edge-blur {
+  bottom: var(--phone-composer-overlap);
+}
+
+/* ── Host link banner ──────────────────────────────────────────────
+   In flow it would sit under the glass titleband, where the transcript now
+   starts. It floats just below the band instead, as a pill of the same glass,
+   and while it is only "connecting" a breathing dot says the shell is trying. */
+.app-shell[data-layout='phone']
+  .chat-column:not(.chat-column-empty)
+  .transcript-awaiting-banner[data-testid='host-reconnect-banner'] {
+  position: absolute;
+  top: calc(var(--phone-stage-top, 0px) + 8px);
+  left: 12px;
+  right: 12px;
+  z-index: 9;
+  width: auto;
+  margin: 0;
+  background: var(--phone-glass-bar);
+  -webkit-backdrop-filter: var(--phone-glass-filter);
+  backdrop-filter: var(--phone-glass-filter);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--text-1) 12%, transparent);
+}
+
+.app-shell[data-layout='phone']
+  .transcript-awaiting-banner[data-testid='host-reconnect-banner']:not([data-state])::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: var(--lamp, var(--text-3));
+  animation: breath 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-layout='phone']
+    .transcript-awaiting-banner[data-testid='host-reconnect-banner']::before {
+    animation: none;
+  }
+}
+
+/* ── Composer slab ─────────────────────────────────────────────────
+   The dock reaches up over the end of the transcript; the slab's fill (on
+   .slab-face, see inkstone/composer.css) becomes dark glass. */
+.app-shell[data-layout='phone'] .chat-column:not(.chat-column-empty) .composer-dock.layout-docked {
+  margin-top: calc(-1 * var(--phone-composer-overlap));
+}
+
+.app-shell[data-layout='phone'] .composer-dock.layout-docked .slab-face {
+  background: var(--phone-glass-slab);
+  -webkit-backdrop-filter: var(--phone-glass-filter);
+  backdrop-filter: var(--phone-glass-filter);
+}
+
+/* ── Drawers ───────────────────────────────────────────────────────
+   Full-screen drawers keep the conversation faintly visible behind them. */
+.app-shell[data-layout='phone'] > .sidebar,
+.app-shell[data-layout='phone'] > .right-panel {
+  background: var(--phone-glass-drawer);
+}
+
+.app-shell[data-layout='phone'].nav-open > .sidebar,
+.app-shell[data-layout='phone'].has-right-panel > .right-panel.outward-column:not(.is-collapsed) {
+  -webkit-backdrop-filter: var(--phone-glass-filter);
+  backdrop-filter: var(--phone-glass-filter);
+}
+
+/* ── Overlays ──────────────────────────────────────────────────────
+   Menus, pickers, dialogs and toasts portal to <body>, outside .app-shell. */
+html:has(.app-shell[data-layout='phone']) .ui-menu-content,
+html:has(.app-shell[data-layout='phone']) .ui-popover-content,
+html:has(.app-shell[data-layout='phone']) .ui-menu-content.plus-menu,
+html:has(.app-shell[data-layout='phone']) .ui-menu-content.plus-submenu {
+  background: var(--phone-glass-overlay);
+  -webkit-backdrop-filter: var(--phone-glass-filter);
+  backdrop-filter: var(--phone-glass-filter);
+}
+
+html:has(.app-shell[data-layout='phone']) .modal.ui-dialog-content,
+html:has(.app-shell[data-layout='phone']) .piwin-modal-content.piwin-modal-content {
+  background: var(--phone-glass-overlay-dense);
+  -webkit-backdrop-filter: var(--phone-glass-filter);
+  backdrop-filter: var(--phone-glass-filter);
+}
+
+html:has(.app-shell[data-layout='phone']) .mantine-Notification-root,
+html:has(.app-shell[data-layout='phone']) .ui-toast {
+  background: var(--phone-glass-overlay-thin);
+  -webkit-backdrop-filter: var(--phone-glass-filter);
+  backdrop-filter: var(--phone-glass-filter);
+}

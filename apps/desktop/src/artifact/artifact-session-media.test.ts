@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ARTIFACT_MEDIA_TOTAL_BUDGET_CHARS,
   resetArtifactMediaDataUrlCacheForTests,
@@ -14,14 +14,93 @@ const { limitedDataUrlFromHref } = vi.hoisted(() => ({
   limitedDataUrlFromHref: vi.fn<(href: string, maxEdgePx: number) => Promise<string | null>>(),
 }));
 
+const { localVaultUrl } = vi.hoisted(() => ({
+  localVaultUrl: vi.fn<
+    (input: { sessionId: string; assetId: string; mimeType: string }) => Promise<string | null>
+  >(),
+}));
+
 vi.mock('../media/media-preview-bitmap', () => ({
   createLimitedDataUrlFromHref: limitedDataUrlFromHref,
+}));
+
+vi.mock('../conversation/transcript-media-preview', () => ({
+  resolveLocalVaultMediaUrl: localVaultUrl,
 }));
 
 describe('resolveArtifactSessionMediaDataUrls', () => {
   beforeEach(() => {
     resetArtifactMediaDataUrlCacheForTests();
     limitedDataUrlFromHref.mockReset();
+    localVaultUrl.mockReset();
+    // Default: a shell without local file access (browser, remote-only).
+    localVaultUrl.mockResolvedValue(null);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  it('reads the local vault file first and skips the Host read', async () => {
+    localVaultUrl.mockImplementation(
+      async ({ mimeType }) => `asset://localhost/vault.${mimeType.split('/')[1]}`,
+    );
+    limitedDataUrlFromHref.mockImplementation(async (href) =>
+      href.endsWith('.jpeg') ? DATA_URL : null,
+    );
+    const readMedia = vi.fn(async () => 'blob:http://localhost/icon');
+    const urls = await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia,
+    });
+    expect(urls.get(MEDIA_ID)).toBe(DATA_URL);
+    expect(localVaultUrl).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      assetId: MEDIA_ID,
+      mimeType: 'image/jpeg',
+    });
+    expect(readMedia).not.toHaveBeenCalled();
+  });
+
+  it('binds from the local vault without a Host reader', async () => {
+    localVaultUrl.mockResolvedValue('asset://localhost/vault.png');
+    limitedDataUrlFromHref.mockResolvedValue(DATA_URL);
+    const urls = await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia: null,
+    });
+    expect(urls.get(MEDIA_ID)).toBe(DATA_URL);
+  });
+
+  it('falls back to Host media/read after every local extension misses', async () => {
+    localVaultUrl.mockResolvedValue('asset://localhost/missing');
+    limitedDataUrlFromHref.mockImplementation(async (href) =>
+      href.startsWith('blob:') ? DATA_URL : null,
+    );
+    const urls = await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia: async () => 'blob:http://localhost/icon',
+    });
+    expect(urls.get(MEDIA_ID)).toBe(DATA_URL);
+    expect(localVaultUrl.mock.calls.map(([input]) => input.mimeType)).toEqual([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+    ]);
+  });
+
+  it('warns when neither the local vault nor the Host returns the image', async () => {
+    limitedDataUrlFromHref.mockResolvedValue(null);
+    await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia: async () => null,
+    });
+    expect(console.warn).toHaveBeenCalledWith(
+      '[artifact-media] image not bound: no readable vault copy',
+      { sessionId: 'session-1', assetId: MEDIA_ID, hostReader: true },
+    );
   });
 
   it('decodes each vault asset once across repeated stream resolves', async () => {
@@ -36,7 +115,7 @@ describe('resolveArtifactSessionMediaDataUrls', () => {
     expect(limitedDataUrlFromHref).toHaveBeenCalledTimes(1);
   });
 
-  it('returns an empty map when there is no session or reader', async () => {
+  it('returns an empty map when there is no session, or no reader and no local copy', async () => {
     const source = `<img data-piwin-media="${MEDIA_ID}">`;
     await expect(
       resolveArtifactSessionMediaDataUrls({
@@ -107,6 +186,10 @@ describe('resolveArtifactSessionMediaDataUrls', () => {
     expect(urls.has(MEDIA_ID)).toBe(true);
     expect(urls.has(OTHER_MEDIA_ID)).toBe(false);
   });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('resolveBoundArtifactMediaSessionId', () => {

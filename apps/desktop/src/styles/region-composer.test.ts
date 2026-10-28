@@ -18,7 +18,7 @@ describe('composer measure column', () => {
     const dock = dockBlock();
     expect(dock).toContain('align-self: stretch;');
     expect(dock).toContain('width: 100%;');
-    expect(dock).toContain('padding: 0 var(--chat-inline-pad) var(--s-6);');
+    expect(dock).toContain('padding: 0 var(--chat-inline-pad) var(--s-4);');
     expect(dock).toContain(
       'width: min(100%, var(--conversation-width));',
     );

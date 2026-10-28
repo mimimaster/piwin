@@ -22,7 +22,7 @@ import {
   type ArtifactTriggerMode,
   type PiwinConfig,
 } from '@piwin/contracts';
-import { Button, SegmentedControl, Switch, TextArea } from '@piwin/ui-kit';
+import { Button, SegmentedControl, Switch, TextArea, Skeleton } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { settingsSavedWithEffect } from '../settings-effect-copy.js';
 import { FieldRow } from '../field-row';
@@ -352,9 +352,7 @@ export function ArtifactPage(): ReactElement {
             ) : null}
           </>
         ) : (
-          <p className="muted">
-            {isZh ? '正在加载配置…' : 'Loading configuration…'}
-          </p>
+          <Skeleton label={isZh ? '正在加载配置…' : 'Loading configuration…'} rows={[40, 88, 70, 92]} />
         )}
       </div>
     </div>

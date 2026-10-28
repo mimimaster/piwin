@@ -221,6 +221,7 @@ export const DESKTOP_COPY_ZH_CN: DesktopCopy = {
       stopJob: '停止程序',
       viewJobLogsTitle: (label) => `查看「${label}」日志`,
       hostConnecting: 'Host：正在连接…',
+      hostReconnected: '已重新连接 Host',
       hostUnreachable: (host) => `连不上 ${host}。确认电脑已开机、piwin 在运行，并且和手机在同一网络。`,
       hostRetry: '重试',
       hostSwitch: '更换 Host',

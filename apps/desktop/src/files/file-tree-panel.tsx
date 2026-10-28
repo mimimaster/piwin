@@ -36,7 +36,9 @@ import {
   Button,
   IconButton,
   Notice,
-  Spinner,
+  Skeleton,
+  showErrorNotification,
+  showSuccessNotification,
 } from '@piwin/ui-kit';
 import { IconClose, IconRefresh, IconSearch } from '../tool-cards/shell-icons';
 import { prewarmFileHighlight } from '../syntax/file-highlight.js';
@@ -494,7 +496,11 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       });
     },
     copyText: (value) => {
-      void navigator.clipboard.writeText(value).catch(() => undefined);
+      const zh = locale === 'zh-CN';
+      void navigator.clipboard.writeText(value).then(
+        () => showSuccessNotification(zh ? '已复制' : 'Copied'),
+        () => showErrorNotification(zh ? '复制失败，可以手动选中复制' : 'Copy failed — select the text to copy it'),
+      );
     },
     quoteInComposer: () => undefined,
     retryMessage: () => undefined,
@@ -839,7 +845,18 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
             </IconButton>
           </div>
         </header>
-        {error ? <Notice tone="error">{error}</Notice> : null}
+        {error ? (
+          <Notice
+            tone="error"
+            action={
+              <Button size="compact" variant="ghost" onClick={() => void reloadRoot()}>
+                {locale === 'zh-CN' ? '重试' : 'Retry'}
+              </Button>
+            }
+          >
+            {error}
+          </Notice>
+        ) : null}
         {isSearchOpen ? (
           <div className="file-tree-search-bar" data-testid="file-tree-search-bar">
             <div className="file-tree-search-field">
@@ -885,10 +902,12 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
         {/* Keep the existing tree visible during reload so resize/parent re-renders
             cannot flash an empty Loading state over the file list. */}
         {loading && rootNodes.length === 0 ? (
-          <div className="file-tree-loading">
-            <Spinner />
-            <span className="muted">Loading…</span>
-          </div>
+          <Skeleton
+            className="file-tree-skeleton"
+            variant="list"
+            label={locale === 'zh-CN' ? '正在读取文件…' : 'Loading files…'}
+            rows={[46, 62, 38, 70, 54, 42]}
+          />
         ) : (
           <ul
             className="file-tree-list"

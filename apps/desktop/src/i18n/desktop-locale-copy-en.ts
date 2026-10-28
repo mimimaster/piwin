@@ -228,6 +228,7 @@ export const DESKTOP_COPY_EN: DesktopCopy = {
       stopJob: 'Stop program',
       viewJobLogsTitle: (label) => `View logs for ${label}`,
       hostConnecting: 'Host: Connecting…',
+      hostReconnected: 'Reconnected to Host',
       hostUnreachable: (host) =>
         `Cannot reach ${host}. Check that the computer is on, piwin is running, and both are on the same network.`,
       hostRetry: 'Retry',

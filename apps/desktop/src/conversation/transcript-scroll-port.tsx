@@ -44,9 +44,10 @@ export type TranscriptScrollPort = {
   beginLocalFoldLayout: () => void;
   /**
    * A deliberate jump (history tick) is about to move the reader. Call once,
-   * before the first scroll, so the viewport can offer the way back.
+   * before the first scroll, so a reading-position restore still in flight
+   * cannot pull the viewport back.
    */
-  markJumpOrigin: () => void;
+  beginDeliberateJump: () => void;
 };
 
 const TranscriptScrollContext = createContext<TranscriptScrollPort | null>(null);
@@ -60,7 +61,7 @@ export function TranscriptScrollProvider(props: {
   isFollowingTail?: () => boolean;
   beginProgrammaticScroll?: () => void;
   beginLocalFoldLayout?: () => void;
-  markJumpOrigin?: () => void;
+  beginDeliberateJump?: () => void;
   /** Owner-held slot for the list's anchor restorer (history paging lives above this provider). */
   readingAnchorRestorerRef?: MutableRefObject<TranscriptReadingAnchorRestorer | null>;
   children: ReactNode;
@@ -83,8 +84,8 @@ export function TranscriptScrollProvider(props: {
   beginProgrammaticScrollRef.current = props.beginProgrammaticScroll;
   const beginLocalFoldLayoutRef = useRef(props.beginLocalFoldLayout);
   beginLocalFoldLayoutRef.current = props.beginLocalFoldLayout;
-  const markJumpOriginRef = useRef(props.markJumpOrigin);
-  markJumpOriginRef.current = props.markJumpOrigin;
+  const beginDeliberateJumpRef = useRef(props.beginDeliberateJump);
+  beginDeliberateJumpRef.current = props.beginDeliberateJump;
 
   const registerMessageScroller = useCallback((scroller: TranscriptMessageScroller) => {
     messageScrollerRef.current = scroller;
@@ -125,8 +126,8 @@ export function TranscriptScrollProvider(props: {
     beginLocalFoldLayoutRef.current?.();
   }, []);
 
-  const markJumpOrigin = useCallback((): void => {
-    markJumpOriginRef.current?.();
+  const beginDeliberateJump = useCallback((): void => {
+    beginDeliberateJumpRef.current?.();
   }, []);
 
   const scrollToMessage = useCallback((messageId: string): boolean => {
@@ -151,7 +152,7 @@ export function TranscriptScrollProvider(props: {
       beginProgrammaticScroll,
       beginLocalFoldLayout,
       notifyContentGrew,
-      markJumpOrigin,
+      beginDeliberateJump,
     }),
     [
       props.sessionId,
@@ -165,7 +166,7 @@ export function TranscriptScrollProvider(props: {
       beginProgrammaticScroll,
       beginLocalFoldLayout,
       notifyContentGrew,
-      markJumpOrigin,
+      beginDeliberateJump,
     ],
   );
 

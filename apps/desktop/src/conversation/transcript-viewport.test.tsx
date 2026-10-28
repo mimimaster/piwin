@@ -246,53 +246,6 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(container.querySelector('[data-testid="jump-to-latest-badge"]')).toBeNull();
   });
 
-  it('offers the way back after jumping to latest from history', async () => {
-    await renderSession('return-session', { rows: READING_ROWS, messageCount: 4 });
-    await finishOpening();
-    await scrollReaderTo(620);
-    expect(container.querySelector('[data-testid="transcript-return-point-btn"]')).toBeNull();
-
-    act(() => container.querySelector<HTMLButtonElement>('[data-testid="jump-to-latest-btn"]')?.click());
-    expect(streamElement().scrollTop).toBe(1_000);
-    const back = container.querySelector<HTMLButtonElement>('[data-testid="transcript-return-point-btn"]');
-    expect(back?.getAttribute('aria-label')).toBe('Back to where you were');
-    // Alone in the bottom slot while jump-to-latest is hidden.
-    expect(back?.classList.contains('is-stacked')).toBe(false);
-
-    act(() => back?.click());
-    expect(streamElement().scrollTop).toBe(620);
-    expect(container.querySelector('[data-testid="transcript-return-point-btn"]')).toBeNull();
-  });
-
-  it('offers the way back after a history tick jump', async () => {
-    const portRef: { current: TranscriptScrollPort | null } = { current: null };
-    await renderSession('tick-session', { rows: READING_ROWS, messageCount: 4, portRef });
-    await finishOpening();
-    await scrollReaderTo(320);
-
-    // What the ticks drawer does: mark, then move the reader.
-    await act(async () => {
-      portRef.current?.markJumpOrigin();
-      portRef.current?.detachFromTail();
-      streamElement().scrollTop = 500;
-      streamElement().dispatchEvent(new Event('scroll'));
-    });
-    const back = container.querySelector<HTMLButtonElement>('[data-testid="transcript-return-point-btn"]');
-    // Jump-to-latest is also showing, so the way back stacks above it.
-    expect(back?.classList.contains('is-stacked')).toBe(true);
-
-    act(() => back?.click());
-    expect(streamElement().scrollTop).toBe(320);
-  });
-
-  it('does not offer a way back for a jump made from the live tail', async () => {
-    const portRef: { current: TranscriptScrollPort | null } = { current: null };
-    await renderSession('tick-tail-session', { rows: READING_ROWS, messageCount: 4, portRef });
-    await finishOpening();
-    act(() => portRef.current?.markJumpOrigin());
-    expect(container.querySelector('[data-testid="transcript-return-point-btn"]')).toBeNull();
-  });
-
   it('seeks a remembered message that is no longer resident once the open refresh lands', async () => {
     rememberTranscriptScrollPosition('seek-session', {
       followTail: false,

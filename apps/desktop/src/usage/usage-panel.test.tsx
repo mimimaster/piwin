@@ -212,54 +212,108 @@ describe('UsagePanel', () => {
     }
   });
 
-  it('shows reference cost as the first summary card, with notes and breakdown on demand', async () => {
+  it('shows reference cost as the first summary card and the 费用构成 section below', async () => {
+    vi.useFakeTimers({ now: new Date('2026-08-03T12:00:00Z'), toFake: ['Date'] });
+    const firstDay = SAMPLE_ROLLUP.byDay['2026-08-01'];
+    const secondDay = SAMPLE_ROLLUP.byDay['2026-08-02'];
+    if (!firstDay || !secondDay) throw new Error('sample rollup lost its days');
     const rollup: UsageRollup = {
       ...SAMPLE_ROLLUP, estimatedCostUsd: 0.006975, pricedEntryCount: 2,
       pricingCatalog: { source: 'models.dev', catalogVersion: 'models.dev@test', fetchedAt: '2026-10-09T00:00:00Z' },
       byModelKey: SAMPLE_ROLLUP.byModelKey.map((row, index) => index === 0
         ? { ...row, estimatedCostUsd: 0.006975, pricedEntryCount: 2, costReference: 'reference/gpt-4o' }
         : { ...row, pricedEntryCount: 0 }),
+      byDay: {
+        ...SAMPLE_ROLLUP.byDay,
+        '2026-08-01': { ...firstDay, estimatedCostUsd: 0.006975, pricedEntryCount: 2 },
+        '2026-08-02': { ...secondDay, pricedEntryCount: 0 },
+      },
     };
     const log: UsageCallLog = { ...SAMPLE_CALL_LOG, entries: SAMPLE_CALL_LOG.entries.map((entry, index) => index === 0
       ? { ...entry, cost: { usd: 0.006975, reference: 'reference/gpt-4o' } } : entry) };
+    try {
+      ({ root, container } = renderPanel({ request: async (command) => okResponse(
+        command.type === 'usage/list-recent' ? { log } : { rollup },
+      ) }));
+      await flushLoad();
+
+      const cards = container?.querySelectorAll('.usage-summary-card');
+      expect(cards?.[0]?.getAttribute('data-testid')).toBe('usage-cost-card');
+      expect(cards?.[0]?.getAttribute('data-cost-state')).toBe('partial');
+      expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('<$0.01');
+      expect(container?.querySelector('[data-testid="usage-cost-meta"]')?.textContent).toBe('已计价 66% · 1 次未计价');
+      expect(container?.querySelector('[data-testid="usage-cost-per-call"]')?.textContent).toBe('$0.003');
+      // The card carries no buttons; everything else lives in the section.
+      expect(cards?.[0]?.querySelector('button')).toBeNull();
+
+      const section = container?.querySelector('[data-testid="usage-cost-section"]');
+      expect(section).not.toBeNull();
+      // 30-day window, quiet days included; the unpriced day is marked, not zero.
+      const bars = section?.querySelectorAll('[data-testid="usage-cost-trend-bar"]') ?? [];
+      expect(bars.length).toBe(31);
+      expect([...bars].filter((bar) => bar.getAttribute('data-unpriced') === 'true')).toHaveLength(1);
+      expect(section?.querySelector('[data-testid="usage-cost-trend-readout"]')?.textContent).toContain('峰值');
+
+      // The unpriced Key is not ranked among the priced rows.
+      const rows = section?.querySelectorAll('[data-testid="usage-cost-row"]') ?? [];
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.textContent).toContain('gpt-4o');
+      expect(rows[0]?.textContent).toContain('work-key');
+      expect(rows[0]?.querySelector('[data-testid="usage-cost-row-cost"]')?.textContent).toContain('<$0.01');
+      expect(section?.querySelector('[data-testid="usage-cost-total-row"]')?.textContent).toContain('合计');
+
+      const unpriced = section?.querySelector('[data-testid="usage-cost-unpriced-row"]');
+      const unpricedToggle = unpriced?.querySelector<HTMLButtonElement>('button[aria-expanded]');
+      expect(unpricedToggle?.getAttribute('aria-expanded')).toBe('false');
+      await act(async () => { unpricedToggle?.click(); });
+      const unpricedChildren = section?.querySelectorAll('[data-testid="usage-cost-unpriced-child"]') ?? [];
+      expect(unpricedChildren).toHaveLength(1);
+      expect(unpricedChildren[0]?.textContent).toContain('personal-key');
+
+      // Pricing basis sits under the table; mappings open on request.
+      expect(section?.querySelector('[data-testid="usage-cost-source"]')?.textContent).toContain('models.dev');
+      expect(section?.querySelector('[data-testid="usage-cost-coverage"]')?.textContent).toMatch(/2.*3/);
+      expect(section?.querySelector('[data-testid="usage-cost-exact"]')?.textContent).toContain('$0.0070');
+      expect(section?.querySelector('[data-testid="usage-cost-mappings"]')).toBeNull();
+      const mappingsToggle = section?.querySelector<HTMLButtonElement>('[data-testid="usage-cost-mappings-toggle"]');
+      await act(async () => { mappingsToggle?.click(); });
+      expect(section?.querySelector('[data-testid="usage-cost-mappings"]')?.textContent).toContain('reference/gpt-4o');
+
+      const cells = container?.querySelectorAll('[data-testid="usage-call-cost"]');
+      expect(cells?.[0]?.textContent).toBe('$0.0070');
+      expect(cells?.[0]?.getAttribute('title')).toBe('reference/gpt-4o');
+      expect(cells?.[1]?.textContent).toBe('—');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('expands a model merged across Keys and switches grouping', async () => {
+    const rollup: UsageRollup = {
+      ...SAMPLE_ROLLUP, estimatedCostUsd: 0.03, pricedEntryCount: 3,
+      byModelKey: SAMPLE_ROLLUP.byModelKey.map((row, index) => ({
+        ...row, estimatedCostUsd: index === 0 ? 0.02 : 0.01, pricedEntryCount: row.entryCount,
+      })),
+    };
     ({ root, container } = renderPanel({ request: async (command) => okResponse(
-      command.type === 'usage/list-recent' ? { log } : { rollup },
+      command.type === 'usage/list-recent' ? { log: SAMPLE_CALL_LOG } : { rollup },
     ) }));
     await flushLoad();
 
-    const cards = container?.querySelectorAll('.usage-summary-card');
-    expect(cards?.[0]?.getAttribute('data-testid')).toBe('usage-cost-card');
-    expect(cards?.[0]?.getAttribute('data-cost-state')).toBe('partial');
-    expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('<$0.01');
-    expect(container?.querySelector('[data-testid="usage-cost-meta"]')?.textContent).toContain('1');
-    // No full-width cost panel and no reference paths on the default page.
-    expect(container?.querySelector('[data-testid="usage-cost-details"]')).toBeNull();
-    expect(container?.textContent).not.toContain('reference/gpt-4o');
+    const section = container?.querySelector('[data-testid="usage-cost-section"]');
+    const rows = section?.querySelectorAll('[data-testid="usage-cost-row"]') ?? [];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.textContent).toContain('2 个 Key');
+    const expand = rows[0]?.querySelector<HTMLButtonElement>('button[aria-expanded]');
+    await act(async () => { expand?.click(); });
+    const children = section?.querySelectorAll('[data-testid="usage-cost-child-row"]') ?? [];
+    expect([...children].map((child) => child.textContent?.includes('work-key'))).toEqual([true, false]);
 
-    const notesTrigger = container?.querySelector<HTMLButtonElement>('[data-testid="usage-cost-notes-trigger"]');
-    await act(async () => { notesTrigger?.click(); });
-    const notes = document.querySelector('[data-testid="usage-cost-notes"]');
-    expect(notes?.querySelector('[data-testid="usage-cost-exact"]')?.textContent).toBe('$0.0070');
-    expect(notes?.querySelector('[data-testid="usage-cost-coverage"]')?.textContent).toMatch(/2.*3.*1/);
-    expect(notes?.querySelector('[data-testid="usage-cost-source"]')?.textContent).toContain('models.dev');
-    expect(notes?.querySelector('[data-testid="usage-cost-mappings"]')?.textContent).toContain('reference/gpt-4o');
-    await act(async () => { notesTrigger?.click(); });
-
-    const toggle = container?.querySelector<HTMLButtonElement>('[data-testid="usage-cost-details-toggle"]');
-    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-    await act(async () => { toggle?.click(); });
-    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
-    const rows = container?.querySelectorAll('[data-testid="usage-cost-model-row"]');
-    expect(rows).toHaveLength(2);
-    expect(rows?.[0]?.querySelector('[data-testid="usage-cost-row-cost"]')?.textContent).toBe('$0.0070');
-    expect(rows?.[1]?.querySelector('[data-testid="usage-cost-row-cost"]')?.textContent).toBe('—');
-    await act(async () => { toggle?.click(); });
-    expect(container?.querySelector('[data-testid="usage-cost-details"]')).toBeNull();
-
-    const cells = container?.querySelectorAll('[data-testid="usage-call-cost"]');
-    expect(cells?.[0]?.textContent).toBe('$0.0070');
-    expect(cells?.[0]?.getAttribute('title')).toBe('reference/gpt-4o');
-    expect(cells?.[1]?.textContent).toBe('—');
+    const byKey = section?.querySelector<HTMLInputElement>('[data-testid="usage-cost-grouping"] input[value="key"]');
+    await act(async () => { byKey?.click(); });
+    const keyRows = section?.querySelectorAll('[data-testid="usage-cost-row"]') ?? [];
+    expect([...keyRows].map((row) => row.textContent?.includes('work-key'))).toEqual([true, false]);
+    expect(section?.querySelectorAll('[data-testid="usage-cost-child-row"]')).toHaveLength(0);
   });
 
   it('keeps old Hosts unknown instead of showing a free cost', async () => {
@@ -267,7 +321,7 @@ describe('UsagePanel', () => {
     await flushLoad();
     expect(container?.querySelector('[data-testid="usage-cost-card"]')?.getAttribute('data-cost-state')).toBe('unsupported');
     expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('—');
-    expect(container?.querySelector('[data-testid="usage-cost-notes-trigger"]')).toBeNull();
+    expect(container?.querySelector('[data-testid="usage-cost-section"]')).toBeNull();
     expect(container?.querySelector('[data-testid="usage-call-cost"]')?.textContent).toBe('—');
   });
 

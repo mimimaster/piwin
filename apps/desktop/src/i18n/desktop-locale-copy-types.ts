@@ -206,6 +206,8 @@ export type DesktopCopy = {
     stopJob: string;
     viewJobLogsTitle: (label: string) => string;
     hostConnecting: string;
+    /** One-shot toast when a noticeable outage ends. */
+    hostReconnected: string;
     hostUnreachable: (host: string) => string;
     hostRetry: string;
     hostSwitch: string;

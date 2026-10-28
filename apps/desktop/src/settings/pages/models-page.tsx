@@ -1,6 +1,6 @@
 /** Settings → unified model configuration workspace. */
 import { useCallback, useState, type ReactElement, type ReactNode } from 'react';
-import { Tabs, TabsContent } from '@piwin/ui-kit';
+import { Tabs, TabsContent, Skeleton } from '@piwin/ui-kit';
 import { ModelCatalogSyncControl } from '../model-catalog-sync-control';
 import { ProviderSettings } from '../../models/ProviderSettings';
 import { VisionDelegationSettings } from '../../media/VisionDelegationSettings';
@@ -77,9 +77,11 @@ export function ModelsPage(): ReactElement {
 
   if (!config) {
     return (
-      <p className="muted" data-testid="settings-models-loading">
-        {isChinese ? '正在加载配置…' : 'Loading configuration…'}
-      </p>
+      <Skeleton
+        testId="settings-models-loading"
+        label={isChinese ? '正在加载配置…' : 'Loading configuration…'}
+        rows={[40, 88, 70, 92]}
+      />
     );
   }
 

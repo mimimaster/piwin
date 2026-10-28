@@ -54,10 +54,7 @@ export function shouldResetDocumentScroll(view: Window): boolean {
   return visual.offsetTop > 0 || view.scrollY > 0;
 }
 
-export function applyWebViewportCssVars(
-  root: HTMLElement,
-  metrics: WebViewportMetrics,
-): void {
+export function applyWebViewportCssVars(root: HTMLElement, metrics: WebViewportMetrics): void {
   root.style.setProperty(WEB_VIEWPORT_HEIGHT_VAR, `${metrics.height}px`);
   root.style.setProperty(WEB_VIEWPORT_KEYBOARD_INSET_VAR, `${metrics.keyboardInset}px`);
 }
@@ -65,4 +62,30 @@ export function applyWebViewportCssVars(
 export function clearWebViewportCssVars(root: HTMLElement): void {
   root.style.removeProperty(WEB_VIEWPORT_HEIGHT_VAR);
   root.style.removeProperty(WEB_VIEWPORT_KEYBOARD_INSET_VAR);
+}
+
+/**
+ * The shell pins the document at the origin (see shouldResetDocumentScroll),
+ * which also undoes the pan iOS uses to reveal a focused field. After the
+ * keyboard has shrunk the shell, scroll the field into view inside its own
+ * scroll container instead.
+ */
+export function revealFocusedField(doc: Document): void {
+  const active = doc.activeElement;
+  if (!(active instanceof HTMLElement) || !isTextEntry(active)) {
+    return;
+  }
+  active.scrollIntoView({ block: 'center', inline: 'nearest' });
+}
+
+function isTextEntry(element: HTMLElement): boolean {
+  if (element.isContentEditable || element instanceof HTMLTextAreaElement) {
+    return true;
+  }
+  if (!(element instanceof HTMLInputElement)) {
+    return false;
+  }
+  return !['button', 'checkbox', 'radio', 'range', 'submit', 'reset', 'file', 'color'].includes(
+    element.type,
+  );
 }

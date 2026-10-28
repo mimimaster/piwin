@@ -265,6 +265,14 @@
 
 /* ── Library States (Loading, Scanning & Error Cards) ──────────────── */
 
+.lib-skeleton {
+  padding: 24px;
+}
+
+.lib-skeleton .ui-skeleton-bar {
+  height: 240px;
+}
+
 .lib-state {
   display: flex;
   flex-direction: column;

@@ -3,7 +3,7 @@
  * Handles collapsible overflow, image attachments, copy/revert/intervention actions,
  * and conversation-mode right-aligned layout with light avatar.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
 import { formatTurnExactStamp, formatTurnRelativeAge } from './chat-turn-marginalia.js';
 import { MessageAttachments } from './message-attachments';
@@ -148,11 +148,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
             ? isChinese
               ? '当前任务已结束，未应用'
               : 'Run ended before it was applied'
-            : interventionStatus === 'cancelled'
-              ? isChinese
-                ? '已取消'
-                : 'Cancelled'
-              : interventionStatus === 'uncertain'
+            : interventionStatus === 'uncertain'
                 ? isChinese
                   ? '是否应用无法确认'
                   : 'Application could not be confirmed'
@@ -163,7 +159,10 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
                   : null;
 
   // Measure natural height of the text node to determine if it needs collapsing.
-  useEffect(() => {
+  // Before paint: measured after paint, the first frame drew the default
+  // footer and the turn changed height one frame later — under a reader who
+  // had just switched to the session.
+  useLayoutEffect(() => {
     const textNode = textRef.current;
     const bubble = bodyRef.current;
     if (!textNode && !bubble) return;

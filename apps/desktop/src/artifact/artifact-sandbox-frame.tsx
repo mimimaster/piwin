@@ -35,6 +35,7 @@ import { artifactScriptErrorCopy } from './artifact-script-error-copy.js';
 import { ArtifactLayoutBadge } from './artifact-layout-badge.js';
 import { ArtifactContrastBadge, type ArtifactStyleOverride } from './artifact-style-override.js';
 import { useTranscriptScrollPort } from '../conversation/transcript-scroll-port.js';
+import { readRememberedArtifactHeight, rememberArtifactHeight } from './artifact-height-memory.js';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
 /**
@@ -167,8 +168,14 @@ export function ArtifactSandboxFrame(props: {
   });
   usePublishedArtifactDocument(document, lease.hostIframe && lease.initGranted);
   const scrollPort = useTranscriptScrollPort();
-  const bootstrapHeight = resolveBootstrapHeight(props.plan, props.presentation, frameWidth);
   const measureHeight = props.presentation === 'inline' && plannedFrameMode === 'inline-flow';
+  // A final inline document starts at the height it had last time it mounted.
+  const remembersHeight = measureHeight && !document.streamLifecycle;
+  const rememberedHeight = remembersHeight
+    ? readRememberedArtifactHeight(channelId, frameWidth)
+    : null;
+  const bootstrapHeight =
+    rememberedHeight ?? resolveBootstrapHeight(props.plan, props.presentation, frameWidth);
   // First script failure of the current document. A broken artifact used to
   // show whatever placeholder its author left behind ("enable JavaScript"),
   // which reads as a platform block rather than the author's own bug.
@@ -212,6 +219,11 @@ export function ArtifactSandboxFrame(props: {
         }
       : {}),
   });
+  useEffect(() => {
+    if (remembersHeight && bridge.status === 'ready' && !bridge.overflowsInlineFlow) {
+      rememberArtifactHeight(channelId, frameWidth, bridge.height);
+    }
+  }, [bridge.height, bridge.overflowsInlineFlow, bridge.status, channelId, frameWidth, remembersHeight]);
   const appliedFrameMode = bridge.overflowsInlineFlow
     ? advanceArtifactFrameMode(plannedFrameMode, 'inline-overflow')
     : plannedFrameMode;

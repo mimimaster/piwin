@@ -138,6 +138,7 @@
 @import './styles/region-phone.css';
 @import './styles/region-phone-edge.css';
 @import './styles/region-phone-touch.css';
+@import './styles/region-phone-glass.css';
 @import './styles/conversation-shell-switch.css';
 @import './styles/window-material.css';
 @import './styles/window-material-overlays.css';

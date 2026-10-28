@@ -32,7 +32,7 @@ export function scrollTranscriptToMessage(messageId: string): boolean {
 }
 
 /**
- * Jump to a user message, offering the way back first. Resident rows scroll
+ * Jump to a user message. Resident rows scroll
  * in place; otherwise the Host window around `anchor` is fetched and the
  * row is settled over the next frames while the window commits.
  */
@@ -43,7 +43,7 @@ export function jumpToHistoryMessage(options: {
   onJumpToAnchor: HistoryAnchorJumpHandler | undefined;
 }): void {
   const { port, messageId, anchor, onJumpToAnchor } = options;
-  port?.markJumpOrigin();
+  port?.beginDeliberateJump();
   // Resident rows first. scrollToMessage() is false for short
   // (non-virtualized) transcripts and for ticks whose DOM node is already
   // mounted — those used to fall through to a Host window fetch.

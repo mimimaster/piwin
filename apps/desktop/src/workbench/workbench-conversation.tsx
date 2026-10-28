@@ -35,12 +35,13 @@ import { buildEmptyStageAgentControl } from '../conversation/empty-stage-agent-c
 import type { ChatMessageUi, ChatUiState, SessionListItemUi } from '../conversation/chat-reducer';
 import type { EditResendCarry } from '../conversation/conversation-branch';
 import { ComposerDock, type ComposerDockProps } from '../composer/composer-dock';
-import type { DesktopLocale } from '../i18n/desktop-locale';
+import { getDesktopCopy, type DesktopLocale } from '../i18n/desktop-locale';
 import { EmptyStageLanding } from '../conversation/empty-stage-landing';
 import { ExtensionUiPrompt, type ExtensionUiResolvePayload } from '../extensions/extension-ui-prompt';
 import type { HostClient } from '../host/host-client';
 import { HostReconnectBanner } from '../host/host-reconnect-banner';
 import { shouldShowHostReconnectBanner } from '../host/host-reconnect-gate.js';
+import { useHostReconnectedNotice } from '../host/use-host-reconnected-notice.js';
 import type { DoccardsHostRequest } from '../knowledge/knowledge-host-request';
 import type { ModelOption } from '../models/model-options';
 import { PermissionBar } from '../settings/permission-bar';
@@ -241,6 +242,12 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     [hostClient],
   );
 
+  const hostLinkDown = shouldShowHostReconnectBanner({
+    transport: hostClient.getTransport(),
+    wireReady: hostClient.isReady(),
+  });
+  useHostReconnectedNotice(hostLinkDown, getDesktopCopy(locale).composer.hostReconnected);
+
   return (
     <RunIdleLoopProvider
       sessionId={activeSessionId}
@@ -248,10 +255,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
       locale={locale}
     >
     <ToolOutputReaderContext.Provider value={toolOutputReader}>
-      {shouldShowHostReconnectBanner({
-        transport: hostClient.getTransport(),
-        wireReady: hostClient.isReady(),
-      }) ? (
+      {hostLinkDown ? (
         <HostReconnectBanner locale={locale} />
       ) : null}
       <div className="transcript-stage">

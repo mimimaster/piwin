@@ -15,27 +15,36 @@ test('usage statistics integrates reference USD cost into the existing page', as
   await expect(page.locator('.usage-summary-card').first()).toHaveAttribute('data-testid', 'usage-cost-card');
   await expect(page.getByTestId('usage-cost-total')).toHaveText('$0.38');
   await expect(page.getByTestId('usage-request-count')).toHaveText('66');
-  await expect(page.getByTestId('usage-cost-details')).toHaveCount(0);
+  // The card has no buttons of its own; 费用构成 is a section of the page.
+  await expect(card.locator('button')).toHaveCount(0);
+  const section = page.getByTestId('usage-cost-section');
+  await expect(section).toBeVisible();
   await expect(page.getByTestId('usage-panel')).not.toContainText('mock/gpt-5.2-codex');
 
-  // Pricing notes: keyboard-reachable popover with exact amount and basis.
-  await page.getByTestId('usage-cost-notes-trigger').focus();
-  await page.keyboard.press('Enter');
-  const notes = page.getByTestId('usage-cost-notes');
-  await expect(notes.getByTestId('usage-cost-exact')).toHaveText(/\$0\.384[01]/);
-  await expect(notes.getByTestId('usage-cost-coverage')).toContainText('66 / 66');
-  await expect(notes.getByTestId('usage-cost-source')).toContainText('models.dev');
-  await page.keyboard.press('Escape');
-  await expect(notes).toHaveCount(0);
+  // Daily trend spans the 30-day window; hover changes only the readout.
+  await expect(section.getByTestId('usage-cost-trend-bar')).toHaveCount(31);
+  const readout = section.getByTestId('usage-cost-trend-readout');
+  await expect(readout).toContainText('峰值');
+  await section.getByTestId('usage-cost-trend-bar').last().hover();
+  await expect(readout).toContainText('次请求');
 
-  // Breakdown is opt-in.
-  const toggle = page.getByTestId('usage-cost-details-toggle');
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByTestId('usage-cost-model-row')).toHaveCount(3);
-  await expect(page.getByTestId('usage-cost-details')).toContainText('openai-work');
-  await toggle.click();
-  await expect(page.getByTestId('usage-cost-details')).toHaveCount(0);
+  // By model: gpt-5.2-codex merges two Keys and expands in place.
+  const rows = section.getByTestId('usage-cost-row');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText('2 个 Key');
+  await rows.first().getByRole('button', { name: /展开/ }).click();
+  await expect(section.getByTestId('usage-cost-child-row')).toHaveCount(2);
+  await expect(section.getByTestId('usage-cost-child-row').first()).toContainText('openai-work');
+
+  // By Key: three rows, no children.
+  await section.getByTestId('usage-cost-grouping').getByText('按 Key').click();
+  await expect(rows).toHaveCount(3);
+  await expect(section.getByTestId('usage-cost-child-row')).toHaveCount(0);
+
+  // Pricing basis sits under the table.
+  await expect(section.getByTestId('usage-cost-exact')).toHaveText(/\$0\.384[01]/);
+  await expect(section.getByTestId('usage-cost-coverage')).toContainText('66 / 66');
+  await expect(section.getByTestId('usage-cost-source')).toContainText('models.dev');
 
   // 137 mock calls at the default 20 rows per page.
   await expect(page.getByTestId('usage-call-row')).toHaveCount(20);

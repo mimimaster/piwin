@@ -1,11 +1,6 @@
-/* ─── Jump controls: unseen badge, return point, scrollbar turn readout ─
-   Both reuse `.jump-to-latest-btn` (region-transcript.css) for the circle and
-   its glass material. The return control takes the bottom slot on its own and
-   stacks above jump-to-latest when both show. Position only — no transform. */
-
-.jump-to-latest-btn.transcript-return-point-btn.is-stacked {
-  bottom: calc(var(--s-5) + var(--h-md) + var(--s-2));
-}
+/* ─── Jump controls: unseen badge, scrollbar turn readout ─
+   The circle and its glass material live on `.jump-to-latest-btn`
+   (region-transcript.css). */
 
 .jump-to-latest-badge {
   position: absolute;

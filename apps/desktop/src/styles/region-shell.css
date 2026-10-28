@@ -314,11 +314,17 @@
 
 /* ── Boot gate: choose Host / connect wall before the workbench mounts ─── */
 
+/* Sized to the visible viewport and scrollable: on a phone the keyboard
+   shrinks --app-vv-height, and a centred card that cannot scroll would leave
+   the pairing-link field under the keyboard with the page pinned to the top.
+   The card centres with auto margins, which never clip it the way
+   align-items: center does once it is taller than the gate. */
 .host-gate {
-  height: 100%;
+  height: var(--app-vv-height, 100%);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: var(--s-8);
   background: var(--void);
   color: var(--text-1);
@@ -326,6 +332,7 @@
 
 .host-gate-card {
   width: min(420px, 100%);
+  margin: auto;
   display: flex;
   flex-direction: column;
   gap: var(--s-5);

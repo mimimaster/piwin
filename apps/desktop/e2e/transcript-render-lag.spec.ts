@@ -74,9 +74,15 @@ async function installSampler(page: Page): Promise<void> {
         chunks,
         userBubbles,
       });
-      requestAnimationFrame(sample);
+      requestAnimationFrame(afterPaint);
     };
-    requestAnimationFrame(sample);
+    // rAF runs before this frame's layout and ResizeObserver callbacks; a
+    // task posted from it runs after the frame is painted, so the sample is
+    // what the reader saw, not an intermediate state the observers fixed.
+    const channel = new MessageChannel();
+    channel.port1.onmessage = sample;
+    const afterPaint = (): void => channel.port2.postMessage(null);
+    requestAnimationFrame(afterPaint);
   });
 }
 
@@ -90,8 +96,10 @@ function lastInputBefore(sampled: Sampled, at: number): number | null {
 }
 
 /** Visible anchors that moved between consecutive frames with no input in between. */
-function findJumps(frames: Frame[], sampled: Sampled, fromAt: number): Array<{ afterMs: number; px: number }> {
-  const jumps: Array<{ afterMs: number; px: number }> = [];
+type Jump = { afterMs: number; px: number; id: string };
+
+function findJumps(frames: Frame[], sampled: Sampled, fromAt: number): Jump[] {
+  const jumps: Jump[] = [];
   for (let index = 1; index < frames.length; index += 1) {
     const previous = frames[index - 1];
     const current = frames[index];
@@ -100,11 +108,15 @@ function findJumps(frames: Frame[], sampled: Sampled, fromAt: number): Array<{ a
     const input = lastInputBefore(sampled, current.at);
     if (input !== null && input > previous.at - 50) continue;
     let moved = 0;
+    let movedId = '';
     for (const anchor of current.anchors) {
       const before = previous.anchors.find((candidate) => candidate.id === anchor.id);
-      if (before && Math.abs(anchor.top - before.top) > Math.abs(moved)) moved = anchor.top - before.top;
+      if (before && Math.abs(anchor.top - before.top) > Math.abs(moved)) {
+        moved = anchor.top - before.top;
+        movedId = anchor.id;
+      }
     }
-    if (Math.abs(moved) > 1) jumps.push({ afterMs: Math.round(current.at - fromAt), px: moved });
+    if (Math.abs(moved) > 1) jumps.push({ afterMs: Math.round(current.at - fromAt), px: moved, id: movedId });
   }
   return jumps;
 }
@@ -118,7 +130,7 @@ type OpenReport = {
   coveredMs: number;
   /** Longest frame-to-frame gap: the main thread did not paint for this long. */
   longestFrameMs: number;
-  jumps: Array<{ afterMs: number; px: number }>;
+  jumps: Jump[];
   shiftScore: number;
   longTaskMs: number;
 };
@@ -185,7 +197,7 @@ type StreamReport = {
   longestFrameMs: number;
   deltas: number;
   latencyMs: { p50: number; p95: number; max: number };
-  jumpsAfterEnd: Array<{ afterMs: number; px: number }>;
+  jumpsAfterEnd: Jump[];
   longTaskMs: number;
 };
 
@@ -245,15 +257,32 @@ async function attach(testInfo: TestInfo, name: string, report: unknown): Promis
   await testInfo.attach(name, { body: JSON.stringify(report, null, 2), contentType: 'application/json' });
 }
 
-test('render lag: cold open, stream, warm switch, history return', async ({ page }, testInfo) => {
-  test.setTimeout(180_000);
-  await page.setViewportSize({ width: 1280, height: 900 });
+async function openFixtureProject(page: Page): Promise<void> {
   await page.goto('/?e2eLongSession=1');
   await page.getByRole('button', { name: '使用本机', exact: true }).click();
   await page.getByTestId('sidebar-mode-code').click();
   await page.getByTestId('open-workspace-btn').click();
   await page.getByTestId('project-path-input').fill('/mock/piwin');
   await page.getByTestId('open-project-btn').click();
+}
+
+/**
+ * Gates are structural (no cover where none belongs, nothing moves under the
+ * reader, a delta paints within a few frames) plus loose time ceilings: this
+ * runs on the dev server, where React's development build makes every render
+ * several times slower than the shipped app. Production timings are recorded
+ * in docs/specs/long-session-reading-position.md.
+ */
+const RENDER_BUDGET = {
+  streamDeltaToPaintP95Ms: 50,
+  /** Cold open after a restart, with row heights restored from storage. */
+  cachedReopenCoverMs: 150,
+};
+
+test('render lag: cold open, stream, warm switch, history return, cached reopen', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openFixtureProject(page);
   await installSampler(page);
 
   // 1. Cold open: nothing cached for this session yet.
@@ -281,7 +310,7 @@ test('render lag: cold open, stream, warm switch, history return', async ({ page
   await attach(testInfo, 'send-and-stream', stream);
   const newSessionId = await activeSessionId(page);
 
-  // 3. Warm switch back to the long session (it sits in the warm cache).
+  // 3. Warm switch back to the long session (left for a New Agent draft).
   start = await now(page);
   await page.getByTestId('session-item').filter({ hasText: TITLE }).first().click();
   await expect.poll(() => activeSessionId(page)).toBe(longSessionId);
@@ -309,6 +338,41 @@ test('render lag: cold open, stream, warm switch, history return', async ({ page
   const historyBack = analyzeOpen(await readSampled(page), start, end, longSessionId);
   await attach(testInfo, 'history-switch-back', historyBack);
 
-  expect(coldOpen.toFirstContentMs).not.toBeNull();
-  expect(warmBack.toFirstContentMs).not.toBeNull();
+  // 5. Back at the tail, restart, open again: heights come from storage.
+  // Leave for a draft first so the restart does not resume the session itself.
+  await page.getByTestId('jump-to-latest-btn').click();
+  await page.waitForTimeout(1_500);
+  await page.getByTestId('new-session-btn-sb-top').click();
+  await page.reload();
+  const chooseLocal = page.getByRole('button', { name: '使用本机', exact: true });
+  if (await chooseLocal.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true, () => false)) {
+    await chooseLocal.click();
+  }
+  const sessionRow = page.getByTestId('session-item').filter({ hasText: TITLE }).first();
+  if (!(await sessionRow.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true, () => false))) {
+    await page.getByTestId('sidebar-mode-code').click();
+    await page.getByTestId('open-workspace-btn').click();
+    await page.getByTestId('project-path-input').fill('/mock/piwin');
+    await page.getByTestId('open-project-btn').click();
+  }
+  await page.waitForTimeout(500);
+  await installSampler(page);
+  start = await now(page);
+  await sessionRow.click();
+  await expect(page.getByTestId('transcript-opening-state')).toBeHidden();
+  end = await settle(page, 1_500);
+  const cachedReopen = analyzeOpen(await readSampled(page), start, end, longSessionId);
+  await attach(testInfo, 'cached-reopen', cachedReopen);
+
+  for (const [name, report] of Object.entries({ coldOpen, warmBack, historyBack, cachedReopen })) {
+    expect(report.toFirstContentMs, `${name} shows the session`).not.toBeNull();
+    expect(report.jumps, `${name} moves nothing under the reader`).toEqual([]);
+  }
+  expect(stream.jumpsAfterEnd, 'a settled reply does not move').toEqual([]);
+  expect(stream.latencyMs.p95).toBeLessThanOrEqual(RENDER_BUDGET.streamDeltaToPaintP95Ms);
+  // A warm session paints at once: no cover, content in the first new frame.
+  expect(warmBack.coveredMs).toBe(0);
+  expect(warmBack.toFirstContentMs).toBe(warmBack.toSessionSwapMs);
+  expect(historyBack.coveredMs).toBe(0);
+  expect(cachedReopen.coveredMs).toBeLessThanOrEqual(RENDER_BUDGET.cachedReopenCoverMs);
 });

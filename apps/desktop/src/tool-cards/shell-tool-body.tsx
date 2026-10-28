@@ -188,26 +188,34 @@ function formatTruncation(props: ShellToolBodyProps): string | undefined {
   return props.truncationNotice;
 }
 
-function CopyLink(props: { text: string; label: string; copiedLabel: string }): ReactElement {
-  const [copied, setCopied] = useState(false);
+function CopyLink(props: {
+  text: string;
+  label: string;
+  copiedLabel: string;
+  failedLabel: string;
+}): ReactElement {
+  const [result, setResult] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const copied = result === 'copied';
   useEffect(() => {
-    if (!copied) return;
-    const timer = window.setTimeout(() => setCopied(false), 1_400);
+    if (result === 'idle') return;
+    const timer = window.setTimeout(() => setResult('idle'), result === 'failed' ? 2_400 : 1_400);
     return () => window.clearTimeout(timer);
-  }, [copied]);
+  }, [result]);
   return (
     <button
       type="button"
       className={`shell-trail-link${copied ? ' is-copied' : ''}`}
       onClick={(event) => {
         event.stopPropagation();
-        void navigator.clipboard
-          ?.writeText(props.text)
-          .then(() => setCopied(true))
-          .catch(() => undefined);
+        // No clipboard API (insecure context) counts as a failure too.
+        const write = navigator.clipboard?.writeText(props.text) ?? Promise.reject(new Error('no clipboard'));
+        void write.then(
+          () => setResult('copied'),
+          () => setResult('failed'),
+        );
       }}
     >
-      {copied ? props.copiedLabel : props.label}
+      {copied ? props.copiedLabel : result === 'failed' ? props.failedLabel : props.label}
     </button>
   );
 }
@@ -391,12 +399,14 @@ export function ShellToolBody(props: ShellToolBodyProps): ReactElement {
           text={props.command}
           label={zh ? '复制命令' : 'Copy command'}
           copiedLabel={zh ? '已复制' : 'Copied'}
+          failedLabel={zh ? '复制失败' : 'Copy failed'}
         />
         {hasOutput ? (
           <CopyLink
             text={output}
             label={zh ? '复制输出' : 'Copy output'}
             copiedLabel={zh ? '已复制' : 'Copied'}
+            failedLabel={zh ? '复制失败' : 'Copy failed'}
           />
         ) : null}
       </span>

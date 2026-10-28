@@ -149,3 +149,17 @@ html:has(.app-shell[data-layout='phone']) .settings-titlebar-box {
   gap: var(--s-2);
   margin-top: var(--s-4);
 }
+
+/* ── Toasts ────────────────────────────────────────────────────────
+   The shared 64px offset clears a desktop window's chrome; on a phone that
+   lands on the titleband under the status bar. Drop toasts just below the
+   band instead, with the screen gutter on both sides. */
+html:has(.app-shell[data-layout='phone']) .mantine-Notifications-root[data-position='top-center'],
+html:has(.app-shell[data-layout='phone']) .ui-toast-host--top-center {
+  top: calc(var(--titleband-height, 44px) + var(--phone-top-inset, 0px) + 8px);
+}
+
+html:has(.app-shell[data-layout='phone']) .mantine-Notifications-root[data-position='top-center'] {
+  width: calc(100% - 24px);
+  max-width: 440px;
+}

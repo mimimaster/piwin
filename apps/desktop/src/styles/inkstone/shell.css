@@ -151,7 +151,8 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell > .sidebar {
 html[data-theme-id='piwin-inkstone-paper'] .app-shell > .workspace,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell > .workspace {
   grid-area: stage;
-  grid-row: 2;
+  /* The phone runs the stage up under its glass titleband (region-phone-glass.css). */
+  grid-row: var(--shell-stage-row, 2);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .app-shell > .right-panel,

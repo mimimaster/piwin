@@ -7,6 +7,7 @@ mod attention_notifications_windows;
 mod attention_toast;
 mod channel_secret_store;
 mod host_bridge;
+mod idle_sleep_guard;
 mod memory_pressure;
 mod pet_overlay;
 mod pty_host;
@@ -88,6 +89,10 @@ pub fn run() {
         .setup(|application| {
             piwin_artifact_webview::install_artifact_bridge(application.handle())?;
             attention_notifications::install(application.handle());
+            // Remote shells need the Host awake; held for the app's lifetime.
+            if let Some(guard) = idle_sleep_guard::IdleSleepGuard::acquire() {
+                application.manage(guard);
+            }
             // Feeds the frontend Memory Governor; no-op on unsupported platforms.
             memory_pressure::spawn_memory_pressure_monitor(application.handle().clone());
             // ADR 0097: no-op for development and shell-only builds.

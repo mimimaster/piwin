@@ -6,13 +6,7 @@
  * See docs/specs/changes-panel-scopes.md.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
-import {
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  IconButton,
-  Notice,
-} from '@piwin/ui-kit';
+import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, IconButton, Notice, Skeleton, Button } from '@piwin/ui-kit';
 import { IconMore } from '../tool-cards/shell-icons';
 import {
   isSectionExpanded,
@@ -178,7 +172,18 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
         ) : null}
       </div>
 
-      {git.error ? <Notice tone="error">{git.error}</Notice> : null}
+      {git.error ? (
+        <Notice
+          tone="error"
+          action={
+            <Button size="compact" variant="ghost" onClick={() => void git.reload()}>
+              {isZh ? '重试' : 'Retry'}
+            </Button>
+          }
+        >
+          {git.error}
+        </Notice>
+      ) : null}
 
       <div className="changes-body" data-changes-scope={scope}>
         {scope === 'turn'
@@ -195,7 +200,7 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
   function renderWorktree(worktreeScope: WorktreeScope): ReactNode {
     if (!git.snapshot) {
       return git.loading ? (
-        <div className="right-panel-empty muted">{isZh ? '正在读取工作区…' : 'Reading working tree…'}</div>
+        <Skeleton variant="list" label={isZh ? '正在读取工作区…' : 'Reading working tree…'} rows={[64, 48, 72, 40]} />
       ) : null;
     }
     if (!isRepository) {

@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { SessionSummary } from '@piwin/contracts';
-import { Button, IconButton, Select, Spinner, TextInput } from '@piwin/ui-kit';
+import { Button, IconButton, Select, TextInput, Skeleton } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useConfirmDialog } from '../../hooks/use-confirm-dialog';
 import { archivedSessionsFromListData } from './archive-session-list';
@@ -631,10 +631,13 @@ export function ArchivePage(): ReactElement {
         ) : null}
 
         {/* Content list or empty/loading state */}
-        {loading ? (
+        {loading && sessions.length === 0 ? (
           <div className="archive-loading-state" data-testid="archive-loading-state">
-            <Spinner />
-            <p className="muted">{isZh ? '正在加载归档会话…' : 'Loading archived sessions…'}</p>
+            <Skeleton
+              variant="list"
+              label={isZh ? '正在加载归档会话…' : 'Loading archived sessions…'}
+              rows={[72, 58, 84, 64, 50]}
+            />
           </div>
         ) : filteredSessions.length === 0 ? (
           <div className="archive-empty-container" data-testid="archive-empty-state">

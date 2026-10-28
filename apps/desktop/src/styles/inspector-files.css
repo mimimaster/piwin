@@ -514,6 +514,10 @@
   flex-shrink: 0;
 }
 
+.file-tree-skeleton {
+  padding: var(--s-5);
+}
+
 .file-tree-loading,
 .file-tree-empty {
   padding: var(--s-7) var(--s-5);

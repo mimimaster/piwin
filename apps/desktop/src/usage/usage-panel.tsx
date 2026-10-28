@@ -2,8 +2,8 @@
  * Compact token usage dashboard (CE-OBS).
  *
  * Information is intentionally consolidated into four peer summary cards
- * (reference cost first), one usage heatmap, and the recent-call log. The
- * model + Key cost breakdown is opt-in and collapsed by default. Provider
+ * (reference cost first), one usage heatmap, the 费用构成 section (cost
+ * trend + grouped breakdown), and the recent-call log. Provider
  * configuration ids are the safe Key dimension: API key values never reach
  * the client.
  */
@@ -22,7 +22,9 @@ import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { UsageActivityHeatmap } from './usage-activity-heatmap';
 import { UsageRecentCalls } from './usage-recent-calls';
 import { UsageCostOverviewCard } from './usage-cost-overview';
-import { UsageCostDetails } from './usage-cost-details';
+import { UsageCostSection } from './usage-cost-section';
+import { buildUsageCostSeries, formatUsageDayKey } from './usage-cost-daily';
+import { resolveUsageCostOverview } from './usage-cost-view';
 import {
   resolveUsageScopeProjectPath,
   UsageScopeControl,
@@ -76,7 +78,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
   const [callOffset, setCallOffset] = useState(0);
   const [callsLoading, setCallsLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [costDetailsOpen, setCostDetailsOpen] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -182,6 +183,19 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
     [rollup.byDay],
   );
 
+  // The trend spans the whole selected window, quiet days included; "all"
+  // starts at the first recorded day.
+  const costSeries = useMemo(() => {
+    const window = resolveUsageWindow(timeRange);
+    const now = new Date();
+    return buildUsageCostSeries(rollup.byDay, {
+      ...(window ? { startDay: formatUsageDayKey(new Date(window.from), VIEWER_TIME_ZONE) } : {}),
+      endDay: formatUsageDayKey(now, VIEWER_TIME_ZONE),
+    });
+  }, [rollup.byDay, timeRange]);
+  const costState = resolveUsageCostOverview(rollup).state;
+  const showCostSection = costState !== 'unsupported' && costState !== 'empty' && rollup.byModelKey.length > 0;
+
   const cacheReadTokens = rollup.cacheReadTokens ?? 0;
   const cacheWriteTokens = rollup.cacheWriteTokens ?? 0;
   const cacheTrafficTokens = cacheReadTokens + cacheWriteTokens;
@@ -286,12 +300,7 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
 
       <div className="usage-panel-body">
         <div className="usage-summary-grid">
-          <UsageCostOverviewCard
-            rollup={rollup}
-            isZh={isZh}
-            detailsOpen={costDetailsOpen}
-            onDetailsOpen={setCostDetailsOpen}
-          />
+          <UsageCostOverviewCard rollup={rollup} dayCount={costSeries.dayCount} isZh={isZh} />
 
           <section className="usage-summary-card">
             <span className="usage-summary-label">{isZh ? '总用量' : 'Total usage'}</span>
@@ -380,10 +389,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
           </section>
         </div>
 
-        {costDetailsOpen && rollup.byModelKey.length > 0 ? (
-          <UsageCostDetails rows={rollup.byModelKey} isZh={isZh} />
-        ) : null}
-
         <UsageActivityHeatmap
           request={props.request}
           {...(scopedProjectPath ? { projectPath: scopedProjectPath } : {})}
@@ -392,6 +397,10 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
           locale={locale}
           isZh={isZh}
         />
+
+        {showCostSection ? (
+          <UsageCostSection rollup={rollup} series={costSeries} locale={locale} isZh={isZh} />
+        ) : null}
 
         {callLogSupported ? (
           <UsageRecentCalls

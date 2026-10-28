@@ -23,7 +23,8 @@ html[data-theme-id='piwin-inkstone-ink'] .context-bar {
   box-sizing: border-box !important;
   -webkit-app-region: drag;
   app-region: drag;
-  background: transparent !important;
+  /* The phone sets a glass fill here (region-phone-glass.css). */
+  background: var(--titleband-fill, transparent) !important;
   border: 0 !important;
   border-bottom: 0 !important;
   box-shadow: none !important;

@@ -36,6 +36,25 @@ const PRODUCT_GLASS_WHITELIST = [
   ".app-shell[data-layout='compact'].has-right-panel > .right-panel.outward-column:not(.is-collapsed)",
   ".app-shell[data-layout='phone'].has-right-panel > .right-panel.outward-column:not(.is-collapsed)",
   ".app-shell[data-inspector='overlay'].has-right-panel > .right-panel.outward-column:not(.is-collapsed)",
+  // Short-lived capture / browser chrome floating over live content
+  // (screen-capture.css, browser-session.css).
+  '.browser-status-pill',
+  '.screen-capture-toolbar',
+  '.screen-capture-editor .piwin-modal-content.piwin-modal-content',
+  // Phone glass chrome (region-phone-glass.css): the titleband, frozen prompt and
+  // composer slab float over the transcript like iOS bars; overlays are glass.
+  ".app-shell[data-layout='phone'] > .context-bar",
+  ".app-shell[data-layout='phone'] .chat-column:not(.chat-column-empty) .transcript-fold-rail",
+  ".app-shell[data-layout='phone'] .composer-dock.layout-docked .slab-face",
+  ".app-shell[data-layout='phone'] .chat-column:not(.chat-column-empty) .transcript-awaiting-banner[data-testid='host-reconnect-banner']",
+  "html:has(.app-shell[data-layout='phone']) .ui-menu-content",
+  "html:has(.app-shell[data-layout='phone']) .ui-popover-content",
+  "html:has(.app-shell[data-layout='phone']) .ui-menu-content.plus-menu",
+  "html:has(.app-shell[data-layout='phone']) .ui-menu-content.plus-submenu",
+  "html:has(.app-shell[data-layout='phone']) .modal.ui-dialog-content",
+  "html:has(.app-shell[data-layout='phone']) .piwin-modal-content.piwin-modal-content",
+  "html:has(.app-shell[data-layout='phone']) .mantine-Notification-root",
+  "html:has(.app-shell[data-layout='phone']) .ui-toast",
   // Floating overlays on the macOS window material (window-material-overlays.css).
   'html[data-window-material] .ui-menu-content',
   'html[data-window-material] .ui-popover-content',

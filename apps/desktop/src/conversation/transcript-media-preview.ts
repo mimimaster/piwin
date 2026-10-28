@@ -101,6 +101,26 @@ async function resolveVaultHome(explicit?: string): Promise<string | null> {
   }
 }
 
+/**
+ * Shell-readable URL (Tauri `asset:`) for a vault file on this machine, built
+ * from logical identity alone. Null when the shell cannot address local files.
+ * The file may still be absent (remote Host, wrong extension guess): callers
+ * must treat a failed load as a miss and fall back to `media/read`.
+ */
+export async function resolveLocalVaultMediaUrl(input: {
+  sessionId: string;
+  assetId: string;
+  mimeType: string;
+  vaultHome?: string | undefined;
+}): Promise<string | null> {
+  const home = await resolveVaultHome(input.vaultHome);
+  if (!home) {
+    return null;
+  }
+  const guessed = vaultMediaAbsolutePath(home, input.sessionId, input.assetId, input.mimeType);
+  return guessed ? resolveMediaPreviewUrl(guessed) : null;
+}
+
 async function resolveReconstructedVaultUrl(input: {
   isVideo: boolean;
   sessionId: string | null;
@@ -111,17 +131,12 @@ async function resolveReconstructedVaultUrl(input: {
   if (!input.isVideo || !input.sessionId || !input.assetId) {
     return null;
   }
-  const home = await resolveVaultHome(input.vaultHome);
-  if (!home) {
-    return null;
-  }
-  const guessed = vaultMediaAbsolutePath(
-    home,
-    input.sessionId,
-    input.assetId,
-    input.mimeType ?? 'video/mp4',
-  );
-  return guessed ? resolveMediaPreviewUrl(guessed) : null;
+  return resolveLocalVaultMediaUrl({
+    sessionId: input.sessionId,
+    assetId: input.assetId,
+    mimeType: input.mimeType ?? 'video/mp4',
+    vaultHome: input.vaultHome,
+  });
 }
 
 export async function resolveTranscriptPreviewUrls(input: {

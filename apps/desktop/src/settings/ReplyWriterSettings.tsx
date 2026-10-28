@@ -5,7 +5,7 @@
  * top of VisionDelegationSettings.tsx.
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Button, Select, Switch } from '@piwin/ui-kit';
+import { Button, Select, Switch, Skeleton } from '@piwin/ui-kit';
 import type { ModelRef, PiwinConfig, ReplyWriterConfig, ReplyWriterLanguage } from '@piwin/contracts';
 import { formatError, isModelEnabled, isProviderEnabled, modelSupportsCapability } from '@piwin/contracts';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
@@ -87,7 +87,7 @@ export function ReplyWriterSettings(): ReactElement {
   }
 
   if (!config) {
-    return <p className="muted">{isChinese ? '正在加载…' : 'Loading…'}</p>;
+    return <Skeleton label={isChinese ? '正在加载…' : 'Loading…'} rows={[40, 88, 70]} />;
   }
 
   const noModels = options.length === 0;

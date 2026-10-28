@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { FileTypeIcon, IconButton, Spinner } from '@piwin/ui-kit';
+import { FileTypeIcon, IconButton, Skeleton } from '@piwin/ui-kit';
 import { IconClose } from '../tool-cards/shell-icons';
 import { CodePreviewView } from '../markdown/code-preview-view';
 import { PreviewUnavailable } from '../artifact/PreviewUnavailable';
@@ -84,10 +84,11 @@ export function FileTreePreviewPane(props: FileTreePreviewPaneProps): ReactEleme
           </header>
           <div className="file-tree-preview-body">
             {previewLoading && !preview ? (
-              <div className="file-tree-loading">
-                <Spinner />
-                <span className="muted">{locale === 'zh-CN' ? '加载中…' : 'Loading…'}</span>
-              </div>
+              <Skeleton
+                className="file-tree-skeleton"
+                label={locale === 'zh-CN' ? '加载中…' : 'Loading…'}
+                rows={[62, 90, 84, 48, 76, 66]}
+              />
             ) : null}
             {previewError ? (
               <PreviewUnavailable

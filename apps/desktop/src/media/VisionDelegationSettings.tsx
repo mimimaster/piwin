@@ -7,7 +7,7 @@
  * belong to; the one genuinely advanced note sits behind a disclosure.
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Button, Select, Switch } from '@piwin/ui-kit';
+import { Button, Select, Switch, Skeleton } from '@piwin/ui-kit';
 import type {
   ModelRef,
   PiwinConfig,
@@ -137,7 +137,7 @@ export function VisionDelegationSettings(): ReactElement {
   }
 
   if (!config) {
-    return <p className="muted">{isChinese ? '正在加载…' : 'Loading…'}</p>;
+    return <Skeleton label={isChinese ? '正在加载…' : 'Loading…'} rows={[40, 88, 70]} />;
   }
 
   const noModels = options.length === 0;

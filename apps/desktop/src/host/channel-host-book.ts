@@ -65,18 +65,35 @@ export function channelVault(): RemoteHostVault | undefined {
   return sharedVault ?? undefined;
 }
 
-/** The platform socket under the channel: the native plugin in Tauri, WebSocket in a browser. */
-export function channelInnerSocketFactory(): RelayInnerSocketFactory {
-  if (hasTauriBridge()) {
-    return (url) =>
-      createNativeRelayInnerSocket(url, async (endpoint) => {
-        const { default: PluginWebSocket } = await import('@tauri-apps/plugin-websocket');
-        return PluginWebSocket.connect(endpoint);
-      });
+/**
+ * The platform socket under the channel. WKWebView refuses cleartext `ws://`
+ * from the app origin, so a Tauri shell dials a plain LAN or Tailscale
+ * address through the native plugin. A TLS address (the relay) goes through
+ * the WebView's own WebSocket: it needs no workaround, and it keeps pairing
+ * off the plugin's shared operation queue, where a stalled reconnect to an
+ * unreachable Host could hold the relay dial until it timed out.
+ */
+export function channelInnerSocketFactory(
+  useNativePlugin: boolean = hasTauriBridge(),
+): RelayInnerSocketFactory {
+  const browserSocket: RelayInnerSocketFactory = (url) =>
+    // The DOM types declare handlers with an event argument; RelaySecureSocket
+    // assigns zero-argument ones, which the browser calls just the same.
+    new WebSocket(url) as unknown as ReturnType<RelayInnerSocketFactory>;
+  if (!useNativePlugin) {
+    return browserSocket;
   }
-  // The DOM types declare handlers with an event argument; RelaySecureSocket
-  // assigns zero-argument ones, which the browser calls just the same.
-  return (url) => new WebSocket(url) as unknown as ReturnType<RelayInnerSocketFactory>;
+  return (url) =>
+    isTlsSocketUrl(url)
+      ? browserSocket(url)
+      : createNativeRelayInnerSocket(url, async (endpoint) => {
+          const { default: PluginWebSocket } = await import('@tauri-apps/plugin-websocket');
+          return PluginWebSocket.connect(endpoint);
+        });
+}
+
+function isTlsSocketUrl(url: string): boolean {
+  return url.trim().toLowerCase().startsWith('wss://');
 }
 
 /** Loads one Host's entry and secrets so `peekChannelHost` can return them synchronously. */

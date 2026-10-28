@@ -7,6 +7,7 @@
  * its prompt article with it — however far above that article sits.
  */
 import type { ChatMessageUi } from '../conversation/chat-ui-types';
+import { transcriptVisibleTop } from '../conversation/transcript-visible-top';
 
 /** Text kept on the prompt article; the pin shows one line of it. */
 export const USER_PROMPT_PIN_MAX_CHARS = 240;
@@ -32,7 +33,7 @@ export function userPromptPinText(userMessages: readonly ChatMessageUi[]): strin
  * top, or the pin would cover the turn's last line and flicker at the seam.
  */
 export function pinnedUserPrompt(container: HTMLElement, rowPx: number): PinnedUserPrompt | null {
-  const top = container.getBoundingClientRect().top;
+  const top = transcriptVisibleTop(container);
   for (const article of container.querySelectorAll<HTMLElement>('.chat-turn-user[data-user-prompt]')) {
     const text = article.dataset.userPrompt ?? '';
     const group = article.closest<HTMLElement>('.chat-turn-group');
@@ -49,7 +50,7 @@ export function scrollToPinnedPrompt(
   article: HTMLElement,
   beginProgrammaticScroll?: () => void,
 ): void {
-  const delta = article.getBoundingClientRect().top - container.getBoundingClientRect().top;
+  const delta = article.getBoundingClientRect().top - transcriptVisibleTop(container);
   beginProgrammaticScroll?.();
   container.scrollTop += delta;
 }

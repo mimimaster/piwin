@@ -23,7 +23,7 @@ import {
 import { useTurnWorkSegmentState } from '../hooks/use-turn-work-segment-state.js';
 import { CompactionActivity } from './compaction-activity.js';
 import { isCompactionRunning } from './compaction-seam-model.js';
-import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility.js';
+import { isInstructionRowHiddenFromTranscript } from './instruction-row-visibility.js';
 import { RunStatusFooter } from '../run-activity/run-status-footer.js';
 import { TranscriptSelectionToolbar } from './transcript-selection-toolbar.js';
 import { ChatTurnView } from './chat-turn-view.js';
@@ -86,13 +86,12 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     knownIdsRef.current = known;
   }, [props.messages]);
 
-  // A pending/starting queued turn already has a dedicated Host-owned queue
-  // row above the composer. Keep its durable transcript row in state for
-  // reload/reconciliation, but do not render the same text as a second chat
-  // bubble until the Host has actually started the turn.
+  // Waiting queued turns (shown as a queue row above the composer) and
+  // cancelled instructions stay in state for reload/reconciliation but are
+  // not drawn as chat bubbles.
   const transcriptMessages = useMemo(
     () =>
-      props.messages.filter((message) => !isQueuedTurnHiddenFromTranscript(message)),
+      props.messages.filter((message) => !isInstructionRowHiddenFromTranscript(message)),
     [props.messages],
   );
   const effectiveMessages = useMemo(() => {

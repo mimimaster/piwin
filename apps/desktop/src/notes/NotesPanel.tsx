@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, TextInput, TextArea } from '@piwin/ui-kit';
+import { Button, TextInput, TextArea, Skeleton } from '@piwin/ui-kit';
 import type {
   HostResponse,
   NoteRecord,
@@ -359,7 +359,14 @@ export function NotesPanel(props: NotesPanelProps) {
         </div>
       )}
 
-      {error && <div className="doc-cards-error-banner" role="alert">⚠️ {error}</div>}
+      {error && (
+        <div className="doc-cards-error-banner" role="alert">
+          ⚠️ {error}
+          <Button size="compact" variant="ghost" onClick={() => void loadNotes()}>
+            {t('Retry', '重试')}
+          </Button>
+        </div>
+      )}
       {info && <div className="doc-cards-info-banner" role="status">ℹ️ {info}</div>}
 
       {/* Note Editor */}
@@ -429,8 +436,8 @@ export function NotesPanel(props: NotesPanelProps) {
 
       {/* Notes List */}
       <div className="notes-list-section">
-        {loading ? (
-          <p className="muted">{t('Loading notes…', '正在加载笔记…')}</p>
+        {loading && records.length === 0 ? (
+          <Skeleton variant="list" label={t('Loading notes…', '正在加载笔记…')} rows={[70, 55, 82, 46]} />
         ) : displayList.length === 0 ? (
           <div className="notes-empty-state">
             <p className="muted">

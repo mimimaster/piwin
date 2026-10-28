@@ -23,7 +23,7 @@
  * Reopening a session lands on the message the reader left on (see
  * useTranscriptReadingRestore); a reader who left at the tail reopens there.
  */
-import type { CSSProperties, ReactElement, ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
 import type { SessionUserMessageAnchor, SessionUserMessageIndexData } from '@piwin/contracts';
@@ -33,13 +33,11 @@ import { TranscriptScrollProvider } from './transcript-scroll-port';
 import { useTranscriptReveal } from '../hooks/use-transcript-reveal.js';
 import { useTranscriptHistoryPaging } from '../hooks/use-transcript-history-paging.js';
 import type { TranscriptReadingAnchorRestorer } from './transcript-reading-anchor.js';
-import { JUMP_TO_LATEST_BUTTON_ICON_PX, JumpToLatestButton } from './jump-to-latest-button';
+import { JumpToLatestButton } from './jump-to-latest-button';
 import { TranscriptFoldRail } from './transcript-fold-rail';
 import { readTranscriptScrollPosition } from './transcript-scroll-memory.js';
 import { useTranscriptReadingRestore } from '../hooks/use-transcript-reading-restore.js';
 import { useTranscriptUnseenCount } from '../hooks/use-transcript-unseen-count.js';
-import { useTranscriptReturnPoint } from '../hooks/use-transcript-return-point.js';
-import { IconBack } from '../tool-cards/shell-icons';
 import { TranscriptTurnScrollbar } from './transcript-turn-scrollbar';
 import { countIndexedUserMessages } from './indexed-user-message.js';
 import { resolveResidentTurnSpan } from './transcript-turn-scale.js';
@@ -140,12 +138,6 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     onReturnToLive: returnToLive,
   });
   handleLoadOlderRef.current = paging.loadOlder;
-  const { returnPoint, markJumpOrigin, returnToPoint } = useTranscriptReturnPoint({
-    reading,
-    isFollowingTail: scroll.isFollowingTail,
-    liveTurnId,
-    resetPagingIntent: paging.resetIntent,
-  });
   const openedSessionPinRef = useRef<{ sessionId: string; pinned: boolean } | null>(null);
 
   useLayoutEffect(() => {
@@ -201,10 +193,10 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     await props.onJumpToHistoryAnchor?.(anchor);
   }, [paging.resetIntent, props.onJumpToHistoryAnchor]);
   const handleJumpToLatest = useCallback((): void => {
-    markJumpOrigin();
+    reading.cancelPending();
     paging.resetIntent();
     returnToLive();
-  }, [markJumpOrigin, paging.resetIntent, returnToLive]);
+  }, [reading.cancelPending, paging.resetIntent, returnToLive]);
   const showJumpToLatest =
     props.messageCount > 0 &&
     (props.historyViewActive === true || scroll.showJumpToLatest);
@@ -221,8 +213,6 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       : locale === 'zh-CN'
         ? `${baseJumpToLatestLabel}（${unseenCount} 条新消息）`
         : `${baseJumpToLatestLabel} (${unseenCount} new)`;
-  const returnPointLabel = locale === 'zh-CN' ? '返回刚才位置' : 'Back to where you were';
-  const showReturnPoint = returnPoint !== null && props.messageCount > 0;
 
   return (
         <TranscriptScrollProvider
@@ -233,7 +223,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       isFollowingTail={scroll.isFollowingTail}
       beginProgrammaticScroll={scroll.beginProgrammaticScroll}
       beginLocalFoldLayout={scroll.beginLocalFoldLayout}
-      markJumpOrigin={markJumpOrigin}
+      beginDeliberateJump={reading.cancelPending}
       readingAnchorRestorerRef={readingAnchorRestorerRef}
     >
       <div className={`transcript-viewport${opening ? ' is-opening' : ''}`}>
@@ -290,11 +280,6 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           ref={scroll.containerRef}
           aria-hidden={opening}
           inert={opening}
-          style={
-            {
-              '--transcript-current-response-min-height': `${scroll.currentResponseMinHeight}px`,
-            } as CSSProperties
-          }
           onScroll={handleStreamScroll}
           role="log"
           aria-label="Conversation"
@@ -314,19 +299,6 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
             label={jumpToLatestLabel}
             onClick={handleJumpToLatest}
             badgeCount={unseenCount}
-          />
-        ) : null}
-        {showReturnPoint ? (
-          <JumpToLatestButton
-            label={returnPointLabel}
-            onClick={returnToPoint}
-            testId="transcript-return-point-btn"
-            className={
-              showJumpToLatest ? 'transcript-return-point-btn is-stacked' : 'transcript-return-point-btn'
-            }
-            icon={
-              <IconBack width={JUMP_TO_LATEST_BUTTON_ICON_PX} height={JUMP_TO_LATEST_BUTTON_ICON_PX} />
-            }
           />
         ) : null}
         {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}

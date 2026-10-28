@@ -20,6 +20,7 @@ import { memoWithLatestCallbacks } from './memo-with-latest-callbacks.js';
 import { activeSessionPermissionPrompt } from '../settings/permission-queue.js';
 import { useTranscriptComposerCard } from './transcript-composer-card.js';
 import { loadDesktopPreferences } from '../platform/ui-preferences.js';
+import { Skeleton } from '@piwin/ui-kit';
 
 export type ConversationPaneTranscriptProps = {
   sessionId: string;
@@ -96,8 +97,11 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
       data-artifact-layout-session={props.sessionId}
     >
       {state.awaitingTranscript ? (
-        <div className="conversation-pane-loading" role="status">
-          {props.locale === 'zh-CN' ? '正在加载会话…' : 'Loading conversation…'}
+        <div className="conversation-pane-loading">
+          <Skeleton
+            label={props.locale === 'zh-CN' ? '正在加载会话…' : 'Loading conversation…'}
+            rows={[36, 94, 88, 70, 92, 54]}
+          />
         </div>
       ) : null}
       {!showThread && !state.awaitingTranscript ? (

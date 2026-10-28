@@ -1,7 +1,7 @@
-/* ── Reference cost (one summary card + on-demand details) ───────────
-   Cost is a peer of the token/cache/activity readouts: same card, same
-   type scale. Notes and breakdown stay behind explicit, keyboard-reachable
-   controls so the default page height does not grow. */
+/* ── Reference cost: summary card + 费用构成 section ─────────────────
+   The card reads like its peers. The section holds the trend, the grouped
+   table and the pricing basis. Hover and expansion change colour or reveal
+   rows only; no state changes the height of an existing row. */
 
 .usage-cost-currency {
   margin-right: 0.08em;
@@ -15,69 +15,410 @@
   color: color-mix(in srgb, var(--amber) 72%, var(--text-1));
 }
 
-.usage-cost-actions {
+.usage-cost-section {
+  --usage-cost: var(--sky);
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  margin: calc(-1 * var(--s-3)) 0 calc(-1 * var(--s-3)) calc(-1 * var(--s-3));
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.usage-cost-action {
+.usage-cost-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  padding: var(--s-6) var(--s-7) 0;
+}
+
+.usage-cost-section-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3) var(--s-5);
+  min-width: 0;
+}
+
+.usage-cost-section-title h3 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  font-weight: 680;
+  letter-spacing: var(--tracking-tight);
+}
+
+.usage-cost-section-title span {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+/* ── Trend ── */
+
+.usage-cost-trend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-6) var(--s-7) var(--s-3);
+}
+
+.usage-cost-trend-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-5);
+  min-height: 16px;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.usage-cost-trend-readout {
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-cost-trend-readout[data-active='true'] {
+  color: var(--text-1);
+}
+
+.usage-cost-trend-plot {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: var(--s-3) var(--s-4);
+}
+
+.usage-cost-trend-axis {
+  display: flex;
+  height: 120px;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: right;
+}
+
+.usage-cost-trend-bars {
+  display: flex;
+  height: 120px;
+  align-items: stretch;
+  gap: 2px;
+  border-bottom: 1px solid var(--line-2);
+  background:
+    linear-gradient(var(--line-1), var(--line-1)) 0 0 / 100% 1px no-repeat,
+    linear-gradient(var(--line-1), var(--line-1)) 0 50% / 100% 1px no-repeat;
+}
+
+.usage-cost-trend-slot {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-end;
+}
+
+.usage-cost-trend-slot > span {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  background: var(--usage-cost);
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.usage-cost-trend-slot[data-unpriced='true'] > span {
+  background: color-mix(in srgb, var(--amber) 60%, transparent);
+}
+
+.usage-cost-trend-bars[data-hovering='true'] .usage-cost-trend-slot:not([data-active='true']) > span {
+  background: var(--line-3);
+}
+
+.usage-cost-trend-ticks {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Table ── */
+
+.usage-cost-table-scroll {
+  overflow-x: auto;
+  margin-top: var(--s-4);
+}
+
+.usage-cost-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: var(--fs-chrome);
+  font-variant-numeric: tabular-nums;
+  table-layout: fixed;
+}
+
+.usage-cost-col-name { width: 38%; }
+.usage-cost-col-cost { width: 30%; }
+.usage-cost-col-num { width: 8%; }
+
+.usage-cost-table th {
+  height: 32px;
+  padding: 0 var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.usage-cost-table th:first-child,
+.usage-cost-table td:first-child {
+  padding-left: var(--s-7);
+}
+
+.usage-cost-table th:last-child,
+.usage-cost-table td:last-child {
+  padding-right: var(--s-7);
+}
+
+.usage-cost-table td {
+  height: 40px;
+  padding: 0 var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.usage-cost-table .usage-num {
+  text-align: right;
+}
+
+.usage-cost-sort.piwin-button {
+  height: auto;
+  min-height: 0;
+  padding: 2px 0;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.usage-cost-sort[data-active='true'] {
+  color: var(--text-1);
+}
+
+.usage-cost-row:hover {
+  background: var(--hover);
+}
+
+.usage-cost-child td {
+  height: 34px;
+  background: color-mix(in srgb, var(--surface-1) 60%, transparent);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.usage-cost-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.usage-cost-child-name {
+  padding-left: 28px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.usage-cost-expand.piwin-icon-button {
+  flex: none;
+  color: var(--text-3);
+}
+
+.usage-cost-expand svg {
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.usage-cost-expand[data-open='true'] svg {
+  transform: rotate(90deg);
+}
+
+.usage-cost-expand-spacer {
+  width: 20px;
+  flex: none;
+}
+
+.usage-cost-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-1);
+  text-overflow: ellipsis;
+}
+
+.usage-cost-label strong {
+  font-weight: 560;
+}
+
+.usage-cost-label-key {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+}
+
+.usage-cost-route {
+  color: var(--text-3);
+}
+
+.usage-cost-chip {
+  flex: none;
+  max-width: 160px;
+  overflow: hidden;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  text-overflow: ellipsis;
+}
+
+.usage-cost-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+}
+
+.usage-cost-amount {
+  position: relative;
+  width: 84px;
+  flex: none;
+  color: var(--text-1);
+  font-weight: 560;
+  text-align: right;
+}
+
+.usage-cost-partial {
+  position: absolute;
+  top: 50%;
+  right: -9px;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.usage-cost-bar {
+  height: 6px;
+  min-width: 24px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--hover);
+}
+
+.usage-cost-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--usage-cost);
+}
+
+.usage-cost-child .usage-cost-amount {
+  color: var(--text-2);
+  font-weight: 400;
+}
+
+.usage-cost-child .usage-cost-bar {
+  height: 4px;
+}
+
+.usage-cost-child .usage-cost-bar > span {
+  opacity: 0.55;
+}
+
+.usage-cost-share {
+  width: 40px;
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  text-align: right;
+}
+
+.usage-cost-more td {
+  height: 36px;
+  padding-left: calc(var(--s-7) + 20px);
+}
+
+.usage-cost-more .piwin-button {
   color: var(--text-2);
   font-size: var(--fs-micro);
 }
 
-.ui-popover-content.usage-cost-notes {
-  width: min(340px, calc(100vw - 32px));
-  padding: var(--s-5) var(--s-6);
+.usage-cost-unpriced-label {
+  color: color-mix(in srgb, var(--amber) 72%, var(--text-1));
+}
+
+.usage-cost-table td.usage-cost-muted {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  text-overflow: ellipsis;
+}
+
+.usage-cost-total td {
+  height: 42px;
+  border-bottom: 0;
+  color: var(--text-1);
+  font-weight: 620;
+}
+
+.usage-cost-total .usage-cost-amount {
+  display: inline-block;
+  font-weight: 650;
+}
+
+/* ── Pricing basis ── */
+
+.usage-cost-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-5) var(--s-7) var(--s-6);
+  border-top: 1px solid var(--line-1);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-normal);
   user-select: text;
   -webkit-user-select: text;
 }
 
-.usage-cost-notes-body {
+.usage-cost-notes-line {
   display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  font-size: var(--fs-micro);
-  line-height: var(--lh-normal, 1.5);
-}
-
-.usage-cost-notes-facts {
-  display: grid;
-  gap: var(--s-2);
-  margin: 0;
-}
-
-.usage-cost-notes-facts > div {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--s-5);
-}
-
-.usage-cost-notes-facts dt {
-  color: var(--text-3);
-}
-
-.usage-cost-notes-facts dd {
-  margin: 0;
-  color: var(--text-1);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-6);
   font-variant-numeric: tabular-nums;
-  text-align: right;
+}
+
+.usage-cost-notes-toggle.piwin-button {
+  height: auto;
+  min-height: 0;
+  margin-left: auto;
+  padding: 2px var(--s-3);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
 }
 
 .usage-cost-notes-basis {
   margin: 0;
-  padding-top: var(--s-4);
-  border-top: 1px solid var(--line-1);
-  color: var(--text-3);
 }
 
-.usage-cost-notes-mappings > span {
-  color: var(--text-3);
-}
-
-.usage-cost-notes-mappings ul {
-  margin: var(--s-2) 0 0;
+.usage-cost-notes-mappings {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--s-1) var(--s-8);
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -92,19 +433,10 @@
   font-size: var(--fs-micro);
 }
 
-.usage-cost-details {
-  overflow: hidden;
-}
-
-.usage-cost-details .usage-cost-details-scroll {
-  margin: 0;
-  border-top: 0;
-}
-
-.usage-cost-table {
-  min-width: 560px;
-}
-
-.usage-cost-table td {
-  padding-block: 9px;
+@media (max-width: 680px) {
+  .usage-cost-section-header,
+  .usage-cost-trend,
+  .usage-cost-notes {
+    padding-inline: var(--s-6);
+  }
 }

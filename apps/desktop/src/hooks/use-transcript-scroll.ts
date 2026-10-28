@@ -13,6 +13,9 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { computeCurrentResponseMinHeight } from '../conversation/transcript-response-viewport.js';
+
+/** The newest turn's minimum height (region-transcript.css `.is-current-response`). */
+const CURRENT_RESPONSE_MIN_HEIGHT_PROPERTY = '--transcript-current-response-min-height';
 import {
   isPanelResizeActive,
   subscribePanelResizeActivity,
@@ -183,10 +186,15 @@ export function useTranscriptScroll(options: {
   const [followTail, setFollowTailState] = useState(options.historyViewActive !== true);
   const [scrollProgress, setScrollProgress] = useState(1);
   const [scrollRatio, setScrollRatio] = useState(1);
-  const [currentResponseMinHeight, setCurrentResponseMinHeight] = useState(0);
-
   const applyMetrics = useCallback((element: HTMLElement) => {
-    setCurrentResponseMinHeight(computeCurrentResponseMinHeight(element.clientHeight));
+    // Written straight onto the scroller, not through state: metrics apply in
+    // layout effects and ResizeObserver callbacks, both before paint, while a
+    // state update painted one frame late — the newest turn kept the floor
+    // of the previous viewport height and changed size under the reader.
+    element.style.setProperty(
+      CURRENT_RESPONSE_MIN_HEIGHT_PROPERTY,
+      `${computeCurrentResponseMinHeight(element.clientHeight)}px`,
+    );
     const metrics = readScrollMetrics(element);
     setScrollProgress(metrics.progress);
     setScrollRatio(metrics.ratio);
@@ -617,7 +625,6 @@ export function useTranscriptScroll(options: {
     scrollProgress,
     scrollRatio,
     isOverflowing: isScrollOverflowing(scrollRatio),
-    currentResponseMinHeight,
     measure,
   };
 }

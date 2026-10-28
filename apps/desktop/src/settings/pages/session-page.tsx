@@ -19,7 +19,7 @@ import {
   type SessionLifecyclePlan,
   type WalkthroughConfig,
 } from '@piwin/contracts';
-import { Button, SegmentedControl, Switch, TextArea, TextInput } from '@piwin/ui-kit';
+import { Button, SegmentedControl, Switch, TextArea, TextInput, Skeleton } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
@@ -603,7 +603,7 @@ function SessionLifecycleSection(): ReactElement {
             ) : null}
           </>
         ) : (
-          <p className="muted">{isZh ? '正在加载配置…' : 'Loading config…'}</p>
+          <Skeleton label={isZh ? '正在加载配置…' : 'Loading config…'} rows={[40, 88, 70, 92]} />
         )}
       </div>
     </div>

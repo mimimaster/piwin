@@ -5,7 +5,7 @@ import type {
   SessionTranscriptMessage,
 } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState, type ChatUiState } from './chat-reducer';
-import { isQueuedTurnHiddenFromTranscript } from './queued-turn-visibility';
+import { isInstructionRowHiddenFromTranscript } from './instruction-row-visibility';
 
 const pendingTurn: QueuedTurnRecord = {
   queuedTurnId: 'queued-1',
@@ -79,7 +79,7 @@ describe('chatUiReducer queued-turn recovery', () => {
         status: 'pending',
       },
     });
-    expect(isQueuedTurnHiddenFromTranscript(state.messages[0]!)).toBe(true);
+    expect(isInstructionRowHiddenFromTranscript(state.messages[0]!)).toBe(true);
   });
 
   it('moves a started queued row after the reply it waited for', () => {
@@ -158,7 +158,7 @@ describe('chatUiReducer queued-turn recovery', () => {
         status: 'pending',
       },
     });
-    expect(isQueuedTurnHiddenFromTranscript(state.messages[0]!)).toBe(false);
+    expect(isInstructionRowHiddenFromTranscript(state.messages[0]!)).toBe(false);
   });
 
   it('does not let a late queued-turn update overwrite an already visible intervention', () => {
@@ -201,7 +201,7 @@ describe('chatUiReducer queued-turn recovery', () => {
         status: 'pending',
       },
     });
-    expect(isQueuedTurnHiddenFromTranscript(state.messages[0]!)).toBe(false);
+    expect(isInstructionRowHiddenFromTranscript(state.messages[0]!)).toBe(false);
   });
 });
 

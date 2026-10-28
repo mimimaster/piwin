@@ -40,6 +40,7 @@ import { MediaLibrarySelectionDock } from './media-library-selection-dock';
 import { MediaLibraryWorkspaceOverlays } from './media-library-workspace-overlays';
 import { MediaLibraryErrorState } from './media-library-error-state';
 import { isWorkbenchHostTeardownError } from '../../workbench/workbench-host-teardown.js';
+import { Skeleton } from '@piwin/ui-kit';
 
 export type { MediaLibraryFilter };
 
@@ -294,10 +295,14 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
 
   const copyPrompt = useCallback(
     (text: string, id: string) => {
-      void navigator.clipboard.writeText(text).catch(() => undefined);
-      setCopiedId(id);
-      showToast(t('Prompt copied to clipboard 📋', '提示词已复制到剪贴板 📋'));
-      window.setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 1500);
+      void navigator.clipboard.writeText(text).then(
+        () => {
+          setCopiedId(id);
+          showToast(t('Prompt copied to clipboard 📋', '提示词已复制到剪贴板 📋'));
+          window.setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 1500);
+        },
+        () => showToast(t('Copy failed — select the text to copy it', '复制失败，可以手动选中文字复制')),
+      );
     },
     [showToast, t],
   );
@@ -704,10 +709,7 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
             id="vault-main"
           >
           {library.loading && library.items.length === 0 ? (
-            <div className="lib-state">
-              <span className="lib-state-dot" aria-hidden="true" />
-              <p>{t('Loading…', '加载中…')}</p>
-            </div>
+            <Skeleton variant="block" className="lib-skeleton" label={t('Loading…', '加载中…')} />
           ) : visibleItems.length === 0 &&
             clientFilterActive &&
             library.hasMore &&

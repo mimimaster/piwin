@@ -168,3 +168,45 @@
 .app-shell[data-layout='phone'] > .right-panel .right-panel-home-row {
   min-height: var(--touch-target);
 }
+
+/* ── Press feedback ────────────────────────────────────────────────
+   A touch has no hover, so a control that does not answer the finger feels
+   dead. Controls dim while pressed (opacity, not scale: several controls
+   centre themselves with transform and would jump); list rows take a wash
+   instead, since dimming a whole row reads as disabled. */
+@media (pointer: coarse) {
+  .app-shell[data-layout='phone'],
+  html:has(.app-shell[data-layout='phone']) body {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html:has(.app-shell[data-layout='phone'])
+    :is(button, a[href], [role='button'], [role='menuitem'], [role='option']):not(
+      :disabled,
+      [aria-disabled='true'],
+      .session-item,
+      .sidebar-action-row,
+      .tree-folder-main,
+      .empty-stage-landing-row
+    ):active {
+    opacity: 0.6;
+  }
+
+  .app-shell[data-layout='phone']
+    :is(.session-item, .sidebar-action-row, .tree-folder-main, .empty-stage-landing-row):active {
+    background: color-mix(in srgb, var(--text-1) 8%, transparent);
+  }
+}
+
+/* ── Drawer motion ─────────────────────────────────────────────────
+   Full-screen drawers decelerate like iOS sheets rather than easing out
+   linearly; Reduce Motion snaps them. */
+.app-shell[data-layout='phone'] > .sidebar {
+  transition: transform 340ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-layout='phone'] > .sidebar {
+    transition-duration: 1ms;
+  }
+}

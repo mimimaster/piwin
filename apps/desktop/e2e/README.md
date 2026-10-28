@@ -47,6 +47,19 @@ settings. Phone geometry is set through layout tokens the theme sheets read
 (`src/styles/region-phone*.css`); this spec is what fails when a theme stops
 reading one.
 
+`transcript-render-lag.spec.ts` times cold open, send + stream, warm switch,
+return to a history position and a restart-then-reopen on the long-session
+fixture. It samples each frame after paint and gates on what the reader sees:
+no cover where none belongs, nothing moving under the reader, stream deltas
+painting within a few frames. Timings are attached to the report; for
+shipped-app numbers run it against a production build:
+
+```bash
+VITE_PIWIN_E2E_FIXTURES=true pnpm --dir apps/desktop exec vite build --outDir /tmp/piwin-prod
+pnpm --dir apps/desktop exec vite preview --outDir /tmp/piwin-prod --port 1439 --strictPort --host 127.0.0.1
+PIWIN_E2E_PORT=1439 pnpm --dir apps/desktop exec playwright test transcript-render-lag
+```
+
 ## Env
 
 | Var | Default | Meaning |

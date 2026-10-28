@@ -79,14 +79,17 @@ html[data-window-material][data-theme-mode='dark']:has(.app-shell:not([data-layo
 /* Sticky heads and footers occlude the rows scrolling under them; on the
    translucent ramp those rows would read through, so they keep a dense fill. */
 html[data-window-material][data-theme-mode='dark']:has(.app-shell:not([data-layout='phone']))
-  :is(.settings-hub-tabs, .session-hub-tabs, .usage-calls-scroll thead th, .proto-bar) {
+  :is(.usage-calls-scroll thead th, .proto-bar) {
   background-color: color-mix(in srgb, var(--wm-solid-s2) 94%, transparent);
 }
 
 /* At rest nothing is under the hub tab strip, and the dense fill reads as a
    dark band across the glass. Fade the fill in over the first few pixels of
    scroll instead. Engines without scroll timelines finish the animation at
-   once (fill: both), which is the dense fill above. */
+   once (fill: both) and keep the dense fill. A scroll timeline is
+   inactive while its scroller has no overflow (a short tab), and an inactive
+   animation paints nothing, so where timelines exist the resting fill must
+   itself be clear. */
 @keyframes wm-hub-tabs-occlude {
   from {
     background-color: transparent;
@@ -101,4 +104,18 @@ html[data-window-material][data-theme-mode='dark']:has(.app-shell:not([data-layo
   animation: wm-hub-tabs-occlude linear both;
   animation-timeline: scroll(nearest block);
   animation-range: 0 16px;
+}
+
+@supports (animation-timeline: scroll()) {
+  html[data-window-material][data-theme-mode='dark']:has(.app-shell:not([data-layout='phone']))
+    :is(.settings-hub-tabs, .session-hub-tabs) {
+    background-color: transparent;
+  }
+}
+
+@supports not (animation-timeline: scroll()) {
+  html[data-window-material][data-theme-mode='dark']:has(.app-shell:not([data-layout='phone']))
+    :is(.settings-hub-tabs, .session-hub-tabs) {
+    background-color: color-mix(in srgb, var(--wm-solid-s2) 94%, transparent);
+  }
 }

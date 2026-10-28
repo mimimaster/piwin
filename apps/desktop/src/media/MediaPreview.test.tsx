@@ -9,6 +9,7 @@ import { MediaPreview } from './MediaPreview';
 import * as mediaUtils from './media-utils';
 import * as previewBitmap from './media-preview-bitmap';
 import * as previewUrlCache from './media-preview-url-cache';
+import { clearMediaAspectsForTests, readMediaAspect } from './media-aspect-memory';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -309,6 +310,63 @@ describe('MediaPreview', () => {
     expect(placeholder).not.toBeNull();
     expect(placeholder?.classList.contains('is-hero')).toBe(true);
     expect(container.querySelector('.media-preview-image')).toBeNull();
+  });
+
+  it('reserves a hero image at its known proportions before it decodes', () => {
+    clearMediaAspectsForTests();
+    const sized: MediaAttachmentRef = {
+      id: 'hero-sized',
+      kind: 'media',
+      path: '/tmp/piwin/media/session-1/chart.png',
+      mimeType: 'image/png',
+      byteSize: 2048,
+      width: 1600,
+      height: 900,
+      source: 'generated',
+    };
+    act(() => {
+      root.render(<MediaPreview attachment={sized} hero sessionId="session-1" />);
+    });
+    expect(
+      container.querySelector<HTMLElement>('[data-testid="media-preview-loading"]')?.style.aspectRatio,
+    ).toBe('1600 / 900');
+
+    act(() => {
+      root.render(<MediaPreview attachment={sized} hero previewUrl="asset://chart.png" />);
+    });
+    const image = container.querySelector<HTMLImageElement>('.media-preview-image');
+    expect(image?.getAttribute('width')).toBe('1600');
+    expect(image?.getAttribute('height')).toBe('900');
+  });
+
+  it('remembers a hero image size from its first load for the next mount', () => {
+    clearMediaAspectsForTests();
+    const unsized: MediaAttachmentRef = {
+      id: 'hero-unsized',
+      kind: 'media',
+      path: '/tmp/piwin/media/session-1/photo.png',
+      mimeType: 'image/png',
+      byteSize: 2048,
+      source: 'generated',
+    };
+    act(() => {
+      root.render(<MediaPreview attachment={unsized} hero previewUrl="asset://photo.png" />);
+    });
+    const image = container.querySelector<HTMLImageElement>('.media-preview-image');
+    expect(image?.hasAttribute('width')).toBe(false);
+    if (!image) throw new Error('missing image');
+    Object.defineProperty(image, 'naturalWidth', { configurable: true, value: 800 });
+    Object.defineProperty(image, 'naturalHeight', { configurable: true, value: 1200 });
+    act(() => {
+      image.dispatchEvent(new Event('load'));
+    });
+    expect(readMediaAspect(unsized)).toEqual({ width: 800, height: 1200 });
+
+    act(() => root.render(<></>));
+    act(() => {
+      root.render(<MediaPreview attachment={unsized} hero previewUrl="asset://photo.png" />);
+    });
+    expect(container.querySelector('.media-preview-image')?.getAttribute('height')).toBe('1200');
   });
 
   it('downscales transcript asset URLs for the thumb only', async () => {

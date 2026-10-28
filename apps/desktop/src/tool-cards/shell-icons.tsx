@@ -12,7 +12,6 @@ export {
   IconArrowLeft,
   IconArrowRight,
   IconArrowUp,
-  IconBack,
   IconBook,
   IconBrain,
   IconBrowser,

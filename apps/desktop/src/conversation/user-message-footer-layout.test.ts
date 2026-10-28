@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment happy-dom
+import { describe, expect, it, vi } from 'vitest';
 import {
   isUserMessageFooterOverlay,
+  measureUnwrappedTextWidth,
   USER_MESSAGE_FOOTER_INLINE_RESERVE_PX,
 } from './user-message-footer-layout.js';
 
@@ -70,5 +72,27 @@ describe('isUserMessageFooterOverlay', () => {
         bubbleInnerWidth: 0,
       }),
     ).toBe(false);
+  });
+});
+
+describe('measureUnwrappedTextWidth', () => {
+  it('measures with canvas text metrics and never writes into the transcript DOM', () => {
+    const measureText = vi.fn((text: string) => ({ width: text.length * 7 }) as TextMetrics);
+    const context = { font: '', measureText } as unknown as CanvasRenderingContext2D;
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(context as unknown as ReturnType<HTMLCanvasElement['getContext']>);
+    const node = document.createElement('div');
+    node.textContent = 'canvas measured prompt';
+    document.body.append(node);
+    const appendChild = vi.spyOn(node, 'appendChild');
+
+    expect(measureUnwrappedTextWidth(node)).toBe(Math.ceil('canvas measured prompt'.length * 7));
+    // A remount of the same prompt reuses the width.
+    expect(measureUnwrappedTextWidth(node)).toBe(Math.ceil('canvas measured prompt'.length * 7));
+    expect(measureText).toHaveBeenCalledTimes(1);
+    expect(appendChild).not.toHaveBeenCalled();
+    node.remove();
+    getContext.mockRestore();
   });
 });

@@ -13,6 +13,7 @@
  * puts the header back where it was (or just under the rail).
  */
 import { pinnedUserPrompt } from '../sidebar/pinned-user-prompt.js';
+import { transcriptVisibleTop } from './transcript-visible-top.js';
 
 export const FOLD_RAIL_ROW_PX = 30;
 /** Folds shown in the rail at once; the deepest ones win. */
@@ -65,7 +66,7 @@ export function pinnedFoldChain(
   rowPx = FOLD_RAIL_ROW_PX,
   insetPx = 0,
 ): OpenFold[] {
-  const top = container.getBoundingClientRect().top;
+  const top = transcriptVisibleTop(container);
   const chain: OpenFold[] = [];
   let pinned = insetPx;
   for (const fold of collectOpenFolds(container)) {
@@ -101,7 +102,7 @@ export function collapseFoldWithAnchor(
     chain.findIndex((fold) => fold.header === header),
   );
   const offsetOf = (): number =>
-    header.getBoundingClientRect().top - container.getBoundingClientRect().top;
+    header.getBoundingClientRect().top - transcriptVisibleTop(container);
   const desired = Math.max(offsetOf(), insetPx + ancestorRows * rowPx + 2);
   header.click();
   let frame = 0;

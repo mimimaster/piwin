@@ -60,11 +60,8 @@ export type TranscriptReadingRestore = {
   openAtRememberedPosition: () => void;
   /** For the opening cover: settle on the open target; true once it is there. */
   settleOpenPosition: () => boolean;
-  /** Deliberate navigation to a reading anchor, seeking it in when not resident. */
-  navigateToAnchor: (anchor: TranscriptReadingAnchor) => void;
   /** A newer deliberate jump owns the viewport; drop any restore in flight. */
   cancelPending: () => void;
-  captureAnchor: () => TranscriptReadingAnchor | null;
   /** Call from the scroll handler; writes the position once scrolling idles. */
   onScroll: () => void;
 };
@@ -256,9 +253,7 @@ export function useTranscriptReadingRestore(
   return {
     openAtRememberedPosition,
     settleOpenPosition,
-    navigateToAnchor,
     cancelPending,
-    captureAnchor,
     onScroll,
   };
 }

@@ -18,6 +18,7 @@ const PHONE_SHEETS = [
   'region-phone-edge.css',
   'region-phone-touch.css',
   'region-phone-settings.css',
+  'region-phone-glass.css',
 ] as const;
 
 /**
@@ -28,6 +29,7 @@ const PHONE_SHEETS = [
 const TOKEN_CONSUMERS: Record<string, readonly string[]> = {
   '--shell-frame-padding': ['inkstone/shell.css', 'region-shell.css'],
   '--shell-frame-gap': ['inkstone/shell.css'],
+  '--shell-stage-row': ['inkstone/shell.css'],
   '--shell-titleband-row': ['inkstone/shell.css'],
   '--shell-panel-radius': ['inkstone/shell.css'],
   '--shell-panel-shadow': ['inkstone/shell.css'],
@@ -37,6 +39,7 @@ const TOKEN_CONSUMERS: Record<string, readonly string[]> = {
   '--titleband-box-height': ['inkstone/titlebar.css', 'region-context-bar.css'],
   '--titleband-padding': ['inkstone/titlebar.css', 'region-context-bar.css'],
   '--titleband-btn-size': ['inkstone/titlebar.css', 'region-context-bar.css'],
+  '--titleband-fill': ['inkstone/titlebar.css'],
   '--session-tree-trigger-size': ['inkstone/titlebar.css'],
   '--composer-input-min-height': ['inkstone/composer.css'],
   '--composer-input-font-size': ['inkstone/composer.css'],
