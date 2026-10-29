@@ -93,6 +93,23 @@ export function ComposerCardToolbar({
   const externalLabel =
     agentOptions.find((option) => option.agentId === currentAgentId)?.label ??
     agentDisplayName(currentAgentId);
+  // Voice-call button. Desktop keeps it with the model controls; on phone the
+  // run-mode/orchestration pills that used to fill the right group are gone,
+  // so it sits right next to send ([+][model][思考] … [voice][send]) instead
+  // of stranding at the end of the stretching left group with a gap before send.
+  const liveButton = props.embedded === true || props.liveSupported === false ? null : (
+          <LiveComposerButton
+            enabled={true}
+            canStart={props.live?.canStart === true}
+            starting={props.live?.starting === true}
+            call={props.live?.call ?? null}
+            error={props.live?.error ?? null}
+            missing={props.live?.missing ?? []}
+            isChinese={locale === 'zh-CN'}
+            onStart={props.live?.onStart ?? (() => undefined)}
+            onEnd={props.live?.onEnd ?? (() => undefined)}
+          />
+        );
   return (
     <div className="bar composer-v2-toolbar">
       <div className="composer-v2-toolbar-left">
@@ -186,19 +203,7 @@ export function ComposerCardToolbar({
           />
         )}
 
-        {props.embedded === true || props.liveSupported === false ? null : (
-          <LiveComposerButton
-            enabled={true}
-            canStart={props.live?.canStart === true}
-            starting={props.live?.starting === true}
-            call={props.live?.call ?? null}
-            error={props.live?.error ?? null}
-            missing={props.live?.missing ?? []}
-            isChinese={locale === 'zh-CN'}
-            onStart={props.live?.onStart ?? (() => undefined)}
-            onEnd={props.live?.onEnd ?? (() => undefined)}
-          />
-        )}
+        {phone ? null : liveButton}
       </div>
 
       <div className="composer-v2-toolbar-right">
@@ -279,6 +284,8 @@ export function ComposerCardToolbar({
         ) : null}
 
         {/* Context usage lives in the status bar under the composer card. */}
+
+        {phone ? liveButton : null}
 
         <ComposerActionSlot
           copy={copy}

@@ -132,6 +132,22 @@ test.describe('phone model sheet', () => {
     await openPhoneShell(page);
     await expect(page.getByTestId('pec-chip')).toBeVisible();
     await expect(page.locator('[data-testid="pms-sheet"] [role="radiogroup"]')).toHaveCount(0);
+    // Chip = bulb + level name only (no 思考 word).
+    expect((await page.getByTestId('pec-chip').innerText()).trim()).toMatch(/^[关低中高]$/);
+    // Toolbar: [+][model][effort] … [voice][send] — voice sits next to send,
+    // the only free space is between the left and right groups.
+    const geo = await page.evaluate(() => {
+      const r = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
+      const live = r('[data-testid="composer-live-btn"]');
+      const send = r('[data-testid="send-btn"]');
+      const chip = r('[data-testid="pec-chip"]');
+      const inRight = document.querySelector('.composer-v2-toolbar-right [data-testid="composer-live-btn"]') !== null;
+      return { gap: send.left - live.right, inRight, liveTop: live.top + live.height / 2, sendMid: send.top + send.height / 2, chipToLive: live.left - chip.right };
+    });
+    expect(geo.inRight).toBe(true);
+    expect(geo.gap).toBeLessThanOrEqual(12);
+    expect(Math.abs(geo.liveTop - geo.sendMid)).toBeLessThanOrEqual(2);
+    expect(geo.chipToLive).toBeGreaterThan(40);
     const cdp = await page.context().newCDPSession(page);
     const touch = toucher(cdp);
     const level = async () => (await page.locator('[data-testid="pec-chip"] .pec-level').innerText()).trim();

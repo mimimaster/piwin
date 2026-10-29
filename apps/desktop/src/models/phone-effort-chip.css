@@ -1,11 +1,7 @@
 /* Phone thinking-effort chip + popover (option B). Inkstone tokens only. */
 .pms-control { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
 .thinking-effort-trigger.pec-chip { display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; }
-.pec-chip .pec-word { opacity: 0.75; }
 .pec-chip.is-on { color: var(--accent, currentColor); }
-@media (max-width: 380px) {
-  .pec-chip .pec-word { display: none; }
-}
 .pec-layer { position: fixed; inset: 0; z-index: 2100; }
 .pec-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.12); }
 .pec-pop {

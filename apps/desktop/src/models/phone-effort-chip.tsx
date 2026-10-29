@@ -64,7 +64,7 @@ export function PhoneEffortChip(props: Props): ReactElement | null {
 
   if (levels.length === 0) return null;
   const current = props.value !== undefined && levels.includes(props.value) ? props.value : levels[0]!;
-  const word = isZh ? '思考' : 'Thinking';
+  const word = isZh ? '思考度' : 'Thinking effort';
   const label = formatThinkingLabel(current, isZh);
 
   if (levels.length === 2) {
@@ -81,7 +81,6 @@ export function PhoneEffortChip(props: Props): ReactElement | null {
         onClick={() => props.onChange(other)}
       >
         <Bulb />
-        <span className="pec-word">{word}</span>
         <span className="pec-level">{label}</span>
       </button>
     );
@@ -106,7 +105,6 @@ export function PhoneEffortChip(props: Props): ReactElement | null {
         onClick={(event) => (open ? setOpen(false) : openAt(event.currentTarget.getBoundingClientRect()))}
       >
         <Bulb />
-        <span className="pec-word">{word}</span>
         <span className="pec-level">{label}</span>
       </button>
       {open

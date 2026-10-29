@@ -104,7 +104,8 @@ describe('PhoneEffortChip', () => {
     const toggle = q('[data-testid="pec-toggle"]')!;
     expect(q('[data-testid="pec-chip"]')).toBeNull();
     expect(toggle.getAttribute('aria-pressed')).toBe('false');
-    expect(toggle.querySelector('.pec-level')!.textContent).toBe('关');
+    expect(toggle.textContent).toBe('关');
+    expect(toggle.getAttribute('aria-label')).toBe('思考度 关');
     act(() => toggle.click());
     expect(onChange).toHaveBeenCalledWith('high');
     expect(q('[data-testid="pec-layer"]')).toBeNull();
@@ -126,7 +127,8 @@ describe('PhoneEffortChip', () => {
       ),
     );
     const chip = q('[data-testid="pec-chip"]')!;
-    expect(chip.textContent).toBe('思考中'); // bulb + level only, no model name
+    expect(chip.textContent).toBe('中'); // bulb + level only: no 思考 word, no model name
+    expect(chip.getAttribute('aria-label')).toBe('思考度 中');
     act(() => chip.click());
     expect(q('[data-testid="pec-pop"]')!.textContent).toBe('关低中高');
     act(() => window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })));
