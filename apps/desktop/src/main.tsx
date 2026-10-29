@@ -32,7 +32,11 @@ applyWindowChromeToDocument(document.documentElement);
 const nativeWindowMaterialReady = applyNativeWindowMaterialToDocument(document.documentElement);
 const startupPreferences = loadDesktopPreferences();
 applyAppearanceToDocument(resolveStartupAppearance(), startupPreferences.customFonts);
-applyWindowMaterialToDocument(document.documentElement, startupPreferences.windowMaterial);
+applyWindowMaterialToDocument(
+  document.documentElement,
+  startupPreferences.windowMaterial,
+  startupPreferences.phoneGlass,
+);
 // Registers the shipped faces, then re-applies so their sanitized families
 // replace the Inter / JetBrains / Noto stacks unless a custom role is set.
 void loadAndRegisterAllCustomFonts(startupPreferences.customFonts);

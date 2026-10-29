@@ -18,7 +18,9 @@
    Docked panels follow the region opacities on the desktop layout; in
    compact (and the overlay inspector) the same panels become drawers over
    the stage and take the denser dialog glass from
-   window-material-overlays.css instead. Phone layout stays opaque.
+   window-material-overlays.css instead. Phone layout ignores these region
+   opacities: its glass lives in region-phone-glass.css and the 窗口通透
+   slider drives it through --phone-glass-strength.
 
    The document canvas is only released while the shell is mounted.
    Pre-shell screens (host gate, pairing) have no surface of their own and

@@ -206,8 +206,12 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
   });
   const preferencesStyle = useMemo(() => desktopPreferencesCssVars(preferences), [preferences]);
   useLayoutEffect(() => {
-    applyWindowMaterialToDocument(document.documentElement, preferences.windowMaterial);
-  }, [preferences.windowMaterial]);
+    applyWindowMaterialToDocument(
+      document.documentElement,
+      preferences.windowMaterial,
+      preferences.phoneGlass,
+    );
+  }, [preferences.windowMaterial, preferences.phoneGlass]);
   const appShellStyle = useMemo(
     () =>
       appShellCssVars({

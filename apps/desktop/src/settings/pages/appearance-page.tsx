@@ -1,4 +1,5 @@
 /** Appearance preferences; theme catalog and preview controls own their views. */
+import { usePhoneShell } from '../../models/use-phone-shell';
 import type { ReactElement } from 'react';
 import { Button, SegmentedControl, Switch } from '@piwin/ui-kit';
 import {
@@ -36,6 +37,8 @@ export function AppearancePage(): ReactElement {
   const settings = useSettings();
   const { preferences, onPreferencesChange, onThemeApplied, activeTheme } = settings;
   const themePackageActive = isThemeAppearanceLocked(activeTheme);
+  // Phone: 窗口通透 drives the phone glass strength (no native material there).
+  const phone = usePhoneShell();
 
   function handleAppearanceModeChange(mode: AppearanceMode): void {
     if (themePackageActive) return;
@@ -126,8 +129,9 @@ export function AppearancePage(): ReactElement {
 
       {/* The material only exists behind the macOS / Windows 11 window;
           elsewhere these sliders would move nothing. */}
-      {readNativeWindowMaterial() !== undefined && !themePackageActive ? (
+      {(readNativeWindowMaterial() !== undefined || phone) && !themePackageActive ? (
         <AppearanceWindowMaterial
+          phone={phone}
           preferences={preferences}
           onChange={onPreferencesChange}
           copy={copy}

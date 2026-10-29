@@ -192,6 +192,8 @@ export type DesktopPreferences = {
   customFonts?: CustomFontPreferences | undefined;
   /** Per-region opacity over the native window material (macOS desktop). */
   windowMaterial?: WindowMaterialOpacity;
+  /** Phone glass strength 0–100 (窗口通透 on a phone); 100 = full glass, 0 = solid. */
+  phoneGlass?: number;
 };
 
 const TOOL_DENSITY_KEY = 'piwin.desktop.toolCallDensity';
@@ -211,6 +213,7 @@ const AGENT_LOCATOR_ANIMATION_KEY = 'piwin.desktop.agentLocatorAnimation';
 const BROWSER_VIEWPORT_KEY = 'piwin.desktop.browserViewport';
 const CUSTOM_FONTS_KEY = 'piwin.desktop.customFonts';
 const WINDOW_MATERIAL_KEY = 'piwin.desktop.windowMaterial';
+const PHONE_GLASS_KEY = 'piwin.desktop.phoneGlass';
 /** Last successfully applied theme id — used for pre-paint bootstrap (no FOUC). */
 const LAST_THEME_ID_KEY = 'piwin.desktop.lastThemeId';
 
@@ -393,6 +396,7 @@ export function loadDesktopPreferences(): DesktopPreferences {
     ...(windowMaterialRaw
       ? { windowMaterial: parseWindowMaterialOpacity(windowMaterialRaw) }
       : {}),
+    ...phoneGlassPreference(readString(PHONE_GLASS_KEY)),
   };
 }
 
@@ -419,6 +423,9 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   }
   if (prefs.windowMaterial) {
     writeString(WINDOW_MATERIAL_KEY, JSON.stringify(prefs.windowMaterial));
+  }
+  if (prefs.phoneGlass !== undefined) {
+    writeString(PHONE_GLASS_KEY, String(prefs.phoneGlass));
   }
   if (prefs.customFonts && Object.keys(prefs.customFonts).length > 0) {
     writeString(CUSTOM_FONTS_KEY, JSON.stringify(prefs.customFonts));
@@ -524,4 +531,17 @@ export function loadBrowserViewportPreference(): BrowserViewportPreference {
 
 export function saveBrowserViewportPreference(preference: BrowserViewportPreference): void {
   writeString(BROWSER_VIEWPORT_KEY, JSON.stringify(preference));
+}
+
+/** 0–100 in steps the slider can produce; anything else falls back to the default. */
+export function parsePhoneGlass(raw: string | null | undefined): number | undefined {
+  if (raw === null || raw === undefined || raw.trim() === '') return undefined;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return undefined;
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+function phoneGlassPreference(raw: string | null | undefined): { phoneGlass?: number } {
+  const value = parsePhoneGlass(raw);
+  return value === undefined ? {} : { phoneGlass: value };
 }

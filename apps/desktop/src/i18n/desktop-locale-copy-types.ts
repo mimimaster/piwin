@@ -305,6 +305,7 @@ export type DesktopCopy = {
     accent: string;
     windowMaterial: string;
     windowMaterialDescription: string;
+    phoneGlassDescription: string;
     windowMaterialBackdrop: string;
     windowMaterialSidebar: string;
     windowMaterialStage: string;
