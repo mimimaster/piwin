@@ -3,6 +3,7 @@
  * switch the active branch, retry the same user turn, or resend a changed
  * prompt as a sibling.
  */
+import { isPhoneShellViewport } from '../models/use-phone-shell';
 import { useCallback, useEffect, useState, type Dispatch } from 'react';
 import type {
   HostCommand,
@@ -689,10 +690,10 @@ export function buildBranchPromptInput(input: {
   if (input.contextRefs && input.contextRefs.length > 0) {
     prompt.contextRefs = input.contextRefs;
   }
-  if (input.orchestrationSchemeId && input.orchestrationSchemeId !== 'off') {
+  if (input.orchestrationSchemeId && input.orchestrationSchemeId !== 'off' && !isPhoneShellViewport()) {
     prompt.orchestrationSchemeId = input.orchestrationSchemeId;
   }
-  if (input.delegationDisabled) {
+  if (input.delegationDisabled && !isPhoneShellViewport()) {
     prompt.delegationMode = 'disabled';
   }
   const option = input.modelOptions.find(
@@ -736,10 +737,10 @@ export function buildRetryPromptInput(input: {
   if (input.permissionPreset) {
     prompt.permissionPreset = input.permissionPreset;
   }
-  if (input.orchestrationSchemeId && input.orchestrationSchemeId !== 'off') {
+  if (input.orchestrationSchemeId && input.orchestrationSchemeId !== 'off' && !isPhoneShellViewport()) {
     prompt.orchestrationSchemeId = input.orchestrationSchemeId;
   }
-  if (input.delegationDisabled) {
+  if (input.delegationDisabled && !isPhoneShellViewport()) {
     prompt.delegationMode = 'disabled';
   }
   const option = input.modelOptions.find(

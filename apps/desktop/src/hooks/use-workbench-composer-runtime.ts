@@ -203,7 +203,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     dispatch,
     dispatchNotification: host.dispatchNotification,
     agentMode,
-    permissionPreset: session.effectiveRunMode,
+    ...(session.runModeForPrompt !== undefined ? { permissionPreset: session.runModeForPrompt } : {}),
     orchestrationSchemeId,
     onOrchestrationSchemeChange: selectOrchestrationScheme,
     onComposerSessionBound: (sessionId) => {

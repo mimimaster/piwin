@@ -28,8 +28,16 @@ export type UseWorkbenchDesktopConfigArgs = {
 };
 
 export function useWorkbenchDesktopConfig(args: UseWorkbenchDesktopConfigArgs): {
+  /** What the run-mode controls show: this session's pick, else the Host default. */
   effectiveRunMode: PermissionPreset;
-  handleRunModeChange: (preset: PermissionPreset) => void;
+  /** Sent with a prompt: only an explicit pick for this session; undefined follows Host config. */
+  runModeForPrompt: PermissionPreset | undefined;
+  /** True when this session has its own pick (false = following the Host default). */
+  runModeIsOverride: boolean;
+  /** Host config preset (what "follow Host" means right now). */
+  hostRunMode: PermissionPreset;
+  /** `null` clears this session's pick so it follows the Host default again. */
+  handleRunModeChange: (preset: PermissionPreset | null) => void;
   handleRunModeSetDefault: (preset: PermissionPreset) => void;
   handleSettingsSaved: (next: PiwinConfig) => void;
   handleSettingsPreferencesChange: (next: DesktopPreferences) => void;
@@ -43,13 +51,32 @@ export function useWorkbenchDesktopConfig(args: UseWorkbenchDesktopConfigArgs): 
     activeScope,
   } = args;
 
-  const [runModeOverride, setRunModeOverride] = useState<PermissionPreset | null>(null);
+  // Run mode is per conversation: a pick in one session never leaks into
+  // another, and a session without a pick follows the Host config (the prompt
+  // then omits `permissionPreset`). The blank composer keeps its pick under
+  // DRAFT_RUN_MODE_KEY until first send binds it to the created session.
+  const [runModeOverrides, setRunModeOverrides] = useState<ReadonlyMap<string, PermissionPreset>>(
+    () => new Map(),
+  );
+  const overrideKey = activeSessionId ?? DRAFT_RUN_MODE_KEY;
+  const runModeOverride = runModeOverrides.get(overrideKey) ?? null;
   const configPreset: PermissionPreset = resolvePermissionPreset(config?.permissions);
   const effectiveRunMode: PermissionPreset = runModeOverride ?? configPreset;
 
-  const handleRunModeChange = useCallback((nextPreset: PermissionPreset): void => {
-    setRunModeOverride(nextPreset);
+  const overrideKeyRef = useRef(overrideKey);
+  overrideKeyRef.current = overrideKey;
+  const handleRunModeChange = useCallback((nextPreset: PermissionPreset | null): void => {
+    setRunModeOverrides((current) => setRunModeOverride(current, overrideKeyRef.current, nextPreset));
   }, []);
+
+  const previousSessionRef = useRef(activeSessionId);
+  useEffect(() => {
+    const previous = previousSessionRef.current;
+    previousSessionRef.current = activeSessionId;
+    if (previous === null && activeSessionId !== null) {
+      setRunModeOverrides((current) => bindDraftRunMode(current, activeSessionId));
+    }
+  }, [activeSessionId]);
 
   const handleRunModeSetDefault = useCallback(
     (nextPreset: PermissionPreset): void => {
@@ -142,9 +169,38 @@ export function useWorkbenchDesktopConfig(args: UseWorkbenchDesktopConfigArgs): 
 
   return {
     effectiveRunMode,
+    runModeForPrompt: runModeOverride ?? undefined,
+    runModeIsOverride: runModeOverride !== null,
+    hostRunMode: configPreset,
     handleRunModeChange,
     handleRunModeSetDefault,
     handleSettingsSaved,
     handleSettingsPreferencesChange,
   };
+}
+
+export const DRAFT_RUN_MODE_KEY = '__draft__';
+
+export function setRunModeOverride(
+  current: ReadonlyMap<string, PermissionPreset>,
+  key: string,
+  preset: PermissionPreset | null,
+): ReadonlyMap<string, PermissionPreset> {
+  const next = new Map(current);
+  if (preset === null) next.delete(key);
+  else next.set(key, preset);
+  return next;
+}
+
+/** First send: the blank composer's pick becomes the created session's pick. */
+export function bindDraftRunMode(
+  current: ReadonlyMap<string, PermissionPreset>,
+  sessionId: string,
+): ReadonlyMap<string, PermissionPreset> {
+  const draft = current.get(DRAFT_RUN_MODE_KEY);
+  if (draft === undefined) return current;
+  const next = new Map(current);
+  next.delete(DRAFT_RUN_MODE_KEY);
+  if (!next.has(sessionId)) next.set(sessionId, draft);
+  return next;
 }

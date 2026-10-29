@@ -4,6 +4,7 @@
  * from send orchestration (`use-composer-send.ts`) so the policy is easy to
  * read and test on its own.
  */
+import { isPhoneShellViewport } from '../models/use-phone-shell';
 import { useCallback } from 'react';
 import { toModelRef } from '@piwin/contracts';
 import { ARTIFACT_KIT_VERSION } from '@piwin/contracts';
@@ -105,7 +106,9 @@ export function useComposerPromptInput(args: UseComposerMediaArgs) {
         input.skillId = params.skillId.trim();
       }
       const schemeId = args.orchestrationSchemeId?.trim();
-      if (args.conversationChat !== true && schemeId && schemeId !== 'off') {
+      // The phone composer has no orchestration control: it sends no scheme
+      // and the Host runs freehand (auto delegation). Settings keep the pill.
+      if (args.conversationChat !== true && schemeId && schemeId !== 'off' && !isPhoneShellViewport()) {
         input.orchestrationSchemeId = schemeId;
       }
       if (params.attachments && params.attachments.length > 0) {

@@ -69,6 +69,7 @@ export type WorkbenchContextBarProps = {
   isInkstone?: boolean;
   trailing?: ReactNode | undefined;
   conversationShellControl?: ReactNode;
+  sessionMenu?: ReactNode;
 };
 
 export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactElement {
@@ -191,6 +192,7 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
           }
         : {})}
       permissionMode={isExternalSession ? null : effectiveRunMode}
+      {...(props.sessionMenu && !isExternalSession ? { sessionMenu: props.sessionMenu } : {})}
       onOpenPermissions={() => openSettingsSection('permissions')}
       conversationShellControl={props.conversationShellControl}
       locale={locale}

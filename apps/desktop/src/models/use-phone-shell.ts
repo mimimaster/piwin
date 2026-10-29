@@ -19,3 +19,12 @@ export function usePhoneShell(): boolean {
   }, [query]);
   return phone;
 }
+
+/** Send-time check for the phone layout (no React state needed). */
+export function isPhoneShellViewport(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(`(max-width: ${PHONE_SHELL_MAX_WIDTH}px)`).matches
+  );
+}

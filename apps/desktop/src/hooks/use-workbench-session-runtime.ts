@@ -118,6 +118,9 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
   });
   const {
     effectiveRunMode,
+    runModeForPrompt,
+    runModeIsOverride,
+    hostRunMode,
     handleRunModeChange,
     handleRunModeSetDefault,
     handleSettingsSaved,
@@ -168,7 +171,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     modelOptions: host.modelOptions,
     thinkingLevel,
     agentMode,
-    permissionPreset: effectiveRunMode,
+    ...(runModeForPrompt !== undefined ? { permissionPreset: runModeForPrompt } : {}),
     orchestrationSchemeId,
     delegationDisabled,
     confirmForegroundReplace,
@@ -294,6 +297,9 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     handleRemoveProjectFromSidebar,
     saveSettingsInOrder,
     effectiveRunMode,
+    runModeForPrompt,
+    runModeIsOverride,
+    hostRunMode,
     handleRunModeChange,
     handleRunModeSetDefault,
     handleSettingsSaved,

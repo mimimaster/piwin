@@ -5,6 +5,7 @@ import { BackendComposerControls } from '../agents/backend-composer-controls';
 import { agentDisplayName } from '../agents/agent-backend-state';
 import { GoalModeChip } from '../goal';
 import { ThinkingEffortControl } from '../models/ThinkingEffortControl';
+import { usePhoneShell } from '../models/use-phone-shell';
 import { RunModeControl } from '../run-activity/RunModeControl';
 import { OrchestrationSchemeControl } from '../agents/OrchestrationSchemeControl';
 import { IconMic, IconPlus } from '../tool-cards/shell-icons';
@@ -66,6 +67,9 @@ export function ComposerCardToolbar({
   onResumeCheckpoint,
 }: ComposerCardToolbarProps): ReactElement {
   const reservedCommand = isReservedComposerSlashCommand(props.composer);
+  // Phone: run mode lives in the session ⋯ menu and orchestration is not
+  // offered at all (Host default); the toolbar keeps model, voice and send.
+  const phone = usePhoneShell();
   const resumeHandler = onResumeCheckpoint ?? props.onResume;
   // ADR 0082: an external agent owns its own model/mode catalog, so Pi's
   // provider-backed picker is replaced rather than merged.
@@ -199,7 +203,7 @@ export function ComposerCardToolbar({
 
       <div className="composer-v2-toolbar-right">
         {/* Grok keeps the CLI's own permission behavior; do not offer piwin run modes. */}
-        {!isExternalActive && props.isConversationSession !== true && props.onRunModeChange && props.runModePreset ? (
+        {!phone && !isExternalActive && props.isConversationSession !== true && props.onRunModeChange && props.runModePreset ? (
           <RunModeControl
             disabled={isStreamingRun}
             value={props.runModePreset}
@@ -213,7 +217,8 @@ export function ComposerCardToolbar({
         ) : null}
 
         {/* An external backend owns its own session; Pi schemes do not apply. */}
-        {!isExternalActive &&
+        {!phone &&
+        !isExternalActive &&
         props.isConversationSession !== true &&
         props.onOrchestrationSchemeChange &&
         props.orchestrationSchemeOptions ? (

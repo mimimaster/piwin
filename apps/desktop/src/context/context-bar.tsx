@@ -62,6 +62,8 @@ export type ContextBarProps = {
   onRetry?: (() => void) | undefined;
   /** ADR 0024 — Run Mode badge; click opens Settings → Permissions. */
   permissionMode?: PermissionPreset | null;
+  /** Phone titleband session menu (run mode lives there on a phone). */
+  sessionMenu?: ReactNode;
   onOpenPermissions?: (() => void) | undefined;
   locale?: DesktopLocale;
   /** Shell chrome previously on WorkspaceTitlebar. */
@@ -362,6 +364,8 @@ export function ContextBar(props: ContextBarProps): ReactElement {
             </button>
           </span>
         ) : null}
+
+        {props.sessionMenu ?? null}
 
         {props.onToggleWorkPanel ? (
           <IconButton
