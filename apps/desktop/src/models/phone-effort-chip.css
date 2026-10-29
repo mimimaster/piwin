@@ -1,0 +1,38 @@
+/* Phone thinking-effort chip + popover (option B). Inkstone tokens only. */
+.pms-control { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.thinking-effort-trigger.pec-chip { display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; }
+.pec-chip .pec-word { opacity: 0.75; }
+.pec-chip.is-on { color: var(--accent, currentColor); }
+@media (max-width: 380px) {
+  .pec-chip .pec-word { display: none; }
+}
+.pec-layer { position: fixed; inset: 0; z-index: 2100; }
+.pec-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.12); }
+.pec-pop {
+  position: absolute;
+  width: 248px;
+  max-height: 60dvh;
+  overflow: auto;
+  padding: 6px;
+  background: var(--s3);
+  color: var(--t1);
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--t3) 16%, transparent);
+  box-shadow: 0 10px 34px -8px rgba(0, 0, 0, 0.45);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pec-pop-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 8px 10px 6px;
+  font-size: 12px; font-weight: 600; color: var(--t3); }
+.pec-pop-title small { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pec-pop button.pec-item {
+  appearance: none; border: 0; background: transparent; font: inherit; color: inherit; margin: 0; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; touch-action: pan-y;
+  display: grid; grid-template-columns: 1fr auto; width: 100%; min-height: 48px; padding: 6px 10px;
+  border-radius: 10px; text-align: left; transition: background-color 0.12s;
+}
+.pec-item-name { font-size: 14.5px; }
+.pec-item-desc { grid-column: 1; font-size: 11.5px; color: var(--t3); }
+.pec-check { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--accent, currentColor); }
+.pec-pop button.pec-item.is-on { background: color-mix(in srgb, var(--t1) 7%, transparent); font-weight: 600; }
+.pec-pop button.pec-item.is-pressing { background: color-mix(in srgb, var(--t1) 12%, transparent); }

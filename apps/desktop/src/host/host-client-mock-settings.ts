@@ -75,7 +75,7 @@ export async function handleMockSettingsCommands(
               m('anthropic', 'Claude', 'claude-haiku-4-5', 'Haiku 4.5', 200000, true, true),
               m('openai', 'OpenAI', 'gpt-5-codex', 'GPT-5 Codex', 400000),
               m('openai', 'OpenAI', 'gpt-5-mini', 'GPT-5 mini', 400000, true, true),
-              m('xai', 'xAI', 'grok-4-fast', 'Grok 4 Fast', 2000000),
+              { ...m('xai', 'xAI', 'grok-4-fast', 'Grok 4 Fast', 2000000), thinkingLevels: ['off', 'high'] },
               m('vertex', 'Vertex', 'gemini-2.5-pro', 'Gemini 2.5 Pro', 1000000, true, true),
               m('deepseek', 'DeepSeek', 'deepseek-v3', 'V3.2', 128000, false),
               m('kiro', 'Kiro', 'kiro-default', 'default', 200000, false),

@@ -52,6 +52,8 @@ test.describe('phone model sheet', () => {
     await expect(page.getByTestId('pms-sheet')).toBeVisible();
     const cdp = await page.context().newCDPSession(page);
     const touch = toucher(cdp);
+    // Models arrive async from the mock Host; read the baseline only once a row is selected.
+    await expect(page.locator('[data-testid="pms-row"][aria-selected="true"]').first()).toBeVisible();
     const base = await selectedName(page);
 
     // Deterministic pseudo-random: 30 long drags + 20 short flicks starting on rows.
@@ -82,9 +84,21 @@ test.describe('phone model sheet', () => {
     }
     expect(misSelect).toBe(0);
 
-    // A still tap selects and the sheet stays.
+    // A still tap selects and the sheet stays. Let fling momentum settle first:
+    // a tap during a running scroll is cancelled on purpose (onScroll -> cancel).
+    await page.evaluate(async () => {
+      const list = document.querySelector('[data-testid="pms-list"]')!;
+      let last = -1;
+      while (last !== list.scrollTop) {
+        last = list.scrollTop;
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    });
     const target = page.locator('[data-testid="pms-row"][aria-selected="false"]').nth(3);
     const targetName = (await target.locator('.pms-row-name').innerText()).trim();
+    // The row must be fully on screen (not under the sticky header or the search bar).
+    await target.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await page.waitForTimeout(300);
     const box = (await target.boundingBox())!;
     await touch('touchStart', [[box.x + box.width / 2, box.y + box.height / 2]]);
     await page.waitForTimeout(70);
@@ -112,6 +126,59 @@ test.describe('phone model sheet', () => {
     }
   });
 
+  test('effort popover: swipes and outside swipes do nothing; still taps pick and close', async ({
+    page,
+  }) => {
+    await openPhoneShell(page);
+    await expect(page.getByTestId('pec-chip')).toBeVisible();
+    await expect(page.locator('[data-testid="pms-sheet"] [role="radiogroup"]')).toHaveCount(0);
+    const cdp = await page.context().newCDPSession(page);
+    const touch = toucher(cdp);
+    const level = async () => (await page.locator('[data-testid="pec-chip"] .pec-level').innerText()).trim();
+    const center = async (sel: string): Promise<[number, number]> => {
+      const b = (await page.locator(sel).boundingBox())!;
+      return [b.x + b.width / 2, b.y + b.height / 2];
+    };
+    const swipe = async ([x, y]: [number, number], dx: number, dy: number) => {
+      await touch('touchStart', [[x, y]]);
+      for (let s = 1; s <= 6; s += 1) {
+        await page.waitForTimeout(20);
+        await touch('touchMove', [[x + (dx * s) / 6, y + (dy * s) / 6]]);
+      }
+      await touch('touchEnd', []);
+      await page.waitForTimeout(200);
+    };
+    const tapAt = async ([x, y]: [number, number]) => {
+      await touch('touchStart', [[x, y]]);
+      await page.waitForTimeout(70);
+      await touch('touchEnd', []);
+      await page.waitForTimeout(250);
+    };
+    const before = await level();
+    await tapAt(await center('[data-testid="pec-chip"]'));
+    await expect(page.getByTestId('pec-pop')).toBeVisible();
+    // 20 swipes starting on level rows: no pick, popover stays.
+    for (let i = 0; i < 20; i += 1) {
+      const items = page.locator('.pec-item');
+      const n = await items.count();
+      const b = (await items.nth(i % n).boundingBox())!;
+      await swipe([b.x + b.width / 2, b.y + b.height / 2], i % 3 === 0 ? 30 : 0, i % 2 === 0 ? 40 : -24);
+      await expect(page.getByTestId('pec-pop')).toBeVisible();
+    }
+    expect(await level()).toBe(before);
+    // A swipe on the outside scrim keeps it open; a still tap there closes it.
+    await swipe([200, 120], 0, 120);
+    await expect(page.getByTestId('pec-pop')).toBeVisible();
+    await tapAt([200, 120]);
+    await expect(page.getByTestId('pec-pop')).toHaveCount(0);
+    // Still tap on a level picks it and closes.
+    await tapAt(await center('[data-testid="pec-chip"]'));
+    const pick = before === '高' || before === 'High' ? 'low' : 'high';
+    await tapAt(await center(`[data-testid="pec-level-${pick}"]`));
+    await expect(page.getByTestId('pec-pop')).toHaveCount(0);
+    expect(await level()).not.toBe(before);
+  });
+
   for (const theme of ['piwin-inkstone-paper', 'piwin-inkstone-ink'] as const) {
     test(`screenshot · ${theme}`, async ({ page }) => {
       test.skip(!SHOT_DIR, 'set PIWIN_SHOT_DIR to capture review screenshots');
@@ -127,6 +194,44 @@ test.describe('phone model sheet', () => {
       await page.screenshot({
         path: `${SHOT_DIR}/model-sheet-${theme.replace('piwin-inkstone-', '')}.png`,
       });
+    });
+  }
+
+  async function pickModel(page: Page, name: string): Promise<void> {
+    await page.getByTestId('thinking-effort-trigger').click();
+    await page.getByTestId('pms-search').fill(name);
+    await page.locator('[data-testid="pms-row"]', { hasText: name }).first().click();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('pms-sheet')).toHaveCount(0);
+  }
+
+  for (const theme of ['piwin-inkstone-paper', 'piwin-inkstone-ink'] as const) {
+    test(`effort chip screenshots · ${theme}`, async ({ page }) => {
+      test.skip(!SHOT_DIR, 'set PIWIN_SHOT_DIR to capture review screenshots');
+      const t = theme.replace('piwin-inkstone-', '');
+      await openPhoneShell(page);
+      await page.evaluate((id) => {
+        document.documentElement.dataset.themeId = id;
+        document.documentElement.style.setProperty('--app-safe-top', '59px');
+        document.documentElement.style.setProperty('--app-safe-bottom', '34px');
+      }, theme);
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${SHOT_DIR}/effort-chip-${t}.png` });
+      await page.getByTestId('pec-chip').click();
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: `${SHOT_DIR}/effort-popover-${t}.png` });
+      await page.keyboard.press('Escape');
+      await pickModel(page, 'Grok 4 Fast');
+      await expect(page.getByTestId('pec-toggle')).toBeVisible();
+      await page.screenshot({ path: `${SHOT_DIR}/effort-toggle-${t}.png` });
+      await pickModel(page, 'V3.2');
+      await expect(page.getByTestId('pec-chip')).toHaveCount(0);
+      await expect(page.getByTestId('pec-toggle')).toHaveCount(0);
+      await page.screenshot({ path: `${SHOT_DIR}/effort-none-${t}.png` });
+      await page.setViewportSize({ width: 360, height: 780 });
+      await pickModel(page, 'Sonnet 4.6');
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${SHOT_DIR}/effort-chip-narrow360-${t}.png` });
     });
   }
 });

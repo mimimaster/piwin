@@ -1,7 +1,8 @@
 /**
  * Phone composer model picker (plan B): one tall bottom sheet with a provider
  * filter strip, a "recent" group, every model grouped by provider under sticky
- * headers, thinking effort inline on the selected row, and search at the
+ * headers, no thinking effort (that lives in the composer chip beside it, see
+ * phone-effort-chip.tsx), and search at the
  * bottom (thumb reach, rides the keyboard).
  *
  * Anti-misclick contract (see use-tap-select.ts):
@@ -15,10 +16,11 @@ import { createPortal } from 'react-dom';
 import type { ThinkingLevel } from '@piwin/contracts';
 import type { ThinkingEffortModelOption } from './ThinkingEffortControl';
 import { getSupportedThinkingLevels } from './model-thinking-policy';
-import { formatThinkingLabel } from '../usage/usage-panel-statistics.js';
 import { pushRecentModel, readRecentModels, RECENT_MODELS_SHOWN } from './recent-models';
 import { TAP_SLOP_PX, useTapSelect } from './use-tap-select';
+import { PhoneEffortChip } from './phone-effort-chip';
 import './phone-model-sheet.css';
+import './phone-effort-chip.css';
 
 export const SHEET_DRAG_CLOSE_PX = 120;
 const ALL = '__all__';
@@ -127,29 +129,6 @@ export function PhoneModelSheet(props: Props): ReactElement {
       )
     : [];
 
-  const effortControl = (inline: boolean): ReactElement | null =>
-    levels.length > 1 ? (
-      <div
-        className={inline ? 'pms-effort is-inline' : 'pms-effort'}
-        role="radiogroup"
-        aria-label={isZh ? '思考强度' : 'Thinking effort'}
-      >
-        {levels.map((level) => (
-          <button
-            key={level}
-            type="button"
-            role="radio"
-            aria-checked={level === effort}
-            className={level === effort ? 'is-on' : ''}
-            data-testid={`pms-level-${level}`}
-            onClick={() => props.onChange(level)}
-          >
-            {formatThinkingLabel(level, isZh)}
-          </button>
-        ))}
-      </div>
-    ) : null;
-
   const row = (
     model: ThinkingEffortModelOption,
     section: string,
@@ -198,7 +177,6 @@ export function PhoneModelSheet(props: Props): ReactElement {
             </svg>
           ) : null}
         </button>
-        {on && section !== 'recent' ? effortControl(true) : null}
       </div>
     );
   };
@@ -214,13 +192,10 @@ export function PhoneModelSheet(props: Props): ReactElement {
       disabled={props.disabled}
       aria-haspopup="dialog"
       aria-expanded={open}
-      aria-label={`Model ${pillName}${effort ? `, thinking ${formatThinkingLabel(effort, isZh)}` : ''}`}
+      aria-label={`Model ${pillName}`}
       onClick={() => setOpen(true)}
     >
       <span className="thinking-effort-model pms-pill-name">{pillName}</span>
-      {effort && levels.length > 0 ? (
-        <span className="pms-pill-effort">{formatThinkingLabel(effort, isZh)}</span>
-      ) : null}
       <span className="thinking-effort-chevron" aria-hidden />
     </button>
   );
@@ -357,6 +332,14 @@ export function PhoneModelSheet(props: Props): ReactElement {
   return (
     <div className="thinking-effort-control pms-control">
       {pill}
+      <PhoneEffortChip
+        disabled={props.disabled}
+        isZh={isZh}
+        levels={levels}
+        value={effort}
+        modelName={pillName}
+        onChange={props.onChange}
+      />
       {layer}
     </div>
   );
