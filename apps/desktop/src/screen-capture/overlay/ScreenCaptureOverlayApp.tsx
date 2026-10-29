@@ -1,7 +1,7 @@
 /**
- * Root of the capture overlay window (`screen-capture.html`): decodes the
- * frozen screenshot, tells native to show the window, and runs the editor
- * from step 1. Finishing hands the PNG to native, which copies it to the
+ * Root of the capture overlay window (`screen-capture.html`): loads the
+ * frozen screenshot, tells native it is ready, and runs the editor from
+ * step 1. Finishing hands the PNG to native, which copies it to the
  * clipboard and closes this window.
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
@@ -37,9 +37,9 @@ export function ScreenCaptureOverlayApp({
       .image()
       .then(async (bytes) => {
         url = URL.createObjectURL(new Blob([bytes.slice()], { type: 'image/png' }));
-        const probe = new Image();
-        probe.src = url;
-        await probe.decode();
+        // `load`, not `decode()` or animation frames: both can stall in a
+        // window macOS has not composited yet.
+        const probe = await loadImage(url);
         if (active) {
           setLoaded({ url, size: { width: probe.naturalWidth, height: probe.naturalHeight } });
         }
@@ -54,13 +54,10 @@ export function ScreenCaptureOverlayApp({
     };
   }, [bridge]);
 
-  // Show the window only after the screenshot has painted: no blank flash.
   useEffect(() => {
-    if (loaded === null) return undefined;
-    const frame = requestAnimationFrame(() => {
+    if (loaded !== null) {
       bridge.ready().catch(reportBridgeError('ready'));
-    });
-    return () => cancelAnimationFrame(frame);
+    }
   }, [bridge, loaded]);
 
   const cancel = (): void => {
@@ -92,4 +89,13 @@ export function ScreenCaptureOverlayApp({
       )}
     </PiwinUiProvider>
   );
+}
+
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('screenshot image did not load'));
+    image.src = url;
+  });
 }

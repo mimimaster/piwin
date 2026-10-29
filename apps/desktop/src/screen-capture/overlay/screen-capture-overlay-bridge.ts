@@ -5,7 +5,7 @@
 export interface ScreenCaptureOverlayBridge {
   /** The frozen screenshot of the monitor this window covers. */
   image(): Promise<Uint8Array>;
-  /** The image is on screen; native shows the window over everything. */
+  /** The image loaded; native stops the load timeout. */
   ready(): Promise<void>;
   finish(png: Uint8Array): Promise<void>;
   cancel(): Promise<void>;

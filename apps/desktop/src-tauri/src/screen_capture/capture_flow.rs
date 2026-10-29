@@ -22,8 +22,10 @@ use super::capture_temp_path;
 use super::window_restore::CaptureEnd;
 use super::{
     failed, overlay, png_dimensions, CaptureError, ScreenCaptureOutcome, ScreenCaptureState,
-    ERROR_FAILED, ERROR_UNSUPPORTED, WINDOW_SETTLE_DELAY,
+    ERROR_FAILED, ERROR_UNSUPPORTED,
 };
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+use super::WINDOW_SETTLE_DELAY;
 
 /// The app the user was in, so focus can go back to it when piwin stays put.
 pub(super) struct PreviousApp {
@@ -59,11 +61,8 @@ pub(super) async fn capture_and_finish(
     state: &ScreenCaptureState,
     deliver_to_composer: bool,
 ) -> (ScreenCaptureOutcome, CaptureEnd) {
-    let shot = tauri::async_runtime::spawn_blocking(|| {
-        std::thread::sleep(WINDOW_SETTLE_DELAY);
-        capture_monitor()
-    })
-    .await;
+    // No settle delay: piwin's windows stay put, nothing is animating out.
+    let shot = tauri::async_runtime::spawn_blocking(capture_monitor).await;
     let shot = match shot {
         Ok(Ok(shot)) => shot,
         Ok(Err(CaptureError::Unsupported)) => return (failed(ERROR_UNSUPPORTED), CaptureEnd::Elsewhere),

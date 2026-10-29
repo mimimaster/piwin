@@ -1,5 +1,8 @@
 //! Keeps piwin out of its own screenshot (spec SC-D07): hide the main window
-//! and the pet overlay before capture, then put them back.
+//! and the pet overlay before capture, then put them back. Only the Linux
+//! picker path hides windows now; the macOS / Windows overlay leaves them
+//! where they are (spec §12.6), so only `CaptureEnd` is shared there.
+#![cfg_attr(any(target_os = "macos", target_os = "windows"), allow(dead_code))]
 
 use tauri::{AppHandle, Manager};
 

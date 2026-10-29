@@ -61,11 +61,30 @@ describe('step 2 without a tool: adjusting the region', () => {
     });
   });
 
-  it('starts over outside the region only while nothing is drawn', () => {
-    expect(beginGesture(context({ selection: REGION }), { x: 600, y: 400 }).kind).toBe('gesture');
-    expect(beginGesture(context({ selection: REGION, hasMarks: true }), { x: 600, y: 400 })).toEqual({
-      kind: 'none',
+  it('starts over with a drag outside the region only while nothing is drawn', () => {
+    expect(drag(context({ selection: REGION }), { x: 600, y: 400 }, { x: 800, y: 500 })).toEqual({
+      kind: 'selection',
+      selection: { x: 600, y: 400, width: 200, height: 100 },
     });
+    expect(
+      drag(context({ selection: REGION, hasMarks: true }), { x: 600, y: 400 }, { x: 800, y: 500 }),
+    ).toEqual({ kind: 'none' });
+  });
+});
+
+describe('step 2: a click outside the region finishes', () => {
+  it('finishes with or without a tool or marks', () => {
+    for (const extra of [{}, { hasMarks: true }, { tool: 'rect' as const }]) {
+      expect(
+        drag(context({ selection: REGION, ...extra }), { x: 600, y: 400 }, { x: 601, y: 401 }),
+      ).toEqual({ kind: 'finish' });
+    }
+  });
+
+  it('does not finish on a click inside the region', () => {
+    expect(drag(context({ selection: REGION }), { x: 150, y: 150 }, { x: 150, y: 150 }).kind).toBe(
+      'selection',
+    );
   });
 });
 
@@ -94,7 +113,7 @@ describe('step 2 with a tool: drawing', () => {
         ],
       },
     });
-    expect(beginGesture(ctx, { x: 600, y: 400 })).toEqual({ kind: 'none' });
+    expect(drag(ctx, { x: 600, y: 400 }, { x: 700, y: 450 })).toEqual({ kind: 'none' });
   });
 
   it('opens a text field with the text tool', () => {
@@ -111,6 +130,6 @@ describe('cursorForPoint', () => {
     expect(cursorForPoint(context({ selection: REGION }), { x: 300, y: 200 })).toBe('nwse-resize');
     expect(cursorForPoint(context({ selection: REGION }), { x: 150, y: 150 })).toBe('move');
     expect(cursorForPoint(context({ selection: REGION, tool: 'text' }), { x: 150, y: 150 })).toBe('text');
-    expect(cursorForPoint(context({ selection: REGION, tool: 'rect' }), { x: 600, y: 400 })).toBe('default');
+    expect(cursorForPoint(context({ selection: REGION, tool: 'rect' }), { x: 600, y: 400 })).toBe('pointer');
   });
 });

@@ -9,12 +9,15 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+use std::time::Duration;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use tauri::{AppHandle, State};
 
 use store::CaptureStore;
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 use window_restore::{hide_piwin_windows, restore_piwin_windows};
 
 mod capture_flow;
@@ -36,6 +39,7 @@ mod windows;
 mod windows_clipboard;
 
 /// Lets the hide animation finish so the capture does not catch piwin fading out.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 const WINDOW_SETTLE_DELAY: Duration = Duration::from_millis(200);
 
 pub(crate) const ERROR_BUSY: &str = "SCREEN_CAPTURE_BUSY";
@@ -218,13 +222,34 @@ async fn take_with_hidden_windows(
     }
 
     let previous = capture_flow::PreviousApp::record();
-    let hidden = hide_piwin_windows(app);
-    let (outcome, end) = capture_flow::capture_and_finish(app, state, deliver_to_composer).await;
-    if !restore_piwin_windows(app, &hidden, end) {
-        // The overlay activated piwin; give the user back the app they were in.
-        previous.reactivate();
+    // Overlay platforms leave piwin's windows where they are, like QQ: the
+    // frozen screen shows piwin as it is and the overlay covers it, so
+    // nothing hides and reappears (owner, 2026-10-29).
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        let (outcome, end) =
+            capture_flow::capture_and_finish(app, state, deliver_to_composer).await;
+        if end == window_restore::CaptureEnd::InPiwin {
+            if let Err(error) = crate::pet_overlay::raise_main_window(app) {
+                eprintln!("[piwin] screen capture could not raise main window: {error}");
+            }
+        } else {
+            // The overlay activated piwin; give the user back the app they were in.
+            previous.reactivate();
+        }
+        outcome
     }
-    outcome
+    // Linux: the desktop's picker must not see piwin, so hide it first.
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let hidden = hide_piwin_windows(app);
+        let (outcome, end) =
+            capture_flow::capture_and_finish(app, state, deliver_to_composer).await;
+        if !restore_piwin_windows(app, &hidden, end) {
+            previous.reactivate();
+        }
+        outcome
+    }
 }
 
 #[cfg_attr(target_os = "windows", allow(dead_code))]

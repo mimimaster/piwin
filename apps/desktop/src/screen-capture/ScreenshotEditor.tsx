@@ -1,7 +1,8 @@
 /**
  * QQ-style capture editor (spec 2026-10-25 §12.6). Step 1: drag out a region
  * (a click takes the whole screen). Step 2: the toolbar appears beside the
- * region; adjust it, draw on it, then ✓ / Enter / double-click to finish.
+ * region; adjust it, draw on it, then ✓ / Enter / double-click inside / a
+ * click on the dimmed area outside to finish.
  * Right-click goes back to step 1, Esc leaves.
  *
  * Runs full-window on the capture overlay (macOS, Windows) and inside a
@@ -236,6 +237,8 @@ export function ScreenshotEditor(props: ScreenshotEditorProps): ReactElement {
     setGesture(null);
     if (end.kind === 'selection') {
       setSelection(end.selection);
+    } else if (end.kind === 'finish') {
+      finish();
     } else if (end.kind === 'mark') {
       setHistory((current) => addAnnotationShape(current, end.draft));
     }
@@ -260,7 +263,11 @@ export function ScreenshotEditor(props: ScreenshotEditorProps): ReactElement {
 
   const shownSelection = gestureSelection(gesture, selection, image);
   const adjustingRegion =
-    gesture !== null && (gesture.kind === 'select' || gesture.kind === 'move' || gesture.kind === 'resize');
+    gesture !== null &&
+    (gesture.kind === 'select' ||
+      gesture.kind === 'move' ||
+      gesture.kind === 'resize' ||
+      (gesture.kind === 'outside' && shownSelection !== selection));
   const draft = previewShape(gestureDraft(gesture, image));
   const draftShapes: AnnotationShape[] = draft === null ? [] : [draft];
   const markShapes = [...history.present.shapes, ...draftShapes];

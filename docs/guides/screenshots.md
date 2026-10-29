@@ -24,7 +24,8 @@ Any of these starts a capture:
 
 ## macOS and Windows: the capture overlay
 
-piwin hides its windows and freezes the monitor under the pointer. Everything
+piwin freezes the monitor under the pointer; its own windows stay where they
+are and show in the shot as they are, like QQ. Everything
 else happens on that frozen screen:
 
 1. **Pick a region.** Drag a rectangle; the size in pixels shows at its corner.
@@ -33,7 +34,9 @@ else happens on that frozen screen:
    there is no room). With no tool picked, drag inside the region to move it,
    drag the handles to resize, or use the arrow keys (Shift: 10 px). Pick a
    tool to draw inside the region; pick it again to go back to adjusting.
-3. **Finish** with **✓**, **Enter**, or a **double-click** inside the region.
+3. **Finish** with **✓**, **Enter**, a **double-click** inside the region, or a
+   **click on the dimmed area** outside it. (While nothing is drawn yet, a
+   *drag* outside still picks a new region.)
 
 | Tool | Key | How |
 |------|-----|-----|

@@ -5,6 +5,8 @@
  * Step 2 (region, no tool): drag inside to move it, drag a handle to resize,
  * drag outside to start over while nothing is drawn yet.
  * Step 2 (region + tool): draw inside the region.
+ * Step 2, either way: a plain click on the dimmed area outside finishes
+ * (owner, 2026-10-29), like clicking ✓.
  */
 import {
   clampPointToImage,
@@ -42,7 +44,19 @@ export type ScreenshotGesture =
       to: ImagePoint;
     }
   | { kind: 'shape'; tool: ShapeTool; from: ImagePoint; to: ImagePoint }
-  | { kind: 'stroke'; tool: StrokeTool; points: readonly ImagePoint[] };
+  | { kind: 'stroke'; tool: StrokeTool; points: readonly ImagePoint[] }
+  /**
+   * Press outside an existing region: a click finishes; a drag starts a new
+   * region when `canReselect` (no tool, nothing drawn) and is ignored otherwise.
+   */
+  | {
+      kind: 'outside';
+      from: ImagePoint;
+      to: ImagePoint;
+      canReselect: boolean;
+      /** Movement under this (image pixels) still counts as a click. */
+      clickSlop: number;
+    };
 
 export type GestureContext = {
   image: ImageSize;
@@ -64,6 +78,7 @@ export type GestureStart =
 export type GestureEnd =
   | { kind: 'selection'; selection: ImageRect }
   | { kind: 'mark'; draft: AnnotationShapeDraft }
+  | { kind: 'finish' }
   | { kind: 'none' };
 
 export function beginGesture(context: GestureContext, rawPoint: ImagePoint): GestureStart {
@@ -86,12 +101,10 @@ export function beginGesture(context: GestureContext, rawPoint: ImagePoint): Ges
         gesture: { kind: 'move', start: selection, origin: point, to: point },
       };
     }
-    return context.hasMarks
-      ? { kind: 'none' }
-      : { kind: 'gesture', gesture: { kind: 'select', from: point, to: point } };
+    return outsideGesture(point, !context.hasMarks, context);
   }
   if (!rectContains(selection, point)) {
-    return { kind: 'none' };
+    return outsideGesture(point, false, context);
   }
   switch (tool) {
     case 'text':
@@ -106,6 +119,29 @@ export function beginGesture(context: GestureContext, rawPoint: ImagePoint): Ges
   }
 }
 
+function outsideGesture(
+  point: ImagePoint,
+  canReselect: boolean,
+  context: GestureContext,
+): GestureStart {
+  return {
+    kind: 'gesture',
+    gesture: {
+      kind: 'outside',
+      from: point,
+      to: point,
+      canReselect,
+      clickSlop: context.handleTolerance / 2,
+    },
+  };
+}
+
+function outsideIsClick(gesture: Extract<ScreenshotGesture, { kind: 'outside' }>): boolean {
+  return (
+    Math.hypot(gesture.to.x - gesture.from.x, gesture.to.y - gesture.from.y) < gesture.clickSlop
+  );
+}
+
 export function updateGesture(
   gesture: ScreenshotGesture,
   rawPoint: ImagePoint,
@@ -116,6 +152,7 @@ export function updateGesture(
     case 'select':
     case 'move':
     case 'resize':
+    case 'outside':
       return { ...gesture, to: point };
     case 'shape':
       return { ...gesture, to: insideSelection(point, context) };
@@ -147,6 +184,10 @@ export function gestureSelection(
       return moveSelection(gesture.start, delta(gesture.origin, gesture.to), image);
     case 'resize':
       return resizeSelection(gesture.start, gesture.handle, delta(gesture.origin, gesture.to), image);
+    case 'outside':
+      return gesture.canReselect && !outsideIsClick(gesture)
+        ? rectFromPoints(gesture.from, gesture.to, image)
+        : selection;
     case 'shape':
     case 'stroke':
       return selection;
@@ -164,6 +205,16 @@ export function finishGesture(gesture: ScreenshotGesture, image: ImageSize): Ges
     case 'resize': {
       const moved = normalizeSelection(gestureSelection(gesture, null, image) ?? gesture.start, image);
       return { kind: 'selection', selection: moved ?? gesture.start };
+    }
+    case 'outside': {
+      if (outsideIsClick(gesture)) {
+        return { kind: 'finish' };
+      }
+      if (!gesture.canReselect) {
+        return { kind: 'none' };
+      }
+      const selection = normalizeSelection(rectFromPoints(gesture.from, gesture.to, image), image);
+      return selection === null ? { kind: 'none' } : { kind: 'selection', selection };
     }
     case 'shape':
     case 'stroke': {
@@ -209,10 +260,10 @@ export function cursorForPoint(context: GestureContext, rawPoint: ImagePoint): s
     const hit = hitTestSelection(selection, point, context.handleTolerance);
     if (hit.kind === 'handle') return HANDLE_CURSORS[hit.handle];
     if (hit.kind === 'inside') return 'move';
-    return context.hasMarks ? 'default' : 'crosshair';
+    return context.hasMarks ? 'pointer' : 'crosshair';
   }
   if (!rectContains(selection, point)) {
-    return 'default';
+    return 'pointer';
   }
   return tool === 'text' ? 'text' : 'crosshair';
 }

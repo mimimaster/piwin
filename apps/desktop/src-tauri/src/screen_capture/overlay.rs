@@ -1,8 +1,10 @@
 //! QQ-style capture overlay (spec 2026-10-25 §12.6): a borderless window over
 //! the captured monitor that shows the frozen screenshot. Its webview
 //! (`screen-capture.html`) picks the region and annotates, then answers with
-//! the finished PNG or a cancel. The window stays hidden until the webview
-//! has decoded the image, so the user never sees a blank flash.
+//! the finished PNG or a cancel. The window is transparent and shown at
+//! once: until the screenshot paints, the live screen (identical to it)
+//! shows through. A hidden webview cannot be relied on to paint or run
+//! animation frames, so nothing waits for that.
 
 use std::sync::mpsc;
 use std::sync::Mutex;
@@ -202,6 +204,10 @@ fn open_overlay_window(
             let _ = events.send(OverlayEvent::Reply(OverlayReply::Cancelled));
         }
     });
+    #[cfg(target_os = "macos")]
+    super::macos::lift_overlay_window(&window);
+    window.show()?;
+    window.set_focus()?;
     Ok(window)
 }
 
@@ -227,7 +233,8 @@ pub(crate) fn screen_capture_overlay_image(
         .ok_or_else(|| ERROR_NOT_FOUND.to_string())
 }
 
-/// The image is on screen in the webview; show the window over everything.
+/// The webview loaded the screenshot; from here only the user ends the
+/// session. Before this, a webview that never loads is cancelled on a timer.
 /// Async so the window work runs off the IPC thread (see `pet_overlay.rs`).
 #[tauri::command]
 pub(crate) async fn screen_capture_overlay_ready(
@@ -236,13 +243,10 @@ pub(crate) async fn screen_capture_overlay_ready(
     state: State<'_, ScreenCaptureState>,
 ) -> Result<(), String> {
     require_overlay(&webview)?;
-    let window = app
-        .get_webview_window(OVERLAY_LABEL)
-        .ok_or_else(|| ERROR_NOT_FOUND.to_string())?;
-    #[cfg(target_os = "macos")]
-    super::macos::lift_overlay_window(&window);
-    window.show().map_err(|error| error.to_string())?;
-    window.set_focus().map_err(|error| error.to_string())?;
+    // Key focus may have gone elsewhere while the page loaded; Esc needs it.
+    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+        window.set_focus().map_err(|error| error.to_string())?;
+    }
     state.overlay.send(OverlayEvent::Ready);
     Ok(())
 }
@@ -311,3 +315,4 @@ mod tests {
         assert!(wait_for_reply(&receiver).is_none());
     }
 }
+

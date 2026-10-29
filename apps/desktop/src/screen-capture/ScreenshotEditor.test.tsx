@@ -147,6 +147,21 @@ describe('ScreenshotEditor', () => {
     expect(onCancel).toHaveBeenCalledOnce();
   });
 
+  it('finishes on a click outside the region', async () => {
+    mount(null);
+    dragOnStage([100, 100], [400, 300]);
+    key({ key: 'r' });
+    dragOnStage([120, 120], [200, 200]);
+    pointer('pointerdown', 700, 500);
+    pointer('pointerup', 700, 500);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    // happy-dom cannot rasterize, so finishing surfaces as the export attempt.
+    expect(onExportFailed).toHaveBeenCalledWith(expect.any(AnnotationExportError));
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
   it('cancels on Escape', () => {
     mount(null);
     key({ key: 'Escape' });
