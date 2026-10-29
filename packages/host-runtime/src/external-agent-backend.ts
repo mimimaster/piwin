@@ -25,6 +25,7 @@ import type {
   SavedMediaAsset,
   AgentPluginSessionScope,
 } from '@piwin/contracts';
+import { logPermissionDiagnostic } from './permission-diagnostics.js';
 import { AgentPluginControlClient } from './agent-plugin-control.js';
 import { AgentPluginSession } from './agent-plugin-session.js';
 import { importAgentPluginEventMedia, importAgentPluginMedia } from './agent-plugin-media.js';
@@ -324,6 +325,11 @@ export class ExternalAgentBackend {
     const requestId = this.deps.createRequestId();
     const runId = input.prompt.runId ?? this.deps.getForegroundRunId(input.sessionId);
     const { prompt } = input;
+    logPermissionDiagnostic('external-request', {
+      agentId: input.agentId,
+      sessionId: input.sessionId,
+      action: prompt.action,
+    });
     return new Promise((resolve) => {
       let settled = false;
       const pending: ExternalPendingPermission = {
