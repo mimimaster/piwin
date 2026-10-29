@@ -122,7 +122,9 @@ export function PhoneModelSheet(props: Props): ReactElement {
 
   const q = query.trim().toLocaleLowerCase();
   const hits = q
-    ? models.filter((model) => `${model.label} ${providerOf(model, isZh)} ${model.key}`.toLocaleLowerCase().includes(q))
+    ? models.filter((model) =>
+        `${model.label} ${providerOf(model, isZh)} ${model.key}`.toLocaleLowerCase().includes(q),
+      )
     : [];
 
   const effortControl = (inline: boolean): ReactElement | null =>
@@ -148,7 +150,11 @@ export function PhoneModelSheet(props: Props): ReactElement {
       </div>
     ) : null;
 
-  const row = (model: ThinkingEffortModelOption, section: string, showProvider: boolean): ReactElement => {
+  const row = (
+    model: ThinkingEffortModelOption,
+    section: string,
+    showProvider: boolean,
+  ): ReactElement => {
     const on = model.key === selected?.key;
     const tags = [
       model.reasoning ? (isZh ? '推理' : 'Reasoning') : null,
@@ -181,7 +187,14 @@ export function PhoneModelSheet(props: Props): ReactElement {
           </span>
           {on ? (
             <svg className="pms-check" width="20" height="20" viewBox="0 0 20 20" aria-hidden>
-              <path d="M4.5 10.5 8.3 14 15.5 6.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M4.5 10.5 8.3 14 15.5 6.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           ) : null}
         </button>
@@ -190,7 +203,9 @@ export function PhoneModelSheet(props: Props): ReactElement {
     );
   };
 
-  const pillName = selected ? modelName(selected) : props.modelLabel || (isZh ? '选择模型' : 'Model');
+  const pillName = selected
+    ? modelName(selected)
+    : props.modelLabel || (isZh ? '选择模型' : 'Model');
   const pill = (
     <button
       type="button"
@@ -214,7 +229,9 @@ export function PhoneModelSheet(props: Props): ReactElement {
     <section className="pms-group">
       {hits.map((model) => row(model, 'hits', true))}
       {hits.length === 0 ? (
-        <div className="pms-empty">{isZh ? `没有匹配「${query.trim()}」的模型` : `No models match “${query.trim()}”`}</div>
+        <div className="pms-empty">
+          {isZh ? `没有匹配「${query.trim()}」的模型` : `No models match “${query.trim()}”`}
+        </div>
       ) : null}
     </section>
   ) : (
@@ -251,7 +268,11 @@ export function PhoneModelSheet(props: Props): ReactElement {
             onPointerUp={(event) => {
               const start = scrimStart.current;
               scrimStart.current = null;
-              if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) <= TAP_SLOP_PX) close();
+              if (
+                start &&
+                Math.hypot(event.clientX - start.x, event.clientY - start.y) <= TAP_SLOP_PX
+              )
+                close();
             }}
             onPointerCancel={() => {
               scrimStart.current = null;
@@ -292,7 +313,13 @@ export function PhoneModelSheet(props: Props): ReactElement {
                 ))}
               </div>
             )}
-            <div className="pms-list" role="listbox" aria-label={isZh ? '模型' : 'Model'} data-testid="pms-list" onScroll={tap.cancel}>
+            <div
+              className="pms-list"
+              role="listbox"
+              aria-label={isZh ? '模型' : 'Model'}
+              data-testid="pms-list"
+              onScroll={tap.cancel}
+            >
               {models.length === 0 ? (
                 <div className="pms-empty">{isZh ? '未配置模型' : 'No models configured'}</div>
               ) : (
@@ -302,12 +329,19 @@ export function PhoneModelSheet(props: Props): ReactElement {
             <label className="pms-search">
               <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
                 <circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                <path d="m10.6 10.6 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path
+                  d="m10.6 10.6 3 3"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
               </svg>
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={isZh ? `搜索 ${models.length} 个模型` : `Search ${models.length} models`}
+                placeholder={
+                  isZh ? `搜索 ${models.length} 个模型` : `Search ${models.length} models`
+                }
                 aria-label={isZh ? '搜索模型' : 'Search models'}
                 data-testid="pms-search"
                 spellCheck={false}

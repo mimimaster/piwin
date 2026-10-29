@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { bindDraftRunMode, DRAFT_RUN_MODE_KEY, setRunModeOverride } from './use-workbench-desktop-config.js';
+import {
+  bindDraftRunMode,
+  DRAFT_RUN_MODE_KEY,
+  setRunModeOverride,
+} from './use-workbench-desktop-config.js';
 
 describe('per-session run mode overrides', () => {
   it('keeps picks per session and clears to follow Host', () => {
@@ -20,7 +24,11 @@ describe('per-session run mode overrides', () => {
   });
 
   it('does not overwrite an existing session pick, and is a no-op without a draft pick', () => {
-    const map = setRunModeOverride(setRunModeOverride(new Map(), 's1', 'ask'), DRAFT_RUN_MODE_KEY, 'yolo');
+    const map = setRunModeOverride(
+      setRunModeOverride(new Map(), 's1', 'ask'),
+      DRAFT_RUN_MODE_KEY,
+      'yolo',
+    );
     expect(bindDraftRunMode(map, 's1').get('s1')).toBe('ask');
     const empty = new Map();
     expect(bindDraftRunMode(empty, 's1')).toBe(empty);

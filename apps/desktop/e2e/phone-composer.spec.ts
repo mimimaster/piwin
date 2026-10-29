@@ -22,7 +22,10 @@ async function openPhoneShell(page: Page): Promise<void> {
 /** Run mode applies to project sessions; the default mock lands in Chat. */
 async function openProject(page: Page): Promise<void> {
   const jsClick = (testId: string) =>
-    page.evaluate((id) => document.querySelector<HTMLElement>(`[data-testid="${id}"]`)?.click(), testId);
+    page.evaluate(
+      (id) => document.querySelector<HTMLElement>(`[data-testid="${id}"]`)?.click(),
+      testId,
+    );
   await jsClick('sidebar-mode-code');
   await expect(page.getByTestId('open-workspace-btn')).toHaveCount(1);
   await jsClick('open-workspace-btn');
@@ -32,7 +35,9 @@ async function openProject(page: Page): Promise<void> {
   await page.keyboard.press('Escape');
 }
 
-test('phone composer has no run-mode / orchestration pill; ⋯ menu owns run mode', async ({ page }) => {
+test('phone composer has no run-mode / orchestration pill; ⋯ menu owns run mode', async ({
+  page,
+}) => {
   await openPhoneShell(page);
   await openProject(page);
   await page.getByTestId('composer-input').fill('hello phone');

@@ -7,7 +7,14 @@
  * a swipe that starts on a row never flashes it. Keyboard activation (click
  * with detail 0) selects directly.
  */
-import { useCallback, useEffect, useRef, useState, type PointerEvent, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type MouseEvent,
+} from 'react';
 
 export const TAP_SLOP_PX = 8;
 export const PRESS_DELAY_MS = 120;
@@ -53,12 +60,19 @@ export function useTapSelect(
         const timer = window.setTimeout(() => {
           if (gesture.current?.key === key) setPressedKey(key);
         }, PRESS_DELAY_MS);
-        gesture.current = { key, pointerId: event.pointerId, x: event.clientX, y: event.clientY, timer };
+        gesture.current = {
+          key,
+          pointerId: event.pointerId,
+          x: event.clientX,
+          y: event.clientY,
+          timer,
+        };
       },
       onPointerMove: (event) => {
         const current = gesture.current;
         if (current === null || current.pointerId !== event.pointerId) return;
-        if (Math.hypot(event.clientX - current.x, event.clientY - current.y) > TAP_SLOP_PX) cancel();
+        if (Math.hypot(event.clientX - current.x, event.clientY - current.y) > TAP_SLOP_PX)
+          cancel();
       },
       onPointerUp: (event) => {
         const current = gesture.current;
@@ -66,7 +80,8 @@ export function useTapSelect(
           cancel();
           return;
         }
-        const moved = Math.hypot(event.clientX - current.x, event.clientY - current.y) > TAP_SLOP_PX;
+        const moved =
+          Math.hypot(event.clientX - current.x, event.clientY - current.y) > TAP_SLOP_PX;
         cancel();
         if (!moved) selectRef.current(key);
       },

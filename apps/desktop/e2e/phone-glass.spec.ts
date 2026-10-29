@@ -18,7 +18,10 @@ async function openPhoneShell(page: Page, themeId: string): Promise<void> {
     document.documentElement.style.setProperty('--app-safe-top', '59px');
     document.documentElement.style.setProperty('--app-safe-bottom', '34px');
   }, themeId);
-  const long = Array.from({ length: 6 }, (_, i) => `第 ${i + 1} 段：透过玻璃应该能看到这段文字在滚动。`).join(' ');
+  const long = Array.from(
+    { length: 6 },
+    (_, i) => `第 ${i + 1} 段：透过玻璃应该能看到这段文字在滚动。`,
+  ).join(' ');
   for (let i = 0; i < 3; i += 1) {
     await page.getByTestId('composer-input').fill(`${long} #${i}`);
     await page.getByTestId('send-btn').click();
@@ -40,12 +43,15 @@ for (const themeId of ['piwin-inkstone-paper', 'piwin-inkstone-ink'] as const) {
       return {
         filter: style.getPropertyValue('--phone-glass-filter').trim(),
         overlap: style.getPropertyValue('--phone-composer-overlap').trim(),
-        slab: getComputedStyle(document.querySelector('.composer-dock .slab-face')!).backgroundColor,
+        slab: getComputedStyle(document.querySelector('.composer-dock .slab-face')!)
+          .backgroundColor,
         bar: getComputedStyle(document.querySelector('.app-shell > .context-bar')!).backgroundColor,
       };
     });
     if (SHOT_DIR) {
-      await page.screenshot({ path: `${SHOT_DIR}/glass-${SHOT_TAG}-${themeId.replace('piwin-inkstone-', '')}.png` });
+      await page.screenshot({
+        path: `${SHOT_DIR}/glass-${SHOT_TAG}-${themeId.replace('piwin-inkstone-', '')}.png`,
+      });
       console.log(`[glass ${SHOT_TAG} ${themeId}] ${JSON.stringify(tokens)}`);
     }
     if (SHOT_TAG === 'after') {
@@ -66,7 +72,9 @@ for (const themeId of ['piwin-inkstone-paper', 'piwin-inkstone-ink'] as const) {
 test('phone glass strength 0 turns the chrome solid', async ({ page }) => {
   test.skip(SHOT_TAG !== 'after', 'strength token is new');
   await openPhoneShell(page, 'piwin-inkstone-paper');
-  await page.evaluate(() => document.documentElement.style.setProperty('--phone-glass-strength', '0'));
+  await page.evaluate(() =>
+    document.documentElement.style.setProperty('--phone-glass-strength', '0'),
+  );
   const slab = await page.evaluate(
     () => getComputedStyle(document.querySelector('.composer-dock .slab-face')!).backgroundColor,
   );

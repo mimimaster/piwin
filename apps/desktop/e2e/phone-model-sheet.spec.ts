@@ -44,7 +44,9 @@ async function visibleRows(page: Page): Promise<Array<[number, number]>> {
 test.describe('phone model sheet', () => {
   test.skip(({ browserName }) => browserName !== 'chromium', 'CDP touch input is Chromium-only');
 
-  test('swipes never select; taps select and keep the sheet open; handle drag closes', async ({ page }) => {
+  test('swipes never select; taps select and keep the sheet open; handle drag closes', async ({
+    page,
+  }) => {
     await openPhoneShell(page);
     await page.getByTestId('thinking-effort-trigger').click();
     await expect(page.getByTestId('pms-sheet')).toBeVisible();
@@ -122,7 +124,9 @@ test.describe('phone model sheet', () => {
       await page.getByTestId('thinking-effort-trigger').click();
       await expect(page.getByTestId('pms-sheet')).toBeVisible();
       await page.waitForTimeout(300);
-      await page.screenshot({ path: `${SHOT_DIR}/model-sheet-${theme.replace('piwin-inkstone-', '')}.png` });
+      await page.screenshot({
+        path: `${SHOT_DIR}/model-sheet-${theme.replace('piwin-inkstone-', '')}.png`,
+      });
     });
   }
 });

@@ -27,9 +27,15 @@ function presetLabel(preset: PermissionPreset, isZh: boolean): string {
 }
 
 function presetDetail(preset: PermissionPreset, isZh: boolean): string {
-  if (preset === 'auto') return isZh ? '项目内自动执行；离开项目目录时询问' : 'Runs inside the project; asks before leaving it';
-  if (preset === 'ask') return isZh ? '几乎每个工具调用都先确认' : 'Confirms almost every tool call';
-  return isZh ? '不再询问（未受信任的项目按自动运行）' : 'Never asks (untrusted projects run as Auto)';
+  if (preset === 'auto')
+    return isZh
+      ? '项目内自动执行；离开项目目录时询问'
+      : 'Runs inside the project; asks before leaving it';
+  if (preset === 'ask')
+    return isZh ? '几乎每个工具调用都先确认' : 'Confirms almost every tool call';
+  return isZh
+    ? '不再询问（未受信任的项目按自动运行）'
+    : 'Never asks (untrusted projects run as Auto)';
 }
 
 export function PhoneSessionMenu(props: PhoneSessionMenuProps): ReactElement {
@@ -40,7 +46,9 @@ export function PhoneSessionMenu(props: PhoneSessionMenuProps): ReactElement {
     {
       id: null,
       label: isZh ? '跟随 Host 默认' : 'Follow Host default',
-      detail: isZh ? `当前：${presetLabel(props.hostValue, true)}` : `Now: ${presetLabel(props.hostValue, false)}`,
+      detail: isZh
+        ? `当前：${presetLabel(props.hostValue, true)}`
+        : `Now: ${presetLabel(props.hostValue, false)}`,
     },
     ...(['auto', 'ask', 'yolo'] as const).map((preset) => ({
       id: preset,
@@ -69,7 +77,12 @@ export function PhoneSessionMenu(props: PhoneSessionMenuProps): ReactElement {
         ? createPortal(
             <div className="psm-layer" data-testid="phone-session-menu">
               <div className="psm-scrim" onClick={() => setOpen(false)} />
-              <div className="psm-sheet" role="dialog" aria-modal="true" aria-label={isZh ? '会话菜单' : 'Session menu'}>
+              <div
+                className="psm-sheet"
+                role="dialog"
+                aria-modal="true"
+                aria-label={isZh ? '会话菜单' : 'Session menu'}
+              >
                 <span className="psm-grab" aria-hidden />
                 <div className="psm-sec">
                   {isZh ? '运行模式' : 'Run mode'}
@@ -96,7 +109,11 @@ export function PhoneSessionMenu(props: PhoneSessionMenuProps): ReactElement {
                           <span className="psm-row-name">{choice.label}</span>
                           <span className="psm-row-meta">{choice.detail}</span>
                         </span>
-                        {on ? <span className="psm-check" aria-hidden>✓</span> : null}
+                        {on ? (
+                          <span className="psm-check" aria-hidden>
+                            ✓
+                          </span>
+                        ) : null}
                       </button>
                     );
                   })}

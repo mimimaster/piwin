@@ -13,7 +13,13 @@ function List({ onSelect }: { onSelect: (key: string) => void }) {
   return (
     <div data-testid="list" onScroll={tap.cancel}>
       {['a', 'b'].map((key) => (
-        <button key={key} type="button" data-testid={key} data-pressed={String(tap.pressedKey === key)} {...tap.rowProps(key)}>
+        <button
+          key={key}
+          type="button"
+          data-testid={key}
+          data-pressed={String(tap.pressedKey === key)}
+          {...tap.rowProps(key)}
+        >
           {key}
         </button>
       ))}
@@ -26,7 +32,15 @@ let host: HTMLDivElement;
 const el = (id: string) => document.querySelector<HTMLElement>(`[data-testid="${id}"]`)!;
 const fire = (target: Element, type: string, init: PointerEventInit = {}) =>
   act(() => {
-    target.dispatchEvent(new window.PointerEvent(type, { bubbles: true, cancelable: true, button: 0, pointerId: 1, ...init }));
+    target.dispatchEvent(
+      new window.PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        pointerId: 1,
+        ...init,
+      }),
+    );
   });
 
 function mount(onSelect: (key: string) => void) {

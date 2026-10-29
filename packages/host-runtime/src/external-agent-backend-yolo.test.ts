@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { HostPush, PermissionMode } from '@piwin/contracts';
-import { ExternalAgentBackend, yoloAllowDecision, type ExternalAgentBackendDeps } from './external-agent-backend.js';
+import {
+  ExternalAgentBackend,
+  yoloAllowDecision,
+  type ExternalAgentBackendDeps,
+} from './external-agent-backend.js';
 
 const options = [
   { optionId: 'a1', kind: 'allow_once', name: 'Allow' },
@@ -38,13 +42,16 @@ describe('external agent permission under YOLO', () => {
     expect(yoloAllowDecision([] as never)).toBeUndefined();
   });
 
-  it.each(['bypass', 'unrestricted'] as const)('auto-allows under %s with an audit record', async (mode) => {
-    const t = backend(mode);
-    await expect(t.ask()).resolves.toEqual({ optionId: 'a1' });
-    expect(t.pushes.some((p) => p.type === 'permission/request')).toBe(false);
-    expect(t.pushes.some((p) => p.type === 'permission/resolved')).toBe(true);
-    expect(t.pushes.some((p) => p.type === 'host/log')).toBe(true);
-  });
+  it.each(['bypass', 'unrestricted'] as const)(
+    'auto-allows under %s with an audit record',
+    async (mode) => {
+      const t = backend(mode);
+      await expect(t.ask()).resolves.toEqual({ optionId: 'a1' });
+      expect(t.pushes.some((p) => p.type === 'permission/request')).toBe(false);
+      expect(t.pushes.some((p) => p.type === 'permission/resolved')).toBe(true);
+      expect(t.pushes.some((p) => p.type === 'host/log')).toBe(true);
+    },
+  );
 
   it.each(['auto', 'ask-all', undefined] as const)('still asks under %s', (mode) => {
     const t = backend(mode);

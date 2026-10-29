@@ -24,13 +24,24 @@ const q = (sel: string) => document.querySelector<HTMLElement>(sel);
 const qa = (sel: string) => Array.from(document.querySelectorAll<HTMLElement>(sel));
 const fire = (target: Element, type: string, init: PointerEventInit = {}) =>
   act(() => {
-    target.dispatchEvent(new window.PointerEvent(type, { bubbles: true, cancelable: true, button: 0, pointerId: 1, ...init }));
+    target.dispatchEvent(
+      new window.PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        pointerId: 1,
+        ...init,
+      }),
+    );
   });
 const tap = (target: Element) => {
   fire(target, 'pointerdown', { clientX: 50, clientY: 50 });
   fire(target, 'pointerup', { clientX: 50, clientY: 50 });
 };
-const rowFor = (key: string) => qa('[data-testid="pms-row"]').find((row) => row.dataset.key === key && !row.closest('[data-testid="pms-recent"]'))!;
+const rowFor = (key: string) =>
+  qa('[data-testid="pms-row"]').find(
+    (row) => row.dataset.key === key && !row.closest('[data-testid="pms-recent"]'),
+  )!;
 
 function mount(onSelectModel = vi.fn(), selectedModelKey = 'p0:m0') {
   act(() =>
@@ -67,7 +78,14 @@ describe('PhoneModelSheet', () => {
 
   it('groups 45 models by provider with sticky headers and a recent group', () => {
     mount();
-    expect(qa('.pms-sec').map((s) => s.firstChild?.textContent)).toEqual(['最近使用', 'Prov0', 'Prov1', 'Prov2', 'Prov3', 'Prov4']);
+    expect(qa('.pms-sec').map((s) => s.firstChild?.textContent)).toEqual([
+      '最近使用',
+      'Prov0',
+      'Prov1',
+      'Prov2',
+      'Prov3',
+      'Prov4',
+    ]);
     expect(qa('[data-testid="pms-row"]').length).toBe(45 + 1);
   });
 
@@ -120,19 +138,33 @@ describe('PhoneModelSheet', () => {
   });
 
   it('keeps 3 recent models, newest first', () => {
-    window.localStorage.setItem(RECENT_MODELS_KEY, JSON.stringify(['p3:m3', 'p4:m4', 'p1:m6', 'p2:m7']));
+    window.localStorage.setItem(
+      RECENT_MODELS_KEY,
+      JSON.stringify(['p3:m3', 'p4:m4', 'p1:m6', 'p2:m7']),
+    );
     mount();
-    const recent = qa('[data-testid="pms-recent"] [data-testid="pms-row"]').map((r) => r.dataset.key);
+    const recent = qa('[data-testid="pms-recent"] [data-testid="pms-row"]').map(
+      (r) => r.dataset.key,
+    );
     expect(recent).toEqual(['p0:m0', 'p3:m3', 'p4:m4']);
   });
 
   it('filters by provider and by search', () => {
     mount();
-    act(() => qa('.pms-filter button').find((b) => b.textContent === 'Prov2')!.click());
-    expect(new Set(qa('[data-testid="pms-row"]').map((r) => r.dataset.key!.split(':')[0]))).toEqual(new Set(['p2']));
+    act(() =>
+      qa('.pms-filter button')
+        .find((b) => b.textContent === 'Prov2')!
+        .click(),
+    );
+    expect(new Set(qa('[data-testid="pms-row"]').map((r) => r.dataset.key!.split(':')[0]))).toEqual(
+      new Set(['p2']),
+    );
     const input = q('[data-testid="pms-search"]') as HTMLInputElement;
     act(() => {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )!.set!;
       setter.call(input, 'model-44');
       input.dispatchEvent(new window.Event('input', { bubbles: true }));
     });
