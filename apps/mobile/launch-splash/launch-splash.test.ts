@@ -40,6 +40,25 @@ describe('injectLaunchSplash', () => {
   });
 });
 
+describe('launch splash markup', () => {
+  it('is the brush enso and the orange dot only: no text', () => {
+    const host = document.createElement('div');
+    host.innerHTML = markup;
+    expect(host.querySelector('mask#ls-enso-reveal .ls-enso-sweep')?.getAttribute('pathLength')).toBe('100');
+    expect(host.querySelector('.ls-enso-ink')?.getAttribute('mask')).toBe('url(#ls-enso-reveal)');
+    expect(host.querySelector('.ls-enso-dot')).not.toBeNull();
+    expect(host.querySelector('.ls-stage')?.textContent?.trim()).toBe('');
+    expect(host.querySelector('.ls-word, .ls-sub, .ls-seal')).toBeNull();
+  });
+
+  it('honours reduced motion and quick resume in the stylesheet', () => {
+    const css = readFileSync(join(here, 'launch-splash.css'), 'utf8');
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
+    expect(css).toMatch(/#launch-splash\.is-quick \*/);
+    expect(css).toMatch(/--ls-dot: #fb663a/);
+  });
+});
+
 describe('launch splash controller', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -70,12 +89,12 @@ describe('launch splash controller', () => {
     await vi.advanceTimersByTimeAsync(0);
   }
 
-  it('waits for the stamp to finish even when the app mounts at once', async () => {
+  it('waits for the enso stroke to finish even when the app mounts at once', async () => {
     boot();
     await mountApp();
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(1600);
     expect(splash()?.className).not.toContain('is-leaving');
-    await vi.advanceTimersByTimeAsync(700);
+    await vi.advanceTimersByTimeAsync(200);
     expect(splash()?.className).toContain('is-leaving');
     await vi.advanceTimersByTimeAsync(700);
     expect(splash()).toBeNull();
