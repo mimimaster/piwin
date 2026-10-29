@@ -10,6 +10,8 @@ import { formatComposerModelKey } from '../composer/composer-model-selection-pol
 import { IconClose, IconSearch, IconSpark } from '../tool-cards/shell-icons';
 import { getSupportedThinkingLevels } from './model-thinking-policy';
 import { useTapSelect } from './use-tap-select';
+import { usePhoneShell } from './use-phone-shell';
+import { PhoneModelSheet } from './phone-model-sheet';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { formatThinkingLabel } from '../usage/usage-panel-statistics.js';
 
@@ -70,6 +72,47 @@ type ThinkingEffortControlProps = {
 };
 
 export function ThinkingEffortControl({
+  disabled,
+  modelLabel,
+  ultraEnabled,
+  value,
+  onChange,
+  models = [],
+  selectedModelKey = '',
+  onSelectModel,
+}: ThinkingEffortControlProps): ReactElement {
+  const phone = usePhoneShell();
+  const { locale } = useDesktopLocale();
+  if (phone) {
+    return (
+      <PhoneModelSheet
+        disabled={disabled}
+        isZh={locale === 'zh-CN'}
+        modelLabel={modelLabel}
+        ultraEnabled={ultraEnabled}
+        value={value}
+        onChange={onChange}
+        models={models}
+        selectedModelKey={selectedModelKey}
+        {...(onSelectModel ? { onSelectModel } : {})}
+      />
+    );
+  }
+  return (
+    <DesktopThinkingEffortControl
+      disabled={disabled}
+      modelLabel={modelLabel}
+      ultraEnabled={ultraEnabled}
+      value={value}
+      onChange={onChange}
+      models={models}
+      selectedModelKey={selectedModelKey}
+      {...(onSelectModel ? { onSelectModel } : {})}
+    />
+  );
+}
+
+function DesktopThinkingEffortControl({
   disabled,
   modelLabel,
   ultraEnabled,

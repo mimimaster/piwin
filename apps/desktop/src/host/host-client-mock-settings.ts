@@ -57,6 +57,69 @@ export async function handleMockSettingsCommands(
             revision: host.mockUserPermissionRulesRevision,
           },
         };
+      // Sample catalog (46 illustrative models) so the phone model sheet has a
+      // realistic list in the in-browser mock; values are not real pricing/limits.
+      case 'models/configured' as never: {
+        const m = (providerId: string, providerName: string, modelId: string, label: string, contextWindow: number, reasoning = true, image = false) => ({
+          providerId, providerName, modelId, label, contextWindow, reasoning, protocol: providerId === 'anthropic' ? 'anthropic-compatible' : providerId === 'vertex' ? 'google-vertex' : 'openai-compatible',
+          ...(reasoning ? { thinkingLevels: ['off', 'low', 'medium', 'high'] } : {}),
+          input: image ? ['text', 'image'] : ['text'],
+        });
+        return {
+          id, type: 'response', command: 'models/configured', success: true,
+          data: {
+            defaultProviderId: 'anthropic', defaultModelId: 'claude-sonnet-4-6',
+            models: [
+              m('anthropic', 'Claude', 'claude-sonnet-4-6', 'Sonnet 4.6', 200000, true, true),
+              m('anthropic', 'Claude', 'claude-opus-4-1', 'Opus 4.1', 200000, true, true),
+              m('anthropic', 'Claude', 'claude-haiku-4-5', 'Haiku 4.5', 200000, true, true),
+              m('openai', 'OpenAI', 'gpt-5-codex', 'GPT-5 Codex', 400000),
+              m('openai', 'OpenAI', 'gpt-5-mini', 'GPT-5 mini', 400000, true, true),
+              m('xai', 'xAI', 'grok-4-fast', 'Grok 4 Fast', 2000000),
+              m('vertex', 'Vertex', 'gemini-2.5-pro', 'Gemini 2.5 Pro', 1000000, true, true),
+              m('deepseek', 'DeepSeek', 'deepseek-v3', 'V3.2', 128000, false),
+              m('kiro', 'Kiro', 'kiro-default', 'default', 200000, false),
+              m('anthropic', 'Claude', 'claude-sonnet-4-5', 'Sonnet 4.5', 200000, true, true),
+              m('anthropic', 'Claude', 'claude-opus-4', 'Opus 4', 200000, true, true),
+              m('anthropic', 'Claude', 'claude-3-7-sonnet', 'Sonnet 3.7', 200000, true, true),
+              m('openai', 'OpenAI', 'gpt-5', 'GPT-5', 400000, true, true),
+              m('openai', 'OpenAI', 'gpt-5-nano', 'GPT-5 nano', 400000, true, true),
+              m('openai', 'OpenAI', 'gpt-4-1', 'GPT-4.1', 1000000, false, true),
+              m('openai', 'OpenAI', 'o3', 'o3', 200000, true, true),
+              m('openai', 'OpenAI', 'o4-mini', 'o4-mini', 200000, true, true),
+              m('openai', 'OpenAI', 'gpt-oss-120b', 'gpt-oss 120B', 131000, true, false),
+              m('xai', 'xAI', 'grok-4', 'Grok 4', 256000, true, true),
+              m('xai', 'xAI', 'grok-code-fast', 'Grok Code Fast', 256000, true, false),
+              m('xai', 'xAI', 'grok-3-mini', 'Grok 3 mini', 131000, true, false),
+              m('vertex', 'Vertex', 'gemini-2.5-flash', 'Gemini 2.5 Flash', 1000000, true, true),
+              m('vertex', 'Vertex', 'gemini-2.5-flash-lite', 'Gemini 2.5 Flash-Lite', 1000000, true, true),
+              m('vertex', 'Vertex', 'gemini-2.0-flash', 'Gemini 2.0 Flash', 1000000, false, true),
+              m('deepseek', 'DeepSeek', 'deepseek-r1', 'R1', 128000, true, false),
+              m('deepseek', 'DeepSeek', 'deepseek-v3-1', 'V3.1', 128000, true, false),
+              m('moonshot', 'Moonshot', 'kimi-k2', 'Kimi K2', 256000, false, false),
+              m('moonshot', 'Moonshot', 'kimi-k2-thinking', 'Kimi K2 Thinking', 256000, true, false),
+              m('moonshot', 'Moonshot', 'kimi-latest', 'Kimi latest', 128000, false, true),
+              m('zhipu', '智谱', 'glm-4-6', 'GLM-4.6', 200000, true, false),
+              m('zhipu', '智谱', 'glm-4-5-air', 'GLM-4.5 Air', 128000, true, false),
+              m('zhipu', '智谱', 'glm-4-5v', 'GLM-4.5V', 64000, true, true),
+              m('qwen', '通义千问', 'qwen3-coder-plus', 'Qwen3 Coder Plus', 1000000, false, false),
+              m('qwen', '通义千问', 'qwen3-max', 'Qwen3 Max', 262000, true, false),
+              m('qwen', '通义千问', 'qwen3-235b', 'Qwen3 235B', 131000, true, false),
+              m('qwen', '通义千问', 'qwen-vl-max', 'Qwen VL Max', 131000, false, true),
+              m('openrouter', 'OpenRouter', 'or-llama-4-maverick', 'Llama 4 Maverick', 1000000, false, true),
+              m('openrouter', 'OpenRouter', 'or-mistral-large', 'Mistral Large 2', 128000, false, false),
+              m('openrouter', 'OpenRouter', 'or-devstral', 'Devstral Medium', 128000, false, false),
+              m('openrouter', 'OpenRouter', 'or-minimax-m2', 'MiniMax M2', 204000, true, false),
+              m('openrouter', 'OpenRouter', 'or-hermes-4', 'Hermes 4 405B', 131000, true, false),
+              m('doubao', '豆包', 'doubao-seed-1-6', 'Seed 1.6', 256000, true, true),
+              m('doubao', '豆包', 'doubao-seed-code', 'Seed Code', 256000, true, false),
+              m('ollama', 'Ollama（本机）', 'ollama-qwen3-30b', 'qwen3:30b', 40000, true, false),
+              m('ollama', 'Ollama（本机）', 'ollama-gpt-oss-20b', 'gpt-oss:20b', 131000, true, false),
+              m('ollama', 'Ollama（本机）', 'ollama-llama3-1', 'llama3.1:8b', 131000, false, false),
+            ],
+          },
+        } as never;
+      }
       case 'settings/get':
         return {
           id,

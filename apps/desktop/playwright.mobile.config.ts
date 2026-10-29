@@ -7,7 +7,7 @@ const baseURL = process.env.PIWIN_E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
 export default defineConfig({
   ...desktopConfig,
   testDir: './e2e',
-  testMatch: /(viewport-responsive|phone-layout|phone-scroll)\.spec\.ts/,
+  testMatch: /(viewport-responsive|phone-layout|phone-scroll|phone-model-sheet|phone-composer|phone-glass)\.spec\.ts/,
   use: {
     ...desktopConfig.use,
     baseURL,
