@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ThinkingLevel } from '@piwin/contracts';
 import { PhoneEffortChip } from './phone-effort-chip.js';
 import { PhoneModelSheet } from './phone-model-sheet.js';
-import { describeThinkingLevel } from './thinking-effort-copy.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -52,7 +51,7 @@ describe('PhoneEffortChip', () => {
     expect(host.innerHTML).toBe('');
   });
 
-  it('shows bulb + current level and opens a popover with real descriptions', () => {
+  it('shows bulb + current level and opens a popover of bare level names', () => {
     mount(FOUR);
     const chip = q('[data-testid="pec-chip"]')!;
     expect(chip.querySelector('.pec-level')!.textContent).toBe('中');
@@ -61,8 +60,8 @@ describe('PhoneEffortChip', () => {
     expect(q('[data-testid="pec-pop"]')).not.toBeNull();
     for (const level of FOUR) {
       const item = q(`[data-testid="pec-level-${level}"]`)!;
-      expect(item.querySelector('.pec-item-desc')!.textContent).toBe(describeThinkingLevel(level, true));
-      expect(item.querySelector('.pec-item-desc')!.textContent!.length).toBeGreaterThan(4);
+      expect(item.textContent).toBe({ off: '关', low: '低', medium: '中', high: '高' }[level as string]);
+      expect(item.querySelector('small')).toBeNull();
     }
     expect(q('[data-testid="pec-level-medium"]')!.getAttribute('aria-checked')).toBe('true');
   });

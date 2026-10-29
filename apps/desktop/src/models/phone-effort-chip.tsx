@@ -1,7 +1,7 @@
 /**
  * Phone composer thinking-effort chip (option B): sits beside the model chip,
- * shows a bulb + the current level, and opens a small anchored popover of the
- * levels. The model sheet carries no effort control on phone.
+ * shows a bulb + the current level, and opens a small anchored popover listing
+ * only the level names (one compact row each, no descriptions). The model sheet carries no effort control on phone.
  *
  * - no supported levels: renders nothing;
  * - exactly two levels: a plain toggle chip (still tap flips the level);
@@ -13,7 +13,6 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import type { ThinkingLevel } from '@piwin/contracts';
 import { formatThinkingLabel } from '../usage/usage-panel-statistics.js';
-import { describeThinkingLevel } from './thinking-effort-copy';
 import { TAP_SLOP_PX, useTapSelect } from './use-tap-select';
 
 type Props = {
@@ -27,6 +26,7 @@ type Props = {
 
 const POP_GAP_PX = 8;
 const POP_EDGE_PX = 12;
+const POP_WIDTH_PX = 168;
 
 function Bulb(): ReactElement {
   return (
@@ -88,7 +88,7 @@ export function PhoneEffortChip(props: Props): ReactElement | null {
   }
 
   const openAt = (rect: DOMRect): void => {
-    const left = Math.min(Math.max(POP_EDGE_PX, rect.left - 10), window.innerWidth - 248 - POP_EDGE_PX);
+    const left = Math.min(Math.max(POP_EDGE_PX, rect.left - 10), window.innerWidth - POP_WIDTH_PX - POP_EDGE_PX);
     setAnchor({ left: Math.max(POP_EDGE_PX, left), bottom: window.innerHeight - rect.top + POP_GAP_PX });
     setOpen(true);
   };
@@ -157,7 +157,6 @@ export function PhoneEffortChip(props: Props): ReactElement | null {
                       {...tap.rowProps(level)}
                     >
                       <span className="pec-item-name">{formatThinkingLabel(level, isZh)}</span>
-                      <small className="pec-item-desc">{describeThinkingLevel(level, isZh)}</small>
                       {level === current ? (
                         <svg className="pec-check" width="18" height="18" viewBox="0 0 20 20" aria-hidden>
                           <path

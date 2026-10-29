@@ -157,6 +157,11 @@ test.describe('phone model sheet', () => {
     const before = await level();
     await tapAt(await center('[data-testid="pec-chip"]'));
     await expect(page.getByTestId('pec-pop')).toBeVisible();
+    // Bare level names only, compact rows that stay >= 44px tap targets.
+    await expect(page.locator('[data-testid="pec-pop"] small.pec-item-desc, .pec-item small')).toHaveCount(0);
+    const heights = await page.locator('.pec-item').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+    for (const h of heights) expect(h).toBeGreaterThanOrEqual(44);
+    expect(Math.max(...heights)).toBeLessThan(52);
     // 20 swipes starting on level rows: no pick, popover stays.
     for (let i = 0; i < 20; i += 1) {
       const items = page.locator('.pec-item');
