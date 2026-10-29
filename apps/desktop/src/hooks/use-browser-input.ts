@@ -5,6 +5,11 @@
  * pointerup sends up and releases. Cancel, blur, unmount, or an agent lock
  * release any held buttons. Pick mode consumes the pointerup as pick-at and
  * never dispatches the same gesture to the page.
+ *
+ * `onClick` is only a fallback for surfaces that never fire pointer events.
+ * A pointerdown on this image consumes the following click — WKWebView often
+ * delivers that click well after 100ms, which used to send a second down+up
+ * and open the same link twice.
  */
 import {
   useCallback,
@@ -59,7 +64,7 @@ export function useBrowserInput(options: UseBrowserInputOptions): {
 } {
   const pressedRef = useRef<{ button: 'left' | 'middle' | 'right'; x: number; y: number } | null>(null);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
-  const lastPointerUpAtRef = useRef(0);
+  const pointerHandledClickRef = useRef(false);
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -115,6 +120,7 @@ export function useBrowserInput(options: UseBrowserInputOptions): {
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLImageElement>): void => {
+      pointerHandledClickRef.current = true;
       if (options.pickMode) return;
       if (!options.interactEnabled) return;
       const point = toViewport(event);
@@ -155,7 +161,6 @@ export function useBrowserInput(options: UseBrowserInputOptions): {
   const onPointerUp = useCallback(
     (event: ReactPointerEvent<HTMLImageElement>): void => {
       const point = toViewport(event) ?? lastPointRef.current;
-      lastPointerUpAtRef.current = Date.now();
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
@@ -192,6 +197,7 @@ export function useBrowserInput(options: UseBrowserInputOptions): {
 
   const onPointerCancel = useCallback(
     (event: ReactPointerEvent<HTMLImageElement>): void => {
+      pointerHandledClickRef.current = false;
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
@@ -228,7 +234,10 @@ export function useBrowserInput(options: UseBrowserInputOptions): {
 
   const onClick = useCallback(
     (event: ReactMouseEvent<HTMLImageElement>): void => {
-      if (Date.now() - lastPointerUpAtRef.current < 100) return;
+      if (pointerHandledClickRef.current) {
+        pointerHandledClickRef.current = false;
+        return;
+      }
       const point = toViewport(event);
       if (!point) return;
       if (options.pickMode) {
