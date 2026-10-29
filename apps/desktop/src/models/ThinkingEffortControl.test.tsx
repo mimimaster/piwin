@@ -119,6 +119,9 @@ function activateModelOption(option: HTMLButtonElement): void {
       button: 0,
     });
     option.dispatchEvent(pointerDown);
+    option.dispatchEvent(
+      new window.PointerEvent('pointerup', { bubbles: true, cancelable: true, button: 0 }),
+    );
   });
 }
 
@@ -371,7 +374,7 @@ describe('ThinkingEffortControl', () => {
     expect(document.body.textContent).not.toContain('套餐');
   });
 
-  it('selects a model on pointerdown before search-blur can dismiss the popover', () => {
+  it('keeps focus on pointerdown but selects only on a still pointer-up (no swipe misclick)', () => {
     const onSelectModel = vi.fn();
     render(createBaseProps({ onSelectModel }), root);
     activateTrigger();
@@ -388,6 +391,18 @@ describe('ThinkingEffortControl', () => {
     });
 
     expect(pointerDown.defaultPrevented).toBe(true);
+    expect(onSelectModel).not.toHaveBeenCalled();
+    act(() => {
+      option?.dispatchEvent(
+        new window.PointerEvent('pointermove', { bubbles: true, clientX: 0, clientY: 30 }),
+      );
+      option?.dispatchEvent(new window.PointerEvent('pointerup', { bubbles: true, button: 0, clientY: 30 }));
+    });
+    expect(onSelectModel).not.toHaveBeenCalled();
+    act(() => {
+      option?.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+      option?.dispatchEvent(new window.PointerEvent('pointerup', { bubbles: true, button: 0 }));
+    });
     expect(onSelectModel).toHaveBeenCalledWith('acme:gpt-mini');
   });
 
