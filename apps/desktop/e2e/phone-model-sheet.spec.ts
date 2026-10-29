@@ -162,6 +162,16 @@ test.describe('phone model sheet', () => {
     const heights = await page.locator('.pec-item').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
     for (const h of heights) expect(h).toBeGreaterThanOrEqual(44);
     expect(Math.max(...heights)).toBeLessThan(52);
+    // Only the level rows: no header, no model name; as narrow as the labels need.
+    await expect(page.locator('[data-testid="pec-pop"] .pec-pop-title')).toHaveCount(0);
+    const popText = (await page.getByTestId('pec-pop').innerText()).replace(/\s+/g, '');
+    expect(popText).toMatch(/^[关低中高极最大]+$/);
+    const modelLabel = (await page.locator('.pms-pill-name').innerText()).trim();
+    expect(popText).not.toContain(modelLabel.replace(/\s+/g, ''));
+    expect((await page.locator('[data-testid="pec-chip"]').innerText())).not.toContain(modelLabel);
+    const popWidth = (await page.getByTestId('pec-pop').boundingBox())!.width;
+    expect(popWidth).toBeLessThanOrEqual(140);
+    expect(popWidth).toBeGreaterThanOrEqual(96);
     // 20 swipes starting on level rows: no pick, popover stays.
     for (let i = 0; i < 20; i += 1) {
       const items = page.locator('.pec-item');

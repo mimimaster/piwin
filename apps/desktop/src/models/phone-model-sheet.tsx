@@ -337,7 +337,6 @@ export function PhoneModelSheet(props: Props): ReactElement {
         isZh={isZh}
         levels={levels}
         value={effort}
-        modelName={pillName}
         onChange={props.onChange}
       />
       {layer}

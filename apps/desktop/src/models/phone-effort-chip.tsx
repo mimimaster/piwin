@@ -1,7 +1,7 @@
 /**
  * Phone composer thinking-effort chip (option B): sits beside the model chip,
  * shows a bulb + the current level, and opens a small anchored popover listing
- * only the level names (one compact row each, no descriptions). The model sheet carries no effort control on phone.
+ * only the level names (one compact row each; no header, no model name, no descriptions). The model sheet carries no effort control on phone.
  *
  * - no supported levels: renders nothing;
  * - exactly two levels: a plain toggle chip (still tap flips the level);
@@ -20,13 +20,13 @@ type Props = {
   isZh: boolean;
   levels: readonly ThinkingLevel[];
   value: ThinkingLevel | undefined;
-  modelName: string;
   onChange: (level: ThinkingLevel) => void;
 };
 
 const POP_GAP_PX = 8;
 const POP_EDGE_PX = 12;
-const POP_WIDTH_PX = 168;
+/** Upper bound used only to keep the fit-content popover on screen. */
+const POP_MAX_WIDTH_PX = 140;
 
 function Bulb(): ReactElement {
   return (
@@ -88,7 +88,7 @@ export function PhoneEffortChip(props: Props): ReactElement | null {
   }
 
   const openAt = (rect: DOMRect): void => {
-    const left = Math.min(Math.max(POP_EDGE_PX, rect.left - 10), window.innerWidth - POP_WIDTH_PX - POP_EDGE_PX);
+    const left = Math.min(Math.max(POP_EDGE_PX, rect.left - 10), window.innerWidth - POP_MAX_WIDTH_PX - POP_EDGE_PX);
     setAnchor({ left: Math.max(POP_EDGE_PX, left), bottom: window.innerHeight - rect.top + POP_GAP_PX });
     setOpen(true);
   };
@@ -135,10 +135,6 @@ export function PhoneEffortChip(props: Props): ReactElement | null {
                 data-testid="pec-pop"
                 style={anchor}
               >
-                <div className="pec-pop-title">
-                  <span>{isZh ? '思考强度' : 'Thinking effort'}</span>
-                  <small>{props.modelName}</small>
-                </div>
                 <div role="radiogroup" aria-label={isZh ? '思考强度' : 'Thinking effort'}>
                   {levels.map((level) => (
                     <button

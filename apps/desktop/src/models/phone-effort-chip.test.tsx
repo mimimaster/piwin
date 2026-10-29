@@ -27,7 +27,7 @@ const tap = (target: Element) => {
 function mount(levels: ThinkingLevel[], value: ThinkingLevel = 'medium', onChange = vi.fn()) {
   act(() =>
     root.render(
-      <PhoneEffortChip disabled={false} isZh levels={levels} value={value} modelName="Sonnet 4.6" onChange={onChange} />,
+      <PhoneEffortChip disabled={false} isZh levels={levels} value={value} onChange={onChange} />,
     ),
   );
   return onChange;
@@ -63,6 +63,9 @@ describe('PhoneEffortChip', () => {
       expect(item.textContent).toBe({ off: '关', low: '低', medium: '中', high: '高' }[level as string]);
       expect(item.querySelector('small')).toBeNull();
     }
+    const pop = q('[data-testid="pec-pop"]')!;
+    expect(pop.querySelector('.pec-pop-title')).toBeNull();
+    expect(pop.textContent).toBe('关低中高');
     expect(q('[data-testid="pec-level-medium"]')!.getAttribute('aria-checked')).toBe('true');
   });
 
@@ -122,7 +125,11 @@ describe('PhoneEffortChip', () => {
         />,
       ),
     );
-    expect(q('[data-testid="pec-chip"]')).not.toBeNull();
+    const chip = q('[data-testid="pec-chip"]')!;
+    expect(chip.textContent).toBe('思考中'); // bulb + level only, no model name
+    act(() => chip.click());
+    expect(q('[data-testid="pec-pop"]')!.textContent).toBe('关低中高');
+    act(() => window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })));
     act(() => q('[data-testid="thinking-effort-trigger"]')!.click());
     expect(q('[data-testid="pms-sheet"] [role="radiogroup"]')).toBeNull();
     expect(q('.pms-pill-effort')).toBeNull();
