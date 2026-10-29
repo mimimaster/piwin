@@ -26,8 +26,9 @@ mod file_uri;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "macos")]
-mod macos;
+pub(crate) mod macos;
 pub(crate) mod overlay;
+pub(crate) mod pin;
 #[cfg(any(target_os = "windows", test))]
 mod raster;
 pub(crate) mod shortcut;
@@ -36,7 +37,7 @@ mod window_restore;
 #[cfg(target_os = "windows")]
 mod windows;
 #[cfg(target_os = "windows")]
-mod windows_clipboard;
+pub(crate) mod windows_clipboard;
 
 /// Lets the hide animation finish so the capture does not catch piwin fading out.
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -53,6 +54,7 @@ pub(crate) struct ScreenCaptureState {
     busy: AtomicBool,
     store: CaptureStore,
     overlay: overlay::OverlaySlot,
+    pins: pin::PinStore,
 }
 
 #[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug)]

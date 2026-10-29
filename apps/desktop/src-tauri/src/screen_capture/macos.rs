@@ -163,7 +163,7 @@ pub(super) fn lift_overlay_window(window: &tauri::WebviewWindow) {
 }
 
 /// PNG plus a TIFF copy: some apps only read TIFF image pasteboard data.
-pub(super) fn copy_png_to_clipboard(png: &[u8]) -> Result<(), String> {
+pub(crate) fn copy_png_to_clipboard(png: &[u8]) -> Result<(), String> {
     let data = NSData::with_bytes(png);
     let pasteboard = NSPasteboard::generalPasteboard();
     pasteboard.clearContents();

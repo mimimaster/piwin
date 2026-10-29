@@ -23,6 +23,7 @@ describe('ScreenCaptureOverlayApp', () => {
       }),
       ready: vi.fn(async () => undefined),
       finish: vi.fn(async () => undefined),
+      pin: vi.fn(async () => undefined),
       cancel: vi.fn(async () => undefined),
     };
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);

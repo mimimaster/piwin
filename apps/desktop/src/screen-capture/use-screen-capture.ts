@@ -50,6 +50,7 @@ export type ScreenCaptureController = {
   start: () => void;
   close: () => void;
   confirm: (png: Blob) => void;
+  pin: (png: Blob) => void;
   exportFailed: (error: unknown) => void;
   authorize: () => void;
   restart: () => void;
@@ -206,6 +207,19 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
     [attachImage],
   );
 
+  const pin = useCallback(
+    (png: Blob): void => {
+      void png
+        .arrayBuffer()
+        .then((buffer) => os.pin(new Uint8Array(buffer)))
+        .then(() => {
+          setPhase({ kind: 'idle' });
+        })
+        .catch(reportError);
+    },
+    [os, reportError],
+  );
+
   const authorize = useCallback((): void => {
     os.requestAuthorization()
       .then((status) => {
@@ -228,6 +242,7 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
     start,
     close,
     confirm,
+    pin,
     exportFailed: reportError,
     authorize,
     restart,

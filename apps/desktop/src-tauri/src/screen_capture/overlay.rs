@@ -50,6 +50,7 @@ pub(super) struct MonitorShot {
 
 pub(super) enum OverlayReply {
     Finished(Vec<u8>),
+    Pinned(Vec<u8>),
     Cancelled,
 }
 
@@ -275,6 +276,31 @@ pub(crate) fn screen_capture_overlay_finish(
     }
 }
 
+/// Same as finish, but the native side opens a floating pin instead of
+/// handing the image to the composer.
+#[tauri::command]
+pub(crate) fn screen_capture_overlay_pin(
+    request: Request<'_>,
+    webview: Webview,
+    state: State<'_, ScreenCaptureState>,
+) -> Result<(), String> {
+    require_overlay(&webview)?;
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err(ERROR_FAILED.to_string());
+    };
+    if png_dimensions(bytes).is_none() {
+        return Err(ERROR_FAILED.to_string());
+    }
+    if state
+        .overlay
+        .send(OverlayEvent::Reply(OverlayReply::Pinned(bytes.clone())))
+    {
+        Ok(())
+    } else {
+        Err(ERROR_NOT_FOUND.to_string())
+    }
+}
+
 #[tauri::command]
 pub(crate) fn screen_capture_overlay_cancel(
     webview: Webview,
@@ -301,6 +327,18 @@ mod tests {
         assert!(matches!(
             wait_for_reply(&receiver),
             Some(OverlayReply::Finished(bytes)) if bytes == vec![1]
+        ));
+    }
+
+    #[test]
+    fn a_pin_reply_after_ready_is_returned() {
+        let slot = OverlaySlot::default();
+        let (_events, receiver) = slot.open(vec![7]);
+        assert!(slot.send(OverlayEvent::Ready));
+        assert!(slot.send(OverlayEvent::Reply(OverlayReply::Pinned(vec![9]))));
+        assert!(matches!(
+            wait_for_reply(&receiver),
+            Some(OverlayReply::Pinned(bytes)) if bytes == vec![9]
         ));
     }
 

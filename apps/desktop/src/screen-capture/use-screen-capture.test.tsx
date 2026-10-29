@@ -23,6 +23,7 @@ function fakeOs(authorization: ScreenCaptureAuthorization) {
     }),
     take: vi.fn(async () => ({ status: 'cancelled' as const })),
     read: vi.fn(async () => new Uint8Array()),
+    pin: vi.fn(async () => undefined),
   };
   return { os, unsubscribe, pressShortcut: () => shortcutListener?.() };
 }

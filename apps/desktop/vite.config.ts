@@ -72,6 +72,7 @@ export default defineConfig({
         main: resolve(desktopRoot, 'index.html'),
         petOverlay: resolve(desktopRoot, 'pet-overlay.html'),
         screenCapture: resolve(desktopRoot, 'screen-capture.html'),
+        screenshotPin: resolve(desktopRoot, 'screenshot-pin.html'),
       },
     },
   },

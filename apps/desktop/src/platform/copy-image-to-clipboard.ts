@@ -2,8 +2,14 @@
  * Copy pixels to the system clipboard. Browsers only accept image/png on
  * ClipboardItem, so JPEG/WebP are drawn through a canvas first.
  *
- * WKWebView drops clipboard permission if `clipboard.write` is called after an
- * await. Hand it a Blob promise during the click, and do the fetch inside.
+ * Two writers, in order:
+ * 1. The native pasteboard (`image_write_clipboard`). WKWebView only honours
+ *    `navigator.clipboard.write` while a user activation is live; a context
+ *    menu that has been open for a moment loses it and the renderer just sees
+ *    `NotAllowedError`. The native path has no such requirement.
+ * 2. The Clipboard API, still needed for the web build. WKWebView drops
+ *    clipboard permission if `clipboard.write` is called after an await, so it
+ *    gets a Blob promise during the click and does the fetch inside.
  */
 
 function clipboardWrite(): ((items: ClipboardItem[]) => Promise<void>) | null {
@@ -11,6 +17,32 @@ function clipboardWrite(): ((items: ClipboardItem[]) => Promise<void>) | null {
     return null;
   }
   return (items) => navigator.clipboard.write(items);
+}
+
+type TauriInvoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+
+function tauriInvoke(): TauriInvoke | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const internals = (
+    window as unknown as { __TAURI_INTERNALS__?: { invoke?: TauriInvoke } }
+  ).__TAURI_INTERNALS__;
+  const invoke = internals?.invoke;
+  if (typeof invoke !== 'function') {
+    return null;
+  }
+  return (cmd, args) => invoke.call(internals, cmd, args);
+}
+
+async function pngBase64FromBlob(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
 }
 
 async function pngBlobFromUrl(srcUrl: string): Promise<Blob> {
@@ -52,7 +84,23 @@ async function pngBlobFromUrl(srcUrl: string): Promise<Blob> {
   return pngBlob;
 }
 
-export async function copyImageToClipboard(srcUrl: string): Promise<boolean> {
+/** True when the shell's native pasteboard took the bytes. */
+async function writeViaNativeClipboard(srcUrl: string): Promise<boolean> {
+  const invoke = tauriInvoke();
+  if (!invoke) {
+    return false;
+  }
+  try {
+    const png = await pngBlobFromUrl(srcUrl);
+    await invoke('image_write_clipboard', { pngBase64: await pngBase64FromBlob(png) });
+    return true;
+  } catch (err) {
+    console.warn('[media] native copy image failed:', err);
+    return false;
+  }
+}
+
+async function writeViaClipboardApi(srcUrl: string): Promise<boolean> {
   const write = clipboardWrite();
   if (!write || typeof ClipboardItem === 'undefined') {
     return false;
@@ -68,4 +116,11 @@ export async function copyImageToClipboard(srcUrl: string): Promise<boolean> {
     console.warn('[media] copy image failed:', err);
     return false;
   }
+}
+
+export async function copyImageToClipboard(srcUrl: string): Promise<boolean> {
+  if (await writeViaNativeClipboard(srcUrl)) {
+    return true;
+  }
+  return writeViaClipboardApi(srcUrl);
 }

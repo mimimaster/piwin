@@ -47,6 +47,7 @@ export function ScreenCaptureLayer({
             doneLabel={controller.locale === 'zh-CN' ? '添加到对话' : 'Add to chat'}
             onCancel={controller.close}
             onDone={controller.confirm}
+            onPin={controller.pin}
             onExportFailed={controller.exportFailed}
           />
         </div>

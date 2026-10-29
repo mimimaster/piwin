@@ -5,6 +5,7 @@ import {
   Grid3x3,
   MoveUpRight,
   Pencil,
+  Pin,
   Square,
   Type,
   Undo2,
@@ -63,6 +64,8 @@ export type AnnotationToolbarProps = {
   doneLabel: string;
   onCancel: () => void;
   onDone: () => void;
+  /** When set, show a pin (贴图) action next to cancel. */
+  onPin: (() => void) | undefined;
   style?: CSSProperties;
 };
 
@@ -110,6 +113,16 @@ export const AnnotationToolbar = forwardRef<HTMLDivElement, AnnotationToolbarPro
           <Undo2 />
         </IconButton>
         <span className="screen-capture-toolbar-divider" aria-hidden />
+        {props.onPin !== undefined ? (
+          <IconButton
+            size={BUTTON_SIZE}
+            label={isZh ? '贴到屏幕' : 'Pin to screen'}
+            onClick={props.onPin}
+            data-testid="screen-capture-pin"
+          >
+            <Pin />
+          </IconButton>
+        ) : null}
         <IconButton
           size={BUTTON_SIZE}
           label={isZh ? '退出截图  Esc' : 'Cancel  Esc'}

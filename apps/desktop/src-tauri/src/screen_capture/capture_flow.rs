@@ -77,8 +77,9 @@ pub(super) async fn capture_and_finish(
     };
     match overlay::run_overlay(app, &state.overlay, shot).await {
         Ok(overlay::OverlayReply::Finished(png)) => {
-            finish_overlay_capture(state, png, deliver_to_composer)
+            finish_overlay_capture(state, &png, deliver_to_composer)
         }
+        Ok(overlay::OverlayReply::Pinned(png)) => pin_overlay_capture(app, state, png),
         Ok(overlay::OverlayReply::Cancelled) => {
             (ScreenCaptureOutcome::Cancelled, CaptureEnd::Elsewhere)
         }
@@ -90,23 +91,37 @@ pub(super) async fn capture_and_finish(
 }
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-fn finish_overlay_capture(
+fn pin_overlay_capture(
+    app: &AppHandle,
     state: &ScreenCaptureState,
     png: Vec<u8>,
+) -> (ScreenCaptureOutcome, CaptureEnd) {
+    // Pin is an on-screen reference: copy like ✓, never attach to the composer.
+    let (outcome, end) = finish_overlay_capture(state, &png, false);
+    if let Err(error) = super::pin::open_pin_window(app, state, png) {
+        eprintln!("[piwin] screenshot pin window did not open: {error}");
+    }
+    (outcome, end)
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn finish_overlay_capture(
+    state: &ScreenCaptureState,
+    png: &[u8],
     deliver_to_composer: bool,
 ) -> (ScreenCaptureOutcome, CaptureEnd) {
-    let Some((width, height)) = png_dimensions(&png) else {
+    let Some((width, height)) = png_dimensions(png) else {
         return (failed(ERROR_FAILED), CaptureEnd::Elsewhere);
     };
     #[cfg(target_os = "macos")]
-    let copy = macos::copy_png_to_clipboard(&png);
+    let copy = macos::copy_png_to_clipboard(png);
     #[cfg(target_os = "windows")]
-    let copy = windows_clipboard::copy_png_to_clipboard(&png);
+    let copy = windows_clipboard::copy_png_to_clipboard(png);
     if let Err(error) = &copy {
         eprintln!("[piwin] screenshot was not copied to the clipboard: {error}");
     }
     let byte_length = png.len();
-    let id = deliver_to_composer.then(|| state.store.put(png));
+    let id = deliver_to_composer.then(|| state.store.put(png.to_vec()));
     let end = if deliver_to_composer {
         CaptureEnd::InPiwin
     } else {

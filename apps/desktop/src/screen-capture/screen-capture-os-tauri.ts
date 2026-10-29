@@ -48,5 +48,9 @@ export function createTauriScreenCaptureOs(): DesktopScreenCaptureOs {
       const buffer = await invokeScreenCapture<ArrayBuffer>('screen_capture_read', { id });
       return new Uint8Array(buffer);
     },
+    async pin(png) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('screen_capture_pin', png);
+    },
   };
 }

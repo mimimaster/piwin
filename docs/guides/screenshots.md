@@ -57,6 +57,10 @@ Where the image goes:
 - Also the **composer**, when piwin was the app in front when you started
   (the **+** menu, the palette, or the shortcut inside piwin). It is attached
   like a pasted image: large captures are shrunk before upload.
+- **Pin** (thumbtack on the toolbar): the crop stays as a floating always-on-top
+  window you can drag around. It is copied to the clipboard too, but not attached
+  to the composer. Hover the pin for **×**, or press **Esc**, to close it. Up to
+  eight pins at once; a ninth closes the oldest.
 - Started from another app, piwin stays in the background and focus goes back
   to the app you were in.
 
@@ -73,7 +77,8 @@ saves the shot in the desktop's screenshot folder, as a normal system
 screenshot would.
 
 The same editor then opens inside piwin with the whole shot as the region.
-**✓** attaches it to the composer. It is not copied to the clipboard on Linux.
+**✓** attaches it to the composer. **Pin** still opens a floating window.
+It is not copied to the clipboard on Linux.
 
 ## Screen Recording permission (macOS)
 

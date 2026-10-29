@@ -8,6 +8,7 @@ export interface ScreenCaptureOverlayBridge {
   /** The image loaded; native stops the load timeout. */
   ready(): Promise<void>;
   finish(png: Uint8Array): Promise<void>;
+  pin(png: Uint8Array): Promise<void>;
   cancel(): Promise<void>;
 }
 
@@ -25,6 +26,7 @@ export function createTauriOverlayBridge(): ScreenCaptureOverlayBridge {
     ready: () => invokeOverlay<void>('screen_capture_overlay_ready'),
     // Raw body: the PNG is not wrapped in JSON on the way to native.
     finish: (png) => invokeOverlay<void>('screen_capture_overlay_finish', png),
+    pin: (png) => invokeOverlay<void>('screen_capture_overlay_pin', png),
     cancel: () => invokeOverlay<void>('screen_capture_overlay_cancel'),
   };
 }

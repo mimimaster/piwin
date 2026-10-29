@@ -42,6 +42,7 @@ function fakeOs(overrides: {
         },
     ),
     read: vi.fn(async () => new Uint8Array([1, 2, 3])),
+    pin: vi.fn(async () => undefined),
   };
 }
 

@@ -6,6 +6,7 @@ mod attention_notifications;
 mod attention_notifications_windows;
 mod attention_toast;
 mod channel_secret_store;
+mod clipboard_image;
 mod host_bridge;
 mod idle_sleep_guard;
 mod memory_pressure;
@@ -78,6 +79,7 @@ pub fn run() {
             channel_secret_store::desktop_secret_read,
             channel_secret_store::desktop_secret_write,
             channel_secret_store::desktop_secret_clear,
+            clipboard_image::image_write_clipboard,
             screen_capture::screen_capture_capabilities,
             screen_capture::screen_capture_authorization_status,
             screen_capture::screen_capture_request_authorization,
@@ -88,7 +90,11 @@ pub fn run() {
             screen_capture::overlay::screen_capture_overlay_image,
             screen_capture::overlay::screen_capture_overlay_ready,
             screen_capture::overlay::screen_capture_overlay_finish,
-            screen_capture::overlay::screen_capture_overlay_cancel
+            screen_capture::overlay::screen_capture_overlay_pin,
+            screen_capture::overlay::screen_capture_overlay_cancel,
+            screen_capture::pin::screen_capture_pin,
+            screen_capture::pin::screen_capture_pin_image,
+            screen_capture::pin::screen_capture_pin_close
         ])
         .setup(|application| {
             piwin_artifact_webview::install_artifact_bridge(application.handle())?;
@@ -132,6 +138,19 @@ pub fn run() {
 
             // Closing the capture overlay cancels that capture, never the app.
             if window.label() == screen_capture::overlay::OVERLAY_LABEL {
+                return;
+            }
+
+            // Screenshot pins are reference windows; closing one must not quit.
+            if screen_capture::pin::is_pin_window_label(window.label()) {
+                static REAPPLYING_PIN_FLAGS: AtomicBool = AtomicBool::new(false);
+                if matches!(event, WindowEvent::Moved(_) | WindowEvent::Focused(_)) {
+                    if !REAPPLYING_PIN_FLAGS.swap(true, Ordering::SeqCst) {
+                        let _ = window.set_always_on_top(true);
+                        let _ = window.set_visible_on_all_workspaces(true);
+                        REAPPLYING_PIN_FLAGS.store(false, Ordering::SeqCst);
+                    }
+                }
                 return;
             }
 

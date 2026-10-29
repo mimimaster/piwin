@@ -38,6 +38,7 @@ run(desktopRoot, ['exec', 'vite', 'build', '--outDir', distRoot, '--emptyOutDir'
 });
 // The pet overlay is a Desktop-only window; the phone never opens it.
 rmSync(join(distRoot, 'pet-overlay.html'), { force: true });
+rmSync(join(distRoot, 'screenshot-pin.html'), { force: true });
 
 run(mobileRoot, ['exec', 'vite', 'build', '--base', '/classic/', '--outDir', classicDist]);
 

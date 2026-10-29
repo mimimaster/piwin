@@ -22,7 +22,7 @@ impl Drop for OpenedClipboard {
     }
 }
 
-pub(super) fn copy_png_to_clipboard(png: &[u8]) -> Result<(), String> {
+pub(crate) fn copy_png_to_clipboard(png: &[u8]) -> Result<(), String> {
     let dib = png_to_dib(png)?;
     // SAFETY: clipboard calls run between a successful open and the guard's close.
     unsafe {

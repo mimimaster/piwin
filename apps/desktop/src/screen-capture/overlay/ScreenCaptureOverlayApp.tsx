@@ -80,6 +80,12 @@ export function ScreenCaptureOverlayApp({
               .then((buffer) => bridge.finish(new Uint8Array(buffer)))
               .catch(reportBridgeError('finish'));
           }}
+          onPin={(png) => {
+            png
+              .arrayBuffer()
+              .then((buffer) => bridge.pin(new Uint8Array(buffer)))
+              .catch(reportBridgeError('pin'));
+          }}
           onExportFailed={(error) => {
             // Nothing in this window can show a message; native reports a cancel.
             reportBridgeError('export')(error);

@@ -56,4 +56,6 @@ export interface DesktopScreenCaptureOs {
   /** `deliverToComposer`: also hand the result back for the composer, not only the clipboard. */
   take(options: { deliverToComposer: boolean }): Promise<ScreenCaptureOutcome>;
   read(id: string): Promise<Uint8Array>;
+  /** Open a floating always-on-top pin of this PNG (Linux in-window editor). */
+  pin(png: Uint8Array): Promise<void>;
 }

@@ -22,6 +22,46 @@ describe('copyImageToClipboard', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    delete (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  });
+
+  it('writes through the native pasteboard when the shell exposes invoke', async () => {
+    const write = installClipboard();
+    const invoke = vi.fn(async (_cmd: string, _args?: Record<string, unknown>) => undefined);
+    (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = { invoke };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(PNG_BYTES, { status: 200, headers: { 'Content-Type': 'image/png' } }),
+      ),
+    );
+
+    await expect(copyImageToClipboard('asset://localhost/vault/image.png')).resolves.toBe(true);
+    expect(invoke).toHaveBeenCalledOnce();
+    expect(invoke.mock.calls[0]?.[0]).toBe('image_write_clipboard');
+    const args = invoke.mock.calls[0]?.[1] as { pngBase64?: string };
+    expect(args.pngBase64).toBe(btoa(String.fromCharCode(...PNG_BYTES)));
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the Clipboard API when the native write fails', async () => {
+    const write = installClipboard();
+    const invoke = vi.fn(async (_cmd: string, _args?: Record<string, unknown>) => {
+      throw new Error('pasteboard refused');
+    });
+    (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = { invoke };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(PNG_BYTES, { status: 200, headers: { 'Content-Type': 'image/png' } }),
+      ),
+    );
+
+    await expect(copyImageToClipboard('asset://localhost/vault/image.png')).resolves.toBe(true);
+    expect(invoke).toHaveBeenCalledOnce();
+    expect(write).toHaveBeenCalledOnce();
   });
 
   it('hands the webview a png blob promise before the fetch resolves', async () => {

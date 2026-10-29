@@ -16,8 +16,9 @@ describe('ScreenshotEditor', () => {
   const onCancel = vi.fn();
   const onDone = vi.fn();
   const onExportFailed = vi.fn();
+  const onPin = vi.fn();
 
-  function mount(initialSelection: ImageRect | null): void {
+  function mount(initialSelection: ImageRect | null, pin = false): void {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -30,6 +31,7 @@ describe('ScreenshotEditor', () => {
             onCancel={onCancel}
             onDone={onDone}
             onExportFailed={onExportFailed}
+            {...(pin ? { onPin } : {})}
           />
         </PiwinUiProvider>,
       );
@@ -160,6 +162,17 @@ describe('ScreenshotEditor', () => {
     // happy-dom cannot rasterize, so finishing surfaces as the export attempt.
     expect(onExportFailed).toHaveBeenCalledWith(expect.any(AnnotationExportError));
     expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('shows a pin button only when onPin is provided', () => {
+    mount(null);
+    dragOnStage([100, 100], [400, 300]);
+    expect(document.querySelector('[data-testid="screen-capture-pin"]')).toBeNull();
+    mount(null, true);
+    dragOnStage([100, 100], [400, 300]);
+    const pin = document.querySelector<HTMLButtonElement>('[data-testid="screen-capture-pin"]');
+    expect(pin).not.toBeNull();
+    expect(pin?.getAttribute('aria-label')).toContain('Pin to screen');
   });
 
   it('cancels on Escape', () => {

@@ -1,0 +1,56 @@
+/* Floating screenshot pin: image fills a borderless always-on-top window. */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.screenshot-pin {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #111;
+  box-sizing: border-box;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.screenshot-pin-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: fill;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.screenshot-pin-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  color: #fff;
+  background: rgba(20, 18, 16, 0.72);
+  font-size: 16px;
+  line-height: 22px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.screenshot-pin:hover .screenshot-pin-close,
+.screenshot-pin-close:focus-visible {
+  opacity: 1;
+}
+
+.screenshot-pin-close:hover {
+  background: rgba(20, 18, 16, 0.92);
+}

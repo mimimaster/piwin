@@ -77,6 +77,8 @@ export type ScreenshotEditorProps = {
   onCancel: () => void;
   onDone: (png: Blob) => void;
   onExportFailed: (error: unknown) => void;
+  /** Pin the crop as a floating always-on-top window. */
+  onPin?: (png: Blob) => void;
 };
 
 type TextDraft = { at: ImagePoint; value: string };
@@ -88,7 +90,7 @@ const HANDLE_TOLERANCE_VIEW_PX = 8;
 const STROKE_STEP_VIEW_PX = 1.5;
 
 export function ScreenshotEditor(props: ScreenshotEditorProps): ReactElement {
-  const { image, locale, onCancel, onDone, onExportFailed } = props;
+  const { image, locale, onCancel, onDone, onExportFailed, onPin } = props;
   const [history, setHistory] = useState(() => createAnnotationHistory(image));
   const [selection, setSelection] = useState<ImageRect | null>(props.initialSelection);
   const [tool, setTool] = useState<AnnotationTool | null>(null);
@@ -148,20 +150,27 @@ export function ScreenshotEditor(props: ScreenshotEditorProps): ReactElement {
     setHistory(withCommittedText);
   }, [textDraft, withCommittedText]);
 
+  const exportSelection = useCallback(
+    (next: (png: Blob) => void): void => {
+      const element = imageRef.current;
+      if (exporting || element === null || selection === null) {
+        return;
+      }
+      const finalHistory = withCommittedText(history);
+      setTextDraft(null);
+      setHistory(finalHistory);
+      setExporting(true);
+      exportAnnotatedPng(element, finalHistory.present, selection)
+        .then(next)
+        .catch(onExportFailed)
+        .finally(() => setExporting(false));
+    },
+    [exporting, history, onExportFailed, selection, withCommittedText],
+  );
+
   const finish = useCallback((): void => {
-    const element = imageRef.current;
-    if (exporting || element === null || selection === null) {
-      return;
-    }
-    const finalHistory = withCommittedText(history);
-    setTextDraft(null);
-    setHistory(finalHistory);
-    setExporting(true);
-    exportAnnotatedPng(element, finalHistory.present, selection)
-      .then(onDone)
-      .catch(onExportFailed)
-      .finally(() => setExporting(false));
-  }, [exporting, history, onDone, onExportFailed, selection, withCommittedText]);
+    exportSelection(onDone);
+  }, [exportSelection, onDone]);
 
   const backToStepOne = useCallback((): void => {
     setSelection(null);
@@ -373,6 +382,7 @@ export function ScreenshotEditor(props: ScreenshotEditorProps): ReactElement {
           doneLabel={props.doneLabel}
           onCancel={onCancel}
           onDone={finish}
+          onPin={onPin === undefined ? undefined : () => exportSelection(onPin)}
         />
       ) : null}
     </div>
