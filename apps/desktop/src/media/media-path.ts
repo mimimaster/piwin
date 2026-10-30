@@ -70,6 +70,42 @@ export function isLocalFilesystemMarkdownMediaSrc(src: string): boolean {
   return /^[A-Za-z]:[\\/]/.test(withoutFileScheme);
 }
 
+const MARKDOWN_LOCAL_IMAGE_EXTENSIONS = new Set([
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'bmp',
+  'avif',
+  'svg',
+  'mp4',
+  'webm',
+  'mov',
+  'm4v',
+]);
+
+/**
+ * Absolute host path of a Markdown image or video the user's own chat references
+ * (e.g. a QR code saved under ~/Downloads), or null. Display-only: images and videos (svg, mp4, webm, mov, m4v), not a piwin media vault path (those are shown as
+ * message attachments), and only the OS-absolute roots the asset protocol
+ * scope in tauri.conf.json allows.
+ */
+export function localMarkdownImagePath(src: string): string | null {
+  const path = stripFileUrlPrefix(src.trim());
+  if (!path || isPiwinMediaPath(path) || isRemoteMediaAssetRef(path)) {
+    return null;
+  }
+  const extMatch = /\.([a-zA-Z0-9]+)$/.exec(path);
+  if (!extMatch || !MARKDOWN_LOCAL_IMAGE_EXTENSIONS.has(extMatch[1]!.toLowerCase())) {
+    return null;
+  }
+  if (path.includes('..')) {
+    return null;
+  }
+  return /^\/(?:Users|Volumes|home|tmp|private\/tmp|var\/folders)\//.test(path) ? path : null;
+}
+
 function stripFileUrlPrefix(src: string): string {
   if (!src.startsWith('file:')) {
     return src;

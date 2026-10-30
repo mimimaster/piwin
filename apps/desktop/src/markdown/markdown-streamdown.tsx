@@ -23,7 +23,9 @@ import {
   type MarkdownCodeFenceProps,
   type MarkdownRenderingPhase,
 } from './markdown-code-fence.js';
-import { isLocalFilesystemMarkdownMediaSrc } from '../media/media-path.js';
+import { isLocalFilesystemMarkdownMediaSrc, localMarkdownImagePath, mediaKindForPath } from '../media/media-path.js';
+import { convertLocalFileSrc } from '../media/media-utils.js';
+import { LocalMarkdownVideo } from './LocalMarkdownVideo.js';
 import {
   hasFilenameSuffix,
   isLocalDirectoryPath,
@@ -397,6 +399,18 @@ export function createStreamdownComponents(optionsRef: {
     ...props
   }: StreamdownElementProps<'img'>): ReactElement => {
     if (!src) return <span className="md-image-fallback">{alt || 'Image unavailable'}</span>;
+    const localImagePath = localMarkdownImagePath(src);
+    if (localImagePath) {
+      const assetSrc = convertLocalFileSrc(localImagePath);
+      if (assetSrc && mediaKindForPath(localImagePath) === 'video') {
+        return <LocalMarkdownVideo assetSrc={assetSrc} path={localImagePath} label={alt ?? ''} />;
+      }
+      return assetSrc ? (
+        <img {...props} src={assetSrc} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" />
+      ) : (
+        <span className="md-image-fallback">{alt || 'Image unavailable'}</span>
+      );
+    }
     if (isLocalFilesystemMarkdownMediaSrc(src)) {
       return <></>;
     }

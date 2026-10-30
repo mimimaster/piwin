@@ -422,6 +422,11 @@ function convertFileSrcNow(absolutePath: string): string | null {
     : null;
 }
 
+/** Sync asset-protocol URL for a host path, or null outside Tauri. Caller must gate the path. */
+export function convertLocalFileSrc(absolutePath: string): string | null {
+  return convertFileSrcNow(absolutePath);
+}
+
 export async function resolveMediaPreviewUrl(absolutePath: string): Promise<string | null> {
   if (!isPiwinMediaPath(absolutePath)) {
     return null;
