@@ -133,3 +133,36 @@ describe('external backend prompt identity', () => {
     expect(input.thinkingLevel).toBeUndefined();
   });
 });
+
+describe('useComposerPromptInput on the phone layout', () => {
+  function withViewport(phone: boolean, run: () => void): void {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: phone && query.includes('max-width'),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      run();
+    } finally {
+      window.matchMedia = original;
+    }
+  }
+
+  it('sends no orchestration scheme on a phone (Host default) but keeps it on desktop', () => {
+    withViewport(true, () => {
+      expect(readPromptInput({ orchestrationSchemeId: 'builtin-review' }).orchestrationSchemeId).toBeUndefined();
+    });
+    withViewport(false, () => {
+      expect(readPromptInput({ orchestrationSchemeId: 'builtin-review' }).orchestrationSchemeId).toBe('builtin-review');
+    });
+  });
+
+  it('omits permissionPreset when the session follows the Host default', () => {
+    withViewport(true, () => {
+      expect(readPromptInput({}).permissionPreset).toBeUndefined();
+      expect(readPromptInput({ permissionPreset: 'yolo' }).permissionPreset).toBe('yolo');
+    });
+  });
+});

@@ -37,6 +37,7 @@ applyAppearanceToDocument(resolveStartupAppearance(), startupPreferences.customF
 applyWindowMaterialToDocument(
   document.documentElement,
   effectiveWindowMaterialOpacity(startupPreferences),
+  startupPreferences.phoneGlass,
 );
 applyWallpaperToDocument(document.documentElement, startupPreferences.wallpaper);
 // Registers the shipped faces, then re-applies so their sanitized families

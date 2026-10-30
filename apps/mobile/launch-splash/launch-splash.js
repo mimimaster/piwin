@@ -1,7 +1,7 @@
 /*
  * Launch splash controller. Inlined at the end of <body>, so #root exists and
  * the app bundle (a deferred module) has not run yet. The splash leaves once the
- * app has put its own content into #root and the stamp has had time to land.
+ * app has put its own content into #root and the enso stroke has had time to finish.
  * Plain ES5 on purpose: it runs before any bundle and on the oldest webview.
  */
 (function () {
@@ -10,7 +10,8 @@
     return;
   }
   var SHOWN_KEY = 'piwin.launch-splash.shown';
-  var FULL_MIN_MS = 1600;
+  // Stroke ends at ~0.92s, dot lands at ~1.25s; hold, then the 0.56s crossfade (≈2.3s total).
+  var FULL_MIN_MS = 1700;
   var QUICK_MIN_MS = 320;
   var REDUCED_MIN_MS = 700;
   var WAIT_HINT_MS = 2000;
@@ -77,7 +78,7 @@
     try {
       window.sessionStorage.setItem(SHOWN_KEY, '1');
     } catch (error) {
-      // Private mode: the next launch just plays the full stamp again.
+      // Private mode: the next launch just plays the full stroke again.
     }
     splash.className += ' is-leaving';
     window.setTimeout(function () {

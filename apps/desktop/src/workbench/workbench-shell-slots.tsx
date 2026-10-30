@@ -19,6 +19,9 @@ import { memoWithLatestCallbacks } from '../conversation/memo-with-latest-callba
 import type { useConversationPaneLayout } from '../hooks/use-conversation-pane-layout';
 import type { useDockingWorkspace } from './docking/use-docking-workspace';
 import { WorkbenchContextBar } from './workbench-context-bar';
+import { PhoneSessionMenu } from '../run-activity/phone-session-menu';
+import { resolveActiveComposerAgentId } from '../composer/composer-dock-assembly';
+import { isConversationSessionChrome } from '../conversation/is-conversation-session';
 import { useWorkbenchCli } from '../hooks/use-workbench-cli.js';
 import { formatError } from '@piwin/contracts';
 import { WorkbenchPermissionBar, WorkbenchTranscript } from './workbench-conversation';
@@ -238,6 +241,22 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             runStatus={runStatus}
             lastUserMessage={lastUserMessage}
             effectiveRunMode={effectiveRunMode}
+            {...(layoutMode === 'phone' &&
+            !isConversationSessionChrome(state.activeScope, sidebarMode, resolveActiveComposerAgentId(state))
+              ? {
+                  sessionMenu: (
+                    <PhoneSessionMenu
+                      isZh={desktopLocale === 'zh-CN'}
+                      value={effectiveRunMode}
+                      isOverride={model.runModeIsOverride}
+                      hostValue={model.hostRunMode}
+                      disabled={state.streaming}
+                      onChange={model.handleRunModeChange}
+                      onOpenSettings={() => model.openSettingsSection('permissions')}
+                    />
+                  ),
+                }
+              : {})}
             locale={desktopLocale}
             appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
             sessionsExpanded={navDrawerOpen}

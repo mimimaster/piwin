@@ -322,6 +322,7 @@ export const DESKTOP_COPY_ZH_CN: DesktopCopy = {
       foreground: '前景色',
       accent: '强调色',
       windowMaterial: '窗口通透',
+      phoneGlassDescription: '标题栏、输入框和弹层的玻璃透明度。100% 最通透，0% 为实色。',
       windowMaterialDescription: '各区域的不透明度。数值越低，越能透出窗口后面的桌面；100% 为实色。',
       windowMaterialBackdrop: '窗口底',
       windowMaterialSidebar: '侧边栏',

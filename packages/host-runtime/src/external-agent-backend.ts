@@ -18,6 +18,7 @@ import type {
   ExternalAgentStatus,
   HostPush,
   PermissionDecision,
+  PermissionMode,
   PermissionRequestContext,
   SessionBackendBinding,
   SessionBackendCapabilities,
@@ -25,6 +26,7 @@ import type {
   SavedMediaAsset,
   AgentPluginSessionScope,
 } from '@piwin/contracts';
+import { logPermissionDiagnostic } from './permission-diagnostics.js';
 import { AgentPluginControlClient } from './agent-plugin-control.js';
 import { AgentPluginSession } from './agent-plugin-session.js';
 import { importAgentPluginEventMedia, importAgentPluginMedia } from './agent-plugin-media.js';
@@ -70,6 +72,13 @@ export type ExternalAgentBackendDeps = {
   /** Product data root; media imports must land in the Host's own vault. */
   piwinRoot?: string;
   env?: NodeJS.ProcessEnv;
+  /**
+   * Live piwin PermissionMode for a product session. When it is YOLO
+   * (`bypass` / `unrestricted`) adapter permission prompts are answered with
+   * the adapter's allow option instead of asking the operator; a resolved
+   * record is still pushed so the transcript keeps an audit trail.
+   */
+  getPermissionMode?: (sessionId: string) => PermissionMode | undefined;
   /** Test seam: replace how a control client is built. */
   startControl?: typeof AgentPluginControlClient.create;
 };
@@ -324,6 +333,20 @@ export class ExternalAgentBackend {
     const requestId = this.deps.createRequestId();
     const runId = input.prompt.runId ?? this.deps.getForegroundRunId(input.sessionId);
     const { prompt } = input;
+    logPermissionDiagnostic('external-request', {
+      agentId: input.agentId,
+      sessionId: input.sessionId,
+      action: prompt.action,
+    });
+    const mode = this.deps.getPermissionMode?.(input.sessionId);
+    if (mode === 'bypass' || mode === 'unrestricted') {
+      const allow = yoloAllowDecision(prompt.options);
+      if (allow !== undefined) {
+        logPermissionDiagnostic('external-auto-allow', { sessionId: input.sessionId, mode, action: prompt.action });
+        this.pushAutoAllowed(input.sessionId, requestId, prompt, runId);
+        return Promise.resolve(allow);
+      }
+    }
     return new Promise((resolve) => {
       let settled = false;
       const pending: ExternalPendingPermission = {
@@ -365,6 +388,21 @@ export class ExternalAgentBackend {
     for (const pending of [...this.deps.pendingPermissions.values()]) {
       if (pending.sessionId === sessionId) pending.resolve('deny');
     }
+  }
+
+  /** Audit record for a prompt YOLO answered without asking. */
+  private pushAutoAllowed(
+    sessionId: string,
+    requestId: string,
+    prompt: AgentPluginPermissionPrompt,
+    runId: string | undefined,
+  ): void {
+    this.deps.push({
+      type: 'host/log',
+      level: 'info',
+      message: `yolo auto-allowed external agent permission: ${prompt.action} (${sessionId})`,
+    });
+    this.pushResolved(sessionId, requestId, 'allow', runId);
   }
 
   private pushResolved(
@@ -421,4 +459,14 @@ export function fallbackDecision(
   const wanted = decision === 'allow' ? ['allow_once', 'allow_always'] : ['reject_once', 'reject_always'];
   const option = options.find((candidate) => wanted.includes(candidate.kind));
   return option !== undefined ? { optionId: option.optionId } : { cancelled: true };
+}
+
+/** YOLO answer for an adapter prompt: prefer a one-shot allow so nothing is remembered vendor-side. */
+export function yoloAllowDecision(
+  options: readonly BackendPermissionOption[],
+): AgentPluginPermissionDecision | undefined {
+  const option =
+    options.find((candidate) => candidate.kind === 'allow_once') ??
+    options.find((candidate) => candidate.kind === 'allow_always');
+  return option !== undefined ? { optionId: option.optionId } : undefined;
 }

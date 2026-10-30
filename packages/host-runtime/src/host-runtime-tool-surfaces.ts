@@ -3,6 +3,7 @@
  * the composition root and calls these functions with a kernel view of `this`.
  */
 
+import { logPermissionDiagnostic } from './permission-diagnostics.js';
 import type {
   HostToolRegistration,
   McpConfigDocument,
@@ -380,10 +381,17 @@ export async function composeSessionHostToolsForSession(
       ...(projectPath !== undefined ? { projectPath } : {}),
       projectTrusted,
     });
-    if (childContext?.worktreePath && mode === 'ask-all') {
-      return 'auto';
-    }
-    return mode;
+    const resolved = childContext?.worktreePath && mode === 'ask-all' ? 'auto' : mode;
+    logPermissionDiagnostic('mode', {
+      sessionId,
+      sessionOverride,
+      cliOverride: deps.options.permissionModeOverride,
+      configMode: deps.permissionModeFromConfig,
+      projectPath,
+      projectTrusted,
+      resolved,
+    });
+    return resolved;
   };
   const childWorktreePath = childContext?.worktreePath;
   const permissionGate = createHostToolAdmission({

@@ -75,8 +75,13 @@ export function windowMaterialCssVars(
 export function applyWindowMaterialToDocument(
   root: HTMLElement,
   opacity: WindowMaterialOpacity | undefined,
+  phoneGlass?: number,
 ): void {
   for (const [name, value] of Object.entries(windowMaterialCssVars(opacity))) {
     root.style.setProperty(name, value);
   }
+  // Phone glass strength (region-phone-glass.css): 1 = full glass by default.
+  root.style.setProperty('--phone-glass-strength', String((phoneGlass ?? DEFAULT_PHONE_GLASS) / 100));
 }
+
+export const DEFAULT_PHONE_GLASS = 100;

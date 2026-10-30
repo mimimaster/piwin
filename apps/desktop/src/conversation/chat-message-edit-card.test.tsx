@@ -337,6 +337,7 @@ describe('MessageEditCard carry-through send', () => {
       option?.dispatchEvent(
         new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }),
       );
+      option?.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0 }));
     });
     expect(onSelectModel).toHaveBeenCalledWith('acme::gpt-mini');
   });

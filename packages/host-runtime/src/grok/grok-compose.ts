@@ -52,6 +52,11 @@ export function composeExternalAgentBackend(deps: HostRuntimeKernel, options: Ho
       });
     },
     createRequestId: () => randomUUID(),
+    // Session pick (composer Run Mode) first, then the Host default. Project
+    // trust is not consulted here: external sessions do not carry the
+    // trusted-project lookup the Pi admission gate uses.
+    getPermissionMode: (sessionId) =>
+      deps.sessionPermissionOverrides.get(sessionId) ?? deps.permissionModeFromConfig,
     ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
     // The extension registry is the single authority: an enabled extension
     // revision supplies the adapter. There is no second agent inventory.

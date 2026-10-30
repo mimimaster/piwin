@@ -333,6 +333,7 @@ export const DESKTOP_COPY_EN: DesktopCopy = {
       foreground: 'Foreground',
       accent: 'Accent',
       windowMaterial: 'Window Translucency',
+      phoneGlassDescription: 'How much the title bar, composer and sheets let the conversation show through. 100% is full glass, 0% is solid.',
       windowMaterialDescription:
         'Opacity of each region. Lower values show more of the desktop behind the window; 100% is solid.',
       windowMaterialBackdrop: 'Window backdrop',

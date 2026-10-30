@@ -1,13 +1,13 @@
 import type { ReactElement } from 'react';
 import { ComposerToolbarContext } from './composer-toolbar-context';
 import { ComposerModeControl } from './composer-mode-control';
-import { usePhoneShellLayout } from '../hooks/use-phone-shell-layout';
 import { IconButton } from '@piwin/ui-kit';
 import { ComposerPlusMenu } from './composer-plus-menu';
 import { BackendComposerControls } from '../agents/backend-composer-controls';
 import { agentDisplayName } from '../agents/agent-backend-state';
 import { GoalModeChip } from '../goal';
 import { ThinkingEffortControl } from '../models/ThinkingEffortControl';
+import { usePhoneShell } from '../models/use-phone-shell';
 import { RunModeControl } from '../run-activity/RunModeControl';
 import { OrchestrationSchemeControl } from '../agents/OrchestrationSchemeControl';
 import { IconMic, IconPlus } from '../tool-cards/shell-icons';
@@ -69,6 +69,9 @@ export function ComposerCardToolbar({
   onResumeCheckpoint,
 }: ComposerCardToolbarProps): ReactElement {
   const reservedCommand = isReservedComposerSlashCommand(props.composer);
+  // Phone: run mode lives in the session ⋯ menu and orchestration is not
+  // offered at all (Host default); the toolbar keeps model, voice and send.
+  const phone = usePhoneShell();
   const resumeHandler = onResumeCheckpoint ?? props.onResume;
   // ADR 0082: an external agent owns its own model/mode catalog, so Pi's
   // provider-backed picker is replaced rather than merged.
@@ -89,7 +92,6 @@ export function ComposerCardToolbar({
     ? (props.activeAgentId ?? backendOptions?.agentId ?? 'pi')
     : (props.draftAgentId ?? backendOptions?.agentId ?? 'pi');
   const isExternalActive = currentAgentId !== 'pi';
-  const phone = usePhoneShellLayout();
   const piAgentChrome = !isExternalActive && props.isConversationSession !== true;
   const runModeOffered = piAgentChrome && Boolean(props.onRunModeChange && props.runModePreset);
   const schemesOffered =
@@ -99,6 +101,23 @@ export function ComposerCardToolbar({
   const externalLabel =
     agentOptions.find((option) => option.agentId === currentAgentId)?.label ??
     agentDisplayName(currentAgentId);
+  // Voice-call button. Desktop keeps it with the model controls; on phone the
+  // run-mode/orchestration pills that used to fill the right group are gone,
+  // so it sits right next to send ([+][model][思考] … [voice][send]) instead
+  // of stranding at the end of the stretching left group with a gap before send.
+  const liveButton = props.embedded === true || props.liveSupported === false ? null : (
+          <LiveComposerButton
+            enabled={true}
+            canStart={props.live?.canStart === true}
+            starting={props.live?.starting === true}
+            call={props.live?.call ?? null}
+            error={props.live?.error ?? null}
+            missing={props.live?.missing ?? []}
+            isChinese={locale === 'zh-CN'}
+            onStart={props.live?.onStart ?? (() => undefined)}
+            onEnd={props.live?.onEnd ?? (() => undefined)}
+          />
+        );
   return (
     <div className="bar composer-v2-toolbar">
       <div className="composer-v2-toolbar-left">
@@ -192,19 +211,7 @@ export function ComposerCardToolbar({
           />
         )}
 
-        {props.embedded === true || props.liveSupported === false ? null : (
-          <LiveComposerButton
-            enabled={true}
-            canStart={props.live?.canStart === true}
-            starting={props.live?.starting === true}
-            call={props.live?.call ?? null}
-            error={props.live?.error ?? null}
-            missing={props.live?.missing ?? []}
-            isChinese={locale === 'zh-CN'}
-            onStart={props.live?.onStart ?? (() => undefined)}
-            onEnd={props.live?.onEnd ?? (() => undefined)}
-          />
-        )}
+        {phone ? null : liveButton}
       </div>
 
       <div className="composer-v2-toolbar-right">
@@ -309,6 +316,8 @@ export function ComposerCardToolbar({
             onOpenModelSettings={props.onOpenModelSettings}
           />
         ) : null}
+
+        {phone ? liveButton : null}
 
         <ComposerActionSlot
           copy={copy}

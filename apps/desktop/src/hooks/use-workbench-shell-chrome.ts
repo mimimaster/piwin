@@ -209,8 +209,12 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
   const preferencesStyle = useMemo(() => desktopPreferencesCssVars(preferences), [preferences]);
   const materialOpacity = effectiveWindowMaterialOpacity(preferences);
   useLayoutEffect(() => {
-    applyWindowMaterialToDocument(document.documentElement, materialOpacity);
-  }, [materialOpacity]);
+    applyWindowMaterialToDocument(
+      document.documentElement,
+      materialOpacity,
+      preferences.phoneGlass,
+    );
+  }, [materialOpacity, preferences.phoneGlass]);
   useLayoutEffect(() => {
     applyWallpaperToDocument(document.documentElement, preferences.wallpaper);
   }, [preferences.wallpaper]);

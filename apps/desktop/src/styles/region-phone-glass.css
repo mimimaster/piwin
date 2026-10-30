@@ -19,7 +19,11 @@
    Defined on <body>, not <html>: a custom property resolves its var()s where
    it is declared, and the paper tone below re-points --bg/--s* on <body>. */
 html:has(.app-shell[data-layout='phone']) body {
-  --phone-glass-filter: blur(22px) saturate(1.8);
+  /* Owner direction (2026-10-29): glass is visible by default. A lighter
+     blur keeps the transcript legible through it; the fills below are
+     interpolated by --phone-glass-strength (0 = solid … 1 = full glass),
+     which the 窗口通透 slider writes on <html>. */
+  --phone-glass-filter: blur(12px) saturate(1.6);
   --phone-glass-bar: var(--bg);
   --phone-glass-slab: var(--slab);
   --phone-glass-drawer: var(--s1);
@@ -28,27 +32,28 @@ html:has(.app-shell[data-layout='phone']) body {
   --phone-glass-overlay-thin: var(--s4);
   /* How far the transcript runs under the top of the composer slab. A fixed
      strip, so it does not depend on the slab growing with what is typed. */
-  --phone-composer-overlap: 28px;
+  --phone-composer-overlap: 72px;
 }
 
 @supports (background: color-mix(in srgb, red 50%, transparent)) {
   html:has(.app-shell[data-layout='phone']) body {
-    --phone-glass-bar: color-mix(in srgb, var(--bg) 66%, transparent);
-    /* The slab is the one dark object on paper; thinner than this it turns a
-       muddy grey over light text and its labels lose contrast. */
-    --phone-glass-slab: color-mix(in srgb, var(--slab) 88%, transparent);
-    --phone-glass-drawer: color-mix(in srgb, var(--s1) 78%, transparent);
-    --phone-glass-overlay: color-mix(in srgb, var(--s4) 70%, transparent);
+    --phone-glass-bar: color-mix(in srgb, var(--bg) calc(100% - (100% - 45%) * var(--phone-glass-strength, 1)), transparent);
+    /* The slab is the one dark object on paper; much thinner than this it
+       turns a muddy grey over light text (real-device contrast check pending). */
+    --phone-glass-slab: color-mix(in srgb, var(--slab) calc(100% - (100% - 72%) * var(--phone-glass-strength, 1)), transparent);
+    --phone-glass-drawer: color-mix(in srgb, var(--s1) calc(100% - (100% - 78%) * var(--phone-glass-strength, 1)), transparent);
+    --phone-glass-overlay: color-mix(in srgb, var(--s4) calc(100% - (100% - 70%) * var(--phone-glass-strength, 1)), transparent);
     /* Dialogs carry forms and longer reading: denser glass. */
-    --phone-glass-overlay-dense: color-mix(in srgb, var(--s4) 84%, transparent);
+    --phone-glass-overlay-dense: color-mix(in srgb, var(--s4) calc(100% - (100% - 84%) * var(--phone-glass-strength, 1)), transparent);
     /* Toasts carry one line over the stage. */
-    --phone-glass-overlay-thin: color-mix(in srgb, var(--s4) 58%, transparent);
+    --phone-glass-overlay-thin: color-mix(in srgb, var(--s4) calc(100% - (100% - 58%) * var(--phone-glass-strength, 1)), transparent);
   }
 
   /* On ink the ground and the bar are both near-black, so the same fill reads
      as a solid band; a thinner one lets the light text under it show. */
   html[data-theme-id='piwin-inkstone-ink']:has(.app-shell[data-layout='phone']) body {
-    --phone-glass-bar: color-mix(in srgb, var(--bg) 52%, transparent);
+    --phone-glass-bar: color-mix(in srgb, var(--bg) calc(100% - (100% - 38%) * var(--phone-glass-strength, 1)), transparent);
+    --phone-glass-slab: color-mix(in srgb, var(--slab) calc(100% - (100% - 68%) * var(--phone-glass-strength, 1)), transparent);
   }
 }
 
