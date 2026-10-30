@@ -12,6 +12,7 @@ import { getSupportedThinkingLevels } from './model-thinking-policy';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { formatThinkingLabel } from '../usage/usage-panel-statistics.js';
 import { usePhoneShellLayout } from '../hooks/use-phone-shell-layout';
+import { useTapSelect } from './use-tap-select';
 import { usesOnScreenKeyboard } from '../tool-cards/shell-runtime';
 
 export type ThinkingEffortModelOption = {
@@ -114,6 +115,9 @@ export function ThinkingEffortControl({
     onSelectModel?.(key);
     setOpen(false);
   }
+
+  // A swipe that starts on a row must not select it: choose on a still pointer-up.
+  const modelTap = useTapSelect(chooseModel, { preventFocusLoss: true });
 
   function keepPopoverThroughPointer(event: { button: number; preventDefault: () => void }): void {
     // Autofocused search blurs on option pointerdown; Radix then treats the
@@ -260,6 +264,7 @@ export function ThinkingEffortControl({
                       className="thinking-effort-model-list"
                       role="listbox"
                       aria-label="Model"
+                      onScroll={modelTap.cancel}
                       data-testid="thinking-model-select"
                     >
                       {filteredModels.map((model) => {
@@ -278,12 +283,8 @@ export function ThinkingEffortControl({
                                 : 'thinking-effort-model-option'
                             }
                             disabled={disabled}
-                            onPointerDown={(event) => {
-                              keepPopoverThroughPointer(event);
-                              if (event.button === 0) {
-                                chooseModel(model.key);
-                              }
-                            }}
+                            data-pressed={modelTap.pressedKey === model.key ? 'true' : undefined}
+                            {...modelTap.rowProps(model.key)}
                             title={model.label}
                           >
                             <span className="thinking-effort-model-icon" aria-hidden>
