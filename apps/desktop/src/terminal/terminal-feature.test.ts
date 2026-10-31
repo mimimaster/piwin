@@ -3,6 +3,7 @@ import { createPiSessionCapabilities } from '@piwin/contracts';
 import {
   canOfferConversationCli,
   canOpenEmbeddedTui,
+  canRenderSessionTuiPane,
   defaultsToConversationCli,
   isNativeCliEligible,
   isPiEmbeddedTuiAgent,
@@ -76,6 +77,34 @@ describe('native CLI eligibility', () => {
         searched: ['/usr/bin'],
         checkedAt: '2026-10-03T00:00:00Z',
       },
+    })).toBe(false);
+  });
+});
+
+describe('split-pane TUI eligibility', () => {
+  it('renders Pi embedded TUI and Host-advertised native CLIs, not a Pi/Grok allowlist', () => {
+    expect(canRenderSessionTuiPane({ agentId: 'pi' })).toBe(true);
+    expect(canRenderSessionTuiPane({ agentId: 'grok' })).toBe(true);
+    expect(canRenderSessionTuiPane({ agentId: 'claude-code' })).toBe(false);
+    expect(canRenderSessionTuiPane({
+      agentId: 'claude-code',
+      capabilities: { ...createPiSessionCapabilities(), agentId: 'claude-code', nativeCli: { supported: true } },
+    })).toBe(true);
+    expect(canRenderSessionTuiPane({
+      agentId: 'codex',
+      agentStatus: {
+        agentId: 'codex',
+        state: 'ready',
+        binaryPath: '/fake/codex',
+        version: '1',
+        supportStatus: 'verified',
+        checkedAt: '2026-10-03T00:00:00Z',
+        nativeCli: { supported: true },
+      },
+    })).toBe(true);
+    expect(canRenderSessionTuiPane({
+      agentId: 'mystery',
+      capabilities: { ...createPiSessionCapabilities(), agentId: 'mystery' },
     })).toBe(false);
   });
 });

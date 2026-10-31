@@ -39,6 +39,8 @@ import { appShellCssVars, desktopPreferencesCssVars } from '../workbench/workben
 import { applyWindowMaterialToDocument } from '../platform/window-material-preferences';
 import { effectiveWindowMaterialOpacity } from '../platform/wallpaper-preferences';
 import { applyWallpaperToDocument } from '../platform/wallpaper-document';
+import { mergeRemoteAppearanceIntoPreferences, syncAppearanceToHost } from '../platform/appearance-sync';
+import type { DesktopAppearanceSync } from '@piwin/contracts';
 import type { SessionOrchestrationRestore } from './use-composer-orchestration-controls';
 
 export type UseWorkbenchShellChromeArgs = {
@@ -201,6 +203,43 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
   const [preferences, setPreferences] = useState<DesktopPreferences>(() =>
     loadDesktopPreferences(),
   );
+
+  useEffect(() => {
+    if (!hostClient || hostClient.supportsCommand?.('settings/get') === false) return;
+    let active = true;
+    void hostClient
+      .request({ type: 'settings/get' })
+      .then((res) => {
+        if (!active || !res.success) return;
+        const snapshot = (
+          res.data as
+            | { snapshot?: { config?: { desktop?: { appearance?: DesktopAppearanceSync } } } }
+            | undefined
+        )?.snapshot;
+        const remoteAppearance = snapshot?.config?.desktop?.appearance;
+        if (remoteAppearance) {
+          setPreferences((prev) => mergeRemoteAppearanceIntoPreferences(remoteAppearance, prev));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [hostClient]);
+
+  useEffect(() => {
+    if (!hostClient || hostClient.supportsCommand?.('settings/apply') === false) return;
+    const handleSaved = (event: Event) => {
+      const custom = event as CustomEvent<DesktopPreferences>;
+      if (custom.detail) {
+        void syncAppearanceToHost(hostClient, custom.detail);
+      }
+    };
+    window.addEventListener('piwin:preferences-saved', handleSaved);
+    return () => {
+      window.removeEventListener('piwin:preferences-saved', handleSaved);
+    };
+  }, [hostClient]);
   const terminal = useTerminalPanelState({
     projectPath: state.projectPath,
     preferences,

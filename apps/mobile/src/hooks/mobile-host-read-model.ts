@@ -1,10 +1,12 @@
 import type {
   ActivitySummaryItem,
   ConfiguredChatModel,
+  DesktopAppearanceSync,
   RemoteHostStatusData,
   RemoteSessionSummary,
 } from '@piwin/contracts';
 import { HostClient } from '@piwin/host-client';
+import { applyMobileAppearance } from '../mobile-theme.js';
 import { requestActivitySummary } from '../mobile-activity-summary.js';
 import {
   applyConfiguredModels,
@@ -84,6 +86,14 @@ export function createMobileRemoteReadModelRefresher(
         const settingsResponse = await client.request({ type: 'settings/get' });
         if (context.clientRef.current === client) {
           context.setArtifactEnabled(readArtifactEnabled(settingsResponse));
+          if (settingsResponse.success) {
+            const snapshot = (
+              settingsResponse.data as
+                | { snapshot?: { config?: { desktop?: { appearance?: DesktopAppearanceSync } } } }
+                | undefined
+            )?.snapshot;
+            applyMobileAppearance(snapshot?.config?.desktop?.appearance);
+          }
         }
       } catch {
         if (context.clientRef.current === client) {

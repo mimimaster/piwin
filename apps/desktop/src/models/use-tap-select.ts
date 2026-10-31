@@ -54,8 +54,9 @@ export function useTapSelect(
       onPointerDown: (event) => {
         if (event.button !== 0) return;
         // Keeps an autofocused search field (and a Radix popover) from losing
-        // focus before the pointer comes back up.
-        if (preventFocusLoss) event.preventDefault();
+        // focus before the pointer comes back up on mouse clicks, while letting
+        // touch pointers initiate native touch scrolling without being blocked.
+        if (preventFocusLoss && event.pointerType !== 'touch') event.preventDefault();
         cancel();
         const timer = window.setTimeout(() => {
           if (gesture.current?.key === key) setPressedKey(key);

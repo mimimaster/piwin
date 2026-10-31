@@ -89,6 +89,19 @@ export function canOfferConversationCli(input: ConversationCliRouteInput): boole
 }
 
 /**
+ * Split-pane terminal: Pi's embedded TUI, or any backend whose Host-advertised
+ * native CLI is eligible. Never a hardcoded Pi/Grok allowlist.
+ */
+export function canRenderSessionTuiPane(input: {
+  agentId: string;
+  capabilities?: SessionBackendCapabilities | undefined;
+  agentStatus?: ExternalAgentStatus | undefined;
+}): boolean {
+  if (isPiEmbeddedTuiAgent(input.agentId)) return true;
+  return isNativeCliEligible(input);
+}
+
+/**
  * Agents whose sessions open in the CLI shell by default (ADR 0082 §8). Grok's
  * own TUI is the reference interface; the Desktop projection stays one click
  * away. The default only applies where `canOfferConversationCli` already holds,

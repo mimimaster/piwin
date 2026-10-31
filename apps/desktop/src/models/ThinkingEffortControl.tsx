@@ -14,6 +14,7 @@ import { formatThinkingLabel } from '../usage/usage-panel-statistics.js';
 import { usePhoneShellLayout } from '../hooks/use-phone-shell-layout';
 import { useTapSelect } from './use-tap-select';
 import { usesOnScreenKeyboard } from '../tool-cards/shell-runtime';
+import { PhoneModelPickerSheet } from './PhoneModelPickerSheet';
 
 export type ThinkingEffortModelOption = {
   key: string;
@@ -111,8 +112,11 @@ export function ThinkingEffortControl({
   const isUltra = effectiveValue === 'ultra';
   const showThinking = levels.length > 0;
 
-  function chooseModel(key: string): void {
+  function chooseModel(key: string, effort?: ThinkingLevel): void {
     onSelectModel?.(key);
+    if (effort !== undefined) {
+      onChange(effort);
+    }
     setOpen(false);
   }
 
@@ -179,10 +183,21 @@ export function ThinkingEffortControl({
         {/* Radix unmounts closed content; skip building the model list JSX on every
             parent render (streaming commits re-render the composer). */}
         {open ? (
-          <>
-            {showThinking ? (
-              /* Thinking / Reasoning Effort Section */
-              <section className="thinking-effort-section">
+          phone ? (
+            <PhoneModelPickerSheet
+              models={models}
+              selectedModelKey={selectedModelKey}
+              currentEffort={effectiveValue}
+              ultraEnabled={ultraEnabled}
+              disabled={disabled}
+              onSelect={chooseModel}
+              onClose={() => setOpen(false)}
+            />
+          ) : (
+            <>
+              {showThinking ? (
+                /* Thinking / Reasoning Effort Section */
+                <section className="thinking-effort-section">
                 <header className="thinking-effort-section-title">
                   <span>{isZh ? '思考' : 'Thinking'}</span>
                   <span className="thinking-effort-active-tag">{effortLabel}</span>
@@ -349,7 +364,7 @@ export function ThinkingEffortControl({
               )}
             </section>
           </>
-        ) : null}
+        )) : null}
       </Popover>
     </div>
   );

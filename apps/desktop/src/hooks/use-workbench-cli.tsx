@@ -6,6 +6,7 @@ import { resolveActiveComposerAgentId } from '../composer/composer-dock-assembly
 import { ConversationShellSwitch } from '../conversation/conversation-shell-switch.js';
 import { WorkbenchTuiStage, useWorkbenchTui } from '../workbench/workbench-tui.js';
 import {
+  canRenderSessionTuiPane,
   defaultsToConversationCli,
   isNativeCliEligible,
   resolveConversationCliRoute,
@@ -18,9 +19,9 @@ import { usesOnScreenKeyboard } from '../tool-cards/shell-runtime.js';
 
 /**
  * Renders a split pane's session as the terminal shell. Terminal mode is one
- * toggle per window: while it is on, every pane showing a piwin or grok session
- * shows that session in the TUI, not only the primary (focused-session) pane.
- * Returns null when the session's agent has no embedded TUI.
+ * toggle per window: while it is on, every pane whose agent has an embedded TUI
+ * or Host-advertised native CLI shows that session in the TUI, not only the
+ * primary (focused-session) pane. Returns null when that pane has neither.
  */
 export type SessionTuiRenderer = (sessionId: string, agentId: string | undefined) => ReactElement | null;
 
@@ -172,7 +173,13 @@ export function useWorkbenchCli(input: {
   const renderSessionTui: SessionTuiRenderer | null = cliActive && visible
     ? (sessionId, paneAgentId) => {
       const engine = paneAgentId ?? 'pi';
-      if (!['pi', 'grok'].includes(engine)) return null;
+      const paneCaps = backendCapabilitiesFor(state.backendCapabilitiesBySession, sessionId);
+      const paneStatus = state.externalAgents.find((agent) => agent.agentId === engine);
+      if (!canRenderSessionTuiPane({
+        agentId: engine,
+        ...(paneCaps === undefined ? {} : { capabilities: paneCaps }),
+        ...(paneStatus === undefined ? {} : { agentStatus: paneStatus }),
+      })) return null;
       // The pane is bound to its session; it keeps the process it started.
       return <WorkbenchTuiStage visible sessionId={sessionId} projectPath={projectPath} agentId={engine}
         hostClient={hostClient} hostKey={hostKey} remoteTarget={remoteTarget} locale={input.locale}

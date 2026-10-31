@@ -139,9 +139,10 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       }
     }
     if (typeof document !== 'undefined') {
-      return (document.documentElement.getAttribute('data-slab') as 'ink' | 'paper') || 'ink';
+      const fromDoc = document.documentElement.getAttribute('data-slab');
+      if (fromDoc === 'ink' || fromDoc === 'paper') return fromDoc;
     }
-    return 'ink';
+    return props.appearanceMode === 'light' ? 'paper' : 'ink';
   });
 
   const handleSetSlab = (nextSlab: 'ink' | 'paper') => {
