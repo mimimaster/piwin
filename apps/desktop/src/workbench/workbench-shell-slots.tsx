@@ -98,7 +98,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
   const { backendServiceSessionIds, branchPoints, composerCard } = model;
   const { composerLayoutMode, config, continueTurn, dispatchNotification, draftAgentId } = model;
   const { draftAgentOptions, draftSessions, effectiveRunMode, enqueueAttachmentFile } = model;
-  const { extensionUiRequest, fileBrowseRoot, forkCountsByMessageId, handleAbort } = model;
+  const { backendUserInput, extensionUiRequest, fileBrowseRoot, forkCountsByMessageId, handleAbort } = model;
   const { handleAddDocComment, handleArtifactAction, handleCancelMessageEdit } = model;
   const { handleCancelWalkthrough, handleCommentLine, handleCompactAbort } = model;
   const {
@@ -107,7 +107,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
     handleEditAndResendMessage,
     handleEditDocComment,
   } = model;
-  const { handleExtensionUiResolve, handleForkSession, handleGenerateWalkthrough } = model;
+  const { handleBackendUserInputResolve, handleExtensionUiResolve, handleForkSession, handleGenerateWalkthrough } = model;
   const { handleInspectSubagent, handleInterventionCancel, handleInterventionEdit } = model;
   const { handleJumpToHistoryAnchor, handleJumpToTranscriptMessage } = model;
   const { handleLoadNewerTranscript, handleLoadOlderTranscript, handleMessageFeedback } = model;
@@ -386,11 +386,13 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             state={state}
             sidebarMode={sidebarMode}
             extensionUiRequest={extensionUiRequest}
+            backendUserInput={backendUserInput}
             sessionPlan={sessionPlan}
             onPlanAction={handlePlanAction}
             onOpenDocument={handleOpenDocument}
             onPermission={handlePermission}
             onExtensionUiResolve={handleExtensionUiResolve}
+            onBackendUserInputResolve={handleBackendUserInputResolve}
           />
         }
         composerDock={studioOpen ? null : composerColumn}

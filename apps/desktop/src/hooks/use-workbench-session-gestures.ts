@@ -3,7 +3,7 @@
  * session, drafts, extension UI, and artifact canvas width.
  */
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
-import type { SessionPlan } from '@piwin/contracts';
+import type { BackendUserInputResult, SessionPlan } from '@piwin/contracts';
 import type { SidebarMode } from '../sidebar/sidebar-mode';
 import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
 import type { ArtifactCanvasTarget } from '../artifact/artifact-canvas-model';
@@ -11,6 +11,7 @@ import type { DraftSessionItemUi } from '../composer/draft-session';
 import type { HostClient } from '../host/host-client';
 import type { DocumentOpenInput } from '../tool-cards/tool-call-card';
 import type { RightPanelTab } from '../right-panel/right-panel';
+import type { BackendUserInputPromptState } from './use-backend-user-input.js';
 import type { ExtensionUiRequestState } from './use-host-bootstrap';
 import { tryOpenHtmlDocumentInBrowser } from '../platform/open-html-in-browser.js';
 import { isOverlayShellLayout, type ShellLayoutMode } from '../tool-cards/shell-layout';
@@ -49,6 +50,8 @@ export type UseWorkbenchSessionGesturesArgs = {
   setEditingMessageId: Dispatch<SetStateAction<string | null>>;
   extensionUiRequest: ExtensionUiRequestState | null;
   clearExtensionUiRequest: (requestId: string) => void;
+  backendUserInput?: BackendUserInputPromptState | null;
+  clearBackendUserInput?: (requestId: string) => void;
   handleAbort: () => Promise<void>;
   /** Built-in No Repo root; fills an empty projectPath from the folder +. */
   generalWorkspacePath?: string | null;
@@ -84,6 +87,8 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
     setEditingMessageId,
     extensionUiRequest,
     clearExtensionUiRequest,
+    backendUserInput = null,
+    clearBackendUserInput = () => undefined,
     handleAbort,
     generalWorkspacePath,
     sessionPlan,
@@ -275,6 +280,25 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
     },
     [clearExtensionUiRequest, dispatch, extensionUiRequest, hostClient],
   );
+  const handleBackendUserInputResolve = useCallback(
+    async (result: BackendUserInputResult): Promise<void> => {
+      const active = backendUserInput;
+      if (active === null) return;
+      const response = await hostClient.request({
+        type: 'session/backend-input-respond',
+        sessionId: active.sessionId,
+        requestId: active.requestId,
+        generationId: active.generationId,
+        result,
+        ...(active.runId === undefined ? {} : { runId: active.runId }),
+      });
+      clearBackendUserInput(active.requestId);
+      if (!response.success) {
+        dispatch({ type: 'error', message: response.error });
+      }
+    },
+    [backendUserInput, clearBackendUserInput, dispatch, hostClient],
+  );
   const handleExtensionUiAbort = useCallback(async (): Promise<void> => {
     const active = extensionUiRequest;
     if (active) {
@@ -292,6 +316,7 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
     handleRetryMessage,
     handleCommentLine,
     handleExtensionUiResolve,
+    handleBackendUserInputResolve,
     handleExtensionUiAbort,
   };
 }

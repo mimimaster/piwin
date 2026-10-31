@@ -51,6 +51,7 @@ import {
 import { readConfiguredChatModelsData } from '../models/model-options';
 import { resolveBootstrapSelectedModelKey } from '../composer/composer-model-selection-policy.js';
 import { publishPetOverlayState } from '../pet/pet-overlay-state-bridge.js';
+import { useBackendUserInput } from './use-backend-user-input.js';
 import { useExtensionUiRequests } from './use-extension-ui-requests';
 import { readProjectedHostConfig } from '../host/remote-settings-hydrate.js';
 import { mergeSettingsViewConfig } from '../settings/settings-view-config.js';
@@ -249,6 +250,8 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   >({});
   const extensionUi = useExtensionUiRequests(args.activeSessionId);
   const { showExtensionUiRequest, clearExtensionUiRequestForSession } = extensionUi;
+  const backendInput = useBackendUserInput(args.activeSessionId);
+  const { showBackendUserInput, clearBackendUserInput, clearBackendUserInputForSession } = backendInput;
 
   useEffect(() => {
     const { hostClient, dispatch } = args;
@@ -348,6 +351,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           run: message.run,
         });
         clearExtensionUiRequestForSession(message.run.sessionId);
+        clearBackendUserInputForSession(message.run.sessionId);
         return;
       }
       // Job lifecycle pushes are top-level HostPush variants, not AgentEvent
@@ -561,6 +565,20 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           type: 'permission/clear',
           requestId: message.requestId,
         });
+        return;
+      }
+      if (message.type === 'session/backend-input-request') {
+        showBackendUserInput({
+          sessionId: message.sessionId,
+          requestId: message.requestId,
+          generationId: message.generationId,
+          request: message.request,
+          ...(message.runId === undefined ? {} : { runId: message.runId }),
+        });
+        return;
+      }
+      if (message.type === 'session/backend-input-settled') {
+        clearBackendUserInput(message.requestId);
         return;
       }
       if (message.type === 'extension/ui_request') {
@@ -894,6 +912,8 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     extensionUiInput: extensionUi.extensionUiInput,
     setExtensionUiInput: extensionUi.setExtensionUiInput,
     clearExtensionUiRequest: extensionUi.clearExtensionUiRequest,
+    backendUserInput: backendInput.backendUserInput,
+    clearBackendUserInput: backendInput.clearBackendUserInput,
     assemblySummariesByRunId,
     configuredChatModels,
     remoteCatchUpEpoch,

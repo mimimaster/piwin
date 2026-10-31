@@ -6,7 +6,10 @@ import { createHostLogStore } from '../host/host-log-context';
 import type { ThemeManifest } from '@piwin/contracts';
 import { focusComposerInput } from '../context-menu/desktop-context-menu-value';
 import { useWorkbenchMedia } from '../hooks/use-workbench-media.js';
-import { chatUiReducer, createInitialChatUiState } from '../conversation/chat-reducer';
+import { chatUiReducer } from '../conversation/chat-reducer';
+import type { HostClient } from '../host/host-client.js';
+import { createSessionStartupState } from '../session/session-startup-cache.js';
+import { sessionCacheHostKey } from '../session/session-cache-host.js';
 import { useWorkbenchHostClient } from '../hooks/use-workbench-host-client';
 import { useSubagentReviewLoopValue } from '../agents/subagent-review-loop-context';
 import { useWorkbenchShellChrome } from '../hooks/use-workbench-shell-chrome';
@@ -49,7 +52,12 @@ export type AppProps = {
 
 export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const hostClient = useWorkbenchHostClient();
-  const [state, dispatch] = useReducer(chatUiReducer, undefined, createInitialChatUiState);
+  return <HostWorkbench key={sessionCacheHostKey(hostClient) ?? hostClient.getTransport()}
+    hostClient={hostClient} activeTheme={activeTheme} onThemeApplied={onThemeApplied} />;
+}
+
+function HostWorkbench({ hostClient, activeTheme, onThemeApplied }: AppProps & { hostClient: HostClient }) {
+  const [state, dispatch] = useReducer(chatUiReducer, hostClient, createSessionStartupState);
   const selfHealBusyRef = useRef(false);
   useEffect(() => installRendererSelfHeal(() => selfHealBusyRef.current), []);
   // KaTeX stays out of the cold start, but the first reply that mounts before

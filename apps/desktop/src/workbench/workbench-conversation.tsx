@@ -10,6 +10,7 @@ import {
  */
 import { useCallback, useEffect, useMemo, type ReactElement } from 'react';
 import type {
+  BackendUserInputResult,
   ContextSummaryPush,
   FlashcardReviewCard,
   HostCommand,
@@ -38,6 +39,8 @@ import { ComposerDock, type ComposerDockProps } from '../composer/composer-dock'
 import { getDesktopCopy, type DesktopLocale } from '../i18n/desktop-locale';
 import { blockedByOfflineSessionSnapshot } from '../session/offline-session-snapshot';
 import { EmptyStageLanding } from '../conversation/empty-stage-landing';
+import { BackendUserInputPrompt } from '../agents/backend-user-input-prompt.js';
+import type { BackendUserInputPromptState } from '../hooks/use-backend-user-input.js';
 import { ExtensionUiPrompt, type ExtensionUiResolvePayload } from '../extensions/extension-ui-prompt';
 import type { HostClient } from '../host/host-client';
 import { HostReconnectBanner } from '../host/host-reconnect-banner';
@@ -430,6 +433,7 @@ export type WorkbenchPermissionBarProps = {
   state: ChatUiState;
   sidebarMode: SidebarMode;
   extensionUiRequest: ExtensionUiRequestState | null;
+  backendUserInput?: BackendUserInputPromptState | null;
   sessionPlan?: SessionPlan | null;
   onPlanAction?: (action: PlanTrayAction) => void | Promise<void>;
   onOpenDocument?: (doc: DocumentOpenInput) => void;
@@ -438,6 +442,7 @@ export type WorkbenchPermissionBarProps = {
     scope?: PermissionRememberScope,
   ) => void | Promise<void>;
   onExtensionUiResolve: (payload: ExtensionUiResolvePayload) => void | Promise<void>;
+  onBackendUserInputResolve?: (result: BackendUserInputResult) => void | Promise<void>;
 };
 
 function permissionOriginProps(
@@ -466,11 +471,13 @@ export function WorkbenchPermissionBar(
     state,
     sidebarMode,
     extensionUiRequest,
+    backendUserInput,
     sessionPlan,
     onPlanAction,
     onOpenDocument,
     onPermission,
     onExtensionUiResolve,
+    onBackendUserInputResolve,
   } = props;
   // Re-render when a conversation pane claims or releases a prompt.
   usePermissionClaimsVersion();
@@ -504,6 +511,13 @@ export function WorkbenchPermissionBar(
         onPermission={(decision, scope) => {
           void onPermission(decision, scope);
         }}
+      />
+    );
+  } else if (backendUserInput && onBackendUserInputResolve) {
+    interruption = (
+      <BackendUserInputPrompt
+        request={backendUserInput.request}
+        onResolve={(result) => void onBackendUserInputResolve(result)}
       />
     );
   } else if (!isConversationSession && extensionUiRequest) {

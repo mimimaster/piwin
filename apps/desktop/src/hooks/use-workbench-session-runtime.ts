@@ -15,6 +15,7 @@ import { useSettingsSaveQueue } from './use-settings-save-queue';
 import { useWorkbenchDesktopConfig } from './use-workbench-desktop-config';
 import { useWorkbenchSessionLifecycle } from './use-workbench-session-lifecycle';
 import { useSessionListSnapshot } from './use-session-list-snapshot';
+import { useSessionStartupCache } from './use-session-startup-cache.js';
 import type { WorkbenchHostRuntime } from './use-workbench-host-runtime';
 import type { WorkbenchShellChrome } from './use-workbench-shell-chrome';
 
@@ -111,6 +112,8 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     generalWorkspacePath: host.generalWorkspacePath ?? null,
   });
 
+  useSessionStartupCache({ hostClient, state, handleResumeSession });
+
   const { saveSettingsInOrder } = useSettingsSaveQueue({
     hostClient,
     desktopLocale,
@@ -180,7 +183,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
 
   useEffect(() => {
     const sessionId = state.activeSessionId;
-    if (!sessionId || (state.streaming && state.userMessageIndex !== null)) {
+    if (!state.hostReady || !sessionId || (state.streaming && state.userMessageIndex !== null)) {
       return;
     }
     // The index is a small independent query. Keep transcript hydration and
@@ -189,6 +192,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
   }, [
     loadUserMessageIndex,
     state.activeSessionId,
+    state.hostReady,
     state.streaming,
     state.userMessageIndexEpoch,
   ]);
