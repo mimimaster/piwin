@@ -49,6 +49,8 @@ export type AgentPluginSessionPorts = {
   onTitle?: (title: string) => void;
   onMcpStatus?: (servers: readonly ExternalAgentMcpServerStatus[], observed: boolean) => void;
   onTransportClosed?: (reason: string) => void;
+  /** First real vendor session id after a draft `session/new`. */
+  onNativeSessionBound?: (backendSessionId: string) => void;
   /** Import a declared generated-media file. Runs before the event is delivered. */
   importMedia?: (proposal: AgentPluginMediaProposal) => Promise<SavedMediaAsset | undefined>;
   /** Host projection (transcript presentation) applied before delivery. */
@@ -368,6 +370,10 @@ export class AgentPluginSession implements SessionHandle {
       ? { ...emission.event, measurement: normalizeUsageTokenSplit(emission.event.measurement) }
       : emission.event;
     const timedEvent = this.turnTiming.observe(usageEvent);
+    if (timedEvent.type === 'session/started' && timedEvent.sessionId.length > 0) {
+      this.backendSessionId = timedEvent.sessionId;
+      this.ports.onNativeSessionBound?.(timedEvent.sessionId);
+    }
     this.deliveryChain = this.deliveryChain.then(async () => {
       if (this.released) return;
       const importedEvent = this.ports.importMedia === undefined

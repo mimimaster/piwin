@@ -10,6 +10,7 @@ import type { HostRuntimeKernel } from '../host-runtime-kernel.js';
 import type { HostRuntimeOptions } from '../host-runtime-types.js';
 import { ExternalAgentBackend, type ExternalPendingPermission } from '../external-agent-backend.js';
 import { applyExternalAgentTitle } from './grok-catalog-sync.js';
+import { persistNativeBackendSession } from './grok-session-router.js';
 import { requireExtensionBackendLaunch } from '../extension-session-backends.js';
 import { getPiwinRoot } from '../paths.js';
 import { BackendUserInputPendingController } from '../backend-user-input-pending.js';
@@ -39,6 +40,11 @@ export function composeExternalAgentBackend(deps: HostRuntimeKernel, options: Ho
     onSessionTitle: (sessionId, title) => {
       void applyExternalAgentTitle(deps, sessionId, title).catch((error: unknown) => {
         deps.push({ type: 'host/log', level: 'warn', message: `agent title update failed: ${formatError(error)}` });
+      });
+    },
+    onNativeSessionBound: (sessionId, backendSessionId) => {
+      void persistNativeBackendSession(deps, sessionId, backendSessionId).catch((error: unknown) => {
+        deps.push({ type: 'host/log', level: 'warn', message: `agent native id persist failed: ${formatError(error)}` });
       });
     },
     onSessionTransportClosed: (sessionId, reason) => {

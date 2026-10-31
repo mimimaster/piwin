@@ -64,6 +64,8 @@ export type ExternalAgentBackendDeps = {
   onSessionTitle: (sessionId: string, title: string) => void;
   /** A resident adapter process exited on its own. */
   onSessionTransportClosed: (sessionId: string, reason: string) => void;
+  /** Draft session/new became a real vendor id. */
+  onNativeSessionBound?: (productSessionId: string, backendSessionId: string) => void;
   /** Resolves the installed + enabled adapter for an agent id. */
   requireInstall: (agentId: string) => Promise<ExternalAgentInstall>;
   createRequestId: () => string;
@@ -265,6 +267,13 @@ export class ExternalAgentBackend {
           this.deps.backendUserInput?.cancelSession(input.productSessionId);
           this.deps.onSessionTransportClosed(input.productSessionId, reason);
         },
+        ...(this.deps.onNativeSessionBound !== undefined
+          ? {
+              onNativeSessionBound: (backendSessionId: string) => {
+                this.deps.onNativeSessionBound?.(input.productSessionId, backendSessionId);
+              },
+            }
+          : {}),
         importMedia,
         getCurrentRunId: () => this.deps.getForegroundRunId(input.productSessionId),
       },

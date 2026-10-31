@@ -46,9 +46,23 @@ async function persistBinding(
   if (record?.backend === undefined) {
     return undefined;
   }
-  record.backend = { ...record.backend, ...patch };
+  const next: SessionBackendBinding = { ...record.backend, ...patch };
+  if (next.backendSessionId === '') {
+    delete next.backendSessionId;
+  }
+  record.backend = next;
   await upsertSessionRecord(indexPath(deps), record);
   return record;
+}
+
+/** Persist a real vendor id after session/new drafts become native-bound. */
+export async function persistNativeBackendSession(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+  backendSessionId: string,
+): Promise<void> {
+  if (backendSessionId.length === 0) return;
+  await persistBinding(deps, sessionId, { backendSessionId });
 }
 
 /**
@@ -103,8 +117,8 @@ export async function activateExternalSession(
     }
   }
   const bindingPatch: Partial<SessionBackendBinding> = {
-    backendSessionId: opened.backendSessionId,
     pluginRevision: plugin.revision,
+    ...(opened.backendSessionId.length > 0 ? { backendSessionId: opened.backendSessionId } : {}),
     ...(opened.agentVersion !== undefined ? { agentVersion: opened.agentVersion } : {}),
   };
   if (binding.syncedChangeUnixMs === undefined && !replay) {

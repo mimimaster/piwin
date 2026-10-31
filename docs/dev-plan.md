@@ -58,6 +58,17 @@ the reusable HostClient/transport surface, ship a standalone local Host Server,
 then validate private multi-client connectivity. Gateway/tunnel and mobile/Web
 shells follow the Host protocol; they are not parallel execution paths.
 
+### 1.3 Independent Claude Code / Codex backend continuation
+
+The [2026-10-31 execution plan](./plans/2026-10-31-claude-codex-backends-execution-plan.md)
+and [validation specification](./specs/2026-10-31-external-agent-backend-validation.md)
+continue the two external session-backend plugins from the current local
+prototypes. Work proceeds from reproducible independent repository baselines
+to real native transports, durable same-session history, non-interrupting
+Desktop/CLI views and cross-client regression gates. Implementation and native
+acceptance remain planned; publication and live-Host installation are separate
+explicit actions. The original local-backends plan is historical.
+
 ---
 
 ## 2. Current baseline (done)

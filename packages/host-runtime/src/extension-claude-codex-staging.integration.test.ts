@@ -5,7 +5,6 @@
  * `piwin.json` + `dist/agent.mjs` into a temp Host root and never vendors
  * adapter source into `@piwin/*`.
  */
-import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,14 +14,30 @@ import { AGENT_PLUGIN_MAX_ARTIFACT_BYTES } from '@piwin/contracts';
 import { createExtensionRevisionStore, installExtension } from '@piwin/extensions';
 import { HostRuntime } from './host-runtime.js';
 import { listExtensionBackends } from './extension-session-backends.js';
+import {
+  CLAUDE_BACKEND_ENV,
+  CODEX_BACKEND_ENV,
+  envPath,
+  readPinnedArtifact,
+  requireExternalBackends,
+} from './testing/external-backend-artifacts.js';
 
-const CLAUDE_REPO = process.env.PIWIN_CLAUDE_BACKEND ?? '/Volumes/BigDisk/Developer/piwin-claude-code-backend';
-const CODEX_REPO = process.env.PIWIN_CODEX_BACKEND ?? '/Volumes/BigDisk/Developer/piwin-codex-backend';
-const artifactsPresent =
-  existsSync(join(CLAUDE_REPO, 'dist/agent.mjs')) &&
-  existsSync(join(CLAUDE_REPO, 'piwin.json')) &&
-  existsSync(join(CODEX_REPO, 'dist/agent.mjs')) &&
-  existsSync(join(CODEX_REPO, 'piwin.json'));
+const CLAUDE_REPO = envPath(CLAUDE_BACKEND_ENV);
+const CODEX_REPO = envPath(CODEX_BACKEND_ENV);
+const requiredLane = requireExternalBackends();
+const configured = CLAUDE_REPO !== undefined && CODEX_REPO !== undefined;
+let claudePin: ReturnType<typeof readPinnedArtifact> | undefined;
+let codexPin: ReturnType<typeof readPinnedArtifact> | undefined;
+let pinError: string | undefined;
+if (CLAUDE_REPO !== undefined && CODEX_REPO !== undefined) {
+  try {
+    claudePin = readPinnedArtifact(CLAUDE_REPO);
+    codexPin = readPinnedArtifact(CODEX_REPO);
+  } catch (error) {
+    pinError = error instanceof Error ? error.message : String(error);
+  }
+}
+const artifactsPresent = claudePin !== undefined && codexPin !== undefined;
 
 function data(response: HostResponse): unknown {
   if (!response.success) throw new Error(`${response.command}: ${response.error}`);
@@ -68,6 +83,9 @@ async function stagePlugin(rootDir: string, repo: string, name: string): Promise
 }
 
 async function harness() {
+  if (CLAUDE_REPO === undefined || CODEX_REPO === undefined) {
+    throw new Error('PIWIN_CLAUDE_BACKEND and PIWIN_CODEX_BACKEND must point at pinned candidate checkouts');
+  }
   const rootDir = await mkdtemp(join(tmpdir(), 'piwin-cc-codex-stage-'));
   const claude = await stagePlugin(rootDir, CLAUDE_REPO, 'claude-code');
   const codex = await stagePlugin(rootDir, CODEX_REPO, 'codex');
@@ -85,6 +103,31 @@ async function harness() {
   });
   return { rootDir, runtime, pushes, claude, codex };
 }
+
+describe('Claude Code / Codex artifact inputs (BUILD-03)', () => {
+  it.skipIf(!requiredLane && !configured)('fails the required lane when pins are missing or mismatched', () => {
+    if (CLAUDE_REPO === undefined || CODEX_REPO === undefined) {
+      throw new Error('PIWIN_CLAUDE_BACKEND and PIWIN_CODEX_BACKEND must be set for the required integration lane');
+    }
+    if (pinError !== undefined) throw new Error(pinError);
+    expect(claudePin?.id).toBe('claude-code');
+    expect(codexPin?.id).toBe('codex');
+  });
+});
+
+describe('Claude Code / Codex Host production dependencies', () => {
+  it('does not vendor Claude or Codex adapters in Host production dependencies', async () => {
+    const hostRuntime = JSON.parse(
+      await readFile(new URL('../package.json', import.meta.url), 'utf8'),
+    ) as { dependencies: Record<string, string> };
+    const agentHostPath = new URL('../../agent-host/package.json', import.meta.url);
+    const agentHost = JSON.parse(await readFile(agentHostPath, 'utf8')) as { dependencies: Record<string, string> };
+    for (const deps of [hostRuntime.dependencies, agentHost.dependencies]) {
+      expect(Object.keys(deps).some((name) => name.includes('claude-agent-sdk'))).toBe(false);
+      expect(Object.keys(deps).some((name) => name.includes('@openai/codex'))).toBe(false);
+    }
+  });
+});
 
 describe.skipIf(!artifactsPresent)('Claude Code / Codex independent Host staging', () => {
   it('installs both backends independently under the extension registry', async () => {
@@ -166,17 +209,5 @@ describe.skipIf(!artifactsPresent)('Claude Code / Codex independent Host staging
     expect(listed.extensions.some((extension) => extension.id === codex.extensionId)).toBe(true);
 
     expect(failure(await runtime.handleCommand({ type: 'agents/list' }))).toContain('agents-inventory-retired');
-  });
-
-  it('does not vendor Claude or Codex adapters in Host production dependencies', async () => {
-    const hostRuntime = JSON.parse(
-      await readFile(new URL('../package.json', import.meta.url), 'utf8'),
-    ) as { dependencies: Record<string, string> };
-    const agentHostPath = new URL('../../agent-host/package.json', import.meta.url);
-    const agentHost = JSON.parse(await readFile(agentHostPath, 'utf8')) as { dependencies: Record<string, string> };
-    for (const deps of [hostRuntime.dependencies, agentHost.dependencies]) {
-      expect(Object.keys(deps).some((name) => name.includes('claude-agent-sdk'))).toBe(false);
-      expect(Object.keys(deps).some((name) => name.includes('@openai/codex'))).toBe(false);
-    }
   });
 });
