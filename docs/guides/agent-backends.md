@@ -7,7 +7,8 @@ install hook. CLI binaries are not bundled.
 
 ## Install and configure
 
-In Desktop: install and enable the Grok Build ACP extension in Marketplace.
+In Desktop: install and enable the backend extension in Marketplace
+(Grok Build ACP, or Claude Code as `mimimaster/claude-code`).
 The workbench automatically detects its Host CLI and refreshes the session
 picker; opening Settings → Agent Backends or clicking Check again is optional.
 Installing an adapter does not mean its CLI or account is ready. Existing Grok
@@ -20,6 +21,9 @@ piwin agents list
 grok login
 piwin agents check --agent grok
 piwin chat --agent grok "your task"
+# Claude Code / Codex (installed Agent plugins) use the same --agent id.
+# One-shot chat cannot answer native questions: it cancels and tells you to use
+# Desktop or `piwin tui`. TUI answers a single text/select question by original id.
 ```
 
 `PIWIN_HOST_URL` makes CLI attach to the same Host used by Desktop. Dependency

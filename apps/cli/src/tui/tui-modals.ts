@@ -1,5 +1,10 @@
 import type { Component, OverlayHandle, TUI } from '@earendil-works/pi-tui';
-import type { BackendPermissionOption, HostCommand, HostPush } from '@piwin/contracts';
+import type {
+  BackendPermissionOption,
+  BackendUserInputResult,
+  HostCommand,
+  HostPush,
+} from '@piwin/contracts';
 import { isAllowPermissionOptionKind } from '@piwin/contracts';
 import { ChoiceOverlay, TextOverlay } from './choice-overlay.js';
 
@@ -186,5 +191,46 @@ export function createExtensionModal(
       : (push.options ?? []).map((option) => ({ value: option, label: option })),
     onSelect: (value) => answer(isConfirm ? { confirmed: value === 'yes' } : { value }),
     onCancel: () => answer(isConfirm ? { confirmed: false } : { cancelled: true }),
+  });
+}
+
+export function canAnswerBackendInputInTui(
+  push: Extract<HostPush, { type: 'session/backend-input-request' }>,
+): boolean {
+  if (push.request.questions.length !== 1) return false;
+  const question = push.request.questions[0];
+  if (question === undefined) return false;
+  if (question.type === 'text') return true;
+  return question.multiple !== true && question.allowOther !== true && question.choices.length > 0;
+}
+
+export function createBackendInputModal(
+  push: Extract<HostPush, { type: 'session/backend-input-request' }>,
+  answer: (result: BackendUserInputResult) => void,
+): Component {
+  const question = push.request.questions[0];
+  if (question === undefined || !canAnswerBackendInputInTui(push)) {
+    return new ChoiceOverlay({
+      title: push.request.title,
+      message: '多字段提问请用 Desktop 回答。取消后不会自动批准。',
+      items: [{ value: 'cancel', label: '取消' }],
+      onSelect: () => answer({ cancelled: true }),
+      onCancel: () => answer({ cancelled: true }),
+    });
+  }
+  if (question.type === 'text') {
+    return new TextOverlay({
+      title: push.request.title,
+      message: question.prompt,
+      onSubmit: (value) => answer({ answers: [{ questionId: question.id, text: value }] }),
+      onCancel: () => answer({ cancelled: true }),
+    });
+  }
+  return new ChoiceOverlay({
+    title: push.request.title,
+    message: question.prompt,
+    items: question.choices.map((choice) => ({ value: choice.id, label: choice.label })),
+    onSelect: (value) => answer({ answers: [{ questionId: question.id, optionIds: [value] }] }),
+    onCancel: () => answer({ cancelled: true }),
   });
 }

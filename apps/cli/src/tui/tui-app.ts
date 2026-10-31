@@ -767,6 +767,14 @@ export class TuiApp {
         this.prompts.askExtension(push);
         this.modals.pump();
         return;
+      case 'session/backend-input-request':
+        if (push.sessionId !== this.sessionId) return;
+        this.prompts.askBackendInput(push);
+        this.modals.pump();
+        return;
+      case 'session/backend-input-settled':
+        this.prompts.backendInputSettledElsewhere(push.requestId);
+        return;
       case 'session/name-updated':
         if (push.sessionId === this.sessionId) {
           this.sessionName = push.name;

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { HostCommand, HostPush } from '@piwin/contracts';
-import { createCliBackendPermissionResponder, parseCliAgent } from './external-agent-cli.js';
+import {
+  createCliBackendPermissionResponder,
+  createCliBackendUserInputResponder,
+  parseCliAgent,
+} from './external-agent-cli.js';
 
 describe('parseCliAgent', () => {
   it('defaults to pi and accepts any enabled-backend id', () => {
@@ -45,6 +49,34 @@ describe('createCliBackendPermissionResponder', () => {
     await Promise.resolve();
     expect(sent).toEqual([{ type: 'permission/resolve', requestId: 'r-1', decision: 'deny', backendOptionId: 'reject-once' }]);
     expect(lines.join('')).toContain('Yes [allow-once] | No [reject-once]');
+  });
+
+  it('cancels native questions with an explicit Desktop/TUI route', async () => {
+    const sent: HostCommand[] = [];
+    const lines: string[] = [];
+    const respond = createCliBackendUserInputResponder(
+      async (command) => {
+        sent.push(command);
+        return { type: 'response', command: command.type, success: true };
+      },
+      (line) => lines.push(line),
+    );
+    expect(respond({
+      type: 'session/backend-input-request',
+      sessionId: 's',
+      requestId: 'q-1',
+      generationId: 'g-1',
+      request: { title: 'Name', questions: [{ id: 'name', prompt: 'Name', type: 'text' }] },
+    })).toBe(true);
+    await Promise.resolve();
+    expect(sent).toEqual([{
+      type: 'session/backend-input-respond',
+      sessionId: 's',
+      requestId: 'q-1',
+      generationId: 'g-1',
+      result: { cancelled: true },
+    }]);
+    expect(lines.join('')).toContain('piwin tui');
   });
 
   it('ignores Pi permission requests', () => {

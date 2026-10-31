@@ -2,7 +2,12 @@ import type { HostCommand, HostPush, PermissionRequestContext } from '@piwin/con
 import { ViewerOverlay } from './viewer-overlay.js';
 import { describePermissionPrompt } from './permission-prompt-view.js';
 import { hostData, type TuiHostLink } from './tui-host-link.js';
-import { createExtensionModal, createPermissionModal, type TuiModalStack } from './tui-modals.js';
+import {
+  createBackendInputModal,
+  createExtensionModal,
+  createPermissionModal,
+  type TuiModalStack,
+} from './tui-modals.js';
 
 export type TuiHostPromptsOptions = {
   link: TuiHostLink;
@@ -72,9 +77,29 @@ export class TuiHostPrompts {
     );
   }
 
+  public askBackendInput(push: Extract<HostPush, { type: 'session/backend-input-request' }>): void {
+    this.options.onAttention('需要你回答');
+    this.options.modals.enqueue(`backend-input:${push.requestId}`, () =>
+      this.options.modals.show(
+        createBackendInputModal(push, (result) => this.answer({
+          type: 'session/backend-input-respond',
+          sessionId: push.sessionId,
+          requestId: push.requestId,
+          generationId: push.generationId,
+          result,
+          ...(push.runId === undefined ? {} : { runId: push.runId }),
+        })),
+      ),
+    );
+  }
+
   /** Answered from another shell (Desktop, phone): drop our copy. */
   public permissionResolvedElsewhere(requestId: string): void {
     this.options.modals.drop(`permission:${requestId}`);
+  }
+
+  public backendInputSettledElsewhere(requestId: string): void {
+    this.options.modals.drop(`backend-input:${requestId}`);
   }
 
   private answer(command: HostCommand): void {

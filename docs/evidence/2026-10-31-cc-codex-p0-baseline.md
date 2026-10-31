@@ -128,9 +128,44 @@ Claude `image` blocks, never path/base64 in prompt text. Real CLI still
 inherits `ANTHROPIC_API_KEY` when present (BYOK). Artifact `499b4f0d…` 36098B.
 Verified: Claude 28 tests; host-runtime executor 2 + typecheck. Not committed.
 
+Human-input UI (this slice): Desktop mounts `BackendUserInputPrompt` on
+`session/backend-input-request`; TUI answers a single text/select by original
+choice id; one-shot `piwin chat` cancels with an explicit Desktop/TUI route.
+Desktop+CLI typecheck green; hook/prompt/permission/cli tests 75+12. Still not
+committed. Codex vendor binary remain blocked/not-run.
+
+### P6 Claude real-provider (this slice, not a full P6 candidate)
+
+Authorization: Claude CLI `2.1.281` oauth_token firstParty; model `haiku`;
+max 2 prompts; tools denied (`reject_once`); disposable `/var/folders` cwd.
+Not a readiness probe; sentinels only.
+
+1. `session/new` then prompt A → native id `17fe19de-7ffc-4a69-958a-44f745f9c1a3`,
+   assistant text `PIWIN_CC_P6_A`, `status: completed` / `stop`. No tool callbacks.
+2. First `session/load` failed: Claude stores jsonl under the **realpath**
+   (`-private-var-folders-...`), plugin encoded `/var/folders` without resolving.
+3. Fix: `encodeClaudeProjectDir` uses `realpathSync`. History tests 4/4;
+   plugin tests 29/29. Artifact `f9d68bda…` 36197B.
+4. Plugin restart `session/load` of that exact id: replay contained A; jsonl
+   contained A. Prompt B → `PIWIN_CC_P6_B YES_SAW_A`; jsonl then contained B.
+   Temporary project dir deleted after capture.
+
+Not-run: Desktop/native PTY UI, remote Host, Codex, image L5, allow-tool file
+oracle, browser E2E. Do not treat this as P6 candidate pass.
+
+### Marketplace listing (this slice)
+
+Claude Code is an independent extension, not a bundled adapter.
+`AGENT_CATALOG` in core stays empty. Source repo:
+https://github.com/mimimaster/piwin-claude-code-backend (`e2d8319`, public).
+Catalog PR: https://github.com/mimimaster/piwin-extensions/pull/15
+(`mimimaster/claude-code` 0.1.0, `validate-entry.mjs` pass, catalog `npm test`
+50/50). Live `extension.piwinwin.com` listing waits on merging that PR
+(protected main). Codex is not listed.
+
 ## Remaining / blocked
 
-- P2 Claude: SDK-vs-CLI README discrepancy; `plugin.ts` split; synthetic `cc-<host-id>` persistence; native history reconstruct after process restart; readiness vs paid probe
+- P2 Claude: SDK-vs-CLI README discrepancy; `plugin.ts` split; synthetic `cc-<host-id>` persistence
 - P3 Codex: real CLI schema/handshake (PATH binary unusable); bound UTF-8/backpressure soak; interleaved sessions; interrupt vs delayed terminal
 - P4 capability surface per plugin
 - P5 Host/Desktop/CLI integration beyond staging

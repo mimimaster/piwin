@@ -9,7 +9,11 @@ import {
 } from './extension-ui-cli.js';
 import { saveAttachedCliImageAttachment, saveLocalCliImageAttachment } from './cli-prompt-image.js';
 import { buildCliContextRefs, collectRefArgs } from './context-ref-args.js';
-import { createCliBackendPermissionResponder, parseCliAgent } from './external-agent-cli.js';
+import {
+  createCliBackendPermissionResponder,
+  createCliBackendUserInputResponder,
+  parseCliAgent,
+} from './external-agent-cli.js';
 import {
   HostRuntime,
   applyHostNetworkProxyFromConfig,
@@ -156,12 +160,16 @@ export async function commandChat(argv: string[]): Promise<void> {
     const answerAttachedBackendPermission = createCliBackendPermissionResponder((command) =>
       client.request(command),
     );
+    const answerAttachedBackendInput = createCliBackendUserInputResponder((command) =>
+      client.request(command),
+    );
     const unsubscribe = client.subscribePush((push) => {
       if (push.type === 'run/terminal') {
         resolveAttachedCompletion?.();
         return;
       }
       if (answerAttachedBackendPermission(push)) return;
+      if (answerAttachedBackendInput(push)) return;
       if (printAttachedExtensionSurface(push)) return;
       if (push.type === 'extension/ui_request') {
         answerAttachedExtensionUi(push).catch((error: unknown) => {
@@ -269,6 +277,9 @@ export async function commandChat(argv: string[]): Promise<void> {
   const answerLocalBackendPermission = createCliBackendPermissionResponder((command) =>
     runtime.handleCommand(command),
   );
+  const answerLocalBackendInput = createCliBackendUserInputResponder((command) =>
+    runtime.handleCommand(command),
+  );
   await applyHostNetworkProxyFromConfig();
   const runtime: HostRuntime = new HostRuntime({
     mode,
@@ -279,6 +290,7 @@ export async function commandChat(argv: string[]): Promise<void> {
         return;
       }
       if (answerLocalBackendPermission(push)) return;
+      if (answerLocalBackendInput(push)) return;
       if (printLocalExtensionSurface(push)) return;
       if (push.type === 'extension/ui_request') {
         answerLocalExtensionUi(push).catch((error: unknown) => {
