@@ -129,4 +129,15 @@ describe('buildSessionSections', () => {
     const view = buildSessionSections(groups, '进行中');
     expect(view.sections[0]?.rows.map((item) => [item.sessionId, item.scope])).toEqual([['b', 'workspace']]);
   });
+
+  it('carries the project a section can create into, and omits it where that is meaningless', () => {
+    const all = buildSessionSections(groups, '全部');
+    const byKey = (key: string) => all.sections.find((section) => section.key === key);
+    expect(byKey('project:p1')?.projectId).toBe('p1');
+    // p2 holds only a pinned row, so its project section folds into pinned.
+    expect(byKey('project:p2')).toBeUndefined();
+    expect(byKey('pinned')).not.toHaveProperty('projectId');
+    expect(byKey('project:__general__')).not.toHaveProperty('projectId');
+    expect(buildSessionSections(groups, '置顶').sections[0]).not.toHaveProperty('projectId');
+  });
 });

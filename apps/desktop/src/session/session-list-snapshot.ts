@@ -11,6 +11,7 @@
 import type { ProjectRecord } from '@piwin/contracts';
 import type { SessionListItemUi } from '../conversation/chat-ui-types';
 import type { DesktopLocale } from '../i18n/desktop-locale-id';
+import type { ChatUiAction } from '../conversation/chat-ui-types';
 
 const SNAPSHOT_VERSION = 1;
 const KEY_PREFIX = 'piwin.desktop.session-list-snapshot.v1.';
@@ -42,6 +43,27 @@ export type SessionListSnapshot = {
   recentProjects: SnapshotProject[];
 };
 
+export function snapshotRestoreActions(
+  snapshot: SessionListSnapshot,
+): Extract<ChatUiAction, { type: 'session/hydrate-scope' }>[] {
+  return [
+    {
+      type: 'session/hydrate-scope',
+      scope: { kind: 'general' },
+      sessions: snapshot.general,
+      totalCount: snapshot.general.length,
+      truncated: false,
+    },
+    ...Object.entries(snapshot.projects).map(([projectPath, sessions]) => ({
+      type: 'session/hydrate-scope' as const,
+      scope: { kind: 'project' as const, projectPath },
+      sessions,
+      totalCount: sessions.length,
+      truncated: false,
+    })),
+  ];
+}
+
 export function sessionListSnapshotKey(hostKey: string): string {
   return `${KEY_PREFIX}${encodeURIComponent(hostKey.trim())}`;
 }
@@ -58,7 +80,12 @@ function snapshotRow(session: SessionListItemUi): SessionListItemUi {
   if (session.isArchived !== undefined) row.isArchived = session.isArchived;
   if (session.archivedAt !== undefined) row.archivedAt = session.archivedAt;
   if (session.scope !== undefined) row.scope = session.scope;
-  if (session.backend !== undefined) row.backend = session.backend;
+  if (session.backend !== undefined) {
+    row.backend = {
+      agentId: session.backend.agentId,
+      ...(session.backend.isWorktree !== undefined ? { isWorktree: session.backend.isWorktree } : {}),
+    };
+  }
   return row;
 }
 
@@ -118,7 +145,7 @@ function parseRows(value: unknown): SessionListItemUi[] {
   return value.filter(
     (row): row is SessionListItemUi =>
       isRecord(row) && typeof row.id === 'string' && typeof row.name === 'string',
-  );
+  ).map(snapshotRow);
 }
 
 function parseProjects(value: unknown): SnapshotProject[] {

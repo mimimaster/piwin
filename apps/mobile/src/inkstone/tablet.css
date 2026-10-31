@@ -38,18 +38,6 @@
   padding-inline: max(28px, calc((100% - 780px) / 2));
 }
 
-/* Current conversation in the list (also useful on phones after returning). */
-.session-item.active {
-  background: var(--zhu-wash);
-  border-radius: 8px;
-}
-.session-item.active::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  top: 10px;
-  bottom: 10px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--zhu);
-}
+/* Current conversation in the list (also useful on phones after returning).
+   The wash + 2px rail live in inkstone-conversation.css so the docked list and
+   the phone list cannot drift apart. */

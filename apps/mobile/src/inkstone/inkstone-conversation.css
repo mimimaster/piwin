@@ -102,58 +102,144 @@
   text-overflow: ellipsis;
 }
 
+/* One row grammar for phone, docked tablet nav and any drawer that shows this
+   list: the old tree indent cost 18px of title width, so it is gone. */
 .project-heading {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 18px 0 5px;
-  font-size: 14px;
+  gap: 2px;
+  margin: 14px 0 1px;
 }
 
-.project-heading .icon {
-  width: 16px;
-  height: 16px;
+.project-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 0 2px;
+  text-align: left;
+  border-radius: 7px;
+}
+
+.project-toggle:active {
+  background: var(--s1);
+}
+
+.project-toggle .chev {
+  width: 13px;
+  height: 13px;
+  color: var(--t3);
+  transition: transform 160ms ease;
+}
+
+.project-toggle .chev.closed {
+  transform: rotate(-90deg);
+}
+
+.project-toggle .icon {
+  width: 14px;
+  height: 14px;
   color: var(--t3);
 }
 
-.project-heading small {
+.project-toggle b {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.project-toggle small {
+  color: var(--t4);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  margin-left: -3px;
+}
+
+.project-add {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
   color: var(--t3);
-  font: 11px var(--mono);
-  margin-left: auto;
+}
+
+.project-add:active {
+  background: var(--s1);
+  color: var(--t1);
+}
+
+.project-add .icon {
+  width: 14px;
+  height: 14px;
 }
 
 .session-tree {
-  margin-left: 6px;
-  padding-left: 15px;
-  border-left: 1px solid var(--l3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.session-tree.collapsed {
+  display: none;
 }
 
 .session-item {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 64px;
+  align-items: stretch;
+  min-height: 54px;
   border-bottom: 1px solid var(--l1);
 }
 
-.session-item > .dot {
-  position: absolute;
-  left: -19px;
-  top: 19px;
+.session-item.active {
+  background: var(--zhu-wash);
+  border-radius: 7px;
+  border-bottom-color: transparent;
+  box-shadow: inset 2px 0 0 var(--zhu);
+}
+
+.session-row {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
 }
 
 .session-open {
   flex: 1;
-  text-align: left;
   min-width: 0;
-  padding: 12px 0 10px 2px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 4px 8px 5px;
+  text-align: left;
 }
 
 .session-line {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Kept for every status so titles stay on one optical column. */
+.session-mark {
+  width: 6px;
+  flex: none;
+  display: flex;
+  justify-content: center;
+}
+
+.session-mark .dot {
+  width: 6px;
+  height: 6px;
 }
 
 .session-open strong {
@@ -166,53 +252,109 @@
   text-overflow: ellipsis;
 }
 
+.session-item.active .session-open strong {
+  font-weight: 600;
+}
+
 /* Time sits on the title line and never wraps; it used to share the preview
    line and broke into "· 13 / 小时" on narrow phones. */
 .session-line time {
   flex: none;
-  font-size: 11px;
-  color: var(--t3);
+  font-size: 10.5px;
+  color: var(--t4);
   font-variant-numeric: tabular-nums;
 }
 
-.session-open small {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  font-size: 12px;
-  line-height: 1.5;
+/* Preview flexes, facts stay: a branch is identity, a truncated preview is not. */
+.session-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-left: 12px;
+  font-size: 11.5px;
   color: var(--t3);
-  margin-top: 3px;
+}
+
+.session-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.session-fact {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--t4);
+  white-space: nowrap;
 }
 
 .session-scope {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 5px;
   font-size: 10.5px;
   color: var(--t3);
+  white-space: nowrap;
 }
 
-.session-item .session-scope .icon {
-  width: 11px;
-  height: 11px;
+/* A leading mark, not a folder glyph: at 10.5px the icon reads as a missing
+   character next to the preview text. */
+.session-scope::before {
+  content: '·';
+  margin-right: 5px;
+  color: var(--t4);
 }
 
-.session-tree.flat {
-  margin-left: 0;
-  padding-left: 0;
-  border-left: 0;
+.session-warn {
+  padding-left: 12px;
+  font-size: 10.5px;
+  color: var(--ochre);
 }
 
-.session-tree.flat .session-item > .dot {
-  position: static;
-  align-self: flex-start;
-  margin: 19px 6px 0 2px;
+/* Public discovered checkouts: a read-only notice, not a row you can open. */
+.session-item.hint .session-open {
+  min-height: 54px;
 }
 
-.session-section.pinned .project-heading .icon {
+.session-hint-path {
+  padding-left: 12px;
+  font: 10.5px var(--mono);
+  color: var(--t3);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.session-more {
+  flex: none;
+  width: 30px;
+  display: grid;
+  place-items: center;
+  color: var(--t3);
+  border-radius: 7px;
+  opacity: 0.35;
+}
+
+.session-more .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.session-more:active {
+  background: var(--s1);
+  opacity: 1;
+}
+
+.session-item:hover .session-more,
+.session-item.active .session-more {
+  opacity: 0.85;
+}
+
+.session-section.pinned .project-toggle .icon {
   color: var(--zhu);
 }
 
@@ -223,16 +365,6 @@
   color: var(--t3);
 }
 
-.session-item .icon-button {
-  min-width: 34px;
-  width: 34px;
-  color: var(--t3);
-}
-
-.session-item .icon {
-  width: 16px;
-  height: 16px;
-}
 
 .notice-strip {
   width: 100%;
@@ -862,7 +994,8 @@
 }
 .session-item .ui-swipe-content {
   display: flex;
-}
-.session-item.active .ui-swipe-content {
-  background: color-mix(in srgb, var(--zhu) 10%, var(--s2));
+  /* The swipe wrapper sizes to content; without this the row stops short of
+     the ⋯ button and the divider runs past everything. */
+  flex: 1;
+  min-width: 0;
 }

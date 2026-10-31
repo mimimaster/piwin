@@ -1,58 +1,27 @@
 /**
- * Keeps the last remote session list on the device and puts it in the
- * sidebar while the Host is unreachable, so a cold start in a tunnel still
- * shows what exists. The live list replaces it through the normal hydration
+ * Keeps the last session list on the device and restores it immediately,
+ * including while the local sidecar is starting. The live list replaces it through the normal hydration
  * path; see session/session-list-snapshot.ts for what is stored.
  */
 import { useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { ProjectRecord } from '@piwin/contracts';
 import type { ChatUiAction, SessionListItemUi } from '../conversation/chat-reducer';
 import type { HostClient } from '../host/host-client';
-import {
-  loadDesktopRemoteHostTarget,
-  type DesktopRemoteHostTarget,
-} from '../host/remote-host-session';
+import { sessionCacheHostKey } from '../session/session-cache-host.js';
 import { setOfflineSessionSnapshot } from '../session/offline-session-snapshot';
 import {
   buildSessionListSnapshot,
   readSessionListSnapshot,
+  snapshotRestoreActions,
   writeSessionListSnapshot,
-  type SessionListSnapshot,
 } from '../session/session-list-snapshot';
 
+export { sessionSnapshotHostKey } from '../session/session-cache-host.js';
+export { snapshotRestoreActions } from '../session/session-list-snapshot.js';
+
 const SNAPSHOT_WRITE_DELAY_MS = 1_000;
-/** A Host that answers this fast never shows the snapshot (and its notice). */
+/** Delay only the offline notice; cached rows must be visible immediately. */
 const SNAPSHOT_RESTORE_GRACE_MS = 800;
-
-/** The Host book id survives address roaming; a legacy attach has only its endpoint. */
-export function sessionSnapshotHostKey(target: DesktopRemoteHostTarget | undefined): string | null {
-  const key = target?.hostId?.trim() || target?.endpoint.trim() || '';
-  return key.length > 0 ? key : null;
-}
-
-export function snapshotRestoreActions(
-  snapshot: SessionListSnapshot,
-): Extract<ChatUiAction, { type: 'session/hydrate-scope' }>[] {
-  const actions: Extract<ChatUiAction, { type: 'session/hydrate-scope' }>[] = [
-    {
-      type: 'session/hydrate-scope',
-      scope: { kind: 'general' },
-      sessions: snapshot.general,
-      totalCount: snapshot.general.length,
-      truncated: false,
-    },
-  ];
-  for (const [projectPath, sessions] of Object.entries(snapshot.projects)) {
-    actions.push({
-      type: 'session/hydrate-scope',
-      scope: { kind: 'project', projectPath },
-      sessions,
-      totalCount: sessions.length,
-      truncated: false,
-    });
-  }
-  return actions;
-}
 
 function deviceStorage(): Storage | undefined {
   try {
@@ -72,40 +41,36 @@ export function useSessionListSnapshot(args: {
   dispatch: Dispatch<ChatUiAction>;
 }): void {
   const { hostClient, hostReady, generalSessions, projectSessionsByPath, recentProjects } = args;
-  // The built-in sidecar is never unreachable; only remote Hosts need this.
-  const hostKey = useMemo(
-    () =>
-      hostClient.getTransport() === 'remote'
-        ? sessionSnapshotHostKey(loadDesktopRemoteHostTarget())
-        : null,
-    [hostClient],
-  );
+  const hostKey = useMemo(() => sessionCacheHostKey(hostClient), [hostClient]);
   const latest = useRef(args);
   latest.current = args;
 
   useEffect(() => {
     if (hostKey === null) return undefined;
-    const timer = setTimeout(() => {
-      const current = latest.current;
-      const listsEmpty =
-        current.generalSessions.length === 0 &&
-        Object.values(current.projectSessionsByPath).every((rows) => rows.length === 0) &&
-        current.recentProjects.length === 0;
-      if (current.hostReady || !listsEmpty) return;
-      const snapshot = readSessionListSnapshot(deviceStorage(), hostKey);
-      if (snapshot === undefined) return;
-      for (const action of snapshotRestoreActions(snapshot)) current.dispatch(action);
-      // Host never lists these back; mergeRecentProjects drops any it no longer has.
+    const current = latest.current;
+    const snapshot = readSessionListSnapshot(deviceStorage(), hostKey);
+    if (snapshot === undefined) return undefined;
+    const listsEmpty =
+      current.generalSessions.length === 0 &&
+      Object.values(current.projectSessionsByPath).every((rows) => rows.length === 0) &&
+      current.recentProjects.length === 0;
+    if (!current.hostReady) {
+      if (listsEmpty) {
+        for (const action of snapshotRestoreActions(snapshot)) current.dispatch(action);
+      }
       current.setRecentProjects((previous) =>
         previous.length === 0 ? (snapshot.recentProjects as ProjectRecord[]) : previous,
       );
+    }
+    const timer = setTimeout(() => {
+      if (latest.current.hostReady || hostClient.getTransport() !== 'remote') return;
       setOfflineSessionSnapshot({ savedAt: snapshot.savedAt });
     }, SNAPSHOT_RESTORE_GRACE_MS);
     return () => {
       clearTimeout(timer);
       setOfflineSessionSnapshot(null);
     };
-  }, [hostKey]);
+  }, [hostClient, hostKey]);
 
   useEffect(() => {
     if (hostReady) setOfflineSessionSnapshot(null);
@@ -126,4 +91,27 @@ export function useSessionListSnapshot(args: {
     }, SNAPSHOT_WRITE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [hostKey, hostReady, generalSessions, projectSessionsByPath, recentProjects]);
+
+  useEffect(() => {
+    if (hostKey === null) return undefined;
+    const flush = (): void => {
+      const current = latest.current;
+      if (!current.hostReady || current.hostClient !== hostClient) return;
+      writeSessionListSnapshot(deviceStorage(), hostKey, buildSessionListSnapshot({
+        general: current.generalSessions,
+        projectSessionsByPath: current.projectSessionsByPath,
+        recentProjects: current.recentProjects,
+      }));
+    };
+    const onHide = (): void => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onHide);
+      flush();
+    };
+  }, [hostClient, hostKey]);
 }

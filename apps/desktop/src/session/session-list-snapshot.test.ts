@@ -58,6 +58,7 @@ describe('session list snapshot', () => {
           isPinned: true,
           nativeCli: { kind: 'native', sessionId: 'g1', ptyId: 'pty_1' },
           model: { providerId: 'p', modelId: 'm' },
+          backend: { agentId: 'claude-code', activity: 'working', isWorktree: true },
         }),
       ],
       projectSessionsByPath: { prj_1: [session('p1')], prj_gone: [session('p2')] },
@@ -70,6 +71,7 @@ describe('session list snapshot', () => {
     expect(row?.isPinned).toBe(true);
     expect(row).not.toHaveProperty('nativeCli');
     expect(row).not.toHaveProperty('model');
+    expect(row?.backend).toEqual({ agentId: 'claude-code', isWorktree: true });
     // Only folders the sidebar lists are kept.
     expect(Object.keys(snapshot.projects)).toEqual(['prj_1']);
     expect(snapshot.recentProjects).toEqual([

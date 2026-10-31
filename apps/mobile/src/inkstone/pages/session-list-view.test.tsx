@@ -91,7 +91,12 @@ describe('readonly public session navigation', () => {
     expect(container.textContent).toContain('主检出');
     expect(container.textContent).toContain('工作树');
     expect(container.textContent).toContain('分支 · main');
-    expect(container.textContent).toContain('分支 · feature');
+    // One identity per row: a pinned row sits outside its project heading, so it
+    // names the project instead of repeating checkout+branch and squeezing the
+    // preview down to a few glyphs.
+    const pinnedRow = container.querySelector('.session-section.pinned .session-open');
+    expect(pinnedRow?.textContent).toContain('Repository');
+    expect(pinnedRow?.textContent).not.toContain('分支');
     const missing = [...container.querySelectorAll('button.session-open')].filter((row) => row.textContent?.includes('Missing session'));
     expect(missing).toHaveLength(1);
     expect(missing[0]?.textContent).toContain('检出目录缺失');
@@ -180,6 +185,42 @@ describe('readonly public session navigation', () => {
     expect(container.textContent).toContain('primary');
     expect(container.textContent).toContain('Host 未提供项目信息');
     expect(container.textContent).not.toMatch(/主检出|工作树|分支/);
+  });
+
+  it('collapses a project header without dropping its rows from state', async () => {
+    fixture();
+    const toggle = container.querySelector<HTMLButtonElement>('button.project-toggle');
+    if (toggle === null) throw new Error('missing project toggle');
+    const tree = toggle.closest('.project-heading')?.nextElementSibling;
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(tree?.classList.contains('collapsed')).toBe(false);
+    await act(async () => { toggle.click(); });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(tree?.classList.contains('collapsed')).toBe(true);
+    expect(container.querySelectorAll('button.session-open').length).toBeGreaterThan(0);
+    // Only the repository section knows a project; pinned and 一般会话 do not.
+    expect(container.querySelectorAll('.project-add')).toHaveLength(1);
+  });
+
+  it('starts a project-scoped draft from the project header, without a Host write', async () => {
+    const view = fixture();
+    const add = container.querySelector<HTMLButtonElement>('.project-add');
+    if (add === null) throw new Error('missing project add');
+    await act(async () => { add.click(); });
+    expect(view.state().draft).toEqual({ mode: 'agent', projectId: 'primary' });
+    expect(view.state().route).toBe('chat');
+    expect(view.request).not.toHaveBeenCalled();
+  });
+
+  it('opens the row menu for an exact session without changing the list route', async () => {
+    const view = fixture();
+    const more = [...container.querySelectorAll<HTMLButtonElement>('button.session-more')]
+      .find((item) => item.getAttribute('aria-label')?.startsWith('Primary session') === true);
+    if (more === undefined) throw new Error('missing row menu');
+    await act(async () => { more.click(); });
+    expect(view.select).toHaveBeenCalledExactlyOnceWith('primary-session');
+    expect(view.state().sheet).toBe('session-menu');
+    expect(view.state().route).toBe('sessions');
   });
 
   it('keeps the newer selection authoritative when older hydration resolves last', async () => {

@@ -106,12 +106,13 @@ describe('InkstoneApp with a Host', () => {
 
   it('keeps finished sessions free of status dots and filler subtitles', () => {
     rendered = renderInkstone(fakeHostContext());
-    expect(document.querySelectorAll('.session-item > .dot')).toHaveLength(0);
+    // Dots live inside the title line now, so assert on every row dot, not just a direct child.
+    expect(document.querySelectorAll('.session-item .dot')).toHaveLength(0);
     expect(document.body.textContent).not.toContain('条消息');
     expect(document.querySelector('.host-card')).toBeNull();
   });
 
-  it('slides a session row left to reveal actions instead of a ⋮ button', () => {
+  it('reveals actions by swipe and also offers one tap point per row', () => {
     const pinned: Array<[string, boolean]> = [];
     const host = fakeHost({
       handlePinSession: async (sessionId: string, isPinned: boolean) => {
@@ -120,7 +121,8 @@ describe('InkstoneApp with a Host', () => {
       },
     });
     rendered = renderInkstone(fakeHostContext(host));
-    expect(document.querySelector('[aria-label$="的更多操作"]')).toBeNull();
+    // The explicit ⋯ point replaced "swipe is the only way in".
+    expect(document.querySelector('[aria-label$="的更多操作"]')).not.toBeNull();
     const content = document.querySelector('.ui-swipe-content');
     if (content === null) throw new Error('swipe row missing');
     swipe(content, -160);

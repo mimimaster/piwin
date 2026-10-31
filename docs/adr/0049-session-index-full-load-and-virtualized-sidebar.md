@@ -95,6 +95,31 @@ The following remain in force unchanged:
 
 ## Consequences
 
+### 2026-11-01: Immediate Desktop startup presentation
+
+Desktop restores its existing bounded sidebar snapshot on the first render for
+both the local sidecar and remote Hosts. A separate disposable cache keeps the
+last viewed transcript's text and settled tool output under the existing
+160-message / 2 MiB transcript bound. Media URLs, running tools, live Runs,
+permissions and project trust are not restored from that projection.
+
+Cached views do not expire because the app was closed for a while. A stable
+Host-book id (legacy fallback: endpoint) partitions remote views; the local
+sidecar has a separate partition and mock data is excluded. Switching Hosts
+remounts the workbench's state owner so cached or live rows cannot cross Hosts.
+
+Once the Host is ready, Desktop resumes the restored session in the background
+without waiting for settings or sidebar queries. A newer user selection cancels
+that automatic restore. Fresh Host history replaces the preview through normal
+hydration. Writes are debounced and flushed on background/close.
+
+This does not change Host-owned durable history, transcript paging or runtime
+retention (ADR 0040). Mobile retains its existing list-only offline snapshot;
+CLI still reads Host history directly. Implementation/verification:
+[`Desktop session startup cache`](../plans/2026-11-01-desktop-session-startup-cache.md).
+
+### Existing index consequences
+
 - Desktop session-index transport and reducer state scale with the 2,000-item
   bound (~1 MB at ~528 B/row), not with full Host history and not with
   mounted DOM density.

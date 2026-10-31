@@ -12,6 +12,8 @@ export interface SessionSection {
   /** Pinned and filtered sections are flat; project sections draw the folder heading. */
   kind: 'pinned' | 'project' | 'flat';
   title: string;
+  /** Project a new session in this section starts in; absent for cross-project sections. */
+  projectId?: string;
   rows: SessionSectionRow[];
   checkoutHints?: InkstoneProjectGroup['checkoutHints'];
 }
@@ -67,6 +69,7 @@ export function buildSessionSections(
       key: group.key ?? `project:${group.projectId ?? '__general__'}`,
       kind: 'project',
       title: group.project,
+      ...(group.projectId === undefined ? {} : { projectId: group.projectId }),
       rows,
       ...(group.checkoutHints === undefined ? {} : { checkoutHints: group.checkoutHints }),
     });
