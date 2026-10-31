@@ -12,6 +12,18 @@ export function normalizeBrowserWorkbenchConfig(value: unknown): BrowserWorkbenc
   if (typeof record.cdpEndpoint === 'string' && record.cdpEndpoint.trim() !== '') {
     config.cdpEndpoint = record.cdpEndpoint.trim();
   }
+  if (typeof record.channel === 'string' && record.channel.trim() !== '') {
+    config.channel = record.channel.trim();
+  }
+  if (record.variant === 'chromium' || record.variant === 'headless-shell') {
+    config.variant = record.variant;
+  }
+  if (typeof record.userAgent === 'string' && record.userAgent.trim() !== '') {
+    config.userAgent = record.userAgent.trim();
+  }
+  if (Array.isArray(record.args) && record.args.every((item) => typeof item === 'string')) {
+    config.args = [...record.args];
+  }
   if (typeof record.deviceScaleFactor === 'number' && Number.isFinite(record.deviceScaleFactor)) {
     config.deviceScaleFactor = Math.max(1, Math.min(3, Math.round(record.deviceScaleFactor)));
   }

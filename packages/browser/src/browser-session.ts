@@ -100,6 +100,12 @@ export type BrowserSessionOptions = {
   screencastQuality?: number;
   /** Additional arguments to pass to Chromium. */
   args?: string[];
+  /** Browser channel to launch (e.g. 'chrome', 'msedge'). */
+  channel?: string;
+  /** Custom browser executable path. */
+  executablePath?: string;
+  /** Default flags to ignore from Playwright's defaults. */
+  ignoreDefaultArgs?: string[] | boolean;
   /** Frame stream ceiling in fps (default 4). */
   maxFps?: number;
   userAgent?: string;
@@ -353,6 +359,9 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       deviceScaleFactor,
       captureConsoleAndNetwork,
       ...(options.args !== undefined ? { args: options.args } : {}),
+      ...(options.channel !== undefined ? { channel: options.channel } : {}),
+      ...(options.executablePath !== undefined ? { executablePath: options.executablePath } : {}),
+      ...(options.ignoreDefaultArgs !== undefined ? { ignoreDefaultArgs: options.ignoreDefaultArgs } : {}),
       ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
       ...(options.cdpEndpoint !== undefined ? { cdpEndpoint: options.cdpEndpoint } : {}),
       ...(options.connectOverCdp !== undefined ? { connectOverCdp: options.connectOverCdp } : {}),

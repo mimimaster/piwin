@@ -47,6 +47,22 @@ describe('PiwinConfig.browser', () => {
     });
   });
 
+  it('normalizes channel, variant, userAgent, and args', () => {
+    expect(
+      normalizeBrowserWorkbenchConfig({
+        channel: 'chrome',
+        variant: 'chromium',
+        userAgent: 'custom-ua',
+        args: ['--test-flag'],
+      }),
+    ).toEqual({
+      channel: 'chrome',
+      variant: 'chromium',
+      userAgent: 'custom-ua',
+      args: ['--test-flag'],
+    });
+  });
+
   it('drops invalid values', () => {
     expect(normalizeBrowserWorkbenchConfig(null)).toBeUndefined();
     expect(normalizeBrowserWorkbenchConfig({})).toBeUndefined();

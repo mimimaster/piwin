@@ -634,6 +634,15 @@ export async function ensureBrowserSession(
         ...(typeof config.browser?.quality === 'number'
           ? { screencastQuality: config.browser.quality }
           : {}),
+        ...(typeof config.browser?.userAgent === 'string'
+          ? { userAgent: config.browser.userAgent }
+          : {}),
+        ...(typeof config.browser?.channel === 'string'
+          ? { channel: config.browser.channel }
+          : {}),
+        ...(Array.isArray(config.browser?.args)
+          ? { args: config.browser.args }
+          : {}),
         // Raw bytes stay available for the remote binary channel; the local
         // JSON path keeps the inline payload (spec §4.1.2).
         onFrameBytes: (header, bytes) => {
@@ -652,8 +661,7 @@ export async function ensureBrowserSession(
           ? { cdpEndpoint }
           : {
               ensureChromium: async ({ downloading }) => {
-                const variant =
-                  config.browser?.headless === false ? 'chromium' : 'headless-shell';
+                const variant = config.browser?.variant ?? 'chromium';
                 const status = await getBrowserInstallStatus({ variant });
                 if (status.available) return;
                 downloading();

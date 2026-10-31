@@ -61,6 +61,9 @@ export type BrowserRuntimeOptions = {
   deviceScaleFactor?: number;
   captureConsoleAndNetwork: boolean;
   args?: string[];
+  channel?: string;
+  executablePath?: string;
+  ignoreDefaultArgs?: string[] | boolean;
   /** Test seam / bound; product default is 15s. */
   launchTimeoutMs?: number;
   launchPersistentContext?: BrowserLaunchPersistentContext;
@@ -384,6 +387,9 @@ export function createBrowserRuntime(
         ...(options.deviceScaleFactor !== undefined ? { deviceScaleFactor: options.deviceScaleFactor } : {}),
         ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
         ...(options.args !== undefined ? { args: options.args } : {}),
+        ...(options.channel !== undefined ? { channel: options.channel } : {}),
+        ...(options.executablePath !== undefined ? { executablePath: options.executablePath } : {}),
+        ...(options.ignoreDefaultArgs !== undefined ? { ignoreDefaultArgs: options.ignoreDefaultArgs } : {}),
         launchPersistentContext,
       });
 

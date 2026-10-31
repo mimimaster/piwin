@@ -92,6 +92,12 @@ export type {
   EnsureOwnedChromiumProgress,
   PlaywrightChromiumInstaller,
 } from './ensure-playwright-chromium.js';
+export {
+  hasSystemChrome,
+  defaultDesktopUserAgent,
+  DEFAULT_STEALTH_CHROMIUM_ARGS,
+  DEFAULT_STEALTH_IGNORE_DEFAULT_ARGS,
+} from './browser-launch.js';
 export { renderPageHtml, FetchRenderUnavailableError } from './render-page.js';
 export type {
   RenderPageHtmlInput,
