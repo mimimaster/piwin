@@ -244,11 +244,17 @@ html:is(
   /* Sticky mask for the hub tab strip: it must match the surface it covers
      (.settings-main is s2 here) or it paints a full-bleed band one ramp step
      darker than the page. s1 is the compact .subtab *track* color in
-     docs/design/inkstone/proto-05-settings-ink.html, not a page band. */
+     docs/design/inkstone/proto-05-settings-ink.html, not a page band.
+     No padding-bottom and no hairline: the shell baseline already pads the
+     strip 14px, so adding a 16px margin on top opened a 30px s2 trench with a
+     stray l1 rule floating in it -- the tab control read as its own isolated
+     header bar instead of the head of one document. The margin alone spaces
+     the panel and paints nothing, so the strip occludes only its own height. */
   .settings-main .settings-hub-tabs,
   .settings-main .session-hub-tabs {
     background: var(--s2);
-    border-bottom: 1px solid var(--l1);
+    border-bottom: 0;
+    padding-bottom: 0;
     margin-bottom: 16px;
   }
 

@@ -9,11 +9,15 @@ import { useInkstoneHost } from '../host/inkstone-host-context.js';
 import { mobileLiveCapabilities } from '../../hooks/use-mobile-live.js';
 import { AppleHealthAttachRow } from './apple-health-attach-row.js';
 
-/** Curated thinking levels shown in the prototype's 轻量 / 标准 / 深入 grammar. */
+/** Unified thinking levels matching @piwin/contracts ThinkingLevel. */
 const EFFORT_LEVELS: [string, ThinkingLevel][] = [
-  ['轻量', 'minimal'],
-  ['标准', 'medium'],
-  ['深入', 'high'],
+  ['关', 'off'],
+  ['极低', 'minimal'],
+  ['低', 'low'],
+  ['中', 'medium'],
+  ['高', 'high'],
+  ['极高', 'xhigh'],
+  ['最大', 'max'],
 ];
 
 function RealModelSheet(): ReactElement {

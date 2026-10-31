@@ -217,6 +217,34 @@ export type DesktopComposerProfile = {
   thinkingLevel?: ThinkingLevel;
 };
 
+export type DesktopAppearanceSync = {
+  appearanceMode?: 'system' | 'light' | 'dark';
+  lightTheme?: {
+    preset?: string;
+    background?: string;
+    foreground?: string;
+    accent?: string;
+  };
+  darkTheme?: {
+    preset?: string;
+    background?: string;
+    foreground?: string;
+    accent?: string;
+  };
+  wallpaper?: {
+    /** Base64 data URL or remote media path/URL */
+    url?: string;
+    blur?: number;
+    dim?: number;
+    opacity?: {
+      backdrop?: number;
+      sidebar?: number;
+      stage?: number;
+      rightPanel?: number;
+    };
+  };
+};
+
 export type DesktopRestoreConfig = {
   composerProfile?: DesktopComposerProfile;
   lastSession?: {
@@ -228,6 +256,8 @@ export type DesktopRestoreConfig = {
    * Omitted means Off. Existing conversations keep their own choice.
    */
   defaultOrchestrationSchemeId?: string;
+  /** Synchronized appearance & wallpaper for remote / mobile clients. */
+  appearance?: DesktopAppearanceSync;
 };
 
 /** Product session behavior config under `PiwinConfig.session`. */

@@ -11,7 +11,7 @@
   display: none;
 }
 
-html[data-wallpaper='on']:has(.app-shell:not([data-layout='phone'])) .app-wallpaper {
+html[data-wallpaper='on'] .app-wallpaper {
   display: block;
   position: fixed;
   inset: 0;
@@ -22,24 +22,30 @@ html[data-wallpaper='on']:has(.app-shell:not([data-layout='phone'])) .app-wallpa
   background-color: var(--void);
 }
 
-html[data-wallpaper='on']:has(.app-shell:not([data-layout='phone'])) .app-wallpaper::before,
-html[data-wallpaper='on']:has(.app-shell:not([data-layout='phone'])) .app-wallpaper::after {
+html[data-wallpaper='on'] .app-wallpaper::before,
+html[data-wallpaper='on'] .app-wallpaper::after {
   content: '';
   position: absolute;
   inset: 0;
 }
 
-html[data-wallpaper='on']:has(.app-shell:not([data-layout='phone'])) .app-wallpaper::before {
+html[data-wallpaper='on'] .app-wallpaper::before {
   background-image: var(--wallpaper-image, none);
   background-size: cover;
-  background-position: center;
+  background-position: center center;
+  background-repeat: no-repeat;
   filter: blur(var(--wallpaper-blur, 0px));
   /* Keeps the blurred border (which fades to transparent) outside the window. */
   transform: scale(1.08);
 }
 
-html[data-wallpaper='on']:has(.app-shell:not([data-layout='phone'])) .app-wallpaper::after {
+html[data-wallpaper='on'] .app-wallpaper::after {
   background: color-mix(in srgb, var(--void) var(--wallpaper-dim, 0%), transparent);
+}
+
+/* On mobile phone layout, ensure the stage is translucent over the wallpaper layer */
+html[data-wallpaper='on'] .app-shell[data-layout='phone'] {
+  background-color: transparent;
 }
 
 /* Ink thins every region to 60-80% of its slider (window-material.css) so the

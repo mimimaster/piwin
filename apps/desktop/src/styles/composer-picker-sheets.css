@@ -77,8 +77,8 @@
 }
 
 /* ── Phone toolbar ─────────────────────────────────────────────────
-   Six controls share one row. The chevrons and the effort suffix give way so
-   the model name is readable; effort stays one tap away in the sheet. */
+   Six controls share one row. Chevrons give way to leave room for the
+   combined "Model · Effort" entry pill. */
 .app-shell[data-layout='phone'] .composer-v2-toolbar :is(
     .thinking-effort-chevron,
     .run-mode-chevron,
@@ -87,11 +87,303 @@
   display: none;
 }
 
-.app-shell[data-layout='phone'] .composer-v2-toolbar .thinking-effort-trigger :is(
-    .thinking-effort-sep,
-    .thinking-effort-value
-  ) {
-  display: none;
+.app-shell[data-layout='phone'] .composer-v2-toolbar .thinking-effort-trigger {
+  max-width: 170px;
+}
+
+.app-shell[data-layout='phone'] .composer-v2-toolbar .thinking-effort-trigger .thinking-effort-sep {
+  opacity: 0.5;
+  margin-inline: 2px;
+}
+
+.app-shell[data-layout='phone'] .composer-v2-toolbar .thinking-effort-trigger .thinking-effort-value {
+  opacity: 0.85;
+  font-size: 11px;
+}
+
+/* ── Mobile Phone Model Picker Sheet ─────────────────────────────── */
+.phone-model-picker-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: min(72dvh, 520px);
+  overflow: hidden;
+}
+
+.phone-model-sheet-header {
+  padding: 10px 12px 6px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--line-1);
+}
+
+.phone-model-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.phone-model-search-box {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: var(--r-card, 12px);
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+}
+
+.phone-model-search-box input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-1);
+  font-size: 13px;
+}
+
+.phone-model-search-clear,
+.phone-model-sheet-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+}
+
+.phone-model-sheet-close {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+}
+
+.phone-model-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 2px 4px 0;
+}
+
+.phone-model-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.phone-model-tab.is-active {
+  color: var(--text-1);
+  font-weight: 600;
+  border-bottom-color: var(--iris, var(--accent));
+}
+
+.phone-model-tab-count {
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.phone-model-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 10px 12px;
+}
+
+.phone-model-list-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.phone-model-card {
+  min-height: 48px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.phone-model-card:active {
+  transform: scale(0.99);
+}
+
+.phone-model-card.is-selected {
+  background: var(--iris-wash, rgba(176, 58, 36, 0.08));
+  border-color: var(--iris, var(--accent));
+}
+
+.phone-model-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.phone-model-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.phone-model-card.is-selected .phone-model-name {
+  color: var(--iris, var(--accent));
+  font-weight: 600;
+}
+
+.phone-model-vendor {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.phone-model-effort-cluster {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  flex-shrink: 0;
+}
+
+.phone-effort-pill {
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phone-effort-pill:active {
+  transform: scale(0.94);
+}
+
+.phone-effort-pill.is-active {
+  background: var(--iris, var(--accent));
+  color: var(--on-iris, #fff);
+  font-weight: 600;
+}
+
+.phone-effort-pill.is-last-hint {
+  color: var(--text-1);
+  background: var(--line-1);
+}
+
+.phone-model-vendor-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.phone-model-vendor-section {
+  border-radius: 14px;
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+  overflow: hidden;
+}
+
+.phone-model-vendor-header {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.phone-model-vendor-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.phone-model-vendor-count {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.phone-model-vendor-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--iris, var(--accent));
+}
+
+.phone-model-vendor-arrow {
+  color: var(--text-3);
+  font-size: 12px;
+  transition: transform 0.15s ease;
+}
+
+.phone-model-vendor-arrow.is-closed {
+  transform: rotate(-90deg);
+}
+
+.phone-model-vendor-body {
+  padding: 4px 8px 8px;
+  border-top: 1px solid var(--line-1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.phone-model-empty {
+  padding: 32px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-3);
 }
 
 /* ── + menu on a phone ─────────────────────────────────────────────

@@ -49,6 +49,47 @@
   color: var(--text-1);
 }
 
+/* ── Wallpaper Layer on Mobile ───────────────────────────────────── */
+.app-wallpaper {
+  display: none;
+}
+
+html[data-wallpaper='on'] .app-wallpaper {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background-color: var(--void, #111318);
+}
+
+html[data-wallpaper='on'] .app-wallpaper::before,
+html[data-wallpaper='on'] .app-wallpaper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+html[data-wallpaper='on'] .app-wallpaper::before {
+  background-image: var(--wallpaper-image, none);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  filter: blur(var(--wallpaper-blur, 0px));
+  transform: scale(1.08);
+}
+
+html[data-wallpaper='on'] .app-wallpaper::after {
+  background: color-mix(in srgb, var(--void, #111318) var(--wallpaper-dim, 30%), transparent);
+}
+
+/* Translucent surfaces over wallpaper on mobile */
+html[data-wallpaper='on'] .inkstone-root,
+html[data-wallpaper='on'] .phone {
+  background-color: transparent !important;
+}
+
 .health-settings h2,
 .health-consent-sheet h2 {
   margin: 0;

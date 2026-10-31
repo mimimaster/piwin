@@ -54,7 +54,7 @@ export function toManifestTokens(deck: ThemeDeckTokens): ThemeManifest['tokens']
  * same roles twice (--zhu/iris, --lamp/ember, --t1..4/text1..4); they must not
  * disagree. See docs/design/inkstone/09-port-drift.md.
  */
-const INKSTONE_PAPER_DECK: ThemeDeckTokens = {
+export const INKSTONE_PAPER_DECK: ThemeDeckTokens = {
   void: '#e6e1d7',
   surface1: '#f0ece4',
   surface2: '#f8f6f0',
@@ -81,6 +81,44 @@ const INKSTONE_PAPER_DECK: ThemeDeckTokens = {
   coral: '#9c2e3d',
   sky: '#3a7797',
 };
+
+/**
+ * Inkstone (砚) — Modern face (现代冷白 / 方案一).
+ * Clean, neutral, glare-free modern light surface (Linear / GitHub / macOS native inspired).
+ * Pure slate cool-grey, high contrast, zero colored wash on void/surfaces.
+ */
+export const INKSTONE_MODERN_DECK: ThemeDeckTokens = {
+  void: '#e2e5e9',
+  surface1: '#edf0f3',
+  surface2: '#f8f9fa',
+  surface3: '#ffffff',
+  surface4: '#ffffff',
+
+  text1: '#111827',
+  text2: '#475467',
+  text3: '#667085',
+  text4: '#98a2b3',
+
+  line1: 'rgba(17, 24, 39, 0.05)',
+  line2: 'rgba(17, 24, 39, 0.09)',
+  line3: 'rgba(17, 24, 39, 0.15)',
+
+  iris: '#111827',
+  irisLift: '#1f2937',
+  irisPress: '#030712',
+  onIris: '#ffffff',
+
+  ember: '#d97706',
+  mint: '#16a34a',
+  amber: '#b45309',
+  coral: '#dc2626',
+  sky: '#0284c7',
+};
+
+/** Backwards-compatibility aliases to heal any prior colored presets into modern */
+export const INKSTONE_CELADON_DECK = INKSTONE_MODERN_DECK;
+export const INKSTONE_MICA_DECK = INKSTONE_MODERN_DECK;
+export const INKSTONE_MIST_DECK = INKSTONE_MODERN_DECK;
 
 /**
  * Inkstone (砚) — ink face.
@@ -138,6 +176,72 @@ export const PIWIN_APPEARANCE_INKSTONE_PAPER: ThemeManifest = {
     font: FONT_SANS,
   },
 };
+
+export const PIWIN_APPEARANCE_INKSTONE_MODERN: ThemeManifest = {
+  id: 'piwin-inkstone-paper-modern',
+  name: 'Inkstone · 现代冷白',
+  version: '1.0.0',
+  description: 'Inkstone (砚) light face — pure clean slate, electric indigo, glare-free modern',
+  mode: 'light',
+  visualStyle: 'paper',
+  tokens: toManifestTokens(INKSTONE_MODERN_DECK),
+  deck: INKSTONE_MODERN_DECK,
+  artifact: {
+    bg: 'transparent',
+    surface: INKSTONE_MODERN_DECK.surface3,
+    text: INKSTONE_MODERN_DECK.text1,
+    muted: INKSTONE_MODERN_DECK.text2,
+    accent: INKSTONE_MODERN_DECK.iris,
+    border: INKSTONE_MODERN_DECK.line2,
+    radius: '0.625rem',
+    font: FONT_SANS,
+  },
+};
+
+/** Compatibility manifests for historical IDs: alias to modern to prevent green tint */
+export const PIWIN_APPEARANCE_INKSTONE_CELADON: ThemeManifest = PIWIN_APPEARANCE_INKSTONE_MODERN;
+export const PIWIN_APPEARANCE_INKSTONE_MICA: ThemeManifest = PIWIN_APPEARANCE_INKSTONE_MODERN;
+export const PIWIN_APPEARANCE_INKSTONE_MIST: ThemeManifest = PIWIN_APPEARANCE_INKSTONE_MODERN;
+
+export type InkstoneLightPresetId = 'modern' | 'paper' | 'celadon' | 'mica' | 'mist';
+
+export type InkstoneLightPresetMeta = {
+  id: 'modern' | 'paper';
+  nameZh: string;
+  nameEn: string;
+  descriptionZh: string;
+  descriptionEn: string;
+  manifest: ThemeManifest;
+  slabBg: string;
+};
+
+export const INKSTONE_LIGHT_PRESETS: readonly InkstoneLightPresetMeta[] = [
+  {
+    id: 'modern',
+    nameZh: '现代冷白',
+    nameEn: 'Modern Slate',
+    descriptionZh: '纯净极简 · 方案一',
+    descriptionEn: 'Clean Slate · Modern',
+    manifest: PIWIN_APPEARANCE_INKSTONE_MODERN,
+    slabBg: '#0f172a',
+  },
+  {
+    id: 'paper',
+    nameZh: '经典宣纸',
+    nameEn: 'Classic Paper',
+    descriptionZh: '暖润宣纸 · 原版',
+    descriptionEn: 'Warm Paper · Classic',
+    manifest: PIWIN_APPEARANCE_INKSTONE_PAPER,
+    slabBg: '#1f1c18',
+  },
+] as const;
+
+export function resolveInkstoneLightPreset(presetId: string): InkstoneLightPresetMeta {
+  if (presetId === 'paper') {
+    return INKSTONE_LIGHT_PRESETS[1]!;
+  }
+  return INKSTONE_LIGHT_PRESETS[0]!;
+}
 
 export const PIWIN_APPEARANCE_INKSTONE_INK: ThemeManifest = {
   id: 'piwin-inkstone-ink',

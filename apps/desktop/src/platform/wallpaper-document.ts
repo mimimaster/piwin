@@ -80,6 +80,17 @@ export function applyWallpaperToDocument(
   if (activeImageId === wallpaper.id) {
     return;
   }
+  if (
+    wallpaper.id.startsWith('data:') ||
+    wallpaper.id.startsWith('http:') ||
+    wallpaper.id.startsWith('https:') ||
+    wallpaper.id.startsWith('/')
+  ) {
+    revokeActiveUrl();
+    activeImageId = wallpaper.id;
+    root.style.setProperty('--wallpaper-image', `url("${wallpaper.id}")`);
+    return;
+  }
   void loadWallpaperImage(wallpaper.id).then((blob) => {
     if (token !== loadToken || !blob) {
       return;

@@ -562,6 +562,37 @@ describe('buildAppearanceTheme', () => {
     expect(read('--accent')).toBe('#ff4488');
     expect(read('--iris-wash')).toContain('255, 68, 136');
   });
+
+  it('matches authored light preset by preset id', () => {
+    const modernSettings: AppearanceThemeSettings = {
+      preset: 'modern',
+      background: '#E2E5E9',
+      foreground: '#111827',
+      accent: '#111827',
+    };
+    const theme = buildAppearanceTheme('light', modernSettings);
+    expect(theme.id).toBe('piwin-inkstone-paper-modern');
+    expect(theme.deck).toBeDefined();
+    expect(theme.deck?.void).toBe('#e2e5e9');
+
+    document.documentElement.removeAttribute('style');
+    applyAppearanceToDocument(theme);
+    expect(read('--s2')).toBe('#f8f9fa');
+    expect(read('--slab')).toBe('');
+    expect(document.documentElement.getAttribute('data-slab')).toBe('paper');
+  });
+
+  it('matches authored light preset by tokens even if preset name is default', () => {
+    const modernTokensSettings: AppearanceThemeSettings = {
+      preset: 'default',
+      background: '#E2E5E9',
+      foreground: '#111827',
+      accent: '#111827',
+    };
+    const theme = buildAppearanceTheme('light', modernTokensSettings);
+    expect(theme.id).toBe('piwin-inkstone-paper-modern');
+    expect(theme.deck).toBeDefined();
+  });
 });
 
 describe('beginThemeSwitch', () => {

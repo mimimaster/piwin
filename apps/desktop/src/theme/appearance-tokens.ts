@@ -14,7 +14,12 @@
 import type { ThemeManifest } from '@piwin/contracts';
 import type { AppearanceThemeSettings } from '../platform/ui-preferences';
 import {
+  INKSTONE_LIGHT_PRESETS,
+  PIWIN_APPEARANCE_INKSTONE_CELADON,
   PIWIN_APPEARANCE_INKSTONE_INK,
+  PIWIN_APPEARANCE_INKSTONE_MICA,
+  PIWIN_APPEARANCE_INKSTONE_MIST,
+  PIWIN_APPEARANCE_INKSTONE_MODERN,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
 } from './deck-palette';
 
@@ -31,8 +36,16 @@ export {
 export { beginThemeSwitch } from './theme-switch';
 export { deriveDeckTokens, resolveDeckTokens } from './deck-derive';
 export {
+  INKSTONE_LIGHT_PRESETS,
+  PIWIN_APPEARANCE_INKSTONE_CELADON,
   PIWIN_APPEARANCE_INKSTONE_INK,
+  PIWIN_APPEARANCE_INKSTONE_MICA,
+  PIWIN_APPEARANCE_INKSTONE_MIST,
+  PIWIN_APPEARANCE_INKSTONE_MODERN,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
+  resolveInkstoneLightPreset,
+  type InkstoneLightPresetId,
+  type InkstoneLightPresetMeta,
 } from './deck-palette';
 
 export const PIWIN_INKSTONE_THEME_ID = 'piwin-inkstone';
@@ -47,7 +60,11 @@ export const PIWIN_APPEARANCE_LIGHT = PIWIN_APPEARANCE_INKSTONE_PAPER;
 
 /** Runtime manifests; the user-facing catalog collapses the two Inkstone faces. */
 export const BUILTIN_APPEARANCES: ThemeManifest[] = [
+  PIWIN_APPEARANCE_INKSTONE_MODERN,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
+  PIWIN_APPEARANCE_INKSTONE_CELADON,
+  PIWIN_APPEARANCE_INKSTONE_MICA,
+  PIWIN_APPEARANCE_INKSTONE_MIST,
   PIWIN_APPEARANCE_INKSTONE_INK,
 ];
 
@@ -76,6 +93,9 @@ export function isInkstoneThemeId(themeId: string): boolean {
     id === 'piwin-light-appearance' ||
     id === 'piwin-dark-appearance' ||
     id === 'piwin-inkstone-paper' ||
+    id === 'piwin-inkstone-paper-celadon' ||
+    id === 'piwin-inkstone-paper-mica' ||
+    id === 'piwin-inkstone-paper-mist' ||
     id === 'piwin-inkstone-ink'
   );
 }
@@ -104,6 +124,10 @@ export function isAppearanceFaceId(themeId: string): boolean {
   return (
     id === PIWIN_INKSTONE_THEME_ID ||
     id === 'piwin-inkstone-paper' ||
+    id === 'piwin-inkstone-paper-modern' ||
+    id === 'piwin-inkstone-paper-celadon' ||
+    id === 'piwin-inkstone-paper-mica' ||
+    id === 'piwin-inkstone-paper-mist' ||
     id === 'piwin-inkstone-ink'
   );
 }
@@ -119,9 +143,14 @@ export function resolveBuiltinAppearance(
 ): ThemeManifest {
   switch (themeId === undefined ? '' : migrateThemeId(themeId)) {
     case PIWIN_INKSTONE_THEME_ID:
-      return mode === 'light' ? PIWIN_APPEARANCE_INKSTONE_PAPER : PIWIN_APPEARANCE_INKSTONE_INK;
+      return mode === 'light' ? PIWIN_APPEARANCE_INKSTONE_MODERN : PIWIN_APPEARANCE_INKSTONE_INK;
     case 'piwin-inkstone-paper':
       return PIWIN_APPEARANCE_INKSTONE_PAPER;
+    case 'piwin-inkstone-paper-modern':
+    case 'piwin-inkstone-paper-celadon':
+    case 'piwin-inkstone-paper-mica':
+    case 'piwin-inkstone-paper-mist':
+      return PIWIN_APPEARANCE_INKSTONE_MODERN;
     case 'piwin-inkstone-ink':
       return PIWIN_APPEARANCE_INKSTONE_INK;
     default:
@@ -160,9 +189,20 @@ export function buildAppearanceTheme(
 ): ThemeManifest {
   const base =
     mode === 'light' ? PIWIN_APPEARANCE_INKSTONE_PAPER : PIWIN_APPEARANCE_INKSTONE_INK;
-  // Default colors must retain the authored manifest identity: structural
-  // Inkstone selectors and the dark slab depend on it, not just the colors.
-  if (
+
+  if (mode === 'light') {
+    // Match against authored light presets first so they retain their fully authored deck ramps
+    const matchedPreset = INKSTONE_LIGHT_PRESETS.find(
+      (p) =>
+        (settings.preset && settings.preset === p.id) ||
+        (settings.background.toLowerCase() === p.manifest.tokens.bg.toLowerCase() &&
+          settings.foreground.toLowerCase() === p.manifest.tokens.text.toLowerCase() &&
+          settings.accent.toLowerCase() === p.manifest.tokens.accent.toLowerCase()),
+    );
+    if (matchedPreset) {
+      return matchedPreset.manifest;
+    }
+  } else if (
     settings.background.toLowerCase() === base.tokens.bg.toLowerCase() &&
     settings.foreground.toLowerCase() === base.tokens.text.toLowerCase() &&
     settings.accent.toLowerCase() === base.tokens.accent.toLowerCase()

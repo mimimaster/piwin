@@ -14,6 +14,7 @@ import { FieldRow } from '../field-row.js';
 import { PageTitle } from '../page-title.js';
 import { useSettings } from '../settings-context.js';
 import { AppearanceCustomFonts } from './appearance-custom-fonts.js';
+import { AppearanceLightPresets } from './appearance-light-presets.js';
 import { AppearanceModeControl, getAppearanceThemeSettings } from './appearance-theme-controls.js';
 import { AppearanceWallpaper } from './appearance-wallpaper.js';
 import { AppearanceWindowMaterial } from './appearance-window-material.js';
@@ -99,6 +100,16 @@ export function AppearancePage(): ReactElement {
           />
         </div>
       </section>
+
+      {!themePackageActive ? (
+        <AppearanceLightPresets
+          preferences={preferences}
+          onChange={onPreferencesChange}
+          onThemeApplied={onThemeApplied}
+          activeTheme={activeTheme}
+          locale={locale}
+        />
+      ) : null}
 
       <section className="settings-section settings-section-card">
         <PageTitle title={copy.chatSettings} description={copy.chatSettingsDescription} />

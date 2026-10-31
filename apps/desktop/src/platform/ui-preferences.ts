@@ -8,6 +8,8 @@ import type { BrowserDisplayZoom } from '../browser/browser-display-box';
 import {
   PIWIN_APPEARANCE_INKSTONE_INK,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
+  resolveInkstoneLightPreset,
+  type InkstoneLightPresetId,
 } from '../theme/deck-palette.js';
 import type { CustomFontPreferences } from '../theme/font-manager.js';
 import { sanitizeFontFamilyName } from '../theme/font-parser.js';
@@ -38,7 +40,7 @@ export function resolveConversationWidth(width: ConversationWidth): string {
 }
 
 export type AppearanceThemeSettings = {
-  preset: 'default';
+  preset: string;
   background: string;
   foreground: string;
   accent: string;
@@ -60,6 +62,16 @@ function appearanceDefaults(theme: ThemeManifest): AppearanceThemeSettings {
     background: theme.tokens.bg.toUpperCase(),
     foreground: theme.tokens.text.toUpperCase(),
     accent: theme.tokens.accent.toUpperCase(),
+  };
+}
+
+export function createLightPresetSettings(presetId: InkstoneLightPresetId): AppearanceThemeSettings {
+  const meta = resolveInkstoneLightPreset(presetId);
+  return {
+    preset: meta.id,
+    background: meta.manifest.tokens.bg.toUpperCase(),
+    foreground: meta.manifest.tokens.text.toUpperCase(),
+    accent: meta.manifest.tokens.accent.toUpperCase(),
   };
 }
 
@@ -353,8 +365,10 @@ function parseAppearanceTheme(
       isHexColor(parsed.foreground) &&
       isHexColor(parsed.accent)
     ) {
+      const record = parsed as Record<string, unknown>;
+      const preset = typeof record.preset === 'string' && record.preset.trim() ? record.preset.trim() : 'default';
       return {
-        preset: 'default',
+        preset,
         background: parsed.background.toUpperCase(),
         foreground: parsed.foreground.toUpperCase(),
         accent: parsed.accent.toUpperCase(),
@@ -456,6 +470,9 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
     } catch {
       // ignore
     }
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('piwin:preferences-saved', { detail: prefs }));
   }
 }
 

@@ -25,7 +25,14 @@ import {
   type CustomFontPreferences,
 } from './font-manager.js';
 
-const INKSTONE_THEME_IDS = new Set(['piwin-inkstone-paper', 'piwin-inkstone-ink']);
+const INKSTONE_THEME_IDS = new Set([
+  'piwin-inkstone-paper',
+  'piwin-inkstone-paper-modern',
+  'piwin-inkstone-paper-celadon',
+  'piwin-inkstone-paper-mica',
+  'piwin-inkstone-paper-mist',
+  'piwin-inkstone-ink',
+]);
 const INKSTONE_DOCUMENT_THEME_IDS = new Set([
   ...INKSTONE_THEME_IDS,
   'piwin-inkstone',
@@ -411,6 +418,47 @@ export function applyAppearanceToDocument(
     for (const name of INKSTONE_STYLESHEET_SLAB_VARS) {
       root.style.removeProperty(name);
     }
+    if (theme.id === 'piwin-inkstone-paper-modern') {
+      const storedSlab =
+        typeof window !== 'undefined' ? window.localStorage?.getItem('piwin:slab-material') : null;
+      if (!storedSlab || storedSlab === 'paper') {
+        root.setAttribute('data-slab', 'paper');
+        const app = document.getElementById('app');
+        if (app) app.setAttribute('data-slab', 'paper');
+      }
+    }
+
+    const inkstoneVars: Vars = {
+      '--s1': deck.surface1,
+      '--s2': deck.surface2,
+      '--s3': deck.surface3,
+      '--s4': deck.surface4,
+      '--t1': deck.text1,
+      '--t2': deck.text2,
+      '--t3': deck.text3,
+      '--t4': deck.text4,
+      '--l1': deck.line1,
+      '--l2': deck.line2,
+      '--l3': deck.line3,
+      '--zhu': deck.iris,
+      '--zhu-lift': deck.irisLift,
+      '--on-zhu': deck.onIris,
+      '--zhu-wash': alpha(deck.iris, isLight ? 0.1 : 0.14),
+      '--pine': deck.mint,
+      '--pine-wash': alpha(deck.mint, isLight ? 0.12 : 0.14),
+      '--crimson': deck.coral,
+      '--crimson-wash': alpha(deck.coral, isLight ? 0.1 : 0.14),
+      '--azure': deck.sky,
+      '--azure-wash': alpha(deck.sky, isLight ? 0.12 : 0.14),
+      '--ochre': deck.amber,
+      '--lamp': deck.ember,
+      '--lamp-glow': alpha(deck.ember, isLight ? 0.4 : 0.35),
+      '--lamp-wash': alpha(deck.ember, isLight ? 0.14 : 0.12),
+    };
+    for (const [name, value] of Object.entries(inkstoneVars)) {
+      root.style.setProperty(name, value);
+    }
+
     const sans = buildFontStack(
       customFonts?.sansFont ?? bundledFontFamily('sans'),
       INKSTONE_FONT_SANS,
