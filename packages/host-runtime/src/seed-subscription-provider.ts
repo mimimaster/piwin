@@ -181,9 +181,14 @@ function mergeSubscriptionProvider(
   displayName: string | undefined,
 ): ModelProviderConfig {
   const previousById = new Map((existing?.models ?? []).map((model) => [model.id, model]));
+  const removed = new Set(existing?.removedModelIds ?? []);
   const models: ModelConfigEntry[] = [];
   const searchSurface = subscriptionChatBaseUrl(providerId);
   for (const catalogModel of catalog) {
+    if (removed.has(catalogModel.id)) {
+      previousById.delete(catalogModel.id);
+      continue;
+    }
     const fresh = catalogModelToConfigEntry(catalogModel);
     const previous = previousById.get(catalogModel.id);
     models.push(
@@ -194,6 +199,9 @@ function mergeSubscriptionProvider(
     previousById.delete(catalogModel.id);
   }
   for (const leftover of previousById.values()) {
+    if (removed.has(leftover.id)) {
+      continue;
+    }
     models.push(leftover);
   }
   const builtinName = isSubscriptionOauthProviderId(providerId)
@@ -212,6 +220,9 @@ function mergeSubscriptionProvider(
   };
   if (existing?.enabled !== undefined) {
     provider.enabled = existing.enabled;
+  }
+  if (removed.size > 0) {
+    provider.removedModelIds = [...removed].sort();
   }
   return provider;
 }
@@ -360,6 +371,7 @@ function subscriptionProvidersEqual(
     left.name === right.name &&
     left.enabled === right.enabled &&
     left.baseUrl === right.baseUrl &&
+    JSON.stringify(left.removedModelIds) === JSON.stringify(right.removedModelIds) &&
     JSON.stringify(left.models) === JSON.stringify(right.models)
   );
 }

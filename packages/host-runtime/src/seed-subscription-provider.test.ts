@@ -200,6 +200,28 @@ describe('seed subscription provider', () => {
     expect(next.defaultModelId).toBeUndefined();
   });
 
+  it('does not reseed models the user removed', () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'openai-codex',
+        name: 'ChatGPT Codex',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://openai-codex',
+        source: 'subscription',
+        models: [{ id: 'gpt-5.4-codex', label: 'Codex' }],
+        removedModelIds: ['gpt-5.4'],
+      },
+    ];
+    const merged = upsertSubscriptionProvider(config, 'openai-codex', [
+      { id: 'gpt-5.4-codex', name: 'GPT-5.4 Codex' },
+      { id: 'gpt-5.4', name: 'GPT-5.4' },
+    ]);
+    expect(merged.providers[0]?.models.map((model) => model.id)).not.toContain('gpt-5.4');
+    expect(merged.providers[0]?.models.map((model) => model.id)).toContain('gpt-5.4-codex');
+    expect(merged.providers[0]?.removedModelIds).toEqual(['gpt-5.4']);
+  });
+
   it('drops leftover vision input from generation extras', () => {
     const config = createDefaultPiwinConfig();
     config.providers = [

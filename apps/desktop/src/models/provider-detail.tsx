@@ -228,8 +228,8 @@ export function ProviderDetail({
       ) : subscription ? (
         <p className="pdetail-note">
           {isChinese
-            ? '套餐通过 OAuth 登录，不需要 API 密钥；登录状态在「OAuth 登录」页管理。这里可以开关模型、调整参数、设置默认模型。'
-            : 'Plans sign in with OAuth and need no API key; manage the login on the OAuth page. Here you can toggle models, tune parameters, and pick the default.'}
+            ? '套餐通过 OAuth 登录，不需要 API 密钥；登录状态在「OAuth 登录」页管理。这里可以拉取最新模型、移除不需要的模型、开关、调整参数、设置默认。'
+            : 'Plans sign in with OAuth and need no API key; manage the login on the OAuth page. Here you can fetch the latest models, remove ones you do not want, toggle, tune parameters, and pick the default.'}
         </p>
       ) : null}
 

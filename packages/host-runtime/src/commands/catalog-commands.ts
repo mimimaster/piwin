@@ -545,6 +545,13 @@ export async function handleCatalogCommand(
           const result = await getSubscriptionAuthService(context).discoverExtensionModels(command.provider.id);
           return ok(requestId, 'models/discover', result);
         }
+        if (isSubscriptionProvider(command.provider)) {
+          const { getSubscriptionAuthService } = await import('./auth-commands.js');
+          const result = await getSubscriptionAuthService(context).discoverSubscriptionModels(
+            command.provider.id,
+          );
+          return ok(requestId, 'models/discover', result);
+        }
         // Host owns secrets. Remote shells send a stripped provider row; pull
         // the stored ref from this Host's config and resolve it here.
         const probe = await prepareProviderProbe({

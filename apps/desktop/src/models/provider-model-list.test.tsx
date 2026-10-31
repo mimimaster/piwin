@@ -106,14 +106,31 @@ describe('ProviderModelList', () => {
     expect(document.body.querySelector('[data-testid="provider-model-remove-anthropic/claude-3.5-sonnet"]')).not.toBeNull();
   });
 
-  it('hides remove button and fetch button for subscription providers', () => {
+  it('shows fetch and remove for subscription providers, but not live test', () => {
     const container = renderList(subscriptionProvider);
-    expect(container.querySelector('[data-testid="provider-discover-models-grok"]')).toBeNull();
-    // Open the dropdown menu
+    expect(container.querySelector('[data-testid="provider-discover-models-grok"]')).not.toBeNull();
     const moreBtn = container.querySelector<HTMLButtonElement>('[data-testid="provider-model-more-grok-4.3"]');
     expect(moreBtn).not.toBeNull();
     openMenu(moreBtn);
-    expect(document.body.querySelector('[data-testid="provider-model-remove-grok-4.3"]')).toBeNull();
+    expect(document.body.querySelector('[data-testid="provider-model-remove-grok-4.3"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="provider-model-test-grok-4.3"]')).toBeNull();
+  });
+
+  it('refreshes a subscription provider without opening the channel import dialog', async () => {
+    const onDiscoverModels = vi.fn(async () => ({
+      providerId: subscriptionProvider.id,
+      protocol: subscriptionProvider.protocol,
+      models: [],
+    }));
+    const onUpdateModels = vi.fn();
+    const container = renderList(subscriptionProvider, { onDiscoverModels, onUpdateModels });
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="provider-discover-models-grok"]');
+    await act(async () => {
+      button?.click();
+    });
+    expect(onDiscoverModels).toHaveBeenCalledWith(subscriptionProvider);
+    expect(onUpdateModels).not.toHaveBeenCalled();
+    expect(document.body.querySelector('[data-testid="discover-models-list"]')).toBeNull();
   });
 
   it('offers live fetch for public extensions while keeping manual additions disabled', () => {

@@ -44,6 +44,7 @@ import { buildExtensionProviderSnapshot } from './extension-provider-snapshot.js
 import { refreshExtensionModelCatalog } from './extension-model-catalog-refresh.js';
 import { projectPublicModelProviders } from './extension-model-provider-projection.js';
 import {
+  catalogModelToConfigEntry,
   ensureSubscriptionProviders,
   upsertSubscriptionProvider,
 } from './seed-subscription-provider.js';
@@ -206,6 +207,21 @@ export class SubscriptionAuthService {
       port: await this.ensurePort(), claims: this.extensionProviders,
       config: await this.loadConfig(), project: () => this.projectLoggedInProviders(),
     });
+  }
+
+  async discoverSubscriptionModels(providerId: string): Promise<ModelDiscoveryResult> {
+    const config = await this.loadConfig();
+    const provider = config.providers.find((entry) => entry.id === providerId);
+    if (provider === undefined || provider.source !== 'subscription') {
+      throw new Error('The subscription model provider is unavailable');
+    }
+    await this.pullLiveCatalog([providerId]);
+    const refreshed = (await this.loadConfig()).providers.find((entry) => entry.id === providerId);
+    return {
+      providerId,
+      protocol: refreshed?.protocol ?? provider.protocol,
+      models: this.chatCatalogFor(providerId).map(catalogModelToConfigEntry),
+    };
   }
 
   async refreshProvider(providerId: string): Promise<void> {
@@ -743,16 +759,19 @@ export class SubscriptionAuthService {
    * User-triggered overlay pull. Throws on network/sync failure so the Settings
    * button can surface it. Boot still uses {@link refreshLiveCatalog} (swallows).
    */
-  async pullLiveCatalog(): Promise<{ modelCount: number }> {
+  async pullLiveCatalog(providers?: readonly string[]): Promise<{ modelCount: number }> {
     const port = await this.ensurePort();
     await port.refreshLiveCatalog({
+      ...(providers !== undefined ? { providers } : {}),
       signal: AbortSignal.timeout(LIVE_CATALOG_REFRESH_TIMEOUT_MS),
     });
     await this.projectLoggedInProviders();
     const accounts = await this.readAccounts();
+    const wanted = providers === undefined ? undefined : new Set(providers);
     let modelCount = 0;
     for (const account of accounts) {
       if (account.state !== 'logged-in') continue;
+      if (wanted !== undefined && !wanted.has(account.providerId)) continue;
       modelCount += this.catalogModelIds(account.providerId).length;
     }
     return { modelCount };

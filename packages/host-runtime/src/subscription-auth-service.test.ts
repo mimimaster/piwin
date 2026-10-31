@@ -326,6 +326,50 @@ describe('SubscriptionAuthService', () => {
     expect(merged.models).toEqual([]);
   });
 
+  it('does not resurrect a model the user removed from a subscription provider', async () => {
+    const config: PiwinConfig = {
+      ...createDefaultPiwinConfig(),
+      providers: [
+        grokSubscriptionProvider({
+          models: [{ id: 'grok-4.6', label: 'Grok 4.6', capabilities: ['chat'] }],
+          removedModelIds: ['grok-4.5'],
+        }),
+      ],
+    };
+    const service = new SubscriptionAuthService(
+      { port: loggedInXaiPort() },
+      { loadConfig: async () => config, saveConfig: async () => undefined },
+    );
+    const merged = await service.mergeConfiguredModels({ models: [] });
+    expect(merged.models.map((model) => model['modelId'])).toEqual(['grok-4.6']);
+  });
+
+  it('discovers subscription models via a scoped live catalog pull', async () => {
+    const live: Array<{ providers?: readonly string[] }> = [];
+    const port = loggedInXaiPort();
+    port.refreshLiveCatalog = async (options) => {
+      live.push(options ?? {});
+    };
+    let saved: PiwinConfig | undefined;
+    const initial: PiwinConfig = {
+      ...createDefaultPiwinConfig(),
+      providers: [grokSubscriptionProvider()],
+    };
+    const service = new SubscriptionAuthService(
+      { port },
+      {
+        loadConfig: async () => saved ?? initial,
+        saveConfig: async (config) => {
+          saved = config;
+        },
+      },
+    );
+    const result = await service.discoverSubscriptionModels('xai');
+    expect(live[0]?.providers).toEqual(['xai']);
+    expect(result.providerId).toBe('xai');
+    expect(result.models.some((model) => model.id === 'grok-4.6')).toBe(true);
+  });
+
   it('does not resurrect a disabled model from an enabled subscription provider', async () => {
     const config: PiwinConfig = {
       ...createDefaultPiwinConfig(),

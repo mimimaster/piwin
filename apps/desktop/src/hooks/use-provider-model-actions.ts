@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { formatError, isProviderEnabled } from '@piwin/contracts';
+import { formatError, isProviderEnabled, rememberRemovedProviderModels } from '@piwin/contracts';
 import type {
   ModelCatalogEntry,
   ModelConfigEntry,
@@ -44,7 +44,7 @@ export function useProviderModelActions(
       withProviders(
         config,
         config.providers.map((provider) =>
-          provider.id === providerId ? { ...provider, models } : provider,
+          provider.id === providerId ? rememberRemovedProviderModels(provider, models) : provider,
         ),
       ),
     );

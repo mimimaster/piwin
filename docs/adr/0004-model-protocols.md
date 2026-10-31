@@ -25,7 +25,9 @@ Users fill baseUrl/apiKey/models. Host maps into Pi providers.
   subscription login is a separate Accounts surface for Pi `isSubscription`
   OAuth (`kimi-coding`, `openai-codex`, `anthropic`, `xai`, `github-copilot`).
   After login, Host seeds a Models-page Provider with `source: 'subscription'`
-  so the user can inspect params, toggle models, and set defaults. Compile
+  so the user can fetch the live catalog, remove individual models (ids stay in
+  `removedModelIds` so a later refresh does not restore them), inspect params,
+  toggle models, and set defaults. Compile
   still skips `registerProvider` and uses `{ auth: { kind: 'oauth' } }`.
   A colliding BYOK channel (not the seeded row) relocates, e.g. `anthropic` →
   `anthropic-api`.

@@ -332,7 +332,41 @@ export type ModelProviderConfig = (
 ) & {
   /** Host projection of the owning extension; shells display it as plain text. */
   extension?: { bundled?: boolean; notice?: string };
+  /**
+   * Model ids the user removed from a subscription provider. Live catalog
+   * refresh must not seed them again until the user adds the id back.
+   */
+  removedModelIds?: string[];
 };
+
+/** Persist subscription deletions across catalog refresh / Host reseed. */
+export function rememberRemovedProviderModels(
+  provider: ModelProviderConfig,
+  nextModels: ModelConfigEntry[],
+): ModelProviderConfig {
+  if (provider.source !== 'subscription') {
+    return { ...provider, models: nextModels };
+  }
+  const kept = new Set(nextModels.map((model) => model.id));
+  const removed = new Set(provider.removedModelIds ?? []);
+  for (const model of provider.models) {
+    if (!kept.has(model.id)) {
+      removed.add(model.id);
+    }
+  }
+  for (const id of kept) {
+    removed.delete(id);
+  }
+  const next: ModelProviderConfig = { ...provider, models: nextModels };
+  if (removed.size === 0) {
+    if (next.removedModelIds === undefined) {
+      return next;
+    }
+    const { removedModelIds: _removed, ...rest } = next;
+    return rest;
+  }
+  return { ...next, removedModelIds: [...removed].sort() };
+}
 
 /** Default Vertex location when the provider row leaves it blank. */
 export const DEFAULT_VERTEX_LOCATION = 'global';

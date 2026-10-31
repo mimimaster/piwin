@@ -26,7 +26,9 @@ export function mergeSubscriptionCatalogModels(
     if (provider !== undefined && !isProviderEnabled(provider)) continue;
     for (const model of chatCatalogFor(account.providerId)) {
       const configuredModel = provider?.models.find((entry) => entry.id === model.id);
-      if (configuredModel !== undefined && !isModelEnabled(configuredModel)) continue;
+      if (provider !== undefined && (configuredModel === undefined || !isModelEnabled(configuredModel))) {
+        continue;
+      }
       const key = `${account.providerId}::${model.id}`;
       if (existing.has(key)) {
         const current = models.find((entry) => `${entry.providerId}::${entry.modelId}` === key);
