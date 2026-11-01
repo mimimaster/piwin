@@ -21,6 +21,7 @@
  */
 import { getLastMemoryPressureBytes } from '../notes/memory-pressure';
 import { getWindowPresence, subscribeWindowPresence } from './window-focus-signal';
+import { prepareRendererRelaunch } from './renderer-relaunch-preparation.js';
 
 const MIB = 1024 * 1024;
 
@@ -89,6 +90,8 @@ export type RendererSelfHealDeps = {
   isBusy: () => boolean;
   isDocumentHidden: () => boolean;
   isWindowFocused: () => boolean;
+  /** Native termination skips browser unload events; persist the current view first. */
+  beforeRelaunch?: () => void;
   requestRelaunch: () => Promise<boolean>;
   now: () => number;
 };
@@ -136,6 +139,7 @@ export function createRendererSelfHeal(deps: RendererSelfHealDeps): RendererSelf
     console.warn(
       '[renderer-self-heal] pinned WebContent footprint while backgrounded; relaunching renderer',
     );
+    deps.beforeRelaunch?.();
     void deps.requestRelaunch().catch((error: unknown) => {
       console.warn('[renderer-self-heal] relaunch request failed:', error);
     });
@@ -174,6 +178,7 @@ export function installRendererSelfHeal(isBusy: () => boolean): () => void {
     isBusy,
     isDocumentHidden: () => !getWindowPresence().documentVisible,
     isWindowFocused: () => getWindowPresence().focused,
+    beforeRelaunch: prepareRendererRelaunch,
     requestRelaunch: invokeRelaunchRenderer,
     now: Date.now,
   });

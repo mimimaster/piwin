@@ -113,6 +113,12 @@ without waiting for settings or sidebar queries. A newer user selection cancels
 that automatic restore. Fresh Host history replaces the preview through normal
 hydration. Writes are debounced and flushed on background/close.
 
+The macOS all-in-one bundle's idle memory reclamation terminates WebContent
+without browser unload events. Its self-heal composition explicitly prepares
+the relaunch first: cache owners synchronously flush the current sidebar and
+transcript before native termination is requested. Cache persistence therefore
+does not depend on `pagehide` for that path.
+
 This does not change Host-owned durable history, transcript paging or runtime
 retention (ADR 0040). Mobile retains its existing list-only offline snapshot;
 CLI still reads Host history directly. Implementation/verification:

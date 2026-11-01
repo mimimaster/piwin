@@ -24,9 +24,9 @@ const HIDDEN_READY = {
 describe('shouldRelaunchRenderer', () => {
   it('fires after the window has been hidden long enough once footprint is fat', () => {
     expect(shouldRelaunchRenderer(HIDDEN_READY)).toBe(true);
-    expect(
-      shouldRelaunchRenderer({ ...HIDDEN_READY, nowMs: SELF_HEAL_HIDDEN_HOLD_MS - 1 }),
-    ).toBe(false);
+    expect(shouldRelaunchRenderer({ ...HIDDEN_READY, nowMs: SELF_HEAL_HIDDEN_HOLD_MS - 1 })).toBe(
+      false,
+    );
   });
 
   it('fires after a longer unfocused hold even when the document stays visible', () => {
@@ -149,6 +149,26 @@ describe('createRendererSelfHeal', () => {
     busy = false;
     expect(selfHeal.tick()).toBe(true);
     expect(relaunch).toHaveBeenCalledOnce();
+    selfHeal.dispose();
+  });
+
+  it('flushes presentation state before asking native code to terminate the renderer', () => {
+    const order: string[] = [];
+    const { deps, clock } = makeDeps({
+      beforeRelaunch: () => {
+        order.push('flush');
+      },
+      requestRelaunch: async () => {
+        order.push('relaunch');
+        return true;
+      },
+    });
+    const selfHeal = createRendererSelfHeal(deps);
+    selfHeal.tick();
+    expect(order).toEqual([]);
+    clock.value = SELF_HEAL_HIDDEN_HOLD_MS;
+    expect(selfHeal.tick()).toBe(true);
+    expect(order).toEqual(['flush', 'relaunch']);
     selfHeal.dispose();
   });
 

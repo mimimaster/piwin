@@ -162,6 +162,18 @@ describe('session list snapshot', () => {
     warn.mockRestore();
   });
 
+  it('sanitizes older cached rows and malformed optional fields before startup', () => {
+    const parsed = parseSessionListSnapshot(JSON.stringify({
+      version: 1, savedAt: '2026-01-01T00:00:00Z',
+      general: [{ id: 'saved', name: 'Saved', lastPreview: 42, scope: null, backend: null,
+        nativeCli: { ptyId: 'stale' } },
+        { id: 'agent', name: 'Agent', backend: { agentId: 'claude-code', activity: 'working' } }],
+      projects: {}, recentProjects: [],
+    }));
+    expect(parsed?.general).toEqual([{ id: 'saved', name: 'Saved' },
+      { id: 'agent', name: 'Agent', backend: { agentId: 'claude-code' } }]);
+  });
+
   it('formats the sync time like the classic interface', () => {
     const now = new Date(2026, 9, 28, 15, 0);
     expect(formatSnapshotSyncTime(new Date(2026, 9, 28, 9, 5).toISOString(), 'zh-CN', now)).toBe(

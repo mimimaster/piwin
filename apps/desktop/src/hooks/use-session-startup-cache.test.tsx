@@ -4,6 +4,12 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInitialChatUiState, type ChatUiState } from '../conversation/chat-reducer.js';
 import type { HostClient } from '../host/host-client.js';
+import { prepareRendererRelaunch } from '../platform/renderer-relaunch-preparation.js';
+import {
+  createRendererSelfHeal,
+  SELF_HEAL_HIDDEN_HOLD_MS,
+  SELF_HEAL_RECLAIM_BYTES,
+} from '../platform/renderer-self-heal.js';
 import {
   buildSessionStartupSnapshot,
   createSessionStartupState,
@@ -105,6 +111,38 @@ describe('session startup cache lifecycle', () => {
     render();
     act(() => window.dispatchEvent(new Event('pagehide')));
     expect(readSessionStartupSnapshot('local')?.messages[0]?.text).toBe('Latest reply');
+  });
+
+  it('persists the current local conversation before idle renderer reclamation without pagehide', () => {
+    state = savedState();
+    render();
+    state = {
+      ...state,
+      messages: state.messages.map((row) => ({ ...row, text: 'Latest before reclaim' })),
+    };
+    render();
+    expect(readSessionStartupSnapshot('local')?.messages[0]?.text).toBe('Saved reply');
+    let currentTime = 0;
+    const requestRelaunch = vi.fn(async () => {
+      expect(readSessionStartupSnapshot('local')?.messages[0]?.text).toBe('Latest before reclaim');
+      return true;
+    });
+    const selfHeal = createRendererSelfHeal({
+      getBytes: () => SELF_HEAL_RECLAIM_BYTES,
+      isBusy: () => false,
+      isDocumentHidden: () => true,
+      isWindowFocused: () => false,
+      beforeRelaunch: prepareRendererRelaunch,
+      requestRelaunch,
+      now: () => currentTime,
+    });
+    selfHeal.tick();
+    currentTime = SELF_HEAL_HIDDEN_HOLD_MS;
+    act(() => {
+      expect(selfHeal.tick()).toBe(true);
+    });
+    expect(requestRelaunch).toHaveBeenCalledOnce();
+    selfHeal.dispose();
   });
 
   it('never overwrites a good snapshot with an unfinished target or a disconnected view', () => {

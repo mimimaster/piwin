@@ -9,9 +9,8 @@
  * the device copy.
  */
 import type { ProjectRecord } from '@piwin/contracts';
-import type { SessionListItemUi } from '../conversation/chat-ui-types';
+import type { ChatUiAction, SessionListItemUi } from '../conversation/chat-ui-types';
 import type { DesktopLocale } from '../i18n/desktop-locale-id';
-import type { ChatUiAction } from '../conversation/chat-ui-types';
 
 const SNAPSHOT_VERSION = 1;
 const KEY_PREFIX = 'piwin.desktop.session-list-snapshot.v1.';
@@ -70,20 +69,25 @@ export function sessionListSnapshotKey(hostKey: string): string {
 
 function snapshotRow(session: SessionListItemUi): SessionListItemUi {
   const row: SessionListItemUi = { id: session.id, name: session.name };
-  if (session.lastPreview !== undefined) {
+  if (typeof session.lastPreview === 'string') {
     row.lastPreview = session.lastPreview.slice(0, MAX_SNAPSHOT_PREVIEW_CHARS);
   }
-  if (session.messageCount !== undefined) row.messageCount = session.messageCount;
-  if (session.updatedAt !== undefined) row.updatedAt = session.updatedAt;
-  if (session.isPinned !== undefined) row.isPinned = session.isPinned;
-  if (session.pinnedAt !== undefined) row.pinnedAt = session.pinnedAt;
-  if (session.isArchived !== undefined) row.isArchived = session.isArchived;
-  if (session.archivedAt !== undefined) row.archivedAt = session.archivedAt;
-  if (session.scope !== undefined) row.scope = session.scope;
-  if (session.backend !== undefined) {
+  if (typeof session.messageCount === 'number') row.messageCount = session.messageCount;
+  if (typeof session.updatedAt === 'string') row.updatedAt = session.updatedAt;
+  if (typeof session.isPinned === 'boolean') row.isPinned = session.isPinned;
+  if (typeof session.pinnedAt === 'string') row.pinnedAt = session.pinnedAt;
+  if (typeof session.isArchived === 'boolean') row.isArchived = session.isArchived;
+  if (typeof session.archivedAt === 'string') row.archivedAt = session.archivedAt;
+  if (isRecord(session.scope)) {
+    if (session.scope.kind === 'general') row.scope = { kind: 'general' };
+    if (session.scope.kind === 'project' && typeof session.scope.projectPath === 'string') {
+      row.scope = { kind: 'project', projectPath: session.scope.projectPath };
+    }
+  }
+  if (isRecord(session.backend) && typeof session.backend.agentId === 'string') {
     row.backend = {
       agentId: session.backend.agentId,
-      ...(session.backend.isWorktree !== undefined ? { isWorktree: session.backend.isWorktree } : {}),
+      ...(typeof session.backend.isWorktree === 'boolean' ? { isWorktree: session.backend.isWorktree } : {}),
     };
   }
   return row;

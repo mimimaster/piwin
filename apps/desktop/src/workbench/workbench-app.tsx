@@ -52,11 +52,21 @@ export type AppProps = {
 
 export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const hostClient = useWorkbenchHostClient();
-  return <HostWorkbench key={sessionCacheHostKey(hostClient) ?? hostClient.getTransport()}
-    hostClient={hostClient} activeTheme={activeTheme} onThemeApplied={onThemeApplied} />;
+  return (
+    <HostWorkbench
+      key={sessionCacheHostKey(hostClient) ?? hostClient.getTransport()}
+      hostClient={hostClient}
+      activeTheme={activeTheme}
+      onThemeApplied={onThemeApplied}
+    />
+  );
 }
 
-function HostWorkbench({ hostClient, activeTheme, onThemeApplied }: AppProps & { hostClient: HostClient }) {
+function HostWorkbench({
+  hostClient,
+  activeTheme,
+  onThemeApplied,
+}: AppProps & { hostClient: HostClient }) {
   const [state, dispatch] = useReducer(chatUiReducer, hostClient, createSessionStartupState);
   const selfHealBusyRef = useRef(false);
   useEffect(() => installRendererSelfHeal(() => selfHealBusyRef.current), []);

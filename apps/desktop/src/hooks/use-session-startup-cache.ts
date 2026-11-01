@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { SessionScope } from '@piwin/contracts';
 import type { ChatUiState } from '../conversation/chat-reducer.js';
 import type { HostClient } from '../host/host-client.js';
+import { BEFORE_RENDERER_RELAUNCH_EVENT } from '../platform/renderer-relaunch-preparation.js';
 import { sessionCacheHostKey } from '../session/session-cache-host.js';
 import {
   buildSessionStartupSnapshot,
@@ -34,6 +35,17 @@ export function useSessionStartupCache(args: StartupCacheArgs): void {
       ? state.activeSessionId
       : null,
   );
+  const flush = useCallback((): void => {
+    const current = latest.current;
+    if (
+      hostKey === null ||
+      current.hostClient !== hostClient ||
+      !current.state.hostReady ||
+      current.state.awaitingTranscript
+    )
+      return;
+    writeSessionStartupSnapshot(hostKey, buildSessionStartupSnapshot(current.state));
+  }, [hostClient, hostKey]);
 
   useEffect(() => {
     const sessionId = pendingSession.current;
@@ -55,19 +67,10 @@ export function useSessionStartupCache(args: StartupCacheArgs): void {
 
   useEffect(() => {
     if (hostKey === null || !state.hostReady || state.awaitingTranscript) return undefined;
-    const timer = setTimeout(() => {
-      const current = latest.current;
-      if (
-        current.hostClient !== hostClient ||
-        !current.state.hostReady ||
-        current.state.awaitingTranscript
-      )
-        return;
-      writeSessionStartupSnapshot(hostKey, buildSessionStartupSnapshot(current.state));
-    }, WRITE_DELAY_MS);
+    const timer = setTimeout(flush, WRITE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [
-    hostClient,
+    flush,
     hostKey,
     state.activeSessionId,
     state.hostReady,
@@ -80,25 +83,17 @@ export function useSessionStartupCache(args: StartupCacheArgs): void {
 
   useEffect(() => {
     if (hostKey === null) return undefined;
-    const flush = (): void => {
-      const current = latest.current;
-      if (
-        current.hostClient !== hostClient ||
-        !current.state.hostReady ||
-        current.state.awaitingTranscript
-      )
-        return;
-      writeSessionStartupSnapshot(hostKey, buildSessionStartupSnapshot(current.state));
-    };
     const onHide = (): void => {
       if (document.visibilityState === 'hidden') flush();
     };
     window.addEventListener('pagehide', flush);
+    window.addEventListener(BEFORE_RENDERER_RELAUNCH_EVENT, flush);
     document.addEventListener('visibilitychange', onHide);
     return () => {
       window.removeEventListener('pagehide', flush);
+      window.removeEventListener(BEFORE_RENDERER_RELAUNCH_EVENT, flush);
       document.removeEventListener('visibilitychange', onHide);
       flush();
     };
-  }, [hostClient, hostKey]);
+  }, [flush, hostKey]);
 }

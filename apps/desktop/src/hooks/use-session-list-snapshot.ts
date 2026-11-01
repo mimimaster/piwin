@@ -1,12 +1,13 @@
 /**
  * Keeps the last session list on the device and restores it immediately,
- * including while the local sidecar is starting. The live list replaces it through the normal hydration
- * path; see session/session-list-snapshot.ts for what is stored.
+ * including while the local sidecar is starting. The live list replaces it
+ * through normal hydration; see session/session-list-snapshot.ts for stored fields.
  */
-import { useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { ProjectRecord } from '@piwin/contracts';
 import type { ChatUiAction, SessionListItemUi } from '../conversation/chat-reducer';
 import type { HostClient } from '../host/host-client';
+import { BEFORE_RENDERER_RELAUNCH_EVENT } from '../platform/renderer-relaunch-preparation.js';
 import { sessionCacheHostKey } from '../session/session-cache-host.js';
 import { setOfflineSessionSnapshot } from '../session/offline-session-snapshot';
 import {
@@ -44,6 +45,19 @@ export function useSessionListSnapshot(args: {
   const hostKey = useMemo(() => sessionCacheHostKey(hostClient), [hostClient]);
   const latest = useRef(args);
   latest.current = args;
+  const flush = useCallback((): void => {
+    const current = latest.current;
+    if (hostKey === null || !current.hostReady || current.hostClient !== hostClient) return;
+    writeSessionListSnapshot(
+      deviceStorage(),
+      hostKey,
+      buildSessionListSnapshot({
+        general: current.generalSessions,
+        projectSessionsByPath: current.projectSessionsByPath,
+        recentProjects: current.recentProjects,
+      }),
+    );
+  }, [hostClient, hostKey]);
 
   useEffect(() => {
     if (hostKey === null) return undefined;
@@ -78,40 +92,23 @@ export function useSessionListSnapshot(args: {
 
   useEffect(() => {
     if (hostKey === null || !hostReady) return undefined;
-    const timer = setTimeout(() => {
-      writeSessionListSnapshot(
-        deviceStorage(),
-        hostKey,
-        buildSessionListSnapshot({
-          general: generalSessions,
-          projectSessionsByPath,
-          recentProjects,
-        }),
-      );
-    }, SNAPSHOT_WRITE_DELAY_MS);
+    const timer = setTimeout(flush, SNAPSHOT_WRITE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [hostKey, hostReady, generalSessions, projectSessionsByPath, recentProjects]);
+  }, [flush, hostKey, hostReady, generalSessions, projectSessionsByPath, recentProjects]);
 
   useEffect(() => {
     if (hostKey === null) return undefined;
-    const flush = (): void => {
-      const current = latest.current;
-      if (!current.hostReady || current.hostClient !== hostClient) return;
-      writeSessionListSnapshot(deviceStorage(), hostKey, buildSessionListSnapshot({
-        general: current.generalSessions,
-        projectSessionsByPath: current.projectSessionsByPath,
-        recentProjects: current.recentProjects,
-      }));
-    };
     const onHide = (): void => {
       if (document.visibilityState === 'hidden') flush();
     };
     window.addEventListener('pagehide', flush);
+    window.addEventListener(BEFORE_RENDERER_RELAUNCH_EVENT, flush);
     document.addEventListener('visibilitychange', onHide);
     return () => {
       window.removeEventListener('pagehide', flush);
+      window.removeEventListener(BEFORE_RENDERER_RELAUNCH_EVENT, flush);
       document.removeEventListener('visibilitychange', onHide);
       flush();
     };
-  }, [hostClient, hostKey]);
+  }, [flush, hostKey]);
 }
