@@ -79,6 +79,13 @@ export function createAppUpdateStore(bridge: AppUpdateBridge): AppUpdateStore {
         if (state.status !== 'preparing' && state.status !== 'downloading') return;
         setState({ ...state, status: progress.finished ? 'restarting' : 'downloading', progress });
       });
+      // `available` is emitted once per check. A renderer that mounts after that
+      // emit or reloads later (Windows reaps the webview process) would show no
+      // notice until the next check 6 h later, so ask what the backend already
+      // holds. Subscribe first so an emit in between is not lost.
+      await bridge.pending().then(acceptUpdate, (error: unknown) => {
+        console.warn('[app-update] pending state unavailable', error);
+      });
       return () => {
         stopAvailable();
         stopProgress();

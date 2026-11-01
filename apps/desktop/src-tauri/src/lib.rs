@@ -75,6 +75,7 @@ pub fn run() {
             attention_notifications::attention_take_pending_activation,
             attention_notifications::attention_open_system_settings,
             app_update::app_update_check,
+            app_update::app_update_pending,
             app_update::app_update_install,
             channel_secret_store::desktop_secret_read,
             channel_secret_store::desktop_secret_write,

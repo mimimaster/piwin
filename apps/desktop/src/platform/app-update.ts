@@ -33,6 +33,8 @@ export type AppUpdateProgress = {
 
 export type AppUpdateBridge = {
   check: () => Promise<AvailableAppUpdate | undefined>;
+  /** What the last background check found, with no extra network call. */
+  pending: () => Promise<AvailableAppUpdate | undefined>;
   install: (force: boolean) => Promise<AppUpdateInstallOutcome>;
   onAvailable: (listener: (update: AvailableAppUpdate) => void) => Promise<() => void>;
   onProgress: (listener: (progress: AppUpdateProgress) => void) => Promise<() => void>;
@@ -86,6 +88,10 @@ export function createTauriAppUpdateBridge(): AppUpdateBridge {
     check: async () => {
       const { invoke } = await import('@tauri-apps/api/core');
       return parseAvailableAppUpdate(await invoke('app_update_check'));
+    },
+    pending: async () => {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return parseAvailableAppUpdate(await invoke('app_update_pending'));
     },
     install: async (force) => {
       const { invoke } = await import('@tauri-apps/api/core');

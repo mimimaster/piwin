@@ -11,6 +11,7 @@ const UPDATE: AvailableAppUpdate = { version: '0.2.6', currentVersion: '0.2.5' }
 
 function createFakeBridge(options: {
   check?: AvailableAppUpdate | undefined;
+  pending?: AvailableAppUpdate | undefined;
   install?: () => Promise<AppUpdateInstallOutcome>;
 }) {
   let emitAvailable: ((update: AvailableAppUpdate) => void) | undefined;
@@ -18,6 +19,7 @@ function createFakeBridge(options: {
   const install = vi.fn(options.install ?? (async () => ({ kind: 'restarting' }) as const));
   const bridge: AppUpdateBridge = {
     check: async () => options.check,
+    pending: async () => options.pending,
     install,
     onAvailable: async (listener) => {
       emitAvailable = listener;
@@ -41,6 +43,13 @@ function createFakeBridge(options: {
 }
 
 describe('createAppUpdateStore', () => {
+  it('picks up an update the background check already found', async () => {
+    const fake = createFakeBridge({ pending: UPDATE });
+    const store = createAppUpdateStore(fake.bridge);
+    await store.watch();
+    expect(store.getState()).toEqual({ status: 'idle', update: UPDATE });
+  });
+
   it('takes updates from background events and manual checks', async () => {
     const fake = createFakeBridge({ check: undefined });
     const store = createAppUpdateStore(fake.bridge);

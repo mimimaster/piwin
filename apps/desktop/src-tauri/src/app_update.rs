@@ -166,6 +166,15 @@ pub(crate) async fn app_update_check(app: AppHandle) -> Result<Option<AvailableA
     check_now(&app).await
 }
 
+/// What the background check already found, without another network round
+/// trip. `app-update://available` is emitted once per check, so a renderer that
+/// reloads afterwards (Windows reaps the webview process) has no other way to
+/// learn about a pending update until the next check 6 h later.
+#[tauri::command]
+pub(crate) fn app_update_pending(app: AppHandle) -> Option<AvailableAppUpdate> {
+    pending_update(&app).as_ref().map(summarize)
+}
+
 #[tauri::command]
 pub(crate) async fn app_update_install(
     app: AppHandle,
