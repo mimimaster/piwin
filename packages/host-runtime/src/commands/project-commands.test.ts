@@ -12,6 +12,7 @@ import {
 } from '@piwin/contracts';
 import { enrichProjectsWithGitWorkspace, handleProjectCommand } from './project-commands.js';
 import { getPiwinGeneralWorkspacePath } from '../paths.js';
+import { projectIdForPath } from '@piwin/project';
 
 const execFileAsync = promisify(execFile);
 
@@ -491,6 +492,46 @@ describe('project commands', () => {
       trusted: true,
       trust: 'trusted',
     });
+  });
+
+  it('trusts a discovered worktree that was never opened, by its opaque project id', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-trust-worktree-id-'));
+    const projectPath = join(rootDir, 'workspace');
+    const linkedPath = join(rootDir, 'linked');
+    try {
+      await mkdir(projectPath, { recursive: true });
+      await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectPath });
+      await execFileAsync('git', ['config', 'user.email', 'piwin-test@example.com'], { cwd: projectPath });
+      await execFileAsync('git', ['config', 'user.name', 'piwin test'], { cwd: projectPath });
+      await writeFile(join(projectPath, 'README.md'), 'hello\n', 'utf8');
+      await execFileAsync('git', ['add', 'README.md'], { cwd: projectPath });
+      await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: projectPath });
+      await execFileAsync('git', ['worktree', 'add', '-b', 'feat/phone', linkedPath], { cwd: projectPath });
+      await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open-main', rootDir);
+
+      // A remote shell only ever holds the opaque id of the worktree its session
+      // lives in; the worktree itself was never registered as a project.
+      const trusted = await handleProjectCommand(
+        { type: 'project/trust', path: projectIdForPath(await realpath(linkedPath)) },
+        'trust-worktree-id',
+        rootDir,
+      );
+      expect(trusted?.success).toBe(true);
+      expect(trusted && 'data' in trusted ? trusted.data : null).toMatchObject({ trusted: true, trust: 'trusted' });
+
+      const reopened = await handleProjectCommand({ type: 'project/open', path: linkedPath }, 'open-linked', rootDir);
+      expect(reopened && 'data' in reopened ? reopened.data : null).toMatchObject({ trusted: true, trust: 'trusted' });
+
+      // An id that matches no project and no live worktree must still be refused.
+      const unknown = await handleProjectCommand(
+        { type: 'project/trust', path: 'project-000000000000000000000000' },
+        'trust-unknown',
+        rootDir,
+      );
+      expect(unknown).toMatchObject({ success: false, error: 'unknown-project' });
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
   });
 
   it('does not inherit trust from a different repository', async () => {

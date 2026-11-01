@@ -326,6 +326,8 @@ export type ChatUiState = {
   activeScope: SessionScope;
   projectPath: string | null;
   projectTrusted: boolean;
+  /** Cached project scope is visible before the Host confirms its current trust. */
+  projectTrustPending: boolean;
   trustDialogOpen: boolean;
   sessions: SessionListItemUi[];
   /** General-scope sessions, maintained independently so the Conversations

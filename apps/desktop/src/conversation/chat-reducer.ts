@@ -62,6 +62,7 @@ export function createInitialChatUiState(): ChatUiState {
     activeScope: { kind: 'general' },
     projectPath: null,
     projectTrusted: false,
+    projectTrustPending: false,
     trustDialogOpen: false,
     sessions: [],
     generalSessions: [],

@@ -187,13 +187,23 @@ export async function handleProjectCommand(
       });
     }
     case 'project/trust': {
-      const bound = bindProjectLocator(command.path, (await loadProjectStore(projectsPath)).projects, {
+      const document = await loadProjectStore(projectsPath);
+      const bound = bindProjectLocator(command.path, document.projects, {
         generalWorkspacePath: getPiwinGeneralWorkspacePath(rootDir),
       });
-      if (!bound.ok) {
-        return fail(requestId, 'project/trust', bound.error);
+      // A remote shell only ever holds the opaque id of the worktree its session
+      // lives in, and a discovered worktree is not a registered project yet.
+      // Trust binds to the same inventory the sidebar lists, or a phone banner
+      // could never be cleared.
+      const trustPath = bound.ok
+        ? bound.path
+        : bound.error === 'unknown-project'
+          ? await resolveDiscoveredWorktreePath(command.path, document.projects, rootDir)
+          : undefined;
+      if (!trustPath) {
+        return fail(requestId, 'project/trust', bound.ok ? 'unknown-project' : bound.error);
       }
-      const project = await setProjectTrust(projectsPath, bound.path, 'trusted');
+      const project = await setProjectTrust(projectsPath, trustPath, 'trusted');
       return ok(requestId, 'project/trust', {
         path: project.path,
         projectId: createRemoteProjectId(project.path),
@@ -304,6 +314,12 @@ async function resolveDiscoveredWorktreePath(
   const visible = await listProjectSidebarWorktrees(listed.projects, rootDir);
   for (const worktree of visible.worktrees) {
     if (projectIdForPath(worktree.path) === locator) {
+      return worktree.path;
+    }
+    // A client may hash the path it remembered before the Host canonicalised a
+    // symlinked parent (e.g. /var vs /private/var, /Volumes aliases). The same
+    // directory must still bind, or that client can never act on it again.
+    if (projectIdForPath(await resolveSidebarProjectPath(worktree.path)) === locator) {
       return worktree.path;
     }
   }
