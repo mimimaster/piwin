@@ -558,7 +558,7 @@ export function WorkbenchComposerColumn(props: WorkbenchComposerColumnProps): Re
   } = props;
   return (
     <>
-      {state.projectPath && !state.projectTrusted ? (
+      {state.projectPath && !state.projectTrusted && !state.projectTrustPending ? (
         <div className="composer-sticky-banner chat-inline-notice">
           <ProjectTrustNotice
             projectPath={state.projectPath}

@@ -108,6 +108,7 @@ describe('session startup cache', () => {
     const restored = createSessionStartupState(client(), storage);
     expect(restored.projectPath).toBe('prj_1');
     expect(restored.projectTrusted).toBe(false);
+    expect(restored.projectTrustPending).toBe(true);
     expect(restored.trustDialogOpen).toBe(false);
     expect(restored.streaming).toBe(false);
     expect(restored.activeRunId).toBeNull();

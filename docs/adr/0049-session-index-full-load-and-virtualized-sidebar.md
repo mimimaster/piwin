@@ -113,6 +113,14 @@ without waiting for settings or sidebar queries. A newer user selection cancels
 that automatic restore. Fresh Host history replaces the preview through normal
 hydration. Writes are debounced and flushed on background/close.
 
+Restored project scope starts with trust **pending**, not a confirmed untrusted
+decision. Session resume revalidates that project's trust even when its cached
+scope already matches the selected project, with automatic trust disabled.
+Until the Host answers, the trust-required banner stays hidden and cached state
+does not authorize tools or sending. A confirmed untrusted project shows the
+normal trust action while its durable transcript can still refresh. This applies
+to both the local sidecar and remote Hosts.
+
 The macOS all-in-one bundle's idle memory reclamation terminates WebContent
 without browser unload events. Its self-heal composition explicitly prepares
 the relaunch first: cache owners synchronously flush the current sidebar and

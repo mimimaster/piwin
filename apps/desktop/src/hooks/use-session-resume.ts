@@ -184,32 +184,27 @@ export function useSessionResume(input: {
       if (
         knownProjectPath &&
         context?.projectAlreadyActivated !== true &&
-        (currentUiScope.kind !== 'project' || currentUiScope.projectPath !== knownProjectPath)
+        (currentUiScope.kind !== 'project' || currentUiScope.projectPath !== knownProjectPath ||
+          state.projectTrustPending)
       ) {
         const activation = await activateProjectOnHost(
           (command) => hostClient.request(command),
           hostClient.getTransport(),
           knownProjectPath,
+          state.projectTrustPending ? { autoTrust: false } : undefined,
         );
         if (!ticketMatches()) return;
         if (!activation.ok) {
           dispatchNotification(pushError(activation.error));
           return;
         }
-        if (!activation.trusted) {
-          dispatch({
-            type: 'project/set',
-            path: activation.path,
-            trusted: false,
-            keepActiveSession: true,
-          });
+        if (!activation.trusted && context?.quiet !== true) {
           dispatchNotification(pushError('Project is not trusted on the Host.'));
-          return;
         }
         dispatch({
           type: 'project/set',
           path: activation.path,
-          trusted: true,
+          trusted: activation.trusted,
           keepActiveSession: true,
         });
         void hydrateSessions(activation.path);
@@ -280,20 +275,21 @@ export function useSessionResume(input: {
       if (
         resumedProjectPath &&
         (currentUiScope.kind !== 'project' ||
-          currentUiScope.projectPath !== resumedProjectPath) &&
+          currentUiScope.projectPath !== resumedProjectPath || state.projectTrustPending) &&
         knownProjectPath !== resumedProjectPath
       ) {
         const activation = await activateProjectOnHost(
           (command) => hostClient.request(command),
           hostClient.getTransport(),
           resumedProjectPath,
+          state.projectTrustPending ? { autoTrust: false } : undefined,
         );
         if (!ticketMatches()) return;
-        if (activation.ok && activation.trusted) {
+        if (activation.ok) {
           dispatch({
             type: 'project/set',
             path: activation.path,
-            trusted: true,
+            trusted: activation.trusted,
             keepActiveSession: true,
           });
           void hydrateSessions(activation.path, {
@@ -470,6 +466,7 @@ export function useSessionResume(input: {
       state.awaitingTranscript,
       state.generalSessions,
       state.projectSessionsByPath,
+      state.projectTrustPending,
       state.sessionEntitiesById,
       state.sessions,
       state.transcriptOwnerSessionId,

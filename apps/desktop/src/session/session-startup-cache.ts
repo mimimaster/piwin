@@ -175,6 +175,7 @@ export function createSessionStartupState(
     ...state,
     activeScope: snapshot.scope,
     projectPath: snapshot.scope.kind === 'project' ? snapshot.scope.projectPath : null,
+    projectTrustPending: snapshot.scope.kind === 'project',
     warmSessionCache: putWarmSessionSnapshot(state.warmSessionCache, {
       sessionId: snapshot.sessionId,
       messages: snapshot.messages,

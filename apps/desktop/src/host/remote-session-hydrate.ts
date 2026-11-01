@@ -131,13 +131,13 @@ export async function activateProjectOnHost(
         }
         trusted = true;
       }
-      if (!trusted) {
+      if (!trusted && record === undefined) {
         return {
           ok: false,
           error: 'This project is not trusted on the Host.',
         };
       }
-      return { ok: true, path: projectKey, trusted: true };
+      return { ok: true, path: projectKey, trusted };
     }
     const openResponse = await request({ type: 'project/open', path: projectKey });
     if (!openResponse.success) {
