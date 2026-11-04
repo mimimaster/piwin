@@ -86,6 +86,9 @@ const PRODUCT_GLASS_WHITELIST = [
   'html[data-window-material] .knowledge-modal-dialog',
   'html[data-window-material] .drawer-panel',
   'html[data-window-material] .source-drawer',
+  // Tray quota popover: its own tiny window (tray-quota.html), not the main
+  // renderer, so one blurred card there never touches the renderer memory diet.
+  '.tray-quota-popover',
 ] as const;
 
 const ALLOWED_PRODUCT_GLASS = new Set<string>(PRODUCT_GLASS_WHITELIST);
