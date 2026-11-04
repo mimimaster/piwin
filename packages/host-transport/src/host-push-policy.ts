@@ -144,17 +144,17 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
     case 'pet/state':
       return projection(deliveryKey('pet', 'state'));
     case 'browser/frame':
-      return projection(deliveryKey('browser', 'frame'));
+      return projection(browserDeliveryKey(push.sessionId, 'frame'));
     case 'browser/state':
-      return projection(deliveryKey('browser', 'state'));
+      return projection(browserDeliveryKey(push.sessionId, 'state'));
     case 'browser/picked':
-      return control([deliveryKey('browser', 'picked')]);
+      return control([browserDeliveryKey(push.sessionId, 'picked')]);
     case 'browser/console':
-      return diagnostic(deliveryKey('browser', 'console'));
+      return diagnostic(browserDeliveryKey(push.sessionId, 'console'));
     case 'browser/network':
-      return diagnostic(deliveryKey('browser', 'network'));
+      return diagnostic(browserDeliveryKey(push.sessionId, 'network'));
     case 'browser/controller':
-      return control([deliveryKey('browser', 'controller')]);
+      return control([browserDeliveryKey(push.sessionId, 'controller')]);
     case 'walkthrough/updated':
       return projection(
         deliveryKey('session', push.sessionId, 'walkthrough', push.artifact.messageId),
@@ -368,4 +368,8 @@ function deliveryKey(namespace: string, ...parts: string[]): HostDeliveryKey {
 
 function assertNever(value: never): never {
   throw new Error(`Unhandled Host push variant: ${JSON.stringify(value)}`);
+}
+
+function browserDeliveryKey(sessionId: string | undefined, channel: string): HostDeliveryKey {
+  return sessionId === undefined ? deliveryKey('browser', channel) : deliveryKey('browser', sessionId, channel);
 }

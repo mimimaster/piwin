@@ -9,6 +9,18 @@ import {
 import { handleBrowserCommand, isBrowserCommand } from './browser-commands.js';
 import type { HostCommandContext } from './host-command-context.js';
 
+describe('conversation browser routing', () => {
+  it('resolves commands against the requested conversation', async () => {
+    const session = createMockSession();
+    const getBrowserSession = vi.fn(() => session);
+    const context = createContext(undefined, [], { getBrowserSession });
+    await handleBrowserCommand({
+      type: 'browser/navigate', sessionId: 'session-a', url: 'https://a.example',
+    }, 'request-a', context);
+    expect(getBrowserSession).toHaveBeenCalledWith('session-a');
+  });
+});
+
 function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSession {
   const queue = createExclusiveQueue();
   return {

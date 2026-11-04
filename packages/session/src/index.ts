@@ -212,6 +212,7 @@ export {
 export { transcriptRevisionToken } from './transcript-store-pages.js';
 export type {
   SessionTranscriptStore,
+  SessionTranscriptTailPage,
   TranscriptStoreAppendResult,
   TranscriptStoreMessageInput,
   TranscriptStoreMessagePatch,

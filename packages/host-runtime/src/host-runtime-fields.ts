@@ -33,7 +33,7 @@ import { createExtensionRevisionStore } from '@piwin/extensions';
 import { type McpGenerationSnapshot, type McpLifecycleManager } from '@piwin/mcp';
 import { SessionTodoStore } from '@piwin/automation';
 import { type PetStateStore } from './pet-state-store.js';
-import type { BrowserFrameBytesSink } from './host-runtime-services.js';
+import type { BrowserFrameBytesSink } from './host-browser-sessions.js';
 
 import { createSubagentRunStore } from '@piwin/session';
 import type { ContextUsageSnapshot } from '@piwin/contracts';
@@ -278,12 +278,8 @@ export class HostRuntimeFields {
   studyService: import('@piwin/flashcards').StudyService | null = null;
   /** Envelope idempotency key for the in-flight Host command (study mutations). */
   commandRequestStore = new AsyncLocalStorage<{ idempotencyKey?: string }>();
-  /** Host-owned browser session (ADR 0020); lazily created on first access. */
-  browserSession: import('@piwin/browser').BrowserSession | null = null;
-  /** Guards first init of `browserSession` so concurrent callers share one. */
-  browserSessionInit: Promise<import('@piwin/browser').BrowserSession> | null = null;
-  /** Unsubscribe for the browser session push wiring. */
-  browserSessionUnsubscribe: (() => void) | null = null;
+  /** Lazy browser resources keyed by conversation; empty key is legacy-only. */
+  browserSessions = new Map<string, Promise<import('@piwin/browser').BrowserSession>>();
   /** Raw browser JPEG sinks (remote binary frame channel, spec §4.1.2). */
   browserFrameSinks: Set<BrowserFrameBytesSink> = new Set();
   folderRag: import('@piwin/doc-rag').FolderRag | null = null;

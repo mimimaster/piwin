@@ -25,7 +25,6 @@ import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { ok } from './response-helpers.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
-import { ensureBrowserSessionBestEffort } from './host-runtime-services.js';
 import { sessionIndexUpdatedPush } from './session-index-push.js';
 import { indexRecordToSummary } from './session-summary-map.js';
 
@@ -311,12 +310,6 @@ export async function createSession(
       ...(input.projectPath ? { projectPath: input.projectPath } : {}),
     });
   }
-  // Mock hosts expose no `browser_*` tools. Real hosts need the passive
-  // BrowserSession service registered before the Pi session so the tools
-  // appear; creating/subscribing it does not launch Chromium (ADR 0020).
-  // Best-effort: service initialization failure must not block session
-  // creation — the tools simply will not appear.
-  await ensureBrowserSessionBestEffort(deps);
   const sessionId = createProductSessionId();
   const runtimeGenerationId = createRuntimeGenerationId();
   await deps.refreshWorkerRssSample();

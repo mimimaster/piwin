@@ -2,6 +2,7 @@ import type { HostCommand } from '@piwin/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applyBrowserLeaseCommand,
+  browserMirrorLeaseKey,
   createDisconnectedMirrorLeaseReaper,
 } from './browser-mirror-leases.js';
 
@@ -10,11 +11,19 @@ describe('applyBrowserLeaseCommand', () => {
     const held = new Set<string>();
     applyBrowserLeaseCommand(held, { type: 'browser/start', leaseId: 'lease-a' });
     applyBrowserLeaseCommand(held, { type: 'browser/start' });
-    expect([...held].sort()).toEqual(['default', 'lease-a']);
+    expect(held).toEqual(new Set([browserMirrorLeaseKey(undefined, 'lease-a'), browserMirrorLeaseKey()]));
 
     applyBrowserLeaseCommand(held, { type: 'browser/stop', leaseId: 'lease-a' });
     applyBrowserLeaseCommand(held, { type: 'browser/stop' });
     expect(held.size).toBe(0);
+  });
+
+  it('keeps identically named leases in different conversations separate', () => {
+    const held = new Set<string>();
+    applyBrowserLeaseCommand(held, { type: 'browser/start', leaseId: 'same', sessionId: 'a' });
+    applyBrowserLeaseCommand(held, { type: 'browser/start', leaseId: 'same', sessionId: 'b' });
+    applyBrowserLeaseCommand(held, { type: 'browser/stop', leaseId: 'same', sessionId: 'a' });
+    expect(held).toEqual(new Set([browserMirrorLeaseKey('b', 'same')]));
   });
 });
 
@@ -38,7 +47,7 @@ describe('createDisconnectedMirrorLeaseReaper', () => {
 
   it('releases an orphaned lease after the grace period without retiring it', async () => {
     const { reaper, execute } = setup(new Set());
-    reaper.schedule(['lease-a', 'default']);
+    reaper.schedule([browserMirrorLeaseKey(undefined, 'lease-a'), browserMirrorLeaseKey()]);
 
     await vi.advanceTimersByTimeAsync(999);
     expect(execute).not.toHaveBeenCalled();
@@ -50,21 +59,30 @@ describe('createDisconnectedMirrorLeaseReaper', () => {
   it('keeps a lease a reconnected client holds again', async () => {
     const live = new Set<string>();
     const { reaper, execute } = setup(live);
-    reaper.schedule(['lease-a']);
-    live.add('lease-a');
+    reaper.schedule([browserMirrorLeaseKey(undefined, 'lease-a')]);
+    live.add(browserMirrorLeaseKey(undefined, 'lease-a'));
 
     await vi.advanceTimersByTimeAsync(1_000);
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('releases the disconnected conversation without touching a different conversation lease', async () => {
+    const { reaper, execute } = setup(new Set([browserMirrorLeaseKey('b', 'same')]));
+    reaper.schedule([browserMirrorLeaseKey('a', 'same')]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(execute).toHaveBeenCalledExactlyOnceWith({
+      type: 'browser/stop', sessionId: 'a', leaseId: 'same', reason: 'disconnect',
+    });
+  });
+
   it('reports a failed release and cancels pending ones on dispose', async () => {
     const { reaper, execute, onError } = setup(new Set());
     execute.mockResolvedValueOnce({ success: false, error: 'boom' } as { success: boolean });
-    reaper.schedule(['lease-a']);
+    reaper.schedule([browserMirrorLeaseKey(undefined, 'lease-a')]);
     await vi.advanceTimersByTimeAsync(1_000);
     expect(onError).toHaveBeenCalledTimes(1);
 
-    reaper.schedule(['lease-b']);
+    reaper.schedule([browserMirrorLeaseKey(undefined, 'lease-b')]);
     reaper.dispose();
     await vi.advanceTimersByTimeAsync(1_000);
     expect(execute).toHaveBeenCalledTimes(1);

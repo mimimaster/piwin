@@ -14,6 +14,7 @@ import {
   buildReviewQueue,
   displayCardsFromBatchResult,
   exportCardsToTsv,
+  itemPreviewText,
   parseReviewCardId,
   type CardStore,
 } from '@piwin/flashcards';
@@ -27,6 +28,7 @@ import {
 } from '../notes-write-service.js';
 import { searchKnowledgeBases } from '../knowledge-retriever.js';
 import { fail, ok } from '../response-helpers.js';
+import { draftFlashcardsFromScope, FlashcardScopeDraftError } from '../flashcard-scope-draft.js';
 import {
   handleKnowledgeBaseCommand,
   knowledgeRuntimeFromContext,
@@ -78,6 +80,7 @@ const TYPES = new Set<HostCommand['type']>([
   'notes/eval-history',
   'flashcards/create',
   'flashcards/list',
+  'flashcards/draft-from-scope',
   'flashcards/batch-create',
   'flashcards/delete',
   'flashcards/decks',
@@ -108,6 +111,9 @@ const TYPES = new Set<HostCommand['type']>([
   // Gated here as well as in knowledge-base-commands: this set is the outer
   // entry check, so a type missing from it never reaches the base handler.
   'knowledge/wiki/distill',
+  'knowledge/wiki/distill-draft',
+  'knowledge/wiki/write',
+  'knowledge/wiki/update',
   'knowledge/test-connection',
   'knowledge/embedding-models/discover',
 ]);
@@ -277,13 +283,46 @@ export async function handleKnowledgeCommand(
         sourceNoteId?: string;
         sourceFolder?: string;
         sequenceId?: string;
+        tag?: string;
       } = {};
       if (command.deck) filter.deck = command.deck;
       if (command.sourceNoteId) filter.sourceNoteId = command.sourceNoteId;
       if (command.sourceFolder) filter.sourceFolder = command.sourceFolder;
       if (command.sequenceId) filter.sequenceId = command.sequenceId;
+      if (command.tag) filter.tag = command.tag;
       const cards = await store.list(filter);
       return ok(requestId, 'flashcards/list', { cards });
+    }
+    case 'flashcards/draft-from-scope': {
+      if (!context.completeJson) {
+        return fail(
+          requestId,
+          command.type,
+          'No model is configured for flashcard drafts. Set one in Settings → Models.',
+        );
+      }
+      try {
+        const store = await context.getCardStore();
+        const existing = await store.list();
+        const rag = command.scope.kind === 'files' ? await context.getFolderRag() : undefined;
+        const result = await draftFlashcardsFromScope({
+          scope: command.scope,
+          completeJson: context.completeJson,
+          existingFronts: existing.map((card) => itemPreviewText(card)),
+          ...(rag
+            ? {
+                retrievePack: (folderPath, query, options) =>
+                  rag.retrievePack(folderPath, query, options),
+              }
+            : {}),
+        });
+        return ok(requestId, command.type, result);
+      } catch (error) {
+        if (error instanceof FlashcardScopeDraftError) {
+          return fail(requestId, command.type, error.message);
+        }
+        throw error;
+      }
     }
     case 'flashcards/batch-create': {
       const store = await context.getCardStore();

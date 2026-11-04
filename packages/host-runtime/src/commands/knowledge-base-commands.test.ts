@@ -355,6 +355,148 @@ describe('folder retrieve mapping via mocked rag', () => {
     rag.close();
   });
 
+  it('writes a sourced wiki note and does not overwrite the same title', async () => {
+    const { context, rag } = await setup();
+    const input = {
+      title: 'Sleep debt',
+      content: 'Hours owed to sleep.',
+      sources: [
+        {
+          baseId: 'folder:abc',
+          relativePath: 'notes/sleep-debt.md',
+          lineStart: 3,
+        },
+      ],
+    };
+    const written = await handleKnowledgeCommand(
+      { type: 'knowledge/wiki/write', input },
+      'wn1',
+      context,
+    );
+    expect(written).toMatchObject({ success: true, command: 'knowledge/wiki/write' });
+    const concept = (written as { data: { concept: { slug: string; sources?: unknown } } }).data
+      .concept;
+    expect(concept.slug).toBe('sleep-debt');
+    expect(concept.sources).toEqual(input.sources);
+
+    const read = await handleKnowledgeCommand(
+      { type: 'knowledge/wiki/concept', slug: 'sleep-debt' },
+      'wn2',
+      context,
+    );
+    const roundTrip = (read as { data: { concept: { sources?: unknown; content: string } } }).data
+      .concept;
+    expect(roundTrip.sources).toEqual(input.sources);
+    expect(roundTrip.content).toContain('Hours owed');
+
+    const duplicate = await handleKnowledgeCommand(
+      {
+        type: 'knowledge/wiki/write',
+        input: { title: 'Sleep debt', content: 'Must not land.' },
+      },
+      'wn3',
+      context,
+    );
+    expect(duplicate).toMatchObject({
+      success: false,
+      command: 'knowledge/wiki/write',
+      error: expect.stringContaining('already exists'),
+    });
+    rag.close();
+  });
+
+  it('rejects a wiki update when the expected hash is stale', async () => {
+    const { context, rag } = await setup();
+    const written = await handleKnowledgeCommand(
+      {
+        type: 'knowledge/wiki/write',
+        input: { title: 'Sleep debt', content: 'Hours owed.', kind: 'note' },
+      },
+      'cu1',
+      context,
+    );
+    const hash = (written as { data: { concept: { contentHash: string } } }).data.concept.contentHash;
+    expect(hash).toEqual(expect.any(String));
+
+    const conflict = await handleKnowledgeCommand(
+      {
+        type: 'knowledge/wiki/update',
+        input: { slug: 'sleep-debt', expectedContentHash: 'stale', content: 'Nope.' },
+      },
+      'cu2',
+      context,
+    );
+    expect(conflict).toMatchObject({
+      success: false,
+      command: 'knowledge/wiki/update',
+      problem: { code: 'wiki-revision-conflict' },
+    });
+
+    const updated = await handleKnowledgeCommand(
+      {
+        type: 'knowledge/wiki/update',
+        input: { slug: 'sleep-debt', expectedContentHash: hash, content: 'Hours still owed.' },
+      },
+      'cu3',
+      context,
+    );
+    expect(updated).toMatchObject({ success: true, command: 'knowledge/wiki/update' });
+    const concept = (updated as { data: { concept: { content: string; kind?: string } } }).data.concept;
+    expect(concept.content).toBe('Hours still owed.');
+    expect(concept.kind).toBe('note');
+    rag.close();
+  });
+
+  it('returns a distill draft for two files without writing a page', async () => {
+    const { folder, context, rag } = await setup();
+    const added = await handleKnowledgeCommand(
+      { type: 'knowledge/bases/add', folderPath: folder, name: 'Docs' },
+      'dd0',
+      context,
+    );
+    const baseId = (added as { data: { base: { id: string } } }).data.base.id;
+    const retrievePack = vi.spyOn(rag, 'retrievePack').mockResolvedValue({
+      sources: [
+        { relativePath: 'a.md', text: 'alpha excerpt' },
+        { relativePath: 'b.md', text: 'beta excerpt' },
+      ],
+    } as ContextPack);
+    const withModel: typeof context = {
+      ...context,
+      completeJson: async () => ({
+        title: 'Batch concept',
+        summary: 'From two files.',
+        tags: ['batch'],
+        content: 'Draft only.',
+      }),
+    };
+    const response = await handleKnowledgeCommand(
+      {
+        type: 'knowledge/wiki/distill-draft',
+        baseId,
+        relativePaths: ['a.md', 'b.md'],
+      },
+      'dd1',
+      withModel,
+    );
+    expect(retrievePack).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({ fileAllowlist: ['a.md', 'b.md'] }),
+    );
+    expect(response).toMatchObject({ success: true, command: 'knowledge/wiki/distill-draft' });
+    const draft = (response as { data: { draft: { title: string; sources: unknown[] } } }).data.draft;
+    expect(draft.title).toBe('Batch concept');
+    expect(draft.sources).toEqual([
+      { baseId, relativePath: 'a.md' },
+      { baseId, relativePath: 'b.md' },
+    ]);
+    const overview = await handleKnowledgeCommand({ type: 'knowledge/wiki/overview' }, 'dd2', context);
+    const concepts = (overview as { data: { concepts: unknown[] } }).data.concepts;
+    expect(concepts).toHaveLength(0);
+    rag.close();
+  });
+
   it('keeps wiki distill reachable through the outer knowledge gate', async () => {
     // `isKnowledgeCommand` is the single entry check for every knowledge
     // command, so a type missing from that set returns null and dies upstream

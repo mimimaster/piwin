@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CompleteJsonFn } from '@piwin/doc-rag';
-import { distillWikiConcept, WikiDistillError } from './wiki-distill.js';
+import { distillWikiConcept, distillWikiConceptDraft, WikiDistillError } from './wiki-distill.js';
 import { listWikiConcepts, readWikiConcept, readWikiIndex } from './wiki-service.js';
 
 const cleanup: string[] = [];
@@ -106,5 +106,77 @@ describe('distillWikiConcept', () => {
     ).rejects.toBeInstanceOf(WikiDistillError);
     // Nothing half-written on disk.
     expect(await listWikiConcepts(root)).toHaveLength(0);
+  });
+
+  it('builds a draft with sources and related pages without writing', async () => {
+    const root = await rootDir();
+    await distillWikiConcept({
+      piwinRoot: root,
+      base,
+      sources: [{ relativePath: 'memory.md', text: 'Retention curves.' }],
+      completeJson: async () => ({
+        title: 'Retention',
+        summary: 'How memory holds.',
+        tags: ['memory'],
+        content: 'Existing page.',
+      }),
+    });
+    const completeJson = vi.fn(async () => ({
+      title: 'FSRS 调度器',
+      summary: '间隔重复。',
+      tags: ['memory'],
+      content: 'Draft body.',
+    }));
+    const draft = await distillWikiConceptDraft({
+      piwinRoot: root,
+      base,
+      sources: [
+        { relativePath: 'a.md', text: 'alpha' },
+        { relativePath: 'b.md', text: 'beta' },
+      ],
+      concepts: await listWikiConcepts(root),
+      completeJson,
+    });
+    expect(draft.title).toBe('FSRS 调度器');
+    expect(draft.sources).toEqual([
+      { baseId: 'folder:abc', relativePath: 'a.md' },
+      { baseId: 'folder:abc', relativePath: 'b.md' },
+    ]);
+    expect(draft.relatedPages.some((page) => page.slug === 'retention')).toBe(true);
+    expect(draft.existingPage).toBeUndefined();
+    expect(await listWikiConcepts(root)).toHaveLength(1);
+    expect(await readWikiConcept(root, 'FSRS 调度器')).toBeNull();
+  });
+
+  it('points the draft at an existing same-slug page for update', async () => {
+    const root = await rootDir();
+    await distillWikiConcept({
+      piwinRoot: root,
+      base,
+      sources: [{ relativePath: 'fsrs.md', text: 'FSRS models retention.' }],
+      completeJson: async () => ({
+        title: 'FSRS 调度器',
+        summary: 'old',
+        tags: ['fsrs'],
+        content: 'Old body.',
+      }),
+    });
+    const draft = await distillWikiConceptDraft({
+      piwinRoot: root,
+      base,
+      sources: [{ relativePath: 'fsrs.md', text: 'FSRS models retention.' }],
+      concepts: await listWikiConcepts(root),
+      completeJson: async () => ({
+        title: 'FSRS 调度器',
+        summary: 'new',
+        tags: ['fsrs'],
+        content: 'New body.',
+      }),
+    });
+    expect(draft.existingPage?.slug).toBe('fsrs-调度器');
+    expect(draft.existingPage?.content).toContain('Old body.');
+    expect(draft.existingPage?.contentHash).toEqual(expect.any(String));
+    const stored = await readWikiConcept(root, 'FSRS 调度器');
+    expect(stored?.content).toContain('Old body.');
   });
 });

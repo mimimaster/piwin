@@ -4,8 +4,14 @@
  * knowledge flywheel — the counterpart to doccards generation for flashcards.
  */
 import type { CompleteJsonFn } from '@piwin/doc-rag';
-import type { KnowledgeBaseSummary, WikiDistillResult } from '@piwin/contracts';
-import { writeWikiConcept } from './wiki-service.js';
+import type {
+  KnowledgeBaseSummary,
+  WikiConceptItem,
+  WikiDistillDraft,
+  WikiDistillResult,
+} from '@piwin/contracts';
+import { suggestRelatedWikiPages } from './wiki-related.js';
+import { readWikiConcept, slugify, writeWikiConcept } from './wiki-service.js';
 
 export class WikiDistillError extends Error {
   override readonly name = 'WikiDistillError';
@@ -68,12 +74,14 @@ function buildUserPrompt(input: {
     .join('\n\n');
 }
 
-function parseConcept(value: unknown): {
+type ParsedConcept = {
   title: string;
   summary: string;
   tags: string[];
   content: string;
-} {
+};
+
+function parseConcept(value: unknown): ParsedConcept {
   const record = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
   const title = typeof record.title === 'string' ? record.title.trim() : '';
   const content = typeof record.content === 'string' ? record.content.trim() : '';
@@ -90,6 +98,46 @@ function parseConcept(value: unknown): {
   };
 }
 
+async function synthesizeWikiConcept(input: {
+  baseName: string;
+  sources: readonly WikiDistillSource[];
+  topic?: string | undefined;
+  completeJson: CompleteJsonFn;
+  signal?: AbortSignal | undefined;
+}): Promise<ParsedConcept> {
+  if (input.sources.length === 0) {
+    throw new WikiDistillError(
+      'This source has no indexed slices yet — ingest it before distilling.',
+    );
+  }
+  const raw = await input.completeJson({
+    systemPrompt: SYSTEM_PROMPT,
+    userPrompt: buildUserPrompt({
+      baseName: input.baseName,
+      topic: input.topic,
+      sources: input.sources,
+    }),
+    jsonSchema: CONCEPT_SCHEMA,
+    schemaName: 'wiki_concept',
+    ...(input.signal ? { signal: input.signal } : {}),
+  });
+  return parseConcept(raw);
+}
+
+function sourceRefs(
+  baseId: string,
+  sources: readonly WikiDistillSource[],
+): WikiDistillDraft['sources'] {
+  const seen = new Set<string>();
+  const refs: WikiDistillDraft['sources'] = [];
+  for (const source of sources) {
+    if (seen.has(source.relativePath)) continue;
+    seen.add(source.relativePath);
+    refs.push({ baseId, relativePath: source.relativePath });
+  }
+  return refs;
+}
+
 /** Synthesises and persists one concept. Sources must already be retrieved. */
 export async function distillWikiConcept(input: {
   piwinRoot: string | undefined;
@@ -99,33 +147,68 @@ export async function distillWikiConcept(input: {
   completeJson: CompleteJsonFn;
   signal?: AbortSignal | undefined;
 }): Promise<WikiDistillResult> {
-  if (input.sources.length === 0) {
-    throw new WikiDistillError(
-      'This source has no indexed slices yet — ingest it before distilling.',
-    );
-  }
-
-  const raw = await input.completeJson({
-    systemPrompt: SYSTEM_PROMPT,
-    userPrompt: buildUserPrompt({
-      baseName: input.base.name,
-      topic: input.topic,
-      sources: input.sources,
-    }),
-    jsonSchema: CONCEPT_SCHEMA,
-    schemaName: 'wiki_concept',
+  const parsed = await synthesizeWikiConcept({
+    baseName: input.base.name,
+    sources: input.sources,
+    completeJson: input.completeJson,
+    ...(input.topic ? { topic: input.topic } : {}),
     ...(input.signal ? { signal: input.signal } : {}),
   });
-
-  const parsed = parseConcept(raw);
-  const sourcePaths = [...new Set(input.sources.map((source) => source.relativePath))];
+  const refs = sourceRefs(input.base.id, input.sources);
   const concept = await writeWikiConcept(input.piwinRoot, {
     title: parsed.title,
     content: parsed.content,
     ...(parsed.summary ? { summary: parsed.summary } : {}),
     tags: parsed.tags,
-    logMessage: `Distilled [[${parsed.title}]] from ${input.base.name} (${sourcePaths.length} slices)`,
+    sources: refs,
+    logMessage: `Distilled [[${parsed.title}]] from ${input.base.name} (${refs.length} slices)`,
   });
+  return { concept, baseId: input.base.id, sourcePaths: refs.map((ref) => ref.relativePath) };
+}
 
-  return { concept, baseId: input.base.id, sourcePaths };
+/** Synthesises a concept without writing. Related pages come from the current catalog. */
+export async function distillWikiConceptDraft(input: {
+  piwinRoot: string | undefined;
+  base: Pick<KnowledgeBaseSummary, 'id' | 'name'>;
+  sources: readonly WikiDistillSource[];
+  concepts: readonly WikiConceptItem[];
+  topic?: string | undefined;
+  completeJson: CompleteJsonFn;
+  signal?: AbortSignal | undefined;
+}): Promise<WikiDistillDraft> {
+  const parsed = await synthesizeWikiConcept({
+    baseName: input.base.name,
+    sources: input.sources,
+    completeJson: input.completeJson,
+    ...(input.topic ? { topic: input.topic } : {}),
+    ...(input.signal ? { signal: input.signal } : {}),
+  });
+  const slug = slugify(parsed.title);
+  const suggestion = suggestRelatedWikiPages({
+    title: parsed.title,
+    tags: parsed.tags,
+    concepts: input.concepts,
+    slug,
+  });
+  let existingPage: WikiDistillDraft['existingPage'];
+  if (suggestion.existingSlug) {
+    const existing = await readWikiConcept(input.piwinRoot, suggestion.existingSlug);
+    if (existing?.contentHash) {
+      existingPage = {
+        slug: existing.slug,
+        title: existing.title,
+        content: existing.content,
+        contentHash: existing.contentHash,
+      };
+    }
+  }
+  return {
+    title: parsed.title,
+    summary: parsed.summary,
+    tags: parsed.tags,
+    content: parsed.content,
+    sources: sourceRefs(input.base.id, input.sources),
+    relatedPages: suggestion.related,
+    ...(existingPage ? { existingPage } : {}),
+  };
 }

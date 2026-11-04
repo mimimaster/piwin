@@ -38,6 +38,7 @@ export function encodeCardMarkdown(card: FlashcardItem): string {
   if (card.sourceDocumentIds && card.sourceDocumentIds.length > 0) {
     lines.push(`sourceDocumentIds: ${JSON.stringify(card.sourceDocumentIds)}`);
   }
+  if (card.wikiSlug) lines.push(`wikiSlug: ${JSON.stringify(card.wikiSlug)}`);
   lines.push(`createdAt: ${JSON.stringify(card.createdAt)}`);
   lines.push('---');
   lines.push('');
@@ -132,6 +133,8 @@ function applyFrontmatter(
   if (generationId) card.generationId = generationId;
   const sourceDocumentIds = asStringArray(fields.sourceDocumentIds);
   if (sourceDocumentIds) card.sourceDocumentIds = sourceDocumentIds;
+  const wikiSlug = asString(fields.wikiSlug);
+  if (wikiSlug) card.wikiSlug = wikiSlug;
 }
 
 /**

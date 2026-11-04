@@ -165,6 +165,8 @@ export function getStatus(deps: HostRuntimeKernel): HostStatusData {
       automation: true,
       flashcardStudy: true,
       knowledgeBases: true,
+      knowledgeWorkspace: true,
+      knowledgeDocuments: true,
       contextTelemetryVersion: 1,
     },
   };

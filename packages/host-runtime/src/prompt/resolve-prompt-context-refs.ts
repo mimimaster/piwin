@@ -5,7 +5,12 @@
  * The UI never reads project files; Host path-jails and size-bounds all FS refs.
  */
 
-import type { PromptContextRef, SessionTranscriptMessage } from '@piwin/contracts';
+import {
+  isUsableKnowledgeContextRef,
+  type KnowledgeContextRef,
+  type PromptContextRef,
+  type SessionTranscriptMessage,
+} from '@piwin/contracts';
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { resolve as resolvePath, sep } from 'node:path';
 
@@ -33,6 +38,12 @@ export type ResolvePromptContextRefsDeps = {
   /** Handoff summary for a session; undefined when absent or not allowed here. */
   loadHandoffSummary?: (sessionId: string) => Promise<string | undefined>;
   onDiagnostic?: (message: string) => void;
+  /**
+   * Re-read a library selection from the registered base. Return undefined
+   * when the document is gone or the range is invalid — the ref is then
+   * rejected rather than falling back to a stale snapshot.
+   */
+  readKnowledgeSelection?: (ref: KnowledgeContextRef) => Promise<string | undefined>;
 };
 
 export function selectFileReferenceRange(
@@ -53,6 +64,42 @@ export function selectFileReferenceRange(
   const lines = normalized.split('\n');
   if (lineStart > lines.length) return undefined;
   return lines.slice(lineStart - 1, Math.min(effectiveEnd, lines.length)).join('\n');
+}
+
+/**
+ * Format a library selection for the model. Diagnostics name baseId + scope
+ * only — never a Host folder path.
+ */
+async function formatKnowledgeSelectionRef(
+  deps: ResolvePromptContextRefsDeps,
+  ref: KnowledgeContextRef,
+): Promise<string | undefined> {
+  if (!isUsableKnowledgeContextRef(ref)) {
+    deps.onDiagnostic?.(
+      `context ref rejected: kind=knowledge-selection scope=${ref.scope} base=${ref.baseId}`,
+    );
+    return undefined;
+  }
+  let body = ref.snapshotText.slice(0, MAX_CONTEXT_REF_TEXT_CHARS);
+  if (deps.readKnowledgeSelection && (ref.scope === 'selection' || ref.scope === 'page')) {
+    const reread = await deps.readKnowledgeSelection(ref);
+    if (reread === undefined) {
+      deps.onDiagnostic?.(
+        `context ref missing: kind=knowledge-selection scope=${ref.scope} base=${ref.baseId}`,
+      );
+      return undefined;
+    }
+    body = reread.slice(0, MAX_CONTEXT_REF_TEXT_CHARS);
+  }
+  const loc =
+    ref.relativePath != null
+      ? `${ref.relativePath}${
+          ref.lineStart != null
+            ? `:${ref.lineStart}${ref.lineEnd != null ? `-${ref.lineEnd}` : ''}`
+            : ''
+        }`
+      : ref.label;
+  return `<context_ref type="knowledge_selection" scope="${ref.scope}" base="${ref.baseId}" location="${loc}">\n${body}\n</context_ref>`;
 }
 
 async function loadReferencedMessage(
@@ -191,6 +238,11 @@ export async function resolvePromptContextRefs(
           );
         }
         break;
+      case 'knowledge-selection': {
+        const formatted = await formatKnowledgeSelectionRef(deps, ref);
+        if (formatted) blocks.push(formatted);
+        break;
+      }
       default:
         break;
     }

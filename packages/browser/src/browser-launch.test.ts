@@ -28,6 +28,7 @@ describe('browser-launch stealth configuration', () => {
   it('defines default anti-bot flags', () => {
     expect(DEFAULT_STEALTH_CHROMIUM_ARGS).toContain('--disable-blink-features=AutomationControlled');
     expect(DEFAULT_STEALTH_IGNORE_DEFAULT_ARGS).toContain('--enable-automation');
+    expect(DEFAULT_STEALTH_IGNORE_DEFAULT_ARGS).toContain('--enable-unsafe-swiftshader');
   });
 
   it('checks for system chrome without throwing', () => {
@@ -50,9 +51,9 @@ describe('browser-launch stealth configuration', () => {
     const [calledProfile, calledOptions] = launchMock.mock.calls[0] as [string, Record<string, unknown>];
     expect(calledProfile).toBe('/tmp/test-profile');
     expect(calledOptions.headless).toBe(true);
-    expect(calledOptions.ignoreDefaultArgs).toEqual(['--enable-automation']);
+    expect(calledOptions.ignoreDefaultArgs).toEqual(['--enable-automation', '--enable-unsafe-swiftshader']);
     expect(calledOptions.args).toEqual(
-      expect.arrayContaining(['--disable-blink-features=AutomationControlled']),
+      expect.arrayContaining(['--disable-blink-features=AutomationControlled', '--headless=new']),
     );
     expect(typeof calledOptions.userAgent).toBe('string');
     expect(calledOptions.userAgent as string).not.toContain('HeadlessChrome');

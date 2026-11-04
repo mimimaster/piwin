@@ -43,6 +43,7 @@ function createPage() {
       press: vi.fn().mockResolvedValue(undefined),
     },
     mouse: {
+      click: vi.fn().mockResolvedValue(undefined),
       wheel: vi.fn().mockResolvedValue(undefined),
       move: vi.fn().mockResolvedValue(undefined),
       down: vi.fn().mockResolvedValue(undefined),
@@ -95,6 +96,13 @@ describe('createBrowserOperations timeouts and actionability', () => {
     expect(page.locatorHandle.click).toHaveBeenCalledTimes(1);
     expect(page.locatorHandle.click).toHaveBeenCalledWith({ timeout: 8_000 });
     expect(page.locatorHandle.click.mock.calls[0]?.[0]).not.toMatchObject({ force: true });
+  });
+
+  it('clicks at coordinates when target format is x,y', async () => {
+    const { ops, page } = createOps();
+    await ops.click('520,474');
+    expect(page.mouse.click).toHaveBeenCalledWith(520, 474);
+    expect(page.locator).not.toHaveBeenCalled();
   });
 
   it('hovers, selects, and checks with the action timeout', async () => {

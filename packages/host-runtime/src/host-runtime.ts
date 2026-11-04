@@ -23,7 +23,7 @@ import {
   handleCommand,
   handleCommandWithTranscriptLease,
 } from './host-runtime-command-dispatch.js';
-import type { BrowserFrameBytesSink } from './host-runtime-services.js';
+import type { BrowserFrameBytesSink } from './host-browser-sessions.js';
 import {
   listForegroundRuns,
   listPendingPermissionRequests,

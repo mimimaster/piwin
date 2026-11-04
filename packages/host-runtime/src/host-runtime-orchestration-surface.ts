@@ -1,3 +1,4 @@
+import { ensureBrowserSession } from './host-browser-sessions.js';
 import type {
   HostStatusData,
   HostToolRegistration,
@@ -39,7 +40,6 @@ import {
   emitJobEvent,
   stopProcessesForSession,
   getMcpManager,
-  ensureBrowserSession,
   isRpcWorkerMode,
   ensurePetStateStore,
 } from './host-runtime-services.js';
@@ -313,8 +313,8 @@ export class HostRuntimeOrchestrationSurface extends HostRuntimeCommandSurface {
   }
 
 
-  async ensureBrowserSession(): Promise<import('@piwin/browser').BrowserSession> {
-    return ensureBrowserSession(this.asKernel());
+  async ensureBrowserSession(sessionId?: string): Promise<import('@piwin/browser').BrowserSession> {
+    return ensureBrowserSession(this.asKernel(), sessionId);
   }
 
 

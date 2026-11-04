@@ -239,6 +239,12 @@ export type TranscriptStoreOptions = {
   projectPath: string;
 };
 
+export type SessionTranscriptTailPage = {
+  messages: SessionTranscriptMessage[];
+  /** Pass as `beforeSequence` for the next older page. Absent when exhausted. */
+  nextBeforeSequence?: number;
+};
+
 export type SessionTranscriptStore = {
   /**
    * Append or replay one message. Same-generation replay with the same
@@ -306,6 +312,11 @@ export type SessionTranscriptStore = {
   readNativeEntries(messageId: string): Promise<NativeContextEntry[]>;
   /** Newest-first bounded tail window (chronological order returned). */
   listTail(limit: number, beforeSequence?: number): Promise<SessionTranscriptMessage[]>;
+  /** Same window as `listTail`, plus a cursor for the next older page. */
+  listTailPage(
+    limit: number,
+    beforeSequence?: number,
+  ): Promise<SessionTranscriptTailPage>;
   /** Revision-bound, byte-bounded transcript page for Host clients. */
   transcriptPage(query: SessionTranscriptPageQuery): Promise<SessionTranscriptPageData>;
   /** Bounded index containing only non-empty user-authored messages. */

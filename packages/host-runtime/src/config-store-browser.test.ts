@@ -23,6 +23,14 @@ describe('PiwinConfig.browser', () => {
     });
   });
 
+  it('accepts an explicit profileDir so two Hosts never share one profile', () => {
+    expect(normalizeBrowserWorkbenchConfig({ profileDir: ' /tmp/piwin-profile ' })).toEqual({
+      profileDir: '/tmp/piwin-profile',
+    });
+    expect(normalizeBrowserWorkbenchConfig({ profileDir: '   ' })).toBeUndefined();
+    expect(normalizeBrowserWorkbenchConfig({ profileDir: 42 })).toBeUndefined();
+  });
+
   it('normalizes deviceScaleFactor within range [1, 3]', () => {
     expect(normalizeBrowserWorkbenchConfig({ deviceScaleFactor: 2 })).toEqual({
       deviceScaleFactor: 2,

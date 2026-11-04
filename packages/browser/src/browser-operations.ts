@@ -11,6 +11,7 @@ import { pickElementAt } from './pick.js';
 import { dispatchBrowserInput } from './input.js';
 import { clampBrowserViewport, resolveBrowserViewport } from './viewport.js';
 import { BROWSER_CAPTURE_QUALITY, BROWSER_SCREENSHOT_QUALITY } from './screencast-size.js';
+import { trySolveCloudflareChallenge } from './cloudflare-challenge.js';
 import {
   AbortOperationError,
   BrowserSessionError,
@@ -228,12 +229,16 @@ export function createBrowserOperations(deps: BrowserOperationsDeps): BrowserOpe
         timeout: BROWSER_NAVIGATION_TIMEOUT_MS,
         waitUntil: 'domcontentloaded',
       });
+      await trySolveCloudflareChallenge(activePage, {
+        ...(options?.signal !== undefined ? { signal: options.signal } : {}),
+      });
       await emitState();
       await requestFrame();
     },
 
     snapshot: async () => {
       const activePage = await getPage();
+      await trySolveCloudflareChallenge(activePage, { timeoutMs: 3_000 });
       const yamlText = await activePage.locator('html').ariaSnapshot({ mode: 'ai', boxes: true });
       return parseAriaSnapshot(yamlText);
     },
@@ -243,6 +248,11 @@ export function createBrowserOperations(deps: BrowserOperationsDeps): BrowserOpe
       assertActor(options?.actor ?? 'agent', 'agent-write', options?.runId);
       const activePage = await getPage();
       throwIfAborted(options?.signal);
+      const pointMatch = target.match(/^(?:point:)?(\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)$/);
+      if (pointMatch && pointMatch[1] !== undefined && pointMatch[2] !== undefined) {
+        await activePage.mouse.click(Number(pointMatch[1]), Number(pointMatch[2]));
+        return;
+      }
       // Do not pass force:true — overlay intercept must stay an actionability failure.
       await activePage.locator(toLocator(target)).click({ timeout: BROWSER_ACTION_TIMEOUT_MS });
     },
@@ -475,6 +485,9 @@ export function createBrowserOperations(deps: BrowserOperationsDeps): BrowserOpe
       await activePage.goto(currentUrl, {
         timeout: BROWSER_NAVIGATION_TIMEOUT_MS,
         waitUntil: 'domcontentloaded',
+      });
+      await trySolveCloudflareChallenge(activePage, {
+        ...(options?.signal !== undefined ? { signal: options.signal } : {}),
       });
       await emitState();
       await requestFrame();

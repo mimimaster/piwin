@@ -23,6 +23,7 @@ export {
 } from './chunker.js';
 
 export { createFolderRag } from './folder-rag.js';
+export { scanFolderFiles } from './scanner.js';
 export type { CreateFolderRagOptions } from './folder-rag.js';
 export type { IngestFileResult } from './indexing/ingestion-service.js';
 export { createParserRegistry } from './parsers/registry.js';

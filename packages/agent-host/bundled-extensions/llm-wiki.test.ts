@@ -1,9 +1,10 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import llmWikiExtension, {
   extractWikilinks,
+  formatFrontmatter,
   parseFrontmatter,
   runWikiLint,
   slugify,
@@ -132,5 +133,21 @@ tags: [nlp, deep-learning]
     expect(report.totalConcepts).toBe(2);
     expect(report.brokenLinks.some((b) => b.target === 'Non-Existent-Concept')).toBe(true);
     expect(report.healthy).toBe(false);
+  });
+
+  it('keeps source metadata when wiki_write overwrites the page', async () => {
+    const wikiDir = join(tempDir, 'wiki');
+    await mkdir(join(wikiDir, 'concepts'), { recursive: true });
+    const sources = [{ baseId: 'folder:abc', relativePath: 'notes/a.md', lineStart: 1 }];
+    await writeFile(
+      join(wikiDir, 'concepts', 'kv-cache.md'),
+      `${formatFrontmatter({ title: 'KV Cache', tags: ['x'], sources })}\nOld body.\n`,
+      'utf8',
+    );
+    await writeConceptFile(wikiDir, { title: 'KV Cache', content: 'New body from agent.' });
+    const raw = await readFile(join(wikiDir, 'concepts', 'kv-cache.md'), 'utf8');
+    const { meta, body } = parseFrontmatter(raw);
+    expect(body).toContain('New body from agent');
+    expect(meta.sources).toEqual(sources);
   });
 });

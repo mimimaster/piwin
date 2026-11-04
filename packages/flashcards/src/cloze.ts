@@ -264,4 +264,5 @@ function copyAttribution(from: FlashcardAttribution, to: FlashcardAttribution): 
   if (from.sourceDocumentIds && from.sourceDocumentIds.length > 0) {
     to.sourceDocumentIds = from.sourceDocumentIds;
   }
+  if (from.wikiSlug) to.wikiSlug = from.wikiSlug;
 }

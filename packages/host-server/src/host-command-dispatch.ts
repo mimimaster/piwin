@@ -134,7 +134,7 @@ export async function dispatchHostCommand(
     });
     if (browserLeaseCommand !== undefined && safeResponse.success) {
       applyBrowserLeaseCommand(connection.browserMirrorLeases, browserLeaseCommand);
-      if (connection.browserMirrorLeases.size === 0) {
+      if (browserLeaseCommand.type === 'browser/stop' || connection.browserMirrorLeases.size === 0) {
         connection.pendingBrowserFrame = undefined;
       }
     }

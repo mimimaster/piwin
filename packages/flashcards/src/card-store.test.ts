@@ -183,6 +183,25 @@ describe('card-store', () => {
     expect(await store.list({ sourceFolder: '/docs/c' })).toHaveLength(0);
   });
 
+  it('lists one card under each of its topics without copying it', async () => {
+    const created = await store.create({
+      front: 'What is sleep debt?',
+      back: 'Hours of rest still owed.',
+      tags: ['sleep', 'health'],
+      wikiSlug: 'sleep-debt',
+      sourceHash: 'abc123',
+    });
+    const sleep = await store.list({ tag: 'sleep' });
+    const health = await store.list({ tag: 'health' });
+    expect(sleep).toHaveLength(1);
+    expect(health).toHaveLength(1);
+    expect(sleep[0]?.id).toBe(created.id);
+    expect(health[0]?.id).toBe(created.id);
+    expect(sleep[0]?.wikiSlug).toBe('sleep-debt');
+    expect(sleep[0]?.sourceHash).toBe('abc123');
+    expect(await store.list({ tag: 'missing' })).toHaveLength(0);
+  });
+
   it('batchCreate creates multiple cards and skips duplicates', async () => {
     await store.create({ front: 'existing', back: 'b', deck: 'batch' });
     const result = await store.batchCreate({

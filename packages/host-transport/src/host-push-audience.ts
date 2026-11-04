@@ -21,12 +21,6 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'extension/deployment-updated':
     case 'marketplace/inventory-updated':
     case 'pet/state':
-    case 'browser/frame':
-    case 'browser/state':
-    case 'browser/picked':
-    case 'browser/console':
-    case 'browser/network':
-    case 'browser/controller':
     case 'job/started':
     case 'job/ready':
     case 'job/updated':
@@ -43,6 +37,13 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'pty/exit':
     case 'agents/cli-ownership':
       return { kind: 'global' };
+    case 'browser/frame':
+    case 'browser/state':
+    case 'browser/picked':
+    case 'browser/console':
+    case 'browser/network':
+    case 'browser/controller':
+      return push.sessionId === undefined ? { kind: 'global' } : session(push.sessionId);
     case 'permission/request':
     case 'permission/resolved':
     case 'extension/ui_request':

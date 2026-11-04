@@ -4,6 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { releaseBrowserRun } from './host-browser-sessions.js';
 import { join } from 'node:path';
 import { totalmem } from 'node:os';
 import {
@@ -256,7 +257,7 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       onRunTerminal: (run) => {
         deps.sessionHostToolPort?.releaseRun(run.sessionId, run.runId);
         deps.healthToolRunBudget.release(run.runId);
-        void deps.browserSession?.releaseAgentControlIfHeldBy(run.runId);
+        releaseBrowserRun(deps, run.sessionId, run.runId);
         deps.push({ type: 'run/terminal', run });
         notifyForegroundSessionTurnTerminal(deps, run);
         deps.queuedTurnController.notifyRunTerminal(run);

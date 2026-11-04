@@ -135,4 +135,27 @@ describe('buildStudyCatalogPage', () => {
       expect.objectContaining({ roundId: 'round-open', status: 'active' }),
     ]);
   });
+
+  it('filters catalog tiles and due counts by topic tag', () => {
+    const items = [
+      item({ id: 'sleep', front: 'Sleep debt', tags: ['health'], deck: 'wiki' }),
+      item({ id: 'cache', front: 'KV Cache', tags: ['inference'], deck: 'wiki' }),
+    ];
+    const due = reviewCard(items[0]!, '2026-08-29T00:00:00.000Z');
+    due.card.tags = ['health'];
+    const other = reviewCard(items[1]!, '2026-08-29T00:00:00.000Z');
+    other.card.tags = ['inference'];
+    const page = buildStudyCatalogPage({
+      items,
+      scopeFilter: { kind: 'topic', topic: 'health' },
+      reviewCards: [due.card, other.card],
+      states: new Map([
+        [due.card.cardId, due.state],
+        [other.card.cardId, other.state],
+      ]),
+      now: NOW,
+    });
+    expect(page.tiles.map((tile) => tile.id)).toEqual(['sleep']);
+    expect(page.dueCount).toBe(1);
+  });
 });

@@ -7,6 +7,14 @@ import {
 } from './host-push-audience.js';
 
 describe('classifyHostPushAudience', () => {
+  it('routes conversation browser pushes by session and never coalesces different browsers', () => {
+    const first = { type: 'browser/state' as const, sessionId: 'a', url: 'https://a.example', ts: 0 };
+    const second = { ...first, sessionId: 'b' };
+    expect(classifyHostPushAudience(first)).toEqual({ kind: 'session', sessionId: 'a' });
+    expect(hostPushPassesLiveFilter(classifyHostPushAudience(first), { sessionIds: new Set(['b']) })).toBe(false);
+    expect(classifyHostPush(first)).not.toEqual(classifyHostPush(second));
+  });
+
   it('keeps Live owner actions off session filters unless the shell is unfiltered', () => {
     expect(
       classifyHostPushAudience({

@@ -57,7 +57,7 @@ import { createToolResourceGate, getSharedSystemMemoryMonitor } from './system-m
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import type { HealthReadContextArguments } from '@piwin/contracts';
 import type { ComposedSessionHostTools } from './host-runtime-types.js';
-import { ensureBrowserSessionBestEffort } from './host-runtime-services.js';
+import { ensureBrowserSessionBestEffort } from './host-browser-sessions.js';
 
 /**
  * Compose Host-owned tools for one session for the parent tool execution port.
@@ -231,7 +231,7 @@ export async function composeSessionHostToolsForSession(
   // Cold activate / generation rebuild skip createSession, which used to be
   // the only caller of ensureBrowserSession. Compose is the shared path, so
   // register the passive session here or `browser_*` never reach the model.
-  await ensureBrowserSessionBestEffort(deps);
+  const browserSession = await ensureBrowserSessionBestEffort(deps, sessionId);
   // Artifact capability must match the compiled manifest: both derive the scope
   // class from the same durable record. A subagent generation gets no Artifact
   // surface; an unreadable record leaves the capability unresolved so the
@@ -272,7 +272,7 @@ export async function composeSessionHostToolsForSession(
     ...(artifactCapability ? { artifactCapability } : {}),
     ...(model ? { model } : {}),
     ...(config ? { secretResolver: createSecretResolver({ piwinRoot: rootDir }) } : {}),
-    getBrowserSession: () => deps.browserSession ?? undefined,
+    getBrowserSession: () => browserSession,
     getNotesServices: () => deps.getNotesServices(),
     getCardStore: () => deps.getCardStore(),
     getStudyService: () => deps.getStudyService(),

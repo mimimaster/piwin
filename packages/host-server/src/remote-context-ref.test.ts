@@ -48,6 +48,32 @@ describe('isSafeRemoteContextRef', () => {
     ).toBe(false);
   });
 
+  it('accepts a knowledge selection and rejects an escaped library path', () => {
+    expect(
+      isSafeRemoteContextRef({
+        kind: 'knowledge-selection',
+        baseId: 'base-notes',
+        scope: 'selection',
+        relativePath: 'notes/sleep-debt.md',
+        lineStart: 3,
+        lineEnd: 5,
+        snapshotText: 'Replay during sleep.',
+        label: 'notes/sleep-debt.md · 3–5',
+      }),
+    ).toBe(true);
+    expect(
+      isSafeRemoteContextRef({
+        kind: 'knowledge-selection',
+        baseId: 'base-notes',
+        scope: 'selection',
+        relativePath: '../secrets/key.md',
+        lineStart: 1,
+        snapshotText: 'no',
+        label: 'escaped',
+      }),
+    ).toBe(false);
+  });
+
   it('still rejects a raw Host filesystem file ref', () => {
     expect(
       isSafeRemoteContextRef({

@@ -424,6 +424,21 @@ describe('createBrowserToolDefinitions — execute paths', () => {
     await expect(executeTool(click, {})).rejects.toThrow();
   });
 
+  it('browser_click delegates to session.click with x and y coordinates', async () => {
+    let clickedTarget: string | undefined;
+    const session = createMockSession({
+      click: async (target) => {
+        clickedTarget = target;
+      },
+    });
+    const tools = createBrowserToolDefinitions(session);
+    const click = tools.find((t) => t.descriptor.name === 'browser_click');
+    if (!click) throw new Error('browser_click missing');
+    const raw = outputOf(await executeTool(click, { x: 520, y: 474 }));
+    expect((JSON.parse(raw) as { target: string }).target).toBe('520,474');
+    expect(clickedTarget).toBe('520,474');
+  });
+
   it('browser_type delegates to session.type', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);

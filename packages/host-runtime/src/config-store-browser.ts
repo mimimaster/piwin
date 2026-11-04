@@ -12,6 +12,9 @@ export function normalizeBrowserWorkbenchConfig(value: unknown): BrowserWorkbenc
   if (typeof record.cdpEndpoint === 'string' && record.cdpEndpoint.trim() !== '') {
     config.cdpEndpoint = record.cdpEndpoint.trim();
   }
+  if (typeof record.profileDir === 'string' && record.profileDir.trim() !== '') {
+    config.profileDir = record.profileDir.trim();
+  }
   if (typeof record.channel === 'string' && record.channel.trim() !== '') {
     config.channel = record.channel.trim();
   }

@@ -69,6 +69,8 @@ export type BrowserRuntimeOptions = {
   launchPersistentContext?: BrowserLaunchPersistentContext;
   /** Explicit loopback CDP endpoint; Playwright connectOverCDP. */
   cdpEndpoint?: string;
+  /** A conversation owns only its own CDP context, never external user pages. */
+  isolatedContext?: boolean;
   /** Test seam for attach. */
   connectOverCdp?: BrowserConnectOverCdp;
   /** Owned Chromium only. Called before the 15s launch timeout. */
@@ -287,8 +289,15 @@ export function createBrowserRuntime(
       if (closed) throw new BrowserSessionClosedError('browser session is closed');
       throw new BrowserRuntimeGoneError('browser connect was superseded');
     }
-    const contexts = typeof connected.contexts === 'function' ? connected.contexts() : [];
-    const ctx = contexts[0];
+    let ctx: BrowserContext | undefined;
+    try {
+      ctx = options.isolatedContext
+        ? await connected.newContext({ viewport: options.requestedViewport })
+        : connected.contexts()[0];
+    } catch (error) {
+      await disconnectQuietly(connected);
+      throw error;
+    }
     if (ctx === undefined) {
       await disconnectQuietly(connected);
       lifecycle = 'failed';
@@ -303,6 +312,7 @@ export function createBrowserRuntime(
       // External Chrome may reject init scripts; pick is best-effort.
     }
     if (closed || epoch !== bindEpoch) {
+      if (options.isolatedContext) await ctx.close();
       await disconnectQuietly(connected);
       if (closed) throw new BrowserSessionClosedError('browser session is closed');
       throw new BrowserRuntimeGoneError('browser connect was superseded');
@@ -778,6 +788,7 @@ export function createBrowserRuntime(
       if (!closed) lifecycle = 'stopped';
 
       if (attached) {
+        if (options.isolatedContext) await activeContext?.close();
         // External Chrome is not Host-owned. disconnect() detaches Playwright
         // without Browser.close / context.close, which would kill user pages.
         await disconnectQuietly(activeBrowser);

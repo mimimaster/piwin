@@ -54,12 +54,14 @@ export type CardStore = {
     sourceNoteId?: string;
     sourceFolder?: string;
     sequenceId?: string;
+    tag?: string;
   }) => Promise<FlashcardItem[]>;
   listReviewCards: (filter?: {
     deck?: string;
     sourceNoteId?: string;
     sourceFolder?: string;
     sequenceId?: string;
+    tag?: string;
   }) => Promise<FlashcardReviewCard[]>;
   read: (itemId: string) => Promise<FlashcardItem>;
   delete: (cardId: string) => Promise<{ deleted: true; id: string }>;
@@ -134,6 +136,7 @@ export function createCardStore(options: CardStoreOptions): CardStore {
   function applyInputFields(item: FlashcardItem, input: FlashcardCreateInput): void {
     if (input.sourceNoteId) item.sourceNoteId = input.sourceNoteId;
     if (input.sourceExcerpt) item.sourceExcerpt = input.sourceExcerpt;
+    if (input.sourceHash) item.sourceHash = input.sourceHash;
     if (input.sourceFolder) item.sourceFolder = input.sourceFolder;
     if (input.sourceFile) item.sourceFile = input.sourceFile;
     if (typeof input.sourceLine === 'number') item.sourceLine = input.sourceLine;
@@ -152,6 +155,7 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     if (input.sourceDocumentIds && input.sourceDocumentIds.length > 0) {
       item.sourceDocumentIds = input.sourceDocumentIds;
     }
+    if (input.wikiSlug) item.wikiSlug = input.wikiSlug;
   }
 
   function buildItem(input: FlashcardCreateInput): FlashcardItem {
@@ -252,6 +256,7 @@ export function createCardStore(options: CardStoreOptions): CardStore {
           if (filter?.sourceNoteId && item.sourceNoteId !== filter.sourceNoteId) return false;
           if (filter?.sourceFolder && item.sourceFolder !== filter.sourceFolder) return false;
           if (filter?.sequenceId && item.sequenceId !== filter.sequenceId) return false;
+          if (filter?.tag && !(item.tags ?? []).includes(filter.tag)) return false;
           return true;
         })
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));

@@ -1,7 +1,14 @@
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { WikiConceptItem, WikiConceptDetail, WikiOverviewResult } from '@piwin/contracts';
+import type {
+  WikiConceptItem,
+  WikiConceptDetail,
+  WikiOverviewResult,
+  WikiPageKind,
+  WikiSourceRef,
+} from '@piwin/contracts';
 import { getPiwinRoot, getPiwinWikiDir } from './paths.js';
+import { hashWikiRaw, parseWikiPageKind, parseWikiSources } from './wiki-sources.js';
 
 export type { WikiConceptItem, WikiConceptDetail, WikiOverviewResult };
 
@@ -93,6 +100,14 @@ export function parseFrontmatter(raw: string): { meta: Record<string, unknown>; 
     if (colonIdx === -1) continue;
     const key = line.slice(0, colonIdx).trim();
     const val = line.slice(colonIdx + 1).trim();
+    if ((val.startsWith('[') && val.endsWith(']')) || (val.startsWith('{') && val.endsWith('}'))) {
+      try {
+        meta[key] = JSON.parse(val) as unknown;
+        continue;
+      } catch {
+        // Handwritten tag lists are unquoted: [transformer, inference].
+      }
+    }
     if (val.startsWith('[') && val.endsWith(']')) {
       meta[key] = val
         .slice(1, -1)
@@ -161,6 +176,8 @@ export async function readWikiConcept(
     const tags = Array.isArray(meta.tags) ? (meta.tags as string[]) : [];
     const aliases = Array.isArray(meta.aliases) ? (meta.aliases as string[]) : [];
     const links = extractWikilinks(body);
+    const sources = parseWikiSources(meta.sources);
+    const kind = parseWikiPageKind(meta.kind);
 
     return {
       title,
@@ -172,6 +189,9 @@ export async function readWikiConcept(
       links,
       updatedAt: s.mtime.toISOString(),
       relativePath: `concepts/${slug}.md`,
+      contentHash: hashWikiRaw(raw),
+      ...(sources.length > 0 ? { sources } : {}),
+      ...(kind ? { kind } : {}),
     };
   } catch {
     return null;
@@ -212,7 +232,7 @@ export async function getWikiOverview(piwinRoot?: string): Promise<WikiOverviewR
   };
 }
 
-function formatFrontmatter(meta: Record<string, unknown>): string {
+export function formatFrontmatter(meta: Record<string, unknown>): string {
   const lines = ['---'];
   for (const [key, value] of Object.entries(meta)) {
     if (Array.isArray(value)) {
@@ -230,7 +250,7 @@ function escapeRegex(value: string): string {
 }
 
 /** Upserts the concept's row in INDEX.md so the catalog stays in step. */
-async function updateWikiIndexRow(
+export async function updateWikiIndexRow(
   wikiDir: string,
   entry: { title: string; summary: string; tags: string[] },
 ): Promise<void> {
@@ -269,6 +289,13 @@ async function updateWikiIndexRow(
  * Writes one concept page and keeps INDEX.md / LOG.md in step — the same
  * contract the `wiki_write` agent tool honours, so both writers agree.
  */
+export class WikiPageExistsError extends Error {
+  readonly name = 'WikiPageExistsError';
+  constructor(readonly slug: string) {
+    super(`Wiki page already exists: ${slug}`);
+  }
+}
+
 export async function writeWikiConcept(
   piwinRoot: string | undefined,
   input: {
@@ -277,40 +304,79 @@ export async function writeWikiConcept(
     summary?: string;
     tags?: string[];
     logMessage?: string;
+    sources?: WikiSourceRef[];
+    kind?: WikiPageKind;
+    /** When true, refuse to replace an existing concept file. */
+    createOnly?: boolean;
   },
 ): Promise<WikiConceptDetail> {
   const wikiDir = await ensureWikiInitialized(piwinRoot);
   const slug = slugify(input.title);
+  const conceptPath = join(wikiDir, 'concepts', `${slug}.md`);
+  if (input.createOnly) {
+    try {
+      await stat(conceptPath);
+      throw new WikiPageExistsError(slug);
+    } catch (error) {
+      if (error instanceof WikiPageExistsError) throw error;
+    }
+  }
+  let preservedSources = input.sources;
+  let preservedKind = input.kind;
+  let preservedSummary = input.summary;
+  if (!input.createOnly) {
+    try {
+      const existingRaw = await readFile(conceptPath, 'utf8');
+      const existing = parseFrontmatter(existingRaw).meta;
+      if (preservedSources === undefined) preservedSources = parseWikiSources(existing.sources);
+      if (preservedKind === undefined) preservedKind = parseWikiPageKind(existing.kind);
+      if (preservedSummary === undefined && typeof existing.summary === 'string') {
+        preservedSummary = existing.summary;
+      }
+    } catch {
+      // New file — nothing to preserve.
+    }
+  }
   const tags = input.tags ?? [];
+  const sources = preservedSources ?? [];
   const meta: Record<string, unknown> = {
     title: input.title,
     updated: new Date().toISOString().slice(0, 10),
     tags,
   };
-  if (input.summary) meta.summary = input.summary;
+  if (preservedSummary) meta.summary = preservedSummary;
+  if (sources.length > 0) meta.sources = sources;
+  if (preservedKind) meta.kind = preservedKind;
 
   const body = input.content.trim();
-  await writeFile(
-    join(wikiDir, 'concepts', `${slug}.md`),
-    `${formatFrontmatter(meta)}\n${body}\n`,
-    'utf8',
-  );
-  await updateWikiIndexRow(wikiDir, { title: input.title, summary: input.summary ?? '', tags });
+  await writeFile(conceptPath, `${formatFrontmatter(meta)}\n${body}\n`, 'utf8');
+  await updateWikiIndexRow(wikiDir, {
+    title: input.title,
+    summary: preservedSummary ?? '',
+    tags,
+  });
   await appendWikiLog(
     piwinRoot,
-    'distill',
-    input.logMessage ?? `Distilled concept [[${input.title}]]`,
+    input.createOnly ? 'note' : 'distill',
+    input.logMessage ??
+      (input.createOnly
+        ? `Saved note [[${input.title}]]`
+        : `Distilled concept [[${input.title}]]`),
   );
 
+  const written = await readFile(conceptPath, 'utf8');
   return {
     title: input.title,
     slug,
     content: body,
-    ...(input.summary ? { summary: input.summary } : {}),
+    ...(preservedSummary ? { summary: preservedSummary } : {}),
     tags,
     links: extractWikilinks(body),
     updatedAt: new Date().toISOString(),
     relativePath: `concepts/${slug}.md`,
+    contentHash: hashWikiRaw(written),
+    ...(sources.length > 0 ? { sources } : {}),
+    ...(preservedKind ? { kind: preservedKind } : {}),
   };
 }
 

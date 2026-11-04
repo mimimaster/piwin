@@ -3,6 +3,7 @@ import { encodeBrowserFrameBinary } from '@piwin/host-transport';
 import { OPEN_READY_STATE } from './host-client-connection.js';
 import { HOST_SOCKET_SEND_BUDGET_BYTES } from './host-connection-lifecycle.js';
 import { toError } from './host-server-support.js';
+import { browserMirrorLeaseMatchesSession } from './browser-mirror-leases.js';
 
 /** The binary-frame slice of a client connection. */
 export type BrowserFrameConnection = {
@@ -46,7 +47,8 @@ export function deliverBrowserFrame(options: BrowserFrameDispatchOptions): void 
   }
   for (const connection of options.connections) {
     if (!connection.browserFrameBinary) continue;
-    if (connection.browserMirrorLeases.size === 0) continue;
+    if (![...connection.browserMirrorLeases].some((lease) =>
+      browserMirrorLeaseMatchesSession(lease, options.header.sessionId))) continue;
     if (connection.socket.readyState !== OPEN_READY_STATE) continue;
     // A newer frame replaces the unsent one; the client waits for the next
     // live frame after a reconnect instead of replaying stale pixels.

@@ -1,7 +1,9 @@
 import type { HostCommand } from '@piwin/contracts';
 
-/** Stand-in for the legacy unnamed lease (`browser/start` without a lease id). */
-const LEGACY_MIRROR_LEASE = 'default';
+/** Collision-safe connection-local identity, including the conversation scope. */
+export function browserMirrorLeaseKey(sessionId?: string, leaseId?: string): string {
+  return JSON.stringify([sessionId ?? null, leaseId ?? null]);
+}
 
 /**
  * How long a lease survives its connection. A reconnecting client re-asserts
@@ -13,16 +15,29 @@ export const DISCONNECTED_MIRROR_LEASE_GRACE_MS = 30_000;
 /** Track which mirror leases a connection holds after a successful start/stop. */
 export function applyBrowserLeaseCommand(held: Set<string>, command: HostCommand): void {
   if (command.type === 'browser/start') {
-    held.add(command.leaseId ?? LEGACY_MIRROR_LEASE);
+    held.add(browserMirrorLeaseKey(command.sessionId, command.leaseId));
   } else if (command.type === 'browser/stop') {
-    held.delete(command.leaseId ?? LEGACY_MIRROR_LEASE);
+    held.delete(browserMirrorLeaseKey(command.sessionId, command.leaseId));
   }
 }
 
 function browserStopOnDisconnect(lease: string): HostCommand {
-  return lease === LEGACY_MIRROR_LEASE
-    ? { type: 'browser/stop', reason: 'disconnect' }
-    : { type: 'browser/stop', leaseId: lease, reason: 'disconnect' };
+  const scope: unknown = JSON.parse(lease);
+  if (!Array.isArray(scope) || scope.length !== 2) throw new Error('Invalid browser mirror lease');
+  const sessionId: unknown = scope[0];
+  const leaseId: unknown = scope[1];
+  if ((sessionId !== null && typeof sessionId !== 'string') ||
+      (leaseId !== null && typeof leaseId !== 'string')) throw new Error('Invalid browser mirror lease scope');
+  return {
+    type: 'browser/stop', reason: 'disconnect',
+    ...(sessionId === null ? {} : { sessionId }),
+    ...(leaseId === null ? {} : { leaseId }),
+  };
+}
+
+export function browserMirrorLeaseMatchesSession(lease: string, sessionId?: string): boolean {
+  const command = browserStopOnDisconnect(lease);
+  return command.type === 'browser/stop' && command.sessionId === sessionId;
 }
 
 export type DisconnectedMirrorLeaseReaper = {

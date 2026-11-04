@@ -65,8 +65,13 @@ export async function handleBrowserCommand(
     return null;
   }
 
+  const sessionId = 'sessionId' in command ? command.sessionId : undefined;
+  if (sessionId !== undefined &&
+      (typeof sessionId !== 'string' || sessionId.trim() === '' || sessionId.length > 1024)) {
+    return fail(requestId, command.type, 'Invalid browser session id');
+  }
   const session =
-    context.getBrowserSession?.() ?? (await context.ensureBrowserSession?.());
+    context.getBrowserSession?.(sessionId) ?? (await context.ensureBrowserSession?.(sessionId));
   if (!session) {
     return fail(
       requestId,
@@ -112,7 +117,7 @@ export async function handleBrowserCommand(
         const result = await session.pickElementAt(command.x, command.y, {
           ...(command.target === undefined ? {} : { target: command.target }),
         });
-        context.push({ type: 'browser/picked', result });
+        context.push({ type: 'browser/picked', result, ...(sessionId === undefined ? {} : { sessionId }) });
         return ok(requestId, 'browser/pick-at', { result });
       } catch (error) {
         return failFromBrowserError(requestId, command.type, error);

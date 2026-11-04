@@ -111,6 +111,10 @@ export type BrowserSessionOptions = {
   userAgent?: string;
   /** Persistent profile dir; default `~/.piwin/browser-profile`. */
   profileDir?: string;
+  /** Conversation-owned pages survive mirror detach until the Host disposes them. */
+  keepAlive?: boolean;
+  /** Attach an isolated context rather than the external browser's shared pages. */
+  isolatedContext?: boolean;
   /** When true (default false), capture console logs and network requests as HostPush events. */
   captureConsoleAndNetwork?: boolean;
   /** Explicit loopback CDP endpoint for Playwright connectOverCDP. */
@@ -316,6 +320,7 @@ export type { BrowserDialogInfo, BrowserTabInfo } from './browser-pages.js';
 const MAX_INPUT_EVENTS = 64;
 
 export function createBrowserSession(options: BrowserSessionOptions = {}): BrowserSession {
+  const keepAlive = options.keepAlive === true;
   const maxDimension = options.maxDimension ?? 1280;
   const requestedViewport = options.viewport ?? { width: 1280, height: 800 };
   const deviceScaleFactor =
@@ -358,6 +363,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       maxDimension,
       deviceScaleFactor,
       captureConsoleAndNetwork,
+      ...(options.isolatedContext === undefined ? {} : { isolatedContext: options.isolatedContext }),
       ...(options.args !== undefined ? { args: options.args } : {}),
       ...(options.channel !== undefined ? { channel: options.channel } : {}),
       ...(options.executablePath !== undefined ? { executablePath: options.executablePath } : {}),
@@ -676,7 +682,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         // Mirror lease ≠ agent claim. Keep Chromium while a run still owns
         // the lock so closing the panel cannot kill an in-flight navigate.
         // Tool-only idle reap (60s) is deferred to PR14.
-        if (next.owner === 'agent' || next.agentWantsLock) {
+        if (keepAlive || next.owner === 'agent' || next.agentWantsLock) {
           await emitState();
           return;
         }

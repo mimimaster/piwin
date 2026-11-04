@@ -86,9 +86,9 @@ export type HostCommandContext = {
   /** Single Host Job authority (process/* IPC adapts through this). */
   getJobController: () => import('@piwin/contracts').JobController;
   /** Browser session owned by HostRuntime; undefined when not started (ADR 0020). */
-  getBrowserSession?: () => BrowserSession | undefined;
+  getBrowserSession?: (sessionId?: string) => BrowserSession | undefined;
   /** Create the passive BrowserSession so panel start works before the first Pi session. */
-  ensureBrowserSession?: () => Promise<BrowserSession>;
+  ensureBrowserSession?: (sessionId?: string) => Promise<BrowserSession>;
   todoStore: SessionTodoStore;
   petStateStore: import('../pet-state-store.js').PetStateStore;
   /** Stored health summaries and digest (ADR 0062 M2). */

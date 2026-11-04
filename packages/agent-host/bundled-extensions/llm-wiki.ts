@@ -96,6 +96,14 @@ export function parseFrontmatter(raw: string): { meta: Record<string, unknown>; 
     if (colonIdx === -1) continue;
     const key = line.slice(0, colonIdx).trim();
     const val = line.slice(colonIdx + 1).trim();
+    if ((val.startsWith('[') && val.endsWith(']')) || (val.startsWith('{') && val.endsWith('}'))) {
+      try {
+        meta[key] = JSON.parse(val) as unknown;
+        continue;
+      } catch {
+        // Handwritten tag lists are unquoted: [transformer, inference].
+      }
+    }
     if (val.startsWith('[') && val.endsWith(']')) {
       meta[key] = val
         .slice(1, -1)
@@ -185,10 +193,18 @@ export async function writeConceptFile(
   const slug = slugify(options.title);
   const filePath = join(wikiDir, 'concepts', `${slug}.md`);
 
+  let existingMeta: Record<string, unknown> = {};
+  try {
+    existingMeta = parseFrontmatter(await readFile(filePath, 'utf-8')).meta;
+  } catch {
+    // New page — no provenance to keep.
+  }
+
   const meta: Record<string, unknown> = {
+    ...existingMeta,
     title: options.title,
     updated: new Date().toISOString().split('T')[0],
-    tags: options.tags ?? [],
+    tags: options.tags ?? (Array.isArray(existingMeta.tags) ? existingMeta.tags : []),
   };
   if (options.aliases && options.aliases.length > 0) {
     meta.aliases = options.aliases;

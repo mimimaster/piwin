@@ -579,6 +579,21 @@ describe('session operations', () => {
     expect(context.close).toHaveBeenCalledTimes(1);
   });
 
+  it('retains conversation-owned pages while switching mirrors, then closes them on disposal', async () => {
+    const { context } = installWorkingBrowser();
+    const session = createBrowserSession({ keepAlive: true });
+    await session.start('first-visit');
+    const before = session.currentTarget();
+    await session.stop('first-visit');
+    expect(session.mirrorLeaseCount()).toBe(0);
+    expect(context.close).not.toHaveBeenCalled();
+    await session.start('return-visit');
+    expect(launchMock).toHaveBeenCalledTimes(1);
+    expect(session.currentTarget()).toEqual(before);
+    await session.close();
+    expect(context.close).toHaveBeenCalledOnce();
+  });
+
   it('does not resurrect a released one-shot lease when start arrives late', async () => {
     installWorkingBrowser();
     const session = createBrowserSession();

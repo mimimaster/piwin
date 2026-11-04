@@ -1,4 +1,4 @@
-import type { PromptContextRef } from '@piwin/contracts';
+import { isUsableKnowledgeContextRef, type PromptContextRef } from '@piwin/contracts';
 import { isRemoteProjectId } from '@piwin/host-runtime';
 
 const MAX_SNAPSHOT_CHARS = 64 * 1024;
@@ -73,6 +73,8 @@ export function isSafeRemoteContextRef(ref: PromptContextRef): boolean {
       );
     case 'connected-source':
       return ref.source === 'apple-health' && ref.label === 'Apple Health';
+    case 'knowledge-selection':
+      return isUsableKnowledgeContextRef(ref);
     default:
       return false;
   }

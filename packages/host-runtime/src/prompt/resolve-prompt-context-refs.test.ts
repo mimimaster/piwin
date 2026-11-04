@@ -259,4 +259,121 @@ describe('resolvePromptContextRefs', () => {
     expect(text).toContain('<context_ref type="main_message" label="Old">');
     expect(text).toContain('old body');
   });
+
+  it('formats a knowledge selection without Host folder paths', async () => {
+    const diagnostics: string[] = [];
+    const text = await resolvePromptContextRefs(
+      { ...emptyDeps(), onDiagnostic: (message) => diagnostics.push(message) },
+      [
+        {
+          kind: 'knowledge-selection',
+          baseId: 'base-notes',
+          scope: 'selection',
+          relativePath: 'notes/sleep-debt.md',
+          lineStart: 3,
+          lineEnd: 5,
+          snapshotText: 'Replay during sleep moves the trace.',
+          label: 'notes/sleep-debt.md · 3–5',
+        },
+      ],
+    );
+    expect(text).toContain(
+      '<context_ref type="knowledge_selection" scope="selection" base="base-notes" location="notes/sleep-debt.md:3-5">',
+    );
+    expect(text).toContain('Replay during sleep moves the trace.');
+    expect(text).not.toMatch(/\/Users\/|C:\\|folderPath/);
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('rejects an escaped knowledge path and does not leak it', async () => {
+    const diagnostics: string[] = [];
+    const text = await resolvePromptContextRefs(
+      { ...emptyDeps(), onDiagnostic: (message) => diagnostics.push(message) },
+      [
+        {
+          kind: 'knowledge-selection',
+          baseId: 'base-notes',
+          scope: 'selection',
+          relativePath: '../secrets/key.md',
+          lineStart: 1,
+          snapshotText: 'should not appear',
+          label: 'escaped',
+        },
+      ],
+    );
+    expect(text).toBe('');
+    expect(text).not.toContain('should not appear');
+    expect(diagnostics.join('\n')).toContain('kind=knowledge-selection');
+    expect(diagnostics.join('\n')).toContain('base=base-notes');
+    expect(diagnostics.join('\n')).not.toContain('..');
+    expect(diagnostics.join('\n')).not.toContain('/Users');
+  });
+
+  it('rejects an inverted knowledge line range', async () => {
+    const diagnostics: string[] = [];
+    const text = await resolvePromptContextRefs(
+      { ...emptyDeps(), onDiagnostic: (message) => diagnostics.push(message) },
+      [
+        {
+          kind: 'knowledge-selection',
+          baseId: 'base-notes',
+          scope: 'page',
+          relativePath: 'notes/aging.md',
+          lineStart: 9,
+          lineEnd: 2,
+          snapshotText: 'inverted',
+          label: 'notes/aging.md',
+        },
+      ],
+    );
+    expect(text).toBe('');
+    expect(diagnostics.join('\n')).toContain('rejected');
+  });
+
+  it('uses a Host re-read over the client snapshot when one is provided', async () => {
+    const text = await resolvePromptContextRefs(
+      {
+        ...emptyDeps(),
+        readKnowledgeSelection: async () => 'from disk, not the snapshot',
+      },
+      [
+        {
+          kind: 'knowledge-selection',
+          baseId: 'base-notes',
+          scope: 'selection',
+          relativePath: 'notes/aging.md',
+          lineStart: 1,
+          snapshotText: 'stale client snapshot',
+          label: 'notes/aging.md · 1',
+        },
+      ],
+    );
+    expect(text).toContain('from disk, not the snapshot');
+    expect(text).not.toContain('stale client snapshot');
+  });
+
+  it('rejects a knowledge selection whose re-read fails', async () => {
+    const diagnostics: string[] = [];
+    const text = await resolvePromptContextRefs(
+      {
+        ...emptyDeps(),
+        onDiagnostic: (message) => diagnostics.push(message),
+        readKnowledgeSelection: async () => undefined,
+      },
+      [
+        {
+          kind: 'knowledge-selection',
+          baseId: 'base-notes',
+          scope: 'selection',
+          relativePath: 'notes/gone.md',
+          lineStart: 1,
+          snapshotText: 'gone from disk',
+          label: 'notes/gone.md · 1',
+        },
+      ],
+    );
+    expect(text).toBe('');
+    expect(diagnostics.join('\n')).toContain('missing');
+    expect(diagnostics.join('\n')).not.toContain('gone.md');
+  });
 });

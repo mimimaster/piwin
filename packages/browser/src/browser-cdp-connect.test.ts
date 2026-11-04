@@ -34,7 +34,7 @@ function createFakePage() {
 }
 
 describe('connectOverCDP ownership', () => {
-  it('selects a target page, routes writes there, and disconnects without close()', async () => {
+  it.each([false, true])('routes through the correct CDP context (isolated: %s)', async (isolatedContext) => {
     const profileDir = await mkdtemp(join(tmpdir(), 'piwin-cdp-connect-'));
     const page = createFakePage();
     const contextHandlers = new Map<string, Handler[]>();
@@ -51,7 +51,8 @@ describe('connectOverCDP ownership', () => {
       browser: vi.fn(),
     };
     const browser = {
-      contexts: vi.fn(() => [context]),
+      contexts: vi.fn(() => isolatedContext ? [] : [context]),
+      newContext: vi.fn(async () => context),
       close: vi.fn().mockResolvedValue(undefined),
       disconnect: vi.fn(),
       isConnected: vi.fn(() => true),
@@ -62,6 +63,7 @@ describe('connectOverCDP ownership', () => {
 
     const session = createBrowserSession({
       profileDir,
+      isolatedContext,
       cdpEndpoint: 'http://127.0.0.1:9222',
       connectOverCdp: async () => browser as unknown as Browser,
     });
@@ -82,6 +84,7 @@ describe('connectOverCDP ownership', () => {
     await session.close();
     expect(browser.disconnect).toHaveBeenCalled();
     expect(browser.close).not.toHaveBeenCalled();
-    expect(context.close).not.toHaveBeenCalled();
+    expect(context.close).toHaveBeenCalledTimes(isolatedContext ? 1 : 0);
+    expect(browser.newContext).toHaveBeenCalledTimes(isolatedContext ? 1 : 0);
   });
 });

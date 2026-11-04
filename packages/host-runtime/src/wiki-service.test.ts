@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -9,7 +9,10 @@ import {
   listWikiConcepts,
   readWikiConcept,
   readWikiIndex,
+  WikiPageExistsError,
+  writeWikiConcept,
 } from './wiki-service.js';
+import { updateWikiConcept, WikiRevisionConflictError } from './wiki-mutate.js';
 
 describe('wiki-service', () => {
   it('initializes wiki directory structure with INDEX.md and LOG.md', async () => {
@@ -52,6 +55,113 @@ Optimizes [[Self-Attention]] inference.`;
       expect(overview.totalConcepts).toBe(1);
       expect(overview.concepts).toHaveLength(1);
       expect(overview.logSnippet).toContain('created test concept');
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('round-trips source metadata and refuses to overwrite an existing page', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'piwin-wiki-note-'));
+    try {
+      const sources = [
+        {
+          baseId: 'folder:abc',
+          relativePath: 'notes/sleep-debt.md',
+          lineStart: 3,
+          lineEnd: 8,
+          snapshotText: 'Sleep debt compounds.',
+        },
+      ];
+      const created = await writeWikiConcept(tempDir, {
+        title: 'Sleep debt',
+        content: 'Debt is the hours you owe sleep.',
+        summary: 'From the reading assistant',
+        tags: ['sleep'],
+        sources,
+        createOnly: true,
+      });
+      expect(created.slug).toBe('sleep-debt');
+      expect(created.sources).toEqual(sources);
+
+      const read = await readWikiConcept(tempDir, 'sleep-debt');
+      expect(read?.sources).toEqual(sources);
+      expect(read?.content).toContain('hours you owe sleep');
+
+      await expect(
+        writeWikiConcept(tempDir, {
+          title: 'Sleep debt',
+          content: 'This must not replace the page.',
+          createOnly: true,
+        }),
+      ).rejects.toBeInstanceOf(WikiPageExistsError);
+
+      const after = await readWikiConcept(tempDir, 'sleep-debt');
+      expect(after?.content).toContain('hours you owe sleep');
+      expect(after?.content).not.toContain('must not replace');
+      expect(after?.sources).toEqual(sources);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('conflicts on a stale hash and reconciles after an external edit', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'piwin-wiki-cas-'));
+    try {
+      const sources = [{ baseId: 'folder:abc', relativePath: 'notes/sleep-debt.md', lineStart: 3 }];
+      const created = await writeWikiConcept(tempDir, {
+        title: 'Sleep debt',
+        content: 'Original body.',
+        sources,
+        kind: 'note',
+        createOnly: true,
+      });
+      expect(created.contentHash).toEqual(expect.any(String));
+      expect(created.kind).toBe('note');
+
+      await expect(
+        updateWikiConcept(tempDir, {
+          slug: 'sleep-debt',
+          expectedContentHash: 'deadbeef',
+          content: 'Lost write.',
+        }),
+      ).rejects.toBeInstanceOf(WikiRevisionConflictError);
+      expect((await readWikiConcept(tempDir, 'sleep-debt'))?.content).toContain('Original body.');
+
+      const overwritten = await writeWikiConcept(tempDir, {
+        title: 'Sleep debt',
+        content: 'Agent rewrite without sources.',
+      });
+      expect(overwritten.sources).toEqual(sources);
+      expect(overwritten.kind).toBe('note');
+      expect(overwritten.content).toContain('Agent rewrite');
+
+      const wikiDir = await ensureWikiInitialized(tempDir);
+      const path = join(wikiDir, 'concepts', 'sleep-debt.md');
+      const onDisk = await readFile(path, 'utf8');
+      const externally = onDisk.replace('Agent rewrite without sources.', 'Edited in another app.');
+      await writeFile(path, externally, 'utf8');
+
+      const reconciled = await readWikiConcept(tempDir, 'sleep-debt');
+      expect(reconciled?.content).toContain('Edited in another app.');
+      expect(reconciled?.sources).toEqual(sources);
+      expect(reconciled?.contentHash).not.toBe(overwritten.contentHash);
+
+      await expect(
+        updateWikiConcept(tempDir, {
+          slug: 'sleep-debt',
+          expectedContentHash: overwritten.contentHash ?? '',
+          content: 'Should fail.',
+        }),
+      ).rejects.toBeInstanceOf(WikiRevisionConflictError);
+
+      const saved = await updateWikiConcept(tempDir, {
+        slug: 'sleep-debt',
+        expectedContentHash: reconciled?.contentHash ?? '',
+        content: 'Resolved after reload.',
+      });
+      expect(saved.content).toBe('Resolved after reload.');
+      expect(saved.sources).toEqual(sources);
+      expect(saved.contentHash).not.toBe(reconciled?.contentHash);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

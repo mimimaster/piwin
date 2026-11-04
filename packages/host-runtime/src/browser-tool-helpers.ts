@@ -86,8 +86,12 @@ export function prepareBrowserTargetArgs(
   const selector = rawArguments.selector;
   const hasRef = typeof ref === 'string' && ref.trim().length > 0;
   const hasSelector = typeof selector === 'string' && selector.trim().length > 0;
-  if (!hasRef && !hasSelector) {
-    return invalidPreparation('browser tool requires a ref or selector argument');
+  const hasCoordinates =
+    typeof rawArguments.x === 'number' && typeof rawArguments.y === 'number';
+  if (!hasRef && !hasSelector && !hasCoordinates) {
+    return invalidPreparation(
+      'browser tool requires a ref, selector, or (x, y) coordinates argument',
+    );
   }
   return { ok: true, arguments: rawArguments };
 }

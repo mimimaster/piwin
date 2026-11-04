@@ -169,12 +169,14 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_click',
       description:
-        'Click a page element targeting a snapshot ref (e.g. "e5") or CSS selector.',
+        'Click a page element targeting a snapshot ref (e.g. "e5"), CSS selector, or viewport coordinates (x, y).',
       parameters: {
         type: 'object',
         properties: {
           ref: { type: 'string', description: 'Element ref from browser_snapshot (e.g. e5)' },
           selector: { type: 'string', description: 'CSS selector (used when ref is omitted)' },
+          x: { type: 'number', description: 'Horizontal coordinate in CSS pixels' },
+          y: { type: 'number', description: 'Vertical coordinate in CSS pixels (required if x is provided)' },
         },
       },
     },
@@ -731,11 +733,12 @@ function resolveScrollAmount(value: unknown): number | undefined {
   return rounded;
 }
 
-/** Resolve a ref-or-selector target from tool args. Refs take precedence. */
+/** Resolve a ref-or-selector or coordinate target from tool args. */
 function resolveTarget(args: Record<string, unknown>): string {
   if (typeof args.ref === 'string' && args.ref !== '') return args.ref;
   if (typeof args.selector === 'string' && args.selector !== '') return args.selector;
-  throw new Error('browser tool requires a ref or selector argument');
+  if (typeof args.x === 'number' && typeof args.y === 'number') return `${args.x},${args.y}`;
+  throw new Error('browser tool requires a ref, selector, or (x, y) coordinates argument');
 }
 
 function prepareBrowserReloadArgs(

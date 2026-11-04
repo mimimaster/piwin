@@ -136,10 +136,11 @@ export async function buildStartEntries(
     const items = await resolveSequenceItems(coordinator, cards, scope);
     return buildSequenceEntries(items, computeItemContentVersion);
   }
-  if (scope.kind !== 'all' && scope.kind !== 'deck') {
-    throw new StudyStorageError('scheduled start requires all or deck scope');
+  if (scope.kind !== 'all' && scope.kind !== 'deck' && scope.kind !== 'topic') {
+    throw new StudyStorageError('scheduled start requires all, deck, or topic scope');
   }
-  const filter = scope.kind === 'deck' ? { deck: scope.deck } : undefined;
+  const filter =
+    scope.kind === 'deck' ? { deck: scope.deck } : scope.kind === 'topic' ? { tag: scope.topic } : undefined;
   const reviewCards = await cards.listReviewCards(filter);
   const states = new Map<string, ReviewState>();
   for (const card of reviewCards) {

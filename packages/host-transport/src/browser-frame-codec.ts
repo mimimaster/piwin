@@ -66,6 +66,8 @@ function isFinitePositive(value: unknown): value is number {
 function parseHeader(value: unknown): BrowserFrameBinaryHeader | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const record = value as Record<string, unknown>;
+  const sessionId = record.sessionId;
+  if (sessionId !== undefined && (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 1024)) return undefined;
   const frameId = record.frameId;
   const generation = record.generation;
   const pageId = record.pageId;
@@ -88,6 +90,7 @@ function parseHeader(value: unknown): BrowserFrameBinaryHeader | undefined {
   if (typeof version !== 'number') return undefined;
   return {
     version,
+    ...(sessionId === undefined ? {} : { sessionId }),
     frameId,
     generation: generation as number,
     pageId,

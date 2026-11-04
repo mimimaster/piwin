@@ -64,6 +64,11 @@ export function isSafeRemoteSessionListScopeRef(scopeRef: unknown): boolean {
 }
 
 export function isSafeRemoteCommand(command: HostCommand): boolean {
+  if (command.type.startsWith('browser/') && 'sessionId' in command &&
+      command.sessionId !== undefined &&
+      (typeof command.sessionId !== 'string' || command.sessionId.trim() === '' || command.sessionId.length > 1024)) {
+    return false;
+  }
   // Phone-access listen/pairing is local sidecar IPC, not a Host command.
   if (command.type.startsWith('mobile-access/')) {
     return false;
@@ -169,6 +174,8 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
     case 'session/runtime-status':
     case 'session/context-get':
       return isSafeRemoteId(command.sessionId);
+    case 'session/resources':
+      return typeof command.sessionId === 'string' && isSafeRemoteId(command.sessionId);
     case 'agents/workflow-report':
       return isSafeRemoteId(command.sessionId) && typeof command.workflowId === 'string' && /^wf_[a-zA-Z0-9_-]{1,128}$/.test(command.workflowId);
     case 'session/reload-runtime':

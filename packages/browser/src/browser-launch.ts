@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { BrowserContext } from 'playwright-core';
@@ -34,14 +34,49 @@ export type BrowserChromiumLaunchInput = {
   launchPersistentContext: BrowserLaunchPersistentContext;
 };
 
-export function defaultDesktopUserAgent(platform: NodeJS.Platform = process.platform): string {
+/**
+ * Resolves the installed Chrome / Chromium major version by inspecting the
+ * application bundle (macOS Info.plist) or target executable path.
+ */
+export function resolveChromeVersion(options?: {
+  executablePath?: string;
+  channel?: string;
+}): string | undefined {
+  if (process.platform === 'darwin') {
+    const candidates = [
+      options?.executablePath ? join(options.executablePath, '../../Info.plist') : '',
+      '/Applications/Google Chrome.app/Contents/Info.plist',
+      join(homedir(), 'Applications/Google Chrome.app/Contents/Info.plist'),
+    ].filter(Boolean);
+    for (const plistPath of candidates) {
+      if (existsSync(plistPath)) {
+        try {
+          const content = readFileSync(plistPath, 'utf8');
+          const match = content.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/);
+          if (match?.[1]) {
+            return match[1];
+          }
+        } catch {
+          // ignore read failure
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+export function defaultDesktopUserAgent(
+  platform: NodeJS.Platform = process.platform,
+  version?: string,
+): string {
+  const major = version !== undefined && version.trim() !== '' ? version.split('.')[0] : '156';
   if (platform === 'darwin') {
-    return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+    return `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
   }
   if (platform === 'win32') {
-    return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+    return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
   }
-  return 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+  return `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
 }
 
 export const DEFAULT_STEALTH_CHROMIUM_ARGS = [
@@ -50,6 +85,7 @@ export const DEFAULT_STEALTH_CHROMIUM_ARGS = [
 
 export const DEFAULT_STEALTH_IGNORE_DEFAULT_ARGS = [
   '--enable-automation',
+  '--enable-unsafe-swiftshader',
 ] as const;
 
 export function hasSystemChrome(): boolean {
@@ -143,11 +179,19 @@ export async function launchChromiumContext(
       args.push(flag);
     }
   }
+  const isHeadless = input.headless !== false;
+  if (isHeadless && !args.some((arg) => arg.startsWith('--headless'))) {
+    args.push('--headless=new');
+  }
   const ignoreDefaultArgs =
     input.ignoreDefaultArgs !== undefined
       ? input.ignoreDefaultArgs
       : [...DEFAULT_STEALTH_IGNORE_DEFAULT_ARGS];
-  const userAgent = input.userAgent ?? defaultDesktopUserAgent();
+  const detectedVersion = resolveChromeVersion({
+    ...(input.executablePath !== undefined ? { executablePath: input.executablePath } : {}),
+    ...(input.channel !== undefined ? { channel: input.channel } : {}),
+  });
+  const userAgent = input.userAgent ?? defaultDesktopUserAgent(process.platform, detectedVersion);
   try {
     return await input.launchPersistentContext(input.profileDir, {
       headless: input.headless,

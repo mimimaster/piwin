@@ -22,10 +22,25 @@ import {
   touchKnowledgeBases,
   type KnowledgeBaseRuntime,
 } from '../knowledge-base-service.js';
-import { searchKnowledgeBases } from '../knowledge-retriever.js';
-import { KnowledgePathEscapeError, readConfinedLineWindow } from '../knowledge-tools.js';
-import { getWikiOverview, readWikiConcept } from '../wiki-service.js';
-import { distillWikiConcept, WikiDistillError } from '../wiki-distill.js';
+import { searchKnowledgeBases } from '../knowledge-retriever.js';import { KnowledgePathEscapeError, readConfinedLineWindow } from '../knowledge-tools.js';
+import {
+  getWikiOverview,
+  listWikiConcepts,
+  readWikiConcept,
+  WikiPageExistsError,
+  writeWikiConcept,
+} from '../wiki-service.js';
+import {
+  updateWikiConcept,
+  WikiPageNotFoundError,
+  WikiRevisionConflictError,
+} from '../wiki-mutate.js';
+import { listKnowledgeCollections } from '../knowledge-collections.js';
+import {
+  KnowledgeDocumentError,
+  listKnowledgeDocuments,
+  readKnowledgeDocument,
+} from '../knowledge-documents.js';import { distillWikiConcept, distillWikiConceptDraft, WikiDistillError } from '../wiki-distill.js';
 import { testKnowledgeConnection } from '../knowledge-connection-test.js';
 import { resolveKnowledgeHttpApiKey } from '../notes-embedding-secret.js';
 import { createSecretResolver, type SecretResolver } from '../secret-resolver.js';
@@ -42,6 +57,12 @@ const TYPES = new Set<HostCommand['type']>([
   'knowledge/wiki/overview',
   'knowledge/wiki/concept',
   'knowledge/wiki/distill',
+  'knowledge/wiki/distill-draft',
+  'knowledge/wiki/write',
+  'knowledge/wiki/update',
+  'knowledge/collections/list',
+  'knowledge/documents/list',
+  'knowledge/document/read',
   'knowledge/test-connection',
   'knowledge/embedding-models/discover',
 ]);
@@ -91,6 +112,40 @@ export async function handleKnowledgeBaseCommand(
       case 'knowledge/bases/list': {
         const bases = await listKnowledgeBaseSummaries(runtime);
         return ok(requestId, command.type, { bases });
+      }
+      case 'knowledge/collections/list': {
+        const collections = await listKnowledgeCollections(runtime.piwinRoot);
+        return ok(requestId, command.type, { collections });
+      }
+      case 'knowledge/documents/list': {
+        const result = await listKnowledgeDocuments(
+          {
+            bases: await listKnowledgeBaseSummaries(runtime),
+            getFolderRag: runtime.getFolderRag,
+          },
+          {
+            baseId: command.baseId,
+            ...(command.cursor !== undefined ? { cursor: command.cursor } : {}),
+            ...(command.limit !== undefined ? { limit: command.limit } : {}),
+            ...(command.query !== undefined ? { query: command.query } : {}),
+          },
+        );
+        return ok(requestId, command.type, result);
+      }
+      case 'knowledge/document/read': {
+        const result = await readKnowledgeDocument(
+          {
+            bases: await listKnowledgeBaseSummaries(runtime),
+            getFolderRag: runtime.getFolderRag,
+          },
+          {
+            baseId: command.baseId,
+            relativePath: command.relativePath,
+            ...(command.startLine !== undefined ? { startLine: command.startLine } : {}),
+            ...(command.maxLines !== undefined ? { maxLines: command.maxLines } : {}),
+          },
+        );
+        return ok(requestId, command.type, result);
       }
       case 'knowledge/bases/add': {
         const base = await addFolderKnowledgeBase(runtime, command.folderPath, command.name);
@@ -150,6 +205,62 @@ export async function handleKnowledgeBaseCommand(
         }
         return ok(requestId, command.type, { concept });
       }
+      case 'knowledge/wiki/write': {
+        const title = command.input.title.trim();
+        const content = command.input.content.trim();
+        if (!title || !content) {
+          return fail(requestId, command.type, 'Wiki note needs a title and body');
+        }
+        try {
+          const concept = await writeWikiConcept(runtime.piwinRoot, {
+            title,
+            content,
+            createOnly: true,
+            ...(command.input.summary?.trim()
+              ? { summary: command.input.summary.trim() }
+              : {}),
+            ...(command.input.tags && command.input.tags.length > 0
+              ? { tags: [...command.input.tags] }
+              : {}),
+            ...(command.input.sources && command.input.sources.length > 0
+              ? { sources: [...command.input.sources] }
+              : {}),
+            ...(command.input.logMessage?.trim()
+              ? { logMessage: command.input.logMessage.trim() }
+              : {}),
+            ...(command.input.kind ? { kind: command.input.kind } : {}),
+          });
+          return ok(requestId, command.type, { concept });
+        } catch (error) {
+          if (error instanceof WikiPageExistsError) {
+            return fail(requestId, command.type, error.message, {
+              code: 'wiki-page-exists',
+              data: { slug: error.slug },
+            });
+          }
+          throw error;
+        }
+      }
+      case 'knowledge/wiki/update': {
+        if (!command.input.slug.trim() || !command.input.expectedContentHash.trim()) {
+          return fail(requestId, command.type, 'Wiki update needs slug and expectedContentHash');
+        }
+        try {
+          const concept = await updateWikiConcept(runtime.piwinRoot, command.input);
+          return ok(requestId, command.type, { concept });
+        } catch (error) {
+          if (error instanceof WikiRevisionConflictError) {
+            return fail(requestId, command.type, error.message, {
+              code: 'wiki-revision-conflict',
+              data: { slug: error.slug, actualContentHash: error.actualContentHash },
+            });
+          }
+          if (error instanceof WikiPageNotFoundError) {
+            return fail(requestId, command.type, error.message);
+          }
+          throw error;
+        }
+      }
       case 'knowledge/wiki/distill': {
         if (!context.completeJson) {
           return fail(
@@ -187,6 +298,44 @@ export async function handleKnowledgeBaseCommand(
         await publishKnowledgeBasesChanged(context);
         return ok(requestId, command.type, result);
       }
+      case 'knowledge/wiki/distill-draft': {
+        if (!context.completeJson) {
+          return fail(
+            requestId,
+            command.type,
+            'No model is configured for distillation. Set one in Settings → Models.',
+          );
+        }
+        const bases = await listKnowledgeBaseSummaries(runtime);
+        const base = bases.find((entry) => entry.id === command.baseId);
+        if (!base) {
+          return fail(requestId, command.type, `Unknown knowledge base: ${command.baseId}`);
+        }
+        if (!base.folderPath) {
+          return fail(requestId, command.type, `${base.name} has no indexed folder to distil.`);
+        }
+        const relativePaths = command.relativePaths?.map((path) => path.trim()).filter(Boolean);
+        if (relativePaths && relativePaths.length === 0) {
+          return fail(requestId, command.type, 'relativePaths must be omitted or non-empty');
+        }
+        const rag = await runtime.getFolderRag();
+        const pack = await rag.retrievePack(base.folderPath, command.topic?.trim() || base.name, {
+          limit: 12,
+          ...(relativePaths ? { fileAllowlist: relativePaths } : {}),
+        });
+        const draft = await distillWikiConceptDraft({
+          piwinRoot: runtime.piwinRoot,
+          base,
+          sources: pack.sources.map((source) => ({
+            relativePath: source.relativePath,
+            text: source.text,
+          })),
+          concepts: await listWikiConcepts(runtime.piwinRoot),
+          ...(command.topic ? { topic: command.topic } : {}),
+          completeJson: context.completeJson,
+        });
+        return ok(requestId, command.type, { draft });
+      }
       case 'knowledge/test-connection': {
         return await testKnowledgeConnectionCommand(command, requestId, context);
       }
@@ -200,6 +349,7 @@ export async function handleKnowledgeBaseCommand(
     if (
       error instanceof KnowledgeBaseCommandError ||
       error instanceof KnowledgePathEscapeError ||
+      error instanceof KnowledgeDocumentError ||
       error instanceof WikiDistillError
     ) {
       return fail(requestId, command.type, error.message);

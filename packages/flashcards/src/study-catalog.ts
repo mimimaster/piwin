@@ -76,6 +76,9 @@ function filterItemsByScope(
   if (scope.kind === 'sequence') {
     return items.filter((item) => item.sequenceId === scope.sequenceId);
   }
+  if (scope.kind === 'topic') {
+    return items.filter((item) => (item.tags ?? []).includes(scope.topic));
+  }
   const selected = new Set(scope.itemIds);
   return items.filter((item) => selected.has(item.id));
 }
@@ -110,6 +113,7 @@ function countDueAndNew(
   let newCount = 0;
   for (const card of cards) {
     if (scope?.kind === 'deck' && card.deck !== scope.deck) continue;
+    if (scope?.kind === 'topic' && !(card.tags ?? []).includes(scope.topic)) continue;
     const state = states.get(card.cardId);
     if (!state) continue;
     if (isNewState(state)) newCount += 1;

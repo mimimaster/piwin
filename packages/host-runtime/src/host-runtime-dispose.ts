@@ -4,6 +4,7 @@
  */
 
 import { formatError } from '@piwin/contracts';
+import { disposeBrowserSessions } from './host-browser-sessions.js';
 
 import { finalizeRunTranscriptArtifacts } from './transcript-stream-settler.js';
 
@@ -107,23 +108,7 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
     deps.folderRag = null;
     deps.folderRagKey = null;
   }
-  if (deps.browserSessionUnsubscribe) {
-    try {
-      deps.browserSessionUnsubscribe();
-    } catch (error) {
-      shutdownErrors.push(error);
-    }
-    deps.browserSessionUnsubscribe = null;
-  }
-  if (deps.browserSession) {
-    try {
-      await deps.browserSession.close();
-    } catch {
-      // best-effort shutdown
-    }
-    deps.browserSession = null;
-    deps.browserSessionInit = null;
-  }
+  shutdownErrors.push(...(await disposeBrowserSessions(deps)));
   if (deps.jobController) {
     try {
       await deps.jobController.dispose();

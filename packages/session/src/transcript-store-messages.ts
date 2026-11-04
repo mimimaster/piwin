@@ -3,7 +3,11 @@
  */
 
 import type { SessionTranscriptMessage } from '@piwin/contracts';
-import type { TranscriptStoreCore, SessionTranscriptStore } from './transcript-store.js';
+import type {
+  TranscriptStoreCore,
+  SessionTranscriptStore,
+  SessionTranscriptTailPage,
+} from './transcript-store.js';
 import { isSqliteUniqueConstraint, rollback } from './sqlite-errors.js';
 import { isIndexedUserMessage, validatePositiveBoundedInteger } from './transcript-store-bounds.js';
 import { TREE_VISIBLE_MESSAGE } from './transcript-store-branches.js';
@@ -19,6 +23,7 @@ export function createTranscriptMessagesOps(
   | 'appendMessage'
   | 'updateMessage'
   | 'listTail'
+  | 'listTailPage'
   | 'getMessage'
   | 'firstMessageByRole'
   | 'lastMessageByRole'
@@ -32,7 +37,10 @@ export function createTranscriptMessagesOps(
 > {
   const { db, options, ensureOpen, bumpRevision, currentRevision, insertMessageRow } = core;
 
-    function queryTail(limit: number, beforeSequence?: number): SessionTranscriptMessage[] {
+    function queryTailPage(
+      limit: number,
+      beforeSequence?: number,
+    ): SessionTranscriptTailPage {
       validatePositiveBoundedInteger(limit, 'Transcript tail limit', MAX_TAIL_MESSAGES);
       if (
         beforeSequence !== undefined &&
@@ -61,7 +69,18 @@ export function createTranscriptMessagesOps(
                 ),
               )
               .all(options.sessionId, beforeSequence, limit);
-      return (rows as unknown as MessageRow[]).reverse().map(rowToMessage);
+      const newestFirst = rows as unknown as MessageRow[];
+      if (newestFirst.length === 0) return { messages: [] };
+      const oldest = newestFirst[newestFirst.length - 1];
+      const messages = newestFirst.slice().reverse().map(rowToMessage);
+      if (oldest === undefined || newestFirst.length < limit) {
+        return { messages };
+      }
+      return { messages, nextBeforeSequence: oldest.sequence };
+    }
+
+    function queryTail(limit: number, beforeSequence?: number): SessionTranscriptMessage[] {
+      return queryTailPage(limit, beforeSequence).messages;
     }
 
     /** True when another visible row shares this row's parent. */
@@ -183,6 +202,11 @@ export function createTranscriptMessagesOps(
       async listTail(limit, beforeSequence) {
         ensureOpen();
         return queryTail(limit, beforeSequence);
+      },
+
+      async listTailPage(limit, beforeSequence) {
+        ensureOpen();
+        return queryTailPage(limit, beforeSequence);
       },
 
       async getMessage(id) {

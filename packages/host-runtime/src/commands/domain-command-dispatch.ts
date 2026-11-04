@@ -25,6 +25,7 @@ import { handleMediaListCommand } from './media-list-commands.js';
 import { handleBrowserCommand } from './browser-commands.js';
 import { handlePluginCommand } from './plugin-commands.js';
 import { handleSessionProductCommand } from './session-product-commands.js';
+import { handleSessionResourcesCommand } from './session-resources-command.js';
 import { handleSessionPackCommand } from './session-pack-commands.js';
 import type { SessionPackCommandContext } from './session-pack-commands.js';
 import { handleSessionColdStorageCommand } from './session-cold-storage-commands.js';
@@ -78,6 +79,13 @@ export async function dispatchDomainCommands(
 
   const voiceLive = await handleVoiceLiveCommand(command, requestId, context);
   if (voiceLive) return voiceLive;
+
+  const resources = await handleSessionResourcesCommand(
+    command,
+    requestId,
+    context.sessionProduct,
+  );
+  if (resources) return resources;
 
   const product = await handleSessionProductCommand(command, requestId, context.sessionProduct);
   if (product) return product;

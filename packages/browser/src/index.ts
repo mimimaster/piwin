@@ -94,10 +94,17 @@ export type {
 } from './ensure-playwright-chromium.js';
 export {
   hasSystemChrome,
+  resolveChromeVersion,
   defaultDesktopUserAgent,
   DEFAULT_STEALTH_CHROMIUM_ARGS,
   DEFAULT_STEALTH_IGNORE_DEFAULT_ARGS,
 } from './browser-launch.js';
+export {
+  isCloudflareChallengePage,
+  trySolveCloudflareChallenge,
+  CLOUDFLARE_DEFAULT_SOLVE_TIMEOUT_MS,
+  type SolveCloudflareOptions,
+} from './cloudflare-challenge.js';
 export { renderPageHtml, FetchRenderUnavailableError } from './render-page.js';
 export type {
   RenderPageHtmlInput,

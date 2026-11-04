@@ -146,6 +146,37 @@ const HEADER: BrowserFrameBinaryHeader = {
   mime: BROWSER_FRAME_BINARY_MIME,
 };
 
+describe('conversation binary frame isolation', () => {
+  it('sends each conversation pixels only to clients holding its mirror lease', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({ runtime, port: 0, instanceId: 'conversation-frames' });
+    const address = await server.start();
+    const first = await connectClient(address, 'first');
+    const second = await connectClient(address, 'second');
+    try {
+      await first.hello({ browserFrameBinary: true });
+      await second.hello({ browserFrameBinary: true });
+      await first.command({ type: 'browser/start', sessionId: 'a', leaseId: 'same-lease' });
+      await second.command({ type: 'browser/start', sessionId: 'b', leaseId: 'same-lease' });
+      runtime.emitFrame({ ...HEADER, sessionId: 'a' }, JPEG);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(first.binary).toHaveLength(1);
+      expect(second.binary).toHaveLength(0);
+      runtime.emitFrame({ ...HEADER, sessionId: 'b' }, JPEG);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(first.binary).toHaveLength(1);
+      expect(second.binary).toHaveLength(1);
+      const frame = second.binary[0];
+      if (!frame) throw new Error('Missing frame');
+      expect(decodeBrowserFrameBinary(frame)).toMatchObject({ ok: true, header: { sessionId: 'b' } });
+    } finally {
+      first.socket.close();
+      second.socket.close();
+      await server.stop();
+    }
+  });
+});
+
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
 
 describe('HostServer browser frame channel', () => {
