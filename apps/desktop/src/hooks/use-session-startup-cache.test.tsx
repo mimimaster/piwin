@@ -129,7 +129,7 @@ describe('session startup cache lifecycle', () => {
     });
     const selfHeal = createRendererSelfHeal({
       getBytes: () => SELF_HEAL_RECLAIM_BYTES,
-      isBusy: () => false,
+      getActivity: () => ({ runActive: false, protectedWork: false }),
       isDocumentHidden: () => true,
       isWindowFocused: () => false,
       beforeRelaunch: prepareRendererRelaunch,

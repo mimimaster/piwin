@@ -79,7 +79,7 @@ html[data-window-material][data-theme-mode='dark']:has(.app-shell:not([data-layo
 /* Sticky heads and footers occlude the rows scrolling under them; on the
    translucent ramp those rows would read through, so they keep a dense fill. */
 html[data-window-material][data-theme-mode='dark']:has(.app-shell:not([data-layout='phone']))
-  :is(.usage-calls-scroll thead th, .proto-bar) {
+  :is(.usage-calls-scroll thead th, .proto-bar, .transcript-fold-rail) {
   background-color: color-mix(in srgb, var(--wm-solid-s2) 94%, transparent);
 }
 

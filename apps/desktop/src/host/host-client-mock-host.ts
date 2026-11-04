@@ -121,6 +121,7 @@ export async function handleMockHostCommands(
               automation: true,
               flashcardStudy: true,
               knowledgeBases: true,
+              knowledgeDocuments: true,
             }),
           },
         };

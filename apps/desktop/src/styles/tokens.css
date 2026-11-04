@@ -43,6 +43,8 @@
   --titleband-flush-leading: max(var(--s-3), var(--traffic-light-clearance));
   --app-safe-top: env(safe-area-inset-top, 0px);
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --app-safe-left: env(safe-area-inset-left, 0px);
+  --app-safe-right: env(safe-area-inset-right, 0px);
   --app-vv-height: 100dvh;
   --app-keyboard-inset: 0px;
 

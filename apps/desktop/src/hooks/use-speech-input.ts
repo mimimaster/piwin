@@ -5,6 +5,7 @@ import {
   sanitizeLiveDelegationInstruction,
 } from '@piwin/contracts';
 import type { HostResponse, SpeechTranscribeData, SpeechTranscribeInput } from '@piwin/contracts';
+import { useRendererRelaunchGuard } from './use-renderer-relaunch-guard.js';
 
 export type SpeechInputStatus = 'idle' | 'listening' | 'transcribing';
 
@@ -53,6 +54,10 @@ export function useSpeechInput(options: UseSpeechInputOptions): SpeechInputContr
   const [status, setStatus] = useState<SpeechInputStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const microphoneRequestRef = useRef(false);
+  useRendererRelaunchGuard(() =>
+    status !== 'idle' || microphoneRequestRef.current || recorderRef.current !== null,
+  );
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef(0);
@@ -153,6 +158,7 @@ export function useSpeechInput(options: UseSpeechInputOptions): SpeechInputContr
     }
     cancelledRef.current = false;
     setError(null);
+    microphoneRequestRef.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (!mountedRef.current || !options.enabled) {
@@ -201,6 +207,8 @@ export function useSpeechInput(options: UseSpeechInputOptions): SpeechInputContr
       setError(
         caughtError instanceof Error ? caughtError.message : 'Microphone permission denied.',
       );
+    } finally {
+      microphoneRequestRef.current = false;
     }
   }, [finishRecording, options.enabled, status]);
 

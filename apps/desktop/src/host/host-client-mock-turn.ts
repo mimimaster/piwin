@@ -94,6 +94,9 @@ export async function handleMockTurnCommands(
             userMessage.attachments = mediaAttachments;
           }
         }
+        if (command.input.contextRefs && command.input.contextRefs.length > 0) {
+          userMessage.contextRefs = command.input.contextRefs;
+        }
         if (
           command.input.source === 'continuation' &&
           (command.input.branchFromMessageId !== undefined ||

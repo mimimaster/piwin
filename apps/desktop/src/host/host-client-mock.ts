@@ -122,6 +122,7 @@ export class MockHostBackend {
     { sessionId: string; mimeType: string; name?: string; byteSize: number }
   >();
   mockBrowserUrl: string | null = null;
+  mockBrowserUrls = new Map<string, string>();
   /** ADR 0015: the run currently owning each session's foreground turn. */
   mockActiveRunIds = new Map<string, string>();
   mockAssemblySummaries = new Map<string, ContextSummaryPush[]>();

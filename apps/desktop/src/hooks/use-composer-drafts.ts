@@ -34,6 +34,9 @@ import {
   readComposerDraftPartitionId,
   saveComposerDraftStore,
 } from '../composer/composer-draft-persistence.js';
+import { canReclaimComposerDrafts } from '../composer/composer-draft-reclaim.js';
+import { useComposerDraftLifecycle } from './use-composer-draft-lifecycle.js';
+import { useRendererRelaunchGuard } from './use-renderer-relaunch-guard.js';
 
 /**
  * Cap on per-session unsent composer snapshots. Each snapshot pins its
@@ -84,6 +87,10 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     draftComposerSnapshotsRef,
     disposeComposerAttachments,
   } = params;
+  useRendererRelaunchGuard(
+    composer.trim().length > 0 || pendingAttachments.length > 0 ||
+    (args.getPendingContextRefs?.() ?? pendingContextRefsRef.current).length > 0,
+  );
 
   /**
    * Visible chips live in useComposerContextRefs (external authority). Prefer
@@ -127,12 +134,12 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
   const loadedDraftPartitionRef = useRef<string | null>(null);
   const persistTimerRef = useRef<number | null>(null);
 
-  const persistComposerDrafts = useCallback((): void => {
+  const persistComposerDrafts = useCallback((): boolean => {
     const partition = readComposerDraftPartitionId(args.hostClient);
     if (!partition) {
-      return;
+      return false;
     }
-    saveComposerDraftStore(
+    return saveComposerDraftStore(
       buildComposerDraftStore({
         hostInstanceId: partition,
         drafts: draftSessionsRef.current,
@@ -330,23 +337,15 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     }
   }, [args.hostClient, args.state.hostReady]);
 
-  useEffect(() => {
-    const onHide = (): void => {
-      persistComposerDrafts();
-    };
-    if (typeof window === 'undefined') {
-      return;
-    }
-    window.addEventListener('pagehide', onHide);
-    return () => {
-      window.removeEventListener('pagehide', onHide);
-      if (persistTimerRef.current !== null) {
-        window.clearTimeout(persistTimerRef.current);
-        persistTimerRef.current = null;
-      }
-      persistComposerDrafts();
-    };
-  }, [persistComposerDrafts]);
+  useComposerDraftLifecycle({
+    persist: persistComposerDrafts,
+    persistTimerRef,
+    canRelaunch: () => canReclaimComposerDrafts({
+      drafts: draftSessionsRef.current,
+      draftSnapshots: draftComposerSnapshotsRef.current,
+      sessionSnapshots: sessionComposerSnapshotsRef.current,
+    }),
+  });
 
   /** Leave the current session for New Agent. Resume a parked draft for this scope if one exists. */
   const startNewDraft = useCallback(

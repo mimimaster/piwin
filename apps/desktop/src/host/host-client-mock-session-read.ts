@@ -20,6 +20,7 @@ import type {
 } from '@piwin/contracts';
 import {
   isRunTerminal,
+  projectSessionResources,
   SESSION_LIST_PAGE_MAX_ITEMS,
   SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
   SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
@@ -510,6 +511,20 @@ export async function handleMockSessionReadCommands(
             redactTools,
             path,
             byteLength: content.length,
+          },
+        };
+      }
+      case 'session/resources': {
+        const session = host.sessions.get(command.sessionId);
+        const messages = session ? visibleMockTranscript(session) : [];
+        return {
+          id,
+          type: 'response',
+          command: 'session/resources',
+          success: true,
+          data: {
+            sessionId: command.sessionId,
+            resources: projectSessionResources(command.sessionId, messages),
           },
         };
       }

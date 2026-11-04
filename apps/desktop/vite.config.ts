@@ -34,6 +34,16 @@ export default defineConfig({
   },
 
   plugins: [react()],
+  // The mobile workbench is built from this app but runs in the mobile
+  // shell, whose Tauri runtime can be on a different minor release.
+  resolve: process.env.VITE_PIWIN_SHELL_ONLY === '1'
+    ? {
+        alias: [{
+          find: /^@tauri-apps\/api(?=\/|$)/,
+          replacement: resolve(desktopRoot, '../mobile/node_modules/@tauri-apps/api'),
+        }],
+      }
+    : undefined,
   // Shiki loads grammars on demand inside the module worker.
   worker: { format: 'es' },
   clearScreen: false,
@@ -73,6 +83,7 @@ export default defineConfig({
         petOverlay: resolve(desktopRoot, 'pet-overlay.html'),
         screenCapture: resolve(desktopRoot, 'screen-capture.html'),
         screenshotPin: resolve(desktopRoot, 'screenshot-pin.html'),
+        trayQuota: resolve(desktopRoot, 'tray-quota.html'),
       },
     },
   },

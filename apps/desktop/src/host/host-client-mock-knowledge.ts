@@ -7,6 +7,7 @@ import {
   type HostResponse,
   type KnowledgeBaseSummary,
   type KnowledgeCitation,
+  type KnowledgeDocumentEntry,
 } from '@piwin/contracts';
 import type { MockHostBackend } from './host-client-mock.js';
 
@@ -20,6 +21,9 @@ type MockWikiConcept = {
   aliases?: string[];
   links: string[];
   content: string;
+  sources?: import('@piwin/contracts').WikiSourceRef[];
+  contentHash?: string;
+  kind?: import('@piwin/contracts').WikiPageKind;
 };
 
 type MockKnowledgeState = {
@@ -160,8 +164,20 @@ function ok(id: string, command: HostCommand['type'], data: unknown): HostRespon
   return { id, type: 'response', command, success: true, data };
 }
 
-function fail(id: string, command: HostCommand['type'], error: string): HostResponse {
-  return { id, type: 'response', command, success: false, error };
+function fail(
+  id: string,
+  command: HostCommand['type'],
+  error: string,
+  problem?: { code: string; data?: unknown },
+): HostResponse {
+  return {
+    id,
+    type: 'response',
+    command,
+    success: false,
+    error,
+    ...(problem ? { problem } : {}),
+  };
 }
 
 function mockCitations(bases: readonly KnowledgeBaseSummary[], query: string): KnowledgeCitation[] {
@@ -177,6 +193,72 @@ function mockCitations(bases: readonly KnowledgeBaseSummary[], query: string): K
     text: `与「${query}」相关的片段：稳定性决定下一次复习间隔，难度影响稳定性的增长速度。`,
     score: 0.82 - index * 0.1,
   }));
+}
+
+
+/** Three rows that exercise every state the library can show. */
+function mockDocumentEntries(): KnowledgeDocumentEntry[] {
+  return [
+    {
+      relativePath: 'notes/aging-and-memory.md',
+      title: 'aging-and-memory',
+      extension: 'md',
+      sizeBytes: 1820,
+      language: 'markdown',
+      updatedAt: new Date(Date.UTC(2026, 9, 28)).toISOString(),
+      indexed: true,
+      chunkCount: 12,
+      readability: 'text',
+    },
+    {
+      relativePath: 'notes/sleep-debt.md',
+      title: 'sleep-debt',
+      extension: 'md',
+      sizeBytes: 940,
+      language: 'markdown',
+      updatedAt: new Date(Date.UTC(2026, 9, 30)).toISOString(),
+      indexed: false,
+      chunkCount: 0,
+      readability: 'text',
+    },
+    {
+      relativePath: 'papers/cortical-scan.pdf',
+      title: 'cortical-scan',
+      extension: 'pdf',
+      sizeBytes: 409600,
+      language: 'pdf',
+      indexed: false,
+      chunkCount: 0,
+      readability: 'unsupported',
+      unsupportedReason: 'PDF needs MinerU before it can be read here.',
+    },
+  ];
+}
+
+function mockDocumentText(
+  relativePath: string,
+): { entry: KnowledgeDocumentEntry; lines: string[] } | null {
+  const entry = mockDocumentEntries().find((item) => item.relativePath === relativePath);
+  if (!entry || entry.readability !== 'text') return null;
+  const lines =
+    relativePath === 'notes/sleep-debt.md'
+      ? ['# Sleep debt', '', 'Short notes that only exist on disk, never in the index.']
+      : [
+          '# Aging and memory',
+          '',
+          'Consolidation moves a trace from hippocampus to cortex.',
+          'Replay during slow-wave sleep does the moving.',
+          '',
+          'Spacing beats cramming because each recall reopens the window.',
+          'Interleaving trades immediate fluency for later transfer.',
+          '',
+          'The index is a convenience, not the source of truth.',
+          'Files stay readable whether or not anyone has chunked them.',
+          '',
+          'Line twelve exists so the second read window has something to show.',
+          'Line thirteen closes the fixture.',
+        ];
+  return { entry, lines };
 }
 
 export async function handleMockKnowledgeCommands(
@@ -265,11 +347,128 @@ export async function handleMockKnowledgeCommands(
         ...(command.kind === 'embedding' ? { dimension: 1536 } : {}),
       });
     }
+    case 'knowledge/documents/list': {
+      const base = state.bases.find((entry) => entry.id === command.baseId);
+      if (!base) return fail(id, command.type, `Unknown knowledge base: ${command.baseId}`);
+      const items = mockDocumentEntries().filter((entry) =>
+        command.query ? entry.relativePath.toLowerCase().includes(command.query.toLowerCase()) : true,
+      );
+      const cursor = command.cursor;
+      const start =
+        cursor !== undefined
+          ? items.findIndex((entry) => entry.relativePath > cursor)
+          : 0;
+      const from = start === -1 ? items.length : start;
+      const limit = Math.min(50, Math.max(1, command.limit ?? 50));
+      const page = items.slice(from, from + limit);
+      const next = items[from + page.length];
+      return ok(id, command.type, {
+        baseId: base.id,
+        folderPath: base.folderPath,
+        items: page,
+        total: items.length,
+        ...(next ? { nextCursor: page[page.length - 1]?.relativePath } : {}),
+      });
+    }
+    case 'knowledge/document/read': {
+      const document = mockDocumentText(command.relativePath);
+      if (!document) return fail(id, command.type, `Unknown document: ${command.relativePath}`);
+      const startLine = Math.max(1, command.startLine ?? 1);
+      const maxLines = Math.min(400, Math.max(1, command.maxLines ?? 400));
+      const endLine = Math.min(document.lines.length, startLine - 1 + maxLines);
+      return ok(id, command.type, {
+        baseId: command.baseId,
+        relativePath: command.relativePath,
+        title: document.entry.title,
+        language: document.entry.language,
+        text: document.lines.slice(startLine - 1, endLine).join('\n'),
+        startLine,
+        endLine,
+        totalLines: document.lines.length,
+        hasMore: endLine < document.lines.length,
+        truncatedChars: false,
+        indexed: document.entry.indexed,
+        chunkCount: document.entry.chunkCount,
+        readability: document.entry.readability,
+      });
+    }
     case 'knowledge/embedding-models/discover': {
       return ok(id, command.type, {
         providerId: 'notes-embedding',
         protocol: 'openai-compatible',
         models: [{ id: 'text-embedding-3-small' }, { id: 'nomic-embed-text' }],
+      });
+    }
+    case 'knowledge/wiki/write': {
+      const title = command.input.title.trim();
+      const content = command.input.content.trim();
+      if (!title || !content) {
+        return fail(id, command.type, 'Wiki note needs a title and body');
+      }
+      const slug =
+        title
+          .toLowerCase()
+          .trim()
+          .replace(/[^\p{L}\p{N}]+/gu, '-')
+          .replace(/^-+|-+$/g, '') || 'untitled';
+      if (state.concepts.some((entry) => entry.slug === slug)) {
+        return fail(id, command.type, `Wiki page already exists: ${slug}`);
+      }
+      const concept: MockWikiConcept = {
+        slug,
+        title,
+        summary: '',
+        tags: command.input.tags ?? [],
+        updatedAt: new Date().toISOString(),
+        relativePath: `concepts/${slug}.md`,
+        links: [],
+        content,
+        contentHash: 'mock-hash-1',
+        ...(command.input.kind ? { kind: command.input.kind } : { kind: 'note' as const }),
+        ...(command.input.sources && command.input.sources.length > 0
+          ? { sources: [...command.input.sources] }
+          : {}),
+      };
+      state.concepts = [concept, ...state.concepts];
+      return ok(id, command.type, { concept });
+    }
+    case 'knowledge/wiki/update': {
+      const slug = command.input.slug.trim();
+      const match = state.concepts.find((entry) => entry.slug === slug);
+      if (!match) return fail(id, command.type, `Wiki concept not found: ${slug}`);
+      const actual = match.contentHash ?? 'mock-hash-1';
+      if (command.input.expectedContentHash !== actual) {
+        return fail(id, command.type, `Wiki page ${slug} changed since the client last read it`, {
+          code: 'wiki-revision-conflict',
+          data: { slug, actualContentHash: actual },
+        });
+      }
+      if (command.input.title?.trim()) match.title = command.input.title.trim();
+      if (command.input.content !== undefined) match.content = command.input.content.trim();
+      match.contentHash = `${actual}-next`;
+      match.updatedAt = new Date().toISOString();
+      return ok(id, command.type, { concept: match });
+    }
+    case 'knowledge/wiki/distill-draft': {
+      const baseId = command.baseId;
+      const base = state.bases.find((entry) => entry.id === baseId);
+      if (!base) return fail(id, command.type, `Unknown knowledge base: ${baseId}`);
+      const relativePaths =
+        command.relativePaths && command.relativePaths.length > 0
+          ? command.relativePaths
+          : ['mock/slice-1.md', 'mock/slice-2.md'];
+      const existing = state.concepts[0];
+      return ok(id, command.type, {
+        draft: {
+          title: command.topic?.trim() || `${base.name} 核心概念`,
+          summary: `从「${base.name}」整理的草稿。`,
+          tags: ['distilled'],
+          content: `草稿正文，尚未写入 Wiki。`,
+          sources: relativePaths.map((relativePath) => ({ baseId, relativePath })),
+          relatedPages: existing
+            ? [{ slug: existing.slug, title: existing.title, reason: 'tag' as const }]
+            : [],
+        },
       });
     }
     case 'knowledge/wiki/distill': {

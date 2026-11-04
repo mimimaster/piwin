@@ -1,4 +1,4 @@
-import type { PromptContextRef } from '@piwin/contracts';
+import { isUsableKnowledgeContextRef, type PromptContextRef } from '@piwin/contracts';
 import { isOpaqueRemoteProjectId } from './remote-session-hydrate.js';
 
 const MAX_SNAPSHOT_CHARS = 64 * 1024;
@@ -73,6 +73,8 @@ export function isSafeRemoteContextRef(ref: PromptContextRef): boolean {
       );
     case 'connected-source':
       return ref.source === 'apple-health' && ref.label === 'Apple Health';
+    case 'knowledge-selection':
+      return isUsableKnowledgeContextRef(ref);
     default: {
       const exhaustive: never = ref;
       void exhaustive;
@@ -97,6 +99,8 @@ function flattenRefText(ref: PromptContextRef): string {
       return [ref.label, ref.title, ref.detail].filter((part) => part.trim().length > 0).join('\n');
     case 'connected-source':
       return ref.label;
+    case 'knowledge-selection':
+      return ref.snapshotText.trim().length > 0 ? `${ref.label}\n${ref.snapshotText}` : ref.label;
     default: {
       const exhaustive: never = ref;
       void exhaustive;

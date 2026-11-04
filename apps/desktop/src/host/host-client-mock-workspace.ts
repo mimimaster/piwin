@@ -690,13 +690,18 @@ export async function handleMockWorkspaceCommands(
         return { id, type: 'response', command: 'pty/list', success: true, data: { sessions } };
       }
       case 'browser/start': {
-        host.mockBrowserUrl = 'about:blank';
+        const url = command.sessionId === undefined ? host.mockBrowserUrl ?? 'about:blank' : host.mockBrowserUrls.get(command.sessionId) ?? 'about:blank';
+        if (command.sessionId === undefined) host.mockBrowserUrl = url;
+        else host.mockBrowserUrls.set(command.sessionId, url);
+        host.emitPush({ type: 'browser/state', url, title: url, ts: Date.now(), ...(command.sessionId === undefined ? {} : { sessionId: command.sessionId }) });
         return { id, type: 'response', command: 'browser/start', success: true, data: null };
       }
       case 'browser/navigate': {
-        host.mockBrowserUrl = command.url;
+        if (command.sessionId === undefined) host.mockBrowserUrl = command.url;
+        else host.mockBrowserUrls.set(command.sessionId, command.url);
         host.emitPush({
           type: 'browser/state',
+          ...(command.sessionId === undefined ? {} : { sessionId: command.sessionId }),
           url: command.url,
           title: command.url,
           ts: Date.now(),
@@ -705,7 +710,7 @@ export async function handleMockWorkspaceCommands(
       }
       case 'browser/pick-at': {
         const result: import('@piwin/contracts').WebElementPickResult = {
-          url: host.mockBrowserUrl ?? 'about:blank',
+          url: (command.sessionId === undefined ? host.mockBrowserUrl : host.mockBrowserUrls.get(command.sessionId)) ?? 'about:blank',
           selector: 'div.pick-target',
           text: 'Picked element text',
           boundingRect: {
@@ -715,7 +720,7 @@ export async function handleMockWorkspaceCommands(
             height: 20,
           },
         };
-        host.emitPush({ type: 'browser/picked', result });
+        host.emitPush({ type: 'browser/picked', result, ...(command.sessionId === undefined ? {} : { sessionId: command.sessionId }) });
         return {
           id,
           type: 'response',
@@ -727,12 +732,13 @@ export async function handleMockWorkspaceCommands(
       case 'browser/screenshot':
         return { id, type: 'response', command: 'browser/screenshot', success: true, data: null };
       case 'browser/stop':
-        host.mockBrowserUrl = null;
+        if (command.sessionId === undefined) host.mockBrowserUrl = null;
         return { id, type: 'response', command: 'browser/stop', success: true, data: null };
       case 'browser/restart': {
-        const url = host.mockBrowserUrl ?? 'about:blank';
+        const url = (command.sessionId === undefined ? host.mockBrowserUrl : host.mockBrowserUrls.get(command.sessionId)) ?? 'about:blank';
         host.emitPush({
           type: 'browser/state',
+          ...(command.sessionId === undefined ? {} : { sessionId: command.sessionId }),
           url,
           title: url,
           lifecycle: 'ready',

@@ -37,8 +37,8 @@ html.pet-overlay-window #root {
 }
 
 html {
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  padding-left: var(--app-safe-left, 0px);
+  padding-right: var(--app-safe-right, 0px);
 }
 
 button,

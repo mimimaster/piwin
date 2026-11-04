@@ -58,6 +58,8 @@ export function contextRefKey(ref: PromptContextRef): string {
       return `connected-source:${ref.source}`;
     case 'session-handoff':
       return `session-handoff:${ref.sessionId}`;
+    case 'knowledge-selection':
+      return `knowledge-selection:${ref.baseId}:${ref.scope}:${ref.relativePath ?? ''}:${ref.lineStart ?? ''}:${ref.lineEnd ?? ''}:${simpleHash(ref.snapshotText)}`;
     default: {
       const exhaustive: never = ref;
       return `unknown:${JSON.stringify(exhaustive)}`;
@@ -90,6 +92,8 @@ export function labelForContextRef(ref: PromptContextRef): string {
       return 'Handoff summary';
     case 'connected-source':
       return ref.label;
+    case 'knowledge-selection':
+      return ref.relativePath ?? 'Knowledge';
     default: {
       const exhaustive: never = ref;
       return String(exhaustive);

@@ -69,7 +69,7 @@ export const DESKTOP_COPY_EN: DesktopCopy = {
     ready: 'piwin ready',
     offline: 'piwin disconnected',
     betaFeature: 'Beta feature',
-    knowledgeCenter: 'Knowledge Center',
+    knowledgeCenter: 'Knowledge Space',
     extensionDeploymentRolledBack: 'The extension deployment has been rolled back.',
     extensionDeploymentRestartRequired:
       'The extension deployment has been saved, but the Host must be restarted before it can take full effect.',
@@ -97,7 +97,7 @@ export const DESKTOP_COPY_EN: DesktopCopy = {
       images: 'Images',
       videos: 'Videos',
       flashcards: 'Flashcards',
-      knowledge: 'Knowledge',
+      knowledge: 'Knowledge Space',
       archived: 'Archived',
       working: 'Session is working',
       backendServiceActive: 'Backend service is active',
