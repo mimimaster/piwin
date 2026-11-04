@@ -25,7 +25,8 @@ import { KnowledgePage } from './pages/knowledge.js';
 import { WikiDetailPage } from './pages/wiki-detail.js';
 import { VoicePage } from './pages/voice.js';
 import { SettingsDetailPage, SettingsPage } from './pages/settings.js';
-import { ConnectPage, LibraryPage, WalkthroughPage } from './pages/extras.js';
+import { ConnectPage, WalkthroughPage } from './pages/extras.js';
+import { LibraryPage } from './pages/library.js';
 import { SHEETS } from './sheets/index.js';
 import { AutomationsPage } from './pages/automations.js';
 import {

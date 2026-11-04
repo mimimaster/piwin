@@ -54,6 +54,7 @@ export type InkstoneIconName =
   | 'mobile-device'
   | 'pointer'
   | 'scan'
+  | 'star'
   | 'model-claude'
   | 'model-openai'
   | 'model-gemini';
@@ -276,6 +277,7 @@ const ICON_PATHS: Record<InkstoneIconName, ReactElement> = {
   scan: (
     <path d="M2.5 5.5v-2h2M11.5 3.5h2v2M13.5 10.5v2h-2M4.5 12.5h-2v-2M5 8h6" />
   ),
+  star: <path d="M8 2.3l1.72 3.63 3.98.53-2.92 2.78.74 3.94L8 11.28 4.48 13.2l.74-3.94L2.3 6.46l3.98-.53z" />,
   'model-claude': (
     <path
       fill="currentColor"

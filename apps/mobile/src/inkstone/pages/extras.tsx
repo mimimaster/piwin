@@ -1,16 +1,11 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { NeedsHost } from '../needs-host.js';
 import { readWalkthroughArtifacts } from '../../mobile-host-readers.js';
-import {
-  type HostResponse,
-  type MediaLibraryItem,
-  type WalkthroughArtifact,
-} from '@piwin/contracts';
+import { type WalkthroughArtifact } from '@piwin/contracts';
 import { useInkstone } from '../inkstone-context.js';
 import {
   Dot,
   FullButton,
-  ListRow,
   Pill,
   ScreenHeading,
   TopBar,
@@ -73,17 +68,6 @@ export function WalkthroughPage(): ReactElement {
   return <ConnectedWalkthroughPage hostCtx={hostCtx} />;
 }
 
-export function LibraryPage(): ReactElement {
-  const hostCtx = useInkstoneHost();
-  if (hostCtx === null) {
-    return <NeedsHost />;
-  }
-  return <ConnectedLibraryPage hostCtx={hostCtx} />;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 function ConnectedWalkthroughPage({
   hostCtx,
@@ -178,65 +162,3 @@ function ConnectedWalkthroughPage({
     </>
   );
 }
-
-function readMediaItems(response: HostResponse): MediaLibraryItem[] {
-  if (!response.success || !isRecord(response.data) || !Array.isArray(response.data.items)) return [];
-  return response.data.items.filter((item): item is MediaLibraryItem => {
-    if (!isRecord(item)) return false;
-    return typeof item.assetId === 'string' && typeof item.sessionId === 'string' && typeof item.mimeType === 'string' && typeof item.kind === 'string' && typeof item.createdAt === 'string';
-  });
-}
-
-function ConnectedLibraryPage({
-  hostCtx,
-}: {
-  hostCtx: InkstoneHostContextValue;
-}): ReactElement {
-  const { dispatch } = useInkstone();
-  const { host } = hostCtx;
-  const client = host.client;
-  const [items, setItems] = useState<MediaLibraryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | undefined>();
-  useEffect(() => {
-    if (client === undefined || !client.supportsCommand('media/list')) {
-      setLoading(false);
-      setError(client === undefined ? undefined : '当前 Host 未开放媒体资料库。');
-      return;
-    }
-    let active = true;
-    setLoading(true);
-    void client.request({ type: 'media/list', input: { limit: 40 } }).then((response) => {
-      if (!active) return;
-      if (!response.success) setError(response.error);
-      else {
-        setItems(readMediaItems(response));
-        setError(undefined);
-      }
-      setLoading(false);
-    }).catch((reason: unknown) => {
-      if (active) {
-        setError(reason instanceof Error ? reason.message : '读取 Host 资料库失败。');
-        setLoading(false);
-      }
-    });
-    return () => { active = false; };
-  }, [client]);
-  return (
-    <>
-      <TopBar title="资料库" subtitle="Host · 媒体与附件" onBack={() => dispatch({ type: 'navigate', route: 'desk' })} />
-      <div className="screen-scroll">
-        <ScreenHeading title="留下来的，都在这里。" subtitle="只展示 Host 返回的媒体元数据。" />
-        {client === undefined ? <p className="muted">正在连接 Host…</p> : null}
-        {loading ? <p className="muted">正在读取 Host 资料库…</p> : null}
-        {error !== undefined ? <p className="error-text">{error}</p> : null}
-        {!loading && error === undefined && items.length === 0 ? <p className="muted">Host 资料库还没有媒体。</p> : null}
-        {items.map((item) => (
-          <ListRow key={item.assetId} name={item.kind === 'image' ? 'image' : 'file'} title={item.name?.trim() || item.assetId} subtitle={`${item.kind} · ${item.mimeType} · ${item.byteSize} B`} />
-        ))}
-        <FullButton variant="secondary" onClick={() => dispatch({ type: 'navigate', route: 'chat' })}>回到会话</FullButton>
-      </div>
-    </>
-  );
-}
-

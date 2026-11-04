@@ -13,7 +13,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# The iOS scene lifecycle fixes in tao 0.37 arrive through Tauri 2.12.
+tauri = { version = "2.12.3", features = [] }
 tauri-plugin-barcode-scanner = "2"
 tauri-plugin-keyring-store = "0.2.0"
 tauri-plugin-piwin-healthkit = { path = "plugins/healthkit" }

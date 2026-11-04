@@ -1,4 +1,32 @@
-/* iPad / wide screens (use-wide-layout.ts). Phone layout is untouched below 768px. */
+/* Shared viewport and safe-area geometry, plus the wide-screen layout. */
+
+.inkstone-root {
+  --mobile-safe-left: env(safe-area-inset-left, 0px);
+  --mobile-safe-right: env(safe-area-inset-right, 0px);
+  padding-left: var(--mobile-safe-left);
+  padding-right: var(--mobile-safe-right);
+}
+
+/* The visual viewport already ends at the keyboard; do not subtract it twice. */
+.inkstone-root .phone {
+  height: var(--mobile-visible-height, 100dvh);
+}
+
+/* Dialogs and toasts are fixed to the viewport, outside the inset layout. */
+.inkstone-root .sheet-head {
+  padding-left: max(22px, var(--mobile-safe-left));
+  padding-right: max(15px, var(--mobile-safe-right));
+}
+
+.inkstone-root .sheet-body {
+  padding-left: max(22px, var(--mobile-safe-left));
+  padding-right: max(22px, var(--mobile-safe-right));
+}
+
+.inkstone-root .toast {
+  left: max(16px, var(--mobile-safe-left));
+  right: max(16px, var(--mobile-safe-right));
+}
 
 /* 768–1023: still one page at a time, but keep lines at a readable measure. */
 @media (min-width: 768px) {
@@ -13,11 +41,11 @@
 .tablet-shell {
   display: grid;
   grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
-  height: 100dvh;
+  height: var(--mobile-visible-height, 100dvh);
   background: var(--s1);
 }
 .tablet-shell > .phone {
-  height: 100dvh;
+  height: var(--mobile-visible-height, 100dvh);
   min-width: 0;
 }
 .tablet-nav {

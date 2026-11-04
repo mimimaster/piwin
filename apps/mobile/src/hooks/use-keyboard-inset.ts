@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
 const KEYBOARD_INSET_PROPERTY = '--keyboard-inset';
+const VISIBLE_HEIGHT_PROPERTY = '--mobile-visible-height';
 
 function readKeyboardInsetPx(viewport: VisualViewport): number {
   return Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
@@ -12,8 +13,10 @@ export function useKeyboardInset(): void {
     const root = document.documentElement;
     const viewport = window.visualViewport;
     const sync = () => {
+      if (viewport != null && Math.abs(viewport.scale - 1) > 0.01) return;
       const inset = viewport == null ? 0 : readKeyboardInsetPx(viewport);
       root.style.setProperty(KEYBOARD_INSET_PROPERTY, `${Math.round(inset)}px`);
+      root.style.setProperty(VISIBLE_HEIGHT_PROPERTY, `${Math.round(viewport?.height ?? window.innerHeight)}px`);
     };
     sync();
     if (viewport == null) {
@@ -21,6 +24,7 @@ export function useKeyboardInset(): void {
       return () => {
         window.removeEventListener('resize', sync);
         root.style.removeProperty(KEYBOARD_INSET_PROPERTY);
+        root.style.removeProperty(VISIBLE_HEIGHT_PROPERTY);
       };
     }
     viewport.addEventListener('resize', sync);
@@ -29,6 +33,7 @@ export function useKeyboardInset(): void {
       viewport.removeEventListener('resize', sync);
       viewport.removeEventListener('scroll', sync);
       root.style.removeProperty(KEYBOARD_INSET_PROPERTY);
+      root.style.removeProperty(VISIBLE_HEIGHT_PROPERTY);
     };
   }, []);
 }
