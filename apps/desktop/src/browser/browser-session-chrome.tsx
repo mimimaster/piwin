@@ -20,7 +20,7 @@ import type {
   BrowserViewportConfig,
 } from '@piwin/contracts';
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, IconButton } from '@piwin/ui-kit';
-import type { HostClient } from '../host/host-client';
+import type { BrowserSessionClient } from './browser-session-client';
 import { useSurfaceTitlebar } from '../conversation/surface-titlebar.js';
 import {
   requestBrowserBack,
@@ -109,7 +109,7 @@ export type BrowserPanelPanelActions = {
 export type BrowserPanelNotice = { message: string; count: number };
 
 export type BrowserSessionChromeProps = {
-  hostClient: HostClient;
+  hostClient: Pick<BrowserSessionClient, 'request' | 'browserRestart'>;
   copy: BrowserSessionChromeCopy;
   draftUrl: string;
   committedUrl: string;

@@ -35,7 +35,7 @@ function push(overrides: Partial<BrowserFramePush> = {}): BrowserFramePush {
   };
 }
 
-function decoder() {
+function decoder(sessionId?: string) {
   const ready: BrowserFrameView[] = [];
   const errors: BrowserFrameErrorReason[] = [];
   const objectUrls: string[] = [];
@@ -44,6 +44,7 @@ function decoder() {
   const timers = new Map<number, () => void>();
   let timerSeq = 0;
   const handle = createBrowserFrameDecoder({
+    ...(sessionId === undefined ? {} : { sessionId }),
     onReady: (view) => ready.push(view),
     onError: (reason) => errors.push(reason),
     now: () => clock,
@@ -88,6 +89,29 @@ describe('validateInlineJpegDataUrl', () => {
 });
 
 describe('createBrowserFrameDecoder', () => {
+  it('never pairs another conversation pixels with a matching local frame id', async () => {
+    const { handle, ready, errors } = decoder('session-a');
+    const meta = push({ sessionId: 'session-a', payload: { kind: 'binary' } });
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    const header = {
+      version: BROWSER_FRAME_BINARY_VERSION, sessionId: 'session-b', frameId: meta.frameId,
+      generation: meta.generation, pageId: meta.pageId, documentRevision: 0,
+      width: meta.width, height: meta.height, encodedWidth: meta.encodedWidth,
+      encodedHeight: meta.encodedHeight, byteLength: bytes.length, mime: BROWSER_FRAME_BINARY_MIME,
+    };
+    handle.ingestPush(push({ sessionId: 'session-b' }));
+    handle.ingestPush(push());
+    handle.ingestPush(meta);
+    handle.ingestBinary(encodeBrowserFrameBinary(header, bytes));
+    await Promise.resolve();
+    expect(ready).toHaveLength(0);
+    handle.ingestBinary(encodeBrowserFrameBinary({ ...header, sessionId: 'session-a' }, bytes));
+    await Promise.resolve();
+    expect(ready).toHaveLength(1);
+    expect(errors).toEqual([]);
+    handle.dispose();
+  });
+
   it('replaces the picture only after an inline JPEG validates', async () => {
     const { handle, ready, errors } = decoder();
     handle.ingestPush(push());

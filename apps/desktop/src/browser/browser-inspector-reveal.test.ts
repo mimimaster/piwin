@@ -2,6 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { shouldRevealBrowserInspector } from './browser-inspector-reveal';
 
 describe('shouldRevealBrowserInspector', () => {
+  it('ignores another conversation and unscoped browser activity', () => {
+    expect(shouldRevealBrowserInspector({
+      type: 'browser/controller', owner: 'agent', sessionId: 'other', ts: 0,
+    }, 'current')).toBe(false);
+    expect(shouldRevealBrowserInspector({
+      type: 'browser/state', url: 'https://other.example', sessionId: 'other', ts: 0,
+    }, 'current')).toBe(false);
+    expect(shouldRevealBrowserInspector({
+      type: 'browser/controller', owner: 'agent', ts: 0,
+    }, 'current')).toBe(false);
+  });
+
+  it('reveals the current conversation browser only', () => {
+    expect(shouldRevealBrowserInspector({
+      type: 'browser/controller', owner: 'agent', sessionId: 'current', ts: 0,
+    }, 'current')).toBe(true);
+  });
+
   it('opens the inspector when the agent acquires the workbench', () => {
     expect(
       shouldRevealBrowserInspector({ type: 'browser/controller', owner: 'agent', ts: 0 }),

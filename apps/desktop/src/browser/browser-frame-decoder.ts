@@ -49,6 +49,7 @@ export type BrowserFrameDecoder = {
 };
 
 export type BrowserFrameDecoderOptions = {
+  sessionId?: string;
   onReady: (view: BrowserFrameView) => void;
   onError: (reason: BrowserFrameErrorReason) => void;
   now?: () => number;
@@ -200,6 +201,7 @@ export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): 
   return {
     ingestPush(push) {
       if (disposed) return;
+      if (push.sessionId !== options.sessionId) return;
       if (!isNewerFrame(push, current) && push.payload.kind !== 'unavailable') return;
       if (push.payload.kind === 'unavailable') {
         fail(push.payload.reason);
@@ -238,6 +240,7 @@ export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): 
         return;
       }
       const { header, jpeg } = decoded;
+      if (header.sessionId !== options.sessionId) return;
       if (timedOutFrameId === header.frameId) return;
       if (pending !== undefined && pending.push.frameId === header.frameId) {
         const push = pending.push;

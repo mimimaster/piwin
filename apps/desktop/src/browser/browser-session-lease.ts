@@ -3,67 +3,17 @@
  * Pointer, IME, and CSS mapping stay in BrowserSessionPanel.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type {
-  BrowserController,
-  BrowserDialogInfo,
-  BrowserLifecycle,
-  BrowserMirrorMode,
-  BrowserTabInfo,
-  BrowserViewportConfig,
-  HostServerMessage,
-  WebElementPickResult,
-} from '@piwin/contracts';
-import {
-  capConsoleLines,
-  capNetworkLines,
-  type BrowserConsoleLine,
-  type BrowserNetworkLine,
-} from './browser-console-drawer';
+import type { HostServerMessage, WebElementPickResult } from '@piwin/contracts';
 import type { HostClient } from '../host/host-client';
+import { createBrowserSessionClient, type BrowserSessionClient } from './browser-session-client';
+import { createBrowserFrameDecoder } from './browser-frame-decoder';
 import {
-  createBrowserFrameDecoder,
-  type BrowserFrameErrorReason,
-  type BrowserFrameView,
-} from './browser-frame-decoder';
+  EMPTY_BROWSER_SESSION_LEASE, reduceBrowserSessionLease,
+  type BrowserHighlightBox, type BrowserSessionLeaseState,
+} from './browser-session-state';
 
-export type BrowserSessionFrame = {
-  src: string;
-  viewportWidth: number;
-  viewportHeight: number;
-  /** Real JPEG dimensions; the density ratio is computed from these (spec §4.1.1). */
-  encodedWidth?: number;
-  encodedHeight?: number;
-  sourceDpr?: number;
-  quality?: number;
-  producer?: 'screencast' | 'screenshot-fallback';
-};
-
-export type BrowserHighlightBox = { x: number; y: number; width: number; height: number };
-
-export type BrowserSessionLeaseState = {
-  frame: BrowserSessionFrame;
-  /** Draft shown in the address bar; only user input changes it. */
-  urlInput: string;
-  /** Host-published URL. */
-  committedUrl: string;
-  title: string;
-  highlight: BrowserHighlightBox | null;
-  pickPending: boolean;
-  pickError: string | null;
-  owner: BrowserController;
-  agentWantsLock: boolean;
-  consoleLines: BrowserConsoleLine[];
-  networkLines: BrowserNetworkLine[];
-  lifecycle: BrowserLifecycle | undefined;
-  mirror: BrowserMirrorMode | undefined;
-  generation: number | undefined;
-  pageId: string | undefined;
-  tabs: BrowserTabInfo[];
-  pendingDialog: BrowserDialogInfo | null;
-  viewport: BrowserViewportConfig | undefined;
-  documentRevision: number | undefined;
-  frameError: BrowserFrameErrorReason | null;
-};
+export { EMPTY_BROWSER_SESSION_LEASE, reduceBrowserHostPush } from './browser-session-state';
+export type { BrowserHighlightBox, BrowserSessionFrame, BrowserSessionLeaseState } from './browser-session-state';
 
 export type BrowserSessionLeaseClient = {
   subscribe: (listener: (message: HostServerMessage) => void) => () => void;
@@ -72,162 +22,15 @@ export type BrowserSessionLeaseClient = {
   browserStop: (leaseId: string) => Promise<{ success: boolean; error?: string }>;
 };
 
-export type BrowserSessionLease = {
-  frame: BrowserSessionFrame;
-  /** Host-published URL — the only page the reload command targets (spec §4.2). */
-  committedUrl: string;
-  /** Mirror lease id; required by follow-mode `browser/resize` (spec §4.1). */
+export type BrowserSessionLease = BrowserSessionLeaseState & {
+  client: BrowserSessionClient;
   mirrorLeaseId: string;
-  urlInput: string;
-  setUrlInput: (urlInput: string) => void;
-  title: string;
-  highlight: BrowserHighlightBox | null;
-  setHighlight: (highlight: BrowserHighlightBox | null) => void;
-  pickPending: boolean;
-  setPickPending: (pickPending: boolean) => void;
-  pickError: string | null;
-  setPickError: (pickError: string | null) => void;
   mirrorError: string | null;
-  owner: BrowserController;
-  agentWantsLock: boolean;
-  consoleLines: BrowserConsoleLine[];
-  networkLines: BrowserNetworkLine[];
-  lifecycle: BrowserLifecycle | undefined;
-  mirror: BrowserMirrorMode | undefined;
-  generation: number | undefined;
-  pageId: string | undefined;
-  tabs: BrowserTabInfo[];
-  pendingDialog: BrowserDialogInfo | null;
-  viewport: BrowserViewportConfig | undefined;
-  documentRevision: number | undefined;
-  frameError: BrowserFrameErrorReason | null;
+  setUrlInput: (urlInput: string) => void;
+  setHighlight: (highlight: BrowserHighlightBox | null) => void;
+  setPickPending: (pickPending: boolean) => void;
+  setPickError: (pickError: string | null) => void;
 };
-
-export const EMPTY_BROWSER_SESSION_LEASE: BrowserSessionLeaseState = {
-  frame: { src: '', viewportWidth: 0, viewportHeight: 0 },
-  urlInput: '',
-  committedUrl: '',
-  title: '',
-  highlight: null,
-  pickPending: false,
-  pickError: null,
-  owner: 'idle',
-  agentWantsLock: false,
-  consoleLines: [],
-  networkLines: [],
-  lifecycle: undefined,
-  mirror: undefined,
-  generation: undefined,
-  pageId: undefined,
-  tabs: [],
-  pendingDialog: null,
-  viewport: undefined,
-  documentRevision: undefined,
-  frameError: null,
-};
-
-function browserTargetIdentityChanged(
-  state: BrowserSessionLeaseState,
-  next: { generation: number | undefined; pageId: string | undefined },
-): boolean {
-  if (
-    next.generation !== undefined &&
-    state.generation !== undefined &&
-    next.generation !== state.generation
-  ) {
-    return true;
-  }
-  return (
-    next.pageId !== undefined && state.pageId !== undefined && next.pageId !== state.pageId
-  );
-}
-
-/** Apply a HostPush to lease-backed panel state. Non-browser messages are ignored. */
-export function reduceBrowserHostPush(
-  state: BrowserSessionLeaseState,
-  message: HostServerMessage,
-): BrowserSessionLeaseState {
-  if (message.type === 'browser/frame') {
-    // Pictures go through the decoder (spec §4.1.2); the reducer never writes src.
-    return state;
-  }
-  if (message.type === 'browser/state') {
-    const generation = message.generation ?? state.generation;
-    const pageId = message.pageId ?? state.pageId;
-    const documentRevision = message.documentRevision ?? state.documentRevision;
-    const identityChanged = browserTargetIdentityChanged(state, { generation, pageId });
-    // Draft vs committed (spec §4.2): Host pushes update `committedUrl` only.
-    // The draft mirrors it while the user is not editing.
-    const committedUrl = message.url ?? '';
-    const draftUntouched = state.urlInput.length === 0 || state.urlInput === state.committedUrl;
-    return {
-      ...state,
-      urlInput: draftUntouched ? committedUrl : state.urlInput,
-      committedUrl,
-      title: message.title ?? '',
-      lifecycle: message.lifecycle ?? state.lifecycle,
-      mirror: message.mirror ?? state.mirror,
-      generation,
-      pageId,
-      documentRevision,
-      tabs: message.tabs ?? (identityChanged ? [] : state.tabs),
-      pendingDialog:
-        message.pendingDialog === undefined
-          ? identityChanged
-            ? null
-            : state.pendingDialog
-          : message.pendingDialog,
-      viewport: message.viewport ?? state.viewport,
-      ...(identityChanged
-        ? {
-            frame: { src: '', viewportWidth: 0, viewportHeight: 0 },
-            highlight: null,
-            pickPending: false,
-          }
-        : {}),
-    };
-  }
-  if (message.type === 'browser/picked') {
-    return {
-      ...state,
-      pickPending: false,
-      pickError: null,
-      highlight: message.result.boundingRect,
-    };
-  }
-  if (message.type === 'browser/controller') {
-    return {
-      ...state,
-      owner: message.owner,
-      agentWantsLock: message.agentWantsLock === true,
-    };
-  }
-  if (message.type === 'browser/console') {
-    return {
-      ...state,
-      consoleLines: capConsoleLines([
-        ...state.consoleLines,
-        { level: message.level, text: message.text, ts: message.ts },
-      ]),
-    };
-  }
-  if (message.type === 'browser/network') {
-    return {
-      ...state,
-      networkLines: capNetworkLines([
-        ...state.networkLines,
-        {
-          method: message.method,
-          url: message.url,
-          status: message.status,
-          duration: message.duration,
-          ts: message.ts,
-        },
-      ]),
-    };
-  }
-  return state;
-}
 
 export function startBrowserSessionLease(input: {
   host: BrowserSessionLeaseClient;
@@ -284,67 +87,57 @@ export function startBrowserSessionLease(input: {
   };
 }
 
-type BrowserSessionLeaseAction =
-  | { type: 'host-push'; message: HostServerMessage }
-  | { type: 'url-input'; urlInput: string }
-  | { type: 'highlight'; highlight: BrowserHighlightBox | null }
-  | { type: 'pick-pending'; pickPending: boolean }
-  | { type: 'pick-error'; pickError: string | null }
-  | { type: 'frame-ready'; view: BrowserFrameView }
-  | { type: 'frame-error'; reason: BrowserFrameErrorReason };
-
-function reduceBrowserSessionLease(
-  state: BrowserSessionLeaseState,
-  action: BrowserSessionLeaseAction,
-): BrowserSessionLeaseState {
-  switch (action.type) {
-    case 'host-push':
-      return reduceBrowserHostPush(state, action.message);
-    case 'url-input':
-      return { ...state, urlInput: action.urlInput };
-    case 'highlight':
-      return { ...state, highlight: action.highlight };
-    case 'pick-pending':
-      return { ...state, pickPending: action.pickPending };
-    case 'pick-error':
-      return { ...state, pickError: action.pickError };
-    case 'frame-ready':
-      return {
-        ...state,
-        frameError: null,
-        frame: {
-          src: action.view.src,
-          viewportWidth: action.view.viewportWidth,
-          viewportHeight: action.view.viewportHeight,
-          encodedWidth: action.view.encodedWidth,
-          encodedHeight: action.view.encodedHeight,
-          sourceDpr: action.view.sourceDpr,
-          quality: action.view.quality,
-          producer: action.view.producer,
-        },
-      };
-    case 'frame-error':
-      return { ...state, frameError: action.reason };
-  }
-}
-
 export function useBrowserSessionLease(input: {
   hostClient: HostClient;
+  sessionId?: string;
+  hostInstanceId?: string | null;
   onAddWebElement: (pick: WebElementPickResult) => void;
   mirrorStartFailed: string;
   mirrorStopFailed: string;
+  /**
+   * The workbench keeps one owner for every Browser surface. While nothing
+   * shows the browser the owner stays mounted but idle: no lease is acquired,
+   * so a collapsed panel does not pin Chromium.
+   */
+  enabled?: boolean;
 }): BrowserSessionLease {
-  const { hostClient, onAddWebElement, mirrorStartFailed, mirrorStopFailed } = input;
+  const inputsRef = useRef(input);
+  inputsRef.current = input;
+  const hostClient = useMemo(
+    () => createBrowserSessionClient(input.hostClient, input.sessionId),
+    [input.hostClient, input.sessionId, input.hostInstanceId],
+  );
+  const enabled = input.enabled !== false;
   const [state, dispatch] = useReducer(reduceBrowserSessionLease, EMPTY_BROWSER_SESSION_LEASE);
   const [mirrorError, setMirrorError] = useState<string | null>(null);
-  const mirrorLeaseId = useMemo(() => crypto.randomUUID(), []);
+  const mirrorLeaseId = useMemo(() => crypto.randomUUID(), [hostClient, enabled]);
+  const activeLeaseRef = useRef(mirrorLeaseId);
+  activeLeaseRef.current = mirrorLeaseId;
+  const [previousClient, setPreviousClient] = useState(hostClient);
+  // Reset during render: no frame, URL, or pick from A may paint in B, even
+  // before React runs the old subscription's effect cleanup.
+  if (previousClient !== hostClient) {
+    setPreviousClient(hostClient);
+    dispatch({ type: 'reset' });
+    setMirrorError(null);
+  }
 
   const decoderRef = useRef<ReturnType<typeof createBrowserFrameDecoder> | undefined>(undefined);
 
   useEffect(() => {
+    if (!enabled) {
+      decoderRef.current = undefined;
+      setMirrorError(null);
+      return;
+    }
     const decoder = createBrowserFrameDecoder({
-      onReady: (view) => dispatch({ type: 'frame-ready', view }),
-      onError: (reason) => dispatch({ type: 'frame-error', reason }),
+      ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+      onReady: (view) => {
+        if (activeLeaseRef.current === mirrorLeaseId) dispatch({ type: 'frame-ready', view });
+      },
+      onError: (reason) => {
+        if (activeLeaseRef.current === mirrorLeaseId) dispatch({ type: 'frame-error', reason });
+      },
       decode: async (src) => {
         if (typeof Image === 'undefined') return;
         const image = new Image();
@@ -366,13 +159,16 @@ export function useBrowserSessionLease(input: {
       host: hostClient,
       mirrorLeaseId,
       onMessage: (message) => {
+        if (activeLeaseRef.current !== mirrorLeaseId) return;
+        if (message.type.startsWith('browser/') &&
+            ('sessionId' in message ? message.sessionId : undefined) !== input.sessionId) return;
         if (message.type === 'browser/frame') {
           decoder.ingestPush(message);
           return;
         }
         dispatch({ type: 'host-push', message });
         if (message.type === 'browser/picked') {
-          onAddWebElement(message.result);
+          inputsRef.current.onAddWebElement(message.result);
         }
         if (message.type === 'browser/state') {
           const nextGeneration = message.generation ?? lastIdentity.generation;
@@ -397,13 +193,17 @@ export function useBrowserSessionLease(input: {
           setMirrorError(null);
         }
       },
-      // Locale strings are captured when the lease (re)starts. The previous
-      // panel effect omitted `copy` from its deps; restarting Chromium on
-      // language change would not be behavior-preserving.
-      onStartFailed: (error) =>
-        setMirrorError(error !== undefined && error.trim() !== '' ? error : mirrorStartFailed),
-      onStopFailed: (error) =>
-        setMirrorError(error !== undefined && error.trim() !== '' ? error : mirrorStopFailed),
+      onStartFailed: (error) => {
+        if (activeLeaseRef.current !== mirrorLeaseId) return;
+        setMirrorError(error?.trim() ? error : inputsRef.current.mirrorStartFailed);
+      },
+      onStopFailed: (error) => {
+        if (activeLeaseRef.current !== mirrorLeaseId) {
+          console.warn('[browser] previous mirror release failed', error);
+          return;
+        }
+        setMirrorError(error?.trim() ? error : inputsRef.current.mirrorStopFailed);
+      },
     });
     return () => {
       unsubscribeBinary?.();
@@ -411,7 +211,7 @@ export function useBrowserSessionLease(input: {
       decoderRef.current = undefined;
       release();
     };
-  }, [hostClient, onAddWebElement, mirrorLeaseId, mirrorStartFailed, mirrorStopFailed]);
+  }, [enabled, hostClient, input.sessionId, mirrorLeaseId]);
 
   const setUrlInput = useCallback((urlInput: string) => {
     dispatch({ type: 'url-input', urlInput });
@@ -427,6 +227,7 @@ export function useBrowserSessionLease(input: {
   }, []);
 
   return {
+    client: hostClient,
     frame: state.frame,
     committedUrl: state.committedUrl,
     mirrorLeaseId,

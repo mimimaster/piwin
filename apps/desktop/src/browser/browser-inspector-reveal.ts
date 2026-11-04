@@ -7,7 +7,13 @@
  */
 import type { HostServerMessage } from '@piwin/contracts';
 
-export function shouldRevealBrowserInspector(message: HostServerMessage): boolean {
+export function shouldRevealBrowserInspector(
+  message: HostServerMessage,
+  activeSessionId?: string | null,
+): boolean {
+  if (activeSessionId === null) return false;
+  if (activeSessionId !== undefined &&
+      (!('sessionId' in message) || message.sessionId !== activeSessionId)) return false;
   if (message.type === 'browser/controller') {
     return message.owner === 'agent';
   }
