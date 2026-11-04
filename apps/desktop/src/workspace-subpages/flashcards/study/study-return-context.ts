@@ -114,6 +114,7 @@ export function sameStudyScope(left: FlashcardStudyScope, right: FlashcardStudyS
     return left.sequenceId === right.sequenceId;
   }
   if (left.kind === 'deck' && right.kind === 'deck') return left.deck === right.deck;
+  if (left.kind === 'topic' && right.kind === 'topic') return left.topic === right.topic;
   if (left.kind === 'all' && right.kind === 'all') return true;
   if (left.kind === 'selection' && right.kind === 'selection') {
     return (

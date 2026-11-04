@@ -21,6 +21,7 @@ import {
 import {
   createStudyEntry,
   scheduledScopeForDeck,
+  scheduledScopeForFilter,
   studyScopeForTile,
 } from './study/study-entry';
 import type { FlashcardStudyEntry } from './study/use-flashcard-study';
@@ -49,6 +50,7 @@ export function FlashcardsStudyView(props: FlashcardsStudyViewProps): ReactEleme
 
   const ws = useFlashcardsWorkspace(props.request);
   const [selectedDeck, setSelectedDeck] = useState<string>('all');
+  const [selectedTopic, setSelectedTopic] = useState<string>('all');
   const [internalSearch, setInternalSearch] = useState('');
   const search = props.search ?? internalSearch;
   const setSearch = props.onSearchChange ?? setInternalSearch;
@@ -82,19 +84,29 @@ export function FlashcardsStudyView(props: FlashcardsStudyViewProps): ReactEleme
   }, [ws.cards]);
 
   const availableDecks = useMemo(() => Object.keys(deckCounts), [deckCounts]);
+  const availableTopics = useMemo(() => {
+    const tags = new Set<string>();
+    for (const card of ws.cards) {
+      for (const tag of card.tags ?? []) tags.add(tag);
+    }
+    return [...tags].sort();
+  }, [ws.cards]);
 
   const tiles = useMemo(() => {
     return allGroupedTiles.filter((tile) => {
+      const cards = tileCards(tile);
       if (selectedDeck !== 'all') {
-        const cards = tileCards(tile);
         const top = cards[0];
         if ((top?.deck || 'General') !== selectedDeck) {
           return false;
         }
       }
+      if (selectedTopic !== 'all' && !cards.some((card) => (card.tags ?? []).includes(selectedTopic))) {
+        return false;
+      }
       return tileMatchesQuery(tile, search);
     });
-  }, [allGroupedTiles, selectedDeck, search]);
+  }, [allGroupedTiles, selectedDeck, selectedTopic, search]);
 
   const restoreLibrary = useCallback((context: FlashcardStudyReturnContext) => {
     setSearch(context.search);
@@ -156,7 +168,7 @@ export function FlashcardsStudyView(props: FlashcardsStudyViewProps): ReactEleme
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const scope = scheduledScopeForDeck(selectedDeck);
+      const scope = scheduledScopeForFilter({ selectedDeck, selectedTopic });
       const response = await requestRef.current({
         type: 'flashcards/study/catalog',
         limit: 1,
@@ -174,7 +186,7 @@ export function FlashcardsStudyView(props: FlashcardsStudyViewProps): ReactEleme
     return () => {
       cancelled = true;
     };
-  }, [selectedDeck, ws.cards.length]);
+  }, [selectedDeck, selectedTopic, ws.cards.length]);
 
   useEffect(() => {
     if (cardMode !== 'decks' || availableDecks.length === 0) return undefined;
@@ -356,6 +368,9 @@ export function FlashcardsStudyView(props: FlashcardsStudyViewProps): ReactEleme
           selectedDeck={selectedDeck}
           onSelectDeck={setSelectedDeck}
           availableDecks={availableDecks}
+          selectedTopic={selectedTopic}
+          onSelectTopic={setSelectedTopic}
+          availableTopics={availableTopics}
           deckCounts={deckCounts}
           totalCardsCount={ws.cards.length}
           dueCount={dueCount}
@@ -369,7 +384,15 @@ export function FlashcardsStudyView(props: FlashcardsStudyViewProps): ReactEleme
             if (tile) enterStudy(createStudyEntry({ mode: 'sequence', scope: studyScopeForTile(tile) }), tileId);
           }}
           onDeleteTile={(tileId) => void deleteTile(tileId)}
-          onStudyDue={() => enterStudy(createStudyEntry({ mode: 'scheduled', scope: scheduledScopeForDeck(selectedDeck) }), null)}
+          onStudyDue={() =>
+            enterStudy(
+              createStudyEntry({
+                mode: 'scheduled',
+                scope: scheduledScopeForFilter({ selectedDeck, selectedTopic }),
+              }),
+              null,
+            )
+          }
           onGoToDocuments={props.onGoToDocuments}
           onGoToWiki={props.onGoToWiki}
           onCreateCard={() => setCreateOpen(true)}

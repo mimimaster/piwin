@@ -12,6 +12,14 @@ export function scheduledScopeForDeck(selectedDeck: string): FlashcardStudyScope
   return { kind: 'deck', deck: selectedDeck };
 }
 
+export function scheduledScopeForFilter(input: {
+  selectedDeck: string;
+  selectedTopic: string;
+}): FlashcardStudyScope {
+  if (input.selectedTopic !== 'all') return { kind: 'topic', topic: input.selectedTopic };
+  return scheduledScopeForDeck(input.selectedDeck);
+}
+
 export function createStudyEntry(input: {
   mode: FlashcardStudyMode;
   scope: FlashcardStudyScope;

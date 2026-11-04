@@ -26,6 +26,7 @@ describe('study return context', () => {
       sameStudyScope({ kind: 'sequence', sequenceId: 'seq_os' }, { kind: 'sequence', sequenceId: 'seq_os' }),
     ).toBe(true);
     expect(sameStudyScope({ kind: 'all' }, { kind: 'deck', deck: 'OS' })).toBe(false);
+    expect(sameStudyScope({ kind: 'topic', topic: 'health' }, { kind: 'topic', topic: 'health' })).toBe(true);
     expect(sameStudyScope({ kind: 'item', itemId: 'a' }, { kind: 'item', itemId: 'b' })).toBe(false);
   });
 });

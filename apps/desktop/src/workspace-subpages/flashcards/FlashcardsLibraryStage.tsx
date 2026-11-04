@@ -13,6 +13,9 @@ export type FlashcardsLibraryStageProps = {
   selectedDeck: string;
   onSelectDeck: (deck: string) => void;
   availableDecks: readonly string[];
+  selectedTopic?: string;
+  onSelectTopic?: ((topic: string) => void) | undefined;
+  availableTopics?: readonly string[];
   deckCounts: Record<string, number>;
   totalCardsCount: number;
   dueCount: number;
@@ -198,6 +201,32 @@ export function FlashcardsLibraryStage(props: FlashcardsLibraryStageProps): Reac
       </div>
     ) : null;
 
+  const topicFilters =
+    (props.availableTopics?.length ?? 0) > 0 && props.onSelectTopic ? (
+      <div className="vault-chips" role="group" aria-label={t('Topic', '主题')} data-testid="flashcards-topic-chips">
+        <button
+          type="button"
+          className={`vault-chip${(props.selectedTopic ?? 'all') === 'all' ? ' is-on' : ''}`}
+          aria-pressed={(props.selectedTopic ?? 'all') === 'all'}
+          onClick={() => props.onSelectTopic?.('all')}
+        >
+          <span>{t('All topics', '全部主题')}</span>
+        </button>
+        {(props.availableTopics ?? []).map((topic) => (
+          <button
+            key={topic}
+            type="button"
+            className={`vault-chip${props.selectedTopic === topic ? ' is-on' : ''}`}
+            data-testid={`flashcards-topic-${topic}`}
+            aria-pressed={props.selectedTopic === topic}
+            onClick={() => props.onSelectTopic?.(topic)}
+          >
+            <span>{topic}</span>
+          </button>
+        ))}
+      </div>
+    ) : null;
+
   return (
     <div className="flashcards-library-stage" data-testid="flashcards-library-stage">
       <div
@@ -227,6 +256,7 @@ export function FlashcardsLibraryStage(props: FlashcardsLibraryStageProps): Reac
             />
           </label>
           {deckFilters}
+          {topicFilters}
         </div>
         <div className="vault-bar-tools" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Button

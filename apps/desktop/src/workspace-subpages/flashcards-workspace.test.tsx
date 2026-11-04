@@ -209,7 +209,8 @@ describe('FlashcardsWorkspaceView', () => {
     expect(titlebar?.querySelector('[data-testid="flashcards-back-btn"]')).not.toBeNull();
     expect(titlebar?.querySelector('.vault-search')).toBeNull();
     expect(container.querySelector('.studio-chrome .vault-filters')).toBeNull();
-    expect(titlebar?.querySelector('[data-testid="knowledge-tab-flashcards"]')).not.toBeNull();
+    expect(titlebar?.querySelector('[data-testid="knowledge-tab-flashcards"]')).toBeNull();
+    expect(container.querySelector('[data-testid="knowledge-section-flashcards"]')).not.toBeNull();
     expect(container.textContent).not.toContain('三阶知识飞轮');
     expect(container.textContent).not.toContain('Host :4310');
     // Search lives in the library stage; the gallery no longer offers a Wiki door.
@@ -310,7 +311,7 @@ describe('FlashcardsWorkspaceView', () => {
     });
   }, 15000);
 
-  it('slides the source drawer over flashcards study via 从文档出卡', async () => {
+  it('navigates to the materials library from 从文档出卡', async () => {
     const store = structuredClone(BASE_STORE);
     store.knowledgeBases = [
       {
@@ -333,13 +334,13 @@ describe('FlashcardsWorkspaceView', () => {
     });
     await flush(4);
 
-    expect(container.querySelector('[data-testid="flashcards-study-view"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="knowledge-tab-flashcards"]')?.classList.contains('is-active')).toBe(
-      true,
-    );
-    expect(container.querySelector('[data-testid="knowledge-wiki-workspace"]')).toBeNull();
-    expect(container.querySelector('[data-testid="wiki-source-drawer"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="wiki-source-card-folder:docs"]')?.textContent).toContain(
+    // 从文档出卡 now navigates to the materials section instead of sliding a
+    // drawer over the study page.
+    expect(container.querySelector('[data-testid="flashcards-study-view"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="knowledge-section-materials"]')?.getAttribute('aria-current'),
+    ).toBe('page');
+    expect(container.querySelector('[data-testid="knowledge-material-folder:docs"]')?.textContent).toContain(
       'Docs',
     );
   });
