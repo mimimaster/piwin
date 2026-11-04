@@ -150,6 +150,8 @@ export type WorkbenchInspectorProps = {
   terminalRecentDirs: string[];
   tasksContent?: ReactNode;
   tasksActiveCount?: number;
+  /** Session overview body: the Summary tab and the empty-panel home. */
+  summaryContent?: ReactNode;
   terminalJobMonitor?: Omit<TerminalJobMonitorProps, 'children' | 'locale'> | undefined;
   /**
    * Docking workspace owns browser/changes/canvas/doc hosts so the inspector
@@ -216,16 +218,23 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     terminalRecentDirs,
     tasksContent,
     tasksActiveCount,
+    summaryContent,
     terminalJobMonitor,
   } = props;
   const docking = props.docking?.enabled ? props.docking : null;
   const workspaceOwnsMovableTools = docking !== null;
   const dockedTools = resolveDockedTools(docking, artifactTarget?.title ?? null);
-  useBrowserInspectorReveal(hostClient, (tab) => {
-    // Docking reveals the browser in the workspace itself.
-    if (workspaceOwnsMovableTools) return;
-    shell.openInspector(tab);
-  });
+  useBrowserInspectorReveal(
+    hostClient,
+    (tab) => {
+      // Docking reveals the browser in the workspace itself.
+      if (workspaceOwnsMovableTools) return;
+      shell.openInspector(tab);
+    },
+    // Collapsed workspace: the Session Rail mini answers browser activity
+    // instead of re-opening the panel the user just closed.
+    { enabled: rightPanelOpen, sessionId: activeSessionId },
+  );
   const hostPathStyle = hostClient.getRemoteCapabilities()?.pathStyle;
   const terminalProjectPath = resolveInteractiveTerminalProjectPath(projectPath);
   const terminalSpawnCwd = resolveInteractiveTerminalCwd({
@@ -583,6 +592,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           }
           {...(tasksContent !== undefined ? { tasksContent } : {})}
           {...(tasksActiveCount !== undefined ? { tasksActiveCount } : {})}
+          {...(summaryContent !== undefined ? { summaryContent } : {})}
         />
       </>
   );

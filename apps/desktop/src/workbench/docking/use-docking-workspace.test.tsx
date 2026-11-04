@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { closeView } from './view-commands.js';
 import { useDockingWorkspace, type DockingWorkspaceController } from './use-docking-workspace.js';
 import type { MovableToolKind } from './types.js';
+import type { HostServerMessage } from '@piwin/contracts';
+import type { HostClient } from '../../host/host-client.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -39,6 +41,38 @@ describe('useDockingWorkspace right panel reveal', () => {
     act(() => root?.unmount());
     root = undefined;
     window.localStorage.clear();
+  });
+
+  it('reveals only the current conversation browser while the right panel is open', () => {
+    const listeners = new Set<(message: HostServerMessage) => void>();
+    const hostClient = { updateSubscriptions: async () => undefined, subscribe: (listener: (message: HostServerMessage) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    } } as unknown as HostClient;
+    const reveal = vi.fn();
+    function Probe(props: { sessionId: string; open: boolean }): null {
+      useDockingWorkspace({ enabled: true, hostClient, followSessionId: props.sessionId,
+        rightPanelOpen: props.open, onRevealRightTool: reveal });
+      return null;
+    }
+    root = createRoot(document.createElement('div'));
+    const emit = (sessionId: string) => act(() => {
+      for (const listener of listeners) listener({ type: 'browser/controller', owner: 'agent', sessionId, ts: 0 });
+    });
+    act(() => root?.render(<Probe sessionId="a" open />));
+    emit('b');
+    expect(reveal).not.toHaveBeenCalled();
+    emit('a');
+    expect(reveal).toHaveBeenLastCalledWith('browser');
+    reveal.mockClear();
+    act(() => root?.render(<Probe sessionId="b" open={false} />));
+    emit('b');
+    expect(reveal).not.toHaveBeenCalled();
+    act(() => root?.render(<Probe sessionId="b" open />));
+    emit('a');
+    expect(reveal).not.toHaveBeenCalled();
+    emit('b');
+    expect(reveal).toHaveBeenCalledExactlyOnceWith('browser');
   });
 
   it('reveals tools opened into the right group, but not plain focus changes', () => {

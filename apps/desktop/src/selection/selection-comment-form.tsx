@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react';
+import { useRendererRelaunchGuard } from '../hooks/use-renderer-relaunch-guard.js';
 
 const QUOTE_PREVIEW_MAX_CHARS = 120;
 
@@ -19,6 +20,7 @@ function quotePreview(quote: string): string {
 /** Inline composer shown inside the selection toolbar after "Comment". */
 export function SelectionCommentForm(props: SelectionCommentFormProps): ReactElement {
   const [draft, setDraft] = useState('');
+  useRendererRelaunchGuard(draft.trim().length > 0);
   const commentText = draft.trim();
   const submit = (): void => {
     if (commentText) props.onSubmit(commentText);

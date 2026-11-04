@@ -17,7 +17,7 @@ import { useWorkbenchStableValues } from '../hooks/use-workbench-stable-values';
 import { useWorkbenchAppModel } from '../hooks/use-workbench-app-model';
 import { useShellSessionOpen } from '../hooks/use-shell-session-open';
 import { useWindowsShellOffer } from '../hooks/use-windows-shell-offer';
-import { installRendererSelfHeal } from '../platform/renderer-self-heal';
+import { useWorkbenchRendererSelfHeal } from '../hooks/use-workbench-renderer-self-heal.js';
 import { scheduleIdleTask } from '../automation/schedule-idle-task';
 import { loadStreamdownMathPlugin } from '../markdown/streamdown-math-plugin.js';
 import { WorkbenchWorkspaceProviders } from './workbench-workspace-providers';
@@ -42,6 +42,7 @@ import { sessionScopeKey } from '../session/session-scope-key';
 import { useWorkbenchKnowledge } from '../hooks/use-workbench-knowledge';
 import { isInkstoneThemeId } from '../theme/appearance-tokens';
 import { ScreenCaptureLayer } from '../screen-capture/screen-capture-layer';
+import { useTrayQuotaSync } from '../tray-quota/use-tray-quota-sync.js';
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -68,8 +69,6 @@ function HostWorkbench({
   onThemeApplied,
 }: AppProps & { hostClient: HostClient }) {
   const [state, dispatch] = useReducer(chatUiReducer, hostClient, createSessionStartupState);
-  const selfHealBusyRef = useRef(false);
-  useEffect(() => installRendererSelfHeal(() => selfHealBusyRef.current), []);
   // KaTeX stays out of the cold start, but the first reply that mounts before
   // it loads paints without math and then reflows. Warm it once the shell is idle.
   useEffect(
@@ -148,15 +147,23 @@ function HostWorkbench({
     liveSessionId,
     knowledgeMountsRef,
   });
+  useWorkbenchRendererSelfHeal({ state, chrome, model });
   const { activeComments, activeDocument, activeMedia, activeSessionName } = model;
   const { addExistingMediaAttachment, addWebElement, artifactCanvas, artifactThemeKey } = model;
-  const { composer, composerCard, config, desktopContextMenuValue, dispatchNotification } = model;
+  const { composerCard, config, desktopContextMenuValue, dispatchNotification } = model;
   const { ensureSession, handleInspectSubagent, handleLocaleChange, handleOpenDocument } = model;
   const { handleOpenProject, handleResumeSession, handleSessionMenuAction } = model;
   const { handleStartNewSession, handleTrustProject, hostStatus, inspectorFileDiff } = model;
-  const { openRightTab, pendingAttachments, readTranscriptMedia, recentProjects } = model;
+  const { openRightTab, openSettingsSection, readTranscriptMedia, recentProjects } = model;
   const { requestConfig, requestGit, requestSubAgent, sessionDocuments, setComposer } = model;
   const { subagentInspectorPanel, subagentInspectorToggle, subagentStop } = model;
+  useTrayQuotaSync({
+    hostClient,
+    hostReady: state.hostReady,
+    locale: desktopLocale,
+    themeMode: activeTheme.mode === 'light' ? 'light' : 'dark',
+    openSettingsSection,
+  });
   const windowsShellOffer = useWindowsShellOffer({ hostClient, config, requestConfig });
   const openSessionFromShell = useShellSessionOpen({
     setActiveSubPage,
@@ -200,11 +207,6 @@ function HostWorkbench({
     hostClient,
     onInspect: handleInspectSubagent,
   });
-  selfHealBusyRef.current =
-    state.streaming ||
-    state.compacting ||
-    composer.trim().length > 0 ||
-    pendingAttachments.length > 0;
   const mediaStudioOpen =
     activeSubPage === 'library' || activeSubPage === 'images' || activeSubPage === 'videos';
   const studioOpen =

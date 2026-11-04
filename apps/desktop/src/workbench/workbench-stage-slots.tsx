@@ -324,6 +324,7 @@ export function WorkbenchStageMounts(props: WorkbenchStageMountsProps) {
         onOpenSession={handleResumeSession}
         subscribeKnowledgePush={knowledge.subscribeKnowledgePush}
         knowledgeSupported={knowledgeSupported}
+        knowledgeDocumentsSupported={hostStatus?.capabilities.knowledgeDocuments === true}
         onOpenIngest={openFlashcardsProduce}
         onUseKnowledgeInChat={knowledge.useInChat}
         onOpenKnowledgeCitation={knowledge.citationActions.openCitation}

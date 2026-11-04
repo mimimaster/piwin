@@ -5,7 +5,7 @@
  * orchestration plus thin assembly. The region props and their sources are
  * unchanged — the same hook results the root assembled are passed through.
  */
-import { useState, type Dispatch, type ReactNode } from 'react';
+import { useMemo, useState, type Dispatch, type ReactNode } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import { artifactFenceSecurityProps } from '../artifact/artifact-fence-security';
 import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from '../artifact/artifact-surfaces';
@@ -29,7 +29,18 @@ import { WorkbenchInspector } from './workbench-inspector';
 import { WorkbenchSidebar } from './workbench-sidebar';
 import { WorkbenchStageLayer } from './workbench-stage-slots';
 import { WorkspaceShell } from '../workspace/workspace-shell';
-import { StageToolCard } from '../conversation/stage-tool-card';
+import { createBrowserSessionClient } from '../browser/browser-session-client';
+import { BrowserSessionProvider } from '../browser/browser-session-provider';
+import { useBrowserActivitySignal } from '../browser/use-browser-activity-signal';
+import { hasBrowserMiniActivity } from '../browser/browser-mini-policy';
+import { SessionRailDock } from '../right-panel/session-rail-dock';
+import { SessionSummaryBinding } from '../right-panel/session-summary-binding';
+import { useSessionResources } from '../right-panel/use-session-resources';
+import {
+  browserMiniHostScope,
+  browserMiniPlacementStorageKey,
+} from '../browser/browser-mini-placement-store';
+import { useWorkingTreeStat } from '../hooks/use-working-tree-stat';
 
 type AppModel = ReturnType<typeof useWorkbenchAppModel>;
 
@@ -127,6 +138,113 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
   const { setComposer, switchBranch, terminalJobMonitor, transcriptHistoryLoading } = model;
   const { visibleRunRecordsById, visibleTranscriptMessages, worktrees } = model;
 
+  // ── Session rail + collapsed-panel Browser Mini ──────────────────
+  // One Browser owner for every surface: the docked stage view, the inspector
+  // tab, and the mini all render the same mirror lease, so collapsing the
+  // panel cannot stop Chromium or drop the page.
+  const browserHostInstanceId = hostClient.getHostInstanceId();
+  const browserActivity = useBrowserActivitySignal(hostClient, state.activeSessionId, browserHostInstanceId);
+  const browserClient = useMemo(
+    () => createBrowserSessionClient(hostClient, state.activeSessionId ?? undefined),
+    [hostClient, state.activeSessionId, browserHostInstanceId],
+  );
+  const gitProjectPath =
+    state.activeScope.kind === 'project' && hostClient.supportsCommand('git/diff-summary')
+      ? state.activeScope.projectPath
+      : null;
+  const workingTreeStat = useWorkingTreeStat(gitProjectPath, requestGit);
+  const browserTabOpen = rightPanelOpen && rightPanelTab === 'browser';
+  const dockingBrowserOpen =
+    dockingEnabled &&
+    Object.values(dockingWorkspace.state.views).some((view) => view.kind === 'browser');
+  const stageCoversBrowserSurface =
+    settingsOpen || studioOpen || activeSubPage !== null;
+  // One placement bucket per Host process; a reconnect to another Host must not
+  // inherit this one's corner.
+  const browserMiniPlacementKey = browserMiniPlacementStorageKey(
+    browserMiniHostScope(hostClient.getHostInstanceId()),
+  );
+  const miniCandidate =
+    !rightPanelOpen &&
+    !stageCoversBrowserSurface &&
+    hasBrowserMiniActivity({
+      url: browserActivity.url,
+      owner: browserActivity.owner,
+      frameSrc: '',
+    });
+  const browserSessionEnabled = state.activeSessionId !== null && (browserTabOpen || dockingBrowserOpen || miniCandidate);
+  // Verified environment + document projections. Both already exist in the
+  // workbench state; nothing here is inferred from prose.
+  const activeSessionRecord = (
+    state.activeScope.kind === 'general' ? state.generalSessions : state.sessions
+  ).find((session) => session.id === state.activeSessionId);
+  const remoteTarget = hostClient.getRemoteTarget();
+  const environment = {
+    ...(activeSessionRecord?.model?.modelId === undefined
+      ? {}
+      : { modelId: activeSessionRecord.model.modelId }),
+    ...(activeSessionRecord?.thinkingLevel === undefined
+      ? {}
+      : { thinkingLevel: activeSessionRecord.thinkingLevel }),
+    ...(activeSessionRecord?.messageCount === undefined
+      ? {}
+      : { messageCount: activeSessionRecord.messageCount }),
+    ...(remoteTarget === undefined ? {} : { hostLabel: remoteTarget.endpoint }),
+  };
+  const summaryDocuments = inspectorSessionDocuments.slice(0, 8);
+  const sessionResources = useSessionResources({
+    hostClient,
+    sessionId: state.activeSessionId,
+    messageCount: activeSessionRecord?.messageCount ?? null,
+  });
+
+  const summaryContent = (
+    <SessionSummaryBinding
+      locale={desktopLocale}
+      sessionTitle={activeSessionName || null}
+      streaming={state.streaming}
+      projectPath={state.projectPath}
+      projectTrusted={state.projectTrusted}
+      workspaceKind={state.activeScope.kind === 'project' ? 'project' : 'general'}
+      contextTelemetry={state.contextTelemetry}
+      diffStat={workingTreeStat}
+      plan={
+        sessionPlan === null
+          ? null
+          : {
+              title: sessionPlan.title,
+              completedSteps: sessionPlan.steps.filter((step) => step.status === 'done').length,
+              totalSteps: sessionPlan.steps.length,
+              onOpen: () => openRightTab('docPreview'),
+            }
+      }
+      walkthroughCount={Object.keys(state.walkthroughsByMessageId).length}
+      documents={summaryDocuments}
+      onOpenDocument={(document) => {
+        model.handleOpenDocument(
+          {
+            title: document.title,
+            ...(document.path === undefined ? {} : { path: document.path }),
+          },
+          'inspector',
+        );
+      }}
+      environment={environment}
+      resources={sessionResources}
+      onOpenLibrary={openLibrary}
+      onOpenKnowledge={openKnowledge}
+      artifactTitle={artifactCanvas.activeTarget?.title ?? null}
+      tasksActiveCount={tasksActiveCount}
+      runningJobCount={jobs.length}
+      onOpenTool={openRightTab}
+      onOpenArtifact={() => {
+        if (artifactCanvas.activeTarget !== null) {
+          handleOpenArtifactCanvas(artifactCanvas.activeTarget);
+        }
+      }}
+    />
+  );
+
   // Titlebar "locate open session": the sidebar owns its folds, so the
   // request travels as a counter it reacts to.
   const [sidebarRevealRequest, setSidebarRevealRequest] = useState(0);
@@ -162,6 +280,14 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
       data-settings-open={settingsOpen ? 'true' : 'false'}
       data-studio-open={studioOpen ? 'true' : 'false'}
     >
+      <BrowserSessionProvider
+        hostClient={hostClient}
+        hostInstanceId={browserHostInstanceId}
+        {...(state.activeSessionId === null ? {} : { sessionId: state.activeSessionId })}
+        locale={desktopLocale}
+        onAddWebElement={addWebElement}
+        enabled={browserSessionEnabled}
+      >
       <WorkspaceShell
         workspaceClassName={settingsOpen || studioOpen ? 'settings-workspace-suspended' : undefined}
         sidebar={
@@ -299,17 +425,41 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
         )}
         stageOverlay={
           rightPanelOpen || studioOpen || layoutMode === 'phone' ? null : (
-            <StageToolCard
+            <SessionRailDock
+              key={state.activeSessionId}
               locale={desktopLocale}
-              projectPath={
-                state.activeScope.kind === 'project' && hostClient.supportsCommand('git/diff-summary')
-                  ? state.activeScope.projectPath
-                  : null
-              }
-              request={requestGit}
+              diffStat={workingTreeStat}
+              tasksActiveCount={tasksActiveCount}
+              runningJobCount={jobs.length}
+              overlayOpen={settingsOpen || activeSubPage !== null}
+              hostReady={hostStatus !== null}
+              browserMiniPlacementKey={browserMiniPlacementKey}
               onOpenTool={openRightTab}
+              onReloadBrowser={() => {
+                void browserClient.browserReload();
+              }}
             />
           )
+        }
+        activityDock={
+          // Phone: the same owner renders its activity chip in the dock above
+          // the composer instead of a floating window over the transcript.
+          layoutMode === 'phone' && !rightPanelOpen ? (
+            <SessionRailDock
+              key={state.activeSessionId}
+              locale={desktopLocale}
+              diffStat={workingTreeStat}
+              tasksActiveCount={tasksActiveCount}
+              runningJobCount={jobs.length}
+              overlayOpen={settingsOpen || activeSubPage !== null}
+              hostReady={hostStatus !== null}
+              phone
+              onOpenTool={openRightTab}
+              onReloadBrowser={() => {
+                void browserClient.browserReload();
+              }}
+            />
+          ) : undefined
         }
         conversationOverride={cli.stage}
         conversationOverrideActive={cli.active}
@@ -456,9 +606,11 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             terminalJobMonitor={terminalJobMonitor}
             tasksActiveCount={tasksActiveCount}
             tasksContent={tasksContent}
+            summaryContent={summaryContent}
           />
         }
       />
+      </BrowserSessionProvider>
       {props.children}
     </div>
   );

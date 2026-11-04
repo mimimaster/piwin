@@ -47,6 +47,8 @@ export type WorkbenchSubpageStageProps = {
   onOpenSession?: ((sessionId: string) => void) | undefined;
   onRemixToComposer?: (input: { text: string; item?: MediaLibraryItem }) => void;
   knowledgeSupported?: boolean;
+  /** Host exposes `knowledge/documents/*`; without it the library lists sources only. */
+  knowledgeDocumentsSupported?: boolean;
   onOpenIngest?: (folderPath: string) => void;
   onUseKnowledgeInChat?: (baseId: string) => void;
   onOpenKnowledgeCitation?: (citation: KnowledgeCitation) => void;
@@ -91,9 +93,9 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
         ? 'flashcards'
         : props.flashcardsFolderPath || props.flashcardsEntry === 'produce'
           ? 'documents'
-          : 'wiki';
+          : 'overview';
     return (
-      <DeferredSurfaceBoundary label={props.locale === 'en' ? 'Knowledge' : '知识中心'}>
+      <DeferredSurfaceBoundary label={props.locale === 'en' ? 'Knowledge' : '知识空间'}>
         <DeferredKnowledgeWorkspaceView
           key={props.flashcardsFolderPath ?? props.activeSubPage}
           locale={props.locale === 'en' ? 'en' : 'zh-CN'}
@@ -108,6 +110,7 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
           subscribeConnected={props.subscribeConnected}
           hasStudyCapability={props.hasStudyCapability}
           knowledgeSupported={props.knowledgeSupported === true}
+          knowledgeDocumentsSupported={props.knowledgeDocumentsSupported === true}
           onOpenIngest={(folderPath) => props.onOpenIngest?.(folderPath)}
           onUseInChat={(baseId) => props.onUseKnowledgeInChat?.(baseId)}
           onSendToChat={(text) => props.onRemixToComposer?.({ text })}

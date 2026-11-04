@@ -8,6 +8,7 @@ import type { ActiveDocument } from '../documents/active-document';
 import type { LineCommentItem } from '../markdown/EnhancedMarkdownView';
 import { mergeComposerWithDocComments } from '../documents/doc-comments';
 import { isReservedComposerSlashCommand } from '../slash/slash-parse.js';
+import { useRendererRelaunchGuard } from './use-renderer-relaunch-guard.js';
 
 export type UseDocCommentsArgs = {
   activeDocument: ActiveDocument | null;
@@ -31,6 +32,7 @@ export function documentCommentKey(document: ActiveDocument | null): string {
 export function useDocComments(args: UseDocCommentsArgs): DocCommentsActions {
   const { activeDocument, composer, send } = args;
   const [docComments, setDocComments] = useState<Record<string, LineCommentItem[]>>({});
+  useRendererRelaunchGuard(Object.values(docComments).some((comments) => comments.length > 0));
 
   const activeDocKey = documentCommentKey(activeDocument);
   const activeComments = docComments[activeDocKey] || [];

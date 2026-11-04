@@ -205,11 +205,11 @@ export function useDockingWorkspace(args: {
   }, [args.enabled, args.inspectorTab, openToolView]);
 
   useEffect(() => {
-    if (!args.enabled || !args.hostClient) return;
+    if (!args.enabled || !args.hostClient || !rightPanelOpen) return;
     return args.hostClient.subscribe((message) => {
-      if (shouldRevealBrowserInspector(message)) openToolView('browser');
+      if (shouldRevealBrowserInspector(message, args.followSessionId ?? null)) openToolView('browser');
     });
-  }, [args.enabled, args.hostClient, openToolView]);
+  }, [args.enabled, args.hostClient, args.followSessionId, openToolView, rightPanelOpen]);
 
   const dismissNotice = useCallback(() => setNotice(null), []);
   const pushNotice = useCallback((message: string) => setNotice(message), []);
