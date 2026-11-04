@@ -15,7 +15,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 # Enables macOS full-size-content-view: the web titleband occupies the same
 # native row as the traffic lights instead of being laid out beneath it.
-tauri = { version = "2", features = ["protocol-asset", "macos-private-api"] }
+tauri = { version = "2", features = ["protocol-asset", "macos-private-api", "tray-icon"] }
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-websocket = "2.4.2"

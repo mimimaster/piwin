@@ -16,6 +16,7 @@ mod pty_tui;
 mod reveal_in_file_manager;
 mod save_user_file;
 mod screen_capture;
+mod tray_quota;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -28,6 +29,10 @@ use pet_overlay::{
 };
 use pty_host::{pty_close, pty_close_all, pty_open, pty_resize, pty_write, PtyHostState};
 use pty_tui::{pty_open_remote_tui, pty_open_tui};
+use tray_quota::{
+    tray_quota_hide, tray_quota_open_piwin, tray_quota_resize, tray_quota_set_visible,
+    TrayQuotaState,
+};
 use tauri::{Manager, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -44,6 +49,7 @@ pub fn run() {
         .manage(AttentionNotificationState::default())
         .manage(AppUpdateState::default())
         .manage(screen_capture::ScreenCaptureState::default())
+        .manage(TrayQuotaState::default())
         .invoke_handler(tauri::generate_handler![
             host_start,
             host_stop,
@@ -59,6 +65,10 @@ pub fn run() {
             pet_overlay_show,
             pet_overlay_hide,
             pet_overlay_toggle,
+            tray_quota_set_visible,
+            tray_quota_hide,
+            tray_quota_resize,
+            tray_quota_open_piwin,
             piwin_artifact_webview::artifact_document_put,
             show_main_window,
             reveal_in_file_manager::reveal_in_file_manager,
@@ -109,13 +119,14 @@ pub fn run() {
             // ADR 0097: no-op for development and shell-only builds.
             app_update::spawn_update_checks(application.handle().clone());
             screen_capture::shortcut::install(application.handle());
+            tray_quota::install(application.handle());
             // The window title is "piwin" so the Dock menu / Window list name it;
             // `hiddenTitle` (macOS) and custom chrome (Windows) keep it off the titlebar.
-            if let Some(main_window) = application.get_webview_window("main") {
+            if let Some(_main_window) = application.get_webview_window("main") {
                 #[cfg(target_os = "windows")]
                 {
-                    let _ = main_window.set_decorations(false);
-                    let _ = main_window.set_shadow(true);
+                    let _ = _main_window.set_decorations(false);
+                    let _ = _main_window.set_shadow(true);
                 }
             }
             // Pet overlay is created on demand (hide = destroy). A hidden
@@ -123,6 +134,10 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == tray_quota::TRAY_QUOTA_LABEL {
+                // Tray quota popover hides on blur / close; never quits the app.
+                return;
+            }
             if window.label() == "pet-overlay" {
                 static REAPPLYING_PET_OVERLAY_FLAGS: AtomicBool = AtomicBool::new(false);
                 if matches!(event, WindowEvent::Moved(_) | WindowEvent::Focused(_)) {
