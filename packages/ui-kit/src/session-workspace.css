@@ -1,0 +1,737 @@
+/* ── Session Rail, Session Summary & Browser Mini Primitives ─────── */
+
+.piwin-session-rail-stack {
+  --pw-rail-bg: color-mix(in srgb, var(--s1, var(--panel, var(--surface-1, #191714))) 88%, transparent);
+  --pw-rail-border: var(--l2, var(--line, var(--border, rgba(128, 128, 128, 0.16))));
+  --pw-rail-ink: var(--t2, var(--text-2, var(--muted, #8b8378)));
+  --pw-rail-ink-strong: var(--t1, var(--text-1, var(--text, #ebe5da)));
+  --pw-rail-hover: color-mix(in srgb, var(--t1, var(--text-1, #ebe5da)) 7%, transparent);
+  --pw-rail-active-bg: color-mix(in srgb, var(--zhu, var(--accent, #e25a3d)) 14%, transparent);
+  --pw-rail-active-ink: var(--zhu, var(--accent, #e25a3d));
+  --pw-rail-add: var(--pine, var(--add-text, var(--mint, #5fad85)));
+  --pw-rail-del: var(--crimson, var(--del-text, var(--danger, #d95f6e)));
+
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.piwin-session-rail-card,
+.piwin-session-rail-docked-slot {
+  pointer-events: auto;
+}
+
+.piwin-session-rail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 164px;
+  padding: 4px;
+  background: var(--pw-rail-bg);
+  border: 1px solid var(--pw-rail-border);
+  border-radius: 9px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--sh2, 0 4px 18px -4px rgba(0, 0, 0, 0.22));
+}
+
+.piwin-session-rail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pw-rail-ink);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 450;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+
+.piwin-session-rail-item:hover:not(:disabled) {
+  background: var(--pw-rail-hover);
+  color: var(--pw-rail-ink-strong);
+}
+
+.piwin-session-rail-item:focus-visible {
+  background: var(--pw-rail-hover);
+  color: var(--pw-rail-ink-strong);
+  outline: 1.5px solid var(--pw-rail-active-ink);
+  outline-offset: -1px;
+}
+
+.piwin-session-rail-item.is-active {
+  background: var(--pw-rail-active-bg);
+  color: var(--pw-rail-active-ink);
+  font-weight: 550;
+}
+
+.piwin-session-rail-item--summary {
+  margin-bottom: 2px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--l1, color-mix(in srgb, var(--pw-rail-border) 55%, transparent));
+  border-bottom-left-radius: 2px;
+  border-bottom-right-radius: 2px;
+}
+
+.piwin-session-rail-icon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: currentColor;
+  opacity: 0.88;
+}
+
+.piwin-session-rail-item:hover .piwin-session-rail-icon {
+  opacity: 1;
+}
+
+.piwin-session-rail-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.piwin-session-rail-dot {
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  display: none;
+  width: 5.5px;
+  height: 5.5px;
+  border-radius: 999px;
+  background: var(--pw-rail-active-ink);
+  box-shadow: 0 0 0 1.5px var(--s1, #141210);
+}
+
+.piwin-session-rail-dot.tone-success {
+  background: var(--pw-rail-add);
+}
+
+.piwin-session-rail-dot.tone-running {
+  background: var(--lamp, var(--pw-rail-active-ink));
+}
+
+.piwin-session-rail-dot.tone-warning {
+  background: var(--ochre, var(--amber, var(--warning, #d97706)));
+}
+
+.piwin-session-rail-dot.tone-danger {
+  background: var(--pw-rail-del);
+}
+
+.piwin-session-rail-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.piwin-session-rail-stat,
+.piwin-session-rail-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font: 500 10.5px/1 var(--mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.piwin-session-rail-badge {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--pw-rail-ink-strong) 8%, transparent);
+  color: var(--pw-rail-ink);
+}
+
+.piwin-session-rail-badge.tone-running {
+  background: var(--lamp-wash, var(--pw-rail-active-bg));
+  color: var(--lamp, var(--pw-rail-active-ink));
+}
+
+.piwin-session-rail-add {
+  color: var(--pw-rail-add);
+}
+
+.piwin-session-rail-del {
+  color: var(--pw-rail-del);
+}
+
+.piwin-session-rail-stack--compact .piwin-session-rail-card {
+  width: auto;
+  padding: 3px;
+}
+
+.piwin-session-rail-stack--compact .piwin-session-rail-item {
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+}
+
+.piwin-session-rail-stack--compact .piwin-session-rail-label,
+.piwin-session-rail-stack--compact .piwin-session-rail-stat,
+.piwin-session-rail-stack--compact .piwin-session-rail-badge {
+  display: none;
+}
+
+.piwin-session-rail-stack--compact .piwin-session-rail-dot {
+  display: block;
+}
+
+/* ── Session Summary Sections, Stat Cards & Resource Rows ────────── */
+
+.piwin-session-summary-section {
+  --pw-summary-surface: var(--s1, var(--panel, var(--surface-1, transparent)));
+  --pw-summary-surface-2: var(--s2, var(--panel2, var(--surface-2, rgba(128, 128, 128, 0.06))));
+  --pw-summary-hover: color-mix(in srgb, var(--t1, var(--text-1, #ebe5da)) 6%, transparent);
+  --pw-summary-border: var(--l1, var(--line-subtle, var(--line, rgba(128, 128, 128, 0.12))));
+  --pw-summary-border-strong: var(--l2, var(--line, rgba(128, 128, 128, 0.18)));
+  --pw-summary-text: var(--t1, var(--text-1, var(--text, #111111)));
+  --pw-summary-text-2: var(--t2, var(--text-2, #666666));
+  --pw-summary-muted: var(--t3, var(--text-3, var(--muted, #777777)));
+  --pw-summary-subtle: var(--t4, var(--text-4, #888888));
+  --pw-summary-accent: var(--zhu, var(--accent, #d4553d));
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--pw-summary-border);
+  border-radius: 0;
+}
+
+.piwin-session-summary-section:last-child {
+  border-bottom: 0;
+}
+
+.piwin-session-summary-section.is-empty {
+  gap: 2px;
+  padding: 7px 0;
+}
+
+.piwin-session-summary-section.is-empty.is-expanded {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.piwin-session-summary-section.is-empty.is-expanded .piwin-session-summary-section-header {
+  flex: none;
+}
+
+.piwin-session-summary-section.is-empty.is-expanded .piwin-session-summary-section-body {
+  min-width: 0;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.piwin-session-summary-section.is-collapsed {
+  padding: 6px 0;
+}
+
+.piwin-session-summary-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 20px;
+}
+
+.piwin-session-summary-section-heading,
+.piwin-session-summary-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--pw-summary-muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: left;
+  transition: color 120ms ease-out;
+}
+
+.piwin-session-summary-section-toggle {
+  cursor: pointer;
+}
+
+.piwin-session-summary-section-toggle:hover {
+  color: var(--pw-summary-text);
+}
+
+.piwin-session-summary-chevron {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  color: var(--pw-summary-subtle);
+  transform: rotate(-90deg);
+  transition:
+    transform 140ms ease-out,
+    color 120ms ease-out;
+}
+
+.piwin-session-summary-chevron.is-open {
+  transform: rotate(0deg);
+}
+
+.piwin-session-summary-section-toggle:hover .piwin-session-summary-chevron {
+  color: var(--pw-summary-text-2);
+}
+
+.piwin-session-summary-section-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  min-height: 16px;
+  border-radius: 4px;
+  background: var(--pw-summary-surface-2);
+  color: var(--pw-summary-text-2);
+  font: 500 10.5px/1 var(--mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.piwin-session-summary-section-subtitle {
+  padding-left: 19px;
+  color: var(--pw-summary-muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.piwin-session-summary-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.piwin-session-summary-grid {
+  display: grid;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.piwin-session-summary-grid--cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.piwin-session-summary-grid--cols-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.piwin-session-summary-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--pw-summary-border);
+  border-radius: 7px;
+  background: var(--pw-summary-surface-2);
+  color: var(--pw-summary-text);
+  font: inherit;
+  text-align: left;
+}
+
+.piwin-session-summary-stat-card.is-interactive {
+  cursor: pointer;
+  transition:
+    border-color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+.piwin-session-summary-stat-card.is-interactive:hover:not(:disabled) {
+  border-color: var(--pw-summary-border-strong);
+  background: var(--pw-summary-hover);
+}
+
+.piwin-session-summary-stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.piwin-session-summary-stat-label {
+  color: var(--pw-summary-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.piwin-session-summary-stat-value {
+  font: 600 13.5px/1.25 var(--mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--pw-summary-text);
+}
+
+.piwin-session-summary-stat-caption {
+  color: var(--pw-summary-muted);
+  font-size: 11px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.piwin-session-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: calc(100% + 8px);
+  margin: 0 -4px;
+  min-height: 30px;
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pw-summary-text-2);
+  font: inherit;
+  text-align: left;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+
+.piwin-session-summary-row.is-interactive {
+  cursor: pointer;
+}
+
+.piwin-session-summary-row.is-interactive:hover:not(:disabled) {
+  background: var(--pw-summary-hover);
+  color: var(--pw-summary-text);
+}
+
+.piwin-session-summary-row.is-active {
+  background: color-mix(in srgb, var(--pw-summary-accent) 12%, transparent);
+  color: var(--pw-summary-text);
+}
+
+.piwin-session-summary-row-primary,
+.piwin-session-summary-row-static {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.piwin-session-summary-row-primary {
+  cursor: pointer;
+}
+
+.piwin-session-summary-row-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  flex: none;
+  background: color-mix(in srgb, var(--pw-summary-text) 5%, transparent);
+  color: var(--pw-summary-muted);
+  transition:
+    color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+.piwin-session-summary-row-icon svg {
+  width: 13.5px;
+  height: 13.5px;
+}
+
+.piwin-session-summary-row.is-interactive:hover:not(:disabled) .piwin-session-summary-row-icon {
+  background: color-mix(in srgb, var(--pw-summary-text) 9%, transparent);
+  color: var(--pw-summary-text);
+}
+
+.piwin-session-summary-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.piwin-session-summary-row-title {
+  font-size: 12.5px;
+  font-weight: 450;
+  color: var(--pw-summary-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.piwin-session-summary-row-subtitle {
+  color: var(--pw-summary-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.piwin-session-summary-row-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+/* ── Browser Mini Preview Card ───────────────────────────────────── */
+
+.piwin-browser-mini-card {
+  --pw-mini-bg: var(--s1, var(--panel, var(--surface-1, #141210)));
+  --pw-mini-surface: var(--s2, var(--panel2, var(--surface-2, #191714)));
+  --pw-mini-border: var(--l2, var(--line, var(--border, rgba(128, 128, 128, 0.22))));
+  --pw-mini-ink: var(--t1, var(--text-1, var(--text, #ebe5da)));
+  --pw-mini-muted: var(--t3, var(--text-2, var(--muted, #8b8378)));
+  --pw-mini-accent: var(--zhu, var(--accent, #e25a3d));
+
+  display: flex;
+  flex-direction: column;
+  width: 288px;
+  max-width: calc(100vw - 32px);
+  background: var(--pw-mini-bg);
+  border: 1px solid var(--pw-mini-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--sh3, 0 12px 32px -8px rgba(0, 0, 0, 0.32));
+  user-select: none;
+}
+
+.piwin-browser-mini-card--floating {
+  position: absolute;
+  z-index: 12;
+}
+
+.piwin-browser-mini-card.is-owner-agent {
+  border-color: color-mix(in srgb, var(--lamp, var(--pw-mini-accent)) 62%, var(--pw-mini-border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--lamp, var(--pw-mini-accent)) 20%, transparent),
+    var(--sh3, 0 12px 32px -8px rgba(0, 0, 0, 0.34));
+}
+
+.piwin-browser-mini-card.is-dragging {
+  cursor: grabbing;
+  opacity: 0.94;
+}
+
+.piwin-browser-mini-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 28px;
+  padding: 3px 7px 3px 9px;
+  background: var(--pw-mini-surface);
+  border-bottom: 1px solid var(--l1, var(--pw-mini-border));
+  cursor: grab;
+}
+
+.piwin-browser-mini-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.piwin-browser-mini-status-dot {
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 999px;
+  flex: none;
+  background: var(--pine, var(--mint, #5fad85));
+}
+
+.piwin-browser-mini-status-dot.owner-agent {
+  background: var(--lamp, var(--pw-mini-accent));
+}
+
+.piwin-browser-mini-status-dot.state-reconnecting,
+.piwin-browser-mini-status-dot.state-starting {
+  background: var(--ochre, var(--amber, var(--warning, #d97706)));
+}
+
+.piwin-browser-mini-status-dot.state-stale,
+.piwin-browser-mini-status-dot.state-error {
+  background: var(--crimson, var(--danger, #d95f6e));
+}
+
+.piwin-browser-mini-owner-pill,
+.piwin-browser-mini-shared-pill,
+.piwin-browser-mini-tab-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 550;
+  flex: none;
+}
+
+.piwin-browser-mini-owner-pill {
+  background: var(--lamp-wash, color-mix(in srgb, var(--pw-mini-accent) 14%, transparent));
+  color: var(--lamp, var(--pw-mini-accent));
+}
+
+.piwin-browser-mini-shared-pill,
+.piwin-browser-mini-tab-count {
+  background: color-mix(in srgb, var(--pw-mini-ink) 7%, transparent);
+  color: var(--pw-mini-muted);
+}
+
+.piwin-browser-mini-title {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--pw-mini-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.piwin-browser-mini-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.piwin-browser-mini-action-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--pw-mini-muted);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+
+.piwin-browser-mini-action-btn:hover {
+  background: color-mix(in srgb, var(--pw-mini-ink) 8%, transparent);
+  color: var(--pw-mini-ink);
+}
+
+.piwin-browser-mini-action-btn.is-primary {
+  color: var(--pw-mini-ink);
+}
+
+.piwin-browser-mini-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 11px;
+  background: var(--lamp-wash, color-mix(in srgb, var(--amber, #d97706) 14%, var(--pw-mini-surface)));
+  color: var(--pw-mini-ink);
+  border-bottom: 1px solid var(--pw-mini-border);
+}
+
+.piwin-browser-mini-alert.tone-danger {
+  background: var(--crimson-wash, color-mix(in srgb, var(--danger, #dc2626) 14%, var(--pw-mini-surface)));
+}
+
+.piwin-browser-mini-alert-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.piwin-browser-mini-alert-action {
+  padding: 2px 7px;
+  border: 1px solid var(--pw-mini-border);
+  border-radius: 5px;
+  background: var(--pw-mini-bg);
+  color: var(--pw-mini-ink);
+  font-size: 11px;
+  font-weight: 550;
+  cursor: pointer;
+  flex: none;
+}
+
+.piwin-browser-mini-viewport {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 144px;
+  background: var(--pw-mini-surface);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.piwin-browser-mini-viewport:focus-visible {
+  outline: 2px solid var(--pw-mini-accent);
+  outline-offset: -2px;
+}
+
+.piwin-browser-mini-viewport.is-interactive {
+  cursor: default;
+  overscroll-behavior: contain;
+}
+
+.piwin-browser-mini-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  pointer-events: none;
+}
+
+.piwin-browser-mini-empty {
+  padding: 12px;
+  color: var(--pw-mini-muted);
+  font-size: 11.5px;
+  text-align: center;
+}
+
+.piwin-browser-mini-state-pill {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(17, 17, 17, 0.78);
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 500;
+  backdrop-filter: blur(6px);
+}

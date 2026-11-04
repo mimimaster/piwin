@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   allocateRightPanelInstanceId,
+  existingTabForKind,
   insertTabAfterActive,
   isRightPanelInstanceTab,
   rightPanelTabKind,
@@ -45,5 +46,17 @@ describe('right panel instances', () => {
       'files',
       'browser',
     ]);
+  });
+
+  it('focuses the instance that already owns a tool instead of allocating one', () => {
+    // The live page lives in `browser-2`; a kind request must not spawn `browser`.
+    expect(existingTabForKind('browser', ['browser-2', 'files'])).toBe('browser-2');
+    expect(existingTabForKind('browser', ['browser'])).toBe('browser');
+    expect(existingTabForKind('browser', ['browser-10', 'browser-2'])).toBe('browser-2');
+    // Terminal ids name PTY sessions, so the live one wins over a bare kind.
+    expect(existingTabForKind('terminal', ['terminal-1'])).toBe('terminal-1');
+    // Nothing of that kind open: the caller allocates.
+    expect(existingTabForKind('browser', ['files'])).toBeNull();
+    expect(existingTabForKind('summary', [])).toBeNull();
   });
 });

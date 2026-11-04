@@ -1,0 +1,232 @@
+/* Session Summary: the expanded right workspace's overview body.
+   ui-kit owns every card, row, and grid primitive; this file owns only the
+   Summary's own chrome (session header, workspace line, empty copy). */
+.session-summary {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 0;
+  padding: 6px 14px 20px;
+}
+
+.session-summary-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 0 11px;
+  border: 0;
+  border-bottom: 1px solid var(--l1, var(--line-subtle, var(--line, var(--border))));
+  border-radius: 0;
+  background: transparent;
+}
+
+.session-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.session-summary-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--t1, var(--text-1));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-summary-run {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--lamp-wash, color-mix(in srgb, var(--accent) 14%, transparent));
+  color: var(--lamp, var(--accent));
+  font-size: 10.5px;
+  font-weight: 550;
+}
+
+.session-summary-workspace {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--t3, var(--text-3));
+}
+
+.session-summary-workspace-label {
+  flex: none;
+  color: var(--t3, var(--text-3));
+}
+
+.session-summary-workspace-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--t2, var(--text-2));
+}
+
+.session-summary-empty {
+  margin: 0;
+  padding: 0;
+  color: var(--t4, var(--text-3));
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* 2×2 tactile quick-launch grid for the core workspace tools. */
+.session-summary-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.session-summary-tools-grid .session-summary-tool-tile {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--l1, var(--line-subtle, rgba(128, 128, 128, 0.12)));
+  border-radius: 7px;
+  background: var(--s2, var(--surface-2, rgba(128, 128, 128, 0.05)));
+}
+
+.session-summary-tools-grid .session-summary-tool-tile:hover:not(:disabled) {
+  border-color: var(--l2, var(--line, rgba(128, 128, 128, 0.22)));
+  background: color-mix(in srgb, var(--t1, var(--text-1)) 6%, var(--s2, transparent));
+}
+
+.session-summary-tools-grid .session-summary-tool-tile .piwin-session-summary-row-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--t1, var(--text-1)) 5%, transparent);
+}
+
+.session-summary-tools-grid .session-summary-tool-tile .piwin-session-summary-row-text {
+  width: auto;
+}
+
+/* Phone activity chip: docked above the composer, never over the transcript. */
+.browser-activity-chip-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--s-4, 10px) var(--s-2, 4px);
+}
+
+.browser-activity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 4px 12px;
+  border: 1px solid var(--line, var(--border));
+  border-radius: 999px;
+  background: var(--surface-2, var(--panel));
+  color: var(--text-2);
+  font: 500 12.5px/1.2 var(--sans, ui-sans-serif, system-ui);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.browser-activity-chip:hover {
+  background: var(--surface-3, var(--surface-2));
+  color: var(--text-1);
+}
+
+.browser-activity-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.browser-activity-chip-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mint, var(--ok));
+}
+
+.browser-activity-chip[data-agent-driving='true'] .browser-activity-chip-dot {
+  background: var(--accent);
+  animation: browser-activity-chip-pulse 1.8s ease-in-out infinite;
+}
+
+.browser-activity-chip-label {
+  flex: none;
+  font-weight: 550;
+}
+
+.browser-activity-chip-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+@keyframes browser-activity-chip-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .browser-activity-chip[data-agent-driving='true'] .browser-activity-chip-dot {
+    animation: none;
+  }
+}
+
+/* Environment facts: label/value lines under the session header. */
+.session-summary-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 3px 0 0;
+}
+
+.session-summary-fact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-size: 11.5px;
+}
+
+.session-summary-fact dt {
+  flex: none;
+  color: var(--t3, var(--text-3));
+}
+
+.session-summary-fact dd {
+  margin: 0;
+  min-width: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--s2, var(--surface-2, rgba(128, 128, 128, 0.08)));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--t2, var(--text-2));
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+}

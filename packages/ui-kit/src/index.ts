@@ -206,3 +206,41 @@ export {
 } from './provider-brands.js';
 export { ModelFallbackIcon } from './model-fallback-icon.js';
 export type { ModelFallbackIconProps } from './model-fallback-icon.js';
+
+export { SessionRail, SessionRailItem } from './session-rail.js';
+export type {
+  SessionRailDensity,
+  SessionRailDiffStat,
+  SessionRailItemProps,
+  SessionRailItemVariant,
+  SessionRailProps,
+} from './session-rail.js';
+
+export {
+  SessionSummaryGrid,
+  SessionSummaryRow,
+  SessionSummarySection,
+  SessionSummaryStatCard,
+} from './session-summary.js';
+export type {
+  SessionSummaryGridProps,
+  SessionSummaryRowProps,
+  SessionSummarySectionProps,
+  SessionSummaryStatCardProps,
+} from './session-summary.js';
+
+export {
+  BROWSER_MINI_DRAG_THRESHOLD_PX,
+  BROWSER_MINI_KEYBOARD_NUDGE_PX,
+  BrowserMiniCard,
+  isBrowserMiniDragGesture,
+} from './browser-mini-card.js';
+export type {
+  BrowserMiniAlertBanner,
+  BrowserMiniCardLabels,
+  BrowserMiniCardProps,
+  BrowserMiniControlOwner,
+  BrowserMiniDragOffset,
+  BrowserMiniPlacementMode,
+  BrowserMiniRuntimeState,
+} from './browser-mini-card.js';

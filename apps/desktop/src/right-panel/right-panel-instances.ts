@@ -7,6 +7,7 @@
  */
 
 export const RIGHT_PANEL_TOOL_KINDS = [
+  'summary',
   'files',
   'terminal',
   'review',
@@ -72,4 +73,33 @@ export function insertTabAfterActive<T extends string>(
   const anchor = active !== null ? next.indexOf(active) : -1;
   next.splice(anchor >= 0 ? anchor + 1 : next.length, 0, tab);
   return next;
+}
+
+/**
+ * Which tab an "open this tool" request should select.
+ *
+ * A request names a kind (`browser`), but the open tabs may hold only an
+ * instance (`browser-2`). Creating the bare kind there would allocate a
+ * second surface and leave the live page behind — expand on a mini, a rail row,
+ * or a tool deep-link must focus what is already open.
+ */
+export function existingTabForKind<T extends string>(
+  requested: T,
+  openTabs: readonly T[],
+): T | null {
+  if (openTabs.includes(requested)) return requested;
+  const kind = rightPanelTabKind(requested);
+  if (kind === null) return null;
+  const instances = openTabs.filter((tab: T) => isRightPanelInstanceTab(tab, kind));
+  if (instances.length === 0) return null;
+  // Prefer the primary tab, then the lowest instance index (`browser-2` before
+  // `browser-10`, unlike a string sort).
+  return instances.sort((left, right) => instanceRank(left) - instanceRank(right))[0] ?? null;
+}
+
+function instanceRank(tab: string): number {
+  const dash = tab.indexOf('-');
+  if (dash < 0) return 1;
+  const index = Number.parseInt(tab.slice(dash + 1), 10);
+  return Number.isFinite(index) ? index : Number.MAX_SAFE_INTEGER;
 }

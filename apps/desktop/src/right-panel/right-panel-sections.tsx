@@ -55,6 +55,7 @@ export const SECTION_META: Array<{
   /** One view of the workspace: opening it again focuses the open tab. */
   singleInstance?: boolean;
 }> = [
+  { id: 'summary', icon: <IconActivity />, labelEn: 'Summary', labelZh: '概览', singleInstance: true, hidden: true },
   { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更', shortcut: '⌘3', singleInstance: true },
   { id: 'sideChat', icon: <IconSideChat />, labelEn: 'Side chat', labelZh: '侧聊' },
   { id: 'browser', icon: <IconBrowser />, labelEn: 'Browser', labelZh: '浏览器', shortcut: '⌘4' },

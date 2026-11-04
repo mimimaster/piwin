@@ -25,6 +25,7 @@ import {
   type RightPanelTab,
   type RightPanelToolKind,
 } from './right-panel-sections';
+import { existingTabForKind } from './right-panel-instances';
 import { terminalTabLabel } from '../terminal/terminal-tab-label.js';
 import { RightPanelPlusMenu } from './right-panel-plus-menu';
 import { RightPanelHome } from './right-panel-home';
@@ -98,6 +99,8 @@ export type RightPanelProps = {
   onTabClosed?: (tab: RightPanelTab) => void;
   docPreviewContent?: ReactNode;
   tasksContent?: ReactNode;
+  /** Session overview body; also the empty-panel home when no tool tab is open. */
+  summaryContent?: ReactNode;
   changesCount?: number;
   runningJobCount?: number;
   cardsDueCount?: number;
@@ -127,6 +130,8 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
   const kind = rightPanelTabKind(tab);
   if (kind === 'terminal') return props.terminalContent;
   switch (kind) {
+    case 'summary':
+      return props.summaryContent;
     case 'files':
       return props.filesContent;
     case 'browser':
@@ -196,6 +201,10 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const [titlebarActionsSlot, setTitlebarActionsSlot] = useState<HTMLElement | null>(null);
   const [browserPageTabCount, setBrowserPageTabCount] = useState(0);
   const previousActiveTabRef = useRef(props.activeTab);
+  // Read by the open/navigation effects, which must not re-subscribe on every
+  // tab change just to know which instances exist.
+  const openTabsRef = useRef(openTabs);
+  openTabsRef.current = openTabs;
   const previousOpenRef = useRef(props.open);
   const allTabs = useMemo(
     () => [...openTabs, ...dockedTabs.filter((tab) => !openTabs.includes(tab))],
@@ -236,9 +245,18 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     const requested = props.activeTab;
     if (requested != null) {
       if (!keepsTab(requested)) return;
+      // "Open Browser" while `browser-2` is the live tab focuses that instance
+      // instead of allocating a second, empty Browser surface.
+      const base = openTabsRef.current.length > 0 ? openTabsRef.current : storedTabs;
+      const resolved = existingTabForKind(requested, base);
+      if (resolved !== null && resolved !== requested) {
+        setPickerOpen(false);
+        props.onTabChange(resolved);
+        return;
+      }
       setOpenTabs((current) => {
-        const base = current.length > 0 ? current : storedTabs;
-        return base.includes(requested) ? base : [...base, requested];
+        const tabs = current.length > 0 ? current : storedTabs;
+        return tabs.includes(requested) ? tabs : [...tabs, requested];
       });
       setPickerOpen(false);
       return;
@@ -265,9 +283,15 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     if (previous === requested || !keepsTab(requested)) {
       return;
     }
+    const resolved = existingTabForKind(requested, openTabsRef.current);
+    if (resolved !== null && resolved !== requested) {
+      setPickerOpen(false);
+      props.onTabChange(resolved);
+      return;
+    }
     setOpenTabs((current) => (current.includes(requested) ? current : [...current, requested]));
     setPickerOpen(false);
-  }, [props.activeTab, props.open]);
+  }, [props.activeTab, props.open, props.onTabChange]);
 
   // A tab picked from the menu may be handed off right away; drop it here too.
   useEffect(() => {
@@ -634,11 +658,13 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       </div>
 
       {allTabs.length === 0 ? (
-        <RightPanelHome
-          locale={locale}
-          onSelect={openKind}
-          tasksActiveCount={tasksActiveCount}
-        />
+        props.summaryContent ?? (
+          <RightPanelHome
+            locale={locale}
+            onSelect={openKind}
+            tasksActiveCount={tasksActiveCount}
+          />
+        )
       ) : (
         /* Active-only lifecycle; terminal remains the explicit PTY exception. */
         <div className="right-panel-bodies">
