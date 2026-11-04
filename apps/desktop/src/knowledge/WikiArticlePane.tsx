@@ -3,6 +3,7 @@ import { Spinner } from '@piwin/ui-kit';
 import type { WikiConceptDetail, WikiConceptItem } from '@piwin/contracts';
 import { MarkdownView } from '../markdown/MarkdownView.js';
 import { formatWikilinksForMarkdown, slugifyWikiTarget, wikiLinkLabel } from './format-wikilinks.js';
+import type { WikiPageDraft } from './wiki-page-draft.js';
 
 export type WikiArticlePaneProps = {
   locale: 'zh-CN' | 'en';
@@ -14,7 +15,18 @@ export type WikiArticlePaneProps = {
   onUseInChat: (baseId: string) => void;
   onOpenSources: () => void;
   onProduceFlashcards?: ((folderPath: string) => void) | undefined;
+  onDraftFlashcards?: ((input: { slug: string; title: string; content: string }) => void) | undefined;
   wikiFolderPath?: string | undefined;
+  editable?: boolean | undefined;
+  draft?: WikiPageDraft | null | undefined;
+  saveError?: string | null | undefined;
+  saving?: boolean | undefined;
+  distilling?: boolean | undefined;
+  onStartEdit?: (() => void) | undefined;
+  onDraftChange?: ((draft: Pick<WikiPageDraft, 'title' | 'content'>) => void) | undefined;
+  onSaveAsChange?: ((saveAs: 'create' | 'update') => void) | undefined;
+  onSaveDraft?: (() => void) | undefined;
+  onCancelDraft?: (() => void) | undefined;
 };
 
 /**
@@ -42,6 +54,110 @@ export function WikiArticlePane(props: WikiArticlePaneProps): ReactElement {
     [props],
   );
 
+  if (props.distilling) {
+    return (
+      <main className="wiki-content-canvas" aria-label={t('Distilling', '正在整理')}>
+        <div className="vault-empty" data-testid="wiki-distill-pending">
+          <Spinner label={t('Compiling a draft…', '正在生成草稿…')} />
+        </div>
+      </main>
+    );
+  }
+
+  if (props.draft) {
+    const sources = props.draft.sources ?? [];
+    const related = props.draft.relatedPages ?? [];
+    return (
+      <main className="wiki-content-canvas" aria-label={t('Edit wiki page', '编辑知识页')}>
+        <article className="article-container" data-testid="wiki-page-editor">
+          {props.draft.existingPage ? (
+            <div className="article-actions" data-testid="wiki-draft-save-as">
+              <button
+                type="button"
+                className={`btn sm${props.draft.saveAs === 'update' ? ' pri' : ''}`}
+                data-testid="wiki-draft-save-as-update"
+                onClick={() => props.onSaveAsChange?.('update')}
+              >
+                {t('Update existing', '更新已有页')}
+              </button>
+              <button
+                type="button"
+                className={`btn sm${props.draft.saveAs === 'create' ? ' pri' : ''}`}
+                data-testid="wiki-draft-save-as-create"
+                onClick={() => props.onSaveAsChange?.('create')}
+              >
+                {t('Save as new', '另存为新页')}
+              </button>
+            </div>
+          ) : null}
+          {props.draft.saveAs === 'update' && props.draft.existingPage ? (
+            <pre className="wiki-draft-current" data-testid="wiki-draft-current">
+              {props.draft.existingPage.content}
+            </pre>
+          ) : null}
+          <input
+            className="wiki-draft-title"
+            data-testid="wiki-draft-title"
+            value={props.draft.title}
+            onChange={(event) =>
+              props.onDraftChange?.({ title: event.currentTarget.value, content: props.draft?.content ?? '' })
+            }
+            placeholder={t('Title', '标题')}
+          />
+          <textarea
+            className="wiki-draft-body"
+            data-testid="wiki-draft-body"
+            value={props.draft.content}
+            rows={16}
+            onChange={(event) =>
+              props.onDraftChange?.({ title: props.draft?.title ?? '', content: event.currentTarget.value })
+            }
+            placeholder={t('Write the page…', '写正文…')}
+          />
+          {sources.length > 0 ? (
+            <ul className="wiki-draft-sources" data-testid="wiki-draft-sources">
+              {sources.map((source) => (
+                <li key={`${source.baseId}:${source.relativePath}`}>{source.relativePath}</li>
+              ))}
+            </ul>
+          ) : null}
+          {related.length > 0 ? (
+            <ul className="wiki-draft-related" data-testid="wiki-draft-related">
+              {related.map((page) => (
+                <li key={page.slug}>{page.title}</li>
+              ))}
+            </ul>
+          ) : null}
+          {props.saveError ? (
+            <p className="kw-assist-error" role="alert" data-testid="wiki-draft-error">
+              {props.saveError}
+            </p>
+          ) : null}
+          <div className="article-actions">
+            <button
+              type="button"
+              className="btn sm pri"
+              data-testid="wiki-draft-save"
+              disabled={props.saving || !props.draft.title.trim() || !props.draft.content.trim()}
+              onClick={() => props.onSaveDraft?.()}
+            >
+              {props.saving ? t('Saving…', '保存中…') : t('Save', '保存')}
+            </button>
+            <button
+              type="button"
+              className="btn sm"
+              data-testid="wiki-draft-cancel"
+              disabled={props.saving}
+              onClick={() => props.onCancelDraft?.()}
+            >
+              {t('Cancel', '取消')}
+            </button>
+          </div>
+        </article>
+      </main>
+    );
+  }
+
   return (
     <main className="wiki-content-canvas" aria-label={t('Concept Article', '词条正文')}>
       {props.loading ? (
@@ -66,6 +182,16 @@ export function WikiArticlePane(props: WikiArticlePaneProps): ReactElement {
                 {concept.title}
               </h1>
               <div className="article-actions">
+                {props.editable && props.onStartEdit ? (
+                  <button
+                    type="button"
+                    className="btn sm pri"
+                    onClick={props.onStartEdit}
+                    data-testid="wiki-edit-page-btn"
+                  >
+                    {t('Edit', '编辑')}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="btn sm"
@@ -74,11 +200,21 @@ export function WikiArticlePane(props: WikiArticlePaneProps): ReactElement {
                 >
                   {t('AI Distill & Edit', 'AI 增量编纂')}
                 </button>
-                {props.onProduceFlashcards && props.wikiFolderPath ? (
+                {props.onDraftFlashcards || (props.onProduceFlashcards && props.wikiFolderPath) ? (
                   <button
                     type="button"
                     className="btn sm pri"
-                    onClick={() => props.onProduceFlashcards?.(props.wikiFolderPath ?? '')}
+                    onClick={() => {
+                      if (props.onDraftFlashcards && concept) {
+                        props.onDraftFlashcards({
+                          slug: concept.slug,
+                          title: concept.title,
+                          content: concept.content,
+                        });
+                        return;
+                      }
+                      props.onProduceFlashcards?.(props.wikiFolderPath ?? '');
+                    }}
                     data-testid="wiki-produce-cards-btn"
                   >
                     {t('Generate Flashcards', '生成闪卡')}
@@ -95,7 +231,6 @@ export function WikiArticlePane(props: WikiArticlePaneProps): ReactElement {
               <span className="article-byline-item">
                 {concept.links.length} {t('linked refs', '处引用')}
               </span>
-              <span className="wiki-stamp pine article-byline-stamp">{t('Verified', '已交叉校验')}</span>
             </div>
           </header>
 
@@ -116,14 +251,25 @@ export function WikiArticlePane(props: WikiArticlePaneProps): ReactElement {
             <section className="colophon-block" data-testid="wiki-provenance-box">
               <div className="colophon-head">
                 <span className="colophon-title">{t('Provenance', '证据溯源')}</span>
-                <span className="wiki-stamp azure">{t('Embedding Verified', '向量索引校验')}</span>
               </div>
               <p className="colophon-note" id="wiki-provenance-text">
                 {t(
-                  `Synthesized from raw knowledge slices in "${concept.relativePath}". Chunks clustered and verified via local embeddings.`,
-                  `本词条合成自信源切片「${concept.relativePath}」，原始证据已由本地向量索引交叉聚类校验。`,
+                  'This page is stored as a wiki file. Its own path is not evidence: open the sources it was distilled from to check the originals.',
+                  '这一页以 Wiki 文件形式保存。它自身的路径不是证据：请打开它整理时使用的资料核对原文。',
                 )}
               </p>
+              {concept.sources && concept.sources.length > 0 ? (
+                <ul className="colophon-sources" data-testid="wiki-concept-sources">
+                  {concept.sources.map((source) => (
+                    <li key={`${source.baseId}:${source.relativePath}:${source.lineStart ?? ''}`}>
+                      {source.relativePath}
+                      {source.lineStart !== undefined
+                        ? ` · ${source.lineStart}${source.lineEnd !== undefined ? `–${source.lineEnd}` : ''}`
+                        : ''}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <div className="colophon-source">
                 <code className="colophon-path" title={concept.relativePath}>
                   {concept.relativePath}

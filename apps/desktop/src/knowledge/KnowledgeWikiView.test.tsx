@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type { HostCommand, HostResponse, WikiOverviewResult } from '@piwin/contracts';
+import type { HostCommand, HostResponse, KnowledgeBaseSummary, WikiOverviewResult } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens.js';
 import {
   KnowledgeWikiView,
@@ -82,6 +82,7 @@ describe('KnowledgeWikiView', () => {
     aliases: ['FSRS-4.5', 'Free Spaced Repetition'],
     links: ['llm-wiki-architecture'],
     relativePath: 'concepts/fsrs-spaced-repetition.md',
+    contentHash: 'hash-fsrs',
     content:
       '# FSRS Spaced Repetition\n\nFSRS outperforms SM-2. It connects well with [[LLM-Wiki Architecture|Personal Wiki]].',
   };
@@ -95,6 +96,7 @@ describe('KnowledgeWikiView', () => {
     aliases: [],
     links: ['fsrs-spaced-repetition'],
     relativePath: 'concepts/llm-wiki-architecture.md',
+    contentHash: 'hash-llm',
     content: '# LLM-Wiki Architecture\n\nCompiles raw inputs into structured concepts.',
   };
 
@@ -122,6 +124,65 @@ describe('KnowledgeWikiView', () => {
             };
           }
           return { type: 'response', command: command.type, success: false, error: 'not found' };
+        }
+        case 'knowledge/wiki/distill-draft':
+          return {
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: {
+              draft: {
+                title: 'Batch concept',
+                summary: 'From two files.',
+                tags: ['batch'],
+                content: 'Draft only.',
+                sources: [
+                  { baseId: command.baseId, relativePath: 'a.md' },
+                  { baseId: command.baseId, relativePath: 'b.md' },
+                ],
+                relatedPages: [{ slug: 'fsrs-spaced-repetition', title: 'FSRS Spaced Repetition', reason: 'tag' }],
+              },
+            },
+          };
+        case 'knowledge/wiki/write':
+          return {
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: {
+              concept: {
+                ...mockConceptDetail,
+                slug: 'new-note',
+                title: command.input.title,
+                content: command.input.content,
+                kind: 'note',
+                contentHash: 'hash-new',
+              },
+            },
+          };
+        case 'knowledge/wiki/update': {
+          if (command.input.expectedContentHash !== 'hash-fsrs') {
+            return {
+              type: 'response',
+              command: command.type,
+              success: false,
+              error: 'Wiki page changed since the client last read it',
+              problem: { code: 'wiki-revision-conflict' },
+            };
+          }
+          return {
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: {
+              concept: {
+                ...mockConceptDetail,
+                title: command.input.title ?? mockConceptDetail.title,
+                content: command.input.content ?? mockConceptDetail.content,
+                contentHash: 'hash-fsrs-2',
+              },
+            },
+          };
         }
         default:
           return { type: 'response', command: command.type, success: false, error: 'unknown' };
@@ -152,7 +213,23 @@ describe('KnowledgeWikiView', () => {
     return props;
   }
 
-  it('loads starter concepts when host has no concepts yet and allows chat mount', async () => {
+  it('shows a real empty state with no concepts and never counts the sample as content', async () => {
+    const emptyOverview: WikiOverviewResult = {
+      indexContent: '',
+      logSnippet: '',
+      concepts: [],
+      totalConcepts: 0,
+    };
+    await render({ request: createWikiRequest(emptyOverview) });
+
+    const empty = container.querySelector('[data-testid="wiki-empty-state"]');
+    expect(empty).not.toBeNull();
+    expect(empty?.textContent).toContain('还没有知识页');
+    expect(container.querySelector('[data-testid="wiki-active-concept-title"]')).toBeNull();
+    expect(container.textContent).not.toContain('Andrej Karpathy LLM-Wiki');
+  });
+
+  it('opens the sample only when asked, and it can still mount the wiki in chat', async () => {
     const emptyOverview: WikiOverviewResult = {
       indexContent: '',
       logSnippet: '',
@@ -161,7 +238,19 @@ describe('KnowledgeWikiView', () => {
     };
     const props = await render({ request: createWikiRequest(emptyOverview) });
 
-    expect(container.querySelector('[data-testid="wiki-active-concept-title"]')).not.toBeNull();
+    const sampleButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="wiki-empty-show-sample"]',
+    );
+    expect(sampleButton).not.toBeNull();
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="wiki-empty-show-sample"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-testid="wiki-active-concept-title"]')).not.toBeNull();
+    });
     expect(container.textContent).toContain('Andrej Karpathy LLM-Wiki');
 
     act(() => {
@@ -260,5 +349,79 @@ describe('KnowledgeWikiView', () => {
     const copilot = container.querySelector('[aria-label="维基助读"]');
     expect(copilot?.textContent).toContain('LLM-Wiki Architecture');
     expect(copilot?.textContent).not.toContain('[[llm-wiki-architecture]]');
+  });
+
+  it('opens a distill draft with sources and cancels without writing', async () => {
+    const request = createWikiRequest();
+    const sourceBases: KnowledgeBaseSummary[] = [
+      {
+        id: 'folder:docs',
+        kind: 'folder',
+        name: 'Docs',
+        folderPath: '/tmp/docs',
+        state: 'ready',
+        degraded: false,
+        documentCount: 2,
+      },
+    ];
+    await render({ request, sourceBases, sourceDrawerOpen: true });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="wiki-source-distill-folder:docs"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="wiki-page-editor"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="wiki-draft-sources"]')?.textContent).toContain('a.md');
+    expect(container.querySelector('[data-testid="wiki-draft-related"]')?.textContent).toContain(
+      'FSRS Spaced Repetition',
+    );
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="wiki-draft-cancel"]')?.click();
+    });
+    expect(container.querySelector('[data-testid="wiki-page-editor"]')).toBeNull();
+    expect(request.mock.calls.some((call) => call[0].type === 'knowledge/wiki/write')).toBe(false);
+    expect(request.mock.calls.some((call) => call[0].type === 'knowledge/wiki/update')).toBe(false);
+    expect(request.mock.calls.some((call) => call[0].type === 'knowledge/wiki/distill')).toBe(false);
+  });
+
+  it('cancels a handwritten draft without writing a page', async () => {
+    const request = createWikiRequest();
+    await render({ request });
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="wiki-new-note-btn"]')?.click();
+    });
+    expect(container.querySelector('[data-testid="wiki-page-editor"]')).not.toBeNull();
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="wiki-draft-cancel"]')?.click();
+    });
+    expect(container.querySelector('[data-testid="wiki-page-editor"]')).toBeNull();
+    expect(request.mock.calls.some((call) => call[0].type === 'knowledge/wiki/write')).toBe(false);
+    expect(request.mock.calls.some((call) => call[0].type === 'knowledge/wiki/update')).toBe(false);
+  });
+
+  it('saves an edit with the last content hash and keeps the draft on conflict', async () => {
+    const request = createWikiRequest();
+    await render({ request });
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="wiki-edit-page-btn"]')?.click();
+    });
+    const body = container.querySelector<HTMLTextAreaElement>('[data-testid="wiki-draft-body"]');
+    expect(body).not.toBeNull();
+    await act(async () => {
+      if (!body) return;
+      body.value = 'Edited locally.';
+      body.dispatchEvent(new Event('input', { bubbles: true }));
+      body.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="wiki-draft-save"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const updated = request.mock.calls.find((call) => call[0].type === 'knowledge/wiki/update')?.[0];
+    expect(updated?.type).toBe('knowledge/wiki/update');
+    if (updated?.type !== 'knowledge/wiki/update') throw new Error('expected update');
+    expect(updated.input.expectedContentHash).toBe('hash-fsrs');
+    expect(container.querySelector('[data-testid="wiki-page-editor"]')).toBeNull();
   });
 });

@@ -14,6 +14,14 @@ import { WikiSourceDrawer } from './WikiSourceDrawer.js';
 import { isWorkbenchHostTeardownError } from '../workbench/workbench-host-teardown.js';
 import { STARTER_CONCEPTS, STARTER_CONCEPT_DETAILS } from './wiki-starter-concepts.js';
 import { formatWikilinksForMarkdown } from './format-wikilinks.js';
+import {
+  draftFromConcept,
+  emptyWikiNoteDraft,
+  requestWikiDistillDraft,
+  saveWikiPageDraft,
+  setWikiDraftSaveAs,
+  type WikiPageDraft,
+} from './wiki-page-draft.js';
 export { formatWikilinksForMarkdown };
 
 export function wikiUnavailableCopy(
@@ -51,10 +59,16 @@ export type KnowledgeWikiViewProps = {
   request: (command: HostCommand) => Promise<HostResponse>;
   onUseInChat: (baseId: string) => void;
   onProduceFlashcards?: ((folderPath: string) => void) | undefined;
+  onDraftFlashcards?: ((input: { slug: string; title: string; content: string }) => void) | undefined;
   onGoToDocuments?: (() => void) | undefined;
   onGoToFlashcards?: (() => void) | undefined;
   wikiFolderPath?: string | undefined;
   testId?: string | undefined;
+  /** Controlled filter from the workspace shell so there is one search box. */
+  searchQuery?: string | undefined;
+  onSearchQueryChange?: ((value: string) => void) | undefined;
+  /** Concept opened from elsewhere (overview "recently edited"). */
+  focusSlug?: string | undefined;
   sourceBases?: readonly KnowledgeBaseSummary[] | undefined;
   sourceDrawerOpen?: boolean | undefined;
   onOpenSourceDrawer?: (() => void) | undefined;
@@ -71,29 +85,38 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(props.focusSlug ?? null);
   const [activeConcept, setActiveConcept] = useState<WikiConceptDetail | null>(null);
   const [loadingConcept, setLoadingConcept] = useState(false);
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [localSearchQuery, setLocalSearchQuery] = useState('');
+  const searchQuery = props.searchQuery ?? localSearchQuery;
+  const setSearchQuery = props.onSearchQueryChange ?? setLocalSearchQuery;
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [localDrawerOpen, setLocalDrawerOpen] = useState(false);
+  /** Sample pages are read-only teaching content; they are never user content. */
+  const [showSample, setShowSample] = useState(false);
+  const [pageDraft, setPageDraft] = useState<WikiPageDraft | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [distilling, setDistilling] = useState(false);
 
   const drawerOpen = props.sourceDrawerOpen ?? localDrawerOpen;
   const handleOpenDrawer = props.onOpenSourceDrawer ?? (() => setLocalDrawerOpen(true));
   const handleCloseDrawer = props.onCloseSourceDrawer ?? (() => setLocalDrawerOpen(false));
 
-  const isStarterMode = overview !== null && overview.concepts.length === 0;
+  const isEmptyWiki = overview !== null && overview.concepts.length === 0 && !showSample;
+  const isStarterMode = overview !== null && overview.concepts.length === 0 && showSample;
 
   const rawConcepts = useMemo(() => {
     if (overview && overview.concepts.length > 0) {
       return overview.concepts;
     }
     if (overview && overview.concepts.length === 0) {
-      return STARTER_CONCEPTS;
+      return showSample ? STARTER_CONCEPTS : [];
     }
     return [];
-  }, [overview]);
+  }, [overview, showSample]);
 
   const requestRef = useRef(props.request);
   requestRef.current = props.request;
@@ -108,10 +131,12 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
       } else if (res.data) {
         const data = res.data as WikiOverviewResult;
         setOverview(data);
+        // Sample selection is the effect's job: an empty wiki selects nothing,
+        // so the empty state (not sample content) is what a new user sees.
         if (data.concepts.length > 0) {
           setSelectedSlug(data.concepts[0]?.slug ?? null);
         } else {
-          setSelectedSlug('llm-wiki');
+          setSelectedSlug(null);
         }
       } else {
         setError('Failed to load wiki overview');
@@ -130,23 +155,27 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
   useEffect(() => {
     if (overview) {
       if (overview.concepts.length === 0) {
-        if (!selectedSlug) setSelectedSlug('llm-wiki');
+        if (!showSample) setSelectedSlug(null);
+        else if (!selectedSlug) setSelectedSlug('llm-wiki');
       } else {
         if (!selectedSlug || !overview.concepts.some((c) => c.slug === selectedSlug)) {
           setSelectedSlug(overview.concepts[0]?.slug ?? null);
         }
       }
     }
-  }, [overview, selectedSlug]);
+  }, [overview, selectedSlug, showSample]);
 
   // Load selected concept detail
   useEffect(() => {
     if (!selectedSlug) {
       setActiveConcept(null);
+      // A cancelled fetch below never reaches its `finally`, so clear here too.
+      setLoadingConcept(false);
       return;
     }
     if (isStarterMode) {
       setActiveConcept(STARTER_CONCEPT_DETAILS[selectedSlug] ?? STARTER_CONCEPT_DETAILS['llm-wiki'] ?? null);
+      setLoadingConcept(false);
       return;
     }
     let cancelled = false;
@@ -173,7 +202,6 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
       cancelled = true;
     };
   }, [isStarterMode, selectedSlug]);
-
   const filteredConcepts = useMemo(() => {
     let list = rawConcepts;
     if (selectedTag) {
@@ -199,6 +227,21 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
     return [...set].sort();
   }, [rawConcepts]);
 
+  const handleDistillDraft = useCallback((baseId: string) => {
+    if (distilling) return;
+    setDistilling(true);
+    setSaveError(null);
+    handleCloseDrawer();
+    void requestWikiDistillDraft(requestRef.current, { baseId }).then((result) => {
+      setDistilling(false);
+      if (!result.ok) {
+        setSaveError(result.error);
+        return;
+      }
+      setPageDraft(result.draft);
+    });
+  }, [distilling, handleCloseDrawer]);
+
   const sourceDrawer = drawerOpen ? (
     <WikiSourceDrawer
       locale={props.locale}
@@ -207,6 +250,7 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
       onAddFolder={props.onAddFolder}
       onOpenIngest={props.onOpenIngest}
       onProduceFlashcards={props.onProduceFlashcards}
+      onDistillDraft={handleDistillDraft}
     />
   ) : null;
 
@@ -254,6 +298,43 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
     );
   }
 
+  if (isEmptyWiki) {
+    return (
+      <div className="wiki-state" data-testid="wiki-empty-state">
+        <div className="vault-empty">
+          <h2>{t('No knowledge pages yet', '还没有知识页')}</h2>
+          <p>
+            {t(
+              'Distil a concept from a registered source, or write a note yourself. Sample pages are read-only and are never counted as your content.',
+              '可以从已登记的资料提炼一个词条，也可以自己写一条笔记。示例页面只读，不会被算作你的内容。',
+            )}
+          </p>
+          <div className="vault-empty-actions">
+            {props.onAddFolder ? (
+              <button
+                type="button"
+                className="btn sm pri"
+                onClick={props.onAddFolder}
+                data-testid="wiki-empty-add-folder"
+              >
+                {t('Add materials', '添加资料')}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="btn sm sec"
+              onClick={() => setShowSample(true)}
+              data-testid="wiki-empty-show-sample"
+            >
+              {t('See a sample', '查看示例')}
+            </button>
+          </div>
+        </div>
+        {sourceDrawer}
+      </div>
+    );
+  }
+
   return (
     <div className="wiki-layout" data-testid={props.testId ?? 'knowledge-wiki-workspace'}>
       {/* Pane 1: Concept Catalog */}
@@ -269,6 +350,10 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
         onSelectSlug={(slug) => setSelectedSlug(slug)}
         onDistillConcept={() => handleOpenDrawer()}
         onOpenDraft={() => props.onUseInChat('wiki')}
+        onNewNote={() => {
+          setSaveError(null);
+          setPageDraft(emptyWikiNoteDraft());
+        }}
         sourceBasesCount={props.sourceBases?.length ?? 0}
         onManageSources={handleOpenDrawer}
       />
@@ -279,11 +364,54 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
         concept={activeConcept}
         concepts={rawConcepts}
         loading={loadingConcept}
-        onSelectSlug={(slug) => setSelectedSlug(slug)}
+        onSelectSlug={(slug) => {
+          setPageDraft(null);
+          setSaveError(null);
+          setSelectedSlug(slug);
+        }}
         onUseInChat={props.onUseInChat}
         onOpenSources={handleOpenDrawer}
         onProduceFlashcards={props.onProduceFlashcards}
+        onDraftFlashcards={props.onDraftFlashcards}
         wikiFolderPath={props.wikiFolderPath}
+        editable={!isStarterMode}
+        draft={pageDraft}
+        saveError={saveError}
+        saving={saving}
+        distilling={distilling}
+        onSaveAsChange={(saveAs) =>
+          setPageDraft((current) => (current ? setWikiDraftSaveAs(current, saveAs) : current))
+        }
+        onStartEdit={() => {
+          if (!activeConcept) return;
+          const next = draftFromConcept(activeConcept);
+          if (!next) return;
+          setSaveError(null);
+          setPageDraft(next);
+        }}
+        onDraftChange={(next) =>
+          setPageDraft((current) => (current ? { ...current, title: next.title, content: next.content } : next))
+        }
+        onCancelDraft={() => {
+          setPageDraft(null);
+          setSaveError(null);
+        }}
+        onSaveDraft={() => {
+          if (!pageDraft || saving) return;
+          setSaving(true);
+          void saveWikiPageDraft(requestRef.current, pageDraft).then((result) => {
+            setSaving(false);
+            if (!result.ok) {
+              setSaveError(result.error);
+              return;
+            }
+            setPageDraft(null);
+            setSaveError(null);
+            setActiveConcept(result.concept);
+            setSelectedSlug(result.concept.slug);
+            void fetchOverview();
+          });
+        }}
       />
 
       {/* Pane 3: Concept Copilot Pane */}

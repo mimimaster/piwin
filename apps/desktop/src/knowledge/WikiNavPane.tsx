@@ -13,6 +13,7 @@ export type WikiNavPaneProps = {
   onSelectSlug: (slug: string) => void;
   onDistillConcept: () => void;
   onOpenDraft: () => void;
+  onNewNote?: (() => void) | undefined;
   sourceBasesCount?: number | undefined;
   onManageSources?: (() => void) | undefined;
 };
@@ -39,6 +40,16 @@ export function WikiNavPane(props: WikiNavPaneProps): ReactElement {
         >
           {t('+ Distill', '+ 提炼词条')}
         </button>
+        {props.onNewNote ? (
+          <button
+            type="button"
+            className="btn sm"
+            onClick={props.onNewNote}
+            data-testid="wiki-new-note-btn"
+          >
+            {t('+ Note', '+ 笔记')}
+          </button>
+        ) : null}
       </div>
 
       <div className="search-box-wrap">

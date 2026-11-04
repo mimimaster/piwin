@@ -8,6 +8,7 @@ export type WikiSourceDrawerProps = {
   onAddFolder?: (() => void) | undefined;
   onOpenIngest?: ((folderPath: string) => void) | undefined;
   onProduceFlashcards?: ((folderPath: string) => void) | undefined;
+  onDistillDraft?: ((baseId: string) => void) | undefined;
 };
 
 export function WikiSourceDrawer(props: WikiSourceDrawerProps): ReactElement {
@@ -77,7 +78,16 @@ export function WikiSourceDrawer(props: WikiSourceDrawerProps): ReactElement {
                       {t('Re-slice', '重新切片')}
                     </button>
                   ) : null}
-                  {base.folderPath && props.onProduceFlashcards ? (
+                  {props.onDistillDraft ? (
+                    <button
+                      type="button"
+                      className="btn sm pri"
+                      data-testid={`wiki-source-distill-${base.id}`}
+                      onClick={() => props.onDistillDraft?.(base.id)}
+                    >
+                      {t('Distill', '提炼词条')}
+                    </button>
+                  ) : base.folderPath && props.onProduceFlashcards ? (
                     <button
                       type="button"
                       className="btn sm pri"

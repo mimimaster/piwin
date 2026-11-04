@@ -1,19 +1,61 @@
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Button, Dialog, EmptyState, Notice, Spinner } from '@piwin/ui-kit';
-import type { HostListDirData, HostPush, KnowledgeCitation, WikiDistillResult } from '@piwin/contracts';
+import { EmptyState } from '@piwin/ui-kit';
+import type {
+  FlashcardCreateInput,
+  FlashcardDraftResult,
+  FlashcardDraftScope,
+  HostCommand,
+  HostListDirData,
+  HostPush,
+  KnowledgeCitation,
+  WikiConceptItem,
+} from '@piwin/contracts';
 import { IconBook } from '../tool-cards/shell-icons';
 import { requestHostPickerEntry } from '../host/host-picker-create-entry.js';
-import { HostWorkspacePicker } from '../host/host-workspace-picker';
 import { StudioTopbar } from './studio/studio-chrome';
 import { KnowledgeWikiView } from '../knowledge/KnowledgeWikiView.js';
-import { WikiSourceDrawer } from '../knowledge/WikiSourceDrawer.js';
+import { useKnowledgeBases, type KnowledgeBasesRequest } from '../knowledge/use-knowledge-bases.js';
+import { KnowledgeOverviewSection } from '../knowledge/workspace/KnowledgeOverviewSection.js';
+import { KnowledgeMaterialsPane } from '../knowledge/workspace/KnowledgeMaterialsPane.js';
+import { KnowledgeFolderPickerDialog } from '../knowledge/workspace/KnowledgeFolderPickerDialog.js';
+import { KnowledgeWorkspaceNotices } from '../knowledge/workspace/KnowledgeWorkspaceNotices.js';
+import { knowledgeTopbarSearch } from '../knowledge/workspace/knowledge-topbar-search.js';
+import { KnowledgeWorkspaceSearchPanel } from '../knowledge/workspace/KnowledgeWorkspaceSearchPanel.js';
+import { KnowledgeIndexStatusPanel } from '../knowledge/workspace/KnowledgeIndexStatusPanel.js';
+import { useKnowledgeWorkspaceSearch } from '../knowledge/workspace/use-knowledge-workspace-search.js';
 import {
-  useKnowledgeBases,
-  type KnowledgeBasesRequest,
-} from '../knowledge/use-knowledge-bases.js';
+  evidenceHitsForAskAi,
+  formatHitsForChat,
+  type WorkspaceSearchHit,
+} from '../knowledge/workspace/knowledge-workspace-search.js';
+import {
+  readKnowledgeRecentReads,
+  rememberKnowledgeRecentRead,
+  type KnowledgeRecentRead,
+} from '../knowledge/workspace/knowledge-workspace-recents.js';
+import {
+  useKnowledgeDocumentRead,
+  useKnowledgeDocuments,
+} from '../knowledge/workspace/use-knowledge-documents.js';
+import { KnowledgeWorkspaceNav } from '../knowledge/workspace/KnowledgeWorkspaceNav.js';
+import { useKnowledgeOverview } from '../knowledge/workspace/use-knowledge-overview.js';
+import { useKnowledgeProduce } from '../knowledge/workspace/use-knowledge-produce.js';
+import { KnowledgeCardDraftPanel } from '../knowledge/workspace/KnowledgeCardDraftPanel.js';
+import {
+  requestFlashcardDrafts,
+  saveFlashcardDrafts,
+} from '../knowledge/workspace/knowledge-card-draft.js';
+import {
+  clearKnowledgeReaderReturn,
+  readKnowledgeReaderReturn,
+} from '../knowledge/workspace/knowledge-reader-return.js';
+import {
+  resolveKnowledgeSection,
+  type KnowledgeLegacyEntry,
+  type KnowledgeWorkspaceSection,
+} from '../knowledge/workspace/knowledge-workspace-sections.js';
 import { FlashcardsStudyView } from './flashcards/FlashcardsStudyView.js';
 import type { FlashcardStudyRequest } from './flashcards/study/study-session.js';
-import { runDoccardsGenerate } from '../documents/doccards-generate-client.js';
 
 export type KnowledgeWorkspaceViewProps = {
   locale: 'zh-CN' | 'en';
@@ -27,8 +69,14 @@ export type KnowledgeWorkspaceViewProps = {
   hasStudyCapability?: (() => boolean) | undefined;
   /** False on Hosts without `knowledge/*`. */
   knowledgeSupported: boolean;
-  /** `documents` is a compatibility alias for wiki + source drawer. */
-  initialTab?: 'wiki' | 'documents' | 'flashcards' | undefined;
+  /** False on Hosts without `knowledge/documents/*`; the library falls back to sources. */
+  knowledgeDocumentsSupported?: boolean | undefined;
+  /**
+   * Entry point. `overview` is the plain "open knowledge" entry; `documents` is
+   * the legacy alias that used to open the source drawer and now lands on the
+   * materials library.
+   */
+  initialTab?: KnowledgeLegacyEntry | undefined;
   initialFolderPath?: string | undefined;
   projectPath?: string | null | undefined;
   onOpenIngest?: ((folderPath: string) => void) | undefined;
@@ -40,37 +88,104 @@ export type KnowledgeWorkspaceViewProps = {
   testId?: string | undefined;
 };
 
-/** Unified Knowledge Center: wiki sources, citations, and flashcards study. */
+/**
+ * Knowledge workspace shell: fixed sections on the left, one section at a time
+ * on the right. The shell owns navigation, the folder picker and the
+ * distil+produce run; each section owns its own reads and copy.
+ */
 export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): ReactElement {
   const zh = props.locale === 'zh-CN';
   const t = (en: string, cn: string) => (zh ? cn : en);
 
-  const [activeTab, setActiveTab] = useState<'wiki' | 'flashcards'>(
-    props.initialTab === 'flashcards' ? 'flashcards' : 'wiki',
+  const rememberedReader = readKnowledgeReaderReturn();
+  const [section, setSection] = useState<KnowledgeWorkspaceSection>(() =>
+    rememberedReader
+      ? 'materials'
+      : resolveKnowledgeSection({
+          initialTab: props.initialTab,
+          ...(props.initialFolderPath ? { initialFolderPath: props.initialFolderPath } : {}),
+        }),
   );
-  const [sourceDrawerOpen, setSourceDrawerOpen] = useState(
-    props.initialTab === 'documents' || Boolean(props.initialFolderPath),
+  const [materialsQuery, setMaterialsQuery] = useState('');
+  const [workspaceQuery, setWorkspaceQuery] = useState('');
+  const [indexPanelOpen, setIndexPanelOpen] = useState(false);
+  const [indexBusyId, setIndexBusyId] = useState<string | null>(null);
+  const [indexError, setIndexError] = useState<string | null>(null);
+  const [recents, setRecents] = useState<KnowledgeRecentRead[]>(() => readKnowledgeRecentReads());
+  const [selectedBaseId, setSelectedBaseId] = useState<string | null>(
+    rememberedReader?.baseId ?? null,
+  );
+  const [openDocument, setOpenDocument] = useState<{
+    relativePath: string;
+    title: string;
+    indexed: boolean;
+    chunkCount: number;
+  } | null>(
+    rememberedReader
+      ? {
+          relativePath: rememberedReader.relativePath,
+          title: rememberedReader.title,
+          indexed: rememberedReader.indexed,
+          chunkCount: rememberedReader.chunkCount,
+        }
+      : null,
+  );
+  const [wikiQuery, setWikiQuery] = useState('');
+  const [wikiFocusSlug, setWikiFocusSlug] = useState<string | null>(null);
+  const [cardDraft, setCardDraft] = useState<FlashcardDraftResult | null>(null);
+  const [cardDraftError, setCardDraftError] = useState<string | null>(null);
+  const [cardDraftSaving, setCardDraftSaving] = useState(false);
+
+  // Destructured so the callbacks below depend on one stable function, not on
+  // the props object (which changes identity on every parent render).
+  const request = props.request;
+
+  const runCardDraft = useCallback(
+    (scope: FlashcardDraftScope) => {
+      setCardDraftError(null);
+      void requestFlashcardDrafts(request, scope).then((result) => {
+        if (!result.ok) {
+          setCardDraftError(result.error);
+          return;
+        }
+        setCardDraft(result.result);
+      });
+    },
+    [request],
   );
 
   const knowledge = useKnowledgeBases({
-    request: props.request,
+    request,
     subscribePush: props.subscribeKnowledgePush ?? props.subscribePush,
     enabled: props.knowledgeSupported,
   });
 
+  // A new function identity here would re-run every overview read each render.
+  const requestForOverview = useCallback(
+    (command: HostCommand) => request(command),
+    [request],
+  );
+
   const [addError, setAddError] = useState<string | null>(null);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [folderPickerPath, setFolderPickerPath] = useState(props.projectPath?.trim() ?? '');
+  const produce = useKnowledgeProduce({
+    request: requestForOverview,
+    bases: knowledge.bases,
+  });
 
-  /** Due-card count for the tab badge; refreshed whenever a produce run lands. */
-  const [dueCards, setDueCards] = useState(0);
-  const [generatingCards, setGeneratingCards] = useState(false);
-  const [produceNotice, setProduceNotice] = useState<{
-    count: number;
-    folderName: string;
-    /** Title of the wiki concept distilled in the same run, when one landed. */
-    concept?: string;
-  } | null>(null);
+  const overview = useKnowledgeOverview({
+    request: requestForOverview,
+    enabled: props.knowledgeSupported,
+    refreshKey: produce.notice,
+  });
+
+  const workspaceSearch = useKnowledgeWorkspaceSearch({
+    request: requestForOverview,
+    query: workspaceQuery,
+    enabled: props.knowledgeSupported,
+    bases: knowledge.bases,
+  });
 
   const wikiBase = useMemo(
     () => knowledge.bases.find((base) => base.kind === 'wiki') ?? null,
@@ -82,45 +197,65 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
     [knowledge.bases],
   );
 
-  const openSources = useCallback(() => {
-    setSourceDrawerOpen(true);
-  }, []);
+  const folderBases = useMemo(
+    () => sourceBases.filter((base) => base.kind === 'folder'),
+    [sourceBases],
+  );
 
-  const openWiki = useCallback(() => {
-    setActiveTab('wiki');
-    setSourceDrawerOpen(false);
-  }, []);
+  const documentsEnabled =
+    props.knowledgeSupported && props.knowledgeDocumentsSupported === true;
 
+  const activeBaseId = useMemo(() => {
+    if (selectedBaseId && folderBases.some((base) => base.id === selectedBaseId)) {
+      return selectedBaseId;
+    }
+    return folderBases[0]?.id ?? null;
+  }, [folderBases, selectedBaseId]);
+
+  const documents = useKnowledgeDocuments({
+    request,
+    enabled: documentsEnabled,
+    baseId: activeBaseId,
+    query: materialsQuery,
+  });
+
+  const reader = useKnowledgeDocumentRead({
+    request,
+    enabled: documentsEnabled && openDocument !== null,
+    baseId: activeBaseId,
+    relativePath: openDocument?.relativePath ?? null,
+  });
+
+  // Leaving the library closes the reader: coming back should show the list,
+  // not a document the user never re-picked.
   useEffect(() => {
-    if (!props.knowledgeSupported) return undefined;
-    let cancelled = false;
-    void (async () => {
-      const response = await props.request({
-        type: 'flashcards/study/catalog',
-        limit: 1,
-        scopeFilter: { kind: 'all' },
-      });
-      if (cancelled || !response.success) return;
-      const page = response.data as { dueCount?: number } | undefined;
-      setDueCards(page?.dueCount ?? 0);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [props.knowledgeSupported, props.request, produceNotice]);
+    if (section !== 'materials') setOpenDocument(null);
+  }, [section]);
+
+  const navCounts = useMemo(() => {
+    const counts: Partial<Record<KnowledgeWorkspaceSection, number>> = {};
+    const materials = overview.data.materials?.sources;
+    const wiki = overview.data.wiki?.concepts;
+    const flashcards = overview.data.study?.dueCount;
+    if (materials !== undefined) counts.materials = materials;
+    if (wiki !== undefined) counts.wiki = wiki;
+    if (flashcards !== undefined) counts.flashcards = flashcards;
+    return counts;
+  }, [overview.data]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || folderPickerOpen) return;
-      if (sourceDrawerOpen) {
-        setSourceDrawerOpen(false);
+      // Escape leaves the reader first, then the workspace.
+      if (openDocument) {
+        setOpenDocument(null);
         return;
       }
       props.onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [folderPickerOpen, props, sourceDrawerOpen]);
+  }, [folderPickerOpen, openDocument, props]);
 
   async function addFolder(folderPath: string): Promise<void> {
     const trimmed = folderPath.trim();
@@ -128,7 +263,7 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
     const result = await knowledge.addFolder(trimmed);
     if (result.ok) {
       setAddError(null);
-      openSources();
+      setSection('materials');
     } else {
       setAddError(result.error);
     }
@@ -136,7 +271,7 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
 
   const listHostDirectory = useCallback(
     async (path?: string, includeHidden?: boolean): Promise<HostListDirData> => {
-      const response = await props.request({
+      const response = await request({
         type: 'host/list-dir',
         includeHidden: includeHidden ?? false,
         ...(path && path.trim().length > 0 ? { path: path.trim() } : {}),
@@ -146,7 +281,7 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
       }
       return response.data as HostListDirData;
     },
-    [props.request],
+    [request],
   );
 
   const closeFolderPicker = useCallback(() => {
@@ -164,152 +299,121 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
     await addFolder(folderPath);
   }
 
-  /**
-   * The flywheel's 生肉 → 熟肉 → 强化 hop: distil a wiki concept from the
-   * source, then produce cards from the same folder. The wiki half is
-   * best-effort — a source can still yield cards when no model is configured,
-   * so a distill failure degrades to a note instead of failing the whole run.
-   */
-  const handleProduceFlashcards = useCallback(
-    async (folderPath: string) => {
-      setGeneratingCards(true);
-      setProduceNotice(null);
-      setAddError(null);
-      const base = knowledge.bases.find((entry) => entry.folderPath === folderPath);
-      const folderName = base?.name ?? folderPath.split('/').pop() ?? folderPath;
-      let distilled: string | undefined;
-      let distillError: string | undefined;
+  const openConcept = useCallback((concept: WikiConceptItem) => {
+    setRecents(
+      rememberKnowledgeRecentRead({
+        kind: 'wiki',
+        title: concept.title,
+        openedAt: new Date().toISOString(),
+        slug: concept.slug,
+      }),
+    );
+    setWikiFocusSlug(concept.slug);
+    setSection('wiki');
+  }, []);
 
-      if (base) {
-        try {
-          const response = await props.request({
-            type: 'knowledge/wiki/distill',
-            baseId: base.id,
-          });
-          if (response.success) {
-            const title = (response.data as Partial<WikiDistillResult> | undefined)?.concept?.title;
-            if (typeof title === 'string' && title.length > 0) distilled = title;
-          } else {
-            distillError = response.error;
-          }
-        } catch (error) {
-          distillError = error instanceof Error ? error.message : String(error);
-        }
-      }
-
-      try {
-        const job = await runDoccardsGenerate(
-          (cmd) => props.request(cmd as unknown as Parameters<typeof props.request>[0]),
-          { folderPath },
+  const openLibraryDocument = useCallback(
+    (entry: {
+      relativePath: string;
+      title: string;
+      indexed: boolean;
+      chunkCount: number;
+      startLine?: number;
+      baseId?: string;
+    }) => {
+      const baseId = entry.baseId ?? activeBaseId;
+      if (baseId) {
+        setSelectedBaseId(baseId);
+        setRecents(
+          rememberKnowledgeRecentRead({
+            kind: 'document',
+            title: entry.title,
+            openedAt: new Date().toISOString(),
+            baseId,
+            relativePath: entry.relativePath,
+            ...(entry.startLine ? { startLine: entry.startLine } : {}),
+          }),
         );
-        const created = job.created ?? job.createdCardIds?.length ?? 0;
-        setProduceNotice({
-          count: created,
-          folderName,
-          ...(distilled ? { concept: distilled } : {}),
+      }
+      setOpenDocument({
+        relativePath: entry.relativePath,
+        title: entry.title,
+        indexed: entry.indexed,
+        chunkCount: entry.chunkCount,
+      });
+      setSection('materials');
+    },
+    [activeBaseId],
+  );
+
+  const openRecent = useCallback(
+    (entry: KnowledgeRecentRead) => {
+      if (entry.kind === 'wiki') {
+        openConcept({ title: entry.title, slug: entry.slug, tags: [], updatedAt: entry.openedAt, relativePath: `concepts/${entry.slug}.md` });
+        return;
+      }
+      openLibraryDocument({
+        relativePath: entry.relativePath,
+        title: entry.title,
+        indexed: true,
+        chunkCount: 0,
+        baseId: entry.baseId,
+        ...(entry.startLine ? { startLine: entry.startLine } : {}),
+      });
+    },
+    [openConcept, openLibraryDocument],
+  );
+
+  const openSearchHit = useCallback(
+    (hit: WorkspaceSearchHit) => {
+      if (hit.kind === 'wiki' && hit.wikiSlug) {
+        openConcept({
+          title: hit.title,
+          slug: hit.wikiSlug,
+          tags: [],
+          updatedAt: new Date().toISOString(),
+          relativePath: hit.relativePath ?? `concepts/${hit.wikiSlug}.md`,
         });
-        if (distillError) setAddError(distillError);
-      } catch (error) {
-        setAddError(error instanceof Error ? error.message : String(error));
-        if (distilled) {
-          setProduceNotice({ count: 0, folderName, concept: distilled });
-        }
-      } finally {
-        setGeneratingCards(false);
+        return;
+      }
+      if (hit.kind === 'card') {
+        setSection('flashcards');
+        setWorkspaceQuery('');
+        return;
+      }
+      if (hit.baseId && hit.relativePath) {
+        openLibraryDocument({
+          relativePath: hit.relativePath,
+          title: hit.title,
+          indexed: !hit.titleMatchOnly,
+          chunkCount: 0,
+          baseId: hit.baseId,
+          ...(hit.citation?.startLine ? { startLine: hit.citation.startLine } : {}),
+        });
+        setWorkspaceQuery('');
       }
     },
-    [knowledge.bases, props],
+    [openConcept, openLibraryDocument],
   );
 
-  const knowledgeTabs = (
-    <nav className="lib-segmented-tabs" aria-label={t('Knowledge tabs', '知识分类')}>
-      <button
-        type="button"
-        id="nav-wiki"
-        className={`lib-segmented-tab${activeTab === 'wiki' ? ' is-active' : ''}`}
-        onClick={() => setActiveTab('wiki')}
-        data-testid="knowledge-tab-wiki"
-      >
-        <span>{t('Knowledge Wiki', '知识维基')}</span>
-        <span className="tab-badge">{wikiBase?.documentCount ?? 0}</span>
-      </button>
-      <button
-        type="button"
-        id="nav-cards"
-        className={`lib-segmented-tab${activeTab === 'flashcards' ? ' is-active' : ''}`}
-        onClick={() => setActiveTab('flashcards')}
-        data-testid="knowledge-tab-flashcards"
-      >
-        <span>{t('Flashcards & Study', '闪卡复习')}</span>
-        <span className="tab-badge">{dueCards}</span>
-      </button>
-    </nav>
+  const notices = (
+    <KnowledgeWorkspaceNotices
+      locale={props.locale}
+      generating={produce.generating}
+      notice={produce.notice}
+      onOpenWiki={() => setSection('wiki')}
+      onOpenFlashcards={() => setSection('flashcards')}
+      errors={[
+        knowledge.error,
+        addError,
+        produce.error,
+      ]}
+    />
   );
 
-  const produceNotices = (
-    <>
-      {generatingCards ? (
-        <Notice tone="info" testId="knowledge-generating">
-          <Spinner label={t('Generating flashcards…', '正在生成闪卡…')} />
-        </Notice>
-      ) : null}
-      {produceNotice ? (
-        <Notice
-          tone="success"
-          testId="knowledge-produce-success"
-          action={
-            <div style={{ display: 'flex', gap: 'var(--s-2)' }}>
-              {produceNotice.concept ? (
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  onClick={() => {
-                    setActiveTab('wiki');
-                    setSourceDrawerOpen(false);
-                  }}
-                  data-testid="knowledge-produce-open-wiki"
-                >
-                  <span>{t('Open concept', '去看词条')}</span>
-                </Button>
-              ) : null}
-              <Button variant="primary" size="compact" onClick={() => setActiveTab('flashcards')}>
-                <span>{t('Review cards', '去复习卡片')}</span>
-              </Button>
-            </div>
-          }
-        >
-          {produceNotice.concept && produceNotice.count === 0
-            ? t(
-                `Distilled "${produceNotice.concept}" from "${produceNotice.folderName}". No flashcards were produced — see the error above.`,
-                `已从「${produceNotice.folderName}」提炼词条「${produceNotice.concept}」；闪卡未生成，原因见上方提示。`,
-              )
-            : produceNotice.concept
-              ? t(
-                  `Distilled "${produceNotice.concept}" and generated ${produceNotice.count} flashcards from "${produceNotice.folderName}".`,
-                  `已从「${produceNotice.folderName}」提炼词条「${produceNotice.concept}」，并生成 ${produceNotice.count} 张闪卡。`,
-                )
-              : t(
-                  `Generated ${produceNotice.count} flashcards for "${produceNotice.folderName}".`,
-                  `已为「${produceNotice.folderName}」生成 ${produceNotice.count} 张闪卡。`,
-                )}
-        </Notice>
-      ) : null}
-      {knowledge.error ? (
-        <Notice tone="error" testId="knowledge-error">
-          {knowledge.error}
-        </Notice>
-      ) : null}
-      {addError ? (
-        <Notice tone="error" testId="knowledge-add-error">
-          {addError}
-        </Notice>
-      ) : null}
-    </>
-  );
-
-  let main: ReactElement;
+  let content: ReactElement;
   if (!props.knowledgeSupported) {
-    main = (
+    content = (
       <EmptyState
         title={t('Update the Host to use knowledge bases', '更新 Host 后才能使用知识库')}
         description={t(
@@ -322,100 +426,235 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
         testId="knowledge-host-too-old"
       />
     );
-  } else if (activeTab === 'flashcards') {
-    main = (
-      <div className="wiki-with-notices">
-        {produceNotices}
-        <FlashcardsStudyView
-          locale={props.locale}
-          request={props.studyRequest ?? props.request}
-          subscribePush={props.subscribePush}
-          subscribeConnected={props.subscribeConnected}
-          hasStudyCapability={props.hasStudyCapability}
-          onGoToDocuments={openSources}
-          onGoToWiki={openWiki}
-        />
-        {sourceDrawerOpen ? (
-          <WikiSourceDrawer
-            locale={props.locale}
-            sourceBases={sourceBases}
-            onClose={() => setSourceDrawerOpen(false)}
-            onAddFolder={() => void startAddFolder()}
-            onOpenIngest={(folderPath) => props.onOpenIngest?.(folderPath)}
-            onProduceFlashcards={handleProduceFlashcards}
-          />
-        ) : null}
-      </div>
+  } else if (section === 'overview') {
+    content = (
+      <KnowledgeOverviewSection
+        locale={props.locale}
+        state={overview}
+        onSelectSection={setSection}
+        onOpenConcept={openConcept}
+        onAddFolder={startAddFolder}
+        onStartStudy={() => setSection('flashcards')}
+        onOpenIndexSettings={() => setIndexPanelOpen(true)}
+        recents={recents}
+        onOpenRecent={openRecent}
+      />
+    );
+  } else if (section === 'materials') {
+    content = (
+      <KnowledgeMaterialsPane
+        locale={props.locale}
+        documentsEnabled={documentsEnabled}
+        sources={folderBases}
+        knowledgeLoading={knowledge.loading}
+        query={materialsQuery}
+        onQueryChange={setMaterialsQuery}
+        activeBaseId={activeBaseId}
+        onSelectBase={(baseId) => {
+          setSelectedBaseId(baseId);
+          setOpenDocument(null);
+        }}
+        documents={documents}
+        openDocument={openDocument}
+        onOpenDocument={openLibraryDocument}
+        onCloseDocument={() => {
+          clearKnowledgeReaderReturn();
+          setOpenDocument(null);
+        }}
+        reader={reader}
+        onAddFolder={startAddFolder}
+        onProduceFlashcards={produce.produce}
+        onDraftFlashcards={(scope) => runCardDraft(scope)}
+        generating={produce.generating}
+        request={request}
+        {...(props.subscribePush ? { subscribePush: props.subscribePush } : {})}
+        {...(props.subscribeConnected ? { subscribeConnected: props.subscribeConnected } : {})}
+        {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+      />
+    );
+  } else if (section === 'flashcards') {
+    content = (
+      <FlashcardsStudyView
+        locale={props.locale}
+        request={props.studyRequest ?? props.request}
+        subscribePush={props.subscribePush}
+        subscribeConnected={props.subscribeConnected}
+        hasStudyCapability={props.hasStudyCapability}
+        onGoToDocuments={() => setSection('materials')}
+        onGoToWiki={() => setSection('wiki')}
+      />
     );
   } else {
-    main = (
-      <div className="wiki-with-notices">
-        {produceNotices}
-        <KnowledgeWikiView
-          locale={props.locale}
-          request={props.request}
-          onUseInChat={props.onUseInChat}
-          onProduceFlashcards={handleProduceFlashcards}
-          onGoToFlashcards={() => setActiveTab('flashcards')}
-          wikiFolderPath={wikiBase?.folderPath}
-          sourceBases={sourceBases}
-          sourceDrawerOpen={sourceDrawerOpen}
-          onOpenSourceDrawer={openSources}
-          onCloseSourceDrawer={() => setSourceDrawerOpen(false)}
-          onAddFolder={() => void startAddFolder()}
-          onOpenIngest={(folderPath) => props.onOpenIngest?.(folderPath)}
-        />
-      </div>
+    content = (
+      <KnowledgeWikiView
+        locale={props.locale}
+        request={props.request}
+        onUseInChat={props.onUseInChat}
+        onProduceFlashcards={produce.produce}
+        onDraftFlashcards={(page) =>
+          runCardDraft({
+            kind: 'page',
+            text: page.content,
+            sourceFile: `concepts/${page.slug}.md`,
+            wikiSlug: page.slug,
+            topic: page.title,
+          })
+        }
+        onGoToFlashcards={() => setSection('flashcards')}
+        wikiFolderPath={wikiBase?.folderPath}
+        sourceBases={sourceBases}
+        searchQuery={wikiQuery}
+        onSearchQueryChange={setWikiQuery}
+        {...(wikiFocusSlug ? { focusSlug: wikiFocusSlug } : {})}
+        onAddFolder={() => void startAddFolder()}
+        onOpenIngest={(folderPath) => props.onOpenIngest?.(folderPath)}
+      />
     );
   }
 
+  const { search: topbarSearch } = knowledgeTopbarSearch({
+    t,
+    query: workspaceQuery,
+    onQueryChange: setWorkspaceQuery,
+  });
+
   return (
     <div
-      className="vault-stage ink-window"
+      className="vault-stage ink-window knowledge-workspace"
       data-testid={
         props.testId ??
-        (activeTab === 'flashcards' ? 'flashcards-workspace' : 'knowledge-wiki-workspace')
+        (section === 'flashcards'
+          ? 'flashcards-workspace'
+          : section === 'wiki'
+            ? 'knowledge-wiki-workspace'
+            : 'knowledge-workspace')
       }
     >
       <StudioTopbar
-        testId={activeTab === 'flashcards' ? 'flashcards-back-btn' : 'wiki-back-btn'}
+        testId={section === 'flashcards' ? 'flashcards-back-btn' : 'wiki-back-btn'}
         backLabel={t('Back to Chat', '返回会话')}
         onBack={props.onClose}
         locale={props.locale}
-        kind={activeTab === 'flashcards' ? 'flashcards' : 'knowledge'}
+        kind="knowledge"
         layout="bar"
-        customTitle={t('Knowledge Center', '知识中心')}
-        barActions={knowledgeTabs}
+        customTitle={t('Knowledge Space', '知识空间')}
+        {...topbarSearch}
       />
       <main
-        className={`vault-main${activeTab === 'flashcards' ? ' is-flashcards' : ' is-wiki'}`}
+        className={`vault-main${
+          section === 'flashcards' ? ' is-flashcards' : section === 'wiki' ? ' is-wiki' : ' is-workspace'
+        }`}
         id="vault-main"
       >
-        {main}
+        <div className="kw-shell">
+          <KnowledgeWorkspaceNav
+            locale={props.locale}
+            active={section}
+            onSelect={setSection}
+            counts={navCounts}
+            onOpenIndexSettings={() => setIndexPanelOpen(true)}
+          />
+          <div className="kw-content">
+            {notices}
+            {indexPanelOpen ? (
+              <KnowledgeIndexStatusPanel
+                locale={props.locale}
+                bases={knowledge.bases}
+                busyBaseId={indexBusyId}
+                error={indexError}
+                onRetry={(folderPath, baseId) => {
+                  setIndexBusyId(baseId);
+                  setIndexError(null);
+                  void request({ type: 'doccards/index-folder', folderPath }).then((response) => {
+                    setIndexBusyId(null);
+                    if (!response.success) {
+                      setIndexError(response.error);
+                      return;
+                    }
+                    void knowledge.refresh();
+                  });
+                }}
+                onCancel={(folderPath, baseId) => {
+                  setIndexBusyId(baseId);
+                  setIndexError(null);
+                  void request({ type: 'doccards/cancel-index', folderPath }).then((response) => {
+                    setIndexBusyId(null);
+                    if (!response.success) {
+                      setIndexError(response.error);
+                      return;
+                    }
+                    void knowledge.refresh();
+                  });
+                }}
+                {...(props.onConfigureEmbedding
+                  ? { onOpenSettings: props.onConfigureEmbedding }
+                  : {})}
+                onClose={() => setIndexPanelOpen(false)}
+              />
+            ) : null}
+            {workspaceQuery.trim() && !indexPanelOpen ? (
+              <KnowledgeWorkspaceSearchPanel
+                locale={props.locale}
+                query={workspaceQuery.trim()}
+                loading={workspaceSearch.loading}
+                error={workspaceSearch.error}
+                page={workspaceSearch.page}
+                onOpenHit={openSearchHit}
+                onAskAi={(hits) => {
+                  const evidence = evidenceHitsForAskAi(hits);
+                  props.onSendToChat(formatHitsForChat(evidence, props.locale));
+                }}
+                onOpenIndex={() => setIndexPanelOpen(true)}
+              />
+            ) : null}
+            {cardDraft ? (
+              <KnowledgeCardDraftPanel
+                locale={props.locale}
+                result={cardDraft}
+                saving={cardDraftSaving}
+                error={cardDraftError}
+                onCancel={() => {
+                  setCardDraft(null);
+                  setCardDraftError(null);
+                }}
+                onSave={(cards: FlashcardCreateInput[]) => {
+                  setCardDraftSaving(true);
+                  void saveFlashcardDrafts(request, cards).then((result) => {
+                    setCardDraftSaving(false);
+                    if (!result.ok) {
+                      setCardDraftError(result.error);
+                      return;
+                    }
+                    setCardDraft(null);
+                    setCardDraftError(null);
+                    setSection('flashcards');
+                  });
+                }}
+              />
+            ) : null}
+            {indexPanelOpen || workspaceQuery.trim() ? null : content}
+          </div>
+        </div>
       </main>
-      <Dialog
-        label={t('Add a folder as a knowledge base', '添加文件夹作为知识库')}
+      <KnowledgeFolderPickerDialog
+        locale={props.locale}
         open={folderPickerOpen}
+        currentPath={folderPickerPath}
+        onCurrentPathChange={setFolderPickerPath}
         onOpenChange={(open) => {
           if (!open) closeFolderPicker();
         }}
-        testId="knowledge-folder-picker"
-        closeOnInteractOutside
-        contentClassName="workspace-open-dialog"
-      >
-        <HostWorkspacePicker
-          locale={zh ? 'zh-CN' : 'en'}
-          currentPath={folderPickerPath}
-          onCurrentPathChange={setFolderPickerPath}
-          listDirectory={listHostDirectory}
-          createEntry={(input) => requestHostPickerEntry(props.request, input, props.locale)}
-          recents={sourceBases
-            .map((base) => base.folderPath)
-            .filter((folderPath): folderPath is string => typeof folderPath === 'string' && folderPath.length > 0)}
-          onConfirm={(path) => void confirmFolderPicker(path)}
-          onCancel={closeFolderPicker}
-        />
-      </Dialog>
+        listDirectory={listHostDirectory}
+        createEntry={(input) => requestHostPickerEntry(props.request, input, props.locale)}
+        recents={folderBases
+          .map((base) => base.folderPath)
+          .filter(
+            (folderPath): folderPath is string =>
+              typeof folderPath === 'string' && folderPath.length > 0,
+          )}
+        onConfirm={(path) => void confirmFolderPicker(path)}
+        onCancel={closeFolderPicker}
+      />
     </div>
   );
 }

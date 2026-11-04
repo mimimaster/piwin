@@ -325,16 +325,12 @@ export function KnowledgeSourceHub(props: KnowledgeSourceHubProps): ReactElement
                 <span className="lbl">{t('Chunks', '向量切片 Chunks')}</span>
               </div>
               <div className="w-stat">
-                <span className="num">0.87s</span>
-                <span className="lbl">{t('Avg Latency', '平均切片检出延迟')}</span>
-              </div>
-              <div className="w-stat">
-                <span className="num" style={{ color: 'var(--pine, #3d7c5e)' }}>
+                <span className="num">
                   {activeBase.state === 'ready'
-                    ? (activeBase.degraded ? t('Full-text mode', '包含全文') : '100%')
+                    ? (activeBase.degraded ? t('Full-text mode', '全文模式') : t('Indexed', '已索引'))
                     : t('Unindexed', '未入库')}
                 </span>
-                <span className="lbl">{t('Index Health', '索引健康状态')}</span>
+                <span className="lbl">{t('Search status', '搜索状态')}</span>
               </div>
             </div>
 
