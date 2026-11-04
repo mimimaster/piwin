@@ -538,7 +538,9 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
         kind="knowledge"
         layout="bar"
         customTitle={t('Knowledge Space', '知识空间')}
-        {...topbarSearch}
+        // The flashcards library stage owns its own search box; a second one in the
+        // chrome would steal the `.vault-search` query and filter nothing.
+        {...(section === 'flashcards' ? {} : topbarSearch)}
       />
       <main
         className={`vault-main${
