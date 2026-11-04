@@ -3,6 +3,8 @@ import {
   createRendererSelfHeal,
   SELF_HEAL_COOLDOWN_MS,
   SELF_HEAL_HIDDEN_HOLD_MS,
+  SELF_HEAL_MAX_BYTES,
+  SELF_HEAL_PRESSURE_COOLDOWN_MS,
   SELF_HEAL_RECLAIM_BYTES,
   SELF_HEAL_UNFOCUSED_HOLD_MS,
   shouldRelaunchRenderer,
@@ -12,7 +14,8 @@ import {
 const FAT = SELF_HEAL_RECLAIM_BYTES;
 const HIDDEN_READY = {
   bytes: FAT,
-  busy: false,
+  runActive: false,
+  protectedWork: false,
   documentHidden: true,
   windowFocused: false,
   hiddenSinceMs: 0,
@@ -22,6 +25,11 @@ const HIDDEN_READY = {
 };
 
 describe('shouldRelaunchRenderer', () => {
+  it('ignores invalid footprint samples', () => {
+    for (const bytes of [Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+      expect(shouldRelaunchRenderer({ ...HIDDEN_READY, bytes })).toBe(false);
+    }
+  });
   it('fires after the window has been hidden long enough once footprint is fat', () => {
     expect(shouldRelaunchRenderer(HIDDEN_READY)).toBe(true);
     expect(shouldRelaunchRenderer({ ...HIDDEN_READY, nowMs: SELF_HEAL_HIDDEN_HOLD_MS - 1 })).toBe(
@@ -64,8 +72,40 @@ describe('shouldRelaunchRenderer', () => {
     ).toBe(false);
   });
 
-  it('never interrupts a streaming run', () => {
-    expect(shouldRelaunchRenderer({ ...HIDDEN_READY, busy: true })).toBe(false);
+  it('defers ordinary background recycling during a streaming run', () => {
+    expect(shouldRelaunchRenderer({ ...HIDDEN_READY, runActive: true })).toBe(false);
+  });
+
+  it('reclaims a focused streaming renderer at the memory budget', () => {
+    const active = {
+      ...HIDDEN_READY,
+      runActive: true,
+      documentHidden: false,
+      windowFocused: true,
+      hiddenSinceMs: null,
+      unfocusedSinceMs: null,
+    };
+    expect(shouldRelaunchRenderer({ ...active, bytes: SELF_HEAL_MAX_BYTES - 1 })).toBe(false);
+    expect(shouldRelaunchRenderer({ ...active, bytes: SELF_HEAL_MAX_BYTES })).toBe(true);
+  });
+
+  it('protects local work regardless of footprint and background eligibility', () => {
+    expect(shouldRelaunchRenderer({ ...HIDDEN_READY, protectedWork: true })).toBe(false);
+    expect(
+      shouldRelaunchRenderer({
+        ...HIDDEN_READY,
+        bytes: 4 * SELF_HEAL_MAX_BYTES,
+        protectedWork: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('uses a shorter cooldown for an over-budget renderer', () => {
+    const high = { ...HIDDEN_READY, bytes: SELF_HEAL_MAX_BYTES, lastAttemptAtMs: 0 };
+    expect(shouldRelaunchRenderer({ ...high, nowMs: SELF_HEAL_PRESSURE_COOLDOWN_MS - 1 })).toBe(
+      false,
+    );
+    expect(shouldRelaunchRenderer({ ...high, nowMs: SELF_HEAL_PRESSURE_COOLDOWN_MS })).toBe(true);
   });
 
   it('respects the attempt cooldown', () => {
@@ -97,7 +137,7 @@ describe('createRendererSelfHeal', () => {
     const relaunch = vi.fn(async () => true);
     const deps: RendererSelfHealDeps = {
       getBytes: () => FAT,
-      isBusy: () => false,
+      getActivity: () => ({ runActive: false, protectedWork: false }),
       isDocumentHidden: () => true,
       isWindowFocused: () => false,
       requestRelaunch: relaunch,
@@ -140,7 +180,9 @@ describe('createRendererSelfHeal', () => {
 
   it('holds fire while busy and fires on the next idle tick', () => {
     let busy = true;
-    const { deps, relaunch, clock } = makeDeps({ isBusy: () => busy });
+    const { deps, relaunch, clock } = makeDeps({
+      getActivity: () => ({ runActive: busy, protectedWork: false }),
+    });
     const selfHeal = createRendererSelfHeal(deps);
 
     selfHeal.tick();
@@ -182,5 +224,36 @@ describe('createRendererSelfHeal', () => {
     expect(selfHeal.tick()).toBe(false);
     expect(relaunch).not.toHaveBeenCalled();
     selfHeal.dispose();
+  });
+
+  it('lets protected owners veto without consuming the relaunch cooldown', () => {
+    const beforeRelaunch = vi.fn(() => false);
+    const { deps, relaunch, clock } = makeDeps({ beforeRelaunch });
+    const selfHeal = createRendererSelfHeal(deps);
+    selfHeal.tick();
+    clock.value = SELF_HEAL_HIDDEN_HOLD_MS;
+    expect(selfHeal.tick()).toBe(false);
+    expect(relaunch).not.toHaveBeenCalled();
+    beforeRelaunch.mockReturnValue(true);
+    expect(selfHeal.tick()).toBe(true);
+    expect(relaunch).toHaveBeenCalledOnce();
+  });
+
+  it('does not issue another native request while one is outstanding', async () => {
+    let complete: ((value: boolean) => void) | undefined;
+    const requestRelaunch = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const { deps, clock } = makeDeps({ getBytes: () => SELF_HEAL_MAX_BYTES, requestRelaunch });
+    const selfHeal = createRendererSelfHeal(deps);
+    expect(selfHeal.tick()).toBe(true);
+    clock.value = SELF_HEAL_COOLDOWN_MS;
+    expect(selfHeal.tick()).toBe(false);
+    expect(requestRelaunch).toHaveBeenCalledOnce();
+    complete?.(true);
+    await vi.waitFor(() => expect(selfHeal.tick()).toBe(true));
   });
 });

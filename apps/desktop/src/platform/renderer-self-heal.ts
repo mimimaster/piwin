@@ -14,14 +14,23 @@
  * glass and did not move the IOSurface ledger. Self-heal must not wait for the
  * visual-critical ceiling (1536) — that tier also sheds highlighting while the
  * user is looking. Reclaim is therefore a separate byte floor, and
- * only fires when the user is not looking (hidden, or unfocused long enough).
+ * ordinarily fires when the user is not looking (hidden, or unfocused long
+ * enough). At 1536 MiB it also reclaims a focused/streaming shell; renderer-local
+ * work and owner preflight vetoes remain protected (2026-11-04).
  *
  * Policy lives here (unit-tested, injectable clock); the Rust command
  * `relaunch_webview_renderer` is the mechanism.
  */
-import { getLastMemoryPressureBytes } from '../notes/memory-pressure';
+import {
+  getLastMemoryPressureBytes,
+  MEMORY_PRESSURE_CRITICAL_BYTES,
+} from '../notes/memory-pressure.js';
 import { getWindowPresence, subscribeWindowPresence } from './window-focus-signal';
 import { prepareRendererRelaunch } from './renderer-relaunch-preparation.js';
+import {
+  readRendererRelaunchAttempt,
+  recordRendererRelaunchAttempt,
+} from './renderer-relaunch-cooldown.js';
 
 const MIB = 1024 * 1024;
 
@@ -32,6 +41,12 @@ const MIB = 1024 * 1024;
  * turning the visible UI into safe-mode.
  */
 export const SELF_HEAL_RECLAIM_BYTES = 512 * MIB;
+
+/** Reclaim even a focused/streaming shell; execution belongs to the Host. */
+export const SELF_HEAL_MAX_BYTES = MEMORY_PRESSURE_CRITICAL_BYTES;
+
+/** Avoid a reload loop without letting the ordinary ten-minute hold defeat the budget. */
+export const SELF_HEAL_PRESSURE_COOLDOWN_MS = 60_000;
 
 /** Align with parking: cmd-tab must not recycle the renderer. */
 export const SELF_HEAL_HIDDEN_HOLD_MS = 120_000;
@@ -49,10 +64,14 @@ export const SELF_HEAL_COOLDOWN_MS = 10 * 60 * 1000;
 /** Decision cadence; coarse on purpose. */
 export const SELF_HEAL_TICK_MS = 30 * 1000;
 
-export type RendererSelfHealInput = {
+export type RendererActivity = {
+  runActive: boolean;
+  /** Renderer-local content or media that cannot survive termination. */
+  protectedWork: boolean;
+};
+
+export type RendererSelfHealInput = RendererActivity & {
   bytes: number | null;
-  /** A chat run is streaming/compacting, or the composer has unsent work. */
-  busy: boolean;
   documentHidden: boolean;
   windowFocused: boolean;
   hiddenSinceMs: number | null;
@@ -62,16 +81,25 @@ export type RendererSelfHealInput = {
 };
 
 export function shouldRelaunchRenderer(input: RendererSelfHealInput): boolean {
-  if (input.bytes === null || input.bytes < SELF_HEAL_RECLAIM_BYTES) {
-    return false;
-  }
-  if (input.busy) {
-    return false;
-  }
   if (
-    input.lastAttemptAtMs !== null &&
-    input.nowMs - input.lastAttemptAtMs < SELF_HEAL_COOLDOWN_MS
+    input.bytes === null ||
+    !Number.isFinite(input.bytes) ||
+    input.bytes < SELF_HEAL_RECLAIM_BYTES
   ) {
+    return false;
+  }
+  if (input.protectedWork) {
+    return false;
+  }
+  const overBudget = input.bytes >= SELF_HEAL_MAX_BYTES;
+  const cooldownMs = overBudget ? SELF_HEAL_PRESSURE_COOLDOWN_MS : SELF_HEAL_COOLDOWN_MS;
+  if (input.lastAttemptAtMs !== null && input.nowMs - input.lastAttemptAtMs < cooldownMs) {
+    return false;
+  }
+  if (overBudget) {
+    return true;
+  }
+  if (input.runActive) {
     return false;
   }
   const hiddenLongEnough =
@@ -87,11 +115,13 @@ export function shouldRelaunchRenderer(input: RendererSelfHealInput): boolean {
 
 export type RendererSelfHealDeps = {
   getBytes: () => number | null;
-  isBusy: () => boolean;
+  getActivity: () => RendererActivity;
   isDocumentHidden: () => boolean;
   isWindowFocused: () => boolean;
   /** Native termination skips browser unload events; persist the current view first. */
-  beforeRelaunch?: () => void;
+  beforeRelaunch?: () => boolean | void;
+  lastAttemptAtMs?: number | null;
+  recordAttempt?: (timestamp: number) => void;
   requestRelaunch: () => Promise<boolean>;
   now: () => number;
 };
@@ -105,7 +135,8 @@ export type RendererSelfHeal = {
 export function createRendererSelfHeal(deps: RendererSelfHealDeps): RendererSelfHeal {
   let hiddenSinceMs: number | null = null;
   let unfocusedSinceMs: number | null = null;
-  let lastAttemptAtMs: number | null = null;
+  let lastAttemptAtMs = deps.lastAttemptAtMs ?? null;
+  let inFlight = false;
 
   const tick = (): boolean => {
     const nowMs = deps.now();
@@ -124,7 +155,7 @@ export function createRendererSelfHeal(deps: RendererSelfHealDeps): RendererSelf
 
     const fire = shouldRelaunchRenderer({
       bytes: deps.getBytes(),
-      busy: deps.isBusy(),
+      ...deps.getActivity(),
       documentHidden,
       windowFocused,
       hiddenSinceMs,
@@ -132,17 +163,27 @@ export function createRendererSelfHeal(deps: RendererSelfHealDeps): RendererSelf
       lastAttemptAtMs,
       nowMs,
     });
-    if (!fire) {
+    if (!fire || inFlight) {
+      return false;
+    }
+    if (deps.beforeRelaunch?.() === false) {
       return false;
     }
     lastAttemptAtMs = nowMs;
-    console.warn(
-      '[renderer-self-heal] pinned WebContent footprint while backgrounded; relaunching renderer',
-    );
-    deps.beforeRelaunch?.();
-    void deps.requestRelaunch().catch((error: unknown) => {
-      console.warn('[renderer-self-heal] relaunch request failed:', error);
-    });
+    deps.recordAttempt?.(nowMs);
+    inFlight = true;
+    console.warn('[renderer-self-heal] reclaiming WebContent renderer');
+    void deps
+      .requestRelaunch()
+      .then((relaunched) => {
+        if (!relaunched) console.warn('[renderer-self-heal] native renderer relaunch unavailable');
+      })
+      .catch((error: unknown) => {
+        console.warn('[renderer-self-heal] relaunch request failed:', error);
+      })
+      .finally(() => {
+        inFlight = false;
+      });
     return true;
   };
 
@@ -165,20 +206,22 @@ export function requestRendererSelfHealTick(): boolean {
 }
 
 /**
- * Wire the self-heal loop for the Tauri shell. `isBusy` is provided by the
- * App (streaming/compacting/unsent composer); non-Tauri harnesses install
+ * Wire the self-heal loop for the Tauri shell. Activity separates Host work
+ * from protected renderer-local work; non-Tauri harnesses install
  * nothing. Returns a cleanup for effect symmetry.
  */
-export function installRendererSelfHeal(isBusy: () => boolean): () => void {
+export function installRendererSelfHeal(getActivity: () => RendererActivity): () => void {
   if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
     return () => undefined;
   }
   const selfHeal = createRendererSelfHeal({
     getBytes: getLastMemoryPressureBytes,
-    isBusy,
+    getActivity,
     isDocumentHidden: () => !getWindowPresence().documentVisible,
     isWindowFocused: () => getWindowPresence().focused,
     beforeRelaunch: prepareRendererRelaunch,
+    lastAttemptAtMs: readRendererRelaunchAttempt(),
+    recordAttempt: recordRendererRelaunchAttempt,
     requestRelaunch: invokeRelaunchRenderer,
     now: Date.now,
   });
@@ -186,6 +229,10 @@ export function installRendererSelfHeal(isBusy: () => boolean): () => void {
     selfHeal.tick();
   });
   installedTick = () => selfHeal.tick();
+  const onPressure = (): void => {
+    selfHeal.tick();
+  };
+  window.addEventListener('desktop:memory-pressure', onPressure);
   const timer = setInterval(() => {
     selfHeal.tick();
   }, SELF_HEAL_TICK_MS);
@@ -194,6 +241,7 @@ export function installRendererSelfHeal(isBusy: () => boolean): () => void {
     installedTick = null;
     clearInterval(timer);
     unsubscribePresence();
+    window.removeEventListener('desktop:memory-pressure', onPressure);
     selfHeal.dispose();
   };
 }

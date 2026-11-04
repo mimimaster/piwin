@@ -375,14 +375,17 @@ export function loadComposerDraftStore(
 export function saveComposerDraftStore(
   store: PersistedComposerDraftStore,
   storage?: StorageWriter,
-): void {
+): boolean {
   try {
     const resolved = storage ?? (typeof window === 'undefined' ? undefined : window.localStorage);
     if (!resolved) {
-      return;
+      return false;
     }
     resolved.setItem(composerDraftPersistenceKey(store.hostInstanceId), JSON.stringify(store));
-  } catch {
+    return true;
+  } catch (error) {
     // Quota / private mode — drafts stay in memory.
+    console.warn('[composer-drafts] persistence failed:', error);
+    return false;
   }
 }

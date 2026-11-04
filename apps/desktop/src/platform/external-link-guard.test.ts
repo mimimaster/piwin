@@ -86,12 +86,15 @@ describe('installExternalLinkGuard', () => {
     const openUrl = vi.fn().mockResolvedValue(true);
     dispose = installExternalLinkGuard(document, openUrl);
     const label = mountLink('#');
+    const onClick = vi.fn();
+    label.addEventListener('click', onClick);
 
     const event = new MouseEvent('click', { bubbles: true, cancelable: true });
     label.dispatchEvent(event);
 
     expect(event.defaultPrevented).toBe(false);
     expect(openUrl).not.toHaveBeenCalled();
+    expect(onClick).toHaveBeenCalledOnce();
   });
 
   it('stops intercepting after dispose', () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   COMPOSER_DRAFT_MAX_AGE_MS,
   attachmentHintsFromChips,
@@ -31,6 +31,18 @@ function memoryStorage(initial: Record<string, string> = {}): Storage {
 }
 
 describe('composer draft persistence', () => {
+  it('reports failed storage so automatic reclamation can protect in-memory drafts', () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const store = buildComposerDraftStore({
+        hostInstanceId: 'host-a', drafts: [], draftSnapshots: new Map(), sessionSnapshots: new Map(),
+      });
+      expect(saveComposerDraftStore(store, {
+        setItem: () => { throw new Error('quota exceeded'); }, removeItem: () => undefined,
+      })).toBe(false);
+      expect(warning).toHaveBeenCalledOnce();
+    } finally { warning.mockRestore(); }
+  });
   it('partitions storage by host instance and rejects another host', () => {
     expect(composerDraftPersistenceKey('host-a')).toContain('host-a');
     expect(

@@ -28,8 +28,10 @@ export function resolveExternalAnchorUrl(anchor: HTMLAnchorElement, appOrigin: s
  * through this document-level capture listener so external URLs always open
  * in the system browser instead.
  *
- * Capture phase + preventDefault only cancels the navigation; React handlers
- * still run, so components with their own click logic are unaffected.
+ * This guard owns intercepted activations. tauri-plugin-shell also injects a
+ * body click delegate for `_blank` anchors that ignores defaultPrevented, so
+ * cancelling navigation alone still opens a second browser tab. Stop the
+ * event before it reaches that delegate or another component opener.
  */
 export function installExternalLinkGuard(
   target: Document,
@@ -47,6 +49,7 @@ export function installExternalLinkGuard(
     const externalUrl = resolveExternalAnchorUrl(anchor, appOrigin);
     if (externalUrl === null) return;
     event.preventDefault();
+    event.stopPropagation();
     void openUrl(externalUrl).then((opened) => {
       if (!opened) console.warn('[piwin] failed to open external link', externalUrl);
     });
