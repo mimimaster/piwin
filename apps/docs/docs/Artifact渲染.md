@@ -1,6 +1,6 @@
 # Artifact 渲染与画布系统
 
-本指南已升级至完整版文档：请查阅 [Artifact 实时渲染与画布系统](/docs/artifact-rendering)。
+本指南已升级至完整版文档：请查阅 [Artifact 实时渲染与画布系统](artifact-rendering)。
 
 ---
 

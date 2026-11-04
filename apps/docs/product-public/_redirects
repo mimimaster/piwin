@@ -1,0 +1,7 @@
+# 产品站重定向（piwinwin.com）
+#
+# 拓展站前端由 piwin-extensions 的 site/ 同步而来，挂在 /extensions/ 下。
+# 必须保证子路径以 / 结尾：否则浏览器会把 ./style.css、./app.js
+# 解析成 /style.css、/app.js（少一层目录）而 404。
+
+/extensions  /extensions/  301

@@ -8,7 +8,7 @@
 | 属性 | 说明 |
 | :--- | :--- |
 | **文档定位** | 实战操作指引 / Living document |
-| **核心关联** | [扩展生态与能力边界](/docs/extensions)、[权限管控与安全拦截](/docs/permissions) |
+| **核心关联** | [扩展生态与能力边界](extensions)、[权限管控与安全拦截](permissions) |
 | **实测版本** | `cc-safety-net@2.4.11`，已在 Desktop 桌面端验证生效 |
 
 ---
@@ -76,7 +76,7 @@ git init && git commit --allow-empty -m init && git reset --hard HEAD
 
 - **命令菜单**：扩展通过代码注册的自定义斜杠命令（如 `/cc-safety-net`）暂不会出现在输入框弹出的 `/` 自动补全菜单中；
 - **能力边界**：Piwin 只加载 **Agent Runtime** 层级的核心能力（自定义工具 Tools、生命周期钩子 Hooks、确认 Confirm / 选择 Select / 输入 Input / 通知 Notify 等交互）；
-- **终端界面说明**：以自定义终端 TUI、字符高亮、终端主题为主的扩展，在 Piwin 中会被识别为「仅 Pi 终端」且不会加载到桌面端（详见 [扩展生态与能力边界](/docs/extensions)）。
+- **终端界面说明**：以自定义终端 TUI、字符高亮、终端主题为主的扩展，在 Piwin 中会被识别为「仅 Pi 终端」且不会加载到桌面端（详见 [扩展生态与能力边界](extensions)）。
 
 ---
 

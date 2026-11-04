@@ -4,9 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vitepress dev",
-    "build": "vitepress build",
-    "preview": "vitepress preview"
+    "dev": "PIWIWIN_SITE=product vitepress dev",
+    "dev:product": "PIWIWIN_SITE=product vitepress dev",
+    "dev:docs": "PIWIWIN_SITE=docs vitepress dev",
+    "sync:extensions": "node scripts/sync-extensions.mjs",
+    "build:product": "pnpm sync:extensions && PIWIWIN_SITE=product vitepress build && node scripts/copy-redirects.mjs product",
+    "build:docs": "PIWIWIN_SITE=docs vitepress build && node scripts/copy-redirects.mjs docs",
+    "build": "pnpm build:product && pnpm build:docs",
+    "preview": "PIWIWIN_SITE=product vitepress preview",
+    "preview:product": "PIWIWIN_SITE=product vitepress preview",
+    "preview:docs": "PIWIWIN_SITE=docs vitepress preview"
   },
   "devDependencies": {
     "vitepress": "^1.6.3"

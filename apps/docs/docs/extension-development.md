@@ -307,7 +307,7 @@ piwin extension enable <id>                      # 启用扩展
 
 ## 9. 发布流程
 
-访问 [piwin 扩展仓库提交页面](https://extension.piwinwin.com/#/submit)，使用 GitHub 账号登录，将扩展文件夹拖入页面并点击「一键发布」。系统将在你的账号下创建仓库存放源码，并自动向扩展仓库提交 PR。发布前会使用与仓库 CI 相同的规则验证第 7 节的打包规范。完整说明参见扩展仓库的 [CONTRIBUTING](https://github.com/mimimaster/piwin-extensions/blob/main/CONTRIBUTING.md)。
+访问 [piwin 扩展仓库提交页面](https://piwinwin.com/extensions/#/submit)，使用 GitHub 账号登录，将扩展文件夹拖入页面并点击「一键发布」。系统将在你的账号下创建仓库存放源码，并自动向扩展仓库提交 PR。发布前会使用与仓库 CI 相同的规则验证第 7 节的打包规范。完整说明参见扩展仓库的 [CONTRIBUTING](https://github.com/mimimaster/piwin-extensions/blob/main/CONTRIBUTING.md)。
 
 PR 合并后数分钟内，所有 piwin 用户即可在桌面客户端扩展市场中搜索并安装该扩展（CLI 暂不支持市场浏览）。
 

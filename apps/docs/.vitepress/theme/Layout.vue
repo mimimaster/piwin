@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import DefaultTheme from 'vitepress/theme';
 import { useData } from 'vitepress';
-import { nextTick, onBeforeUnmount, onMounted, provide } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, provide } from 'vue';
 import HeroInfo from './components/HeroInfo.vue';
 import HeroMark from './components/HeroMark.vue';
 import ImageLightbox from './components/ImageLightbox.vue';
+import MascotCat from './components/MascotCat.vue';
 import ReadingProgress from './components/ReadingProgress.vue';
 import { runHeroIntro } from './hero-intro';
 
-const { isDark } = useData();
+const { isDark, page } = useData();
+const isProductPage = computed(() => !page.value.filePath.startsWith('docs/'));
 
 let stopHeroIntro: (() => void) | undefined;
 onMounted(() => {
@@ -67,6 +69,7 @@ provide('toggle-appearance', async ({ clientX, clientY }: MouseEvent) => {
       <HeroMark />
     </template>
     <template #layout-bottom>
+      <MascotCat v-if="isProductPage" />
       <ImageLightbox />
     </template>
   </DefaultTheme.Layout>

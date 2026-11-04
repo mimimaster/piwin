@@ -3,6 +3,8 @@
 > **结构化知识沉淀与本地原生多媒体资产管理**  
 > 从文本语义切片、LLM-Wiki 知识图谱到闪卡提炼，配合原生音视频/图像本地沉淀，构筑完整的数字资产工作流。
 
+产品入口现为 **知识空间**（Overview / 资料库 / 知识 Wiki / 闪卡复习），不再使用「知识中心」作为执行名称。行为与阶段见仓库 `docs/plans/2026-11-03-knowledge-space-redesign-plan.zh.md` 与 `docs/adr/0103-knowledge-workspace-integration.md`。下文截图与「知识中心」用语保留为历史背景。
+
 ---
 
 ## 1. 知识库配置与 LLM-Wiki

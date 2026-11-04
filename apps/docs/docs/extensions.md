@@ -76,7 +76,7 @@ Piwin 原生兼容主流 MCP 服务：
 | **纯终端 TUI 扩展** | 不支持 | 仅修改 Pi 终端 TUI、终端主题、终端快捷键、字符编辑器的扩展无法在 Desktop 中启用。 |
 
 ::: tip 想把 Pi 终端扩展改造成 piwin 可用？
-看 [Pi 扩展开发与 piwin 适配指南](/docs/extension-development)：能力对照表、逐项替换方法、完整改造示例，以及打包、调试、一键发布到扩展仓库。
+看 [Pi 扩展开发与 piwin 适配指南](extension-development)：能力对照表、逐项替换方法、完整改造示例，以及打包、调试、一键发布到扩展仓库。
 :::
 
 ::: warning 关于重载方法的注意
@@ -85,5 +85,5 @@ Piwin 原生兼容主流 MCP 服务：
 
 ::: tip 实战安装指南
 想了解真实扩展从市场安装、热生效到安全拦截的完整演练？请阅读实战篇：  
-👉 **[安装 Pi 扩展：以 cc-safety-net 为例](/docs/install-pi-extension)**
+👉 **[安装 Pi 扩展：以 cc-safety-net 为例](install-pi-extension)**
 :::

@@ -20,14 +20,14 @@
 ## 2. 桌面一体包快速安装 (开箱即用)
 
 > [!TIP]
-> 现已开放专属 **[全平台客户端下载中心](/download)**，包含 macOS、Windows 最新安装包、系统版本限制明细与 iOS 移动伴侣研发动态。
+> 现已开放专属 **[全平台客户端下载中心](https://piwinwin.com/download)**，包含 macOS、Windows 最新安装包、系统版本限制明细与 iOS 移动伴侣研发动态。
 
 对于绝大多数日常使用者，直接下载安装包是最舒服的选择：
 
-1. 前往 **[全平台客户端下载中心](/download)** 或 **[GitHub Releases 页面](https://github.com/mimimaster/piwin/releases)**；
+1. 前往 **[全平台客户端下载中心](https://piwinwin.com/download)** 或 **[GitHub Releases 页面](https://github.com/mimimaster/piwin/releases)**；
 2. 下载对应系统的安装包：
-   - macOS 用户：点击 **[下载 DMG 镜像](/download)**（暂时只支持 M 系列芯片），双击拖入 Applications 文件夹；
-   - Windows 用户：点击 **[下载安装包 (.exe)](/download)**，双击安装。
+   - macOS 用户：点击 **[下载 DMG 镜像](https://piwinwin.com/download)**（暂时只支持 M 系列芯片），双击拖入 Applications 文件夹；
+   - Windows 用户：点击 **[下载安装包 (.exe)](https://piwinwin.com/download)**，双击安装。
 
 ---
 

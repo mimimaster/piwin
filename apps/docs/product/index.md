@@ -10,7 +10,7 @@ hero:
       link: /download
     - theme: alt
       text: 快速上手
-      link: /docs/getting-started
+      link: https://docs.piwinwin.com/getting-started
     - theme: alt
       text: GitHub 仓库
       link: https://github.com/mimimaster/piwin

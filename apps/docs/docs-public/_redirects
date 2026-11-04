@@ -1,0 +1,18 @@
+# 文档站重定向（docs.piwinwin.com）
+#
+# 站点拆分后文档页不再带 /docs 前缀，旧链接与搜索结果靠这里兜住。
+# Cloudflare Pages 按行顺序匹配，精确规则必须排在通配规则之前。
+
+# 已迁到产品站的页面
+/docs/gallery    https://piwinwin.com/gallery    301
+/docs/prototype  https://piwinwin.com/prototype  301
+/docs/about      https://piwinwin.com            301
+
+# 下载页已迁到产品站
+/download        https://piwinwin.com/download   301
+
+# 旧内页合并
+/docs/subagent-orchestration  /auto-orchestration  301
+
+# 其余 /docs/* 统一去掉前缀
+/docs/:page  https://docs.piwinwin.com/:page  301

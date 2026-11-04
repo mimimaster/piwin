@@ -1,6 +1,6 @@
 # 内置拓展、Skill 以及 MCP 推荐
 
-本指南已整合至完整版文档：请查阅 [扩展生态、内置 Skill 与 MCP 推荐](/docs/extensions)。
+本指南已整合至完整版文档：请查阅 [扩展生态、内置 Skill 与 MCP 推荐](extensions)。
 
 ---
 

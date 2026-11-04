@@ -1,5 +1,10 @@
 .vitepress/cache/
 .vitepress/dist/
+.vitepress/dist-product/
+.vitepress/dist-docs/
+product/public/extensions/
+public/extensions/
+.ext-src/
 node_modules/
 .wrangler/
 .DS_Store

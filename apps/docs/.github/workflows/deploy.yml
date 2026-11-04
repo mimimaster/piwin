@@ -11,8 +11,18 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout
+      - name: Checkout docs site
         uses: actions/checkout@v4
+
+      # 拓展站前端在独立仓库，产品站构建时同步进 /extensions/。
+      # 目标是 piwinwin.com/extensions/：GitHub Pages 只能托管整域，
+      # 无法挂到一个域名的子路径，所以必须由 piwin-site 自己产出。
+      - name: Checkout extensions site
+        uses: actions/checkout@v4
+        with:
+          repository: mimimaster/piwin-extensions
+          path: .ext-src
+          fetch-depth: 1
 
       - name: Setup package manager
         uses: pnpm/action-setup@v4
@@ -26,13 +36,20 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # 一次构建产出两份：.vitepress/dist-product 与 .vitepress/dist-docs
       - name: Build
         run: pnpm build
 
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy product site
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .vitepress/dist --project-name=piwin-docs
+          command: pages deploy .vitepress/dist-product --project-name=piwin-site
 
+      - name: Deploy docs site
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy .vitepress/dist-docs --project-name=piwin-docs
