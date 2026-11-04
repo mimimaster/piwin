@@ -161,6 +161,9 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                               key={`${session.id}:${session.generation}`}
                               cwd={session.cwd}
                               {...(session.projectPath ? { projectPath: session.projectPath } : {})}
+                              onRequestNewTab={() => {
+                                terminalSessions.addSession();
+                              }}
                               onStatus={(status, ptyId, message) => {
                                 onSessionStatus(session.id, status, ptyId, message);
                               }}

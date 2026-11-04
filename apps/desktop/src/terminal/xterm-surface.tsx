@@ -18,8 +18,17 @@ import { connectXtermPty } from './xterm-pty-connection.js';
 import { createXtermSurfaceHandle, type XtermSurfaceHandle } from './xterm-surface-handle.js';
 import { listenForTuiSession } from './xterm-tui-session';
 import { readDeckXtermFontFamily, readDeckXtermTheme } from './xterm-theme';
+import {
+  TERMINAL_FONT_SIZE_DEFAULT,
+  readTerminalFontSize,
+  stepTerminalFontSize,
+  writeTerminalFontSize,
+} from './terminal-font-size';
+import { resolveTerminalKeyChord, type TerminalKeyIntent } from './xterm-key-bindings';
+import { detectShortcutDisplayPlatform } from '../platform/desktop-shortcut-catalog';
 import { attachXtermWebglRenderer, type XtermRenderer } from './xterm-webgl-renderer';
 import { attachXtermImageLinks } from './xterm-image-links.js';
+import { attachTerminalUrlLinks } from './xterm-url-links.js';
 import { attachXtermImageAddon, type XtermImages } from './xterm-image-addon';
 import { fullBleedColumns } from './xterm-fit-gutter';
 import {
@@ -64,6 +73,11 @@ export type XtermSurfaceProps = {
   inputTransform?: ((data: string) => string) | undefined;
   /** Receives the handle once the program runs, and null when it stops. */
   onHandle?: ((handle: XtermSurfaceHandle | null) => void) | undefined;
+  /**
+   * ⌘T: another shell in the same panel. The owner creates the session; a
+   * surface without one (the TUI pane) leaves the chord to the app.
+   */
+  onRequestNewTab?: (() => void) | undefined;
 };
 
 const MIN_OPEN_WIDTH = 40;
@@ -103,7 +117,11 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   inputTransformRef.current = props.inputTransform;
   const onHandleRef = useRef(props.onHandle);
   onHandleRef.current = props.onHandle;
+  const onRequestNewTabRef = useRef(props.onRequestNewTab);
+  onRequestNewTabRef.current = props.onRequestNewTab;
   const contextMenu = useDesktopContextMenu();
+  /** Font-size chords change the cell grid, so they refit and notify the PTY. */
+  const resizeNowRef = useRef<(() => void) | null>(null);
   // CM-13: terminal-selection menu target, captured on right-click.
   // The menu stays mounted so a single right-click opens it; last non-null
   // selection keeps it populated when Radix clears the xterm selection.
@@ -130,7 +148,10 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
 
     const terminal = new Terminal({
       cursorBlink: true,
-      fontSize: 13,
+      // A shell runs for hours: xterm's 1000-line default drops the build
+      // output the user is scrolling back for.
+      scrollback: 10000,
+      fontSize: readTerminalFontSize(),
       fontFamily: readDeckXtermFontFamily(),
       theme: readDeckXtermTheme(),
       // `--xterm-canvas` may be transparent on the native window material.
@@ -150,6 +171,11 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     const detachImageLinks = props.onOpenImage === undefined ? null : attachXtermImageLinks(
       terminal, containerRef.current, (fileName) => onOpenImageRef.current?.(fileName),
     );
+    // A login shell prints plain URLs (build logs, git remotes); the TUI panes
+    // own their mouse handling, so they keep xterm's default (no provider).
+    const urlLinks = props.pty === undefined && props.tui === undefined
+      ? attachTerminalUrlLinks(terminal)
+      : null;
 
     const hasUsableSize = (element: HTMLElement): boolean => {
       const rect = element.getBoundingClientRect();
@@ -182,6 +208,55 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       void transport.resize(ptyId, dims.cols, dims.rows).catch(() => {
         /* ignore resize races during teardown */
       });
+    };
+
+    resizeNowRef.current = applyResize;
+    const keyPlatform = detectShortcutDisplayPlatform() === 'apple' ? 'mac' : 'other';
+    const applyKeyIntent = (intent: TerminalKeyIntent): void => {
+      switch (intent.kind) {
+        case 'write': {
+          const ptyId = ptyIdRef.current;
+          if (ptyId === null) return;
+          void transport.write(ptyId, intent.data).catch(() => {
+            /* the session closed between the key and the write */
+          });
+          return;
+        }
+        case 'clear':
+          // Local, like Terminal.app: the shell is not told, so its prompt
+          // goes with the scrollback instead of being reprinted.
+          terminal.clear();
+          return;
+        case 'font-step': {
+          const current = terminal.options.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
+          const next = stepTerminalFontSize(current, intent.step);
+          if (next === current) return;
+          terminal.options.fontSize = next;
+          writeTerminalFontSize(next);
+          resizeNowRef.current?.();
+          return;
+        }
+        case 'copy': {
+          const selection = terminal.getSelection();
+          if (selection.length === 0) return;
+          void navigator.clipboard?.writeText(selection).catch(() => {
+            /* clipboard permission denied */
+          });
+          return;
+        }
+        case 'paste': {
+          const clipboard = navigator.clipboard;
+          if (clipboard === undefined) return;
+          void clipboard.readText().then((text) => {
+            if (text.length > 0) terminal.paste(text);
+          }).catch(() => {
+            /* clipboard permission denied */
+          });
+          return;
+        }
+        case 'new-tab':
+          onRequestNewTabRef.current?.();
+      }
     };
 
     showRef.current = () => {
@@ -237,6 +312,21 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       } catch {
         /* empty */
       }
+
+      // The host-OS chords xterm's VT encoder does not cover (⌘K, ⌘+/-, ⌥←/→).
+      terminal.attachCustomKeyEventHandler((event) => {
+        if (event.type !== 'keydown') return true;
+        const intent = resolveTerminalKeyChord(event, keyPlatform);
+        if (intent === null) return true;
+        // ⌘T only belongs to a terminal that can open a tab.
+        if (intent.kind === 'new-tab' && onRequestNewTabRef.current === undefined) return true;
+        event.preventDefault();
+        // These chords belong to the focused terminal, not to the app-wide
+        // shortcut layer that also listens for ⌘K on the window.
+        event.stopPropagation();
+        applyKeyIntent(intent);
+        return false;
+      });
 
       terminal.onData((typed) => {
         const ptyId = ptyIdRef.current;
@@ -332,6 +422,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     return () => {
       disposed = true;
       showRef.current = null;
+      resizeNowRef.current = null;
       bootingRef.current = false;
       themeObserver.disconnect();
       if (resizeDebounce) {
@@ -344,6 +435,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       stopListeningForTuiSession();
       titleSubscription.dispose();
       detachImageLinks?.();
+      urlLinks?.dispose();
       images?.dispose();
       renderer?.dispose();
       terminal.dispose();
