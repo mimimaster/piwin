@@ -5,7 +5,7 @@
 Accepted (2026-07-31) · lifecycle amendment accepted 2026-08-09 · local HTML
 file-open amendment accepted 2026-09-04 · supersedes the iframe-based
 `BrowserPanel` preview · first-use Chromium download amendment accepted
-2026-09-18
+2026-09-18 · conversation isolation amendment accepted 2026-11-04
 
 ## Context
 
@@ -54,7 +54,7 @@ slot is reused by the new Browser Session panel.
 
 ### 2. New application package `@piwin/browser`
 
-A host-side capability service that owns **one** headless Chromium via
+A host-side capability service that owns **one** headless Chromium per conversation via
 `playwright-core`:
 
 - **Agent tool surface** — `HostToolDefinition[]` mirroring `@playwright/mcp`
@@ -100,9 +100,9 @@ different lifetimes:
   `browser/start(leaseId)` acquires only that surface's lease, launches the
   persistent context if needed, and enables the bounded frame loop;
 - `browser/stop(leaseId)` releases only the matching surface lease. The final
-  release stops frames and awaits `BrowserContext.close()`. Closing a persistent
-  context is the authoritative Playwright path that waits for its Chromium
-  child to exit;
+  release stops frames. Conversation-owned runtimes stay alive until Host
+  disposal so switching conversations preserves tabs, forms, and page state.
+  The legacy unscoped runtime still closes its context on final mirror release;
 - an asynchronous screenshot rechecks lease ownership before emitting, so a
   frame already in flight at final release is dropped instead of forwarding a
   base64 payload to a surface that no longer exists;
@@ -139,8 +139,29 @@ the failed promise is cleared, and a later operation may retry.
 wraps it into parent-owned `HostToolRegistration[]`. `@piwin/agent-host` remains
 the Pi-only backend boundary and receives those registrations through the Host
 tool port; it does not depend on `@piwin/browser`. The browser service is shared
-app-wide, so agent tools and the Desktop mirror operate on the same reusable
-session object.
+within a conversation, so that conversation's agent tools and Desktop mirrors
+operate on the same reusable object. Different conversations receive different
+objects from the Host registry in `host-browser-sessions.ts`.
+
+#### 3.1 Conversation isolation (2026-11-04)
+
+Every browser command, browser push, and binary-frame header carries optional
+`sessionId`. New Desktop surfaces supply their active conversation; Host tool
+composition supplies its owning conversation. An omitted ID selects a separate
+legacy resource and is never attributed to the foreground conversation.
+
+Each conversation gets a lazy persistent profile under
+`{browser.profileDir ?? PIWIN_ROOT/browser-profile}/sessions/{sha256(sessionId)}`.
+Configured CDP connections create a separate context per conversation; cleanup
+closes only that context and detaches without closing the external browser.
+Conversation pages are retained without streaming when their last mirror leaves.
+Host shutdown disposes every initialized browser, including pending creations.
+
+Desktop clears URLs, frames, picks, and controller state when conversation or
+Host identity changes. Background browser pushes cannot reveal another
+conversation's inspector, docked view, mini, or phone activity chip. An already
+collapsed right workspace stays collapsed. Transport audiences, coalescing keys,
+binary delivery, and disconnected lease cleanup preserve the same identity.
 
 ### 4. Contracts first (`@piwin/contracts/src/browser.ts`)
 

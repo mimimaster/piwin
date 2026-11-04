@@ -350,6 +350,31 @@ ADR [0065](./adr/0065-piwin-live-voice-work-session.md).
 
 **Non-goals (MVP):** Platform Realtime `realtime-audio` catalog; Host PCM relay; CLI/Mobile/Web as mic owners; Voice calling Agent tools directly; keyword delegation.
 
+### 4.12 Knowledge Space (P1)
+
+The former Knowledge Center is the **Knowledge Space** workbench: Overview,
+Materials, Knowledge Wiki, Flashcard Review. Original files stay readable
+without an index. Selections can ask an independent reading assistant, save a
+sourced wiki note, draft native flashcards, or cite into an ordinary session.
+Identity is frozen (`KnowledgeContentId`); collections are optional memberships,
+not copies. Spec:
+[2026-11-02-knowledge-product-integration.md](./specs/2026-11-02-knowledge-product-integration.md);
+plan:
+[2026-11-03-knowledge-space-redesign-plan.zh.md](./plans/2026-11-03-knowledge-space-redesign-plan.zh.md);
+ADR [0103](./adr/0103-knowledge-workspace-integration.md).
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| KS-01 | One entry named Knowledge Space; four fixed sections; numbers from Host reads | P1 |
+| KS-02 | Unindexed folders list and read; search reports not-indexed instead of hiding files | P1 |
+| KS-03 | Selection actions: Ask AI, note, flashcard draft, cite into conversation | P1 |
+| KS-04 | Independent assist session does not inherit the main chat history | P1 |
+| KS-05 | Wiki write is create-only; update uses contentHash; distill stays a draft | P1 |
+| KS-06 | Native FSRS cards keep source relations; topic tags do not copy items | P1 |
+| KS-07 | One search over materials, wiki and cards; Ask AI evidence excludes card backs | P1 |
+
+**Non-goals (this slice):** Mobile full reader, `@` menu knowledge items, public sharing, a second scheduler, bulk rewrite of existing notes/wiki/cards.
+
 ---
 
 ## 5. CLI requirements

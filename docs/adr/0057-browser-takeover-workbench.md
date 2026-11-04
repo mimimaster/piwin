@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-19)
+Accepted (2026-08-19) · conversation isolation amendment accepted 2026-11-04
 
 Amends [ADR 0020](./0020-browser-session.md) §6 / deferred interactive
 mirror. Does **not** replace the Host-owned Playwright Chromium, snapshot/`ref`
@@ -32,7 +32,7 @@ Playwright Chromium the Host already owns.
 
 ### 1. Interactive mirror = CDP screencast + input forwarding
 
-Keep one Host-owned Chromium. Replace the `page.screenshot()` interval with
+Keep one Host-owned Chromium per conversation (ADR 0020 §3.1). Replace the `page.screenshot()` interval with
 Chrome DevTools `Page.startScreencast` (JPEG quality 80, ack every frame,
 ~12–15 fps, size = CSS viewport × deviceScaleFactor). The panel still renders
 `browser/frame` (same push shape; width/height are CSS). User pointer/keyboard
@@ -47,7 +47,7 @@ Tauri IPC (already noted in ADR 0020). Out of scope here.
 
 ### 2. Explicit controller lock (not “is the LLM streaming”)
 
-The shared page has one controller:
+Each conversation's shared page has one controller:
 
 ```text
 idle  -- user pointer/key / URL chrome -->  user

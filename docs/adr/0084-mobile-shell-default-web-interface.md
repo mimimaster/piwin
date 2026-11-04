@@ -42,8 +42,9 @@ workbench by default; the existing interface stays reachable from settings.
    Keychain and is primed into memory before the first hello
    (`apps/desktop/src/devices/device-admission.ts`). The client still identifies as
    `clientType: 'desktop'` because it runs the Desktop capability set.
-6. **Classic is frozen.** Crash fixes only. It is removed once the default
-   interface has feature parity and has gone four weeks without a switch back.
+6. **Classic remains available.** It receives device-layout and compatibility
+   fixes as well as crash fixes. It is removed once the default interface has
+   feature parity and has gone four weeks without a switch back.
 
 This supersedes ADR 0037 §3 for the default interface. §1, §2, §4 and §5 of
 ADR 0037 are unchanged: the phone is still a thin client and the Host is the
@@ -108,3 +109,30 @@ only execution authority.
   within their own regions; edge gestures do not move the outer page. The
   session drawer scrolls vertically only, with long titles and expanded touch
   targets constrained to its width (2026-10-07).
+- Wide touch layouts retain a 16px composer input and 44px titlebar and
+  composer icon targets. Their shell follows the visual viewport when the
+  keyboard reduces the visible height; the column layout remains responsive
+  to the available width (2026-11-03). Duo reserved-region handling and
+  native device validation remain outstanding.
+- Wide touch layouts also respect asymmetric safe-area insets on the workbench,
+  settings, and library/studio surfaces. Settings and studio surfaces use the
+  visual viewport height when the keyboard appears; the model picker scrolls
+  within the available space on short landscape screens (2026-11-03).
+- Classic's phone and tablet shells use the visible viewport height for the
+  on-screen keyboard. Both interfaces leave their layout geometry unchanged
+  while the user pinch-zooms (2026-11-03).
+- Native validation on 2026-11-03 used iOS 26.4 simulators: both interfaces
+  reached their initial screens on iPad, the default interface reached its
+  connection screen on iPhone, and the default interface on iPad kept a
+  connection draft visible through keyboard presentation and rotation. This
+  did not exercise a connected session or an archived release build. The
+  simulator reported the missing scene lifecycle; tao 0.35.3 also had a
+  scene-lifecycle release crash. The mobile shell now uses Tauri 2.12 and
+  tao 0.37, which include the upstream scene fixes, with a nonempty static
+  single-window scene configuration. The workbench's mobile-only build uses
+  the mobile Tauri JavaScript API version, independent of Desktop's version.
+  Packaging checks guard the scene policy. An
+  optimized simulator development build reached the default connection screen
+  on iPhone and iPad and the classic screen on iPad using local dev servers;
+  this is not an archived distribution build or a connected-session test.
+  Validation with the iOS 27 SDK and Duo remains outstanding.

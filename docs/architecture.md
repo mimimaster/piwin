@@ -62,6 +62,15 @@ apps/*  ↛  Pi packages
 apps/gateway (optional) → host-transport + contracts only
 ```
 
+`extensions/` (top-level, **not** a workspace package) holds standalone Pi
+extensions that are loaded by Pi inside the Host rather than imported by any
+`@piwin/*` package. The first one, `extensions/piwin-web-model`, registers model
+providers whose transport is a real Chrome tab (see
+[`research/web-model-provider-spike.md`](./research/web-model-provider-spike.md)).
+Rules for anything in `extensions/`: no `@piwin/*` import in either direction, no
+`node_modules`, zero runtime dependencies beyond Node built-ins, and installed
+through `piwin extension install <path>` rather than pnpm.
+
 `apps/gateway` is the self-hosted relay of ADR 0101: Hosts and remote shells
 dial out to it and exchange Noise IK–encrypted frames it cannot read. It
 authenticates Hosts by signature against key-derived relay user ids and keeps
@@ -672,6 +681,8 @@ for producer compatibility and the still-pending independent-adapter gate.
   media/<session-id>/
   knowledge/
     bases.json               # Host-owned folder knowledge-base registry
+    collections.json         # topic membership (ADR 0103); missing file = empty set
+  wiki/                      # LLM-Wiki pages (INDEX.md, LOG.md, concepts/)
   notes/                      # markdown notes (ADR 0018)
   doc-rag/<folderKey>/        # folder RAG cache; rebuilt into the registry if lost
   flashcards/
@@ -846,12 +857,20 @@ session. See
 ## 8. Browser Session
 
 A host-owned, Playwright-driven browser session (`@piwin/browser`, ADR 0020) that
-owns **one** Chromium (default headless; `PiwinConfig.browser.headless=false` for
-a Host-owned headed window) shared by the agent and the desktop panel — "what
+owns **one** lazy Chromium per conversation (default headless;
+`PiwinConfig.browser.headless=false` for a Host-owned headed window), shared by
+that conversation's agent and desktop panel — "what
 the user sees == what the agent controls". Host can instead attach to an
 explicit loopback `PiwinConfig.browser.cdpEndpoint` via Playwright
-`connectOverCDP`; after `browser_tabs` select, the same snapshot/click/type/mirror
-surface drives that page. Detaching does not close the external browser.
+`connectOverCDP`, with a separate context for each conversation; after
+`browser_tabs` select, the same snapshot/click/type/mirror surface drives that
+page. Detaching closes only the conversation's context, not the external browser.
+`host-browser-sessions.ts` owns the registry. Commands, pushes, binary-frame
+headers, mirror delivery, and disconnect cleanup carry the owning `sessionId`.
+Profiles use `browser-profile/sessions/{sha256(sessionId)}` under the Host root
+(or the configured profile base). Last-mirror release stops streaming but retains
+conversation pages until Host disposal; unscoped legacy clients keep a separate
+browser and their previous release behavior.
 `web_fetch` `fetchFallback: 'browser'` is a **different** Chromium (ADR 0058):
 one-shot `renderPageHtml`, no profile, no panel pushes, then the same Readability
 extract. Chrome daily-session autoConnect is not shipped. Live headed Host
@@ -863,8 +882,10 @@ kill it) were recorded on `79318f5c` in
   the same Chromium: Playwright `page.screencast` JPEG frames (~12 fps) falling
   back to screenshot frames, plus pointer/IME forwarding (`browser/input`).
   Default mode is Interact; pick remains a modifier that attaches a composer chip.
-  Desktop opens the right-sidebar Browser tab when the agent acquires the page
-  or navigates. The Host CSS viewport defaults to **1280×800**; Host-owned
+  Desktop switches an open right workspace to Browser only for activity from
+  the active conversation; collapsed workspaces use their session mini/chip.
+  Conversation/Host switches clear the previous visible page immediately.
+  The Host CSS viewport defaults to **1280×800**; Host-owned
   Chromium rasters at deviceScaleFactor 2 and the screencast JPEG is CSS×DSF
   (quality 80). The panel scales with `object-fit: contain` and does not shrink
   the page to the inspector box.

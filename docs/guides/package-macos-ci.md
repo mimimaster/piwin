@@ -50,7 +50,15 @@ Self-hosted labels must include `self-hosted`, `macOS`, and `ARM64` (the default
 
 ## Signing
 
-Ad-hoc packages work for a private smoke, but every build is a new code identity. macOS then forgets Desktop / removable-volume grants.
+Ad-hoc packages work for a private smoke, but every build is a new code identity. macOS then forgets Desktop / removable-volume grants. Screen Recording and microphone grants are affected too: installing an ad-hoc build over a Developer ID build can leave the Settings switch on while access fails with a code-requirement mismatch. Relaunching does not repair the signature.
+
+For local apps that replace an installed Developer ID build, use
+`pnpm package:desktop` and
+`PIWIN_REQUIRE_DEVELOPER_ID=1 pnpm verify:desktop-package` before installing.
+The package wrapper selects the single Developer ID Application identity in
+the keychain (or `APPLE_SIGNING_IDENTITY` when set). A direct `tauri build`
+without that identity does not preserve the installed app's grants. Do not
+overwrite a signed bundle's executable with a raw Cargo binary.
 
 For a stable Developer ID:
 

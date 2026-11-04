@@ -71,6 +71,18 @@ explicit actions. The original local-backends plan is historical.
 
 ---
 
+### 1.4 Knowledge Space product integration
+
+The owner confirmed the Knowledge Center redesign as one Knowledge Space
+workbench on 2026-11-03. The
+[detailed redesign plan](./plans/2026-11-03-knowledge-space-redesign-plan.zh.md)
+and [functional specification](./specs/2026-11-02-knowledge-product-integration.md)
+cover Overview, Materials Library, Knowledge Wiki, native Flashcard Review,
+selection actions, reading assistance and references in ordinary conversations.
+The study website supplies the visual reference. Delivery starts with existing
+Host-owned content and a browsable reading surface, then completes shared
+references, AI, Wiki and review paths. Production implementation remains planned.
+
 ## 2. Current baseline (done)
 
 - [x] Repo scaffold monorepo (`apps/*`, `packages/*`)

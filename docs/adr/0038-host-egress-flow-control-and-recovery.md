@@ -282,6 +282,18 @@ The existing status-only `HostSnapshotFrame` is insufficient and will be
 extended with a hydration manifest plus typed Host queries. Snapshot/replay
 ordering is detailed in the delivery spec.
 
+Desktop memory budget (owner decision, 2026-11-04): at a sampled main-renderer
+footprint of 1536 MiB, reclaim the renderer even while focused or streaming.
+Host-owned turns/jobs continue across this supported client reconnect. Local
+drafts, attachment/context chips, editing surfaces, microphone/capture work,
+and live calls defer reclamation. A cancelable preflight flushes losslessly
+persistable parked composer snapshots; lossy persistence, storage failure,
+parked file attachments, and document comments veto termination. The high-memory
+cooldown is one minute and survives a page reload through session storage;
+ordinary 512 MiB background-idle recycling retains its ten-minute cooldown.
+This is a sampled reclaim budget, not an OS allocation ceiling. See the
+[implementation plan](../plans/2026-11-04-webcontent-memory-budget.md).
+
 ### 10. Egress metrics are queried, never streamed as telemetry
 
 The Hub retains bounded counters for:

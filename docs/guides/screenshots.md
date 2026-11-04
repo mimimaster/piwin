@@ -93,11 +93,32 @@ missing, piwin shows a dialog instead of capturing:
 Running from `pnpm dev:tauri` in a terminal, macOS attributes the permission to
 the terminal app instead of piwin.
 
-If piwin keeps asking although its switch is on, the grant probably belongs to
-another copy with the same bundle id (`app.piwinwin.desktop`), for example a
-locally built, ad-hoc signed `.app`. macOS checks the code signature, so the
-installed app does not match. Quit piwin, reset the entry, and grant it again
-from the installed app:
+If piwin keeps asking although its switch is on, check the installed app's
+signature before resetting permissions:
+
+```bash
+codesign -d -r- --verbose=2 /Applications/piwin.app
+codesign --verify --deep --strict --verbose=2 /Applications/piwin.app
+```
+
+The grant is tied to a code-signing identity, not just the displayed app name
+or bundle id (`app.piwinwin.desktop`). Installing an ad-hoc local build over
+a Developer ID build can leave the switch on while access is denied. Repeated
+relaunches do not fix a signature mismatch. The system log reports
+`Failed to match existing code requirement` for `kTCCServiceScreenCapture`.
+
+Build installable local apps with `pnpm package:desktop`; it automatically
+selects the single Developer ID Application identity in the keychain. Verify
+with `PIWIN_REQUIRE_DEVELOPER_ID=1 pnpm verify:desktop-package` before
+installing. Direct `tauri build` without a signing identity, or replacing a
+signed bundle's executable with a raw Cargo binary, breaks that continuity.
+Restore a valid bundle signed by the original Developer ID, quit piwin, and
+reopen it. The existing grant can then match again. See the
+[local repair evidence](../evidence/2026-11-03-screen-capture-signature.md).
+
+If the installed signature is valid but the entry still belongs to another
+copy or identity, quit piwin, reset only its Screen Recording entry, and grant
+it again from the installed app:
 
 ```bash
 tccutil reset ScreenCapture app.piwinwin.desktop
