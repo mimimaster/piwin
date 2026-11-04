@@ -1,0 +1,15 @@
+{
+  "name": "piwin-web-model",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pi provider extension: drive a logged-in model web page through real Chrome + CDP",
+  "scripts": {
+    "test": "node --test src/*.test.ts"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
