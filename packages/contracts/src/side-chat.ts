@@ -9,6 +9,7 @@
 
 import type { SessionSummary } from './host.js';
 import type { ConnectedSourceContextRef } from './apple-health.js';
+import type { KnowledgeContextRef } from './knowledge-library.js';
 
 /** Product relation binding a side chat to its source main session (§7.1). */
 export type SideChatRelation = {
@@ -130,7 +131,11 @@ export type SideChatOnlyContextRef = {
 export type SideChatContextRef = MainContextRef | SideChatOnlyContextRef;
 
 /** Context refs accepted by session/prompt (handoff path, §8.2). */
-export type PromptContextRef = SideChatContextRef | MainContextRef | SessionHandoffContextRef;
+export type PromptContextRef =
+  | SideChatContextRef
+  | MainContextRef
+  | SessionHandoffContextRef
+  | KnowledgeContextRef;
 
 /** side-chat/open response payload (§8.1). */
 export type SideChatOpenData = {

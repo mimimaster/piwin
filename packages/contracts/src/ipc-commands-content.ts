@@ -4,6 +4,7 @@ import type { IndexFolderOptions, RetrieveOptions } from './doc-rag.js';
 import type {
   FlashcardBatchCreateInput,
   FlashcardCreateInput,
+  FlashcardDraftScope,
   ReviewRating,
 } from './flashcards.js';
 import type {
@@ -242,7 +243,9 @@ export type HostContentCommand =
       sourceNoteId?: string;
       sourceFolder?: string;
       sequenceId?: string;
+      tag?: string;
     }
+  | { id?: string; type: 'flashcards/draft-from-scope'; scope: FlashcardDraftScope }
   | { id?: string; type: 'flashcards/delete'; cardId: string }
   | { id?: string; type: 'flashcards/decks' }
   | { id?: string; type: 'flashcards/queue'; deck?: string }
@@ -321,29 +324,30 @@ export type HostContentCommand =
       value?: string;
       cancelled?: boolean;
     }
-  | { id?: string; type: 'browser/start'; leaseId?: string }
-  | { id?: string; type: 'browser/navigate'; url: string }
-  | { id?: string; type: 'browser/pick-at'; x: number; y: number; target?: BrowserTargetIdentity }
-  | { id?: string; type: 'browser/screenshot'; path?: string }
+  | { id?: string; type: 'browser/start'; sessionId?: string; leaseId?: string }
+  | { id?: string; type: 'browser/navigate'; sessionId?: string; url: string }
+  | { id?: string; type: 'browser/pick-at'; sessionId?: string; x: number; y: number; target?: BrowserTargetIdentity }
+  | { id?: string; type: 'browser/screenshot'; sessionId?: string; path?: string }
   | { id?: string; type: 'browser/capture'; sessionId?: string; quality?: number; fullPage?: boolean }
-  | { id?: string; type: 'browser/stop'; leaseId?: string }
-  | { id?: string; type: 'browser/restart' }
-  | { id?: string; type: 'browser/reload' }
-  | { id?: string; type: 'browser/input'; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }
+  | { id?: string; type: 'browser/stop'; sessionId?: string; leaseId?: string }
+  | { id?: string; type: 'browser/restart'; sessionId?: string }
+  | { id?: string; type: 'browser/reload'; sessionId?: string }
+  | { id?: string; type: 'browser/input'; sessionId?: string; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }
   /**
    * `claim` (follow only): this panel takes over driving the follow viewport,
    * e.g. its window gained focus. Without it a follow resize from a panel that
    * does not own the viewport is refused with `browser-viewport-owned`.
    */
-  | { id?: string; type: 'browser/resize'; width: number; height: number; leaseId?: string; origin?: 'follow' | 'explicit'; claim?: boolean }
-  | { id?: string; type: 'browser/back' }
-  | { id?: string; type: 'browser/forward' }
-  | { id?: string; type: 'browser/new-tab'; url?: string }
-  | { id?: string; type: 'browser/select-tab'; pageId: string }
-  | { id?: string; type: 'browser/close-tab'; pageId: string }
+  | { id?: string; type: 'browser/resize'; sessionId?: string; width: number; height: number; leaseId?: string; origin?: 'follow' | 'explicit'; claim?: boolean }
+  | { id?: string; type: 'browser/back'; sessionId?: string }
+  | { id?: string; type: 'browser/forward'; sessionId?: string }
+  | { id?: string; type: 'browser/new-tab'; sessionId?: string; url?: string }
+  | { id?: string; type: 'browser/select-tab'; sessionId?: string; pageId: string }
+  | { id?: string; type: 'browser/close-tab'; sessionId?: string; pageId: string }
   | {
       id?: string;
       type: 'browser/dialog';
+      sessionId?: string;
       action: 'accept' | 'dismiss';
       promptText?: string;
     }

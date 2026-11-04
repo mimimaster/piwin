@@ -38,6 +38,46 @@ export type FlashcardAttribution = {
   sourceChunkIds?: string[];
   generationId?: string;
   sourceDocumentIds?: string[];
+  /** Wiki concept this card was saved from; not a copy of the page. */
+  wikiSlug?: string;
+};
+
+/** Generate card drafts without writing. Selection/page use raw text (no folder index). */
+export type FlashcardDraftScope =
+  | {
+      kind: 'selection';
+      text: string;
+      sourceFolder?: string;
+      sourceFile?: string;
+      sourceLine?: number;
+      wikiSlug?: string;
+      tags?: string[];
+      topic?: string;
+      deck?: string;
+    }
+  | {
+      kind: 'page';
+      text: string;
+      sourceFolder?: string;
+      sourceFile?: string;
+      sourceLine?: number;
+      wikiSlug?: string;
+      tags?: string[];
+      topic?: string;
+      deck?: string;
+    }
+  | {
+      kind: 'files';
+      folderPath: string;
+      relativePaths: string[];
+      tags?: string[];
+      topic?: string;
+      deck?: string;
+    };
+
+export type FlashcardDraftResult = {
+  drafts: FlashcardCreateInput[];
+  counts: { basic: number; cloze: number };
 };
 
 /** Durable flashcard content on disk (`cards/<id>.md`). */
@@ -194,6 +234,8 @@ function asReviewCard(value: unknown): FlashcardReviewCard | null {
   if (generationId) card.generationId = generationId;
   const sourceDocumentIds = readStringArray(value.sourceDocumentIds);
   if (sourceDocumentIds) card.sourceDocumentIds = sourceDocumentIds;
+  const wikiSlug = readOptionalString(value.wikiSlug);
+  if (wikiSlug) card.wikiSlug = wikiSlug;
   return card;
 }
 

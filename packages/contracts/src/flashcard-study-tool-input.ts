@@ -44,9 +44,10 @@ const SCOPE_KEYS_BY_KIND: Readonly<Record<FlashcardStudyScope['kind'], readonly 
   selection: ['kind', 'parentRoundId', 'itemIds'],
   all: ['kind'],
   deck: ['kind', 'deck'],
+  topic: ['kind', 'topic'],
 };
 
-const SCHEDULED_MVP_SCOPE_KINDS: ReadonlySet<string> = new Set(['all', 'deck']);
+const SCHEDULED_MVP_SCOPE_KINDS: ReadonlySet<string> = new Set(['all', 'deck', 'topic']);
 
 export function parseFlashcardStudyReadToolInputImpl(
   value: unknown,
@@ -431,7 +432,7 @@ function parseScheduledMvpScope(
     return fail(`${field} must be a discriminated object`);
   }
   if (!SCHEDULED_MVP_SCOPE_KINDS.has(value.kind)) {
-    return fail(`${field} must be all or deck`);
+    return fail(`${field} must be all, deck, or topic`);
   }
   const allowed = SCOPE_KEYS_BY_KIND[value.kind as FlashcardStudyScope['kind']];
   const keys = assertAllowedKeys(value, allowed);
@@ -450,8 +451,8 @@ function parseScheduledMvpScope(
 
   const parsed = parseFlashcardStudyScope(value);
   if (!parsed.ok) return parsed;
-  if (parsed.value.kind !== 'all' && parsed.value.kind !== 'deck') {
-    return fail(`${field} must be all or deck`);
+  if (parsed.value.kind !== 'all' && parsed.value.kind !== 'deck' && parsed.value.kind !== 'topic') {
+    return fail(`${field} must be all, deck, or topic`);
   }
   return ok(parsed.value);
 }

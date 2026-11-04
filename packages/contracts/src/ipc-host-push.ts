@@ -219,9 +219,10 @@ export type HostPushVariant =
   // against these values vs img.clientWidth — never img.naturalWidth.
   | BrowserFramePush
   | BrowserStatePush
-  | { type: 'browser/picked'; result: WebElementPickResult }
+  | { type: 'browser/picked'; sessionId?: string; result: WebElementPickResult }
   | {
       type: 'browser/console';
+      sessionId?: string;
       level: 'log' | 'warning' | 'error';
       text: string;
       url: string;
@@ -229,6 +230,7 @@ export type HostPushVariant =
     }
   | {
       type: 'browser/network';
+      sessionId?: string;
       method: string;
       url: string;
       status: number;

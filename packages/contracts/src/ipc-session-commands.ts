@@ -156,6 +156,7 @@ export type SessionHostCommand =
     }
   | { id?: string; type: 'session/model-context-summary'; sessionId: string }
   | { id?: string; type: 'session/context-get'; sessionId: string }
+  | { id?: string; type: 'session/resources'; sessionId: string }
   | {
       id?: string;
       type: 'session/prompt';

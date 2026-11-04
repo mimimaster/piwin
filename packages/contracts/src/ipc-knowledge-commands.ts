@@ -3,6 +3,7 @@
 import type {
   FlashcardBatchCreateInput,
   FlashcardCreateInput,
+  FlashcardDraftScope,
   ReviewRating,
 } from './flashcards.js';
 import type { FlashcardStudyHostCommand } from './flashcard-study-commands.js';
@@ -35,7 +36,9 @@ export type KnowledgeHostCommand =
       sourceNoteId?: string;
       sourceFolder?: string;
       sequenceId?: string;
+      tag?: string;
     }
+  | { id?: string; type: 'flashcards/draft-from-scope'; scope: FlashcardDraftScope }
   | { id?: string; type: 'flashcards/delete'; cardId: string }
   | { id?: string; type: 'flashcards/decks' }
   | { id?: string; type: 'flashcards/queue'; deck?: string }

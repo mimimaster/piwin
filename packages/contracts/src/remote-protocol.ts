@@ -129,6 +129,7 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'session/replace-run',
   'session/model-context-summary',
   'session/context-get',
+  'session/resources',
   'models/configured',
   'auth/status',
   'auth/login',
@@ -285,6 +286,10 @@ export type RemoteCapabilitySummary = {
   flashcardStudy?: boolean;
   /** Host exposes `knowledge/*` bases, search, and session mounts. Absent on old Hosts. */
   knowledgeBases?: boolean;
+  /** Host exposes `knowledge/collections/*` (knowledge workspace, ADR 0103). */
+  knowledgeWorkspace?: boolean;
+  /** Host exposes `knowledge/documents/*` and `knowledge/document/read` (stage 2). */
+  knowledgeDocuments?: boolean;
   /**
    * OS family of the Host process (`process.platform`). Shells use this for
    * Host-path placeholders and joins — never the client OS.

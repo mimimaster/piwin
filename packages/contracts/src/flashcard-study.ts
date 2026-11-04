@@ -17,7 +17,8 @@ export type FlashcardStudyScope =
   | { kind: 'sequence'; sequenceId: string }
   | { kind: 'selection'; parentRoundId: string; itemIds: string[] }
   | { kind: 'all' }
-  | { kind: 'deck'; deck: string };
+  | { kind: 'deck'; deck: string }
+  | { kind: 'topic'; topic: string };
 
 export type FlashcardStudyEntry = {
   entryId: string;

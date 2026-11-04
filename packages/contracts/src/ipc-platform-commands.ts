@@ -611,30 +611,31 @@ export type PlatformHostCommand =
     }
   /** ADR 0080: current extension status/widget snapshot for a late-attaching client. */
   | { id?: string; type: 'extension/ui_surface_get'; sessionId: string }
-  | { id?: string; type: 'browser/start'; leaseId?: string }
-  | { id?: string; type: 'browser/navigate'; url: string }
-  | { id?: string; type: 'browser/pick-at'; x: number; y: number; target?: BrowserTargetIdentity }
-  | { id?: string; type: 'browser/screenshot'; path?: string }
+  | { id?: string; type: 'browser/start'; sessionId?: string; leaseId?: string }
+  | { id?: string; type: 'browser/navigate'; sessionId?: string; url: string }
+  | { id?: string; type: 'browser/pick-at'; sessionId?: string; x: number; y: number; target?: BrowserTargetIdentity }
+  | { id?: string; type: 'browser/screenshot'; sessionId?: string; path?: string }
   | { id?: string; type: 'browser/capture'; sessionId?: string; quality?: number; fullPage?: boolean }
   /**
    * `reason: 'disconnect'` is the Host releasing a lease whose connection went
    * away; unlike an unmount it leaves the id reusable so the client can
    * re-assert it after reconnecting.
    */
-  | { id?: string; type: 'browser/stop'; leaseId?: string; reason?: 'disconnect' }
-  | { id?: string; type: 'browser/restart' }
-  | { id?: string; type: 'browser/reload' }
-  | { id?: string; type: 'browser/input'; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }
+  | { id?: string; type: 'browser/stop'; sessionId?: string; leaseId?: string; reason?: 'disconnect' }
+  | { id?: string; type: 'browser/restart'; sessionId?: string }
+  | { id?: string; type: 'browser/reload'; sessionId?: string }
+  | { id?: string; type: 'browser/input'; sessionId?: string; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }
   /** `claim`: see the content command; the focused panel takes the follow viewport. */
-  | { id?: string; type: 'browser/resize'; width: number; height: number; leaseId?: string; mode?: BrowserViewportMode; origin?: 'follow' | 'explicit'; claim?: boolean }
-  | { id?: string; type: 'browser/back' }
-  | { id?: string; type: 'browser/forward' }
-  | { id?: string; type: 'browser/new-tab'; url?: string }
-  | { id?: string; type: 'browser/select-tab'; pageId: string }
-  | { id?: string; type: 'browser/close-tab'; pageId: string }
+  | { id?: string; type: 'browser/resize'; sessionId?: string; width: number; height: number; leaseId?: string; mode?: BrowserViewportMode; origin?: 'follow' | 'explicit'; claim?: boolean }
+  | { id?: string; type: 'browser/back'; sessionId?: string }
+  | { id?: string; type: 'browser/forward'; sessionId?: string }
+  | { id?: string; type: 'browser/new-tab'; sessionId?: string; url?: string }
+  | { id?: string; type: 'browser/select-tab'; sessionId?: string; pageId: string }
+  | { id?: string; type: 'browser/close-tab'; sessionId?: string; pageId: string }
   | {
       id?: string;
       type: 'browser/dialog';
+      sessionId?: string;
       action: 'accept' | 'dismiss';
       promptText?: string;
     }

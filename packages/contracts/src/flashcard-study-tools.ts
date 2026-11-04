@@ -66,7 +66,8 @@ export const FLASHCARD_STUDY_TOOL_FORBIDDEN_AUTHORITY_KEYS = [
 
 export type FlashcardStudyScheduledStartScope =
   | { kind: 'all' }
-  | { kind: 'deck'; deck: string };
+  | { kind: 'deck'; deck: string }
+  | { kind: 'topic'; topic: string };
 
 export type FlashcardStudyReadToolInput =
   | ({ action: 'catalog' } & Omit<FlashcardStudyCatalogCommand, 'type' | 'id'>)

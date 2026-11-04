@@ -517,6 +517,11 @@ export function parseFlashcardStudyScope(
       if (!deck.ok) return deck;
       return ok({ kind: 'deck', deck: deck.value });
     }
+    case 'topic': {
+      const topic = parseDeck(value.topic);
+      if (!topic.ok) return fail('topic must be a non-empty string');
+      return ok({ kind: 'topic', topic: topic.value });
+    }
     default:
       return fail(`unknown scope kind ${value.kind}`);
   }

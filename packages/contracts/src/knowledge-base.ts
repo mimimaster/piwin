@@ -5,6 +5,11 @@
  * notes library (`@piwin/notes`) and user folders indexed by `@piwin/doc-rag`.
  * The Host owns the registry; clients never keep their own folder list.
  */
+import type { KnowledgeWorkspaceHostCommand } from './knowledge-workspace.js';
+import type {
+  KnowledgeDocumentListCommand,
+  KnowledgeDocumentReadCommand,
+} from './knowledge-library.js';
 
 export type KnowledgeBaseKind = 'notes' | 'folder' | 'wiki';
 
@@ -175,6 +180,8 @@ export type WikiConceptItem = {
   relativePath: string;
 };
 
+export type WikiPageKind = 'concept' | 'note' | 'topic';
+
 export type WikiConceptDetail = {
   title: string;
   slug: string;
@@ -185,6 +192,45 @@ export type WikiConceptDetail = {
   links: string[];
   updatedAt: string;
   relativePath: string;
+  /** Provenance captured at create time; absent on pages written before sources. */
+  sources?: WikiSourceRef[];
+  /** sha256 of the raw file; CAS token for `knowledge/wiki/update`. */
+  contentHash?: string;
+  /** Defaults to `concept` when omitted (pages written before kinds). */
+  kind?: WikiPageKind;
+};
+
+/** One material slice a wiki page was saved from. Identity is base + path. */
+export type WikiSourceRef = {
+  baseId: string;
+  relativePath: string;
+  lineStart?: number;
+  lineEnd?: number;
+  snapshotText?: string;
+};
+
+/** Create a wiki concept. Host refuses when the slug already exists. */
+export type WikiWriteInput = {
+  title: string;
+  content: string;
+  summary?: string;
+  tags?: string[];
+  sources?: WikiSourceRef[];
+  logMessage?: string;
+  kind?: WikiPageKind;
+};
+
+/** Patch an existing wiki page. `expectedContentHash` is the last `wiki/concept` hash. */
+export type WikiUpdateInput = {
+  slug: string;
+  expectedContentHash: string;
+  title?: string;
+  content?: string;
+  summary?: string;
+  tags?: string[];
+  sources?: WikiSourceRef[];
+  kind?: WikiPageKind;
+  logMessage?: string;
 };
 
 export type WikiOverviewResult = {
@@ -201,6 +247,30 @@ export type WikiDistillResult = {
   baseId: string;
   /** Relative paths of the slices that fed the synthesis. */
   sourcePaths: string[];
+};
+
+/** Existing wiki page that the draft might update instead of creating. */
+export type WikiRelatedPage = {
+  slug: string;
+  title: string;
+  summary?: string;
+  reason: 'same-slug' | 'title' | 'tag';
+};
+
+/** Synthesised concept that has not been written yet. */
+export type WikiDistillDraft = {
+  title: string;
+  summary: string;
+  tags: string[];
+  content: string;
+  sources: WikiSourceRef[];
+  relatedPages: WikiRelatedPage[];
+  existingPage?: {
+    slug: string;
+    title: string;
+    content: string;
+    contentHash: string;
+  };
 };
 
 /** Which knowledge capability endpoint a Host-side connection probe targets. */
@@ -284,9 +354,26 @@ export type KnowledgeBaseHostCommand =
    * model; `topic` narrows which slices are retrieved.
    */
   | { id?: string; type: 'knowledge/wiki/distill'; baseId: string; topic?: string }
+  /** Synthesise a draft without writing. `relativePaths` limits retrieval to those files. */
+  | {
+      id?: string;
+      type: 'knowledge/wiki/distill-draft';
+      baseId: string;
+      topic?: string;
+      relativePaths?: string[];
+    }
+  /** Create-only: never overwrites an existing concept file. */
+  | { id?: string; type: 'knowledge/wiki/write'; input: WikiWriteInput }
+  /** CAS update: refuses when the file no longer matches `expectedContentHash`. */
+  | { id?: string; type: 'knowledge/wiki/update'; input: WikiUpdateInput }
   /** Connectivity probe for one configured knowledge endpoint (see the type above). */
   | KnowledgeConnectionTestCommand
-  | KnowledgeEmbeddingModelsDiscoverCommand;
+  | KnowledgeEmbeddingModelsDiscoverCommand
+  /** Workspace-level reads (topic collections). See `knowledge-workspace.ts`. */
+  | KnowledgeWorkspaceHostCommand
+  /** Bounded document browsing and reading. See `knowledge-library.ts`. */
+  | KnowledgeDocumentListCommand
+  | KnowledgeDocumentReadCommand;
 
 /** Full list on any registry or derived-state change. */
 export type KnowledgeBasesChangedPush = {

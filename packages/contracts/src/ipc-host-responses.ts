@@ -142,6 +142,10 @@ export type HostStatusData = {
     flashcardStudy?: boolean;
     /** Host exposes `knowledge/*` bases, search, and session mounts. Absent on old Hosts. */
     knowledgeBases?: boolean;
+    /** Host exposes `knowledge/collections/*` (knowledge workspace, ADR 0103). */
+    knowledgeWorkspace?: boolean;
+    /** Host exposes `knowledge/documents/*` and `knowledge/document/read` (stage 2). */
+    knowledgeDocuments?: boolean;
     /** ADR 0067: live context occupancy snapshots. */
     contextTelemetryVersion?: 1;
   };

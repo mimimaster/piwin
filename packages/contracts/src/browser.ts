@@ -167,6 +167,8 @@ export const BROWSER_FRAME_PAYLOAD_TIMEOUT_MS = 2_000;
 export const BROWSER_FRAME_ERROR_HEADER = 'piwin-browser-frame-error';
 
 export type BrowserFrameBinaryHeader = {
+  /** Conversation owning these pixels. Omitted only by legacy clients. */
+  sessionId?: string;
   version: number;
   frameId: string;
   generation: number;
@@ -188,6 +190,7 @@ export type BrowserFrameBinaryHeader = {
  * the requested capture size.
  */
 export type BrowserFramePush = {
+  sessionId?: string;
   type: 'browser/frame';
   ts: number;
   frameId: string;
@@ -234,6 +237,7 @@ export type BrowserRecoveryStatus = 'none' | 'recovered' | 'failed';
  * Lifecycle fields are optional so older emitters stay valid.
  */
 export type BrowserStatePush = {
+  sessionId?: string;
   type: 'browser/state';
   ts: number;
   url?: string;
@@ -251,6 +255,7 @@ export type BrowserStatePush = {
 };
 
 export type BrowserControllerPush = {
+  sessionId?: string;
   type: 'browser/controller';
   owner: BrowserController;
   ts: number;

@@ -9,6 +9,13 @@ export type BrowserWorkbenchConfig = {
    */
   cdpEndpoint?: string;
   /**
+   * Chromium user-data dir. Omitted means `{PIWIN_ROOT}/browser-profile`.
+   * Two Hosts must not share one profile — Chromium refuses the second launch —
+   * so a dev/e2e Host on the same machine points here instead of fighting the
+   * installed app for the default profile.
+   */
+  profileDir?: string;
+  /**
    * Browser channel to use (e.g. 'chrome', 'msedge', 'chromium').
    * If omitted, uses Host-managed Chromium.
    */
