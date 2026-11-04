@@ -199,6 +199,45 @@ async function flushLoad(): Promise<void> {
   });
 }
 
+/** Picks a time range from the toolbar select and waits for the reload. */
+async function selectTimeRange(
+  container: HTMLDivElement | undefined,
+  value: string,
+): Promise<void> {
+  const select = container?.querySelector<HTMLSelectElement>(
+    'select[data-testid="usage-time-select"]',
+  );
+  act(() => {
+    if (select) {
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+  await flushLoad();
+}
+
+/** 费用构成 opens folded; anything reading its body unfolds it first. */
+async function openCostSection(container: HTMLDivElement | undefined): Promise<void> {
+  const toggle = container?.querySelector<HTMLButtonElement>('[data-testid="usage-cost-toggle"]');
+  if (toggle?.getAttribute('aria-expanded') === 'false') {
+    await act(async () => {
+      toggle.click();
+    });
+  }
+}
+
+/** The cost summary card folds to its label row; its numbers need the same step. */
+async function openCostCard(container: HTMLDivElement | undefined): Promise<void> {
+  const toggle = container?.querySelector<HTMLButtonElement>(
+    '[data-testid="usage-cost-card-toggle"]',
+  );
+  if (toggle?.getAttribute('aria-expanded') === 'false') {
+    await act(async () => {
+      toggle.click();
+    });
+  }
+}
+
 describe('UsagePanel', () => {
   let root: Root | undefined;
   let container: HTMLDivElement | undefined;
@@ -236,6 +275,10 @@ describe('UsagePanel', () => {
         command.type === 'usage/list-recent' ? { log } : { rollup },
       ) }));
       await flushLoad();
+      // The body assertions below describe the 30-day trend, so pick that window.
+      await selectTimeRange(container, '30d');
+      await openCostCard(container);
+      await openCostSection(container);
 
       const cards = container?.querySelectorAll('.usage-summary-card');
       expect(cards?.[0]?.getAttribute('data-testid')).toBe('usage-cost-card');
@@ -243,8 +286,8 @@ describe('UsagePanel', () => {
       expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('<$0.01');
       expect(container?.querySelector('[data-testid="usage-cost-meta"]')?.textContent).toBe('已计价 66% · 1 次未计价');
       expect(container?.querySelector('[data-testid="usage-cost-per-call"]')?.textContent).toBe('$0.003');
-      // The card carries no buttons; everything else lives in the section.
-      expect(cards?.[0]?.querySelector('button')).toBeNull();
+      // The card owns exactly one control: the fold that reveals its numbers.
+      expect(cards?.[0]?.querySelectorAll('button')).toHaveLength(1);
 
       const section = container?.querySelector('[data-testid="usage-cost-section"]');
       expect(section).not.toBeNull();
@@ -299,6 +342,7 @@ describe('UsagePanel', () => {
       command.type === 'usage/list-recent' ? { log: SAMPLE_CALL_LOG } : { rollup },
     ) }));
     await flushLoad();
+    await openCostSection(container);
 
     const section = container?.querySelector('[data-testid="usage-cost-section"]');
     const rows = section?.querySelectorAll('[data-testid="usage-cost-row"]') ?? [];
@@ -320,6 +364,7 @@ describe('UsagePanel', () => {
     ({ root, container } = renderPanel());
     await flushLoad();
     expect(container?.querySelector('[data-testid="usage-cost-card"]')?.getAttribute('data-cost-state')).toBe('unsupported');
+    await openCostCard(container);
     expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('—');
     expect(container?.querySelector('[data-testid="usage-cost-section"]')).toBeNull();
     expect(container?.querySelector('[data-testid="usage-call-cost"]')?.textContent).toBe('—');
@@ -441,6 +486,75 @@ describe('UsagePanel', () => {
     ({ root, container } = renderPanel({ projectPath: null }));
     await flushLoad();
     expect(container?.querySelector('[data-testid="usage-scope-control"]')).toBeNull();
+  });
+
+  it('opens on today and keeps the cost section folded', async () => {
+    const pricedRollup: UsageRollup = {
+      ...SAMPLE_ROLLUP,
+      estimatedCostUsd: 0.03,
+      pricedEntryCount: 3,
+      pricingCatalog: { source: 'models.dev', catalogVersion: 'models.dev@test', fetchedAt: '2026-10-09T00:00:00Z' },
+    };
+    const requestedWindows: Array<{ from?: string; to?: string } | undefined> = [];
+    const request = async (command: UsageRequestCommand) => {
+      if (command.type === 'usage/list-recent') {
+        return okResponse({ log: SAMPLE_CALL_LOG });
+      }
+      requestedWindows.push(command.window);
+      return okResponse({ rollup: pricedRollup });
+    };
+    ({ root, container } = renderPanel({ request }));
+    await flushLoad();
+
+    const rangeSelect = container?.querySelector<HTMLSelectElement>(
+      'select[data-testid="usage-time-select"]',
+    );
+    expect(rangeSelect?.value).toBe('today');
+    expect(rangeSelect?.options[0]?.textContent).toBe('今天');
+    const localMidnight = new Date();
+    localMidnight.setHours(0, 0, 0, 0);
+    // The heatmap reads its own one-year window, so look for the page rollup's.
+    expect(
+      requestedWindows.some(
+        (window) =>
+          window?.from !== undefined && new Date(window.from).getTime() === localMidnight.getTime(),
+      ),
+    ).toBe(true);
+
+    const section = container?.querySelector('[data-testid="usage-cost-section"]');
+    expect(section?.getAttribute('data-collapsed')).toBe('true');
+    // Grouping belongs to the body, so it only appears once unfolded.
+    expect(section?.querySelector('[data-testid="usage-cost-grouping"]')).toBeNull();
+    const toggle = section?.querySelector<HTMLButtonElement>('[data-testid="usage-cost-toggle"]');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+
+    await act(async () => { toggle?.click(); });
+    expect(section?.getAttribute('data-collapsed')).toBeNull();
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(section?.querySelector('[data-testid="usage-cost-grouping"]')).not.toBeNull();
+  });
+
+  it('folds the cost card down to its label row', async () => {
+    const pricedRollup: UsageRollup = {
+      ...SAMPLE_ROLLUP,
+      estimatedCostUsd: 0.03,
+      pricedEntryCount: 3,
+    };
+    ({ root, container } = renderPanel({ request: async (command) => okResponse(
+      command.type === 'usage/list-recent' ? { log: SAMPLE_CALL_LOG } : { rollup: pricedRollup },
+    ) }));
+    await flushLoad();
+
+    const card = container?.querySelector('[data-testid="usage-cost-card"]');
+    expect(card?.getAttribute('data-collapsed')).toBe('true');
+    expect(card?.textContent).toContain('估算费用');
+    const toggle = card?.querySelector<HTMLButtonElement>('[data-testid="usage-cost-card-toggle"]');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+
+    await act(async () => { toggle?.click(); });
+    expect(card?.getAttribute('data-collapsed')).toBeNull();
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('$0.03');
   });
 
   it('can switch the time range to all time', async () => {

@@ -68,6 +68,9 @@ describe('usage-panel-statistics', () => {
 
     expect(resolveUsageWindow('all')).toBeUndefined();
     expect(resolveUsageWindow('30d')).toEqual({ from: '2026-07-10T12:00:00.000Z' });
+    // 今天 starts at the viewer's local midnight, not 24h ago.
+    const todayMidnight = new Date(2026, 7, 9);
+    expect(resolveUsageWindow('today')).toEqual({ from: todayMidnight.toISOString() });
   });
 
   it('derives legacy model rows when an older Host omits byModelKey', () => {

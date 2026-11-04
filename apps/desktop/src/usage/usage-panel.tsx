@@ -69,7 +69,8 @@ export type UsagePanelProps = {
 export function UsagePanel(props: UsagePanelProps): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
-  const [timeRange, setTimeRange] = useState<UsageTimeRange>('30d');
+  // The daily reading wins by default; wider windows are one click away.
+  const [timeRange, setTimeRange] = useState<UsageTimeRange>('today');
   const [scopeChoice, setScopeChoice] = useState<UsageScopeChoice>('all');
   const [rollup, setRollup] = useState<UsageRollup>(EMPTY_USAGE_ROLLUP);
   const [callLog, setCallLog] = useState<UsageCallLog>(EMPTY_USAGE_CALL_LOG);
@@ -230,6 +231,7 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
   const refreshedLabel = refreshedAt ? formatUsageClock(refreshedAt, locale) : null;
 
   const timeRangeOptions = [
+    { value: 'today', label: isZh ? '今天' : 'Today' },
     { value: '7d', label: isZh ? '最近 7 天' : 'Last 7 days' },
     { value: '30d', label: isZh ? '最近 30 天' : 'Last 30 days' },
     { value: '90d', label: isZh ? '最近 90 天' : 'Last 90 days' },

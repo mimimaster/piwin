@@ -9,7 +9,7 @@ import type {
 } from '@piwin/contracts';
 import { computePromptCacheHitRate } from '@piwin/contracts';
 
-export type UsageTimeRange = '7d' | '30d' | '90d' | 'all';
+export type UsageTimeRange = 'today' | '7d' | '30d' | '90d' | 'all';
 
 type CompatibleUsageRollup = Omit<UsageRollup, 'byModelKey'> & {
   byModelKey?: UsageModelKeyTotal[];
@@ -37,6 +37,12 @@ export const EMPTY_USAGE_ROLLUP: UsageRollup = {
 export function resolveUsageWindow(range: UsageTimeRange): { from: string } | undefined {
   if (range === 'all') {
     return undefined;
+  }
+  // 今天 is the viewer's calendar day, so it starts at local midnight instead of
+  // rolling back 24h — that is the day the byDay buckets and the trend use.
+  if (range === 'today') {
+    const now = new Date();
+    return { from: new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString() };
   }
   const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
   return { from: new Date(Date.now() - days * DAY_MS).toISOString() };

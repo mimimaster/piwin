@@ -15,6 +15,37 @@
   color: color-mix(in srgb, var(--amber) 72%, var(--text-1));
 }
 
+/* The cost card folds to its label row, so the summary grid reads as three
+   peer cards plus one quiet one instead of four equal blocks. */
+.usage-summary-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.usage-summary-card-cost[data-collapsed='true'] {
+  align-self: start;
+}
+
+/* Expanded, the body fills the card so the meta line keeps sitting at the
+   bottom like its peers. */
+.usage-summary-card-cost > .piwin-collapse {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.usage-cost-card-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-height: 0;
+}
+
 .usage-cost-section {
   --usage-cost: var(--sky);
   display: flex;
@@ -30,6 +61,25 @@
   justify-content: space-between;
   gap: var(--s-5);
   padding: var(--s-6) var(--s-7) 0;
+}
+
+/* Folded, the header is the whole section and owns the bottom breathing room. */
+.usage-cost-section[data-collapsed='true'] .usage-cost-section-header {
+  padding-bottom: var(--s-6);
+}
+
+.usage-cost-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-left: auto;
+}
+
+.usage-cost-section-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .usage-cost-section-title {
