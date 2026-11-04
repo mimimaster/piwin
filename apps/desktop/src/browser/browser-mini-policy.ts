@@ -28,8 +28,6 @@ export type BrowserMiniActivity = {
   /** Host-published URL; empty until a page exists. */
   url: string;
   owner: BrowserController;
-  /** Last mirrored frame source, if the mirror has produced one. */
-  frameSrc: string;
 };
 
 export type BrowserMiniVisibilityInput = {
@@ -47,12 +45,19 @@ export type BrowserMiniVisibilityInput = {
   activity: BrowserMiniActivity;
 };
 
-/** A page exists, or the agent is driving the browser right now. */
+/**
+ * A real page is loaded, or the agent is driving the browser right now.
+ *
+ * A mirrored frame is deliberately not evidence: a fresh lease paints an
+ * about:blank page, and that blank frame would otherwise keep the mini on
+ * screen (and the lease alive) long after everything went idle — the empty
+ * "shared browser" window nobody asked for.
+ */
 export function hasBrowserMiniActivity(activity: BrowserMiniActivity): boolean {
   if (activity.owner === 'agent') return true;
   const url = activity.url.trim();
-  if (url.length > 0 && url !== 'about:blank') return true;
-  return activity.frameSrc.length > 0;
+  if (url.length === 0) return false;
+  return url !== 'about:blank';
 }
 
 export function resolveBrowserMiniVisibility(

@@ -14,8 +14,8 @@ import {
   shouldSnapBrowserMiniBack,
 } from './browser-mini-policy';
 
-const idle = { url: '', owner: 'idle' as const, frameSrc: '' };
-const live = { url: 'http://127.0.0.1:3000/login', owner: 'user' as const, frameSrc: 'data:image/jpeg;base64,aa' };
+const idle = { url: '', owner: 'idle' as const };
+const live = { url: 'http://127.0.0.1:3000/login', owner: 'user' as const };
 
 function visibility(overrides: Partial<Parameters<typeof resolveBrowserMiniVisibility>[0]>) {
   return resolveBrowserMiniVisibility({
@@ -52,26 +52,30 @@ describe('browser mini visibility', () => {
     });
   });
 
-  it('needs real activity, not just a lease', () => {
+  it('needs a real page, not just a lease or a blank frame', () => {
     expect(visibility({ activity: idle })).toEqual({
       visible: false,
       reason: 'no-activity',
     });
     expect(
-      visibility({ activity: { url: 'about:blank', owner: 'idle', frameSrc: '' } }),
+      visibility({ activity: { url: 'about:blank', owner: 'idle' } }),
     ).toEqual({ visible: false, reason: 'no-activity' });
-    // A starting navigation and a first frame both count.
+    // A starting navigation counts: the agent is driving.
     expect(
-      visibility({ activity: { url: '', owner: 'agent', frameSrc: '' } }),
+      visibility({ activity: { url: '', owner: 'agent' } }),
     ).toEqual({ visible: true });
     expect(
-      visibility({ activity: { url: '', owner: 'idle', frameSrc: 'data:image/jpeg;base64,aa' } }),
+      visibility({ activity: { url: 'https://example.com', owner: 'idle' } }),
     ).toEqual({ visible: true });
   });
 
-  it('treats frames as activity even without a committed url', () => {
+  it('never treats an about:blank tab as activity', () => {
     expect(hasBrowserMiniActivity(live)).toBe(true);
     expect(hasBrowserMiniActivity(idle)).toBe(false);
+    expect(hasBrowserMiniActivity({ url: 'about:blank', owner: 'idle' })).toBe(false);
+    expect(hasBrowserMiniActivity({ url: ' about:blank ', owner: 'idle' })).toBe(false);
+    // The agent keeps the mini while it launches its own page.
+    expect(hasBrowserMiniActivity({ url: 'about:blank', owner: 'agent' })).toBe(true);
   });
 });
 

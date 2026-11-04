@@ -1,7 +1,8 @@
 /**
  * Scrollable assistant/user message list with edit/retry actions.
  */
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement, type RefObject } from 'react';
+import { ChatThreadResourceBoundary } from './chat-thread-resource-boundary.js';
 
 import type { ChatMessageUi } from './chat-reducer';
 
@@ -58,6 +59,16 @@ export type { ChatThreadProps } from './chat-thread-types.js';
 import type { ChatThreadProps } from './chat-thread-types.js';
 
 export function ChatThread(props: ChatThreadProps): ReactElement {
+  return (
+    <ChatThreadResourceBoundary sessionId={props.sessionId}>
+      {(presentationRef) => <ChatThreadContent {...props} presentationRef={presentationRef} />}
+    </ChatThreadResourceBoundary>
+  );
+}
+
+function ChatThreadContent(props: ChatThreadProps & {
+  presentationRef: RefObject<HTMLDivElement | null>;
+}): ReactElement {
   // Quiet workbench: msg-in only for messages that arrive after first mount
   // (history hydrate must not replay entrance animation).
   const knownIdsRef = useRef<Set<string> | null>(null);
@@ -229,7 +240,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     return null;
   }, [chatMessages]);
 
-  const threadRef = useRef<HTMLDivElement>(null);
+  const threadRef = props.presentationRef;
 
   return (
     <GoalActionsProvider actions={goalActions}>

@@ -17,7 +17,6 @@ import { useWorkbenchStableValues } from '../hooks/use-workbench-stable-values';
 import { useWorkbenchAppModel } from '../hooks/use-workbench-app-model';
 import { useShellSessionOpen } from '../hooks/use-shell-session-open';
 import { useWindowsShellOffer } from '../hooks/use-windows-shell-offer';
-import { useWorkbenchRendererSelfHeal } from '../hooks/use-workbench-renderer-self-heal.js';
 import { scheduleIdleTask } from '../automation/schedule-idle-task';
 import { loadStreamdownMathPlugin } from '../markdown/streamdown-math-plugin.js';
 import { WorkbenchWorkspaceProviders } from './workbench-workspace-providers';
@@ -42,6 +41,8 @@ import { sessionScopeKey } from '../session/session-scope-key';
 import { useWorkbenchKnowledge } from '../hooks/use-workbench-knowledge';
 import { isInkstoneThemeId } from '../theme/appearance-tokens';
 import { ScreenCaptureLayer } from '../screen-capture/screen-capture-layer';
+import { useSessionRenderReclamation } from '../hooks/use-session-render-reclamation.js';
+import { selectVisibleSessionIds } from './docking/visible-sessions.js';
 import { useTrayQuotaSync } from '../tray-quota/use-tray-quota-sync.js';
 
 export type AppProps = {
@@ -147,7 +148,19 @@ function HostWorkbench({
     liveSessionId,
     knowledgeMountsRef,
   });
-  useWorkbenchRendererSelfHeal({ state, chrome, model });
+  useSessionRenderReclamation({
+    hostKey: sessionCacheHostKey(hostClient) ?? 'mock',
+    visibleSessionIds: [liveSessionId,
+      ...(!dockingActive || model.artifactCanvas.activeTarget !== null ? [state.activeSessionId] : []),
+      ...selectVisibleSessionIds({
+        dockingState: dockingActive ? dockingWorkspace.state : null,
+        paneLayout: conversationPanesEnabled && !dockingActive ? conversationPaneController.layout : null,
+        activeSessionId: state.activeSessionId,
+        conversationCovered: false,
+      })],
+    sideChatTab: rightPanelOpen && rightPanelTab !== null && state.activeSessionId !== null
+      ? { mainSessionId: state.activeSessionId, tabId: rightPanelTab } : null,
+  });
   const { activeComments, activeDocument, activeMedia, activeSessionName } = model;
   const { addExistingMediaAttachment, addWebElement, artifactCanvas, artifactThemeKey } = model;
   const { composerCard, config, desktopContextMenuValue, dispatchNotification } = model;

@@ -6,11 +6,6 @@ import { createInitialChatUiState, type ChatUiState } from '../conversation/chat
 import type { HostClient } from '../host/host-client.js';
 import { prepareRendererRelaunch } from '../platform/renderer-relaunch-preparation.js';
 import {
-  createRendererSelfHeal,
-  SELF_HEAL_HIDDEN_HOLD_MS,
-  SELF_HEAL_RECLAIM_BYTES,
-} from '../platform/renderer-self-heal.js';
-import {
   buildSessionStartupSnapshot,
   createSessionStartupState,
   readSessionStartupSnapshot,
@@ -113,7 +108,7 @@ describe('session startup cache lifecycle', () => {
     expect(readSessionStartupSnapshot('local')?.messages[0]?.text).toBe('Latest reply');
   });
 
-  it('persists the current local conversation before idle renderer reclamation without pagehide', () => {
+  it('flushes presentation state on explicit shutdown preparation without pagehide', () => {
     state = savedState();
     render();
     state = {
@@ -122,27 +117,10 @@ describe('session startup cache lifecycle', () => {
     };
     render();
     expect(readSessionStartupSnapshot('local')?.messages[0]?.text).toBe('Saved reply');
-    let currentTime = 0;
-    const requestRelaunch = vi.fn(async () => {
-      expect(readSessionStartupSnapshot('local')?.messages[0]?.text).toBe('Latest before reclaim');
-      return true;
-    });
-    const selfHeal = createRendererSelfHeal({
-      getBytes: () => SELF_HEAL_RECLAIM_BYTES,
-      getActivity: () => ({ runActive: false, protectedWork: false }),
-      isDocumentHidden: () => true,
-      isWindowFocused: () => false,
-      beforeRelaunch: prepareRendererRelaunch,
-      requestRelaunch,
-      now: () => currentTime,
-    });
-    selfHeal.tick();
-    currentTime = SELF_HEAL_HIDDEN_HOLD_MS;
     act(() => {
-      expect(selfHeal.tick()).toBe(true);
+      prepareRendererRelaunch();
     });
-    expect(requestRelaunch).toHaveBeenCalledOnce();
-    selfHeal.dispose();
+    expect(readSessionStartupSnapshot('local')?.messages[0]?.text).toBe('Latest before reclaim');
   });
 
   it('never overwrites a good snapshot with an unfinished target or a disconnected view', () => {

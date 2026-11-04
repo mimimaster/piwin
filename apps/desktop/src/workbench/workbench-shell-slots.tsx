@@ -170,7 +170,6 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
     hasBrowserMiniActivity({
       url: browserActivity.url,
       owner: browserActivity.owner,
-      frameSrc: '',
     });
   const browserSessionEnabled = state.activeSessionId !== null && (browserTabOpen || dockingBrowserOpen || miniCandidate);
   // Verified environment + document projections. Both already exist in the

@@ -17,6 +17,11 @@
  *   www.piwinwin.com/*  → piwin-pages-edge-proxy
  *   docs.piwinwin.com/* → piwin-pages-edge-proxy
  *
+ * ⚠️ 绝对不要用通配路由 `*.piwinwin.com/*`（2026-11 实测踩过）：Worker Route
+ * 一加立刻生效，不管 DNS 是不是橙云。通配会把 dl（R2 下载）/ omni / extension
+ * 等子域一起抓进来，不认识的 host 这里返回 421，等于当场把下载站和拓展站打挂。
+ * 只加精确路由。
+ *
  * 回滚：删除三条路由 + 把 DNS 改回 `CNAME <project>.pages.dev` + proxied=true，
  * 再 PATCH /accounts/{acc}/pages/projects/{p}/domains/{domain} 重校验。
  */

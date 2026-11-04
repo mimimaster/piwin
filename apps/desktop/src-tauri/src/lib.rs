@@ -76,7 +76,6 @@ pub fn run() {
             save_user_file::copy_local_file,
             save_user_file::write_saved_file,
             memory_pressure::purge_webview_memory,
-            memory_pressure::relaunch_webview_renderer,
             attention_notifications::attention_capabilities,
             attention_notifications::attention_authorization_status,
             attention_notifications::attention_request_authorization,

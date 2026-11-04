@@ -29,6 +29,15 @@ export type {
   FetchHostResolver,
 } from './web-fetch.js';
 export { createWebToolDefinitions } from './tool-definitions.js';
+export {
+  fetchWebImage,
+  findPageImageUrl,
+  formatWebImageOutput,
+  normalizeWebImageMimeType,
+  MAX_WEB_IMAGE_BYTES,
+  WEB_IMAGE_MIME_TYPES,
+} from './web-image.js';
+export type { FetchedWebImage, FetchWebImageOptions, WebImageDiscovery } from './web-image.js';
 export type { WebRuntimeCredentials } from './runtime-credentials.js';
 export {
   FETCH_EXTRACT_SYSTEM_PROMPT,

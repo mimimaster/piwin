@@ -14,6 +14,7 @@ import { ArtifactStatic } from './ArtifactStatic.js';
 import { ArtifactContrastBadge, type ArtifactStyleOverride } from './artifact-style-override';
 import { preloadStaticArtifactSanitizer } from './artifact-static-sanitizer.js';
 import type { ArtifactTextSelection } from './artifact-canvas-selection.js';
+import { useSessionRenderRetention } from '../hooks/use-session-render-retention.js';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
 
@@ -34,7 +35,12 @@ export type ArtifactFrameProps = {
   styleOverride?: ArtifactStyleOverride;
 };
 
-export function ArtifactFrame({
+export function ArtifactFrame(props: ArtifactFrameProps): ReactElement | null {
+  const retained = useSessionRenderRetention();
+  return retained ? <ArtifactFrameContent {...props} /> : null;
+}
+
+function ArtifactFrameContent({
   plan,
   initPriority = 0,
   presentation = 'inline',

@@ -1,13 +1,11 @@
 /**
- * Tracks which sandboxed Artifact iframes are mounted, so memory pressure can
- * reclaim them. There is no count budget: every preview mounts until the
- * Memory Governor reports critical pressure (artifact-memory-bridge.ts).
+ * Tracks sandboxed Artifact iframe leases. There is no count budget.
+ * Production memory pressure uses session-render-resources.ts, which protects
+ * every visible session and releases inactive presentations as a whole.
  *
- * Under critical pressure every host except the pinned ones (live streaming
- * preview, active Canvas) is evicted, and new unpinned claims start recycled
- * until pressure clears, so the freed memory is not refilled right away.
- * Leaving critical never remounts anything by itself; the user clicks
- * "Load preview", which always mounts.
+ * The explicit low-level eviction primitive preserves pinned hosts, evicts
+ * unpinned ones and holds new unpinned claims. It is not automatically wired
+ * to memory pressure. A manually evicted frame can use "Load preview".
  */
 
 export type ArtifactLiveHostRegistration = {

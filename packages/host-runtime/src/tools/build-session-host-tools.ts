@@ -26,6 +26,7 @@ import type { ClientToolExecutionPort } from '@piwin/contracts';
 import { buildSessionTools } from '../session-tools.js';
 import { buildProcessTools } from '../process-tools.js';
 import { createBrowserToolDefinitions } from '../browser-tools.js';
+import { createWebImageTool } from '../web-image-tool.js';
 import { persistAndInspectBrowserScreenshot } from '../browser-screenshot-inspect.js';
 import { createFastDecider } from '../browser-fast-decider.js';
 import { primaryModelSupportsImage } from '../vision-delegation.js';
@@ -291,6 +292,14 @@ export async function buildSessionHostTools(
       ...webRegistration.tools.filter(
         (tool) => tool.descriptor.name !== 'web_search' || webSearchReady,
       ),
+    );
+    // web_image turns a page/image URL into a session media asset so a reply can
+    // show a picture the model found. Independent of the search backend.
+    tools.push(
+      createWebImageTool({
+        mediaRoot: getPiwinMediaDir(rootDir),
+        webConfig: webForGeneration,
+      }),
     );
   }
 

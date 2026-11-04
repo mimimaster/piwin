@@ -1,4 +1,4 @@
-/** Native renderer reclamation uses SIGKILL, which never delivers pagehide. */
+/** Explicit shutdown preparation only; memory pressure must never terminate the shell. */
 export const BEFORE_RENDERER_RELAUNCH_EVENT = 'piwin:before-renderer-relaunch';
 
 export function prepareRendererRelaunch(): boolean {

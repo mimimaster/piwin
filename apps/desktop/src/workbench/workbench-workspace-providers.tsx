@@ -22,6 +22,7 @@ import { KnowledgeCitationActionsProvider } from '../knowledge/knowledge-citatio
 import { KnowledgeMountsProvider } from '../knowledge/knowledge-mounts-context';
 import { LocalFileActionsProvider } from '../files/local-file-actions-context';
 import { MediaPreviewReadProvider } from '../media/media-preview-read-context';
+import { sessionCacheHostKey } from '../session/session-cache-host.js';
 import { SubagentInspectorProvider } from '../agents/subagent-inspector-context';
 import {
   SubagentReviewLoopProvider,
@@ -66,6 +67,7 @@ export function WorkbenchWorkspaceProviders(props: {
           <MediaPreviewReadProvider
             sessionId={props.mediaPreviewSessionId}
             readMedia={props.readMedia}
+            resourceHostKey={sessionCacheHostKey(props.hostClient) ?? 'mock'}
           >
             <DesktopContextMenuProvider value={props.desktopContextMenuValue}>
               <SubagentInspectorProvider

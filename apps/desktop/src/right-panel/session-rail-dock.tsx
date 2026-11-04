@@ -54,7 +54,6 @@ export function SessionRailDock(props: SessionRailDockProps): ReactElement {
   const activity = {
     url: session?.committedUrl ?? '',
     owner: session?.owner ?? ('idle' as const),
-    frameSrc: session?.frame.src ?? '',
   };
   const miniVisibility = resolveBrowserMiniVisibility({
     rightBodyOpen: false,

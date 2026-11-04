@@ -128,6 +128,9 @@ export function useBrowserSessionLease(input: {
     if (!enabled) {
       decoderRef.current = undefined;
       setMirrorError(null);
+      // Nothing shows the browser any more: drop the last frame and URL so no
+      // surface can keep itself visible on a picture whose lease is gone.
+      dispatch({ type: 'reset' });
       return;
     }
     const decoder = createBrowserFrameDecoder({

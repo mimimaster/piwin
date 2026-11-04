@@ -136,6 +136,23 @@ describe('BrowserSessionProvider', () => {
     expect(host.stops).toEqual([host.starts[0]]);
   });
 
+  it('drops the last page when the lease is released so nothing lingers on a stale frame', async () => {
+    const host = createFakeHost();
+    const view = (enabled: boolean) => (
+      <BrowserSessionProvider hostClient={host as unknown as HostClient} sessionId="a"
+        locale="zh-CN" onAddWebElement={noPick} enabled={enabled}>
+        <LeaseProbe />
+      </BrowserSessionProvider>
+    );
+    const element = mount(view(true));
+    await act(async () => {});
+    act(() => host.emit({ type: 'browser/state', sessionId: 'a', url: 'about:blank', ts: 0 }));
+    expect(element.querySelector('[data-testid="probe"]')?.getAttribute('data-url')).toBe('about:blank');
+    act(() => root?.render(view(false)));
+    await act(async () => {});
+    expect(element.querySelector('[data-testid="probe"]')?.getAttribute('data-url')).toBe('');
+  });
+
   it('acquires exactly one lease for every surface and stops it on unmount', async () => {
     const host = createFakeHost();
     const el = mount(

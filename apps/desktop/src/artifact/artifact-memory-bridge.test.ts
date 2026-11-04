@@ -1,75 +1,55 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   claimArtifactLiveHost,
-  getLiveArtifactHostIdsForTests,
   resetArtifactLiveHostRegistryForTests,
 } from './artifact-live-host-registry.js';
 import {
   installArtifactMemoryBridge,
   uninstallArtifactMemoryBridge,
-} from './artifact-memory-bridge';
-import { globalMemoryGovernor } from '../notes/memory-governor';
+} from './artifact-memory-bridge.js';
+import { globalMemoryGovernor } from '../notes/memory-governor.js';
+import { sessionRenderResources } from '../session/session-render-resources.js';
 
-describe('artifact memory bridge', () => {
+describe('inactive-only Artifact memory bridge', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
   afterEach(() => {
     uninstallArtifactMemoryBridge();
     globalMemoryGovernor.reset();
+    sessionRenderResources.reset();
     resetArtifactLiveHostRegistryForTests();
+    vi.useRealTimers();
   });
-
-  it('evicts non-forceKeep hosts on critical and does not remount on recovery', () => {
-    const evicted: string[] = [];
-    claimArtifactLiveHost({
-      id: 'plain-a',
-      evict: () => {
-        evicted.push('plain-a');
-      },
-    });
-    claimArtifactLiveHost({
-      id: 'plain-b',
-      evict: () => {
-        evicted.push('plain-b');
-      },
-    });
-    claimArtifactLiveHost({
-      id: 'keep',
-      forceKeep: true,
-      evict: () => {
-        evicted.push('keep');
-      },
-    });
-
+  it('keeps current previews mounted during critical pressure and releases only inactive resources', async () => {
+    const current = vi.fn();
+    const oldCanvas = vi.fn();
+    sessionRenderResources.setVisible(['current']);
+    sessionRenderResources.register('current', current);
+    sessionRenderResources.register('old', oldCanvas);
     installArtifactMemoryBridge();
-    globalMemoryGovernor.setLevel('moderate');
-    expect(evicted).toEqual([]);
-    expect(getLiveArtifactHostIdsForTests()).toEqual(
-      expect.arrayContaining(['plain-a', 'plain-b', 'keep']),
+    globalMemoryGovernor.setLevel('critical');
+    expect(current).not.toHaveBeenCalled();
+    expect(oldCanvas).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(current).not.toHaveBeenCalled();
+    expect(oldCanvas).toHaveBeenCalledOnce();
+    expect(claimArtifactLiveHost({ id: 'new-current-preview', evict: current }).admitted).toBe(
+      true,
     );
-
-    globalMemoryGovernor.setLevel('critical');
-    expect(evicted).toEqual(['plain-a', 'plain-b']);
-    expect(getLiveArtifactHostIdsForTests()).toEqual(['keep']);
-
-    globalMemoryGovernor.setLevel('normal');
-    expect(getLiveArtifactHostIdsForTests()).toEqual(['keep']);
   });
-
-  it('evicts immediately when installed while already critical', () => {
-    const evict = vi.fn();
-    claimArtifactLiveHost({ id: 'plain', evict });
-    globalMemoryGovernor.setLevel('critical');
+  it('does not recycle the just-restored session when pressure changes before idle', async () => {
+    const old = vi.fn();
+    const current = vi.fn();
+    sessionRenderResources.setVisible(['first']);
+    sessionRenderResources.register('first', old);
+    sessionRenderResources.register('second', current);
     installArtifactMemoryBridge();
-    expect(evict).toHaveBeenCalledOnce();
-    expect(getLiveArtifactHostIdsForTests()).toEqual([]);
-  });
-
-  it('holds new previews while critical and lets them mount again once pressure drops', () => {
-    installArtifactMemoryBridge();
-    globalMemoryGovernor.setLevel('critical');
-    expect(claimArtifactLiveHost({ id: 'during', evict: () => undefined }).admitted).toBe(false);
-
     globalMemoryGovernor.setLevel('moderate');
-    expect(claimArtifactLiveHost({ id: 'after', evict: () => undefined }).admitted).toBe(true);
-    expect(getLiveArtifactHostIdsForTests()).toEqual(['after']);
+    sessionRenderResources.setVisible(['second']);
+    globalMemoryGovernor.setLevel('critical');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(old).toHaveBeenCalledOnce();
+    expect(current).not.toHaveBeenCalled();
   });
 });

@@ -162,6 +162,12 @@ function ruleDeclarations(source: string, selector: string): string {
 }
 
 describe('Desktop renderer resource boundaries', () => {
+  it('does not expose a memory-pressure command that terminates the whole renderer', () => {
+    expect(readSource('../src-tauri/src/memory_pressure.rs')).not.toContain('relaunch_webview_renderer');
+    expect(readSource('../src-tauri/src/lib.rs')).not.toContain('relaunch_webview_renderer');
+    expect(readSource('./workbench/workbench-app.tsx')).not.toContain('RendererSelfHeal');
+    expect(readSource('./artifact/artifact-memory-bridge.ts')).not.toContain('evictNonForceKeepArtifactHosts');
+  });
   it('allows backdrop-filter blur only on the memory-diet whitelist', () => {
     const srcRoot = fileURLToPath(new URL('.', import.meta.url));
     const unexpected: string[] = [];

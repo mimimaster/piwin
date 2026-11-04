@@ -15,6 +15,15 @@
 Authoritative plan: `docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`.
 ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surface-routing.md).
 
+- **Session-scoped reclamation (2026-11-04):** Current/visible conversations,
+  streaming previews and Canvas keep their mounted identity under memory
+  pressure. After a session becomes inactive, idle cleanup may unmount its
+  heavy transcript presentation, sandbox iframe and static Shadow DOM;
+  reopening restores them from retained source. Composers/drafts and Host
+  execution remain intact. Ownership includes Host identity, and visibility
+  is rechecked at cleanup time to protect rapid navigation back. Memory
+  pressure never automatically reloads or terminates the main shell (ADR 0038).
+
 - **Master switch:** `PiwinConfig.artifact.enabled`, narrowed per session class
   by `PiwinConfig.artifact.scopes` (`general` / `project` × `inline` / `canvas`)
   through `resolveArtifactCapability`. Shipped default: `general` on, `project`

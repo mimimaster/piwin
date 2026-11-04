@@ -1,10 +1,8 @@
 /**
- * Connects the Memory Governor to the Artifact live-host registry.
- * Critical pressure evicts non-forceKeep iframes and holds new ones; moderate
- * does not. Leaving critical lifts the hold but does not remount — the user
- * clicks Load preview.
+ * Pressure may reclaim only inactive session resources. Visible sessions keep
+ * their iframe/Shadow DOM, streaming preview and Canvas mounted unchanged.
  */
-import { evictNonForceKeepArtifactHosts, setArtifactHostPressureHold } from './artifact-live-host-registry.js';
+import { sessionRenderResources } from '../session/session-render-resources.js';
 import { globalMemoryGovernor } from '../notes/memory-governor';
 
 let installed = false;
@@ -16,14 +14,10 @@ export function installArtifactMemoryBridge(): void {
   }
   installed = true;
   unsubscribe = globalMemoryGovernor.subscribe((level) => {
-    if (level === 'critical') {
-      evictNonForceKeepArtifactHosts();
-    } else {
-      setArtifactHostPressureHold(false);
-    }
+    if (level !== 'normal') sessionRenderResources.requestReclaim();
   });
   if (globalMemoryGovernor.getLevel() === 'critical') {
-    evictNonForceKeepArtifactHosts();
+    sessionRenderResources.requestReclaim();
   }
 }
 

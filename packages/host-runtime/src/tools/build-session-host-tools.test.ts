@@ -216,3 +216,30 @@ describe('buildSessionHostTools web_search credentials', () => {
     }
   });
 });
+
+describe('buildSessionHostTools web_image composition', () => {
+  it('registers web_image next to the web tools and drops it when web is disabled', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-web-image-compose-'));
+    try {
+      const enabled = await buildSessionHostTools({
+        sessionId: 'session-web-image',
+        piwinRoot: rootDir,
+        config: createDefaultPiwinConfig(),
+      });
+      const enabledNames = enabled.map((tool) => tool.descriptor.name);
+      expect(enabledNames).toContain('web_fetch');
+      expect(enabledNames).toContain('web_image');
+      expect(enabled.find((tool) => tool.descriptor.name === 'web_image')?.family).toBe('web-fetch');
+
+      const { web: _web, ...withoutWeb } = createDefaultPiwinConfig();
+      const disabled = await buildSessionHostTools({
+        sessionId: 'session-web-image',
+        piwinRoot: rootDir,
+        config: withoutWeb,
+      });
+      expect(disabled.some((tool) => tool.descriptor.name === 'web_image')).toBe(false);
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+});

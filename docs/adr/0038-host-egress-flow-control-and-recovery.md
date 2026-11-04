@@ -282,16 +282,21 @@ The existing status-only `HostSnapshotFrame` is insufficient and will be
 extended with a hydration manifest plus typed Host queries. Snapshot/replay
 ordering is detailed in the delivery spec.
 
-Desktop memory budget (owner decision, 2026-11-04): at a sampled main-renderer
-footprint of 1536 MiB, reclaim the renderer even while focused or streaming.
-Host-owned turns/jobs continue across this supported client reconnect. Local
-drafts, attachment/context chips, editing surfaces, microphone/capture work,
-and live calls defer reclamation. A cancelable preflight flushes losslessly
-persistable parked composer snapshots; lossy persistence, storage failure,
-parked file attachments, and document comments veto termination. The high-memory
-cooldown is one minute and survives a page reload through session storage;
-ordinary 512 MiB background-idle recycling retains its ten-minute cooldown.
-This is a sampled reclaim budget, not an OS allocation ceiling. See the
+Desktop resource reclamation (owner decision, 2026-11-04): memory pressure
+must never automatically reload or terminate the main renderer. The native
+renderer-termination command and the automatic whole-window recycle loop are
+removed. A memory threshold is a degradation signal, not permission to interrupt
+the current conversation.
+
+Reclamation is scoped to disposable presentation resources of inactive
+sessions. Current/visible conversations (including split panes), their streaming
+previews and Canvas stay mounted. After navigation, idle work rechecks current
+Host/session visibility before releasing old transcript rows, images, tool
+presentations, sandbox iframes and static Shadow DOM. Transcript placeholders
+retain their painted height; composers, drafts, Host turns/jobs and their live
+subscriptions remain owned by their existing authorities. Returning to a session
+recreates its presentation from retained data without reloading the shell.
+The same session id on another Host is a different resource owner. See the
 [implementation plan](../plans/2026-11-04-webcontent-memory-budget.md).
 
 ### 10. Egress metrics are queried, never streamed as telemetry

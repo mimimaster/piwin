@@ -158,7 +158,6 @@ export function BrowserMiniWindow(props: BrowserMiniWindowProps): ReactElement |
   const hasActivity = hasBrowserMiniActivity({
     url,
     owner: session?.owner ?? 'idle',
-    frameSrc,
   });
 
   // A page that went away (Host teardown, manual stop) drops the floating point

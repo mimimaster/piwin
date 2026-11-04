@@ -3,8 +3,7 @@ import { globalMemoryGovernor, type MemoryPressureLevel } from './memory-governo
 const MIB = 1024 * 1024;
 
 // Visual degradation only (glass at 768, highlighting/textures at 1536).
-// Renderer reclaim is SELF_HEAL_RECLAIM_BYTES — 2026-08-22 packaged sample
-// sat at 650–1000 MB with gfx pinned, so waiting for 1536 never fired.
+// Resource reclamation is session-scoped; neither threshold may reload the shell.
 export const MEMORY_PRESSURE_MODERATE_BYTES = 768 * MIB;
 export const MEMORY_PRESSURE_CRITICAL_BYTES = 1536 * MIB;
 export const MEMORY_PRESSURE_HYSTERESIS_BYTES = 64 * MIB;
