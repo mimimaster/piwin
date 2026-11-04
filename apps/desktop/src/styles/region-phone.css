@@ -85,7 +85,8 @@ html:has(.app-shell[data-layout='phone']) {
 
 /* ── Session drawer ────────────────────────────────────────────────── */
 .app-shell[data-layout='phone'] > .sidebar {
-  width: min(100%, 100vw);
+  left: var(--app-safe-left, 0px);
+  width: calc(100vw - var(--app-safe-left, 0px) - var(--app-safe-right, 0px));
   padding-top: var(--drawer-inset-top);
   padding-bottom: var(--drawer-inset-bottom);
 }
@@ -102,6 +103,20 @@ html:has(.app-shell[data-layout='phone']) {
   padding-top: var(--inspector-inset-top);
   padding-bottom: var(--app-safe-bottom, 0px);
   box-sizing: border-box;
+}
+
+.app-shell[data-layout='phone'] > .right-panel.outward-column {
+  left: var(--app-safe-left, 0px);
+  right: var(--app-safe-right, 0px);
+  width: calc(100vw - var(--app-safe-left, 0px) - var(--app-safe-right, 0px));
+}
+
+/* Full-window pages are fixed to the viewport rather than the inset body. */
+html:has(.app-shell[data-layout='phone']) :is(.settings-page, .vault-stage) {
+  bottom: auto;
+  height: var(--app-vv-height, 100dvh);
+  padding-left: var(--app-safe-left, 0px);
+  padding-right: var(--app-safe-right, 0px);
 }
 
 .app-shell[data-layout='phone'] > .right-panel > .right-panel-resize-handle {

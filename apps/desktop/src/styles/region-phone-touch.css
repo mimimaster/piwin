@@ -210,3 +210,61 @@
     transition-duration: 1ms;
   }
 }
+
+/* A wide iPad or landscape phone still needs touch-sized controls. The
+   layout stays multi-column when space permits; input capability is separate. */
+@media (any-pointer: coarse) {
+  .app-shell:not([data-layout='phone']) {
+    --titleband-height: 44px;
+    --titleband-btn-size: 44px;
+    --session-tree-trigger-size: 44px;
+    --composer-input-font-size: 16px;
+    --shell-frame-padding: var(--app-safe-top, 0px) var(--deck-inset)
+      max(var(--deck-inset), calc(var(--app-safe-bottom, 0px) - var(--app-keyboard-inset, 0px)));
+    height: var(--app-vv-height, 100dvh);
+  }
+
+  .app-shell:not([data-layout='phone']) .composer-v2-textarea {
+    font-size: 16px;
+  }
+
+  .app-shell:not([data-layout='phone']) .slab .composer-v2-icon-btn {
+    --ai-size: 44px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Landscape phones have room for columns but little room above the composer. */
+  html:has(.app-shell:not([data-layout='phone'])) .ui-popover-content.thinking-effort-popover {
+    box-sizing: border-box;
+    max-height: min(72dvh, var(--radix-popover-content-available-height, 72dvh));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* These full-window surfaces are siblings of the workbench. */
+  html:has(.app-shell:not([data-layout='phone'])) :is(.settings-page, .vault-stage) {
+    bottom: auto;
+    height: var(--app-vv-height, 100dvh);
+    padding-top: var(--app-safe-top, 0px);
+    padding-bottom: max(0px, calc(var(--app-safe-bottom, 0px) - var(--app-keyboard-inset, 0px)));
+    padding-left: var(--app-safe-left, 0px);
+    padding-right: var(--app-safe-right, 0px);
+  }
+
+  /* Dialog portals are outside the shell and must follow the keyboard too. */
+  html:has(.app-shell) .modal.ui-dialog-content {
+    --dialog-safe-bottom: max(0px, calc(var(--app-safe-bottom, 0px) - var(--app-keyboard-inset, 0px)));
+    top: calc((var(--app-vv-height, 100dvh) + var(--app-safe-top, 0px) - var(--dialog-safe-bottom)) / 2);
+    left: calc((100% + var(--app-safe-left, 0px) - var(--app-safe-right, 0px)) / 2);
+    max-height: max(0px, calc(var(--app-vv-height, 100dvh) - var(--app-safe-top, 0px) - var(--dialog-safe-bottom) - 32px));
+    max-width: max(0px, calc(100vw - var(--app-safe-left, 0px) - var(--app-safe-right, 0px) - 32px));
+  }
+}
+
+/* A connected trackpad can become the primary pointer on an iPad. */
+html[data-shell-runtime='mobile-tauri'] .app-shell:not([data-layout='phone']) {
+  height: var(--app-vv-height, 100dvh);
+}

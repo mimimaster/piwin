@@ -18,7 +18,9 @@ html:has(.app-shell[data-layout='phone']) #root,
 html:has(.app-shell[data-layout='phone']) body {
   position: fixed;
   inset: 0;
-  width: 100%;
+  left: var(--app-safe-left, 0px);
+  right: var(--app-safe-right, 0px);
+  width: auto;
 }
 
 /* Content still scrolls locally; reaching an edge must not move the shell.

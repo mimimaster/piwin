@@ -19,6 +19,7 @@ import {
   type ShellOverlay,
 } from '../tool-cards/shell-layout';
 import { isTauriRuntime } from '../host/tauri-pty';
+import { readShellAvailableWidth } from './shell-available-width.js';
 import {
   canGoShellBack,
   canGoShellForward,
@@ -51,7 +52,7 @@ export function useShellLayout() {
   const [inspectorPlacement, setInspectorPlacement] = useState<InspectorPlacement>(() =>
     typeof window !== 'undefined'
       ? resolveInspectorPlacement(
-          window.innerWidth,
+          readShellAvailableWidth(window),
           resolveLayoutMode(window.innerWidth, webAwareLayoutOptions()),
         )
       : 'column',
@@ -67,11 +68,16 @@ export function useShellLayout() {
       const width = window.innerWidth;
       const mode = resolveLayoutMode(width, webAwareLayoutOptions());
       setLayoutMode(mode);
-      setInspectorPlacement(resolveInspectorPlacement(width, mode));
+      setInspectorPlacement(resolveInspectorPlacement(readShellAvailableWidth(window), mode));
     }
     onResize();
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(onResize);
+    observer?.observe(document.documentElement);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      observer?.disconnect();
+    };
   }, []);
 
   // Closing sessions/inspector when leaving compact avoids a sticky overlay flag on desktop.

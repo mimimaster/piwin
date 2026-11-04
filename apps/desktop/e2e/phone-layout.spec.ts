@@ -131,11 +131,14 @@ for (const themeId of THEMES) {
       expect(titleband.width).toBeCloseTo(viewport.width, 0);
       expect(titleband.height).toBeCloseTo(TITLEBAND_BOX_HEIGHT, 0);
 
-      // The stage runs edge to edge directly under the titleband.
+      // The glass titleband overlays the stage; its padding keeps content clear.
       const stage = await boxOf(page, '.app-shell > .workspace');
       expect(stage.x).toBe(0);
       expect(stage.width).toBeCloseTo(viewport.width, 0);
-      expect(stage.y).toBeCloseTo(TITLEBAND_BOX_HEIGHT, 0);
+      expect(stage.y).toBe(0);
+      await expect(page.locator('.app-shell > .workspace')).toHaveCSS(
+        'padding-top', `${TITLEBAND_BOX_HEIGHT}px`,
+      );
       await expect(page.locator('.app-shell > .workspace')).toHaveCSS('border-top-left-radius', '0px');
 
       const composer = await boxOf(page, '[data-testid="composer-dock"]');
@@ -195,7 +198,9 @@ for (const themeId of THEMES) {
       await expect(page.getByTestId('right-panel')).toBeVisible();
       const strip = await boxOf(page, '[data-testid="right-panel-tabstrip"]');
       expect(strip.y).toBeGreaterThanOrEqual(SAFE_TOP);
-      await expectTouchTargets(page, ['right-panel-close-btn', 'right-panel-expand-btn']);
+      await expectTouchTargets(page, ['right-panel-close-btn']);
+      await page.getByTestId('right-panel-home-files').click();
+      await expectTouchTargets(page, ['right-panel-expand-btn']);
       await expectNoHorizontalOverflow(page, 'workspace panel');
     });
 

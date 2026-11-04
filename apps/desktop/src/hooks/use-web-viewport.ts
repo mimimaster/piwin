@@ -30,6 +30,12 @@ export function useWebViewport(): void {
     }
 
     function sync(): void {
+      // Pinch zoom shrinks VisualViewport without changing the layout viewport.
+      // Keep the last unzoomed geometry until WebKit returns to scale 1.
+      const scale = window.visualViewport?.scale ?? 1;
+      if (Math.abs(scale - 1) > 0.01) {
+        return;
+      }
       if (shouldResetDocumentScroll(window)) {
         window.scrollTo(0, 0);
       }

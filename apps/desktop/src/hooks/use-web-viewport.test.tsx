@@ -124,4 +124,35 @@ describe('useWebViewport', () => {
       checkbox.remove();
     }
   });
+
+  it('does not mistake pinch zoom for an on-screen keyboard', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const visual = Object.assign(new EventTarget(), {
+      width: 390, height: 844, offsetTop: 0, scale: 1,
+    });
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: visual });
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(844);
+    function Harness(): ReactElement {
+      useWebViewport();
+      return <div />;
+    }
+    try {
+      await act(async () => root.render(<Harness />));
+      visual.scale = 2;
+      visual.height = 422;
+      act(() => visual.dispatchEvent(new Event('resize')));
+      expect(document.documentElement.style.getPropertyValue(WEB_VIEWPORT_HEIGHT_VAR)).toBe('844px');
+      expect(document.documentElement.style.getPropertyValue(WEB_VIEWPORT_KEYBOARD_INSET_VAR)).toBe('0px');
+      visual.scale = 1;
+      visual.height = 480;
+      act(() => visual.dispatchEvent(new Event('resize')));
+      expect(document.documentElement.style.getPropertyValue(WEB_VIEWPORT_HEIGHT_VAR)).toBe('480px');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
 });
