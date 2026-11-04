@@ -157,10 +157,44 @@ describe('TranscriptFoldRail', () => {
     addFold(stream, 'turn:a', 'turn', '已工作 3h', -400, 1100);
     renderRail();
     const pin = host.querySelector('[data-testid="transcript-prompt-pin"]');
-    expect(pin?.textContent).toBe('一起修吧');
+    expect(pin?.textContent).toContain('一起修吧');
+    expect(pin?.querySelector('.transcript-prompt-pin-seal')?.textContent).toBe('问');
+    expect(pin?.querySelector('[data-testid="transcript-prompt-pin-lead"]')?.textContent).toBe('一起修吧');
     const rail = host.querySelector('[data-testid="transcript-fold-rail"]');
     expect(rail?.firstElementChild).toBe(pin);
     expect(host.querySelectorAll('[data-testid="transcript-fold-rail-row"]')).toHaveLength(1);
+  });
+
+  it('splits long prompt into primary lead clause and secondary mono clause', () => {
+    addTurn(stream, '你可以理解为一个会话管理啊，不同agent的会话在一个面板都可以看到', -500, 1200);
+    renderRail();
+    const lead = host.querySelector('[data-testid="transcript-prompt-pin-lead"]');
+    const sub = host.querySelector('[data-testid="transcript-prompt-pin-sub"]');
+    expect(lead?.textContent).toBe('你可以理解为一个会话管理啊');
+    expect(sub?.textContent).toContain('不同agent的会话在一个面板都可以看到');
+  });
+
+  it('aligns rail geometry to .chat-turn-body instead of full-stage .chat-thread when present', () => {
+    vi.spyOn(shell, 'getBoundingClientRect').mockImplementation(
+      () => ({ top: 0, bottom: 800, left: 100, right: 1100, width: 1000, height: 800 }) as DOMRect,
+    );
+    const thread = document.createElement('div');
+    thread.className = 'chat-thread';
+    vi.spyOn(thread, 'getBoundingClientRect').mockImplementation(
+      () => ({ top: 0, bottom: 800, left: 124, right: 1076, width: 952, height: 800 }) as DOMRect,
+    );
+    const body = document.createElement('div');
+    body.className = 'chat-turn-body';
+    vi.spyOn(body, 'getBoundingClientRect').mockImplementation(
+      () => ({ top: 0, bottom: 800, left: 220, right: 980, width: 760, height: 800 }) as DOMRect,
+    );
+    thread.appendChild(body);
+    stream.appendChild(thread);
+    addTurn(stream, '一起修吧', -500, 1200);
+    renderRail();
+    const rail = host.querySelector<HTMLElement>('[data-testid="transcript-fold-rail"]');
+    expect(rail?.style.left).toBe('120px');
+    expect(rail?.style.width).toBe('760px');
   });
 
   it('shows no prompt while the prompt bubble is still on screen', () => {

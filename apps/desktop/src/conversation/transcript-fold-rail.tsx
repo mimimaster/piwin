@@ -16,7 +16,7 @@
  * virtualized list (whose slots clip and transform their contents).
  */
 import { useCallback, useEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
-import { IconChevronDown } from '../tool-cards/shell-icons';
+import { IconArrowUp, IconChevronDown } from '../tool-cards/shell-icons';
 import { TRANSCRIPT_TURN_MEASURE_EVENT } from './transcript-turn-measure.js';
 import {
   pinnedUserPrompt,
@@ -38,6 +38,36 @@ export type TranscriptFoldRailProps = {
 };
 
 type RailGeometry = { left: number; width: number };
+
+export type SplitPromptParts = {
+  lead: string;
+  sub: string;
+};
+
+/**
+ * Split prompt into primary clause (bold sans headline) and secondary clause (faded mono).
+ * Splits at the first sentence punctuation (comma, period, semicolon, exclamation, question mark, newline).
+ */
+export function splitPromptLeadAndSub(text: string): SplitPromptParts {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return { lead: '', sub: '' };
+  }
+  // Look for first sentence boundary punctuation: ，, 。, ！, ？, ；, \n or English equivalents
+  const match = /[\n，。！？；]|(?<=\S)[,.!?;]\s+/u.exec(trimmed);
+  if (match && match.index > 0 && match.index < 36) {
+    const lead = trimmed.slice(0, match.index).trim();
+    const rest = trimmed.slice(match.index + match[0].length).trim();
+    return { lead, sub: rest };
+  }
+  if (trimmed.length > 28) {
+    return {
+      lead: trimmed.slice(0, 24).trim(),
+      sub: trimmed.slice(24).trim(),
+    };
+  }
+  return { lead: trimmed, sub: '' };
+}
 
 function sameChain(left: readonly OpenFold[], right: readonly OpenFold[]): boolean {
   return left.length === right.length && left.every((fold, index) => fold.id === right[index]?.id);
@@ -66,14 +96,19 @@ export function TranscriptFoldRail(props: TranscriptFoldRailProps): ReactElement
       chainRef.current = next;
       setChain(next);
     }
-    // The chat column is centered (and resized by panes); align to it, not to the shell.
-    const thread = container.querySelector<HTMLElement>('.chat-thread');
+    // In Inkstone `.chat-thread` spans the full stage (including marginalia rails)
+    // while `.chat-turn-body` holds the actual `--measure` column. Align to
+    // `.chat-turn-body` first so the pinned strip matches the reading measure and
+    // composer slab width instead of overflowing into the outer gutters.
+    const measureTarget =
+      container.querySelector<HTMLElement>('.chat-turn-body') ??
+      container.querySelector<HTMLElement>('.chat-thread');
     const shell = container.parentElement;
-    if (thread && shell) {
-      const threadRect = thread.getBoundingClientRect();
+    if (measureTarget && shell) {
+      const targetRect = measureTarget.getBoundingClientRect();
       const shellRect = shell.getBoundingClientRect();
-      const left = Math.round(threadRect.left - shellRect.left);
-      const width = Math.round(threadRect.width);
+      const left = Math.round(targetRect.left - shellRect.left);
+      const width = Math.round(targetRect.width);
       setGeometry((current) =>
         current !== null && current.left === left && current.width === width
           ? current
@@ -161,18 +196,41 @@ export function TranscriptFoldRail(props: TranscriptFoldRailProps): ReactElement
       aria-label={zh ? '当前所在的提问与折叠' : 'Current prompt and folds'}
       style={geometry ? { left: geometry.left, width: geometry.width } : undefined}
     >
-      {prompt ? (
-        <button
-          type="button"
-          className="transcript-fold-rail-row transcript-prompt-pin"
-          data-testid="transcript-prompt-pin"
-          onClick={jumpToPrompt}
-          title={prompt.text}
-          aria-label={`${zh ? '回到提问' : 'Back to prompt'}: ${prompt.text}`}
-        >
-          <span className="transcript-prompt-pin-text">{prompt.text}</span>
-        </button>
-      ) : null}
+      {prompt ? (() => {
+        const parts = splitPromptLeadAndSub(prompt.text);
+        return (
+          <button
+            type="button"
+            className="transcript-fold-rail-row transcript-prompt-pin"
+            data-testid="transcript-prompt-pin"
+            onClick={jumpToPrompt}
+            title={prompt.text}
+            aria-label={`${zh ? '回到提问' : 'Back to prompt'}: ${prompt.text}`}
+          >
+            <span className="transcript-prompt-pin-seal" aria-hidden="true">
+              {zh ? '问' : 'Q'}
+            </span>
+            <span
+              className="transcript-prompt-pin-lead"
+              data-testid="transcript-prompt-pin-lead"
+            >
+              {parts.lead}
+            </span>
+            {parts.sub ? (
+              <span
+                className="transcript-prompt-pin-sub"
+                data-testid="transcript-prompt-pin-sub"
+              >
+                · {parts.sub}
+              </span>
+            ) : null}
+            <span className="transcript-prompt-pin-jump" aria-hidden="true">
+              <IconArrowUp width={11} height={11} />
+              <span>{zh ? '提问' : 'Top'}</span>
+            </span>
+          </button>
+        );
+      })() : null}
       {shown.map((fold, index) => (
         <button
           key={fold.id}

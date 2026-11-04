@@ -1,15 +1,38 @@
 /* Fold rail — viewport chrome pinned over the top of the transcript, listing
-   the open folds the reader is inside of. Sibling of `.chat-stream`, aligned
-   to the chat column by inline `left` / `width`. Rows are `.work-h` rows. */
+   the current turn's frozen prompt and the open folds the reader is inside of.
+   Sibling of `.chat-stream`, aligned to `.chat-turn-body` by inline `left` /
+   `width`. Scheme B3: Editorial running header with subtle gradient wash and border-bottom. */
 
 .transcript-fold-rail {
   position: absolute;
   top: 0;
   z-index: 8;
-  padding: 0 var(--row-pad, 8px);
-  background: var(--s2, var(--surface-1));
-  box-shadow: 0 1px 0 var(--l2, var(--line-1));
+  box-sizing: border-box;
+  padding: 0 4px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--zhu, var(--iris, #111827)) 7%, var(--s1, var(--surface-1, #edf0f3))) 0%,
+    var(--s1, var(--surface-1, #edf0f3)) 60%
+  );
+  border-bottom: 1px solid var(--l2, var(--line-2));
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.08);
   border-radius: 0 0 8px 8px;
+}
+
+/* Soft apron veil below the header so scrolling text fades out gracefully */
+.transcript-fold-rail::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 14px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--s2, var(--surface-2, #f8f9fa)) 86%, transparent) 0%,
+    transparent 100%
+  );
 }
 
 .transcript-fold-rail-row {
@@ -17,7 +40,7 @@
 }
 
 .transcript-fold-rail-row:hover {
-  background: var(--s3, var(--hover));
+  background: var(--s2, var(--hover));
 }
 
 .transcript-fold-rail-chev {
@@ -55,36 +78,86 @@
 
 .transcript-fold-rail-row:hover .transcript-fold-rail-close {
   background: var(--t1, var(--text-1));
-  color: var(--s2, var(--surface-1));
+  color: var(--s1, var(--surface-1));
 }
 
-/* Frozen user prompt: one line, the turn's question, above the fold rows.
-   Same row box as a fold row so the stacked rows keep one rhythm. */
+/* Frozen user prompt: Scheme B3 editorial strip */
 .transcript-prompt-pin {
   display: flex;
   align-items: center;
+  gap: 8px;
   width: 100%;
-  height: 30px;
+  height: 36px;
   padding: 0 var(--row-pad, 8px);
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--t1, var(--text-1));
   font: inherit;
-  font-weight: 500;
   text-align: left;
   cursor: pointer;
+  box-sizing: border-box;
+  transition: background 0.15s ease;
 }
 
-.transcript-prompt-pin-text {
+.transcript-prompt-pin:hover {
+  background: var(--hover, rgba(0, 0, 0, 0.04));
+}
+
+.transcript-prompt-pin + .transcript-fold-rail-row {
+  border-top: 1px solid var(--l1, var(--line-1));
+}
+
+.transcript-prompt-pin-seal {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--zhu, var(--iris, #111827));
+  color: var(--on-zhu, #ffffff);
+  font: 600 11.5px/18px var(--sans, sans-serif);
+  text-align: center;
+  flex: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.transcript-prompt-pin-lead {
+  flex: none;
+  white-space: nowrap;
+  font: 600 13.5px/1.35 var(--sans, sans-serif);
+  color: var(--t1, var(--text-1));
+}
+
+.transcript-prompt-pin-sub {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  font: 400 12px/1.35 var(--mono, ui-monospace, monospace);
+  color: var(--t2, var(--text-2));
+  opacity: 0.48;
+}
+
+.transcript-prompt-pin-jump {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font: 500 12px/1 var(--mono, ui-monospace, monospace);
+  color: var(--t3, var(--text-3));
+  opacity: 0.75;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.transcript-prompt-pin:hover .transcript-prompt-pin-jump {
+  opacity: 1;
+  color: var(--t1, var(--text-1));
 }
 
 @media (max-width: 720px) {
-  .transcript-fold-rail-meta {
+  .transcript-fold-rail-meta,
+  .transcript-prompt-pin-jump > span {
     display: none;
   }
 }

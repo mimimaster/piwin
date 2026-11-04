@@ -22,6 +22,7 @@ import { addSelectionToChat, selectionContextTarget } from '../selection/selecti
 import { IconCards, IconChat, IconCommentAction, IconCopy } from '../tool-cards/shell-icons.js';
 import { SelectionCommentForm } from '../selection/selection-comment-form.js';
 import type { DesktopLocale } from '../i18n/desktop-locale.js';
+import type { PromptContextRef } from '@piwin/contracts';
 
 export type SelectionToolbarComment = {
   /** Why commenting is unavailable for this range, or null when it is allowed. */
@@ -38,6 +39,12 @@ export type TranscriptSelectionToolbarProps = {
   /** Adds Copy, which writes the whole selection (Add to Chat is capped). */
   copyable?: boolean | undefined;
   comment?: SelectionToolbarComment | undefined;
+  /** Library / other surfaces that already know the Host ref to attach. */
+  toContextRef?: ((range: Range, text: string) => PromptContextRef | null) | undefined;
+  /** Knowledge reader: ask the independent assist session about this range. */
+  onAskAi?: ((range: Range, text: string) => void) | undefined;
+  /** Knowledge reader: generate card drafts from this range without sending a chat preset. */
+  onGenerateFlashcard?: ((range: Range, text: string) => void) | undefined;
 };
 
 type ToolbarSelection = { text: string; range: Range };
@@ -181,6 +188,7 @@ export function TranscriptSelectionToolbar(
   const locale = props.locale ?? contextMenu.caps.locale ?? 'zh-CN';
   const isZh = locale === 'zh-CN';
   const addToChatLabel = isZh ? '添加到对话' : 'Add to Chat';
+  const askAiLabel = isZh ? '问 AI' : 'Ask AI';
   const generateFlashcardLabel = isZh ? '生成闪卡' : 'Generate flashcard';
   const copyLabel = isZh ? '复制' : 'Copy';
   const commentLabel = isZh ? '评论' : 'Comment';
@@ -205,10 +213,29 @@ export function TranscriptSelectionToolbar(
     window.getSelection()?.removeAllRanges();
   };
 
+  const handleAskAi = (event: MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!selection || !props.onAskAi) return;
+    props.onAskAi(selection.range, selectedText);
+    setOpen(false);
+    if (typeof window !== 'undefined' && window.getSelection) {
+      window.getSelection()?.removeAllRanges();
+    }
+  };
+
   const handleAddToChat = (event: MouseEvent<HTMLButtonElement>): void => {
     event.preventDefault();
     event.stopPropagation();
-    if (!addSelectionToChat(contextMenu, selectedText, props.projectPath)) return;
+    if (props.toContextRef) {
+      if (!selection) return;
+      const ref = props.toContextRef(selection.range, selectedText);
+      if (!ref) return;
+      contextMenu.dispatchers.addToChat(ref);
+      contextMenu.dispatchers.focusComposer();
+    } else if (!addSelectionToChat(contextMenu, selectedText, props.projectPath)) {
+      return;
+    }
     setOpen(false);
     if (typeof window !== 'undefined' && window.getSelection) {
       window.getSelection()?.removeAllRanges();
@@ -218,6 +245,14 @@ export function TranscriptSelectionToolbar(
   const handleGenerateFlashcard = (event: MouseEvent<HTMLButtonElement>): void => {
     event.preventDefault();
     event.stopPropagation();
+    if (props.onGenerateFlashcard && selection) {
+      props.onGenerateFlashcard(selection.range, selectedText);
+      setOpen(false);
+      if (typeof window !== 'undefined' && window.getSelection) {
+        window.getSelection()?.removeAllRanges();
+      }
+      return;
+    }
     const target = selectionContextTarget(selectedText, props.projectPath);
     if (!target || !canSendPreset) return;
 
@@ -276,6 +311,19 @@ export function TranscriptSelectionToolbar(
                 <span className="selection-toolbar-divider" aria-hidden="true" />
               </>
             ) : null}
+            {props.onAskAi ? (
+              <>
+                <button
+                  type="button"
+                  className="selection-toolbar-btn"
+                  data-testid="selection-toolbar-ask-ai"
+                  onClick={handleAskAi}
+                >
+                  <span>{askAiLabel}</span>
+                </button>
+                <span className="selection-toolbar-divider" aria-hidden="true" />
+              </>
+            ) : null}
             <button
               type="button"
               className="selection-toolbar-btn"
@@ -310,8 +358,8 @@ export function TranscriptSelectionToolbar(
               type="button"
               className="selection-toolbar-btn"
               data-testid="selection-toolbar-generate-flashcard"
-              disabled={!canSendPreset}
-              title={!canSendPreset ? disabledHint : undefined}
+              disabled={!props.onGenerateFlashcard && !canSendPreset}
+              title={!props.onGenerateFlashcard && !canSendPreset ? disabledHint : undefined}
               onClick={handleGenerateFlashcard}
             >
               <span className="selection-toolbar-btn-icon" aria-hidden="true">
