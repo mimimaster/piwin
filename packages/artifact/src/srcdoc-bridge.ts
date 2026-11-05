@@ -3,8 +3,6 @@
  * and a single size stream for inline-flow.
  */
 import {
-  ARTIFACT_ACTION_NAMES,
-  ARTIFACT_BRIDGE_ACTION_TYPE,
   ARTIFACT_BRIDGE_ERROR_TYPE,
   ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE,
   ARTIFACT_BRIDGE_SIZE_TYPE,
@@ -20,6 +18,7 @@ import { buildArtifactContrastProbeRuntime } from './srcdoc-contrast-probe.js';
 import { buildScrollContinuityRuntime } from './srcdoc-scroll-continuity.js';
 import { buildPlainTextCopyRuntime } from './srcdoc-copy.js';
 import { buildSelectionRuntime } from './srcdoc-selection.js';
+import { buildArtifactActionsRuntime } from './srcdoc-actions.js';
 import type { ArtifactFrameMode } from './types.js';
 
 export function buildArtifactBridgeBootstrapScript(
@@ -116,89 +115,7 @@ export function buildArtifactBridgeBootstrapScript(
     reportError('rejection', message, { name: reason && reason.name });
   });
 
-  var actionType = ${JSON.stringify(ARTIFACT_BRIDGE_ACTION_TYPE)};
-  var allowedActions = ${JSON.stringify([...ARTIFACT_ACTION_NAMES])};
-  window.piwinArtifact = {
-    postAction: function (action, payload) {
-      if (allowedActions.indexOf(action) === -1) return false;
-      post(actionType, { action: action, payload: payload || {} });
-      return true;
-    }
-  };
-  var reportDownloadUnsupported = function (filename) {
-    var payload = {};
-    if (typeof filename === 'string' && filename.length > 0 && filename.length <= 256) {
-      payload.filename = filename;
-    }
-    post(actionType, { action: 'artifact/download-unsupported', payload: payload });
-  };
-  var looksLikeDownloadAnchor = function (anchor) {
-    if (!anchor || anchor.tagName !== 'A') return false;
-    if (anchor.hasAttribute('download') || (anchor.download && anchor.download.length > 0)) {
-      return true;
-    }
-    var href = anchor.getAttribute('href') || '';
-    return /^(blob:|data:)/i.test(href);
-  };
-  // The frame is sandboxed without allow-popups / allow-top-navigation, so a
-  // link cannot open anything by itself (target=_blank is silently dropped).
-  // Absolute http(s)/mailto links are handed to the host instead, which
-  // re-validates them and opens the system browser. In-page anchors (#x) keep
-  // their native behaviour.
-  var externalLinkUrl = function (raw) {
-    if (typeof raw !== 'string') return null;
-    var text = raw.trim();
-    if (!/^(https?:|mailto:)/i.test(text)) return null;
-    return text.length > 2048 ? null : text;
-  };
-  var openExternalLink = function (url) {
-    post(actionType, { action: 'artifact/open-link', payload: { url: url } });
-  };
-  var onLinkActivate = function (event) {
-    if (event.type === 'auxclick' && event.button !== 1) return;
-    var node = event.target;
-    while (node && node !== document && node !== document.documentElement) {
-      if (node.tagName === 'A') {
-        if (looksLikeDownloadAnchor(node)) {
-          event.preventDefault();
-          event.stopPropagation();
-          reportDownloadUnsupported(node.getAttribute('download') || node.download || '');
-          return;
-        }
-        var url = externalLinkUrl(node.getAttribute('href'));
-        if (url !== null) {
-          event.preventDefault();
-          openExternalLink(url);
-        }
-        return;
-      }
-      node = node.parentElement;
-    }
-  };
-  document.addEventListener('click', onLinkActivate, true);
-  document.addEventListener('auxclick', onLinkActivate, true);
-  var originalWindowOpen = window.open;
-  window.open = function (target) {
-    var url = externalLinkUrl(target == null ? '' : String(target));
-    if (url !== null) {
-      openExternalLink(url);
-      return null;
-    }
-    return originalWindowOpen ? originalWindowOpen.apply(window, arguments) : null;
-  };
-  var originalAnchorClick = HTMLAnchorElement.prototype.click;
-  HTMLAnchorElement.prototype.click = function () {
-    if (looksLikeDownloadAnchor(this)) {
-      reportDownloadUnsupported(this.getAttribute('download') || this.download || '');
-      return;
-    }
-    var scriptedUrl = externalLinkUrl(this.getAttribute('href'));
-    if (scriptedUrl !== null) {
-      openExternalLink(scriptedUrl);
-      return;
-    }
-    return originalAnchorClick.apply(this, arguments);
-  };
+  ${buildArtifactActionsRuntime()}
 
   var sizeType = ${sizeType};
   var measureRequestType = ${measureRequestType};

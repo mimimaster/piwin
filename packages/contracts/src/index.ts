@@ -41,6 +41,7 @@ export * from './reply-writer.js';
 export * from './media.js';
 export * from './attachment.js';
 export * from './artifact.js';
+export * from './artifact-download.js';
 export * from './artifact-report-kit.js';
 export * from './artifact-diagram-kit.js';
 export * from './artifact-viz-kit.js';

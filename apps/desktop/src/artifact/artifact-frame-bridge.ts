@@ -279,7 +279,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
         current.onComposerProposal(action.payload);
       } else if (
         current.onArtifactAction &&
-        (action.action === 'artifact/download-unsupported' || action.action === 'artifact/open-link')
+        (action.action === 'artifact/download' || action.action === 'artifact/download-unsupported' || action.action === 'artifact/open-link')
       ) {
         current.onArtifactAction(action);
       }

@@ -3,6 +3,7 @@
  * Pure — no DOM. Desktop checks event.source separately.
  */
 import { getUtf8ByteSize } from './security.js';
+import { parseArtifactDownloadPayload } from './download-payload.js';
 import {
   ARTIFACT_BRIDGE_ACTION_TYPE,
   ARTIFACT_BRIDGE_CONTRAST_TYPE,
@@ -162,12 +163,16 @@ export function parseArtifactActionMessage(data: unknown): ArtifactActionMessage
     return null;
   }
   const action = data['action'];
-  if (action !== 'composer/propose-text' && action !== 'artifact/download-unsupported' && action !== 'artifact/open-link') {
+  if (action !== 'composer/propose-text' && action !== 'artifact/download' && action !== 'artifact/download-unsupported' && action !== 'artifact/open-link') {
     return null;
   }
   const payload = data['payload'];
   if (!isRecord(payload)) {
     return null;
+  }
+  if (action === 'artifact/download') {
+    const download = parseArtifactDownloadPayload(payload);
+    return download === null ? null : { type: ARTIFACT_BRIDGE_ACTION_TYPE, channelId, action, payload: download };
   }
   if (action === 'artifact/open-link') {
     const url = normalizeArtifactLinkUrl(payload['url']);
@@ -175,6 +180,8 @@ export function parseArtifactActionMessage(data: unknown): ArtifactActionMessage
   }
   if (action === 'artifact/download-unsupported') {
     const filename = payload['filename'];
+    const reason = payload['reason'];
+    if (reason !== undefined && reason !== 'unsupported-url' && reason !== 'too-large' && reason !== 'read-failed') return null;
     if (filename !== undefined && (typeof filename !== 'string' || filename.length > 256)) {
       return null;
     }
@@ -184,6 +191,7 @@ export function parseArtifactActionMessage(data: unknown): ArtifactActionMessage
       action: 'artifact/download-unsupported',
       payload: {
         ...(typeof filename === 'string' && filename.length > 0 ? { filename } : {}),
+        ...(reason !== undefined ? { reason } : {}),
       },
     };
   }

@@ -4,13 +4,15 @@
  */
 import { normalizeArtifactLinkUrl } from '@piwin/artifact';
 import { openExternalLink } from '../platform/open-external-url.js';
-import { useCallback, useEffect, type Dispatch } from 'react';
+import { useCallback, useEffect, useRef, type Dispatch } from 'react';
 import { formatError, type WalkthroughArtifact } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
 import type { HostClient } from '../host/host-client';
 import { pushError, type NotificationAction } from '../notifications/notification-queue';
 import { showUiNotification } from '@piwin/ui-kit';
+import { saveArtifactDownload } from '../artifact/artifact-download.js';
+import { saveAsResultNotice } from '../files/local-file-actions.js';
 
 export type UseWorkbenchArtifactActionsArgs = {
   hostClient: HostClient;
@@ -21,6 +23,7 @@ export type UseWorkbenchArtifactActionsArgs = {
 
 export function useWorkbenchArtifactActions(args: UseWorkbenchArtifactActionsArgs) {
   const { hostClient, state, dispatch, dispatchNotification } = args;
+  const downloadPendingRef = useRef(false);
 
   const handleArtifactAction = useCallback(
     (action: ArtifactActionMessage) => {
@@ -80,16 +83,25 @@ export function useWorkbenchArtifactActions(args: UseWorkbenchArtifactActionsArg
         });
         return;
       }
+      if (action.action === 'artifact/download') {
+        // One dialog at a time, including repeated/dual-channel activations.
+        if (downloadPendingRef.current) return;
+        downloadPendingRef.current = true;
+        void saveArtifactDownload(action.payload).then((result) => {
+          const notice = saveAsResultNotice(result, 'zh-CN');
+          if (notice) showUiNotification({ message: notice.message, tone: notice.level });
+        }).finally(() => { downloadPendingRef.current = false; });
+        return;
+      }
       if (action.action === 'artifact/download-unsupported') {
         const filename = action.payload.filename?.trim();
-        const message = filename
-          ? `沙箱内无法下载「${filename}」。请让 Agent 把文件写到工作区，再对路径芯片右键另存为。`
-          : '沙箱内无法下载文件。请让 Agent 把文件写到工作区，再对路径芯片右键另存为。';
+        const fileLabel = filename ? `「${filename}」` : '文件';
+        const message = action.payload.reason === 'too-large'
+          ? `${fileLabel}超过页面下载的 8 MiB 大小限制。`
+          : action.payload.reason === 'read-failed'
+            ? `无法读取${fileLabel}的内容，请重试。`
+            : `无法读取${fileLabel}的下载链接。`;
         showUiNotification({ message, tone: 'warning' });
-        dispatchNotification({
-          type: 'notify/push',
-          notification: { level: 'info', message },
-        });
       }
     },
     [hostClient, dispatchNotification],

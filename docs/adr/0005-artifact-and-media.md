@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04; amended 2026-09-08; amended 2026-09-16; amended 2026-09-19; amended 2026-09-22)
+Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04; amended 2026-09-08; amended 2026-09-16; amended 2026-09-19; amended 2026-09-22; amended 2026-11-05)
 
 ## Context
 
@@ -373,3 +373,30 @@ The scheme handler, document store, main-frame guard and the WKWebView
 crate, linked by both `apps/desktop/src-tauri` and `apps/mobile/src-tauri`. The
 mobile shell allows `piwin-artifact:` in `frame-src`/`child-src` and grants
 only `artifact_document_put`. Browser tabs and e2e keep `data:` URLs.
+
+## Amendment (2026-11-05): Shell-mediated generated-file downloads
+
+Artifact download controls must save their generated files instead of asking
+users to have the agent recreate them in the workspace. The iframe remains
+`sandbox="allow-scripts"`, with no same-origin, popup, download or filesystem
+privilege; `connect-src 'none'` remains unchanged.
+
+- `ArtifactDownloadPayload` in contracts carries a suggested filename and
+  canonical base64 data URL, bounded to 8 MiB of decoded file bytes.
+- The bootstrap handles data URLs and captures frame-created Blob references
+  at `URL.createObjectURL`, before authored code can revoke their URLs. It
+  reads the Blob locally with FileReader, never by fetching its URL.
+- The portable parser validates MIME/base64/size. Desktop strips directory
+  components from filename suggestions and reuses the shared native Save As
+  dialog/browser saver. Only the user's selection authorizes the destination;
+  no Host filesystem capability is added. One save is active at a time;
+  cancellation is silent and each result uses one notification channel.
+- WKWebView's native return channel admits the bounded `artifact/download`
+  envelope. Other bridge messages keep their existing 32 KiB limit. The
+  browser/native copies share their existing sequence-based deduplication.
+- External HTTP(S) download links use the existing external-browser route;
+  unsupported local paths are never read. CLI intentionally retains source
+  export because it does not execute the HTML runtime.
+
+Source-export buttons still export original model source, never srcdoc.
+See [the macOS smoke checklist](../guides/artifact-macos-webview-smoke.md).

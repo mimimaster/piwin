@@ -96,6 +96,7 @@ export const ARTIFACT_DOWNLOAD_UNSUPPORTED_ACTION = 'artifact/download-unsupport
 
 export const ARTIFACT_ACTION_NAMES = [
   'composer/propose-text',
+  'artifact/download',
   'artifact/download-unsupported',
 ] as const;
 

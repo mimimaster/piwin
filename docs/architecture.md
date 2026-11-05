@@ -747,6 +747,14 @@ Flashcard tool results are structured transcript projections, not HTML fences.
 Copy/export use original model source, never srcdoc. See
 [artifact-research.md](./artifact-research.md) and ADR 0005 / 0029.
 
+Generated download controls inside an Artifact use the contracts-defined
+`ArtifactDownloadPayload`: at most 8 MiB of canonical base64 data plus a
+suggested filename. The runtime reads data URLs/frame-created Blobs locally;
+the portable parser validates the payload and Desktop reuses its Save As
+flow with a basename suggestion. The user selects the destination. This
+adds no Host file command, filesystem reads, network capability, or iframe
+privilege. CLI retains original-source export (no executing browser runtime).
+
 User composer:
 
 ```text

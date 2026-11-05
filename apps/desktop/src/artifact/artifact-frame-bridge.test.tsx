@@ -8,6 +8,7 @@ import {
   resolveArtifactViewportFrameHeight,
   type ArtifactFrameMode,
   type ArtifactSelectionMessage,
+  type ArtifactActionMessage,
 } from '@piwin/artifact';
 import { useArtifactFrameBridge } from './artifact-frame-bridge.js';
 import type { ArtifactSandboxView } from './artifact-frame-stream.js';
@@ -47,6 +48,7 @@ function BridgeHarness(props: {
   frameMode?: ArtifactFrameMode;
   presentation?: 'inline' | 'canvas';
   onTextSelection?: (selection: ArtifactSelectionMessage) => void;
+  onArtifactAction?: (action: ArtifactActionMessage) => void;
 }): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const decision = makeDecision(props.mode);
@@ -61,6 +63,7 @@ function BridgeHarness(props: {
     frameMode: props.frameMode ?? 'inline-flow',
     presentation: props.presentation ?? 'inline',
     ...(props.onTextSelection ? { onTextSelection: props.onTextSelection } : {}),
+    ...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {}),
   });
   return (
     <div>
@@ -109,6 +112,29 @@ describe('useArtifactFrameBridge recovery', () => {
     if (!iframe) throw new Error('bridge iframe missing');
     return iframe;
   }
+
+  it('routes one generated download from its own iframe and rejects other sources/channels', async () => {
+    const onArtifactAction = vi.fn();
+    act(() => root.render(<BridgeHarness mode="interactive" onArtifactAction={onArtifactAction} />));
+    const iframe = container.querySelector('iframe');
+    if (!iframe) throw new Error('bridge iframe missing');
+    const data = {
+      type: 'piwin-artifact:action', channelId: 'height-bridge-test',
+      action: 'artifact/download', seq: 0,
+      payload: { filename: 'cat.png', dataUrl: 'data:image/png;base64,AQID' },
+    };
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', { source: window, data }));
+      window.dispatchEvent(new MessageEvent('message', {
+        source: iframe.contentWindow, data: { ...data, channelId: 'other-frame' },
+      }));
+      window.dispatchEvent(new MessageEvent('message', { source: iframe.contentWindow, data }));
+      window.dispatchEvent(new MessageEvent('message', { source: null, data }));
+    });
+    expect(onArtifactAction).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      action: 'artifact/download', payload: data.payload,
+    }));
+  });
 
   it('requests recovery mode on timeout and restores a later exact height', async () => {
     const iframe = await renderBridge('interactive');

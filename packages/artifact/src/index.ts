@@ -40,6 +40,7 @@ export type {
 } from './types.js';
 
 export { createDefaultArtifactIframePolicy } from './iframe-policy.js';
+export { parseArtifactDownloadPayload } from './download-payload.js';
 
 export { indexArtifactFences, createArtifactFenceRecord } from './fence-index.js';
 export type { ArtifactFenceRecord, ArtifactTagBlockRange } from './fence-index.js';

@@ -78,6 +78,13 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
   (`allow-scripts`, no `allow-same-origin`), so a host-origin blob URL errors
   instead of painting; `img-src data:` is already in the strict CSP. Decode is
   capped at 1024px and the inlined total is budgeted per artifact.
+- **Generated downloads (2026-11-05):** data-URL and frame-created Blob anchors
+  send bounded local bytes through `artifact/download`. Desktop reuses Save As;
+  the 8 MiB decoded cap is separate from the source-size cap. Blob references
+  are captured before revocation, with no `fetch` or CSP relaxation. Suggested
+  names are reduced to basenames and only the user selects a destination.
+  The native return channel admits the bounded file message; other messages
+  retain their 32 KiB cap. Source-export controls still export original source.
 - **Flashcards:** structured `FlashcardDisplayPayload` in tool presentation.
   Generic Artifact does not special-case `data-card-id`.
 - **Deleted live APIs:** `evaluateCodeFence`, `splitMarkdownBlocks`,

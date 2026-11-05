@@ -13,6 +13,10 @@ mod webkit {
 
     const ARTIFACT_BRIDGE_EVENT: &str = "piwin-artifact-bridge";
     const MAX_ARTIFACT_BRIDGE_BYTES: usize = 32 * 1024;
+    // Generated files use bounded base64 bytes; other bridge messages keep 32 KiB.
+    // Matches MAX_ARTIFACT_DOWNLOAD_BYTES in @piwin/contracts.
+    const MAX_ARTIFACT_DOWNLOAD_MESSAGE_BYTES: usize =
+        ((8 * 1024 * 1024 + 2) / 3) * 4 + MAX_ARTIFACT_BRIDGE_BYTES;
 
     pub struct ArtifactBridgeHandlerIvars {
         app_handle: AppHandle,
@@ -83,10 +87,15 @@ mod webkit {
     }
 
     fn parse_artifact_bridge_message(body: &str) -> Option<Value> {
-        if body.len() > MAX_ARTIFACT_BRIDGE_BYTES {
+        if body.len() > MAX_ARTIFACT_DOWNLOAD_MESSAGE_BYTES {
             return None;
         }
         let payload: Value = serde_json::from_str(body).ok()?;
+        let is_download = payload.get("type")?.as_str()? == "piwin-artifact:action"
+            && payload.get("action").and_then(Value::as_str) == Some("artifact/download");
+        if body.len() > MAX_ARTIFACT_BRIDGE_BYTES && !is_download {
+            return None;
+        }
         let channel_id = payload.get("channelId")?.as_str()?;
         if channel_id.is_empty() || channel_id.len() > 200 {
             return None;
@@ -98,7 +107,20 @@ mod webkit {
                 payload.get("revision")?.as_u64()?;
             }
             "piwin-artifact:action" => match payload.get("action")?.as_str()? {
-                "composer/propose-text" | "artifact/download-unsupported" => {}
+                "composer/propose-text" | "artifact/download-unsupported" | "artifact/open-link" => {}
+                "artifact/download" => {
+                    let download = payload.get("payload")?;
+                    let data_url = download.get("dataUrl")?.as_str()?;
+                    if !data_url.starts_with("data:") {
+                        return None;
+                    }
+                    if let Some(filename) = download.get("filename") {
+                        if filename.as_str()?.chars().count() > 256 {
+                            return None;
+                        }
+                    }
+                    // The shell's shared parser validates MIME, base64 and decoded size.
+                }
                 _ => return None,
             },
             // Expressive contrast probe: booleans and counts only (badge).
@@ -125,6 +147,22 @@ mod webkit {
         use super::parse_artifact_bridge_message;
 
         #[test]
+        fn accepts_generated_downloads_above_the_normal_bridge_cap_only() {
+            let mut payload = serde_json::json!({
+                "type": "piwin-artifact:action", "channelId": "artifact-1",
+                "action": "artifact/download",
+                "payload": { "filename": "cat.png", "dataUrl": format!("data:image/png;base64,{}", "AAAA".repeat(10_000)) }
+            });
+            assert!(parse_artifact_bridge_message(&payload.to_string()).is_some());
+            payload["action"] = "composer/propose-text".into();
+            assert!(parse_artifact_bridge_message(&payload.to_string()).is_none());
+            payload["action"] = "artifact/download".into();
+            payload["payload"]["dataUrl"] = "file:///etc/passwd".into();
+            assert!(parse_artifact_bridge_message(&payload.to_string()).is_none());
+            assert!(parse_artifact_bridge_message(&"x".repeat(super::MAX_ARTIFACT_DOWNLOAD_MESSAGE_BYTES + 1)).is_none());
+        }
+
+        #[test]
         fn accepts_only_bounded_known_messages() {
             assert!(parse_artifact_bridge_message(
                 r#"{"type":"piwin-artifact:size","channelId":"artifact-1","height":684,"viewportHeight":80,"revision":0}"#
@@ -148,6 +186,10 @@ mod webkit {
             .is_none());
             assert!(parse_artifact_bridge_message(
                 r#"{"type":"piwin-artifact:action","channelId":"artifact-1","action":"artifact/download-unsupported","payload":{"filename":"demo.html"}}"#
+            )
+            .is_some());
+            assert!(parse_artifact_bridge_message(
+                r#"{"type":"piwin-artifact:action","channelId":"artifact-1","action":"artifact/open-link","payload":{"url":"https://example.com/cat.png"}}"#
             )
             .is_some());
             assert!(parse_artifact_bridge_message(

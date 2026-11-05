@@ -1,6 +1,6 @@
 /** Portable artifact types for piwin (no DOM / framework deps). */
 
-import type { ArtifactSurface } from '@piwin/contracts';
+import type { ArtifactDownloadFailureReason, ArtifactDownloadPayload, ArtifactSurface } from '@piwin/contracts';
 
 export type { ArtifactSurface };
 
@@ -206,6 +206,7 @@ export type ArtifactActionName =
   | 'flashcard/rate'
   | 'flashcard/open-source'
   | 'composer/propose-text'
+  | 'artifact/download'
   | 'artifact/download-unsupported';
 
 export type FlashcardRateActionPayload = {
@@ -230,13 +231,20 @@ export type ComposerProposeTextActionPayload = {
   label?: string;
 };
 
-/** Sandboxed HTML tried to download; parent shows a toast instead. */
+/** A generated download could not be read inside the frame. */
 export type ArtifactDownloadUnsupportedPayload = {
   /** Optional suggested filename from the untrusted UI (display only). */
   filename?: string;
+  reason?: ArtifactDownloadFailureReason;
 };
 
 export type ArtifactActionMessage =
+  | {
+      type: 'piwin-artifact:action';
+      channelId: string;
+      action: 'artifact/download';
+      payload: ArtifactDownloadPayload;
+    }
   | {
       type: 'piwin-artifact:action';
       channelId: string;

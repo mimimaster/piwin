@@ -61,6 +61,14 @@ For every sandbox case (`script-fragment`, `flow-6000`, `overflow-20000`, Canvas
 
 ## Sign-off
 
+Generated-file downloads (2026-11-05): in an Artifact, export a Canvas PNG with
+`toDataURL`, then with `toBlob` → `URL.createObjectURL` → anchor `.click()` →
+immediate `URL.revokeObjectURL`. Each should offer one native Save As dialog;
+verify the saved PNG opens with the expected dimensions. Cancel once and
+confirm no error toast, then save again. Test a file above 32 KiB to exercise
+the native download envelope and an 8 MiB+ file for one size-limit notice.
+Confirm `sandbox="allow-scripts"` and `connect-src 'none'` remain in place.
+
 - [ ] macOS WKWebView build used (not Playwright Chromium)
 - [ ] Every fixture row exercised
 - [ ] Iframe scrolling checked for sandbox + Canvas cases
