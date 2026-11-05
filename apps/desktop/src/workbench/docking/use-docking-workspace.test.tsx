@@ -96,6 +96,59 @@ describe('useDockingWorkspace right panel reveal', () => {
     act(() => mounted.current().setState((state) => (browserId ? closeView(state, browserId) : state)));
     expect(onReveal).toHaveBeenCalledTimes(3);
   });
+
+  it('keeps a closed Browser tab closed when the completed session continues pushing page state', () => {
+    const listeners = new Set<(message: HostServerMessage) => void>();
+    const hostClient = {
+      updateSubscriptions: async () => undefined,
+      subscribe: (listener: (message: HostServerMessage) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    } as unknown as HostClient;
+    const reveal = vi.fn();
+    let controller: DockingWorkspaceController | null = null;
+    function Probe(): null {
+      controller = useDockingWorkspace({ enabled: true, hostClient,
+        followSessionId: 'completed-conversation', rightPanelOpen: true, onRevealRightTool: reveal });
+      return null;
+    }
+    const current = (): DockingWorkspaceController => {
+      if (!controller) throw new Error('controller not mounted');
+      return controller;
+    };
+    const emit = (message: HostServerMessage): void => act(() => {
+      for (const listener of listeners) listener(message);
+    });
+    const browserViews = () => Object.values(current().state.views).filter((view) => view.kind === 'browser');
+    root = createRoot(document.createElement('div'));
+    act(() => root?.render(<Probe />));
+    act(() => current().openToolView('canvas'));
+    emit({ type: 'browser/controller', owner: 'agent', reason: 'agent-write', sessionId: 'completed-conversation', ts: 1 });
+    const browserId = browserViews()[0]?.viewId;
+    if (!browserId) throw new Error('expected Browser tab');
+    emit({ type: 'browser/controller', owner: 'idle', reason: 'run-terminal', sessionId: 'completed-conversation', ts: 2 });
+    act(() => current().setState((state) => closeView(state, browserId)));
+    const focusedAfterClose = current().state.focusedViewId;
+    reveal.mockClear();
+
+    for (let revision = 1; revision <= 3; revision += 1) {
+      emit({ type: 'browser/state', sessionId: 'completed-conversation', ts: revision + 2,
+        url: 'https://linux.do/t/topic/2904802', lifecycle: 'ready', documentRevision: revision });
+    }
+    expect(browserViews()).toHaveLength(0);
+    expect(current().state.focusedViewId).toBe(focusedAfterClose);
+    expect(reveal).not.toHaveBeenCalled();
+
+    emit({ type: 'browser/controller', owner: 'agent', reason: 'mirror-start', sessionId: 'completed-conversation', ts: 6 });
+    expect(browserViews()).toHaveLength(0);
+    expect(reveal).not.toHaveBeenCalled();
+
+    // A subsequent genuine agent browser operation still reveals the surface.
+    emit({ type: 'browser/controller', owner: 'agent', reason: 'agent-write', sessionId: 'completed-conversation', ts: 7 });
+    expect(browserViews()).toHaveLength(1);
+    expect(reveal).toHaveBeenCalledExactlyOnceWith('browser');
+  });
 });
 
 describe('useDockingWorkspace right tools follow the session', () => {

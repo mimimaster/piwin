@@ -1,9 +1,8 @@
 /**
  * Decide whether a Host browser push should reveal the right-sidebar
- * Browser workbench. Agent write tools emit `browser/controller` with
- * owner=agent; navigate also emits `browser/state` with a real URL.
- * Frames are ignored: they only exist after the panel already holds a
- * mirror lease.
+ * Browser workbench. Only agent activity can request attention. State/frame
+ * pushes and mirror-start echoes describe an existing page; treating them as
+ * an open request would recreate a tool tab the reader just closed.
  */
 import type { HostServerMessage } from '@piwin/contracts';
 
@@ -15,11 +14,7 @@ export function shouldRevealBrowserInspector(
   if (activeSessionId !== undefined &&
       (!('sessionId' in message) || message.sessionId !== activeSessionId)) return false;
   if (message.type === 'browser/controller') {
-    return message.owner === 'agent';
-  }
-  if (message.type === 'browser/state') {
-    const url = message.url?.trim() ?? '';
-    return url.length > 0 && url !== 'about:blank';
+    return message.owner === 'agent' && message.reason !== 'mirror-start';
   }
   return false;
 }

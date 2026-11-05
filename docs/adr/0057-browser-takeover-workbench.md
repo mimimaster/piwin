@@ -127,8 +127,13 @@ Do not grow the session file past the 1000-line cap.
 
 - Desktop panel becomes an interactive surface; CLI still has tools + lock
   and no visual panel (intentional degradation, ADR 0020). When the agent
-  acquires the workbench (`browser/controller` owner `agent`) or navigates,
+  acquires the workbench (`browser/controller` owner `agent`),
   Desktop opens the right-sidebar Browser tab so the mirror is visible.
+  As of 2026-11-05, only actual agent activity requests this reveal. Passive
+  page state/frame updates and mirror-start echoes never recreate a Browser
+  tool tab the reader closed, even when another right-side tool remains open.
+  Explicit reopening and new agent browser activity still reveal the surface;
+  this presentation rule does not close Chromium or its pages.
 - Screencast at ~15 fps is more IPC than 4 fps screenshots. Cap dimension and
   quality; drop frames if the panel is hidden; ack CDP frames or Chrome stops.
 - Models that ignore `browser-user-has-control` will retry and fail until the

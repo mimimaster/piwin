@@ -1,6 +1,7 @@
 /**
- * App-level listener: when the agent uses the shared Chromium while the right
- * workspace is already open, switch it to the Browser tab. With the workspace
+ * App-level listener: when new agent activity uses the shared Chromium while
+ * the right workspace is already open, switch it to the Browser tab. Passive
+ * page/mirror updates never recreate a closed tab. With the workspace
  * collapsed this stays quiet: the Session Rail's Browser Mini is the collapsed
  * presentation, and auto-opening the panel would fight the user's own collapse
  * (spec §4 "let the mini answer browser activity").

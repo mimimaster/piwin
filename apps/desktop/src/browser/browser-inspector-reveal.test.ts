@@ -26,14 +26,26 @@ describe('shouldRevealBrowserInspector', () => {
     ).toBe(true);
   });
 
-  it('opens the inspector when the shared page navigates to a real URL', () => {
+  it('does not reopen the inspector for a passive state update with an existing URL', () => {
     expect(
       shouldRevealBrowserInspector({
         type: 'browser/state',
         url: 'http://127.0.0.1:3000',
         ts: 0,
       }),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('does not reopen the inspector when a mirror starts on an agent-owned page', () => {
+    expect(shouldRevealBrowserInspector({
+      type: 'browser/controller', owner: 'agent', reason: 'mirror-start', ts: 0,
+    })).toBe(false);
+  });
+
+  it.each(['agent-write', 'agent-lock'])('reveals genuine %s browser activity', (reason) => {
+    expect(shouldRevealBrowserInspector({
+      type: 'browser/controller', owner: 'agent', reason, sessionId: 'current', ts: 0,
+    }, 'current')).toBe(true);
   });
 
   it('does not steal focus for user lock, blank pages, or frames', () => {

@@ -75,4 +75,21 @@ describe('useBrowserInspectorReveal', () => {
 
     expect(openInspector).not.toHaveBeenCalled();
   });
+
+  it('does not refocus the Browser inspector for page refreshes or mirror-start echoes', () => {
+    const client = new HostClient({ transport: 'mock' });
+    const openInspector = vi.fn();
+    act(() => root.render(<Probe hostClient={client} openInspector={openInspector} />));
+    const listeners = (client as unknown as { listeners: Set<(message: HostPush) => void> }).listeners;
+    const emit = (message: HostPush): void => act(() => {
+      for (const listener of listeners) listener(message);
+    });
+    emit({ type: 'browser/controller', owner: 'agent', reason: 'agent-write', ts: 1 });
+    expect(openInspector).toHaveBeenCalledExactlyOnceWith('browser');
+    openInspector.mockClear();
+
+    emit({ type: 'browser/state', url: 'https://linux.do/t/topic/2904802', lifecycle: 'ready', ts: 2 });
+    emit({ type: 'browser/controller', owner: 'agent', reason: 'mirror-start', ts: 3 });
+    expect(openInspector).not.toHaveBeenCalled();
+  });
 });
