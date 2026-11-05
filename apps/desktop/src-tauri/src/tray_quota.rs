@@ -21,9 +21,9 @@ pub(crate) const TRAY_QUOTA_LABEL: &str = "tray-quota";
 #[cfg(target_os = "macos")]
 const TRAY_ICON_ID: &str = "piwin-oauth-tray";
 
-const DEFAULT_POPOVER_WIDTH: f64 = 356.0;
-const DEFAULT_POPOVER_HEIGHT: f64 = 420.0;
-const MIN_POPOVER_HEIGHT: f64 = 180.0;
+const DEFAULT_POPOVER_WIDTH: f64 = 330.0;
+const DEFAULT_POPOVER_HEIGHT: f64 = 280.0;
+const MIN_POPOVER_HEIGHT: f64 = 120.0;
 const MAX_POPOVER_HEIGHT: f64 = 620.0;
 
 #[derive(Clone, Copy, Debug)]

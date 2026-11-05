@@ -183,10 +183,8 @@ describe('TrayQuotaView & useTrayQuotaSync', () => {
       lastUpdated: '2026-11-04T08:00:00.000Z',
     };
 
-    const onRefreshAll = vi.fn();
     const onRefreshProvider = vi.fn();
-    const onOpenPiwinWorkspace = vi.fn();
-    const onOpenOauthSettings = vi.fn();
+    const onOpenPiwin = vi.fn();
 
     act(() => {
       root.render(
@@ -201,22 +199,17 @@ describe('TrayQuotaView & useTrayQuotaSync', () => {
             locale: 'zh-CN',
             themeMode: 'dark',
           }}
-          onRefreshAll={onRefreshAll}
           onRefreshProvider={onRefreshProvider}
-          onOpenPiwinWorkspace={onOpenPiwinWorkspace}
-          onOpenOauthSettings={onOpenOauthSettings}
+          onOpenPiwin={onOpenPiwin}
         />,
       );
     });
 
-    const connectedCount = container.querySelector('[data-testid="tray-quota-connected-count"]');
-    expect(connectedCount?.textContent).toContain('1 个套餐已连接');
     expect(container.textContent).toContain('ChatGPT Codex');
     expect(container.textContent).toContain('Plus');
     expect(container.textContent).toContain('dev@piwin.ai');
     expect(container.textContent).toContain('剩余 78%');
     expect(container.textContent).toContain('已用 65%');
-    expect(container.textContent).toContain('可主动重置 2 次');
 
     // Progress bar fill: 78% remaining -> 78%, 65% used -> 35% remaining fill
     const fill0 = container.querySelector<HTMLElement>(
@@ -236,25 +229,16 @@ describe('TrayQuotaView & useTrayQuotaSync', () => {
       refreshBtn?.click();
     });
     expect(onRefreshProvider).toHaveBeenCalledWith('openai-codex');
-    expect(onOpenOauthSettings).not.toHaveBeenCalled();
+    expect(onOpenPiwin).not.toHaveBeenCalled();
 
-    // Clicking the provider card opens piwin OAuth settings
+    // Clicking the provider row/icon opens piwin
     const card = container.querySelector<HTMLElement>(
       '[data-testid="tray-provider-card-openai-codex"]',
     );
     act(() => {
       card?.click();
     });
-    expect(onOpenOauthSettings).toHaveBeenCalledWith('openai-codex');
-
-    // Clicking "进入工作台" opens the main piwin workbench
-    const openWorkbenchBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="tray-quota-open-piwin"]',
-    );
-    act(() => {
-      openWorkbenchBtn?.click();
-    });
-    expect(onOpenPiwinWorkspace).toHaveBeenCalledTimes(1);
+    expect(onOpenPiwin).toHaveBeenCalledTimes(1);
   });
 
   it('toggles tray icon visibility and fetches quota when OAuth accounts log in and out', async () => {
