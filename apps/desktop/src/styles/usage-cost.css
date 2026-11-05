@@ -15,29 +15,8 @@
   color: color-mix(in srgb, var(--amber) 72%, var(--text-1));
 }
 
-/* The cost card folds to its label row, so the summary grid reads as three
-   peer cards plus one quiet one instead of four equal blocks. */
-.usage-summary-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-3);
-  min-width: 0;
-}
-
-.usage-summary-card-cost[data-collapsed='true'] {
-  align-self: start;
-}
-
-/* Expanded, the body fills the card so the meta line keeps sitting at the
-   bottom like its peers. */
-.usage-summary-card-cost > .piwin-collapse {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-  flex-direction: column;
-}
-
+/* The cost card is a peer of the other three readouts: same label row, same
+   body order, no fold of its own. */
 .usage-cost-card-body {
   display: flex;
   flex: 1 1 auto;

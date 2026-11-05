@@ -3,10 +3,8 @@
  * peers (headline, two pairs, one meta line); the breakdown, trend and
  * pricing notes live in the 费用构成 section below.
  */
-import { useId, useState, type ReactElement } from 'react';
-import { Button, Collapse } from '@piwin/ui-kit';
+import type { ReactElement } from 'react';
 import type { UsageRollup } from '@piwin/contracts';
-import { IconChevronDown } from '../tool-cards/shell-icons.js';
 import { formatUsageExact } from './usage-panel-statistics';
 import {
   formatUsageUsdAverage,
@@ -22,10 +20,6 @@ export function UsageCostOverviewCard({ rollup, dayCount, isZh }: {
   isZh: boolean;
 }): ReactElement {
   const overview = resolveUsageCostOverview(rollup);
-  // Folded by default: the daily token readout is what most visits want, and
-  // money is one click away rather than the first thing read.
-  const [collapsed, setCollapsed] = useState(true);
-  const bodyId = useId();
   const priced = overview.totalUsd !== undefined && overview.pricedCount > 0;
   const dailyUsd = priced && dayCount > 0 ? (overview.totalUsd ?? 0) / dayCount : undefined;
   const perCallUsd = priced ? (overview.totalUsd ?? 0) / overview.pricedCount : undefined;
@@ -51,50 +45,30 @@ export function UsageCostOverviewCard({ rollup, dayCount, isZh }: {
       className="usage-summary-card usage-summary-card-cost"
       data-testid="usage-cost-card"
       data-cost-state={overview.state}
-      data-collapsed={collapsed ? 'true' : undefined}
     >
-      <div className="usage-summary-card-head">
-        <span className="usage-summary-label">{isZh ? '估算费用' : 'Estimated cost'}</span>
-        <Button
-          variant="ghost"
-          size="compact"
-          aria-expanded={!collapsed}
-          aria-controls={bodyId}
-          onClick={() => setCollapsed((value) => !value)}
-          data-testid="usage-cost-card-toggle"
+      <span className="usage-summary-label">{isZh ? '估算费用' : 'Estimated cost'}</span>
+      <div className="usage-cost-card-body">
+        <strong className="usage-summary-value" data-testid="usage-cost-total">
+          <UsdAmount text={formatUsageUsdSummary(overview.totalUsd)} />
+        </strong>
+        <dl className="usage-summary-pairs">
+          <div>
+            <dt>{isZh ? '日均' : 'Per day'}</dt>
+            <dd data-testid="usage-cost-daily">{formatUsageUsdAverage(dailyUsd)}</dd>
+          </div>
+          <div>
+            <dt>{isZh ? '每次请求' : 'Per call'}</dt>
+            <dd data-testid="usage-cost-per-call">{formatUsageUsdAverage(perCallUsd)}</dd>
+          </div>
+        </dl>
+        <span
+          className="usage-summary-meta usage-cost-meta"
+          data-testid="usage-cost-meta"
+          data-attention={overview.state === 'partial' || overview.state === 'unpriced' ? 'true' : undefined}
         >
-          {collapsed ? (isZh ? '展开' : 'Show') : isZh ? '收起' : 'Hide'}
-          <IconChevronDown
-            className={`settings-collapsible-chevron${collapsed ? '' : ' open'}`}
-            width={14}
-            height={14}
-          />
-        </Button>
+          {meta}
+        </span>
       </div>
-      <Collapse expanded={!collapsed} testId="usage-cost-card-body">
-        <div id={bodyId} className="usage-cost-card-body">
-          <strong className="usage-summary-value" data-testid="usage-cost-total">
-            <UsdAmount text={formatUsageUsdSummary(overview.totalUsd)} />
-          </strong>
-          <dl className="usage-summary-pairs">
-            <div>
-              <dt>{isZh ? '日均' : 'Per day'}</dt>
-              <dd data-testid="usage-cost-daily">{formatUsageUsdAverage(dailyUsd)}</dd>
-            </div>
-            <div>
-              <dt>{isZh ? '每次请求' : 'Per call'}</dt>
-              <dd data-testid="usage-cost-per-call">{formatUsageUsdAverage(perCallUsd)}</dd>
-            </div>
-          </dl>
-          <span
-            className="usage-summary-meta usage-cost-meta"
-            data-testid="usage-cost-meta"
-            data-attention={overview.state === 'partial' || overview.state === 'unpriced' ? 'true' : undefined}
-          >
-            {meta}
-          </span>
-        </div>
-      </Collapse>
     </section>
   );
 }

@@ -226,17 +226,7 @@ async function openCostSection(container: HTMLDivElement | undefined): Promise<v
   }
 }
 
-/** The cost summary card folds to its label row; its numbers need the same step. */
-async function openCostCard(container: HTMLDivElement | undefined): Promise<void> {
-  const toggle = container?.querySelector<HTMLButtonElement>(
-    '[data-testid="usage-cost-card-toggle"]',
-  );
-  if (toggle?.getAttribute('aria-expanded') === 'false') {
-    await act(async () => {
-      toggle.click();
-    });
-  }
-}
+/** The cost summary card has no fold: its numbers are always on screen. */
 
 describe('UsagePanel', () => {
   let root: Root | undefined;
@@ -277,7 +267,6 @@ describe('UsagePanel', () => {
       await flushLoad();
       // The body assertions below describe the 30-day trend, so pick that window.
       await selectTimeRange(container, '30d');
-      await openCostCard(container);
       await openCostSection(container);
 
       const cards = container?.querySelectorAll('.usage-summary-card');
@@ -286,8 +275,8 @@ describe('UsagePanel', () => {
       expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('<$0.01');
       expect(container?.querySelector('[data-testid="usage-cost-meta"]')?.textContent).toBe('已计价 66% · 1 次未计价');
       expect(container?.querySelector('[data-testid="usage-cost-per-call"]')?.textContent).toBe('$0.003');
-      // The card owns exactly one control: the fold that reveals its numbers.
-      expect(cards?.[0]?.querySelectorAll('button')).toHaveLength(1);
+      // The card owns no controls: it is a readout, like its three peers.
+      expect(cards?.[0]?.querySelectorAll('button')).toHaveLength(0);
 
       const section = container?.querySelector('[data-testid="usage-cost-section"]');
       expect(section).not.toBeNull();
@@ -364,7 +353,6 @@ describe('UsagePanel', () => {
     ({ root, container } = renderPanel());
     await flushLoad();
     expect(container?.querySelector('[data-testid="usage-cost-card"]')?.getAttribute('data-cost-state')).toBe('unsupported');
-    await openCostCard(container);
     expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('—');
     expect(container?.querySelector('[data-testid="usage-cost-section"]')).toBeNull();
     expect(container?.querySelector('[data-testid="usage-call-cost"]')?.textContent).toBe('—');
@@ -534,7 +522,7 @@ describe('UsagePanel', () => {
     expect(section?.querySelector('[data-testid="usage-cost-grouping"]')).not.toBeNull();
   });
 
-  it('folds the cost card down to its label row', async () => {
+  it('shows the card numbers without asking for a second click', async () => {
     const pricedRollup: UsageRollup = {
       ...SAMPLE_ROLLUP,
       estimatedCostUsd: 0.03,
@@ -546,14 +534,9 @@ describe('UsagePanel', () => {
     await flushLoad();
 
     const card = container?.querySelector('[data-testid="usage-cost-card"]');
-    expect(card?.getAttribute('data-collapsed')).toBe('true');
-    expect(card?.textContent).toContain('估算费用');
-    const toggle = card?.querySelector<HTMLButtonElement>('[data-testid="usage-cost-card-toggle"]');
-    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-
-    await act(async () => { toggle?.click(); });
     expect(card?.getAttribute('data-collapsed')).toBeNull();
-    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(card?.textContent).toContain('估算费用');
+    expect(card?.querySelector('[data-testid="usage-cost-card-toggle"]')).toBeNull();
     expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('$0.03');
   });
 
