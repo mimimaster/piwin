@@ -34,7 +34,7 @@ import { BrowserSessionProvider } from '../browser/browser-session-provider';
 import { useBrowserActivitySignal } from '../browser/use-browser-activity-signal';
 import { hasBrowserMiniActivity } from '../browser/browser-mini-policy';
 import { SessionRailDock } from '../right-panel/session-rail-dock';
-import { SessionSummaryBinding } from '../right-panel/session-summary-binding';
+import { SessionStatusPopover, type SessionStatusArtifact } from '../run-activity/session-status-popover';
 import { useSessionResources } from '../right-panel/use-session-resources';
 import {
   browserMiniHostScope,
@@ -172,54 +172,47 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
       owner: browserActivity.owner,
     });
   const browserSessionEnabled = state.activeSessionId !== null && (browserTabOpen || dockingBrowserOpen || miniCandidate);
-  // Verified environment + document projections. Both already exist in the
-  // workbench state; nothing here is inferred from prose.
-  const activeSessionRecord = (
-    state.activeScope.kind === 'general' ? state.generalSessions : state.sessions
-  ).find((session) => session.id === state.activeSessionId);
-  const remoteTarget = hostClient.getRemoteTarget();
-  const environment = {
-    ...(activeSessionRecord?.model?.modelId === undefined
-      ? {}
-      : { modelId: activeSessionRecord.model.modelId }),
-    ...(activeSessionRecord?.thinkingLevel === undefined
-      ? {}
-      : { thinkingLevel: activeSessionRecord.thinkingLevel }),
-    ...(activeSessionRecord?.messageCount === undefined
-      ? {}
-      : { messageCount: activeSessionRecord.messageCount }),
-    ...(remoteTarget === undefined ? {} : { hostLabel: remoteTarget.endpoint }),
-  };
-  const summaryDocuments = inspectorSessionDocuments.slice(0, 8);
+  // Verified artifact rows for the titlebar status popover: canvas target,
+  // walkthrough count, session documents, and Host-projected outputs.
   const sessionResources = useSessionResources({
     hostClient,
     sessionId: state.activeSessionId,
-    messageCount: activeSessionRecord?.messageCount ?? null,
+    messageCount:
+      (
+        state.activeScope.kind === 'general' ? state.generalSessions : state.sessions
+      ).find((session) => session.id === state.activeSessionId)?.messageCount ?? null,
   });
 
-  const summaryContent = (
-    <SessionSummaryBinding
-      locale={desktopLocale}
-      sessionTitle={activeSessionName || null}
-      streaming={state.streaming}
-      projectPath={state.projectPath}
-      projectTrusted={state.projectTrusted}
-      workspaceKind={state.activeScope.kind === 'project' ? 'project' : 'general'}
-      contextTelemetry={state.contextTelemetry}
-      diffStat={workingTreeStat}
-      plan={
-        sessionPlan === null
-          ? null
-          : {
-              title: sessionPlan.title,
-              completedSteps: sessionPlan.steps.filter((step) => step.status === 'done').length,
-              totalSteps: sessionPlan.steps.length,
-              onOpen: () => openRightTab('docPreview'),
-            }
-      }
-      walkthroughCount={Object.keys(state.walkthroughsByMessageId).length}
-      documents={summaryDocuments}
-      onOpenDocument={(document) => {
+  const statusArtifacts: SessionStatusArtifact[] = [];
+  if (artifactCanvas.activeTarget !== null) {
+    statusArtifacts.push({
+      id: 'canvas',
+      title: artifactCanvas.activeTarget.title,
+      tag: desktopLocale === 'zh-CN' ? '画布' : 'Canvas',
+      onOpen: () => {
+        const target = artifactCanvas.activeTarget;
+        if (target !== null) handleOpenArtifactCanvas(target);
+      },
+    });
+  }
+  const walkthroughCount = Object.keys(state.walkthroughsByMessageId).length;
+  if (walkthroughCount > 0) {
+    statusArtifacts.push({
+      id: 'walkthroughs',
+      title:
+        desktopLocale === 'zh-CN'
+          ? `交付报告 ×${String(walkthroughCount)}`
+          : `Delivery reports ×${String(walkthroughCount)}`,
+      tag: desktopLocale === 'zh-CN' ? '报告' : 'Report',
+      onOpen: () => openRightTab('docPreview'),
+    });
+  }
+  for (const document of inspectorSessionDocuments.slice(0, 5)) {
+    statusArtifacts.push({
+      id: `doc-${document.id}`,
+      title: document.title,
+      ...(document.path === undefined ? {} : { tag: document.path }),
+      onOpen: () => {
         model.handleOpenDocument(
           {
             title: document.title,
@@ -227,20 +220,54 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
           },
           'inspector',
         );
-      }}
-      environment={environment}
-      resources={sessionResources}
-      onOpenLibrary={openLibrary}
-      onOpenKnowledge={openKnowledge}
-      artifactTitle={artifactCanvas.activeTarget?.title ?? null}
-      tasksActiveCount={tasksActiveCount}
-      runningJobCount={jobs.length}
+      },
+    });
+  }
+  for (const resource of sessionResources) {
+    if (resource.role !== 'output' || resource.availability === 'missing') continue;
+    if (statusArtifacts.length >= 10) break;
+    statusArtifacts.push({
+      id: `res-${resource.id}`,
+      title: resource.title,
+      ...(resource.target === undefined
+        ? {}
+        : {
+            tag:
+              desktopLocale === 'zh-CN'
+                ? '写入'
+                : 'Written',
+          }),
+      ...(resource.kind === 'media'
+        ? { onOpen: openLibrary }
+        : resource.kind === 'file' && resource.target !== undefined
+          ? {
+              onOpen: () => {
+                const target = resource.target;
+                if (target === undefined) return;
+                model.handleOpenDocument(
+                  { title: resource.title, path: target },
+                  'inspector',
+                );
+              },
+            }
+          : {}),
+    });
+  }
+
+  const statusControl = (
+    <SessionStatusPopover
+      locale={desktopLocale}
+      plan={sessionPlan}
+      orchestrationView={model.sessionActivity?.orchestrationView}
+      jobs={model.sessionActivity?.activeJobs ?? []}
+      diffStat={workingTreeStat}
+      artifacts={statusArtifacts}
       onOpenTool={openRightTab}
-      onOpenArtifact={() => {
-        if (artifactCanvas.activeTarget !== null) {
-          handleOpenArtifactCanvas(artifactCanvas.activeTarget);
-        }
-      }}
+      onViewJobLogs={model.sessionActivity?.onViewJobLogs}
+      onStopJob={model.sessionActivity?.onStopJob}
+      onCancelSubagentBatch={model.sessionActivity?.onCancelSubagentBatch}
+      onCancelSubagentBatches={model.sessionActivity?.onCancelSubagentBatches}
+      isSubagentStopping={model.sessionActivity?.isSubagentStopping}
     />
   );
 
@@ -398,6 +425,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             onOpenSessionSearch={openSessionSearch}
             {...(revealActiveSession ? { onRevealActiveSession: revealActiveSession } : {})}
             conversationShellControl={cli.control}
+            statusControl={statusControl}
             trailing={sessionContextRow}
             isInkstone={inkstoneStage}
           />
@@ -605,7 +633,6 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
             terminalJobMonitor={terminalJobMonitor}
             tasksActiveCount={tasksActiveCount}
             tasksContent={tasksContent}
-            summaryContent={summaryContent}
           />
         }
       />

@@ -70,6 +70,8 @@ export type WorkbenchContextBarProps = {
   trailing?: ReactNode | undefined;
   conversationShellControl?: ReactNode;
   sessionMenu?: ReactNode;
+  /** Session status control (flat popover) left of the right-panel toggle. */
+  statusControl?: ReactNode;
 };
 
 export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactElement {
@@ -214,6 +216,7 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
       onToggleAppearance={onToggleAppearance}
       onOpenSettings={() => openSettingsSection('general')}
       workPanelOpen={workPanelOpen}
+      {...(props.statusControl ? { statusControl: props.statusControl } : {})}
       onToggleWorkPanel={props.onToggleWorkPanel ?? (() => shell.toggleInspector(rightPanelTab))}
       {...(activeSessionOrigin ? { origin: activeSessionOrigin } : {})}
       {...(activeSessionOrigin?.kind === 'fork'

@@ -3,12 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type { JobRecord } from '@piwin/contracts';
+import type { JobRecord, SessionPlan } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
-import { applyComposerStopAll, focusComposerSubagentItem } from './composer-activity-actions';
+import { applyComposerStopAll, focusComposerSubagentItem } from '../composer/composer-activity-actions';
 import { subagentInvocationDomId } from '../agents/subagent-orchestration-view';
-import { ComposerActivityPill, type ComposerActivityPillProps } from './composer-activity-pill';
-import { EMPTY_SUBAGENT_ORCHESTRATION_VIEW } from './composer-activity-model';
+import { SessionStatusPopover, type SessionStatusPopoverProps } from './session-status-popover';
+import { EMPTY_SUBAGENT_ORCHESTRATION_VIEW } from '../composer/composer-activity-model';
 import { DesktopLocaleProvider } from '../i18n/desktop-locale-context';
 import type { SubagentOrchestrationItem, SubagentOrchestrationView } from '../agents/subagent-orchestration-view';
 
@@ -44,6 +44,27 @@ function makeJob(overrides: Partial<JobRecord> = {}): JobRecord {
   };
 }
 
+function makePlan(overrides: Partial<SessionPlan> = {}): SessionPlan {
+  return {
+    id: 'plan-1',
+    sessionId: 'session-1',
+    projectPath: '/project',
+    status: 'executing',
+    title: 'Ship the redesign',
+    goal: 'goal',
+    revision: 1,
+    createdAt: '2026-09-13T00:00:00.000Z',
+    updatedAt: '2026-09-13T00:00:00.000Z',
+    source: 'assistant',
+    steps: [
+      { id: '1', title: 'Rewrite the mini', status: 'done' },
+      { id: '2', title: 'Wire the status popover', status: 'active' },
+      { id: '3', title: 'Verify', status: 'pending' },
+    ],
+    ...overrides,
+  };
+}
+
 function viewFromItems(items: SubagentOrchestrationItem[]): SubagentOrchestrationView {
   return {
     ...EMPTY_SUBAGENT_ORCHESTRATION_VIEW,
@@ -57,36 +78,31 @@ function viewFromItems(items: SubagentOrchestrationItem[]): SubagentOrchestratio
   };
 }
 
-function Harness(props: ComposerActivityPillProps): ReactElement {
+function Harness(props: SessionStatusPopoverProps): ReactElement {
   return (
     <DesktopLocaleProvider locale="en" onLocaleChange={() => undefined}>
       <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-        <ComposerActivityPill {...props} />
+        <SessionStatusPopover {...props} />
       </PiwinUiProvider>
     </DesktopLocaleProvider>
   );
 }
 
-function queryPill(): HTMLElement | null {
-  return document.querySelector('[data-testid="composer-activity-pill"]');
+function queryTrigger(): HTMLElement | null {
+  return document.querySelector('[data-testid="session-status-btn"]');
 }
 
-function queryPopover(): HTMLElement | null {
-  return document.querySelector('[data-testid="composer-activity-popover"]');
-}
-
-function activatePill(): void {
-  const pill = queryPill();
-  if (!(pill instanceof HTMLElement)) {
-    throw new Error('activity pill was not rendered');
+function openPopover(): void {
+  const trigger = queryTrigger();
+  if (!(trigger instanceof HTMLElement)) {
+    throw new Error('status button was not rendered');
   }
   act(() => {
-    pill.focus();
-    pill.click();
+    trigger.click();
   });
 }
 
-describe('ComposerActivityPill', () => {
+describe('SessionStatusPopover', () => {
   let container: HTMLElement;
   let root: Root;
   let previousMatchMedia: typeof window.matchMedia;
@@ -116,50 +132,59 @@ describe('ComposerActivityPill', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = undefined;
   });
 
-  it('is hidden when no active subagents and no jobs', () => {
+  it('shows an empty state when nothing is going on', () => {
     act(() =>
       root.render(
-        <Harness
-          orchestrationView={EMPTY_SUBAGENT_ORCHESTRATION_VIEW}
-          jobs={[]}
-          onViewJobLogs={vi.fn()}
-          onStopJob={vi.fn()}
-          onCancelSubagentBatch={vi.fn()}
-          onOpenTasks={vi.fn()}
-        />,
+        <Harness onOpenTool={vi.fn()} />,
       ),
     );
-    expect(queryPill()).toBeNull();
-    expect(container.querySelector('[data-testid="composer-activity-rail"]')).toBeNull();
+    openPopover();
+    expect(document.querySelector('[data-testid="session-status-empty"]')?.textContent).toBe(
+      'No session activity',
+    );
+    expect(queryTrigger()).not.toBeNull();
+    expect(document.querySelector('[data-testid="session-status-live-dot"]')).toBeNull();
   });
 
-  it('shows a count for two running invocations and lists both titles', () => {
+  it('lists plan steps with a progress counter and flags live state on the button', () => {
+    act(() =>
+      root.render(
+        <Harness plan={makePlan()} onOpenTool={vi.fn()} />,
+      ),
+    );
+    openPopover();
+    const group = document.querySelector('[data-testid="session-status-progress"]');
+    expect(group?.textContent).toContain('1/3');
+    expect(group?.textContent).toContain('Rewrite the mini');
+    expect(group?.textContent).toContain('Wire the status popover');
+    expect(group?.textContent).toContain('Verify');
+    expect(document.querySelector('[data-testid="session-status-live-dot"]')).not.toBeNull();
+  });
+
+  it('shows running subagents and routes a row click to its card or Tasks', () => {
+    const onOpenTool = vi.fn();
     act(() =>
       root.render(
         <Harness
-          locale="en"
           orchestrationView={viewFromItems([
             makeItem({ anchorId: 'inv-a', invocationId: 'inv-a', title: 'Scout auth', runId: 'run-1' }),
-            makeItem({
-              anchorId: 'inv-b',
-              invocationId: 'inv-b',
-              title: 'Write contracts',
-              runId: 'run-1',
-            }),
+            makeItem({ anchorId: 'inv-b', title: 'Write contracts', runId: 'run-2' }),
           ])}
-          jobs={[]}
-          onViewJobLogs={vi.fn()}
-          onStopJob={vi.fn()}
-          onCancelSubagentBatch={vi.fn()}
-          onOpenTasks={vi.fn()}
+          onOpenTool={onOpenTool}
         />,
       ),
     );
-    expect(queryPill()?.textContent).toContain('2 Working');
-    activatePill();
-    const popover = queryPopover();
-    expect(popover?.textContent).toContain('Scout auth');
-    expect(popover?.textContent).toContain('Write contracts');
+    openPopover();
+    const rows = [...document.querySelectorAll('[data-testid="session-status-subagent-row"]')];
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Scout auth'),
+      expect.stringContaining('Write contracts'),
+    ]);
+    // Second row has no invocation card in the DOM → falls back to Tasks.
+    act(() => {
+      rows[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onOpenTool).toHaveBeenCalledWith('tasks');
   });
 
   it('clicking a job row calls onViewJobLogs and does not cancel', () => {
@@ -170,15 +195,15 @@ describe('ComposerActivityPill', () => {
       root.render(
         <Harness
           jobs={[makeJob({ label: 'dev server' })]}
+          onOpenTool={vi.fn()}
           onViewJobLogs={onViewJobLogs}
           onStopJob={onStopJob}
           onCancelSubagentBatch={onCancelSubagentBatch}
-          onOpenTasks={vi.fn()}
         />,
       ),
     );
-    activatePill();
-    const jobRow = document.querySelector('[data-testid="composer-activity-job-row"]');
+    openPopover();
+    const jobRow = document.querySelector('[data-testid="session-status-job-row"]');
     if (!(jobRow instanceof HTMLElement)) {
       throw new Error('job row was not rendered');
     }
@@ -198,23 +223,18 @@ describe('ComposerActivityPill', () => {
       root.render(
         <Harness
           orchestrationView={viewFromItems([
-            makeItem({
-              anchorId: 'inv-a',
-              invocationId: 'inv-a',
-              title: 'Scout auth',
-              runId: 'run-1',
-            }),
+            makeItem({ anchorId: 'inv-a', title: 'Scout auth', runId: 'run-1' }),
           ])}
           jobs={[makeJob({ label: 'api' })]}
+          onOpenTool={vi.fn()}
           onViewJobLogs={onViewJobLogs}
           onStopJob={onStopJob}
           onCancelSubagentBatch={onCancelSubagentBatch}
-          onOpenTasks={vi.fn()}
         />,
       ),
     );
-    activatePill();
-    const jobStop = document.querySelector('[data-testid="composer-activity-stop-job"]');
+    openPopover();
+    const jobStop = document.querySelector('[data-testid="session-status-stop-job"]');
     if (!(jobStop instanceof HTMLElement)) {
       throw new Error('job stop was not rendered');
     }
@@ -224,7 +244,7 @@ describe('ComposerActivityPill', () => {
     expect(onStopJob).toHaveBeenCalledWith('job-1');
     expect(onViewJobLogs).not.toHaveBeenCalled();
 
-    const stopAll = document.querySelector('[data-testid="composer-activity-stop-all"]');
+    const stopAll = document.querySelector('[data-testid="session-status-stop-all"]');
     if (!(stopAll instanceof HTMLElement)) {
       throw new Error('stop-all was not rendered');
     }
@@ -235,10 +255,9 @@ describe('ComposerActivityPill', () => {
     expect(onCancelSubagentBatch).toHaveBeenCalledWith('run-1');
     expect(onStopJob).toHaveBeenCalledWith('job-1');
     expect(onViewJobLogs).not.toHaveBeenCalled();
-    expect(onCancelSubagentBatch.mock.calls.every((call) => call.length === 1)).toBe(true);
   });
 
-  it('disables a row stop while its request is in flight and routes stop-all as one batch call', () => {
+  it('routes stop-all as one batch call when available', () => {
     const onCancelSubagentBatch = vi.fn();
     const onCancelSubagentBatches = vi.fn();
     act(() =>
@@ -248,23 +267,14 @@ describe('ComposerActivityPill', () => {
             makeItem({ anchorId: 'inv-a', title: 'Scout', runId: 'run-1' }),
             makeItem({ anchorId: 'inv-b', title: 'Writer', runId: 'run-2' }),
           ])}
-          onViewJobLogs={vi.fn()}
-          onStopJob={vi.fn()}
+          onOpenTool={vi.fn()}
           onCancelSubagentBatch={onCancelSubagentBatch}
           onCancelSubagentBatches={onCancelSubagentBatches}
-          isSubagentStopping={(runId) => runId === 'run-1'}
-          onOpenTasks={vi.fn()}
         />,
       ),
     );
-    activatePill();
-    const stops = [
-      ...document.querySelectorAll('[data-testid="composer-activity-stop-subagent"]'),
-    ] as HTMLButtonElement[];
-    expect(stops.map((button) => button.disabled)).toEqual([true, false]);
-    expect(stops[0]?.getAttribute('aria-label')).toBe('Stopping…');
-
-    const stopAll = document.querySelector('[data-testid="composer-activity-stop-all"]');
+    openPopover();
+    const stopAll = document.querySelector('[data-testid="session-status-stop-all"]');
     if (!(stopAll instanceof HTMLElement)) {
       throw new Error('stop-all was not rendered');
     }
@@ -275,33 +285,38 @@ describe('ComposerActivityPill', () => {
     expect(onCancelSubagentBatch).not.toHaveBeenCalled();
   });
 
-  it('prefers-reduced-motion does not require the braille animation', () => {
-    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-      matches: query.includes('prefers-reduced-motion'),
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
+  it('opens Review from the diff row and artifact rows call their handler', () => {
+    const onOpenTool = vi.fn();
+    const onOpenArtifact = vi.fn();
     act(() =>
       root.render(
         <Harness
-          orchestrationView={viewFromItems([
-            makeItem({ anchorId: 'inv-a', title: 'Scout', runId: 'run-1' }),
-          ])}
-          onViewJobLogs={vi.fn()}
-          onStopJob={vi.fn()}
-          onCancelSubagentBatch={vi.fn()}
-          onOpenTasks={vi.fn()}
+          diffStat={{ additions: 12, deletions: 3 }}
+          artifacts={[{ id: 'canvas', title: '架构图', tag: '画布', onOpen: onOpenArtifact }]}
+          onOpenTool={onOpenTool}
         />,
       ),
     );
-    const icon = document.querySelector('.composer-activity-pill-icon');
-    expect(icon?.getAttribute('data-animated')).toBe('false');
-    expect(icon?.classList.contains('is-static')).toBe(true);
+    openPopover();
+    const diff = document.querySelector('[data-testid="session-status-diff"]');
+    expect(diff?.textContent).toContain('+12');
+    expect(diff?.textContent).toContain('−3');
+
+    // Row clicks close the popover; click artifacts before the changes row.
+    act(() => {
+      document
+        .querySelector('[data-testid="session-status-artifact-canvas"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onOpenArtifact).toHaveBeenCalledTimes(1);
+
+    openPopover();
+    act(() => {
+      document
+        .querySelector('[data-testid="session-status-changes-row"]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onOpenTool).toHaveBeenCalledWith('review');
   });
 });
 

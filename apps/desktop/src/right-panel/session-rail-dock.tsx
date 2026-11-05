@@ -1,18 +1,15 @@
 /**
  * Stage-gutter Session Rail: the collapsed right workspace's only entry point.
  *
- * One product surface with three states — collapsed rail, expanded Summary,
- * expanded tool — replaces the old four-shortcut card, so Summary and every
- * tool keep a stable entry even when the gutter narrows. The rail also hosts
- * the Browser Mini: a live view of the one shared browser, docked under the
- * rail until the user drags it away.
+ * One product surface — compact tool pills plus the Browser Mini — replaces
+ * the old four-shortcut card. The mini is a live view of the one shared
+ * browser, docked under the rail until the user drags it away.
  */
 import { useCallback, useState, type ReactElement, type ReactNode } from 'react';
 import { SessionRail, type SessionRailItemProps } from '@piwin/ui-kit';
 import type { RightPanelTab } from './right-panel-sections';
 import type { DesktopLocale } from '../i18n/desktop-locale';
 import { sectionIcon } from './right-panel-sections';
-import { IconActivity } from '../tool-cards/shell-icons';
 import { BrowserMiniWindow } from '../browser/browser-mini-window';
 import { BrowserActivityChip } from '../browser/browser-activity-chip';
 import { useSharedBrowserSession } from '../browser/browser-session-provider';
@@ -44,6 +41,28 @@ export type SessionRailDockProps = {
 
 type MiniPlacement = 'docked' | 'floating';
 
+/** Phone replaces rail+mini with a chip; isolated so hooks stay unconditional. */
+function SessionPhoneChip({
+  locale,
+  title,
+  agentDriving,
+  onOpen,
+}: {
+  locale: DesktopLocale;
+  title: string;
+  agentDriving: boolean;
+  onOpen: () => void;
+}): ReactElement {
+  return (
+    <BrowserActivityChip
+      locale={locale}
+      agentDriving={agentDriving}
+      title={title}
+      onOpen={onOpen}
+    />
+  );
+}
+
 export function SessionRailDock(props: SessionRailDockProps): ReactElement {
   const { locale, onOpenTool } = props;
   const zh = locale === 'zh-CN';
@@ -69,32 +88,25 @@ export function SessionRailDock(props: SessionRailDockProps): ReactElement {
     fallback: '',
   });
 
-  // The chip replaces rail+mini on phone; the rail is desktop/tablet chrome.
-  if (props.phone === true) {
-    if (!hasBrowserMiniActivity(activity) || props.overlayOpen) return <></>;
-    return (
-      <BrowserActivityChip
-        locale={locale}
-        agentDriving={activity.owner === 'agent'}
-        title={miniTitle}
-        onOpen={() => onOpenTool('browser')}
-      />
-    );
-  }
-
   const closeMini = useCallback(() => {
     setMiniDismissed(true);
     setPlacement('docked');
   }, []);
 
+  // The chip replaces rail+mini on phone; the rail is desktop/tablet chrome.
+  if (props.phone === true) {
+    if (!hasBrowserMiniActivity(activity) || props.overlayOpen) return <></>;
+    return (
+      <SessionPhoneChip
+        locale={locale}
+        title={miniTitle}
+        agentDriving={activity.owner === 'agent'}
+        onOpen={() => onOpenTool('browser')}
+      />
+    );
+  }
+
   const items: SessionRailItemProps[] = [
-    {
-      id: 'summary',
-      label: zh ? '会话概览' : 'Summary',
-      icon: <IconActivity />,
-      variant: 'summary',
-      onSelect: () => onOpenTool('summary'),
-    },
     {
       id: 'review',
       label: zh ? '变更' : 'Changes',

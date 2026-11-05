@@ -16,7 +16,7 @@
 @import './styles/compaction-seam.css';
 @import './styles/region-shell.css';
 @import './styles/session-rail.css';
-@import './styles/session-summary.css';
+@import './styles/session-status.css';
 @import './styles/resize-performance.css';
 @import './styles/region-sidebar.css';
 @import './styles/region-sidebar-tree.css';
@@ -38,7 +38,7 @@
 @import './styles/composer-stats-line.css';
 @import './styles/composer-menus.css';
 @import './styles/composer-popovers.css';
-@import './styles/composer-activity-pill.css';
+
 @import './styles/terminal-job-monitor.css';
 @import './styles/region-transcript.css';
 @import './styles/transcript-edge-blur.css';

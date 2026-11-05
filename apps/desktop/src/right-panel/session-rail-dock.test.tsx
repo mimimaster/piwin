@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 /**
- * Collapsed-workspace rail: summary + tools stay reachable, and a live shared
- * browser docks its mini under the rail until the user drags it away.
+ * Collapsed-workspace rail: compact tool pills stay reachable, and a live
+ * shared browser docks its bezel-less mini under the rail until the user
+ * drags it away.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
@@ -94,28 +95,28 @@ afterEach(() => {
 });
 
 describe('SessionRailDock', () => {
-  it('offers Summary, Changes, Browser, Terminal and Files with the tree stat', async () => {
+  it('offers Changes, Browser, Terminal and Files with the tree stat', async () => {
     const { el } = await renderRail({}, { page: false });
     const labels = [...el.querySelectorAll('.piwin-session-rail-label')].map(
       (node) => node.textContent,
     );
-    expect(labels).toEqual(['会话概览', '变更', '浏览器', '终端', '文件']);
+    expect(labels).toEqual(['变更', '浏览器', '终端', '文件']);
     expect(el.querySelector('[data-testid="session-rail-diff-review"]')?.textContent).toContain(
       '+48',
     );
   });
 
-  it('opens the tool the row names, Summary included', async () => {
+  it('opens the tool the row names', async () => {
     const onOpenTool = vi.fn();
     const { el } = await renderRail({ onOpenTool }, { page: false });
 
     act(() => {
-      el.querySelector<HTMLButtonElement>('[data-testid="session-rail-item-summary"]')?.click();
       el.querySelector<HTMLButtonElement>('[data-testid="session-rail-item-review"]')?.click();
+      el.querySelector<HTMLButtonElement>('[data-testid="session-rail-item-files"]')?.click();
     });
 
-    expect(onOpenTool).toHaveBeenNthCalledWith(1, 'summary');
-    expect(onOpenTool).toHaveBeenNthCalledWith(2, 'review');
+    expect(onOpenTool).toHaveBeenNthCalledWith(1, 'review');
+    expect(onOpenTool).toHaveBeenNthCalledWith(2, 'files');
   });
 
   it('surfaces a tasks pill only while children are running', async () => {
@@ -158,11 +159,11 @@ describe('SessionRailDock', () => {
 
   it('floats the mini after a real drag and snaps it back on reset', async () => {
     const { el } = await renderRail();
-    const viewport = el.querySelector<HTMLElement>('[data-testid="browser-mini-viewport"]');
-    expect(viewport).not.toBeNull();
+    const mini = el.querySelector<HTMLElement>('[data-testid="browser-mini"]');
+    expect(mini).not.toBeNull();
 
     act(() => {
-      viewport?.dispatchEvent(
+      mini?.dispatchEvent(
         new PointerEvent('pointerdown', {
           bubbles: true,
           button: 0,
@@ -171,7 +172,7 @@ describe('SessionRailDock', () => {
           clientY: 100,
         }),
       );
-      viewport?.dispatchEvent(
+      mini?.dispatchEvent(
         new PointerEvent('pointermove', {
           bubbles: true,
           pointerId: 7,
@@ -187,7 +188,7 @@ describe('SessionRailDock', () => {
       .toBe('floating');
 
     act(() => {
-      viewport?.dispatchEvent(
+      mini?.dispatchEvent(
         new PointerEvent('pointerup', {
           bubbles: true,
           pointerId: 7,

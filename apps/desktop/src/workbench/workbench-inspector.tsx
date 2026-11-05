@@ -150,8 +150,6 @@ export type WorkbenchInspectorProps = {
   terminalRecentDirs: string[];
   tasksContent?: ReactNode;
   tasksActiveCount?: number;
-  /** Session overview body: the Summary tab and the empty-panel home. */
-  summaryContent?: ReactNode;
   terminalJobMonitor?: Omit<TerminalJobMonitorProps, 'children' | 'locale'> | undefined;
   /**
    * Docking workspace owns browser/changes/canvas/doc hosts so the inspector
@@ -218,7 +216,6 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     terminalRecentDirs,
     tasksContent,
     tasksActiveCount,
-    summaryContent,
     terminalJobMonitor,
   } = props;
   const docking = props.docking?.enabled ? props.docking : null;
@@ -592,7 +589,6 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           }
           {...(tasksContent !== undefined ? { tasksContent } : {})}
           {...(tasksActiveCount !== undefined ? { tasksActiveCount } : {})}
-          {...(summaryContent !== undefined ? { summaryContent } : {})}
         />
       </>
   );

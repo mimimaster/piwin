@@ -1,7 +1,7 @@
 import type { HTMLAttributes, ReactElement, ReactNode } from 'react';
 import type { StatusTone } from './status-badge.js';
 
-export type SessionRailItemVariant = 'summary' | 'tool' | 'activity';
+export type SessionRailItemVariant = 'tool' | 'activity';
 
 export type SessionRailDiffStat = {
   additions: number;

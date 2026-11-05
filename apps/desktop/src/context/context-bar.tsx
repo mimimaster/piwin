@@ -82,6 +82,9 @@ export type ContextBarProps = {
   onOpenSettings?: () => void;
   workPanelOpen?: boolean;
   onToggleWorkPanel?: () => void;
+  /** Session status control (plan/subagents/jobs/changes/artifacts) — sits
+   *  immediately left of the right-panel toggle. */
+  statusControl?: ReactNode;
   /** Whether the current session is a conversation (general) session. */
   isConversationSession?: boolean;
   /** When true, do not render title or identity in the top band (title lives in stage card header). */
@@ -367,6 +370,8 @@ export function ContextBar(props: ContextBarProps): ReactElement {
         ) : null}
 
         {props.sessionMenu ?? null}
+
+        {props.statusControl ?? null}
 
         {props.onToggleWorkPanel ? (
           <IconButton

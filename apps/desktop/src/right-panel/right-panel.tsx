@@ -99,8 +99,6 @@ export type RightPanelProps = {
   onTabClosed?: (tab: RightPanelTab) => void;
   docPreviewContent?: ReactNode;
   tasksContent?: ReactNode;
-  /** Session overview body; also the empty-panel home when no tool tab is open. */
-  summaryContent?: ReactNode;
   changesCount?: number;
   runningJobCount?: number;
   cardsDueCount?: number;
@@ -130,8 +128,6 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
   const kind = rightPanelTabKind(tab);
   if (kind === 'terminal') return props.terminalContent;
   switch (kind) {
-    case 'summary':
-      return props.summaryContent;
     case 'files':
       return props.filesContent;
     case 'browser':
@@ -658,13 +654,11 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       </div>
 
       {allTabs.length === 0 ? (
-        props.summaryContent ?? (
-          <RightPanelHome
-            locale={locale}
-            onSelect={openKind}
-            tasksActiveCount={tasksActiveCount}
-          />
-        )
+        <RightPanelHome
+          locale={locale}
+          onSelect={openKind}
+          tasksActiveCount={tasksActiveCount}
+        />
       ) : (
         /* Active-only lifecycle; terminal remains the explicit PTY exception. */
         <div className="right-panel-bodies">

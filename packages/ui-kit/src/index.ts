@@ -217,19 +217,6 @@ export type {
 } from './session-rail.js';
 
 export {
-  SessionSummaryGrid,
-  SessionSummaryRow,
-  SessionSummarySection,
-  SessionSummaryStatCard,
-} from './session-summary.js';
-export type {
-  SessionSummaryGridProps,
-  SessionSummaryRowProps,
-  SessionSummarySectionProps,
-  SessionSummaryStatCardProps,
-} from './session-summary.js';
-
-export {
   BROWSER_MINI_DRAG_THRESHOLD_PX,
   BROWSER_MINI_KEYBOARD_NUDGE_PX,
   BrowserMiniCard,

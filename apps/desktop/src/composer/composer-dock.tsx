@@ -8,7 +8,6 @@
 import { useMemo, type ReactElement } from 'react';
 import { deriveGoalSessionView, GoalStickyStrip } from '../goal';
 import { SteerQueue } from '../conversation/steer-queue';
-import { ComposerActivityPill } from './composer-activity-pill';
 import { ComposerCard } from './composer-card';
 import { ComposerContextRail } from './composer-context-rail';
 import { ExtensionSurfaceStrip } from '../extensions/extension-surface-strip';
@@ -66,18 +65,6 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
         runtimeRemoteHostLabel={props.runtimeRemoteHostLabel}
         onSelectLocalRuntime={props.onSelectLocalRuntime}
         onSelectAttachRuntime={props.onSelectAttachRuntime}
-      />
-      <ComposerActivityPill
-        orchestrationView={props.orchestrationView}
-        jobs={props.activeJobs ?? []}
-        onStopJob={props.onStopJob ?? (() => {})}
-        onViewJobLogs={props.onViewJobLogs ?? (() => {})}
-        onCancelSubagentBatch={props.onCancelSubagentBatch ?? (() => {})}
-        {...(props.onCancelSubagentBatches
-          ? { onCancelSubagentBatches: props.onCancelSubagentBatches }
-          : {})}
-        {...(props.isSubagentStopping ? { isSubagentStopping: props.isSubagentStopping } : {})}
-        onOpenTasks={props.onOpenTasks ?? (() => {})}
       />
       {goalView && goalView.phase !== 'idle' && goalMessages ? (
         <GoalStickyStrip

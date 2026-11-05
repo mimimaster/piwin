@@ -267,22 +267,6 @@ export type ComposerDockProps = {
    * Merged under the live stack when listing history (max 10).
    */
   sessionUserPrompts?: readonly string[];
-  /** AJB: active jobs owned by the current session (isJobActive filter). */
-  activeJobs?: readonly import('@piwin/contracts').JobRecord[];
-  /** AJB: stop a controlled program (`job/stop`). */
-  onStopJob?: (jobId: string) => void;
-  /** AJB: open the right Terminal panel with the job's logs. */
-  onViewJobLogs?: (jobId: string) => void;
-  /** F1 orchestration items for the composer activity pill. */
-  orchestrationView?: import('../agents/subagent-orchestration-view').SubagentOrchestrationView;
-  /** Stop a live batch (`subagent/batch-cancel`). */
-  onCancelSubagentBatch?: (runId: string) => void;
-  /** Stop-all: one confirmation for every running batch. */
-  onCancelSubagentBatches?: (runIds: readonly string[]) => void;
-  /** Whether a stop request for this batch is still in flight. */
-  isSubagentStopping?: (runId: string) => boolean;
-  /** Open the Tasks inspector when a subagent card is not in the DOM. */
-  onOpenTasks?: () => void;
   /**
    * CHT-501: general Conversation hides Run Mode / Orchestration /
    * Skills-MCP chrome. `/goal` stays available, as does its exit chip.

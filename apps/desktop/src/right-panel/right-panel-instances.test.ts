@@ -57,6 +57,6 @@ describe('right panel instances', () => {
     expect(existingTabForKind('terminal', ['terminal-1'])).toBe('terminal-1');
     // Nothing of that kind open: the caller allocates.
     expect(existingTabForKind('browser', ['files'])).toBeNull();
-    expect(existingTabForKind('summary', [])).toBeNull();
+    expect(existingTabForKind('files', [])).toBeNull();
   });
 });

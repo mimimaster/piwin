@@ -177,11 +177,26 @@ export type UseComposerDockPropsArgs = {
   sidebarMode: SidebarMode;
 };
 
+export type SessionActivityProps = {
+  /** F1 orchestration items (subagents) for the session status surface. */
+  orchestrationView: import('../agents/subagent-orchestration-view').SubagentOrchestrationView;
+  /** Active jobs owned by the current session (isJobActive filter). */
+  activeJobs: readonly import('@piwin/contracts').JobRecord[];
+  onStopJob: (jobId: string) => void;
+  onViewJobLogs: (jobId: string) => void;
+  onCancelSubagentBatch: (runId: string) => void;
+  onCancelSubagentBatches: (runIds: readonly string[]) => void;
+  isSubagentStopping: (runId: string) => boolean;
+  onOpenTasks: () => void;
+};
+
 export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   composerCard: ComposerDockProps;
   composerLayoutMode: 'centered' | 'docked';
   live: LiveCallController;
   subagentStop: SubagentStopController;
+  /** Live subagent/job state the titlebar status popover renders. */
+  sessionActivity: SessionActivityProps;
 } {
   const {
     hostClient,
@@ -589,16 +604,6 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       composer,
       onComposerChange: setComposer,
       sessionUserPrompts,
-      activeJobs,
-      orchestrationView,
-      onStopJob: (jobId) => {
-        void stopJob(jobId);
-      },
-      onViewJobLogs: handleViewJobLogs,
-      onCancelSubagentBatch: handleCancelSubagentBatch,
-      onCancelSubagentBatches: handleCancelSubagentBatches,
-      isSubagentStopping: subagentStop.isStopping,
-      onOpenTasks: handleOpenTasks,
       agentMode,
       onAgentModeChange: setAgentMode,
       goalExtensionEnabled,
@@ -758,11 +763,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       handleComposerResumeRun,
       handleComposerSend,
       handleComposerSteer,
-      handleCancelSubagentBatch,
-      handleCancelSubagentBatches,
       handleOpenHostSettings,
-      handleOpenTasks,
-      handleViewJobLogs,
       handleOpenMcpPanel,
       handleOpenModelSettings,
       handleOpenOrchestrationSchemeSettings,
@@ -789,7 +790,6 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onSteerQueueSendNow,
       onThinkingLevelChange,
       openInspector,
-      orchestrationView,
       orchestrationSchemeId,
       orchestrationSchemeOptions,
       pendingAttachments,
@@ -841,14 +841,36 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       state.runTerminal.kind,
       state.streaming,
       steerQueueMessages,
-      stopJob,
-      subagentStop.isStopping,
       thinkingLevel,
-      activeJobs,
       effectiveModelContextWindow,
       fallbackTokensUsed,
     ],
   );
 
-  return { composerCard, composerLayoutMode, live, subagentStop };
+  const sessionActivity: SessionActivityProps = useMemo(
+    () => ({
+      orchestrationView,
+      activeJobs,
+      onStopJob: (jobId) => {
+        void stopJob(jobId);
+      },
+      onViewJobLogs: handleViewJobLogs,
+      onCancelSubagentBatch: handleCancelSubagentBatch,
+      onCancelSubagentBatches: handleCancelSubagentBatches,
+      isSubagentStopping: subagentStop.isStopping,
+      onOpenTasks: handleOpenTasks,
+    }),
+    [
+      orchestrationView,
+      activeJobs,
+      stopJob,
+      handleViewJobLogs,
+      handleCancelSubagentBatch,
+      handleCancelSubagentBatches,
+      subagentStop.isStopping,
+      handleOpenTasks,
+    ],
+  );
+
+  return { composerCard, composerLayoutMode, live, subagentStop, sessionActivity };
 }

@@ -8,10 +8,6 @@ import {
   BrowserMiniCard,
   isBrowserMiniDragGesture,
   SessionRail,
-  SessionSummaryGrid,
-  SessionSummaryRow,
-  SessionSummarySection,
-  SessionSummaryStatCard,
 } from './index.js';
 
 declare global {
@@ -20,7 +16,7 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
+describe('SessionRail & BrowserMiniCard primitives', () => {
   let root: Root | undefined;
   let container: HTMLDivElement | undefined;
 
@@ -45,21 +41,12 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
     container = undefined;
   });
 
-  it('renders SessionRail with summary toggle, diff stats, badges, and docked mini slot', () => {
+  it('renders SessionRail with diff stats, badges, and docked mini slot', () => {
     const onSelect = vi.fn();
     const el = mount(
       <SessionRail
         density="expanded"
         items={[
-          {
-            id: 'summary',
-            label: '会话概览',
-            icon: <span>◈</span>,
-            variant: 'summary',
-            active: true,
-            badgeText: '35%',
-            onSelect,
-          },
           {
             id: 'review',
             label: '变更',
@@ -80,12 +67,9 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
       />,
     );
 
-    const summaryBtn = el.querySelector(
-      '[data-testid="session-rail-item-summary"]',
+    const reviewBtn = el.querySelector(
+      '[data-testid="session-rail-item-review"]',
     ) as HTMLButtonElement | null;
-    expect(summaryBtn?.getAttribute('aria-pressed')).toBe('true');
-    expect(summaryBtn?.getAttribute('data-rail-variant')).toBe('summary');
-
     const diffStat = el.querySelector('[data-testid="session-rail-diff-review"]');
     expect(diffStat?.textContent).toContain('+48');
     expect(diffStat?.textContent).toContain('-12');
@@ -99,90 +83,9 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
     ).toBe('mini');
 
     act(() => {
-      summaryBtn?.click();
+      reviewBtn?.click();
     });
-    expect(onSelect).toHaveBeenCalledWith('summary');
-  });
-
-  it('toggles collapsible SessionSummarySection and supports interactive stat cards & rows', () => {
-    const onStatClick = vi.fn();
-    const onRowClick = vi.fn();
-    const onTrailingClick = vi.fn();
-
-    const el = mount(
-      <div>
-        <SessionSummarySection
-          testId="ctx-section"
-          title="环境与上下文"
-          badgeText="2"
-          collapsible
-        >
-          <SessionSummaryGrid columns={2}>
-            <SessionSummaryStatCard
-              testId="stat-context"
-              label="上下文占用"
-              value="35%"
-              caption="44.8k / 128k tokens"
-              onClick={onStatClick}
-            />
-          </SessionSummaryGrid>
-          <SessionSummaryRow
-            testId="row-mcp"
-            title="agent-memory"
-            subtitle="已连接 · 7 工具"
-            statusLabel="运行中"
-            statusTone="running"
-            onClick={onRowClick}
-            trailing={
-              <button
-                type="button"
-                data-testid="row-mcp-switch"
-                onClick={onTrailingClick}
-              >
-                切换
-              </button>
-            }
-          />
-        </SessionSummarySection>
-      </div>,
-    );
-
-    expect(
-      el.querySelector('[data-testid="ctx-section-body"]'),
-    ).not.toBeNull();
-
-    const statBtn = el.querySelector(
-      '[data-testid="stat-context"]',
-    ) as HTMLButtonElement | null;
-    act(() => {
-      statBtn?.click();
-    });
-    expect(onStatClick).toHaveBeenCalledTimes(1);
-
-    const rowPrimary = el.querySelector(
-      '[data-testid="row-mcp-trigger"]',
-    ) as HTMLButtonElement | null;
-    const trailingBtn = el.querySelector(
-      '[data-testid="row-mcp-switch"]',
-    ) as HTMLButtonElement | null;
-    act(() => {
-      trailingBtn?.click();
-    });
-    expect(onTrailingClick).toHaveBeenCalledTimes(1);
-    expect(onRowClick).not.toHaveBeenCalled();
-
-    act(() => {
-      rowPrimary?.click();
-    });
-    expect(onRowClick).toHaveBeenCalledTimes(1);
-
-    const toggleBtn = el.querySelector(
-      '[data-testid="ctx-section-toggle"]',
-    ) as HTMLButtonElement | null;
-    act(() => {
-      toggleBtn?.click();
-    });
-    expect(el.querySelector('[data-testid="ctx-section-body"]')).toBeNull();
+    expect(onSelect).toHaveBeenCalledWith('review');
   });
 
   it('distinguishes clean click (expand) from pointer drag on BrowserMiniCard', () => {
@@ -225,22 +128,25 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
       />,
     );
 
+    // Bezel-less card: agent control shows as a single island dot, never a header.
     expect(
-      el.querySelector('[data-testid="browser-mini-card-agent-pill"]')
-        ?.textContent,
-    ).toBe('AI 操作中');
+      el.querySelector('[data-testid="browser-mini-card-agent-island"]'),
+    ).not.toBeNull();
+    expect(
+      el.querySelector('[data-testid="browser-mini-card-header"]'),
+    ).toBeNull();
     expect(
       el.querySelector('[data-testid="browser-mini-card-state-pill"]')
         ?.textContent,
     ).toBe('画面已过期');
 
-    const viewport = el.querySelector(
-      '[data-testid="browser-mini-card-viewport"]',
+    const card = el.querySelector(
+      '[data-testid="browser-mini-card"]',
     ) as HTMLElement;
 
-    // 1. Clean click on viewport (< 5px movement) expands the full Browser panel
+    // 1. Clean click on the card (< 5px movement) expands the full Browser panel
     act(() => {
-      viewport.dispatchEvent(
+      card.dispatchEvent(
         new PointerEvent('pointerdown', {
           bubbles: true,
           button: 0,
@@ -249,7 +155,7 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
           clientY: 100,
         }),
       );
-      viewport.dispatchEvent(
+      card.dispatchEvent(
         new PointerEvent('pointermove', {
           bubbles: true,
           pointerId: 1,
@@ -257,7 +163,7 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
           clientY: 101,
         }),
       );
-      viewport.dispatchEvent(
+      card.dispatchEvent(
         new PointerEvent('pointerup', {
           bubbles: true,
           pointerId: 1,
@@ -270,9 +176,9 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
     expect(onExpand).toHaveBeenCalledTimes(1);
     expect(onDragStart).not.toHaveBeenCalled();
 
-    // 2. Dragging on viewport (>= 5px movement) moves the mini card and does NOT expand
+    // 2. Dragging on the card (>= 5px movement) moves the mini and does NOT expand
     act(() => {
-      viewport.dispatchEvent(
+      card.dispatchEvent(
         new PointerEvent('pointerdown', {
           bubbles: true,
           button: 0,
@@ -281,7 +187,7 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
           clientY: 100,
         }),
       );
-      viewport.dispatchEvent(
+      card.dispatchEvent(
         new PointerEvent('pointermove', {
           bubbles: true,
           pointerId: 2,
@@ -289,7 +195,7 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
           clientY: 120,
         }),
       );
-      viewport.dispatchEvent(
+      card.dispatchEvent(
         new PointerEvent('pointerup', {
           bubbles: true,
           pointerId: 2,
@@ -311,7 +217,7 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
 
     // 3. Keyboard arrow nudge works for non-drag accessibility
     act(() => {
-      viewport.dispatchEvent(
+      card.dispatchEvent(
         new KeyboardEvent('keydown', {
           bubbles: true,
           key: 'ArrowLeft',
@@ -333,7 +239,7 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
     expect(onResetPosition).toHaveBeenCalledTimes(1);
   });
 
-  it('forwards a clean viewport click when onViewportActivate is set', () => {
+  it('forwards a clean card click when onViewportActivate is set', () => {
     const onExpand = vi.fn();
     const onViewportActivate = vi.fn();
     const el = mount(
@@ -344,11 +250,11 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
         onViewportActivate={onViewportActivate}
       />,
     );
-    const viewport = el.querySelector(
-      '[data-testid="browser-mini-card-viewport"]',
+    const card = el.querySelector(
+      '[data-testid="browser-mini-card"]',
     ) as HTMLElement;
     act(() => {
-      viewport.dispatchEvent(
+      card.dispatchEvent(
         new PointerEvent('pointerdown', {
           bubbles: true,
           button: 0,
@@ -357,7 +263,7 @@ describe('SessionRail, SessionSummary & BrowserMiniCard primitives', () => {
           clientY: 40,
         }),
       );
-      viewport.dispatchEvent(
+      card.dispatchEvent(
         new PointerEvent('pointerup', {
           bubbles: true,
           pointerId: 7,

@@ -7,7 +7,6 @@
  */
 
 export const RIGHT_PANEL_TOOL_KINDS = [
-  'summary',
   'files',
   'terminal',
   'review',
