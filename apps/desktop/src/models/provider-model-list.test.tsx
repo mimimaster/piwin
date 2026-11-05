@@ -116,7 +116,45 @@ describe('ProviderModelList', () => {
     expect(document.body.querySelector('[data-testid="provider-model-test-grok-4.3"]')).toBeNull();
   });
 
-  it('refreshes a subscription provider without opening the channel import dialog', async () => {
+  it('opens the import picker for a subscription pull so the user can re-add models', async () => {
+    const onDiscoverModels = vi.fn(async () => ({
+      providerId: subscriptionProvider.id,
+      protocol: subscriptionProvider.protocol,
+      models: [
+        { id: 'grok-4.3', label: 'Grok 4.3' },
+        { id: 'grok-4.3-mini', label: 'Grok 4.3 mini' },
+      ],
+    }));
+    const onUpdateModels = vi.fn();
+    const container = renderList(subscriptionProvider, { onDiscoverModels, onUpdateModels });
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="provider-discover-models-grok"]');
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+    });
+    expect(onDiscoverModels).toHaveBeenCalledWith(subscriptionProvider);
+    expect(onUpdateModels).not.toHaveBeenCalled();
+    expect(document.body.querySelector('[data-testid="discover-models-list"]')).not.toBeNull();
+
+    // Pick the model the provider does not have yet, then import it.
+    const row = Array.from(
+      document.body.querySelectorAll<HTMLLabelElement>('[data-testid="discover-models-list"] label'),
+    ).find((candidate) => candidate.textContent?.includes('Grok 4.3 mini'));
+    expect(row).not.toBeNull();
+    act(() => {
+      row?.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click();
+    });
+    act(() => {
+      document.body.querySelector<HTMLButtonElement>('[data-testid="discover-models-import"]')?.click();
+    });
+    expect(onUpdateModels).toHaveBeenCalledTimes(1);
+    expect(onUpdateModels.mock.calls[0]?.[0]?.map((model: { id: string }) => model.id)).toEqual([
+      'grok-4.3',
+      'grok-4.3-mini',
+    ]);
+  });
+
+  it('keeps an empty subscription pull inline instead of opening an empty picker', async () => {
     const onDiscoverModels = vi.fn(async () => ({
       providerId: subscriptionProvider.id,
       protocol: subscriptionProvider.protocol,
@@ -127,6 +165,7 @@ describe('ProviderModelList', () => {
     const button = container.querySelector<HTMLButtonElement>('[data-testid="provider-discover-models-grok"]');
     await act(async () => {
       button?.click();
+      await Promise.resolve();
     });
     expect(onDiscoverModels).toHaveBeenCalledWith(subscriptionProvider);
     expect(onUpdateModels).not.toHaveBeenCalled();

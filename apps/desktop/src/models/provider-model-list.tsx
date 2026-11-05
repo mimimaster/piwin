@@ -227,7 +227,12 @@ export function ProviderModelList({
         });
         return;
       }
-      if (isExtensionProvider(provider) || isSubscriptionProvider(provider)) return;
+      // Extensions own their catalog and write it Host-side, so there is nothing
+      // to pick. A subscription pull still seeds the full catalog Host-side, but
+      // the picker lets the user re-add models they removed earlier — skip it
+      // when the pull returned nothing to choose from.
+      if (isExtensionProvider(provider)) return;
+      if (isSubscriptionProvider(provider) && result.models.length === 0) return;
       setDiscovered(result.models);
       setDiscoverOpen(true);
     } catch {
