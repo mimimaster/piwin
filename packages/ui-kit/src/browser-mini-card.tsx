@@ -150,9 +150,13 @@ const DEFAULT_LABELS: Required<BrowserMiniCardLabels> = {
 };
 
 /**
- * Live view-only mini preview for the Host-owned shared browser.
- * Supports full-card drag with clean-click disambiguation, agent-control breathing
- * state, dialog/blocker banners, and docked-to-rail vs free-floating modes.
+ * Full-bleed live mini preview for the Host-owned shared browser.
+ *
+ * The card is the viewport: page pixels reach every rounded corner with no
+ * header chrome at all. Controls (expand / dismiss / reload / snap-back)
+ * surface only on hover or keyboard focus, the domain pill sits at the bottom
+ * edge, and a single island dot marks agent control — nothing else competes
+ * with the page.
  */
 export function BrowserMiniCard(props: BrowserMiniCardProps): ReactElement {
   const {
@@ -191,13 +195,9 @@ export function BrowserMiniCard(props: BrowserMiniCardProps): ReactElement {
     startX: number;
     startY: number;
     exceededThreshold: boolean;
-    startedInViewport: boolean;
   } | null>(null);
 
-  const handlePointerDown = (
-    event: PointerEvent<HTMLElement>,
-    startedInViewport: boolean,
-  ): void => {
+  const handlePointerDown = (event: PointerEvent<HTMLElement>): void => {
     if (event.button !== 0 || isInteractiveControlTarget(event.target)) {
       return;
     }
@@ -206,7 +206,6 @@ export function BrowserMiniCard(props: BrowserMiniCardProps): ReactElement {
       startX: event.clientX,
       startY: event.clientY,
       exceededThreshold: false,
-      startedInViewport,
     };
     if (typeof event.currentTarget.setPointerCapture === 'function') {
       try {
@@ -276,7 +275,7 @@ export function BrowserMiniCard(props: BrowserMiniCardProps): ReactElement {
       return;
     }
 
-    if (!cancelled && session.startedInViewport) {
+    if (!cancelled) {
       if (onViewportActivate) {
         onViewportActivate({
           clientX: event.clientX,
@@ -347,6 +346,14 @@ export function BrowserMiniCard(props: BrowserMiniCardProps): ReactElement {
           ? copy.starting
           : null;
 
+  const domainText = urlText ?? title;
+  const hasControls =
+    onExpand !== undefined ||
+    onDismiss !== undefined ||
+    onReload !== undefined ||
+    (placementMode === 'floating' && onResetPosition !== undefined);
+  const showDomainPill = hasControls || (tabCount !== undefined && tabCount > 1);
+
   return (
     <aside
       className={rootClassName}
@@ -357,132 +364,59 @@ export function BrowserMiniCard(props: BrowserMiniCardProps): ReactElement {
       data-runtime-state={runtimeState}
       data-dragging={isDragging ? 'true' : 'false'}
       aria-label={`${title} (${copy.sharedBrowser})`}
+      role="button"
+      tabIndex={0}
+      title={onViewportActivate ? copy.interactHint : copy.clickToExpandHint}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={(event) => finishPointerSession(event, false)}
+      onPointerCancel={(event) => finishPointerSession(event, true)}
+      onKeyDown={handleKeyDown}
+      onWheel={
+        onViewportWheel
+          ? (event) => {
+              event.preventDefault();
+              onViewportWheel({
+                clientX: event.clientX,
+                clientY: event.clientY,
+                deltaX: event.deltaX,
+                deltaY: event.deltaY,
+                currentTarget: event.currentTarget,
+              });
+            }
+          : undefined
+      }
     >
-      <header
-        className="piwin-browser-mini-header"
-        data-testid={`${testId}-header`}
-        onPointerDown={(event) => handlePointerDown(event, false)}
-        onPointerMove={handlePointerMove}
-        onPointerUp={(event) => finishPointerSession(event, false)}
-        onPointerCancel={(event) => finishPointerSession(event, true)}
-      >
-        <div className="piwin-browser-mini-title-group">
-          <span
-            className={`piwin-browser-mini-status-dot state-${runtimeState} owner-${controlOwner}`}
-            aria-hidden="true"
-          />
-          {controlOwner === 'agent' ? (
-            <span
-              className="piwin-browser-mini-owner-pill"
-              data-testid={`${testId}-agent-pill`}
-            >
-              {copy.agentOperating}
-            </span>
-          ) : (
-            <span
-              className="piwin-browser-mini-shared-pill"
-              data-testid={`${testId}-shared-pill`}
-            >
-              {copy.sharedBrowser}
-            </span>
-          )}
-          <span
-            className="piwin-browser-mini-title"
-            title={urlText ? `${title} · ${urlText}` : title}
-          >
-            {title}
-          </span>
-          {tabCount !== undefined && tabCount > 1 ? (
-            <span
-              className="piwin-browser-mini-tab-count"
-              data-testid={`${testId}-tab-count`}
-            >
-              {tabCount}
-            </span>
-          ) : null}
-        </div>
-
+      {frameSrc ? (
+        <img
+          src={frameSrc}
+          alt={frameAlt ?? title}
+          className="piwin-browser-mini-frame"
+          data-testid={`${testId}-frame`}
+          draggable={false}
+        />
+      ) : children ? (
+        children
+      ) : (
         <div
-          className="piwin-browser-mini-actions"
-          data-mini-interactive="true"
+          className="piwin-browser-mini-empty"
+          data-testid={`${testId}-empty`}
         >
-          {placementMode === 'floating' && onResetPosition ? (
-            <button
-              type="button"
-              className="piwin-browser-mini-action-btn"
-              data-testid={`${testId}-reset-position`}
-              aria-label={copy.resetPosition}
-              title={copy.resetPosition}
-              onClick={onResetPosition}
-            >
-              <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
-                <circle cx="7" cy="7" r="4.25" stroke="currentColor" strokeWidth="1.4" />
-                <circle cx="7" cy="7" r="1.25" fill="currentColor" />
-              </svg>
-            </button>
-          ) : null}
-          {onReload ? (
-            <button
-              type="button"
-              className="piwin-browser-mini-action-btn"
-              data-testid={`${testId}-reload`}
-              aria-label={copy.reload}
-              title={copy.reload}
-              onClick={onReload}
-            >
-              <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
-                <path
-                  d="M11.2 4.8A4.75 4.75 0 1 0 11.6 8.3M11.5 2.4V5h-2.6"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          ) : null}
-          {onExpand ? (
-            <button
-              type="button"
-              className="piwin-browser-mini-action-btn is-primary"
-              data-testid={`${testId}-expand`}
-              aria-label={copy.expand}
-              title={copy.expand}
-              onClick={onExpand}
-            >
-              <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
-                <path
-                  d="M8.5 2.5H11.5V5.5M5.5 11.5H2.5V8.5M11.5 2.5L7.75 6.25M2.5 11.5L6.25 7.75"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          ) : null}
-          {onDismiss ? (
-            <button
-              type="button"
-              className="piwin-browser-mini-action-btn"
-              data-testid={`${testId}-dismiss`}
-              aria-label={copy.dismiss}
-              title={copy.dismiss}
-              onClick={onDismiss}
-            >
-              <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
-                <path
-                  d="M3.5 3.5L10.5 10.5M10.5 3.5L3.5 10.5"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          ) : null}
+          {statusOverlayText ?? copy.emptyPreview}
         </div>
-      </header>
+      )}
 
+      {/* Agent-control island: a single dot at the top edge — no text header. */}
+      {controlOwner === 'agent' ? (
+        <span
+          className="piwin-browser-mini-island"
+          data-testid={`${testId}-agent-island`}
+          aria-label={copy.agentOperating}
+          title={copy.agentOperating}
+        />
+      ) : null}
+
+      {/* JS dialog / blocker: an overlay banner, dismissed by expanding. */}
       {alertBanner ? (
         <div
           className={`piwin-browser-mini-alert tone-${alertBanner.tone ?? 'warning'}`}
@@ -505,67 +439,122 @@ export function BrowserMiniCard(props: BrowserMiniCardProps): ReactElement {
         </div>
       ) : null}
 
-      <div
-        className={
-          onViewportActivate
-            ? 'piwin-browser-mini-viewport is-interactive'
-            : 'piwin-browser-mini-viewport'
-        }
-        data-testid={`${testId}-viewport`}
-        role="button"
-        tabIndex={0}
-        aria-label={
-          onViewportActivate ? copy.interactHint : `${copy.expand}: ${title}`
-        }
-        title={onViewportActivate ? copy.interactHint : copy.clickToExpandHint}
-        onPointerDown={(event) => handlePointerDown(event, true)}
-        onPointerMove={handlePointerMove}
-        onPointerUp={(event) => finishPointerSession(event, false)}
-        onPointerCancel={(event) => finishPointerSession(event, true)}
-        onKeyDown={handleKeyDown}
-        onWheel={
-          onViewportWheel
-            ? (event) => {
-                event.preventDefault();
-                onViewportWheel({
-                  clientX: event.clientX,
-                  clientY: event.clientY,
-                  deltaX: event.deltaX,
-                  deltaY: event.deltaY,
-                  currentTarget: event.currentTarget,
-                });
-              }
-            : undefined
-        }
-      >
-        {frameSrc ? (
-          <img
-            src={frameSrc}
-            alt={frameAlt ?? title}
-            className="piwin-browser-mini-frame"
-            data-testid={`${testId}-frame`}
-            draggable={false}
-          />
-        ) : children ? (
-          children
-        ) : (
-          <div
-            className="piwin-browser-mini-empty"
-            data-testid={`${testId}-empty`}
-          >
-            {statusOverlayText ?? copy.emptyPreview}
-          </div>
-        )}
+      {statusOverlayText && frameSrc ? (
+        <div
+          className="piwin-browser-mini-state-pill"
+          data-testid={`${testId}-state-pill`}
+        >
+          {statusOverlayText}
+        </div>
+      ) : null}
 
-        {statusOverlayText && frameSrc ? (
-          <div
-            className="piwin-browser-mini-state-pill"
-            data-testid={`${testId}-state-pill`}
-          >
-            {statusOverlayText}
-          </div>
-        ) : null}
-      </div>
+      {/* Hover/focus HUD: the only chrome, hidden until requested. */}
+      {hasControls || showDomainPill ? (
+        <div
+          className="piwin-browser-mini-hud"
+          data-testid={`${testId}-hud`}
+          aria-hidden={isDragging ? 'true' : undefined}
+        >
+          {hasControls ? (
+            <div
+              className="piwin-browser-mini-hud-actions"
+              data-mini-interactive="true"
+            >
+              {placementMode === 'floating' && onResetPosition ? (
+                <button
+                  type="button"
+                  className="piwin-browser-mini-hud-btn"
+                  data-testid={`${testId}-reset-position`}
+                  aria-label={copy.resetPosition}
+                  title={copy.resetPosition}
+                  onClick={onResetPosition}
+                >
+                  <svg viewBox="0 0 14 14" width="12" height="12" fill="none" aria-hidden="true">
+                    <circle cx="7" cy="7" r="4.25" stroke="currentColor" strokeWidth="1.4" />
+                    <circle cx="7" cy="7" r="1.25" fill="currentColor" />
+                  </svg>
+                </button>
+              ) : null}
+              {onReload ? (
+                <button
+                  type="button"
+                  className="piwin-browser-mini-hud-btn"
+                  data-testid={`${testId}-reload`}
+                  aria-label={copy.reload}
+                  title={copy.reload}
+                  onClick={onReload}
+                >
+                  <svg viewBox="0 0 14 14" width="12" height="12" fill="none" aria-hidden="true">
+                    <path
+                      d="M11.2 4.8A4.75 4.75 0 1 0 11.6 8.3M11.5 2.4V5h-2.6"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              ) : null}
+              {onExpand ? (
+                <button
+                  type="button"
+                  className="piwin-browser-mini-hud-btn"
+                  data-testid={`${testId}-expand`}
+                  aria-label={copy.expand}
+                  title={copy.expand}
+                  onClick={onExpand}
+                >
+                  <svg viewBox="0 0 14 14" width="12" height="12" fill="none" aria-hidden="true">
+                    <path
+                      d="M8.5 2.5H11.5V5.5M5.5 11.5H2.5V8.5M11.5 2.5L7.75 6.25M2.5 11.5L6.25 7.75"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              ) : null}
+              {onDismiss ? (
+                <button
+                  type="button"
+                  className="piwin-browser-mini-hud-btn"
+                  data-testid={`${testId}-dismiss`}
+                  aria-label={copy.dismiss}
+                  title={copy.dismiss}
+                  onClick={onDismiss}
+                >
+                  <svg viewBox="0 0 14 14" width="12" height="12" fill="none" aria-hidden="true">
+                    <path
+                      d="M3.5 3.5L10.5 10.5M10.5 3.5L3.5 10.5"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {showDomainPill ? (
+            <span
+              className="piwin-browser-mini-domain-pill"
+              data-testid={`${testId}-domain-pill`}
+            >
+              {domainText}
+              {tabCount !== undefined && tabCount > 1 ? (
+                <span
+                  className="piwin-browser-mini-tab-count"
+                  data-testid={`${testId}-tab-count`}
+                >
+                  {tabCount}
+                </span>
+              ) : null}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </aside>
   );
 }
