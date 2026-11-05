@@ -1,8 +1,9 @@
 /**
  * Opening an external-agent session whose history still lives only in the
  * agent (imported from its catalog, or continued in its own TUI). The Host
- * marks such a resume `nativeHistory: 'unsynced'`; Desktop paints what the
- * transcript has, replays in the background, then reloads on success.
+ * marks such a resume `nativeHistory: 'unsynced'`; Desktop keeps the initial
+ * opening state through replay and reload, or shows available history with
+ * an error when replay fails.
  */
 import { formatError, type HostCommand, type HostResponse } from '@piwin/contracts';
 import type { DesktopLocale } from '../i18n/desktop-locale.js';

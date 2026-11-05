@@ -14,6 +14,7 @@ type RevealOptions = {
   sessionId?: string;
   messageCount: number;
   awaitingTranscript: boolean;
+  offline?: boolean;
   historyViewActive: boolean;
   scrollElementRef: RefObject<HTMLDivElement | null>;
   jumpToLatest: () => void;
@@ -104,6 +105,7 @@ function RevealHarness(props: RevealHarnessProps): ReactElement {
     sessionId: props.sessionId,
     messageCount: props.messageCount,
     awaitingTranscript: props.awaitingTranscript,
+    offline: props.offline === true,
     historyViewActive: props.historyViewActive,
     scrollElementRef: props.scrollElementRef,
     jumpToLatest: props.jumpToLatest,
@@ -281,13 +283,54 @@ describe('useTranscriptReveal', () => {
   });
 
 
-  it('shows a warm snapshot immediately while Host refresh is pending', () => {
+  it('keeps a warm snapshot covered until the authoritative transcript arrives and settles', () => {
     const scenario = createScenario({ messageCount: 12, awaitingTranscript: true });
+    renderScenario(scenario);
+    expect(isRevealing()).toBe(true);
+    advance(2_000);
+    expect(isRevealing()).toBe(true);
+    expect(scenario.jumpToLatest).not.toHaveBeenCalled();
+    renderScenario({ ...scenario, awaitingTranscript: false, messageCount: 14 });
+    expect(isRevealing()).toBe(true);
+    advance(220);
+    expect(isRevealing()).toBe(false);
+  });
+
+  it('releases the opening state when a warm refresh returns an empty transcript', () => {
+    const scenario = createScenario({ messageCount: 12, awaitingTranscript: true });
+    renderScenario(scenario);
+    expect(isRevealing()).toBe(true);
+    renderScenario({ ...scenario, awaitingTranscript: false, messageCount: 0 });
+    expect(isRevealing()).toBe(false);
+  });
+
+  it('keeps an offline snapshot readable while waiting for the Host to reconnect', () => {
+    const scenario = createScenario({ awaitingTranscript: true, offline: true });
     renderScenario(scenario);
     expect(isRevealing()).toBe(false);
     advance(2_000);
     expect(isRevealing()).toBe(false);
-    renderScenario({ ...scenario, awaitingTranscript: false, messageCount: 14 });
+    renderScenario({ ...scenario, offline: false });
+    expect(isRevealing()).toBe(false);
+  });
+
+  it('reveals available cached history if the Host disconnects during initial resume', () => {
+    const scenario = createScenario({ awaitingTranscript: true });
+    renderScenario(scenario);
+    expect(isRevealing()).toBe(true);
+    renderScenario({ ...scenario, offline: true });
+    expect(isRevealing()).toBe(false);
+  });
+
+  it('keeps an already revealed session visible during a same-session refresh', () => {
+    const scenario = createScenario();
+    renderScenario(scenario);
+    advance(220);
+    expect(isRevealing()).toBe(false);
+    renderScenario({ ...scenario, awaitingTranscript: true });
+    advance(2_000);
+    expect(isRevealing()).toBe(false);
+    renderScenario({ ...scenario, messageCount: 14 });
     expect(isRevealing()).toBe(false);
   });
 

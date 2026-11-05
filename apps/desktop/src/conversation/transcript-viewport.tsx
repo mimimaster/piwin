@@ -55,6 +55,8 @@ export type TranscriptViewportProps = {
   onReturnToLatest?: () => void;
   sessionId?: string;
   awaitingTranscript?: boolean;
+  /** Cached history remains readable when no Host is available to refresh it. */
+  offline?: boolean;
   canLoadOlder?: boolean;
   canLoadNewer?: boolean;
   /** The history view shows every row Host has and ends inside the live tail. */
@@ -121,6 +123,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     ...(props.sessionId ? { sessionId: props.sessionId } : {}),
     messageCount: props.messageCount,
     awaitingTranscript: props.awaitingTranscript === true,
+    offline: props.offline === true,
     historyViewActive: props.historyViewActive === true,
     scrollElementRef: scroll.containerRef,
     jumpToLatest: scroll.jumpToLatest,

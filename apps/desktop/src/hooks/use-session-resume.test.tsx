@@ -70,6 +70,7 @@ describe('useSessionResume selection guard', () => {
     hostClient: HostClient;
     dispatch?: ReturnType<typeof vi.fn>;
     onProfile?: ReturnType<typeof vi.fn>;
+    dispatchNotification?: ReturnType<typeof vi.fn>;
   }): { latest: () => ResumeHook; dispatch: ReturnType<typeof vi.fn> } {
     container = document.createElement('div');
     document.body.append(container);
@@ -82,7 +83,7 @@ describe('useSessionResume selection guard', () => {
         hostClient: input.hostClient,
         state: chatState(),
         dispatch: dispatch as (action: ChatUiAction) => void,
-        dispatchNotification: vi.fn(),
+        dispatchNotification: input.dispatchNotification ?? vi.fn(),
         locale: 'en',
         showArchivedSessions: false,
         hydrateSessions: vi.fn(async () => []),
@@ -186,6 +187,118 @@ describe('useSessionResume selection guard', () => {
         session: expect.objectContaining({ model: oldModel }),
       }),
     );
+  });
+
+  describe('native history readiness', () => {
+    const staleMessage = {
+      id: 'assistant-old',
+      role: 'assistant' as const,
+      text: '',
+      thinking: 'Still investigating',
+      status: 'streaming' as const,
+      createdAt: '2026-11-05T01:00:00.000Z',
+    };
+
+    function nativeHost(request: HostClient['request']): HostClient {
+      return {
+        getHostInstanceId: () => 'host-1', getTransport: () => 'live',
+        isReady: () => true, request,
+      } as unknown as HostClient;
+    }
+
+    it('keeps loading through native sync and reload without publishing the stale thinking-only snapshot', async () => {
+      let resolveSnapshot: ((response: HostResponse) => void) | undefined;
+      let resolveReload: ((response: HostResponse) => void) | undefined;
+      let resumes = 0;
+      const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+        if (command.type === 'session/resume') {
+          resumes += 1;
+          if (resumes === 1) {
+            return ok(command, { ...resumeSuccessData('session-old'), nativeHistory: 'unsynced', messages: [staleMessage] });
+          }
+          return new Promise<HostResponse>((resolve) => { resolveReload = resolve; });
+        }
+        if (command.type === 'agents/cli-snapshot') {
+          return new Promise<HostResponse>((resolve) => { resolveSnapshot = resolve; });
+        }
+        return ok(command);
+      });
+      const { latest, dispatch } = renderHook({ hostClient: nativeHost(request) });
+      let finished: Promise<void> | undefined;
+      await act(async () => { finished = latest().handleResumeSession('session-old'); });
+      expect(resolveSnapshot).toBeDefined();
+      expect(dispatch).toHaveBeenCalledWith({ type: 'session/set', sessionId: 'session-old', awaitTranscript: true });
+      expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'session/load-messages' }));
+
+      await act(async () => { resolveSnapshot?.(ok({ type: 'agents/cli-snapshot', sessionId: 'session-old' })); });
+      expect(resolveReload).toBeDefined();
+      expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'session/load-messages' }));
+
+      const finalMessage = { ...staleMessage, text: 'Investigation complete. Here is the conclusion.', status: 'done' as const };
+      await act(async () => {
+        resolveReload?.(ok({ type: 'session/resume', sessionId: 'session-old' }, {
+          ...resumeSuccessData('session-old'), messages: [finalMessage],
+        }));
+        await finished;
+      });
+      const loaded = dispatch.mock.calls.map(([action]) => action as ChatUiAction)
+        .filter((action) => action.type === 'session/load-messages');
+      expect(loaded).toEqual([expect.objectContaining({ messages: [finalMessage] })]);
+      expect(request.mock.calls.filter(([command]) => command.type === 'agents/cli-snapshot')).toHaveLength(1);
+    });
+
+    it.each(['failure', 'timeout'] as const)('shows available history and reports a native sync %s', async (failure) => {
+      let resolveSnapshot: ((response: HostResponse) => void) | undefined;
+      let rejectSnapshot: ((error: Error) => void) | undefined;
+      const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+        if (command.type === 'session/resume') {
+          return ok(command, { ...resumeSuccessData('session-old'), nativeHistory: 'unsynced', messages: [staleMessage] });
+        }
+        if (command.type === 'agents/cli-snapshot') {
+          return new Promise<HostResponse>((resolve, reject) => { resolveSnapshot = resolve; rejectSnapshot = reject; });
+        }
+        return ok(command);
+      });
+      const dispatchNotification = vi.fn();
+      const { latest, dispatch } = renderHook({ hostClient: nativeHost(request), dispatchNotification });
+      let finished: Promise<void> | undefined;
+      await act(async () => { finished = latest().handleResumeSession('session-old'); });
+      expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'session/load-messages' }));
+      await act(async () => {
+        if (failure === 'timeout') rejectSnapshot?.(new Error('snapshot timed out'));
+        else resolveSnapshot?.({ type: 'response', command: 'agents/cli-snapshot', success: false, error: 'snapshot failed' });
+        await finished;
+      });
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'session/load-messages', messages: [staleMessage] }));
+      expect(dispatchNotification).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'notify/push', notification: expect.objectContaining({ message: expect.stringContaining('Could not sync') }),
+      }));
+    });
+
+    it('ignores native sync completion after the reader leaves for a new conversation', async () => {
+      let resolveSnapshot: ((response: HostResponse) => void) | undefined;
+      const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+        if (command.type === 'session/resume') {
+          return ok(command, { ...resumeSuccessData('session-old'), nativeHistory: 'unsynced', messages: [staleMessage] });
+        }
+        if (command.type === 'agents/cli-snapshot') {
+          return new Promise<HostResponse>((resolve) => { resolveSnapshot = resolve; });
+        }
+        return ok(command);
+      });
+      const { latest, dispatch } = renderHook({ hostClient: nativeHost(request) });
+      let finished: Promise<void> | undefined;
+      await act(async () => { finished = latest().handleResumeSession('session-old'); });
+      expect(resolveSnapshot).toBeDefined();
+      await act(async () => { await latest().handleNewSession(); });
+      dispatch.mockClear();
+      await act(async () => {
+        resolveSnapshot?.(ok({ type: 'agents/cli-snapshot', sessionId: 'session-old' }));
+        await finished;
+      });
+      expect(dispatch).not.toHaveBeenCalled();
+      expect(request.mock.calls.filter(([command]) => command.type === 'session/resume')).toHaveLength(1);
+    });
   });
 });
 

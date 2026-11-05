@@ -13,6 +13,7 @@ type TranscriptRevealOptions = {
   sessionId?: string | undefined;
   messageCount: number;
   awaitingTranscript: boolean;
+  offline?: boolean;
   historyViewActive: boolean;
   scrollElementRef: RefObject<HTMLDivElement | null>;
   jumpToLatest: () => void;
@@ -33,9 +34,12 @@ function isAtBottom(element: HTMLElement): boolean {
 export function useTranscriptReveal(options: TranscriptRevealOptions): boolean {
   const sessionId = options.sessionId ?? null;
   const hasMessages = options.messageCount > 0;
+  const showOfflineSnapshot = options.offline === true && hasMessages;
+  // Warm rows may still contain the thinking-only snapshot from before the
+  // session finished in the background. Ownership does not imply freshness.
   const [revealedSessionId, setRevealedSessionId] = useState<string | null>(() =>
     options.historyViewActive ||
-    (options.awaitingTranscript && hasMessages) ||
+    showOfflineSnapshot ||
     (!options.awaitingTranscript && !hasMessages) ? sessionId : null,
   );
   const settlePositionRef = useRef(options.settlePosition);
@@ -44,6 +48,7 @@ export function useTranscriptReveal(options: TranscriptRevealOptions): boolean {
     sessionId !== null &&
     revealedSessionId !== sessionId &&
     !options.historyViewActive &&
+    !showOfflineSnapshot &&
     (options.awaitingTranscript || hasMessages);
 
   useLayoutEffect(() => {

@@ -250,16 +250,18 @@ export function useSessionResume(input: {
         // Retry when native work advances, but never recurse from a snapshot's
         // own refresh while the native actor continues writing.
         nativeHistoryAttemptsRef.current.set(nativeHistoryKey, nativeHistoryVersion);
-        // Never gate the paint on the agent: the transcript below settles
-        // first, then a successful replay reloads it.
-        void syncNativeHistory(hostClient, sessionId).then(async (result) => {
-          if (!ticketMatches()) return;
-          if (result.ok) {
-            await resumeSessionRef.current?.(sessionId, { refresh: true, nativeHistorySynced: true });
-          } else if (context?.quiet !== true) {
-            dispatchNotification(pushError(nativeHistorySyncFailure(locale, result.error)));
-          }
-        });
+        // Keep initial opening covered until the native history is current.
+        // Publishing this known-stale snapshot would reveal an unfinished
+        // thinking/work summary before the completed reply can be read.
+        const result = await syncNativeHistory(hostClient, sessionId);
+        if (!ticketMatches()) return;
+        if (result.ok) {
+          await resumeSessionRef.current?.(sessionId, { refresh: true, nativeHistorySynced: true });
+          return;
+        }
+        if (context?.quiet !== true) {
+          dispatchNotification(pushError(nativeHistorySyncFailure(locale, result.error)));
+        }
       }
       if (data.activeRun) {
         dispatch({ type: 'run/updated', run: data.activeRun });

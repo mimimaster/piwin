@@ -423,11 +423,23 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(onReturnToLatest).toHaveBeenCalledOnce();
   });
 
-  it('keeps cached content visible while its authoritative snapshot refreshes', async () => {
+  it('shows the opening surface over cached content until its authoritative snapshot settles', async () => {
     await renderSession('warm-session', { awaitingTranscript: true, messageCount: 3 });
-    expect(container.querySelector('[data-testid="transcript-opening-state"]')).toBeNull();
-    expect(container.querySelector('.chat-stream')?.getAttribute('aria-hidden')).toBe('false');
+    expect(container.querySelectorAll('[data-testid="transcript-opening-state"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="transcript-awaiting-banner"]')?.textContent).toBe('Opening conversation…');
+    expect(container.querySelector('.transcript-viewport')?.classList.contains('is-opening')).toBe(true);
+    expect(streamElement().getAttribute('aria-hidden')).toBe('true');
+    expect(streamElement().hasAttribute('inert')).toBe(true);
+    expect(streamElement().getAttribute('aria-busy')).toBe('true');
+    // Cached rows stay mounted for layout while hidden behind the cover.
     expect(container.textContent).toContain('Transcript content');
+
+    await renderSession('warm-session', { awaitingTranscript: false, messageCount: 5 });
+    expect(container.querySelector('[data-testid="transcript-opening-state"]')).not.toBeNull();
+    await finishOpening();
+    expect(streamElement().getAttribute('aria-hidden')).toBe('false');
+    expect(streamElement().hasAttribute('inert')).toBe(false);
+    expect(streamElement().getAttribute('aria-busy')).toBe('false');
   });
 
   it('shows one loading surface for a cold conversation until messages arrive', async () => {

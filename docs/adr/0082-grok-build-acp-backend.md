@@ -588,11 +588,15 @@ stale transcript and clients painted it as a new conversation. The Host now
 sets `SessionResumeData.nativeHistory = 'unsynced'` (projected to remote
 clients) when the binding has a native id and its projection was never synced
 or is older than the catalog's last change, unless a Host-controlled turn is
-running. Desktop paints what the transcript has, requests `agents/cli-sync`
-in the background (once per session and Host instance), and reloads the
-session when the replay succeeds; a failed or timed-out replay is reported and
-never blocks the transcript. While any selected session's transcript is
-pending, Desktop shows the opening state, never the new-conversation landing.
+running. Desktop requests `agents/cli-snapshot` once per catalog version and
+Host instance and reloads the session when replay succeeds. As of 2026-11-05,
+initial opening stays behind the animated loading surface through snapshot
+and reload, so a stale thinking-only transcript is not shown as completed
+content. A failed or timed-out replay reports its error and reveals the
+available transcript. A refresh of an already displayed session keeps its
+content visible, and late replay results cannot navigate back after selection
+changes. While any selected session's transcript is pending, Desktop shows the
+opening state, never the new-conversation landing.
 
 Long histories need the adapter's streamed replay. The published adapter
 (`b6e09c7`) returns the whole replay inline and a long session exceeds the

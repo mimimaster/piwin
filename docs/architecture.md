@@ -782,13 +782,19 @@ The shared scroll port publishes its mounted element through React state in
 a layout effect; a ref assignment alone cannot wake a newly mounted list.
 
 First-open presentation covers the transcript with an `Opening conversation…`
-state while the mounted content lays out. After the snapshot arrives it waits
-at least 300 ms, then reveals at the tail after 180 ms of stable geometry/DOM
-with measured tail slots and loaded inline media. A 1600 ms layout deadline
-performs a final tail pin and reveals even if a preview remains pending; network
-waiting is separate. The guard runs once per opened viewport and never covers
-ordinary subsequent updates, blank new sessions, or explicit history views.
-The content stays laid out but hidden and inert during preparation.
+state while authoritative resume is pending, including warm snapshots that
+may contain only old thinking/work output. Explicitly unsynced native history
+keeps this state through snapshot and reload; a failed sync reports its error
+and falls back to the available transcript. After hydration the viewport reveals
+at the remembered reading position or live tail after 180 ms of stable
+geometry/DOM with measured tail slots and loaded inline media (50 ms when all
+mounted heights come from cache). There is no fixed minimum delay. A 1600 ms
+layout deadline reveals even if a preview remains pending; network waiting is
+separate. The guard runs once per opened viewport and never covers ordinary
+subsequent updates, a refresh of already displayed content, blank new sessions,
+or explicit history views. Cached content remains readable when the Host is
+offline, including its subsequent reconnect refresh. The content stays laid
+out but hidden and inert during preparation.
 
 Heavy content has independent retention bounds:
 

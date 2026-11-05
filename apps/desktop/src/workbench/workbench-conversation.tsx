@@ -267,6 +267,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
         <TranscriptViewport
           key={activeSessionId ?? 'no-session'}
         awaitingTranscript={state.awaitingTranscript}
+        offline={!state.hostReady}
         messageCount={visibleMessages.length}
         activitySignal={historyViewActive ? 'history-view' : activitySignal}
         messages={visibleMessages}
