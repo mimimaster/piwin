@@ -25,6 +25,8 @@ import { useSettings } from '../settings/settings-context.js';
 import { canPairOverChannel } from './channel-host-book.js';
 import { canScanPairingCode } from './pairing-code-scanner.js';
 import { PairedHostList } from './paired-host-list.js';
+import { SavedRemoteTargetList } from './saved-remote-target-list.js';
+import { saveSavedRemoteTarget } from './saved-remote-targets.js';
 import {
   clearDesktopRemoteHostTarget,
   loadDesktopRemoteHostTarget,
@@ -55,11 +57,22 @@ export function HostTargetSettings(): ReactElement {
   const legacyId = useId();
   const connectId = useId();
   const [error, setError] = useState<string | undefined>();
+  // Bumped on every attach so the saved list re-reads after an upsert.
+  const [savedVersion, setSavedVersion] = useState(0);
 
-  function attachTo(target: DesktopRemoteHostTarget): void {
+  function attachTo(target: DesktopRemoteHostTarget, hostInstanceId?: string): void {
     setError(undefined);
     saveDesktopHostLaunchMode('attach');
     saveDesktopRemoteHostTarget(target);
+    // Channel pairs live in the host book; door-token targets would need the
+    // token on every reconnect, so only credential-backed endpoints are saved.
+    if (target.hostId === undefined && target.authToken === undefined) {
+      saveSavedRemoteTarget({
+        endpoint: target.endpoint,
+        ...(hostInstanceId === undefined ? {} : { hostInstanceId }),
+      });
+      setSavedVersion((version) => version + 1);
+    }
     setPairLink('');
     setConnectOpen(false);
   }
@@ -187,6 +200,14 @@ export function HostTargetSettings(): ReactElement {
           disabled={busy}
         />
       ) : null}
+
+      <SavedRemoteTargetList
+        key={savedVersion}
+        onConnect={(target) => {
+          attachTo(target);
+        }}
+        disabled={busy}
+      />
 
       <Collapse expanded={connectOpen} testId="host-target-connect-guide">
         <div id={connectId} className="connection-guide">

@@ -19,6 +19,7 @@ import { canPairOverChannel } from './channel-host-book.js';
 import { useHostAttach } from './use-host-attach.js';
 import { getRemoteAccessCopy } from '../i18n/desktop-locale-remote-access.js';
 import { PairedHostList } from './paired-host-list.js';
+import { SavedRemoteTargetList } from './saved-remote-target-list.js';
 
 export type HostConnectWallProps = {
   /** After a successful probe; caller persists target + launch mode. */
@@ -86,6 +87,7 @@ export function HostConnectWall(props: HostConnectWallProps): ReactElement {
         {channelPairing ? (
           <PairedHostList onConnect={(target) => props.onConnected(target)} disabled={busy} />
         ) : null}
+        <SavedRemoteTargetList onConnect={(target) => props.onConnected(target)} disabled={busy} />
         {scannerAvailable ? (
           <>
             <p className="host-gate-description">{copy.scanHint}</p>
