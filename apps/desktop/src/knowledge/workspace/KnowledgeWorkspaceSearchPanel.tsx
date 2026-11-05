@@ -95,15 +95,17 @@ export function KnowledgeWorkspaceSearchPanel(props: KnowledgeWorkspaceSearchPan
                   data-testid={`knowledge-search-hit-${hit.id}`}
                   onClick={() => props.onOpenHit(hit)}
                 >
-                  <span className="kw-row-title">{hit.title}</span>
-                  <span className="kw-row-meta">
-                    {hit.titleMatchOnly
-                      ? t('Title match · not full-text', '标题匹配 · 非全文')
-                      : hit.derivedFromId
-                        ? t('Derived from source', '派生于原文')
-                        : hit.sourceLabel}
+                  <span className="kw-row-head">
+                    <span className="kw-row-title">{hit.title}</span>
+                    <span className="kw-row-meta">
+                      {hit.titleMatchOnly
+                        ? t('Title match · not full-text', '标题匹配 · 非全文')
+                        : hit.derivedFromId
+                          ? t('Derived from source', '派生于原文')
+                          : hit.sourceLabel}
+                    </span>
                   </span>
-                  <span className="kw-muted">{hit.snippet}</span>
+                  {hit.snippet ? <span className="kw-row-snippet kw-muted">{hit.snippet}</span> : null}
                 </button>
               </li>
             ))}

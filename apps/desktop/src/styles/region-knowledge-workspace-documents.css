@@ -1,0 +1,307 @@
+/* Region: Knowledge Workspace — Materials library & documents section
+   (KnowledgeDocumentsSection.tsx, KnowledgeMaterialsSection.tsx). */
+
+.kw-documents,
+.kw-materials {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  max-width: 1080px;
+  min-width: 0;
+  width: 100%;
+  padding-bottom: var(--s-10);
+}
+
+/* ---------- Section Header (Fixes missing .kw-section-head) ---------- */
+
+.kw-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-2);
+}
+
+.kw-title {
+  margin: 0;
+  color: var(--t1, var(--text-1));
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.kw-sub {
+  margin: 4px 0 0;
+  color: var(--t3, var(--text-3));
+  font-size: var(--fs-chrome, 13px);
+  line-height: 1.5;
+}
+
+/* ---------- Source Chips Bar ---------- */
+
+.kw-source-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+
+.kw-source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 5px 12px;
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-pill, 9999px);
+  background: var(--s3, var(--surface-2));
+  color: var(--t2, var(--text-2));
+  font-family: inherit;
+  font-size: var(--fs-chrome, 13px);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.kw-source-chip:hover {
+  border-color: var(--l2, var(--line-2));
+  background: var(--hover, var(--surface-3));
+  color: var(--t1, var(--text-1));
+}
+
+.kw-source-chip.is-active {
+  border-color: var(--iris, var(--accent));
+  background: color-mix(in srgb, var(--iris, var(--accent)) 12%, var(--surface-2));
+  color: var(--iris, var(--accent));
+  font-weight: 600;
+}
+
+.kw-source-chip-name {
+  font-weight: 500;
+}
+
+.kw-source-chip-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-pill, 9999px);
+  background: color-mix(in srgb, var(--line-2, rgba(0,0,0,0.1)) 40%, transparent);
+  color: inherit;
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.kw-source-chip.is-active .kw-source-chip-meta {
+  background: color-mix(in srgb, var(--iris, var(--accent)) 22%, transparent);
+}
+
+/* ---------- Document List & Rows ---------- */
+
+.kw-doc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-panel, 12px);
+  background: var(--s3, var(--surface-1));
+  overflow: hidden;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.04));
+}
+
+.kw-doc-list > li + li {
+  border-top: 1px solid var(--l1, var(--line-1));
+}
+
+.kw-doc-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-1) var(--ease-out);
+}
+
+.kw-doc-row:hover {
+  background: var(--hover, var(--surface-2));
+}
+
+.kw-doc-row:focus-visible {
+  outline: 2px solid var(--iris, var(--accent));
+  outline-offset: -2px;
+}
+
+.kw-doc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: var(--r-control, 7px);
+  background: color-mix(in srgb, var(--iris, var(--accent)) 10%, transparent);
+  color: var(--iris, var(--accent));
+}
+
+.kw-doc-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.kw-doc-title {
+  overflow: hidden;
+  color: var(--t1, var(--text-1));
+  font-size: var(--fs-body, 13.5px);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kw-doc-path {
+  overflow: hidden;
+  color: var(--t4, var(--text-4));
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kw-doc-meta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.kw-doc-size,
+.kw-doc-date {
+  color: var(--t3, var(--text-3));
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.kw-doc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+
+.kw-doc-count {
+  color: var(--t3, var(--text-3));
+  font-size: var(--fs-chrome, 12.5px);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Status Chips ---------- */
+
+.kw-chip {
+  flex: none;
+  padding: 1px var(--s-2);
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-pill, 999px);
+  color: var(--t3, var(--text-3));
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.kw-chip.is-ok {
+  border-color: color-mix(in srgb, var(--ok, #15803d) 35%, transparent);
+  background: color-mix(in srgb, var(--ok, #15803d) 8%, transparent);
+  color: var(--ok, #15803d);
+}
+
+.kw-chip.is-warn {
+  border-color: color-mix(in srgb, var(--warn, #b45309) 35%, transparent);
+  background: color-mix(in srgb, var(--warn, #b45309) 8%, transparent);
+  color: var(--warn, #b45309);
+}
+
+.kw-chip.is-bad {
+  border-color: color-mix(in srgb, var(--danger, #c2410c) 35%, transparent);
+  background: color-mix(in srgb, var(--danger, #c2410c) 8%, transparent);
+  color: var(--danger, #c2410c);
+}
+
+.kw-chip.is-muted {
+  border-color: var(--l1, var(--line-1));
+  background: var(--s2, var(--surface-1));
+  color: var(--t3, var(--text-3));
+}
+
+/* ---------- Legacy Folder Sources List (Fallback) ---------- */
+
+.kw-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kw-source {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s-4);
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-panel, 12px);
+  background: var(--s3, var(--surface-2));
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.04));
+}
+
+.kw-source-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.kw-source-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--t1, var(--text-1));
+  font-size: var(--fs-body, 14px);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kw-source-path {
+  overflow: hidden;
+  color: var(--t4, var(--text-4));
+  font-family: var(--font-mono, ui-monospace);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kw-source-meta {
+  color: var(--t3, var(--text-3));
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.kw-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}

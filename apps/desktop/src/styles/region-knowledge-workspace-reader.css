@@ -1,0 +1,285 @@
+/* Region: Knowledge Workspace — Reader view & Assist side panel
+   (KnowledgeReaderView.tsx, KnowledgeAssistPanel.tsx). */
+
+.kw-reader {
+  max-width: 76ch;
+  width: 100%;
+  margin: 0 auto;
+  padding-bottom: var(--s-10);
+}
+
+.kw-reader-with-assist {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--s-6);
+  max-width: none;
+  align-items: start;
+}
+
+.kw-reader-main {
+  min-width: 0;
+  max-width: 76ch;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ---------- Breadcrumb Navigation ---------- */
+
+.kw-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-4);
+  color: var(--t3, var(--text-3));
+  font-size: var(--fs-chrome, 12.5px);
+}
+
+.kw-breadcrumb-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 3px var(--s-2);
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-control, 6px);
+  background: var(--s3, var(--surface-2));
+  color: var(--t2, var(--text-2));
+  font-family: inherit;
+  font-size: var(--fs-chrome, 12.5px);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.kw-breadcrumb-back:hover {
+  background: var(--hover, var(--surface-3));
+  color: var(--t1, var(--text-1));
+  border-color: var(--l2, var(--line-2));
+}
+
+.kw-breadcrumb-sep {
+  color: var(--t4, var(--text-4));
+}
+
+.kw-breadcrumb-item {
+  color: var(--t3, var(--text-3));
+}
+
+.kw-breadcrumb-current {
+  overflow: hidden;
+  color: var(--t1, var(--text-1));
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Reader Header ---------- */
+
+.kw-reader-head {
+  margin-bottom: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.kw-reader-title {
+  margin: 0;
+  color: var(--t1, var(--text-1));
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.kw-reader-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+/* ---------- Paper Reader Body Canvas ---------- */
+
+.kw-reader-body {
+  padding: var(--s-7) var(--s-8);
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-panel, 14px);
+  background: var(--s3, var(--surface-1));
+  box-shadow: var(--shadow-sm, 0 1px 4px rgba(0, 0, 0, 0.04));
+  line-height: var(--lh-relaxed, 1.68);
+}
+
+.kw-reader-code {
+  margin: 0;
+  overflow-x: auto;
+  color: var(--t1, var(--text-1));
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.kw-reader-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+  color: var(--t3, var(--text-3));
+  font-size: var(--fs-chrome, 12.5px);
+  font-variant-numeric: tabular-nums;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--l1, var(--line-1));
+}
+
+.kw-reader-hint {
+  margin: var(--s-2) 0 0;
+  color: var(--warn, #b45309);
+  font-size: var(--fs-chrome, 12.5px);
+}
+
+/* ---------- AI Assist Panel (340px Side Drawer) ---------- */
+
+.kw-assist {
+  position: sticky;
+  top: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  min-height: 380px;
+  max-height: calc(100dvh - 7rem);
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-panel, 12px);
+  background: var(--s3, var(--surface-1));
+  box-shadow: var(--shadow-md, 0 4px 16px -4px rgba(0, 0, 0, 0.08));
+  overflow: hidden;
+}
+
+.kw-assist-head {
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--l1, var(--line-1));
+  background: var(--s2, var(--surface-2));
+}
+
+.kw-assist-title {
+  margin: 0;
+  font-size: var(--fs-body, 13.5px);
+  font-weight: 650;
+  color: var(--t1, var(--text-1));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kw-assist-title::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--iris, var(--accent));
+}
+
+.kw-assist-hint {
+  margin: var(--s-1) 0 0;
+  color: var(--t3, var(--text-3));
+  font-size: 11.5px;
+}
+
+.kw-assist-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--s-3) var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.kw-assist-empty {
+  margin: auto 0;
+  color: var(--t4, var(--text-4));
+  font-size: var(--fs-chrome, 12.5px);
+  text-align: center;
+  padding: var(--s-6) 0;
+}
+
+.kw-assist-error {
+  margin: 0;
+  color: var(--danger, #c2410c);
+  background: color-mix(in srgb, var(--danger, #c2410c) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger, #c2410c) 25%, transparent);
+  border-radius: var(--r-control, 6px);
+  padding: var(--s-2) var(--s-3);
+  font-size: 12px;
+}
+
+.kw-assist-msg {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: var(--fs-chrome, 13px);
+  line-height: 1.55;
+  padding: var(--s-3);
+  border-radius: var(--r-control, 8px);
+}
+
+.kw-assist-msg.is-user {
+  align-self: flex-end;
+  background: var(--iris, var(--accent));
+  color: var(--on-iris, #fff);
+  max-width: 90%;
+  margin-left: 10%;
+}
+
+.kw-assist-msg.is-assistant {
+  align-self: flex-start;
+  background: var(--s2, var(--surface-2));
+  color: var(--t1, var(--text-1));
+  border: 1px solid var(--l1, var(--line-1));
+  max-width: 96%;
+}
+
+.kw-assist-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--l1, var(--line-1));
+  background: var(--s2, var(--surface-2));
+}
+
+.kw-assist-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 58px;
+  box-sizing: border-box;
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-control, 8px);
+  background: var(--s3, var(--surface-1));
+  color: var(--t1, var(--text-1));
+  font: inherit;
+  font-size: 12.5px;
+  padding: var(--s-2);
+}
+
+.kw-assist-input:focus {
+  border-color: var(--iris, var(--accent));
+  outline: none;
+}
+
+.kw-assist-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+
+@media (max-width: 860px) {
+  .kw-reader-with-assist {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kw-assist {
+    position: static;
+    max-height: 48dvh;
+    margin-top: var(--s-4);
+  }
+}

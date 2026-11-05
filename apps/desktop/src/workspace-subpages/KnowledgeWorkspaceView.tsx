@@ -556,7 +556,15 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
             counts={navCounts}
             onOpenIndexSettings={() => setIndexPanelOpen(true)}
           />
-          <div className="kw-content">
+          <div
+            className={`kw-content ${
+              !indexPanelOpen &&
+              !workspaceQuery.trim() &&
+              (section === 'wiki' || section === 'flashcards' || (section === 'materials' && openDocument !== null))
+                ? 'is-canvas'
+                : 'is-flow'
+            }`}
+          >
             {notices}
             {indexPanelOpen ? (
               <KnowledgeIndexStatusPanel

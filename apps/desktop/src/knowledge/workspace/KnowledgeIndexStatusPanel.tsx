@@ -49,35 +49,40 @@ export function KnowledgeIndexStatusPanel(props: KnowledgeIndexStatusPanelProps)
           );
           return (
             <li key={row.baseId} className="kw-row" data-testid={`knowledge-index-row-${row.baseId}`}>
-              <span className="kw-row-title">{row.name}</span>
-              <span className="kw-row-meta">
-                {label.label}
-                {row.failedDocumentCount > 0
-                  ? t(` · ${row.failedDocumentCount} failed`, ` · ${row.failedDocumentCount} 项失败`)
-                  : ''}
-              </span>
-              {row.canRetry && row.folderPath ? (
-                <button
-                  type="button"
-                  className="kw-btn"
-                  disabled={props.busyBaseId === row.baseId}
-                  data-testid={`knowledge-index-retry-${row.baseId}`}
-                  onClick={() => props.onRetry(row.folderPath ?? '', row.baseId)}
-                >
-                  {t('Retry', '重试')}
-                </button>
-              ) : null}
-              {row.canCancel && row.folderPath ? (
-                <button
-                  type="button"
-                  className="kw-btn"
-                  disabled={props.busyBaseId === row.baseId}
-                  data-testid={`knowledge-index-cancel-${row.baseId}`}
-                  onClick={() => props.onCancel(row.folderPath ?? '', row.baseId)}
-                >
-                  {t('Cancel', '取消')}
-                </button>
-              ) : null}
+              <div className="kw-row-info">
+                <span className="kw-row-title">{row.name}</span>
+                <span className="kw-row-meta">
+                  <span className={`kw-status-dot is-${row.state}`} aria-hidden="true" />
+                  {label.label}
+                  {row.failedDocumentCount > 0
+                    ? t(` · ${row.failedDocumentCount} failed`, ` · ${row.failedDocumentCount} 项失败`)
+                    : ''}
+                </span>
+              </div>
+              <div className="kw-row-actions">
+                {row.canRetry && row.folderPath ? (
+                  <button
+                    type="button"
+                    className="kw-btn kw-btn-sm"
+                    disabled={props.busyBaseId === row.baseId}
+                    data-testid={`knowledge-index-retry-${row.baseId}`}
+                    onClick={() => props.onRetry(row.folderPath ?? '', row.baseId)}
+                  >
+                    {t('Retry', '重试')}
+                  </button>
+                ) : null}
+                {row.canCancel && row.folderPath ? (
+                  <button
+                    type="button"
+                    className="kw-btn kw-btn-sm"
+                    disabled={props.busyBaseId === row.baseId}
+                    data-testid={`knowledge-index-cancel-${row.baseId}`}
+                    onClick={() => props.onCancel(row.folderPath ?? '', row.baseId)}
+                  >
+                    {t('Cancel', '取消')}
+                  </button>
+                ) : null}
+              </div>
             </li>
           );
         })}
@@ -86,14 +91,19 @@ export function KnowledgeIndexStatusPanel(props: KnowledgeIndexStatusPanelProps)
         {props.onOpenSettings ? (
           <button
             type="button"
-            className="btn sm pri"
+            className="kw-btn kw-btn-sm is-primary btn sm pri"
             data-testid="knowledge-index-open-settings"
             onClick={props.onOpenSettings}
           >
             {t('Embedding settings', '向量设置')}
           </button>
         ) : null}
-        <button type="button" className="btn sm" data-testid="knowledge-index-close" onClick={props.onClose}>
+        <button
+          type="button"
+          className="kw-btn kw-btn-sm btn sm"
+          data-testid="knowledge-index-close"
+          onClick={props.onClose}
+        >
           {t('Close', '关闭')}
         </button>
       </div>

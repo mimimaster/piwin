@@ -61,7 +61,7 @@ export function KnowledgeDocumentsSection(props: KnowledgeDocumentsSectionProps)
         {props.onAddFolder ? (
           <button
             type="button"
-            className="kw-btn"
+            className="kw-btn is-primary"
             onClick={props.onAddFolder}
             data-testid="knowledge-documents-add-folder"
           >

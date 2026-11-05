@@ -89,6 +89,10 @@
 @import './styles/region-knowledge-base.css';
 @import './styles/region-knowledge-hub.css';
 @import './styles/region-knowledge-workspace.css';
+@import './styles/region-knowledge-workspace-overview.css';
+@import './styles/region-knowledge-workspace-documents.css';
+@import './styles/region-knowledge-workspace-reader.css';
+@import './styles/region-knowledge-workspace-panels.css';
 @import './styles/run-activity.css';
 @import './styles/region-inspector.css';
 @import './styles/inspector-sections.css';

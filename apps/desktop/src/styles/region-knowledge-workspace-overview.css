@@ -1,0 +1,257 @@
+/* Region: Knowledge Workspace — Overview section (KnowledgeOverviewSection.tsx).
+   Bento KPI cards, continue-reading list, topic collections distribution. */
+
+.kw-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  max-width: 1080px;
+  min-width: 0;
+  width: 100%;
+}
+
+.kw-overview .kw-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.kw-overview-head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* ---------- 3-Column KPI Bento Cards ---------- */
+
+.kw-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-4);
+}
+
+.kw-kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-height: 110px;
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-panel, 12px);
+  background: var(--s3, var(--surface-2));
+  color: var(--t1, var(--text-1));
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.04));
+  transition: transform var(--t-2) var(--ease-out), border-color var(--t-2) var(--ease-out), box-shadow var(--t-2) var(--ease-out);
+}
+
+.kw-kpi:hover {
+  border-color: var(--l2, var(--line-2));
+  background: var(--hover, var(--surface-3));
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.08);
+}
+
+.kw-kpi:focus-visible {
+  outline: 2px solid var(--iris, var(--accent));
+  outline-offset: 1px;
+}
+
+.kw-kpi-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.kw-kpi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-control, 8px);
+  background: color-mix(in srgb, var(--iris, var(--accent)) 10%, transparent);
+  color: var(--iris, var(--accent));
+}
+
+.kw-kpi[data-testid="knowledge-kpi-due"] .kw-kpi-icon {
+  background: color-mix(in srgb, var(--amber, #d97706) 12%, transparent);
+  color: var(--amber, #d97706);
+}
+
+.kw-kpi-value {
+  margin-top: var(--s-1);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.kw-kpi[data-testid="knowledge-kpi-due"] .kw-kpi-value {
+  color: var(--amber, #d97706);
+}
+
+.kw-kpi-label {
+  color: var(--t2, var(--text-2));
+  font-size: var(--fs-chrome, 13px);
+  font-weight: 500;
+}
+
+.kw-kpi-hint {
+  width: 100%;
+  margin-top: var(--s-3);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--l1, var(--line-1));
+  color: var(--t4, var(--text-4));
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ---------- 2-Column Main Asymmetric Bento Grid ---------- */
+
+.kw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--s-4);
+}
+
+.kw-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: var(--s-5);
+  border: 1px solid var(--l1, var(--line-1));
+  border-radius: var(--r-panel, 12px);
+  background: var(--s3, var(--surface-2));
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.04));
+}
+
+.kw-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding-bottom: var(--s-1);
+  border-bottom: 1px solid var(--l1, var(--line-1));
+}
+
+.kw-card-head h2 {
+  margin: 0;
+  color: var(--t1, var(--text-1));
+  font-size: var(--fs-body, 13.5px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.kw-lead {
+  margin: 0;
+  color: var(--t2, var(--text-2));
+  font-size: var(--fs-chrome, 13px);
+  line-height: 1.5;
+}
+
+.kw-muted {
+  margin: 0;
+  color: var(--t3, var(--text-3));
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* ---------- Content List Rows (Continue reading / Recent) ---------- */
+
+.kw-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kw-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-control, 8px);
+  background: transparent;
+  color: var(--t1, var(--text-1));
+  font: inherit;
+  font-size: var(--fs-chrome, 13px);
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+button.kw-row:hover {
+  background: var(--hover, var(--surface-3));
+  border-color: var(--l1, var(--line-1));
+}
+
+.kw-row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.kw-row-meta {
+  flex: none;
+  color: var(--t4, var(--text-4));
+  font-size: 11.5px;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: var(--r-control, 4px);
+  background: var(--s2, var(--surface-1));
+  border: 1px solid var(--l1, var(--line-1));
+}
+
+/* ---------- Empty States ---------- */
+
+.kw-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-7) var(--s-6);
+  border: 1px dashed var(--l2, var(--line-2));
+  border-radius: var(--r-panel, 12px);
+  background: var(--s1, var(--surface-1));
+}
+
+.kw-empty h2 {
+  margin: 0;
+  color: var(--t1, var(--text-1));
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.kw-empty p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--t3, var(--text-3));
+  font-size: var(--fs-chrome, 13px);
+  line-height: 1.65;
+}
+
+.kw-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}

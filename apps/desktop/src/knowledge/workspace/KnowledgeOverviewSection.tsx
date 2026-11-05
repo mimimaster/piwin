@@ -53,13 +53,37 @@ export function KnowledgeOverviewSection(props: KnowledgeOverviewSectionProps): 
   return (
     <div className="kw-overview" data-testid="knowledge-overview">
       <header className="kw-page-head">
-        <h1>{t('Overview', '总览')}</h1>
-        <p>
-          {t(
-            'Everything filed under this Host: materials, knowledge pages and what is due today.',
-            '这里是这台 Host 上的全部内容：资料、知识页，以及今天该复习什么。',
-          )}
-        </p>
+        <div>
+          <h1>{t('Overview', '总览')}</h1>
+          <p>
+            {t(
+              'Everything filed under this Host: materials, knowledge pages and what is due today.',
+              '这里是这台 Host 上的全部内容：资料、知识页，以及今天该复习什么。',
+            )}
+          </p>
+        </div>
+        <div className="kw-overview-head-actions">
+          {props.onAddFolder ? (
+            <button
+              type="button"
+              className="kw-btn is-primary"
+              onClick={props.onAddFolder}
+              data-testid="knowledge-overview-head-add"
+            >
+              <IconFolderPlus width={14} height={14} aria-hidden="true" />
+              <span>{t('Add materials', '添加资料')}</span>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="kw-btn"
+            onClick={() => props.onSelectSection('wiki')}
+            data-testid="knowledge-overview-head-wiki"
+          >
+            <IconBook width={14} height={14} aria-hidden="true" />
+            <span>{t('Knowledge wiki', '知识 Wiki')}</span>
+          </button>
+        </div>
       </header>
 
       {errors.length > 0 ? (
@@ -109,11 +133,13 @@ export function KnowledgeOverviewSection(props: KnowledgeOverviewSectionProps): 
           onClick={() => props.onSelectSection('materials')}
           data-testid="knowledge-kpi-materials"
         >
-          <span className="kw-kpi-icon">
-            <IconFolder width={16} height={16} aria-hidden="true" />
-          </span>
+          <div className="kw-kpi-top">
+            <span className="kw-kpi-label">{t('Materials', '资料')}</span>
+            <span className="kw-kpi-icon">
+              <IconFolder width={16} height={16} aria-hidden="true" />
+            </span>
+          </div>
           <span className="kw-kpi-value">{materials ? materials.documents : '—'}</span>
-          <span className="kw-kpi-label">{t('Materials', '资料')}</span>
           <span className="kw-kpi-hint">
             {materials
               ? t(
@@ -130,11 +156,13 @@ export function KnowledgeOverviewSection(props: KnowledgeOverviewSectionProps): 
           onClick={() => props.onSelectSection('wiki')}
           data-testid="knowledge-kpi-wiki"
         >
-          <span className="kw-kpi-icon">
-            <IconBook width={16} height={16} aria-hidden="true" />
-          </span>
+          <div className="kw-kpi-top">
+            <span className="kw-kpi-label">{t('Knowledge pages', '知识页')}</span>
+            <span className="kw-kpi-icon">
+              <IconBook width={16} height={16} aria-hidden="true" />
+            </span>
+          </div>
           <span className="kw-kpi-value">{wiki ? wiki.concepts : '—'}</span>
-          <span className="kw-kpi-label">{t('Knowledge pages', '知识页')}</span>
           <span className="kw-kpi-hint">
             {wiki ? t('Concepts, topics and notes', '概念、专题与笔记') : t('Unavailable', '暂不可用')}
           </span>
@@ -146,11 +174,13 @@ export function KnowledgeOverviewSection(props: KnowledgeOverviewSectionProps): 
           onClick={() => props.onSelectSection('flashcards')}
           data-testid="knowledge-kpi-due"
         >
-          <span className="kw-kpi-icon">
-            <IconCards width={16} height={16} aria-hidden="true" />
-          </span>
+          <div className="kw-kpi-top">
+            <span className="kw-kpi-label">{t('Due cards', '待复习')}</span>
+            <span className="kw-kpi-icon">
+              <IconCards width={16} height={16} aria-hidden="true" />
+            </span>
+          </div>
           <span className="kw-kpi-value">{study ? study.dueCount : '—'}</span>
-          <span className="kw-kpi-label">{t('Due cards', '待复习')}</span>
           <span className="kw-kpi-hint">
             {study
               ? study.unfinishedCount > 0

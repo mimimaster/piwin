@@ -50,33 +50,23 @@ export function WikiCopilotPane(props: WikiCopilotPaneProps): ReactElement {
         <div className="copilot-section-title">{t('Derived Flashcards', '衍生强化闪卡')}</div>
         <div className="flashcard-mini-tile">
           <div className="flashcard-mini-kicker">
-            {t('Card #01 · Concept Drill', '卡片 #01 · 概念对比')}
+            {t('Concept Knowledge Point', '词条知识点')}
           </div>
           <div className="flashcard-mini-q">
-            {concept.slug.includes('fsrs')
-              ? t('What are the core parameters of FSRS?', 'FSRS 算法的核心调度参数有哪些？')
-              : t('Difference between traditional RAG and LLM-Wiki?', '传统 RAG 与 LLM-Wiki 的本质差异是什么？')}
+            {concept.title}
           </div>
           <div className="flashcard-mini-a">
-            {concept.slug.includes('fsrs')
-              ? t(
-                  'Stability and Retrievability based differential dynamics.',
-                  '基于记忆稳定性（Stability）与可提取概率（Retrievability）的微分模型。',
-                )
-              : t(
-                  'RAG does shallow chunk retrieval; LLM-Wiki synthesizes a compounding graph.',
-                  'RAG 仅对离散文本做浅层切片检索；LLM-Wiki 是由 AI 主动去重、归纳建立全局概念图谱。',
-                )}
+            {concept.summary || t('Spaced repetition drills compiled from this concept.', '基于此词条提炼的间隔复习卡片。')}
           </div>
           {props.onGoToFlashcards ? (
             <button
               type="button"
               className="btn sm pri"
-              style={{ width: '100%', marginTop: '2px' }}
+              style={{ width: '100%', marginTop: '4px' }}
               onClick={props.onGoToFlashcards}
               data-testid="wiki-copilot-study-btn"
             >
-              {t('Practice in Flashcards (2 cards)', '在每日复习中练习（2 张）')}
+              {t('Practice in Flashcards', '在每日复习中练习')}
             </button>
           ) : null}
         </div>

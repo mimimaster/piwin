@@ -233,13 +233,32 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 .wiki-nav-header {
-  padding: 12px 14px 10px;
+  padding: 10px 12px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 8px;
   border-bottom: 1px solid var(--l1, var(--line-1));
   background: var(--s0, var(--surface-base));
   flex-shrink: 0;
+}
+
+.nav-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.nav-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.nav-header-actions button {
+  flex: 1;
+  justify-content: center;
 }
 
 .nav-col-title {

@@ -25,31 +25,35 @@ export function WikiNavPane(props: WikiNavPaneProps): ReactElement {
   return (
     <aside className="wiki-nav-pane" aria-label={t('Wiki concepts', '维基概念目录')}>
       <div className="wiki-nav-header">
-        <div className="nav-col-title">
-          <span>{t('Wiki Catalog', '概念目录')}</span>
-          <span className="wiki-stamp" style={{ fontSize: '9.5px' }}>
-            {props.concepts.length} {t('concepts', '词条')}
-          </span>
+        <div className="nav-header-top">
+          <div className="nav-col-title">
+            <span>{t('Wiki Catalog', '概念目录')}</span>
+            <span className="wiki-stamp" style={{ fontSize: '9.5px' }}>
+              {props.concepts.length} {t('concepts', '词条')}
+            </span>
+          </div>
         </div>
-        <button
-          type="button"
-          className="btn sm pri"
-          onClick={props.onDistillConcept}
-          title={t('Pick a source to distil from', '选择要提炼的信源')}
-          data-testid="wiki-distill-concept-btn"
-        >
-          {t('+ Distill', '+ 提炼词条')}
-        </button>
-        {props.onNewNote ? (
+        <div className="nav-header-actions">
+          {props.onNewNote ? (
+            <button
+              type="button"
+              className="btn sm"
+              onClick={props.onNewNote}
+              data-testid="wiki-new-note-btn"
+            >
+              {t('+ Note', '+ 笔记')}
+            </button>
+          ) : null}
           <button
             type="button"
-            className="btn sm"
-            onClick={props.onNewNote}
-            data-testid="wiki-new-note-btn"
+            className="btn sm pri"
+            onClick={props.onDistillConcept}
+            title={t('Pick a source to distil from', '选择要提炼的信源')}
+            data-testid="wiki-distill-concept-btn"
           >
-            {t('+ Note', '+ 笔记')}
+            {t('+ Distill', '+ 提炼词条')}
           </button>
-        ) : null}
+        </div>
       </div>
 
       <div className="search-box-wrap">
@@ -121,18 +125,18 @@ export function WikiNavPane(props: WikiNavPaneProps): ReactElement {
 
         <div className="list-group-title" style={{ marginTop: '6px' }}>{t('Drafts', '待增量编纂')}</div>
         <div
-          className="concept-row wiki-concept-card"
-          style={{ opacity: 0.85 }}
+          className="concept-row wiki-concept-card is-draft"
+          style={{ opacity: 0.9 }}
           onClick={props.onOpenDraft}
         >
           <div className="row-main">
-            <span className="row-title wiki-concept-title">{t('Engineering Limits Spec', '单源文件行数限制规约')}</span>
+            <span className="row-title wiki-concept-title">{t('+ New draft in chat…', '+ 在会话中增量编纂…')}</span>
             <span className="wiki-stamp ochre" style={{ fontSize: '9px' }}>{t('Draft', '草稿')}</span>
           </div>
           <div className="row-sub">
-            <span>AGENTS.md</span>
+            <span>{t('Synthesize or distill', '提炼与沉淀新词条')}</span>
             <span>·</span>
-            <span>{t('1 ref', '1 处关联')}</span>
+            <span>{t('AI Assisted', 'AI 助读')}</span>
           </div>
         </div>
       </div>

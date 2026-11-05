@@ -35,26 +35,43 @@ export function KnowledgeCardDraftPanel(props: KnowledgeCardDraftPanelProps): Re
         </div>
       </header>
       <ul className="kw-card-draft-list">
-        {props.result.drafts.map((draft, index) => (
-          <li key={`${draft.front ?? draft.text ?? index}-${index}`}>
-            <label>
-              <input
-                type="checkbox"
-                checked={selected.has(index)}
-                data-testid={`knowledge-card-draft-item-${index}`}
-                onChange={() => {
-                  setSelected((current) => {
-                    const next = new Set(current);
-                    if (next.has(index)) next.delete(index);
-                    else next.add(index);
-                    return next;
-                  });
-                }}
-              />
-              <span>{draftPreview(draft) || t('(empty)', '（空）')}</span>
-            </label>
-          </li>
-        ))}
+        {props.result.drafts.map((draft, index) => {
+          const isCloze = draft.model === 'cloze';
+          const title = draftPreview(draft) || t('(empty)', '（空）');
+          return (
+            <li key={`${draft.front ?? draft.text ?? index}-${index}`}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selected.has(index)}
+                  data-testid={`knowledge-card-draft-item-${index}`}
+                  onChange={() => {
+                    setSelected((current) => {
+                      const next = new Set(current);
+                      if (next.has(index)) next.delete(index);
+                      else next.add(index);
+                      return next;
+                    });
+                  }}
+                />
+                <div className="kw-card-draft-body">
+                  <div className="kw-card-draft-meta">
+                    <span className="kw-chip is-muted">
+                      {isCloze ? t('Cloze', '填空') : t('Basic Q&A', '问答')}
+                    </span>
+                    {draft.deck ? <span className="kw-chip">{draft.deck}</span> : null}
+                  </div>
+                  <div className="kw-card-draft-content">
+                    <span className="kw-card-draft-front">{title}</span>
+                    {!isCloze && draft.back ? (
+                      <span className="kw-card-draft-back">{draft.back}</span>
+                    ) : null}
+                  </div>
+                </div>
+              </label>
+            </li>
+          );
+        })}
       </ul>
       {props.error ? (
         <p className="kw-assist-error" role="alert">
@@ -64,7 +81,7 @@ export function KnowledgeCardDraftPanel(props: KnowledgeCardDraftPanelProps): Re
       <div className="article-actions">
         <button
           type="button"
-          className="btn sm pri"
+          className="kw-btn kw-btn-sm is-primary btn sm pri"
           data-testid="knowledge-card-draft-save"
           disabled={props.saving || chosen.length === 0}
           onClick={() => props.onSave(chosen)}
@@ -73,7 +90,7 @@ export function KnowledgeCardDraftPanel(props: KnowledgeCardDraftPanelProps): Re
         </button>
         <button
           type="button"
-          className="btn sm"
+          className="kw-btn kw-btn-sm btn sm"
           data-testid="knowledge-card-draft-cancel"
           disabled={props.saving}
           onClick={props.onCancel}
