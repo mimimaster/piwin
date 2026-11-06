@@ -207,14 +207,6 @@ export {
 export { ModelFallbackIcon } from './model-fallback-icon.js';
 export type { ModelFallbackIconProps } from './model-fallback-icon.js';
 
-export { SessionRail, SessionRailItem } from './session-rail.js';
-export type {
-  SessionRailDensity,
-  SessionRailDiffStat,
-  SessionRailItemProps,
-  SessionRailProps,
-} from './session-rail.js';
-
 export {
   BROWSER_MINI_DRAG_THRESHOLD_PX,
   BROWSER_MINI_KEYBOARD_NUDGE_PX,

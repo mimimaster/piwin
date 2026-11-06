@@ -33,7 +33,7 @@ import { createBrowserSessionClient } from '../browser/browser-session-client';
 import { BrowserSessionProvider } from '../browser/browser-session-provider';
 import { useBrowserActivitySignal } from '../browser/use-browser-activity-signal';
 import { hasBrowserMiniActivity } from '../browser/browser-mini-policy';
-import { SessionRailDock } from '../right-panel/session-rail-dock';
+import { StageBrowserDock } from '../right-panel/stage-browser-dock';
 import { SessionStatusPopover, type SessionStatusArtifact } from '../run-activity/session-status-popover';
 import { useSessionResources } from '../right-panel/use-session-resources';
 import {
@@ -452,11 +452,9 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
         )}
         stageOverlay={
           rightPanelOpen || studioOpen || layoutMode === 'phone' ? null : (
-            <SessionRailDock
+            <StageBrowserDock
               key={state.activeSessionId}
               locale={desktopLocale}
-              diffStat={workingTreeStat}
-              runningJobCount={jobs.length}
               overlayOpen={settingsOpen || activeSubPage !== null}
               hostReady={hostStatus !== null}
               browserMiniPlacementKey={browserMiniPlacementKey}
@@ -471,11 +469,9 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
           // Phone: the same owner renders its activity chip in the dock above
           // the composer instead of a floating window over the transcript.
           layoutMode === 'phone' && !rightPanelOpen ? (
-            <SessionRailDock
+            <StageBrowserDock
               key={state.activeSessionId}
               locale={desktopLocale}
-              diffStat={workingTreeStat}
-              runningJobCount={jobs.length}
               overlayOpen={settingsOpen || activeSubPage !== null}
               hostReady={hostStatus !== null}
               phone

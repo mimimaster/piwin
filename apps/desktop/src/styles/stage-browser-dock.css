@@ -1,0 +1,41 @@
+/* Browser Mini dock in the stage's right gutter (right workspace collapsed).
+
+   The dock spans the stage and ignores the pointer; only the mini takes it.
+   It stacks above the history-tick ruler (z 30) so 1px hairlines never paint
+   over the preview or the gutter chrome.
+
+   `.chat-stage > *` forces children relative; this selector outranks it. */
+.chat-stage > .stage-browser-dock {
+  position: absolute;
+  inset: 0;
+  z-index: 31;
+  pointer-events: none;
+}
+
+.stage-browser-dock-slot {
+  position: absolute;
+  top: 12px;
+  /* Right edge meets the history-tick ruler (drawer right: --s-5). */
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: auto;
+}
+
+.stage-browser-mini.is-docked {
+  width: 288px;
+}
+
+/* A dragged window leaves the gutter and floats over the stage. The wrapper
+   stays transparent to the pointer so the transcript below stays usable. */
+.stage-browser-mini.is-floating {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.stage-browser-mini.is-floating > * {
+  pointer-events: auto;
+}

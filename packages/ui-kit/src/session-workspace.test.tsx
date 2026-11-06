@@ -7,7 +7,6 @@ import {
   BROWSER_MINI_KEYBOARD_NUDGE_PX,
   BrowserMiniCard,
   isBrowserMiniDragGesture,
-  SessionRail,
 } from './index.js';
 
 declare global {
@@ -16,7 +15,7 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-describe('SessionRail & BrowserMiniCard primitives', () => {
+describe('BrowserMiniCard primitives', () => {
   let root: Root | undefined;
   let container: HTMLDivElement | undefined;
 
@@ -39,53 +38,6 @@ describe('SessionRail & BrowserMiniCard primitives', () => {
     }
     root = undefined;
     container = undefined;
-  });
-
-  it('renders SessionRail with diff stats, badges, and docked mini slot', () => {
-    const onSelect = vi.fn();
-    const el = mount(
-      <SessionRail
-        density="expanded"
-        items={[
-          {
-            id: 'review',
-            label: '变更',
-            icon: <span>⇄</span>,
-            diffStat: { additions: 48, deletions: 12 },
-            onSelect,
-          },
-          {
-            id: 'browser',
-            label: '浏览器',
-            icon: <span>◎</span>,
-            statusTone: 'running',
-            badgeText: 'AI操作中',
-            onSelect,
-          },
-        ]}
-        dockedSlot={<div data-testid="docked-mini-preview">mini</div>}
-      />,
-    );
-
-    const reviewBtn = el.querySelector(
-      '[data-testid="session-rail-item-review"]',
-    ) as HTMLButtonElement | null;
-    const diffStat = el.querySelector('[data-testid="session-rail-diff-review"]');
-    expect(diffStat?.textContent).toContain('+48');
-    expect(diffStat?.textContent).toContain('-12');
-
-    const browserBadge = el.querySelector(
-      '[data-testid="session-rail-badge-browser"]',
-    );
-    expect(browserBadge?.textContent).toBe('AI操作中');
-    expect(
-      el.querySelector('[data-testid="session-rail-docked-slot"]')?.textContent,
-    ).toBe('mini');
-
-    act(() => {
-      reviewBtn?.click();
-    });
-    expect(onSelect).toHaveBeenCalledWith('review');
   });
 
   it('distinguishes clean click (expand) from pointer drag on BrowserMiniCard', () => {

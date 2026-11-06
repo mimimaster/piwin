@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 /**
- * Collapsed-workspace rail: compact tool pills stay reachable, and a live
- * shared browser docks its bezel-less mini under the rail until the user
- * drags it away.
+ * Stage-gutter dock: a live shared browser docks its bezel-less mini in the
+ * stage's right gutter until the user drags it away. No shortcut rail — the
+ * old session-overview card is gone, so the mini is the only gutter surface.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
@@ -11,7 +11,7 @@ import type { HostServerMessage, WebElementPickResult } from '@piwin/contracts';
 import type { HostClient } from '../host/host-client';
 import type { BrowserSessionLeaseClient } from '../browser/browser-session-lease';
 import { BrowserSessionProvider } from '../browser/browser-session-provider';
-import { SessionRailDock } from './session-rail-dock';
+import { StageBrowserDock } from './stage-browser-dock';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -41,8 +41,8 @@ const noPick = (_pick: WebElementPickResult): void => undefined;
 let root: Root | undefined;
 let container: HTMLElement | undefined;
 
-async function renderRail(
-  props: Partial<Parameters<typeof SessionRailDock>[0]> = {},
+async function renderDock(
+  props: Partial<Parameters<typeof StageBrowserDock>[0]> = {},
   options: { page?: boolean } = {},
 ): Promise<{ el: HTMLElement; host: FakeHost }> {
   const host = createFakeHost();
@@ -56,10 +56,8 @@ async function renderRail(
       onAddWebElement={noPick}
       enabled
     >
-      <SessionRailDock
+      <StageBrowserDock
         locale="zh-CN"
-        diffStat={{ additions: 48, deletions: 12 }}
-        runningJobCount={0}
         overlayOpen={false}
         hostReady
         onOpenTool={() => {}}
@@ -93,48 +91,15 @@ afterEach(() => {
   container = undefined;
 });
 
-describe('SessionRailDock', () => {
-  it('offers Changes, Browser, Terminal and Files with the tree stat', async () => {
-    const { el } = await renderRail({}, { page: false });
-    const labels = [...el.querySelectorAll('.piwin-session-rail-label')].map(
-      (node) => node.textContent,
-    );
-    expect(labels).toEqual(['变更', '浏览器', '终端', '文件']);
-    expect(el.querySelector('[data-testid="session-rail-diff-review"]')?.textContent).toContain(
-      '+48',
-    );
-  });
-
-  it('opens the tool the row names', async () => {
+describe('StageBrowserDock', () => {
+  it('docks the browser mini in the stage gutter for a live page', async () => {
     const onOpenTool = vi.fn();
-    const { el } = await renderRail({ onOpenTool }, { page: false });
-
-    act(() => {
-      el.querySelector<HTMLButtonElement>('[data-testid="session-rail-item-review"]')?.click();
-      el.querySelector<HTMLButtonElement>('[data-testid="session-rail-item-files"]')?.click();
-    });
-
-    expect(onOpenTool).toHaveBeenNthCalledWith(1, 'review');
-    expect(onOpenTool).toHaveBeenNthCalledWith(2, 'files');
-  });
-
-  it('stays tools-only even while children are running', async () => {
-    const { el } = await renderRail({}, { page: false });
-    expect(
-      [...el.querySelectorAll('[data-rail-id]')].map((node) =>
-        node.getAttribute('data-rail-id'),
-      ),
-    ).toEqual(['review', 'browser', 'terminal', 'files']);
-  });
-
-  it('docks the browser mini under the rail for a live page', async () => {
-    const onOpenTool = vi.fn();
-    const { el } = await renderRail({ onOpenTool });
+    const { el } = await renderDock({ onOpenTool });
 
     const mini = el.querySelector('[data-testid="browser-mini"]');
     expect(mini).not.toBeNull();
     expect(mini?.getAttribute('data-placement')).toBe('docked');
-    expect(el.querySelector('.piwin-session-rail-docked-slot')?.contains(mini)).toBe(true);
+    expect(el.querySelector('.stage-browser-dock-slot')?.contains(mini)).toBe(true);
 
     act(() => {
       el.querySelector<HTMLButtonElement>('[data-testid="browser-mini-expand"]')?.click();
@@ -142,8 +107,8 @@ describe('SessionRailDock', () => {
     expect(onOpenTool).toHaveBeenCalledWith('browser');
   });
 
-  it('keeps the rail when the mini is dismissed', async () => {
-    const { el } = await renderRail();
+  it('stays dismissed after the mini closes', async () => {
+    const { el } = await renderDock();
     expect(el.querySelector('[data-testid="browser-mini"]')).not.toBeNull();
 
     act(() => {
@@ -151,11 +116,10 @@ describe('SessionRailDock', () => {
     });
 
     expect(el.querySelector('[data-testid="browser-mini"]')).toBeNull();
-    expect(el.querySelector('[data-testid="session-rail"]')).not.toBeNull();
   });
 
   it('floats the mini after a real drag and snaps it back on reset', async () => {
-    const { el } = await renderRail();
+    const { el } = await renderDock();
     const mini = el.querySelector<HTMLElement>('[data-testid="browser-mini"]');
     expect(mini).not.toBeNull();
 
@@ -204,7 +168,7 @@ describe('SessionRailDock', () => {
   it('restores a dragged corner after a remount', async () => {
     const key = 'piwin.browser-mini.placement.test-host';
     localStorage.setItem(key, JSON.stringify({ xRatio: 0.2, yRatio: 0.4 }));
-    const { el } = await renderRail({ browserMiniPlacementKey: key });
+    const { el } = await renderDock({ browserMiniPlacementKey: key });
 
     const wrapper = el.querySelector('.stage-browser-mini');
     expect(wrapper?.className).toContain('is-floating');
@@ -212,11 +176,10 @@ describe('SessionRailDock', () => {
     localStorage.clear();
   });
 
-  it('gives phone layouts a chip instead of the rail and mini', async () => {
+  it('gives phone layouts a chip instead of the dock', async () => {
     const onOpenTool = vi.fn();
-    const { el } = await renderRail({ phone: true, onOpenTool });
+    const { el } = await renderDock({ phone: true, onOpenTool });
 
-    expect(el.querySelector('[data-testid="session-rail"]')).toBeNull();
     expect(el.querySelector('[data-testid="browser-mini"]')).toBeNull();
     const chip = el.querySelector<HTMLButtonElement>('[data-testid="browser-activity-chip"]');
     expect(chip).not.toBeNull();
@@ -227,7 +190,7 @@ describe('SessionRailDock', () => {
   });
 
   it('marks the chip while the agent drives and hides it with no page', async () => {
-    const { host, el } = await renderRail({ phone: true }, { page: false });
+    const { host, el } = await renderDock({ phone: true }, { page: false });
     expect(el.querySelector('[data-testid="browser-activity-chip"]')).toBeNull();
 
     await act(async () => {
@@ -238,8 +201,7 @@ describe('SessionRailDock', () => {
   });
 
   it('shows no mini before the shared browser has a page', async () => {
-    const { el } = await renderRail({}, { page: false });
+    const { el } = await renderDock({}, { page: false });
     expect(el.querySelector('[data-testid="browser-mini"]')).toBeNull();
-    expect(el.querySelector('[data-testid="session-rail"]')).not.toBeNull();
   });
 });
