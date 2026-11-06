@@ -7,6 +7,9 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { HostResponse, UsageBucket, UsageRollup } from '@piwin/contracts';
 import { SegmentedControl } from '@piwin/ui-kit';
+import { CalendarDays, Flame } from 'lucide-react';
+import { formatUsageUsdSummary, resolveUsageCostOverview } from './usage-cost-view.js';
+import { UsageSummaryDetail } from './usage-summary-detail.js';
 import { formatUsageCompact, formatUsageExact, normalizeUsageRollup } from './usage-panel-statistics';
 import {
   buildUsageActivityCalendar,
@@ -19,10 +22,12 @@ export type UsageActivityHeatmapProps = {
   request: (command: {
     type: 'usage/get-rollup';
     projectPath?: string;
+    modelId?: string;
     window?: { from?: string };
     timeZone?: string;
   }) => Promise<HostResponse>;
   projectPath?: string;
+  modelId?: string;
   timeZone: string;
   /** Changes whenever the page refreshes, so the calendar re-reads with it. */
   reloadKey: string | null;
@@ -55,7 +60,7 @@ function formatValue(value: number, metric: UsageActivityMetric, isZh: boolean):
 }
 
 function useYearByDay(props: UsageActivityHeatmapProps): Record<string, UsageBucket> | null {
-  const { request, projectPath, timeZone, reloadKey } = props;
+  const { request, projectPath, modelId, timeZone, reloadKey } = props;
   const [byDay, setByDay] = useState<Record<string, UsageBucket> | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +68,7 @@ function useYearByDay(props: UsageActivityHeatmapProps): Record<string, UsageBuc
     void request({
       type: 'usage/get-rollup',
       ...(projectPath ? { projectPath } : {}),
+      ...(modelId ? { modelId } : {}),
       window: { from },
       timeZone,
     })
@@ -78,7 +84,7 @@ function useYearByDay(props: UsageActivityHeatmapProps): Record<string, UsageBuc
     return () => {
       cancelled = true;
     };
-  }, [request, projectPath, timeZone, reloadKey]);
+  }, [request, projectPath, modelId, timeZone, reloadKey]);
   return byDay;
 }
 
@@ -93,21 +99,27 @@ export function UsageActivityHeatmap(props: UsageActivityHeatmapProps): ReactEle
   );
   const { weeks, monthStarts, activeDays, activeAverage, peak, today, streak } = calendar;
   const hoveredCell = hovered === null ? null : (weeks[hovered.column]?.[hovered.row] ?? null);
+  const scopeLabel = isZh ? '过去一年 · 不随上方时间范围变化' : 'Past year · independent of the time range above';
+  const activityHint = isZh
+    ? `日均（活跃日）${activeAverage === null ? '—' : formatValue(activeAverage, metric, isZh)} · 峰值 ${peak === null ? '—' : `${formatValue(peak.value, metric, isZh)} · ${formatDay(peak.day, locale)}`}`
+    : `Avg / active day ${activeAverage === null ? '—' : formatValue(activeAverage, metric, isZh)} · Peak ${peak === null ? '—' : `${formatValue(peak.value, metric, isZh)} · ${formatDay(peak.day, locale)}`}`;
   const weekdayLabels = isZh ? ['一', '', '三', '', '五', '', ''] : ['Mon', '', 'Wed', '', 'Fri', '', ''];
 
   return (
     <section className="usage-card usage-heatmap-card" data-testid="usage-activity-heatmap">
-      <div className="usage-section-header">
+      <div className="usage-section-header usage-heatmap-header">
         <div className="usage-heatmap-heading">
           <h3>
             {isZh ? '用量活跃度' : 'Usage activity'}
-            <span className="usage-scope-pill" data-testid="usage-heatmap-scope">
-              {isZh ? '过去一年 · 不随上方时间范围变化' : 'Past year · ignores the time range above'}
+            <span className="usage-scope-pill" data-testid="usage-heatmap-scope" title={scopeLabel}>
+              {isZh ? '过去一年' : 'Past year'}
             </span>
           </h3>
-          <p>{isZh ? '每天的用量，颜色越深用得越多。' : 'Daily usage; darker means more.'}</p>
         </div>
         <SegmentedControl
+          size="xs"
+          className="usage-heatmap-metric"
+          aria-label={isZh ? '热力图指标' : 'Heatmap metric'}
           value={metric}
           onChange={(value) => setMetric(value as UsageActivityMetric)}
           data={[
@@ -117,34 +129,6 @@ export function UsageActivityHeatmap(props: UsageActivityHeatmapProps): ReactEle
           testId="usage-activity-metric"
         />
       </div>
-
-      <dl className="usage-heatmap-stats">
-        <div>
-          <dt>{isZh ? '今天' : 'Today'}</dt>
-          <dd>{formatValue(today?.value ?? 0, metric, isZh)}</dd>
-        </div>
-        <div>
-          <dt>{isZh ? '日均（活跃日）' : 'Avg / active day'}</dt>
-          <dd>{activeAverage === null ? '—' : formatValue(activeAverage, metric, isZh)}</dd>
-        </div>
-        <div>
-          <dt>{isZh ? '峰值' : 'Peak'}</dt>
-          <dd>
-            {peak === null ? '—' : formatValue(peak.value, metric, isZh)}
-            {peak !== null ? <span> · {formatDay(peak.day, locale)}</span> : null}
-          </dd>
-        </div>
-        <div>
-          <dt>{isZh ? '活跃天数' : 'Active days'}</dt>
-          <dd>
-            {formatUsageExact(activeDays)}
-            <span>
-              {' '}
-              · {isZh ? `连续 ${streak} 天` : `${streak}-day streak`}
-            </span>
-          </dd>
-        </div>
-      </dl>
 
       <div className="usage-heatmap-figure">
         <div className="usage-heatmap-weekdays" aria-hidden="true">
@@ -201,12 +185,22 @@ export function UsageActivityHeatmap(props: UsageActivityHeatmapProps): ReactEle
         </div>
       </div>
 
-      <div className="usage-heatmap-legend" aria-hidden="true">
-        <span>{isZh ? '少' : 'Less'}</span>
-        {[0, 1, 2, 3, 4].map((level) => (
-          <i key={level} className="usage-heatmap-cell" data-level={level} />
-        ))}
-        <span>{isZh ? '多' : 'More'}</span>
+      <div className="usage-heatmap-footer">
+        <div className="usage-heatmap-stats" title={activityHint}>
+          <UsageSummaryDetail icon={CalendarDays} label={isZh ? '活跃天数' : 'Active days'}>
+            {isZh ? `${formatUsageExact(activeDays)} 天活跃` : `${formatUsageExact(activeDays)} active days`}
+          </UsageSummaryDetail>
+          <UsageSummaryDetail icon={Flame} label={isZh ? '连续活跃' : 'Streak'}>
+            {isZh ? `连续 ${streak} 天` : `${streak}-day streak`}
+          </UsageSummaryDetail>
+        </div>
+        <div className="usage-heatmap-legend" aria-hidden="true">
+          <span>{isZh ? '少' : 'Less'}</span>
+          {[0, 1, 2, 3, 4].map((level) => (
+            <i key={level} className="usage-heatmap-cell" data-level={level} />
+          ))}
+          <span>{isZh ? '多' : 'More'}</span>
+        </div>
       </div>
     </section>
   );
@@ -222,6 +216,7 @@ function HeatmapTooltip(props: {
 }): ReactElement {
   const { cell, isZh } = props;
   const other: UsageActivityMetric = props.metric === 'tokens' ? 'requests' : 'tokens';
+  const cost = cell.bucket ? resolveUsageCostOverview(cell.bucket) : null;
   const edge = props.left < 0.1 ? 'start' : props.left > 0.9 ? 'end' : 'center';
   return (
     <div
@@ -234,6 +229,10 @@ function HeatmapTooltip(props: {
         {formatValue(cell.value, props.metric, isZh)}
         <span> · {formatDay(cell.day, props.locale)}</span>
       </strong>
+      {cost ? <span data-testid="usage-heatmap-cost">
+        {isZh ? '参考估算' : 'Reference estimate'} {formatUsageUsdSummary(cost.totalUsd)}
+        {cost.unpricedCount > 0 ? (isZh ? ` · ${formatUsageExact(cost.unpricedCount)} 次未计价` : ` · ${formatUsageExact(cost.unpricedCount)} unpriced`) : ''}
+      </span> : null}
       {cell.bucket !== undefined ? (
         <span>
           {formatValue(

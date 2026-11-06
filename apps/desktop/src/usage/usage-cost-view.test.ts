@@ -3,7 +3,6 @@ import type { UsageModelKeyTotal } from '@piwin/contracts';
 import {
   formatUsageUsdSummary,
   listUsageCostReferenceMappings,
-  formatUsageUsdAverage,
   resolveUsageCostOverview,
 } from './usage-cost-view';
 
@@ -47,14 +46,6 @@ describe('usage-cost-view', () => {
     expect(formatUsageUsdSummary(0.004)).toBe('<$0.01');
     expect(formatUsageUsdSummary(0.384)).toBe('$0.38');
     expect(formatUsageUsdSummary(1234.567)).toBe('$1,234.57');
-  });
-
-  it('formats averages with a third decimal below a dollar', () => {
-    expect(formatUsageUsdAverage(undefined)).toBe('—');
-    expect(formatUsageUsdAverage(0)).toBe('$0.00');
-    expect(formatUsageUsdAverage(0.0004)).toBe('<$0.001');
-    expect(formatUsageUsdAverage(0.1974)).toBe('$0.197');
-    expect(formatUsageUsdAverage(136.371)).toBe('$136.37');
   });
 
   it('lists only reference mappings that differ from the model name, once', () => {

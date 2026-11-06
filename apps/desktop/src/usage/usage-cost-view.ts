@@ -54,20 +54,6 @@ export function formatUsageUsdSummary(value: number | undefined): string {
   }).format(value);
 }
 
-/** Averages (per day, per call) keep a third decimal below $1 so small rates stay distinct. */
-export function formatUsageUsdAverage(value: number | undefined): string {
-  if (value === undefined || !Number.isFinite(value) || value < 0) return '—';
-  if (value === 0) return '$0.00';
-  if (value < 0.001) return '<$0.001';
-  const digits = value >= 1 ? 2 : 3;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(value);
-}
-
 export type UsageCostReferenceMapping = { modelId: string; reference: string };
 
 /** Only mappings that add information: the reference differs from the shown model. */

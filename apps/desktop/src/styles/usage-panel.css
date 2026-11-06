@@ -99,7 +99,7 @@
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  gap: var(--s-6);
+  gap: var(--s-5);
   padding: 0;
   container-type: inline-size;
 }
@@ -112,11 +112,11 @@
   box-shadow: var(--elev-1);
 }
 
-/* Four peer readouts; columns follow the panel's content width, not the
+/* Three peer readouts; columns follow the panel's content width, not the
    window, because the settings shell's sidebar takes a variable share. */
 .usage-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--s-5);
 }
 
@@ -138,7 +138,7 @@
   min-width: 0;
   flex-direction: column;
   gap: var(--s-4);
-  padding: var(--s-6);
+  padding: var(--s-5) var(--s-6);
   overflow: hidden;
 }
 
@@ -151,6 +151,9 @@
 }
 
 .usage-summary-label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
   color: var(--text-3);
   font-size: var(--fs-micro);
   font-weight: 650;
@@ -174,31 +177,26 @@
   color: color-mix(in srgb, var(--usage-cache-read) 76%, var(--text-1));
 }
 
-.usage-summary-pairs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-4);
-  margin: 0;
-}
-
-.usage-summary-pairs > div {
-  min-width: 0;
-}
-
-.usage-summary-pairs dt {
-  overflow: hidden;
-  color: var(--text-3);
+.usage-summary-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3) var(--s-5);
+  margin-top: auto;
+  color: var(--text-2);
   font-size: var(--fs-micro);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.usage-summary-pairs dd {
-  margin: 2px 0 0;
-  color: var(--text-1);
-  font-size: var(--fs-body);
-  font-variant-numeric: tabular-nums;
-  font-weight: 620;
+.usage-summary-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.usage-summary-detail svg {
+  flex: none;
+  color: var(--text-3);
 }
 
 .usage-summary-meta {
@@ -367,3 +365,5 @@
   letter-spacing: 0;
   white-space: nowrap;
 }
+
+.usage-toolbar-controls .usage-model-filter { width: 210px; }

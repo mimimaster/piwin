@@ -1,7 +1,7 @@
 import {
   createMockUsageCallLog,
   createMockUsageRollup,
-} from './host-client-mock-helpers.js';
+} from './mock-usage.js';
 import type { MockHostBackend } from './host-client-mock.js';
 import type {
   HostCommand,
@@ -158,7 +158,7 @@ export async function handleMockHostCommands(
           type: 'response',
           command: 'usage/get-rollup',
           success: true,
-          data: { rollup: createMockUsageRollup(command.projectPath) },
+          data: { rollup: createMockUsageRollup(command.projectPath, command.modelId) },
         };
       case 'usage/get-session':
         return {
@@ -191,6 +191,7 @@ export async function handleMockHostCommands(
               command.windowMinutes ?? 60,
               command.limit ?? 200,
               command.offset ?? 0,
+              command.modelId,
             ),
           },
         };

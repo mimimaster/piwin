@@ -1,30 +1,21 @@
 /**
  * Compact token usage dashboard (CE-OBS).
  *
- * Information is intentionally consolidated into four peer summary cards
- * (reference cost first), one usage heatmap, the 费用构成 section (cost
- * trend + grouped breakdown), and the recent-call log. Provider
+ * Three summary cards integrate reference costs into token usage, followed
+ * by the annual calendar and recent calls. Model filters are Host-owned. Provider
  * configuration ids are the safe Key dimension: API key values never reach
  * the client.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, Select } from '@piwin/ui-kit';
 import { IconRefresh } from '../tool-cards/shell-icons.js';
-import {
-  computePromptCacheHitRate,
-  type HostResponse,
-  type UsageCallLog,
-  type UsageRollup,
-} from '@piwin/contracts';
+import type { HostResponse, UsageCallLog, UsageRollup } from '@piwin/contracts';
 import { isRemoteCommandGapError } from '../host/remote-command-gap.js';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { UsageActivityHeatmap } from './usage-activity-heatmap';
 import { UsageRecentCalls } from './usage-recent-calls';
-import { UsageCostOverviewCard } from './usage-cost-overview';
-import { UsageCostSection } from './usage-cost-section';
-import { buildUsageCostSeries, formatUsageDayKey } from './usage-cost-daily';
-import { resolveUsageCostOverview } from './usage-cost-view';
+import { UsageSummary } from './usage-summary.js';
 import {
   resolveUsageScopeProjectPath,
   UsageScopeControl,
@@ -37,10 +28,6 @@ import {
   RECENT_CALLS_POLL_MS,
   RECENT_CALLS_WINDOW_MINUTES,
   formatUsageClock,
-  formatUsageCompact,
-  formatUsageDate,
-  formatUsageExact,
-  formatUsagePercent,
   normalizeUsageCallLog,
   normalizeUsageRollup,
   resolveUsageWindow,
@@ -56,6 +43,7 @@ export type UsagePanelProps = {
   request: (command: {
     type: 'usage/get-rollup' | 'usage/list-recent';
     projectPath?: string;
+    modelId?: string;
     scope?: { kind: 'general' };
     window?: { from?: string; to?: string };
     topSessions?: number;
@@ -71,6 +59,9 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
   const isZh = locale === 'zh-CN';
   // The daily reading wins by default; wider windows are one click away.
   const [timeRange, setTimeRange] = useState<UsageTimeRange>('today');
+  const [modelId, setModelId] = useState('');
+  const rollupGeneration = useRef(0);
+  const callGeneration = useRef(0);
   const [scopeChoice, setScopeChoice] = useState<UsageScopeChoice>('all');
   const [rollup, setRollup] = useState<UsageRollup>(EMPTY_USAGE_ROLLUP);
   const [callLog, setCallLog] = useState<UsageCallLog>(EMPTY_USAGE_CALL_LOG);
@@ -94,15 +85,18 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
    * hides this one card.
    */
   const loadCallLog = useCallback(async () => {
+    const generation = ++callGeneration.current;
     setCallsLoading(true);
     try {
       const response = await requestRef.current({
         type: 'usage/list-recent',
         ...(scopedProjectPath ? { projectPath: scopedProjectPath } : {}),
+        ...(modelId ? { modelId } : {}),
         windowMinutes: RECENT_CALLS_WINDOW_MINUTES,
         limit: callPageSize,
         offset: callOffset,
       });
+      if (generation !== callGeneration.current) return;
       if (!response.success) {
         // An older Host simply has no such command; drop the card instead of
         // showing a page-level error for a feature that cannot exist there.
@@ -121,13 +115,14 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
       setCallLogSupported(true);
       setRefreshedAt(new Date().toISOString());
     } catch {
-      setCallLogSupported(false);
+      if (generation === callGeneration.current) setCallLogSupported(false);
     } finally {
-      setCallsLoading(false);
+      if (generation === callGeneration.current) setCallsLoading(false);
     }
-  }, [callOffset, callPageSize, scopedProjectPath]);
+  }, [callOffset, callPageSize, scopedProjectPath, modelId]);
 
   const load = useCallback(async () => {
+    const generation = ++rollupGeneration.current;
     setLoading(true);
     setError(null);
     try {
@@ -135,9 +130,11 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
       const response = await props.request({
         type: 'usage/get-rollup',
         ...(scopedProjectPath ? { projectPath: scopedProjectPath } : {}),
+        ...(modelId ? { modelId } : {}),
         ...(window ? { window } : {}),
         timeZone: VIEWER_TIME_ZONE,
       });
+      if (generation !== rollupGeneration.current) return;
       if (!response.success) {
         if (!isRemoteCommandGapError(response.error)) {
           setError(response.error);
@@ -148,11 +145,11 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
       setRollup(normalizeUsageRollup(data.rollup));
       setRefreshedAt(new Date().toISOString());
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : String(requestError));
+      if (generation === rollupGeneration.current) setError(requestError instanceof Error ? requestError.message : String(requestError));
     } finally {
-      setLoading(false);
+      if (generation === rollupGeneration.current) setLoading(false);
     }
-  }, [props.request, scopedProjectPath, timeRange]);
+  }, [props.request, scopedProjectPath, timeRange, modelId]);
 
   useEffect(() => {
     void load();
@@ -178,31 +175,6 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
     }, RECENT_CALLS_POLL_MS);
     return () => clearInterval(timer);
   }, [autoRefresh, callLogSupported, callOffset, loadCallLog]);
-
-  const activeDays = useMemo(
-    () => Object.values(rollup.byDay).filter((bucket) => bucket.totalTokens > 0).length,
-    [rollup.byDay],
-  );
-
-  // The trend spans the whole selected window, quiet days included; "all"
-  // starts at the first recorded day.
-  const costSeries = useMemo(() => {
-    const window = resolveUsageWindow(timeRange);
-    const now = new Date();
-    return buildUsageCostSeries(rollup.byDay, {
-      ...(window ? { startDay: formatUsageDayKey(new Date(window.from), VIEWER_TIME_ZONE) } : {}),
-      endDay: formatUsageDayKey(now, VIEWER_TIME_ZONE),
-    });
-  }, [rollup.byDay, timeRange]);
-  const costState = resolveUsageCostOverview(rollup).state;
-  const showCostSection = costState !== 'unsupported' && costState !== 'empty' && rollup.byModelKey.length > 0;
-
-  const cacheReadTokens = rollup.cacheReadTokens ?? 0;
-  const cacheWriteTokens = rollup.cacheWriteTokens ?? 0;
-  const cacheTrafficTokens = cacheReadTokens + cacheWriteTokens;
-  const cacheableInputTokens = rollup.promptTokens + cacheReadTokens + cacheWriteTokens;
-  const cacheHitRate = computePromptCacheHitRate(rollup);
-  const rangeLabel = `${formatUsageDate(rollup.firstAt, locale)} – ${formatUsageDate(rollup.lastAt, locale)}`;
 
   // A scope switch is a different result set; start it from the newest page.
   useEffect(() => {
@@ -230,6 +202,8 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
 
   const refreshedLabel = refreshedAt ? formatUsageClock(refreshedAt, locale) : null;
 
+  const modelOptions = [...new Set([...(rollup.availableModels ?? []), ...(modelId ? [modelId] : [])])];
+
   const timeRangeOptions = [
     { value: 'today', label: isZh ? '今天' : 'Today' },
     { value: '7d', label: isZh ? '最近 7 天' : 'Last 7 days' },
@@ -248,6 +222,16 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
           onChange={setScopeChoice}
         />
       ) : null}
+      <Select
+        className="usage-model-filter"
+        value={modelId}
+        disabled={rollup.availableModels === undefined}
+        data={[{ value: '', label: isZh ? '所有模型' : 'All models' }, ...modelOptions.map((value) => ({ value, label: value }))]}
+        onChange={(event) => { setModelId(event.currentTarget.value); setCallOffset(0); }}
+        testId="usage-model-select"
+        aria-label={isZh ? '筛选模型' : 'Filter model'}
+        title={rollup.availableModels === undefined ? (isZh ? '当前 Host 不支持模型筛选' : 'Model filtering unavailable on this Host') : (modelId || (isZh ? '所有模型' : 'All models'))}
+      />
       {refreshedLabel ? (
         <span className="usage-toolbar-stamp" data-testid="usage-refreshed-at">
           {isZh ? `更新于 ${refreshedLabel}` : `Updated ${refreshedLabel}`}
@@ -301,108 +285,17 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
       ) : null}
 
       <div className="usage-panel-body">
-        <div className="usage-summary-grid">
-          <UsageCostOverviewCard rollup={rollup} dayCount={costSeries.dayCount} isZh={isZh} />
-
-          <section className="usage-summary-card">
-            <span className="usage-summary-label">{isZh ? '总用量' : 'Total usage'}</span>
-            <strong className="usage-summary-value" data-testid="usage-total">
-              {formatUsageCompact(rollup.totalTokens)}
-            </strong>
-            <dl className="usage-summary-pairs">
-              <div>
-                <dt>{isZh ? '直接输入' : 'Direct input'}</dt>
-                <dd title={formatUsageExact(rollup.promptTokens)}>
-                  {formatUsageCompact(rollup.promptTokens)}
-                </dd>
-              </div>
-              <div>
-                <dt>{isZh ? '输出' : 'Output'}</dt>
-                <dd title={formatUsageExact(rollup.completionTokens)}>
-                  {formatUsageCompact(rollup.completionTokens)}
-                </dd>
-              </div>
-            </dl>
-            {/* The two pairs exclude cache traffic; name the rest so the card adds up. */}
-            <span
-              className="usage-summary-meta"
-              data-testid="usage-total-cache"
-              title={formatUsageExact(cacheTrafficTokens)}
-            >
-              {isZh ? '含缓存读写' : 'Includes cache read/write'}{' '}
-              {formatUsageCompact(cacheTrafficTokens)}
-            </span>
-          </section>
-
-          <section
-            className="usage-summary-card usage-summary-card-cache"
-            data-testid="usage-cache-summary"
-          >
-            <span className="usage-summary-label">
-              {isZh ? '提示词缓存率' : 'Prompt cache hit rate'}
-            </span>
-            <strong className="usage-summary-value" data-testid="usage-cache-rate">
-              {formatUsagePercent(cacheHitRate)}
-            </strong>
-            <dl className="usage-summary-pairs">
-              <div>
-                <dt>{isZh ? '缓存读取' : 'Cache read'}</dt>
-                <dd title={formatUsageExact(cacheReadTokens)}>
-                  {formatUsageCompact(cacheReadTokens)}
-                </dd>
-              </div>
-              <div>
-                <dt>{isZh ? '缓存写入' : 'Cache write'}</dt>
-                <dd title={formatUsageExact(cacheWriteTokens)}>
-                  {formatUsageCompact(cacheWriteTokens)}
-                </dd>
-              </div>
-            </dl>
-            {/* The rate's denominator, so 读取 ÷ 提示词共 reproduces the headline. */}
-            <span
-              className="usage-summary-meta"
-              data-testid="usage-cache-total"
-              title={
-                isZh
-                  ? '缓存率 = 缓存读取 ÷ 提示词总量（直接输入 + 缓存读写）'
-                  : 'Hit rate = cache read ÷ prompt total (direct input + cache read/write)'
-              }
-            >
-              {isZh ? '提示词共' : 'Prompt total'} {formatUsageCompact(cacheableInputTokens)}
-            </span>
-          </section>
-
-          <section className="usage-summary-card">
-            <span className="usage-summary-label">{isZh ? '请求数' : 'Requests'}</span>
-            <strong className="usage-summary-value" data-testid="usage-request-count">
-              {formatUsageExact(rollup.entryCount)}
-            </strong>
-            <dl className="usage-summary-pairs">
-              <div>
-                <dt>{isZh ? '会话' : 'Sessions'}</dt>
-                <dd>{formatUsageExact(rollup.sessionCount)}</dd>
-              </div>
-              <div>
-                <dt>{isZh ? '活跃天数' : 'Active days'}</dt>
-                <dd>{formatUsageExact(activeDays)}</dd>
-              </div>
-            </dl>
-            <span className="usage-summary-meta">{rangeLabel}</span>
-          </section>
-        </div>
+        <UsageSummary rollup={rollup} locale={locale} isZh={isZh} />
 
         <UsageActivityHeatmap
           request={props.request}
           {...(scopedProjectPath ? { projectPath: scopedProjectPath } : {})}
+          {...(modelId ? { modelId } : {})}
           timeZone={VIEWER_TIME_ZONE}
           reloadKey={refreshedAt}
           locale={locale}
           isZh={isZh}
         />
-
-        {showCostSection ? (
-          <UsageCostSection rollup={rollup} series={costSeries} locale={locale} isZh={isZh} />
-        ) : null}
 
         {callLogSupported ? (
           <UsageRecentCalls

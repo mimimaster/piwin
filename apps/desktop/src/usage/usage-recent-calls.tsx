@@ -97,9 +97,6 @@ export function UsageRecentCalls({
                       <th>{isZh ? '直接输入 / 输出' : 'Direct input / output'}</th>
                       <th>{isZh ? '缓存读 / 写' : 'Cache read / write'}</th>
                       <th className="usage-num">{isZh ? '总计' : 'Total'}</th>
-                      <th className="usage-num" title={isZh ? '按模型参考价估算的美元金额' : 'USD at model reference rates'}>
-                        {isZh ? '估算费用' : 'Est. cost'}
-                      </th>
                       <th>{isZh ? '时间' : 'Time'}</th>
                     </tr>
                   </thead>
@@ -212,13 +209,9 @@ export function UsageRecentCalls({
                           </td>
                           <td className="usage-num" title={formatUsageExact(entry.totalTokens)}>
                             <strong>{formatUsageCompact(entry.totalTokens)}</strong>
-                          </td>
-                          <td
-                            className="usage-num"
-                            data-testid="usage-call-cost"
-                            title={entry.cost?.reference}
-                          >
-                            {formatUsageUsd(entry.cost?.usd)}
+                            <small data-testid="usage-call-cost" title={entry.cost?.reference} aria-label={isZh ? '参考估算费用' : 'Reference cost estimate'}>
+                              {formatUsageUsd(entry.cost?.usd)}
+                            </small>
                           </td>
                           <td
                             className="usage-call-time"

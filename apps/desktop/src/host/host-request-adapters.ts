@@ -3,6 +3,7 @@
  * Keeps App free of per-panel switchboards.
  */
 import { useMemo } from 'react';
+import { usageCommandForTransport } from './usage-command-for-transport.js';
 import type {
   HostResponse,
   InstallSource,
@@ -426,28 +427,8 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           input: command.input as import('@piwin/contracts').SearchRoutePreviewInput,
         });
       }
-      if (command.type === 'usage/get-rollup') {
-        const payload: {
-          type: 'usage/get-rollup';
-          topSessions?: number;
-          window?: { from?: string; to?: string };
-          projectPath?: string;
-          timeZone?: string;
-        } = {
-          type: 'usage/get-rollup',
-        };
-        const projectPath =
-          command.projectPath ??
-          (command.scope && command.scope.kind === 'project'
-            ? command.scope.projectPath
-            : undefined);
-        if (hostClient.getTransport() !== 'remote' && projectPath) {
-          payload.projectPath = projectPath;
-        }
-        if (command.window) payload.window = command.window;
-        if (command.topSessions !== undefined) payload.topSessions = command.topSessions;
-        if (command.timeZone !== undefined) payload.timeZone = command.timeZone;
-        return hostClient.request(payload);
+      if (command.type === 'usage/get-rollup' || command.type === 'usage/list-recent') {
+        return hostClient.request(usageCommandForTransport({ ...command, type: command.type }, hostClient.getTransport()));
       }
       if (command.type === 'web/search-log-list') {
         return hostClient.request({
@@ -459,31 +440,6 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       }
       if (command.type === 'web/search-log-clear') {
         return hostClient.request({ type: 'web/search-log-clear' });
-      }
-      if (command.type === 'usage/list-recent') {
-        const payload: {
-          type: 'usage/list-recent';
-          windowMinutes?: number;
-          limit?: number;
-          offset?: number;
-          projectPath?: string;
-        } = {
-          type: 'usage/list-recent',
-        };
-        const projectPath =
-          command.projectPath ??
-          (command.scope && command.scope.kind === 'project'
-            ? command.scope.projectPath
-            : undefined);
-        // Remote Host rejects project paths from a remote client; fall back to
-        // the global log rather than failing the request.
-        if (hostClient.getTransport() !== 'remote' && projectPath) {
-          payload.projectPath = projectPath;
-        }
-        if (command.windowMinutes !== undefined) payload.windowMinutes = command.windowMinutes;
-        if (command.limit !== undefined) payload.limit = command.limit;
-        if (command.offset !== undefined) payload.offset = command.offset;
-        return hostClient.request(payload);
       }
       if (command.type === 'session/runtime-status') {
         return hostClient.request({

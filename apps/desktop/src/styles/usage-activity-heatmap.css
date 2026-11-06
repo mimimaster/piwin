@@ -11,45 +11,46 @@
   --usage-heat-2: color-mix(in srgb, var(--usage-heat) 52%, transparent);
   --usage-heat-3: color-mix(in srgb, var(--usage-heat) 76%, transparent);
   --usage-heat-4: var(--usage-heat);
+  --usage-heatmap-cell-height: clamp(11px, 1cqw, 13px);
   --usage-heatmap-months-height: calc(var(--s-3) + 14px);
   padding: var(--s-6);
+}
+
+/* Keep the metric switch beside its title and let the calendar use the card. */
+.usage-heatmap-header {
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--s-4);
+}
+
+[data-mantine-color-scheme] .usage-heatmap-metric.piwin-segmented-control.piwin-segmented-control {
+  min-height: 24px;
+  padding: 2px;
+}
+
+.usage-heatmap-metric .mantine-SegmentedControl-label {
+  min-height: 24px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+
+.usage-heatmap-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3) var(--s-5);
+  margin-top: var(--s-3);
 }
 
 .usage-heatmap-stats {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-6);
-  margin: var(--s-3) 0 0;
-}
-
-.usage-heatmap-stats div {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.usage-heatmap-stats dt {
-  color: var(--text-3);
-  font-size: 11px;
-}
-
-.usage-heatmap-stats dd {
-  margin: 0;
+  gap: var(--s-5);
   color: var(--text-2);
-  font-size: 11.5px;
-  font-weight: 550;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-micro);
 }
 
-.usage-heatmap-stats dd span {
-  color: var(--text-3);
-  font-size: 11px;
-  font-weight: 400;
-}
-
-/* Compact ribbon layout: capped at ~740px so cells stay a neat ~10.5px
-   instead of expanding into huge empty tiles on wide viewports. */
 .usage-heatmap-figure {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -81,13 +82,13 @@
   position: relative;
   display: grid;
   grid-auto-flow: column;
-  grid-template-rows: repeat(7, auto);
+  grid-template-rows: repeat(7, var(--usage-heatmap-cell-height));
   gap: 3px;
 }
 
 .usage-heatmap-cell {
   display: block;
-  aspect-ratio: 1;
+  height: var(--usage-heatmap-cell-height);
   min-width: 0;
   border-radius: 2px;
   background: var(--usage-heat-0);
@@ -114,7 +115,7 @@
   background: transparent;
 }
 
-.usage-heatmap-grid .usage-heatmap-cell[role='img']:hover {
+.usage-heatmap-grid .usage-heatmap-cell[role='img']:is(:hover, :focus-visible) {
   transform: scale(1.15);
   z-index: 2;
   box-shadow: 0 0 0 1px var(--surface-2), 0 2px 4px rgba(0, 0, 0, 0.15);
@@ -138,13 +139,13 @@
   white-space: nowrap;
 }
 
-/* Aligned with the capped figure width so the legend aligns with the last column */
+/* The legend stays aligned with the last calendar column. */
 .usage-heatmap-legend {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 3px;
-  margin-top: var(--s-3);
+  margin-left: auto;
   color: var(--text-3);
   font-size: var(--fs-micro);
 }

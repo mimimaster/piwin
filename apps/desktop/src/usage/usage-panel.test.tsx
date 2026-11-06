@@ -104,17 +104,7 @@ const SAMPLE_ROLLUP: UsageRollup = {
   ],
 };
 
-type UsageRequestCommand = {
-  type: 'usage/get-rollup' | 'usage/list-recent';
-  projectPath?: string;
-  scope?: { kind: 'general' };
-  window?: { from?: string; to?: string };
-  topSessions?: number;
-  windowMinutes?: number;
-  limit?: number;
-  offset?: number;
-  timeZone?: string;
-};
+type UsageRequestCommand = Parameters<UsagePanelProps['request']>[0];
 
 const SAMPLE_CALL_LOG: UsageCallLog = {
   windowMinutes: 60,
@@ -199,35 +189,6 @@ async function flushLoad(): Promise<void> {
   });
 }
 
-/** Picks a time range from the toolbar select and waits for the reload. */
-async function selectTimeRange(
-  container: HTMLDivElement | undefined,
-  value: string,
-): Promise<void> {
-  const select = container?.querySelector<HTMLSelectElement>(
-    'select[data-testid="usage-time-select"]',
-  );
-  act(() => {
-    if (select) {
-      select.value = value;
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  });
-  await flushLoad();
-}
-
-/** 费用构成 opens folded; anything reading its body unfolds it first. */
-async function openCostSection(container: HTMLDivElement | undefined): Promise<void> {
-  const toggle = container?.querySelector<HTMLButtonElement>('[data-testid="usage-cost-toggle"]');
-  if (toggle?.getAttribute('aria-expanded') === 'false') {
-    await act(async () => {
-      toggle.click();
-    });
-  }
-}
-
-/** The cost summary card has no fold: its numbers are always on screen. */
-
 describe('UsagePanel', () => {
   let root: Root | undefined;
   let container: HTMLDivElement | undefined;
@@ -241,7 +202,7 @@ describe('UsagePanel', () => {
     }
   });
 
-  it('shows reference cost as the first summary card and the 费用构成 section below', async () => {
+  it('integrates reference cost into total usage with visible pricing coverage', async () => {
     vi.useFakeTimers({ now: new Date('2026-08-03T12:00:00Z'), toFake: ['Date'] });
     const firstDay = SAMPLE_ROLLUP.byDay['2026-08-01'];
     const secondDay = SAMPLE_ROLLUP.byDay['2026-08-02'];
@@ -265,51 +226,26 @@ describe('UsagePanel', () => {
         command.type === 'usage/list-recent' ? { log } : { rollup },
       ) }));
       await flushLoad();
-      // The body assertions below describe the 30-day trend, so pick that window.
-      await selectTimeRange(container, '30d');
-      await openCostSection(container);
-
       const cards = container?.querySelectorAll('.usage-summary-card');
-      expect(cards?.[0]?.getAttribute('data-testid')).toBe('usage-cost-card');
-      expect(cards?.[0]?.getAttribute('data-cost-state')).toBe('partial');
+      expect(cards?.[0]?.getAttribute('data-testid')).toBe('usage-total-card');
+      expect(cards?.[0]?.querySelector('.usage-summary-cost')?.getAttribute('data-cost-state')).toBe('partial');
       expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('<$0.01');
-      expect(container?.querySelector('[data-testid="usage-cost-meta"]')?.textContent).toBe('已计价 66% · 1 次未计价');
-      expect(container?.querySelector('[data-testid="usage-cost-per-call"]')?.textContent).toBe('$0.003');
-      // The card owns no controls: it is a readout, like its three peers.
-      expect(cards?.[0]?.querySelectorAll('button')).toHaveLength(0);
+      expect(container?.querySelector('[data-testid="usage-cost-meta"]')?.textContent).toBe('未计价 1 次');
+      expect(container?.querySelector('[data-testid="usage-cost-section"]')).toBeNull();
+      expect(cards).toHaveLength(3);
+      expect(document.querySelector('[data-testid="usage-cost-pricing-details"]')).toBeNull();
+      const pricingToggle = cards?.[0]?.querySelector<HTMLButtonElement>('[data-testid="usage-cost-pricing-toggle"]');
+      await act(async () => { pricingToggle?.click(); });
+      expect(document.querySelector('[data-testid="usage-cost-source"]')?.textContent).toContain('models.dev');
+      expect(document.querySelector('[data-testid="usage-cost-coverage"]')?.textContent).toMatch(/2.*3/);
+      expect(document.querySelector('[data-testid="usage-cost-exact"]')?.textContent).toContain('$0.0070');
+      expect(document.querySelector('[data-testid="usage-cost-mappings"]')?.textContent).toContain('reference/gpt-4o');
 
-      const section = container?.querySelector('[data-testid="usage-cost-section"]');
-      expect(section).not.toBeNull();
-      // 30-day window, quiet days included; the unpriced day is marked, not zero.
-      const bars = section?.querySelectorAll('[data-testid="usage-cost-trend-bar"]') ?? [];
-      expect(bars.length).toBe(31);
-      expect([...bars].filter((bar) => bar.getAttribute('data-unpriced') === 'true')).toHaveLength(1);
-      expect(section?.querySelector('[data-testid="usage-cost-trend-readout"]')?.textContent).toContain('峰值');
-
-      // The unpriced Key is not ranked among the priced rows.
-      const rows = section?.querySelectorAll('[data-testid="usage-cost-row"]') ?? [];
-      expect(rows).toHaveLength(1);
-      expect(rows[0]?.textContent).toContain('gpt-4o');
-      expect(rows[0]?.textContent).toContain('work-key');
-      expect(rows[0]?.querySelector('[data-testid="usage-cost-row-cost"]')?.textContent).toContain('<$0.01');
-      expect(section?.querySelector('[data-testid="usage-cost-total-row"]')?.textContent).toContain('合计');
-
-      const unpriced = section?.querySelector('[data-testid="usage-cost-unpriced-row"]');
-      const unpricedToggle = unpriced?.querySelector<HTMLButtonElement>('button[aria-expanded]');
-      expect(unpricedToggle?.getAttribute('aria-expanded')).toBe('false');
-      await act(async () => { unpricedToggle?.click(); });
-      const unpricedChildren = section?.querySelectorAll('[data-testid="usage-cost-unpriced-child"]') ?? [];
-      expect(unpricedChildren).toHaveLength(1);
-      expect(unpricedChildren[0]?.textContent).toContain('personal-key');
-
-      // Pricing basis sits under the table; mappings open on request.
-      expect(section?.querySelector('[data-testid="usage-cost-source"]')?.textContent).toContain('models.dev');
-      expect(section?.querySelector('[data-testid="usage-cost-coverage"]')?.textContent).toMatch(/2.*3/);
-      expect(section?.querySelector('[data-testid="usage-cost-exact"]')?.textContent).toContain('$0.0070');
-      expect(section?.querySelector('[data-testid="usage-cost-mappings"]')).toBeNull();
-      const mappingsToggle = section?.querySelector<HTMLButtonElement>('[data-testid="usage-cost-mappings-toggle"]');
-      await act(async () => { mappingsToggle?.click(); });
-      expect(section?.querySelector('[data-testid="usage-cost-mappings"]')?.textContent).toContain('reference/gpt-4o');
+      const unknownDay = container?.querySelector('[role="img"][aria-label*="8月2日"]');
+      await act(async () => { unknownDay?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
+      expect(container?.querySelector('[data-testid="usage-heatmap-cost"]')?.textContent).toContain('—');
+      expect(container?.querySelector('[data-testid="usage-heatmap-cost"]')?.textContent).toContain('1 次未计价');
+      expect(container?.querySelector('[data-testid="usage-heatmap-cost"]')?.textContent).not.toContain('$0.00');
 
       const cells = container?.querySelectorAll('[data-testid="usage-call-cost"]');
       expect(cells?.[0]?.textContent).toBe('$0.0070');
@@ -320,61 +256,72 @@ describe('UsagePanel', () => {
     }
   });
 
-  it('expands a model merged across Keys and switches grouping', async () => {
-    const rollup: UsageRollup = {
-      ...SAMPLE_ROLLUP, estimatedCostUsd: 0.03, pricedEntryCount: 3,
-      byModelKey: SAMPLE_ROLLUP.byModelKey.map((row, index) => ({
-        ...row, estimatedCostUsd: index === 0 ? 0.02 : 0.01, pricedEntryCount: row.entryCount,
-      })),
-    };
-    ({ root, container } = renderPanel({ request: async (command) => okResponse(
-      command.type === 'usage/list-recent' ? { log: SAMPLE_CALL_LOG } : { rollup },
-    ) }));
+  it('sends the model filter to summaries, the annual calendar and recent calls', async () => {
+    const commands: UsageRequestCommand[] = [];
+    ({ root, container } = renderPanel({ request: async (command) => {
+      commands.push(command);
+      return okResponse(command.type === 'usage/list-recent' ? { log: SAMPLE_CALL_LOG } : {
+        rollup: { ...SAMPLE_ROLLUP, availableModels: ['gpt-4o', 'other'], estimatedCostUsd: command.modelId ? 0.02 : 0.03, pricedEntryCount: 3 },
+      });
+    } }));
     await flushLoad();
-    await openCostSection(container);
+    const select = container?.querySelector<HTMLSelectElement>('select[data-testid="usage-model-select"]');
+    await act(async () => { if (select) { select.value = 'gpt-4o'; select.dispatchEvent(new Event('change', { bubbles: true })); } });
+    await flushLoad();
+    expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('$0.02');
+    const filtered = commands.filter((command) => command.modelId === 'gpt-4o');
+    expect(filtered.some((command) => command.type === 'usage/list-recent')).toBe(true);
+    expect(filtered.filter((command) => command.type === 'usage/get-rollup').length).toBeGreaterThanOrEqual(2);
+    expect([...select?.options ?? []].map((option) => option.value)).toEqual(['', 'gpt-4o', 'other']);
+  });
 
-    const section = container?.querySelector('[data-testid="usage-cost-section"]');
-    const rows = section?.querySelectorAll('[data-testid="usage-cost-row"]') ?? [];
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.textContent).toContain('2 个 Key');
-    const expand = rows[0]?.querySelector<HTMLButtonElement>('button[aria-expanded]');
-    await act(async () => { expand?.click(); });
-    const children = section?.querySelectorAll('[data-testid="usage-cost-child-row"]') ?? [];
-    expect([...children].map((child) => child.textContent?.includes('work-key'))).toEqual([true, false]);
-
-    const byKey = section?.querySelector<HTMLInputElement>('[data-testid="usage-cost-grouping"] input[value="key"]');
-    await act(async () => { byKey?.click(); });
-    const keyRows = section?.querySelectorAll('[data-testid="usage-cost-row"]') ?? [];
-    expect([...keyRows].map((row) => row.textContent?.includes('work-key'))).toEqual([true, false]);
-    expect(section?.querySelectorAll('[data-testid="usage-cost-child-row"]')).toHaveLength(0);
+  it('keeps the latest model totals when an older request resolves late', async () => {
+    const pending = new Map<string, (response: HostResponse) => void>();
+    const rollup = { ...SAMPLE_ROLLUP, availableModels: ['first', 'second'], pricedEntryCount: 3 };
+    ({ root, container } = renderPanel({ request: async (command) => {
+      if (command.type === 'usage/list-recent') return okResponse({ log: SAMPLE_CALL_LOG });
+      const isCalendar = command.window?.from !== undefined && Date.parse(command.window.from) < Date.now() - 180 * 86_400_000;
+      if (command.modelId && !isCalendar) return new Promise((resolve) => { pending.set(command.modelId ?? '', resolve); });
+      return okResponse({ rollup });
+    } }));
+    await flushLoad();
+    const select = container?.querySelector<HTMLSelectElement>('select[data-testid="usage-model-select"]');
+    for (const value of ['first', 'second']) {
+      await act(async () => { if (select) { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); } });
+    }
+    await act(async () => { pending.get('second')?.(okResponse({ rollup: { ...rollup, estimatedCostUsd: 0.02 } })); });
+    await act(async () => { pending.get('first')?.(okResponse({ rollup: { ...rollup, estimatedCostUsd: 0.01 } })); });
+    expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('$0.02');
   });
 
   it('keeps old Hosts unknown instead of showing a free cost', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
-    expect(container?.querySelector('[data-testid="usage-cost-card"]')?.getAttribute('data-cost-state')).toBe('unsupported');
+    expect(container?.querySelector('.usage-summary-cost')?.getAttribute('data-cost-state')).toBe('unsupported');
     expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('—');
     expect(container?.querySelector('[data-testid="usage-cost-section"]')).toBeNull();
     expect(container?.querySelector('[data-testid="usage-call-cost"]')?.textContent).toBe('—');
+    expect(container?.querySelector<HTMLSelectElement>('select[data-testid="usage-model-select"]')?.disabled).toBe(true);
   });
 
   it('labels the heatmap as a fixed one-year window', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
-    expect(container?.querySelector('[data-testid="usage-heatmap-scope"]')?.textContent).toContain('不随上方时间范围变化');
+    expect(container?.querySelector('[data-testid="usage-heatmap-scope"]')?.textContent).toBe('过去一年');
+    expect(container?.querySelector('[data-testid="usage-heatmap-scope"]')?.getAttribute('title')).toContain('不随上方时间范围变化');
   });
 
-  it('consolidates cost, totals, cache efficiency, and activity into four summaries', async () => {
+  it('consolidates cost, totals, cache efficiency, and activity into three summaries', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
 
     expect(container?.querySelector('[data-testid="usage-total"]')?.textContent).toBe('1.2k');
     expect(container?.querySelector('[data-testid="usage-cache-rate"]')?.textContent).toBe('19%');
     // 600 direct + 400 output + 200 cache = 1.2k: the total card names the cache part.
-    expect(container?.querySelector('[data-testid="usage-total-cache"]')?.textContent).toBe('含缓存读写 200');
+    expect(container?.querySelector('[data-testid="usage-total"]')?.getAttribute('title')).toContain('含缓存读写 200');
     // 150 read ÷ 800 prompt total = 19%: the cache card shows its denominator.
-    expect(container?.querySelector('[data-testid="usage-cache-total"]')?.textContent).toBe('提示词共 800');
-    expect(container?.querySelectorAll('.usage-summary-card')).toHaveLength(4);
+    expect(container?.querySelector('[data-testid="usage-cache-summary"]')?.getAttribute('title')).toContain('提示词共 800');
+    expect(container?.querySelectorAll('.usage-summary-card')).toHaveLength(3);
     const requestCount = container?.querySelector('[data-testid="usage-request-count"]');
     expect(requestCount?.textContent).toBe('3');
     expect(requestCount?.previousElementSibling?.textContent).toBe('请求数');
@@ -476,7 +423,7 @@ describe('UsagePanel', () => {
     expect(container?.querySelector('[data-testid="usage-scope-control"]')).toBeNull();
   });
 
-  it('opens on today and keeps the cost section folded', async () => {
+  it('opens on today without a standalone cost section', async () => {
     const pricedRollup: UsageRollup = {
       ...SAMPLE_ROLLUP,
       estimatedCostUsd: 0.03,
@@ -509,17 +456,8 @@ describe('UsagePanel', () => {
       ),
     ).toBe(true);
 
-    const section = container?.querySelector('[data-testid="usage-cost-section"]');
-    expect(section?.getAttribute('data-collapsed')).toBe('true');
-    // Grouping belongs to the body, so it only appears once unfolded.
-    expect(section?.querySelector('[data-testid="usage-cost-grouping"]')).toBeNull();
-    const toggle = section?.querySelector<HTMLButtonElement>('[data-testid="usage-cost-toggle"]');
-    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-
-    await act(async () => { toggle?.click(); });
-    expect(section?.getAttribute('data-collapsed')).toBeNull();
-    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
-    expect(section?.querySelector('[data-testid="usage-cost-grouping"]')).not.toBeNull();
+    expect(container?.querySelector('[data-testid="usage-cost-section"]')).toBeNull();
+    expect(container?.querySelectorAll('.usage-summary-card')).toHaveLength(3);
   });
 
   it('shows the card numbers without asking for a second click', async () => {
@@ -533,9 +471,9 @@ describe('UsagePanel', () => {
     ) }));
     await flushLoad();
 
-    const card = container?.querySelector('[data-testid="usage-cost-card"]');
+    const card = container?.querySelector('[data-testid="usage-total-card"]');
     expect(card?.getAttribute('data-collapsed')).toBeNull();
-    expect(card?.textContent).toContain('估算费用');
+    expect(card?.textContent).toContain('参考估算');
     expect(card?.querySelector('[data-testid="usage-cost-card-toggle"]')).toBeNull();
     expect(container?.querySelector('[data-testid="usage-cost-total"]')?.textContent).toBe('$0.03');
   });
