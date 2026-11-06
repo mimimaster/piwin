@@ -1,7 +1,7 @@
 import type { UsageRollup } from '@piwin/contracts';
 import { openCliHost } from './cli-host.js';
 import { computePromptCacheHitRate } from '@piwin/contracts';
-import { hasFlag, parseMock, parseOptionalProject } from './cli-args.js';
+import { hasFlag, parseMock, parseOptionalProject, readOption } from './cli-args.js';
 
 /**
  * `piwin usage` subcommand: argv handling, host lifecycle, and output.
@@ -10,6 +10,8 @@ import { hasFlag, parseMock, parseOptionalProject } from './cli-args.js';
 export async function commandUsage(argv: string[]): Promise<void> {
   const mock = parseMock(argv);
   const projectPath = parseOptionalProject(argv);
+  const modelId = readOption(argv, '--model');
+  if (hasFlag(argv, '--model') && (!modelId || modelId.startsWith('--'))) throw new Error('--model requires a model id');
   const globalFlag = hasFlag(argv, '--global');
   const runtime = await openCliHost({
     mode: 'sdk',
@@ -18,6 +20,7 @@ export async function commandUsage(argv: string[]): Promise<void> {
   try {
     const response = await runtime.handleCommand({
       type: 'usage/get-rollup',
+      ...(modelId ? { modelId } : {}),
       ...(globalFlag || !projectPath ? {} : { projectPath }),
       topSessions: 10,
     });
@@ -38,7 +41,7 @@ export async function commandUsage(argv: string[]): Promise<void> {
         : rollup.scope.kind === 'project'
           ? rollup.scope.projectPath
           : 'general';
-    console.log(`piwin usage — ${scope}`);
+    console.log(`piwin usage — ${scope}${modelId ? ` · ${modelId}` : ''}`);
     console.log('---');
     console.log(
       `total tokens: ${formatUsageNumber(rollup.totalTokens)}  ` +

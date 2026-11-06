@@ -35,6 +35,7 @@ export async function handleUsageCommand(
       const rollup = await readUsageRollup(ledgerPath, {
         ...(command.scope ? { scope: command.scope } : {}),
         ...(command.projectPath ? { projectPath: command.projectPath } : {}),
+        ...(command.modelId !== undefined ? { modelId: command.modelId } : {}),
         ...(command.window ? { window: command.window } : {}),
         ...(command.topSessions !== undefined ? { topSessions: command.topSessions } : {}),
         ...(command.timeZone !== undefined ? { timeZone: command.timeZone } : {}),
@@ -67,6 +68,7 @@ export async function handleUsageCommand(
         ...(requestRecords !== undefined ? { requestRecords } : {}),
         ...(command.scope ? { scope: command.scope } : {}),
         ...(command.projectPath ? { projectPath: command.projectPath } : {}),
+        ...(command.modelId !== undefined ? { modelId: command.modelId } : {}),
         ...(command.windowMinutes !== undefined ? { windowMinutes: command.windowMinutes } : {}),
         ...(command.limit !== undefined ? { limit: command.limit } : {}),
         ...(command.offset !== undefined ? { offset: command.offset } : {}),

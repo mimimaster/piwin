@@ -106,7 +106,7 @@ Usage:
   piwin kb remove <id> [--delete-index]
   piwin kb search <query> [--kb id ...] [--limit n]
   piwin cron list [--mock]
-  piwin usage [--project <path> | --global] [--mock]
+  piwin usage [--project <path> | --global] [--model <id>] [--mock]
   piwin auth status | login <kimi-coding|openai-codex|anthropic|xai|github-copilot> | logout <id>
   piwin walkthrough list <session-id>
   piwin walkthrough generate <session-id> <message-id>

@@ -77,6 +77,21 @@ describe('usage commands', () => {
     expect(refreshed.totalInWindow).toBe(3);
   });
 
+  it('passes model filtering through both commands before statistics and paging', async () => {
+    const rootDir = await seedLedger([
+      usageRecord({ modelId: 'chosen', sessionId: 'chosen' }),
+      usageRecord({ modelId: 'other', sessionId: 'other' }),
+    ]);
+    const rollup = okData<{ rollup: UsageRollup }>(await handleUsageCommand(
+      { type: 'usage/get-rollup', modelId: 'chosen' }, 'model-rollup', context(rootDir))).rollup;
+    expect(rollup.entryCount).toBe(1);
+    expect(rollup.availableModels).toEqual(['chosen', 'other']);
+    const log = okData<{ log: UsageCallLog }>(await handleUsageCommand(
+      { type: 'usage/list-recent', modelId: 'chosen', limit: 1 }, 'model-log', context(rootDir))).log;
+    expect(log.totalInWindow).toBe(1);
+    expect(log.entries[0]?.modelId).toBe('chosen');
+  });
+
   it('returns recent calls newest first and leaves the all-time rollup intact', async () => {
     const hourAgo = new Date(Date.now() - 90 * 60_000).toISOString();
     const rootDir = await seedLedger([

@@ -20,6 +20,7 @@ import {
   SESSION_USER_MESSAGE_INDEX_MAX_TICKS,
   SESSION_USER_MESSAGE_INDEX_MIN_TICKS,
 } from '@piwin/contracts';
+import { isSafeRemoteUsageCommand } from './remote-usage-command-validation.js';
 import { isRemoteProjectId } from '@piwin/host-runtime';
 
 import { areSafeRemoteContextRefs } from './remote-context-ref.js';
@@ -641,30 +642,8 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
           command.rating === 'easy')
       );
     case 'usage/get-rollup':
-      return (
-        command.projectPath === undefined &&
-        (command.topSessions === undefined ||
-          (Number.isSafeInteger(command.topSessions) &&
-            command.topSessions > 0 &&
-            command.topSessions <= 100)) &&
-        (command.window === undefined ||
-          ((command.window.from === undefined || command.window.from.length <= 128) &&
-            (command.window.to === undefined || command.window.to.length <= 128))) &&
-        (command.timeZone === undefined ||
-          (typeof command.timeZone === 'string' && command.timeZone.length <= 64))
-      );
     case 'usage/list-recent':
-      return (
-        command.projectPath === undefined &&
-        (command.windowMinutes === undefined ||
-          (Number.isSafeInteger(command.windowMinutes) &&
-            command.windowMinutes > 0 &&
-            command.windowMinutes <= 1440)) &&
-        (command.limit === undefined ||
-          (Number.isSafeInteger(command.limit) && command.limit > 0 && command.limit <= 500)) &&
-        (command.offset === undefined ||
-          (Number.isSafeInteger(command.offset) && command.offset >= 0 && command.offset <= 100_000))
-      );
+      return isSafeRemoteUsageCommand(command);
     case 'web/search-log-list':
       return (
         (command.limit === undefined ||

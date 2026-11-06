@@ -8,7 +8,10 @@ import type {
   UsageRecord,
 } from '@piwin/contracts';
 
+import { matchesUsageScope } from './usage-record-scope.js';
+
 export type UsageCallLogOptions = {
+  modelId?: string;
   scope?: SessionScope;
   projectPath?: string;
   /** Rolling window length in minutes. Default 60. */
@@ -62,6 +65,7 @@ export function computeUsageCallLog(
   const inWindow: UsageRecord[] = [];
   for (const record of combined) {
     if (!matchesUsageScope(record, options?.scope, options?.projectPath)) continue;
+    if (options?.modelId !== undefined && record.modelId !== options.modelId) continue;
     if (record.recordedAt < fromIso) continue;
     if (record.measurementId !== undefined) {
       if (seenMeasurementIds.has(record.measurementId)) continue;
@@ -156,23 +160,6 @@ function toCallLogEntry(record: UsageRecord): UsageCallLogEntry {
   if (record.firstTokenKind !== undefined) entry.firstTokenKind = record.firstTokenKind;
   if (record.parentSessionId) entry.parentSessionId = record.parentSessionId;
   return entry;
-}
-
-function matchesUsageScope(
-  record: UsageRecord,
-  scope: SessionScope | undefined,
-  projectPath: string | undefined,
-): boolean {
-  if (scope) {
-    if (scope.kind === 'general') {
-      return record.projectPath === null || record.projectPath === '';
-    }
-    return record.projectPath === scope.projectPath;
-  }
-  if (projectPath !== undefined) {
-    return record.projectPath === projectPath;
-  }
-  return true;
 }
 
 function clampInteger(value: number, min: number, max: number): number {

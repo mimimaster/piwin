@@ -72,6 +72,22 @@ per-session breakdown. The user explicitly excluded cost estimation.
 - Cache-aware cost display remains out of scope; the panel reports token counts
   only.
 
+## Amendment: integrated cost and model filtering (2026-11-05)
+
+The Desktop page has three summaries: token usage with a supporting reference
+cost, requests and cache hit rate. The compact annual heatmap and recent-call
+log remain. Independent cost charts/rankings are removed; pricing information
+is available on demand, daily estimates live in the existing heatmap tooltip,
+and per-call cost shares the token-total cell. Partial coverage remains visible.
+
+Both usage read commands accept an exact `modelId`, applied by the Host before
+statistics and pagination. An optional `availableModels` array in the rollup
+provides actual used models for the current project/scope across all dates.
+The Desktop applies the model filter to all usage surfaces while preserving
+their explicit time windows; CLI exposes the same filter through `--model`.
+The additions are optional, so unfiltered existing clients remain compatible.
+
+
 ## Amendment: explicit scope, window-wide call summary, uncached prompt split (2026-10-15, accepted)
 
 An audit of the live ledger against the Settings → Usage page found three

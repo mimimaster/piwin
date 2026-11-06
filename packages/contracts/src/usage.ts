@@ -370,6 +370,8 @@ export type UsageCallLog = {
 
 /** Aggregated token statistics returned by `usage/get-rollup`. */
 export type UsageRollup = UsageCostTotals & {
+  /** Used models in this project/scope across all dates, independent of model/time filters. Absent on older Hosts. */
+  availableModels?: string[];
   pricingCatalog?: UsagePricingCatalog;
   scope: SessionScope | { kind: 'global' };
   promptTokens: number;

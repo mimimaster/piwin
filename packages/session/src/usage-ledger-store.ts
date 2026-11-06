@@ -19,7 +19,10 @@ import { normalizeUsageTokenSplit, shouldAcceptContextUsage } from '@piwin/contr
 import { addToUsageBucket, createUsageBucket } from './usage-bucket.js';
 import { computeUsageCallLog, normalizeProviderId, type UsageCallLogOptions } from './usage-call-log.js';
 
+import { matchesUsageScope } from './usage-record-scope.js';
+
 export type UsageRollupOptions = {
+  modelId?: string;
   scope?: SessionScope;
   projectPath?: string;
   window?: { from?: string; to?: string };
@@ -206,17 +209,10 @@ export function computeUsageRollup(
   const dayKeyOf = createDayKeyFormatter(options?.timeZone);
 
   const seenMeasurementIds = new Set<string>();
-  const filtered = records.filter((record) => {
-    if (scope) {
-      const recordProject = record.projectPath;
-      if (scope.kind === 'general') {
-        if (recordProject !== null && recordProject !== '') return false;
-      } else if (recordProject !== scope.projectPath) {
-        return false;
-      }
-    } else if (projectPath !== undefined) {
-      if (record.projectPath !== projectPath) return false;
-    }
+  const scopedRecords = records.filter((record) => matchesUsageScope(record, scope, projectPath));
+  const availableModels = [...new Set(scopedRecords.flatMap((record) => record.modelId ? [record.modelId] : []))].sort();
+  const filtered = scopedRecords.filter((record) => {
+    if (options?.modelId !== undefined && record.modelId !== options.modelId) return false;
     if (windowFrom !== undefined && record.recordedAt < windowFrom) return false;
     if (windowTo !== undefined && record.recordedAt > windowTo) return false;
     if (record.measurementId !== undefined) {
@@ -288,6 +284,7 @@ export function computeUsageRollup(
 
   return {
     scope: resolveScope(scope, projectPath),
+    availableModels,
     promptTokens: totals.promptTokens,
     completionTokens: totals.completionTokens,
     cacheReadTokens: totals.cacheReadTokens,

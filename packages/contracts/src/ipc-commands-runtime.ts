@@ -140,6 +140,8 @@ export type HostRuntimeCommand =
   | {
       id?: string;
       type: 'usage/get-rollup';
+      /** Exact model id across configured Keys; omitted includes all models. */
+      modelId?: string;
       /** When set, restrict to one project (else projectPath below). */
       scope?: import('./host.js').SessionScope;
       /** Legacy project path filter (project scope shorthand). */
@@ -153,6 +155,8 @@ export type HostRuntimeCommand =
   | {
       id?: string;
       type: 'usage/list-recent';
+      /** Exact model id across configured Keys; omitted includes all models. */
+      modelId?: string;
       /** When set, restrict to one project (else projectPath below). */
       scope?: import('./host.js').SessionScope;
       /** Legacy project path filter (project scope shorthand). */
