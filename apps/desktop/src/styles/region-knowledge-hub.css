@@ -96,8 +96,9 @@
 }
 
 .kb-metric-icon.is-blue {
-  background: color-mix(in srgb, var(--iris) 15%, transparent);
-  color: var(--iris-lift, #818cf8);
+  background: var(--surface-3);
+  color: var(--text-1);
+  border: 1px solid var(--line-1);
 }
 
 .kb-metric-icon.is-emerald {
@@ -237,8 +238,9 @@
 }
 
 .kb-card-icon-bubble.is-blue {
-  background: color-mix(in srgb, var(--iris) 15%, transparent);
-  color: var(--iris-lift, #818cf8);
+  background: var(--surface-3);
+  color: var(--text-1);
+  border: 1px solid var(--line-1);
 }
 
 .kb-card-info {
@@ -386,9 +388,9 @@
 }
 
 .kb-card-add-slot:hover .kb-card-add-bubble {
-  background: var(--iris-wash);
-  color: var(--iris-lift, #818cf8);
-  border-color: var(--iris);
+  background: var(--surface-2);
+  color: var(--text-1);
+  border-color: var(--line-2);
 }
 
 .kb-card-add-title {
@@ -430,8 +432,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-metric-icon.is-blue {
-  background: var(--azure-wash);
-  color: var(--azure);
+  background: var(--s3);
+  color: var(--t1);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-metric-icon.is-emerald {
@@ -484,8 +486,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card-icon-bubble.is-blue {
-  background: var(--azure-wash);
-  color: var(--azure);
+  background: var(--s3);
+  color: var(--t1);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .kb-card-stats-grid {

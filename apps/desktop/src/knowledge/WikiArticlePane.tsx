@@ -16,6 +16,7 @@ export type WikiArticlePaneProps = {
   onOpenSources: () => void;
   onProduceFlashcards?: ((folderPath: string) => void) | undefined;
   onDraftFlashcards?: ((input: { slug: string; title: string; content: string }) => void) | undefined;
+  onGoToFlashcards?: (() => void) | undefined;
   wikiFolderPath?: string | undefined;
   editable?: boolean | undefined;
   draft?: WikiPageDraft | null | undefined;
@@ -167,29 +168,24 @@ export function WikiArticlePane(props: WikiArticlePaneProps): ReactElement {
       ) : concept ? (
         <article className="article-container" id="article-body">
           <header className="article-header">
-            {concept.tags.length > 0 ? (
+            <div className="article-top-bar">
               <div className="article-domains">
-                {concept.tags.map((tag) => (
-                  <span key={tag} className="article-domain">
+                {concept.tags.map((tag, idx) => (
+                  <span key={tag} className={`article-domain${idx === 0 ? ' is-primary-tag' : ''}`}>
                     #{tag}
                   </span>
                 ))}
               </div>
-            ) : null}
 
-            <div className="article-title-row">
-              <h1 className="article-h1" id="wiki-main-title" data-testid="wiki-active-concept-title">
-                {concept.title}
-              </h1>
               <div className="article-actions">
                 {props.editable && props.onStartEdit ? (
                   <button
                     type="button"
-                    className="btn sm pri"
+                    className="btn sm"
                     onClick={props.onStartEdit}
                     data-testid="wiki-edit-page-btn"
                   >
-                    {t('Edit', '编辑')}
+                    {t('Edit', '编辑词条')}
                   </button>
                 ) : null}
                 <button
@@ -199,6 +195,14 @@ export function WikiArticlePane(props: WikiArticlePaneProps): ReactElement {
                   data-testid="wiki-use-in-chat-btn"
                 >
                   {t('AI Distill & Edit', 'AI 增量编纂')}
+                </button>
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={() => props.onUseInChat('wiki')}
+                  data-testid="wiki-copilot-chat-btn"
+                >
+                  {t('Cite in Chat', '💬 引用到会话')}
                 </button>
                 {props.onDraftFlashcards || (props.onProduceFlashcards && props.wikiFolderPath) ? (
                   <button
@@ -223,14 +227,25 @@ export function WikiArticlePane(props: WikiArticlePaneProps): ReactElement {
               </div>
             </div>
 
+            <div className="article-title-row">
+              <h1 className="article-h1" id="wiki-main-title" data-testid="wiki-active-concept-title">
+                {concept.title}
+              </h1>
+            </div>
+
             <div className="article-byline">
               <span className="article-byline-item">
                 {t('Compiled ', '编纂于 ')}
                 <time dateTime={concept.updatedAt}>{concept.updatedAt.slice(0, 10)}</time>
               </span>
               <span className="article-byline-item">
-                {concept.links.length} {t('linked refs', '处引用')}
+                {concept.links.length} {t('linked concepts', '处关联概念')}
               </span>
+              {concept.sources && concept.sources.length > 0 ? (
+                <span className="article-byline-item">
+                  {concept.sources.length} {t('raw sources', '份原始证据')}
+                </span>
+              ) : null}
             </div>
           </header>
 
@@ -250,7 +265,10 @@ export function WikiArticlePane(props: WikiArticlePaneProps): ReactElement {
           <footer className="article-colophon">
             <section className="colophon-block" data-testid="wiki-provenance-box">
               <div className="colophon-head">
-                <span className="colophon-title">{t('Provenance', '证据溯源')}</span>
+                <span className="colophon-title">{t('Provenance', '证据溯源 (Provenance)')}</span>
+                <code className="colophon-path" title={concept.relativePath}>
+                  {concept.relativePath}
+                </code>
               </div>
               <p className="colophon-note" id="wiki-provenance-text">
                 {t(
@@ -271,35 +289,61 @@ export function WikiArticlePane(props: WikiArticlePaneProps): ReactElement {
                 </ul>
               ) : null}
               <div className="colophon-source">
-                <code className="colophon-path" title={concept.relativePath}>
-                  {concept.relativePath}
-                </code>
                 <button
                   type="button"
-                  className="btn sm ghost"
+                  className="colophon-locate-btn"
                   onClick={props.onOpenSources}
                   data-testid="wiki-goto-source-btn"
                 >
-                  {t('Locate in Sources →', '在信源库中定位原文 →')}
+                  <span>{t('Locate in Sources', '在信源库中定位原文')}</span>
+                  <span>→</span>
                 </button>
               </div>
             </section>
 
-            {concept.links.length > 0 ? (
-              <nav className="wiki-outlinks-bar" data-testid="wiki-outlinks-footer">
-                <span className="colophon-title">{t('Connected Concepts', '相关联概念')}</span>
-                {concept.links.map((link) => (
-                  <button
-                    key={link}
-                    type="button"
-                    className="wiki-link-chip"
-                    onClick={() => props.onSelectSlug(slugifyWikiTarget(link))}
-                  >
-                    {wikiLinkLabel(link, props.concepts)}
-                  </button>
-                ))}
-              </nav>
-            ) : null}
+            <section className="colophon-copilot-section" aria-label={t('Wiki Copilot', '维基助读')}>
+              {concept.links.length > 0 ? (
+                <nav className="wiki-outlinks-bar" data-testid="wiki-outlinks-footer">
+                  <span className="colophon-title">{t('Connected Concepts', '网状关联词条')} ({concept.links.length})</span>
+                  <div className="wiki-outlinks-chips">
+                    {concept.links.map((link) => (
+                      <button
+                        key={link}
+                        type="button"
+                        className="concept-node-btn copilot-link-item wiki-link-chip"
+                        onClick={() => props.onSelectSlug(slugifyWikiTarget(link))}
+                      >
+                        <span>{wikiLinkLabel(link, props.concepts)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </nav>
+              ) : null}
+
+              <div className="colophon-block wiki-reinforce-block">
+                <div className="colophon-head">
+                  <span className="colophon-title">{t('Memory Reinforcement', '记忆强化')}</span>
+                </div>
+                <div className="wiki-reinforce-body">
+                  <p className="colophon-note">
+                    {t(
+                      'Distill key definitions and boundaries from this page into spaced-repetition flashcards.',
+                      '将当前词条中的关键定义与对比边界提炼为问答/填空闪卡草稿，巩固长期记忆。',
+                    )}
+                  </p>
+                  {props.onGoToFlashcards ? (
+                    <button
+                      type="button"
+                      className="btn sm pri"
+                      onClick={props.onGoToFlashcards}
+                      data-testid="wiki-copilot-study-btn"
+                    >
+                      {t('⚡ Practice in Flashcards', '⚡ 在每日复习中练习')}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </section>
           </footer>
         </article>
       ) : (

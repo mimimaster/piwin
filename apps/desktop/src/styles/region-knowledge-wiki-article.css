@@ -1,23 +1,15 @@
 /* Region: Knowledge Wiki — the reading page (WikiArticlePane.tsx).
-   Split out of region-knowledge-wiki.css per AGENTS.md 3.2: the nav rail,
-   copilot rail and source drawer are chrome; this sheet is the page being
-   read, and it follows the Inkstone document faces (宣纸 / 砚墨).
-
-   Two rules shape everything here:
-   1. The page is a sheet, not a stack of cards — one canvas, hairlines and
-      type for hierarchy, no nested boxes on the reading surface.
-   2. The article ends where its text ends. Nothing is pinned to the bottom
-      of the viewport, so a short concept reads short instead of opening a
-      dead band between the prose and its provenance. */
+   Aligned with knowledge-space-ui-preview.html View 4 (elevated article card,
+   crisp sans-serif heading, inline pill wikilinks, inner provenance colophon box). */
 
 .wiki-content-canvas {
   display: flex;
   flex-direction: column;
-  background: var(--s2, var(--surface-base)) !important;
+  background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  padding: 32px 40px 64px !important;
+  padding: 32px 48px 80px !important;
   height: 100%;
   min-height: 0;
   overflow-y: auto;
@@ -25,22 +17,37 @@
 }
 
 .article-container {
-  max-width: 720px;
+  max-width: 820px;
   width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
 }
 
-/* ── Header: domain eyebrow → title → byline ─────────────────────── */
+/* ── Header: top-bar (domains + actions) → title → byline ───────── */
 
 .article-header {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--l2, var(--line-2));
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--kw-card-border, var(--l2));
+}
+
+.article-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .article-domains {
@@ -51,28 +58,31 @@
 }
 
 .article-domain {
-  font: 600 10.5px var(--mono, monospace);
-  letter-spacing: 0.03em;
-  color: var(--zhu, #b03a24);
-  background: var(--zhu-wash, rgba(176, 58, 36, 0.1));
-  padding: 1px 6px;
-  border-radius: 3px;
+  font: 500 11.5px var(--font-mono, monospace);
+  color: var(--kw-text-muted, var(--t3));
+  background: var(--kw-secondary, var(--s3));
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+
+.article-domain.is-primary-tag {
+  font-weight: 600;
+  color: var(--kw-text-main, var(--t1));
+  background: var(--kw-accent-light, rgba(255, 255, 255, 0.1));
 }
 
 .article-title-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
 }
 
 .article-h1 {
-  font: 600 27px/1.35 var(--serif, inherit);
-  color: var(--t1, var(--text-1));
-  letter-spacing: -0.01em;
+  font: 700 23px/1.35 var(--font-sans, inherit);
+  color: var(--kw-text-main, var(--t1));
+  letter-spacing: -0.02em;
   margin: 0;
-  /* Optical: the serif title sits slightly high against the button row. */
-  padding-top: 1px;
 }
 
 .article-actions {
@@ -82,30 +92,31 @@
   flex-shrink: 0;
 }
 
-/* The byline replaces the boxed metadata ribbon: same facts, read as a
-   printed credit line rather than a debug strip. */
+.article-actions .btn {
+  height: 26px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  border-radius: 7px !important;
+}
+
 .article-byline {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  font: 11px var(--mono, monospace);
-  color: var(--t4, var(--text-4));
+  font: 11.5px var(--font-mono, monospace);
+  color: var(--kw-text-muted, var(--t3));
 }
 
 .article-byline-item + .article-byline-item::before {
   content: '·';
   margin-right: 10px;
-  color: var(--l3, var(--line-3));
+  color: var(--kw-text-dim, var(--t4));
 }
 
 .article-byline time {
-  color: var(--t3, var(--text-3));
+  color: var(--kw-text-muted, var(--t3));
   font-variant-numeric: tabular-nums;
-}
-
-.article-byline-stamp {
-  margin-left: auto;
 }
 
 /* ── Prose ───────────────────────────────────────────────────────── */
@@ -113,22 +124,22 @@
 .wiki-prose-text,
 .article-prose {
   font-size: 14px;
-  line-height: 1.9;
-  color: var(--t2, var(--text-2));
-  margin-top: 24px;
+  line-height: 1.75;
+  color: var(--kw-text-main, var(--t1));
+  margin-top: 20px;
 }
 
 .wiki-prose-text p,
 .article-prose p {
-  margin-bottom: var(--s-3);
+  margin-bottom: 14px;
 }
 
 .article-prose :is(h1, h2, h3, h4) {
-  font-family: var(--serif, inherit);
-  font-weight: 600;
-  color: var(--t1, var(--text-1));
-  letter-spacing: -0.005em;
-  margin: 1.7em 0 0.5em;
+  font-family: var(--font-sans, inherit);
+  font-weight: 650;
+  color: var(--kw-text-main, var(--t1));
+  letter-spacing: -0.015em;
+  margin: 1.5em 0 0.5em;
 }
 
 .article-prose > :first-child :is(h1, h2, h3, h4):first-child {
@@ -140,40 +151,71 @@
 }
 
 .article-prose li {
-  margin-bottom: 0.3em;
+  margin-bottom: 0.4em;
 }
 
 .article-prose blockquote {
-  margin: 1.2em 0;
-  padding: 2px 0 2px 14px;
-  border-left: 2px solid var(--l3, var(--line-3));
-  color: var(--t3, var(--text-3));
+  margin: 1.1em 0;
+  padding: 6px 14px;
+  border-left: 2px solid var(--kw-card-border-hover, var(--l3));
+  background: var(--kw-bg, var(--s1));
+  border-radius: 0 8px 8px 0;
+  color: var(--kw-text-muted, var(--t3));
 }
 
-/* Wikilinks read as ink, not as web links: colour plus a hairline rule that
-   fills in on hover. */
+.article-prose p code,
+.article-prose li code,
+.article-prose blockquote code,
+.article-prose .markdown-inline-code {
+  font-family: var(--font-mono, monospace) !important;
+  font-size: 12.5px !important;
+  padding: 1px 6px !important;
+  border-radius: 5px !important;
+  background: var(--kw-secondary, var(--s3)) !important;
+  color: var(--kw-text-main, var(--t1)) !important;
+  border: 1px solid var(--kw-card-border, var(--l1)) !important;
+}
+
+/* Wikilinks in prose render as clean studio pills matching knowledge-space-ui-preview.html */
 .article-prose a {
-  color: var(--zhu, #b03a24);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-decoration-color: color-mix(in srgb, var(--zhu, #b03a24) 35%, transparent);
-  text-underline-offset: 3px;
-  border-radius: 2px;
-  transition: background 0.15s ease, text-decoration-color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  margin: 0 1px;
+  border-radius: 5px;
+  background: var(--kw-secondary, var(--s3));
+  border: 1px solid var(--kw-card-border, var(--l1));
+  color: var(--kw-text-main, var(--t1));
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.article-prose a::before {
+  content: '[[';
+  opacity: 0.55;
+  margin-right: 1px;
+}
+
+.article-prose a::after {
+  content: ']]';
+  opacity: 0.55;
+  margin-left: 1px;
 }
 
 .article-prose a:hover {
-  text-decoration-color: var(--zhu, #b03a24);
-  background: var(--zhu-wash, rgba(176, 58, 36, 0.1));
-  box-shadow: 0 0 0 2px var(--zhu-wash, rgba(176, 58, 36, 0.1));
+  background: var(--kw-card-hover, var(--s3));
+  border-color: var(--kw-primary, #ececef);
 }
 
-/* ── Colophon: provenance + outlinks, set below a hairline ───────── */
+/* ── Colophon: provenance inner box + outlinks ───────────────────── */
 
 .article-colophon {
-  margin-top: 40px;
-  padding-top: 16px;
-  border-top: 1px solid var(--l2, var(--line-2));
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--kw-card-border, var(--l2));
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -182,7 +224,11 @@
 .colophon-block {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 10px;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border: none !important;
 }
 
 .colophon-head {
@@ -193,37 +239,60 @@
 }
 
 .colophon-title {
-  font: 600 10.5px var(--mono, monospace);
+  font: 600 11px var(--font-sans, inherit);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--t4, var(--text-4));
+  letter-spacing: 0.06em;
+  color: var(--kw-text-muted, var(--t3));
+}
+
+.colophon-path {
+  font: 11.5px var(--font-mono, monospace);
+  color: var(--kw-text-muted, var(--t3));
+  background: transparent;
+  padding: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .colophon-note {
   margin: 0;
   font-size: 12px;
-  line-height: 1.7;
-  color: var(--t3, var(--text-3));
+  line-height: 1.65;
+  color: var(--kw-text-muted, var(--t3));
+}
+
+.colophon-sources {
+  margin: 0;
+  padding-left: 18px;
+  font: 12px var(--font-mono, monospace);
+  color: var(--kw-text-main, var(--t1));
 }
 
 .colophon-source {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-end;
 }
 
-.colophon-path {
-  font: 10.5px var(--mono, monospace);
-  color: var(--t3, var(--text-3));
-  background: var(--s1, var(--surface-1));
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: 3px;
-  padding: 2px 6px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.colophon-locate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  color: var(--kw-primary);
+  font: 500 12px var(--font-sans, inherit);
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.colophon-locate-btn:hover {
+  opacity: 0.85;
+  text-decoration: underline;
 }
 
 .wiki-outlinks-bar {
@@ -234,92 +303,81 @@
 }
 
 .wiki-link-chip {
-  font-size: 11.5px;
-  padding: 2px 8px;
-  border-radius: var(--r-chip, 4px);
-  background: transparent;
-  color: var(--zhu, #b03a24);
-  border: 1px solid color-mix(in srgb, var(--zhu, #b03a24) 28%, transparent);
+  font: 500 11.5px var(--font-mono, monospace);
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: var(--kw-bg, var(--s1));
+  color: var(--kw-text-main, var(--t1));
+  border: 1px solid var(--kw-card-border, var(--l1));
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-/* The `[[…]]` brackets are decoration, not part of the concept name. */
-.wiki-link-chip::before,
-.wiki-link-chip::after {
-  color: var(--t4, var(--text-4));
-  font-family: var(--mono, monospace);
-}
-
 .wiki-link-chip::before {
   content: '[[';
+  color: var(--kw-text-dim, var(--t4));
 }
 
 .wiki-link-chip::after {
   content: ']]';
+  color: var(--kw-text-dim, var(--t4));
 }
 
 .wiki-link-chip:hover {
-  background: var(--zhu-wash, rgba(176, 58, 36, 0.1));
-  border-color: var(--zhu, #b03a24);
+  background: var(--kw-card-hover, var(--s3));
+  border-color: var(--kw-primary, #ececef);
 }
 
 /* ── Standby (no concept selected yet) ───────────────────────────── */
 
 .article-standby {
   max-width: 560px;
-  margin-top: 8vh;
+  margin-top: 6vh;
 }
 
 .standby-card {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 22px 24px;
-  background: var(--s1, var(--surface-1));
-  border: 1px solid var(--l1, var(--line-1));
-  border-top: 2px solid var(--zhu, #b03a24);
-  border-radius: var(--r-card, 6px);
 }
 
 .standby-kicker {
-  font: 600 10.5px var(--mono, monospace);
+  font: 600 11px var(--font-mono, monospace);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--t4, var(--text-4));
+  letter-spacing: 0.06em;
+  color: var(--kw-text-muted, var(--t3));
 }
 
 .standby-title {
   margin: 0;
-  font: 600 17px/1.4 var(--serif, inherit);
-  color: var(--t1, var(--text-1));
+  font: 700 18px/1.4 var(--font-sans, inherit);
+  color: var(--kw-text-main, var(--t1));
 }
 
 .standby-note {
   margin: 0;
-  font-size: 12.5px;
-  line-height: 1.75;
-  color: var(--t3, var(--text-3));
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--kw-text-muted, var(--t3));
 }
 
 .standby-actions {
   display: flex;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 @media (max-width: 900px) {
   .wiki-content-canvas {
-    padding: 24px 24px 48px !important;
+    padding: 20px 20px 44px !important;
   }
 
-  .article-title-row {
-    flex-direction: column;
-    gap: 12px;
+  .article-container {
+    padding: 20px;
   }
 
   .article-h1 {
-    font-size: 23px;
+    font-size: 20px;
   }
 }
 
@@ -328,34 +386,36 @@
   width: 100%;
   box-sizing: border-box;
   margin-bottom: 12px;
-  padding: 8px 10px;
-  border: 1px solid var(--line-2, var(--border));
-  border-radius: 6px;
-  background: var(--s1, var(--surface));
-  color: var(--t1, var(--text-1));
+  padding: 10px 12px;
+  border: 1px solid var(--kw-card-border, var(--line-2));
+  border-radius: 8px;
+  background: var(--kw-bg, var(--s1));
+  color: var(--kw-text-main, var(--t1));
   font: inherit;
 }
 
 .wiki-draft-title {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
 }
 
 .wiki-draft-body {
   min-height: 240px;
   resize: vertical;
-  line-height: 1.6;
+  line-height: 1.65;
+  font-family: var(--font-mono, monospace);
+  font-size: 12.5px;
 }
 
 .wiki-draft-current {
   max-height: 140px;
   overflow: auto;
   margin: 0 0 12px;
-  padding: 8px 10px;
-  border: 1px solid var(--line-2, var(--border));
-  border-radius: 6px;
-  background: var(--s2, var(--surface-2));
-  color: var(--t3, var(--text-3));
+  padding: 10px 12px;
+  border: 1px solid var(--kw-card-border, var(--line-2));
+  border-radius: 8px;
+  background: var(--kw-bg, var(--s1));
+  color: var(--kw-text-muted, var(--t3));
   white-space: pre-wrap;
   font-size: 12px;
 }
@@ -364,6 +424,6 @@
 .wiki-draft-related {
   margin: 0 0 12px;
   padding-left: 18px;
-  color: var(--t3, var(--text-3));
+  color: var(--kw-text-muted, var(--t3));
   font-size: 12px;
 }

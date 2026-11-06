@@ -7,9 +7,13 @@ export function slugifyWikiTarget(target: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-/** Convert [[Target|Alias]] or [[Target]] to markdown link [Alias](#concept-slug) */
+/** Convert [[Target|Alias]] or [[Target]] to markdown link [Alias](#concept-slug),
+ *  skipping fenced code blocks and inline code spans so literal `[[...]]` stays intact. */
 export function formatWikilinksForMarkdown(content: string): string {
-  return content.replace(/\[\[([^\[\]]+)\]\]/g, (_match, inner: string) => {
+  return content.replace(/(`+[^`]*`+)|\[\[([^\[\]]+)\]\]/g, (match, codeSpan: string | undefined, inner: string | undefined) => {
+    if (codeSpan !== undefined || inner === undefined) {
+      return match;
+    }
     const parts = inner.split('|');
     const target = parts[0]?.trim() ?? '';
     const alias = parts[1]?.trim() || target;

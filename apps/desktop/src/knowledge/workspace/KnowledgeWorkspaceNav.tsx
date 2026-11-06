@@ -70,6 +70,7 @@ export function KnowledgeWorkspaceNav(props: KnowledgeWorkspaceNavProps): ReactE
           >
             <IconSettings width={15} height={15} aria-hidden="true" />
             <span className="kw-nav-text">{t('Index & Settings', '索引与设置')}</span>
+            <span className="kw-status-dot is-ready" style={{ marginLeft: 'auto' }} title={t('Index ready', '索引正常')} />
           </button>
         ) : null}
       </div>

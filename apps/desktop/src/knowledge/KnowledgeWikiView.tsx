@@ -8,7 +8,6 @@ import type {
   WikiOverviewResult,
 } from '@piwin/contracts';
 import { WikiArticlePane } from './WikiArticlePane.js';
-import { WikiCopilotPane } from './WikiCopilotPane.js';
 import { WikiNavPane } from './WikiNavPane.js';
 import { WikiSourceDrawer } from './WikiSourceDrawer.js';
 import { isWorkbenchHostTeardownError } from '../workbench/workbench-host-teardown.js';
@@ -358,7 +357,7 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
         onManageSources={handleOpenDrawer}
       />
 
-      {/* Pane 2: Concept Reading Canvas */}
+      {/* Pane 2: Concept Reading Canvas (Expanded 2-Pane Redesign) */}
       <WikiArticlePane
         locale={props.locale}
         concept={activeConcept}
@@ -373,6 +372,7 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
         onOpenSources={handleOpenDrawer}
         onProduceFlashcards={props.onProduceFlashcards}
         onDraftFlashcards={props.onDraftFlashcards}
+        onGoToFlashcards={props.onGoToFlashcards}
         wikiFolderPath={props.wikiFolderPath}
         editable={!isStarterMode}
         draft={pageDraft}
@@ -412,16 +412,6 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
             void fetchOverview();
           });
         }}
-      />
-
-      {/* Pane 3: Concept Copilot Pane */}
-      <WikiCopilotPane
-        concept={activeConcept}
-        concepts={rawConcepts}
-        locale={props.locale}
-        onSelectSlug={(slug) => setSelectedSlug(slug)}
-        onUseInChat={props.onUseInChat}
-        onGoToFlashcards={props.onGoToFlashcards}
       />
 
       {sourceDrawer}

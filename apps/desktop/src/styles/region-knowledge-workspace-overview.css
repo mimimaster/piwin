@@ -1,18 +1,19 @@
 /* Region: Knowledge Workspace — Overview section (KnowledgeOverviewSection.tsx).
-   Bento KPI cards, continue-reading list, topic collections distribution. */
+   Bento KPI cards, 2-column balanced grid (7:5 asymmetric), continue-reading list, topic collections. */
 
 .kw-overview {
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
+  gap: 20px;
   max-width: 1080px;
   min-width: 0;
   width: 100%;
+  margin: 0 auto;
 }
 
 .kw-overview .kw-page-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--s-4);
   flex-wrap: wrap;
@@ -21,44 +22,52 @@
 .kw-overview-head-actions {
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: 8px;
 }
 
-/* ---------- 3-Column KPI Bento Cards ---------- */
+/* ---------- 3-Column Flat Editorial Metric Strip (Zero Cards) ---------- */
 
 .kw-kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--s-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 4px 0 20px;
+  margin-bottom: 8px;
 }
 
 .kw-kpi {
+  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   justify-content: space-between;
-  min-height: 110px;
-  padding: var(--s-4) var(--s-5);
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: var(--r-panel, 12px);
-  background: var(--s3, var(--surface-2));
-  color: var(--t1, var(--text-1));
+  min-height: 84px;
+  padding: 10px 24px 10px 16px;
+  border: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0;
+  background: transparent;
+  color: var(--kw-text-main);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.04));
-  transition: transform var(--t-2) var(--ease-out), border-color var(--t-2) var(--ease-out), box-shadow var(--t-2) var(--ease-out);
+  box-shadow: none;
+  transition: background 150ms ease;
+}
+
+.kw-kpi:last-child {
+  border-right: none;
 }
 
 .kw-kpi:hover {
-  border-color: var(--l2, var(--line-2));
-  background: var(--hover, var(--surface-3));
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  transform: none;
+  box-shadow: none;
 }
 
 .kw-kpi:focus-visible {
-  outline: 2px solid var(--iris, var(--accent));
+  outline: 2px solid var(--kw-primary);
   outline-offset: 1px;
 }
 
@@ -69,71 +78,122 @@
   width: 100%;
 }
 
+.kw-kpi-label {
+  color: var(--kw-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.kw-kpi-value {
+  display: block;
+  margin-top: 4px;
+  font-size: 28px;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--kw-text-main);
+}
+
+.kw-kpi[data-testid="knowledge-kpi-due"] .kw-kpi-value {
+  color: var(--kw-amber);
+}
+
 .kw-kpi-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: var(--r-control, 8px);
-  background: color-mix(in srgb, var(--iris, var(--accent)) 10%, transparent);
-  color: var(--iris, var(--accent));
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
-.kw-kpi[data-testid="knowledge-kpi-due"] .kw-kpi-icon {
-  background: color-mix(in srgb, var(--amber, #d97706) 12%, transparent);
-  color: var(--amber, #d97706);
+.kw-kpi-icon.is-blue {
+  background: rgba(226, 90, 61, 0.12);
+  color: var(--kw-primary);
+  border: 1px solid rgba(226, 90, 61, 0.25);
 }
 
-.kw-kpi-value {
-  margin-top: var(--s-1);
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.15;
+.kw-kpi-icon.is-emerald {
+  background: var(--kw-emerald-light);
+  color: var(--kw-emerald);
 }
 
-.kw-kpi[data-testid="knowledge-kpi-due"] .kw-kpi-value {
-  color: var(--amber, #d97706);
+.kw-kpi-icon.is-purple {
+  background: var(--kw-purple-light);
+  color: var(--kw-purple);
 }
 
-.kw-kpi-label {
-  color: var(--t2, var(--text-2));
-  font-size: var(--fs-chrome, 13px);
-  font-weight: 500;
+.kw-kpi-icon.is-amber {
+  background: var(--kw-amber-light);
+  color: var(--kw-amber);
 }
 
 .kw-kpi-hint {
-  width: 100%;
-  margin-top: var(--s-3);
-  padding-top: var(--s-2);
-  border-top: 1px solid var(--l1, var(--line-1));
-  color: var(--t4, var(--text-4));
-  font-size: 11.5px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  margin-top: 10px;
+  padding-top: 0;
+  border-top: none;
+  color: var(--kw-text-muted);
+  font-size: 12px;
 }
 
-/* ---------- 2-Column Main Asymmetric Bento Grid ---------- */
+.kw-kpi-arrow {
+  color: var(--kw-text-muted);
+  font-weight: 500;
+  transition: color 150ms ease;
+}
 
-.kw-grid {
+.kw-kpi:hover .kw-kpi-arrow {
+  color: var(--kw-primary);
+}
+
+.kw-kpi[data-testid="knowledge-kpi-due"] .kw-kpi-arrow {
+  color: var(--kw-amber);
+  font-weight: 600;
+}
+
+/* ---------- 2-Column Editorial Stream Layout (Zero Card Soup) ---------- */
+
+.kw-grid-bento {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: var(--s-4);
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 36px;
+  align-items: start;
+}
+
+.kw-col-main {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  min-width: 0;
+}
+
+.kw-col-side {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  min-width: 0;
 }
 
 .kw-card {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: 12px;
   min-width: 0;
-  padding: var(--s-5);
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: var(--r-panel, 12px);
-  background: var(--s3, var(--surface-2));
-  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.04));
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
 }
 
 .kw-card-head {
@@ -141,30 +201,122 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-2);
-  padding-bottom: var(--s-1);
-  border-bottom: 1px solid var(--l1, var(--line-1));
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 4px;
 }
 
 .kw-card-head h2 {
   margin: 0;
-  color: var(--t1, var(--text-1));
-  font-size: var(--fs-body, 13.5px);
+  color: var(--kw-text-main);
+  font-size: 13.5px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-.kw-lead {
-  margin: 0;
-  color: var(--t2, var(--text-2));
-  font-size: var(--fs-chrome, 13px);
-  line-height: 1.5;
+.kw-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kw-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.kw-tag.is-amber {
+  background: var(--kw-amber-light);
+  color: var(--kw-amber);
+}
+
+.kw-subtag {
+  font-size: 11.5px;
+  color: var(--kw-text-muted);
 }
 
 .kw-muted {
   margin: 0;
-  color: var(--t3, var(--text-3));
+  color: var(--kw-text-muted);
   font-size: 12.5px;
   line-height: 1.6;
+}
+
+/* Study Card Specifics: Flat Editorial Callout */
+.kw-card-study {
+  border-left: 2px solid var(--kw-primary) !important;
+  padding-left: 14px !important;
+  background: rgba(226, 90, 61, 0.03) !important;
+  border-radius: 0 6px 6px 0 !important;
+  padding: 14px 16px !important;
+}
+
+.kw-study-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kw-study-lead-title {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 650;
+  color: var(--kw-text-main);
+}
+
+.kw-study-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--kw-text-muted);
+}
+
+.kw-study-footer {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.kw-study-btn {
+  width: 100%;
+  height: 34px;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: var(--kw-primary) !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.kw-study-btn:hover {
+  background: var(--kw-primary-hover) !important;
+}
+
+/* Card Placeholder (Continue Reading, etc.) */
+.kw-card-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 4px;
+  text-align: left;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+}
+
+.kw-placeholder-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--kw-text-muted);
+  flex-shrink: 0;
 }
 
 /* ---------- Content List Rows (Continue reading / Recent) ---------- */
@@ -172,10 +324,13 @@
 .kw-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.kw-list > li + li {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .kw-row {
@@ -184,21 +339,68 @@
   justify-content: space-between;
   gap: var(--s-3);
   width: 100%;
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid transparent;
-  border-radius: var(--r-control, 8px);
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 6px;
   background: transparent;
-  color: var(--t1, var(--text-1));
+  color: var(--kw-text-main);
   font: inherit;
-  font-size: var(--fs-chrome, 13px);
+  font-size: 12.5px;
   text-align: left;
   cursor: pointer;
-  transition: all var(--t-1) var(--ease-out);
+  transition: background var(--t-1) var(--ease-out);
 }
 
 button.kw-row:hover {
-  background: var(--hover, var(--surface-3));
-  border-color: var(--l1, var(--line-1));
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.kw-source-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.kw-source-badge.is-doc {
+  background: var(--kw-secondary);
+  color: var(--kw-text-main);
+  border: 1px solid var(--kw-card-border);
+}
+
+.kw-source-badge.is-wiki {
+  background: var(--kw-emerald-light);
+  color: var(--kw-emerald);
+}
+
+.kw-row-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.kw-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.kw-row-subpath {
+  font-size: 11.5px;
+  font-family: var(--font-mono, monospace);
+  color: var(--kw-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .kw-row-title {
@@ -207,18 +409,22 @@ button.kw-row:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
+  color: var(--kw-text-main);
 }
 
 .kw-row-meta {
   flex: none;
-  color: var(--t4, var(--text-4));
+  color: var(--kw-text-muted);
   font-size: 11.5px;
   font-family: var(--font-mono, monospace);
   font-variant-numeric: tabular-nums;
-  padding: 1px 6px;
-  border-radius: var(--r-control, 4px);
-  background: var(--s2, var(--surface-1));
-  border: 1px solid var(--l1, var(--line-1));
+}
+
+.kw-read-row .kw-row-meta {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--kw-secondary);
+  color: var(--kw-text-main);
 }
 
 /* ---------- Empty States ---------- */
@@ -227,24 +433,24 @@ button.kw-row:hover {
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
-  padding: var(--s-7) var(--s-6);
-  border: 1px dashed var(--l2, var(--line-2));
-  border-radius: var(--r-panel, 12px);
-  background: var(--s1, var(--surface-1));
+  padding: 24px;
+  border: 1px dashed var(--kw-card-border-hover);
+  border-radius: 12px;
+  background: var(--kw-card-bg);
 }
 
 .kw-empty h2 {
   margin: 0;
-  color: var(--t1, var(--text-1));
-  font-size: 16px;
+  color: var(--kw-text-main);
+  font-size: 15px;
   font-weight: 650;
 }
 
 .kw-empty p {
   margin: 0;
   max-width: 62ch;
-  color: var(--t3, var(--text-3));
-  font-size: var(--fs-chrome, 13px);
+  color: var(--kw-text-muted);
+  font-size: 12.5px;
   line-height: 1.65;
 }
 
@@ -254,4 +460,13 @@ button.kw-row:hover {
   align-items: center;
   gap: var(--s-3);
   margin-top: var(--s-2);
+}
+
+@media (max-width: 1024px) {
+  .kw-kpis {
+    grid-template-columns: 1fr;
+  }
+  .kw-grid-bento {
+    grid-template-columns: 1fr;
+  }
 }

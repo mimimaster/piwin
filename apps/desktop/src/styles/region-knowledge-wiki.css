@@ -1,5 +1,5 @@
 /* Region: Knowledge Center — Wiki & Synthesis view.
-   Strict adherence to Inkstone design system (Paper & Ink faces). */
+   Aligned with knowledge-space-ui-preview.html View 4 (3-pane Wiki workbench). */
 
 .wiki-markdown-article {
   max-width: 780px;
@@ -40,8 +40,6 @@
   margin-bottom: var(--s-5);
 }
 
-/* Same amber nudge as knowledge-config-prompt-pill: search is running in a
-   degraded mode, not broken. */
 .wiki-degraded-prompt {
   display: inline-flex;
   align-items: center;
@@ -65,7 +63,7 @@
 .degraded-config-link {
   border: none;
   background: transparent;
-  color: var(--iris-lift);
+  color: var(--kw-accent, var(--zhu, #e25a3d));
   font-family: var(--font);
   font-weight: 600;
   font-size: var(--fs-micro);
@@ -95,7 +93,7 @@
 .search-hit-card:hover {
   box-shadow:
     var(--elev-1),
-    inset 0 0 0 1px color-mix(in srgb, var(--iris) 30%, transparent);
+    inset 0 0 0 1px color-mix(in srgb, var(--kw-accent, var(--zhu, #e25a3d)) 30%, transparent);
 }
 
 .hit-card-title {
@@ -136,52 +134,7 @@
   margin: 0;
 }
 
-/* ── Inkstone Overrides for Wiki Workspace ───────────────────────── */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-article-heading {
-  font-family: var(--serif, 'Noto Serif SC', 'Songti SC', serif);
-  font-weight: 500;
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-provenance-box {
-  background: var(--s2);
-  border-color: var(--l1);
-  border-left-color: var(--zhu);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-copilot-pane {
-  background: var(--s2);
-  border-color: var(--l1);
-  box-shadow: var(--sh1);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-copilot-title {
-  font-family: var(--serif, 'Noto Serif SC', 'Songti SC', serif);
-  font-weight: 600;
-  color: var(--t2);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-copilot-link-chip {
-  background: var(--s3);
-  border-color: var(--l1);
-  color: var(--t1);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-copilot-link-chip:hover {
-  border-color: var(--zhu);
-  color: var(--zhu);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .wiki-copilot-card-box {
-  background: var(--s3);
-  border-color: var(--l1);
-}
-
-/* ── Knowledge Wiki tab (KnowledgeWikiView.tsx, WikiCopilotPane.tsx) ────
-   Class names from the Inkstone prototype markup — a separate set from
-   `.wiki-workspace-layout` / `.wiki-sidebar-pane` / `.wiki-article-pane`
-   above, which belonged to an earlier iteration this view no longer
-   renders. `.stamp-pill` / `.btn` (region-knowledge-stage.css) are still
-   shared and reused here. */
+/* ── Knowledge Wiki tab (KnowledgeWikiView.tsx, WikiNavPane.tsx, WikiCopilotPane.tsx) ──── */
 .wiki-with-notices {
   position: relative;
   display: flex;
@@ -199,46 +152,78 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   height: 100%;
   min-height: 0;
   flex: 1;
-  background: var(--s1, var(--surface-1));
+  background: var(--kw-bg, var(--s1));
 }
 
 .wiki-layout {
   position: relative;
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 260px;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
   flex: 1;
   min-height: 0;
-  background: var(--s1, var(--surface-1));
+  background: transparent;
   gap: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
   overflow: hidden;
 }
 
+/* ── Top Concept Catalog Shelf (Zero Second Column) ─────────────────── */
+
 .wiki-nav-pane {
   display: flex;
   flex-direction: column;
-  background: var(--s0, var(--surface-base)) !important;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.28) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: none !important;
-  border-right: 1px solid var(--l1, var(--line-1)) !important;
+  border-bottom: 1px solid var(--kw-card-border, var(--l1)) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  padding: 0 !important;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
+  padding: 10px 24px !important;
+  gap: 8px;
+  flex-shrink: 0;
+  overflow: visible;
   position: static;
 }
 
-.wiki-nav-header {
-  padding: 10px 12px;
+.wiki-shelf-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border-bottom: 1px solid var(--l1, var(--line-1));
-  background: var(--s0, var(--surface-base));
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.wiki-shelf-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.wiki-shelf-search {
+  width: 200px;
+  min-width: 150px;
+  height: 28px;
+}
+
+.wiki-shelf-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wiki-shelf-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -246,51 +231,56 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   width: 100%;
-}
-
-.nav-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-}
-
-.nav-header-actions button {
-  flex: 1;
-  justify-content: center;
 }
 
 .nav-col-title {
-  font: 600 12.5px var(--serif, inherit);
-  color: var(--t1, var(--text-1));
-  display: flex;
+  font: 600 12.5px var(--font-sans, inherit);
+  color: var(--kw-text-main, var(--t1));
+  display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-.search-box-wrap {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--l1, var(--line-1));
-  background: var(--s0, var(--surface-base));
+.wiki-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--kw-secondary, var(--s3));
+  color: var(--kw-text-muted, var(--t3));
+  font: 600 11px var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.nav-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
+}
+
+.nav-header-actions .btn {
+  height: 26px !important;
+  padding: 0 10px !important;
+  font-size: 11.5px !important;
+  border-radius: 6px !important;
 }
 
 .ink-search {
   display: flex;
   align-items: center;
-  gap: 6px;
   height: 28px;
-  padding: 0 8px 0 10px;
-  background: var(--s2, var(--surface-1));
-  border: 1px solid var(--l2, var(--line-2));
-  border-radius: 4px;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+  padding: 0 10px;
+  background: var(--kw-bg, var(--s1));
+  border: 1px solid var(--kw-card-border, var(--l1));
+  border-radius: 8px;
 }
 
 .ink-search:focus-within {
-  border-color: var(--zhu, #b03a24);
-  box-shadow: 0 0 0 2px var(--zhu-wash, rgba(176,58,36,0.1));
+  border-color: var(--kw-card-border-hover, var(--l3));
 }
 
 .ink-search input {
@@ -298,18 +288,13 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   border: 0;
   background: transparent;
   outline: none;
-  font-size: 11.5px;
-  color: var(--t1, var(--text-1));
+  font-size: 12px;
+  color: var(--kw-text-main, var(--t1));
   min-width: 0;
 }
 
-.kbd-chip {
-  font: 500 9.5px var(--mono, monospace);
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: var(--s3, var(--surface-2));
-  color: var(--t3, var(--text-3));
-  border: 1px solid var(--l2, var(--line-2));
+.ink-search input::placeholder {
+  color: var(--kw-text-dim, var(--t4));
 }
 
 .tag-filter-row {
@@ -317,104 +302,94 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px 8px;
-  border-bottom: 1px solid var(--l1, var(--line-1));
-  flex-shrink: 0;
 }
 
 .tag-pill {
-  font: 11px var(--mono, monospace);
-  color: var(--t3, var(--text-3));
-  padding: 2px 7px;
-  border-radius: 12px;
-  background: var(--s2, var(--surface-1));
-  border: 1px solid var(--l1, var(--line-1));
+  font: 500 11.5px var(--font-sans, inherit);
+  color: var(--kw-text-muted, var(--t3));
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--kw-bg, var(--s1));
+  border: 1px solid var(--kw-card-border, var(--l1));
   white-space: nowrap;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .tag-pill:hover {
-  color: var(--t1, var(--text-1));
-  border-color: var(--l2, var(--line-2));
+  color: var(--kw-text-main, var(--t1));
+  border-color: var(--kw-card-border-hover, var(--l3));
 }
 
 .tag-pill.active {
-  background: var(--zhu-wash, rgba(176,58,36,0.1));
-  color: var(--zhu, #b03a24);
-  border-color: rgba(176, 58, 36, 0.3);
+  background: var(--kw-accent-light);
+  color: var(--kw-accent-text);
+  border-color: var(--kw-accent-border);
   font-weight: 600;
 }
 
+/* ── Flat Editorial Concept Tab Bar (Zero Cards) ───────────────── */
+
 .concept-scroll-list,
 .wiki-concept-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px 10px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.list-group-title {
-  font: 600 10.5px var(--mono, monospace);
-  color: var(--t4, var(--text-4));
-  padding: 6px 4px 2px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 0 0 0;
+  margin: 0;
+  border-top: 1px solid var(--kw-card-border);
+  scrollbar-width: none;
 }
 
 .concept-row,
 .wiki-concept-card {
   position: relative;
-  padding: 7px 10px;
-  border-radius: 5px;
-  background: var(--s2, var(--surface-1));
-  border: 1px solid var(--l1, var(--line-1));
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 8px 4px 10px 4px !important;
+  border-bottom: 2px solid transparent !important;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  transition: all 0.15s ease;
+  text-align: left;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  flex-shrink: 0;
 }
 
 .concept-row:hover,
 .wiki-concept-card:hover {
-  background: var(--s1, var(--surface-1));
-  border-color: var(--l2, var(--line-2));
-  transform: translateX(1px);
+  background: transparent !important;
+}
+
+.concept-row:hover .row-title,
+.wiki-concept-card:hover .wiki-concept-title {
+  color: var(--kw-text-main, #f4f4f5);
 }
 
 .concept-row.active,
 .wiki-concept-card.active {
-  background: var(--s2, var(--surface-1)) !important;
-  border-color: var(--zhu, #b03a24) !important;
-  box-shadow: 0 0 0 1px var(--zhu, #b03a24), 0 2px 8px rgba(176,58,36,0.08) !important;
-}
-
-.concept-row.active::before,
-.wiki-concept-card.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  border-radius: 0 2px 2px 0;
-  background: var(--zhu, #b03a24);
+  background: transparent !important;
+  border-bottom: 2px solid var(--kw-primary, #e25a3d) !important;
+  box-shadow: none !important;
 }
 
 .concept-row .row-main {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 6px;
 }
 
 .concept-row .row-title,
 .wiki-concept-title {
-  font: 500 12.5px var(--sans, inherit);
-  color: var(--t1, var(--text-1));
+  font: 500 13px var(--font-sans, inherit);
+  color: var(--kw-text-muted, var(--t3));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -423,91 +398,103 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 .concept-row.active .row-title,
 .wiki-concept-card.active .wiki-concept-title {
   font-weight: 600;
-  color: var(--zhu, #b03a24);
+  color: #ffffff !important;
+}
+
+.concept-row .wiki-stamp {
+  font: 500 11px var(--font-mono, monospace);
+  color: var(--kw-text-dim);
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+.concept-row.active .wiki-stamp {
+  color: var(--kw-primary, #e25a3d) !important;
 }
 
 .concept-row .row-sub {
-  font: 10.5px var(--mono, monospace);
-  color: var(--t4, var(--text-4));
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: none;
+}
+
+.wiki-nav-empty {
+  padding: 10px 0;
+  color: var(--kw-text-muted, var(--t3));
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .nav-source-footer {
-  margin-top: auto;
-  border-top: 1px solid var(--l1, var(--line-1));
-  background: var(--s0, var(--surface-base));
-  padding: 8px 12px;
-  display: flex;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  font-size: 11px;
+  gap: 6px;
+  font-size: 11.5px;
   flex-shrink: 0;
 }
 
-.provenance-box {
-  background: var(--s1, var(--surface-1));
-  border: 1px solid var(--l2, var(--line-2));
-  border-left: 3px solid var(--zhu, #b03a24);
-  border-radius: var(--r-control, 4px);
-  padding: var(--s-3) var(--s-4);
-  font-size: 12px;
-  color: var(--t3, var(--text-3));
-  line-height: 1.6;
+.nav-source-count {
+  color: var(--kw-text-muted, var(--t3));
 }
 
-.provenance-box .prov-head,
-.provenance-box .p-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font: 600 11.5px var(--mono, monospace);
-  color: var(--t1, var(--text-1));
-  margin-bottom: var(--s-1);
+.nav-source-manage-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--kw-text-main, var(--t1));
+  font: 500 12px var(--font-sans, inherit);
+  cursor: pointer;
 }
+
+.nav-source-manage-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── Pane 3: Wiki Copilot Connections Rail (232px) ───────────────── */
 
 .wiki-copilot-pane {
   display: flex;
   flex-direction: column;
-  background: var(--s0, var(--surface-base)) !important;
+  background: var(--kw-nav-bg, var(--s1)) !important;
   border: none !important;
-  border-left: 1px solid var(--l1, var(--line-1)) !important;
+  border-left: 1px solid var(--kw-card-border, var(--l1)) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  padding: 12px !important;
+  padding: 14px !important;
   height: 100%;
   min-height: 0;
   overflow-y: auto;
-  gap: 12px;
+  gap: 14px;
 }
 
 .wiki-copilot-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: var(--s2, var(--surface-1));
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: 7px;
-  padding: 10px 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  background: var(--kw-card-bg, var(--s2));
+  border: 1px solid var(--kw-card-border, var(--l1));
+  border-radius: 12px;
+  padding: 12px;
 }
 
 .copilot-section-title {
-  font: 600 11px var(--mono, monospace);
-  color: var(--t2, var(--text-2));
+  font: 600 11.5px var(--font-sans, inherit);
+  color: var(--kw-text-muted, var(--t3));
   text-transform: uppercase;
   letter-spacing: 0.04em;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 2px;
 }
 
 .copilot-link-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
 .concept-node-btn {
@@ -516,64 +503,35 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   justify-content: space-between;
   width: 100%;
   text-align: left;
-  padding: 6px 8px;
-  border-radius: 4px;
-  background: var(--s1, var(--surface-base));
-  border: 1px solid var(--l1, var(--line-1));
-  font-size: 11.5px;
-  color: var(--t1, var(--text-1));
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--kw-bg, var(--s1));
+  border: 1px solid var(--kw-card-border, var(--l1));
+  font: 500 12px var(--font-sans, inherit);
+  color: var(--kw-text-main, var(--t1));
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .concept-node-btn:hover {
-  background: var(--s2, var(--surface-1));
-  border-color: var(--zhu, #b03a24);
-  transform: translateX(1.5px);
+  border-color: var(--kw-primary, #ececef);
+  background: var(--kw-card-hover, var(--s3));
 }
 
-.flashcard-mini-tile {
-  background: var(--s0, var(--surface-base));
-  border: 1px solid var(--l2, var(--line-2));
-  border-radius: 6px;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  position: relative;
+.wiki-copilot-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--kw-text-muted, var(--t3));
 }
 
-.flashcard-mini-kicker {
-  font: 9.5px var(--mono, monospace);
-  color: var(--t4, var(--text-4));
+.wiki-copilot-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--kw-text-dim, var(--t4));
 }
 
-.flashcard-mini-q {
-  font: 600 12px var(--serif, serif);
-  color: var(--t1, var(--text-1));
-}
-
-.flashcard-mini-a {
-  font-size: 11px;
-  color: var(--t3, var(--text-3));
-  line-height: 1.5;
-  background: var(--s1, var(--surface-1));
-  padding: 6px 8px;
-  border-radius: 3px;
-  border: 1px dashed var(--l2, var(--line-1));
-}
-
-.flashcard-mini-tile::after {
-  content: 'FSRS';
-  position: absolute;
-  top: -1px;
-  right: 8px;
-  font: 600 8.5px var(--mono, monospace);
-  background: var(--zhu, #b03a24);
-  color: var(--on-zhu, #fff7f0);
-  padding: 1px 4px;
-  border-radius: 0 0 3px 3px;
-}
+/* ── Wiki Stamps & Source Drawer ─────────────────────────────────── */
 
 .wiki-stamp {
   display: inline-flex;
@@ -581,12 +539,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   gap: 3px;
   height: 18px;
   min-height: 18px;
-  padding: 0 5px;
-  border-radius: 3px;
-  font: 600 10px var(--mono, monospace);
-  background: var(--s3, var(--surface-2));
-  color: var(--t3, var(--text-3));
-  border: 1px solid var(--l2, var(--line-2));
+  padding: 0 6px;
+  border-radius: 4px;
+  font: 600 10.5px var(--font-mono, monospace);
+  background: var(--kw-secondary, var(--s3));
+  color: var(--kw-text-muted, var(--t3));
+  border: 0;
   box-sizing: border-box;
   white-space: nowrap;
   line-height: 1;
@@ -595,27 +553,23 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 .wiki-stamp.pine {
-  background: var(--pine-wash, rgba(46, 109, 81, 0.09));
-  color: var(--pine, #2e6d51);
-  border-color: rgba(46, 109, 81, 0.25);
+  background: var(--kw-emerald-light, rgba(16, 185, 129, 0.15));
+  color: var(--kw-emerald, #10b981);
 }
 
 .wiki-stamp.zhu {
-  background: var(--zhu-wash, rgba(176, 58, 36, 0.08));
-  color: var(--zhu, #b03a24);
-  border-color: rgba(176, 58, 36, 0.25);
+  background: var(--kw-secondary, var(--s3));
+  color: var(--kw-text-main, var(--t1));
 }
 
 .wiki-stamp.ochre {
-  background: var(--ochre-wash, rgba(138, 87, 25, 0.08));
-  color: var(--ochre, #8a5719);
-  border-color: rgba(138, 87, 25, 0.25);
+  background: var(--kw-amber-light, rgba(245, 158, 11, 0.15));
+  color: var(--kw-amber, #f59e0b);
 }
 
 .wiki-stamp.azure {
-  background: var(--azure-wash, rgba(44, 110, 143, 0.09));
-  color: var(--azure, #2c6e8f);
-  border-color: rgba(44, 110, 143, 0.25);
+  background: var(--kw-secondary, var(--s3));
+  color: var(--kw-text-muted, var(--t3));
 }
 
 .source-drawer {
@@ -624,9 +578,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   bottom: 0;
   left: 0;
   width: 320px;
-  background: var(--s1, var(--surface-2));
-  border-right: 1px solid var(--l2, var(--line-2));
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  background: var(--kw-card-bg, var(--s2));
+  border-right: 1px solid var(--kw-card-border, var(--l2));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
   z-index: 90;
   display: flex;
   flex-direction: column;
@@ -641,19 +595,19 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 .drawer-mask {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.35);
   z-index: 85;
 }
 
 .source-drawer .drawer-header {
   padding: 12px 14px;
-  background: var(--s1, var(--surface-1));
-  border-bottom: 1px solid var(--l2, var(--line-2));
+  background: var(--kw-nav-bg, var(--s1));
+  border-bottom: 1px solid var(--kw-card-border, var(--l2));
 }
 
 .source-drawer .drawer-header span {
-  font: 600 12.5px var(--serif, serif);
-  color: var(--t1, var(--text-1));
+  font: 600 13px var(--font-sans, inherit);
+  color: var(--kw-text-main, var(--t1));
 }
 
 .source-drawer .drawer-content {
@@ -666,8 +620,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 .source-drawer .drawer-content > p {
-  font-size: 11.5px;
-  color: var(--t3, var(--text-3));
+  font-size: 12px;
+  color: var(--kw-text-muted, var(--t3));
   line-height: 1.5;
   margin: 0;
 }
@@ -683,9 +637,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 .drawer-base-card {
-  background: var(--s2, var(--surface-2));
-  border: 1px solid var(--l2, var(--line-2));
-  border-radius: 6px;
+  background: var(--kw-bg, var(--s1));
+  border: 1px solid var(--kw-card-border, var(--l2));
+  border-radius: 8px;
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -701,25 +655,25 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 .drawer-base-card-top > span:first-child {
   font-weight: 600;
-  font-size: 12px;
-  color: var(--t1, var(--text-1));
+  font-size: 12.5px;
+  color: var(--kw-text-main, var(--t1));
 }
 
 .drawer-base-card .wiki-stamp {
-  font-size: 9px;
+  font-size: 9.5px;
 }
 
 .drawer-base-path {
-  font: 10.5px var(--mono, monospace);
-  color: var(--t4, var(--text-4));
+  font: 11px var(--font-mono, monospace);
+  color: var(--kw-text-dim, var(--t4));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .drawer-base-meta {
-  font: 10px var(--mono, monospace);
-  color: var(--t3, var(--text-3));
+  font: 11px var(--font-mono, monospace);
+  color: var(--kw-text-muted, var(--t3));
   margin-top: 2px;
 }
 
@@ -733,18 +687,46 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   flex: 1;
 }
 
-/* Responsive collapse. Must stay last in this sheet: these rules have the
-   same specificity as the pane definitions above and only win by order —
-   placed earlier, `.wiki-copilot-pane { display: flex }` re-showed the rail
-   on narrow windows and it wrapped under the nav column. */
-@media (max-width: 1150px) {
-  .wiki-layout {
-    grid-template-columns: 260px minmax(0, 1fr);
-  }
+/* Clean 2-Pane Responsive Layout */
+.wiki-copilot-pane {
+  display: none !important;
+}
 
-  .wiki-copilot-pane {
-    display: none !important;
-  }
+/* Integrated Colophon Copilot Section in 2-Pane Wiki */
+.colophon-copilot-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.wiki-reinforce-block {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+
+.wiki-reinforce-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.wiki-reinforce-body .colophon-note {
+  margin: 0;
+  flex: 1;
+  min-width: 220px;
+}
+
+.wiki-outlinks-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 @media (max-width: 767px) {
@@ -754,7 +736,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:has(.app-shell[data-layout='compact']) .wiki-layout {
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 200px minmax(0, 1fr);
 }
 
 html:has(.app-shell[data-layout='phone']) .wiki-layout {

@@ -5,79 +5,95 @@
 .kw-materials {
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
+  gap: 18px;
   max-width: 1080px;
   min-width: 0;
   width: 100%;
+  margin: 0 auto;
   padding-bottom: var(--s-10);
 }
 
-/* ---------- Section Header (Fixes missing .kw-section-head) ---------- */
+/* ---------- Section Header ---------- */
 
 .kw-section-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--s-4);
-  margin-bottom: var(--s-2);
+  flex-wrap: wrap;
 }
 
 .kw-title {
   margin: 0;
-  color: var(--t1, var(--text-1));
+  color: var(--kw-text-main);
   font-size: 20px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   line-height: 1.3;
 }
 
 .kw-sub {
   margin: 4px 0 0;
-  color: var(--t3, var(--text-3));
-  font-size: var(--fs-chrome, 13px);
+  color: var(--kw-text-muted);
+  font-size: 12.5px;
   line-height: 1.5;
 }
 
-/* ---------- Source Chips Bar ---------- */
+/* ---------- Unified Source Switcher Toolbar (Flat Editorial · Zero Card) ---------- */
+
+.kw-materials-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0 14px;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
 
 .kw-source-chips {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-2);
-  margin-bottom: var(--s-2);
+  gap: 8px;
 }
 
 .kw-source-chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-2);
-  padding: 5px 12px;
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: var(--r-pill, 9999px);
-  background: var(--s3, var(--surface-2));
-  color: var(--t2, var(--text-2));
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--kw-card-border);
+  border-radius: 8px;
+  background: var(--kw-bg);
+  color: var(--kw-text-main);
   font-family: inherit;
-  font-size: var(--fs-chrome, 13px);
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: all var(--t-1) var(--ease-out);
 }
 
 .kw-source-chip:hover {
-  border-color: var(--l2, var(--line-2));
-  background: var(--hover, var(--surface-3));
-  color: var(--t1, var(--text-1));
+  border-color: var(--kw-card-border-hover);
+  background: var(--kw-card-hover);
 }
 
 .kw-source-chip.is-active {
-  border-color: var(--iris, var(--accent));
-  background: color-mix(in srgb, var(--iris, var(--accent)) 12%, var(--surface-2));
-  color: var(--iris, var(--accent));
+  border-color: var(--kw-accent);
+  background: var(--kw-card-bg);
+  color: var(--kw-text-main);
   font-weight: 600;
+  box-shadow: 0 0 0 1px var(--kw-accent);
 }
 
 .kw-source-chip-name {
-  font-weight: 500;
+  font-weight: inherit;
 }
 
 .kw-source-chip-meta {
@@ -86,44 +102,59 @@
   justify-content: center;
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
-  border-radius: var(--r-pill, 9999px);
-  background: color-mix(in srgb, var(--line-2, rgba(0,0,0,0.1)) 40%, transparent);
-  color: inherit;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--kw-secondary);
+  color: var(--kw-text-muted);
   font-family: var(--font-mono, monospace);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .kw-source-chip.is-active .kw-source-chip-meta {
-  background: color-mix(in srgb, var(--iris, var(--accent)) 22%, transparent);
+  background: var(--kw-accent-light);
+  color: var(--kw-accent-text);
 }
 
-/* ---------- Document List & Rows ---------- */
+.kw-btn-distill {
+  border: 1px solid var(--kw-card-border-hover);
+  background: var(--kw-bg);
+  color: var(--kw-text-main);
+  font-weight: 600;
+}
+
+.kw-btn-distill:hover {
+  background: var(--kw-primary);
+  color: var(--kw-primary-fg);
+  border-color: transparent;
+}
+
+/* ---------- Document List & Rows (Flat Editorial · Zero Card) ---------- */
 
 .kw-doc-list {
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: var(--r-panel, 12px);
-  background: var(--s3, var(--surface-1));
-  overflow: hidden;
-  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.04));
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  box-shadow: none;
 }
 
 .kw-doc-list > li + li {
-  border-top: 1px solid var(--l1, var(--line-1));
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .kw-doc-row {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
+  gap: 12px;
   width: 100%;
-  padding: var(--s-3) var(--s-4);
+  padding: 10px 12px;
   border: 0;
+  border-radius: 6px;
   background: transparent;
   color: inherit;
   font-family: inherit;
@@ -133,11 +164,11 @@
 }
 
 .kw-doc-row:hover {
-  background: var(--hover, var(--surface-2));
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .kw-doc-row:focus-visible {
-  outline: 2px solid var(--iris, var(--accent));
+  outline: 2px solid var(--kw-card-border-hover);
   outline-offset: -2px;
 }
 
@@ -145,12 +176,36 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   flex: none;
-  border-radius: var(--r-control, 7px);
-  background: color-mix(in srgb, var(--iris, var(--accent)) 10%, transparent);
-  color: var(--iris, var(--accent));
+  border-radius: 8px;
+  background: var(--kw-secondary);
+  color: var(--kw-text-main);
+  border: 1px solid var(--kw-card-border);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.kw-doc-icon.is-md {
+  background: var(--kw-secondary);
+  color: var(--kw-text-main);
+}
+
+.kw-doc-icon.is-ts {
+  background: var(--kw-purple-light);
+  color: var(--kw-purple);
+}
+
+.kw-doc-icon.is-pdf {
+  background: var(--kw-amber-light);
+  color: var(--kw-amber);
+}
+
+.kw-doc-icon.is-txt {
+  background: var(--kw-secondary);
+  color: var(--kw-text-muted);
 }
 
 .kw-doc-main {
@@ -163,16 +218,16 @@
 
 .kw-doc-title {
   overflow: hidden;
-  color: var(--t1, var(--text-1));
-  font-size: var(--fs-body, 13.5px);
-  font-weight: 600;
+  color: var(--kw-text-main);
+  font-size: 13.5px;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .kw-doc-path {
   overflow: hidden;
-  color: var(--t4, var(--text-4));
+  color: var(--kw-text-muted);
   font-family: var(--font-mono, monospace);
   font-size: 11.5px;
   text-overflow: ellipsis;
@@ -183,13 +238,13 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: var(--s-3);
+  gap: 12px;
 }
 
 .kw-doc-size,
 .kw-doc-date {
-  color: var(--t3, var(--text-3));
-  font-size: 12px;
+  color: var(--kw-text-muted);
+  font-size: 11.5px;
   font-family: var(--font-mono, monospace);
   font-variant-numeric: tabular-nums;
 }
@@ -199,12 +254,12 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
-  margin-top: var(--s-4);
+  padding: 0 4px;
 }
 
 .kw-doc-count {
-  color: var(--t3, var(--text-3));
-  font-size: var(--fs-chrome, 12.5px);
+  color: var(--kw-text-muted);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -212,36 +267,37 @@
 
 .kw-chip {
   flex: none;
-  padding: 1px var(--s-2);
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: var(--r-pill, 999px);
-  color: var(--t3, var(--text-3));
+  padding: 2px 8px;
+  border: 1px solid var(--kw-card-border);
+  border-radius: 999px;
+  color: var(--kw-text-muted);
   font-size: 11.5px;
+  font-weight: 500;
   white-space: nowrap;
 }
 
 .kw-chip.is-ok {
-  border-color: color-mix(in srgb, var(--ok, #15803d) 35%, transparent);
-  background: color-mix(in srgb, var(--ok, #15803d) 8%, transparent);
-  color: var(--ok, #15803d);
+  border-color: var(--kw-emerald-border);
+  background: var(--kw-emerald-light);
+  color: var(--kw-emerald);
 }
 
 .kw-chip.is-warn {
-  border-color: color-mix(in srgb, var(--warn, #b45309) 35%, transparent);
-  background: color-mix(in srgb, var(--warn, #b45309) 8%, transparent);
-  color: var(--warn, #b45309);
+  border-color: var(--kw-amber-border);
+  background: var(--kw-amber-light);
+  color: var(--kw-amber);
 }
 
 .kw-chip.is-bad {
-  border-color: color-mix(in srgb, var(--danger, #c2410c) 35%, transparent);
-  background: color-mix(in srgb, var(--danger, #c2410c) 8%, transparent);
-  color: var(--danger, #c2410c);
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
 }
 
 .kw-chip.is-muted {
-  border-color: var(--l1, var(--line-1));
-  background: var(--s2, var(--surface-1));
-  color: var(--t3, var(--text-3));
+  border-color: var(--kw-card-border);
+  background: var(--kw-secondary);
+  color: var(--kw-text-muted);
 }
 
 /* ---------- Legacy Folder Sources List (Fallback) ---------- */
@@ -260,10 +316,10 @@
   flex-direction: column;
   gap: 4px;
   padding: var(--s-4);
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: var(--r-panel, 12px);
-  background: var(--s3, var(--surface-2));
-  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--kw-card-border);
+  border-radius: 12px;
+  background: var(--kw-card-bg);
+  box-shadow: var(--kw-shadow-card);
 }
 
 .kw-source-head {
@@ -277,8 +333,8 @@
 .kw-source-name {
   min-width: 0;
   overflow: hidden;
-  color: var(--t1, var(--text-1));
-  font-size: var(--fs-body, 14px);
+  color: var(--kw-text-main);
+  font-size: 14px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -286,7 +342,7 @@
 
 .kw-source-path {
   overflow: hidden;
-  color: var(--t4, var(--text-4));
+  color: var(--kw-text-muted);
   font-family: var(--font-mono, ui-monospace);
   font-size: 11.5px;
   text-overflow: ellipsis;
@@ -294,7 +350,7 @@
 }
 
 .kw-source-meta {
-  color: var(--t3, var(--text-3));
+  color: var(--kw-text-muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }

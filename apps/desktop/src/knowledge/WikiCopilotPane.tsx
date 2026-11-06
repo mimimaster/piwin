@@ -24,7 +24,9 @@ export function WikiCopilotPane(props: WikiCopilotPaneProps): ReactElement {
   return (
     <aside className="wiki-copilot-pane" aria-label={t('Wiki Copilot', '维基助读')}>
       <div className="wiki-copilot-section">
-        <div className="copilot-section-title">{t('Connected Concepts', '网状关联条目')}</div>
+        <div className="copilot-section-title">
+          <span>{t('Connected Concepts', '网状关联词条')} ({concept.links.length})</span>
+        </div>
         {concept.links.length > 0 ? (
           <div className="copilot-link-list">
             {concept.links.map((link) => {
@@ -47,33 +49,28 @@ export function WikiCopilotPane(props: WikiCopilotPaneProps): ReactElement {
       </div>
 
       <div className="wiki-copilot-section">
-        <div className="copilot-section-title">{t('Derived Flashcards', '衍生强化闪卡')}</div>
-        <div className="flashcard-mini-tile">
-          <div className="flashcard-mini-kicker">
-            {t('Concept Knowledge Point', '词条知识点')}
-          </div>
-          <div className="flashcard-mini-q">
-            {concept.title}
-          </div>
-          <div className="flashcard-mini-a">
-            {concept.summary || t('Spaced repetition drills compiled from this concept.', '基于此词条提炼的间隔复习卡片。')}
-          </div>
-          {props.onGoToFlashcards ? (
-            <button
-              type="button"
-              className="btn sm pri"
-              style={{ width: '100%', marginTop: '4px' }}
-              onClick={props.onGoToFlashcards}
-              data-testid="wiki-copilot-study-btn"
-            >
-              {t('Practice in Flashcards', '在每日复习中练习')}
-            </button>
-          ) : null}
-        </div>
+        <div className="copilot-section-title">{t('Memory Reinforcement', '记忆强化')}</div>
+        <p className="wiki-copilot-desc">
+          {t(
+            'Distill key definitions and boundaries from this page into spaced-repetition flashcard drafts.',
+            '将当前词条中的关键定义与对比边界提炼为问答/填空闪卡草稿。',
+          )}
+        </p>
+        {props.onGoToFlashcards ? (
+          <button
+            type="button"
+            className="btn sm pri"
+            style={{ width: '100%' }}
+            onClick={props.onGoToFlashcards}
+            data-testid="wiki-copilot-study-btn"
+          >
+            {t('⚡ Practice in Flashcards', '⚡ 在每日复习中练习')}
+          </button>
+        ) : null}
       </div>
 
       <div className="wiki-copilot-section">
-        <div className="copilot-section-title">{t('Session Tools', '会话辅助工具')}</div>
+        <div className="copilot-section-title">{t('Session Integration', '会话联动')}</div>
         <button
           type="button"
           className="btn sec"
@@ -81,7 +78,7 @@ export function WikiCopilotPane(props: WikiCopilotPaneProps): ReactElement {
           onClick={() => props.onUseInChat('wiki')}
           data-testid="wiki-copilot-chat-btn"
         >
-          {t('Bring to Current Chat', '带入当前对话')}
+          {t('💬 Cite Page in Chat', '💬 引用本页到当前对话')}
         </button>
       </div>
     </aside>

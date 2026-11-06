@@ -500,11 +500,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 36px;
-  min-height: 36px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--l1, var(--line-1));
-  background: var(--s2, var(--surface-1));
+  height: 44px;
+  min-height: 44px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--kw-card-border, var(--l1));
+  background: var(--kw-card-bg, var(--s2));
   gap: 12px;
   flex: none;
 }
@@ -514,20 +514,20 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  background: var(--s1, var(--surface-base));
+  background: var(--kw-bg, var(--s1));
   padding: 2px;
-  border-radius: 6px;
-  border: 1px solid var(--l2, var(--line-2));
+  border-radius: 8px;
+  border: 1px solid var(--kw-card-border, var(--l2));
 }
 
 .subnav-btn,
 .study-mode-btn {
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 4px;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--t3, var(--text-3));
+  color: var(--kw-text-muted, var(--t3));
   background: transparent;
   border: none;
   cursor: pointer;
@@ -537,40 +537,198 @@
 
 .subnav-btn:hover,
 .study-mode-btn:hover {
-  color: var(--t1, var(--text-1));
+  color: var(--kw-text-main, var(--t1));
 }
 
 .subnav-btn.active,
 .study-mode-btn.active {
-  color: var(--t1, var(--text-1));
-  background: var(--s3, var(--surface-2));
+  color: var(--kw-text-main, var(--t1));
+  background: var(--kw-card-bg, var(--s3));
   font-weight: 600;
-  box-shadow: var(--sh1, 0 1px 2px rgba(0, 0, 0, 0.05));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
 .subnav-stats {
   display: flex;
   align-items: center;
-  gap: 16px;
-  font: 11.5px var(--mono, monospace);
-  color: var(--t3, var(--text-3));
+  gap: 14px;
+  font: 12px var(--font-mono, monospace);
+  color: var(--kw-text-muted, var(--t3));
   flex-shrink: 0;
 }
 
 .subnav-stats strong {
   font-weight: 600;
-  color: var(--t1, var(--text-1));
+  color: var(--kw-text-main, var(--t1));
 }
 
 .subnav-stats strong.is-zhu {
-  color: var(--zhu, #b03a24);
+  color: var(--kw-primary, #e25a3d) !important;
 }
 
 .study-subnav .btn.sm.pri {
-  height: 24px;
-  padding: 0 8px;
-  font-size: 11px;
+  height: 28px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
   gap: 4px;
+  background: var(--kw-primary, #e25a3d) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 6px !important;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 150ms ease;
+}
+
+.study-subnav .btn.sm.pri:hover {
+  background: var(--kw-primary-hover, #f07054) !important;
+}
+
+/* ---------- Knowledge Workspace Flashcards Flat Editorial Skin (Zero Card Soup) ---------- */
+
+.knowledge-workspace .study-subnav {
+  padding: 10px 24px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: transparent !important;
+}
+
+.knowledge-workspace .subnav-modes,
+.knowledge-workspace .study-view-modes {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  gap: 18px !important;
+}
+
+.knowledge-workspace .subnav-btn,
+.knowledge-workspace .study-mode-btn {
+  height: 30px !important;
+  padding: 0 2px !important;
+  border-radius: 0 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--kw-text-muted) !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  box-shadow: none !important;
+  transition: all 120ms ease;
+}
+
+.knowledge-workspace .subnav-btn:hover,
+.knowledge-workspace .study-mode-btn:hover {
+  color: var(--kw-text-main) !important;
+}
+
+.knowledge-workspace .subnav-btn.active,
+.knowledge-workspace .study-mode-btn.active {
+  color: var(--kw-text-main) !important;
+  background: transparent !important;
+  border-bottom: 2px solid var(--kw-primary) !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+.knowledge-workspace .flashcards-study-toolbar {
+  margin: 0 24px 8px !important;
+  padding: 10px 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow: none !important;
+}
+
+.knowledge-workspace .flashcards-study-toolbar .vault-filters {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border-bottom: 0 !important;
+}
+
+.knowledge-workspace .vault-chip {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 6px !important;
+  color: var(--kw-text-muted) !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 10px !important;
+}
+
+.knowledge-workspace .vault-chip:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: var(--kw-text-main) !important;
+}
+
+.knowledge-workspace .vault-chip.is-on {
+  background: rgba(226, 90, 61, 0.14) !important;
+  border-color: rgba(226, 90, 61, 0.4) !important;
+  color: var(--kw-primary) !important;
+}
+
+.knowledge-workspace .vault-chip.is-on .vault-chip-count {
+  background: rgba(226, 90, 61, 0.25) !important;
+  color: var(--kw-primary) !important;
+}
+
+.knowledge-workspace .flashcards-study-content {
+  padding: 8px 24px 40px !important;
+  overflow-y: auto;
+}
+
+.knowledge-workspace .vault-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.knowledge-workspace .vault-card {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+.knowledge-workspace .vault-card-face,
+.knowledge-workspace .fcws-tile-face {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 8px !important;
+  padding: 14px 16px !important;
+  min-height: 128px !important;
+  height: 100% !important;
+  box-shadow: none !important;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.knowledge-workspace .vault-card-face:hover,
+.knowledge-workspace .fcws-tile-face:hover {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  box-shadow: none !important;
+}
+
+.knowledge-workspace .vault-card-deck {
+  background: transparent !important;
+  padding: 0 !important;
+  color: var(--kw-text-muted) !important;
+  font-size: 11.5px !important;
+}
+
+.knowledge-workspace .vault-card-n {
+  background: transparent !important;
+  color: var(--kw-text-muted) !important;
+  font-size: 11px !important;
+}
+
+.knowledge-workspace .vault-card-q {
+  margin: 10px 0 8px !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+  color: var(--kw-text-main) !important;
 }
 
 

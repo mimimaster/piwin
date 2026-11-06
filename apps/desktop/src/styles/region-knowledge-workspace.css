@@ -1,7 +1,163 @@
 /* Knowledge workspace shell: grouped navigation + one section at a time.
-   Visual reference is the 考研 study space (neutral panels, compact 14px list
-   rows, a single accent) expressed through piwin tokens, so light, dark and the
-   other themes all keep working without a per-component palette. */
+   Visual reference is a modern high-productivity studio workspace (neutral clean panels,
+   balanced typography, subtle depth, refined accents — matching knowledge-space-ui-preview.html). */
+
+/* ---------- Dedicated Inkstone Red-Black (红黑 · 砚墨与朱砂) Palette for Knowledge Workspace ---------- */
+
+.knowledge-workspace {
+  --kw-amber: #e7b352;
+  --kw-amber-hover: #d99c2b;
+  --kw-amber-light: rgba(231, 179, 82, 0.14);
+  --kw-amber-border: rgba(231, 179, 82, 0.3);
+  --kw-emerald: #5fad85;
+  --kw-emerald-light: rgba(95, 173, 133, 0.14);
+  --kw-emerald-border: rgba(95, 173, 133, 0.3);
+  --kw-purple: #c88f3c;
+  --kw-purple-light: rgba(200, 143, 60, 0.14);
+  --kw-purple-border: rgba(200, 143, 60, 0.3);
+}
+
+/* Dark mode (黑红现代通透毛玻璃体系 · 纯黑/透底 + 高质感微透明 + 朱砂红强调，与主面板保持一致) */
+html:not([data-theme-id*='paper']) .knowledge-workspace {
+  --kw-bg: transparent;
+  --kw-nav-bg: rgba(0, 0, 0, 0.32);
+  --kw-card-bg: rgba(255, 255, 255, 0.035);
+  --kw-card-hover: rgba(255, 255, 255, 0.065);
+  --kw-secondary: rgba(255, 255, 255, 0.045);
+  --kw-card-border: rgba(255, 255, 255, 0.08);
+  --kw-card-border-hover: rgba(255, 255, 255, 0.18);
+  --kw-text-main: #f4f4f5;
+  --kw-text-muted: #a1a1aa;
+  --kw-text-dim: #71717a;
+  --kw-text-faint: #52525b;
+  --kw-pill-bg: rgba(255, 255, 255, 0.04);
+  --kw-pill-border: rgba(255, 255, 255, 0.08);
+
+  /* 主按钮与高亮强调：纯正 piwin 朱砂红 */
+  --kw-primary: #e25a3d;
+  --kw-primary-hover: #f07054;
+  --kw-primary-fg: #ffffff;
+  --kw-accent: #e25a3d;
+  --kw-accent-hover: #f07054;
+  --kw-accent-light: rgba(226, 90, 61, 0.16);
+  --kw-accent-border: rgba(226, 90, 61, 0.35);
+  --kw-accent-text: #f07054;
+  --kw-shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --kw-shadow-hover: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 6px 20px rgba(0, 0, 0, 0.5);
+
+  /* 与主面板保持一致的中性暗色变量 */
+  --void: transparent;
+  --s0: rgba(0, 0, 0, 0.32);
+  --s1: rgba(0, 0, 0, 0.32);
+  --s2: rgba(255, 255, 255, 0.035);
+  --s3: rgba(255, 255, 255, 0.055);
+  --s4: rgba(255, 255, 255, 0.08);
+  --surface-base: rgba(0, 0, 0, 0.32);
+  --surface-1: rgba(0, 0, 0, 0.32);
+  --surface-2: rgba(255, 255, 255, 0.035);
+  --surface-3: rgba(255, 255, 255, 0.055);
+  --t1: #f4f4f5;
+  --t2: #a1a1aa;
+  --t3: #71717a;
+  --t4: #52525b;
+  --text-1: #f4f4f5;
+  --text-2: #a1a1aa;
+  --text-3: #71717a;
+  --text-4: #52525b;
+  --l1: rgba(255, 255, 255, 0.07);
+  --l2: rgba(255, 255, 255, 0.12);
+  --l3: rgba(255, 255, 255, 0.2);
+  --line-1: rgba(255, 255, 255, 0.07);
+  --line-2: rgba(255, 255, 255, 0.12);
+  --line-3: rgba(255, 255, 255, 0.2);
+  --zhu: #e25a3d;
+  --zhu-lift: #f07054;
+  --zhu-wash: rgba(226, 90, 61, 0.16);
+  --on-zhu: #ffffff;
+  --iris: #e25a3d;
+  --lamp: #e7b352;
+  --lamp-wash: rgba(231, 179, 82, 0.14);
+  --pine: #5fad85;
+  --pine-wash: rgba(95, 173, 133, 0.14);
+  --ochre: #d4a359;
+  --ochre-wash: rgba(212, 163, 89, 0.14);
+}
+
+/* Light mode (piwin-inkstone-paper: 润宣纸底 + 传统朱砂红强调) */
+html[data-theme-id*='paper'] .knowledge-workspace {
+  --kw-bg: #e6e1d7;
+  --kw-nav-bg: #ede8df;
+  --kw-card-bg: #f8f6f0;
+  --kw-card-hover: #fffdf8;
+  --kw-secondary: #f0ece4;
+  --kw-card-border: rgba(29, 27, 23, 0.11);
+  --kw-card-border-hover: rgba(29, 27, 23, 0.2);
+  --kw-text-main: #1d1b17;
+  --kw-text-muted: #5a554d;
+  --kw-text-dim: #726b61;
+  --kw-text-faint: #8f887d;
+  --kw-pill-bg: #f0ece4;
+  --kw-pill-border: rgba(29, 27, 23, 0.11);
+
+  --kw-primary: #b03a24;
+  --kw-primary-hover: #d4553d;
+  --kw-primary-fg: #fff7f0;
+  --kw-accent: #b03a24;
+  --kw-accent-hover: #d4553d;
+  --kw-accent-light: rgba(176, 58, 36, 0.1);
+  --kw-accent-border: rgba(176, 58, 36, 0.25);
+  --kw-accent-text: #b03a24;
+  --kw-shadow-card: 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--kw-card-border);
+  --kw-shadow-hover: 0 4px 12px -2px rgba(60, 45, 20, 0.12), 0 0 0 1px var(--kw-card-border-hover);
+
+  --void: #e6e1d7;
+  --s0: #ede8df;
+  --s1: #ede8df;
+  --s2: #f8f6f0;
+  --s3: #fffdf8;
+  --s4: #ffffff;
+  --surface-base: #ede8df;
+  --surface-1: #ede8df;
+  --surface-2: #f8f6f0;
+  --surface-3: #fffdf8;
+  --t1: #1d1b17;
+  --t2: #5a554d;
+  --t3: #726b61;
+  --t4: #8f887d;
+  --text-1: #1d1b17;
+  --text-2: #5a554d;
+  --text-3: #726b61;
+  --text-4: #8f887d;
+  --l1: rgba(29, 27, 23, 0.06);
+  --l2: rgba(29, 27, 23, 0.11);
+  --l3: rgba(29, 27, 23, 0.2);
+  --line-1: rgba(29, 27, 23, 0.06);
+  --line-2: rgba(29, 27, 23, 0.11);
+  --line-3: rgba(29, 27, 23, 0.2);
+  --zhu: #b03a24;
+  --zhu-lift: #d4553d;
+  --zhu-wash: rgba(176, 58, 36, 0.1);
+  --on-zhu: #fff7f0;
+  --iris: #b03a24;
+  --lamp: #b8801f;
+  --pine: #3d7c5e;
+  --ochre: #94611a;
+}
+
+/* Vault Stage Root: neutral black with high transparency & backdrop blur matching main shell */
+.vault-stage.knowledge-workspace {
+  background: rgba(10, 10, 12, 0.8) !important;
+  backdrop-filter: blur(28px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(140%) !important;
+}
+
+/* StudioTopbar inside Knowledge Workspace */
+.knowledge-workspace .vault-bar {
+  background: var(--kw-nav-bg) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid var(--kw-card-border) !important;
+}
 
 /* The shell owns its own scroll areas: the section column scrolls, and the
    rail stays put. */
@@ -13,11 +169,12 @@
   flex: 1 !important;
   padding: 0;
   overflow: hidden !important;
+  background: var(--kw-bg);
 }
 
 .kw-shell {
   display: grid;
-  grid-template-columns: 216px minmax(0, 1fr);
+  grid-template-columns: 224px minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   height: 100%;
@@ -28,24 +185,26 @@
 .kw-nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--s-4) var(--s-2) var(--s-4);
-  border-right: 1px solid var(--l1, var(--line-1));
-  background: var(--s1, var(--surface-2));
+  padding: 12px 10px;
+  border-right: 1px solid var(--kw-card-border);
+  background: var(--kw-nav-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .kw-nav-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .kw-nav-label {
-  padding: var(--s-3) var(--s-2) var(--s-1);
-  color: var(--t4, var(--text-4));
-  font-size: var(--fs-micro, 11px);
+  padding: 8px 10px 4px;
+  color: var(--kw-text-dim);
+  font-size: 11px;
   letter-spacing: 0.04em;
   font-weight: 600;
   text-transform: uppercase;
@@ -55,16 +214,16 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: 9px;
   width: 100%;
-  height: 32px;
-  padding: 0 var(--s-2);
+  height: 34px;
+  padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: var(--r-control, 7px);
+  border-radius: 8px;
   background: transparent;
-  color: var(--t2, var(--text-2));
+  color: var(--kw-text-muted);
   font: inherit;
-  font-size: var(--fs-chrome, 13px);
+  font-size: 12.5px;
   text-align: left;
   cursor: pointer;
   transition: all var(--t-1) var(--ease-out);
@@ -72,39 +231,44 @@
 
 .kw-nav-item > svg {
   flex: none;
-  color: var(--t4, var(--text-4));
+  color: var(--kw-text-dim);
+  transition: color var(--t-1) var(--ease-out);
 }
 
 .kw-nav-item:hover {
-  background: var(--hover);
-  color: var(--t1, var(--text-1));
+  background: var(--kw-card-hover);
+  color: var(--kw-text-main);
+}
+
+.kw-nav-item:hover > svg {
+  color: var(--kw-text-main);
 }
 
 .kw-nav-item.is-active {
-  border-color: var(--l1, var(--line-1));
-  background: var(--s3, var(--surface-2));
-  color: var(--t1, var(--text-1));
+  border-color: var(--kw-card-border);
+  background: var(--kw-card-bg);
+  color: var(--kw-text-main);
   font-weight: 600;
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+  box-shadow: 0 0 0 1px var(--kw-card-border);
 }
 
 .kw-nav-item.is-active::before {
   content: '';
   position: absolute;
   left: 2px;
-  top: 8px;
-  bottom: 8px;
+  top: 9px;
+  bottom: 9px;
   width: 3px;
-  border-radius: 2px;
-  background: var(--iris, var(--accent));
+  border-radius: 999px;
+  background: var(--kw-accent);
 }
 
 .kw-nav-item.is-active > svg {
-  color: var(--iris, var(--accent));
+  color: var(--kw-accent);
 }
 
 .kw-nav-item:focus-visible {
-  outline: 2px solid var(--iris, var(--accent));
+  outline: 2px solid var(--kw-card-border-hover);
   outline-offset: 1px;
 }
 
@@ -117,30 +281,36 @@
 
 .kw-nav-count {
   margin-left: auto;
-  color: var(--t3, var(--text-3));
+  color: var(--kw-text-muted);
   font-size: 11px;
   font-family: var(--font-mono, monospace);
   font-variant-numeric: tabular-nums;
   padding: 1px 6px;
-  border-radius: var(--r-pill, 999px);
-  background: var(--s2, var(--surface-1));
-  border: 1px solid var(--l1, var(--line-1));
+  border-radius: 6px;
+  background: var(--kw-secondary);
+  border: 1px solid var(--kw-card-border);
 }
 
-.kw-nav-item.is-active .kw-nav-count {
-  background: color-mix(in srgb, var(--iris, var(--accent)) 12%, transparent);
-  color: var(--iris, var(--accent));
-  border-color: color-mix(in srgb, var(--iris, var(--accent)) 25%, transparent);
+.kw-nav-item[data-testid="knowledge-nav-flashcards"] .kw-nav-count {
+  background: var(--kw-amber-light);
+  color: var(--kw-amber);
+  border-color: var(--kw-amber-border);
+  border-radius: 999px;
+  font-weight: 600;
 }
 
 .kw-nav-footer {
   margin-top: auto;
-  padding-top: var(--s-3);
-  border-top: 1px solid var(--l1, var(--line-1));
+  padding-top: 10px;
+  border-top: 1px solid var(--kw-card-border);
 }
 
 .kw-nav-item-quiet {
-  color: var(--t3, var(--text-3));
+  color: var(--kw-text-muted);
+}
+
+.kw-nav-item-quiet:hover {
+  color: var(--kw-text-main);
 }
 
 /* ---------- Content column ---------- */
@@ -153,11 +323,12 @@
   min-height: 0;
   height: 100%;
   flex: 1;
+  background: var(--kw-bg);
 }
 
 /* Flow mode: default padding for overview, materials list, search, settings */
 .kw-content.is-flow {
-  padding: var(--s-6) var(--s-7) var(--s-8);
+  padding: 24px 28px 40px;
   overflow-y: auto;
 }
 
@@ -175,7 +346,7 @@
 
 .kw-page-head h1 {
   margin: 0;
-  color: var(--t1, var(--text-1));
+  color: var(--kw-text-main);
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.015em;
@@ -184,8 +355,9 @@
 
 .kw-page-head p {
   margin: 4px 0 0;
-  color: var(--t3, var(--text-3));
-  font-size: var(--fs-chrome, 13px);
+  color: var(--kw-text-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .kw-head-actions {
@@ -203,48 +375,53 @@
   justify-content: center;
   gap: 6px;
   height: 30px;
-  padding: 0 var(--s-3);
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: var(--r-control, 7px);
-  background: var(--s3, var(--surface-2));
-  color: var(--t1, var(--text-1));
+  padding: 0 12px;
+  border: 1px solid var(--kw-card-border);
+  border-radius: 8px;
+  background: var(--kw-card-bg);
+  color: var(--kw-text-main);
   font: inherit;
-  font-size: var(--fs-chrome, 13px);
+  font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   transition: all var(--t-1) var(--ease-out);
 }
 
 .kw-btn:hover {
-  background: var(--hover);
-  border-color: var(--l2, var(--line-2));
+  background: var(--kw-card-hover);
+  border-color: var(--kw-card-border-hover);
 }
 
 .kw-btn:focus-visible {
-  outline: 2px solid var(--iris, var(--accent));
+  outline: 2px solid var(--kw-card-border-hover);
   outline-offset: 1px;
 }
 
 .kw-btn.is-primary {
-  border-color: var(--iris, var(--accent));
-  background: var(--iris, var(--accent));
-  color: var(--on-iris, var(--on-accent, #fff));
+  border: 1px solid transparent;
+  background: var(--kw-primary);
+  color: var(--kw-primary-fg);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
 }
 
 .kw-btn.is-primary:hover {
-  background: var(--iris-lift, var(--accent));
+  background: var(--kw-primary-hover);
+  border-color: transparent;
 }
 
 .kw-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: default;
 }
 
 .kw-btn-sm {
-  height: 26px;
-  padding: 0 var(--s-2);
+  height: 28px;
+  padding: 0 10px;
   font-size: 12px;
+  border-radius: 7px;
 }
 
 .kw-link {
@@ -254,14 +431,16 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--iris, var(--accent));
+  color: var(--kw-text-main);
   font: inherit;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
+  transition: opacity var(--t-1) var(--ease-out);
 }
 
 .kw-link:hover {
+  opacity: 0.85;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -270,19 +449,18 @@
   flex: 1 1 220px;
   min-width: 0;
   height: 30px;
-  padding: 0 var(--s-2);
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: var(--r-control, 7px);
-  background: var(--s3, var(--surface-2));
-  color: var(--t1, var(--text-1));
+  padding: 0 10px;
+  border: 1px solid var(--kw-card-border);
+  border-radius: 8px;
+  background: var(--kw-bg);
+  color: var(--kw-text-main);
   font: inherit;
-  font-size: var(--fs-chrome, 13px);
+  font-size: 12px;
 }
 
 .kw-filter:focus {
-  border-color: var(--iris, var(--accent));
+  border-color: var(--kw-card-border-hover);
   outline: none;
-  box-shadow: 0 0 0 3px var(--iris-wash, var(--accent-soft));
 }
 
 /* ---------- Media Queries ---------- */
@@ -299,7 +477,7 @@
     min-height: 0;
     padding: var(--s-2) var(--s-3);
     border-right: 0;
-    border-bottom: 1px solid var(--l1, var(--line-1));
+    border-bottom: 1px solid var(--kw-card-border);
     overflow-x: auto;
   }
 
@@ -338,4 +516,42 @@
   .kw-btn {
     transition: none;
   }
+}
+
+/* ---------- Global component buttons inside Knowledge Workspace ---------- */
+
+.knowledge-workspace .btn {
+  border-radius: 7px !important;
+  font-family: var(--font-sans, inherit) !important;
+  font-weight: 500 !important;
+  border: 1px solid var(--kw-card-border) !important;
+  background: var(--kw-bg) !important;
+  color: var(--kw-text-main) !important;
+  box-shadow: none !important;
+}
+
+.knowledge-workspace .btn:hover {
+  background: var(--kw-card-hover) !important;
+  border-color: var(--kw-card-border-hover) !important;
+}
+
+.knowledge-workspace .btn.pri,
+.knowledge-workspace .btn.primary,
+.knowledge-workspace .piwin-button--primary,
+.knowledge-workspace button[data-variant="filled"],
+.knowledge-workspace .mantine-Button-root[data-variant="filled"] {
+  background: var(--kw-primary) !important;
+  color: var(--kw-primary-fg) !important;
+  border: 1px solid transparent !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14) !important;
+}
+
+.knowledge-workspace .btn.pri:hover,
+.knowledge-workspace .btn.primary:hover,
+.knowledge-workspace .piwin-button--primary:hover,
+.knowledge-workspace button[data-variant="filled"]:hover,
+.knowledge-workspace .mantine-Button-root[data-variant="filled"]:hover {
+  background: var(--kw-primary-hover) !important;
+  opacity: 0.92;
 }

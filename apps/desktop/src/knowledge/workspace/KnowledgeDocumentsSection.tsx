@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { EmptyState, IconDocument, Spinner } from '@piwin/ui-kit';
+import { EmptyState, Spinner } from '@piwin/ui-kit';
 import type { KnowledgeBaseSummary, KnowledgeDocumentEntry } from '@piwin/contracts';
 import { knowledgeBaseStateLabel } from './knowledge-source-state.js';
 
@@ -37,6 +37,17 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getExtensionBadge(relativePath: string): { label: string; tone: 'md' | 'ts' | 'pdf' | 'txt' } {
+  const dot = relativePath.lastIndexOf('.');
+  const raw = dot >= 0 ? relativePath.slice(dot + 1).toLowerCase() : '';
+  if (raw === 'md' || raw === 'mdx') return { label: 'MD', tone: 'md' };
+  if (raw === 'ts' || raw === 'tsx' || raw === 'js' || raw === 'jsx' || raw === 'py' || raw === 'rs') {
+    return { label: raw.toUpperCase().slice(0, 3), tone: 'ts' };
+  }
+  if (raw === 'pdf') return { label: 'PDF', tone: 'pdf' };
+  return { label: (raw || 'DOC').toUpperCase().slice(0, 3), tone: 'txt' };
+}
+
 /**
  * The library lists documents, not index states. A source that was just
  * registered shows its files immediately; "not indexed" only removes the
@@ -61,7 +72,7 @@ export function KnowledgeDocumentsSection(props: KnowledgeDocumentsSectionProps)
         {props.onAddFolder ? (
           <button
             type="button"
-            className="kw-btn is-primary"
+            className="kw-btn"
             onClick={props.onAddFolder}
             data-testid="knowledge-documents-add-folder"
           >
@@ -70,27 +81,40 @@ export function KnowledgeDocumentsSection(props: KnowledgeDocumentsSectionProps)
         ) : null}
       </div>
 
-      <div className="kw-source-chips" role="tablist" aria-label={t('Sources', '来源')}>
-        {props.sources.map((source) => {
-          const state = knowledgeBaseStateLabel(source, t);
-          const active = source.id === props.selectedBaseId;
-          return (
-            <button
-              key={source.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              className={`kw-source-chip${active ? ' is-active' : ''}`}
-              onClick={() => props.onSelectBase(source.id)}
-              data-testid={`knowledge-source-chip-${source.id}`}
-            >
-              <span className="kw-source-chip-name">{source.name}</span>
-              <span className="kw-source-chip-meta">
-                {source.documentCount > 0 ? source.documentCount : state.label}
-              </span>
-            </button>
-          );
-        })}
+      <div className="kw-materials-toolbar">
+        <div className="kw-source-chips" role="tablist" aria-label={t('Sources', '来源')}>
+          {props.sources.map((source) => {
+            const state = knowledgeBaseStateLabel(source, t);
+            const active = source.id === props.selectedBaseId;
+            return (
+              <button
+                key={source.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`kw-source-chip${active ? ' is-active' : ''}`}
+                onClick={() => props.onSelectBase(source.id)}
+                data-testid={`knowledge-source-chip-${source.id}`}
+              >
+                <span className="kw-source-chip-name">{source.name}</span>
+                <span className="kw-source-chip-meta">
+                  {source.documentCount > 0 ? source.documentCount : state.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {selected?.folderPath && props.onProduceFlashcards && selected.state !== 'missing' ? (
+          <button
+            type="button"
+            className="kw-btn kw-btn-sm kw-btn-distill"
+            disabled={props.generating}
+            onClick={() => props.onProduceFlashcards?.(selected.folderPath ?? '')}
+            data-testid="knowledge-documents-produce"
+          >
+            <span>✦ {t('Distil & make cards', '提炼词条并产卡')}</span>
+          </button>
+        ) : null}
       </div>
 
       {props.sources.length === 0 ? (
@@ -124,40 +148,43 @@ export function KnowledgeDocumentsSection(props: KnowledgeDocumentsSectionProps)
       ) : (
         <>
           <ul className="kw-doc-list" data-testid="knowledge-document-list">
-            {props.items.map((entry) => (
-              <li key={entry.relativePath}>
-                <button
-                  type="button"
-                  className="kw-doc-row"
-                  onClick={() => props.onOpenDocument(entry)}
-                  data-testid={`knowledge-document-${entry.relativePath}`}
-                  title={entry.relativePath}
-                >
-                  <span className="kw-doc-icon" aria-hidden="true">
-                    <IconDocument width={16} height={16} />
-                  </span>
-                  <span className="kw-doc-main">
-                    <span className="kw-doc-title">{entry.title}</span>
-                    <span className="kw-doc-path">{entry.relativePath}</span>
-                  </span>
-                  <span className="kw-doc-meta">
-                    {entry.readability === 'unsupported' ? (
-                      <span className="kw-chip is-warn" title={entry.unsupportedReason}>
-                        {t('needs parser', '需要解析')}
-                      </span>
-                    ) : entry.indexed ? (
-                      <span className="kw-chip is-ok">
-                        {t(`${entry.chunkCount} slices`, `${entry.chunkCount} 片`)}
-                      </span>
-                    ) : (
-                      <span className="kw-chip is-muted">{t('readable', '可读')}</span>
-                    )}
-                    <span className="kw-doc-size">{formatSize(entry.sizeBytes)}</span>
-                    <span className="kw-doc-date">{formatDate(entry.updatedAt, props.locale)}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
+            {props.items.map((entry) => {
+              const badge = getExtensionBadge(entry.relativePath);
+              return (
+                <li key={entry.relativePath}>
+                  <button
+                    type="button"
+                    className="kw-doc-row"
+                    onClick={() => props.onOpenDocument(entry)}
+                    data-testid={`knowledge-document-${entry.relativePath}`}
+                    title={entry.relativePath}
+                  >
+                    <span className={`kw-doc-icon is-${badge.tone}`} aria-hidden="true">
+                      {badge.label}
+                    </span>
+                    <span className="kw-doc-main">
+                      <span className="kw-doc-title">{entry.title}</span>
+                      <span className="kw-doc-path">{entry.relativePath}</span>
+                    </span>
+                    <span className="kw-doc-meta">
+                      {entry.readability === 'unsupported' ? (
+                        <span className="kw-chip is-warn" title={entry.unsupportedReason}>
+                          {t('needs parser', '需要解析')}
+                        </span>
+                      ) : entry.indexed ? (
+                        <span className="kw-chip is-ok">
+                          {t(`${entry.chunkCount} slices`, `${entry.chunkCount} 片`)}
+                        </span>
+                      ) : (
+                        <span className="kw-chip is-muted">{t('readable', '可读')}</span>
+                      )}
+                      <span className="kw-doc-size">{formatSize(entry.sizeBytes)}</span>
+                      <span className="kw-doc-date">{formatDate(entry.updatedAt, props.locale)}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
           <div className="kw-doc-footer">
             <span className="kw-doc-count" data-testid="knowledge-documents-count">
@@ -175,17 +202,6 @@ export function KnowledgeDocumentsSection(props: KnowledgeDocumentsSectionProps)
                 data-testid="knowledge-documents-load-more"
               >
                 {props.loadingMore ? t('Loading…', '加载中…') : t('Load more', '加载更多')}
-              </button>
-            ) : null}
-            {selected?.folderPath && props.onProduceFlashcards && selected.state !== 'missing' ? (
-              <button
-                type="button"
-                className="kw-btn kw-btn-sm is-primary"
-                disabled={props.generating}
-                onClick={() => props.onProduceFlashcards?.(selected.folderPath ?? '')}
-                data-testid="knowledge-documents-produce"
-              >
-                {t('Distil & make cards', '提炼词条并产卡')}
               </button>
             ) : null}
           </div>

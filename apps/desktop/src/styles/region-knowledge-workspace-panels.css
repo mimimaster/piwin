@@ -20,16 +20,16 @@
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: var(--r-control, 8px);
-  background: var(--s2, var(--surface-1));
+  padding: 12px 16px;
+  border: 1px solid var(--kw-card-border);
+  border-radius: var(--r-control, 10px);
+  background: var(--kw-card-bg);
   margin-bottom: var(--s-2);
 }
 
 .kw-search .kw-row:hover {
-  background: var(--hover, var(--surface-2));
-  border-color: var(--iris, var(--accent));
+  background: var(--kw-card-hover);
+  border-color: var(--kw-accent-border);
 }
 
 .kw-row-head,
@@ -44,13 +44,13 @@
 .kw-search-hit-head .kw-row-title {
   font-size: var(--fs-body, 13.5px);
   font-weight: 600;
-  color: var(--t1, var(--text-1));
+  color: var(--kw-text-main);
 }
 
 .kw-search .kw-row .kw-muted {
   font-size: 12px;
   line-height: 1.55;
-  color: var(--t3, var(--text-3));
+  color: var(--kw-text-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -70,10 +70,10 @@
   min-width: 0;
   width: 100%;
   padding: var(--s-5);
-  border: 1px solid var(--l1, var(--line-1));
+  border: 1px solid var(--kw-card-border);
   border-radius: var(--r-panel, 14px);
-  background: var(--s3, var(--surface-2));
-  box-shadow: var(--shadow-sm, 0 1px 4px rgba(0, 0, 0, 0.04));
+  background: var(--kw-card-bg);
+  box-shadow: var(--kw-shadow-card);
 }
 
 .kw-card-draft-list {
@@ -170,10 +170,10 @@
   min-width: 0;
   width: 100%;
   padding: var(--s-5);
-  border: 1px solid var(--l1, var(--line-1));
+  border: 1px solid var(--kw-card-border);
   border-radius: var(--r-panel, 14px);
-  background: var(--s3, var(--surface-2));
-  box-shadow: var(--shadow-sm, 0 1px 4px rgba(0, 0, 0, 0.04));
+  background: var(--kw-card-bg);
+  box-shadow: var(--kw-shadow-card);
 }
 
 .kw-index-status .kw-list {
@@ -185,10 +185,10 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--l1, var(--line-1));
-  border-radius: var(--r-control, 8px);
-  background: var(--s2, var(--surface-1));
+  padding: 12px 16px;
+  border: 1px solid var(--kw-card-border);
+  border-radius: var(--r-control, 10px);
+  background: var(--kw-card-bg);
 }
 
 .kw-index-status .kw-row-info {
@@ -202,7 +202,7 @@
 .kw-index-status .kw-row-title {
   font-weight: 600;
   font-size: var(--fs-body, 13.5px);
-  color: var(--t1, var(--text-1));
+  color: var(--kw-text-main);
 }
 
 .kw-index-status .kw-row-meta {
@@ -210,30 +210,33 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--t3, var(--text-3));
+  color: var(--kw-text-muted);
 }
 
 .kw-status-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   display: inline-block;
-  background: var(--t4, var(--text-4));
+  background: var(--kw-text-dim);
 }
 
 .kw-status-dot.is-indexed,
 .kw-status-dot.is-ready {
-  background: var(--teal, var(--accent-success));
+  background: var(--kw-emerald);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
 }
 
 .kw-status-dot.is-indexing,
 .kw-status-dot.is-pending {
-  background: var(--amber, var(--accent-warning));
+  background: var(--kw-amber);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
 }
 
 .kw-status-dot.is-failed,
 .kw-status-dot.is-missing {
-  background: var(--rose, var(--accent-error));
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
 }
 
 .kw-index-status .kw-row-actions {
