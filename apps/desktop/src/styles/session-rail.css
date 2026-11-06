@@ -10,7 +10,9 @@
 .chat-stage > .stage-tool-dock {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  /* Above the history-tick ruler (z 30): gutter chrome wins over the reading
+     aid, otherwise hairlines paint across the rail glass and the mini. */
+  z-index: 31;
   pointer-events: none;
   container: stage-tool-dock / inline-size;
 }
@@ -18,27 +20,21 @@
 .stage-session-rail {
   position: absolute;
   top: 12px;
-  right: 16px;
+  /* Right edge meets the history-tick ruler (drawer right: --s-5) so its
+     hairlines end under the card instead of poking out beside it. */
+  right: 12px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   pointer-events: auto;
 }
 
-/* Dim the rows, never the mini: a live preview must not look disabled. */
+/* Glass, not a slab: the rail floats over the transcript, so it stays mostly
+   transparent and lets the blur carry legibility. Hover lifts it a little
+   instead of un-dimming a flat card. */
 .stage-session-rail .piwin-session-rail-card {
-  opacity: 0.88;
-  transition: opacity 160ms var(--ease-out, ease-out);
-}
-
-.stage-session-rail:hover .piwin-session-rail-card,
-.stage-session-rail:focus-within .piwin-session-rail-card {
-  opacity: 1;
-}
-
-.stage-session-rail .piwin-session-rail-card {
-  --pw-rail-bg: color-mix(in srgb, var(--s1, var(--surface-1)) 84%, transparent);
-  --pw-rail-border: var(--l2, color-mix(in srgb, var(--border) 70%, transparent));
+  --pw-rail-bg: color-mix(in srgb, var(--s1, var(--surface-1)) 46%, transparent);
+  --pw-rail-border: color-mix(in srgb, var(--l2, var(--border)) 60%, transparent);
   --pw-rail-ink: var(--t2, var(--text-3));
   --pw-rail-ink-strong: var(--t1, var(--text-1));
   --pw-rail-hover: color-mix(in srgb, var(--t1, var(--text-1)) 7%, transparent);
@@ -46,6 +42,12 @@
   --pw-rail-active-ink: var(--zhu, var(--accent));
   --pw-rail-add: var(--pine, var(--add-text, var(--mint)));
   --pw-rail-del: var(--crimson, var(--del-text, var(--danger)));
+  transition: background-color 160ms var(--ease-out, ease-out);
+}
+
+.stage-session-rail:hover .piwin-session-rail-card,
+.stage-session-rail:focus-within .piwin-session-rail-card {
+  --pw-rail-bg: color-mix(in srgb, var(--s1, var(--surface-1)) 68%, transparent);
 }
 
 .stage-session-rail .piwin-session-rail-docked-slot {
@@ -109,14 +111,14 @@
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .stage-session-rail {
   top: 12px;
-  right: 16px;
+  right: 12px;
   font-family: var(--sans);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .stage-session-rail
   .piwin-session-rail-card {
-  --pw-rail-bg: color-mix(in srgb, var(--s1) 78%, transparent);
+  --pw-rail-bg: color-mix(in srgb, var(--s1) 52%, transparent);
   --pw-rail-border: var(--line);
   --pw-rail-ink: var(--t3);
   --pw-rail-ink-strong: var(--t1);

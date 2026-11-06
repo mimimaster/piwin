@@ -1,7 +1,7 @@
 /* ── Session Rail & Browser Mini Primitives ─────── */
 
 .piwin-session-rail-stack {
-  --pw-rail-bg: color-mix(in srgb, var(--s1, var(--panel, var(--surface-1, #191714))) 88%, transparent);
+  --pw-rail-bg: color-mix(in srgb, var(--s1, var(--panel, var(--surface-1, #191714))) 60%, transparent);
   --pw-rail-border: var(--l2, var(--line, var(--border, rgba(128, 128, 128, 0.16))));
   --pw-rail-ink: var(--t2, var(--text-2, var(--muted, #8b8378)));
   --pw-rail-ink-strong: var(--t1, var(--text-1, var(--text, #ebe5da)));
@@ -32,9 +32,9 @@
   background: var(--pw-rail-bg);
   border: 1px solid var(--pw-rail-border);
   border-radius: 9px;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: var(--sh2, 0 4px 18px -4px rgba(0, 0, 0, 0.22));
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: var(--sh2, 0 4px 18px -4px rgba(0, 0, 0, 0.18));
 }
 
 .piwin-session-rail-item {
