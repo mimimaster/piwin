@@ -319,7 +319,8 @@ describe('ProviderSettings', () => {
     });
     expect(byTestId(container, 'provider-connection')).toBeNull();
     expect(byTestId(container, 'provider-models-kimi-coding')).not.toBeNull();
-    expect(byTestId(container, 'provider-discover-models-kimi-coding')).toBeNull();
+    // A subscription package still pulls its catalog so removed models can be re-added.
+    expect(byTestId(container, 'provider-discover-models-kimi-coding')).not.toBeNull();
   });
 
   it('filters the rail by search query', () => {
