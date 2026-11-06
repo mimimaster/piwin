@@ -77,14 +77,6 @@
   font-weight: 550;
 }
 
-.piwin-session-rail-item--summary {
-  margin-bottom: 2px;
-  padding-bottom: 2px;
-  border-bottom: 1px solid var(--l1, color-mix(in srgb, var(--pw-rail-border) 55%, transparent));
-  border-bottom-left-radius: 2px;
-  border-bottom-right-radius: 2px;
-}
-
 .piwin-session-rail-icon {
   position: relative;
   display: inline-grid;

@@ -97,11 +97,6 @@
   .stage-session-rail .piwin-session-rail-dot {
     display: block;
   }
-
-  .stage-session-rail .piwin-session-rail-item--summary {
-    margin-bottom: 1px;
-    padding-bottom: 1px;
-  }
 }
 
 /* Too narrow for the rail: the transcript keeps the text, the mini stays. */

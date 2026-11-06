@@ -4,6 +4,9 @@
  * One product surface — compact tool pills plus the Browser Mini — replaces
  * the old four-shortcut card. The mini is a live view of the one shared
  * browser, docked under the rail until the user drags it away.
+ *
+ * The rail is tools only: running work lives in the titlebar session-status
+ * popover, so no activity pill is mirrored here.
  */
 import { useCallback, useState, type ReactElement, type ReactNode } from 'react';
 import { SessionRail, type SessionRailItemProps } from '@piwin/ui-kit';
@@ -23,7 +26,6 @@ export type SessionRailDockProps = {
   locale: DesktopLocale;
   /** Working-tree size; null outside a project with no git. */
   diffStat: { additions: number; deletions: number } | null;
-  tasksActiveCount: number;
   runningJobCount: number;
   /** Settings/studio/sub-page covering the stage: the mini must not float over them. */
   overlayOpen: boolean;
@@ -141,17 +143,6 @@ export function SessionRailDock(props: SessionRailDockProps): ReactElement {
       onSelect: () => onOpenTool('files'),
     },
   ];
-
-  if (props.tasksActiveCount > 0) {
-    items.push({
-      id: 'tasks',
-      label: zh ? '任务' : 'Tasks',
-      icon: sectionIcon('tasks'),
-      variant: 'activity',
-      badgeText: String(props.tasksActiveCount),
-      onSelect: () => onOpenTool('tasks'),
-    });
-  }
 
   // Kept mounted across the docked → floating switch: re-mounting would lose
   // the drag origin and the pointer capture mid-gesture.

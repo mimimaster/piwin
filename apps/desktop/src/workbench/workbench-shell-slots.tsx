@@ -456,7 +456,6 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
               key={state.activeSessionId}
               locale={desktopLocale}
               diffStat={workingTreeStat}
-              tasksActiveCount={tasksActiveCount}
               runningJobCount={jobs.length}
               overlayOpen={settingsOpen || activeSubPage !== null}
               hostReady={hostStatus !== null}
@@ -476,7 +475,6 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
               key={state.activeSessionId}
               locale={desktopLocale}
               diffStat={workingTreeStat}
-              tasksActiveCount={tasksActiveCount}
               runningJobCount={jobs.length}
               overlayOpen={settingsOpen || activeSubPage !== null}
               hostReady={hostStatus !== null}

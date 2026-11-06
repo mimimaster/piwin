@@ -1,8 +1,6 @@
 import type { HTMLAttributes, ReactElement, ReactNode } from 'react';
 import type { StatusTone } from './status-badge.js';
 
-export type SessionRailItemVariant = 'tool' | 'activity';
-
 export type SessionRailDiffStat = {
   additions: number;
   deletions: number;
@@ -15,8 +13,6 @@ export type SessionRailItemProps = {
   label: string;
   /** Leading 14-16px icon node. */
   icon: ReactNode;
-  /** Visual role: summary (top overview), tool (standard entry), or activity (dynamic pill). */
-  variant?: SessionRailItemVariant | undefined;
   /** Whether this entry is currently active/expanded in the right panel. */
   active?: boolean | undefined;
   /** Optional status dot/badge tone when active or running in background. */
@@ -39,7 +35,7 @@ export type SessionRailProps = Omit<HTMLAttributes<HTMLElement>, 'onSelect'> & {
   ariaLabel?: string | undefined;
   /** Display density: 'expanded' shows labels+stats, 'compact' shows icon+dot, 'auto' adapts via CSS container query. */
   density?: SessionRailDensity | undefined;
-  /** Primary rail items (Summary + core tools + dynamic activity pills). */
+  /** Core tool pills, in reading order. */
   items?: readonly SessionRailItemProps[] | undefined;
   /** Optional slot rendered directly below the rail (e.g. docked BrowserMiniCard). */
   dockedSlot?: ReactNode | undefined;
@@ -50,14 +46,13 @@ export type SessionRailProps = Omit<HTMLAttributes<HTMLElement>, 'onSelect'> & {
 
 /**
  * Single row/pill inside the right-gutter Session Rail.
- * Supports Summary overview toggle, Git diff stats (+x -y), and live status dots.
+ * Supports Git diff stats (+x -y) and live status dots.
  */
 export function SessionRailItem(props: SessionRailItemProps): ReactElement {
   const {
     id,
     label,
     icon,
-    variant = 'tool',
     active = false,
     statusTone,
     badgeText,
@@ -78,7 +73,6 @@ export function SessionRailItem(props: SessionRailItemProps): ReactElement {
 
   const rowClassName = [
     'piwin-session-rail-item',
-    `piwin-session-rail-item--${variant}`,
     active ? 'is-active' : '',
   ]
     .filter(Boolean)
@@ -90,7 +84,6 @@ export function SessionRailItem(props: SessionRailItemProps): ReactElement {
       className={rowClassName}
       data-testid={testId ?? `session-rail-item-${id}`}
       data-rail-id={id}
-      data-rail-variant={variant}
       data-active={active ? 'true' : 'false'}
       aria-label={label}
       aria-pressed={active}
@@ -145,8 +138,8 @@ export function SessionRailItem(props: SessionRailItemProps): ReactElement {
 
 /**
  * Right-gutter Session Rail container.
- * Hosts the collapsible Summary toggle, core tool entries, and an optional
- * docked slot below the rail (for the docked BrowserMiniCard).
+ * Hosts the core tool pills and an optional docked slot below the rail
+ * (for the docked BrowserMiniCard).
  */
 export function SessionRail(props: SessionRailProps): ReactElement {
   const {

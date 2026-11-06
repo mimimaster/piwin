@@ -59,7 +59,6 @@ async function renderRail(
       <SessionRailDock
         locale="zh-CN"
         diffStat={{ additions: 48, deletions: 12 }}
-        tasksActiveCount={0}
         runningJobCount={0}
         overlayOpen={false}
         hostReady
@@ -119,15 +118,13 @@ describe('SessionRailDock', () => {
     expect(onOpenTool).toHaveBeenNthCalledWith(2, 'files');
   });
 
-  it('surfaces a tasks pill only while children are running', async () => {
-    const idle = await renderRail({ tasksActiveCount: 0 }, { page: false });
-    expect(idle.el.querySelector('[data-testid="session-rail-item-tasks"]')).toBeNull();
-    act(() => root?.unmount());
-
-    const busy = await renderRail({ tasksActiveCount: 2 }, { page: false });
+  it('stays tools-only even while children are running', async () => {
+    const { el } = await renderRail({}, { page: false });
     expect(
-      busy.el.querySelector('[data-testid="session-rail-badge-tasks"]')?.textContent,
-    ).toBe('2');
+      [...el.querySelectorAll('[data-rail-id]')].map((node) =>
+        node.getAttribute('data-rail-id'),
+      ),
+    ).toEqual(['review', 'browser', 'terminal', 'files']);
   });
 
   it('docks the browser mini under the rail for a live page', async () => {

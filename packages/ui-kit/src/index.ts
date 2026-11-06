@@ -212,7 +212,6 @@ export type {
   SessionRailDensity,
   SessionRailDiffStat,
   SessionRailItemProps,
-  SessionRailItemVariant,
   SessionRailProps,
 } from './session-rail.js';
 
