@@ -1,0 +1,375 @@
+[
+  {
+    "version": "0.84.2",
+    "mode": "threshold-burst",
+    "window": 14000,
+    "order": [
+      "request:2056",
+      "request:6163",
+      "request:8273",
+      "tool:success",
+      "request:15406",
+      "compact:start",
+      "summary:8361",
+      "summary:751",
+      "compact:success",
+      "request:106"
+    ],
+    "assistantStops": [
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "toolUse"
+      },
+      {
+        "stopReason": "error",
+        "errorMessage": "maximum context length is 14000 tokens; synthetic estimated input 15406"
+      },
+      {
+        "stopReason": "stop"
+      }
+    ],
+    "lastStopReason": "stop",
+    "finalContextEstimate": 133
+  },
+  {
+    "version": "0.84.2",
+    "mode": "oversized-retained-batch",
+    "window": 256000,
+    "order": [
+      "request:2056",
+      "request:6163",
+      "request:8273",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "request:278866",
+      "compact:start",
+      "summary:8361",
+      "summary:4892",
+      "compact:success",
+      "request:106"
+    ],
+    "assistantStops": [
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "toolUse"
+      },
+      {
+        "stopReason": "error",
+        "errorMessage": "maximum context length is 256000 tokens; synthetic estimated input 278866"
+      },
+      {
+        "stopReason": "stop"
+      }
+    ],
+    "lastStopReason": "stop",
+    "finalContextEstimate": 133
+  },
+  {
+    "version": "0.84.2",
+    "mode": "oversized-summary",
+    "window": 256000,
+    "order": [
+      "compact:start",
+      "summary:275428",
+      "compact:failed"
+    ],
+    "assistantStops": [],
+    "lastStopReason": "stop",
+    "exception": "Summarization failed: maximum context length is 256000 tokens; synthetic estimated input 275428",
+    "finalContextEstimate": 301222
+  },
+  {
+    "version": "0.84.4",
+    "mode": "threshold-burst",
+    "window": 14000,
+    "order": [
+      "request:2056",
+      "request:6163",
+      "request:8273",
+      "tool:success",
+      "request:15406",
+      "compact:start",
+      "summary:8361",
+      "summary:751",
+      "compact:success",
+      "request:106"
+    ],
+    "assistantStops": [
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "toolUse"
+      },
+      {
+        "stopReason": "error",
+        "errorMessage": "maximum context length is 14000 tokens; synthetic estimated input 15406"
+      },
+      {
+        "stopReason": "stop"
+      }
+    ],
+    "lastStopReason": "stop",
+    "finalContextEstimate": 133
+  },
+  {
+    "version": "0.84.4",
+    "mode": "oversized-retained-batch",
+    "window": 256000,
+    "order": [
+      "request:2056",
+      "request:6163",
+      "request:8273",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "request:278866",
+      "compact:start",
+      "summary:8361",
+      "summary:4892",
+      "compact:success",
+      "request:106"
+    ],
+    "assistantStops": [
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "toolUse"
+      },
+      {
+        "stopReason": "error",
+        "errorMessage": "maximum context length is 256000 tokens; synthetic estimated input 278866"
+      },
+      {
+        "stopReason": "stop"
+      }
+    ],
+    "lastStopReason": "stop",
+    "finalContextEstimate": 133
+  },
+  {
+    "version": "0.84.4",
+    "mode": "oversized-summary",
+    "window": 256000,
+    "order": [
+      "compact:start",
+      "summary:275428",
+      "compact:failed"
+    ],
+    "assistantStops": [],
+    "lastStopReason": "stop",
+    "exception": "Summarization failed: maximum context length is 256000 tokens; synthetic estimated input 275428",
+    "finalContextEstimate": 301222
+  },
+  {
+    "version": "0.86.0",
+    "mode": "threshold-burst",
+    "window": 14000,
+    "order": [
+      "request:2104",
+      "request:6211",
+      "request:8321",
+      "tool:success",
+      "compact:start",
+      "summary:8373",
+      "summary:239",
+      "compact:success",
+      "request:7287"
+    ],
+    "assistantStops": [
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "toolUse"
+      },
+      {
+        "stopReason": "stop"
+      }
+    ],
+    "lastStopReason": "stop",
+    "finalContextEstimate": 7348
+  },
+  {
+    "version": "0.86.0",
+    "mode": "oversized-retained-batch",
+    "window": 256000,
+    "order": [
+      "request:2104",
+      "request:6211",
+      "request:8321",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "compact:start",
+      "summary:8373",
+      "summary:239",
+      "compact:success",
+      "request:270747",
+      "compact:start",
+      "summary:5143",
+      "compact:success",
+      "request:136"
+    ],
+    "assistantStops": [
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "toolUse"
+      },
+      {
+        "stopReason": "error",
+        "errorMessage": "maximum context length is 256000 tokens; synthetic estimated input 270747"
+      },
+      {
+        "stopReason": "stop"
+      }
+    ],
+    "lastStopReason": "stop",
+    "finalContextEstimate": 196
+  },
+  {
+    "version": "0.86.0",
+    "mode": "oversized-summary",
+    "window": 256000,
+    "order": [
+      "compact:start",
+      "summary:275440",
+      "compact:failed"
+    ],
+    "assistantStops": [],
+    "lastStopReason": "stop",
+    "exception": "Summarization failed: maximum context length is 256000 tokens; synthetic estimated input 275440",
+    "finalContextEstimate": 301222
+  },
+  {
+    "version": "1.5.0",
+    "mode": "threshold-burst",
+    "window": 14000,
+    "order": [
+      "request:2104",
+      "request:6220",
+      "request:8339",
+      "tool:success",
+      "compact:start",
+      "summary:8373",
+      "summary:295",
+      "compact:success",
+      "request:7300"
+    ],
+    "assistantStops": [
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "toolUse"
+      },
+      {
+        "stopReason": "stop"
+      }
+    ],
+    "lastStopReason": "stop",
+    "finalContextEstimate": 7370
+  },
+  {
+    "version": "1.5.0",
+    "mode": "oversized-retained-batch",
+    "window": 256000,
+    "order": [
+      "request:2104",
+      "request:6220",
+      "request:8339",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "tool:success",
+      "compact:start",
+      "summary:8373",
+      "summary:295",
+      "compact:success",
+      "request:270790"
+    ],
+    "assistantStops": [
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "stop"
+      },
+      {
+        "stopReason": "toolUse"
+      },
+      {
+        "stopReason": "error",
+        "errorMessage": "maximum context length is 256000 tokens; synthetic estimated input 270790"
+      }
+    ],
+    "lastStopReason": "toolUse",
+    "finalContextEstimate": 270764
+  },
+  {
+    "version": "1.5.0",
+    "mode": "oversized-summary",
+    "window": 256000,
+    "order": [
+      "compact:start",
+      "summary:275440",
+      "compact:failed"
+    ],
+    "assistantStops": [],
+    "lastStopReason": "stop",
+    "exception": "Summarization failed: maximum context length is 256000 tokens; synthetic estimated input 275440",
+    "finalContextEstimate": 301222
+  }
+]

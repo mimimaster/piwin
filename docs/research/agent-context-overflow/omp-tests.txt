@@ -1,0 +1,44 @@
+bun test v1.4.4 (38afee6c8)
+
+test/compaction-cut-point.test.ts:
+(pass) findCutPoint backward scan boundaries > does not re-admit an oversized custom_message during backward scan [1.77ms]
+(pass) findCutPoint backward scan boundaries > does not re-admit an oversized branch_summary during backward scan [0.87ms]
+(pass) findCutPoint backward scan boundaries > retains fitting custom_message without marking a split turn [0.28ms]
+(pass) findCutPoint backward scan boundaries > counts the reasoning the latest turn replays when its tool calls were abandoned > as the newest entry [2.15ms]
+(pass) findCutPoint backward scan boundaries > counts the reasoning the latest turn replays when its tool calls were abandoned > behind a newer turn the replay drops for its malformed tool call [0.07ms]
+
+test/compaction-oversized-input.test.ts:
+(pass) summarization input budget > summarizes a fitting conversation in one call [2.83ms]
+(pass) summarization input budget > folds a conversation larger than the summarizer window across calls [18.45ms]
+(pass) summarization input budget > shrinks windows when the provider rejects a prompt the catalog said would fit [52.64ms]
+(pass) summarization input budget > keeps the window floor inside a small model's context [5.75ms]
+(pass) summarization input budget > propagates a non-overflow failure instead of shrinking [4.39ms]
+(pass) summarization input budget > carries a caller-supplied previous summary into the first window [0.10ms]
+(pass) readable compaction boundary > skips a provider-native compaction another provider cannot replay [0.07ms]
+(pass) readable compaction boundary > keeps a provider-native compaction the same provider can replay [0.44ms]
+(pass) readable compaction boundary > without an active model the newest entry is the boundary
+
+test/shake.test.ts:
+(pass) collectShakeRegions — tool results > collects unprotected tool results and applyShakeRegion sets prunedAt [0.25ms]
+(pass) collectShakeRegions — tool results > keeps images in the provider view of an elided mixed tool result [0.05ms]
+(pass) collectShakeRegions — tool results > never collects protected tools [0.03ms]
+(pass) collectShakeRegions — tool results > never collects already-pruned tool results [0.02ms]
+(pass) collectShakeRegions — tool results > honors the protect-recent token window [0.03ms]
+(pass) collectShakeRegions — tool results > minSavings gates the whole batch [0.02ms]
+(pass) collectShakeRegions — fenced / XML blocks > detects a large fenced block and applyShakeRegion splices it out [0.22ms]
+(pass) collectShakeRegions — fenced / XML blocks > ignores fenced blocks below fenceMinTokens [0.03ms]
+(pass) collectShakeRegions — fenced / XML blocks > detects a top-level XML block [0.05ms]
+(pass) collectShakeRegions — fenced / XML blocks > never targets toolCall blocks and points blockIndex at the text block [0.03ms]
+(pass) collectShakeRegions — fenced / XML blocks > does not cross message boundaries — each large block stays in its own entry [0.04ms]
+(pass) collectShakeRegions — fenced / XML blocks > ignores unterminated fences (conservative) [0.02ms]
+(pass) applyShakeRegions — multi-region ordering > splices two blocks in one text block correctly (highest-start-first) [0.28ms]
+(pass) shake config presets > manual shake preserves the recent tool-result tail instead of stripping everything [0.04ms]
+(pass) shake config presets > rescue preset overrides the manual tail so it can elide the newest result [0.03ms]
+(pass) shake config presets > empty branch yields no regions
+(pass) collectShakeRegions — useless results > useless tool result inside the protect window yields a region; identical plain result does not [0.02ms]
+(pass) collectShakeRegions — useless results > an error result never bypasses the window even when flagged [0.01ms]
+
+ 32 pass
+ 0 fail
+ 102 expect() calls
+Ran 32 tests across 3 files. [342.00ms]

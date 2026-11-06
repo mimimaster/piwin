@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | Living execution backlog |
-| Updated | 2026-09-29 |
+| Updated | 2026-11-06 |
 | Roadmap | [`v1-completion-roadmap.md`](./specs/v1-completion-roadmap.md) |
 | Rule | This is the **only** task backlog. Specs explain design and acceptance; this file tracks execution state. |
 
@@ -144,6 +144,7 @@
 | D-HOST-03e | Follow-up turn lifecycle design: `session/follow_up` validates run ownership but a distinct foreground lifecycle (new `runId` + terminal event vs. append to existing run) is not introduced yet. | ADR/plan decision deferred from responsiveness evidence plan §5 item 3 — not a correctness blocker. | later ADR |
 | D-HOST-04b | ~~Richer compaction end summary~~ | **Done 2026-07-20** full map of Pi CompactionResult (summary/tokens/durationMs) + banner details; spike note in docs/notes | done |
 | D-HOST-04c | ~~Global auto-compact defaults~~ | **Done 2026-07-20** `compaction.autoEnabledDefault` + Settings toggle + session override source; project override deferred | done |
+| D-HOST-04d | Tool-output context overflow prevention and recovery (SDK/RPC) | **Future — owner deferred implementation 2026-11-06.** Reported incident: one tool round added enough content to exceed the model window, and the upstream request errored without successful continuation; the private incident was not inspected. Research is complete (four Pi versions / 12 synthetic runs; 32 OMP core tests passed), but production remains unfixed. Per-result limits and ordinary compaction do not guarantee aggregate request or summary fit. Candidate work: upstream Pi mid-run/cut-point fixes plus recoverable output spill, local reduction, fit/progress checks and bounded summary folding; kernel changes are permitted, with versioned patches removable on Pi upgrades and identical protection in the packaged Host. [Research and evidence](./research/2026-11-06-agent-context-overflow.md); [implementation plan](./plans/2026-11-06-tool-context-overflow.md). | Future; resume on owner request |
 
 | D-HOST-04 | ~~Compaction UI~~ | **Done 2026-07-20** — session/compact IPC, banner, Compact button; auto-toggle residual D-HOST-04c | done |
 | D-ENG-01 | ~~monorepo CI~~ | Done | done |
