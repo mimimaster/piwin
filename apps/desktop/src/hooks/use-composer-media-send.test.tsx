@@ -743,7 +743,7 @@ describe('useComposerMedia session transitions', () => {
     expect(latest().composer).toBe(composerAfter);
   });
 
-  it('runs /compact even when leftover attachment chips are present', async () => {
+  it('runs /compact without discarding leftover attachment chips', async () => {
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -778,7 +778,7 @@ describe('useComposerMedia session transitions', () => {
     expect(onCompact).toHaveBeenCalledTimes(1);
     expect(vi.mocked(hostClient.request)).not.toHaveBeenCalled();
     expect(latest().composer).toBe('');
-    expect(latest().pendingAttachments).toHaveLength(0);
+    expect(latest().pendingAttachments).toHaveLength(1);
   });
 
   it('runs /compact instead of saving a queued-turn edit', async () => {

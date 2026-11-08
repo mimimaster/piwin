@@ -33,7 +33,7 @@ export type PaneComposerCardInput = {
   onThinkingLevelChange: (level: ThinkingLevel) => void;
   contextRingView: ContextRingViewModel;
   /** Sends a prompt, or steers the live run while one is streaming. */
-  onSend: () => void;
+  onSend: (overrideText?: string) => void;
   onStop: () => void;
   /** Quoted selections attached to the next prompt (side chat seeds). */
   pendingContextRefs?: readonly PendingContextRefItem[];

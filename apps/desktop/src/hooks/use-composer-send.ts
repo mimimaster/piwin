@@ -352,7 +352,6 @@ export function useComposerSend(params: UseComposerSendArgs) {
             const ran = await runComposerReservedCommand(parsed, args);
             if (ran !== false) {
               setComposer('');
-              clearPendingAttachments();
             }
           } finally {
             promptSubmissionInProgress.current = false;

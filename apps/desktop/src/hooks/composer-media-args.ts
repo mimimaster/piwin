@@ -22,7 +22,7 @@ export type UseComposerMediaArgs = {
   permissionPreset?: PermissionPreset;
   /** Skills available for `/name` send intercept. */
   menuSkills?: Array<{ id: string; name: string; enabled: boolean }>;
-  onCompact?: (customInstructions?: string) => Promise<boolean | void>;
+  onCompact?: (customInstructions?: string) => boolean | void | Promise<boolean | void>;
   /** `/handoff [focus]` on the active session; false when it did not start. */
   onHandoff?: (instructions?: string) => boolean;
   onAbort?: () => Promise<void>;

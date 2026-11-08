@@ -7,6 +7,7 @@ import {
   type ReactElement,
 } from 'react';
 import {
+  classifyCompactionNoOp,
   formatError,
   parseSessionContextSnapshot,
   type ExecutionRunRecord,
@@ -414,8 +415,8 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     }
   }
 
-  async function handleSend(): Promise<void> {
-    const text = composer.trim();
+  async function handleSend(overrideText?: string): Promise<void> {
+    const text = (overrideText ?? composer).trim();
     const promptRefs = props.contextRefs?.snapshot() ?? [];
     if ((!text && attachments.length === 0 && promptRefs.length === 0) || busy) return;
     const reserved = parseComposerSlashSubmit(text, []);
@@ -444,9 +445,21 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           payload.customInstructions = instructions;
         }
         const response = await props.hostClient.request(payload);
+        const noOpMessage = props.locale === 'zh-CN'
+          ? '当前上下文无需压缩。'
+          : 'There is nothing to compact yet.';
         if (!response.success) {
-          dispatch({ type: 'error', message: hostFailureNotice(response, props.locale) });
-          setComposer(text);
+          const noOp = classifyCompactionNoOp(response.error) !== undefined;
+          dispatch({ type: 'error', message: noOp ? noOpMessage : hostFailureNotice(response, props.locale) });
+          if (!noOp) setComposer(text);
+        } else {
+          const data = response.data as { ok?: boolean; message?: string } | undefined;
+          if (data?.ok === false) {
+            const message = classifyCompactionNoOp(data.message) !== undefined
+              ? noOpMessage
+              : (data.message ?? (props.locale === 'zh-CN' ? '上下文压缩失败。' : 'Compaction failed.'));
+            dispatch({ type: 'error', message });
+          }
         }
       } catch (error) {
         dispatch({ type: 'error', message: formatError(error) });
@@ -658,7 +671,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     onSelectModel: (key) => void sessionComposer.selectModel(key),
     onThinkingLevelChange: (level) => void sessionComposer.setThinkingLevel(level),
     contextRingView,
-    onSend: () => void handleSend(),
+    onSend: (text) => void handleSend(text),
     onStop: () => void handleStop(),
     ...(props.contextRefs
       ? {

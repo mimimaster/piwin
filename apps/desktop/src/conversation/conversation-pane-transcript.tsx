@@ -77,7 +77,7 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
     element.scrollTop = element.scrollHeight;
   }, [state.messages, state.streaming]);
 
-  const showThread = state.messages.length > 0 || state.streaming;
+  const showThread = state.messages.length > 0 || state.streaming || state.compactionActivity != null;
 
   return (
     <div

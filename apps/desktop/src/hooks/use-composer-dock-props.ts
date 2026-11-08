@@ -121,7 +121,7 @@ export type UseComposerDockPropsArgs = {
   onPause: () => void | Promise<unknown>;
   onResumeRun: () => void | Promise<unknown>;
   onAbort: () => void | Promise<unknown>;
-  onCompact: (customInstructions?: string) => void | Promise<unknown>;
+  onCompact: (customInstructions?: string) => boolean | void | Promise<unknown>;
   onOpenProject: (path: string) => void | Promise<void>;
   onOpenWorktreeProject?: (worktreePath: string) => void | Promise<void>;
   onExtensionUiResolve: (payload: {

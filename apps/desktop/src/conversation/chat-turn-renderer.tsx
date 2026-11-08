@@ -593,7 +593,7 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
           compactionInsertAt >= 0 ? compactionInsertAt : renderedAssistantItems.length,
           0,
           <CompactionActivity
-            key={`compaction-${turn.id}`}
+            key={`compaction-${turnCompaction.operationId}`}
             activity={turnCompaction}
             locale={props.locale ?? 'zh-CN'}
             {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}

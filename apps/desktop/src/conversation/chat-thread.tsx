@@ -288,6 +288,7 @@ function ChatThreadContent(props: ChatThreadProps & {
         >
           {props.compactionActivity ? (
             <CompactionActivity
+              key={props.compactionActivity.operationId}
               activity={props.compactionActivity}
               locale={props.locale ?? 'zh-CN'}
               {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}

@@ -107,6 +107,25 @@ describe('CompactionActivity', () => {
     expect(container.querySelector('[data-testid="compaction-detail"]')).toBeNull();
   });
 
+  it('dismisses a successful notice after a short delay, but not while its details are open', () => {
+    vi.useFakeTimers();
+    const container = renderActivity({ activity: activity('succeeded'), locale: 'en' });
+    const pill = container.querySelector<HTMLButtonElement>('button.chat-compaction-seam-pill');
+    act(() => pill?.click());
+    act(() => vi.advanceTimersByTime(20_000));
+    expect(container.querySelector('[data-testid="compaction-detail"]')).not.toBeNull();
+    act(() => pill?.click());
+    act(() => vi.advanceTimersByTime(8_000));
+    expect(container.querySelector('[data-testid="compaction-activity"]')).toBeNull();
+  });
+
+  it('keeps failure details visible until the session changes', () => {
+    vi.useFakeTimers();
+    const container = renderActivity({ activity: activity('failed'), locale: 'en' });
+    act(() => vi.advanceTimersByTime(20_000));
+    expect(container.querySelector('[data-testid="compaction-activity"]')).not.toBeNull();
+  });
+
   it('surfaces the Host failure reason inline without an expander', () => {
     const container = renderActivity({ activity: activity('failed'), locale: 'zh-CN' });
     const node = container.querySelector('[data-testid="compaction-activity"]');

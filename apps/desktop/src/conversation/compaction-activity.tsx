@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useId, useMemo, useState, type ReactElement } from 'react';
 import { Spinner } from '@piwin/ui-kit';
 import type { CompactionActivityUi } from './chat-reducer.js';
 import {
@@ -22,6 +22,7 @@ const DETAIL_COPY = {
 
 /** The bar for a near-total reduction must still be visible. */
 const MIN_AFTER_BAR_PERCENT = 1.5;
+const SUCCESS_NOTICE_DURATION_MS = 8_000;
 
 function SeamGlyph(props: { tone: CompactionSeamModel['tone']; label: string }): ReactElement {
   switch (props.tone) {
@@ -106,13 +107,26 @@ function SeamDetail(props: {
  * posing as a chain row. Running shows a spinner and shimmering label; a
  * settled compaction collapses to the token delta and unfolds on demand.
  */
-export function CompactionActivity(props: CompactionActivityProps): ReactElement {
+export function CompactionActivity(props: CompactionActivityProps): ReactElement | null {
   const { activity, locale } = props;
   const model = useMemo(() => resolveCompactionSeamModel(activity, locale), [activity, locale]);
   const [open, setOpen] = useState(false);
+  const [dismissedOperationId, setDismissedOperationId] = useState<string | null>(null);
   const detailId = useId();
   const elapsedMs = useLiveElapsed(activity.phase === 'running' ? activity.startedAt : undefined);
   const expanded = open && model.expandable;
+
+  useEffect(() => {
+    if (activity.phase !== 'succeeded' || expanded) return;
+    const timer = globalThis.setTimeout(() => {
+      setDismissedOperationId(activity.operationId);
+    }, SUCCESS_NOTICE_DURATION_MS);
+    return () => globalThis.clearTimeout(timer);
+  }, [activity.operationId, activity.phase, expanded]);
+
+  if (activity.phase === 'succeeded' && dismissedOperationId === activity.operationId) {
+    return null;
+  }
 
   const facts: Array<{ kind: 'clock' | 'tokens' | 'reduction' | 'duration' | 'note'; text: string }> = [];
   if (model.tone === 'live' && elapsedMs !== undefined) {

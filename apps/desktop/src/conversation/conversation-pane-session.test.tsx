@@ -30,6 +30,8 @@ class FakeHostClient {
   resumeFail = false;
   advertiseContextTelemetry = false;
   contextSnapshot: unknown = null;
+  compactResult: { ok: boolean; message?: string } = { ok: true };
+  compactError: string | undefined;
   usageTotals: SessionUsageTotals | null = null;
   /** Host's global pending permission list; resolved entries leave it, as they do on the Host. */
   pendingPermissions: Array<Record<string, unknown>> = [];
@@ -141,6 +143,12 @@ class FakeHostClient {
         success: true,
         data: { runId: 'run-new' },
       });
+    }
+    if (command.type === 'session/compact') {
+      if (this.compactError) {
+        return Promise.resolve({ type: 'response', command: command.type, success: false, error: this.compactError });
+      }
+      return Promise.resolve({ type: 'response', command: command.type, success: true, data: this.compactResult });
     }
     if (command.type === 'session/abort') {
       return Promise.resolve({ type: 'response', command: command.type, success: true, data: {} });
@@ -332,6 +340,49 @@ describe('ConversationPaneSession', () => {
         ).toBe(true),
       );
     });
+  });
+
+  it('executes compact from the slash menu in a split pane', async () => {
+    const host = new FakeHostClient();
+    ({ container, root } = renderSession(host));
+    await vi.waitFor(() => expect(container?.textContent).toContain('Pane answer'));
+    const textarea = container?.querySelector<HTMLTextAreaElement>('textarea');
+    if (!textarea) throw new Error('pane composer missing');
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      if (!setter) throw new Error('textarea value setter missing');
+      setter.call(textarea, '/');
+      textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      textarea.setSelectionRange(1, 1);
+      textarea.dispatchEvent(new Event('select', { bubbles: true }));
+    });
+    const item = container?.querySelector<HTMLButtonElement>('[data-testid="slash-item-cmd:compact"]');
+    expect(item).not.toBeNull();
+    act(() => item?.click());
+    await vi.waitFor(() => expect(host.requests).toContainEqual({ type: 'session/compact', sessionId: 'session-aux' }));
+    expect(host.requests.some((command) => command.type === 'session/prompt')).toBe(false);
+    expect(textarea.value).toBe('');
+  });
+
+  it.each(['result', 'error'] as const)('explains a split-pane no-op returned as $0', async (kind) => {
+    const host = new FakeHostClient();
+    if (kind === 'result') host.compactResult = { ok: false, message: 'Nothing to compact (session too small)' };
+    else host.compactError = 'Nothing to compact (session too small)';
+    ({ container, root } = renderSession(host));
+    await act(async () => { await flushAsync(); });
+    const textarea = container?.querySelector<HTMLTextAreaElement>('textarea');
+    if (!textarea) throw new Error('pane composer missing');
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      if (!setter) throw new Error('textarea value setter missing');
+      setter.call(textarea, '/compact');
+      textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    });
+    await act(async () => {
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(container?.textContent).toContain('There is nothing to compact yet.');
   });
 
   it('steers the foreground run when sending during a stream', async () => {

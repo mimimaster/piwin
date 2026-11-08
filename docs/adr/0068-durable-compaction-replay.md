@@ -58,6 +58,11 @@ visible transcript content or a second billing turn.
    automatic compaction/overflow recovery. Explicit target-model compaction
    remains available through `session/compact`; its failure is not a reason to
    reject an otherwise valid model selection.
+8. **Treat the Desktop success seam as transient.** Manual and automatic
+   compaction share the same lifecycle display. A collapsed success notice
+   disappears after eight seconds; expanded details stay open until collapsed.
+   Failure notices remain visible. This presentation does not change the durable
+   compaction boundary or imply that the surrounding Run has completed.
 
 ## Consequences
 
