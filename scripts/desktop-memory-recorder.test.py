@@ -1,5 +1,7 @@
 import importlib.util
+import json
 from pathlib import Path
+import tempfile
 import unittest
 
 SPEC = importlib.util.spec_from_file_location(
@@ -62,6 +64,72 @@ class MemoryRecorderTests(unittest.TestCase):
         self.assertEqual(RECORDER.ProcessUsage.phys_footprint.offset, 72)
         self.assertEqual(RECORDER.ProcessUsage.proc_start_abstime.offset, 80)
         self.assertEqual(RECORDER.ctypes.sizeof(RECORDER.ProcessUsage), 296)
+
+
+class NativeMappingTests(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmpdir.cleanup)
+        self.mapping_path = Path(self.tmpdir.name) / "native-mapping.json"
+
+    def write_mapping(self, mapping):
+        self.mapping_path.write_text(json.dumps(mapping))
+
+    def test_load_native_mapping_parses_dict(self):
+        self.write_mapping({"appVersion": "1.0", "sampleId": 3,
+                            "quality": "full", "processes": []})
+        mapping = RECORDER.load_native_mapping(self.mapping_path)
+        self.assertEqual(mapping["sampleId"], 3)
+        self.assertEqual(mapping["quality"], "full")
+
+    def test_load_native_mapping_missing_and_corrupt(self):
+        self.assertIsNone(RECORDER.load_native_mapping(
+            Path(self.tmpdir.name) / "absent.json"))
+        self.mapping_path.write_text("{not json")
+        self.assertIsNone(RECORDER.load_native_mapping(self.mapping_path))
+        self.mapping_path.write_text(json.dumps([1, 2, 3]))
+        self.assertIsNone(RECORDER.load_native_mapping(self.mapping_path))
+
+    def test_apply_native_mapping_labels_matching_processes(self):
+        mapping = {
+            "appVersion": "0.2.16",
+            "sampleId": 9,
+            "quality": "partial",
+            "processes": [
+                {"windowLabel": "main", "role": "main", "pid": 42,
+                 "startClock": "18446744073709551615", "shared": False},
+                {"windowLabel": "pin-1", "role": "auxiliary", "pid": 43,
+                 "startClock": "7", "shared": False},
+            ],
+        }
+        selected = [
+            {"pid": 42, "startClock": 18446744073709551615},
+            {"pid": 43, "startClock": 7},
+            {"pid": 99, "startClock": 1},
+        ]
+        summary = RECORDER.apply_native_mapping(selected, mapping)
+        self.assertEqual(summary,
+                         {"appVersion": "0.2.16", "sampleId": 9, "quality": "partial"})
+        self.assertEqual(selected[0]["windowLabel"], "main")
+        self.assertEqual(selected[1]["windowLabel"], "pin-1")
+        self.assertNotIn("windowLabel", selected[2])
+
+    def test_apply_native_mapping_never_matches_pid_reuse(self):
+        mapping = {"processes": [{"windowLabel": "main", "pid": 42,
+                                  "startClock": "10", "shared": False}]}
+        # Same pid, different start clock = a different process: no match.
+        selected = [{"pid": 42, "startClock": 11}]
+        RECORDER.apply_native_mapping(selected, mapping)
+        self.assertNotIn("windowLabel", selected[0])
+        # Processes that failed rusage (no startClock) are skipped.
+        no_clock = [{"pid": 42}]
+        RECORDER.apply_native_mapping(no_clock, mapping)
+        self.assertNotIn("windowLabel", no_clock[0])
+
+    def test_apply_native_mapping_tolerates_missing_processes_key(self):
+        summary = RECORDER.apply_native_mapping(
+            [{"pid": 1, "startClock": 1}], {"sampleId": 2})
+        self.assertEqual(summary["sampleId"], 2)
 
 
 if __name__ == "__main__":

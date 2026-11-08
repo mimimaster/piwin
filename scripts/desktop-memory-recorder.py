@@ -138,6 +138,47 @@ def timestamp():
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
+def load_native_mapping(path):
+    """Read the shell's payload-free window→process map, or None when missing
+    or corrupt. The file is best-effort diagnostics; the recorder must never
+    fail on it."""
+    try:
+        data = json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def apply_native_mapping(selected, mapping):
+    """Correlate sampled processes with the native mapping by (pid, startClock)
+    string equality. Returns the `nativeMapping` summary dict; annotates each
+    matched process in place with `windowLabel`. Pid reuse is safe: a reused
+    pid with a different start clock never matches."""
+    summary = {"appVersion": mapping.get("appVersion"),
+               "sampleId": mapping.get("sampleId"),
+               "quality": mapping.get("quality")}
+    entries = mapping.get("processes")
+    if not isinstance(entries, list):
+        return summary
+    by_identity = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        pid = entry.get("pid")
+        start_clock = entry.get("startClock")
+        label = entry.get("windowLabel")
+        if isinstance(pid, int) and isinstance(start_clock, str) and isinstance(label, str):
+            by_identity[(pid, start_clock)] = label
+    for process in selected:
+        start_clock = process.get("startClock")
+        if start_clock is None:
+            continue
+        label = by_identity.get((process["pid"], str(start_clock)))
+        if label is not None:
+            process["windowLabel"] = label
+    return summary
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path,
@@ -146,6 +187,10 @@ def main():
     parser.add_argument("--interval-seconds", type=int, default=10)
     parser.add_argument("--threshold-mib", type=int, default=1024)
     parser.add_argument("--growth-mib", type=int, default=256)
+    parser.add_argument("--native-mapping", type=Path,
+                        default=Path.home() / ".piwin/diagnostics/memory/native-mapping.json",
+                        help="window→(pid,startClock) map written by the shell; "
+                             "correlation is best-effort and never required")
     args = parser.parse_args()
     if sys.platform != "darwin":
         parser.error("macOS only")
@@ -209,9 +254,13 @@ def main():
                         snapshot_taken = True
                 previous = {key: value for key, value in previous.items() if key in identities}
                 baseline = {key: value for key, value in baseline.items() if key in identities}
-                logger.info(json.dumps({"event": "sample", "timestamp": timestamp(),
-                                        "processes": selected, "unclassifiedWebKitPids": unknown,
-                                        "errors": errors}))
+                native_mapping = load_native_mapping(args.native_mapping)
+                event = {"event": "sample", "timestamp": timestamp(),
+                         "processes": selected, "unclassifiedWebKitPids": unknown,
+                         "errors": errors}
+                if native_mapping is not None:
+                    event["nativeMapping"] = apply_native_mapping(selected, native_mapping)
+                logger.info(json.dumps(event))
             except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
                 logger.info(json.dumps({"event": "sample-error", "timestamp": timestamp(),
                                         "error": str(error)}))
