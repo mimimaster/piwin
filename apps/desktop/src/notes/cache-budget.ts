@@ -90,6 +90,15 @@ export function hasDisposableCache(name: string): boolean {
 }
 
 /**
+ * Direct handle to one registered cache (S06): the reclaim coordinator needs
+ * to push an eviction to a single cache without disturbing the governor's
+ * level-driven budget table, so this bypasses `currentBudgetsByName`.
+ */
+export function getDisposableCache(name: string): DisposableCache | undefined {
+  return caches.get(name);
+}
+
+/**
  * True while any owner of a coalesced inflight request is still live.
  * An empty set means "no caller supplied a staleness probe" → treated live.
  */

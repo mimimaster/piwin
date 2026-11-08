@@ -254,6 +254,70 @@ export function trimAllWarmSessionCaches(budget: CacheBudget, now: number = Date
   });
 }
 
+export type WarmSnapshotDescriptor = {
+  sessionId: string;
+  touchedAt: number;
+  /** Serialized-size estimate of this snapshot (diagnostic-grade). */
+  bytes: number;
+};
+
+/**
+ * Per-snapshot census across every registered warm cache, deduped by
+ * sessionId keeping the newest touch. Read-only — used by the S06 reclaim
+ * coordinator to enumerate `warm:<sessionId>` candidates.
+ */
+export function listWarmSnapshots(): WarmSnapshotDescriptor[] {
+  const newestById = new Map<string, SessionWarmSnapshot>();
+  for (const handle of warmCacheHandles) {
+    const cache = handle.get();
+    for (const id of cache.order) {
+      const snapshot = cache.byId[id];
+      if (snapshot === undefined) continue;
+      const known = newestById.get(id);
+      if (known === undefined || snapshot.touchedAt >= known.touchedAt) {
+        newestById.set(id, snapshot);
+      }
+    }
+  }
+  return [...newestById.values()].map((snapshot) => ({
+    sessionId: snapshot.sessionId,
+    touchedAt: snapshot.touchedAt,
+    bytes: safeJsonByteLength(snapshot),
+  }));
+}
+
+/**
+ * Evict one session's snapshot from every registered warm cache (S06
+ * sustained-pressure path — finer-grained than a full budget push).
+ * Returns the dropped serialized-byte estimate. Re-publishes the union
+ * `warmSessions` estimate afterwards so the ledger/diagnostics stay honest.
+ */
+export function evictWarmSessionSnapshot(sessionId: string): number {
+  // Count the dropped bytes once — several handles may mirror the same
+  // snapshot, but the released payload is one copy.
+  let droppedBytes = 0;
+  let remainingEntries = 0;
+  let remainingBytes = 0;
+  for (const handle of warmCacheHandles) {
+    const cache = handle.get();
+    const snapshot = cache.byId[sessionId];
+    if (snapshot === undefined) continue;
+    if (droppedBytes === 0) {
+      droppedBytes = safeJsonByteLength(snapshot);
+    }
+    handle.set(removeWarmSessionSnapshot(cache, sessionId));
+  }
+  for (const descriptor of listWarmSnapshots()) {
+    remainingEntries += 1;
+    remainingBytes += descriptor.bytes;
+  }
+  desktopMetrics.setCacheEstimate('warmSessions', {
+    entries: remainingEntries,
+    bytes: remainingBytes,
+  });
+  return droppedBytes;
+}
+
 registerDisposableCache({
   name: 'warmSessions',
   applyBudget(budget: CacheBudget): void {

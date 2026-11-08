@@ -2,6 +2,7 @@ import { globalMemoryGovernor, type MemoryPressureLevel } from './memory-governo
 import { ackNativeMemorySample } from './memory-observability';
 import { isNativeOsPressureLevel, mainFootprintBytes } from './memory-sample-contract';
 import type { MemoryPressureEventDetail, NativeOsPressureLevel } from './memory-sample-contract';
+import { globalReclaimCoordinator } from './reclaim-wiring';
 
 export type { MemoryPressureEventDetail };
 
@@ -174,6 +175,12 @@ export function applyMemoryPressureEvent(
   if (PRESSURE_LEVEL_RANK[nextLevel] > PRESSURE_LEVEL_RANK[previousLevel]) {
     lastEscalationAtMs = nowMs;
     void requestNativeWebviewMemoryPurge();
+  }
+  // S06 sustained-pressure hook: real samples feed the reclaim coordinator
+  // (episodes are sample-driven; explicit level payloads only reach it via
+  // the governor subscribe → tick edge).
+  if (effectiveBytes !== undefined && (nextLevel === 'moderate' || nextLevel === 'critical')) {
+    globalReclaimCoordinator.onPressureSample({ bytes: effectiveBytes, level: nextLevel });
   }
   return nextLevel;
 }
