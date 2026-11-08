@@ -26,6 +26,7 @@ use jit_symbols::with_jit_symbol_args;
 use logs::{emit_log, emit_status};
 use pending::{
     assign_host_request_id, fail_all_pending, resolve_host_request_timeout, PendingResponse,
+    REQUEST_SEQ,
 };
 use process::{process_has_exited, stop_process, StopOutcome};
 use resolve::{resolve_cli_command, resolve_host_command, HostCommandTier};
@@ -379,6 +380,51 @@ pub fn host_request_blocking(
     command: Value,
     timeout_ms: Option<u64>,
 ) -> Result<Value, String> {
+    let process = live_host_process(&inner)?;
+    let mut command = command;
+    let id = assign_host_request_id(&mut command);
+    write_frame_with_pending(&process, command, id, timeout_ms)
+}
+
+#[tauri::command]
+pub async fn host_update_subscriptions(
+    state: State<'_, HostBridgeState>,
+    session_ids: Vec<String>,
+    revision: u64,
+    timeout_ms: Option<u64>,
+) -> Result<Value, String> {
+    let inner = Arc::clone(&state.inner);
+    tauri::async_runtime::spawn_blocking(move || {
+        host_update_subscriptions_blocking(inner, session_ids, revision, timeout_ms)
+    })
+    .await
+    .map_err(|error| format!("host_update_subscriptions worker failed: {error}"))?
+}
+
+fn host_update_subscriptions_blocking(
+    inner: Arc<Mutex<Option<Arc<HostProcess>>>>,
+    session_ids: Vec<String>,
+    revision: u64,
+    timeout_ms: Option<u64>,
+) -> Result<Value, String> {
+    let process = live_host_process(&inner)?;
+    // Transport-control frame: not a command envelope, answered by
+    // `subscriptions/applied` (matched in streams.rs by `requestId`).
+    let request_id = format!("sub-{}", REQUEST_SEQ.fetch_add(1, Ordering::Relaxed));
+    let frame = serde_json::json!({
+        "type": "client/subscriptions",
+        "requestId": request_id,
+        "revision": revision,
+        "subscriptions": { "sessionIds": session_ids },
+    });
+    write_frame_with_pending(&process, frame, request_id, timeout_ms)
+}
+
+/// The tracked sidecar, failing fast when it is dead or missing — the same
+/// preconditions every stdin writer shares.
+fn live_host_process(
+    inner: &Arc<Mutex<Option<Arc<HostProcess>>>>,
+) -> Result<Arc<HostProcess>, String> {
     let process = inner
         .lock()
         .map_err(|error| error.to_string())?
@@ -401,16 +447,26 @@ pub fn host_request_blocking(
         return Err("host process exited unexpectedly. Restart with host_start.".to_string());
     }
 
-    let mut command = command;
-    let id = assign_host_request_id(&mut command);
+    Ok(process)
+}
 
+/// Register `id` in the pending table, write one JSONL frame to stdin, and
+/// block until the reader delivers the correlated line or the deadline hits.
+/// The pending table is the single association for both `response` (`id`)
+/// and `subscriptions/applied` (`requestId`) replies.
+fn write_frame_with_pending(
+    process: &Arc<HostProcess>,
+    frame: Value,
+    id: String,
+    timeout_ms: Option<u64>,
+) -> Result<Value, String> {
     let (tx, rx) = std::sync::mpsc::channel::<Value>();
     {
         let mut pending = process.pending.lock().map_err(|error| error.to_string())?;
         pending.insert(id.clone(), PendingResponse { tx });
     }
 
-    let payload = serde_json::to_string(&command).map_err(|error| error.to_string())?;
+    let payload = serde_json::to_string(&frame).map_err(|error| error.to_string())?;
     let write_result = {
         let mut stdin = process.stdin.lock().map_err(|error| error.to_string())?;
         let stdin = stdin
@@ -512,6 +568,11 @@ mod tests {
             host_push_event_name(&serde_json::json!({"type": "response"})),
             None
         );
+        // Transport-control replies are request-correlated, never pushes.
+        assert_eq!(
+            host_push_event_name(&serde_json::json!({"type": "subscriptions/applied"})),
+            None
+        );
         assert_eq!(
             host_push_event_name(&serde_json::json!({"type": "push/batch"})),
             Some("host-message-batch")
@@ -520,6 +581,18 @@ mod tests {
             host_push_event_name(&serde_json::json!({"type": "event"})),
             Some("host-message")
         );
+    }
+
+    #[test]
+    fn pending_frame_routing_covers_command_and_subscription_replies() {
+        use super::streams::pending_frame_id_field;
+        assert_eq!(pending_frame_id_field(Some("response")), Some("id"));
+        assert_eq!(
+            pending_frame_id_field(Some("subscriptions/applied")),
+            Some("requestId")
+        );
+        assert_eq!(pending_frame_id_field(Some("push/batch")), None);
+        assert_eq!(pending_frame_id_field(None), None);
     }
 
     #[test]

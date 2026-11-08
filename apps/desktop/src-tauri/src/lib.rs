@@ -23,7 +23,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use attention_notifications::AttentionNotificationState;
 use app_shutdown::{ShutdownState, ShutdownTrigger};
 use app_update::AppUpdateState;
-use host_bridge::{host_is_running, host_request, host_start, host_stop, HostBridgeState};
+use host_bridge::{
+    host_is_running, host_request, host_start, host_stop, host_update_subscriptions,
+    HostBridgeState,
+};
 use pet_overlay::{
     pet_overlay_hide, pet_overlay_show, pet_overlay_toggle, raise_main_window, show_main_window,
 };
@@ -54,6 +57,7 @@ pub fn run() {
             host_start,
             host_stop,
             host_request,
+            host_update_subscriptions,
             host_is_running,
             pty_open,
             pty_open_tui,

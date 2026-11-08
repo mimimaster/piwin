@@ -239,17 +239,45 @@ export async function commandHostServe(argv: string[]): Promise<void> {
     });
   }
 
-  await transport.start((request) => {
-    const send = (message: Parameters<typeof transport.send>[0]): Promise<void> => transport.send(message);
-    void (async (): Promise<void> => {
-      const handled =
-        (await interceptSidecarMobileAccess(mobileAccess, request.command, send)) ||
-        (await interceptSidecarLocalShellAccess(shellAccess, request.command, send));
-      if (!handled) {
-        dispatcher.dispatch(request);
-      }
-    })();
-  });
+  await transport.start(
+    (request) => {
+      const send = (message: Parameters<typeof transport.send>[0]): Promise<void> => transport.send(message);
+      void (async (): Promise<void> => {
+        const handled =
+          (await interceptSidecarMobileAccess(mobileAccess, request.command, send)) ||
+          (await interceptSidecarLocalShellAccess(shellAccess, request.command, send));
+        if (!handled) {
+          dispatcher.dispatch(request);
+        }
+      })();
+    },
+    (frame) => {
+      // `client/subscriptions` is transport control, not a command: it pauses
+      // the local egress channel, swaps the live filter, replays the fence
+      // tail and acknowledges with `subscriptions/applied` on the same lane.
+      void localEgress
+        .applySubscriptions(frame.subscriptions, frame.revision)
+        .then(({ fenceSeq }) =>
+          transport.send({
+            type: 'subscriptions/applied',
+            requestId: frame.requestId,
+            revision: frame.revision,
+            fenceSeq,
+          }),
+        )
+        .catch((error: unknown) =>
+          transport.send({
+            type: 'response',
+            // Pending tables correlate failure by `id` — reuse requestId so a
+            // rejected apply fails fast instead of timing out the request.
+            id: frame.requestId,
+            command: 'client/subscriptions',
+            success: false,
+            error: error instanceof Error ? error.message : 'subscription update failed',
+          }),
+        );
+    },
+  );
 
   await shutdown();
 }

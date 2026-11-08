@@ -3,6 +3,7 @@ import type {
   HostHello,
   HostMode,
   HostResponse,
+  HostSubscriptionsAppliedFrame,
   RemoteCapabilitySummary,
 } from '@piwin/contracts';
 import { formatError, remoteHostSupportsCommand } from '@piwin/contracts';
@@ -17,6 +18,10 @@ import {
 } from './remote-host-session';
 import { getHostRequestTimeoutMs } from './host-client-request-timeouts.js';
 import { HostClientLiveTransport } from './host-client-live-transport.js';
+import {
+  LocalSubscriptionController,
+  type HostSubscriptionState,
+} from './host-client-subscriptions.js';
 
 /**
  * Remote Host transport: `@piwin/host-client` over WebSocket (ADR 0036),
@@ -33,6 +38,26 @@ export abstract class HostClientRemoteTransport extends HostClientLiveTransport 
   private remoteInitialConnectDone = false;
   private remoteRestoreInFlight = false;
   private remoteCapabilities: RemoteCapabilitySummary | undefined;
+  /** Live-interest controller for the local JSONL sidecar path. */
+  private readonly localSubscriptions = new LocalSubscriptionController(
+    async (sessionIds, revision, timeoutMs) => {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const applied = (await invoke('host_update_subscriptions', {
+        sessionIds: sessionIds.slice(),
+        revision,
+        timeoutMs,
+      })) as { type?: string; error?: string; requestId?: string; revision?: number; fenceSeq?: number };
+      // A dead sidecar resolves pending entries with an error-shaped response;
+      // treat anything but the applied frame as a failed send so the ready
+      // edge re-applies instead of confirming a stale signature.
+      if (applied.type !== 'subscriptions/applied') {
+        throw new Error(
+          typeof applied.error === 'string' ? applied.error : 'subscription update failed',
+        );
+      }
+      return applied as HostSubscriptionsAppliedFrame;
+    },
+  );
 
   getRemoteCapabilities(): RemoteCapabilitySummary | undefined {
     return this.remoteCapabilities;
@@ -52,12 +77,25 @@ export abstract class HostClientRemoteTransport extends HostClientLiveTransport 
   }
 
   updateSubscriptions(sessionIds: string[]): Promise<void> {
-    if (this.transport !== 'remote') {
-      return Promise.resolve();
+    if (this.transport === 'remote') {
+      return this.getOrCreateRemoteClient()
+        .updateSubscriptions(sessionIds)
+        .then(() => undefined);
     }
-    return this.getOrCreateRemoteClient()
-      .updateSubscriptions(sessionIds)
-      .then(() => undefined);
+    if (this.transport === 'live') {
+      return this.localSubscriptions.update(sessionIds);
+    }
+    return Promise.resolve();
+  }
+
+  /** `'idle' | 'awaiting-hello' | 'applied'` for the local subscription lane. */
+  getSubscriptionState(): HostSubscriptionState | 'unsupported' {
+    return this.transport === 'live' ? this.localSubscriptions.getSubscriptionState() : 'unsupported';
+  }
+
+  /** `startLiveTransport` forwards `host/status` readiness edges here. */
+  protected noteLiveHostReady(ready: boolean): void {
+    this.localSubscriptions.noteHostReady(ready);
   }
 
   /**
@@ -331,6 +369,7 @@ export abstract class HostClientRemoteTransport extends HostClientLiveTransport 
 
   /** Release remote subscriptions and close the socket. */
   protected async disposeRemoteTransport(): Promise<void> {
+    this.localSubscriptions.reset();
     if (this.unsubscribeRemote) {
       this.unsubscribeRemote();
       this.unsubscribeRemote = null;

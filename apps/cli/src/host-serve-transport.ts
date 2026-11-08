@@ -8,7 +8,11 @@
  * `HostRuntime` unchanged. See ADR 0027 §3.
  */
 import { createInterface } from 'node:readline';
-import type { HostCommandRequest, HostServerMessage } from '@piwin/contracts';
+import type {
+  HostClientSubscriptionsFrame,
+  HostCommandRequest,
+  HostServerMessage,
+} from '@piwin/contracts';
 import { parseHostCommandRequest } from '@piwin/contracts';
 import { createJsonlWriter, type JsonlWriter } from './host-serve-jsonl-writer.js';
 import { createWorkerJsonlWriter } from './host-serve-worker-jsonl-writer.js';
@@ -41,8 +45,16 @@ export const HOST_SERVE_LOCAL_EGRESS_LIMITS = {
 export type Transport = {
   /** Write one framed message to the output side. */
   send: (message: HostServerMessage) => Promise<void>;
-  /** Begin reading commands; call `onCommand` for each parsed frame. Resolves on EOF/stop. */
-  start: (onCommand: (request: HostCommandRequest) => void) => Promise<void>;
+  /**
+   * Begin reading commands; call `onCommand` for each parsed frame. Resolves on EOF/stop.
+   * Transport-control frames (currently only `client/subscriptions`) bypass the
+   * command parser and go to `onTransportControl` instead; anything else still
+   * parses as a command envelope.
+   */
+  start: (
+    onCommand: (request: HostCommandRequest) => void,
+    onTransportControl?: (frame: HostClientSubscriptionsFrame) => void,
+  ) => Promise<void>;
   /** Stop reading commands and flush the output side. Idempotent. */
   stop: () => Promise<void>;
   /** False while the output backlog is over budget; pushes should wait. */
@@ -53,6 +65,36 @@ export type JsonlStdioTransportOptions = {
   input?: NodeJS.ReadableStream;
   output?: NodeJS.WritableStream;
 };
+
+/**
+ * A transport-control frame is well-formed only with a string `requestId` and
+ * a finite `revision`; a malformed one falls through to the command parser and
+ * gets the ordinary parse error instead of silently dropping.
+ */
+function asClientSubscriptionsFrame(value: unknown): HostClientSubscriptionsFrame | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  if (
+    record.type !== 'client/subscriptions' ||
+    typeof record.requestId !== 'string' ||
+    record.requestId.length === 0 ||
+    typeof record.revision !== 'number' ||
+    !Number.isFinite(record.revision)
+  ) {
+    return undefined;
+  }
+  const raw = record.subscriptions;
+  const subscriptions =
+    typeof raw === 'object' && raw !== null ? (raw as { sessionIds?: string[] }) : {};
+  return {
+    type: 'client/subscriptions',
+    requestId: record.requestId,
+    revision: record.revision,
+    subscriptions,
+  };
+}
 
 /**
  * JSONL over stdin/stdout transport — the default and currently only transport.
@@ -92,7 +134,10 @@ export function createJsonlStdioTransport(options: JsonlStdioTransportOptions = 
     return stopPromise;
   }
 
-  function start(onCommand: (request: HostCommandRequest) => void): Promise<void> {
+  function start(
+    onCommand: (request: HostCommandRequest) => void,
+    onTransportControl?: (frame: HostClientSubscriptionsFrame) => void,
+  ): Promise<void> {
     if (readlineInterface !== undefined) {
       // Transport already started; a single transport serves one serve loop.
       return Promise.resolve();
@@ -115,6 +160,13 @@ export function createJsonlStdioTransport(options: JsonlStdioTransportOptions = 
             success: false,
             error: 'invalid JSON command line',
           });
+          return;
+        }
+        // Transport-control frames are not command envelopes; route them to
+        // the control callback before `parseHostCommandRequest` rejects them.
+        const control = asClientSubscriptionsFrame(parsed);
+        if (control !== undefined && onTransportControl !== undefined) {
+          onTransportControl(control);
           return;
         }
         const request = parseHostCommandRequest(parsed);

@@ -34,6 +34,12 @@ export abstract class HostClientLiveTransport extends HostClientPushLayer {
     options?: { idempotencyKey?: string },
   ): Promise<HostResponse>;
 
+  /**
+   * `host/status` readiness edges for the local subscription controller;
+   * the remote-transport layer overrides this to re-apply live interests.
+   */
+  protected noteLiveHostReady(_ready: boolean): void {}
+
   /** Attach the Tauri event bridge and start the sidecar process. */
   protected async startLiveTransport(): Promise<void> {
     const { invoke } = await import('@tauri-apps/api/core');
@@ -51,6 +57,7 @@ export abstract class HostClientLiveTransport extends HostClientPushLayer {
         // back to true; on fatal, keep ready=false so the UI shows offline.
         if (state === 'reconnecting' || state === 'fatal') {
           this.ready = false;
+          this.noteLiveHostReady(false);
           this.emit({
             type: 'host/status',
             mode: this.mode,
@@ -90,6 +97,7 @@ export abstract class HostClientLiveTransport extends HostClientPushLayer {
       if (event.payload.type === 'host/status') {
         this.ready = event.payload.ready;
         this.mode = event.payload.mode;
+        this.noteLiveHostReady(event.payload.ready);
       }
       if (event.payload.type === 'snapshot') {
         this.adoptHostCursorFence(event.payload.currentSeq);
@@ -147,6 +155,8 @@ export abstract class HostClientLiveTransport extends HostClientPushLayer {
       this.ready = true;
       const data = status.data as { mode?: HostMode; mock?: boolean; ready?: boolean } | undefined;
       this.mode = data?.mode === 'rpc' ? 'rpc' : 'sdk';
+      // Sidecar up: re-apply any desired live subscription set (restart-safe).
+      this.noteLiveHostReady(true);
       // Mirror request success as a status push so UI listeners stay in sync even if
       // the process startup push was missed during remount / race windows.
       this.emit({

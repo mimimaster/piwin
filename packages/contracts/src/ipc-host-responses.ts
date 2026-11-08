@@ -25,7 +25,11 @@ import type {
   SessionExportData,
   SessionCompactExportData,
 } from './session-ops.js';
-import type { HostHydrationFrame, HostSnapshotFrame } from './remote-protocol.js';
+import type {
+  HostHydrationFrame,
+  HostSnapshotFrame,
+  HostSubscriptionsAppliedFrame,
+} from './remote-protocol.js';
 import type { HostProblem } from './host-problem.js';
 import type { HostPush, HostPushBatchFrame } from './ipc-host-push.js';
 
@@ -44,7 +48,12 @@ export type HostResponse =
     };
 
 export type HostServerMessage =
-  HostResponse | HostPush | HostPushBatchFrame | HostHydrationFrame | HostSnapshotFrame;
+  | HostResponse
+  | HostPush
+  | HostPushBatchFrame
+  | HostHydrationFrame
+  | HostSnapshotFrame
+  | HostSubscriptionsAppliedFrame;
 
 export type HostStatusData = {
   mode: HostMode;

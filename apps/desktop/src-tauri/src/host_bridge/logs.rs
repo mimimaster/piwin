@@ -62,7 +62,9 @@ pub(super) fn emit_fatal_status(app: &AppHandle, reason: Option<&str>) {
 /// request result a second time.
 pub(super) fn host_push_event_name(parsed: &Value) -> Option<&'static str> {
     match parsed.get("type").and_then(Value::as_str) {
-        Some("response") => None,
+        // Request-correlated replies never enter the push lane even if they
+        // arrive with no pending entry (e.g. after a timeout sweep).
+        Some("response") | Some("subscriptions/applied") => None,
         Some("push/batch") => Some("host-message-batch"),
         Some(_) => Some("host-message"),
         None => None,

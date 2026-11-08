@@ -139,7 +139,7 @@ export function createDesktopAttentionController(
       enterCatchingUp();
       return;
     }
-    if (message.type === 'response') {
+    if (message.type === 'response' || message.type === 'subscriptions/applied') {
       return;
     }
     onPush(message);

@@ -58,8 +58,8 @@ pub(super) fn spawn_stdout_reader(
             };
 
             let message_type = parsed.get("type").and_then(|value| value.as_str());
-            if message_type == Some("response") {
-                if let Some(id) = parsed.get("id").and_then(|value| value.as_str()) {
+            if let Some(field) = pending_frame_id_field(message_type) {
+                if let Some(id) = parsed.get(field).and_then(|value| value.as_str()) {
                     let mut map = match pending_reader.lock() {
                         Ok(map) => map,
                         Err(_) => break,
@@ -68,8 +68,8 @@ pub(super) fn spawn_stdout_reader(
                         let _ = entry.tx.send(parsed.clone());
                     }
                 }
-                // A response is request-correlated only. Do not broadcast it
-                // as an unsolicited host push to the WebView.
+                // A response/applied frame is request-correlated only. Do not
+                // broadcast it as an unsolicited host push to the WebView.
                 continue;
             }
 
@@ -168,4 +168,16 @@ fn find_process(
         .ok()
         .and_then(|guard| guard.clone())
         .filter(|process| Arc::ptr_eq(&process.diagnostics, diagnostics))
+}
+
+/// Which JSON field correlates a reply frame with the pending table.
+/// `response` replies to command envelopes by `id`; `subscriptions/applied`
+/// replies to transport-control frames by `requestId`. Any other type is a
+/// push and belongs on the emit lane.
+pub(super) fn pending_frame_id_field(message_type: Option<&str>) -> Option<&'static str> {
+    match message_type {
+        Some("response") => Some("id"),
+        Some("subscriptions/applied") => Some("requestId"),
+        _ => None,
+    }
 }
