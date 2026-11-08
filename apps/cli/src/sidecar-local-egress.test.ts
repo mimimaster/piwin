@@ -5,10 +5,27 @@ import { attachSidecarLocalEgress } from './sidecar-local-egress.js';
 
 const STATUS_PUSH: HostPush = { type: 'host/status', mode: 'sdk', ready: true, mock: false };
 
-function jobLogPush(text: string, cursor: number): HostPush {
+function jobLogPush(text: string, cursor: number, jobId = 'job-1'): HostPush {
   return {
     type: 'job/log',
-    chunk: { jobId: 'job-1', stream: 'stdout', text, at: '2026-09-28T05:05:20.000Z', cursor },
+    chunk: { jobId, stream: 'stdout', text, at: '2026-09-28T05:05:20.000Z', cursor },
+  };
+}
+
+function jobStartedPush(jobId: string): HostPush {
+  return {
+    type: 'job/started',
+    job: {
+      jobId,
+      kind: 'command',
+      lifetime: 'host',
+      command: 'echo',
+      argv: [],
+      cwd: '/tmp',
+      status: 'running',
+      startedAt: '2026-09-28T05:05:20.000Z',
+      latestLogCursor: 0,
+    },
   };
 }
 
@@ -63,6 +80,17 @@ function deliveredSessionItems(frames: HostPushBatchFrame[]): string[] {
           push.type === 'transcript/append',
       )
       .map((push) => push.sessionId),
+  );
+}
+
+function deliveredJobLogIds(frames: HostPushBatchFrame[]): string[] {
+  return frames.flatMap((frame) =>
+    frame.items
+      .map((item) => item.push)
+      .filter(
+        (push): push is Extract<HostPush, { type: 'job/log' }> => push.type === 'job/log',
+      )
+      .map((push) => push.chunk.jobId),
   );
 }
 
@@ -199,7 +227,7 @@ describe('applySubscriptions', () => {
 
   it('confirmed filter survives a channel re-attach', async () => {
     const { hub, frames, egress, reattachCallbacks } = createHarness();
-    await egress.applySubscriptions({ sessionIds: ['session-a'] }, 1);
+    await egress.applySubscriptions({ sessionIds: ['session-a'], jobIds: ['job-1'] }, 1);
 
     // Oversized append closes the channel; re-attach recreates it.
     hub.ingest(jobLogPush('x'.repeat(8 * 1024), 1));
@@ -285,5 +313,65 @@ describe('applySubscriptions', () => {
     const live = frames.slice(baseline);
     expect(deliveredSessionItems(live)).toEqual([]);
     expect(deliveredPushTypes(live)).toContain('host/status');
+  });
+
+  it('delivers job/log only for opted-in monitor ids; lifecycle stays global', async () => {
+    const { hub, frames, egress } = createHarness();
+    await egress.applySubscriptions({ sessionIds: ['session-a'], jobIds: ['job-1'] }, 1);
+
+    const baseline = frames.length;
+    hub.ingest(jobLogPush('monitored', 1, 'job-1'));
+    hub.ingest(jobLogPush('other', 2, 'job-2'));
+    hub.ingest(jobStartedPush('job-2'));
+    hub.flush();
+    egress.flushNow();
+
+    const live = frames.slice(baseline);
+    expect(deliveredJobLogIds(live)).toEqual(['job-1']);
+    expect(deliveredPushTypes(live)).toContain('job/started');
+  });
+
+  it('session-only subscriptions drop every job/log (the memory win)', async () => {
+    const { hub, frames, egress } = createHarness();
+    await egress.applySubscriptions({ sessionIds: ['session-a'] }, 1);
+
+    const baseline = frames.length;
+    hub.ingest(jobLogPush('unmonitored', 1, 'job-1'));
+    hub.ingest(jobStartedPush('job-1'));
+    hub.flush();
+    egress.flushNow();
+
+    const live = frames.slice(baseline);
+    expect(deliveredJobLogIds(live)).toEqual([]);
+    expect(deliveredPushTypes(live)).toContain('job/started');
+  });
+
+  it('caps job monitor ids at LIVE_JOB_LOG_MAX_IDS and survives re-attach', async () => {
+    const { hub, frames, egress, reattachCallbacks } = createHarness();
+    const ids = Array.from({ length: 20 }, (_, index) => `job-${index}`);
+    await egress.applySubscriptions({ sessionIds: [], jobIds: ids }, 1);
+
+    // Oversized append for a subscribed job closes the channel; re-attach
+    // must restore both session and job filters.
+    hub.ingest(jobLogPush('x'.repeat(8 * 1024), 1, 'job-0'));
+    hub.flush();
+    expect(reattachCallbacks).toHaveLength(1);
+    reattachCallbacks.shift()?.();
+    expect(egress.getReattachCount()).toBe(1);
+
+    const baseline = frames.length;
+    for (let index = 0; index < 20; index += 1) {
+      hub.ingest(jobLogPush('x', index + 1, `job-${index}`));
+    }
+    hub.flush();
+    egress.flushNow();
+
+    const delivered = new Set(deliveredJobLogIds(frames.slice(baseline)));
+    for (let index = 0; index < 16; index += 1) {
+      expect(delivered.has(`job-${index}`)).toBe(true);
+    }
+    for (let index = 16; index < 20; index += 1) {
+      expect(delivered.has(`job-${index}`)).toBe(false);
+    }
   });
 });

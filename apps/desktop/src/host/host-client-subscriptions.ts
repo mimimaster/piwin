@@ -12,10 +12,17 @@ import type { HostSubscriptionsAppliedFrame } from '@piwin/contracts';
  */
 export type HostSubscriptionState = 'idle' | 'awaiting-hello' | 'applied';
 
+/** Desired live-interest sets: subscribed sessions + opted-in `job/log` monitors. */
+export type LiveInterests = {
+  sessionIds?: readonly string[];
+  jobIds?: readonly string[];
+};
+
 const DEFAULT_SUBSCRIPTION_TIMEOUT_MS = 15_000;
 
 export class LocalSubscriptionController {
-  private desiredIds: readonly string[] = [];
+  private desiredSessionIds: readonly string[] = [];
+  private desiredJobIds: readonly string[] = [];
   /** True once the UI declared any interest set — an empty set still counts
    *  (it narrows the server filter, which a restart resets to 'all'). */
   private hasDesired = false;
@@ -29,7 +36,7 @@ export class LocalSubscriptionController {
 
   constructor(
     private readonly send: (
-      sessionIds: readonly string[],
+      interests: { sessionIds: readonly string[]; jobIds: readonly string[] },
       revision: number,
       timeoutMs: number,
     ) => Promise<HostSubscriptionsAppliedFrame>,
@@ -43,8 +50,9 @@ export class LocalSubscriptionController {
    * Record a new desired interest set. Resolves after the frame is applied,
    * or immediately when the host is not ready — the ready edge re-sends.
    */
-  update(sessionIds: readonly string[]): Promise<void> {
-    this.desiredIds = sessionIds.slice();
+  update(interests: LiveInterests): Promise<void> {
+    this.desiredSessionIds = interests.sessionIds?.slice() ?? [];
+    this.desiredJobIds = interests.jobIds?.slice() ?? [];
     this.hasDesired = true;
     if (!this.hostReady) {
       this.state = 'awaiting-hello';
@@ -70,7 +78,8 @@ export class LocalSubscriptionController {
   /** Forget all state (dispose); next update starts a fresh revision chain. */
   reset(): void {
     this.disposed = true;
-    this.desiredIds = [];
+    this.desiredSessionIds = [];
+    this.desiredJobIds = [];
     this.hasDesired = false;
     this.appliedSignature = null;
     this.hostReady = false;
@@ -90,7 +99,7 @@ export class LocalSubscriptionController {
     if (this.disposed) {
       return Promise.resolve();
     }
-    const signature = signatureOf(this.desiredIds);
+    const signature = signatureOf(this.desiredSessionIds, this.desiredJobIds);
     if (signature === this.appliedSignature) {
       return Promise.resolve();
     }
@@ -103,12 +112,16 @@ export class LocalSubscriptionController {
       if (this.disposed) {
         return;
       }
-      const sentSignature = signatureOf(this.desiredIds);
+      const sentSignature = signatureOf(this.desiredSessionIds, this.desiredJobIds);
       if (sentSignature === this.appliedSignature) {
         return;
       }
       this.revision += 1;
-      await this.send(this.desiredIds, this.revision, DEFAULT_SUBSCRIPTION_TIMEOUT_MS);
+      await this.send(
+        { sessionIds: this.desiredSessionIds, jobIds: this.desiredJobIds },
+        this.revision,
+        DEFAULT_SUBSCRIPTION_TIMEOUT_MS,
+      );
       this.appliedSignature = sentSignature;
       this.state = 'applied';
     });
@@ -118,8 +131,8 @@ export class LocalSubscriptionController {
   }
 }
 
-function signatureOf(sessionIds: readonly string[]): string {
-  // NUL join: ids are Host session ids and never contain NUL; an empty join
-  // would collide ['ab','c'] with ['a','bc'].
-  return sessionIds.join('\u0000');
+function signatureOf(sessionIds: readonly string[], jobIds: readonly string[]): string {
+  // NUL join: Host ids never contain NUL; an empty join would collide
+  // ['ab','c'] with ['a','bc'] across either list.
+  return `${sessionIds.join('\u0000')}\u0001${jobIds.join('\u0000')}`;
 }

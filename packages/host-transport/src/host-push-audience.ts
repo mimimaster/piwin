@@ -4,9 +4,12 @@ export type HostPushAudience =
   | { kind: 'global' }
   | { kind: 'inbox' }
   | { kind: 'owner' }
-  | { kind: 'session'; sessionId: string };
+  | { kind: 'session'; sessionId: string }
+  | { kind: 'job'; jobId: string };
 
-export type LiveSessionFilter = 'all' | { sessionIds: ReadonlySet<string> };
+export type LiveSessionFilter =
+  | 'all'
+  | { sessionIds: ReadonlySet<string>; jobIds?: ReadonlySet<string> };
 
 /** Exhaustive audience for live delivery. A new HostPush variant must land here. */
 export function classifyHostPushAudience(push: HostPushVariant): HostPushAudience {
@@ -24,7 +27,6 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'job/started':
     case 'job/ready':
     case 'job/updated':
-    case 'job/log':
     case 'job/exited':
     case 'doccards/index-progress':
     case 'doccards/index-terminal':
@@ -107,6 +109,9 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'desktop/memory-observability':
       // Diagnostics: fan out to every attached shell, not one session view.
       return { kind: 'global' };
+    case 'job/log':
+      // Log appends are the heavy feed: only opted-in job monitors get them.
+      return { kind: 'job', jobId: push.chunk.jobId };
     default:
       return assertNever(push);
   }
@@ -119,7 +124,16 @@ export function hostPushPassesLiveFilter(
   if (audience.kind === 'owner') {
     return filter === 'all';
   }
-  if (filter === 'all' || audience.kind !== 'session') {
+  if (filter === 'all') {
+    return true;
+  }
+  if (audience.kind === 'job') {
+    // A filter without a jobIds set means no monitor opted in at all.
+    return filter.jobIds !== undefined && filter.jobIds.size > 0
+      ? filter.jobIds.has(audience.jobId)
+      : false;
+  }
+  if (audience.kind !== 'session') {
     return true;
   }
   return filter.sessionIds.has(audience.sessionId);

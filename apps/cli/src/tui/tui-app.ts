@@ -422,7 +422,7 @@ export class TuiApp {
       this.images.reset();
     }
     try {
-      await this.link.client.updateSubscriptions([sessionId]);
+      await this.link.client.updateSubscriptions({ sessionIds: [sessionId] });
       // Subscribe first, then resume and look up metadata together. The history
       // can be drawn as soon as it arrives, while the index is still loading.
       const [resume, indexed] = await Promise.all([
@@ -613,7 +613,7 @@ export class TuiApp {
     this.sessionArchived = false;
     this.announceSession(created.sessionId);
     this.foreground = { kind: 'idle', generation: (this.foregroundGeneration += 1) };
-    await this.link.client.updateSubscriptions([created.sessionId]);
+    await this.link.client.updateSubscriptions({ sessionIds: [created.sessionId] });
     return created.sessionId;
   }
 

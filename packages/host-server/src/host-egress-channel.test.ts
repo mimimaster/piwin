@@ -63,6 +63,51 @@ describe('HostEgressChannel', () => {
     expect(channel.getStats().projectionReplacements).toBe(1);
   });
 
+  it('scopes job/log delivery to the filter jobIds set', () => {
+    const sent: HostWireMessage[] = [];
+    const channel = new HostEgressChannel({
+      id: 'job-monitor',
+      hostInstanceId: 'host-1',
+      supportsBatch: false,
+      liveFilter: { sessionIds: new Set(['s-a']), jobIds: new Set(['job-1']) },
+      send: (message) => sent.push(message),
+    });
+
+    const jobLog = (jobId: string, seq: number) =>
+      record(seq, {
+        type: 'job/log',
+        chunk: { jobId, stream: 'stdout', text: 'x', at: 't', cursor: seq },
+      });
+    channel.offer(jobLog('job-1', 1));
+    channel.offer(jobLog('job-2', 2));
+    channel.offer(
+      record(3, {
+        type: 'job/started',
+        job: {
+          jobId: 'job-2',
+          kind: 'command',
+          lifetime: 'host',
+          command: 'echo',
+          argv: [],
+          cwd: '/tmp',
+          status: 'running',
+          startedAt: 't',
+          latestLogCursor: 0,
+        },
+      }),
+    );
+    channel.flushNow();
+
+    expect(channel.getStats().filteredItems).toBe(1);
+    expect(sent.map((message) => message.type === 'push' && message.seq)).toEqual([1, 3]);
+
+    // Removing the jobIds set entirely drops every job/log, subscribed or not.
+    channel.setLiveFilter({ sessionIds: new Set(['s-a']) });
+    channel.offer(jobLog('job-1', 4));
+    channel.flushNow();
+    expect(channel.getStats().filteredItems).toBe(2);
+  });
+
   it('keeps singular clients compatible', () => {
     const sent: HostWireMessage[] = [];
     const channel = new HostEgressChannel({

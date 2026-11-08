@@ -246,7 +246,7 @@ describe('useDockingWorkspace live-session contribution', () => {
     };
 
     act(() => current().openOrFocusSession('session-docked'));
-    expect([...inventory.resolve()]).toEqual(['session-docked']);
+    expect([...inventory.resolve().sessionIds]).toEqual(['session-docked']);
     // The hook itself never writes to the Host.
     expect(updateSubscriptions).not.toHaveBeenCalled();
 
@@ -256,6 +256,6 @@ describe('useDockingWorkspace live-session contribution', () => {
       await Promise.resolve();
     });
     root = undefined;
-    expect([...inventory.resolve()]).toEqual([]);
+    expect([...inventory.resolve().sessionIds]).toEqual([]);
   });
 });

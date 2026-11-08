@@ -192,7 +192,7 @@ describe('live session subscriptions', () => {
     cleanups.push(async () => client.client.close());
     const sessionA = await createSession(client, 'background-a');
     const sessionB = await createSession(client, 'foreground-b');
-    await client.client.updateSubscriptions([sessionA]);
+    await client.client.updateSubscriptions({ sessionIds: [sessionA] });
     const accepted = requireSuccess(
       await client.client.request(
         {
@@ -217,7 +217,7 @@ describe('live session subscriptions', () => {
       ).toBe(true);
     });
 
-    await client.client.updateSubscriptions([sessionB]);
+    await client.client.updateSubscriptions({ sessionIds: [sessionB] });
     requireSuccess(
       await client.client.request(
         {
@@ -253,8 +253,15 @@ describe('live session subscriptions', () => {
       sessionIds: [sessionA],
     });
     cleanups.push(async () => mobile.client.close());
-    const applied = await mobile.client.updateSubscriptions([sessionB]);
+    const applied = await mobile.client.updateSubscriptions({ sessionIds: [sessionB] });
     expect(applied.fenceSeq).toBeGreaterThanOrEqual(0);
     expect(applied.revision).toBe(1);
+
+    // S04b: job monitor opt-ins ride the same frame and apply cleanly.
+    const jobApplied = await mobile.client.updateSubscriptions({
+      sessionIds: [sessionB],
+      jobIds: ['job-monitor-1'],
+    });
+    expect(jobApplied.revision).toBe(2);
   });
 });

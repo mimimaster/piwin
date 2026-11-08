@@ -5,7 +5,7 @@ import type {
   HostHydrationFrame,
   HostPushBatchFrame,
 } from '@piwin/contracts';
-import { LIVE_SUBSCRIPTION_MAX_SESSION_IDS } from '@piwin/contracts';
+import { LIVE_JOB_LOG_MAX_IDS, LIVE_SUBSCRIPTION_MAX_SESSION_IDS } from '@piwin/contracts';
 
 type LastSeqStore = {
   read(): number;
@@ -106,24 +106,33 @@ export function countAdmissionKeys(options: {
 export function normalizeSubscriptions(
   subscriptions: HostClientSubscriptions | undefined,
 ): HostClientSubscriptions | undefined {
-  const sessionIds = subscriptions?.sessionIds;
-  if (!Array.isArray(sessionIds)) return undefined;
+  const sessionIds = normalizeSubscriptionIds(
+    subscriptions?.sessionIds,
+    LIVE_SUBSCRIPTION_MAX_SESSION_IDS,
+  );
+  const jobIds = normalizeSubscriptionIds(subscriptions?.jobIds, LIVE_JOB_LOG_MAX_IDS);
+  if (sessionIds === undefined && jobIds === undefined) {
+    return undefined;
+  }
+  return {
+    ...(sessionIds === undefined ? {} : { sessionIds }),
+    ...(jobIds === undefined ? {} : { jobIds }),
+  };
+}
+
+function normalizeSubscriptionIds(ids: string[] | undefined, max: number): string[] | undefined {
+  if (!Array.isArray(ids)) return undefined;
   const normalized: string[] = [];
   const seen = new Set<string>();
-  for (const sessionId of sessionIds) {
-    if (
-      typeof sessionId !== 'string' ||
-      sessionId.trim().length === 0 ||
-      sessionId.length > 256 ||
-      seen.has(sessionId)
-    ) {
+  for (const id of ids) {
+    if (typeof id !== 'string' || id.trim().length === 0 || id.length > 256 || seen.has(id)) {
       continue;
     }
-    normalized.push(sessionId);
-    seen.add(sessionId);
-    if (normalized.length >= LIVE_SUBSCRIPTION_MAX_SESSION_IDS) break;
+    normalized.push(id);
+    seen.add(id);
+    if (normalized.length >= max) break;
   }
-  return normalized.length === 0 ? undefined : { sessionIds: normalized };
+  return normalized.length === 0 ? undefined : normalized;
 }
 
 export function getSmallestPendingSeq(pendingPushes: Map<number, { seq: number }>): number {

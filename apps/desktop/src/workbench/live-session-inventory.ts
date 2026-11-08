@@ -10,6 +10,11 @@
  * the inventory resolves the deduped+capped union, and exactly one writer
  * hook sends it.
  *
+ * S04b adds a second, separate interest list: `job/log` monitor opt-ins.
+ * Job ids are NOT a contributor union — they are one explicit monitor list
+ * (`setJobLogInterests`), capped at LIVE_JOB_LOG_MAX_IDS, carried alongside
+ * the session union in every updateSubscriptions frame.
+ *
  * Contribution ordering: contributors' ids are concatenated in contributor
  * key sort order (lexicographic), deduped first-come-first-kept, then capped
  * at the Host's per-client limit. 'docking' < 'panes' < 'side-chats', so
@@ -18,7 +23,7 @@
  * own set. Contributor keys 'docking', 'panes' and 'side-chats' are in use;
  * future monitor/lease scopes should pick keys that sort after them.
  */
-import { LIVE_SUBSCRIPTION_MAX_SESSION_IDS } from '@piwin/contracts';
+import { LIVE_JOB_LOG_MAX_IDS, LIVE_SUBSCRIPTION_MAX_SESSION_IDS } from '@piwin/contracts';
 import { useEffect, useMemo, useRef } from 'react';
 import type { HostClient } from '../host/host-client.js';
 import { useSideChatLiveSessionIds } from '../session/side-chat-sessions.js';
@@ -29,21 +34,31 @@ export type LiveSessionContribution = {
   sessionIds: readonly string[];
 };
 
+/** Resolved interest sets sent to the Host in one client/subscriptions frame. */
+export type LiveInterestSets = {
+  sessionIds: readonly string[];
+  jobIds: readonly string[];
+};
+
 export type LiveSessionInventory = {
   /** Register/replace one contributor's set. Union of all contributors = desired live set. */
   setContribution(key: string, sessionIds: readonly string[] | null): void;
-  /** Current deduped+capped union. */
-  resolve(): readonly string[];
+  /** Declare the `job/log` monitor opt-ins; `null` unsubscribes every job stream. */
+  setJobLogInterests(jobIds: readonly string[] | null): void;
+  /** Current deduped+capped union plus job monitor list. */
+  resolve(): LiveInterestSets;
 };
 
 export function createLiveSessionInventory(
   max: number = LIVE_SUBSCRIPTION_MAX_SESSION_IDS,
-  onUnionChange?: (resolved: readonly string[]) => void,
+  onUnionChange?: (resolved: LiveInterestSets) => void,
 ): LiveSessionInventory {
   const contributions = new Map<string, readonly string[]>();
+  /** Single explicit monitor slot; not part of the contributor union. */
+  let jobLogInterests: readonly string[] = [];
   let notifiedSignature: string | null = null;
 
-  const resolve = (): readonly string[] => {
+  const resolve = (): LiveInterestSets => {
     const seen = new Set<string>();
     const resolved: string[] = [];
     for (const key of [...contributions.keys()].sort()) {
@@ -55,14 +70,15 @@ export function createLiveSessionInventory(
         resolved.push(id);
       }
     }
-    return resolved;
+    return { sessionIds: resolved, jobIds: jobLogInterests };
   };
 
   const notify = (): void => {
     if (!onUnionChange) return;
     const resolved = resolve();
-    // NUL-delimited so distinct id sets cannot collide on an empty join.
-    const signature = resolved.join('\u0000');
+    // NUL-delimited so distinct id sets cannot collide on an empty join; the
+    // two lists are separated so session ['a']+job ['b'] != session ['a','b'].
+    const signature = `${resolved.sessionIds.join('\u0000')}\u0001${resolved.jobIds.join('\u0000')}`;
     // A contribution change that leaves the union identical (e.g. a session
     // moving from one contributor to another) must not re-send.
     if (signature === notifiedSignature) return;
@@ -76,6 +92,23 @@ export function createLiveSessionInventory(
         if (!contributions.delete(key)) return;
       } else {
         contributions.set(key, sessionIds);
+      }
+      notify();
+    },
+    setJobLogInterests: (jobIds) => {
+      if (jobIds === null) {
+        if (jobLogInterests.length === 0) return;
+        jobLogInterests = [];
+      } else {
+        const seen = new Set<string>();
+        const deduped: string[] = [];
+        for (const id of jobIds) {
+          if (typeof id !== 'string' || id.trim().length === 0 || seen.has(id)) continue;
+          if (deduped.length >= LIVE_JOB_LOG_MAX_IDS) break;
+          seen.add(id);
+          deduped.push(id);
+        }
+        jobLogInterests = deduped;
       }
       notify();
     },
@@ -108,15 +141,25 @@ export function useLiveSessionInventoryWriter(hostClient: HostClient | null | un
           const client = hostClientRef.current;
           if (!client) return;
           const resolved = inventoryRef.current.resolve();
-          const signature = resolved.join('\u0000');
+          const signature = `${resolved.sessionIds.join('\u0000')}\u0001${resolved.jobIds.join('\u0000')}`;
           if (signature === sentSignatureRef.current) return;
           // An empty first union is the pre-hydration default — the Host
           // already defaults to no subscriptions; don't burn a call on it.
-          if (resolved.length === 0 && sentSignatureRef.current === null) return;
+          if (
+            resolved.sessionIds.length === 0 &&
+            resolved.jobIds.length === 0 &&
+            sentSignatureRef.current === null
+          )
+            return;
           sentSignatureRef.current = signature;
-          void client.updateSubscriptions([...resolved]).catch((error: unknown) => {
-            console.warn('Failed to update live session subscriptions.', error);
-          });
+          void client
+            .updateSubscriptions({
+              sessionIds: [...resolved.sessionIds],
+              jobIds: [...resolved.jobIds],
+            })
+            .catch((error: unknown) => {
+              console.warn('Failed to update live session subscriptions.', error);
+            });
         });
       }),
     [],

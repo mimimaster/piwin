@@ -70,7 +70,7 @@ describe('HostClient.updateSubscriptions (live transport)', () => {
     const client = new HostClient({ transport: 'live' });
 
     // Before connect: desired set is held, state is awaiting-hello.
-    await client.updateSubscriptions(['session-a']);
+    await client.updateSubscriptions({ sessionIds: ['session-a'] });
     expect(client.getSubscriptionState()).toBe('awaiting-hello');
     expect(subscriptionInvokes()).toHaveLength(0);
 
@@ -80,6 +80,7 @@ describe('HostClient.updateSubscriptions (live transport)', () => {
     });
     expect(subscriptionInvokes()[0]).toEqual({
       sessionIds: ['session-a'],
+      jobIds: [],
       revision: 1,
       timeoutMs: 15_000,
     });
@@ -94,13 +95,13 @@ describe('HostClient.updateSubscriptions (live transport)', () => {
     const client = new HostClient({ transport: 'live' });
     await client.connect();
 
-    await client.updateSubscriptions(['session-a']);
-    await client.updateSubscriptions(['session-a']); // no-op: same signature
-    await client.updateSubscriptions(['session-b']);
+    await client.updateSubscriptions({ sessionIds: ['session-a'] });
+    await client.updateSubscriptions({ sessionIds: ['session-a'] }); // no-op: same signature
+    await client.updateSubscriptions({ sessionIds: ['session-b'] });
 
     expect(subscriptionInvokes()).toEqual([
-      { sessionIds: ['session-a'], revision: 1, timeoutMs: 15_000 },
-      { sessionIds: ['session-b'], revision: 2, timeoutMs: 15_000 },
+      { sessionIds: ['session-a'], jobIds: [], revision: 1, timeoutMs: 15_000 },
+      { sessionIds: ['session-b'], jobIds: [], revision: 2, timeoutMs: 15_000 },
     ]);
   });
 
@@ -109,7 +110,7 @@ describe('HostClient.updateSubscriptions (live transport)', () => {
     mockLiveInvokes();
     const client = new HostClient({ transport: 'live' });
     await client.connect();
-    await client.updateSubscriptions(['session-a']);
+    await client.updateSubscriptions({ sessionIds: ['session-a'] });
     expect(subscriptionInvokes()).toHaveLength(1);
 
     // Sidecar died → reconnecting; new host reports ready via push.
@@ -127,7 +128,7 @@ describe('HostClient.updateSubscriptions (live transport)', () => {
 
   it('mock transport keeps updateSubscriptions a no-op', async () => {
     const client = new HostClient({ transport: 'mock' });
-    await expect(client.updateSubscriptions(['session-a'])).resolves.toBeUndefined();
+    await expect(client.updateSubscriptions({ sessionIds: ['session-a'] })).resolves.toBeUndefined();
     expect(client.getSubscriptionState()).toBe('unsupported');
     expect(subscriptionInvokes()).toHaveLength(0);
   });

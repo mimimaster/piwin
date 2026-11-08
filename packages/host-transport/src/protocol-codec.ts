@@ -123,8 +123,16 @@ function validateRequiredFields(message: Record<string, unknown>): void {
       throw new HostProtocolError(`${messageType} requires a non-negative revision`);
     }
   }
-  if (messageType === 'client/subscriptions' && !isRecord(message.subscriptions)) {
-    throw new HostProtocolError('client/subscriptions requires subscriptions');
+  if (messageType === 'client/subscriptions') {
+    if (!isRecord(message.subscriptions)) {
+      throw new HostProtocolError('client/subscriptions requires subscriptions');
+    }
+    for (const key of ['sessionIds', 'jobIds'] as const) {
+      const ids = message.subscriptions[key];
+      if (ids !== undefined && !Array.isArray(ids)) {
+        throw new HostProtocolError(`client/subscriptions requires ${key} to be an array`);
+      }
+    }
   }
   if (
     messageType === 'subscriptions/applied' &&

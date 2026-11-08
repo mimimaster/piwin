@@ -9,6 +9,7 @@
  */
 import { createInterface } from 'node:readline';
 import type {
+  HostClientSubscriptions,
   HostClientSubscriptionsFrame,
   HostCommandRequest,
   HostServerMessage,
@@ -87,7 +88,7 @@ function asClientSubscriptionsFrame(value: unknown): HostClientSubscriptionsFram
   }
   const raw = record.subscriptions;
   const subscriptions =
-    typeof raw === 'object' && raw !== null ? (raw as { sessionIds?: string[] }) : {};
+    typeof raw === 'object' && raw !== null ? (raw as HostClientSubscriptions) : {};
   return {
     type: 'client/subscriptions',
     requestId: record.requestId,

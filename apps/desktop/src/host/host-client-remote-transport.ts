@@ -21,7 +21,10 @@ import { HostClientLiveTransport } from './host-client-live-transport.js';
 import {
   LocalSubscriptionController,
   type HostSubscriptionState,
+  type LiveInterests,
 } from './host-client-subscriptions.js';
+
+export type { LiveInterests } from './host-client-subscriptions.js';
 
 /**
  * Remote Host transport: `@piwin/host-client` over WebSocket (ADR 0036),
@@ -40,10 +43,11 @@ export abstract class HostClientRemoteTransport extends HostClientLiveTransport 
   private remoteCapabilities: RemoteCapabilitySummary | undefined;
   /** Live-interest controller for the local JSONL sidecar path. */
   private readonly localSubscriptions = new LocalSubscriptionController(
-    async (sessionIds, revision, timeoutMs) => {
+    async (interests, revision, timeoutMs) => {
       const { invoke } = await import('@tauri-apps/api/core');
       const applied = (await invoke('host_update_subscriptions', {
-        sessionIds: sessionIds.slice(),
+        sessionIds: interests.sessionIds.slice(),
+        jobIds: interests.jobIds.slice(),
         revision,
         timeoutMs,
       })) as { type?: string; error?: string; requestId?: string; revision?: number; fenceSeq?: number };
@@ -76,14 +80,21 @@ export abstract class HostClientRemoteTransport extends HostClientLiveTransport 
     return this.transport !== 'remote' || this.remoteCapabilities?.foregroundRunAdmission === true;
   }
 
-  updateSubscriptions(sessionIds: string[]): Promise<void> {
+  /**
+   * Swap the live interest sets: subscribed sessions plus opted-in `job/log`
+   * monitors (S04b). A client that never lists jobIds receives zero job/log
+   * pushes; the job monitor catch-up pull is `job/logs`.
+   */
+  updateSubscriptions(interests: LiveInterests): Promise<void> {
+    const sessionIds = interests.sessionIds?.slice() ?? [];
+    const jobIds = interests.jobIds?.slice() ?? [];
     if (this.transport === 'remote') {
       return this.getOrCreateRemoteClient()
-        .updateSubscriptions(sessionIds)
+        .updateSubscriptions({ sessionIds, jobIds })
         .then(() => undefined);
     }
     if (this.transport === 'live') {
-      return this.localSubscriptions.update(sessionIds);
+      return this.localSubscriptions.update({ sessionIds, jobIds });
     }
     return Promise.resolve();
   }

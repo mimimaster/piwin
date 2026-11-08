@@ -27,6 +27,8 @@ export type HostClientConnection = {
   hydrationEnabled: boolean;
   liveSubscriptions: boolean;
   subscribedSessionIds: string[];
+  /** `job/log` monitor ids the client opted into via liveSubscriptions. */
+  subscribedJobIds: string[];
   handshakeTimer: ReturnType<typeof setTimeout>;
   egressClientId: string | undefined;
   egressChannel: HostEgressChannel | undefined;
@@ -94,6 +96,7 @@ export function createHostClientConnection(options: {
     hydrationEnabled: false,
     liveSubscriptions: false,
     subscribedSessionIds: [],
+    subscribedJobIds: [],
     handshakeTimer: setTimeout(() => {
       if (!connection.authenticated) {
         options.onHandshakeTimeout(connection);

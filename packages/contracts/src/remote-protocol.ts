@@ -78,6 +78,13 @@ export type HostClientHello = {
 
 export type HostClientSubscriptions = {
   sessionIds?: string[];
+  /**
+   * Opted-in `job/log` monitors. Absent/empty means the client receives no
+   * `job/log` pushes at all (job lifecycle pushes stay global); a client that
+   * wants a job's live log stream must list it here and can catch up through
+   * the `job/logs` pull command.
+   */
+  jobIds?: string[];
 };
 
 /**
@@ -532,6 +539,9 @@ export type HostCommandFrame = {
 
 /** One Desktop Conversation workspace may keep all eight visible panes live. */
 export const LIVE_SUBSCRIPTION_MAX_SESSION_IDS = 8 as const;
+
+/** Job log monitors are heavyweight per append; keep the opt-in list small. */
+export const LIVE_JOB_LOG_MAX_IDS = 16 as const;
 
 export type HostClientSubscriptionsFrame = {
   type: 'client/subscriptions';

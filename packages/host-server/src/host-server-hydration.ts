@@ -13,7 +13,11 @@ import type {
   RemoteSessionSummary,
   RemoteTranscriptMessage,
 } from '@piwin/contracts';
-import { HOST_PROTOCOL_VERSION, LIVE_SUBSCRIPTION_MAX_SESSION_IDS } from '@piwin/contracts';
+import {
+  HOST_PROTOCOL_VERSION,
+  LIVE_JOB_LOG_MAX_IDS,
+  LIVE_SUBSCRIPTION_MAX_SESSION_IDS,
+} from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/host-runtime';
 import {
   projectRemoteResponse,
@@ -42,6 +46,8 @@ export type HydrationConnection = {
   hydrationEnabled: boolean;
   liveSubscriptions: boolean;
   subscribedSessionIds: string[];
+  /** `job/log` monitor ids the client opted into via liveSubscriptions. */
+  subscribedJobIds: string[];
   egressChannel: HostEgressChannel | undefined;
   egressClientId: string | undefined;
   connectionId: string;
@@ -347,6 +353,10 @@ export async function applyLiveSubscriptionUpdate(
     0,
     LIVE_SUBSCRIPTION_MAX_SESSION_IDS,
   );
+  const nextJobIds = normalizeHydrationSessionIds(
+    frame.subscriptions.jobIds,
+    LIVE_JOB_LOG_MAX_IDS,
+  );
   const previous = new Set(connection.subscribedSessionIds);
   const added = nextIds.filter((sessionId) => !previous.has(sessionId));
   egressChannel.setPaused(true);
@@ -357,7 +367,11 @@ export async function applyLiveSubscriptionUpdate(
       host.send(connection, hydration);
     }
     connection.subscribedSessionIds = nextIds;
-    egressChannel.setLiveFilter({ sessionIds: new Set(nextIds) });
+    connection.subscribedJobIds = nextJobIds;
+    egressChannel.setLiveFilter({
+      sessionIds: new Set(nextIds),
+      jobIds: new Set(nextJobIds),
+    });
     const tail = host.egressHub.listReplay(fenceSeq);
     egressChannel.sendReplay(tail.records);
     egressChannel.advanceCursor(tail.currentSeq);

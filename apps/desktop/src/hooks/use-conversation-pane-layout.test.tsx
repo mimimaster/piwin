@@ -85,7 +85,7 @@ describe('useConversationPaneSubscriptions', () => {
       await Promise.resolve();
     });
 
-    expect([...inventory.resolve()]).toEqual([
+    expect([...inventory.resolve().sessionIds]).toEqual([
       'session-primary-new',
       'session-primary-old',
       'session-1',
@@ -112,7 +112,7 @@ describe('useConversationPaneSubscriptions', () => {
       await Promise.resolve();
     });
 
-    expect([...inventory.resolve()]).toEqual(['project-session']);
+    expect([...inventory.resolve().sessionIds]).toEqual(['project-session']);
   });
 
   it('withdraws its contribution on unmount', async () => {
@@ -132,13 +132,13 @@ describe('useConversationPaneSubscriptions', () => {
       );
       await Promise.resolve();
     });
-    expect(inventory.resolve().length).toBeGreaterThan(0);
+    expect(inventory.resolve().sessionIds.length).toBeGreaterThan(0);
 
     await act(async () => {
       root?.unmount();
       await Promise.resolve();
     });
     root = null;
-    expect([...inventory.resolve()]).toEqual([]);
+    expect([...inventory.resolve().sessionIds]).toEqual([]);
   });
 });

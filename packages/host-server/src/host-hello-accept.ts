@@ -8,7 +8,11 @@ import type {
   LegacyAccessMode,
   RemoteCapabilitySummary,
 } from '@piwin/contracts';
-import { HOST_PROTOCOL_VERSION, LIVE_SUBSCRIPTION_MAX_SESSION_IDS } from '@piwin/contracts';
+import {
+  HOST_PROTOCOL_VERSION,
+  LIVE_JOB_LOG_MAX_IDS,
+  LIVE_SUBSCRIPTION_MAX_SESSION_IDS,
+} from '@piwin/contracts';
 import type { LiveSessionFilter } from '@piwin/host-transport';
 import type { DeviceToolBroker } from './device-tool-broker.js';
 import type { HostDevicePairing } from './device-pairing.js';
@@ -234,6 +238,9 @@ export async function acceptHostHello(
         LIVE_SUBSCRIPTION_MAX_SESSION_IDS,
       )
     : [];
+  connection.subscribedJobIds = connection.liveSubscriptions
+    ? normalizeHydrationSessionIds(message.subscriptions?.jobIds, LIVE_JOB_LOG_MAX_IDS)
+    : [];
   connection.deviceId = admission.pairedDeviceId;
   connection.deviceRole = admission.pairedDeviceRole;
   connection.admittedBy = admission.admittedBy;
@@ -267,7 +274,10 @@ export async function acceptHostHello(
   const initialSeq = futureCursor ? 0 : requestedSeq;
   const forceHydration = hostChanged || futureCursor;
   const liveFilter: LiveSessionFilter = connection.liveSubscriptions
-    ? { sessionIds: new Set(connection.subscribedSessionIds) }
+    ? {
+        sessionIds: new Set(connection.subscribedSessionIds),
+        jobIds: new Set(connection.subscribedJobIds),
+      }
     : 'all';
   const egressChannel = host.egressHub.addClient({
     id: egressClientId,

@@ -110,7 +110,10 @@ export function toError(error: unknown, fallback: string): Error {
   return error instanceof Error ? error : new Error(fallback);
 }
 
-export function normalizeHydrationSessionIds(value: string[] | undefined): string[] {
+export function normalizeHydrationSessionIds(
+  value: string[] | undefined,
+  max: number = MAX_HYDRATION_SUBSCRIPTIONS,
+): string[] {
   if (!Array.isArray(value)) return [];
   const result: string[] = [];
   const seen = new Set<string>();
@@ -120,7 +123,7 @@ export function normalizeHydrationSessionIds(value: string[] | undefined): strin
     }
     seen.add(sessionId);
     result.push(sessionId);
-    if (result.length >= MAX_HYDRATION_SUBSCRIPTIONS) break;
+    if (result.length >= max) break;
   }
   return result;
 }

@@ -428,9 +428,16 @@ export class HostClient {
     this.sendReplayRequest();
   }
 
-  public updateSubscriptions(sessionIds: string[]): Promise<HostSubscriptionsAppliedFrame> {
+  /**
+   * Swap the live interest sets: subscribed sessions plus opted-in `job/log`
+   * monitors. Absent `jobIds` unsubscribes every job log stream — a client
+   * that never opts in receives zero `job/log` pushes (the memory win).
+   */
+  public updateSubscriptions(
+    interests: HostClientSubscriptions,
+  ): Promise<HostSubscriptionsAppliedFrame> {
     this.assertNotDisposed();
-    const normalized = normalizeSubscriptions({ sessionIds });
+    const normalized = normalizeSubscriptions(interests);
     this.subscriptions = normalized;
     this.subscriptionRevision += 1;
     const requestId = createRequestId('sub');

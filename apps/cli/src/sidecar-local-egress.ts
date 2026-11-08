@@ -1,5 +1,5 @@
-import type { HostPushBatchFrame, HostPushFrame } from '@piwin/contracts';
-import { LIVE_SUBSCRIPTION_MAX_SESSION_IDS } from '@piwin/contracts';
+import type { HostClientSubscriptions, HostPushBatchFrame, HostPushFrame } from '@piwin/contracts';
+import { LIVE_JOB_LOG_MAX_IDS, LIVE_SUBSCRIPTION_MAX_SESSION_IDS } from '@piwin/contracts';
 import {
   formatHostEgressCloseDetail,
   type HostEgressChannel,
@@ -55,23 +55,23 @@ export type SidecarLocalEgress = {
    * filter is re-applied after every channel re-attach.
    */
   applySubscriptions: (
-    subscriptions: { sessionIds?: string[] },
+    subscriptions: HostClientSubscriptions,
     revision: number,
   ) => Promise<{ fenceSeq: number }>;
 };
 
 /** Dedupe + bound a live interest set, mirroring the remote normalizer. */
-function normalizeLiveSessionIds(value: string[] | undefined): string[] {
+function normalizeLiveIds(value: string[] | undefined, max: number): string[] {
   if (!Array.isArray(value)) return [];
   const result: string[] = [];
   const seen = new Set<string>();
-  for (const sessionId of value) {
-    if (typeof sessionId !== 'string' || sessionId.trim().length === 0 || seen.has(sessionId)) {
+  for (const id of value) {
+    if (typeof id !== 'string' || id.trim().length === 0 || seen.has(id)) {
       continue;
     }
-    seen.add(sessionId);
-    result.push(sessionId);
-    if (result.length >= LIVE_SUBSCRIPTION_MAX_SESSION_IDS) break;
+    seen.add(id);
+    result.push(id);
+    if (result.length >= max) break;
   }
   return result;
 }
@@ -136,7 +136,11 @@ export function attachSidecarLocalEgress(options: SidecarLocalEgressOptions): Si
     },
     applySubscriptions: (subscriptions, revision) => {
       const applied = applyQueue.then(async () => {
-        const nextIds = normalizeLiveSessionIds(subscriptions.sessionIds);
+        const nextIds = normalizeLiveIds(
+          subscriptions.sessionIds,
+          LIVE_SUBSCRIPTION_MAX_SESSION_IDS,
+        );
+        const nextJobIds = normalizeLiveIds(subscriptions.jobIds, LIVE_JOB_LOG_MAX_IDS);
         const previous = confirmedFilter === 'all' ? undefined : confirmedFilter.sessionIds;
         const added =
           previous === undefined ? [] : nextIds.filter((sessionId) => !previous.has(sessionId));
@@ -154,7 +158,10 @@ export function attachSidecarLocalEgress(options: SidecarLocalEgressOptions): Si
           }
           // Confirm the filter before mutating the live channel: a re-attach
           // racing this await opens with the new filter already applied.
-          const nextFilter: LiveSessionFilter = { sessionIds: new Set(nextIds) };
+          const nextFilter: LiveSessionFilter = {
+            sessionIds: new Set(nextIds),
+            jobIds: new Set(nextJobIds),
+          };
           confirmedFilter = nextFilter;
           const liveChannel = channel;
           liveChannel?.setLiveFilter(nextFilter);
@@ -170,7 +177,7 @@ export function attachSidecarLocalEgress(options: SidecarLocalEgressOptions): Si
           liveChannel?.sendReplay(tail.records);
           liveChannel?.advanceCursor(tail.currentSeq);
           options.log(
-            `[piwin host serve] local subscriptions applied rev=${revision} sessions=${nextIds.length} fenceSeq=${fenceSeq}`,
+            `[piwin host serve] local subscriptions applied rev=${revision} sessions=${nextIds.length} jobs=${nextJobIds.length} fenceSeq=${fenceSeq}`,
           );
           return { fenceSeq };
         } finally {

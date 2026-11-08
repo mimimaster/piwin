@@ -192,9 +192,31 @@ describe('HostClient', () => {
       capabilities: { liveSubscriptions: true },
     });
     await client.connect();
-    const applied = await client.updateSubscriptions(['session-b']);
+    const applied = await client.updateSubscriptions({ sessionIds: ['session-b'] });
     expect(applied).toMatchObject({ type: 'subscriptions/applied', revision: 1, fenceSeq: 12 });
     expect(transport.sent.some((frame) => frame.type === 'client/subscriptions')).toBe(true);
+    await client.close();
+  });
+
+  it('sends opted-in job monitor ids on the subscriptions frame', async () => {
+    const transport = new FakeTransport();
+    const client = new HostClient({
+      transport,
+      clientId: 'mobile-sub',
+      clientType: 'mobile',
+      clientVersion: 'test',
+      capabilities: { liveSubscriptions: true },
+    });
+    await client.connect();
+    const applied = await client.updateSubscriptions({
+      sessionIds: ['session-b'],
+      jobIds: ['job-1'],
+    });
+    expect(applied.type).toBe('subscriptions/applied');
+    const frame = transport.sent.find((sent) => sent.type === 'client/subscriptions');
+    expect(frame).toMatchObject({
+      subscriptions: { sessionIds: ['session-b'], jobIds: ['job-1'] },
+    });
     await client.close();
   });
 

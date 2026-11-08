@@ -225,4 +225,51 @@ describe('classifyHostPushAudience', () => {
       }),
     ).toEqual({ kind: 'global' });
   });
+
+  it('scopes job/log to opted-in job monitors only', () => {
+    const logPush: HostPushVariant = {
+      type: 'job/log',
+      chunk: {
+        jobId: 'job-1',
+        stream: 'stdout',
+        text: 'hello',
+        at: '2026-01-01T00:00:00.000Z',
+        cursor: 1,
+      },
+    };
+    const audience = classifyHostPushAudience(logPush);
+    expect(audience).toEqual({ kind: 'job', jobId: 'job-1' });
+
+    // Subscribed job → delivered; any other job → dropped.
+    const filter = { sessionIds: new Set(['s-a']), jobIds: new Set(['job-1']) };
+    expect(hostPushPassesLiveFilter(audience, filter)).toBe(true);
+    expect(hostPushPassesLiveFilter({ kind: 'job', jobId: 'job-2' }, filter)).toBe(false);
+
+    // No jobIds at all, an empty set, and 'all' boundaries.
+    expect(hostPushPassesLiveFilter(audience, { sessionIds: new Set(['s-a']) })).toBe(false);
+    expect(
+      hostPushPassesLiveFilter(audience, { sessionIds: new Set(['s-a']), jobIds: new Set() }),
+    ).toBe(false);
+    expect(hostPushPassesLiveFilter(audience, 'all')).toBe(true);
+  });
+
+  it('keeps job lifecycle pushes global under a job-scoped filter', () => {
+    const job = {
+      jobId: 'job-1',
+      kind: 'command' as const,
+      lifetime: 'host' as const,
+      command: 'echo',
+      argv: [] as string[],
+      cwd: '/tmp',
+      status: 'running' as const,
+      startedAt: '2026-01-01T00:00:00.000Z',
+      latestLogCursor: 0,
+    };
+    const filter = { sessionIds: new Set(['s-a']), jobIds: new Set<string>() };
+    for (const type of ['job/started', 'job/ready', 'job/updated', 'job/exited'] as const) {
+      const audience = classifyHostPushAudience({ type, job });
+      expect(audience).toEqual({ kind: 'global' });
+      expect(hostPushPassesLiveFilter(audience, filter)).toBe(true);
+    }
+  });
 });

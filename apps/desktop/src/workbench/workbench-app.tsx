@@ -157,6 +157,13 @@ function HostWorkbench({
     liveSessionId,
     knowledgeMountsRef,
   });
+  // S04b: the terminal job monitor is the only job/log subscriber. The prop
+  // object exists even while the terminal tab is closed, so the opt-in is the
+  // user's selected job — a session switch or PTY select clears it again.
+  const monitoredJobId = model.terminalJobMonitor?.selectedJobId ?? null;
+  useEffect(() => {
+    liveSessionInventory.setJobLogInterests(monitoredJobId === null ? null : [monitoredJobId]);
+  }, [liveSessionInventory, monitoredJobId]);
   useSessionRenderReclamation({
     hostKey: sessionCacheHostKey(hostClient) ?? 'mock',
     visibleSessionIds: [liveSessionId,

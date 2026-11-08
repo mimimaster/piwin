@@ -391,11 +391,12 @@ pub async fn host_update_subscriptions(
     state: State<'_, HostBridgeState>,
     session_ids: Vec<String>,
     revision: u64,
+    job_ids: Option<Vec<String>>,
     timeout_ms: Option<u64>,
 ) -> Result<Value, String> {
     let inner = Arc::clone(&state.inner);
     tauri::async_runtime::spawn_blocking(move || {
-        host_update_subscriptions_blocking(inner, session_ids, revision, timeout_ms)
+        host_update_subscriptions_blocking(inner, session_ids, job_ids, revision, timeout_ms)
     })
     .await
     .map_err(|error| format!("host_update_subscriptions worker failed: {error}"))?
@@ -404,6 +405,7 @@ pub async fn host_update_subscriptions(
 fn host_update_subscriptions_blocking(
     inner: Arc<Mutex<Option<Arc<HostProcess>>>>,
     session_ids: Vec<String>,
+    job_ids: Option<Vec<String>>,
     revision: u64,
     timeout_ms: Option<u64>,
 ) -> Result<Value, String> {
@@ -411,11 +413,18 @@ fn host_update_subscriptions_blocking(
     // Transport-control frame: not a command envelope, answered by
     // `subscriptions/applied` (matched in streams.rs by `requestId`).
     let request_id = format!("sub-{}", REQUEST_SEQ.fetch_add(1, Ordering::Relaxed));
+    let mut subscriptions = serde_json::json!({ "sessionIds": session_ids });
+    if let Some(job_ids) = job_ids {
+        // S04b: opted-in `job/log` monitor ids; absent means no job log pushes.
+        subscriptions["jobIds"] = Value::Array(
+            job_ids.into_iter().map(Value::String).collect(),
+        );
+    }
     let frame = serde_json::json!({
         "type": "client/subscriptions",
         "requestId": request_id,
         "revision": revision,
-        "subscriptions": { "sessionIds": session_ids },
+        "subscriptions": subscriptions,
     });
     write_frame_with_pending(&process, frame, request_id, timeout_ms)
 }
