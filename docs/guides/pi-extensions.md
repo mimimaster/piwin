@@ -56,6 +56,10 @@ package that exists to customize Pi's terminal will still not work here.
 
 ## Compaction extensions
 
+The standalone [`piwin-devin-compact`](../../extensions/piwin-devin-compact/README.md)
+restores the former Devin-style archive and structured compaction summary.
+It is installed and enabled separately; it is not bundled with the Host.
+
 An extension that hooks `session_before_compact` replaces Pi's built-in summary
 (the trigger timing stays Pi's). When several enabled extensions hook it, piwin
 runs them as a first-wins chain instead of Pi's "last result wins":

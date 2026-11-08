@@ -1,0 +1,16 @@
+{
+  "name": "piwin-devin-compact",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Devin CLI compaction, reverse-engineered: model summary + history archive",
+  "scripts": {
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
