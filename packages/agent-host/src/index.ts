@@ -275,6 +275,8 @@ export { parseNativeSearchEvidence } from './native-search-evidence.js';
 export type { NativeSearchEvidence } from './native-search-evidence.js';
 export { mergeHeaderTokens } from './native-search-headers.js';
 export { completeModelText, ModelTextCompletionError } from './model-text-completion.js';
+export { completeModelVision } from './model-vision-completion.js';
+export type { ModelVisionCompletionInput } from './model-vision-completion.js';
 export {
   completeModelTools,
   isHttpBaseUrl,

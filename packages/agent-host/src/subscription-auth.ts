@@ -3,7 +3,7 @@
  * Apps and host-runtime never import Pi packages.
  */
 import { dirname, join } from 'node:path';
-import { canRegisterExtensionProvider } from './extension-provider-ownership.js';
+import { registerSubscriptionExtensions } from './subscription-extension-registration.js';
 import {
   classifySubscriptionLoginFailure,
   isClaudeCodeOauthProviderId,
@@ -385,40 +385,13 @@ async function createDefaultRuntime(
     // so a detached method reference throws "reading 'get'" of undefined.
     registerDevinOauthProvider(runtime as { registerProvider(id: string, config: object): void });
     if (extensionProviders.length > 0) {
-      if (!piModule.DefaultResourceLoader) {
-        throw new Error('Pi extension resource loader is unavailable for subscription auth');
-      }
-      const agentDir = dirname(authPath);
-      const loader = new piModule.DefaultResourceLoader({
-        cwd: agentDir,
-        agentDir,
-        additionalExtensionPaths: extensionProviders.map((entry) => entry.entryPath),
-        noExtensions: true,
-        noSkills: true,
-        noPromptTemplates: true,
-        noThemes: true,
-        noContextFiles: true,
-      });
-      await loader.reload();
-      const loaded = loader.getExtensions();
-      if (loaded.errors.length > 0) {
-        throw new Error(`Provider extension failed to load: ${loaded.errors[0]?.error ?? 'unknown error'}`);
-      }
-      // Register only ids claimed in piwin.json; side registrations from the
-      // same extension never reach the Host auth runtime. Host Runtime already
-      // rejects two enabled extensions claiming one id.
-      const claimedIds = new Set(extensionProviders.map((entry) => entry.providerId));
-      const owners = extensionProviders.map((entry) => ({ path: entry.entryPath, modelProviderId: entry.providerId }));
-      for (const registration of loaded.runtime.pendingProviderRegistrations) {
-        if (!claimedIds.has(registration.name) || !canRegisterExtensionProvider(registration.name, registration.extensionPath, owners)) continue;
-        runtime.registerProvider(registration.name, registration.config);
-        const name = (registration.config as { name?: unknown }).name;
-        if (typeof name === 'string' && name.trim()) {
-          providerNames.set(registration.name, name.trim());
-        }
-      }
-      // Complete offline registration before the first live public-provider pull.
-      await runtime.refresh({ allowNetwork: false, providers: [...claimedIds] });
+      await registerSubscriptionExtensions(
+        runtime as { registerProvider(id: string, config: object): void; refresh(options: { allowNetwork: boolean; providers?: string[] }): Promise<unknown> },
+        piModule.DefaultResourceLoader,
+        dirname(authPath),
+        extensionProviders,
+        providerNames,
+      );
       const publicIds = extensionProviders.filter((entry) => entry.kind === 'model').map((entry) => entry.providerId);
       if (publicIds.length > 0) {
         signal?.throwIfAborted();
