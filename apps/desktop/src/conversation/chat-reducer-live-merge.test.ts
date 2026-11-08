@@ -82,6 +82,94 @@ describe('merging a transcript page into a live run after lost pushes', () => {
     expect(state.streaming).toBe(true);
   });
 
+  it('does not append the only query and stale opening reply after a disjoint Host tail', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'only query', clientMessageId: 'u1' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = send(state, {
+      type: 'message/start',
+      messageId: 'a1',
+      role: 'assistant',
+      runId: 'run-1',
+    });
+    state = send(state, {
+      type: 'message/text_delta',
+      messageId: 'a1',
+      delta: 'first reply',
+      runId: 'run-1',
+    });
+    state = send(state, {
+      type: 'tool/start',
+      toolCallId: 'stale-tool',
+      toolName: 'bash',
+      runId: 'run-1',
+      responseMessageId: 'a1',
+    });
+
+    // All intervening pushes were lost. The bounded tail starts after both
+    // resident rows; timestamps deliberately cannot order the two machines.
+    const refreshed = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [persisted('a52', { tools: [bash('t52', 'done')] }), persisted('a53')],
+      transcriptPage: {
+        revision: 'r1',
+        totalCount: 54,
+        startIndex: 52,
+        endIndex: 54,
+        messageBytes: 256,
+        messagePositions: [
+          { messageId: 'u1', index: 0 },
+          { messageId: 'a1', index: 1 },
+        ],
+      },
+      preserveActiveTail: true,
+    });
+
+    expect(refreshed.messages.map((message) => message.id)).toEqual(['a52', 'a53']);
+    expect(refreshed.messages.some((message) => message.role === 'user')).toBe(false);
+    expect(
+      refreshed.messages.some((message) => message.tools.some((tool) => tool.status === 'running')),
+    ).toBe(false);
+    expect(refreshed.streaming).toBe(true);
+  });
+
+  it('preserves a not-yet-persisted response beyond a disjoint refreshed tail', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'only query', clientMessageId: 'u1' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = send(state, {
+      type: 'message/start',
+      messageId: 'new-live',
+      role: 'assistant',
+      runId: 'run-1',
+    });
+    state = send(state, {
+      type: 'message/text_delta',
+      messageId: 'new-live',
+      delta: 'new tokens',
+      runId: 'run-1',
+    });
+    const refreshed = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [persisted('a52')],
+      transcriptPage: {
+        revision: 'r1',
+        totalCount: 53,
+        startIndex: 52,
+        endIndex: 53,
+        messageBytes: 128,
+        messagePositions: [{ messageId: 'u1', index: 0 }],
+      },
+      preserveActiveTail: true,
+    });
+    expect(refreshed.messages.map((message) => message.id)).toEqual(['a52', 'new-live']);
+    expect(refreshed.messages.at(-1)).toMatchObject({ text: 'new tokens', status: 'streaming' });
+  });
+
   it('keeps a settled live tool when the page was read before its tool/end', () => {
     let state = liveStateAfterLostPushes();
     state = send(state, { type: 'message/end', messageId: 'a207', runId: 'run-1' });

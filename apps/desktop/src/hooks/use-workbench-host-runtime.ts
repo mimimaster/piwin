@@ -243,6 +243,7 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
   useRunReconcile({
     hostClient,
     dispatch,
+    messages: state.messages,
     activeSessionId: state.activeSessionId,
     activeRunId: state.activeRunId,
     runLive:
@@ -253,8 +254,8 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
     catchUpEpoch: remoteCatchUpEpoch,
     foregroundAdmission: state.foregroundAdmission,
     compactionSettledKey:
-      state.compactionActivity?.phase === 'succeeded' &&
-      state.compactionActivity.willRetry !== true &&
+      state.compactionActivity &&
+      state.compactionActivity.phase !== 'running' &&
       state.compactionActivity.runId === state.activeRunId
         ? state.compactionActivity.operationId
         : null,

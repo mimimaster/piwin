@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type {
   ExecutionRunRecord,
   PermissionDecision,
@@ -30,6 +30,7 @@ export function useSessionRunActions(input: {
   locale: import('../i18n/desktop-locale.js').DesktopLocale;
 }) {
   const { hostClient, state, dispatch, dispatchNotification, locale } = input;
+  const compactRequests = useRef(new Set<string>());
 
   const handlePause = useCallback(async (): Promise<void> => {
     const sessionId = state.activeSessionId;
@@ -237,7 +238,7 @@ export function useSessionRunActions(input: {
   ]);
 
   const handleCompact = useCallback(
-    async (customInstructions?: string): Promise<boolean> => {
+    (customInstructions?: string): boolean => {
       if (!state.activeSessionId) {
         dispatchNotification(
           pushError(
@@ -248,7 +249,7 @@ export function useSessionRunActions(input: {
         );
         return false;
       }
-      if (state.compacting) {
+      if (state.compacting || compactRequests.current.has(state.activeSessionId)) {
         dispatchNotification(
           pushInfo(locale === 'zh-CN' ? '正在压缩上下文。' : 'Compaction already running.'),
         );
@@ -258,8 +259,8 @@ export function useSessionRunActions(input: {
         dispatchNotification(
           pushError(
             locale === 'zh-CN'
-              ? '当前回合还在跑。等它结束，或先 /stop 再 /compact。'
-              : 'A run is still in progress. Wait for it to finish, or /stop then /compact.',
+              ? '当前回合还在运行，请等待结束或先点击停止。'
+              : 'A run is still in progress. Wait for it to finish or stop it first.',
           ),
         );
         return false;
@@ -275,44 +276,42 @@ export function useSessionRunActions(input: {
       if (customInstructions && customInstructions.trim().length > 0) {
         payload.customInstructions = customInstructions.trim();
       }
-      try {
-        const response = await hostClient.request(payload);
-        if (!response.success) {
-          if (classifyCompactionNoOp(response.error) !== undefined) {
-            dispatchNotification(
-              pushInfo(
-                locale === 'zh-CN'
-                  ? '当前上下文无需压缩。'
-                  : 'There is nothing to compact yet.',
-              ),
-            );
-            return true;
+      const sessionId = state.activeSessionId;
+      compactRequests.current.add(sessionId);
+      // Accept the command immediately. The Host emits the same compaction
+      // lifecycle events as automatic compaction; the request can take minutes.
+      void (async () => {
+        try {
+          const response = await hostClient.request(payload);
+          if (!response.success) {
+            if (classifyCompactionNoOp(response.error) !== undefined) {
+              dispatchNotification(
+                pushInfo(locale === 'zh-CN' ? '当前上下文无需压缩。' : 'There is nothing to compact yet.'),
+              );
+            } else {
+              dispatchNotification(pushError(compactFailureMessage(response.error, locale)));
+            }
+            return;
           }
-          dispatchNotification(pushError(compactFailureMessage(response.error, locale)));
-          return false;
-        }
-        const data = response.data as { ok?: boolean; message?: string } | undefined;
-        if (data?.ok === false) {
-          if (classifyCompactionNoOp(data.message) !== undefined) {
-            dispatchNotification(
-              pushInfo(
-                locale === 'zh-CN'
-                  ? '当前上下文无需压缩。'
-                  : 'There is nothing to compact yet.',
-              ),
-            );
-            return true;
+          const data = response.data as { ok?: boolean; message?: string } | undefined;
+          if (data?.ok === false) {
+            if (classifyCompactionNoOp(data.message) !== undefined) {
+              dispatchNotification(
+                pushInfo(locale === 'zh-CN' ? '当前上下文无需压缩。' : 'There is nothing to compact yet.'),
+              );
+            } else {
+              dispatchNotification(
+                pushError(compactFailureMessage(data.message ?? 'Compaction failed', locale)),
+              );
+            }
           }
-          dispatchNotification(
-            pushError(compactFailureMessage(data.message ?? 'Compaction failed', locale)),
-          );
-          return false;
+        } catch (error) {
+          dispatchNotification(pushError(compactFailureMessage(formatError(error), locale)));
+        } finally {
+          compactRequests.current.delete(sessionId);
         }
-        return true;
-      } catch (error) {
-        dispatchNotification(pushError(compactFailureMessage(formatError(error), locale)));
-        return false;
-      }
+      })();
+      return true;
     },
     [
       dispatchNotification,

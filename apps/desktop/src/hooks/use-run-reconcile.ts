@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, type Dispatch } from 'react';
-import type { ExecutionRunRecord, SessionTranscriptMessage } from '@piwin/contracts';
+import type { ExecutionRunRecord } from '@piwin/contracts';
 import { isRunActive } from '@piwin/contracts';
 import type { HostClient } from '../host/host-client.js';
-import type { ChatUiAction } from '../conversation/chat-reducer.js';
+import type { ChatMessageUi, ChatUiAction } from '../conversation/chat-reducer.js';
 import { planRunReconcile } from '../run-activity/run-reconcile.js';
 import { reconcilePendingPermissions } from './reconcile-pending-permissions.js';
+import { requestSessionRecoveryTranscript } from '../session/request-session-recovery-transcript.js';
 import { requestQueuedTurnQueue } from '../conversation/queued-turn-queue-request.js';
 
 // A prompt acknowledgement arrives before provider execution. These are
 // bounded convergence checks for a terminal push that was lost after the Run
 // was admitted; they stop as soon as the reducer leaves the live state.
 const POST_ADMISSION_RECONCILE_DELAYS_MS = [250, 1_000, 3_000, 5_000] as const;
+const POST_COMPACTION_RECONCILE_INTERVAL_MS = 10_000;
 
 /**
  * Host-up admit failures stay in `reconciling` and retry with backoff.
@@ -25,6 +27,8 @@ export type UseRunReconcileArgs = {
   activeSessionId: string | null;
   /** Run id the UI currently attributes its live state to (may be null). */
   activeRunId: string | null;
+  /** Resident identities to locate when the Host tail no longer overlaps the live view. */
+  messages?: readonly ChatMessageUi[];
   /** True while the UI believes a run is live, including control transitions. */
   runLive: boolean;
   /** Re-ask Host after a remote socket comes back. */
@@ -37,7 +41,7 @@ export type UseRunReconcileArgs = {
    * without changing `activeSessionId`. Re-admit in that case or Send stays off.
    */
   foregroundAdmission?: 'unknown' | 'reconciling' | 'ready';
-  /** Successful no-retry compaction reached the end of this active Run's model work. */
+  /** A compaction settled during this active run; its terminal push may arrive much later. */
   compactionSettledKey?: string | null;
 };
 
@@ -56,6 +60,8 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
   runIdRef.current = args.activeRunId;
   const runLiveRef = useRef(args.runLive);
   runLiveRef.current = args.runLive;
+  const messagesRef = useRef(args.messages);
+  messagesRef.current = args.messages;
   const admissionRef = useRef(args.foregroundAdmission ?? 'unknown');
   admissionRef.current = args.foregroundAdmission ?? 'unknown';
   const hostReadyRef = useRef(args.hostReady);
@@ -72,24 +78,15 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
 
   const loadTranscript = useCallback(
     async (sessionId: string, options?: { preserveActiveTail?: boolean }): Promise<void> => {
-      const messagesResponse = await hostClient.request({
-        type: 'session/messages',
-        sessionId,
-      });
-      if (sessionRef.current !== sessionId) {
-        return;
-      }
-      if (!messagesResponse.success) {
-        return;
-      }
-      const data = messagesResponse.data as { messages?: SessionTranscriptMessage[] } | undefined;
-      if (!Array.isArray(data?.messages)) {
-        return;
-      }
+      const data = await requestSessionRecoveryTranscript(
+        hostClient, sessionId, messagesRef.current ?? [],
+      );
+      if (sessionRef.current !== sessionId || !Array.isArray(data?.messages)) return;
       dispatch({
         type: 'session/load-messages',
         sessionId,
         messages: data.messages,
+        ...(data.transcriptPage === undefined ? {} : { transcriptPage: data.transcriptPage }),
         ...(options?.preserveActiveTail === true || runLiveRef.current
           ? { preserveActiveTail: true }
           : {}),
@@ -339,9 +336,8 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
   }, [args.activeRunId, args.runLive, schedule]);
 
   useEffect(() => {
-    // Auto-compaction can finish long after the post-admission convergence
-    // window expired. Recheck Host authority at that lifecycle boundary rather
-    // than inferring a terminal from the compaction event itself.
+    // A continuation can outlive the initial checks by minutes. Keep asking
+    // Host authority until this run settles; never infer a terminal from compact.
     if (
       !args.runLive ||
       args.activeRunId === null ||
@@ -358,11 +354,15 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
         }
       }, delay),
     );
+    const interval = globalThis.setInterval(() => {
+      if (!cancelled) schedule('live');
+    }, POST_COMPACTION_RECONCILE_INTERVAL_MS);
     return () => {
       cancelled = true;
       for (const timer of timers) {
         globalThis.clearTimeout(timer);
       }
+      globalThis.clearInterval(interval);
     };
   }, [
     args.activeRunId,

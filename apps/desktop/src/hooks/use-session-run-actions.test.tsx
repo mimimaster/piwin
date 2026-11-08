@@ -60,6 +60,68 @@ describe('handleCompact', () => {
     };
   }
 
+  it('accepts compact immediately while the Host request remains pending', async () => {
+    let resolveRequest: ((value: { type: 'response'; command: string; success: true; data: { ok: true } }) => void) | undefined;
+    const request = vi.fn(() => new Promise<{ type: 'response'; command: string; success: true; data: { ok: true } }>((resolve) => { resolveRequest = resolve; }));
+    let captured: ReturnType<typeof useSessionRunActions> | undefined;
+    function Harness() {
+      captured = useSessionRunActions({
+        hostClient: { request } as unknown as HostClient,
+        state: { ...createInitialTestChatUiState(), activeSessionId: 'session-1' },
+        dispatch: vi.fn(), dispatchNotification: vi.fn(), locale: 'en',
+      });
+      return null;
+    }
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    act(() => root?.render(<Harness />));
+    let accepted: boolean | undefined;
+    await act(async () => {
+      void Promise.resolve(captured?.handleCompact()).then((value) => { accepted = value; });
+      await Promise.resolve();
+    });
+    expect(accepted).toBe(true);
+    expect(request).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      expect(await captured?.handleCompact()).toBe(false);
+      resolveRequest?.({ type: 'response', command: 'session/compact', success: true, data: { ok: true } });
+      await Promise.resolve();
+    });
+  });
+
+  it('reports a Host failure after accepting the command and allows another attempt', async () => {
+    const request = vi.fn(async () => ({
+      type: 'response' as const, command: 'session/compact', success: false as const, error: 'provider unavailable',
+    }));
+    const dispatchNotification = vi.fn();
+    let captured: ReturnType<typeof useSessionRunActions> | undefined;
+    function Harness() {
+      captured = useSessionRunActions({
+        hostClient: { request } as unknown as HostClient,
+        state: { ...createInitialTestChatUiState(), activeSessionId: 'session-1' },
+        dispatch: vi.fn(), dispatchNotification, locale: 'en',
+      });
+      return null;
+    }
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    act(() => root?.render(<Harness />));
+    await act(async () => {
+      expect(captured?.handleCompact()).toBe(true);
+      await Promise.resolve();
+    });
+    expect(dispatchNotification).toHaveBeenCalledWith(expect.objectContaining({
+      notification: expect.objectContaining({ level: 'error', message: expect.stringContaining('provider unavailable') }),
+    }));
+    await act(async () => {
+      expect(captured?.handleCompact()).toBe(true);
+      await Promise.resolve();
+    });
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
   it('sends session/compact for an idle session', async () => {
     const harness = renderActions({
       ...createInitialTestChatUiState(),

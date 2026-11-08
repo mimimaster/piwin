@@ -2,9 +2,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { ExecutionRunRecord, HostCommand, HostResponse } from '@piwin/contracts';
+import type { ExecutionRunRecord, HostCommand, HostResponse, SessionTranscriptPageData } from '@piwin/contracts';
 import type { HostClient, HostSequenceGapHandler } from '../host/host-client.js';
-import type { ChatUiAction } from '../conversation/chat-reducer.js';
+import type { ChatMessageUi, ChatUiAction } from '../conversation/chat-reducer.js';
 import { useRunReconcile } from './use-run-reconcile.js';
 
 type ScriptedResponse =
@@ -13,6 +13,11 @@ type ScriptedResponse =
 
 class FakeHostClient {
   readonly requests: HostCommand[] = [];
+  transcriptPage: Extract<SessionTranscriptPageData, { status: 'page' }> | undefined;
+
+  supportsCommand(command: HostCommand['type']): boolean {
+    return command !== 'session/transcript-page' || this.transcriptPage !== undefined;
+  }
   private gapHandler: HostSequenceGapHandler | null = null;
   private foregroundRunResponse: ScriptedResponse | undefined;
   private foregroundRunResponses: ScriptedResponse[] | undefined;
@@ -40,6 +45,9 @@ class FakeHostClient {
         success: true,
         data: { sessionId: command.sessionId, run },
       });
+    }
+    if (command.type === 'session/transcript-page' && this.transcriptPage) {
+      return Promise.resolve({ type: 'response', command: command.type, success: true, data: this.transcriptPage });
     }
     if (command.type === 'session/messages') {
       return Promise.resolve({
@@ -97,6 +105,7 @@ function terminalRun(): ExecutionRunRecord {
 }
 
 type ProbeProps = {
+  messages?: readonly ChatMessageUi[];
   activeSessionId: string | null;
   activeRunId: string | null;
   runLive: boolean;
@@ -125,6 +134,7 @@ function mountProbe(
       activeSessionId: probeProps.activeSessionId,
       activeRunId: probeProps.activeRunId,
       runLive: probeProps.runLive,
+      ...(probeProps.messages === undefined ? {} : { messages: probeProps.messages }),
       ...(probeProps.hostReady === undefined ? {} : { hostReady: probeProps.hostReady }),
       ...(probeProps.catchUpEpoch === undefined ? {} : { catchUpEpoch: probeProps.catchUpEpoch }),
       ...(probeProps.foregroundAdmission === undefined
@@ -195,6 +205,38 @@ describe('useRunReconcile', () => {
     ]);
     root.unmount();
     container.remove();
+  });
+
+  it('locates resident rows and forwards Host page order during recovery', async () => {
+    const fake = new FakeHostClient();
+    fake.scriptForegroundRun({ kind: 'run', run: terminalRun() });
+    fake.transcriptPage = {
+      status: 'page', messages: [],
+      page: {
+        revision: 'r1', totalCount: 60, startIndex: 50, endIndex: 60, messageBytes: 2,
+        messagePositions: [{ messageId: 'only-query', index: 0 }],
+      },
+    };
+    const actions: ChatUiAction[] = [];
+    const { root, container } = mountProbe(fake as unknown as HostClient, (action) => actions.push(action), {
+      activeSessionId: 'session-1', activeRunId: 'run-1', runLive: true,
+      messages: [{ id: 'only-query', role: 'user', text: 'query', thinking: '', tools: [], attachments: [], status: 'done' }],
+    });
+    try {
+      await waitForAdmission(actions, 'ready');
+      fake.requests.length = 0;
+      await act(async () => fake.emitGap());
+      expect(fake.requests.find((command) => command.type === 'session/transcript-page')).toMatchObject({
+        query: { sessionId: 'session-1', limit: 50, maximumBytes: 256 * 1024, locateMessageIds: ['only-query'] },
+      });
+      expect(actions.find((action) => action.type === 'session/load-messages')).toMatchObject({
+        transcriptPage: fake.transcriptPage.page, preserveActiveTail: true,
+      });
+      expect(fake.requests.some((command) => command.type === 'session/messages')).toBe(false);
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
   });
 
   it('on a sequence gap before ACK, ignores a null Host run instead of wiping the optimistic turn', async () => {
@@ -414,6 +456,32 @@ describe('useRunReconcile', () => {
         'session/queued-turn-list',
       ]);
       expect(actions).toContainEqual({ type: 'run/stale-clear', sessionId: 'session-1' });
+      root.unmount();
+      container.remove();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('continues checking after compaction if a terminal push is lost much later', async () => {
+    vi.useFakeTimers();
+    try {
+      const fake = new FakeHostClient();
+      const { endedAt: _endedAt, ...runningBase } = terminalRun();
+      fake.scriptForegroundRun({ kind: 'run', run: { ...runningBase, status: 'running' } });
+      const actions: ChatUiAction[] = [];
+      const { root, container, rerender } = mountProbe(fake as unknown as HostClient, (action) => actions.push(action), {
+        activeSessionId: 'session-1', activeRunId: 'run-1', runLive: true, compactionSettledKey: 'compact-1',
+      });
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(actions.map((action) => action.type)).not.toContain('run/stale-clear');
+      fake.scriptForegroundRun({ kind: 'run', run: null });
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(actions).toContainEqual({ type: 'run/stale-clear', sessionId: 'session-1' });
+      rerender({ activeSessionId: 'session-1', activeRunId: null, runLive: false, compactionSettledKey: 'compact-1' });
+      fake.requests.length = 0;
+      await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+      expect(fake.requests.filter((command) => command.type === 'session/foreground-run')).toHaveLength(0);
       root.unmount();
       container.remove();
     } finally {

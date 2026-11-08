@@ -16,6 +16,7 @@ import type { HostClient } from '../host/host-client.js';
 import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer.js';
 import type { NotificationAction } from '../notifications/notification-queue.js';
 import { pushError } from '../notifications/notification-queue.js';
+import { collectTranscriptResidentMessageIds } from '../conversation/transcript-resident-message-ids.js';
 import { requestSessionTranscriptPage } from '../session/session-transcript-page-request.js';
 
 export function useSessionTranscriptActions(input: {
@@ -137,6 +138,7 @@ export function useSessionTranscriptActions(input: {
               limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
               maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
               beforeCursor: tailWindow.olderCursor,
+              locateMessageIds: collectTranscriptResidentMessageIds(state.messages),
             },
           );
           if (!isCurrent()) return;

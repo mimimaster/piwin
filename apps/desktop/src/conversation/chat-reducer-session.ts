@@ -30,10 +30,10 @@ import {
   collectRetainedTranscriptMessageIds,
   enforceBoundedTranscriptWindow,
   mapTranscriptMessagesToUi,
-  mergeRefreshedTailWithLiveMessages,
   preserveAssistantModelSnapshots,
   reuseUnchangedTranscriptMessages,
 } from './chat-reducer-transcript';
+import { mergeRefreshedTailWithLiveMessages } from './transcript-live-merge.js';
 import { contextUsageForLoadMessages, contextUsageForSessionSet } from './chat-reducer-context';
 import { applyContextTelemetry } from '../context/context-telemetry-reducer';
 
@@ -252,6 +252,7 @@ export function reduceChatSession(
                   .filter((message) => message.status === 'streaming')
                   .map((message) => message.id),
               ),
+              action.transcriptPage,
             )
           : refreshedMessages,
       );

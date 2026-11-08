@@ -68,6 +68,7 @@ describe('useSessionResume selection guard', () => {
 
   function renderHook(input: {
     hostClient: HostClient;
+    state?: ChatUiState;
     dispatch?: ReturnType<typeof vi.fn>;
     onProfile?: ReturnType<typeof vi.fn>;
     dispatchNotification?: ReturnType<typeof vi.fn>;
@@ -81,7 +82,7 @@ describe('useSessionResume selection guard', () => {
     function Harness(): null {
       captured = useSessionResume({
         hostClient: input.hostClient,
-        state: chatState(),
+        state: input.state ?? chatState(),
         dispatch: dispatch as (action: ChatUiAction) => void,
         dispatchNotification: input.dispatchNotification ?? vi.fn(),
         locale: 'en',
@@ -104,6 +105,29 @@ describe('useSessionResume selection guard', () => {
       },
     };
   }
+
+  it('locates the current query when reopening a running session with a disjoint tail', async () => {
+    const state = { ...chatState(), activeSessionId: 'session-old' };
+    state.streaming = true;
+    state.activeRunId = 'run-1';
+    state.messages = [{ id: 'only-query', role: 'user', text: 'query', thinking: '', tools: [], attachments: [], status: 'done' }];
+    const transcriptPage = {
+      revision: 'r1', totalCount: 2, startIndex: 1, endIndex: 2, messageBytes: 128,
+      messagePositions: [{ messageId: 'only-query', index: 0 }],
+    };
+    const hostClient = {
+      getHostInstanceId: () => 'host-1', getTransport: () => 'live', isReady: () => true,
+      request: vi.fn(async (command: HostCommand): Promise<HostResponse> => ok(command, command.type === 'session/resume' ? {
+        ...resumeSuccessData('session-old'), transcriptPage,
+        activeRun: { runId: 'run-1', rootRunId: 'run-1', kind: 'session-turn', sessionId: 'session-old', status: 'running' },
+        messages: [{ id: 'later-reply', role: 'assistant', text: 'later work', createdAt: '2026-11-08', status: 'done' }],
+      } : {})),
+    } as unknown as HostClient;
+    const { latest, dispatch } = renderHook({ hostClient, state });
+    await act(async () => latest().handleResumeSession('session-old', { refresh: true }));
+    expect(hostClient.request).toHaveBeenCalledWith({ type: 'session/resume', sessionId: 'session-old', locateMessageIds: ['only-query'] });
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'session/load-messages', transcriptPage }));
+  });
 
   it('failed resume dispatches telemetry invalidate so occupancy cannot stay visible', async () => {
     const hostClient = {

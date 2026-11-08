@@ -79,6 +79,37 @@ describe('continuous transcript history actions', () => {
       await harness.cleanup();
     }
   });
+  it('keeps resident location evidence when an older cursor restarts at a disjoint tail', async () => {
+    const state = createState();
+    if (state.transcriptWindow === null) throw new Error('Missing transcript window');
+    state.transcriptWindow.cacheLimitReached = false;
+    state.transcriptWindow.olderCursor = 'stale-cursor';
+    const harness = await mountActions(state);
+    const page = {
+      revision: 'r2', totalCount: 301, startIndex: 300, endIndex: 301, messageBytes: 128,
+      messagePositions: [{ messageId: 'm100', index: 100 }],
+    };
+    harness.request.mockImplementationOnce(async () => ({
+      type: 'response', command: 'session/transcript-page', success: true,
+      data: { status: 'stale-cursor', currentRevision: 'r2' },
+    })).mockImplementationOnce(async () => ({
+      type: 'response', command: 'session/transcript-page', success: true,
+      data: { status: 'page', messages: [], page },
+    }));
+    try {
+      await act(async () => harness.actions.handleLoadOlderTranscript());
+      expect(harness.request).toHaveBeenNthCalledWith(2, {
+        type: 'session/transcript-page',
+        query: { sessionId: 'long', limit: 50, maximumBytes: 256 * 1024, locateMessageIds: ['m100'] },
+      });
+      expect(harness.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'session/load-messages', transcriptPage: page, preserveActiveTail: true,
+      }));
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
   it('loads after the current history boundary with a bounded request', async () => {
     const harness = await mountActions(createState());
     try {

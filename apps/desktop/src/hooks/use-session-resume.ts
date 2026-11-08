@@ -11,6 +11,8 @@ import type {
 import { parseSessionContextSnapshot } from '@piwin/contracts';
 import type { HostClient } from '../host/host-client';
 import type { SessionOrchestrationRestore } from './use-composer-orchestration-controls';
+import { collectTranscriptResidentMessageIds } from '../conversation/transcript-resident-message-ids.js';
+import { getWarmSessionSnapshot } from '../session/session-warm-cache.js';
 import { requestQueuedTurnQueue } from '../conversation/queued-turn-queue-request.js';
 import type { ChatUiAction, ChatUiState } from '../conversation/chat-reducer';
 import type { NotificationAction } from '../notifications/notification-queue';
@@ -64,6 +66,8 @@ export function useSessionResume(input: {
     onSessionComposerProfileRestored,
     onSessionOrchestrationRestored,
   } = input;
+  const residentStateRef = useRef(state);
+  residentStateRef.current = state;
   const selectionGuardRef = useRef(createSessionSelectionGuard(hostClient.getHostInstanceId()));
   const nativeHistoryAttemptsRef = useRef(new Map<string, string>());
   const resumeSessionRef = useRef<
@@ -179,7 +183,15 @@ export function useSessionResume(input: {
       dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
       // Resume is a durable read: it needs no active project or agent runtime.
       // Start it alongside activation instead of paying both round trips in order.
-      const resumeRequest = hostClient.request({ type: 'session/resume', sessionId });
+      const residentState = residentStateRef.current;
+      const residentMessages = residentState.activeSessionId === sessionId
+        ? residentState.messages
+        : getWarmSessionSnapshot(residentState.warmSessionCache, sessionId)?.messages ?? [];
+      const locateMessageIds = collectTranscriptResidentMessageIds(residentMessages);
+      const resumeRequest = hostClient.request({
+        type: 'session/resume', sessionId,
+        ...(locateMessageIds.length === 0 ? {} : { locateMessageIds }),
+      });
 
       if (
         knownProjectPath &&

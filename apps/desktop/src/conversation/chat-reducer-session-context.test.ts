@@ -503,6 +503,32 @@ describe('chatUiReducer session and context', () => {
     expect(state.lastCompactionMessage).toBe('done');
   });
 
+  it('shows a manual compact after a previous run has ended', () => {
+    let state: ReturnType<typeof createInitialChatUiState> = {
+      ...createInitialChatUiState(), activeSessionId: 's1', lastTerminalRunId: 'run-1',
+    };
+    state = chatUiReducer(state, {
+      type: 'event', sessionId: 's1',
+      event: { type: 'compaction/start', reason: 'manual' },
+    });
+    expect(state.compactionActivity).toMatchObject({ phase: 'running', reason: 'manual' });
+    state = chatUiReducer(state, {
+      type: 'event', sessionId: 's1',
+      event: { type: 'compaction/end', reason: 'manual', ok: true, summary: 'kept decisions' },
+    });
+    expect(state.compactionActivity).toMatchObject({ phase: 'succeeded', summary: 'kept decisions' });
+    expect(state.compacting).toBe(false);
+  });
+
+  it('still rejects a compact event belonging to a different active run', () => {
+    const state = { ...createInitialChatUiState(), activeSessionId: 's1', activeRunId: 'run-2' };
+    const next = chatUiReducer(state, {
+      type: 'event', sessionId: 's1',
+      event: { type: 'compaction/start', reason: 'manual', runId: 'run-1' },
+    });
+    expect(next.compactionActivity).toBeNull();
+  });
+
   it('clears the transient activity when Pi reports a no-op compact', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });

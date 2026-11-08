@@ -55,6 +55,25 @@ export type ChatUiEventAction = Extract<
   }
 >;
 
+function isStaleCompactionEvent(
+  state: ChatUiState,
+  event: Extract<AgentEvent, { type: 'compaction/start' | 'compaction/end' }>,
+): boolean {
+  // Manual compaction is a session operation outside a Run. Its Pi events
+  // deliberately have no runId, even after the previous Run has terminalized.
+  if (
+    event.runId === undefined &&
+    state.activeRunId === null &&
+    !state.streaming &&
+    (event.reason === 'manual' ||
+      (event.type === 'compaction/end' && state.compactionActivity?.reason === 'manual' &&
+        state.compactionActivity.phase === 'running'))
+  ) {
+    return false;
+  }
+  return isStaleOptionalRunEvent(state, event.runId);
+}
+
 export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
   switch (event.type) {
     case 'message/start': {
@@ -456,7 +475,7 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
       return { ...state, ...permissionQueueFields(nextQueue) };
     }
     case 'compaction/start':
-      if (isStaleOptionalRunEvent(state, event.runId)) {
+      if (isStaleCompactionEvent(state, event)) {
         return state;
       }
       {
@@ -485,7 +504,7 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
         };
       }
     case 'compaction/end': {
-      if (isStaleOptionalRunEvent(state, event.runId)) {
+      if (isStaleCompactionEvent(state, event)) {
         return state;
       }
       if (event.noOp) {
