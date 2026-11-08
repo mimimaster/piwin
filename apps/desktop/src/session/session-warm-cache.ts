@@ -26,6 +26,8 @@ import type {
   WalkthroughArtifact,
 } from '@piwin/contracts';
 import type { ChatMessageUi, ChatUiState, RunRecordUi } from '../conversation/chat-reducer.js';
+import type { CacheBudget } from '../notes/cache-budget.js';
+import { registerDisposableCache } from '../notes/cache-budget.js';
 import { desktopMetrics, utf8ByteLength } from '../run-activity/diagnostic-metrics.js';
 
 /** Inactive sessions kept warm. Active is always extra on top. */
@@ -33,6 +35,12 @@ export const MAX_WARM_INACTIVE_SESSIONS = 2;
 
 /** @deprecated Use MAX_WARM_INACTIVE_SESSIONS — name was ambiguous. */
 export const MAX_WARM_SESSIONS = MAX_WARM_INACTIVE_SESSIONS;
+
+/**
+ * Warm projections expire: a snapshot stashed longer than this is painted
+ * from a stale view anyway, so admission drops it rather than paying the RAM.
+ */
+export const WARM_SNAPSHOT_MAX_AGE_MS = 5 * 60 * 1000;
 
 export type SessionWarmSnapshot = {
   sessionId: string;
@@ -84,6 +92,174 @@ function reportWarmSessionCacheEstimate(cache: WarmSessionCache): void {
     bytes: estimateWarmSessionCacheBytes(cache),
   });
 }
+
+function isWarmSnapshotExpired(snapshot: SessionWarmSnapshot, maxAgeMs: number): boolean {
+  return Date.now() - snapshot.touchedAt > maxAgeMs;
+}
+
+/**
+ * Trim one warm cache to a budget: drop expired entries, then evict LRU-first
+ * until within maxEntries/maxBytes. A single snapshot larger than maxBytes is
+ * simply not kept (admission rejects oversized entries — no evict-all-then-
+ * admit loop). Returns the same object when nothing was dropped.
+ */
+export function trimWarmSessionCache(
+  cache: WarmSessionCache,
+  budget: CacheBudget,
+  now: number = Date.now(),
+): WarmSessionCache {
+  const maxAgeMs = budget.maxAgeMs;
+  const maxEntries = budget.maxEntries ?? Number.POSITIVE_INFINITY;
+  const maxBytes = budget.maxBytes ?? Number.POSITIVE_INFINITY;
+  const keepIds = new Set<string>();
+  let keptCount = 0;
+  let keptBytes = 0;
+  // Newest → oldest.
+  for (let index = cache.order.length - 1; index >= 0; index -= 1) {
+    const id = cache.order[index];
+    if (id === undefined) continue;
+    const snapshot = cache.byId[id];
+    if (snapshot === undefined) continue;
+    if (maxAgeMs !== undefined && now - snapshot.touchedAt > maxAgeMs) continue;
+    const bytes = safeJsonByteLength(snapshot);
+    if (keptCount >= maxEntries) continue;
+    if (keptBytes + bytes > maxBytes) continue;
+    keepIds.add(id);
+    keptCount += 1;
+    keptBytes += bytes;
+  }
+  if (keepIds.size === cache.order.length) {
+    return cache;
+  }
+  const nextById: Record<string, SessionWarmSnapshot> = {};
+  const nextOrder: string[] = [];
+  for (const id of cache.order) {
+    if (!keepIds.has(id)) continue;
+    const snapshot = cache.byId[id];
+    if (snapshot === undefined) continue;
+    nextById[id] = snapshot;
+    nextOrder.push(id);
+  }
+  const next = { byId: nextById, order: nextOrder };
+  reportWarmSessionCacheEstimate(next);
+  return next;
+}
+
+/**
+ * Registered warm-cache instances. The cache is an immutable value owned by
+ * (dirty) reducers, so the registry holds get/set handles instead of cache
+ * objects; handle owners keep `set` wired to wherever they store the value.
+ */
+type WarmCacheHandle = { get(): WarmSessionCache; set(cache: WarmSessionCache): void };
+const warmCacheHandles = new Set<WarmCacheHandle>();
+
+/**
+ * Governor-pushed admission budget shared by EVERY put, including caches that
+ * never register a handle (the dirty reducers). trimAllWarmSessionCaches
+ * applies registered handles' union trim; this default additionally enforces
+ * the byte/age budget on admission inside putWarmSessionSnapshot so even
+ * unregistered instances cannot grow past it.
+ */
+let warmAdmissionBudget: Pick<CacheBudget, 'maxBytes' | 'maxAgeMs'> = {};
+
+/** Set the module-wide admission budget (governor calls on every transition). */
+export function applyGlobalWarmAdmissionBudget(
+  budget: Pick<CacheBudget, 'maxBytes' | 'maxAgeMs'>,
+): void {
+  warmAdmissionBudget = budget;
+}
+
+/** Register one warm-cache instance for GLOBAL trims. Dedupes by identity. */
+export function registerWarmCache(handle: WarmCacheHandle): () => void {
+  warmCacheHandles.add(handle);
+  return () => {
+    warmCacheHandles.delete(handle);
+  };
+}
+
+/** Live handle count — diagnostics/tests only. */
+export function getWarmCacheHandleCount(): number {
+  return warmCacheHandles.size;
+}
+
+/**
+ * Governor-driven GLOBAL trim: the warm budget applies to the union of every
+ * registered instance, not per pane. Across all handles, snapshots are ranked
+ * by recency (touchedAt); only the globally-newest maxEntries/maxBytes worth
+ * survive, and each handle gets back just its own survivors.
+ */
+export function trimAllWarmSessionCaches(budget: CacheBudget, now: number = Date.now()): void {
+  // Admission budget is module-global: registered AND unregistered instances
+  // respect it on every put from now on.
+  applyGlobalWarmAdmissionBudget({
+    ...(budget.maxBytes === undefined ? {} : { maxBytes: budget.maxBytes }),
+    ...(budget.maxAgeMs === undefined ? {} : { maxAgeMs: budget.maxAgeMs }),
+  });
+  const maxAgeMs = budget.maxAgeMs;
+  const maxEntries = budget.maxEntries ?? Number.POSITIVE_INFINITY;
+  const maxBytes = budget.maxBytes ?? Number.POSITIVE_INFINITY;
+
+  const newestById = new Map<string, SessionWarmSnapshot>();
+  for (const handle of warmCacheHandles) {
+    const cache = handle.get();
+    for (const id of cache.order) {
+      const snapshot = cache.byId[id];
+      if (snapshot === undefined) continue;
+      const known = newestById.get(id);
+      if (known === undefined || snapshot.touchedAt >= known.touchedAt) {
+        newestById.set(id, snapshot);
+      }
+    }
+  }
+
+  const keepIds = new Set<string>();
+  let keptCount = 0;
+  let keptBytes = 0;
+  const ranked = [...newestById.values()].sort((a, b) => b.touchedAt - a.touchedAt);
+  for (const snapshot of ranked) {
+    if (maxAgeMs !== undefined && now - snapshot.touchedAt > maxAgeMs) continue;
+    const bytes = safeJsonByteLength(snapshot);
+    if (keptCount >= maxEntries) continue;
+    if (keptBytes + bytes > maxBytes) continue;
+    keepIds.add(snapshot.sessionId);
+    keptCount += 1;
+    keptBytes += bytes;
+  }
+
+  let totalEntries = 0;
+  for (const handle of warmCacheHandles) {
+    const cache = handle.get();
+    // Each handle keeps only globally-surviving ids (its own copies), and the
+    // TTL still applies per entry.
+    const nextById: Record<string, SessionWarmSnapshot> = {};
+    const nextOrder: string[] = [];
+    for (const id of cache.order) {
+      if (!keepIds.has(id)) continue;
+      const snapshot = cache.byId[id];
+      if (snapshot === undefined) continue;
+      if (maxAgeMs !== undefined && now - snapshot.touchedAt > maxAgeMs) continue;
+      nextById[id] = snapshot;
+      nextOrder.push(id);
+    }
+    if (nextOrder.length !== cache.order.length) {
+      const next = { byId: nextById, order: nextOrder };
+      reportWarmSessionCacheEstimate(next);
+      handle.set(next);
+    }
+    totalEntries += nextOrder.length;
+  }
+  desktopMetrics.setCacheEstimate('warmSessions', {
+    entries: totalEntries,
+    bytes: keptBytes,
+  });
+}
+
+registerDisposableCache({
+  name: 'warmSessions',
+  applyBudget(budget: CacheBudget): void {
+    trimAllWarmSessionCaches(budget);
+  },
+});
 
 export function getWarmSessionSnapshot(
   cache: WarmSessionCache,
@@ -175,15 +351,51 @@ export function putWarmSessionSnapshot(
     ...cache.byId,
     [stored.sessionId]: stored,
   };
-  const nextOrder = [
-    ...cache.order.filter((id) => id !== stored.sessionId),
-    stored.sessionId,
-  ];
+  const nextOrder = [...cache.order.filter((id) => id !== stored.sessionId), stored.sessionId];
 
   while (nextOrder.length > maxInactive) {
     const evictId = nextOrder.shift();
     if (evictId) {
       delete nextById[evictId];
+    }
+  }
+
+  // Expired snapshots are dropped on admission as well (5 min TTL).
+  for (let index = nextOrder.length - 1; index >= 0; index -= 1) {
+    const id = nextOrder[index];
+    if (id === undefined) continue;
+    const snapshot = nextById[id];
+    if (snapshot !== undefined && isWarmSnapshotExpired(snapshot, WARM_SNAPSHOT_MAX_AGE_MS)) {
+      nextOrder.splice(index, 1);
+      delete nextById[id];
+    }
+  }
+
+  // Governor-pushed admission budget: byte cap applies on top of the per-call
+  // maxInactive count. Oversized single entries are simply not admitted
+  // (no evict-all-then-admit), matching the plan's reject rule.
+  const byteCap = warmAdmissionBudget.maxBytes;
+  if (byteCap !== undefined) {
+    let keptBytes = 0;
+    const surviving = new Set<string>();
+    for (let index = nextOrder.length - 1; index >= 0; index -= 1) {
+      const id = nextOrder[index];
+      if (id === undefined) continue;
+      const snapshot = nextById[id];
+      if (snapshot === undefined) continue;
+      const bytes = safeJsonByteLength(snapshot);
+      if (keptBytes + bytes > byteCap) continue;
+      surviving.add(id);
+      keptBytes += bytes;
+    }
+    if (surviving.size !== nextOrder.length) {
+      for (let index = nextOrder.length - 1; index >= 0; index -= 1) {
+        const id = nextOrder[index];
+        if (id !== undefined && !surviving.has(id)) {
+          nextOrder.splice(index, 1);
+          delete nextById[id];
+        }
+      }
     }
   }
 

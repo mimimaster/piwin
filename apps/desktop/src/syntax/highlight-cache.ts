@@ -7,7 +7,13 @@
  * - maxSourceBytesPerEntry: 1 MB (oversized blocks bypass cache)
  */
 import { desktopMetrics } from '../run-activity/diagnostic-metrics';
+import type { CacheBudget } from '../notes/cache-budget.js';
+import { registerDisposableCache } from '../notes/cache-budget.js';
 import type { TokenLine } from './highlight-protocol';
+
+const DEFAULT_MAX_ENTRIES = 100;
+const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
+const DEFAULT_MAX_SOURCE_BYTES_PER_ENTRY = 1 * 1024 * 1024;
 
 export type HighlightCacheEntry = {
   tokenLines: TokenLine[];
@@ -18,12 +24,19 @@ export type HighlightCacheEntry = {
 export class HighlightLruCache {
   private readonly entries = new Map<string, HighlightCacheEntry>();
   private totalBytes = 0;
+  public maxEntries: number;
+  public maxBytes: number;
+  public readonly maxSourceBytesPerEntry: number;
 
   constructor(
-    public readonly maxEntries = 100,
-    public readonly maxBytes = 10 * 1024 * 1024,
-    public readonly maxSourceBytesPerEntry = 1 * 1024 * 1024,
-  ) {}
+    maxEntries = DEFAULT_MAX_ENTRIES,
+    maxBytes = DEFAULT_MAX_BYTES,
+    maxSourceBytesPerEntry = DEFAULT_MAX_SOURCE_BYTES_PER_ENTRY,
+  ) {
+    this.maxEntries = maxEntries;
+    this.maxBytes = maxBytes;
+    this.maxSourceBytesPerEntry = maxSourceBytesPerEntry;
+  }
 
   public get(key: string): TokenLine[] | null {
     const entry = this.entries.get(key);
@@ -50,6 +63,14 @@ export class HighlightLruCache {
     }
     const estimatedEntryBytes = Math.max(sourceBytes * 2, tokenCount * 64);
 
+    // Admission rejects a single oversized entry outright — even an empty
+    // cache (or every older entry already evicted) must not admit it, so we
+    // never evict-everything-then-store-over-budget. Zero caps (critical
+    // pressure) mean no new disposable entries at all.
+    if (this.maxEntries <= 0 || estimatedEntryBytes > this.maxBytes) {
+      return;
+    }
+
     // If key exists, subtract old size first
     const existing = this.entries.get(key);
     if (existing) {
@@ -57,7 +78,7 @@ export class HighlightLruCache {
       this.entries.delete(key);
     }
 
-    // Evict oldest entries until within bounds
+    // Evict oldest entries until the new one fits
     while (
       (this.entries.size >= this.maxEntries ||
         this.totalBytes + estimatedEntryBytes > this.maxBytes) &&
@@ -81,6 +102,41 @@ export class HighlightLruCache {
     desktopMetrics.setHighlightCacheBytes(this.totalBytes);
   }
 
+  /**
+   * Governor-driven trim: update caps, evict LRU-first until within them.
+   * `evictAll` clears contents now while the caps bound the refill.
+   * Highlight entries carry no lease concept — every entry is disposable.
+   */
+  public applyBudget(budget: CacheBudget): void {
+    this.maxEntries = budget.maxEntries ?? DEFAULT_MAX_ENTRIES;
+    this.maxBytes = budget.maxBytes ?? DEFAULT_MAX_BYTES;
+    this.trimToBudget(budget);
+  }
+
+  public trimToBudget(budget: CacheBudget): void {
+    if (budget.evictAll) {
+      this.clear();
+      return;
+    }
+    const maxEntries = budget.maxEntries ?? this.maxEntries;
+    const maxBytes = budget.maxBytes ?? this.maxBytes;
+    while (this.entries.size > maxEntries || this.totalBytes > maxBytes) {
+      const oldestKey = this.entries.keys().next().value;
+      if (oldestKey === undefined) break;
+      const oldestEntry = this.entries.get(oldestKey);
+      if (oldestEntry) {
+        this.totalBytes -= oldestEntry.byteSize;
+      }
+      this.entries.delete(oldestKey);
+    }
+    desktopMetrics.setHighlightCacheBytes(this.totalBytes);
+  }
+
+  /** Re-admission path after a restricted level: restore default caps. */
+  public restoreDefaultBudget(): void {
+    this.applyBudget({});
+  }
+
   public clear(): void {
     this.entries.clear();
     this.totalBytes = 0;
@@ -97,3 +153,10 @@ export class HighlightLruCache {
 }
 
 export const globalHighlightCache = new HighlightLruCache();
+
+registerDisposableCache({
+  name: 'highlightCache',
+  applyBudget(budget: CacheBudget): void {
+    globalHighlightCache.applyBudget(budget);
+  },
+});

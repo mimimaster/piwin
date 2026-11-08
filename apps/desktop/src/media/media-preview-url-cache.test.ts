@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   acquireMediaPreviewUrl,
+  applyMediaPreviewUrlBudget,
+  getMediaPreviewUrlCacheStats,
   MAX_IDLE_MEDIA_PREVIEW_URLS,
   releaseMediaPreviewUrl,
   resetMediaPreviewUrlCacheForTests,
+  revokeAllIdleMediaPreviewUrls,
 } from './media-preview-url-cache';
 
 describe('media preview url cache', () => {
@@ -89,5 +92,42 @@ describe('media preview url cache', () => {
     releaseMediaPreviewUrl(url);
     releaseMediaPreviewUrl(url);
     expect(revoked).toEqual([]);
+  });
+
+  it('reclaim budget revokes the whole idle tail but never a lease', async () => {
+    const held = await acquire('held');
+    for (let index = 0; index < 3; index += 1) {
+      releaseMediaPreviewUrl(await acquire(`idle-${index}`));
+    }
+    expect(getMediaPreviewUrlCacheStats().idle).toBe(3);
+
+    applyMediaPreviewUrlBudget({ evictAll: true, maxEntries: 0 });
+    expect(getMediaPreviewUrlCacheStats().idle).toBe(0);
+    expect(revoked).toEqual(['blob:idle-0', 'blob:idle-1', 'blob:idle-2']);
+    expect(revoked).not.toContain(held);
+
+    // Zero idle tail persists: releasing the lease revokes immediately.
+    releaseMediaPreviewUrl(held);
+    expect(revoked).toContain(held);
+  });
+
+  it('restoring the normal budget re-admits an idle tail', async () => {
+    applyMediaPreviewUrlBudget({ evictAll: true, maxEntries: 0 });
+    applyMediaPreviewUrlBudget({ maxEntries: MAX_IDLE_MEDIA_PREVIEW_URLS });
+    for (let index = 0; index < 2; index += 1) {
+      releaseMediaPreviewUrl(await acquire(`idle-${index}`));
+    }
+    expect(revoked).toEqual([]);
+    expect(getMediaPreviewUrlCacheStats().idle).toBe(2);
+  });
+
+  it('revokeAllIdleMediaPreviewUrls clears only idle entries', async () => {
+    const held = await acquire('held');
+    releaseMediaPreviewUrl(await acquire('idle-0'));
+    expect(revokeAllIdleMediaPreviewUrls()).toBe(1);
+    expect(getMediaPreviewUrlCacheStats().entries).toBe(1);
+    expect(getMediaPreviewUrlCacheStats().leased).toBe(1);
+    releaseMediaPreviewUrl(held);
+    expect(revoked).not.toContain(held);
   });
 });

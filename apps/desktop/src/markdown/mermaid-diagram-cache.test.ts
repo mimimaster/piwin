@@ -3,11 +3,13 @@ import {
   MAX_MERMAID_DIAGRAM_HEIGHT_CACHE_ENTRIES,
   MAX_MERMAID_DIAGRAM_SVG_CACHE_ENTRIES,
   clearMermaidDiagramCacheForTests,
+  getMermaidDiagramCacheStats,
   getOrCreateMermaidDiagramRender,
   readMermaidDiagramHeight,
   readMermaidDiagramSvg,
   rememberMermaidDiagramHeight,
   rememberMermaidDiagramSvg,
+  trimMermaidDiagramCache,
 } from './mermaid-diagram-cache.js';
 
 describe('mermaid diagram cache', () => {
@@ -111,5 +113,118 @@ describe('mermaid diagram cache', () => {
       getOrCreateMermaidDiagramRender('graph TD', 'dark', async () => '<svg id="retry"></svg>'),
     ).resolves.toBe('<svg id="retry"></svg>');
     expect(readMermaidDiagramSvg('graph TD', 'dark')).toBe('<svg id="retry"></svg>');
+  });
+});
+
+describe('mermaid diagram cache — governor budgets', () => {
+  beforeEach(() => {
+    clearMermaidDiagramCacheForTests();
+  });
+
+  it('trims LRU-first to a byte budget and tracks svgBytes', () => {
+    rememberMermaidDiagramSvg('s1', 'dark', 'a'.repeat(100));
+    rememberMermaidDiagramSvg('s2', 'dark', 'b'.repeat(100));
+    expect(getMermaidDiagramCacheStats().svgBytes).toBe(200);
+
+    trimMermaidDiagramCache({ maxBytes: 150 });
+    expect(readMermaidDiagramSvg('s1', 'dark')).toBeNull();
+    expect(readMermaidDiagramSvg('s2', 'dark')).toBe('b'.repeat(100));
+    expect(getMermaidDiagramCacheStats().svgBytes).toBe(100);
+  });
+
+  it('rejects a single oversized svg without evicting older entries first', () => {
+    trimMermaidDiagramCache({ maxBytes: 300 });
+    rememberMermaidDiagramSvg('small', 'dark', 'x'.repeat(100));
+    rememberMermaidDiagramSvg('huge', 'dark', 'y'.repeat(400));
+    expect(readMermaidDiagramSvg('huge', 'dark')).toBeNull();
+    expect(readMermaidDiagramSvg('small', 'dark')).toBe('x'.repeat(100));
+  });
+
+  it('evictAll clears contents while the budget still admits small refills', () => {
+    rememberMermaidDiagramSvg('s1', 'dark', '<svg>1</svg>');
+    trimMermaidDiagramCache({ evictAll: true, maxBytes: 100 });
+    expect(readMermaidDiagramSvg('s1', 'dark')).toBeNull();
+
+    rememberMermaidDiagramSvg('s2', 'dark', 'z'.repeat(80));
+    expect(readMermaidDiagramSvg('s2', 'dark')).toBe('z'.repeat(80));
+    rememberMermaidDiagramSvg('s3', 'dark', 'w'.repeat(80));
+    // 80 + 80 > 100: s2 evicted to fit s3.
+    expect(readMermaidDiagramSvg('s2', 'dark')).toBeNull();
+    expect(readMermaidDiagramSvg('s3', 'dark')).toBe('w'.repeat(80));
+  });
+
+  it('a zero budget admits nothing and drops everything', () => {
+    rememberMermaidDiagramSvg('s1', 'dark', '<svg>1</svg>');
+    rememberMermaidDiagramHeight('s1', 'dark', 200);
+    trimMermaidDiagramCache({ maxEntries: 0, maxBytes: 0 });
+    expect(getMermaidDiagramCacheStats().svgEntries).toBe(0);
+    rememberMermaidDiagramSvg('s2', 'dark', '<svg>2</svg>');
+    rememberMermaidDiagramHeight('s2', 'dark', 200);
+    expect(readMermaidDiagramSvg('s2', 'dark')).toBeNull();
+    expect(readMermaidDiagramHeight('s2', 'dark')).toBeNull();
+  });
+
+  it('a stale completion is returned but not written to the shared cache', async () => {
+    let stale = false;
+    let finish: ((svg: string) => void) | undefined;
+    const pending = getOrCreateMermaidDiagramRender(
+      'graph TD',
+      'dark',
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+      () => stale,
+    );
+    stale = true;
+    finish?.('<svg id="late"></svg>');
+    await expect(pending).resolves.toBe('<svg id="late"></svg>');
+    expect(readMermaidDiagramSvg('graph TD', 'dark')).toBeNull();
+  });
+
+  it('a live completion still populates the cache', async () => {
+    const stale = false;
+    await expect(
+      getOrCreateMermaidDiagramRender(
+        'graph TD',
+        'dark',
+        async () => '<svg id="live"></svg>',
+        () => stale,
+      ),
+    ).resolves.toBe('<svg id="live"></svg>');
+    expect(readMermaidDiagramSvg('graph TD', 'dark')).toBe('<svg id="live"></svg>');
+  });
+
+  it('a coalesced render stores while any owner is still live', async () => {
+    let staleA = false;
+    const staleB = false;
+    let finish: ((svg: string) => void) | undefined;
+    const render = () =>
+      new Promise<string>((resolve) => {
+        finish = resolve;
+      });
+    const first = getOrCreateMermaidDiagramRender('graph TD', 'dark', render, () => staleA);
+    const second = getOrCreateMermaidDiagramRender('graph TD', 'dark', render, () => staleB);
+    staleA = true; // owner A gone, owner B still live
+    finish?.('<svg id="shared"></svg>');
+    await Promise.all([first, second]);
+    expect(readMermaidDiagramSvg('graph TD', 'dark')).toBe('<svg id="shared"></svg>');
+  });
+
+  it('a coalesced render is dropped when every owner went stale', async () => {
+    let staleA = false;
+    let staleB = false;
+    let finish: ((svg: string) => void) | undefined;
+    const render = () =>
+      new Promise<string>((resolve) => {
+        finish = resolve;
+      });
+    const first = getOrCreateMermaidDiagramRender('graph TD', 'dark', render, () => staleA);
+    const second = getOrCreateMermaidDiagramRender('graph TD', 'dark', render, () => staleB);
+    staleA = true;
+    staleB = true;
+    finish?.('<svg id="orphan"></svg>');
+    await Promise.all([first, second]);
+    expect(readMermaidDiagramSvg('graph TD', 'dark')).toBeNull();
   });
 });

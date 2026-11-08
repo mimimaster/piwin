@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ARTIFACT_MEDIA_TOTAL_BUDGET_CHARS,
+  getArtifactMediaDataUrlCacheStats,
   resetArtifactMediaDataUrlCacheForTests,
   resolveArtifactSessionMediaDataUrls,
   resolveBoundArtifactMediaSessionId,
+  trimArtifactMediaDataUrlCache,
 } from './artifact-session-media';
 
 const MEDIA_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
@@ -15,9 +17,10 @@ const { limitedDataUrlFromHref } = vi.hoisted(() => ({
 }));
 
 const { localVaultUrl } = vi.hoisted(() => ({
-  localVaultUrl: vi.fn<
-    (input: { sessionId: string; assetId: string; mimeType: string }) => Promise<string | null>
-  >(),
+  localVaultUrl:
+    vi.fn<
+      (input: { sessionId: string; assetId: string; mimeType: string }) => Promise<string | null>
+    >(),
 }));
 
 vi.mock('../media/media-preview-bitmap', () => ({
@@ -186,6 +189,132 @@ describe('resolveArtifactSessionMediaDataUrls', () => {
     expect(urls.has(MEDIA_ID)).toBe(true);
     expect(urls.has(OTHER_MEDIA_ID)).toBe(false);
   });
+
+  it('a stale completion is returned to the caller but never admitted to the cache', async () => {
+    let stale = false;
+    limitedDataUrlFromHref.mockImplementation(async () => {
+      stale = true; // caller's generation flipped mid-decode
+      return DATA_URL;
+    });
+    const urls = await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia: async () => 'blob:http://localhost/icon',
+      isStale: () => stale,
+    });
+    expect(urls.get(MEDIA_ID)).toBe(DATA_URL);
+
+    // Not cached: a fresh resolve decodes again instead of hitting the entry.
+    limitedDataUrlFromHref.mockClear();
+    await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia: async () => 'blob:http://localhost/icon',
+    });
+    expect(limitedDataUrlFromHref).toHaveBeenCalledTimes(1);
+  });
+
+  it('a live completion populates the cache normally', async () => {
+    limitedDataUrlFromHref.mockResolvedValue(DATA_URL);
+    const input = {
+      source: `<img data-piwin-media="${MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia: async () => 'blob:http://localhost/icon',
+      isStale: () => false,
+    };
+    await resolveArtifactSessionMediaDataUrls(input);
+    limitedDataUrlFromHref.mockClear();
+    await resolveArtifactSessionMediaDataUrls(input);
+    expect(limitedDataUrlFromHref).not.toHaveBeenCalled();
+  });
+
+  it('budget trim evicts settled entries LRU-first and a zero budget drains all', async () => {
+    limitedDataUrlFromHref.mockImplementation(async () => DATA_URL);
+    const readMedia = async () => 'blob:http://localhost/icon';
+    await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia,
+    });
+    await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${OTHER_MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia,
+    });
+    expect(getArtifactMediaDataUrlCacheStats().entries).toBe(2);
+
+    trimArtifactMediaDataUrlCache({ maxEntries: 1 });
+    expect(getArtifactMediaDataUrlCacheStats().entries).toBe(1);
+
+    // The evicted id decodes again; the kept one is a cache hit.
+    limitedDataUrlFromHref.mockClear();
+    await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${OTHER_MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia,
+    });
+    await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia,
+    });
+    expect(limitedDataUrlFromHref).toHaveBeenCalledTimes(1);
+
+    trimArtifactMediaDataUrlCache({ evictAll: true, maxEntries: 0, maxBytes: 0 });
+    expect(getArtifactMediaDataUrlCacheStats().entries).toBe(0);
+  });
+
+  it('a single oversized decode is returned but never admitted under the byte budget', async () => {
+    const hugeUrl = `data:image/webp;base64,${'A'.repeat(5000)}`;
+    limitedDataUrlFromHref.mockImplementation(async (href) =>
+      href.endsWith('huge') ? hugeUrl : DATA_URL,
+    );
+    trimArtifactMediaDataUrlCache({ maxBytes: 1000 });
+    const readMedia = async ({ assetId }: { sessionId: string; assetId: string }) =>
+      assetId === MEDIA_ID ? 'blob:http://localhost/huge' : 'blob:http://localhost/small';
+
+    const urls = await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${MEDIA_ID}"><img data-piwin-media="${OTHER_MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia,
+    });
+    expect(urls.get(MEDIA_ID)).toBe(hugeUrl);
+
+    // Oversized entry was not admitted: only the small one is a cache hit.
+    limitedDataUrlFromHref.mockClear();
+    await resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${MEDIA_ID}"><img data-piwin-media="${OTHER_MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia,
+    });
+    expect(limitedDataUrlFromHref).toHaveBeenCalledTimes(1);
+  });
+
+  it('an inflight decode is leased and survives an evictAll trim', async () => {
+    let finish: ((url: string | null) => void) | undefined;
+    limitedDataUrlFromHref.mockImplementation(
+      () =>
+        new Promise<string | null>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = resolveArtifactSessionMediaDataUrls({
+      source: `<img data-piwin-media="${MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia: async () => 'blob:http://localhost/icon',
+    });
+    // Let the decode chain reach the deferred.
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    trimArtifactMediaDataUrlCache({ evictAll: true, maxEntries: 0, maxBytes: 0 });
+    // The pending decode kept its lease — the cache still holds the entry.
+    expect(getArtifactMediaDataUrlCacheStats().entries).toBe(1);
+
+    finish?.(DATA_URL);
+    await expect(pending).resolves.toEqual(new Map([[MEDIA_ID, DATA_URL]]));
+    // Zero-budget admission: resolved value was marked unleased, dropped by trim.
+    trimArtifactMediaDataUrlCache({ maxEntries: 0, maxBytes: 0 });
+    expect(getArtifactMediaDataUrlCacheStats().entries).toBe(0);
+  });
 });
 
 afterEach(() => {
@@ -212,8 +341,8 @@ describe('resolveBoundArtifactMediaSessionId', () => {
   });
 
   it('falls back to the provider session when origin is omitted', () => {
-    expect(
-      resolveBoundArtifactMediaSessionId({ providerSessionId: 'session-1' }),
-    ).toBe('session-1');
+    expect(resolveBoundArtifactMediaSessionId({ providerSessionId: 'session-1' })).toBe(
+      'session-1',
+    );
   });
 });

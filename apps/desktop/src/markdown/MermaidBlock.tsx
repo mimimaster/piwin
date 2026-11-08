@@ -108,20 +108,27 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
       }, MERMAID_RENDER_TIMEOUT_MS);
 
       try {
-        const svg = await getOrCreateMermaidDiagramRender(source, themeMode, async () => {
-          const mermaidModule = await import('mermaid');
-          const mermaid = mermaidModule.default;
-          mermaid.initialize({
-            startOnLoad: false,
-            // Strict: no click handlers / loose HTML in diagram labels.
-            securityLevel: 'strict',
-            theme: MERMAID_THEME[themeMode],
-            fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-          });
-          const diagramId = `piwin-mermaid-${reactId}-${Date.now().toString(36)}`;
-          const rendered = await mermaid.render(diagramId, source);
-          return withIntrinsicMermaidSvgSize(rendered.svg);
-        });
+        const svg = await getOrCreateMermaidDiagramRender(
+          source,
+          themeMode,
+          async () => {
+            const mermaidModule = await import('mermaid');
+            const mermaid = mermaidModule.default;
+            mermaid.initialize({
+              startOnLoad: false,
+              // Strict: no click handlers / loose HTML in diagram labels.
+              securityLevel: 'strict',
+              theme: MERMAID_THEME[themeMode],
+              fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+            });
+            const diagramId = `piwin-mermaid-${reactId}-${Date.now().toString(36)}`;
+            const rendered = await mermaid.render(diagramId, source);
+            return withIntrinsicMermaidSvgSize(rendered.svg);
+          },
+          // Generation guard: if this fence unmounted/re-streamed before the
+          // shared render settles, its SVG is returned but never cached.
+          () => cancelled,
+        );
         if (timeoutId !== undefined) {
           clearTimeout(timeoutId);
         }

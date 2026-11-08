@@ -7,6 +7,8 @@
  * when they unmount; a URL nobody leases stays warm for scroll-back and is
  * revoked once it falls out of the idle tail.
  */
+import type { CacheBudget } from '../notes/cache-budget.js';
+import { registerDisposableCache } from '../notes/cache-budget.js';
 import { desktopMetrics } from '../run-activity/diagnostic-metrics.js';
 
 export const MAX_IDLE_MEDIA_PREVIEW_URLS = 6;
@@ -18,19 +20,56 @@ const entriesByKey = new Map<string, LeasedUrl>();
 const keysByUrl = new Map<string, string>();
 const inflightByKey = new Map<string, Promise<string | null>>();
 
+/** Idle tail cap — the governor shrinks it to 0 under reclaim/critical. */
+let maxIdleUrls = MAX_IDLE_MEDIA_PREVIEW_URLS;
+
+function revokeEntry(key: string): void {
+  const entry = entriesByKey.get(key);
+  if (entry === undefined) return;
+  entriesByKey.delete(key);
+  keysByUrl.delete(entry.url);
+  URL.revokeObjectURL(entry.url);
+}
+
 function revokeIdleOverflow(): void {
   const idleKeys: string[] = [];
   for (const [key, entry] of entriesByKey) {
     if (entry.leases === 0) idleKeys.push(key);
   }
-  const overflow = idleKeys.length - MAX_IDLE_MEDIA_PREVIEW_URLS;
+  const overflow = idleKeys.length - maxIdleUrls;
   for (const key of idleKeys.slice(0, Math.max(0, overflow))) {
-    const entry = entriesByKey.get(key);
-    if (entry === undefined) continue;
-    entriesByKey.delete(key);
-    keysByUrl.delete(entry.url);
-    URL.revokeObjectURL(entry.url);
+    revokeEntry(key);
   }
+}
+
+/**
+ * Revoke every URL nobody is leasing right now (reclaim/critical: zero idle
+ * tail). Leased URLs are untouched — blob bytes stay pinned while on screen.
+ * Returns how many idle URLs were revoked.
+ */
+export function revokeAllIdleMediaPreviewUrls(): number {
+  let revoked = 0;
+  for (const [key, entry] of [...entriesByKey]) {
+    if (entry.leases === 0) {
+      revokeEntry(key);
+      revoked += 1;
+    }
+  }
+  return revoked;
+}
+
+/**
+ * Governor-driven trim. `budget.maxEntries` is the IDLE tail cap (not total
+ * entries): leased URLs are non-disposable and never revoked. `evictAll` and
+ * a zero cap both collapse the idle tail immediately.
+ */
+export function applyMediaPreviewUrlBudget(budget: CacheBudget): void {
+  if (budget.evictAll) {
+    maxIdleUrls = 0;
+  } else if (budget.maxEntries !== undefined) {
+    maxIdleUrls = Math.max(0, budget.maxEntries);
+  }
+  revokeIdleOverflow();
 }
 
 /**
@@ -89,6 +128,7 @@ export function resetMediaPreviewUrlCacheForTests(): void {
   entriesByKey.clear();
   keysByUrl.clear();
   inflightByKey.clear();
+  maxIdleUrls = MAX_IDLE_MEDIA_PREVIEW_URLS;
 }
 
 /**
@@ -119,3 +159,8 @@ desktopMetrics.registerCacheProvider('mediaPreviewUrls', () => ({
   entries: getMediaPreviewUrlCacheStats().entries,
   bytes: 0,
 }));
+
+registerDisposableCache({
+  name: 'mediaPreviewUrls',
+  applyBudget: applyMediaPreviewUrlBudget,
+});
