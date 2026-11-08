@@ -117,7 +117,7 @@ export type SessionHostCommand =
     }
   | { id?: string; type: 'subagent/worktree-gc-preview' }
   | { id?: string; type: 'subagent/worktree-gc' }
-  | { id?: string; type: 'session/resume'; sessionId: string }
+  | { id?: string; type: 'session/resume'; sessionId: string; locateMessageIds?: string[] }
   /** ADR 0082: backend capabilities + backend-owned options for one session. */
   | { id?: string; type: 'session/backend-get'; sessionId: string }
   | {

@@ -2,6 +2,7 @@
  * Split from transcript-store.ts — pure relocation, no behavior change.
  */
 
+import { readTranscriptMessagePositions } from './transcript-store-message-positions.js';
 import { createTranscriptTurnSummaryReader } from './transcript-store-turn-summaries.js';
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
@@ -390,6 +391,9 @@ export function createTranscriptPagesOps(
       async transcriptPage(query) {
         ensureOpen();
         validateTranscriptPageQuery(query, options.sessionId);
+        const messagePositions = query.locateMessageIds === undefined
+          ? undefined
+          : readTranscriptMessagePositions(db, options.sessionId, query.locateMessageIds);
         const revision = currentRevision();
         const totalCount = countPathRows(db, options.sessionId);
         const cursor =
@@ -481,6 +485,7 @@ export function createTranscriptPagesOps(
                 ),
               }),
           messageBytes,
+          ...(messagePositions === undefined ? {} : { messagePositions }),
           turnSummaries: readTurnSummaries(transcriptRevisionToken(options.sessionId, revision), startIndex, endIndex),
         };
         const resultPage: typeof page & { truncatedMessageIds?: string[]; olderCursor?: string } =

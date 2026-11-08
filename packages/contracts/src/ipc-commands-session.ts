@@ -159,7 +159,7 @@ export type HostSessionCommand =
       expectedRevision?: number;
       cleanupToken?: string;
     }
-  | { id?: string; type: 'session/resume'; sessionId: string }
+  | { id?: string; type: 'session/resume'; sessionId: string; locateMessageIds?: string[] }
   | {
       id?: string;
       /** ADR 0040 §9: bounded outline page for older outline data. */

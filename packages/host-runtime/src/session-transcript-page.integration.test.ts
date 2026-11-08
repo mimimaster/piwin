@@ -61,6 +61,7 @@ describe('HostRuntime transcript paging', () => {
       const resumeResponse = await runtime.handleCommand({
         type: 'session/resume',
         sessionId,
+        locateMessageIds: ['message-0', 'message-1'],
       });
       expect(resumeResponse.success).toBe(true);
       if (!resumeResponse.success) throw new Error(resumeResponse.error);
@@ -69,6 +70,10 @@ describe('HostRuntime transcript paging', () => {
       expect(resume.messages[0]?.id).toBe('message-30');
       expect(resume.messages.at(-1)?.id).toBe('message-79');
       expect(resume.transcriptPage?.totalCount).toBe(80);
+      expect(resume.transcriptPage?.messagePositions).toEqual([
+        { messageId: 'message-0', index: 0 },
+        { messageId: 'message-1', index: 1 },
+      ]);
       const olderCursor = resume.transcriptPage?.olderCursor;
       if (olderCursor === undefined) throw new Error('expected older transcript cursor');
 

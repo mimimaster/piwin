@@ -3,6 +3,8 @@ import type { SessionTranscriptMessage } from './session-transcript.js';
 /** Initial / page size for session transcript windows (was 16 — too small for coding sessions). */
 export const SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS = 50;
 export const SESSION_TRANSCRIPT_PAGE_MAX_ITEMS = 50;
+/** Bounded resident identities a shell can locate while reconciling a live tail. */
+export const SESSION_TRANSCRIPT_PAGE_MAX_LOCATE_IDS = 160;
 export const SESSION_TRANSCRIPT_PAGE_MIN_BYTES = 16 * 1024;
 export const SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES = 256 * 1024;
 export const SESSION_TRANSCRIPT_PAGE_MAX_BYTES = 512 * 1024;
@@ -21,6 +23,8 @@ export type SessionTranscriptPageQuery = {
   maximumBytes: number;
   /** Opaque exclusive upper boundary returned as `olderCursor`. */
   beforeCursor?: string;
+  /** Locate resident rows on the same active-path revision without loading their bodies. */
+  locateMessageIds?: string[];
 };
 
 /** Complete work totals on the active conversation branch, independent of paging. */
@@ -48,6 +52,8 @@ export type SessionTranscriptPageInfo = {
   endIndex: number;
   /** Serialized UTF-8 bytes retained by the page's message array. */
   messageBytes: number;
+  /** Requested resident rows found on this active path, including rows outside the page. */
+  messagePositions?: Array<{ messageId: string; index: number }>;
   /**
    * Non-empty user messages on the active path before `startIndex` — the
    * ordinal (as in the user-message index) the page's first user message has.

@@ -16,6 +16,7 @@ describe('session transcript page contracts', () => {
       limit: 50,
       maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
       beforeCursor: 'opaque-before',
+      locateMessageIds: ['resident-query'],
     };
     const data: SessionTranscriptPageData = {
       status: 'page',
@@ -27,6 +28,7 @@ describe('session transcript page contracts', () => {
         endIndex: 24,
         messageBytes: 2,
         olderCursor: 'opaque-older',
+        messagePositions: [{ messageId: 'resident-query', index: 0 }],
       },
     };
 

@@ -414,6 +414,25 @@ an automatic episode. The renderer-recovery action is user-initiated and
 gates on real durability checks (Run guard → draft persistence →
 `canReclaimComposerDrafts`) before dispatching `piwin:before-renderer-relaunch`.
 
+## Disjoint transcript recovery addendum (2026-11-08)
+
+A bounded Host tail may have no resident message ids after a delivery gap.
+Appending the entire local active turn in that case replays its original query
+and stale opening reply *after* later tool work, despite only one durable query.
+
+Desktop recovery uses `session/transcript-page` on capable Hosts and forwards
+its page metadata. Resume and page queries accept optional `locateMessageIds`
+(at most 160 identities, 256 characters each). The page returns
+`messagePositions` for those identities on the same active-path revision. It loads no additional message bodies. Off-path and
+not-yet-persisted identities have no position.
+
+Resident rows proven to precede the page yield to bounded history, including
+the original query; user-message navigation still addresses that durable row.
+Unpersisted live output survives. Existing overlapping-row/tool merges and the
+legacy `session/messages` bridge remain. Text equality and client/Host clocks
+are not ordering authorities. Stale-cursor tail restarts use the same location
+evidence as reconnect and warm-session resume.
+
 ## Consequences
 
 - The immediate redundant Run regression is fixed at its authority, not hidden

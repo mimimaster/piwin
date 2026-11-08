@@ -404,6 +404,7 @@ export async function handleSessionLiveCommand(
         sessionId: command.sessionId,
         limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
         maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
+        ...(command.locateMessageIds === undefined ? {} : { locateMessageIds: command.locateMessageIds }),
       });
       if (transcriptPage.status !== 'page') {
         throw new Error('Cursorless transcript tail unexpectedly returned stale');
