@@ -89,14 +89,26 @@ describe('launch splash controller', () => {
     await vi.advanceTimersByTimeAsync(0);
   }
 
-  it('waits for the enso stroke to finish even when the app mounts at once', async () => {
+  it('holds the brush until the app has mounted, so boot cannot freeze the stroke', async () => {
+    boot();
+    // 2s of boot: the splash must stay on plain paper, not a half-drawn stroke.
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(splash()?.className).not.toContain('is-drawing');
+    expect(splash()?.className).toContain('is-waiting');
+    await mountApp();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(splash()?.className).toContain('is-drawing');
+    expect(splash()?.className).not.toContain('is-waiting');
+  });
+
+  it('leaves once the stroke and dot have played after the mount', async () => {
     boot();
     await mountApp();
-    await vi.advanceTimersByTimeAsync(1600);
+    await vi.advanceTimersByTimeAsync(60 + 900);
     expect(splash()?.className).not.toContain('is-leaving');
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(100);
     expect(splash()?.className).toContain('is-leaving');
-    await vi.advanceTimersByTimeAsync(700);
+    await vi.advanceTimersByTimeAsync(400);
     expect(splash()).toBeNull();
     expect(document.getElementById('launch-splash-style')).toBeNull();
     expect(window.sessionStorage.getItem(SHOWN_KEY)).toBe('1');
@@ -105,12 +117,13 @@ describe('launch splash controller', () => {
   it('ignores the desktop boot placeholder inside #root', async () => {
     boot();
     await mountApp('boot-splash');
-    await vi.advanceTimersByTimeAsync(2500);
-    expect(splash()?.className).not.toContain('is-leaving');
+    await vi.advanceTimersByTimeAsync(900);
+    expect(splash()?.className).not.toContain('is-drawing');
     expect(splash()?.className).toContain('is-waiting');
     await mountApp('workbench');
     await vi.advanceTimersByTimeAsync(100);
-    expect(splash()?.className).toContain('is-leaving');
+    expect(splash()?.className).toContain('is-drawing');
+    expect(splash()?.className).not.toContain('is-waiting');
   });
 
   it('plays the quick version on a same-session reload', async () => {
@@ -118,7 +131,7 @@ describe('launch splash controller', () => {
     boot();
     expect(splash()?.className).toContain('is-quick');
     await mountApp();
-    await vi.advanceTimersByTimeAsync(400);
+    await vi.advanceTimersByTimeAsync(350);
     expect(splash()?.className).toContain('is-leaving');
   });
 

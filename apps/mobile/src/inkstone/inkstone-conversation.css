@@ -391,7 +391,9 @@
 
 .chat-scroll {
   padding-top: 7px;
-  padding-bottom: 32px;
+  /* Room under the last turn: the composer slab is a sibling, so this padding is
+     the whole gap between the conversation output and the input. */
+  padding-bottom: 52px;
 }
 
 .chat-context {
@@ -601,7 +603,9 @@
 }
 
 .composer-dock {
-  padding: 6px 14px 3px;
+  /* 12px above the slab keeps the input off the transcript; the bottom inset
+     keeps it off the home indicator on a notched phone. */
+  padding: 12px 14px max(3px, env(safe-area-inset-bottom, 0px));
   background: var(--s2);
   flex: none;
 }

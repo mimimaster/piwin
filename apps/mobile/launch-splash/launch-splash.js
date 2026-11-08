@@ -1,7 +1,15 @@
 /*
  * Launch splash controller. Inlined at the end of <body>, so #root exists and
- * the app bundle (a deferred module) has not run yet. The splash leaves once the
- * app has put its own content into #root and the enso stroke has had time to finish.
+ * the app bundle (a deferred module) has not run yet.
+ *
+ * The brush is a paint animation (stroke-dashoffset on a masked path), so it
+ * only advances while the main thread is idle. Starting it at page load made it
+ * freeze mid-stroke: the entry chunk and React's first render are the only long
+ * tasks on this page, and they land inside the stroke window (measured: a
+ * 400ms block held the dash at 67.96px and then jumped to 1.62px). The splash
+ * therefore waits — plain paper, like the native LaunchScreen — and plays the
+ * stroke once the app has mounted.
+ *
  * Plain ES5 on purpose: it runs before any bundle and on the oldest webview.
  */
 (function () {
@@ -10,17 +18,19 @@
     return;
   }
   var SHOWN_KEY = 'piwin.launch-splash.shown';
-  // Stroke ends at ~0.92s, dot lands at ~1.25s; hold, then the 0.56s crossfade (≈2.3s total).
-  var FULL_MIN_MS = 1700;
-  var QUICK_MIN_MS = 320;
-  var REDUCED_MIN_MS = 700;
-  var WAIT_HINT_MS = 2000;
+  // One paint beat after mount so the app's first frame is on screen underneath.
+  var DRAW_LEAD_MS = 60;
+  // Stroke 560ms, dot lands at 860ms; the CSS timeline is the source of truth.
+  var DRAW_HOLD_MS = 920;
+  var QUICK_HOLD_MS = 240;
+  var REDUCED_HOLD_MS = 320;
+  var WAIT_HINT_MS = 700;
   var FAILSAFE_MS = 12000;
-  var EXIT_MS = 600;
+  var EXIT_MS = 340;
 
   var html = document.documentElement;
-  var startedAt = Date.now();
   var leaving = false;
+  var drawing = false;
   var scheduled = false;
   var timers = [];
 
@@ -36,7 +46,7 @@
   if (quick) {
     splash.className += ' is-quick';
   }
-  var minimumMs = quick ? QUICK_MIN_MS : reduced ? REDUCED_MIN_MS : FULL_MIN_MS;
+  var holdMs = quick ? QUICK_HOLD_MS : reduced ? REDUCED_HOLD_MS : DRAW_HOLD_MS;
 
   function later(callback, delay) {
     timers.push(window.setTimeout(callback, delay));
@@ -92,13 +102,21 @@
     }, EXIT_MS);
   }
 
+  function startDraw() {
+    if (drawing || leaving) {
+      return;
+    }
+    drawing = true;
+    splash.className = splash.className.replace(/\s*is-waiting\b/, '') + ' is-drawing';
+    later(leave, holdMs);
+  }
+
   function checkMounted() {
-    if (scheduled || leaving || !appMounted()) {
+    if (scheduled || drawing || leaving || !appMounted()) {
       return;
     }
     scheduled = true;
-    // A short extra beat lets the app's first frame paint under the splash.
-    later(leave, Math.max(0, minimumMs - (Date.now() - startedAt)) + 40);
+    later(startDraw, DRAW_LEAD_MS);
   }
 
   var observer = null;
@@ -107,8 +125,9 @@
     observer.observe(appRoot, { childList: true });
   }
 
+  // A slow bundle gets motion instead of a still page: three ink dots.
   later(function () {
-    if (!leaving && !scheduled) {
+    if (!drawing && !leaving) {
       splash.className += ' is-waiting';
     }
   }, WAIT_HINT_MS);
