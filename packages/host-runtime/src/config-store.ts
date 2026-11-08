@@ -57,6 +57,7 @@ import {
 } from './config-store-capabilities.js';
 import {
   foldLegacyDefaultOrchestrationScheme,
+  normalizeDesktopMemorySettings,
   normalizeDesktopRestoreConfig,
 } from './config-store-desktop.js';
 import { normalizeFlashcardsConfig, normalizeNotesConfig } from './config-store-notes.js';
@@ -310,6 +311,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   const network = normalizeNetworkConfig(record.network);
   if (network) {
     normalized.network = network;
+  }
+  const memory = normalizeDesktopMemorySettings(record.memory);
+  if (memory) {
+    normalized.memory = memory;
   }
   return normalized;
 }

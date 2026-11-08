@@ -26,6 +26,7 @@ import { TuiSessionSwitcher } from './tui-session-switcher.js';
 import { TuiSideChatController } from './tui-side-chat-controller.js';
 import { TuiTurnActions } from './tui-turn-actions.js';
 import { TuiUsageController } from './tui-usage-controller.js';
+import { TuiMemoryController } from './tui-memory-controller.js';
 import type { TuiHostPrompts } from './tui-host-prompts.js';
 
 /**
@@ -247,6 +248,11 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     request: (command) => port.link.request(command),
     onChanged: port.refresh,
   });
+  const memory = new TuiMemoryController({
+    modals: port.modals,
+    request: (command) => port.link.request(command),
+    onError: port.error,
+  });
   const rewind = new TuiRewindController({
     modals: port.modals,
     getTranscript: port.getTranscript,
@@ -283,6 +289,7 @@ export function createTuiControllers(port: TuiWiringPort): TuiControllers {
     artifacts,
     turns,
     usage,
+    memory,
     rewind,
     find,
     sessionSwitcher,

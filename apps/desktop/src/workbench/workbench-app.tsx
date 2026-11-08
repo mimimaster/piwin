@@ -19,6 +19,7 @@ import { useShellSessionOpen } from '../hooks/use-shell-session-open';
 import { useWindowsShellOffer } from '../hooks/use-windows-shell-offer';
 import { scheduleIdleTask } from '../automation/schedule-idle-task';
 import { loadStreamdownMathPlugin } from '../markdown/streamdown-math-plugin.js';
+import { startMemoryDiagnosticsReporter } from '../notes/memory-diagnostics.js';
 import { WorkbenchWorkspaceProviders } from './workbench-workspace-providers';
 import { WorkbenchShellFrame } from './workbench-shell-slots';
 import { WorkbenchShellOverlays, WorkbenchStageMounts } from './workbench-stage-slots';
@@ -79,6 +80,9 @@ function HostWorkbench({
       }),
     [],
   );
+  // S02: push native+renderer memory diagnostics to the Host once a minute.
+  // No-op outside Tauri (mock/browser dev) so the effect is always safe.
+  useEffect(() => startMemoryDiagnosticsReporter(hostClient), [hostClient]);
   // Outside React state: a `host/log` push must not re-render this root.
   const [hostLogStore] = useState(createHostLogStore);
   const setHostLogEntries = hostLogStore.setEntries;

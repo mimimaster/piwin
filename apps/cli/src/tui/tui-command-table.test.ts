@@ -31,6 +31,7 @@ function createDeps(embedded = false): TuiCommandTableDeps {
     artifacts: recorder(),
     turns: recorder(),
     usage: recorder(),
+    memory: recorder(),
     rewind: recorder(),
     find: recorder(),
     sessionSwitcher: recorder(),
@@ -100,6 +101,12 @@ describe('TUI command table', () => {
     vi.mocked(deps.turns.handoff).mockResolvedValue({ sessionId: 'next' } as never);
     await createTuiCommandTable(deps)('handoff', '');
     expect(deps.sideChat.carryRefs).not.toHaveBeenCalled();
+  });
+
+  it('routes /memory to the memory controller', async () => {
+    const deps = createDeps();
+    await createTuiCommandTable(deps)('memory', '');
+    expect(deps.memory.open).toHaveBeenCalledTimes(1);
   });
 
   it('says so for a name it does not know', async () => {

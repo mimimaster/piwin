@@ -14,6 +14,7 @@ import type { TuiTurnActions } from './tui-turn-actions.js';
 import type { TuiTurnChangeController } from './tui-turn-change-controller.js';
 import { shortcutHelp, type Keybindings } from './keybindings.js';
 import type { TuiFindController } from './tui-find-controller.js';
+import type { TuiMemoryController } from './tui-memory-controller.js';
 import type { TuiRewindController } from './tui-rewind-controller.js';
 import type { TuiUsageController } from './tui-usage-controller.js';
 import type { TuiWalkthroughController } from './tui-walkthrough-controller.js';
@@ -40,6 +41,7 @@ export type TuiCommandTableDeps = {
   toggleImages: () => void;
   turns: TuiTurnActions;
   usage: TuiUsageController;
+  memory: TuiMemoryController;
   rewind: TuiRewindController;
   find: TuiFindController;
   sessionSwitcher: TuiSessionSwitcher;
@@ -113,6 +115,7 @@ export function createTuiCommandTable(deps: TuiCommandTableDeps): (name: string,
     fork: (argument) => turns.fork(argument),
     context: () => deps.usage.open(),
     usage: () => deps.usage.open(),
+    memory: () => deps.memory.open(),
     rename: (argument) => deps.renameSession(argument),
     pin: () => deps.sessionSwitcher.toggleCurrentPin(),
     archive: () => deps.sessionSwitcher.archiveCurrent(),

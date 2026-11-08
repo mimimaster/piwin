@@ -144,12 +144,43 @@ export type DesktopMemorySettings = {
 };
 
 /**
- * Base diagnostics bundle for the memory pipeline; the frontend may extend it
- * with derived/classified fields.
+ * Frontend (renderer-side) observability attached to a diagnostics bundle.
+ * Mirrors the desktop `collectObservability()` counters — every field is
+ * optional because the collector evolves independently and a missing gauge
+ * is informational, never an error.
+ */
+export type DesktopFrontendObservability = {
+  /** Ingress push/event counts by category. */
+  ingressEventsByCategory?: Record<string, number>;
+  /** Ingress serialized byte totals by category. */
+  ingressBytesByCategory?: Record<string, number>;
+  /** Push batches applied to subscribers. */
+  appliedPushBatches?: number;
+  /** Committed render passes observed by the frontend profiler. */
+  renderCommits?: number;
+  /** In-flight decode/highlight/diagram work gauges. */
+  activeDecodeRequests?: number;
+  activeHighlightRequests?: number;
+  activeDiagramRequests?: number;
+  /** Cache estimates (entries + bytes) by cache name. */
+  cacheEstimates?: Record<string, { entries: number; bytes: number }>;
+  /** Integer resource gauges by name. */
+  resourceCounts?: Record<string, number>;
+  /** Client-side queue high-water mark. */
+  clientQueueHighWater?: { items: number; bytes: number };
+  /** DOM subtree density metrics (mounted items/lines/bytes). */
+  domMetrics?: Record<string, number>;
+};
+
+/**
+ * Diagnostics bundle for the memory pipeline: the latest native
+ * observability snapshot plus optional frontend observability counters.
  */
 export type DesktopMemoryDiagnostics = {
   /** Wall-clock time (ms since epoch) the diagnostics bundle was captured. */
   capturedAtMs: number;
   /** Latest native observability snapshot. */
   snapshot: DesktopMemoryObservabilitySnapshot;
+  /** Renderer-side observability counters, when the reporter included them. */
+  frontend?: DesktopFrontendObservability;
 };

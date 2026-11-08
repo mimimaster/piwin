@@ -83,6 +83,10 @@ export type PlatformHostCommand =
        * relays it to interested shells as `desktop/memory-observability`. */
       type: 'desktop/report-memory-observability';
       snapshot: import('./desktop-memory.js').DesktopMemoryObservabilitySnapshot;
+      /** Renderer-side observability counters reported with the snapshot. */
+      frontend?: import('./desktop-memory.js').DesktopFrontendObservability;
+      /** Wall-clock capture time (ms since epoch); absent means "now". */
+      capturedAtMs?: number;
     }
   | {
       id?: string;

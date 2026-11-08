@@ -1,5 +1,9 @@
-import { isValidOrchestrationSchemeId, type DesktopRestoreConfig } from '@piwin/contracts';
-import { asRecord, isModelProtocol, isThinkingLevel } from './config-store-primitives.js';
+import {
+  isValidOrchestrationSchemeId,
+  type DesktopMemorySettings,
+  type DesktopRestoreConfig,
+} from '@piwin/contracts';
+import { asPositiveInteger, asRecord, isModelProtocol, isThinkingLevel } from './config-store-primitives.js';
 
 /**
  * Normalize `PiwinConfig.desktop` window-restore and composer-profile state.
@@ -46,6 +50,32 @@ export function normalizeDesktopRestoreConfig(value: unknown): DesktopRestoreCon
     normalized.defaultOrchestrationSchemeId
     ? normalized
     : undefined;
+}
+
+export function normalizeDesktopMemorySettings(value: unknown): DesktopMemorySettings | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const settings: DesktopMemorySettings = {
+    enabled: record.enabled !== false,
+    mode: record.mode === 'enforce' ? 'enforce' : 'observe',
+  };
+  const budgetBytes = asPositiveInteger(record.budgetBytes);
+  if (budgetBytes !== undefined) settings.budgetBytes = budgetBytes;
+  const reclaimTargetBytes = asPositiveInteger(record.reclaimTargetBytes);
+  if (reclaimTargetBytes !== undefined) settings.reclaimTargetBytes = reclaimTargetBytes;
+  const captureIntervalSeconds = asPositiveInteger(record.captureIntervalSeconds);
+  if (captureIntervalSeconds !== undefined) {
+    settings.captureIntervalSeconds = captureIntervalSeconds;
+  }
+  const maxSessionsInMemory = asPositiveInteger(record.maxSessionsInMemory);
+  if (maxSessionsInMemory !== undefined) settings.maxSessionsInMemory = maxSessionsInMemory;
+  const maxTranscriptItemsPerSession = asPositiveInteger(record.maxTranscriptItemsPerSession);
+  if (maxTranscriptItemsPerSession !== undefined) {
+    settings.maxTranscriptItemsPerSession = maxTranscriptItemsPerSession;
+  }
+  return settings;
 }
 
 /**

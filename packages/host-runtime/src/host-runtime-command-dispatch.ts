@@ -196,6 +196,22 @@ export async function handleCommandWithTranscriptLease(
         return ok(requestId, 'host/runtime-resources', deps.getRuntimeResources());
       }
 
+      case 'desktop/report-memory-observability': {
+        deps.desktopMemoryReports.recordSnapshot(
+          command.snapshot,
+          command.capturedAtMs,
+          command.frontend,
+        );
+        deps.push({ type: 'desktop/memory-observability', snapshot: command.snapshot });
+        return ok(requestId, 'desktop/report-memory-observability', { stored: true });
+      }
+      case 'desktop/memory-diagnostics':
+        return ok(
+          requestId,
+          'desktop/memory-diagnostics',
+          deps.desktopMemoryReports.diagnostics(),
+        );
+
       default:
         return fail(requestId, 'unknown', 'Unhandled command');
     }

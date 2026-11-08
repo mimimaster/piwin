@@ -80,6 +80,7 @@ import type { LiveIntendedSessionGate } from './voice/live-intended-session-gate
 import type { LiveSettingsService } from './voice/live-settings-service.js';
 import type { SessionContextCoordinator } from './session-context-coordinator.js';
 import { DetachedSubagentRegistry } from './detached-subagent-reports.js';
+import { DesktopMemoryReportStore } from './desktop-memory-report-store.js';
 import type { ExternalAgentBackend } from './external-agent-backend.js';
 
 /** Mutable HostRuntime instance fields. HostRuntime remains the composition root. */
@@ -231,6 +232,8 @@ export class HostRuntimeFields {
   petStateStore: PetStateStore | null = null;
   /** Guards first init of `petStateStore` so concurrent callers share one promise. */
   petStateStoreInit: Promise<PetStateStore> | null = null;
+  /** Latest desktop-reported memory diagnostics bundle (S02). */
+  desktopMemoryReports = new DesktopMemoryReportStore();
   /** C1: one ordered envelope stream per runtime session. */
   eventEnvelopeGenerators = new Map<string, ReturnType<typeof createEventEnvelopeGenerator>>();
   unsubscribers = new Map<string, () => void>();

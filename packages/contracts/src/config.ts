@@ -32,6 +32,7 @@ import type { NetworkConfig } from './network-proxy.js';
 import type { ReplyWriterConfig } from './reply-writer.js';
 import type { SessionLifecycleConfig } from './session-lifecycle.js';
 import type { SessionColdStorageConfig } from './session-cold-storage.js';
+import type { DesktopMemorySettings } from './desktop-memory.js';
 
 export * from './config-providers.js';
 import type { ModelProviderConfig } from './config-providers.js';
@@ -553,6 +554,8 @@ export type PiwinConfig = {
   browser?: BrowserWorkbenchConfig;
   /** Opt-in read-only Codemode scripts. Omitted normalizes to disabled. */
   codemode?: CodemodeConfig;
+  /** Desktop memory observability/reclamation policy. Omitted means app defaults. */
+  memory?: DesktopMemorySettings;
 };
 
 export type { BrowserFastDeciderConfig, BrowserWorkbenchConfig } from './browser-workbench-config.js';
