@@ -6,8 +6,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { MediaAttachmentRef, PromptAttachment, PromptInput } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
-import { formatTextModelWebElementInjection } from '@piwin/contracts';
+import { formatTextModelWebElementInjection, isSubscriptionProvider } from '@piwin/contracts';
 import {
   assertInsideMediaRoot,
   extractAttachmentText,
@@ -18,7 +17,6 @@ import {
   pathInjectMediaAttachment,
   primaryModelSupportsImage,
   resolvePrimaryModelInput,
-  shouldDelegateVision,
   splitAttachments,
   VisionDelegationCache,
   sharedVisionDelegationCache,
@@ -28,7 +26,8 @@ import {
 
 import { loadPiwinConfig } from './config-store.js';
 import { createSecretResolver } from './secret-resolver.js';
-import { findEnabledProvider } from './provider-helpers.js';
+import { findEnabledModel, findEnabledProvider } from './provider-helpers.js';
+import { VisionDelegationError } from './vision-delegation-error.js';
 import { getPiwinMediaDir, getPiwinRoot } from './paths.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
@@ -62,7 +61,7 @@ export function validatePromptAttachments(deps: HostRuntimeKernel, input: Prompt
  *
  * Media branching (vision-delegation rev3):
  * - multimodal primary → keep media attachments → adapter loads ImageContent
- * - text-only + D1 on → vision description inject; strip media attachments
+ * - text-only + D1 on → vision description inject; stop the turn on failure
  * - text-only + D1 off → path inject; strip media attachments
  * Web-element: structured text injection always.
  */
@@ -143,108 +142,89 @@ export async function buildModelPromptInput(
 
   // Text-only: never pass ImageContent to the primary model.
   const mediaInjections: string[] = [];
-  const delegate =
-    shouldDelegateVision({
-      primaryModelInput: primaryInput,
-      hasMediaAttachments: imageMedia.length > 0,
-      config: config.visionDelegation,
-    }) && config.visionDelegation?.model
-      ? config.visionDelegation
-      : undefined;
+  const delegate = config.visionDelegation;
 
-  if (delegate?.model) {
-    const visionRef = delegate.model;
-    const visionProvider = findEnabledProvider(config, visionRef.providerId);
-    if (!visionProvider) {
-      deps.push({
-        type: 'host/log',
-        level: 'warn',
-        message: `vision delegation: provider not found (${visionRef.providerId}); falling back to path injection`,
-      });
-    } else {
-      let apiKey: string | null = null;
-      try {
-        apiKey = await createSecretResolver().resolveProviderSecret(visionProvider);
-      } catch (error) {
-        const message = formatError(error);
-        deps.push({
-          type: 'host/log',
-          level: 'warn',
-          message: `vision delegation: secret resolve failed (${message}); path fallback`,
-        });
+  if (delegate?.enabled) {
+    try {
+      const visionRef = delegate.model;
+      if (!visionRef) {
+        throw new Error('尚未选择视觉委托模型');
       }
-      if (apiKey) {
-        const systemPrompt =
-          delegate.systemPrompt?.trim() || DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT;
-        for (const mediaAttachment of imageMedia) {
-          if (signal?.aborted) {
-            throw new Error('prompt preparation aborted');
-          }
-          try {
-            let description: string | undefined;
-            const fileBytes = await readFile(mediaAttachment.path);
-            const cacheKey =
-              delegate.cacheEnabled === false
-                ? null
-                : VisionDelegationCache.buildKey({
-                    fileBytes,
-                    mimeType: mediaAttachment.mimeType,
-                    providerId: visionRef.providerId,
-                    modelId: visionRef.modelId,
-                    systemPrompt,
-                  });
-            if (cacheKey) {
-              description = sharedVisionDelegationCache.get(cacheKey);
-            }
-            if (!description) {
-              deps.push({
-                type: 'host/log',
-                level: 'info',
-                message: `Describing image with ${visionRef.providerId}/${visionRef.modelId}…`,
-              });
-              description = await delegateImageToVisionModel({
-                imagePath: mediaAttachment.path,
+      const visionProvider = findEnabledProvider(config, visionRef.providerId);
+      if (!visionProvider) {
+        throw new Error(`视觉委托提供商不存在或已停用：${visionRef.providerId}`);
+      }
+      if (!findEnabledModel(config, visionRef.providerId, visionRef.modelId)) {
+        throw new Error(`视觉委托模型不存在或已停用：${visionRef.modelId}`);
+      }
+      const piwinRoot = getPiwinRoot(deps.options.piwinRoot);
+      const apiKey = isSubscriptionProvider(visionProvider)
+        ? undefined
+        : await createSecretResolver({ piwinRoot }).resolveProviderSecret(visionProvider);
+      const systemPrompt = delegate.systemPrompt?.trim() || DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT;
+      for (const mediaAttachment of imageMedia) {
+        if (signal?.aborted) {
+          throw new Error('prompt preparation aborted');
+        }
+        let description: string | undefined;
+        const fileBytes = await readFile(mediaAttachment.path);
+        const cacheKey =
+          delegate.cacheEnabled === false
+            ? null
+            : VisionDelegationCache.buildKey({
+                fileBytes,
                 mimeType: mediaAttachment.mimeType,
-                provider: visionProvider,
+                providerId: visionRef.providerId,
                 modelId: visionRef.modelId,
-                apiKey,
                 systemPrompt,
-                ...(delegate.timeoutMs !== undefined ? { timeoutMs: delegate.timeoutMs } : {}),
-                ...(signal ? { signal } : {}),
               });
-              if (cacheKey) {
-                sharedVisionDelegationCache.set(cacheKey, description);
-              }
-            }
-            mediaInjections.push(
-              formatVisionDescriptionInjection({
-                absolutePath: mediaAttachment.path,
-                mimeType: mediaAttachment.mimeType,
-                model: visionRef,
-                description,
-              }),
-            );
-          } catch (error) {
-            const message = formatError(error);
-            deps.push({
-              type: 'host/log',
-              level: 'warn',
-              message: `vision delegation failed for ${mediaAttachment.path}: ${message}; path fallback`,
-            });
-            mediaInjections.push(pathInjectMediaAttachment(mediaAttachment));
+        if (cacheKey) {
+          description = sharedVisionDelegationCache.get(cacheKey);
+        }
+        if (!description) {
+          deps.push({
+            type: 'host/log',
+            level: 'info',
+            message: `Describing image with ${visionRef.providerId}/${visionRef.modelId}…`,
+          });
+          description = await delegateImageToVisionModel({
+            imagePath: mediaAttachment.path,
+            mimeType: mediaAttachment.mimeType,
+            provider: visionProvider,
+            modelId: visionRef.modelId,
+            ...(apiKey !== undefined ? { apiKey } : {}),
+            piwinRoot,
+            systemPrompt,
+            ...(delegate.timeoutMs !== undefined ? { timeoutMs: delegate.timeoutMs } : {}),
+            ...(signal ? { signal } : {}),
+          });
+          if (cacheKey) {
+            sharedVisionDelegationCache.set(cacheKey, description);
           }
         }
-        // Strip media so adapter does not load ImageContent for text-only primary.
-        return stripMediaAttachments(
-          input,
-          [...textInjections, ...mediaInjections].filter(Boolean).join('\n\n'),
-          other,
+        mediaInjections.push(
+          formatVisionDescriptionInjection({
+            absolutePath: mediaAttachment.path,
+            mimeType: mediaAttachment.mimeType,
+            model: visionRef,
+            description,
+          }),
         );
       }
+    } catch (error) {
+      // The turn executor persists this as a visible, retryable error for
+      // direct and queued prompts. User cancellation keeps its normal path.
+      if (signal?.aborted) throw error;
+      throw new VisionDelegationError(delegate.model, error);
     }
+    return stripMediaAttachments(
+      input,
+      [...textInjections, ...mediaInjections].filter(Boolean).join('\n\n'),
+      other,
+    );
   }
 
-  // Path fallback (D1 off or vision provider/secret unavailable).
+  // Path fallback is reserved for explicitly disabled/unconfigured delegation.
   deps.push({
     type: 'host/log',
     level: 'warn',

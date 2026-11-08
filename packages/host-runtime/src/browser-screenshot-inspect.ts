@@ -4,7 +4,7 @@
  * vision-delegation description. UI always reads `details.attachments`.
  */
 
-import { formatError, toMediaAttachmentRef } from '@piwin/contracts';
+import { formatError, isSubscriptionProvider, toMediaAttachmentRef } from '@piwin/contracts';
 import type {
   BrowserScreenshotEvidence,
   MediaAttachmentRef,
@@ -36,6 +36,7 @@ export type PersistBrowserScreenshotInput = {
   height: number;
   sessionId: string;
   mediaRoot: string;
+  piwinRoot?: string;
   /** When true, attach native pixels so a vision primary can see the page. */
   primarySupportsImage?: boolean;
   config?: ScreenshotInspectConfig;
@@ -244,22 +245,24 @@ async function describeScreenshotIfConfigured(
   if (!config || !vision?.enabled || !vision.model) {
     return { status: 'skipped', reason: 'vision-delegation-disabled' };
   }
-  if (!input.secretResolver) {
-    return { status: 'skipped', reason: 'no-secret-resolver' };
-  }
   const provider = findEnabledProvider(config, vision.model.providerId);
   if (!provider) {
     return { status: 'skipped', reason: 'vision-provider-missing' };
   }
 
-  let apiKey: string;
-  try {
-    apiKey = await input.secretResolver.resolveProviderSecret(provider);
-  } catch (error) {
-    return { status: 'skipped', reason: `vision-secret: ${formatError(error)}` };
-  }
-  if (!apiKey.trim()) {
-    return { status: 'skipped', reason: 'vision-secret-empty' };
+  let apiKey: string | undefined;
+  if (!isSubscriptionProvider(provider)) {
+    if (!input.secretResolver) {
+      return { status: 'skipped', reason: 'no-secret-resolver' };
+    }
+    try {
+      apiKey = await input.secretResolver.resolveProviderSecret(provider);
+    } catch (error) {
+      return { status: 'skipped', reason: `vision-secret: ${formatError(error)}` };
+    }
+    if (!apiKey.trim()) {
+      return { status: 'skipped', reason: 'vision-secret-empty' };
+    }
   }
 
   const systemPrompt = BROWSER_SCREENSHOT_INSPECT_PROMPT;
@@ -291,7 +294,8 @@ async function describeScreenshotIfConfigured(
       mimeType: JPEG_MIME,
       provider,
       modelId: vision.model.modelId,
-      apiKey,
+      ...(apiKey !== undefined ? { apiKey } : {}),
+      ...(input.piwinRoot !== undefined ? { piwinRoot: input.piwinRoot } : {}),
       systemPrompt,
       ...(vision.timeoutMs !== undefined ? { timeoutMs: vision.timeoutMs } : {}),
       ...(input.signal ? { signal: input.signal } : {}),

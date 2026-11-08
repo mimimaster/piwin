@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04; amended 2026-09-08; amended 2026-09-16; amended 2026-09-19; amended 2026-09-22; amended 2026-11-05)
+Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04; amended 2026-09-08; amended 2026-09-16; amended 2026-09-19; amended 2026-09-22; amended 2026-11-05; amended 2026-11-07)
 
 ## Context
 
@@ -400,3 +400,22 @@ privilege; `connect-src 'none'` remains unchanged.
 
 Source-export buttons still export original model source, never srcdoc.
 See [the macOS smoke checklist](../guides/artifact-macos-webview-smoke.md).
+
+## Amendment (2026-11-07): Explicit vision delegation failures
+
+When vision delegation is enabled for a text-only primary model, a failed
+image description stops prompt preparation. The Host must not substitute an
+image path or submit a partially described image set to the primary model.
+Missing/disabled delegation providers or models and unavailable credentials
+follow the same rule as failed requests, timeouts and empty descriptions.
+
+The existing turn failure path persists and pushes a visible conversation
+error with the delegated model, the underlying reason, and a prompt to check
+vision delegation settings and retry. The original user message and its
+attachments remain available for retry. Direct prompts and queued turns use
+this same Host path in SDK and RPC modes. User cancellation keeps the normal
+cancelled outcome.
+
+Native image delivery is unchanged. Path fallback remains available only when
+vision delegation is disabled/unconfigured; it is not recovery from a failed
+enabled delegation.

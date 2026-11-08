@@ -384,6 +384,7 @@ export async function buildSessionHostTools(
           height,
           sessionId: options.sessionId,
           mediaRoot,
+          piwinRoot: rootDir,
           primarySupportsImage,
           signal,
           ...(options.config ? { config: options.config } : {}),

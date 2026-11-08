@@ -62,10 +62,12 @@ export function subscriptionMediaHeaders(
       headers['ChatGPT-Account-Id'] = auth.accountId;
     }
   }
-  if (providerId === 'xai') {
-    headers['X-XAI-Token-Auth'] = 'xai-grok-cli';
-  }
-  return headers;
+  return { ...headers, ...subscriptionExtraHeaders(providerId) };
+}
+
+/** Extra headers required for subscription calls; authentication stays with Pi. */
+export function subscriptionExtraHeaders(providerId: string): Record<string, string> {
+  return providerId === 'xai' ? { 'X-XAI-Token-Auth': 'xai-grok-cli' } : {};
 }
 
 export async function loadSubscriptionMediaAuth(

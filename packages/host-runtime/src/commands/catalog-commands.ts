@@ -667,8 +667,10 @@ export async function handleCatalogCommand(
           );
         }
         const secretResolver = createSecretResolver({ piwinRoot: getPiwinRoot(context.piwinRoot) });
-        const apiKey = await secretResolver.resolveProviderSecret(visionProvider);
-        if (!apiKey) {
+        const apiKey = isSubscriptionProvider(visionProvider)
+          ? undefined
+          : await secretResolver.resolveProviderSecret(visionProvider);
+        if (apiKey !== undefined && !apiKey) {
           return fail(requestId, 'vision/delegate', 'Could not resolve vision model API key');
         }
 
@@ -719,7 +721,8 @@ export async function handleCatalogCommand(
             mimeType,
             provider: visionProvider,
             modelId: visionRef.modelId,
-            apiKey,
+            ...(apiKey !== undefined ? { apiKey } : {}),
+            piwinRoot: rootDir,
             systemPrompt,
             ...(visionConfig.timeoutMs !== undefined ? { timeoutMs: visionConfig.timeoutMs } : {}),
           });

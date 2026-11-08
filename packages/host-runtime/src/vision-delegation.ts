@@ -14,7 +14,11 @@ import type {
   PromptInput,
   VisionDelegationConfig,
 } from '@piwin/contracts';
-import { formatTextModelImageInjection } from '@piwin/contracts';
+import { formatTextModelImageInjection, isSubscriptionOauthProviderId, isSubscriptionProvider } from '@piwin/contracts';
+import { completeModelVision } from '@piwin/agent-host';
+import { getPiwinPiAgentDir, getPiwinRoot } from './paths.js';
+import { subscriptionExtraHeaders } from './subscription-media-request.js';
+import { readSubscriptionExtensionProviders } from './subscription-extension-providers.js';
 import { findEnabledProvider, resolveDefaultModelRef } from './provider-helpers.js';
 import { buildProviderRequestHeaders } from './provider-model-discovery.js';
 import { resolveProviderChatEndpoint } from './provider-endpoint.js';
@@ -88,7 +92,8 @@ export type VisionDelegateRequest = {
   mimeType: string;
   provider: ModelProviderConfig;
   modelId: string;
-  apiKey: string;
+  apiKey?: string;
+  piwinRoot?: string;
   systemPrompt?: string;
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -100,23 +105,42 @@ export async function delegateImageToVisionModel(request: VisionDelegateRequest)
   const base64 = Buffer.from(bytes).toString('base64');
   const systemPrompt = request.systemPrompt?.trim() || DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT;
   const timeoutMs = request.timeoutMs ?? DEFAULT_VISION_DELEGATION_TIMEOUT_MS;
-  const fetchImpl = request.fetchImpl ?? globalThis.fetch;
-  if (!fetchImpl) {
-    throw new Error('vision delegation unavailable: fetch is not supported');
-  }
-
   const timeoutController = new AbortController();
   const timeout = setTimeout(() => timeoutController.abort(), timeoutMs);
   const onOuterAbort = () => timeoutController.abort();
   request.signal?.addEventListener('abort', onOuterAbort, { once: true });
+  if (request.signal?.aborted) timeoutController.abort();
   try {
+    timeoutController.signal.throwIfAborted();
+    if (isSubscriptionProvider(request.provider)) {
+      const extensionProviders = isSubscriptionOauthProviderId(request.provider.id)
+        ? []
+        : (await readSubscriptionExtensionProviders(getPiwinRoot(request.piwinRoot)))
+            .filter((entry) => entry.providerId === request.provider.id && entry.kind !== 'model');
+      timeoutController.signal.throwIfAborted();
+      return await completeModelVision({
+        model: { providerId: request.provider.id, modelId: request.modelId },
+        imageBase64: base64,
+        mimeType: request.mimeType,
+        systemPrompt,
+        signal: timeoutController.signal,
+      }, {
+        provider: request.provider,
+        agentDir: getPiwinPiAgentDir(request.piwinRoot),
+        headers: subscriptionExtraHeaders(request.provider.id),
+        ...(extensionProviders.length ? { extensionProviders } : {}),
+      });
+    }
+    const fetchImpl = request.fetchImpl ?? globalThis.fetch;
+    if (!fetchImpl) throw new Error('vision delegation unavailable: fetch is not supported');
+    const apiKey = request.apiKey ?? '';
     const protocol = request.provider.protocol;
     switch (protocol) {
       case 'openai-compatible':
         return await describeOpenAiCompatible({
           provider: request.provider,
           modelId: request.modelId,
-          apiKey: request.apiKey,
+          apiKey,
           systemPrompt,
           mimeType: request.mimeType,
           base64,
@@ -127,7 +151,7 @@ export async function delegateImageToVisionModel(request: VisionDelegateRequest)
         return await describeAnthropicCompatible({
           provider: request.provider,
           modelId: request.modelId,
-          apiKey: request.apiKey,
+          apiKey,
           systemPrompt,
           mimeType: request.mimeType,
           base64,
@@ -138,7 +162,7 @@ export async function delegateImageToVisionModel(request: VisionDelegateRequest)
         return await describeGoogleGemini({
           provider: request.provider,
           modelId: request.modelId,
-          apiKey: request.apiKey,
+          apiKey,
           systemPrompt,
           mimeType: request.mimeType,
           base64,

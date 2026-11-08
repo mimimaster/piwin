@@ -41,9 +41,11 @@ No `/v1` is ever inserted. A probe that passes therefore means the Pi request
 goes to the same place, and a versionless base such as `http://127.0.0.1:8799`
 is tested the way Pi will actually call it.
 
-Structured completion and vision delegation send Chat-Completions-shaped bodies
-(`response_format`, `image_url`). They force `openai-completions` even on a
-Responses provider, but still follow the rule. Model **discovery** is the one
+Structured completion and API-key vision delegation send Chat-Completions-shaped
+bodies (`response_format`, `image_url`). They force `openai-completions` even on a
+Responses provider, but still follow the rule. Subscription OAuth vision delegates
+use Pi's model runtime and native image content instead, with the Host-owned auth
+file and provider transport (including enabled OAuth extensions). Model **discovery** is the one
 deliberate exception: it only imports a catalog and keeps its lenient `/v1/models`
 fallback.
 
@@ -107,8 +109,10 @@ errors still fail the command.
 - A versionless OpenAI-compatible base (no `/v1`) is no longer silently "fixed"
   by probes. If the gateway only serves `/v1/chat/completions`, the test now
   reports it, and chat was already failing.
-- Host auxiliary calls (Walkthrough, reply writer, vision delegation) stay on
-  Chat Completions. A provider that serves only Responses cannot run them yet.
+- Host auxiliary HTTP calls (Walkthrough, reply writer, API-key vision delegation)
+  stay on Chat Completions. A provider that serves only Responses cannot run them
+  yet. Subscription OAuth vision delegation uses Pi's native model transport.
+  Devin remains unavailable as a vision delegate until its adapter sends images.
 - Remaining `homedir()`-direct defaults (doc-rag root, host-server pairing
   fallback, browser profile) are not covered by the test setup. Their callers
   must pass a root.
