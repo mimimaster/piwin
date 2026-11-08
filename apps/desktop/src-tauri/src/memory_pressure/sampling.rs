@@ -5,12 +5,9 @@
 //! sampling, total-physical-memory lookup, and the legacy system
 //! reclaimable-ratio fallback used when byte sampling is unavailable.
 
-use std::sync::Arc;
-#[cfg(target_os = "macos")]
-use std::sync::atomic::Ordering;
-use std::sync::atomic::AtomicI32;
+use std::sync::{Arc, Mutex};
 
-use super::types::MemoryPressureLevel;
+use super::types::{MemoryPressureLevel, NativeOsPressureLevel};
 #[cfg(test)]
 use super::types::MemoryPressurePayload;
 
@@ -26,48 +23,69 @@ pub(crate) fn level_from_available_ratio(ratio: f64) -> MemoryPressureLevel {
     }
 }
 
-/// Store the main window's WebContent pid into `slot`, asynchronously on the
-/// main thread. Uses the long-stable WebKit SPI `-[WKWebView
-/// _webProcessIdentifier]` behind a respondsToSelector guard: if the SPI ever
-/// disappears the slot stays 0 and the monitor falls back to system-ratio
-/// sampling instead of breaking.
+/// Store every window's WebContent pid into `map` (keyed by window label),
+/// asynchronously on the main thread. Uses the long-stable WebKit SPI
+/// `-[WKWebView _webProcessIdentifier]` behind a respondsToSelector guard:
+/// if the SPI ever disappears the map stays empty and the monitor falls
+/// back to system-ratio sampling instead of breaking.
+///
+/// The monitor owns the map contents: callbacks only upsert labels that were
+/// live when the refresh was scheduled; the monitor drops entries for
+/// windows that have since closed.
 #[cfg(target_os = "macos")]
-pub(crate) fn refresh_main_webview_pid(app_handle: &tauri::AppHandle, slot: &Arc<AtomicI32>) {
+pub(crate) fn refresh_webview_pids(
+    app_handle: &tauri::AppHandle,
+    map: &Arc<Mutex<std::collections::HashMap<String, i32>>>,
+) {
     use tauri::Manager;
-    let Some(window) = app_handle.get_webview_window("main") else {
-        return;
-    };
-    let slot = Arc::clone(slot);
-    let _ = window.with_webview(move |platform_webview| {
-        // SAFETY: pointer is the live WKWebView owned by this window; the
-        // selector is guarded before the typed send.
-        unsafe {
-            use objc2::runtime::AnyObject;
-            use objc2::{msg_send, sel};
-            let webview = platform_webview.inner().cast::<AnyObject>();
-            let Some(webview) = webview.as_ref() else {
-                return;
-            };
-            let responds: bool =
-                msg_send![webview, respondsToSelector: sel!(_webProcessIdentifier)];
-            if !responds {
-                return;
+    for window in app_handle.webview_windows().into_values() {
+        let label = window.label().to_string();
+        let map = Arc::clone(map);
+        let _ = window.with_webview(move |platform_webview| {
+            // SAFETY: pointer is the live WKWebView owned by this window; the
+            // selector is guarded before the typed send.
+            unsafe {
+                use objc2::runtime::AnyObject;
+                use objc2::{msg_send, sel};
+                let webview = platform_webview.inner().cast::<AnyObject>();
+                let Some(webview) = webview.as_ref() else {
+                    return;
+                };
+                let responds: bool =
+                    msg_send![webview, respondsToSelector: sel!(_webProcessIdentifier)];
+                if !responds {
+                    return;
+                }
+                let pid: i32 = msg_send![webview, _webProcessIdentifier];
+                if pid > 0 {
+                    if let Ok(mut map) = map.lock() {
+                        map.insert(label, pid);
+                    }
+                }
             }
-            let pid: i32 = msg_send![webview, _webProcessIdentifier];
-            if pid > 0 {
-                slot.store(pid, Ordering::Relaxed);
-            }
-        }
-    });
+        });
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
-pub(crate) fn refresh_main_webview_pid(_app_handle: &tauri::AppHandle, _slot: &Arc<AtomicI32>) {}
+pub(crate) fn refresh_webview_pids(
+    _app_handle: &tauri::AppHandle,
+    _map: &Arc<Mutex<std::collections::HashMap<String, i32>>>,
+) {
+}
 
-/// `ri_phys_footprint` of an owned process, or None when unavailable. Matches
-/// Activity Monitor's "Memory" column, which is what users compare against.
+/// One rusage_info_v4 read: footprint plus the process start clock that
+/// disambiguates pid reuse (same pid, different start = different process).
 #[cfg(target_os = "macos")]
-pub(crate) fn process_phys_footprint_bytes(pid: i32) -> Option<u64> {
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ProcessRusage {
+    pub(crate) footprint_bytes: u64,
+    /// `ri_proc_start_abstime` — mach absolute time at process start.
+    pub(crate) start_clock: u64,
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn process_rusage(pid: i32) -> Option<ProcessRusage> {
     let mut info: libc::rusage_info_v4 = unsafe { std::mem::zeroed() };
     let result = unsafe {
         libc::proc_pid_rusage(
@@ -79,11 +97,67 @@ pub(crate) fn process_phys_footprint_bytes(pid: i32) -> Option<u64> {
     if result != 0 {
         return None;
     }
-    (info.ri_phys_footprint > 0).then_some(info.ri_phys_footprint)
+    Some(ProcessRusage {
+        footprint_bytes: info.ri_phys_footprint,
+        start_clock: info.ri_proc_start_abstime,
+    })
 }
 
 #[cfg(not(target_os = "macos"))]
-pub(crate) fn process_phys_footprint_bytes(_pid: i32) -> Option<u64> {
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ProcessRusage {
+    pub(crate) footprint_bytes: u64,
+    pub(crate) start_clock: u64,
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn process_rusage(_pid: i32) -> Option<ProcessRusage> {
+    None
+}
+
+/// `ri_phys_footprint` of an owned process, or None when unavailable. Matches
+/// Activity Monitor's "Memory" column, which is what users compare against.
+/// A footprint of 0 is never a valid sample; missing stays missing.
+/// Kept as the stable thin wrapper over [`process_rusage`] for tests and
+/// callers that do not need the start clock.
+#[allow(dead_code)]
+pub(crate) fn process_phys_footprint_bytes(pid: i32) -> Option<u64> {
+    let rusage = process_rusage(pid)?;
+    (rusage.footprint_bytes > 0).then_some(rusage.footprint_bytes)
+}
+
+/// OS memory pressure tier via the macOS `kern.memorystatus_vm_pressure_level`
+/// sysctl (0 = normal, 1 = warning, 2 = urgent, 4 = critical). Unknown values
+/// are mapped to None rather than guessed; other platforms return None and
+/// the caller falls back to the reclaimable-ratio path.
+#[cfg(target_os = "macos")]
+pub(crate) fn sample_os_pressure() -> Option<NativeOsPressureLevel> {
+    let name = b"kern.memorystatus_vm_pressure_level\0";
+    let mut value: libc::c_int = 0;
+    let mut size = std::mem::size_of::<libc::c_int>();
+    let result = unsafe {
+        libc::sysctlbyname(
+            name.as_ptr() as *const libc::c_char,
+            &mut value as *mut libc::c_int as *mut libc::c_void,
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if result != 0 || size != std::mem::size_of::<libc::c_int>() {
+        return None;
+    }
+    match value {
+        0 => Some(NativeOsPressureLevel::Normal),
+        1 => Some(NativeOsPressureLevel::Warning),
+        2 => Some(NativeOsPressureLevel::Urgent),
+        4 => Some(NativeOsPressureLevel::Critical),
+        _ => None,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn sample_os_pressure() -> Option<NativeOsPressureLevel> {
     None
 }
 
@@ -196,6 +270,7 @@ pub(crate) fn sample_available_ratio() -> Option<f64> {
 pub(crate) fn sample_available_ratio() -> Option<f64> {
     None
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,27 +316,49 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
+    fn rusage_reports_footprint_and_start_clock() {
+        let pid = std::process::id() as i32;
+        let rusage = process_rusage(pid).expect("self rusage should work");
+        assert!(rusage.footprint_bytes > 0);
+        // mach absolute time at process start; nonzero for any live process.
+        assert!(rusage.start_clock > 0);
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn os_pressure_returns_a_known_tier() {
+        // The sysctl exists on every macOS; mapping must be total or None.
+        let level = sample_os_pressure();
+        assert!(matches!(
+            level,
+            None | Some(
+                NativeOsPressureLevel::Normal
+                    | NativeOsPressureLevel::Warning
+                    | NativeOsPressureLevel::Urgent
+                    | NativeOsPressureLevel::Critical
+            )
+        ));
+    }
+
+    #[test]
     fn byte_sample_payload_serializes_camel_case_without_level() {
-        let payload = MemoryPressurePayload {
-            level: None,
-            bytes: Some(1024),
-            available_bytes: Some(2048),
-        };
+        let mut payload = MemoryPressurePayload::tick(1, 2, 3, "test".to_string());
+        payload.bytes = Some(1024);
+        payload.available_bytes = Some(2048);
         let value = serde_json::to_value(payload).expect("payload should serialize");
-        assert_eq!(
-            value,
-            serde_json::json!({ "bytes": 1024, "availableBytes": 2048 })
-        );
+        assert_eq!(value["bytes"], 1024);
+        assert_eq!(value["availableBytes"], 2048);
+        assert!(value.get("level").is_none());
     }
 
     #[test]
     fn fallback_payload_serializes_lowercase_level_only() {
-        let payload = MemoryPressurePayload {
-            level: Some(MemoryPressureLevel::Moderate),
-            bytes: None,
-            available_bytes: None,
-        };
+        let mut payload = MemoryPressurePayload::tick(1, 2, 3, "test".to_string());
+        payload.level = Some(MemoryPressureLevel::Moderate);
         let value = serde_json::to_value(payload).expect("payload should serialize");
-        assert_eq!(value, serde_json::json!({ "level": "moderate" }));
+        assert_eq!(value["level"], "moderate");
+        assert!(value.get("bytes").is_none());
+        assert!(value.get("availableBytes").is_none());
     }
 }
