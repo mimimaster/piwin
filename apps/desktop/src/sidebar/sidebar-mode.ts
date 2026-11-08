@@ -60,6 +60,7 @@ function rowMode(row: Extract<SidebarTreeRow, { kind: 'session' }>): SidebarMode
 export function filterSidebarRowsByMode(
   rows: readonly SidebarTreeRow[],
   mode: SidebarMode,
+  pinnedExpanded = true,
 ): SidebarTreeRow[] {
   const kept: SidebarTreeRow[] = [];
   let section: 'pinned' | 'projects' | 'conversations' | null = null;
@@ -91,7 +92,7 @@ export function filterSidebarRowsByMode(
 
     if (section === 'pinned') {
       if (row.kind === 'session' && rowMode(row) === mode) {
-        kept.push(row);
+        if (pinnedExpanded) kept.push(row);
         pinnedBodyCount += 1;
       }
       continue;

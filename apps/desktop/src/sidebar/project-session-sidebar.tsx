@@ -320,7 +320,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       ...(props.draftSessions ? { draftSessions: props.draftSessions } : {}),
       sessionSearch: props.sessionSearch,
       sessionListOrder: sortBy,
-      pinnedSectionExpanded,
+      pinnedSectionExpanded: true,
       projectsSectionExpanded,
       conversationsSectionExpanded,
       collapsedProjects,
@@ -346,7 +346,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       unavailableGroupCollapsed,
       conversationsSectionExpanded,
       groupBy,
-      pinnedSectionExpanded,
       projectsSectionExpanded,
       projectSessionVisibleCounts,
       props.activeDraftId,
@@ -372,8 +371,10 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   /* One builder, two panes. Filtering here keeps sidebar-tree-rows.ts (and its
      tests) untouched — the split is presentation, not a different query. */
   const paneRows = useMemo(
-    () => filterSidebarRowsByMode(allTreeRows, sidebarMode),
-    [allTreeRows, sidebarMode],
+    () => filterSidebarRowsByMode(
+      allTreeRows, sidebarMode, pinnedSectionExpanded || props.sessionSearch.trim().length > 0,
+    ),
+    [allTreeRows, sidebarMode, pinnedSectionExpanded, props.sessionSearch],
   );
   /* Pinned stays in view above the scroller. `treeRows` is shelf-then-scroll
      order, so keyboard ↑↓ and reveal walk the rows as they appear on screen;

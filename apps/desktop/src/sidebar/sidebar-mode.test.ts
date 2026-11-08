@@ -80,6 +80,16 @@ describe('filterSidebarRowsByMode', () => {
     expect(keys(filterSidebarRowsByMode(rows, 'code'))).toEqual([]);
   });
 
+  it('keeps the appropriate pinned header when collapsed', () => {
+    expect(keys(filterSidebarRowsByMode(ROWS, 'chat', false))).toEqual([
+      'section:pinned', 'section:conversations', 'time:today', 'session:chat-a',
+    ]);
+    expect(keys(filterSidebarRowsByMode(ROWS, 'code', false))).toEqual([
+      'section:pinned', 'section:projects', 'folder:/w/piwin', 'session:proj-a',
+    ]);
+    expect(keys(filterSidebarRowsByMode([header('pinned'), session('only-chat', 'general')], 'code', false))).toEqual([]);
+  });
+
   it('drops the pinned header when this pane has nothing pinned', () => {
     const rows: SidebarTreeRow[] = [
       header('pinned'),

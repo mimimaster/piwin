@@ -1785,6 +1785,10 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
     // Clicking pinned toggle collapses the pinned sessions
     act(() => pinnedToggle?.click());
     expect(container.querySelectorAll('[data-testid="session-pinned-ribbon"]')).toHaveLength(0);
+    const collapsedToggle = container.querySelector<HTMLButtonElement>('[data-testid="pinned-section-toggle"]');
+    expect(collapsedToggle?.getAttribute('aria-expanded')).toBe('false');
+    act(() => collapsedToggle?.click());
+    expect(container.querySelectorAll('[data-testid="session-pinned-ribbon"]')).toHaveLength(1);
   });
 
   it('does not render pinned section when there are no pinned sessions', () => {
