@@ -256,7 +256,11 @@ export type HostPushVariant =
     }
   | SubscriptionAuthPush
   | LiveUpdatedPush
-  | LiveOwnerActionPush;
+  | LiveOwnerActionPush
+  | {
+      type: 'desktop/memory-observability';
+      snapshot: import('./desktop-memory.js').DesktopMemoryObservabilitySnapshot;
+    };
 
 /** ADR 0027: HostPush is the variant union plus optional transport sequencing. */
 export type HostPush = HostPushVariant & HostPushSequencing;

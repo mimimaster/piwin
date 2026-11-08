@@ -255,6 +255,9 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
     case 'knowledge/bases-changed':
       // Full-list snapshot: only the latest one matters.
       return projection(deliveryKey('knowledge', 'bases'));
+    case 'desktop/memory-observability':
+      // Latest diagnostics snapshot wins; nothing to replay.
+      return projection(deliveryKey('desktop', 'memory-observability'));
     default:
       return assertNever(push);
   }

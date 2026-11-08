@@ -104,6 +104,9 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
       return session(push.sessionId);
     case 'agents/status-updated':
       return { kind: 'global' };
+    case 'desktop/memory-observability':
+      // Diagnostics: fan out to every attached shell, not one session view.
+      return { kind: 'global' };
     default:
       return assertNever(push);
   }

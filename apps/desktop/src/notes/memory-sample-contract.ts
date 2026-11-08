@@ -7,80 +7,46 @@
  * serde camelCase spellings; optional fields are absent (never null, never
  * 0-bytes) when the platform could not sample them.
  */
-import type { MemoryPressureLevel } from './memory-governor';
+import type {
+  DesktopMemoryObservabilitySnapshot,
+  DesktopMemoryOsPressureLevel,
+  DesktopMemoryPressureSample,
+  DesktopMemoryProcessSample,
+  DesktopMemoryPurgeResult,
+  DesktopMemoryRetiredProcess,
+  DesktopMemorySampleError,
+  DesktopMemorySampleErrorKind,
+  DesktopMemorySampleQuality,
+} from '@piwin/contracts';
 
-export type NativeOsPressureLevel = 'normal' | 'warning' | 'urgent' | 'critical';
+export type NativeOsPressureLevel = DesktopMemoryOsPressureLevel;
 
-export type ProcessWindowRole = 'main' | 'auxiliary';
+export type ProcessWindowRole = DesktopMemoryProcessSample['role'];
 
-export type NativeProcessSample = {
-  windowLabel: string;
-  role: ProcessWindowRole;
-  pid?: number;
-  /** u64 mach absolute time serialized as a decimal string (JS precision). */
-  startClock?: string;
-  footprintBytes?: number;
-  /** True when >1 live window maps the same WebContent pid. */
-  shared: boolean;
-};
+export type NativeProcessSample = DesktopMemoryProcessSample;
 
-export type NativeRetiredProcess = {
-  pid: number;
-  startClock?: string;
-  lastWindowLabel: string;
-  lastFootprintBytes?: number;
-};
+export type NativeRetiredProcess = DesktopMemoryRetiredProcess;
 
-export type NativeSampleErrorKind = 'webview-pid' | 'footprint' | 'os-pressure';
+export type NativeSampleErrorKind = DesktopMemorySampleErrorKind;
 
-export type NativeSampleError = {
-  kind: NativeSampleErrorKind;
-  windowLabel?: string;
-  message: string;
-};
+export type NativeSampleError = DesktopMemorySampleError;
 
-export type SampleQuality = 'full' | 'partial' | 'unavailable';
+export type SampleQuality = DesktopMemorySampleQuality;
 
 /**
  * Payload of `desktop:memory-pressure` events. `bytes`, `availableBytes` and
  * `level` keep their legacy meaning; everything else is additive
  * observability emitted by the S00 monitor baseline.
  */
-export type MemoryPressureEventDetail = {
-  bytes?: number;
-  availableBytes?: number;
-  availableBytesKind?: 'reclaimable-estimate';
-  level?: MemoryPressureLevel;
-  sampleId?: number;
-  timestampMs?: number;
-  monotonicMs?: number;
-  appVersion?: string;
-  osPressure?: NativeOsPressureLevel;
-  aggregateFootprintBytes?: number;
-  processes?: NativeProcessSample[];
-  retiredProcesses?: NativeRetiredProcess[];
-  unknownWindows?: string[];
-  errors?: NativeSampleError[];
-  quality?: SampleQuality;
-};
+export type MemoryPressureEventDetail = DesktopMemoryPressureSample;
 
-export type MemoryPurgeStatus = 'requested' | 'completed' | 'timeout' | 'unavailable';
+export type MemoryPurgeStatus = DesktopMemoryPurgeResult['status'];
 
 /** Payload of `desktop:memory-purge` lifecycle events. */
-export type NativeMemoryPurgeResult = {
-  requestId: number;
-  status: MemoryPurgeStatus;
-  windowCount: number;
-  error?: string;
-};
+export type NativeMemoryPurgeResult = DesktopMemoryPurgeResult;
 
 /** Return shape of the `memory_observability_snapshot` Tauri command. */
-export type NativeMemoryObservabilitySnapshot = {
-  samples: MemoryPressureEventDetail[];
-  purgeResults: NativeMemoryPurgeResult[];
-  pendingSampleId?: number;
-  stalledTicks: number;
-};
+export type NativeMemoryObservabilitySnapshot = DesktopMemoryObservabilitySnapshot;
 
 /** Finite non-negative byte count (fields like availableBytes may be 0). */
 export function isFiniteByteCount(value: unknown): value is number {

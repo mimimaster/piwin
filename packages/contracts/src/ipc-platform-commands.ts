@@ -77,6 +77,20 @@ export type PlatformHostCommand =
   | AgentPluginHostCommand
   | SubscriptionAuthCommand
   | PiEnvironmentHostCommand
+  | {
+      id?: string;
+      /** Desktop shell uploads its bounded native memory snapshot; the Host
+       * relays it to interested shells as `desktop/memory-observability`. */
+      type: 'desktop/report-memory-observability';
+      snapshot: import('./desktop-memory.js').DesktopMemoryObservabilitySnapshot;
+    }
+  | {
+      id?: string;
+      /** Request the latest diagnostics bundle an attached desktop reported.
+       * Response data: `DesktopMemoryDiagnostics`; absent when no desktop
+       * has reported yet. */
+      type: 'desktop/memory-diagnostics';
+    }
   | { id?: string; type: 'host/ping' }
   | { id?: string; type: 'host/status' }
   | { id?: string; type: 'host/create-entry'; input: import('./host-entry.js').HostCreateEntryInput }
