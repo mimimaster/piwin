@@ -20,6 +20,11 @@ import { useWindowsShellOffer } from '../hooks/use-windows-shell-offer';
 import { scheduleIdleTask } from '../automation/schedule-idle-task';
 import { loadStreamdownMathPlugin } from '../markdown/streamdown-math-plugin.js';
 import { startMemoryDiagnosticsReporter } from '../notes/memory-diagnostics.js';
+import { readComposerDraftPartitionId } from '../composer/composer-draft-persistence.js';
+import {
+  configureRendererRecovery,
+  persistedDraftStateReader,
+} from '../platform/renderer-recovery.js';
 import { WorkbenchWorkspaceProviders } from './workbench-workspace-providers';
 import { WorkbenchShellFrame } from './workbench-shell-slots';
 import { WorkbenchShellOverlays, WorkbenchStageMounts } from './workbench-stage-slots';
@@ -84,6 +89,18 @@ function HostWorkbench({
   // S02: push native+renderer memory diagnostics to the Host once a minute.
   // No-op outside Tauri (mock/browser dev) so the effect is always safe.
   useEffect(() => startMemoryDiagnosticsReporter(hostClient), [hostClient]);
+  // S07: renderer-recovery dep wiring. Draft durability is probed against the
+  // PERSISTED draft store — the live draft set is owned by (dirty) composer
+  // hooks this file must not touch, and the relaunch-event veto inside
+  // prepareRendererRelaunch remains the authoritative live-state gate.
+  const runActiveRef = useRef(state.streaming || state.activeRunId !== null);
+  runActiveRef.current = state.streaming || state.activeRunId !== null;
+  useEffect(() => {
+    configureRendererRecovery({
+      getDraftState: persistedDraftStateReader(readComposerDraftPartitionId(hostClient)),
+      isRunActive: () => runActiveRef.current,
+    });
+  }, [hostClient]);
   // Outside React state: a `host/log` push must not re-render this root.
   const [hostLogStore] = useState(createHostLogStore);
   const setHostLogEntries = hostLogStore.setEntries;

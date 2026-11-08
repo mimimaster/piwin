@@ -375,6 +375,45 @@ Decisions:
   frame budget); the sidecar logs it so the unbounded producer is identifiable
   from `host.log` alone.
 
+## Local live-interests addendum (2026-11)
+
+The remote `client/subscriptions` protocol (hydration fence + live filter)
+was extended to the local JSONL sidecar so the Desktop applies the same
+session-interest policy on both transports:
+
+- `host-serve-transport` routes well-formed `client/subscriptions` frames to
+  a transport-control lane before `parseHostCommandRequest`, preserving
+  versioned command envelopes; `subscriptions/applied` replies carry
+  `requestId`, failures reuse `id` for fast-fail.
+- `SidecarLocalEgress.applySubscriptions` serializes applies on a queue,
+  confirms the filter before mutating the live channel so a re-attach never
+  opens stale, and replays from the channel's `lastSentSeq` (not the fence)
+  because the local path has no hydration snapshot — every un-sent record is
+  re-evaluated under the new filter rather than dropped by `advanceCursor`.
+- The Rust bridge shares `write_frame_with_pending`; the new
+  `host_update_subscriptions` command joins `subscriptions/applied` by
+  `requestId` into the same pending map instead of broadcasting it.
+- `job/log` became a scoped audience `{kind:'job', jobId}` on a widened
+  `LiveSessionFilter {sessionIds, jobIds?}`; lifecycle events and `pty/*`
+  stay global. A client with no opted-in `jobIds` receives zero log frames
+  and catches up through the cursor `job/logs` pull.
+- Desktop sends through one `LiveSessionInventory` writer — pane and docking
+  layouts contribute declarations instead of competing
+  `updateSubscriptions` calls.
+
+## Memory-pressure containment addendum (2026-11)
+
+A frontend governor (`notes/memory-governor.ts`) maps WebContent pressure to
+per-cache budgets via a `DisposableCache` registry and drives reclaim rounds
+through a sustained-pressure coordinator (`reclaim-*` modules): admission
+first, then deadline-bounded release slices, one deduplicated native purge,
+and 2/10/30 s observation points that never fabricate a missing sample. A
+diagnostics view exposes footprint, residency and the action ledger; manual
+release is a bounded one-shot that obeys the same lease/visibility checks as
+an automatic episode. The renderer-recovery action is user-initiated and
+gates on real durability checks (Run guard → draft persistence →
+`canReclaimComposerDrafts`) before dispatching `piwin:before-renderer-relaunch`.
+
 ## Consequences
 
 - The immediate redundant Run regression is fixed at its authority, not hidden

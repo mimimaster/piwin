@@ -105,4 +105,79 @@ describe('inactive session render resources', () => {
     flush();
     expect(release).not.toHaveBeenCalled();
   });
+
+  describe('restoring marker', () => {
+    it('tracks set/clear and the restoring count', () => {
+      const { registry } = fixture();
+      expect(registry.isRestoring('a')).toBe(false);
+      expect(registry.restoringCount()).toBe(0);
+      registry.setRestoring('a', true);
+      expect(registry.isRestoring('a')).toBe(true);
+      expect(registry.restoringCount()).toBe(1);
+      registry.setRestoring('a', true);
+      expect(registry.restoringCount()).toBe(1);
+      registry.setRestoring('a', false);
+      expect(registry.isRestoring('a')).toBe(false);
+      expect(registry.restoringCount()).toBe(0);
+    });
+
+    it('never reclaims a presentation that is mid-restore', () => {
+      const { registry, flush } = fixture();
+      const restore = vi.fn();
+      const old = vi.fn();
+      registry.register('restoring', restore);
+      registry.register('old', old);
+      registry.setRestoring('restoring', true);
+      registry.setVisible(['current']);
+      flush();
+      expect(restore).not.toHaveBeenCalled();
+      expect(old).toHaveBeenCalledOnce();
+      // An explicit manual/automatic reclaim pass must skip it too.
+      registry.requestReclaim();
+      flush();
+      expect(restore).not.toHaveBeenCalled();
+    });
+
+    it('clearing the mark releases a still-hidden session at the next idle pass', () => {
+      const { registry, flush } = fixture();
+      const restore = vi.fn();
+      registry.register('restoring', restore);
+      registry.setRestoring('restoring', true);
+      registry.setVisible(['current']);
+      flush();
+      expect(restore).not.toHaveBeenCalled();
+      registry.setRestoring('restoring', false);
+      flush();
+      expect(restore).toHaveBeenCalledOnce();
+    });
+
+    it('treats a registering restoring session like a visible one', () => {
+      const { registry, flush } = fixture();
+      const restore = vi.fn();
+      registry.setVisible(['current']);
+      registry.setRestoring('restoring', true);
+      registry.register('restoring', restore);
+      flush();
+      expect(restore).not.toHaveBeenCalled();
+    });
+
+    it('counts visible presentations separately from restoring ones', () => {
+      const { registry } = fixture();
+      registry.register('a', vi.fn());
+      registry.register('b', vi.fn());
+      registry.setVisible(['a']);
+      registry.setRestoring('b', true);
+      expect(registry.count()).toBe(2);
+      expect(registry.visibleCount()).toBe(1);
+      expect(registry.restoringCount()).toBe(1);
+    });
+
+    it('reset() drops the restoring marks', () => {
+      const { registry } = fixture();
+      registry.setRestoring('a', true);
+      registry.reset();
+      expect(registry.isRestoring('a')).toBe(false);
+      expect(registry.restoringCount()).toBe(0);
+    });
+  });
 });

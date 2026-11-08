@@ -75,7 +75,13 @@ export function collectReclaimCandidates(nowMs: number = Date.now()): ReclaimCan
     });
   }
 
-  const presentations = sessionRenderResources.count();
+  // Restoring keys are a protection reason (visible-adjacent): they must not
+  // count toward the batch-estimate either, or an episode would charge at a
+  // presentation the registry itself refuses to release mid-restore.
+  const presentations = Math.max(
+    0,
+    sessionRenderResources.count() - sessionRenderResources.restoringCount(),
+  );
   if (presentations > 0) {
     candidates.push({
       kind: 'presentation',
@@ -97,10 +103,11 @@ export function collectReclaimCandidates(nowMs: number = Date.now()): ReclaimCan
  * - `cache:<name>`: re-apply the governor's CURRENT budget plus evictAll —
  *   not an ad-hoc budget, so admission caps stay whatever the level dictates
  *   (evictAll alone would fall back to module defaults and briefly re-admit).
- * - `presentation:non-visible`: requestReclaim() re-checks visibility at
- *   execution time inside the registry, so a pane that became visible since
- *   enumeration is never released — that is the lease/visibility guard the
- *   coordinator contract requires.
+ * - `presentation:non-visible`: requestReclaim() re-checks visibility and
+ *   the restoring marker at execution time inside the registry, so a pane
+ *   that became visible (or started restoring) since enumeration is never
+ *   released — that is the lease/visibility guard the coordinator contract
+ *   requires.
  */
 export async function releaseReclaimCandidate(
   key: string,

@@ -118,7 +118,7 @@ export function countCandidates(
 }
 
 /** Least-protected first, then oldest, then fattest. */
-function compareCandidates(a: ReclaimCandidate, b: ReclaimCandidate): number {
+export function compareReclaimCandidates(a: ReclaimCandidate, b: ReclaimCandidate): number {
   if (a.protectionScore !== b.protectionScore) return a.protectionScore - b.protectionScore;
   if (a.lastTouchedMs !== b.lastTouchedMs) return b.lastTouchedMs - a.lastTouchedMs;
   return b.estimatedBytes - a.estimatedBytes;
@@ -138,7 +138,7 @@ export function selectReclaimAction(input: ReclaimPolicyInput): ReclaimAction {
 
   const eligible = input.candidates
     .filter((candidate) => isEligible(candidate, attemptedKeys))
-    .sort(compareCandidates);
+    .sort(compareReclaimCandidates);
 
   // 2. Release work — suppressed while an observation owes a fresh sample:
   //    the coordinator already released everything it could; further slices

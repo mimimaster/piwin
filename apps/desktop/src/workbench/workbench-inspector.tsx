@@ -72,6 +72,7 @@ import { TerminalJobMonitor, type TerminalJobMonitorProps } from '../terminal/te
 import { isTauriPtyAvailable } from '../host/tauri-pty';
 import { useTerminalSessions } from '../hooks/use-terminal-sessions';
 import { requestBrowserNewTab } from '../host/host-client-browser';
+import { MemoryDiagnosticsPanel } from '../notes/MemoryDiagnosticsPanel';
 
 type InspectorShell = {
   closeOverlay: () => void;
@@ -589,6 +590,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           }
           {...(tasksContent !== undefined ? { tasksContent } : {})}
           {...(tasksActiveCount !== undefined ? { tasksActiveCount } : {})}
+          memoryContent={<MemoryDiagnosticsPanel />}
         />
       </>
   );

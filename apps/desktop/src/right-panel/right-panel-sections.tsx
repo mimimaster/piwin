@@ -65,6 +65,7 @@ export const SECTION_META: Array<{
   { id: 'cards', icon: <IconCards />, labelEn: 'Flashcards', labelZh: '知识卡片', plusOnly: true },
   { id: 'canvas', icon: <IconDocument />, labelEn: 'Canvas', labelZh: '画布', hidden: true },
   { id: 'docPreview', icon: <IconDocument />, labelEn: 'Document', labelZh: '文档', hidden: true },
+  { id: 'memory', icon: <IconActivity />, labelEn: 'Memory', labelZh: '内存', plusOnly: true, singleInstance: true },
 ];
 
 export function isHomeLauncherSection(entry: (typeof SECTION_META)[number]): boolean {

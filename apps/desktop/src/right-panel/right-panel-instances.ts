@@ -17,6 +17,7 @@ export const RIGHT_PANEL_TOOL_KINDS = [
   'sideChat',
   'docPreview',
   'tasks',
+  'memory',
 ] as const;
 
 export type RightPanelToolKind = (typeof RIGHT_PANEL_TOOL_KINDS)[number];

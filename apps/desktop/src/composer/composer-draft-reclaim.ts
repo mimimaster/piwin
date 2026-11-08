@@ -2,7 +2,7 @@ import type { DraftSessionItemUi } from './draft-session.js';
 import type { SessionComposerSnapshot } from '../hooks/composer-session-snapshot.js';
 import { buildComposerDraftStore } from './composer-draft-persistence.js';
 
-type ComposerReclaimInput = {
+export type ComposerReclaimInput = {
   drafts: readonly DraftSessionItemUi[];
   draftSnapshots: ReadonlyMap<string, SessionComposerSnapshot>;
   sessionSnapshots: ReadonlyMap<string, SessionComposerSnapshot>;

@@ -99,6 +99,8 @@ export type RightPanelProps = {
   onTabClosed?: (tab: RightPanelTab) => void;
   docPreviewContent?: ReactNode;
   tasksContent?: ReactNode;
+  /** S07 memory diagnostics surface (compact panel, self-collecting). */
+  memoryContent?: ReactNode;
   changesCount?: number;
   runningJobCount?: number;
   cardsDueCount?: number;
@@ -148,6 +150,8 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
       return props.docPreviewContent;
     case 'tasks':
       return props.tasksContent;
+    case 'memory':
+      return props.memoryContent;
     default:
       return undefined;
   }

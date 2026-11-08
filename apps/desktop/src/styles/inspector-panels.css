@@ -584,3 +584,43 @@
   padding-left: var(--s-4);
   font-size: var(--fs-micro);
 }
+
+/* S07 memory diagnostics panel: compact label/value sections. */
+.memory-diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-2);
+  overflow: auto;
+}
+
+.memory-diag-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-3);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-tight);
+  padding: 2px 0;
+}
+
+.memory-diag-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.memory-diag-note {
+  font-size: var(--fs-micro);
+  margin-top: var(--s-2);
+}
+
+.memory-diag-detail {
+  font-size: var(--fs-micro);
+  padding: var(--s-1) var(--s-2);
+}
+
+.memory-diag-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
