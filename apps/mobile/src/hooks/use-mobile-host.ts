@@ -242,7 +242,7 @@ export function useMobileHost() {
     setForeground(reduceForegroundRun(initialForegroundRunState(), { type: 'begin-reconcile', generation }, sessionId));
     if (typeof client.updateSubscriptions === 'function') {
       try {
-        await client.updateSubscriptions([sessionId]);
+        await client.updateSubscriptions({ sessionIds: [sessionId] });
       } catch {
         // Subscriptions are best-effort; foreground-run still gates Send.
       }
