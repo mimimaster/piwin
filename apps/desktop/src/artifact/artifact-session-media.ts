@@ -3,6 +3,7 @@ import { listArtifactSessionMediaIds } from '@piwin/artifact';
 import { createLimitedDataUrlFromHref } from '../media/media-preview-bitmap';
 import { useMediaPreviewRead } from '../media/media-preview-read-context';
 import { releaseMediaPreviewUrl } from '../media/media-preview-url-cache';
+import { desktopMetrics } from '../run-activity/diagnostic-metrics';
 import {
   resolveLocalVaultMediaUrl,
   type MediaPreviewReader,
@@ -98,6 +99,19 @@ function resolveMediaDataUrl(
 export function resetArtifactMediaDataUrlCacheForTests(): void {
   mediaDataUrlCache.clear();
 }
+
+/**
+ * Entry count for diagnostics. Cached values are `Promise<data-url>` whose
+ * resolved sizes are not cheaply observable, so bytes is not reported.
+ */
+export function getArtifactMediaDataUrlCacheStats(): { entries: number } {
+  return { entries: mediaDataUrlCache.size };
+}
+
+desktopMetrics.registerCacheProvider('artifactMediaDataUrls', () => ({
+  entries: getArtifactMediaDataUrlCacheStats().entries,
+  bytes: 0,
+}));
 
 function sameMediaUrls(a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean {
   if (a.size !== b.size) return false;

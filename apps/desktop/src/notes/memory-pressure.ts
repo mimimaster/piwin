@@ -1,4 +1,9 @@
 import { globalMemoryGovernor, type MemoryPressureLevel } from './memory-governor';
+import { ackNativeMemorySample } from './memory-observability';
+import { isNativeOsPressureLevel, mainFootprintBytes } from './memory-sample-contract';
+import type { MemoryPressureEventDetail, NativeOsPressureLevel } from './memory-sample-contract';
+
+export type { MemoryPressureEventDetail };
 
 const MIB = 1024 * 1024;
 
@@ -14,6 +19,10 @@ const OS_MODERATE_AVAILABLE_BYTES = 256 * MIB;
 export type MemoryPressureSample = {
   bytes: number;
   availableBytes?: number;
+  /** Native OS memory-pressure tier (kern.memorystatus_vm_pressure_level).
+   * Independent escalation signal: when the reclaimable `availableBytes`
+   * estimate is absent, the OS tier still protects global pressure. */
+  osPressure?: NativeOsPressureLevel;
 };
 
 export function classifyMemoryPressure(
@@ -28,6 +37,19 @@ export function classifyMemoryPressure(
     if (sample.availableBytes <= OS_MODERATE_AVAILABLE_BYTES) {
       baseLevel = 'moderate';
     }
+  }
+  // Native OS pressure is a second escalation path for the same floors:
+  // 'critical' outranks everything; 'warning'/'urgent' can raise but never
+  // demote a level the reclaimable estimate already set. A 'normal' tier
+  // never pulls a footprint-driven level back down.
+  if (sample.osPressure === 'critical') {
+    return 'critical';
+  }
+  if (
+    (sample.osPressure === 'warning' || sample.osPressure === 'urgent') &&
+    baseLevel === 'normal'
+  ) {
+    baseLevel = 'moderate';
   }
 
   if (currentLevel === 'critical') {
@@ -67,18 +89,6 @@ export function applyMemoryPressureSample(sample: MemoryPressureSample): MemoryP
   globalMemoryGovernor.setLevel(nextLevel);
   return nextLevel;
 }
-
-/**
- * Payload of `desktop:memory-pressure` events. The Rust sensor
- * (src-tauri/src/memory_pressure.rs) emits `{ bytes, availableBytes }`
- * samples of the main WebContent footprint; the legacy fallback path (and
- * manual Web Inspector dispatch) may instead carry a pre-classified `level`.
- */
-export type MemoryPressureEventDetail = {
-  bytes?: number;
-  availableBytes?: number;
-  level?: MemoryPressureLevel;
-};
 
 const PRESSURE_LEVEL_RANK: Record<MemoryPressureLevel, number> = {
   normal: 0,
@@ -140,11 +150,15 @@ export function applyMemoryPressureEvent(
   const previousLevel = globalMemoryGovernor.getLevel();
   let nextLevel = previousLevel;
 
-  if (detail !== undefined && isFiniteByteCount(detail.bytes)) {
-    lastSampledBytes = detail.bytes;
-    const sample: MemoryPressureSample = { bytes: detail.bytes };
+  const effectiveBytes = detail === undefined ? undefined : mainFootprintBytes(detail);
+  if (detail !== undefined && effectiveBytes !== undefined) {
+    lastSampledBytes = effectiveBytes;
+    const sample: MemoryPressureSample = { bytes: effectiveBytes };
     if (isFiniteByteCount(detail.availableBytes)) {
       sample.availableBytes = detail.availableBytes;
+    }
+    if (isNativeOsPressureLevel(detail.osPressure)) {
+      sample.osPressure = detail.osPressure;
     }
     const classified = classifyMemoryPressure(sample, previousLevel);
     const holdForDwell =
@@ -203,6 +217,12 @@ async function bridgeTauriMemoryPressureEvents(): Promise<void> {
   }
   const { listen } = await import('@tauri-apps/api/event');
   await listen<MemoryPressureEventDetail>('desktop:memory-pressure', (event) => {
+    // Emissions are ack-gated: ack first so a slow governor turn never
+    // stalls the next sample, then re-dispatch for the DOM listeners above.
+    const sampleId = event.payload?.sampleId;
+    if (typeof sampleId === 'number' && Number.isInteger(sampleId) && sampleId >= 0) {
+      void ackNativeMemorySample(sampleId);
+    }
     window.dispatchEvent(new CustomEvent('desktop:memory-pressure', { detail: event.payload }));
   });
 }

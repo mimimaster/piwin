@@ -26,6 +26,7 @@ import type {
   WalkthroughArtifact,
 } from '@piwin/contracts';
 import type { ChatMessageUi, ChatUiState, RunRecordUi } from '../conversation/chat-reducer.js';
+import { desktopMetrics, utf8ByteLength } from '../run-activity/diagnostic-metrics.js';
 
 /** Inactive sessions kept warm. Active is always extra on top. */
 export const MAX_WARM_INACTIVE_SESSIONS = 2;
@@ -53,6 +54,35 @@ export type WarmSessionCache = {
 
 export function createEmptyWarmSessionCache(): WarmSessionCache {
   return { byId: {}, order: [] };
+}
+
+function safeJsonByteLength(value: unknown): number {
+  try {
+    return utf8ByteLength(JSON.stringify(value));
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Rough resident-size estimate of a warm cache: serialized byte length of
+ * every retained snapshot. Diagnostics, not accounting — message rows stay
+ * shared with the reducer and V8 dedupes references, so this over-counts.
+ */
+export function estimateWarmSessionCacheBytes(cache: WarmSessionCache): number {
+  let bytes = 0;
+  for (const snapshot of Object.values(cache.byId)) {
+    bytes += safeJsonByteLength(snapshot);
+  }
+  return bytes;
+}
+
+/** Push the current estimate into the observability collector. */
+function reportWarmSessionCacheEstimate(cache: WarmSessionCache): void {
+  desktopMetrics.setCacheEstimate('warmSessions', {
+    entries: cache.order.length,
+    bytes: estimateWarmSessionCacheBytes(cache),
+  });
 }
 
 export function getWarmSessionSnapshot(
@@ -157,7 +187,9 @@ export function putWarmSessionSnapshot(
     }
   }
 
-  return { byId: nextById, order: nextOrder };
+  const next = { byId: nextById, order: nextOrder };
+  reportWarmSessionCacheEstimate(next);
+  return next;
 }
 
 export function removeWarmSessionSnapshot(
@@ -169,10 +201,12 @@ export function removeWarmSessionSnapshot(
   }
   const nextById = { ...cache.byId };
   delete nextById[sessionId];
-  return {
+  const next = {
     byId: nextById,
     order: cache.order.filter((id) => id !== sessionId),
   };
+  reportWarmSessionCacheEstimate(next);
+  return next;
 }
 
 export function touchWarmSessionOrder(

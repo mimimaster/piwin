@@ -8,6 +8,7 @@ import type {
 } from '@piwin/contracts';
 import { HOST_COMMAND_REQUEST_ENVELOPE_VERSION, formatError } from '@piwin/contracts';
 import { readDesktopClientPrincipalId } from '../platform/desktop-client-principal.js';
+import { desktopMetrics, utf8ByteLength } from '../run-activity/diagnostic-metrics.js';
 import { isReplayDoneFrame } from './host-push-frame.js';
 import { getHostRequestTimeoutMs } from './host-client-request-timeouts.js';
 import { HostClientPushLayer } from './host-client-push.js';
@@ -68,6 +69,18 @@ export abstract class HostClientLiveTransport extends HostClientPushLayer {
         this.adoptHostCursorFence(rawPayload.currentSeq);
         return;
       }
+      const payloadType = (event.payload as { type?: unknown }).type;
+      if (typeof payloadType === 'string') {
+        try {
+          desktopMetrics.recordIngress(
+            `push:${payloadType}`,
+            utf8ByteLength(JSON.stringify(event.payload)),
+          );
+        } catch {
+          // Metrics must never break the transport; unserializable payloads
+          // still flow through the listeners below.
+        }
+      }
       // Responses are returned through request(); only unsolicited pushes are
       // broadcast to UI subscribers. Broadcasting responses as pushes makes a
       // failed request surface once in the caller and again in bootstrap.
@@ -89,6 +102,20 @@ export abstract class HostClientLiveTransport extends HostClientPushLayer {
     this.unlistenHostMessageBatch = await listen<HostPushBatchFrame>(
       'host-message-batch',
       (event) => {
+        try {
+          for (const item of event.payload.items ?? []) {
+            const itemType = item.push?.type;
+            if (typeof itemType === 'string') {
+              desktopMetrics.recordIngress(
+                `push:${itemType}`,
+                utf8ByteLength(JSON.stringify(item)),
+              );
+            }
+          }
+          desktopMetrics.recordAppliedBatch();
+        } catch {
+          // Metrics must never break the transport.
+        }
         this.emitBatch(event.payload);
       },
     );

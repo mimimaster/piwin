@@ -7,6 +7,8 @@
  * when they unmount; a URL nobody leases stays warm for scroll-back and is
  * revoked once it falls out of the idle tail.
  */
+import { desktopMetrics } from '../run-activity/diagnostic-metrics.js';
+
 export const MAX_IDLE_MEDIA_PREVIEW_URLS = 6;
 
 type LeasedUrl = { url: string; leases: number };
@@ -88,3 +90,32 @@ export function resetMediaPreviewUrlCacheForTests(): void {
   keysByUrl.clear();
   inflightByKey.clear();
 }
+
+/**
+ * Observability counters: total/leased/idle entries plus in-flight loads.
+ * Byte sizes of blob URLs are not observable here, so bytes stays 0.
+ */
+export function getMediaPreviewUrlCacheStats(): {
+  entries: number;
+  leased: number;
+  idle: number;
+  inflight: number;
+} {
+  let leased = 0;
+  for (const entry of entriesByKey.values()) {
+    if (entry.leases > 0) {
+      leased += 1;
+    }
+  }
+  return {
+    entries: entriesByKey.size,
+    leased,
+    idle: entriesByKey.size - leased,
+    inflight: inflightByKey.size,
+  };
+}
+
+desktopMetrics.registerCacheProvider('mediaPreviewUrls', () => ({
+  entries: getMediaPreviewUrlCacheStats().entries,
+  bytes: 0,
+}));

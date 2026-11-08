@@ -8,6 +8,7 @@
  * heights reserve the placeholder when the SVG has been evicted.
  */
 import type { ThemeMode } from '../theme/theme-mode.js';
+import { desktopMetrics } from '../run-activity/diagnostic-metrics.js';
 
 export const MAX_MERMAID_DIAGRAM_SVG_CACHE_ENTRIES = 64;
 export const MAX_MERMAID_DIAGRAM_HEIGHT_CACHE_ENTRIES = 256;
@@ -109,12 +110,14 @@ export function getOrCreateMermaidDiagramRender(
   if (inflight) {
     return inflight;
   }
+  desktopMetrics.incrementActiveDiagram();
   const pending = render()
     .then((svg) => {
       rememberMermaidDiagramSvg(source, themeMode, svg);
       return svg;
     })
     .finally(() => {
+      desktopMetrics.decrementActiveDiagram();
       if (inflightSvgByKey.get(key) === pending) {
         inflightSvgByKey.delete(key);
       }
@@ -128,3 +131,30 @@ export function clearMermaidDiagramCacheForTests(): void {
   heightPxByKey.clear();
   inflightSvgByKey.clear();
 }
+
+/**
+ * Observability counters: entry/inflight totals plus an SVG byte estimate
+ * (string length ≈ UTF-16 char count — diagnostics, not accounting).
+ */
+export function getMermaidDiagramCacheStats(): {
+  svgEntries: number;
+  heightEntries: number;
+  inflight: number;
+  svgBytes: number;
+} {
+  let svgBytes = 0;
+  for (const svg of svgByKey.values()) {
+    svgBytes += svg.length;
+  }
+  return {
+    svgEntries: svgByKey.size,
+    heightEntries: heightPxByKey.size,
+    inflight: inflightSvgByKey.size,
+    svgBytes,
+  };
+}
+
+desktopMetrics.registerCacheProvider('mermaidDiagrams', () => {
+  const stats = getMermaidDiagramCacheStats();
+  return { entries: stats.svgEntries + stats.heightEntries, bytes: stats.svgBytes };
+});

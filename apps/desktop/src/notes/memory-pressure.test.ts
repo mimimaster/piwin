@@ -41,6 +41,35 @@ describe('classifyMemoryPressure', () => {
     ).toBe('critical');
   });
 
+  it('escalates on the native OS pressure tier when availableBytes is absent', () => {
+    // Native macOS pressure replaces the reclaimable estimate when the
+    // sysctl succeeds — the OS tier must still reach the classifier.
+    expect(
+      classifyMemoryPressure({ bytes: 200 * MIB, osPressure: 'critical' }),
+    ).toBe('critical');
+    expect(classifyMemoryPressure({ bytes: 100 * MIB, osPressure: 'urgent' })).toBe(
+      'moderate',
+    );
+    expect(
+      classifyMemoryPressure({ bytes: 100 * MIB, osPressure: 'warning' }),
+    ).toBe('moderate');
+    // A normal tier never demotes a footprint-driven level.
+    expect(
+      classifyMemoryPressure({
+        bytes: MEMORY_PRESSURE_CRITICAL_BYTES,
+        osPressure: 'normal',
+      }),
+    ).toBe('critical');
+    // availableBytes still wins when both signals arrive.
+    expect(
+      classifyMemoryPressure({
+        bytes: 100 * MIB,
+        availableBytes: 32 * MIB,
+        osPressure: 'normal',
+      }),
+    ).toBe('critical');
+  });
+
   it('uses hysteresis so a brief dip does not leave critical or moderate', () => {
     expect(
       classifyMemoryPressure(
@@ -144,6 +173,47 @@ describe('applyMemoryPressureEvent', () => {
     expect(applyMemoryPressureEvent({ bytes: MEMORY_PRESSURE_MODERATE_BYTES }, 0)).toBe('moderate');
     expect(applyMemoryPressureEvent({ level: 'normal' }, 5_000)).toBe('normal');
     expect(globalMemoryGovernor.getLevel()).toBe('normal');
+  });
+
+  it('classifies via the main process sample when the observability payload is present', () => {
+    // Legacy bytes field says nothing; the per-window sample says moderate.
+    expect(
+      applyMemoryPressureEvent(
+        {
+          sampleId: 7,
+          quality: 'full',
+          processes: [
+            {
+              windowLabel: 'main',
+              role: 'main',
+              pid: 42,
+              startClock: '123',
+              footprintBytes: MEMORY_PRESSURE_MODERATE_BYTES,
+              shared: false,
+            },
+            {
+              windowLabel: 'pin-1',
+              role: 'auxiliary',
+              pid: 43,
+              startClock: '124',
+              footprintBytes: 10 * MIB,
+              shared: false,
+            },
+          ],
+        },
+        0,
+      ),
+    ).toBe('moderate');
+    expect(getLastMemoryPressureBytes()).toBe(MEMORY_PRESSURE_MODERATE_BYTES);
+  });
+
+  it('treats bytes of 0 as missing rather than an idle footprint', () => {
+    expect(applyMemoryPressureEvent({ bytes: 0 })).toBe('normal');
+    expect(getLastMemoryPressureBytes()).toBeNull();
+    // But a legacy positive sample still applies normally.
+    expect(applyMemoryPressureEvent({ bytes: MEMORY_PRESSURE_MODERATE_BYTES }, 0)).toBe(
+      'moderate',
+    );
   });
 
   it('applies legacy level-only payloads directly', () => {

@@ -1,4 +1,5 @@
 import { scheduleIdleTask } from '../automation/schedule-idle-task.js';
+import { desktopMetrics } from '../run-activity/diagnostic-metrics.js';
 
 type RenderResource = { sessionKey: string; reclaim: () => void; reclaimed: boolean };
 type IdleScheduler = (task: () => void) => () => void;
@@ -73,7 +74,16 @@ export function createSessionRenderResourceRegistry(schedule: IdleScheduler = sc
       visibleKeys = null;
       for (const listener of [...listeners]) listener();
     },
+    /** Live (registered, not yet released) presentation resources. */
+    count(): number {
+      return resources.size;
+    },
   };
 }
 
 export const sessionRenderResources = createSessionRenderResourceRegistry();
+
+desktopMetrics.registerResourceCountProvider(
+  'sessionRenderResources',
+  () => sessionRenderResources.count(),
+);
