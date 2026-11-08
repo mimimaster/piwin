@@ -21,7 +21,7 @@ pub(crate) const TRAY_QUOTA_LABEL: &str = "tray-quota";
 #[cfg(target_os = "macos")]
 const TRAY_ICON_ID: &str = "piwin-oauth-tray";
 
-const DEFAULT_POPOVER_WIDTH: f64 = 330.0;
+const DEFAULT_POPOVER_WIDTH: f64 = 340.0;
 const DEFAULT_POPOVER_HEIGHT: f64 = 280.0;
 const MIN_POPOVER_HEIGHT: f64 = 120.0;
 const MAX_POPOVER_HEIGHT: f64 = 620.0;
@@ -225,7 +225,7 @@ fn build_popover_window(
     .resizable(false)
     .visible(false)
     .focused(true)
-    .shadow(true);
+    .shadow(false);
 
     #[cfg(target_os = "macos")]
     {
@@ -233,6 +233,7 @@ fn build_popover_window(
     }
 
     let window = builder.build()?;
+    let _ = window.set_shadow(false);
     position_popover_below_anchor(&window, anchor, DEFAULT_POPOVER_WIDTH);
 
     let window_for_events = window.clone();
@@ -255,6 +256,7 @@ fn toggle_popover_window(app: &AppHandle, anchor: Option<AnchorRect>) -> Result<
         position_popover_below_anchor(&window, anchor, DEFAULT_POPOVER_WIDTH);
         let _ = window.set_always_on_top(true);
         let _ = window.set_visible_on_all_workspaces(true);
+        let _ = window.set_shadow(false);
         window.show().map_err(|e| e.to_string())?;
         let _ = window.set_focus();
         let _ = app.emit("tray-quota-opened", ());

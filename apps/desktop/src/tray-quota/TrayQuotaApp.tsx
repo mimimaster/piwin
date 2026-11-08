@@ -326,7 +326,7 @@ export function TrayQuotaApp(): ReactElement {
     const updateSize = () => {
       const rect = node.getBoundingClientRect();
       if (rect.height > 20) {
-        void resizeTrayQuotaPopover(Math.ceil(rect.height + 6));
+        void resizeTrayQuotaPopover(Math.ceil(rect.height));
       }
     };
     updateSize();
