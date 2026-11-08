@@ -1,0 +1,104 @@
+diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
+index e5d84dd53528c14618bfb9956f3b4a0c10c59bfd..dda3d642b7593802557044050f48e9b5e1cdc106 100644
+--- a/dist/core/agent-session.d.ts
++++ b/dist/core/agent-session.d.ts
+@@ -253,6 +253,8 @@ export declare class AgentSession {
+      * happens here instead of in wrappers.
+      */
+     private _installAgentToolHooks;
++    private _estimateContextTokensForCompaction;
++    private _compactBeforeNextAssistantResponse;
+     private _installAgentNextTurnRefresh;
+     /** Emit an event to all listeners */
+     private _emit;
+diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
+index 4bcf0d4b823d1cc847d1fa26a86a850761758194..517d44cf4bc4da54cd656c949c386d6d90fcb1f1 100644
+--- a/dist/core/agent-session.js
++++ b/dist/core/agent-session.js
+@@ -271,14 +271,40 @@ export class AgentSession {
+             };
+         };
+     }
++    // Backported from Pi 0.84.4; fall back to live estimates after compaction
++    // instead of reusing a retained assistant's pre-compaction usage.
++    _estimateContextTokensForCompaction(messages) {
++        const estimate = estimateContextTokens(messages);
++        const compactionEntry = getLatestCompactionEntry(this.sessionManager.getBranch());
++        const usageMessage = estimate.lastUsageIndex === null ? undefined : messages[estimate.lastUsageIndex];
++        if (compactionEntry && usageMessage?.role === "assistant" &&
++            usageMessage.timestamp <= new Date(compactionEntry.timestamp).getTime()) {
++            return messages.reduce((total, message) => total + estimateTokens(message), 0);
++        }
++        return estimate.tokens;
++    }
++    async _compactBeforeNextAssistantResponse(context, signal) {
++        const model = this.model;
++        const settings = this.settingsManager.getCompactionSettings();
++        if (signal?.aborted || !model || model.contextWindow <= 0 ||
++            !shouldCompact(this._estimateContextTokensForCompaction(context.messages), model.contextWindow, settings)) {
++            return context;
++        }
++        await this._runAutoCompaction("threshold", false);
++        return {
++            ...context,
++            messages: this.agent.state.messages.slice(),
++        };
++    }
+     _installAgentNextTurnRefresh() {
+         const previousPrepareNextTurnWithContext = this.agent.prepareNextTurnWithContext ??
+             (this.agent.prepareNextTurn
+                 ? async (_turn, signal) => await this.agent.prepareNextTurn?.(signal)
+                 : undefined);
+         this.agent.prepareNextTurnWithContext = async (turn, signal) => {
+-            const previousSnapshot = await previousPrepareNextTurnWithContext?.(turn, signal);
+-            const previousContext = previousSnapshot?.context ?? turn.context;
++            const context = await this._compactBeforeNextAssistantResponse(turn.context, signal);
++            const previousSnapshot = await previousPrepareNextTurnWithContext?.({ ...turn, context }, signal);
++            const previousContext = previousSnapshot?.context ?? context;
+             return {
+                 ...previousSnapshot,
+                 context: {
+@@ -1566,20 +1592,8 @@ export class AgentSession {
+         let contextTokens;
+         const directContextTokens = assistantMessage.usage ? calculateContextTokens(assistantMessage.usage) : 0;
+         if (assistantMessage.stopReason === "error" || directContextTokens === 0) {
+-            const messages = this.agent.state.messages;
+-            const estimate = estimateContextTokens(messages);
+-            if (estimate.lastUsageIndex === null)
+-                return false; // No usage data at all
+-            // Verify the usage source is post-compaction. Kept pre-compaction messages
+-            // have stale usage reflecting the old (larger) context and would falsely
+-            // trigger compaction right after one just finished.
+-            const usageMsg = messages[estimate.lastUsageIndex];
+-            if (compactionEntry &&
+-                usageMsg.role === "assistant" &&
+-                usageMsg.timestamp <= new Date(compactionEntry.timestamp).getTime()) {
+-                return false;
+-            }
+-            contextTokens = estimate.tokens;
++            // Providers without usage must still compact from estimated live history.
++            contextTokens = this._estimateContextTokensForCompaction(this.agent.state.messages);
+         }
+         else {
+             contextTokens = directContextTokens;
+diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
+index e7ffee7a8566a7556f75e3f3edd228af3d93b141..08caebd5f0fee48894538f75582b46a825c9f54b 100644
+--- a/dist/core/compaction/compaction.js
++++ b/dist/core/compaction/compaction.js
+@@ -321,13 +321,9 @@ export function findCutPoint(entries, startIndex, endIndex, keepRecentTokens) {
+         accumulatedTokens += messageTokens;
+         // Check if we've exceeded the budget
+         if (accumulatedTokens >= keepRecentTokens) {
+-            // Find the closest valid cut point at or after this entry
+-            for (let c = 0; c < cutPoints.length; c++) {
+-                if (cutPoints[c] >= i) {
+-                    cutIndex = cutPoints[c];
+-                    break;
+-                }
+-            }
++            // Backported from Pi 0.86.0: retain the preceding tool call when
++            // trailing results alone exceed the budget, never the whole history.
++            cutIndex = cutPoints.find((candidate) => candidate >= i) ?? cutPoints[cutPoints.length - 1];
+             break;
+         }
+     }

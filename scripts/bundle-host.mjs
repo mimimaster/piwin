@@ -9,6 +9,7 @@
  */
 import { build } from 'esbuild';
 import { bundleCliEntry } from './lib/bundle-cli-entry.mjs';
+import { applyPiCompactionPatch } from './lib/apply-pi-compaction-patch.mjs';
 import { cp, lstat, mkdir, readFile, readdir, rm, writeFile, stat } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -162,6 +163,8 @@ async function main() {
     cwd: distHost,
     env: { ...process.env, npm_config_ignore_scripts: 'false' },
   });
+
+  await applyPiCompactionPatch(join(distHost, 'node_modules/@earendil-works/pi-coding-agent'));
 
   console.log('[bundle-host] copying bundled assets (S0 layout)…');
   const assetsRoot = join(distHost, 'bundled-assets');

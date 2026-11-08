@@ -1,0 +1,23 @@
+{
+  "package": "@earendil-works/pi-coding-agent",
+  "version": "0.84.2",
+  "patchFile": "@earendil-works__pi-coding-agent@0.84.2.patch",
+  "patchSha256": "b2c6e35a13a83f7a315cccc5c1305e8d56c90131710890175c711462e76df4fa",
+  "files": [
+    {
+      "path": "dist/core/agent-session.js",
+      "beforeSha256": "9f065b4a277857db100e3277c4d18316c89cd46b11f6ba8140122f19efbe47c4",
+      "afterSha256": "fdd433fbc63946fa60b4ed82c061cf59af0897ef668b355220bcec003d389ab6"
+    },
+    {
+      "path": "dist/core/agent-session.d.ts",
+      "beforeSha256": "0a40118419785cacb7d2aa9d41a8cf60131ad76fc147bccf6a628b5e8c88fec6",
+      "afterSha256": "377e598c98b3cfcd76b344bdcdea79d393a1450fbd10f42b4a24fd25ea2d8d37"
+    },
+    {
+      "path": "dist/core/compaction/compaction.js",
+      "beforeSha256": "fcb12f1eb4d38578978e1a8e3e382a3fccfd5e0ccf87bc86979a9a8d9c145c7b",
+      "afterSha256": "0492cf8a16d8fa30156088261ea5cae9810437e3c778c1abb86d9240c22989eb"
+    }
+  ]
+}

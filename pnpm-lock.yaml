@@ -7,6 +7,11 @@ settings:
 overrides:
   brace-expansion@>=5.0.0 <5.0.8: 5.0.12
 
+patchedDependencies:
+  '@earendil-works/pi-coding-agent@0.84.2':
+    hash: o5lpezkfyf6zg6r56h4bxmg2mq
+    path: packages/agent-host/patches/@earendil-works__pi-coding-agent@0.84.2.patch
+
 importers:
 
   .:
@@ -405,7 +410,7 @@ importers:
         version: 1.1.0
       '@earendil-works/pi-coding-agent':
         specifier: 0.84.2
-        version: 0.84.2(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
+        version: 0.84.2(patch_hash=o5lpezkfyf6zg6r56h4bxmg2mq)(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
       '@piwin/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -6313,7 +6318,7 @@ snapshots:
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@0.84.2(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)':
+  '@earendil-works/pi-coding-agent@0.84.2(patch_hash=o5lpezkfyf6zg6r56h4bxmg2mq)(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)':
     dependencies:
       '@earendil-works/pi-agent-core': 0.84.2(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
       '@earendil-works/pi-ai': 0.84.2(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
