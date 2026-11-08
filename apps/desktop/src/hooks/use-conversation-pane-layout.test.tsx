@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   PRIMARY_CONVERSATION_PANE_ID,
   applyConversationPanePreset,
@@ -11,7 +11,10 @@ import {
   type ConversationPaneIdFactory,
   type ConversationPaneLayout,
 } from '../conversation/conversation-pane-layout.js';
-import type { HostClient } from '../host/host-client.js';
+import {
+  createLiveSessionInventory,
+  type LiveSessionInventory,
+} from '../workbench/live-session-inventory.js';
 import { useConversationPaneSubscriptions } from './use-conversation-pane-layout.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -38,13 +41,13 @@ function createBoundLayout(): ConversationPaneLayout {
 }
 
 function Harness(props: {
-  hostClient: HostClient;
+  inventory: LiveSessionInventory;
   layout: ConversationPaneLayout;
   activeSessionId: string | null;
   panesEnabled: boolean;
 }): null {
   useConversationPaneSubscriptions({
-    hostClient: props.hostClient,
+    inventory: props.inventory,
     activeSessionId: props.activeSessionId,
     paneLayout: props.layout,
     panesEnabled: props.panesEnabled,
@@ -63,11 +66,8 @@ describe('useConversationPaneSubscriptions', () => {
     container = null;
   });
 
-  it('publishes one deduplicated union and includes a newly selected primary immediately', async () => {
-    const updateSubscriptions = vi.fn<(sessionIds: string[]) => Promise<void>>(() =>
-      Promise.resolve(),
-    );
-    const hostClient = { updateSubscriptions } as unknown as HostClient;
+  it('contributes one deduplicated pane set and includes a newly selected primary immediately', async () => {
+    const inventory = createLiveSessionInventory();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -76,7 +76,7 @@ describe('useConversationPaneSubscriptions', () => {
     await act(async () => {
       root?.render(
         <Harness
-          hostClient={hostClient}
+          inventory={inventory}
           layout={layout}
           activeSessionId="session-primary-new"
           panesEnabled
@@ -85,7 +85,7 @@ describe('useConversationPaneSubscriptions', () => {
       await Promise.resolve();
     });
 
-    expect(updateSubscriptions).toHaveBeenLastCalledWith([
+    expect([...inventory.resolve()]).toEqual([
       'session-primary-new',
       'session-primary-old',
       'session-1',
@@ -95,10 +95,7 @@ describe('useConversationPaneSubscriptions', () => {
   });
 
   it('falls back to the selected session outside the pane workspace', async () => {
-    const updateSubscriptions = vi.fn<(sessionIds: string[]) => Promise<void>>(() =>
-      Promise.resolve(),
-    );
-    const hostClient = { updateSubscriptions } as unknown as HostClient;
+    const inventory = createLiveSessionInventory();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -106,7 +103,7 @@ describe('useConversationPaneSubscriptions', () => {
     await act(async () => {
       root?.render(
         <Harness
-          hostClient={hostClient}
+          inventory={inventory}
           layout={createBoundLayout()}
           activeSessionId="project-session"
           panesEnabled={false}
@@ -115,6 +112,33 @@ describe('useConversationPaneSubscriptions', () => {
       await Promise.resolve();
     });
 
-    expect(updateSubscriptions).toHaveBeenLastCalledWith(['project-session']);
+    expect([...inventory.resolve()]).toEqual(['project-session']);
+  });
+
+  it('withdraws its contribution on unmount', async () => {
+    const inventory = createLiveSessionInventory();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(
+        <Harness
+          inventory={inventory}
+          layout={createBoundLayout()}
+          activeSessionId="session-a"
+          panesEnabled
+        />,
+      );
+      await Promise.resolve();
+    });
+    expect(inventory.resolve().length).toBeGreaterThan(0);
+
+    await act(async () => {
+      root?.unmount();
+      await Promise.resolve();
+    });
+    root = null;
+    expect([...inventory.resolve()]).toEqual([]);
   });
 });

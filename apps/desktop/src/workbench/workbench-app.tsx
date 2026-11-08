@@ -33,6 +33,7 @@ import {
 } from '../hooks/use-conversation-pane-layout';
 import { isDockingWorkspaceEnabled } from './docking/flag.js';
 import { useDockingWorkspace } from './docking/use-docking-workspace.js';
+import { useLiveSessionInventoryWriter } from './live-session-inventory.js';
 import {
   inspectorTabToToolKind,
   toolKindToInspectorTab,
@@ -93,6 +94,9 @@ function HostWorkbench({
   const conversationPanesEnabled =
     state.activeScope.kind === 'general' || state.activeScope.kind === 'project';
   const dockingEnabled = isDockingWorkspaceEnabled();
+  // S04a: the one live-subscription writer. Pane and docking layouts declare
+  // their sets on this inventory; only this hook calls updateSubscriptions.
+  const { inventory: liveSessionInventory } = useLiveSessionInventoryWriter(hostClient);
   const conversationPaneController = useConversationPaneLayout({
     enabled: conversationPanesEnabled && !dockingEnabled,
     primarySessionId: conversationPanesEnabled && !dockingEnabled ? state.activeSessionId : null,
@@ -102,6 +106,7 @@ function HostWorkbench({
   const dockingWorkspace = useDockingWorkspace({
     enabled: dockingActive,
     hostClient,
+    inventory: liveSessionInventory,
     inspectorTab: rightPanelOpen ? rightPanelTab : null,
     followSessionId: state.activeSessionId,
     rightPanelOpen,
@@ -288,7 +293,7 @@ function HostWorkbench({
   const inkstoneStage = isInkstoneThemeId(activeTheme.id) || activeTheme.visualStyle === 'paper';
 
   useConversationPaneSubscriptions({
-    hostClient,
+    inventory: liveSessionInventory,
     activeSessionId: state.activeSessionId,
     paneLayout: conversationPaneController.layout,
     panesEnabled: conversationPanesEnabled && !dockingEnabled,

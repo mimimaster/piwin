@@ -1,7 +1,6 @@
-import { mergeLiveSubscriptionIds } from '../../live/live-subscription-ids.js';
-import { useSideChatLiveSessionIds } from '../../session/side-chat-sessions.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HostClient } from '../../host/host-client.js';
+import type { LiveSessionInventory } from '../live-session-inventory.js';
 import { shouldRevealBrowserInspector } from '../../browser/browser-inspector-reveal.js';
 import type { RightPanelTab } from '../../right-panel/right-panel.js';
 import type { SurfaceTitlebar } from '../../conversation/surface-titlebar.js';
@@ -24,6 +23,7 @@ export type DockingWorkspaceController = {
   enabled: boolean;
   state: WorkspaceState;
   notice: string | null;
+  /** This layout's live-session contribution (stage/right/hidden-MRU ids; no side chats). */
   liveSessionIds: string[];
   createId: WorkspaceIdFactory;
   dismissNotice: () => void;
@@ -56,6 +56,8 @@ export function useDockingWorkspace(args: {
   enabled: boolean;
   scopeKey?: string;
   hostClient?: HostClient;
+  /** Shared live-session inventory (S04a): this hook contributes, never writes. */
+  inventory?: LiveSessionInventory;
   hiddenMruSessionIds?: readonly string[];
   inspectorTab?: RightPanelTab | null;
   /** The primary conversation; the right group's tools follow it (null: a draft). */
@@ -117,23 +119,21 @@ export function useDockingWorkspace(args: {
     createId,
   });
 
-  const sideChatIds = useSideChatLiveSessionIds();
   const liveSessionIds = useMemo(
-    () =>
-      mergeLiveSubscriptionIds(
-        selectLiveSessionIds(state, args.hiddenMruSessionIds ?? []),
-        sideChatIds,
-      ),
-    [args.hiddenMruSessionIds, sideChatIds, state],
+    () => selectLiveSessionIds(state, args.hiddenMruSessionIds ?? []),
+    [args.hiddenMruSessionIds, state],
   );
   const liveSignature = liveSessionIds.join('\u0000');
 
+  // Declares the docked workspace's live sessions; the inventory writer issues
+  // the single `updateSubscriptions` call. Side chats are contributed by the
+  // writer, so this set is layout-owned ids only (stage > right > hidden MRU).
   useEffect(() => {
-    if (!args.enabled || !args.hostClient) return;
-    void args.hostClient.updateSubscriptions(liveSessionIds).catch((error: unknown) => {
-      console.warn('Failed to update docking workspace live subscriptions.', error);
-    });
-  }, [args.enabled, args.hostClient, liveSignature, liveSessionIds]);
+    const inventory = args.inventory;
+    if (!args.enabled || !inventory) return;
+    inventory.setContribution('docking', liveSessionIds);
+    return () => inventory.setContribution('docking', null);
+  }, [args.enabled, args.inventory, liveSignature, liveSessionIds]);
 
   const apply = useCallback((update: (current: WorkspaceState) => WorkspaceState) => {
     setState((current) => update(current));

@@ -7,6 +7,7 @@ import { useDockingWorkspace, type DockingWorkspaceController } from './use-dock
 import type { MovableToolKind } from './types.js';
 import type { HostServerMessage } from '@piwin/contracts';
 import type { HostClient } from '../../host/host-client.js';
+import { createLiveSessionInventory } from '../live-session-inventory.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -213,5 +214,48 @@ describe('useDockingWorkspace right tools follow the session', () => {
     mounted.setSession(null);
     mounted.setSession('c');
     expect(toolKinds(mounted.current())).toEqual(['changes']);
+  });
+});
+
+describe('useDockingWorkspace live-session contribution', () => {
+  let root: Root | undefined;
+
+  afterEach(() => {
+    act(() => root?.unmount());
+    root = undefined;
+    window.localStorage.clear();
+  });
+
+  it('contributes stage sessions to the shared inventory instead of writing subscriptions', async () => {
+    const updateSubscriptions = vi.fn(() => Promise.resolve());
+    const hostClient = { updateSubscriptions } as unknown as HostClient;
+    const inventory = createLiveSessionInventory();
+    let controller: DockingWorkspaceController | null = null;
+    function Probe(): null {
+      controller = useDockingWorkspace({ enabled: true, hostClient, inventory });
+      return null;
+    }
+    root = createRoot(document.createElement('div'));
+    await act(async () => {
+      root?.render(<Probe />);
+      await Promise.resolve();
+    });
+    const current = (): DockingWorkspaceController => {
+      if (!controller) throw new Error('controller not mounted');
+      return controller;
+    };
+
+    act(() => current().openOrFocusSession('session-docked'));
+    expect([...inventory.resolve()]).toEqual(['session-docked']);
+    // The hook itself never writes to the Host.
+    expect(updateSubscriptions).not.toHaveBeenCalled();
+
+    // Unmounting withdraws the contribution.
+    await act(async () => {
+      root?.unmount();
+      await Promise.resolve();
+    });
+    root = undefined;
+    expect([...inventory.resolve()]).toEqual([]);
   });
 });

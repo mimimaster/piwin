@@ -1,7 +1,5 @@
-import { mergeLiveSubscriptionIds } from '../live/live-subscription-ids.js';
-import { useSideChatLiveSessionIds } from '../session/side-chat-sessions.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { HostClient } from '../host/host-client.js';
+import type { LiveSessionInventory } from '../workbench/live-session-inventory.js';
 import {
   applyConversationPanePreset,
   bindConversationPaneSession,
@@ -107,8 +105,15 @@ export function useConversationPaneLayout(args: {
   );
 }
 
+/**
+ * Declares this layout's live sessions to the shared inventory — it no longer
+ * calls `updateSubscriptions` itself (S04a: one writer only). Side chats are
+ * contributed by the inventory writer, so this hook declares only what the
+ * pane layout owns: pane leaf sessions, or just the active session when panes
+ * are off (docking owns the workspace then; the union dedupes the overlap).
+ */
 export function useConversationPaneSubscriptions(args: {
-  hostClient: HostClient;
+  inventory: LiveSessionInventory;
   activeSessionId: string | null;
   paneLayout: ConversationPaneLayout;
   panesEnabled: boolean;
@@ -124,16 +129,10 @@ export function useConversationPaneSubscriptions(args: {
       new Set(candidates.filter((sessionId): sessionId is string => sessionId !== null)),
     ).slice(0, CONVERSATION_PANE_MAX_COUNT);
   }, [args.activeSessionId, args.paneLayout.root, args.panesEnabled]);
-  const sideChatIds = useSideChatLiveSessionIds();
-  const liveIds = useMemo(
-    () => mergeLiveSubscriptionIds(sessionIds, sideChatIds),
-    [sessionIds, sideChatIds],
-  );
-  const signature = liveIds.join('\u0000');
+  const signature = sessionIds.join('\u0000');
 
   useEffect(() => {
-    void args.hostClient.updateSubscriptions(liveIds).catch((error: unknown) => {
-      console.warn('Failed to update live Chat pane subscriptions.', error);
-    });
-  }, [args.hostClient, signature]);
+    args.inventory.setContribution('panes', sessionIds);
+    return () => args.inventory.setContribution('panes', null);
+  }, [args.inventory, signature, sessionIds]);
 }
