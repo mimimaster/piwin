@@ -17,6 +17,17 @@ function runGit(args, options = {}) {
   return result;
 }
 
+async function readExactFile(path) {
+  const bytes = await readFile(path);
+  if (!bytes.includes(0x0d)) return bytes;
+  // Windows git/apply may rewrite text files to CRLF even when the npm
+  // package and patch are LF. Normalize before hashing so packaging can keep
+  // one canonical Host payload across lanes.
+  const normalized = Buffer.from(bytes.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+  await writeFile(path, normalized);
+  return normalized;
+}
+
 /** Apply the exact pnpm patch to the bundler's isolated npm installation. */
 export async function applyPiCompactionPatch(packageRoot) {
   const metadata = JSON.parse(await readFile(join(patchDirectory, 'auto-compaction.json'), 'utf8'));
@@ -36,7 +47,7 @@ export async function applyPiCompactionPatch(packageRoot) {
   }
 
   const hashes = await Promise.all(metadata.files.map(async (file) => ({
-    ...file, actual: digest(await readFile(join(packageRoot, file.path))),
+    ...file, actual: digest(await readExactFile(join(packageRoot, file.path))),
   })));
   const alreadyApplied = hashes.every((file) => file.actual === file.afterSha256);
   if (!alreadyApplied) {
@@ -54,6 +65,10 @@ export async function applyPiCompactionPatch(packageRoot) {
       for (const check of [true, false]) {
         runGit(
           [
+            `-c`,
+            `core.autocrlf=false`,
+            `-c`,
+            `core.eol=lf`,
             `--git-dir=${gitDir}`,
             `--work-tree=${packageRoot}`,
             'apply',
@@ -70,7 +85,7 @@ export async function applyPiCompactionPatch(packageRoot) {
   }
 
   for (const file of metadata.files) {
-    if (digest(await readFile(join(packageRoot, file.path))) !== file.afterSha256) {
+    if (digest(await readExactFile(join(packageRoot, file.path))) !== file.afterSha256) {
       throw new Error(`Pi compaction postimage mismatch: ${file.path}`);
     }
   }
