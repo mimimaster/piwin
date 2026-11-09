@@ -1,0 +1,3 @@
+# Keep vendored pnpm patches byte-identical on Windows checkouts.
+packages/agent-host/patches/*.patch text eol=lf
+packages/agent-host/patches/*.json text eol=lf

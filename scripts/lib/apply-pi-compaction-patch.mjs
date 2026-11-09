@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -15,7 +15,13 @@ export async function applyPiCompactionPatch(packageRoot) {
     throw new Error(`Pi compaction patch requires ${metadata.package}@${metadata.version}; got ${manifest.name}@${manifest.version}`);
   }
   const patchPath = join(patchDirectory, metadata.patchFile);
-  if (digest(await readFile(patchPath)) !== metadata.patchSha256) {
+  const patchBytes = await readFile(patchPath);
+  // Windows checkouts with autocrlf can rewrite the patch; refuse that quietly
+  // corrupting the Host bundle instead of applying a different diff.
+  if (patchBytes.includes(0x0d)) {
+    throw new Error('Pi compaction patch must stay LF-only (CRLF checkout detected)');
+  }
+  if (digest(patchBytes) !== metadata.patchSha256) {
     throw new Error('Pi compaction patch checksum mismatch');
   }
   const hashes = await Promise.all(metadata.files.map(async (file) => ({
@@ -25,13 +31,15 @@ export async function applyPiCompactionPatch(packageRoot) {
   if (!alreadyApplied) {
     const mismatch = hashes.find((file) => file.actual !== file.beforeSha256);
     if (mismatch) throw new Error(`Pi compaction preimage mismatch: ${mismatch.path}`);
-    // git apply has no fuzzy matching; the hashes above also reject partial or
-    // unrelated modifications before any package file is touched.
+    // git apply --directory with an absolute path silently skips hunks on macOS;
+    // run from the parent and pass only the package directory name.
+    const packageParent = dirname(packageRoot);
+    const packageName = basename(packageRoot);
     for (const check of [true, false]) {
       const result = spawnSync('git', [
-        'apply', '--no-index', '--unsafe-paths', `--directory=${packageRoot}`,
+        'apply', '--no-index', '--unsafe-paths', `--directory=${packageName}`,
         ...(check ? ['--check'] : []), patchPath,
-      ], { cwd: dirname(packageRoot), encoding: 'utf8' });
+      ], { cwd: packageParent, encoding: 'utf8' });
       if (result.error) throw result.error;
       if (result.status !== 0) throw new Error(`Pi compaction patch failed: ${result.stderr}`);
     }
