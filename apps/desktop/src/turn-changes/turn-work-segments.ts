@@ -313,9 +313,9 @@ export function indexSegmentsByItem(
 
 /**
  * Default open state before the reader touches a segment. The 总是展开 / 详细
- * preferences open every segment. Otherwise the newest settled segment and any
- * segment with a failure open, so the fold lands on where the run ended (or
- * where it went wrong).
+ * preferences open every segment. Otherwise running segments, the newest
+ * segment and any segment with a failure open. Starting another model/tool
+ * round must not fold away the commands the reader is watching.
  *
  * A segment that delegated to subagents is open too, running or not: its
  * subagent group is what the reader watches while the children work, and
@@ -329,9 +329,5 @@ export function resolveSegmentDefaultOpen(
 ): boolean {
   if (options.expandAll) return true;
   if (segment.stats.subagent > 0) return true;
-  // A running segment stays folded: its header already says what it is doing
-  // (rotating through the tools in flight). A failure is the exception —
-  // it must be on screen.
-  if (segment.running) return segment.stats.failed > 0;
-  return options.isLast || segment.stats.failed > 0;
+  return segment.running || options.isLast || segment.stats.failed > 0;
 }

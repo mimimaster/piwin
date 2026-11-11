@@ -218,7 +218,7 @@ describe('resolveSegmentDefaultOpen', () => {
     expect(resolveSegmentDefaultOpen(segment, { isLast: false, expandAll: true })).toBe(true);
   });
 
-  it('keeps a running segment folded — its header names what is in flight — unless it failed', () => {
+  it('opens running segments, including ones before the newest narration', () => {
     const running = buildTurnWorkSegments(
       turnOf([assistant('r', { text: 'x', status: 'streaming', tools: [tool('t', { status: 'running' })] })]),
       0,
@@ -235,9 +235,29 @@ describe('resolveSegmentDefaultOpen', () => {
       0,
     )[0];
     if (!running || !runningFailed) throw new Error('fixture');
-    expect(resolveSegmentDefaultOpen(running, { isLast: true, expandAll: false })).toBe(false);
+    expect(resolveSegmentDefaultOpen(running, { isLast: true, expandAll: false })).toBe(true);
+    expect(resolveSegmentDefaultOpen(running, { isLast: false, expandAll: false })).toBe(true);
     expect(resolveSegmentDefaultOpen(running, { isLast: true, expandAll: true })).toBe(true);
     expect(resolveSegmentDefaultOpen(runningFailed, { isLast: true, expandAll: false })).toBe(true);
+  });
+
+  it('keeps the newest segment open through repeated tool and model rounds', () => {
+    for (const status of ['running', 'done', 'running', 'done'] as const) {
+      const turn = turnOf([
+        assistant('narration', { text: 'Check the container.', tools: [tool('first')] }),
+        assistant('next-round', { tools: [tool('next', { status })] }),
+      ]);
+      const plan = planTurnWorkSegments({
+        turn,
+        projection: { startIndex: 0, endIndex: 1, failureCount: 0, live: true },
+        expandAll: false,
+        windowSize: 40,
+        openOverrides: {},
+      });
+      expect(plan.segments.map((segment) => [segment.id, plan.isOpen(segment)])).toEqual([
+        ['seg-narration', true],
+      ]);
+    }
   });
 });
 
@@ -272,11 +292,11 @@ describe('subagent segments', () => {
     expect(resolveSegmentDefaultOpen(started, { isLast: false, expandAll: false })).toBe(true);
   });
 
-  it('leaves other running tools folded', () => {
+  it('opens running commands without classifying them as delegations', () => {
     const bash = single(assistant('b', { text: 'x', status: 'streaming', tools: [tool('t', { status: 'running' })] }));
     if (!bash) throw new Error('fixture');
     expect(bash.stats.subagent).toBe(0);
-    expect(resolveSegmentDefaultOpen(bash, { isLast: true, expandAll: false })).toBe(false);
+    expect(resolveSegmentDefaultOpen(bash, { isLast: true, expandAll: false })).toBe(true);
   });
 });
 

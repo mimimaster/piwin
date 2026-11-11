@@ -40,6 +40,12 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
 - **Code-first is Inline-only.** Explicit `surface="canvas"` still auto-reveals
   on a live message when capability is on (as soon as the opening fence is
   parseable; later tokens update the same target).
+- **Native code fallback (2026-11-10):** Desktop keeps security-blocked native
+  `html`/`htm`/`svg` fences as ordinary source with Copy/Download, without Artifact
+  block/incomplete-output notices. This avoids treating explanatory snippets
+  (for example, a hidden external iframe) as failed deliverables. Explicit
+  Artifact fences retain block reasons; security policy and compatible native
+  previews are unchanged. CLI continues to show source without HTML execution.
 - **Streaming:** ordinary code and Mermaid stay source. Native `html`/`htm`/`svg`
   and explicit Inline HTML/SVG may stream-preview in one sandbox iframe from
   the first recognizable fence; identity is sticky

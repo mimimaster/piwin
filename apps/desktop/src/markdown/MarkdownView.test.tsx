@@ -42,6 +42,11 @@ const FLASHCARD_FENCE =
   '```html\n<div class="piwin-flashcard" data-card-id="card-abc12345-xyz"></div>\n```';
 const MERMAID_FENCE = '```mermaid\ngraph TD\nA-->B\n```';
 const SVG_FENCE = '```svg\n<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" /></svg>\n```';
+const HIDDEN_IFRAME_SOURCE = [
+  '<iframe src="http://www.example.com"',
+  '        style="position:fixed;top:0;left:-1000px;',
+  '               pointer-events:none;border:0"></iframe>',
+].join('\n');
 
 function renderMarkdown(node: ReactElement): { container: HTMLElement; root: Root } {
   const container = document.createElement('div');
@@ -202,6 +207,69 @@ describe('MarkdownView artifact preview policy', () => {
     );
     expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+  });
+
+  it.each(['html', 'htm', 'svg'])('keeps blocked native %s examples as ordinary source', (language) => {
+    const source = language === 'svg'
+      ? '<svg><image href="https://example.com/image.svg" /></svg>'
+      : HIDDEN_IFRAME_SOURCE;
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={`代码示例：\n\n\`\`\`${language}\n${source}\n\`\`\``}
+        renderingPhase="completed"
+        artifactInlineEnabled
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+    expect([...container.querySelectorAll('.md-code-line-text')].map((line) => line.textContent).join('\n')).toBe(source);
+    expect(container.querySelector('[data-testid="code-copy-button"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-download-button"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-blocked"]')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-frame"]')).toBeNull();
+    expect(container.querySelector('iframe')).toBeNull();
+  });
+
+  it('keeps blocked native source quiet from streaming through completion', () => {
+    const text = `\`\`\`html\n${HIDDEN_IFRAME_SOURCE}`;
+    const { container, root } = renderMarkdown(
+      <MarkdownView text={text} renderingPhase="streaming" />,
+    );
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-blocked"]')).toBeNull();
+    expect(container.querySelector('iframe')).toBeNull();
+
+    for (const completedText of [text, `${text}\n\`\`\``]) {
+      act(() => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <MarkdownView text={completedText} renderingPhase="completed" />
+          </PiwinUiProvider>,
+        );
+      });
+      expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="artifact-blocked"]')).toBeNull();
+      expect(container.querySelector('[data-testid="artifact-source-incomplete"]')).toBeNull();
+      expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
+      expect(container.querySelector('iframe')).toBeNull();
+    }
+  });
+
+  it('still explains blocked external resources on an explicit artifact', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={`\`\`\`artifact-html\n${HIDDEN_IFRAME_SOURCE}\n\`\`\``}
+        renderingPhase="completed"
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-blocked"]')?.textContent).toContain(
+      'blocked-external-resource',
+    );
+    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
+    expect(container.querySelector('iframe')).toBeNull();
   });
 
   it('default mode: completed static HTML renders directly in transcript flow', () => {

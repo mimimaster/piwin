@@ -407,7 +407,7 @@ describe('ChatThread completed work disclosure', () => {
     expect(trigger?.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('opens the live chain by default and names the running step in its segment header', () => {
+  it('opens the live chain and its running segment by default with a static segment summary', () => {
     const messages = [
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -461,18 +461,15 @@ describe('ChatThread completed work disclosure', () => {
     const trigger = container.querySelector<HTMLElement>(
       '[data-testid="turn-work-disclosure-trigger"]',
     );
-    // A live chain is open by default. The running segment stays folded: its
-    // own header says what is in flight (the turn header no longer repeats the
-    // command), and its rows mount when the reader opens it.
+    // Running segments show their rows immediately; the summary stays static
+    // while individual tool rows carry activity.
     expect(trigger?.getAttribute('aria-expanded')).toBe('true');
     const segmentHeader = container.querySelector<HTMLButtonElement>(
       '[data-testid="turn-work-segment-header"]',
     );
-    expect(segmentHeader?.textContent).toContain('Executing');
-    expect(segmentHeader?.textContent).toContain('edit');
-    expect(container.querySelector('#msg-work-1')).toBeNull();
-    expect(container.querySelector('#msg-live-1')).toBeNull();
-    act(() => segmentHeader?.click());
+    expect(segmentHeader?.getAttribute('aria-expanded')).toBe('true');
+    expect(segmentHeader?.textContent).toContain('Ran · 2 tools');
+    expect(segmentHeader?.querySelector('.lamp')).toBeNull();
     expect(container.querySelector('#msg-work-1')).not.toBeNull();
     expect(container.querySelector('#msg-live-1')).not.toBeNull();
 
@@ -708,16 +705,15 @@ describe('ChatThread completed work disclosure', () => {
       '[data-testid="turn-work-disclosure-trigger"]',
     );
     expect(trigger?.getAttribute('aria-expanded')).toBe('true');
-    // Each caption opens a segment. The captions are prose and show either
-    // way; the tools stay folded (the running segment by default, the settled
-    // earlier one because it is not the newest) until the reader opens them.
+    // Each caption opens a segment. The latest running segment shows its
+    // tools; the earlier settled segment stays folded until asked for.
     const segments = container.querySelectorAll('[data-testid="turn-work-segment"]');
     expect(segments).toHaveLength(2);
     expect(segments[0]?.getAttribute('data-open')).toBe('false');
-    expect(segments[1]?.getAttribute('data-open')).toBe('false');
+    expect(segments[1]?.getAttribute('data-open')).toBe('true');
     expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(earlierCaption);
     expect(container.querySelector('#msg-work-2 .markdown')?.textContent).toContain(lastCaption);
-    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(1);
 
     // Collapsed by the reader, the header carries the latest caption and the
     // chain unmounts.
@@ -734,7 +730,7 @@ describe('ChatThread completed work disclosure', () => {
         ?.querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-header"]')
         ?.click(),
     );
-    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);
     expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(earlierCaption);
   });
 
@@ -973,11 +969,6 @@ describe('ChatThread completed work disclosure', () => {
       container.querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]');
     // Open on its own: the reader did not have to ask to watch the chain.
     expect(trigger()?.getAttribute('aria-expanded')).toBe('true');
-    act(() =>
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="turn-work-segment-header"]')
-        ?.click(),
-    );
     expect(container.querySelector('#msg-work-1')).not.toBeNull();
 
     // The conclusion streams in below the chain; the turn is still live, so
@@ -1160,6 +1151,118 @@ describe('ChatThread 已工作 segments', () => {
         ?.click(),
     );
   }
+
+  it('keeps command rows open through output, completion and the next model/tool round', () => {
+    const firstCommand = {
+      toolCallId: 'bash-first',
+      toolName: 'bash',
+      status: 'done' as const,
+      output: 'container ready',
+      runId: 'run-1',
+      presentation: { kind: 'shell' as const, title: 'bash', command: 'docker ps' },
+    };
+    const narration = message('narration', {
+      runId: 'run-1',
+      text: 'Check the container.',
+      tools: [firstCommand],
+    });
+    const extras = {
+      streaming: true,
+      activeRunId: 'run-1',
+      runRecordsById: {
+        'run-1': { runId: 'run-1', phaseHistory: [], startedAt: 1_000, endedAt: null },
+      },
+    };
+    const nextDone = message('next-round', {
+      runId: 'run-1',
+      tools: [{ ...firstCommand, toolCallId: 'bash-next' }],
+    });
+    const rounds = [
+      [message('narration', {
+        ...narration,
+        tools: [{ ...firstCommand, status: 'running', output: '' }],
+      })],
+      [narration],
+      [narration, message('next-round', {
+        runId: 'run-1', status: 'streaming', thinking: 'Verify the output.',
+      })],
+      [narration, message('next-round', {
+        runId: 'run-1',
+        tools: [{ ...firstCommand, toolCallId: 'bash-next', status: 'running', output: '' }],
+      })],
+      [narration, message('next-round', {
+        runId: 'run-1',
+        tools: [{ ...firstCommand, toolCallId: 'bash-next', status: 'running', output: 'checking' }],
+      })],
+      [narration, nextDone],
+      [narration, nextDone, message('another-round', {
+        runId: 'run-1', status: 'streaming', thinking: 'Check again.',
+      })],
+    ];
+    for (const round of rounds) {
+      act(() => root.render(renderThread([
+        message('user-1', { role: 'user', text: 'Check it.' }),
+        ...round,
+      ], extras)));
+
+      const segment = container.querySelector('[data-testid="turn-work-segment"]');
+      expect(segment?.getAttribute('data-segment-id')).toBe('seg-narration');
+      expect(segment?.getAttribute('data-open')).toBe('true');
+      expect(segment?.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(
+        round.reduce((count, entry) => count + entry.tools.length, 0),
+      );
+      const header = segment?.querySelector('[data-testid="turn-work-segment-header"]');
+      expect(header?.querySelector('.work-fold-run')).not.toBeNull();
+      expect(header?.querySelector('.lamp')).toBeNull();
+      expect(header?.querySelector('.work-fold-live-act')).toBeNull();
+      expect(header?.textContent).toContain('Ran');
+    }
+  });
+
+  it('preserves manual segment choices when tool status changes', () => {
+    const renderCommand = (status: 'running' | 'done'): void => {
+      root.render(renderThread([
+        message('user-1', { role: 'user', text: 'Check it.' }),
+        message('narration', {
+          runId: 'run-1',
+          text: 'Check the container.',
+          tools: [{
+            toolCallId: 'bash-first', toolName: 'bash', status, output: '', runId: 'run-1',
+            presentation: { kind: 'shell', title: 'bash', command: 'docker ps' },
+          }],
+        }),
+      ], {
+        streaming: true,
+        activeRunId: 'run-1',
+        runRecordsById: {
+          'run-1': { runId: 'run-1', phaseHistory: [], startedAt: 1_000, endedAt: null },
+        },
+      }));
+    };
+    const header = (): HTMLButtonElement | null =>
+      container.querySelector('[data-testid="turn-work-segment-header"]');
+
+    act(() => renderCommand('running'));
+    expect(header()?.getAttribute('aria-expanded')).toBe('true');
+    act(() => header()?.click());
+    expect(header()?.getAttribute('aria-expanded')).toBe('false');
+    expect(header()?.querySelector('.lamp')).not.toBeNull();
+    expect(header()?.textContent).toContain('Executing');
+
+    for (const status of ['done', 'running'] as const) {
+      act(() => renderCommand(status));
+      expect(header()?.getAttribute('aria-expanded')).toBe('false');
+      expect(container.querySelector('[data-testid="tool-call-card"]')).toBeNull();
+    }
+
+    act(() => header()?.click());
+    for (const status of ['done', 'running'] as const) {
+      act(() => renderCommand(status));
+      expect(header()?.getAttribute('aria-expanded')).toBe('true');
+      expect(header()?.querySelector('.lamp')).toBeNull();
+      expect(container.querySelector('[data-testid="tool-call-card"]')).not.toBeNull();
+    }
+  });
 
   it('lists segments and mounts rows only for the open ones', () => {
     act(() => root.render(renderThread(settledChain(3))));

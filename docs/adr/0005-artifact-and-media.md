@@ -62,6 +62,12 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
      only the part a browser can parse or fail to run authored scripts. Open
      fences continue to stream-preview while output is live.
    - Thinking/tool work uses timeline/cards, not Artifacts.
+   - **Native code fallback (2026-11-10):** Desktop's automatic promotion of
+     ordinary `html`/`htm`/`svg` fences is best-effort. If security analysis
+     blocks preview, keep the original code with Copy/Download and omit Artifact
+     diagnostics (including incomplete-artifact warnings). Explicit Artifact
+     declarations still show the block reason. Security analysis, external
+     resource blocking, and sandbox/CSP restrictions remain unchanged.
 
 ## Consequences
 

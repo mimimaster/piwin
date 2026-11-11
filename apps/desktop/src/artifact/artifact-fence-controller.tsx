@@ -170,7 +170,11 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     hostView,
   ]);
 
-  const incompleteNotice = settledIncompleteArtifact ? (
+  // Native HTML/SVG preview is best-effort. Unsafe examples remain ordinary
+  // source; preview diagnostics belong to explicitly declared artifacts.
+  const blockedNativeFence =
+    analysis?.kind === 'blocked' && analysis.descriptor.declaration === 'native';
+  const incompleteNotice = settledIncompleteArtifact && !blockedNativeFence ? (
     <p className="artifact-source-incomplete" data-testid="artifact-source-incomplete" role="status">
       {artifactIncompleteCopy(props.locale, props.source)}
     </p>
@@ -334,7 +338,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     ) : canvasLauncher;
   }
 
-  if (analysis.kind === 'code' || !inlineEnabled) {
+  if (analysis.kind === 'code' || !inlineEnabled || blockedNativeFence) {
     const source = <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
     if (!incompleteNotice) return source;
     return (

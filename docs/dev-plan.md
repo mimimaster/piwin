@@ -370,6 +370,20 @@ Update this file when:
 
 ## 9. Implemented slices (post-M2)
 
+### Stable live command segments (2026-11-11)
+
+Desktop work segments default open while running as well as when they are the
+newest segment. Repeated model/tool rounds no longer alternate the same segment
+between expanded commands and a collapsed yellow action summary. Expanded
+headers keep execution counts; activity stays on individual tool rows. The
+yellow summary appears only when a running segment is manually collapsed.
+Reader overrides, historical segment windows and the turn's final fold remain.
+Regression coverage checks tool output updates, consecutive rounds, static open
+headers and manual open/closed choices.
+Validation: workspace typecheck, 44 targeted regression tests and touched-file
+lint pass. Full Desktop suite: 6,921 assertions pass; the unrelated existing
+backdrop-filter whitelist check in `renderer-resource-boundaries.test.ts` fails.
+
 ### Inline subagent conversation blocks (2026-08-12) ✅
 
 ADR 0046 is implemented: model delegations render at their causal parent tool

@@ -4,9 +4,9 @@
  *
  *   prose   the narration, always visible (it is the model talking, not work)
  *   header  「已执行 52m · 74 个工具 · 18 个文件 · 2 次失败」 — the turn fold's own
- *           header, same trailing counts, with the run glyph; while the
- *           segment runs it reads 「执行中 · <tool> <target>」 and rotates
- *           through the tools in flight
+ *           header, same trailing counts, with the run glyph; only while
+ *           running and collapsed does it read 「执行中 · <tool> <target>」
+ *           and rotate through the tools in flight
  *   body    the tool rows, mounted only while open; its spine and foot bar
  *           collapse the segment from wherever the reader has scrolled to
  */
@@ -102,6 +102,9 @@ function areLiveActionsEqual(
 const TurnWorkSegmentHeader = memo(
   function TurnWorkSegmentHeader(props: TurnWorkSegmentHeaderProps): ReactElement {
     const { running, open, locale, segmentId } = props;
+    // An open segment shows activity on its tool rows. Keep its summary static
+    // instead of switching the whole header back to the yellow live action.
+    const showLiveAction = running && !open;
     const onToggleSegment = props.onToggle;
     const onToggle = useCallback(
       () => onToggleSegment(segmentId, open),
@@ -116,7 +119,7 @@ const TurnWorkSegmentHeader = memo(
       .join(' · ');
     return (
       <WorkFoldHeader
-        state={running ? 'running' : 'done'}
+        state={showLiveAction ? 'running' : 'done'}
         locale={locale}
         open={open}
         onToggle={onToggle}
@@ -132,7 +135,7 @@ const TurnWorkSegmentHeader = memo(
           'data-fold-title': props.title,
           'data-fold-meta': meta,
         }}
-        {...(running
+        {...(showLiveAction
           ? props.startedAt !== undefined
             ? { runningSince: props.startedAt }
             : {}
@@ -142,7 +145,7 @@ const TurnWorkSegmentHeader = memo(
               fileCount: props.fileCount,
             })}
       >
-        {running ? <RunningSegmentLabel actions={props.liveActions} locale={locale} /> : undefined}
+        {showLiveAction ? <RunningSegmentLabel actions={props.liveActions} locale={locale} /> : undefined}
       </WorkFoldHeader>
     );
   },
