@@ -1,8 +1,18 @@
 {
-  "productName": "piwin shell",
+  "productName": "Salem",
   "identifier": "app.piwinwin.desktop.shell",
+  "bundle": {
+    "icon": [
+      "icons-salem/32x32.png",
+      "icons-salem/128x128.png",
+      "icons-salem/128x128@2x.png",
+      "icons-salem/icon.icns"
+    ]
+  },
   "build": {
-    "features": ["shell-only"],
+    "features": [
+      "shell-only"
+    ],
     "beforeDevCommand": {
       "script": "VITE_PIWIN_SHELL_ONLY=1 pnpm exec vite --port 1420 --strictPort",
       "cwd": ".."
