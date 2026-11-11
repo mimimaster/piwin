@@ -73,7 +73,7 @@ pub(super) fn spawn_stdout_reader(
                 continue;
             }
 
-            emit_host_push(&app_reader, &parsed);
+            emit_host_push(&app_reader, parsed);
         }
 
         // EOF is a failure during normal operation, but is the expected

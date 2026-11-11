@@ -5,7 +5,8 @@
 Accepted (2026-07-31) · lifecycle amendment accepted 2026-08-09 · local HTML
 file-open amendment accepted 2026-09-04 · supersedes the iframe-based
 `BrowserPanel` preview · first-use Chromium download amendment accepted
-2026-09-18 · conversation isolation amendment accepted 2026-11-04
+2026-09-18 · conversation isolation amendment accepted 2026-11-04 · bounded
+native frame delivery amendment accepted 2026-11-10
 
 ## Context
 
@@ -275,10 +276,11 @@ The visual panel is desktop-only; CLI degradation is intentional and documented
   quality 80). CSS viewport stays 1280×800; Host-owned Chromium launches at
   `deviceScaleFactor: 2` and screencast `size` is CSS×DSF (default 2560×1600,
   longest-edge cap 2560). `browser/frame` width/height remain CSS px. Screenshots
-  never enter model context as base64; only paths. **Known ceiling**: 2× JPEG
-  data-URLs over Tauri IPC; a later iteration can serve frames from a local HTTP
-  endpoint in `@piwin/browser` and have the panel `<img>` pull directly, bypassing
-  the Rust bridge. See [browser workbench fidelity](../specs/2026-09-09-browser-workbench-fidelity.md).
+  never enter model context as base64; only paths. The local Host-to-Rust JSONL
+  representation remains inline, but Rust strips the pixels before WebView
+  events and serves bounded PBF1 bytes through the native `piwin-frame` resource
+  protocol. No HTTP listener is introduced. See the 2026-11-10 amendment below
+  and [browser workbench fidelity](../specs/2026-09-09-browser-workbench-fidelity.md).
 - **Single shared service, leased process**: at most one Chromium runtime is
   active per Host. Mirror surfaces hold independent one-shot leases; releasing
   the final surface lease awaits process release, and later tools may relaunch.
@@ -398,7 +400,7 @@ Slices B–E of the same spec landed 2026-09-15 on Desktop + Host:
   keeps `inline` JPEG data URLs. Remote Host projects `{ kind: 'binary' }`
   and sends JPEG on the authenticated WebSocket (`PBF1` envelope, 12 MiB
   cap). Clients without the capability get `{ kind: 'unavailable' }` instead
-  of `[redacted]`. Desktop decodes, pairs by `frameId`, and never replaces
+  of `[redacted]`. Desktop decodes, pairs by full session/page/frame identity, and never replaces
   `<img src>` until `img.decode()` succeeds.
 
 `HOST_WIRE_HARD_FRAME_BYTES` stays 1 MiB. `dataUrl` remains in
@@ -427,3 +429,33 @@ Host registers `browser_act { intent, action?: click|type|fill, text? }`.
   when it is registered.
 - Page text goes to the engine, so non-loopback URLs are dropped at config
   load. Permission reuses `browser:click` (same policy as click/type).
+
+### 2026-11-10 bounded native frame delivery amendment
+
+The memory incident and mechanism evidence are recorded in the
+[repair specification](../specs/2026-11-10-browser-frame-memory-repair.md).
+
+- Desktop opens a versioned native stream before acquiring its local mirror
+  lease. Rust replaces inline pixels in singular and batched Host pushes with
+  small metadata, preserving the Host sequence and control path. Resource
+  failures expose preview unavailability; they never restore large pixel eval.
+- Each native stream owns one delivery and one replaceable latest packet;
+  all streams share a 32 MiB queue budget. A packet is at most 12 MiB and its
+  declared bitmap is at most 16 million pixels. A successful receipt ACK
+  retires the delivery even when no replacement is waiting. Failure pauses and
+  clears the stream; closing a stream releases its slots.
+- The main-window-only custom resource handler allows the app origin, returns
+  `Cache-Control: no-store`, and serves in-memory packets only. It exposes no
+  filesystem route. The frontend fetches one delivery at a time.
+- Native PBF1 packets include validated presentation metadata, so a slow
+  resource fetch does not race newer control events for a matching frame.
+  Legacy remote PBF1 metadata/byte pairing remains supported and validates
+  sessionId, generation, pageId, documentRevision, frameId, dimensions, and size.
+- One decoder owns one active image decode and one latest pending encoded
+  picture. Newer arrivals cannot be replaced by older packets, while completed
+  valid decodes continue painting under sustained input. Reset/disposal abort
+  candidates and revoke owned URLs; replacement retires the previous URL.
+  Screenshot capture pins the current Blob and constructs its File directly.
+- These ownership bounds do not impose a process-footprint ceiling. Visibility
+  demand and idle Chromium residency are separate slices. Release memory
+  endurance and unrelated auxiliary WebContent growth require separate evidence.

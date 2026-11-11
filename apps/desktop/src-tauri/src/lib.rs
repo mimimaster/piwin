@@ -2,6 +2,7 @@ mod app_shutdown;
 mod app_update;
 mod app_update_stall;
 mod attention_notifications;
+mod browser_frame;
 #[cfg(target_os = "windows")]
 mod attention_notifications_windows;
 mod attention_toast;
@@ -21,6 +22,10 @@ mod tray_quota;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use attention_notifications::AttentionNotificationState;
+use browser_frame::{
+    browser_frame_delivery_ack, browser_frame_stream_close, browser_frame_stream_open,
+    BrowserFrameState,
+};
 use app_shutdown::{ShutdownState, ShutdownTrigger};
 use app_update::AppUpdateState;
 use host_bridge::{
@@ -40,13 +45,16 @@ use tauri::{Manager, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    piwin_artifact_webview::register_artifact_documents(tauri::Builder::default())
+    browser_frame::register_resource_protocol(
+        piwin_artifact_webview::register_artifact_documents(tauri::Builder::default()),
+    )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(HostBridgeState::default())
+        .manage(BrowserFrameState::default())
         .manage(PtyHostState::default())
         .manage(ShutdownState::default())
         .manage(AttentionNotificationState::default())
@@ -58,6 +66,9 @@ pub fn run() {
             host_stop,
             host_request,
             host_update_subscriptions,
+            browser_frame_stream_open,
+            browser_frame_delivery_ack,
+            browser_frame_stream_close,
             host_is_running,
             pty_open,
             pty_open_tui,
@@ -101,6 +112,7 @@ pub fn run() {
             screen_capture::screen_capture_request_authorization,
             screen_capture::screen_capture_open_system_settings,
             screen_capture::screen_capture_restart_app,
+            screen_capture::screen_capture_set_shortcut_enabled,
             screen_capture::screen_capture_take,
             screen_capture::screen_capture_read,
             screen_capture::overlay::screen_capture_overlay_image,

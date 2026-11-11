@@ -5,8 +5,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { HostServerMessage, WebElementPickResult } from '@piwin/contracts';
 import type { HostClient } from '../host/host-client';
+import { isTauriRuntime } from '../host/host-client-transport-detect.js';
 import { createBrowserSessionClient, type BrowserSessionClient } from './browser-session-client';
 import { createBrowserFrameDecoder } from './browser-frame-decoder';
+import { openBrowserFrameNativeStream } from './browser-frame-native-stream.js';
 import {
   EMPTY_BROWSER_SESSION_LEASE, reduceBrowserSessionLease,
   type BrowserHighlightBox, type BrowserSessionLeaseState,
@@ -26,6 +28,7 @@ export type BrowserSessionLease = BrowserSessionLeaseState & {
   client: BrowserSessionClient;
   mirrorLeaseId: string;
   mirrorError: string | null;
+  getCurrentFrameBlob: () => Blob | undefined;
   setUrlInput: (urlInput: string) => void;
   setHighlight: (highlight: BrowserHighlightBox | null) => void;
   setPickPending: (pickPending: boolean) => void;
@@ -141,78 +144,146 @@ export function useBrowserSessionLease(input: {
       onError: (reason) => {
         if (activeLeaseRef.current === mirrorLeaseId) dispatch({ type: 'frame-error', reason });
       },
-      decode: async (src) => {
+      decode: async (src, signal) => {
         if (typeof Image === 'undefined') return;
         const image = new Image();
+        const abort = (): void => {
+          image.src = '';
+        };
+        signal.addEventListener('abort', abort, { once: true });
         image.src = src;
-        if (typeof image.decode !== 'function') return;
+        if (typeof image.decode !== 'function') {
+          signal.removeEventListener('abort', abort);
+          image.src = '';
+          return;
+        }
         try {
           await image.decode();
-        } catch {
-          // happy-dom and similar test DOMs reject synthetic JPEGs. An inline
-          // URL already passed prefix validation; blob payloads must decode.
-          if (!src.startsWith('data:image/jpeg;base64,')) throw new Error('decode-failed');
+          if (signal.aborted) throw new Error('decode-aborted');
+        } finally {
+          signal.removeEventListener('abort', abort);
+          image.src = '';
         }
       },
     });
     decoderRef.current = decoder;
-    let lastIdentity = { generation: undefined as number | undefined, pageId: undefined as string | undefined };
-    const unsubscribeBinary = hostClient.subscribeBinary?.((bytes) => decoder.ingestBinary(bytes));
-    const release = startBrowserSessionLease({
-      host: hostClient,
-      mirrorLeaseId,
-      onMessage: (message) => {
-        if (activeLeaseRef.current !== mirrorLeaseId) return;
-        if (message.type.startsWith('browser/') &&
-            ('sessionId' in message ? message.sessionId : undefined) !== input.sessionId) return;
-        if (message.type === 'browser/frame') {
-          decoder.ingestPush(message);
-          return;
-        }
-        dispatch({ type: 'host-push', message });
-        if (message.type === 'browser/picked') {
-          inputsRef.current.onAddWebElement(message.result);
-        }
-        if (message.type === 'browser/state') {
-          const nextGeneration = message.generation ?? lastIdentity.generation;
-          const nextPageId = message.pageId ?? lastIdentity.pageId;
+    let lastIdentity: {
+      generation: number | undefined;
+      pageId: string | undefined;
+      documentRevision: number | undefined;
+    } = { generation: undefined, pageId: undefined, documentRevision: undefined };
+    const abortSetup = new AbortController();
+    let nativeStreamFailed = false;
+    let nativeStream: Awaited<ReturnType<typeof openBrowserFrameNativeStream>> | undefined;
+    let unsubscribeBinary: (() => void) | undefined;
+    let release = (): void => {};
+    const useNativeFrameStream =
+      isTauriRuntime() &&
+      typeof input.hostClient.getTransport === 'function' &&
+      input.hostClient.getTransport() === 'live';
+
+    const startLease = (): void => {
+      if (!useNativeFrameStream) {
+        unsubscribeBinary = hostClient.subscribeBinary?.((bytes) => decoder.ingestBinary(bytes));
+      }
+      release = startBrowserSessionLease({
+        host: hostClient,
+        mirrorLeaseId,
+        onMessage: (message) => {
+          if (activeLeaseRef.current !== mirrorLeaseId) return;
           if (
-            (nextGeneration !== undefined &&
-              lastIdentity.generation !== undefined &&
-              nextGeneration !== lastIdentity.generation) ||
-            (nextPageId !== undefined &&
-              lastIdentity.pageId !== undefined &&
-              nextPageId !== lastIdentity.pageId)
-          ) {
-            decoder.reset();
+            message.type.startsWith('browser/') &&
+            ('sessionId' in message ? message.sessionId : undefined) !== input.sessionId
+          ) return;
+          if (message.type === 'browser/frame') {
+            if (!useNativeFrameStream) decoder.ingestPush(message);
+            else if (!nativeStreamFailed && message.payload.kind === 'unavailable') {
+              decoder.reportError(message.payload.reason);
+            }
+            return;
           }
-          lastIdentity = { generation: nextGeneration, pageId: nextPageId };
-        }
-        if (
-          message.type === 'browser/state' &&
-          message.lifecycle === 'ready' &&
-          message.mirror === 'streaming'
-        ) {
-          setMirrorError(null);
-        }
-      },
-      onStartFailed: (error) => {
-        if (activeLeaseRef.current !== mirrorLeaseId) return;
-        setMirrorError(error?.trim() ? error : inputsRef.current.mirrorStartFailed);
-      },
-      onStopFailed: (error) => {
-        if (activeLeaseRef.current !== mirrorLeaseId) {
-          console.warn('[browser] previous mirror release failed', error);
-          return;
-        }
-        setMirrorError(error?.trim() ? error : inputsRef.current.mirrorStopFailed);
-      },
-    });
+          dispatch({ type: 'host-push', message });
+          if (message.type === 'browser/picked') {
+            inputsRef.current.onAddWebElement(message.result);
+          }
+          if (message.type === 'browser/state') {
+            const nextGeneration = message.generation ?? lastIdentity.generation;
+            const nextPageId = message.pageId ?? lastIdentity.pageId;
+            const nextDocumentRevision = message.documentRevision ?? lastIdentity.documentRevision;
+            decoder.setTarget({
+              ...(nextGeneration === undefined ? {} : { generation: nextGeneration }),
+              ...(nextPageId === undefined ? {} : { pageId: nextPageId }),
+              ...(nextDocumentRevision === undefined ? {} : { documentRevision: nextDocumentRevision }),
+            });
+            lastIdentity = {
+              generation: nextGeneration,
+              pageId: nextPageId,
+              documentRevision: nextDocumentRevision,
+            };
+          }
+          if (
+            message.type === 'browser/state' &&
+            message.lifecycle === 'ready' &&
+            message.mirror === 'streaming'
+          ) {
+            setMirrorError(null);
+          }
+        },
+        onStartFailed: (error) => {
+          if (activeLeaseRef.current !== mirrorLeaseId) return;
+          setMirrorError(error?.trim() ? error : inputsRef.current.mirrorStartFailed);
+        },
+        onStopFailed: (error) => {
+          if (activeLeaseRef.current !== mirrorLeaseId) {
+            console.warn('[browser] previous mirror release failed', error);
+            return;
+          }
+          setMirrorError(error?.trim() ? error : inputsRef.current.mirrorStopFailed);
+        },
+      });
+    };
+
+    if (useNativeFrameStream) {
+      void openBrowserFrameNativeStream({
+        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+        signal: abortSetup.signal,
+        onFrame: (bytes) => decoder.ingestNativePacket(bytes),
+        onError: () => {
+          nativeStreamFailed = true;
+          decoder.reportError('frame-channel-unavailable');
+        },
+      })
+        .then((stream) => {
+          if (abortSetup.signal.aborted) {
+            void stream.close().catch((error: unknown) => {
+              console.warn('[browser] failed to release an obsolete frame stream', error);
+            });
+            return;
+          }
+          nativeStream = stream;
+          startLease();
+        })
+        .catch((error: unknown) => {
+          if (abortSetup.signal.aborted) return;
+          nativeStreamFailed = true;
+          console.error('[browser] failed to open native frame stream', error);
+          decoder.reportError('frame-channel-unavailable');
+          startLease();
+        });
+    } else {
+      startLease();
+    }
     return () => {
+      abortSetup.abort();
       unsubscribeBinary?.();
       decoder.dispose();
       decoderRef.current = undefined;
       release();
+      if (nativeStream !== undefined) {
+        void nativeStream.close().catch((error: unknown) => {
+          console.warn('[browser] failed to close native frame stream', error);
+        });
+      }
     };
   }, [enabled, hostClient, input.sessionId, mirrorLeaseId]);
 
@@ -228,12 +299,14 @@ export function useBrowserSessionLease(input: {
   const setPickError = useCallback((pickError: string | null) => {
     dispatch({ type: 'pick-error', pickError });
   }, []);
+  const getCurrentFrameBlob = useCallback(() => decoderRef.current?.getCurrentBlob(), []);
 
   return {
     client: hostClient,
     frame: state.frame,
     committedUrl: state.committedUrl,
     mirrorLeaseId,
+    getCurrentFrameBlob,
     urlInput: state.urlInput,
     setUrlInput,
     title: state.title,

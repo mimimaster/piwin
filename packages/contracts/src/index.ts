@@ -15,6 +15,7 @@ export * from './backend-session-blueprint.js';
 export * from './backend-prepared-prompt.js';
 export * from './extension-ui.js';
 export * from './browser.js';
+export * from './browser-frame-native.js';
 export * from './codemode.js';
 export * from './config.js';
 export * from './native-search-adapters.js';

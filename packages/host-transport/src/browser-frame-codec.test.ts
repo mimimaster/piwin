@@ -47,6 +47,17 @@ describe('browser frame binary codec', () => {
     expect(decoded.header.byteLength).toBe(jpeg.byteLength);
   });
 
+  it('preserves validated native presentation metadata and rejects a malformed extension', () => {
+    const presentation = { ts: 1, sourceDpr: 2, quality: 80, producer: 'screencast' } as const;
+    const decoded = decodeBrowserFrameBinary(encodeBrowserFrameBinary({ ...header, presentation }, jpeg));
+    expect(decoded.ok && decoded.header.presentation).toEqual(presentation);
+    const malformed = encodeBrowserFrameBinary({
+      ...header,
+      presentation: { ...presentation, sourceDpr: -1 },
+    }, jpeg);
+    expect(decodeBrowserFrameBinary(malformed)).toEqual({ ok: false, reason: 'bad-header' });
+  });
+
   it('rejects a frame without the frame magic', () => {
     const encoded = encodeBrowserFrameBinary(header, jpeg);
     const tampered = Uint8Array.from(encoded);

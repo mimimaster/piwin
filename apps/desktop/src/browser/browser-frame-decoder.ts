@@ -1,20 +1,21 @@
-/**
- * Validate, pair, and atomically replace browser-frame pictures (spec §4.1.2).
- *
- * The reducer never writes `<img src>` from a raw push string. A candidate
- * must decode, still match the live target, and carry a newer frameId before
- * it replaces the last good picture. Object URLs are revoked after swap or
- * dispose. Binary payloads that arrive more than 2s after their metadata are
- * dropped so a late JPEG cannot overwrite a newer live frame.
- */
+/** Bounded browser-frame pairing, single-flight decoding, and Blob ownership. */
 import {
   BROWSER_FRAME_PAYLOAD_TIMEOUT_MS,
   MAX_BROWSER_FRAME_BINARY_BYTES,
+  type BrowserFrameBinaryHeader,
   type BrowserFramePush,
 } from '@piwin/contracts';
 import { decodeBrowserFrameBinary } from '@piwin/host-transport';
+import {
+  browserFrameIdentitiesMatch,
+  browserFrameIdentity,
+  browserFrameIdentityKey,
+  browserFrameIdentityOrder,
+  type BrowserFrameIdentity,
+} from './browser-frame-identity.js';
+import { decodeInlineJpeg, validateInlineJpegDataUrl } from './browser-frame-inline.js';
 
-export const BROWSER_JPEG_DATA_URL_PREFIX = 'data:image/jpeg;base64,';
+export { BROWSER_JPEG_DATA_URL_PREFIX, validateInlineJpegDataUrl } from './browser-frame-inline.js';
 
 export type BrowserFrameErrorReason =
   | 'invalid-inline'
@@ -44,37 +45,43 @@ export type BrowserFrameView = {
 export type BrowserFrameDecoder = {
   ingestPush(push: BrowserFramePush): void;
   ingestBinary(bytes: Uint8Array): void;
+  ingestNativePacket(bytes: Uint8Array): void;
   reset(): void;
   dispose(): void;
+  setTarget(identity: BrowserFrameTargetIdentity): void;
+  reportError(reason: BrowserFrameErrorReason): void;
+  getCurrentBlob(): Blob | undefined;
+};
+
+export type BrowserFrameTargetIdentity = {
+  generation?: number;
+  pageId?: string;
+  documentRevision?: number;
 };
 
 export type BrowserFrameDecoderOptions = {
   sessionId?: string;
   onReady: (view: BrowserFrameView) => void;
   onError: (reason: BrowserFrameErrorReason) => void;
-  now?: () => number;
   timeoutMs?: number;
-  decode?: (src: string) => Promise<void>;
+  decode?: (src: string, signal: AbortSignal) => Promise<void>;
   createObjectUrl?: (blob: Blob) => string;
   revokeObjectUrl?: (url: string) => void;
   schedule?: (callback: () => void, ms: number) => number;
   cancel?: (id: number) => void;
 };
 
-type PendingMeta = {
+type PendingMeta = { push: BrowserFramePush; timer: number };
+type EncodedFrame = { push: BrowserFramePush; jpeg: Uint8Array; epoch: number };
+type OwnedFrame = { view: BrowserFrameView; blob: Blob; identity: BrowserFrameIdentity };
+type DecodeCandidate = {
   push: BrowserFramePush;
-  timer: number;
+  blob: Blob | undefined;
+  src: string;
+  epoch: number;
+  abort: AbortController;
+  released: boolean;
 };
-
-function isNewerFrame(next: BrowserFramePush, current: BrowserFrameView | undefined): boolean {
-  if (current === undefined) return true;
-  if (next.generation !== current.generation) return next.generation > current.generation;
-  if (next.pageId !== current.pageId) return true;
-  const nextId = Number(next.frameId);
-  const currentId = Number(current.frameId);
-  if (Number.isFinite(nextId) && Number.isFinite(currentId)) return nextId > currentId;
-  return next.frameId !== current.frameId;
-}
 
 function viewFromPush(push: BrowserFramePush, src: string): BrowserFrameView {
   return {
@@ -94,140 +101,210 @@ function viewFromPush(push: BrowserFramePush, src: string): BrowserFrameView {
   };
 }
 
-/** Inline JPEG only — a redacted or non-JPEG URL must never become an `<img src>`. */
-export function validateInlineJpegDataUrl(dataUrl: string, maxBytes: number): boolean {
-  const trimmed = dataUrl.trim();
-  if (trimmed === '[redacted]') return false;
-  if (!trimmed.startsWith(BROWSER_JPEG_DATA_URL_PREFIX)) return false;
-  const base64 = trimmed.slice(BROWSER_JPEG_DATA_URL_PREFIX.length);
-  if (base64.length === 0) return false;
-  if (base64.length > Math.ceil((maxBytes / 3) * 4) + 4) return false;
-  return true;
-}
-
 export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): BrowserFrameDecoder {
   const timeoutMs = options.timeoutMs ?? BROWSER_FRAME_PAYLOAD_TIMEOUT_MS;
   const decode = options.decode ?? (async () => undefined);
-  const createObjectUrl =
-    options.createObjectUrl ??
-    ((blob: Blob) => {
-      if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-        throw new Error('object URL factory is required');
-      }
-      return URL.createObjectURL(blob);
-    });
-  const revokeObjectUrl =
-    options.revokeObjectUrl ??
-    ((url: string) => {
-      if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
-        URL.revokeObjectURL(url);
-      }
-    });
+  const createObjectUrl = options.createObjectUrl ?? ((blob: Blob) => URL.createObjectURL(blob));
+  const revokeObjectUrl = options.revokeObjectUrl ?? ((url: string) => URL.revokeObjectURL(url));
   const schedule = options.schedule ?? ((callback, ms) => window.setTimeout(callback, ms));
   const cancel = options.cancel ?? ((id) => window.clearTimeout(id));
 
   let disposed = false;
-  let generation = 0;
-  let current: BrowserFrameView | undefined;
-  let pending: PendingMeta | undefined;
-  let unmatchedBinary: { frameId: string; jpeg: Uint8Array } | undefined;
-  let timedOutFrameId: string | undefined;
-  let candidateSrc: string | undefined;
+  let epoch = 0;
+  let target: BrowserFrameTargetIdentity = {};
+  let current: OwnedFrame | undefined;
+  let active: DecodeCandidate | undefined;
+  let pendingFrame: EncodedFrame | undefined;
+  let pendingMeta: PendingMeta | undefined;
+  let unmatchedBinary: { header: BrowserFrameBinaryHeader; jpeg: Uint8Array } | undefined;
+  let timedOutIdentity: string | undefined;
+  let highWaterIdentity: BrowserFrameIdentity | undefined;
 
-  function revokeIfObject(url: string | undefined): void {
-    if (url !== undefined && url.startsWith('blob:')) revokeObjectUrl(url);
+  function releaseUrl(url: string | undefined): void {
+    if (url?.startsWith('blob:')) revokeObjectUrl(url);
   }
 
-  function clearPending(): void {
-    if (pending !== undefined) {
-      cancel(pending.timer);
-      pending = undefined;
-    }
+  function releaseCandidate(candidate: DecodeCandidate): void {
+    if (candidate.released) return;
+    candidate.released = true;
+    candidate.blob = undefined;
+    candidate.abort.abort();
+    releaseUrl(candidate.src);
+  }
+
+  function clearPendingMeta(): void {
+    if (pendingMeta === undefined) return;
+    cancel(pendingMeta.timer);
+    pendingMeta = undefined;
+  }
+
+  function clearFrames(): void {
+    pendingFrame = undefined;
+    unmatchedBinary = undefined;
+    timedOutIdentity = undefined;
+    highWaterIdentity = undefined;
+    clearPendingMeta();
+    if (active !== undefined) releaseCandidate(active);
+    if (current !== undefined) releaseUrl(current.view.src);
+    current = undefined;
+  }
+
+  function matchesTarget(push: Pick<BrowserFramePush, 'generation' | 'pageId' | 'documentRevision'>): boolean {
+    return (target.generation === undefined || push.generation === target.generation) &&
+      (target.pageId === undefined || push.pageId === target.pageId) &&
+      (target.documentRevision === undefined || push.documentRevision === target.documentRevision);
   }
 
   function fail(reason: BrowserFrameErrorReason): void {
-    options.onError(reason);
+    if (!disposed) options.onError(reason);
   }
 
-  async function accept(push: BrowserFramePush, src: string, acceptGeneration: number): Promise<void> {
-    try {
-      await decode(src);
-    } catch {
-      revokeIfObject(src);
-      if (candidateSrc === src) candidateSrc = undefined;
-      if (!disposed && acceptGeneration === generation) fail('decode-failed');
+  function pump(): void {
+    if (disposed || active !== undefined || pendingFrame === undefined) return;
+    const frame = pendingFrame;
+    pendingFrame = undefined;
+    if (!matchesTarget(frame.push)) {
+      pump();
       return;
     }
-    if (disposed || acceptGeneration !== generation) {
-      revokeIfObject(src);
-      return;
-    }
-    if (candidateSrc === src) candidateSrc = undefined;
-    if (!isNewerFrame(push, current)) {
-      revokeIfObject(src);
-      return;
-    }
-    const previous = current?.src;
-    current = viewFromPush(push, src);
-    options.onReady(current);
-    if (previous !== undefined && previous !== src) revokeIfObject(previous);
-  }
 
-  function ingestInline(push: BrowserFramePush): void {
-    const dataUrl = push.payload.kind === 'inline' ? push.payload.dataUrl : '';
-    if (dataUrl.trim() === '[redacted]') {
-      fail('redacted');
-      return;
-    }
-    if (!validateInlineJpegDataUrl(dataUrl, MAX_BROWSER_FRAME_BINARY_BYTES)) {
-      fail('invalid-inline');
-      return;
-    }
-    void accept(push, dataUrl, generation);
-  }
-
-  function ingestJpeg(push: BrowserFramePush, jpeg: Uint8Array): void {
+    let blob: Blob;
     let src: string;
     try {
-      src = createObjectUrl(new Blob([jpeg as BlobPart], { type: 'image/jpeg' }));
+      blob = new Blob([frame.jpeg as BlobPart], { type: 'image/jpeg' });
+      src = createObjectUrl(blob);
     } catch {
       fail('decode-failed');
+      pump();
       return;
     }
-    candidateSrc = src;
-    void accept(push, src, generation);
+
+    const candidate: DecodeCandidate = {
+      push: frame.push,
+      blob,
+      src,
+      epoch: frame.epoch,
+      abort: new AbortController(),
+      released: false,
+    };
+    active = candidate;
+
+    const settle = (decoded: boolean): void => {
+      if (active === candidate) active = undefined;
+      const canCommit = decoded && !disposed && candidate.epoch === epoch &&
+        matchesTarget(candidate.push) && (current === undefined ||
+          (browserFrameIdentityOrder(candidate.push, current.identity) ?? -1) > 0);
+      const decodedBlob = candidate.blob;
+      if (canCommit && !candidate.released && decodedBlob !== undefined) {
+        const previous = current;
+        const next = {
+          view: viewFromPush(candidate.push, candidate.src), blob: decodedBlob,
+          identity: browserFrameIdentity(candidate.push),
+        };
+        candidate.blob = undefined;
+        current = next;
+        options.onReady(next.view);
+        if (previous !== undefined && previous.view.src !== next.view.src) {
+          releaseUrl(previous.view.src);
+        }
+      } else {
+        releaseCandidate(candidate);
+        if (!decoded && !disposed && candidate.epoch === epoch && matchesTarget(candidate.push)) {
+          fail('decode-failed');
+        }
+      }
+      pump();
+    };
+
+    void decode(candidate.src, candidate.abort.signal).then(
+      () => settle(true),
+      () => settle(false),
+    );
+  }
+
+  function queueFrame(push: BrowserFramePush, jpeg: Uint8Array, allowHighWaterMatch = false): void {
+    if (!matchesTarget(push)) return;
+    const order = highWaterIdentity === undefined
+      ? 1
+      : browserFrameIdentityOrder(push, highWaterIdentity);
+    if (order === undefined || order < 0 || (order === 0 && !allowHighWaterMatch)) return;
+    if (order > 0) highWaterIdentity = browserFrameIdentity(push);
+    if (unmatchedBinary !== undefined) {
+      const unmatchedOrder = browserFrameIdentityOrder(unmatchedBinary.header, push);
+      if (unmatchedOrder !== undefined && unmatchedOrder <= 0) unmatchedBinary = undefined;
+    }
+    if (pendingFrame !== undefined) {
+      const pendingOrder = browserFrameIdentityOrder(push, pendingFrame.push);
+      if (pendingOrder === undefined || pendingOrder <= 0) return;
+    }
+    pendingFrame = { push: { ...push, payload: { kind: 'binary' } }, jpeg, epoch };
+    pump();
   }
 
   return {
     ingestPush(push) {
-      if (disposed) return;
-      if (push.sessionId !== options.sessionId) return;
-      if (!isNewerFrame(push, current) && push.payload.kind !== 'unavailable') return;
+      if (disposed || push.sessionId !== options.sessionId || !matchesTarget(push)) return;
       if (push.payload.kind === 'unavailable') {
         fail(push.payload.reason);
         return;
       }
       if (push.payload.kind === 'inline') {
-        clearPending();
-        ingestInline(push);
+        const order = highWaterIdentity === undefined
+          ? 1
+          : browserFrameIdentityOrder(push, highWaterIdentity);
+        if (order === undefined || order <= 0) return;
+        clearPendingMeta();
+        unmatchedBinary = undefined;
+        timedOutIdentity = undefined;
+        const dataUrl = push.payload.dataUrl;
+        if (dataUrl.trim() === '[redacted]') {
+          fail('redacted');
+          return;
+        }
+        if (!validateInlineJpegDataUrl(dataUrl, MAX_BROWSER_FRAME_BINARY_BYTES)) {
+          fail('invalid-inline');
+          return;
+        }
+        const jpeg = decodeInlineJpeg(dataUrl);
+        if (jpeg === undefined || jpeg.byteLength !== push.byteLength) {
+          fail('invalid-inline');
+          return;
+        }
+        queueFrame(push, jpeg);
         return;
       }
-      if (unmatchedBinary !== undefined && unmatchedBinary.frameId === push.frameId) {
+
+      const key = browserFrameIdentityKey(push);
+      const order = highWaterIdentity === undefined
+        ? 1
+        : browserFrameIdentityOrder(push, highWaterIdentity);
+      if (order === undefined || order < 0) return;
+      if (unmatchedBinary !== undefined && browserFrameIdentitiesMatch(push, unmatchedBinary.header)) {
         const jpeg = unmatchedBinary.jpeg;
         unmatchedBinary = undefined;
-        clearPending();
-        ingestJpeg(push, jpeg);
+        timedOutIdentity = undefined;
+        clearPendingMeta();
+        queueFrame(push, jpeg, true);
         return;
       }
-      unmatchedBinary = undefined;
-      timedOutFrameId = undefined;
-      clearPending();
-      pending = {
+      if (order === 0) return;
+      highWaterIdentity = browserFrameIdentity(push);
+      if (pendingFrame !== undefined) {
+        const pendingOrder = browserFrameIdentityOrder(push, pendingFrame.push);
+        if (pendingOrder !== undefined && pendingOrder > 0) pendingFrame = undefined;
+      }
+      if (unmatchedBinary !== undefined) {
+        const unmatchedOrder = browserFrameIdentityOrder(push, unmatchedBinary.header);
+        if (unmatchedOrder !== undefined && unmatchedOrder > 0) unmatchedBinary = undefined;
+      }
+      timedOutIdentity = undefined;
+      clearPendingMeta();
+      pendingMeta = {
         push,
         timer: schedule(() => {
-          const frameId = pending?.push.frameId;
-          pending = undefined;
-          timedOutFrameId = frameId;
+          if (pendingMeta === undefined || browserFrameIdentityKey(pendingMeta.push) !== key) return;
+          pendingMeta = undefined;
+          timedOutIdentity = key;
           fail('payload-timeout');
         }, timeoutMs),
       };
@@ -240,30 +317,75 @@ export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): 
         return;
       }
       const { header, jpeg } = decoded;
-      if (header.sessionId !== options.sessionId) return;
-      if (timedOutFrameId === header.frameId) return;
-      if (pending !== undefined && pending.push.frameId === header.frameId) {
-        const push = pending.push;
-        clearPending();
-        ingestJpeg(push, jpeg);
+      if (header.sessionId !== options.sessionId || !matchesTarget(header)) return;
+      const key = browserFrameIdentityKey(header);
+      if (timedOutIdentity === key) return;
+      if (pendingMeta !== undefined && browserFrameIdentitiesMatch(pendingMeta.push, header)) {
+        const push = pendingMeta.push;
+        clearPendingMeta();
+        unmatchedBinary = undefined;
+        queueFrame(push, jpeg, true);
         return;
       }
-      // One unmatched payload only — a newer JPEG replaces an unused one.
-      unmatchedBinary = { frameId: header.frameId, jpeg };
+      const order = highWaterIdentity === undefined
+        ? 1
+        : browserFrameIdentityOrder(header, highWaterIdentity);
+      if (order === undefined || order <= 0) return;
+      if (pendingFrame !== undefined) {
+        const pendingOrder = browserFrameIdentityOrder(header, pendingFrame.push);
+        if (pendingOrder === undefined || pendingOrder <= 0) return;
+        pendingFrame = undefined;
+      }
+      if (unmatchedBinary !== undefined) {
+        const unmatchedOrder = browserFrameIdentityOrder(header, unmatchedBinary.header);
+        if (unmatchedOrder === undefined || unmatchedOrder <= 0) return;
+      }
+      highWaterIdentity = browserFrameIdentity(header);
+      clearPendingMeta();
+      unmatchedBinary = { header, jpeg };
+    },
+    ingestNativePacket(bytes) {
+      if (disposed) return;
+      const decoded = decodeBrowserFrameBinary(bytes);
+      const presentation = decoded.ok ? decoded.header.presentation : undefined;
+      if (!decoded.ok || presentation === undefined) {
+        fail('decode-failed');
+        return;
+      }
+      const { header, jpeg } = decoded;
+      if (header.sessionId !== options.sessionId || !matchesTarget(header)) return;
+      clearPendingMeta();
+      unmatchedBinary = undefined;
+      timedOutIdentity = undefined;
+      queueFrame({
+        ...header, ...presentation, type: 'browser/frame', payload: { kind: 'binary' },
+      }, jpeg);
+    },
+    setTarget(identity) {
+      if (
+        identity.generation !== target.generation ||
+        identity.pageId !== target.pageId ||
+        identity.documentRevision !== target.documentRevision
+      ) {
+        epoch += 1;
+        clearFrames();
+      }
+      target = identity;
+    },
+    reportError(reason) {
+      fail(reason);
+    },
+    getCurrentBlob() {
+      return disposed ? undefined : current?.blob;
     },
     reset() {
-      generation += 1;
-      clearPending();
-      unmatchedBinary = undefined;
-      timedOutFrameId = undefined;
-      revokeIfObject(candidateSrc);
-      candidateSrc = undefined;
-      revokeIfObject(current?.src);
-      current = undefined;
+      epoch += 1;
+      clearFrames();
     },
     dispose() {
       disposed = true;
-      this.reset();
+      epoch += 1;
+      clearFrames();
     },
   };
 }

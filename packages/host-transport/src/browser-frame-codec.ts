@@ -13,9 +13,11 @@ import {
   BROWSER_FRAME_BINARY_VERSION,
   BROWSER_FRAME_HEADER_MAGIC_BYTES,
   BROWSER_FRAME_MAX_HEADER_BYTES,
+  BROWSER_FRAME_PRODUCERS,
   MAX_BROWSER_FRAME_BINARY_BYTES,
   MAX_BROWSER_FRAME_DECODE_PIXELS,
   type BrowserFrameBinaryHeader,
+  type BrowserFramePresentation,
 } from '@piwin/contracts';
 
 export type BrowserFrameBinaryDecodeFailure =
@@ -63,6 +65,17 @@ function isFinitePositive(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+function parsePresentation(value: unknown): BrowserFramePresentation | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const record = value as Record<string, unknown>;
+  const { ts, sourceDpr, quality, producer } = record;
+  if (typeof ts !== 'number' || !Number.isFinite(ts) || ts < 0) return undefined;
+  if (!isFinitePositive(sourceDpr)) return undefined;
+  if (typeof quality !== 'number' || !Number.isInteger(quality) || quality < 0 || quality > 100) return undefined;
+  if (typeof producer !== 'string' || !BROWSER_FRAME_PRODUCERS.some((item) => item === producer)) return undefined;
+  return { ts, sourceDpr, quality, producer: producer as BrowserFramePresentation['producer'] };
+}
+
 function parseHeader(value: unknown): BrowserFrameBinaryHeader | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const record = value as Record<string, unknown>;
@@ -79,6 +92,8 @@ function parseHeader(value: unknown): BrowserFrameBinaryHeader | undefined {
   const byteLength = record.byteLength;
   const mime = record.mime;
   const version = record.version;
+  const presentation = record.presentation === undefined ? undefined : parsePresentation(record.presentation);
+  if (record.presentation !== undefined && presentation === undefined) return undefined;
   if (typeof frameId !== 'string' || frameId.length === 0 || frameId.length > 128) return undefined;
   if (!Number.isSafeInteger(generation) || (generation as number) < 0) return undefined;
   if (typeof pageId !== 'string' || pageId.length > 256) return undefined;
@@ -101,6 +116,7 @@ function parseHeader(value: unknown): BrowserFrameBinaryHeader | undefined {
     encodedHeight: encodedHeight as number,
     byteLength: byteLength as number,
     mime,
+    ...(presentation === undefined ? {} : { presentation }),
   };
 }
 

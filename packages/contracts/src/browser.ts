@@ -166,6 +166,14 @@ export const BROWSER_FRAME_PAYLOAD_TIMEOUT_MS = 2_000;
 /** Why the panel shows a retry placeholder instead of a broken image. */
 export const BROWSER_FRAME_ERROR_HEADER = 'piwin-browser-frame-error';
 
+/** Native pull packets carry presentation data without a separate event pairing. */
+export type BrowserFramePresentation = {
+  ts: number;
+  sourceDpr: number;
+  quality: number;
+  producer: BrowserFrameProducer;
+};
+
 export type BrowserFrameBinaryHeader = {
   /** Conversation owning these pixels. Omitted only by legacy clients. */
   sessionId?: string;
@@ -182,6 +190,8 @@ export type BrowserFrameBinaryHeader = {
   encodedHeight: number;
   byteLength: number;
   mime: string;
+  /** Optional on the legacy remote stream; required by native pull delivery. */
+  presentation?: BrowserFramePresentation;
 };
 
 /**

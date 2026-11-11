@@ -40,7 +40,7 @@ function browserFramePush(overrides: Partial<BrowserFramePush> = {}): BrowserFra
     generation: 1,
     pageId: 'page-1',
     documentRevision: 0,
-    payload: { kind: 'inline', dataUrl: 'data:image/jpeg;base64,/9j/4AAQ' },
+    payload: { kind: 'inline', dataUrl: 'data:image/jpeg;base64,/9j/2Q==' },
     ts: 1,
     ...overrides,
   };
@@ -55,6 +55,7 @@ describe('BrowserSessionPanel', () => {
   beforeEach(() => {
     previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    vi.spyOn(HTMLImageElement.prototype, 'decode').mockResolvedValue(undefined);
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);

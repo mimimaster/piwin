@@ -235,19 +235,16 @@ export function BrowserSessionBody(props: BrowserSessionBodyProps): ReactElement
   // that frame attached to the composer — no extra Host capture round trip.
   const frameSrc = frame.src;
   const handleTakeScreenshot = useCallback((): void => {
-    if (!onAddImageFile || !frameSrc) return;
-    void fetch(frameSrc)
-      .then((response) => response.blob())
-      .then((blob) => {
-        const extension = blob.type === 'image/png' ? 'png' : 'jpg';
-        onAddImageFile(
-          new File([blob], `browser-screenshot-${String(Date.now())}.${extension}`, {
-            type: blob.type || 'image/jpeg',
-          }),
-        );
-      })
-      .catch(() => pushNotice(copy.panelActionFailed));
-  }, [onAddImageFile, frameSrc, pushNotice, copy.panelActionFailed]);
+    if (!onAddImageFile) return;
+    const blob = session.getCurrentFrameBlob();
+    if (!blob) return;
+    const extension = blob.type === 'image/png' ? 'png' : 'jpg';
+    onAddImageFile(
+      new File([blob], `browser-screenshot-${String(Date.now())}.${extension}`, {
+        type: blob.type || 'image/jpeg',
+      }),
+    );
+  }, [onAddImageFile, session.getCurrentFrameBlob]);
 
   const handleSelectViewport = useCallback(
     (selection: { id: BrowserViewportPresetId; width: number; height: number }): void => {

@@ -71,12 +71,24 @@ pub(super) fn host_push_event_name(parsed: &Value) -> Option<&'static str> {
     }
 }
 
-pub(super) fn emit_host_push(app: &AppHandle, parsed: &Value) {
-    let Some(event_name) = host_push_event_name(parsed) else {
+pub(super) fn emit_host_push(app: &AppHandle, parsed: Value) {
+    let Some(event_name) = host_push_event_name(&parsed) else {
         return;
     };
     let Some(main_window) = app.get_webview_window("main") else {
         return;
     };
-    let _ = main_window.emit(event_name, parsed);
+    let Some(frame_state) = app.try_state::<crate::browser_frame::BrowserFrameState>() else {
+        // Fail closed if app setup omitted the broker; never restore the
+        // unsafe inline-pixel event path as a compatibility fallback.
+        let fallback = crate::browser_frame::BrowserFrameState::default();
+        let (prepared, _) = crate::browser_frame::prepare_host_message(parsed, &fallback);
+        let _ = main_window.emit(event_name, prepared);
+        return;
+    };
+    let (prepared, ready) = crate::browser_frame::prepare_host_message(parsed, &frame_state);
+    let _ = main_window.emit(event_name, prepared);
+    for notification in ready {
+        crate::browser_frame::emit_ready(app, notification);
+    }
 }
