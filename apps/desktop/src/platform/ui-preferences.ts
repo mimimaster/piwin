@@ -209,6 +209,11 @@ export type DesktopPreferences = {
   wallpaper?: WallpaperPreferences | undefined;
   /** Phone glass strength 0–100 (窗口通透 on a phone); 100 = full glass, 0 = solid. */
   phoneGlass?: number;
+  /**
+   * Screen capture (⇧⌘A overlay → composer attachment). Default on; only an
+   * explicit `false` disables it, so a missing key keeps today's behavior.
+   */
+  screenCaptureEnabled?: boolean;
 };
 
 const TOOL_DENSITY_KEY = 'piwin.desktop.toolCallDensity';
@@ -230,6 +235,7 @@ const CUSTOM_FONTS_KEY = 'piwin.desktop.customFonts';
 const WINDOW_MATERIAL_KEY = 'piwin.desktop.windowMaterial';
 const WALLPAPER_KEY = 'piwin.desktop.wallpaper';
 const PHONE_GLASS_KEY = 'piwin.desktop.phoneGlass';
+const SCREEN_CAPTURE_ENABLED_KEY = 'piwin.desktop.screenCaptureEnabled';
 /** Last successfully applied theme id — used for pre-paint bootstrap (no FOUC). */
 const LAST_THEME_ID_KEY = 'piwin.desktop.lastThemeId';
 
@@ -417,6 +423,7 @@ export function loadDesktopPreferences(): DesktopPreferences {
       : {}),
     ...(wallpaper ? { wallpaper } : {}),
     ...phoneGlassPreference(readString(PHONE_GLASS_KEY)),
+    ...(readString(SCREEN_CAPTURE_ENABLED_KEY) === '0' ? { screenCaptureEnabled: false } : {}),
   };
 }
 
@@ -435,6 +442,7 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   if (prefs.agentLocatorAnimation) {
     writeString(AGENT_LOCATOR_ANIMATION_KEY, prefs.agentLocatorAnimation);
   }
+  writeString(SCREEN_CAPTURE_ENABLED_KEY, prefs.screenCaptureEnabled === false ? '0' : '1');
   if (prefs.terminalLastCwd) {
     writeString(TERMINAL_LAST_CWD_KEY, prefs.terminalLastCwd);
   }

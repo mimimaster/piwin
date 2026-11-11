@@ -38,6 +38,8 @@ export type UseScreenCaptureArgs = {
   attachImage: (file: File) => void;
   dispatchNotification: Dispatch<NotificationAction>;
   os?: DesktopScreenCaptureOs;
+  /** Settings → General switch. False ignores every trigger and hides entries. */
+  enabled?: boolean;
   /** Defaults to `document.hasFocus()`; injectable for tests. */
   piwinInFront?: () => boolean;
 };
@@ -46,6 +48,8 @@ export type ScreenCaptureController = {
   phase: ScreenCapturePhase;
   /** Native capture exists on this platform; entry points hide otherwise. */
   supported: boolean;
+  /** Mirrors the settings switch; false means triggers are ignored. */
+  enabled: boolean;
   locale: DesktopLocale;
   start: () => void;
   close: () => void;
@@ -107,6 +111,9 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
   }, [os]);
 
   const start = useCallback((): void => {
+    if (args.enabled === false) {
+      return;
+    }
     const current = phaseRef.current.kind;
     if (current !== 'idle') {
       // A second trigger is ignored (spec §5.1); an open editor or prompt comes forward.
@@ -171,6 +178,7 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
     attachImage,
     canAttach,
     dispatchNotification,
+    args.enabled,
     imageRefusal,
     locale,
     os,
@@ -238,6 +246,7 @@ export function useScreenCapture(args: UseScreenCaptureArgs): ScreenCaptureContr
   return {
     phase,
     supported,
+    enabled: args.enabled !== false,
     locale,
     start,
     close,

@@ -13,6 +13,8 @@ import { useScreenCapture, type ScreenCaptureController } from './use-screen-cap
 export type UseWorkbenchScreenCaptureArgs = {
   state: Pick<ChatUiState, 'backendCapabilitiesBySession' | 'activeSessionId'>;
   locale: DesktopLocale;
+  /** Settings → General switch (defaults on when omitted). */
+  enabled?: boolean;
   canAttachFiles: () => boolean;
   enqueueAttachmentFile: (file: File, source: 'paste' | 'drop' | 'file-picker') => void;
   dispatchNotification: Dispatch<NotificationAction>;
@@ -39,6 +41,7 @@ export function useWorkbenchScreenCapture(
   );
   return useScreenCapture({
     locale: args.locale,
+    ...(args.enabled === undefined ? {} : { enabled: args.enabled }),
     canAttach: args.canAttachFiles,
     imageRefusal,
     attachImage,

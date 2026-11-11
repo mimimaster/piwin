@@ -58,4 +58,9 @@ export interface DesktopScreenCaptureOs {
   read(id: string): Promise<Uint8Array>;
   /** Open a floating always-on-top pin of this PNG (Linux in-window editor). */
   pin(png: Uint8Array): Promise<void>;
+  /**
+   * Register or release the system-wide capture chord. Settings → General owns
+   * the switch; releasing it stops piwin from swallowing ⇧⌘A while disabled.
+   */
+  setShortcutEnabled(enabled: boolean): Promise<void>;
 }

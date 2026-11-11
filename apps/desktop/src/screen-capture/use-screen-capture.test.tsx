@@ -24,6 +24,7 @@ function fakeOs(authorization: ScreenCaptureAuthorization) {
     take: vi.fn(async () => ({ status: 'cancelled' as const })),
     read: vi.fn(async () => new Uint8Array()),
     pin: vi.fn(async () => undefined),
+    setShortcutEnabled: vi.fn(async () => undefined),
   };
   return { os, unsubscribe, pressShortcut: () => shortcutListener?.() };
 }
@@ -37,11 +38,15 @@ describe('useScreenCapture', () => {
     container?.remove();
   });
 
-  async function mount(os: DesktopScreenCaptureOs): Promise<{ current: ScreenCaptureController }> {
+  async function mount(
+    os: DesktopScreenCaptureOs,
+    enabled = true,
+  ): Promise<{ current: ScreenCaptureController }> {
     const latest = { current: undefined as unknown as ScreenCaptureController };
     function Probe(): null {
       latest.current = useScreenCapture({
         locale: 'en',
+        enabled,
         canAttach: () => true,
         imageRefusal: () => undefined,
         attachImage: vi.fn(),
@@ -65,6 +70,17 @@ describe('useScreenCapture', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
   }
+
+  it('ignores triggers while the settings switch is off', async () => {
+    const { os, pressShortcut } = fakeOs('authorized');
+    const controller = await mount(os, false);
+    expect(controller.current.enabled).toBe(false);
+    act(() => pressShortcut());
+    act(() => controller.current.start());
+    await settle();
+    expect(os.take).not.toHaveBeenCalled();
+    expect(controller.current.phase.kind).toBe('idle');
+  });
 
   it('starts a capture from the global shortcut and stays put on cancel', async () => {
     const { os, pressShortcut } = fakeOs('authorized');

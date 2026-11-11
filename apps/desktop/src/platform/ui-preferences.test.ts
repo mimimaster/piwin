@@ -62,6 +62,21 @@ describe('DesktopPreferences loading', () => {
     clearLocalStorage();
   });
 
+  it('treats screen capture as on unless the off switch was stored', () => {
+    expect(loadDesktopPreferences().screenCaptureEnabled).toBeUndefined();
+    setLocalStorage('screenCaptureEnabled', '0');
+    expect(loadDesktopPreferences().screenCaptureEnabled).toBe(false);
+    setLocalStorage('screenCaptureEnabled', '1');
+    expect(loadDesktopPreferences().screenCaptureEnabled).toBeUndefined();
+  });
+
+  it('persists the screen capture switch as 0/1', () => {
+    saveDesktopPreferences({ ...loadDesktopPreferences(), screenCaptureEnabled: false });
+    expect(localStorage.getItem(PREFIX + 'screenCaptureEnabled')).toBe('0');
+    saveDesktopPreferences({ ...loadDesktopPreferences(), screenCaptureEnabled: true });
+    expect(localStorage.getItem(PREFIX + 'screenCaptureEnabled')).toBe('1');
+  });
+
   it('returns defaults when no localStorage values are set', () => {
     const prefs = loadDesktopPreferences();
     expect(prefs).toEqual<DesktopPreferences>({

@@ -163,6 +163,13 @@ pub(crate) fn screen_capture_restart_app(app: AppHandle) {
     app.request_restart();
 }
 
+/// Settings → General switch. Releasing the chord keeps ⇧⌘A usable by other
+/// apps while capture is disabled; enabling registers it again.
+#[tauri::command]
+pub(crate) fn screen_capture_set_shortcut_enabled(app: AppHandle, enabled: bool) {
+    shortcut::set_enabled(&app, enabled);
+}
+
 /// `deliver_to_composer`: piwin was in front when the capture started, so the
 /// result is also read back for the composer (it always goes to the clipboard).
 #[tauri::command]

@@ -5,7 +5,7 @@
  * Connection page.
  */
 import { lazy, Suspense, useState, type ReactElement } from 'react';
-import { SegmentedControl, Spinner } from '@piwin/ui-kit';
+import { SegmentedControl, Spinner, Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 import { AppearancePage } from './appearance-page';
@@ -19,6 +19,7 @@ import type { AgentLocatorAnimation } from '../../platform/ui-preferences.js';
 import { DeviceHealthSettings } from '../../devices/device-health-settings';
 import { HostHealthSettings } from '../host-health-settings';
 import { ShellInterfaceSettings } from '../../tool-cards/shell-interface-settings';
+import { createTauriScreenCaptureOs } from '../../screen-capture/screen-capture-os-tauri.js';
 import { AppVersionSettings } from '../../platform/app-version-settings';
 import { isMobileTauriRuntime } from '../../tool-cards/shell-runtime';
 import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
@@ -57,8 +58,56 @@ function GeneralPreferencesSection(): ReactElement {
       </div>
 
       <AppVersionSettings />
+      <ScreenCaptureSettings />
       <ShellInterfaceSettings />
     </>
+  );
+}
+
+export function ScreenCaptureSettings(): ReactElement {
+  const { locale } = useDesktopLocale();
+  const isChinese = locale === 'zh-CN';
+  const { preferences, onPreferencesChange } = useSettings();
+  const enabled = preferences.screenCaptureEnabled !== false;
+
+  const applyEnabled = (next: boolean): void => {
+    // Must go through the settings owner: a controlled Switch that only writes
+    // storage keeps its old `checked` and snaps back on the next render.
+    onPreferencesChange({ ...preferences, screenCaptureEnabled: next });
+    // The native chord is registered at launch; release it so a disabled
+    // switch stops piwin from swallowing ⇧⌘A while other apps have focus.
+    void createTauriScreenCaptureOs().setShortcutEnabled(next);
+  };
+
+  return (
+    <div
+      className="settings-section settings-section-card"
+      data-testid="settings-screen-capture"
+    >
+      <PageTitle
+        title={isChinese ? '截图' : 'Screen capture'}
+        description={
+          isChinese
+            ? '⇧⌘A 截屏、标注，再附加到当前对话。'
+            : 'Capture, annotate and attach a screenshot with ⇧⌘A.'
+        }
+      />
+      <FieldRow
+        label={isChinese ? '启用截图功能' : 'Enable screen capture'}
+        description={
+          isChinese
+            ? '关闭后释放系统快捷键，并隐藏截图入口。'
+            : 'When off, the system shortcut is released and entry points are hidden.'
+        }
+      >
+        <Switch
+          checked={enabled}
+          onCheckedChange={applyEnabled}
+          aria-label={isChinese ? '启用截图功能' : 'Enable screen capture'}
+          testId="settings-screen-capture-switch"
+        />
+      </FieldRow>
+    </div>
   );
 }
 

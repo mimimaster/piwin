@@ -118,7 +118,10 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
   // Offered only where an image attachment would be accepted (ADR 0082).
   const screenCapture = useScreenCaptureEntry();
   const startScreenCapture =
-    screenCapture?.supported === true && props.onAttachImage && !imageDisabledReason
+    screenCapture?.supported === true &&
+    screenCapture.enabled &&
+    props.onAttachImage &&
+    !imageDisabledReason
       ? screenCapture.start
       : undefined;
   const hasAttachments = Boolean(

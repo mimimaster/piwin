@@ -52,5 +52,11 @@ export function createTauriScreenCaptureOs(): DesktopScreenCaptureOs {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('screen_capture_pin', png);
     },
+    async setShortcutEnabled(enabled) {
+      if (!isDesktopTauriRuntime()) {
+        return;
+      }
+      await invokeScreenCapture<void>('screen_capture_set_shortcut_enabled', { enabled });
+    },
   };
 }

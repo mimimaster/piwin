@@ -172,6 +172,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
   const screenCapture = useWorkbenchScreenCapture({
     state,
     locale: chrome.desktopLocale,
+    enabled: chrome.preferences.screenCaptureEnabled !== false,
     canAttachFiles: composer.canAttachFiles,
     enqueueAttachmentFile: composer.enqueueAttachmentFile,
     dispatchNotification: host.dispatchNotification,

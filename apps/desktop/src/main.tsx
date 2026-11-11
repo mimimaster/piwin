@@ -3,6 +3,7 @@ import { DesktopThemeRoot } from './platform/desktop-theme-root';
 import { applyAppearanceToDocument, loadAndRegisterAllCustomFonts } from './theme/appearance-tokens';
 import { resolveStartupAppearance } from './theme/theme-startup';
 import { loadDesktopPreferences } from './platform/ui-preferences';
+import { createTauriScreenCaptureOs } from './screen-capture/screen-capture-os-tauri.js';
 import { applyNativeWindowMaterialToDocument, applyWindowChromeToDocument } from './platform/window-chrome';
 import { installDevelopmentPerformanceTimelineGuard } from './platform/development-performance-timeline';
 import { installArtifactMemoryBridge } from './artifact/artifact-memory-bridge';
@@ -33,6 +34,11 @@ applyWindowChromeToDocument(document.documentElement);
 // Windows resolves after an OS probe and the mounted theme root re-applies.
 const nativeWindowMaterialReady = applyNativeWindowMaterialToDocument(document.documentElement);
 const startupPreferences = loadDesktopPreferences();
+// The native capture chord registers during setup; a disabled switch must
+// release it so ⇧⌘A stays available to other apps from the first frame.
+void createTauriScreenCaptureOs().setShortcutEnabled(
+  startupPreferences.screenCaptureEnabled !== false,
+);
 applyAppearanceToDocument(resolveStartupAppearance(), startupPreferences.customFonts);
 applyWindowMaterialToDocument(
   document.documentElement,

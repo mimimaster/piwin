@@ -377,8 +377,12 @@ function HostWorkbench({
 
   const screenCapture = model.screenCapture;
   const screenCaptureEntry = useMemo(
-    () => ({ supported: screenCapture.supported, start: screenCapture.start }),
-    [screenCapture.supported, screenCapture.start],
+    () => ({
+      supported: screenCapture.supported,
+      enabled: screenCapture.enabled,
+      start: screenCapture.start,
+    }),
+    [screenCapture.supported, screenCapture.enabled, screenCapture.start],
   );
 
   return (

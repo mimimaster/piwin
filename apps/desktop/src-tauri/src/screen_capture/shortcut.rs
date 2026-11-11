@@ -35,3 +35,22 @@ pub(crate) fn install(app: &AppHandle) {
         eprintln!("[piwin] global screenshot shortcut unavailable, in-app only: {error}");
     }
 }
+
+/// Settings → General owns this switch. Releasing the chord stops piwin from
+/// swallowing ⇧⌘A in other apps; re-enabling registers the same handler again.
+pub(crate) fn set_enabled(app: &AppHandle, enabled: bool) {
+    let manager = app.global_shortcut();
+    let shortcut = capture_shortcut();
+    if enabled {
+        if !manager.is_registered(shortcut) {
+            install(app);
+        }
+        return;
+    }
+    if !manager.is_registered(shortcut) {
+        return;
+    }
+    if let Err(error) = manager.unregister(shortcut) {
+        eprintln!("[piwin] screenshot shortcut could not be released: {error}");
+    }
+}
