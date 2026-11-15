@@ -47,6 +47,7 @@ function isChannelModelRef(value: object): value is ModelRef {
 export const CHANNEL_MODEL_REF_WRITER_PATHS = [
   'defaultProviderId',
   'desktop.composerProfile.model',
+  'compaction.delegation.model',
   'visionDelegation.model',
   'replyWriter.model',
   'imageGeneration.defaultModel',

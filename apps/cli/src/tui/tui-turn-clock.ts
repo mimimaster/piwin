@@ -14,13 +14,14 @@ export class TuiTurnClock {
   }
 
   public elapsedMs(): number {
-    return this.startedAt === undefined ? 0 : Date.now() - this.startedAt;
+    return this.startedAt === undefined ? 0 : Math.max(0, Date.now() - this.startedAt);
   }
 
   /** Starts counting a turn and ticking `onTick` once a second; restarts any earlier count. */
-  public startTurn(onTick: () => void): void {
+  public startTurn(onTick: () => void, startedAt?: number): void {
     this.stopTurn();
-    this.startedAt = Date.now();
+    this.startedAt =
+      startedAt !== undefined && Number.isFinite(startedAt) ? startedAt : Date.now();
     this.elapsedTimer = setInterval(onTick, 1000);
     this.elapsedTimer.unref?.();
   }

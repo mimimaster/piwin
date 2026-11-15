@@ -13,6 +13,8 @@ export type PaneComposerCardInput = {
   onComposerChange: (value: string) => void;
   streaming: boolean;
   runPhase: ComposerDockProps['runPhase'];
+  /** Authoritative epoch ms when the active run started, so session switches resume accurately. */
+  runningSince?: number | null | undefined;
   /** Host ready and no pane request in flight. */
   mutationsEnabled: boolean;
   attachments: readonly PromptAttachment[];
@@ -53,6 +55,7 @@ export function buildPaneComposerProps(input: PaneComposerCardInput): ComposerDo
     activeSessionId: input.sessionId,
     streaming: input.streaming,
     runPhase: input.runPhase,
+    ...(input.runningSince !== undefined ? { runningSince: input.runningSince } : {}),
     compacting: false,
     composer: input.composer,
     onComposerChange: input.onComposerChange,

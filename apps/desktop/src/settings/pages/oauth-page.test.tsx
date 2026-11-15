@@ -552,6 +552,8 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     expect(prompt).toBeTruthy();
     const code = container!.querySelector('[data-testid="subscription-device-code"]');
     expect(code?.textContent).toBe('ABCD-1234');
+    expect(prompt?.textContent).toContain('打开验证页面');
+    expect(prompt?.textContent).toContain('复制链接');
   });
 
   it('toggles quota drawer and displays heterogeneous quota windows on connected cards', async () => {

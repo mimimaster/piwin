@@ -18,6 +18,7 @@ import {
 import { isShellLanguage, SourceCodeBlock } from '../markdown/markdown-code-block.js';
 import type { MarkdownCodeFenceProps } from '../markdown/markdown-code-fence.js';
 import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
+import { createArtifactDocumentMediaBinding } from './artifact-document.js';
 import {
   readArtifactTypography,
   sameArtifactTypography,
@@ -120,11 +121,6 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     mountsInline &&
     !(liveFence && artifactCodeFirst);
 
-  const mediaDataUrls = useArtifactSessionMediaDataUrls({
-    source: props.source,
-    ...(props.artifactOrigin ? { originSessionId: props.artifactOrigin.sessionId } : {}),
-  });
-
   // The sandbox iframe cannot inherit transcript typography. Measure the mount
   // point before the first frame so stream paint matches the static final.
   const previewRootRef = useRef<HTMLDivElement | null>(null);
@@ -142,14 +138,13 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     () => ({ active: hostView, onToggle: () => setHostView((value) => !value) }),
     [hostView],
   );
-  const plan = useMemo((): Extract<ArtifactRenderPlan, { kind: 'render' }> | null => {
+  const basePlan = useMemo((): Extract<ArtifactRenderPlan, { kind: 'render' }> | null => {
     if (!willMountInlineFrame || typography === null || analysis?.kind !== 'intent') return null;
     try {
       return materializeArtifact(analysis.intent, {
         mode: liveFence ? 'stream-preview' : 'interactive',
         source: props.source,
         presentation: 'inline',
-        mediaDataUrls,
         styleModes,
         ...(hostView ? { forceHostStyle: true } : {}),
         theme: { ...(props.artifactTheme ?? createDefaultArtifactTheme('dark')), ...typography },
@@ -165,10 +160,16 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     liveFence,
     props.source,
     props.artifactTheme,
-    mediaDataUrls,
     styleModes,
     hostView,
   ]);
+  const mediaBinding = useMemo(() => basePlan ? createArtifactDocumentMediaBinding(basePlan) : null, [basePlan]);
+  const mediaDataUrls = useArtifactSessionMediaDataUrls({
+    source: basePlan ? props.source : '',
+    budget: mediaBinding?.budget,
+    ...(props.artifactOrigin ? { originSessionId: props.artifactOrigin.sessionId } : {}),
+  });
+  const plan = useMemo(() => mediaBinding?.bind(mediaDataUrls) ?? null, [mediaBinding, mediaDataUrls]);
 
   // Native HTML/SVG preview is best-effort. Unsafe examples remain ordinary
   // source; preview diagnostics belong to explicitly declared artifacts.

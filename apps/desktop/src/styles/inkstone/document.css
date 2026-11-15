@@ -135,6 +135,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     cursor: pointer;
     vertical-align: baseline;
     font-weight: 500;
+    /* Inline links must wrap with the cell instead of retaining capsule nowrap. */
+    white-space: normal;
     transition: color 0.12s ease, text-decoration-color 0.12s ease;
   }
   .role-assistant .markdown :is(a.pc, a.md-doc-chip):not(.static) :is(.i, svg, .path-chip-icon, .file-icon) {

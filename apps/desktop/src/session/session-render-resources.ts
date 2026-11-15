@@ -28,13 +28,15 @@ export function createSessionRenderResourceRegistry(schedule: IdleScheduler = sc
   const isRestoring = (sessionKey: string): boolean => restoringKeys.has(sessionKey);
   const isProtected = (sessionKey: string): boolean =>
     isVisible(sessionKey) || isRestoring(sessionKey);
+  const isReclaimable = (resource: RenderResource): boolean =>
+    !resource.reclaimed && !isProtected(resource.sessionKey);
   const requestReclaim = (): void => {
     if (cancelPending !== null || visibleKeys === null) return;
     cancelPending = schedule(() => {
       cancelPending = null;
       for (const [token, resource] of [...resources]) {
         // Navigation may race this idle callback, or occur inside an earlier release.
-        if (!resources.has(token) || resource.reclaimed || isProtected(resource.sessionKey))
+        if (!resources.has(token) || !isReclaimable(resource))
           continue;
         resource.reclaimed = true;
         try {
@@ -50,6 +52,16 @@ export function createSessionRenderResourceRegistry(schedule: IdleScheduler = sc
     isVisible,
     isRestoring,
     requestReclaim,
+    /** Census uses the same per-resource guards as the eventual idle release. */
+    reclaimCensus(): { eligible: number; protected: number } {
+      let eligible = 0;
+      let protectedCount = 0;
+      for (const resource of resources.values()) {
+        if (isReclaimable(resource)) eligible += 1;
+        else if (!resource.reclaimed) protectedCount += 1;
+      }
+      return { eligible, protected: protectedCount };
+    },
     /**
      * Mark a session's cold view as mid-restore (or clear the mark). While
      * set, the key is protected exactly like a visible one. Clearing the

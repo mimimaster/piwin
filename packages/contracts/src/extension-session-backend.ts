@@ -25,14 +25,35 @@ export const EXTENSION_SESSION_BACKEND_SCHEMA_VERSION = 1;
 /** `pi` is the built-in Pi backend; an extension may never claim it. */
 export const RESERVED_EXTENSION_BACKEND_IDS = ['pi'] as const;
 
-const DECLARATION_KEYS = ['schemaVersion', 'id', 'name', 'description', 'version', 'minHostVersion', 'protocol', 'protocolVersion',
+const DECLARATION_KEYS = ['schemaVersion', 'id', 'name', 'description', 'icon', 'version', 'minHostVersion', 'protocol', 'protocolVersion',
   'minHostProtocolVersion', 'platforms', 'verifiedCliVersions', 'helpUrl', 'artifact', 'compatibleRevisions',
   'unversionedBindingCompatible', 'outputDirectories'];
 const ARTIFACT_KEYS = ['format', 'entrypoint', 'sha256', 'byteSize'];
+const BRAND_ICON_KEYS = ['kind', 'id'];
+const GLYPH_ICON_KEYS = ['kind', 'viewBox', 'paths', 'fillRule'];
 const NAME_MAX_LENGTH = 120;
+const ICON_BRAND_SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const SVG_PATH_DATA = /^[MmLlHhVvCcSsQqTtAaZz0-9.,+\-\s]+$/;
+const ICON_MAX_PATHS = 8;
+const ICON_MAX_TOTAL_PATH_LENGTH = 4096;
 const VERSION = /^\d{1,6}\.\d{1,6}\.\d{1,6}$/;
 const DIGEST = /^[a-f0-9]{64}$/;
 const PLATFORMS = ['darwin', 'win32', 'linux'] as const;
+
+/**
+ * Vendor mark declared by a session-backend extension (`piwin.json` -> `sessionBackend.icon`).
+ *
+ * - `brand`: reuses a built-in `@piwin/ui-kit` `ProviderIcon` brand slug (e.g. `claude`, `codex`, `xai`, `antigravity`).
+ * - `glyph`: safe structured monochrome SVG path data rendered with `fill="currentColor"` (never raw HTML).
+ */
+export type ExtensionSessionBackendIcon =
+  | { kind: 'brand'; id: string }
+  | {
+      kind: 'glyph';
+      viewBox: string;
+      paths: readonly string[];
+      fillRule?: 'nonzero' | 'evenodd';
+    };
 
 /** Self-contained adapter that ships inside the extension revision. */
 export type ExtensionSessionBackendArtifact = {
@@ -50,6 +71,7 @@ export type ExtensionSessionBackendDeclaration = {
   id: string;
   name: string;
   description?: string;
+  icon?: ExtensionSessionBackendIcon;
   version: string;
   minHostVersion: string;
   protocol: 'piwin-agent-stdio';
@@ -82,6 +104,7 @@ export type ExtensionSessionBackendFailureCode =
   | 'invalid-backend-id'
   | 'reserved-backend-id'
   | 'invalid-name'
+  | 'invalid-icon'
   | 'invalid-version'
   | 'unsupported-protocol'
   | 'unsupported-protocol-version'
@@ -153,6 +176,53 @@ function parseArtifact(value: unknown): ExtensionSessionBackendArtifact | Extens
   return { format: 'node-esm', entrypoint, sha256: value.sha256, byteSize: value.byteSize };
 }
 
+function isValidSvgViewBox(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const parts = value.trim().split(/[\s,]+/);
+  if (parts.length !== 4) return false;
+  const nums = parts.map((part) => Number(part));
+  if (!nums.every((num) => Number.isFinite(num))) return false;
+  return (nums[2] ?? 0) > 0 && (nums[3] ?? 0) > 0;
+}
+
+function parseIcon(value: unknown): ExtensionSessionBackendIcon | 'invalid-icon' | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) return 'invalid-icon';
+  if (value.kind === 'brand') {
+    if (!hasOnlyKeys(value, BRAND_ICON_KEYS)) return 'invalid-icon';
+    if (typeof value.id !== 'string' || !ICON_BRAND_SLUG.test(value.id)) return 'invalid-icon';
+    return { kind: 'brand', id: value.id };
+  }
+  if (value.kind === 'glyph') {
+    if (!hasOnlyKeys(value, GLYPH_ICON_KEYS)) return 'invalid-icon';
+    if (!isValidSvgViewBox(value.viewBox)) return 'invalid-icon';
+    if (!Array.isArray(value.paths) || value.paths.length === 0 || value.paths.length > ICON_MAX_PATHS) {
+      return 'invalid-icon';
+    }
+    let totalLength = 0;
+    const paths: string[] = [];
+    for (const entry of value.paths) {
+      if (typeof entry !== 'string') return 'invalid-icon';
+      const trimmed = entry.trim();
+      if (trimmed.length === 0 || !SVG_PATH_DATA.test(trimmed)) return 'invalid-icon';
+      totalLength += trimmed.length;
+      if (totalLength > ICON_MAX_TOTAL_PATH_LENGTH) return 'invalid-icon';
+      paths.push(trimmed);
+    }
+    const fillRule = value.fillRule;
+    if (fillRule !== undefined && fillRule !== 'nonzero' && fillRule !== 'evenodd') {
+      return 'invalid-icon';
+    }
+    return {
+      kind: 'glyph',
+      viewBox: value.viewBox.trim().split(/[\s,]+/).join(' '),
+      paths,
+      ...(fillRule !== undefined ? { fillRule } : {}),
+    };
+  }
+  return 'invalid-icon';
+}
+
 /**
  * Backend ids claimed by more than one enabled extension.
  *
@@ -205,6 +275,10 @@ export function parseExtensionSessionBackend(
   }
   if (value.description !== undefined && (typeof value.description !== 'string' || value.description.length > 500)) {
     return failure('invalid-name', 'description must be a string of at most 500 characters');
+  }
+  const icon = parseIcon(value.icon);
+  if (icon === 'invalid-icon') {
+    return failure('invalid-icon', 'icon must be a valid brand slug or bounded monochrome SVG glyph');
   }
   if (!isNonEmptyText(value.helpUrl)) {
     return failure('invalid-name', 'helpUrl must be a non-empty string');
@@ -271,6 +345,7 @@ export function parseExtensionSessionBackend(
       id: id.id,
       name: value.name,
       ...(isNonEmptyText(value.description) ? { description: value.description.trim() } : {}),
+      ...(icon !== undefined ? { icon } : {}),
       version: value.version,
       minHostVersion: value.minHostVersion,
       protocol: 'piwin-agent-stdio',
@@ -293,7 +368,62 @@ export type EnabledExtensionSessionBackend = {
   agentId: string;
   name: string;
   description?: string;
+  icon?: ExtensionSessionBackendIcon;
 };
+
+/** Any installed extension that contributes a session backend (enabled or disabled). */
+export type InstalledExtensionSessionBackend = EnabledExtensionSessionBackend & {
+  enabled: boolean;
+};
+
+type ExtensionSessionBackendInput = {
+  id: string;
+  enabled: boolean;
+  description?: string;
+  sessionBackend?: {
+    id: string;
+    name: string;
+    description?: string;
+    icon?: ExtensionSessionBackendIcon;
+  };
+};
+
+function projectBackendEntry(extension: ExtensionSessionBackendInput): InstalledExtensionSessionBackend | undefined {
+  const backend = extension.sessionBackend;
+  if (backend === undefined) return undefined;
+  const description =
+    (backend.description && backend.description.trim()) ||
+    (extension.description && extension.description !== '(session backend)' ? extension.description.trim() : undefined);
+  return {
+    extensionId: extension.id,
+    agentId: backend.id,
+    name: backend.name,
+    enabled: extension.enabled,
+    ...(description ? { description } : {}),
+    ...(backend.icon !== undefined ? { icon: backend.icon } : {}),
+  };
+}
+
+/**
+ * Installed session backends across all extensions (enabled first, then disabled),
+ * so historical session rows still resolve a disabled backend's name and icon.
+ */
+export function installedExtensionSessionBackends(
+  extensions: readonly ExtensionSessionBackendInput[],
+): InstalledExtensionSessionBackend[] {
+  const seen = new Set<string>();
+  const entries: InstalledExtensionSessionBackend[] = [];
+  for (const pass of [true, false]) {
+    for (const extension of extensions) {
+      if (extension.enabled !== pass) continue;
+      const projected = projectBackendEntry(extension);
+      if (projected === undefined || seen.has(projected.agentId)) continue;
+      seen.add(projected.agentId);
+      entries.push(projected);
+    }
+  }
+  return entries;
+}
 
 /**
  * Session-start entries come only from enabled extension declarations.
@@ -301,28 +431,17 @@ export type EnabledExtensionSessionBackend = {
  * same backend id do not create another entry.
  */
 export function enabledExtensionSessionBackends(
-  extensions: readonly {
-    id: string;
-    enabled: boolean;
-    description?: string;
-    sessionBackend?: { id: string; name: string; description?: string };
-  }[],
+  extensions: readonly ExtensionSessionBackendInput[],
 ): EnabledExtensionSessionBackend[] {
   const seen = new Set<string>();
   const entries: EnabledExtensionSessionBackend[] = [];
   for (const extension of extensions) {
-    const backend = extension.sessionBackend;
-    if (!extension.enabled || backend === undefined || seen.has(backend.id)) continue;
-    seen.add(backend.id);
-    const description =
-      (backend.description && backend.description.trim()) ||
-      (extension.description && extension.description !== '(session backend)' ? extension.description.trim() : undefined);
-    entries.push({
-      extensionId: extension.id,
-      agentId: backend.id,
-      name: backend.name,
-      ...(description ? { description } : {}),
-    });
+    if (!extension.enabled) continue;
+    const projected = projectBackendEntry(extension);
+    if (projected === undefined || seen.has(projected.agentId)) continue;
+    seen.add(projected.agentId);
+    const { enabled: _enabled, ...entry } = projected;
+    entries.push(entry);
   }
   return entries;
 }

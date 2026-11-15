@@ -89,6 +89,36 @@ beforeEach(() => {
 });
 
 describe('createBrowserSession navigation validation', () => {
+  it('keeps interaction protection if a new navigation fails before replacing the document', async () => {
+    const { page } = installWorkingBrowser();
+    const session = createBrowserSession({ keepAlive: true });
+    await session.navigate('https://example.com', { actor: 'user' });
+    await session.type('#field', 'unsaved', { actor: 'user' });
+    page.goto.mockRejectedValueOnce(new Error('navigation unavailable'));
+    await expect(session.navigate('https://new.example', { actor: 'user' })).rejects.toThrow('navigation unavailable');
+    expect(session.residencySnapshot().protection).toBe('interaction');
+    await session.close();
+  });
+  it('can navigate away or explicitly restart after a checkpoint URL cannot be restored', async () => {
+    const { page } = installWorkingBrowser();
+    page.evaluate.mockResolvedValue(true);
+    const session = createBrowserSession({ keepAlive: true });
+    await session.navigate('https://example.com', { actor: 'user' });
+    expect(await session.suspendIdle(Date.now())).toEqual({ suspended: true });
+    page.goto.mockImplementation(async (url: string) => {
+      if (url === 'https://example.com') throw new Error('restore unavailable');
+      return null;
+    });
+    await expect(session.snapshot()).rejects.toThrow('restore unavailable');
+    await expect(session.navigate('ftp://invalid')).rejects.toBeInstanceOf(NavigateError);
+    await expect(session.snapshot()).rejects.toThrow('restore unavailable');
+    await expect(session.navigate('https://new.example', { actor: 'user' })).resolves.toBeUndefined();
+    expect(page.goto).toHaveBeenLastCalledWith('https://new.example', expect.any(Object));
+    expect(await session.suspendIdle(Date.now())).toEqual({ suspended: true });
+    await expect(session.snapshot()).rejects.toThrow('restore unavailable');
+    await expect(session.restart({ actor: 'user' })).resolves.toMatchObject({ pageStateLost: true });
+    await session.close();
+  });
   it('rejects non-http(s) URLs before launching any browser', async () => {
     const session = createBrowserSession();
     await expect(session.navigate('ftp://example.com/file')).rejects.toBeInstanceOf(NavigateError);

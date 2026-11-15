@@ -104,6 +104,21 @@ describe('Plugin turn timing in Host usage statistics', () => {
     const refreshed = data(await runtime.handleCommand({ type: 'usage/list-recent' })) as { log: UsageCallLog };
     expect(refreshed.log.totalInWindow).toBe(3);
     expect(pushes.some((push) => push.type === 'run/terminal')).toBe(false);
+    const sessionTotals = data(
+      await runtime.handleCommand({ type: 'usage/get-session', sessionId }),
+    ) as { totals: import('@piwin/contracts').SessionUsageTotals };
+    expect(sessionTotals.totals).toMatchObject({
+      sessionId,
+      entryCount: 3,
+      promptTokens: 120,
+      completionTokens: 600,
+      totalTokens: 720,
+      latestRequest: expect.objectContaining({
+        messageId: 'request-3',
+        durationMs: 2500,
+        firstTokenMs: 500,
+      }),
+    });
     data(await runtime.handleCommand({ type: 'session/abort', sessionId }));
     await vi.waitFor(() => expect(pushes.some((push) => push.type === 'run/terminal')).toBe(true));
   });

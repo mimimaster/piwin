@@ -3,6 +3,8 @@
  * stop WebKit from decoding the full bitmap; a separate small blob does.
  */
 
+import { encodePreviewDataUrl, type PreviewDataUrlOptions } from './media-preview-data-url.js';
+
 export const COMPOSER_THUMB_MAX_EDGE_PX = 96;
 export const TRANSCRIPT_THUMB_MAX_EDGE_PX = 1024;
 
@@ -59,7 +61,9 @@ async function canvasToPreviewBlob(canvas: HTMLCanvasElement): Promise<Blob | nu
     const blob = await new Promise<Blob | null>((resolve) => {
       canvas.toBlob((next) => resolve(next), type, 0.8);
     });
-    if (blob) {
+    // Unsupported canvas encoders silently return PNG, which can dwarf a
+    // compressed preview. Continue to JPEG rather than accepting that fallback.
+    if (blob?.type === type) {
       return blob;
     }
   }
@@ -162,28 +166,6 @@ export async function createLimitedPreviewUrlFromHref(
   }
 }
 
-function bitmapToDataUrl(bitmap: ImageBitmap): string | null {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-  const canvas = document.createElement('canvas');
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  const context = canvas.getContext('2d');
-  if (!context || typeof canvas.toDataURL !== 'function') {
-    return null;
-  }
-  context.drawImage(bitmap, 0, 0);
-  for (const type of ['image/webp', 'image/jpeg'] as const) {
-    const url = canvas.toDataURL(type, 0.8);
-    // A browser that cannot encode `type` silently returns a PNG data URL.
-    if (url.startsWith('data:image/')) {
-      return url;
-    }
-  }
-  return null;
-}
-
 /**
  * Size-capped still as a self-contained `data:` URL, for consumers that cannot
  * read a host-origin object URL — an Artifact sandbox runs on an opaque origin
@@ -192,11 +174,12 @@ function bitmapToDataUrl(bitmap: ImageBitmap): string | null {
 export async function createLimitedDataUrl(
   source: Blob,
   maxEdgePx: number,
+  options?: PreviewDataUrlOptions,
 ): Promise<string | null> {
   try {
     const bitmap = await decodeLimitedBitmap(source, maxEdgePx);
     try {
-      return bitmapToDataUrl(bitmap);
+      return await encodePreviewDataUrl(bitmap, options);
     } finally {
       bitmap.close();
     }
@@ -210,13 +193,14 @@ export async function createLimitedDataUrl(
 export async function createLimitedDataUrlFromHref(
   href: string,
   maxEdgePx: number,
+  options?: PreviewDataUrlOptions,
 ): Promise<string | null> {
   try {
     const response = await fetch(href);
     if (!response.ok) {
       return null;
     }
-    return await createLimitedDataUrl(await response.blob(), maxEdgePx);
+    return await createLimitedDataUrl(await response.blob(), maxEdgePx, options);
   } catch (error) {
     warnPreviewFailure(error);
     return null;

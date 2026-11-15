@@ -4,7 +4,7 @@ import {
   ARTIFACT_BRIDGE_SCROLL_RESTORE_TYPE,
   parseArtifactScrollMessage,
 } from '@piwin/artifact';
-import type { ArtifactDocument } from './artifact-frame-stream.js';
+import type { ArtifactDocument } from './artifact-document.js';
 
 /**
  * A successor that never loads or never answers must not leave the reader

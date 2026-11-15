@@ -85,6 +85,9 @@ export async function handleAuthCommand(
           ...(command.input.preferLoopback !== undefined
             ? { preferLoopback: command.input.preferLoopback }
             : {}),
+          ...(command.input.openAuthUrlOnHost !== undefined
+            ? { openAuthUrlOnHost: command.input.openAuthUrlOnHost }
+            : {}),
         });
         if ('error' in result) {
           return fail(requestId, command.type, result.error, { code: result.code });

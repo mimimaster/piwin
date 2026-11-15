@@ -1,0 +1,17 @@
+{
+  "name": "pi-purge",
+  "version": "0.2.3-piwin.1",
+  "description": "Replace or strip Pi's built-in system prompt and publish active prompt path metadata",
+  "type": "module",
+  "private": true,
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "piwin": {
+    "bundledFrom": "npm:pi-purge",
+    "npmVersion": "0.2.3",
+    "patch": 1
+  }
+}

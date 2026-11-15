@@ -1071,12 +1071,36 @@ describe('chatUiReducer', () => {
     expect(state.runRecordsById['run-1']?.revision).toBe(3);
 
     // Admission snapshot returns the SAME revision (uninterrupted text stream
-    // never bumps it) — it must re-establish the live projection.
+    // never bumps it) — it must re-establish the live projection and original startedAt.
     state = chatUiReducer(state, { type: 'run/updated', run: running });
     expect(state.activeRunId).toBe('run-1');
     expect(state.runPhase).toBe('streaming');
     expect(state.streaming).toBe(true);
+    expect(state.activeRunStartedAt).toBe(Date.parse('2026-07-24T00:00:00.000Z'));
     expect(state.workingSessionIds).toEqual({ s1: true });
+  });
+
+  it('preserves authoritative run.startedAt if run/accepted arrives after run/updated', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'run/updated',
+      run: makeRun('run-1', {
+        status: 'running',
+        phase: 'streaming',
+        startedAt: '2026-07-24T00:00:00.000Z',
+        phaseUpdatedAt: '2026-07-24T00:00:05.000Z',
+      }),
+    });
+    expect(state.activeRunStartedAt).toBe(Date.parse('2026-07-24T00:00:00.000Z'));
+
+    state = chatUiReducer(state, {
+      type: 'run/accepted',
+      runId: 'run-1',
+      acceptedAt: '2026-07-24T00:00:09.000Z',
+    });
+    expect(state.activeRunStartedAt).toBe(Date.parse('2026-07-24T00:00:00.000Z'));
+    expect(state.runRecordsById['run-1']?.startedAt).toBe(Date.parse('2026-07-24T00:00:00.000Z'));
   });
 
   it('still swallows an equal-revision replay of a run superseded by a newer terminal', () => {

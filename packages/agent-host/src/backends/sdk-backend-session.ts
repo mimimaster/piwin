@@ -31,6 +31,10 @@ import {
   createSeededPiSettingsManager,
 } from '../seeded-pi-session.js';
 import { createPiwinSettingsManager } from '../pi-settings-manager.js';
+import {
+  createCompactionDelegationState,
+  type CompactionDelegationFailureState,
+} from '../compaction-delegation-hook.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import {
   readPiAutoCompactionEnabled,
@@ -95,10 +99,20 @@ export async function createBackendSdkSession(
   }
 
   const agentDir = resolvePiRuntimeAgentDir(options.agentDir);
+  let modelRuntimeRef: PiModelRuntime | undefined;
+  let settingsManagerRef: object | undefined;
+  const compactionDelegationState = createCompactionDelegationState();
   const resourceLoader = await createBlueprintResourceLoader(
     serializableBlueprint,
     agentDir,
     piModule,
+    {
+      getModelRuntime: () => modelRuntimeRef,
+      getRetrySettings: () =>
+        (settingsManagerRef as { getRetrySettings?: () => unknown } | undefined)
+          ?.getRetrySettings?.(),
+      compactionDelegationState,
+    },
   );
   const modelRuntime =
     options.modelRuntime ??
@@ -107,6 +121,7 @@ export async function createBackendSdkSession(
       agentDir,
       input.providers,
     ));
+  modelRuntimeRef = modelRuntime;
   await flushExtensionProviderRegistrations(resourceLoader, modelRuntime, {
     extensions: input.blueprint.capabilitySnapshot.resourceManifest.extensions,
     channelProviderIds: compiledChannelProviderIds(input.providers),
@@ -135,6 +150,7 @@ export async function createBackendSdkSession(
     capabilitySnapshot.workingDirectory,
     agentDir,
   );
+  settingsManagerRef = settingsManager;
   // Keep the transport idle policy from the normal settings manager even when
   // a disposable seed later swaps in its compact-only in-memory manager.
   const streamProgressTimeoutMs = readPiHttpIdleTimeoutMs(settingsManager);
@@ -162,6 +178,7 @@ export async function createBackendSdkSession(
       // Compaction/subagent snapshots want Pi to compact the whole seeded
       // history; full-fidelity replay must keep it intact.
       settingsManager = createSeededPiSettingsManager(piModule) as object;
+      settingsManagerRef = settingsManager;
       sessionOptions.settingsManager = settingsManager;
     }
   }
@@ -219,6 +236,7 @@ export async function createBackendSdkSession(
     () => activeRunId,
     streamProgressTimeoutMs,
     compactionSettingsManager,
+    compactionDelegationState,
   );
 }
 
@@ -292,6 +310,7 @@ function wrapBackendPiSession(
   getActiveRunId: () => string | undefined,
   streamProgressTimeoutMs: number,
   compactionSettingsManager: PiCompactionSettingsManager,
+  compactionDelegationState: CompactionDelegationFailureState,
 ): BackendSessionHandle {
   const eventMapper = createPiSessionEventMapper();
   const sampler = createPiContextSampler({
@@ -410,21 +429,23 @@ function wrapBackendPiSession(
     },
     ...(piSession.compact
       ? {
-          async compact(customInstructions?: string) {
+          compact(customInstructions?: string) {
             // A manual compact is not a late event from the previous
             // foreground Run. Automatic compact remains owned by activeRunId.
             trailingRunId = undefined;
-            try {
-              const result = customInstructions
-                ? await piSession.compact?.(customInstructions)
-                : await piSession.compact?.();
-              if (!result) {
-                throw new Error('Pi session compact returned no result');
+            return compactionDelegationState.runCompact(async () => {
+              try {
+                const result = customInstructions
+                  ? await piSession.compact?.(customInstructions)
+                  : await piSession.compact?.();
+                if (!result) {
+                  throw new Error('Pi session compact returned no result');
+                }
+                return mapPiCompactionResult(result);
+              } finally {
+                trailingRunId = undefined;
               }
-              return mapPiCompactionResult(result);
-            } finally {
-              trailingRunId = undefined;
-            }
+            });
           },
         }
       : {}),
@@ -444,7 +465,7 @@ function wrapBackendPiSession(
         publishSampledPiSessionEvents({
           mapper: eventMapper,
           sampler,
-          raw: rawEvent,
+          raw: compactionDelegationState.transformEvent(rawEvent),
           identity: {
             sessionId: input.blueprint.sessionId,
             runtimeGenerationId: input.blueprint.runtimeGenerationId,

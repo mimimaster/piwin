@@ -6,6 +6,7 @@ import type { ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 import {
   createDefaultWalkthroughConfig,
   describeRequestBodyIssue,
+  findReadyCompactionDelegate,
   isModelEnabled,
   isProviderEnabled,
   isSystemPromptRoleMode,
@@ -331,6 +332,26 @@ export function validatePiwinConfig(config: PiwinConfig): ProviderValidationIssu
       message: 'web_fetch extract model is missing, disabled, or not chat-capable',
       severity: 'warning',
     });
+  }
+  if (config.compaction?.delegation?.enabled === true) {
+    if (!config.compaction.delegation.model) {
+      issues.push({
+        path: 'compaction.delegation.model',
+        message: 'compaction delegation is enabled without a target model',
+        severity: 'warning',
+      });
+    } else if (
+      findReadyCompactionDelegate({
+        compaction: config.compaction,
+        providers: config.providers,
+      }) === undefined
+    ) {
+      issues.push({
+        path: 'compaction.delegation.model',
+        message: 'compaction delegate model is missing, disabled, or not chat-capable',
+        severity: 'warning',
+      });
+    }
   }
   return issues;
 }

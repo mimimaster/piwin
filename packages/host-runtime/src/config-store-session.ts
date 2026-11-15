@@ -1,10 +1,15 @@
-import type { CompactionConfig, SessionConfig } from '@piwin/contracts';
+import type { CompactionConfig, CompactionDelegationConfig, SessionConfig } from '@piwin/contracts';
 import {
   DEFAULT_COLD_STORAGE_MIN_ARCHIVED_AGE_DAYS,
   createDefaultSessionColdStorageConfig,
   normalizeSessionRuntimeRetentionConfig,
 } from '@piwin/contracts';
-import { asRecord, isNonNegativeInteger, isPositiveInteger } from './config-store-primitives.js';
+import {
+  asRecord,
+  isNonNegativeInteger,
+  isPositiveInteger,
+  normalizeModelRef,
+} from './config-store-primitives.js';
 
 /**
  * Normalize `PiwinConfig.session` incl. cold storage and context compaction.
@@ -100,5 +105,27 @@ export function normalizeCompactionConfig(
   } else if (typeof defaults.writeTranscriptNote === 'boolean') {
     normalized.writeTranscriptNote = defaults.writeTranscriptNote;
   }
+  const delegation = normalizeCompactionDelegationConfig(record.delegation) ?? defaults.delegation;
+  if (delegation) {
+    normalized.delegation = delegation;
+  }
   return normalized;
+}
+
+function normalizeCompactionDelegationConfig(
+  value: unknown,
+): CompactionDelegationConfig | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const model = normalizeModelRef(record.model);
+  const enabled = typeof record.enabled === 'boolean' ? record.enabled : false;
+  if (!enabled && !model) {
+    return undefined;
+  }
+  return {
+    enabled,
+    ...(model ? { model } : {}),
+  };
 }

@@ -1,11 +1,9 @@
 /**
  * One Browser session per attached workbench.
  *
- * Collapsing the right panel must not stop the mirror: the Host releases
- * Chromium as soon as the last mirror lease goes and no agent claim is held,
- * which would throw away the page (tabs, scroll, form state) the mini is
- * supposed to keep showing. The workbench therefore publishes a single lease
- * and every Browser surface renders it — docked, inspector, or mini.
+ * Every visible Browser surface shares one picture lease: docked, inspector,
+ * or mini. Hidden/dismissed conversation surfaces release that lease; Host
+ * residency separately protects page state and ongoing browser work.
  */
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
 import type { WebElementPickResult } from '@piwin/contracts';
@@ -13,6 +11,7 @@ import type { HostClient } from '../host/host-client';
 import { useBrowserSessionLease, type BrowserSessionLease } from './browser-session-lease';
 import { browserSessionCopy } from './browser-session-copy';
 import type { DesktopLocale } from '../i18n/desktop-locale';
+import { useDocumentVisible } from '../platform/use-document-visible.js';
 
 const BrowserSessionContext = createContext<BrowserSessionLease | null>(null);
 
@@ -37,6 +36,7 @@ export type BrowserSessionProviderProps = {
 
 export function BrowserSessionProvider(props: BrowserSessionProviderProps): ReactElement {
   const copy = browserSessionCopy(props.locale);
+  const documentVisible = useDocumentVisible();
   const session = useBrowserSessionLease({
     hostClient: props.hostClient,
     ...(props.hostInstanceId === undefined ? {} : { hostInstanceId: props.hostInstanceId }),
@@ -44,7 +44,10 @@ export function BrowserSessionProvider(props: BrowserSessionProviderProps): Reac
     onAddWebElement: props.onAddWebElement,
     mirrorStartFailed: copy.mirrorStartFailed,
     mirrorStopFailed: copy.mirrorStopFailed,
-    enabled: props.enabled,
+    // Conversation Hosts retain pages independently of presentation leases.
+    // Legacy unscoped Hosts may close their page on stop, so do not park those
+    // merely because a native window is hidden.
+    enabled: props.enabled && (props.sessionId === undefined || documentVisible),
   });
   const value = session;
   return (

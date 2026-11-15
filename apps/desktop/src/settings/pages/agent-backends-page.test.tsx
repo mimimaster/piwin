@@ -26,9 +26,10 @@ describe('AgentBackendsPage', () => {
     container.remove();
   });
 
-  function render(request: (command: { type: string }) => Promise<HostResponse>): void {
+  function render(request: (command: { type: string }) => Promise<HostResponse>, selectSection = vi.fn()): void {
     const context = {
       ...createContextValue(vi.fn()),
+      selectSection,
       hostClient: { request, subscribe: () => () => undefined },
     };
     act(() => {
@@ -102,6 +103,28 @@ describe('AgentBackendsPage', () => {
     expect(container.querySelector('[data-testid="agent-backends-empty"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="agent-backends-checking"]')).toBeNull();
     expect(container.querySelector('[data-testid="agent-backend-grok"]')).toBeNull();
+  });
+
+  it('explains an integrity failure and opens extension management for recovery', async () => {
+    const selectSection = vi.fn();
+    render(vi.fn(async (command: { type: string }): Promise<HostResponse> => ({
+      type: 'response',
+      command: command.type,
+      success: true,
+      data: command.type === 'extensions/list'
+        ? { extensions: [backendExtension(true)] }
+        : { agents: [{ agentId: 'example-build', state: 'unavailable', binaryPath: '', reason: 'agent-artifact-integrity', checkedAt: '2026-11-14T00:00:00Z' }] },
+    })), selectSection);
+    await settle();
+
+    const row = container.querySelector('[data-testid="agent-backend-example-build"]');
+    expect(row?.textContent).toContain('插件文件校验失败');
+    expect(row?.textContent).toContain('重新安装');
+    expect(row?.textContent).not.toContain('agent-artifact-integrity');
+    const recovery = row?.querySelector<HTMLButtonElement>('[data-testid="agent-backend-reinstall-example-build"]');
+    expect(recovery).not.toBeNull();
+    act(() => recovery?.click());
+    expect(selectSection).toHaveBeenCalledWith('extensions');
   });
 
   it('centers the checking status and leaves the header action as recheck', async () => {

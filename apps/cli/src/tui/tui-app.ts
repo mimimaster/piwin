@@ -822,9 +822,15 @@ export class TuiApp {
     const running = this.foreground.kind === 'active';
     this.notifier.observeRunning(running);
     const hasLoader = this.activitySlot.children.length > 0;
-    if (running) {
-      const phase = this.foreground.kind === 'active' ? this.foreground.phase : undefined;
-      if (this.clock.turnStartedAt === undefined) this.clock.startTurn(() => this.tickTurn());
+    if (running && this.foreground.kind === 'active') {
+      const phase = this.foreground.phase;
+      const desiredStartedAt = this.foreground.startedAt;
+      if (
+        this.clock.turnStartedAt === undefined ||
+        (desiredStartedAt !== undefined && this.clock.turnStartedAt !== desiredStartedAt)
+      ) {
+        this.clock.startTurn(() => this.tickTurn(), desiredStartedAt);
+      }
       this.loader.setMessage(this.describeActivity(phase));
       if (!hasLoader) {
         this.activitySlot.addChild(this.loader);

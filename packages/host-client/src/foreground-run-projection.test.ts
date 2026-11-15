@@ -155,4 +155,51 @@ describe('foreground-run projection', () => {
     );
     expect(current).toMatchObject({ kind: 'active', runId: 'live', generation: 3 });
   });
+
+  it('projects run.startedAt onto active foreground state and preserves it across updates', () => {
+    const startedAtIso = '2026-07-24T00:00:10.000Z';
+    let state = reduceForegroundRun(
+      initialForegroundRunState(),
+      { type: 'run-updated', run: activeRun({ runId: 'run-time', startedAt: startedAtIso }) },
+      'session-1',
+    );
+    expect(state).toMatchObject({
+      kind: 'active',
+      runId: 'run-time',
+      startedAt: Date.parse(startedAtIso),
+    });
+
+    // Later update for the same run without startedAt keeps the original start time.
+    state = applyHostPushToForeground(
+      state,
+      { type: 'run/updated', run: activeRun({ runId: 'run-time', phase: 'streaming' }) },
+      'session-1',
+    );
+    expect(state).toMatchObject({
+      kind: 'active',
+      runId: 'run-time',
+      phase: 'streaming',
+      startedAt: Date.parse(startedAtIso),
+    });
+
+    // Reconciling via session/foreground-run preserves startedAt for resumed runs.
+    const reconciling = reduceForegroundRun(state, { type: 'begin-reconcile', generation: 4 }, 'session-1');
+    const resumed = applyForegroundRunResponse(
+      reconciling,
+      {
+        type: 'response',
+        command: 'session/foreground-run',
+        success: true,
+        data: { sessionId: 'session-1', run: activeRun({ runId: 'run-time', startedAt: startedAtIso }) },
+      },
+      4,
+      'session-1',
+    );
+    expect(resumed).toMatchObject({
+      kind: 'active',
+      runId: 'run-time',
+      generation: 4,
+      startedAt: Date.parse(startedAtIso),
+    });
+  });
 });

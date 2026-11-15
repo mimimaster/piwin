@@ -99,8 +99,8 @@ export function useBrowserSessionLease(input: {
   mirrorStopFailed: string;
   /**
    * The workbench keeps one owner for every Browser surface. While nothing
-   * shows the browser the owner stays mounted but idle: no lease is acquired,
-   * so a collapsed panel does not pin Chromium.
+   * shows the browser the owner stays mounted without a picture lease. Host
+   * policy separately owns retention and safe suspension of the page.
    */
   enabled?: boolean;
 }): BrowserSessionLease {
@@ -131,10 +131,17 @@ export function useBrowserSessionLease(input: {
     if (!enabled) {
       decoderRef.current = undefined;
       setMirrorError(null);
-      // Nothing shows the browser any more: drop the last frame and URL so no
-      // surface can keep itself visible on a picture whose lease is gone.
-      dispatch({ type: 'reset' });
-      return;
+      // Only pictures are disposable. Address drafts and Host metadata survive
+      // parking; reconnect applies fresh state without erasing unsent input.
+      dispatch({ type: 'frame-released' });
+      return hostClient.subscribe((message) => {
+        if (activeLeaseRef.current !== mirrorLeaseId) return;
+        // Keep authoritative page/control metadata fresh while pictures are
+        // parked. Otherwise a closed page can linger as a phantom mini.
+        if (message.type === 'browser/state' || message.type === 'browser/controller') {
+          dispatch({ type: 'host-push', message });
+        }
+      });
     }
     const decoder = createBrowserFrameDecoder({
       ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
@@ -285,7 +292,7 @@ export function useBrowserSessionLease(input: {
         });
       }
     };
-  }, [enabled, hostClient, input.sessionId, mirrorLeaseId]);
+  }, [enabled, hostClient, input.hostClient, input.sessionId, mirrorLeaseId]);
 
   const setUrlInput = useCallback((urlInput: string) => {
     dispatch({ type: 'url-input', urlInput });
@@ -330,5 +337,7 @@ export function useBrowserSessionLease(input: {
     viewport: state.viewport,
     documentRevision: state.documentRevision,
     frameError: state.frameError,
+    pageStateLost: state.pageStateLost ?? false,
+    recoveryCount: state.recoveryCount ?? 0,
   };
 }

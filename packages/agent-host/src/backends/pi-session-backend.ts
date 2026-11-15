@@ -132,6 +132,25 @@ export function isValidBackendSessionBlueprint(value: unknown): value is Backend
   ) {
     return false;
   }
+  if (record.compactionDelegation !== undefined) {
+    if (!record.compactionDelegation || typeof record.compactionDelegation !== 'object') {
+      return false;
+    }
+    const delegation = record.compactionDelegation as Record<string, unknown>;
+    const delegateModel = delegation.model;
+    if (!delegateModel || typeof delegateModel !== 'object') {
+      return false;
+    }
+    const modelRecord = delegateModel as Record<string, unknown>;
+    if (
+      typeof modelRecord.providerId !== 'string' ||
+      modelRecord.providerId.trim().length === 0 ||
+      typeof modelRecord.modelId !== 'string' ||
+      modelRecord.modelId.trim().length === 0
+    ) {
+      return false;
+    }
+  }
   const snapshot = record.capabilitySnapshot;
   if (!snapshot || typeof snapshot !== 'object') {
     return false;

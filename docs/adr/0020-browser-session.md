@@ -6,7 +6,8 @@ Accepted (2026-07-31) · lifecycle amendment accepted 2026-08-09 · local HTML
 file-open amendment accepted 2026-09-04 · supersedes the iframe-based
 `BrowserPanel` preview · first-use Chromium download amendment accepted
 2026-09-18 · conversation isolation amendment accepted 2026-11-04 · bounded
-native frame delivery amendment accepted 2026-11-10
+native frame delivery amendment accepted 2026-11-10 · presentation visibility
+and guarded idle residency amendment accepted 2026-11-12
 
 ## Context
 
@@ -101,8 +102,8 @@ different lifetimes:
   `browser/start(leaseId)` acquires only that surface's lease, launches the
   persistent context if needed, and enables the bounded frame loop;
 - `browser/stop(leaseId)` releases only the matching surface lease. The final
-  release stops frames. Conversation-owned runtimes stay alive until Host
-  disposal so switching conversations preserves tabs, forms, and page state.
+  release stops frames. Conversation-owned runtimes retain pages across surface
+  transitions, subject to the guarded idle residency amendment below.
   The legacy unscoped runtime still closes its context on final mirror release;
 - an asynchronous screenshot rechecks lease ownership before emitting, so a
   frame already in flight at final release is dropped instead of forwarding a
@@ -281,12 +282,11 @@ The visual panel is desktop-only; CLI degradation is intentional and documented
   events and serves bounded PBF1 bytes through the native `piwin-frame` resource
   protocol. No HTTP listener is introduced. See the 2026-11-10 amendment below
   and [browser workbench fidelity](../specs/2026-09-09-browser-workbench-fidelity.md).
-- **Single shared service, leased process**: at most one Chromium runtime is
-  active per Host. Mirror surfaces hold independent one-shot leases; releasing
-  the final surface lease awaits process release, and later tools may relaunch.
-  A tool-started runtime is shared for the browser workflow and is permanently
-  released when HostRuntime disposes (a future run-scoped idle policy may retire
-  tool-only runtimes earlier without changing this boundary).
+- **Conversation service, leased process**: each conversation owns at most one
+  runtime. Mirror surfaces hold independent one-shot leases. The final release
+  stops pictures; the guarded idle pool may later suspend an eligible owned
+  runtime without disposing its registered service. Host shutdown permanently
+  closes all services. Protected runtimes are outside the idle-pool budget.
 - **`ref` lifetime**: snapshot `ref`s are valid until the next page change
   (same contract as `@playwright/mcp`). Pick results therefore carry both a
   `selector` (durable) and a `ref` (instant), so the agent can re-locate an
@@ -459,3 +459,45 @@ The memory incident and mechanism evidence are recorded in the
 - These ownership bounds do not impose a process-footprint ceiling. Visibility
   demand and idle Chromium residency are separate slices. Release memory
   endurance and unrelated auxiliary WebContent growth require separate evidence.
+
+### 2026-11-12 presentation visibility and guarded idle residency amendment
+
+Desktop derives picture demand from visible active docking tabs, the inspector,
+the controlled mini dismissal, workspace coverage, phone presentation and native
+document visibility. A hidden conversation-scoped presentation releases its own
+named mirror lease, native frame stream and decoder pictures. It retains address
+drafts and state/controller metadata subscriptions. Returning creates a fresh
+one-shot lease. Other clients keep their independent leases; agent control and
+page retention remain Host responsibilities. Current controller giveBack is an
+activity no-op, so a separate visibility protocol is unnecessary for this slice.
+The legacy unscoped presentation does not auto-park on native window hiding,
+because legacy final-stop semantics close its runtime. Mini-specific lower frame
+rate/density and pressure-adaptive picture demand remain separate work.
+
+`BrowserSession.residencySnapshot()` and `suspendIdle(idleBeforeMs)` use shared
+contracts. Host sweeps conversation services every 30 seconds, retaining up to
+two eligible idle runtimes and suspending those idle for five minutes. Eligibility
+and age are rechecked inside the browser mutex immediately before runtime
+release, including after asynchronous page inspection. This is an idle budget,
+not a global process-count or memory ceiling.
+
+Active mirror leases, any nonterminal conversation Run, queued/executing browser
+operations, agent claims, pending dialogs/downloads, restoring pages, explicit
+input interactions, headed/external runtimes, multiple tabs, changed form values,
+active media and unknown page inspection protect residency. Download tracking is
+independent of console/network capture. Interaction protection survives a failed
+navigation and resets only on observed document replacement or explicit restart.
+Automatic suspension is limited to owned headless single-page read-only contexts
+with a bounded HTTP(S) or about:blank URL checkpoint. It does not close an
+external CDP browser or permanently dispose frozen tool registrations.
+
+The next operation lazily restores the URL against the existing persistent
+profile. Cookies can persist; arbitrary DOM/JavaScript state is not checkpointed.
+Generation/page identity changes invalidate old element refs. Browser state
+pushes carry pageStateLost and recoveryCount, and Desktop shows a restoration
+notice once per generation. Failed restoration retains its checkpoint for retry;
+explicit valid navigation or restart can escape a failed old URL. Invalid URLs
+leave the checkpoint intact. No input write is automatically replayed.
+
+Evidence and remaining packaged endurance acceptance:
+[November 12 containment record](../plans/2026-11-12-browser-memory-containment.md).

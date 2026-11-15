@@ -14,9 +14,10 @@ import type { Page } from 'playwright-core';
 import type {
   BrowserControllerPush,
   BrowserFrameBinaryHeader,
-  BrowserFramePayload,
   BrowserInputEvent,
   BrowserLifecycle,
+  BrowserResidencySnapshot,
+  BrowserIdleSuspensionResult,
   BrowserMirrorMode,
   BrowserSnapshotNode,
   BrowserTargetIdentity,
@@ -27,7 +28,6 @@ import type {
 } from '@piwin/contracts';
 import {
   BROWSER_FRAME_BINARY_MIME,
-  BROWSER_FRAME_BINARY_VERSION,
 } from '@piwin/contracts';
 import { createExclusiveQueue, type RunExclusive } from './mutex.js';
 import { createBrowserController, type BrowserControllerState } from './controller.js';
@@ -37,12 +37,14 @@ import {
   type BrowserLaunchPersistentContext,
   type BrowserRuntimeHooks,
 } from './browser-runtime.js';
-import { createBrowserMirror, type BrowserFrameResult } from './browser-mirror.js';
-import { toJpegDataUrl } from './frame-encoding.js';
+import { createBrowserMirror } from './browser-mirror.js';
+import { createBrowserFramePublisher } from './browser-frame-publisher.js';
+import { createBrowserSessionResidency } from './browser-session-residency.js';
 import { readJpegSize } from './jpeg-size.js';
 import type { BrowserFindResult } from './find.js';
 import {
   createBrowserOperations,
+  assertNavigableUrl,
   type BrowserReloadOptions,
   type BrowserWaitForCondition,
   type BrowserWaitForOptions,
@@ -111,8 +113,10 @@ export type BrowserSessionOptions = {
   userAgent?: string;
   /** Persistent profile dir; default `~/.piwin/browser-profile`. */
   profileDir?: string;
-  /** Conversation-owned pages survive mirror detach until the Host disposes them. */
+  /** Conversation pages survive mirror detach until guarded Host idle suspension/disposal. */
   keepAlive?: boolean;
+  /** Host injects active Run/shutdown protection; browser never imports Host. */
+  isRuntimeProtected?: () => boolean;
   /** Attach an isolated context rather than the external browser's shared pages. */
   isolatedContext?: boolean;
   /** When true (default false), capture console logs and network requests as HostPush events. */
@@ -193,7 +197,7 @@ export type BrowserSession = {
     leaseId?: string,
     options?: { clientKey?: string; onSuperseded?: (leaseIds: string[]) => void },
   ): Promise<BrowserSessionState>;
-  /** Release one mirror lease. Last lease releases Chromium unless an agent claim is held. */
+  /** Release pictures; retained conversation runtimes follow Host idle residency policy. */
   stop(leaseId?: string, options?: { reason?: 'disconnect' }): Promise<void>;
   navigate(url: string, options?: BrowserOpOptions): Promise<void>;
   snapshot(options?: { signal?: AbortSignal }): Promise<BrowserSnapshotNode[]>;
@@ -271,6 +275,8 @@ export type BrowserSession = {
   viewportFollowLeaseId(): string | undefined;
   mirrorLeaseCount(): number;
   hasMirrorLease(leaseId: string): boolean;
+  residencySnapshot(): BrowserResidencySnapshot;
+  suspendIdle(idleBeforeMs: number): Promise<BrowserIdleSuspensionResult>;
   takeOver(): Promise<BrowserControllerState>;
   giveBack(): Promise<BrowserControllerState>;
   lock(owner: BrowserActor, options?: BrowserOpOptions): Promise<BrowserControllerState>;
@@ -331,7 +337,8 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   const profileDir = options.profileDir ?? join(homedir(), '.piwin', 'browser-profile');
   const captureConsoleAndNetwork = options.captureConsoleAndNetwork ?? false;
 
-  const { runExclusive } = createExclusiveQueue();
+  const queue = createExclusiveQueue();
+  const runExclusive: RunExclusive = (operation, signal) => residency.runOperation(operation, signal);
   const subscribers = new Set<(event: BrowserSessionEvent) => void>();
   const controller = createBrowserController();
   const state: BrowserSessionState = {};
@@ -341,14 +348,11 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   let viewportFollowLeaseId: string | undefined;
   /** Named lease → the client that holds it (see `start`). */
   const leaseClients = new Map<string, string>();
-  const frameTransport: BrowserFrameTransport = options.frameTransport ?? 'inline';
   /**
    * Monotonic inside one BrowserSession. A main-frame navigation bumps it, so
    * `generation + pageId + documentRevision` is a complete stale-target key.
    */
   let documentRevision = 0;
-  let frameSeq = 0;
-  let frameSeqGeneration = -1;
 
   const hooks: BrowserRuntimeHooks = {
     emitState: () => Promise.resolve(),
@@ -380,6 +384,11 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     hooks,
     subscribers,
   );
+  const residency = createBrowserSessionResidency({
+    runtime, controller, runExclusive: queue.runExclusive,
+    headless: () => headless, onStateChange: () => emitState(),
+    isProtected: () => options.isRuntimeProtected?.() === true,
+  });
   async function resolveDeviceScaleFactor(page: Page): Promise<number> {
     if (runtime.ownership() === 'owned') return deviceScaleFactor;
     try {
@@ -394,7 +403,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     maxDimension,
     maxFps,
     screencastQuality,
-    getPage: () => runtime.getPage(),
+    getPage: () => residency.getPage(),
     hasActiveMirrorLease: () => runtime.hasActiveMirrorLease(),
     resolveDeviceScaleFactor,
     onFrame: (frame) => publishFrame(frame),
@@ -436,59 +445,12 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     }
   }
 
-  /**
-   * Single frame delivery point: identity, payload shape, and the optional
-   * out-of-band byte sink (spec §4.1.2). The frame id is monotonic per
-   * generation so a delayed payload can never overwrite a newer picture.
-   */
-  function publishFrame(result: BrowserFrameResult): void {
-    const generation = runtime.generation();
-    if (frameSeqGeneration !== generation) {
-      frameSeqGeneration = generation;
-      frameSeq = 0;
-    }
-    frameSeq += 1;
-    const frameId = String(frameSeq);
-    const pageId = runtime.pageId() ?? '';
-    const payload: BrowserFramePayload =
-      frameTransport === 'binary'
-        ? { kind: 'binary' }
-        : { kind: 'inline', dataUrl: toJpegDataUrl(result.bytes) };
-    const event: BrowserFramePush = {
-      type: 'browser/frame',
-      ts: Date.now(),
-      frameId,
-      width: result.width,
-      height: result.height,
-      encodedWidth: result.encodedWidth,
-      encodedHeight: result.encodedHeight,
-      sourceDpr: result.sourceDpr,
-      quality: result.quality,
-      producer: result.producer,
-      byteLength: result.bytes.byteLength,
-      generation,
-      pageId,
-      documentRevision,
-      payload,
-    };
-    for (const listener of subscribers) listener(event);
-    options.onFrameBytes?.(
-      {
-        version: BROWSER_FRAME_BINARY_VERSION,
-        frameId,
-        generation,
-        pageId,
-        documentRevision,
-        width: result.width,
-        height: result.height,
-        encodedWidth: result.encodedWidth,
-        encodedHeight: result.encodedHeight,
-        byteLength: result.bytes.byteLength,
-        mime: BROWSER_FRAME_BINARY_MIME,
-      },
-      result.bytes,
-    );
-  }
+  const publishFrame = createBrowserFramePublisher({
+    identity: () => ({ generation: runtime.generation(), pageId: runtime.pageId() ?? '', documentRevision }),
+    transport: options.frameTransport ?? 'inline',
+    emit: (event) => { for (const listener of subscribers) listener(event); },
+    ...(options.onFrameBytes === undefined ? {} : { onBytes: options.onFrameBytes }),
+  });
 
   function emitState(): Promise<void> {
     const fenceGeneration = runtime.generation();
@@ -520,6 +482,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       for (const listener of subscribers) {
         listener({
           type: 'browser/state',
+          pageStateLost: runtime.pageStateLost(),
           ts,
           ...(url !== undefined ? { url } : {}),
           ...(title !== undefined ? { title } : {}),
@@ -561,6 +524,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   hooks.emitState = emitState;
   hooks.noteDocumentChange = () => {
     documentRevision += 1;
+    residency.noteDocumentChange();
   };
 
   function emitController(reason?: string): void {
@@ -593,7 +557,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       console.warn('[browser] mirror restart failed', error instanceof Error ? error.message : error),
   });
   const operations = createBrowserOperations({
-    getPage: () => runtime.getPage(),
+    getPage: () => residency.getPage(),
     peekPage: () => runtime.peekPage(),
     pageId: () => runtime.pageId(),
     emitState,
@@ -621,9 +585,12 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     };
   }
 
-  function withAbort<T>(operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  function withAbort<T>(operation: () => Promise<T>, signal?: AbortSignal, restoreCheckpoint = true): Promise<T> {
     if (signal?.aborted) return Promise.reject(new AbortOperationError('operation aborted'));
-    return runExclusive(operation, signal);
+    return runExclusive(async () => {
+      if (restoreCheckpoint) await residency.restoreIfNeeded();
+      return operation();
+    }, signal);
   }
 
   return {
@@ -644,7 +611,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
           leaseClients.set(leaseId, clientKey);
           if (superseded.length > 0) options?.onSuperseded?.(superseded);
         }
-        await runtime.getPage();
+        await residency.getPage();
         const activePage = runtime.peekPage();
         const activeContext = runtime.peekContext();
         if (activePage !== undefined && activeContext !== undefined) {
@@ -681,7 +648,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         await mirror.stopScreencast();
         // Mirror lease ≠ agent claim. Keep Chromium while a run still owns
         // the lock so closing the panel cannot kill an in-flight navigate.
-        // Tool-only idle reap (60s) is deferred to PR14.
+        // Retained runtimes are inspected separately by the guarded idle pool.
         if (keepAlive || next.owner === 'agent' || next.agentWantsLock) {
           await emitState();
           return;
@@ -691,16 +658,22 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         delete state.title;
       }),
 
-    navigate: (url, options) => withAbort(() => operations.navigate(url, options), options?.signal),
+    navigate: (url, options) => withAbort(async () => {
+      // Explicit navigation replaces a checkpoint. A failed old URL must not
+      // trap the browser, and invalid addresses must leave its checkpoint intact.
+      assertNavigableUrl(url, { allowFile: options?.actor === 'user' });
+      residency.discardCheckpoint();
+      await operations.navigate(url, options);
+    }, options?.signal, false),
     snapshot: (options) => withAbort(() => operations.snapshot(), options?.signal),
-    click: (target, options) => withAbort(() => operations.click(target, options), options?.signal),
+    click: (target, options) => withAbort(() => { residency.noteInteraction(); return operations.click(target, options); }, options?.signal),
     hover: (target, options) => withAbort(() => operations.hover(target, options), options?.signal),
     selectOption: (target, values, options) =>
-      withAbort(() => operations.selectOption(target, values, options), options?.signal),
+      withAbort(() => { residency.noteInteraction(); return operations.selectOption(target, values, options); }, options?.signal),
     setChecked: (target, checked, options) =>
-      withAbort(() => operations.setChecked(target, checked, options), options?.signal),
+      withAbort(() => { residency.noteInteraction(); return operations.setChecked(target, checked, options); }, options?.signal),
     uploadFiles: (target, files, options) =>
-      withAbort(() => operations.uploadFiles(target, files, options), options?.signal),
+      withAbort(() => { residency.noteInteraction(); return operations.uploadFiles(target, files, options); }, options?.signal),
     listTabs: (options) => withAbort(() => runtime.listTabs(), options?.signal),
     newTab: (url, options) =>
       withAbort(async () => {
@@ -733,21 +706,23 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     queryConsole: (limit) => runtime.queryConsole(limit),
     queryNetwork: (limit) => runtime.queryNetwork(limit),
     queryDownloads: (limit) => runtime.queryDownloads(limit),
+    residencySnapshot: () => residency.snapshot(),
+    suspendIdle: (idleBeforeMs) => residency.suspendIdle(idleBeforeMs),
     ownership: () => runtime.ownership(),
     type: (target, text, options) =>
-      withAbort(() => operations.type(target, text, options), options?.signal),
+      withAbort(() => { residency.noteInteraction(); return operations.type(target, text, options); }, options?.signal),
     fillForm: (fields, options) =>
-      withAbort(() => operations.fillForm(fields, options), options?.signal),
+      withAbort(() => { residency.noteInteraction(); return operations.fillForm(fields, options); }, options?.signal),
     scroll: (delta, options) => withAbort(() => operations.scroll(delta, options), options?.signal),
     screenshot: (path, options) => withAbort(() => operations.screenshot(path), options?.signal),
     back: (options) => withAbort(() => operations.back(options), options?.signal),
     forward: (options) => withAbort(() => operations.forward(options), options?.signal),
     find: (text, options) => withAbort(() => operations.find(text), options?.signal),
-    wait: (ms, options) => operations.wait(ms, options?.signal),
-    waitFor: (condition, options) => operations.waitFor(condition, options),
+    wait: (ms, options) => residency.trackOperation(() => operations.wait(ms, options?.signal)),
+    waitFor: (condition, options) => residency.trackOperation(() => operations.waitFor(condition, options)),
     reload: (options) => withAbort(() => operations.reload(options), options?.signal),
     pressKey: (key, options) =>
-      withAbort(() => operations.pressKey(key, options), options?.signal),
+      withAbort(() => { residency.noteInteraction(); return operations.pressKey(key, options); }, options?.signal),
     queryViewport: () => {
       const fromPage = operations.queryViewport();
       if (fromPage) return fromPage;
@@ -783,11 +758,13 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     restart: (options) =>
       withAbort(async () => {
         runtime.assertOpen();
+        residency.discardCheckpoint();
         assertActor(options?.actor ?? 'agent', 'agent-write', options?.runId);
         await runtime.releaseRuntime();
+        residency.noteDocumentChange();
         delete state.url;
         delete state.title;
-        await runtime.getPage();
+        await residency.getPage();
         const activePage = runtime.peekPage();
         if (runtime.hasActiveMirrorLease() && activePage !== undefined) {
           await mirror.startMirrorFrames(activePage);
@@ -800,7 +777,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
           generation: runtime.generation(),
           ...(pageId !== undefined ? { pageId } : {}),
         };
-      }, options?.signal),
+      }, options?.signal, false),
     pickElementAt: (x, y, options) =>
       withAbort(() => {
         // Pick is read-only, but it still must not act on a frame the user is
@@ -817,6 +794,8 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       const moveOnly = isMouseMoveOnly(events);
       const operate = async (): Promise<void> => {
         assertTargetMatches(options?.target);
+        if (events.some((event) => event.type !== 'mouse' ||
+            (event.action !== 'move' && event.action !== 'wheel'))) residency.noteInteraction();
         await operations.dispatchEvents(events);
       };
       if (moveOnly) return operate();

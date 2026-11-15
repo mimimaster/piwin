@@ -143,17 +143,37 @@ export function InlineAuthPromptForm(props: InlineAuthPromptFormProps): ReactEle
 
           <div className="oauth-inline-actions-row">
             {prompt.verificationUri ? (
-              <Button
-                type="button"
-                variant="primary"
-                size="compact"
-                onClick={() => {
-                  void openExternalUrl(prompt.verificationUri ?? '');
-                }}
-              >
-                <ExternalLink size={13} />
-                <span>{isChinese ? '打开验证页面' : 'Open verification page'}</span>
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="compact"
+                  onClick={() => {
+                    void openExternalUrl(prompt.verificationUri ?? '');
+                  }}
+                >
+                  <ExternalLink size={13} />
+                  <span>{isChinese ? '打开验证页面' : 'Open verification page'}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="compact"
+                  onClick={() => void copyText(prompt.verificationUri ?? '', 'url')}
+                >
+                  {copiedUrl ? (
+                    <>
+                      <Check size={13} className="oauth-icon-mint" />
+                      <span>{isChinese ? '已复制' : 'Copied'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={13} />
+                      <span>{isChinese ? '复制链接' : 'Copy link'}</span>
+                    </>
+                  )}
+                </Button>
+              </>
             ) : null}
 
             <Button type="button" variant="secondary" size="compact" onClick={onCancel}>

@@ -86,6 +86,7 @@ export type SelectContextRingViewInput = {
     tokensLimit?: number;
     quality?: 'estimated' | 'measured';
     phase?: SessionContextPhase;
+    lastRequest?: ContextRingLastRequest;
   };
 };
 
@@ -168,7 +169,7 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
           updatedAt: new Date().toISOString(),
         }
       : null);
-  const lastRequest = projectLastRequest(telemetry.lastRequestUsage);
+  const lastRequest = projectLastRequest(telemetry.lastRequestUsage) ?? input.fallbackUsage?.lastRequest;
 
   if (capabilityMissing) {
     return hiddenView({

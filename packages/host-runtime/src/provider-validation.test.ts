@@ -355,3 +355,52 @@ describe('looksLikeRawApiKey', () => {
     expect(looksLikeRawApiKey('OPENAI_API_KEY')).toBe(false);
   });
 });
+
+describe('validatePiwinConfig compaction delegation warnings', () => {
+  it('warns without blocking when compaction delegation is enabled without a model or with a disabled model', () => {
+    const provider = sampleProvider({ enabled: false });
+    const missingModelIssues = validatePiwinConfig({
+      hostMode: 'sdk',
+      providers: [sampleProvider()],
+      media: { maxPasteBytes: 1, allowedMimeTypes: ['image/png'] },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 1,
+      },
+      compaction: { autoEnabledDefault: true, delegation: { enabled: true } },
+    });
+    const missingIssue = missingModelIssues.find(
+      (issue) => issue.path === 'compaction.delegation.model',
+    );
+    expect(missingIssue).toBeDefined();
+    expect(missingIssue?.severity).toBe('warning');
+    expect(isBlockingValidationIssue(missingIssue!)).toBe(false);
+
+    const disabledProviderIssues = validatePiwinConfig({
+      hostMode: 'sdk',
+      providers: [provider],
+      media: { maxPasteBytes: 1, allowedMimeTypes: ['image/png'] },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 1,
+      },
+      compaction: {
+        autoEnabledDefault: true,
+        delegation: {
+          enabled: true,
+          model: { protocol: 'openai-compatible', providerId: provider.id, modelId: 'gpt-4o' },
+        },
+      },
+    });
+    const unavailableIssue = disabledProviderIssues.find(
+      (issue) => issue.path === 'compaction.delegation.model',
+    );
+    expect(unavailableIssue).toBeDefined();
+    expect(unavailableIssue?.severity).toBe('warning');
+    expect(isBlockingValidationIssue(unavailableIssue!)).toBe(false);
+  });
+});

@@ -22,6 +22,7 @@ describe('rewriteChannelModelRefs', () => {
       desktop: { composerProfile: { model: from } },
       visionDelegation: { enabled: true, model: from },
       replyWriter: { enabled: true, model: from },
+      compaction: { autoEnabledDefault: true, delegation: { enabled: true, model: from } },
       imageGeneration: { defaultModel: from },
       videoGeneration: { defaultModel: from },
       speech: { asr: { defaultModel: from }, tts: { defaultModel: from } },
@@ -58,6 +59,7 @@ describe('rewriteChannelModelRefs', () => {
     expect(next.desktop?.composerProfile?.model?.providerId).toBe('xai-api');
     expect(next.visionDelegation?.model?.providerId).toBe('xai-api');
     expect(next.replyWriter?.model?.providerId).toBe('xai-api');
+    expect(next.compaction?.delegation?.model?.providerId).toBe('xai-api');
     expect(next.imageGeneration?.defaultModel?.providerId).toBe('xai-api');
     expect(next.videoGeneration?.defaultModel?.providerId).toBe('xai-api');
     expect(next.speech?.asr?.defaultModel?.providerId).toBe('xai-api');
@@ -67,7 +69,7 @@ describe('rewriteChannelModelRefs', () => {
     expect(next.walkthrough?.custom.model?.providerId).toBe('xai-api');
     expect(next.subagents?.profiles[0]?.model?.providerId).toBe('xai-api');
     expect(next.subagents?.schemes?.[0]?.members?.[0]?.model?.providerId).toBe('xai-api');
-    expect(CHANNEL_MODEL_REF_WRITER_PATHS).toHaveLength(13);
+    expect(CHANNEL_MODEL_REF_WRITER_PATHS).toHaveLength(14);
   });
 
   it('does not rewrite subscription refs', () => {

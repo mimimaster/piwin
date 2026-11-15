@@ -46,6 +46,7 @@ import {
 import type { BrowserSessionEvent } from './browser-session.js';
 import { assertNavigableUrl } from './browser-operations.js';
 import { createBrowserLeaseTracker } from './browser-lease-tracker.js';
+import { disconnectBrowser, releaseBrowserRuntimeResources } from './browser-runtime-release.js';
 
 const DEFAULT_LAUNCH_TIMEOUT_MS = 15_000;
 
@@ -122,6 +123,7 @@ export type BrowserRuntime = {
   queryConsole(limit?: number): BrowserConsoleEntry[];
   queryNetwork(limit?: number): BrowserNetworkEntry[];
   queryDownloads(limit?: number): BrowserDownloadRef[];
+  hasPendingDownloads(): boolean;
 };
 
 export function createBrowserRuntime(
@@ -240,30 +242,11 @@ export function createBrowserRuntime(
     const entry = pages.bind(target, kind);
     if (!existed) {
       attachPageSideEffects(target);
+      observer.attachPageDownloads(target);
       pages.attachDialog(target, entry.pageId);
       if (consoleCaptureEnabled) observer.attachPage(target);
     }
     return entry;
-  }
-
-  async function disconnectQuietly(target: Browser | undefined): Promise<void> {
-    if (target === undefined) return;
-    try {
-      const targetWithDisconnect = target as Browser & { disconnect?: () => unknown };
-      if (typeof targetWithDisconnect.disconnect === 'function') {
-        await Promise.resolve(targetWithDisconnect.disconnect());
-        return;
-      }
-      // Playwright 1.61: connected Browser.close() detaches; it is not
-      // context.close(), which would close the user's pages.
-      await target.close();
-    } catch (error) {
-      if (isDeadBrowserError(error)) return;
-      console.warn(
-        '[browser] cdp disconnect failed',
-        error instanceof Error ? error.message : error,
-      );
-    }
   }
 
   async function connectAttached(): Promise<void> {
@@ -285,7 +268,7 @@ export function createBrowserRuntime(
       );
     }
     if (closed || epoch !== bindEpoch) {
-      await disconnectQuietly(connected);
+      await disconnectBrowser(connected);
       if (closed) throw new BrowserSessionClosedError('browser session is closed');
       throw new BrowserRuntimeGoneError('browser connect was superseded');
     }
@@ -295,11 +278,11 @@ export function createBrowserRuntime(
         ? await connected.newContext({ viewport: options.requestedViewport })
         : connected.contexts()[0];
     } catch (error) {
-      await disconnectQuietly(connected);
+      await disconnectBrowser(connected);
       throw error;
     }
     if (ctx === undefined) {
-      await disconnectQuietly(connected);
+      await disconnectBrowser(connected);
       lifecycle = 'failed';
       void hooks.emitState();
       throw new BrowserUnavailableError('cdp connection has no browser context', {
@@ -313,7 +296,7 @@ export function createBrowserRuntime(
     }
     if (closed || epoch !== bindEpoch) {
       if (options.isolatedContext) await ctx.close();
-      await disconnectQuietly(connected);
+      await disconnectBrowser(connected);
       if (closed) throw new BrowserSessionClosedError('browser session is closed');
       throw new BrowserRuntimeGoneError('browser connect was superseded');
     }
@@ -787,50 +770,11 @@ export function createBrowserRuntime(
       observer.clear();
       if (!closed) lifecycle = 'stopped';
 
-      if (attached) {
-        if (options.isolatedContext) await activeContext?.close();
-        // External Chrome is not Host-owned. disconnect() detaches Playwright
-        // without Browser.close / context.close, which would kill user pages.
-        await disconnectQuietly(activeBrowser);
-        return;
-      }
-
-      let contextCloseError: unknown;
-      if (activeContext !== undefined) {
-        try {
-          // A persistent BrowserContext owns its Chromium process. Closing the
-          // context is Playwright's authoritative shutdown path and waits for
-          // the child process to exit.
-          await activeContext.close();
-          return;
-        } catch (error) {
-          if (isDeadBrowserError(error)) return;
-          contextCloseError = error;
-        }
-      }
-      if (activeBrowser !== undefined) {
-        try {
-          await activeBrowser.close();
-          return;
-        } catch (error) {
-          if (isDeadBrowserError(error)) {
-            if (contextCloseError instanceof Error && !isDeadBrowserError(contextCloseError)) {
-              throw contextCloseError;
-            }
-            return;
-          }
-          if (contextCloseError !== undefined) {
-            throw new AggregateError(
-              [contextCloseError, error],
-              'browser runtime cleanup failed',
-            );
-          }
-          throw error;
-        }
-      }
-      if (contextCloseError instanceof Error) {
-        throw contextCloseError;
-      }
+      await releaseBrowserRuntimeResources({
+        context: activeContext, browser: activeBrowser,
+        ownership: attached ? 'attached' : 'owned',
+        isolatedContext: options.isolatedContext === true,
+      });
     } finally {
       releasing = false;
     }
@@ -944,6 +888,7 @@ export function createBrowserRuntime(
     queryConsole: (limit) => observer.queryConsole(limit),
     queryNetwork: (limit) => observer.queryNetwork(limit),
     queryDownloads: (limit) => observer.queryDownloads(limit),
+    hasPendingDownloads: () => observer.pendingDownloads() > 0,
   };
 }
 

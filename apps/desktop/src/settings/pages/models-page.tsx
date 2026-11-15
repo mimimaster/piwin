@@ -5,6 +5,7 @@ import { ModelCatalogSyncControl } from '../model-catalog-sync-control';
 import { ProviderSettings } from '../../models/ProviderSettings';
 import { VisionDelegationSettings } from '../../media/VisionDelegationSettings';
 import { ReplyWriterSettings } from '../ReplyWriterSettings';
+import { CompactionDelegationSettings } from '../CompactionDelegationSettings';
 import { ImageGenerationSettings } from '../../media/ImageGenerationSettings';
 import { VideoGenerationSettings } from '../../media/VideoGenerationSettings';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
@@ -164,6 +165,18 @@ export function ModelsPage(): ReactElement {
               testId="model-config-tab-writer"
             />
             <WorkspaceTab
+              value="compaction"
+              icon={<ModelCapabilityIcon kind="compaction" />}
+              title={isChinese ? '压缩委托' : 'Compaction'}
+              hint={
+                isChinese
+                  ? '指定第三方模型专门执行上下文压缩摘要'
+                  : 'Delegate context compaction summaries to a chosen model'
+              }
+              tone={config.compaction?.delegation?.enabled ? 'ok' : 'off'}
+              testId="model-config-tab-compaction"
+            />
+            <WorkspaceTab
               value="image"
               icon={<ModelCapabilityIcon kind="image" />}
               title={isChinese ? '图片生成' : 'Images'}
@@ -237,6 +250,19 @@ export function ModelsPage(): ReactElement {
           </TabsContent>
 
           <TabsContent
+            value="compaction"
+            className="model-management-tab-content settings-workspace-panel"
+            testId="model-config-panel-compaction"
+          >
+            <div
+              className="settings-section settings-section-card"
+              data-testid="settings-compaction-delegation-page"
+            >
+              <CompactionDelegationSettings />
+            </div>
+          </TabsContent>
+
+          <TabsContent
             value="image"
             className="model-management-tab-content settings-workspace-panel"
             testId="model-config-panel-image"
@@ -298,6 +324,12 @@ function ModelCapabilityIcon(props: { kind: CapabilityKind }): ReactElement {
       <>
         <path d="M4 19.5 14.5 9 17 11.5 6.5 22H4z" />
         <path d="m13.2 7.7 2.3-2.3a1.5 1.5 0 0 1 2.1 0l1 1a1.5 1.5 0 0 1 0 2.1l-2.3 2.3" />
+      </>
+    ),
+    compaction: (
+      <>
+        <path d="M4 14h6v6M20 10h-6V4" />
+        <path d="m14 10 6-6M10 14l-6 6" />
       </>
     ),
     image: (

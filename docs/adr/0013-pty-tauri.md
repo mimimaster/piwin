@@ -99,6 +99,31 @@ Parallel (unchanged):
 - [`w2-subagent-compaction-pty.md`](../specs/w2-subagent-compaction-pty.md) CE-PTY acceptance still applies (pwd, resize, dispose, trust) but **implementation vehicle is Tauri**, not Node node-pty.
 - Product Depth Track F (`PD-PTY-*`) is the execution backlog.
 
+## Amendment 2026-11-15: release terminal graphics independently of its PTY
+
+At critical frontend memory pressure, the Desktop terminal releases its WebGL
+addon, drawing context and unowned glyph-atlas backing stores, and continues on
+xterm's built-in text renderer. The existing terminal instance, scrollback,
+selection and PTY connection remain. New panes do not allocate WebGL while
+critical. GPU rendering returns only after pressure returns to normal (the
+governor's existing recovery dwell applies); context-loss/unsupported backends
+retain the ordinary fallback. Shared atlas pages are released after the last
+renderer owner, including panes attached after the atlas already grew.
+
+This is a graphics-pressure containment change, not attribution of the owner's
+ordinary-chat 8.71 GB incident to a terminal. A nonpersistent synthetic WKWebView
+reproduced graphics growth and validated text-renderer continuation, but does not
+identify the retaining owner in the running product. See
+[Desktop memory diagnostics](../guides/desktop-memory-diagnostics.md).
+
+This remains a Desktop presentation policy. Host/CLI protocols and PTY lifetime
+are unchanged.
+
+The first terminal session is also demand-driven: native PTY availability does
+not seed a `zsh` tab during ordinary chat. Selecting an expanded terminal panel
+or explicitly adding a terminal creates it. Later hiding that panel preserves
+the existing session; closing the final session still leaves the list empty.
+
 ## References
 
 - Tauri 2: https://v2.tauri.app/

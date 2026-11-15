@@ -59,6 +59,7 @@ export async function recordFinalizedUsageToLedger(
   if (measurement.timingScope !== undefined) record.timingScope = measurement.timingScope;
   if (measurement.reasoningTokens !== undefined) record.reasoningTokens = measurement.reasoningTokens;
   if (measurement.firstTokenKind !== undefined) record.firstTokenKind = measurement.firstTokenKind;
+  if (measurement.costUsd !== undefined) record.costUsd = measurement.costUsd;
   try {
     const result = await appendUsageRecord(ledgerPath, record);
     if (result === 'inserted') {

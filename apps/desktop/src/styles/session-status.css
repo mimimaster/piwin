@@ -1,29 +1,141 @@
-/* Session status popover — the titlebar's flat activity surface.
-   No title chrome: muted group labels, hairline gaps, one-line rows. */
+/* Session status surface — the flat 2-layer activity sheet.
+   Layer 1: one translucent panel (popover content or .session-status-dock).
+   Layer 2: flat interactive rows — transparent at rest, --hover on hover.
+   No nested cards, no colored badges. */
 
 .session-status-btn {
   position: relative;
 }
 
-.session-status-live-dot {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--zhu, var(--accent, #d4553d));
-  pointer-events: none;
+/* Idle: a plain icon button. With live processes it becomes a breathing
+   capsule — dot + measure icon + count in one pill. */
+.session-status-btn.is-active-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-width: 0;
+  padding-inline: 9px;
+  border-radius: 999px;
 }
 
+.session-status-btn .session-status-live-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--zhu, var(--accent, #d4553d));
+  animation: session-status-dot-pulse 1.8s ease-in-out infinite;
+}
+
+.session-status-btn .session-status-count {
+  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-status-btn .session-status-live-dot {
+    animation: none;
+  }
+}
+
+/* Layer 1 for the floating variant: thin glass fill. Under [data-window-material]
+   window-material-overlays.css swaps in --overlay-glass-fill-thin while the
+   popover keeps its whitelisted backdrop-filter — never paint a solid slab
+   over that here. */
 .ui-popover-content.session-status-popover {
   width: min(280px, calc(100vw - 24px));
   padding: 5px;
   border-radius: var(--r-panel, 12px);
-  border: 0;
-  background: var(--surface-4, var(--surface-3));
+  border: 1px solid var(--line-1);
+  background: color-mix(in srgb, var(--s4, var(--surface-4, var(--surface-3))) 56%, transparent);
   box-shadow: var(--elev-4);
   font-size: var(--fs-chrome);
+}
+
+html:is([data-memory-pressure], [data-memory-parked]) .ui-popover-content.session-status-popover {
+  background: var(--s4, var(--surface-4, var(--surface-3)));
+}
+
+/* The dock owns a 296px slice of the stage; the conversation measure
+   re-centers inside what remains. */
+.chat-stage.has-session-dock {
+  box-sizing: border-box;
+  padding-right: 296px;
+  transition: padding-right 180ms var(--ease-out, ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-stage.has-session-dock {
+    transition: none;
+  }
+}
+
+/* `.chat-stage > *` pins children relative at z-index 1 — outrank it. The dock
+   is absolute so it never competes with the flex column for width. No
+   backdrop-filter: the sheet stays up for the session, so it must not pay
+   per-frame IOSurface cost; a solid fallback covers memory pressure. */
+.chat-stage > .session-status-dock {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 272px;
+  max-height: calc(100% - 24px);
+  z-index: 32;
+}
+
+/* A docked Browser Mini owns the top gutter slot; the sheet slides under it. */
+.chat-stage:has(.stage-browser-mini.is-docked) > .session-status-dock {
+  top: 232px;
+  max-height: calc(100% - 244px);
+}
+
+.session-status-dock {
+  display: flex;
+  flex-direction: column;
+  padding: 5px;
+  overflow-y: auto;
+  border-radius: var(--r-panel, 12px);
+  border: 1px solid var(--line-1);
+  background: color-mix(in srgb, var(--s4, var(--surface-4, var(--surface-3))) 56%, transparent);
+  box-shadow: var(--elev-2);
+  font-size: var(--fs-chrome);
+}
+
+html:is([data-memory-pressure], [data-memory-parked]) .session-status-dock {
+  background: var(--s4, var(--surface-4, var(--surface-3)));
+}
+
+.session-status-dock-close {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 1;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.session-status-dock-close:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+/* Clear of the top-right dismiss affordance (Running's label row). */
+.session-status-dock
+  > .session-status
+  > .session-status-group:first-of-type
+  > .session-status-label {
+  padding-right: 22px;
 }
 
 .session-status {
@@ -82,6 +194,33 @@
   gap: 1px;
   max-height: 240px;
   overflow-y: auto;
+}
+
+.session-status-plan .session-status-list {
+  max-height: none;
+  overflow: visible;
+}
+
+/* Plan block inside Running: a quiet subhead row (label + done/total) above
+   flat step rows. Still layer-2 — no boxed card. */
+.session-status-plan {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.session-status-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 8px 1px;
+}
+
+.session-status-plan-label {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 500;
 }
 
 .session-status-row {
@@ -180,6 +319,11 @@
   background: var(--coral, #9c2e3d);
 }
 
+.session-status-dot.is-context {
+  background: var(--text-4, var(--text-3));
+  opacity: 0.7;
+}
+
 @keyframes session-status-dot-pulse {
   50% {
     opacity: 0.4;
@@ -226,6 +370,8 @@
   font-family: var(--font-mono, ui-monospace, Menlo, monospace);
 }
 
+/* Row stop buttons surface on hover/focus only; they stay clickable for
+   tests and keyboard users regardless of visibility. */
 .session-status-row-stop {
   display: inline-grid;
   place-items: center;
@@ -240,6 +386,18 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+  .session-status-row-stop {
+    opacity: 0;
+  }
+
+  .session-status-row:hover .session-status-row-stop,
+  .session-status-row:focus-within .session-status-row-stop,
+  .session-status-row-stop:focus-visible {
+    opacity: 1;
+  }
+}
+
 .session-status-row-stop:hover {
   color: var(--text-1);
   background: var(--hover);
@@ -251,21 +409,195 @@
   background: transparent;
 }
 
-.session-status-diff {
-  display: inline-flex;
-  align-items: center;
+.ui-popover-content.session-status-popover {
+  width: min(368px, calc(100vw - 24px));
+  max-height: min(76vh, 620px);
+  overflow-y: auto;
+}
+
+.session-status-kv-list {
+  display: flex;
+  flex-direction: column;
   gap: 5px;
+  padding: 2px 2px 0;
+}
+
+.session-status-kv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  font-size: var(--fs-ui-xs, 12px);
+}
+
+.session-status-kv-row.is-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.session-status-kv-row.is-compact {
+  margin-top: 5px;
+}
+
+.session-status-kv-pair {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.session-status-kv-key {
   flex: none;
+  color: var(--text-3);
+  font-size: var(--fs-micro, 11px);
+}
+
+.session-status-kv-val {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+  text-align: right;
+}
+
+.session-status-kv-val.is-warn {
+  color: var(--coral, #9c2e3d);
+}
+
+.is-mono {
   font-family: var(--font-mono, ui-monospace, Menlo, monospace);
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-micro, 11px);
 }
 
-.session-status-diff .is-add {
-  color: var(--pine, var(--add-text, var(--mint, #5fad85)));
+.session-status-copy-btn {
+  border: none;
+  background: transparent;
+  padding: 1px 4px;
+  margin: 0 -4px;
+  border-radius: 4px;
+  color: var(--text-2);
+  font: inherit;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.session-status-diff .is-del {
-  color: var(--crimson, var(--del-text, var(--danger, #d95f6e)));
+.session-status-copy-btn:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.session-status-bar-track {
+  height: 3px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--line, rgba(128, 128, 128, 0.18));
+  overflow: hidden;
+}
+
+.session-status-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--azure, #3a7797);
+  transition: width 120ms ease;
+}
+
+.session-status-bar-fill.is-high {
+  background: var(--coral, #9c2e3d);
+}
+
+.session-status-pill {
+  font-size: 10.5px;
+  line-height: 1.2;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--line, rgba(128, 128, 128, 0.2));
+  color: var(--text-2);
+  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+}
+
+.session-status-pill.is-active {
+  color: var(--mint, #5fad85);
+  border-color: color-mix(in srgb, var(--mint, #5fad85) 38%, transparent);
+}
+
+.session-status-pill.is-override {
+  color: var(--azure, #3a7797);
+  border-color: color-mix(in srgb, var(--azure, #3a7797) 38%, transparent);
+}
+
+.session-status-pill.is-warning {
+  color: var(--coral, #9c2e3d);
+  border-color: color-mix(in srgb, var(--coral, #9c2e3d) 40%, transparent);
+}
+
+.session-status-path-box {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line, rgba(128, 128, 128, 0.18));
+  background: var(--surface-2, rgba(128, 128, 128, 0.06));
+}
+
+.session-status-path-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.session-status-path-caption {
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+.session-status-path-value {
+  display: block;
+  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-1);
+  word-break: break-all;
+  user-select: text;
+}
+
+.session-status-subnote {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-3);
+}
+
+.session-status-warning {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--coral, #9c2e3d);
+}
+
+.session-status-quota-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.session-status-quota-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.session-status-quota-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-2);
 }

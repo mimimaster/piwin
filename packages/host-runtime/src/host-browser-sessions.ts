@@ -6,10 +6,12 @@ import {
   BROWSER_DEFAULT_VIEWPORT_HEIGHT,
   BROWSER_DEFAULT_VIEWPORT_WIDTH,
   formatError,
+  isRunTerminal,
 } from '@piwin/contracts';
 import { loadPiwinConfig } from './config-store.js';
 import { applyPiwinPlaywrightBrowsersPath, getPiwinRoot } from './paths.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+import { BrowserResidencyPool } from './browser-residency-pool.js';
 
 /**
  * Lazily create the host-owned BrowserSession (ADR 0020). The session object
@@ -35,6 +37,11 @@ export async function ensureBrowserSession(
   sessionId?: string,
 ): Promise<BrowserSession> {
   if (deps.hostClosing) throw new Error('Host is closing');
+  deps.browserResidencyPool ??= new BrowserResidencyPool({
+    sessions: () => [...deps.browserSessions].filter(([key]) => key !== '').map(([, session]) => session),
+    onError: (error) => deps.push({ type: 'host/log', level: 'warn',
+      message: `browser idle reclamation failed: ${formatError(error)}` }),
+  });
   const key = sessionId ?? '';
   const existing = deps.browserSessions.get(key);
   if (existing) return existing;
@@ -54,6 +61,8 @@ export async function ensureBrowserSession(
     const scope = sessionId === undefined ? {} : { sessionId };
     const session = createBrowserSession({
       keepAlive: sessionId !== undefined,
+      isRuntimeProtected: () => deps.hostClosing || (sessionId !== undefined &&
+        deps.runRegistry?.list({ sessionId }).some((run) => !isRunTerminal(run.status)) === true),
       isolatedContext: sessionId !== undefined,
       viewport: {
         width: BROWSER_DEFAULT_VIEWPORT_WIDTH,
@@ -137,6 +146,8 @@ export async function ensureBrowserSessionBestEffort(
 }
 
 export async function disposeBrowserSessions(deps: HostRuntimeKernel): Promise<unknown[]> {
+  await deps.browserResidencyPool?.dispose();
+  deps.browserResidencyPool = undefined;
   const sessions = await Promise.allSettled([...deps.browserSessions.values()]);
   deps.browserSessions.clear();
   const closed = await Promise.allSettled(

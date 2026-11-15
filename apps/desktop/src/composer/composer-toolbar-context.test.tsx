@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
@@ -97,5 +97,25 @@ describe('ComposerToolbarContext', () => {
     render({});
     expect(document.querySelector('[data-testid="context-usage-ring"]')).toBeNull();
     expect(document.querySelector('[data-testid="composer-session-stats"]')).toBeNull();
+  });
+
+  it('uses runningSince in the running status label instead of resetting to 0s', () => {
+    vi.useFakeTimers();
+    try {
+      const startedAt = 2_000_000;
+      vi.setSystemTime(startedAt + 15_000);
+      render({
+        contextView: visibleView(),
+        isRunning: true,
+        runningSince: startedAt,
+        sessionKey: 's1',
+      });
+      const ring = document.querySelector<HTMLButtonElement>('[data-testid="context-usage-ring"]');
+      expect(ring).not.toBeNull();
+      act(() => ring?.click());
+      expect(document.querySelector('[data-row="session-elapsed"]')?.textContent).toBe('进行中15s');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

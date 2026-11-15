@@ -347,4 +347,44 @@ describe('auth commands', () => {
       data: { modelCount: 1 },
     });
   });
+
+  it('forwards openAuthUrlOnHost=false so shell-driven logins do not open a second browser on the Host', async () => {
+    const { port } = fakePort();
+    port.login = async (_providerId, interaction) => {
+      interaction.notify({
+        type: 'device_code',
+        userCode: 'JP3D-HB9C',
+        verificationUri: 'https://accounts.x.ai/oauth2/device?user_code=JP3D-HB9C',
+      });
+      return { kind: 'ok' };
+    };
+    const openedOnHost: string[] = [];
+    const config: PiwinConfig = createDefaultPiwinConfig();
+    const service = new SubscriptionAuthService(
+      { port, openAuthUrl: (url) => openedOnHost.push(url) },
+      {
+        loadConfig: async () => config,
+        saveConfig: async (next) => {
+          Object.assign(config, next);
+        },
+      },
+    );
+    const pushes: HostPush[] = [];
+    const response = await handleAuthCommand(
+      {
+        type: 'auth/login',
+        input: {
+          providerId: 'xai',
+          ownerDeviceId: 'desktop-1',
+          preferLoopback: true,
+          openAuthUrlOnHost: false,
+        },
+      },
+      '1',
+      context(service, pushes),
+    );
+    expect(response?.success).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(openedOnHost).toEqual([]);
+  });
 });

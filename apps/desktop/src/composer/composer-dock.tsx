@@ -94,6 +94,8 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
         locale={locale}
         contextView={props.contextRingView}
         isRunning={isStreamingRun}
+        runningSince={props.runningSince}
+        sessionKey={props.activeSessionId}
         onOpenModelSettings={props.onOpenModelSettings}
       />}
     </footer>

@@ -26,18 +26,21 @@ export function isArtifactMediaRenderUrl(value: string): boolean {
 }
 
 export function listArtifactSessionMediaIds(source: string): string[] {
-  const ids: string[] = [];
-  const seen = new Set<string>();
+  return [...countArtifactSessionMediaReferences(source).keys()];
+}
+
+/** Repeated tags consume the data URL again in a self-contained document. */
+export function countArtifactSessionMediaReferences(source: string): Map<string, number> {
+  const references = new Map<string, number>();
   IMG_TAG_PATTERN.lastIndex = 0;
   for (const match of source.matchAll(IMG_TAG_PATTERN)) {
     const mediaId = readMediaIdAttribute(match[0] ?? '');
-    if (mediaId === undefined || seen.has(mediaId)) {
+    if (mediaId === undefined) {
       continue;
     }
-    seen.add(mediaId);
-    ids.push(mediaId);
+    references.set(mediaId, (references.get(mediaId) ?? 0) + 1);
   }
-  return ids;
+  return references;
 }
 
 export function bindArtifactSessionMedia(

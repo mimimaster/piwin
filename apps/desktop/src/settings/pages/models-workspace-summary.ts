@@ -6,7 +6,7 @@
 import { isModelEnabled, isProviderEnabled, modelSupportsCapability } from '@piwin/contracts';
 import type { ModelConfigEntry, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 
-export type ModelTab = 'text' | 'vision' | 'writer' | 'image' | 'video' | 'speech';
+export type ModelTab = 'text' | 'vision' | 'writer' | 'compaction' | 'image' | 'video' | 'speech';
 
 export type ModelWorkspaceIssue = {
   tab: ModelTab;

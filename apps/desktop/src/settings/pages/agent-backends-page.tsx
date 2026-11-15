@@ -8,7 +8,9 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import type { ExtensionSummary, ExternalAgentStatus } from '@piwin/contracts';
-import { Button, Notice, Switch } from '@piwin/ui-kit';
+import { Button, Notice, SessionBackendIcon, Switch } from '@piwin/ui-kit';
+import { resolveAgentBackendDisplay } from '../../agents/agent-backend-state';
+import { agentBackendStatusCopy } from '../../agents/agent-backend-status-copy.js';
 import { AgentLocatorMark } from '../../agents/agent-locator';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useSettings } from '../settings-context';
@@ -158,9 +160,16 @@ export function AgentBackendsPage(): ReactElement {
             const status = state.kind === 'loaded'
               ? state.agents.find((agent) => agent.agentId === backend.id)
               : undefined;
+            const icon = backend.icon ?? resolveAgentBackendDisplay(backend.id).icon;
+            const statusCopy = agentBackendStatusCopy(status, isZh);
             return (
               <li key={extension.id} className="agent-backends-row" data-testid={`agent-backend-${backend.id}`}>
                 <div className="agent-backends-row-main">
+                  {icon ? (
+                    <span className="agent-backends-icon" data-testid={`agent-backend-icon-${backend.id}`} aria-hidden="true">
+                      <SessionBackendIcon icon={icon} name={backend.name} variant="glyph" size={15} />
+                    </span>
+                  ) : null}
                   <span className="agent-backends-name">{backend.name}</span>
                   <Switch
                     checked={extension.enabled}
@@ -171,8 +180,19 @@ export function AgentBackendsPage(): ReactElement {
                   />
                 </div>
                 <p className="muted agent-backends-detail" data-testid={`agent-backend-state-${backend.id}`}>
-                  {extension.enabled ? stateDetail(status, isZh) : (isZh ? '已停用' : 'Disabled')}
+                  {extension.enabled ? statusCopy.detail : (isZh ? '已停用' : 'Disabled')}
                 </p>
+                {extension.enabled && statusCopy.reinstall ? (
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    style={{ alignSelf: 'flex-start' }}
+                    data-testid={`agent-backend-reinstall-${backend.id}`}
+                    onClick={() => settings.selectSection('extensions')}
+                  >
+                    {isZh ? '管理扩展' : 'Manage extensions'}
+                  </Button>
+                ) : null}
               </li>
             );
           })}
@@ -180,18 +200,4 @@ export function AgentBackendsPage(): ReactElement {
       )}
     </div>
   );
-}
-
-function stateDetail(agent: ExternalAgentStatus | undefined, isZh: boolean): string {
-  if (agent === undefined) return isZh ? '尚未检测 CLI' : 'CLI not checked yet';
-  switch (agent.state) {
-    case 'not-installed':
-      return isZh ? '本机未找到该后端的 CLI。安装官方 CLI 后点重新检测。' : 'This backend’s CLI was not found. Install it, then check again.';
-    case 'unavailable':
-      return agent.reason;
-    case 'unauthenticated':
-      return isZh ? `已安装 v${agent.version}，需要在 Host 上登录。` : `Installed v${agent.version}; sign in on the Host.`;
-    case 'ready':
-      return isZh ? `可用 · v${agent.version}` : `Ready · v${agent.version}`;
-  }
 }

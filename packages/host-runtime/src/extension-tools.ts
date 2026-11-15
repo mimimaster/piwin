@@ -20,7 +20,7 @@ import type {
   ToolResult,
 } from '@piwin/contracts';
 import { createExtensionRevisionStore, installExtension } from '@piwin/extensions';
-import { scanExtensions } from './extension-scanner.js';
+import { loadDiscoveredResources } from './discovered-resources.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 
 /** Outcome of the after-install `extensions/apply` for this session. */
@@ -32,6 +32,10 @@ export type BuildExtensionToolsOptions = {
   piwinRoot: string;
   sessionId: string;
   extensionsConfig?: ExtensionsConfig;
+  /** Override Pi native agent dir (testing); defaults to `~/.pi/agent`. */
+  agentDir?: string;
+  /** Override whether Pi native inventory (`~/.pi/agent`) is included; defaults from `piwinRoot`. */
+  followPiNativeInventory?: boolean;
   /**
    * Trigger `extensions/apply` for this session. The tool always requests
    * `after-current-run` so activation runs once the current turn finishes.
@@ -114,9 +118,13 @@ export function buildExtensionTools(options: BuildExtensionToolsOptions): HostTo
         readOnly: true,
       },
       async execute() {
-        const extensions = await scanExtensions({
+        const { extensions } = await loadDiscoveredResources({
           piwinRoot,
           ...(options.extensionsConfig ? { extensionsConfig: options.extensionsConfig } : {}),
+          ...(options.agentDir !== undefined ? { agentDir: options.agentDir } : {}),
+          ...(options.followPiNativeInventory !== undefined
+            ? { followPiNativeInventory: options.followPiNativeInventory }
+            : {}),
         });
         return {
           ok: true,

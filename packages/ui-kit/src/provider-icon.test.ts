@@ -150,6 +150,11 @@ describe('ProviderIcon', () => {
     expect(devin).toContain('data-provider-icon="devin"');
     expect(devin).toContain('data-provider-brand="Devin"');
     expect(devin).toContain('<svg');
+
+    const antigravity = renderToStaticMarkup(createElement(ProviderIcon, { id: 'antigravity' }));
+    expect(antigravity).toContain('data-provider-icon="antigravity"');
+    expect(antigravity).toContain('data-provider-brand="Antigravity"');
+    expect(antigravity).toContain('<svg');
   });
 
   it('resolves official brand icons for new cloud providers: opencode-go, mimo, stepfun, volcengine', () => {

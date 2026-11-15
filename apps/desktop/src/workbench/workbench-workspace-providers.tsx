@@ -18,6 +18,7 @@ import { DesktopLocaleProvider } from '../i18n/desktop-locale-context';
 import { DeviceHealthConsentDialog } from '../devices/device-health-consent-dialog';
 import { HostLogProvider } from '../host/host-log-context';
 import type { HostClient } from '../host/host-client';
+import { SessionBackendCatalogProvider } from '../hooks/use-enabled-session-backends';
 import { KnowledgeCitationActionsProvider } from '../knowledge/knowledge-citation-actions';
 import { KnowledgeMountsProvider } from '../knowledge/knowledge-mounts-context';
 import { LocalFileActionsProvider } from '../files/local-file-actions-context';
@@ -62,7 +63,8 @@ export function WorkbenchWorkspaceProviders(props: {
 }): ReactElement {
   return (
     <DesktopLocaleProvider locale={props.locale} onLocaleChange={props.onLocaleChange}>
-      <HostLogProvider store={props.hostLogStore}>
+      <SessionBackendCatalogProvider hostClient={props.hostClient}>
+        <HostLogProvider store={props.hostLogStore}>
         <LocalFileActionsProvider request={props.requestLocalFile}>
           <MediaPreviewReadProvider
             sessionId={props.mediaPreviewSessionId}
@@ -98,7 +100,8 @@ export function WorkbenchWorkspaceProviders(props: {
             </DesktopContextMenuProvider>
           </MediaPreviewReadProvider>
         </LocalFileActionsProvider>
-      </HostLogProvider>
+        </HostLogProvider>
+      </SessionBackendCatalogProvider>
     </DesktopLocaleProvider>
   );
 }

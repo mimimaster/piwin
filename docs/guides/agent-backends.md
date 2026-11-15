@@ -55,8 +55,45 @@ After reinstalling the same adapter revision, histories remain usable.
 Different adapter revisions require explicit migration; no live revision is
 silently replaced.
 
+## Plugin file verification failures
+
+If a session entry shows **Plugin Check Failed**, Agent settings explains that
+the installed adapter file is missing, unreadable, or differs from the size/SHA-256 recorded in its
+manifest (`agent-artifact-integrity`). Enabling the extension does not bypass
+this check. This is an installation problem; account login or model-provider
+configuration does not repair the artifact.
+
+The session entry shows **View repair steps** and opens Agent settings. From
+there, **Manage extensions** opens the existing Extensions page. Reinstall the
+adapter from its original source with the matching manifest and artifact, then
+click **Check again**. Never replace only `dist/agent.mjs` inside an installed
+revision or edit its checksum to accept changed files. Restore the original
+verified artifact, or stage a complete new revision through extension install.
+
+Missing CLI and sign-in states keep their own install/sign-in guidance. A
+backend with no readiness result yet is shown as **Check Pending**.
+
 Host enablement and installation records use the ordinary extension revision
 store under `~/.piwin/extensions/`; there is no separate agent inventory.
+
+## Blank native terminal or a busy Desktop writer
+
+An embedded CLI can still own the conversation while its screen is blank.
+Antigravity's startup mode query exposed a release minification defect in the
+terminal library: parsing stopped even though CLI output arrived. The frontend
+now uses the library's compatible published main entry, with a release-build
+regression for the real startup queries. Window resizing does not recover a
+parser that has already stalled. Changing the view does not end a running CLI
+turn. Desktop sending takes input ownership only after the adapter verifies
+that the native conversation is idle.
+
+Antigravity creates no transcript for a brand-new zero-turn conversation. Its
+adapter verifies the native database identity and absence of steps before
+reporting idle and an empty history snapshot. An older adapter may instead
+report unknown and leave Desktop sending blocked. Update the adapter together
+with the Desktop startup fix; replacing only the app does not update an
+independently installed extension. Do not overwrite an installed revision's
+artifact: install a matching artifact and manifest through Extensions.
 
 ## Real-CLI probes
 

@@ -425,3 +425,66 @@ cancelled outcome.
 Native image delivery is unchanged. Path fallback remains available only when
 vision delegation is disabled/unconfigured; it is not recovery from a failed
 enabled delegation.
+
+## Amendment (2026-11-13): Bounded document publication and WebKit image encoding
+
+Canvas image conversion accepts the requested MIME type only. Unsupported
+WebP encoders may silently return PNG; Desktop must continue to JPEG instead
+of inlining that larger fallback. This applies to both Blob thumbnails and
+Artifact data URLs, with the existing pixel cap and encoder quality retained.
+
+`MAX_ARTIFACT_DOCUMENT_BYTES` in contracts names the native store's existing
+2 MiB limit. Desktop validates the complete UTF-8 document, including bound
+media, theme and runtime, before publishing or mounting a browser preview.
+The separate 6 MiB media decode/admission budget is a transient allocation
+bound, not a guarantee that a complete document can be published.
+
+Tauri iframe navigation now follows successful `artifact_document_put`
+acknowledgement. A replacement document, a re-host after recycling, or an
+explicit retry requires its own ACK; stale successes/failures cannot certify
+the current request. Publication waits are bounded and cancelled locally on
+replacement/unmount. A transient publication failure offers republish/reload;
+oversize documents explain the complete-document limit. Neither failure is
+reported as height recovery. The native scheme wait remains defensive, with
+store bounds, CSP, sandbox isolation and main-frame navigation guards intact.
+
+The reported nine-screenshot session was reproduced in isolated WebKit and
+Chromium. WebKit's document fell from 3,665,813 bytes (PNG, native `TooLarge`)
+to 1,128,846 bytes (JPEG, accepted), with all nine images decoded and painted.
+Chromium retained WebP at 451,702 bytes. No installed app was replaced.
+
+### Adaptive gallery fitting (owner follow-up, 2026-11-13)
+
+The complete-document cap is a fitting target, not the primary error path for
+larger galleries. Materialize an unbound template first and reserve its UTF-8
+HTML, theme/runtime and per-reference `src` attribute cost. Every occurrence
+of a repeated media ID consumes the same data URL again and counts toward
+the budget. Binding fitted URLs reuses this exact template and preserves the
+original descriptor/source for copy/export.
+
+Keep previews unchanged when the gallery fits. Otherwise allocate space by
+encoded cost and reference count, reducing quality before dimensions. Vault
+files and the shared bounded original-preview cache remain unchanged; each
+surface receives its own fitted copies. Inline, Canvas and fullscreen all
+use this path, including their current theme/runtime overhead.
+
+Media collection is sequential and generation-cancellable. Crossing the
+6 MiB transient raw-preview buffer triggers early fitting with reserved
+shares for remaining images; it never omits later readable images. Genuine
+decode/codec failures or minimum-size images that still cannot fit retain
+the final explicit error guard rather than silently dropping content.
+
+Native document URLs carry an ID, so their full document budget remains
+2 MiB. Browser data URLs additionally reserve base64 and address-prefix
+overhead to remain within 2 MiB of URL characters (1,572,837 document bytes).
+Chromium 149 was measured accepting 2,097,152 URL characters and blocking
+2,097,156. Both media fitting and publication preflight apply the appropriate
+transport budget; browser errors do not claim the native limit was exceeded.
+
+Isolated WebKit/Chromium verification covered 9, 72 and 216 images, repeated
+references and browser data URLs: 12 cases, every expected image decoded and
+painted. The 216-image native-budget WebKit document shrank from 25,045,927
+to 1,872,295 bytes; all 12 final documents were accepted by the compiled
+native store. The original 9-image gallery was not recompressed. Installed
+Desktop acceptance still requires the owner's build; no application was
+packaged, replaced or restarted.

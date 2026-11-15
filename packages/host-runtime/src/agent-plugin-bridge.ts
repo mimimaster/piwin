@@ -33,6 +33,7 @@ import {
   type AgentPluginPermissionDecision,
   type AgentPluginPermissionPrompt,
   type BackendUserInputResult,
+  type ExtensionUiSurfaceUpdate,
 } from '@piwin/contracts';
 import { disposeAgentPluginProcess } from './agent-plugin-process-disposal.js';
 
@@ -362,7 +363,40 @@ export function normalizeEmission(value: unknown): AgentPluginEmission | undefin
   if (emission.type === 'mcp-status' && Array.isArray(emission.servers)) {
     return { type: 'mcp-status', servers: emission.servers as ExternalAgentMcpServerStatus[], observed: emission.observed === true };
   }
+  if (emission.type === 'ui-surface' && typeof emission.update === 'object' && emission.update !== null) {
+    const update = normalizeUiSurfaceUpdate(emission.update as Record<string, unknown>);
+    if (update !== undefined) return { type: 'ui-surface', update };
+  }
   if (emission.type === 'closed' && typeof emission.reason === 'string') return { type: 'closed', reason: emission.reason };
+  return undefined;
+}
+
+function normalizeUiSurfaceUpdate(raw: Record<string, unknown>): ExtensionUiSurfaceUpdate | undefined {
+  if (raw.kind === 'status' && typeof raw.key === 'string' && raw.key.length > 0) {
+    if (raw.text !== undefined && raw.text !== null && typeof raw.text !== 'string') return undefined;
+    return { kind: 'status', key: raw.key, ...(typeof raw.text === 'string' ? { text: raw.text } : {}) };
+  }
+  if (raw.kind === 'working-message') {
+    if (raw.message !== undefined && raw.message !== null && typeof raw.message !== 'string') return undefined;
+    return { kind: 'working-message', ...(typeof raw.message === 'string' ? { message: raw.message } : {}) };
+  }
+  if (raw.kind === 'notify' && typeof raw.message === 'string' &&
+      (raw.level === 'info' || raw.level === 'warning' || raw.level === 'error')) {
+    return { kind: 'notify', message: raw.message, level: raw.level };
+  }
+  if (raw.kind === 'widget' && typeof raw.key === 'string' && raw.key.length > 0 &&
+      (raw.placement === 'aboveEditor' || raw.placement === 'belowEditor')) {
+    if (raw.lines !== undefined && raw.lines !== null &&
+        (!Array.isArray(raw.lines) || !raw.lines.every((line) => typeof line === 'string'))) {
+      return undefined;
+    }
+    return {
+      kind: 'widget',
+      key: raw.key,
+      placement: raw.placement,
+      ...(Array.isArray(raw.lines) ? { lines: raw.lines as string[] } : {}),
+    };
+  }
   return undefined;
 }
 

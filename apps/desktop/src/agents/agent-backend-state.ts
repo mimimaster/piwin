@@ -6,17 +6,47 @@
  * merges into the known list.
  */
 import type {
+  ExtensionSessionBackendIcon,
   ExternalAgentStatus,
   SessionBackendCapabilities,
   SessionBackendOptions,
 } from '@piwin/contracts';
 
 /**
- * Product display names for agent backends. Unknown ids fall back to the raw
- * id so a newer Host's agent is shown rather than mislabelled as Pi.
+ * Product display names for agent backends when no extension catalog entry is
+ * loaded yet. Unknown ids fall back to the raw id so a newer Host's agent is
+ * shown rather than mislabelled as Pi.
  */
 export const AGENT_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   pi: 'Pi',
+  antigravity: 'Antigravity',
+};
+
+/**
+ * Built-in vendor marks for well-known session backends. Installed extensions
+ * declare their own `sessionBackend.icon` in `piwin.json` (which takes
+ * precedence); this fallback keeps historical session rows branded even before
+ * `extensions/list` resolves or if an extension was later uninstalled.
+ */
+export const FALLBACK_AGENT_ICONS: Readonly<Record<string, ExtensionSessionBackendIcon>> = {
+  grok: { kind: 'brand', id: 'xai' },
+  antigravity: { kind: 'brand', id: 'antigravity' },
+  'claude-code': { kind: 'brand', id: 'claude' },
+  codex: { kind: 'brand', id: 'codex' },
+};
+
+export type SessionBackendCatalogEntry = {
+  name: string;
+  icon?: ExtensionSessionBackendIcon | undefined;
+};
+
+export type SessionBackendCatalogMap = Readonly<Record<string, SessionBackendCatalogEntry>>;
+
+export type ResolvedAgentBackendDisplay = {
+  name: string;
+  icon: ExtensionSessionBackendIcon | null;
+  /** Stable identifier for `data-backend-logo` attributes (`brand.id` or `'custom'`). */
+  logoKey: string | null;
 };
 
 export function agentDisplayName(
@@ -27,6 +57,20 @@ export function agentDisplayName(
     return AGENT_DISPLAY_NAMES['pi'] ?? 'Pi';
   }
   return names?.[agentId] ?? AGENT_DISPLAY_NAMES[agentId] ?? agentId;
+}
+
+export function resolveAgentBackendDisplay(
+  agentId: string | undefined | null,
+  catalog?: SessionBackendCatalogMap,
+): ResolvedAgentBackendDisplay {
+  if (agentId === undefined || agentId === null || agentId === '' || agentId === 'pi') {
+    return { name: AGENT_DISPLAY_NAMES['pi'] ?? 'Pi', icon: null, logoKey: null };
+  }
+  const entry = catalog?.[agentId];
+  const name = entry?.name ?? agentDisplayName(agentId);
+  const icon = entry?.icon ?? FALLBACK_AGENT_ICONS[agentId] ?? null;
+  const logoKey = icon === null ? null : icon.kind === 'brand' ? icon.id : 'custom';
+  return { name, icon, logoKey };
 }
 
 /**

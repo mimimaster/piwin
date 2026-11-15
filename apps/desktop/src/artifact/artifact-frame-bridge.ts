@@ -24,7 +24,7 @@ import {
   type ArtifactSelectionMessage,
 } from '@piwin/artifact';
 import { subscribeNativeArtifactBridge } from './artifact-native-bridge.js';
-import type { ArtifactSandboxView } from './artifact-frame-stream.js';
+import type { ArtifactSandboxView } from './artifact-document.js';
 export type ArtifactBridgeStatus = 'loading' | 'streaming' | 'ready' | 'fallback';
 
 export type ArtifactFrameBridge = {

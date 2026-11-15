@@ -111,13 +111,19 @@ describe('projectBlueprintForWorker', () => {
     });
   });
 
-  it('includes optional model and thinking level', () => {
+  it('includes optional model, thinking level, and compaction delegation', () => {
     const blueprint = projectBlueprintForWorker(snapshot(), {
       model: { providerId: 'p', modelId: 'm' },
       thinkingLevel: 'high',
+      compactionDelegation: {
+        model: { protocol: 'openai-compatible', providerId: 'delegate-p', modelId: 'delegate-m' },
+      },
     });
     expect(blueprint.model).toEqual({ providerId: 'p', modelId: 'm' });
     expect(blueprint.thinkingLevel).toBe('high');
+    expect(blueprint.compactionDelegation).toEqual({
+      model: { protocol: 'openai-compatible', providerId: 'delegate-p', modelId: 'delegate-m' },
+    });
   });
 
   it('survives JSON round-trip (golden protocol fixture)', () => {

@@ -285,38 +285,227 @@ describe('SessionStatusPopover', () => {
     expect(onCancelSubagentBatch).not.toHaveBeenCalled();
   });
 
-  it('opens Review from the diff row and artifact rows call their handler', () => {
-    const onOpenTool = vi.fn();
+  it('shows deliverable rows and routes a click to its handler', () => {
     const onOpenArtifact = vi.fn();
     act(() =>
       root.render(
         <Harness
-          diffStat={{ additions: 12, deletions: 3 }}
-          artifacts={[{ id: 'canvas', title: '架构图', tag: '画布', onOpen: onOpenArtifact }]}
-          onOpenTool={onOpenTool}
+          artifacts={[{ id: 'canvas', title: '架构图', meta: 'Canvas', onOpen: onOpenArtifact }]}
+          onOpenTool={vi.fn()}
         />,
       ),
     );
     openPopover();
-    const diff = document.querySelector('[data-testid="session-status-diff"]');
-    expect(diff?.textContent).toContain('+12');
-    expect(diff?.textContent).toContain('−3');
+    const group = document.querySelector('[data-testid="session-status-artifacts"]');
+    expect(group?.textContent).toContain('架构图');
+    expect(group?.textContent).toContain('Canvas');
 
-    // Row clicks close the popover; click artifacts before the changes row.
     act(() => {
       document
         .querySelector('[data-testid="session-status-artifact-canvas"]')
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onOpenArtifact).toHaveBeenCalledTimes(1);
+  });
 
+  it('lists context sources without diff rows or colored tags', () => {
+    const onOpen = vi.fn();
+    act(() =>
+      root.render(
+        <Harness
+          sources={[{ id: 'spec', title: 'ARCHITECTURE.md', meta: 'docs/ARCHITECTURE.md', kind: 'file', onOpen }]}
+          onOpenTool={vi.fn()}
+        />,
+      ),
+    );
     openPopover();
+    const group = document.querySelector('[data-testid="session-status-sources"]');
+    expect(group?.textContent).toContain('ARCHITECTURE.md');
+    expect(document.querySelector('[data-testid="session-status-changes"]')).toBeNull();
+    expect(document.querySelector('[data-testid="session-status-diff"]')).toBeNull();
+
     act(() => {
       document
-        .querySelector('[data-testid="session-status-changes-row"]')
+        .querySelector('[data-testid="session-status-source-spec"]')
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    expect(onOpenTool).toHaveBeenCalledWith('review');
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('collapses the trigger into a breathing capsule counting live processes', () => {
+    act(() =>
+      root.render(
+        <Harness
+          plan={makePlan()}
+          orchestrationView={viewFromItems([
+            makeItem({ anchorId: 'inv-a', title: 'Scout', runId: 'run-1' }),
+            makeItem({ anchorId: 'inv-b', title: 'Done', executionStatus: 'completed' }),
+          ])}
+          jobs={[makeJob({ label: 'api' })]}
+          onOpenTool={vi.fn()}
+        />,
+      ),
+    );
+    const trigger = queryTrigger();
+    expect(trigger?.className).toContain('is-active-capsule');
+    expect(document.querySelector('[data-testid="session-status-live-dot"]')).not.toBeNull();
+    // 1 running subagent + 1 job + 1 active plan; the completed item does not count.
+    expect(document.querySelector('[data-testid="session-status-count"]')?.textContent).toBe('3');
+  });
+
+  it('toggles the stage dock instead of opening the popover when auto-dock is live', () => {
+    const onToggleDock = vi.fn();
+    act(() =>
+      root.render(
+        <Harness
+          plan={makePlan()}
+          docked={false}
+          canAutoDock={true}
+          hasContent={true}
+          onToggleDock={onToggleDock}
+          onOpenTool={vi.fn()}
+        />,
+      ),
+    );
+    const trigger = queryTrigger();
+    expect(trigger).not.toBeNull();
+    act(() => {
+      trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onToggleDock).toHaveBeenCalledTimes(1);
+    // The popover must not duplicate the docked sheet.
+    expect(document.querySelector('[data-testid="session-status"]')).toBeNull();
+  });
+
+  it('keeps the popover path while auto-dock is unavailable', () => {
+    const onToggleDock = vi.fn();
+    act(() =>
+      root.render(
+        <Harness
+          plan={makePlan()}
+          canAutoDock={false}
+          hasContent={true}
+          onToggleDock={onToggleDock}
+          onOpenTool={vi.fn()}
+        />,
+      ),
+    );
+    openPopover();
+    expect(onToggleDock).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-testid="session-status"]')).not.toBeNull();
+  });
+
+  it('shows runtime overview, active prompt path with copy button when pi-purge is on', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const promptPath = '/Users/me/project/.pi/SYSTEM.md';
+    act(() =>
+      root.render(
+        <Harness
+          onOpenTool={vi.fn()}
+          runtimeInfo={{
+            agentId: 'pi',
+            backendLabel: 'Pi',
+            modelLabel: 'Claude Opus',
+            effortLabel: 'high',
+            modeLabel: 'agent',
+            permissionMode: 'auto',
+            sessionId: 'sess-123456789',
+            workspacePath: '/Users/me/project',
+            contextPercent: 42,
+            contextTokensUsed: 84_000,
+            contextTokensLimit: 200_000,
+            extensionSurface: {
+              sessionId: 'sess-123456789',
+              widgets: [],
+              statuses: [
+                {
+                  key: 'meta:pi-purge',
+                  text: JSON.stringify({ on: true, mode: 'replace', source: 'custom', chars: 512 }),
+                },
+                { key: 'meta:pi-purge-path', text: promptPath },
+              ],
+            },
+          }}
+        />,
+      ),
+    );
+    openPopover();
+    expect(document.querySelector('[data-testid="session-status-runtime"]')?.textContent).toContain('42% · 84k / 200k');
+    expect(document.querySelector('[data-testid="session-status-prompt-badge"]')?.textContent).toContain(
+      'PURGE ON · replace (custom)',
+    );
+    expect(
+      document.querySelector('[data-testid="session-status-active-prompt-path"]')?.textContent,
+    ).toBe(promptPath);
+    const copyBtn = document.querySelector('[data-testid="session-status-copy-prompt-path"]');
+    expect(copyBtn).not.toBeNull();
+    act(() => {
+      copyBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(writeText).toHaveBeenCalledWith(promptPath);
+    expect(copyBtn?.textContent).toBe('Copied');
+  });
+
+  it('renders Antigravity account, route, quota buckets and staged prompt path', () => {
+    const agyPromptPath = '/Users/me/.piwin/antigravity-acp/staged-homes/abc123/GEMINI.md';
+    act(() =>
+      root.render(
+        <Harness
+          onOpenTool={vi.fn()}
+          runtimeInfo={{
+            agentId: 'antigravity',
+            backendLabel: 'Antigravity',
+            modelLabel: 'Gemini 4 Carbon',
+            extensionSurface: {
+              sessionId: 'sess-agy',
+              widgets: [],
+              statuses: [
+                {
+                  key: 'meta:agy-purge',
+                  text: JSON.stringify({ on: true, mode: 'replace', source: 'custom', chars: 256 }),
+                },
+                { key: 'meta:agy-purge-path', text: agyPromptPath },
+                {
+                  key: 'meta:agy-account',
+                  text: JSON.stringify({
+                    id: 'work',
+                    label: 'work',
+                    isSystem: false,
+                    proxy: 'http://127.0.0.1:7890',
+                    cooldown: 1,
+                  }),
+                },
+                { key: 'meta:agy-rebuild', text: JSON.stringify({ auto: true, count: 2 }) },
+                { key: 'agy-route', text: 'normal' },
+                {
+                  key: 'meta:agy-quota',
+                  text: JSON.stringify({
+                    accountId: 'work',
+                    buckets: [
+                      { id: 'gemini-5h', label: 'Gemini 5h', remainingPct: 85, reset: '2h 10m' },
+                    ],
+                  }),
+                },
+              ],
+            },
+          }}
+        />,
+      ),
+    );
+    openPopover();
+    const agySection = document.querySelector('[data-testid="session-status-antigravity"]');
+    expect(agySection).not.toBeNull();
+    expect(agySection?.textContent).toContain('work · http://127.0.0.1:7890 · 1 cool');
+    expect(agySection?.textContent).toContain('Auto-rebuild ON (2x)');
+    expect(agySection?.textContent).toContain('Gemini 5h');
+    expect(agySection?.textContent).toContain('85% (2h 10m)');
+    expect(
+      document.querySelector('[data-testid="session-status-active-prompt-path"]')?.textContent,
+    ).toBe(agyPromptPath);
   });
 });
 

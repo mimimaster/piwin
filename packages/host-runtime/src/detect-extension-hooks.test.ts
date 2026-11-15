@@ -176,3 +176,16 @@ describe('setWidget classification', () => {
   });
 });
 
+describe('reload classification', () => {
+  it('treats local reload() helper functions as compatible while flagging ctx.reload() as degraded', () => {
+    const localReload = classifyExtensionSource(
+      "pi.registerCommand('purge', { description: 'p', handler: async () => { reload(); } });\nconst reload = () => {};\n",
+    );
+    expect(localReload.tier).toBe('compatible');
+    expect(localReload.capabilities?.commands).toEqual(['purge']);
+
+    const ctxReload = classifyExtensionSource("pi.registerTool({ name: 'x' });\nctx.reload();\n");
+    expect(ctxReload.tier).toBe('degraded');
+  });
+});
+

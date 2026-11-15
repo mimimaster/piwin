@@ -20,6 +20,8 @@ export type AssistantUsageMeasurement = {
   /** Reasoning tokens when the provider reports them; a subset of completionTokens. */
   reasoningTokens?: number;
   firstTokenKind?: UsageFirstTokenKind;
+  /** Direct USD charge reported by an external backend CLI when available. */
+  costUsd?: number;
   stopReason?: string;
   recordedAt: string;
 };
@@ -71,6 +73,7 @@ export function parseAssistantUsageMeasurement(value: unknown): AssistantUsageMe
     measurement.timingScope = value.timingScope;
   }
   if (!copyOptionalFiniteNonNegative(value, measurement, 'reasoningTokens')) return null;
+  if (!copyOptionalFiniteNonNegative(value, measurement, 'costUsd')) return null;
   if (value.firstTokenKind !== undefined) {
     if (value.firstTokenKind !== 'reasoning' && value.firstTokenKind !== 'content') return null;
     measurement.firstTokenKind = value.firstTokenKind;
@@ -88,7 +91,8 @@ function copyOptionalFiniteNonNegative(
     | 'cacheWriteTokens'
     | 'durationMs'
     | 'firstTokenMs'
-    | 'reasoningTokens',
+    | 'reasoningTokens'
+    | 'costUsd',
 ): boolean {
   const value = source[key];
   if (value === undefined) {

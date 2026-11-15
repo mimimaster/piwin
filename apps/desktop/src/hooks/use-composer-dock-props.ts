@@ -20,6 +20,7 @@ import type {
   ProjectRecord,
   PromptContextRef,
   SessionHandoffSummaryData,
+  SessionUsageTotals,
   SpeechTranscribeInput,
   ThinkingLevel,
 } from '@piwin/contracts';
@@ -38,6 +39,7 @@ import type { OrchestrationSchemeOption } from '../agents/OrchestrationSchemeCon
 import { showErrorNotification } from '@piwin/ui-kit';
 import type { HandoffSummaryPreview } from '../session/handoff-summary-chip';
 import { hostFailureNotice } from '../host/host-problem-copy';
+import { resolveExternalContextFallback } from '../context/external-context-fallback.js';
 import { useDesktopLocale } from '../i18n/desktop-locale-context.js';
 import {
   useSubagentStopController,
@@ -175,6 +177,7 @@ export type UseComposerDockPropsArgs = {
   /** Focused conversation pane session; Live follows this while a call is up. */
   liveSessionId: string | null;
   sidebarMode: SidebarMode;
+  sessionUsageTotals?: SessionUsageTotals | null | undefined;
 };
 
 export type SessionActivityProps = {
@@ -525,6 +528,14 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   );
 
   const activeComposerAgentId = resolveActiveComposerAgentId(state) ?? draftAgentId ?? 'pi';
+  const externalFallbackUsage = resolveExternalContextFallback({
+    isExternalBackend,
+    sessionUsageTotals: args.sessionUsageTotals,
+    contextUsage: state.contextUsage,
+    fallbackTokensUsed,
+    tokensLimit: effectiveModelContextWindow,
+    streaming: state.streaming,
+  });
   // `composerCard` below is rebuilt whenever any handler closure changes, which
   // is every render. Its nested data objects are built here so they keep their
   // identity across those rebuilds and the dock's memo can hold.
@@ -548,18 +559,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
           .length > 0,
       ...(state.compacting ? { compacting: true } : {}),
       ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
-      ...(isExternalBackend && (fallbackTokensUsed > 0 || (state.contextUsage?.tokensUsed ?? 0) > 0)
-        ? {
-            fallbackUsage: {
-              tokensUsed: state.contextUsage?.tokensUsed ?? fallbackTokensUsed,
-              ...(typeof effectiveModelContextWindow === 'number'
-                ? { tokensLimit: effectiveModelContextWindow }
-                : {}),
-              quality: 'estimated' as const,
-              ...(state.streaming ? { phase: 'streaming' as const } : {}),
-            },
-          }
-        : {}),
+      ...(externalFallbackUsage ? { fallbackUsage: externalFallbackUsage } : {}),
     }),
   );
   const liveControl = useMemo(
@@ -600,6 +600,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       activeAgentId: activeComposerAgentId,
       streaming: state.streaming,
       runPhase: state.runPhase,
+      runningSince: state.activeRunStartedAt,
       compacting: state.compacting,
       composer,
       onComposerChange: setComposer,
@@ -836,6 +837,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       state.hostMock,
       state.hostReady,
       state.projectPath,
+      state.activeRunStartedAt,
       state.projectTrusted,
       state.runPhase,
       state.runTerminal.kind,

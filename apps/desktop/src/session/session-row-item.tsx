@@ -21,8 +21,9 @@ import {
   type SessionRowRunPhase,
 } from './session-row-working';
 import { sessionScopeKey } from './session-scope-key';
-import { agentDisplayName } from '../agents/agent-backend-state';
-import { ProviderIcon } from '@piwin/ui-kit';
+import { resolveAgentBackendDisplay, type SessionBackendCatalogMap } from '../agents/agent-backend-state';
+import { useSessionBackendCatalog } from '../hooks/use-enabled-session-backends';
+import { SessionBackendIcon } from '@piwin/ui-kit';
 import { useSessionRowDragGesture } from '../workbench/docking/use-session-row-drag-gesture.js';
 
 /** proto-03 `.i.s12` inside `.ib.s22` hit targets. */
@@ -106,6 +107,7 @@ export function SessionRowItem({
   projectSubtitle,
   isPinnedSection,
   hideActionCluster = false,
+  backendCatalog,
 }: {
   session: SessionListItemUi | DraftSessionItemUi;
   activeSessionId: string | null;
@@ -131,7 +133,11 @@ export function SessionRowItem({
   worktree?: { name: string; branch: string | null } | undefined;
   /** Touch rows reveal the same actions by swiping (swipeable-session-row.tsx). */
   hideActionCluster?: boolean | undefined;
+  /** Optional catalog override for unit tests; defaults to SessionBackendCatalogProvider. */
+  backendCatalog?: SessionBackendCatalogMap | undefined;
 }): ReactElement {
+  const contextBackendCatalog = useSessionBackendCatalog();
+  const effectiveBackendCatalog = backendCatalog ?? contextBackendCatalog;
   const isDraft = 'isDraft' in session && session.isDraft === true;
   const isPinned = 'isPinned' in session && session.isPinned === true;
   const isArchived = 'isArchived' in session && session.isArchived === true;
@@ -140,10 +146,11 @@ export function SessionRowItem({
   // because Pi is the product default.
   const backendAgentId =
     !isDraft && 'backend' in session ? session.backend?.agentId : undefined;
-  const backendBadge = backendAgentId !== undefined ? agentDisplayName(backendAgentId) : null;
-  // Agents with a brand mark show it instead of the text pill; Grok reuses the
-  // shared xAI provider logo.
-  const backendLogoId = backendAgentId === 'grok' ? 'xai' : null;
+  const resolvedBackend =
+    backendAgentId !== undefined && backendAgentId !== 'pi'
+      ? resolveAgentBackendDisplay(backendAgentId, effectiveBackendCatalog)
+      : null;
+  const backendBadge = resolvedBackend?.name ?? null;
   const isActive = isDraft ? session.id === activeDraftId : session.id === activeSessionId;
   const sessionScope = 'scope' in session ? session.scope : undefined;
   const dragScopeKey = sessionScope ? sessionScopeKey(sessionScope) : undefined;
@@ -205,16 +212,24 @@ export function SessionRowItem({
   const formattedPreview = unquoted ? `“${unquoted}”` : null;
 
   const logoBadge =
-    backendBadge !== null && backendLogoId !== null ? (
+    backendBadge !== null &&
+    resolvedBackend !== null &&
+    resolvedBackend.icon !== null &&
+    resolvedBackend.logoKey !== null ? (
       <span
         className="session-backend-badge session-backend-badge--logo"
         data-testid="session-backend-badge"
-        data-backend-logo={backendLogoId}
+        data-backend-logo={resolvedBackend.logoKey}
         role="img"
         aria-label={backendBadge}
         title={backendBadge}
       >
-        <ProviderIcon id={backendLogoId} name={backendBadge} variant="glyph" size={12} />
+        <SessionBackendIcon
+          icon={resolvedBackend.icon}
+          name={backendBadge}
+          variant="glyph"
+          size={12}
+        />
       </span>
     ) : null;
   // piwin only knows the checkout of sessions it runs itself. An external
@@ -349,7 +364,7 @@ export function SessionRowItem({
                 {copy.missingPack}
               </span>
             ) : null}
-            {backendBadge !== null && backendLogoId === null ? (
+            {backendBadge !== null && logoBadge === null ? (
               <span
                 className="session-backend-badge"
                 data-testid="session-backend-badge"

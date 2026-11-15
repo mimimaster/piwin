@@ -7,14 +7,75 @@ import type { DatabaseSync } from 'node:sqlite';
 import {
   normalizeUsageTokenSplit,
   parseAssistantUsageMeasurement,
+  type AssistantUsageMeasurement,
   type SessionLatestRequestTiming,
   type SessionUsageTotals,
 } from '@piwin/contracts';
 import { withActivePath } from './transcript-store-path.js';
 import { addToUsageBucket, createUsageBucket } from './usage-bucket.js';
 
-export function readSessionUsageTotals(db: DatabaseSync, sessionId: string): SessionUsageTotals {
+export type SessionMeasurementCostEstimator = (
+  measurement: AssistantUsageMeasurement,
+) => number | undefined;
+
+export function summarizeMeasurementsIntoSessionTotals(
+  sessionId: string,
+  measurements: readonly AssistantUsageMeasurement[],
+  userTurnCount: number,
+  estimateCost?: SessionMeasurementCostEstimator,
+): SessionUsageTotals {
   const bucket = createUsageBucket();
+  let latestRequest: SessionLatestRequestTiming | undefined;
+  for (const raw of measurements) {
+    const measurement = normalizeUsageTokenSplit(raw);
+    const estimatedUsd =
+      estimateCost?.(measurement) ??
+      (typeof measurement.costUsd === 'number' && Number.isFinite(measurement.costUsd) && measurement.costUsd >= 0
+        ? measurement.costUsd
+        : undefined);
+    addToUsageBucket(
+      bucket,
+      {
+        ...measurement,
+        success: measurement.stopReason !== 'error' && measurement.stopReason !== 'aborted',
+      },
+      estimatedUsd,
+    );
+    latestRequest = {
+      messageId: measurement.messageId,
+      ...(measurement.promptTokens !== undefined ? { promptTokens: measurement.promptTokens } : {}),
+      ...(measurement.cacheReadTokens !== undefined
+        ? { cacheReadTokens: measurement.cacheReadTokens }
+        : {}),
+      ...(measurement.cacheWriteTokens !== undefined
+        ? { cacheWriteTokens: measurement.cacheWriteTokens }
+        : {}),
+      ...(measurement.completionTokens !== undefined
+        ? { completionTokens: measurement.completionTokens }
+        : {}),
+      ...(measurement.durationMs !== undefined ? { durationMs: measurement.durationMs } : {}),
+      ...(measurement.firstTokenMs !== undefined ? { firstTokenMs: measurement.firstTokenMs } : {}),
+      ...(measurement.reasoningTokens !== undefined
+        ? { reasoningTokens: measurement.reasoningTokens }
+        : {}),
+      ...(measurement.firstTokenKind !== undefined
+        ? { firstTokenKind: measurement.firstTokenKind }
+        : {}),
+    };
+  }
+  return {
+    ...bucket,
+    sessionId,
+    userTurnCount,
+    ...(latestRequest ? { latestRequest } : {}),
+  };
+}
+
+export function readSessionUsageTotals(
+  db: DatabaseSync,
+  sessionId: string,
+  estimateCost?: SessionMeasurementCostEstimator,
+): SessionUsageTotals {
   const rows = db
     .prepare(
       `SELECT measurement_json FROM assistant_usage_measurement
@@ -23,41 +84,13 @@ export function readSessionUsageTotals(db: DatabaseSync, sessionId: string): Ses
     )
     .all(sessionId) as unknown as Array<{ measurement_json: string }>;
   // Rows are in recording order, so the last parsed one is the latest request.
-  let latestRequest: SessionLatestRequestTiming | undefined;
+  const measurements: AssistantUsageMeasurement[] = [];
   for (const row of rows) {
-    let measurement;
     try {
       const parsed = parseAssistantUsageMeasurement(JSON.parse(row.measurement_json) as unknown);
-      measurement = parsed && normalizeUsageTokenSplit(parsed);
+      if (parsed) measurements.push(parsed);
     } catch {
       continue;
-    }
-    if (measurement) {
-      addToUsageBucket(bucket, {
-        ...measurement,
-        success: measurement.stopReason !== 'error' && measurement.stopReason !== 'aborted',
-      });
-      latestRequest = {
-        messageId: measurement.messageId,
-        ...(measurement.promptTokens !== undefined ? { promptTokens: measurement.promptTokens } : {}),
-        ...(measurement.cacheReadTokens !== undefined
-          ? { cacheReadTokens: measurement.cacheReadTokens }
-          : {}),
-        ...(measurement.cacheWriteTokens !== undefined
-          ? { cacheWriteTokens: measurement.cacheWriteTokens }
-          : {}),
-        ...(measurement.completionTokens !== undefined
-          ? { completionTokens: measurement.completionTokens }
-          : {}),
-        ...(measurement.durationMs !== undefined ? { durationMs: measurement.durationMs } : {}),
-        ...(measurement.firstTokenMs !== undefined ? { firstTokenMs: measurement.firstTokenMs } : {}),
-        ...(measurement.reasoningTokens !== undefined
-          ? { reasoningTokens: measurement.reasoningTokens }
-          : {}),
-        ...(measurement.firstTokenKind !== undefined
-          ? { firstTokenKind: measurement.firstTokenKind }
-          : {}),
-      };
     }
   }
   const turns = db
@@ -69,10 +102,10 @@ export function readSessionUsageTotals(db: DatabaseSync, sessionId: string): Ses
       ),
     )
     .get(sessionId) as { count: number } | undefined;
-  return {
-    ...bucket,
+  return summarizeMeasurementsIntoSessionTotals(
     sessionId,
-    userTurnCount: turns?.count ?? 0,
-    ...(latestRequest ? { latestRequest } : {}),
-  };
+    measurements,
+    turns?.count ?? 0,
+    estimateCost,
+  );
 }

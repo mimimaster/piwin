@@ -22,18 +22,16 @@ import { Button, Spinner } from '@piwin/ui-kit';
 import { getBehaviorActivitySpec } from '../run-activity/behavior-activity.js';
 import { useArtifactDocumentHandoff } from './artifact-document-handoff.js';
 import { useArtifactFrameBridge } from './artifact-frame-bridge.js';
-import { toArtifactTextSelection, type ArtifactTextSelection } from './artifact-canvas-selection.js';
-import { useArtifactFrameLease } from './artifact-frame-lifecycle.js';
 import {
-  useArtifactDocument,
-  useArtifactStreamPublisher,
-  usePublishedArtifactDocument,
-  type ArtifactSandboxView,
-} from './artifact-frame-stream.js';
-import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
-import { artifactScriptErrorCopy } from './artifact-script-error-copy.js';
-import { ArtifactLayoutBadge } from './artifact-layout-badge.js';
-import { ArtifactContrastBadge, type ArtifactStyleOverride } from './artifact-style-override.js';
+  toArtifactTextSelection,
+  type ArtifactTextSelection,
+} from './artifact-canvas-selection.js';
+import { useArtifactFrameLease } from './artifact-frame-lifecycle.js';
+import { useArtifactDocument, type ArtifactSandboxView } from './artifact-document.js';
+import { useArtifactStreamPublisher } from './artifact-frame-stream.js';
+import { usePublishedArtifactDocument } from './artifact-document-publication.js';
+import { ArtifactSandboxNotices } from './artifact-sandbox-notices.js';
+import type { ArtifactStyleOverride } from './artifact-style-override.js';
 import { useTranscriptScrollPort } from '../conversation/transcript-scroll-port.js';
 import { readRememberedArtifactHeight, rememberArtifactHeight } from './artifact-height-memory.js';
 
@@ -166,7 +164,8 @@ export function ArtifactSandboxFrame(props: {
     presentation: props.presentation,
     streaming: view.mode === 'stream-preview',
   });
-  usePublishedArtifactDocument(document, lease.hostIframe && lease.initGranted);
+  const publication = usePublishedArtifactDocument(document, lease.hostIframe && lease.initGranted);
+  const documentReady = publication.status === 'ready';
   const scrollPort = useTranscriptScrollPort();
   const measureHeight = props.presentation === 'inline' && plannedFrameMode === 'inline-flow';
   // A final inline document starts at the height it had last time it mounted.
@@ -201,7 +200,7 @@ export function ArtifactSandboxFrame(props: {
     documentKey: document.documentKey,
     decision: view,
     iframeRef,
-    enabled: lease.hostIframe && lease.initGranted,
+    enabled: lease.hostIframe && lease.initGranted && documentReady,
     measureHeight,
     bootstrapHeight,
     frameMode: plannedFrameMode,
@@ -223,7 +222,14 @@ export function ArtifactSandboxFrame(props: {
     if (remembersHeight && bridge.status === 'ready' && !bridge.overflowsInlineFlow) {
       rememberArtifactHeight(channelId, frameWidth, bridge.height);
     }
-  }, [bridge.height, bridge.overflowsInlineFlow, bridge.status, channelId, frameWidth, remembersHeight]);
+  }, [
+    bridge.height,
+    bridge.overflowsInlineFlow,
+    bridge.status,
+    channelId,
+    frameWidth,
+    remembersHeight,
+  ]);
   const appliedFrameMode = bridge.overflowsInlineFlow
     ? advanceArtifactFrameMode(plannedFrameMode, 'inline-overflow')
     : plannedFrameMode;
@@ -235,7 +241,7 @@ export function ArtifactSandboxFrame(props: {
     decision: view,
     frameMode: appliedFrameMode,
     iframeRef,
-    enabled: lease.hostIframe && lease.initGranted,
+    enabled: lease.hostIframe && lease.initGranted && documentReady,
     streamLifecycle: document.streamLifecycle,
   });
   const canvas = props.presentation === 'canvas';
@@ -243,7 +249,7 @@ export function ArtifactSandboxFrame(props: {
     channelId,
     document,
     iframeRef,
-    enabled: canvas && lease.hostIframe && lease.initGranted,
+    enabled: canvas && lease.hostIframe && lease.initGranted && publication.error === null,
   });
   const viewportChrome = hostOwnsViewport(appliedFrameMode, bridge.overflowsInlineFlow);
   const showOverflowHint = !canvas && appliedFrameMode === 'inline-overflow';
@@ -254,7 +260,11 @@ export function ArtifactSandboxFrame(props: {
       !document.streamSeeded ||
       paintedDocumentKey !== document.documentKey);
   const toolStatus =
-    bridge.status === 'ready' ? 'done' : bridge.status === 'fallback' ? 'error' : 'running';
+    publication.status === 'error' || (documentReady && bridge.status === 'fallback')
+      ? 'error'
+      : documentReady && bridge.status === 'ready'
+        ? 'done'
+        : 'running';
   const stageHeight =
     view.mode === 'stream-preview' && !canvas && !viewportChrome
       ? Math.max(bridge.height, ARTIFACT_STREAM_MIN_HEIGHT)
@@ -272,6 +282,7 @@ export function ArtifactSandboxFrame(props: {
       data-artifact-host={lease.hostIframe ? 'live' : 'recycled'}
       data-artifact-lifecycle={lease.state}
       data-artifact-height-status={bridge.status}
+      data-artifact-document-status={publication.status}
       data-artifact-renderer="sandbox"
       data-artifact-layout={canvas ? 'canvas' : 'inline'}
       data-frame-mode={appliedFrameMode}
@@ -308,151 +319,118 @@ export function ArtifactSandboxFrame(props: {
         </div>
       ) : (
         <>
-          {showOverflowHint ? (
-            <p
-              className="artifact-overflow-hint"
-              data-testid="artifact-overflow-hint"
-              role="status"
-              aria-live="polite"
-            >
-              {artifactOverflowHintCopy(props.locale)}
-            </p>
-          ) : null}
-          {/* The artifact's own script failed. Say so plainly: otherwise the
-              only thing on screen is whatever fallback the author left, which
-              users read as the platform blocking JavaScript. */}
-          <ArtifactContrastBadge
-            issue={contrastIssue}
-            override={props.styleOverride}
+          <ArtifactSandboxNotices
             locale={props.locale}
-          />
-          <ArtifactLayoutBadge
+            publication={publication}
+            overflowHint={showOverflowHint}
+            scriptError={scriptError}
+            contrastIssue={contrastIssue}
             shatteredText={shatteredText}
-            locale={props.locale}
-            onComposerProposal={props.onComposerProposal}
+            {...(props.styleOverride ? { styleOverride: props.styleOverride } : {})}
+            {...(props.onComposerProposal ? { onComposerProposal: props.onComposerProposal } : {})}
+            heightRecovery={
+              !canvas && bridge.status === 'fallback' && view.mode !== 'stream-preview'
+            }
+            retryMeasurement={bridge.retryMeasurement}
           />
-          {scriptError ? (
-            <p
-              className="artifact-script-error"
-              data-testid="artifact-script-error"
-              role="status"
-              aria-live="polite"
-            >
-              {artifactScriptErrorCopy(scriptError, props.locale)}
-            </p>
-          ) : null}
-          {/* Mid-stream the frame is still growing; the recovery copy only helps
-              once the document is final and the user can act on it. */}
-          {!canvas && bridge.status === 'fallback' && view.mode !== 'stream-preview' ? (
+          {publication.status !== 'error' ? (
             <div
-              className="artifact-height-recovery"
-              data-testid="artifact-height-recovery"
-              role="status"
+              className="artifact-iframe-stage"
+              style={
+                canvas
+                  ? {
+                      minHeight: '100%',
+                      height: '100%',
+                      maxHeight: '100%',
+                      width: '100%',
+                      overflow: 'hidden',
+                      overscrollBehavior: 'contain',
+                    }
+                  : inlineStageStyle(stageHeight, appliedFrameMode, bridge.overflowsInlineFlow)
+              }
             >
-              <span>
-                {props.locale === 'zh-CN'
-                  ? '预览高度仍在恢复，内容可在框内滚动。'
-                  : 'Preview height is still recovering; content remains scrollable.'}
-              </span>
-              <Button size="compact" onClick={bridge.retryMeasurement}>
-                {props.locale === 'zh-CN' ? '重新测量' : 'Measure again'}
-              </Button>
+              {preparingStableSnapshot ? (
+                <div
+                  className="artifact-iframe-placeholder"
+                  data-testid="artifact-stream-preparing"
+                  style={{ position: 'absolute', inset: 0, zIndex: 1 }}
+                >
+                  <span className="artifact-preparing-sheen" aria-hidden="true" />
+                  <div className="artifact-iframe-placeholder-body">
+                    <Spinner
+                      label={
+                        props.locale === 'zh-CN' ? '正在准备稳定画面' : 'Preparing a stable preview'
+                      }
+                    />
+                    <span className="artifact-iframe-placeholder-copy" aria-hidden="true">
+                      {props.locale === 'zh-CN'
+                        ? '正在准备稳定画面…'
+                        : 'Preparing a stable preview…'}
+                    </span>
+                    <span
+                      className="artifact-iframe-placeholder-meta"
+                      data-testid="artifact-stream-received"
+                      aria-hidden="true"
+                    >
+                      {formatReceivedSource(view.descriptor.source, props.locale)}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+              {handoff.outgoing ? (
+                <iframe
+                  key={handoff.outgoing.documentId}
+                  ref={handoff.outgoingRef}
+                  className="artifact-iframe artifact-iframe--scroll-owner artifact-iframe--outgoing"
+                  title=""
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  src={handoff.outgoing.documentUrl}
+                  sandbox="allow-scripts"
+                  referrerPolicy="no-referrer"
+                  data-testid="artifact-iframe-outgoing"
+                />
+              ) : null}
+              {lease.initGranted && documentReady ? (
+                <iframe
+                  // Canvas swaps documents by mounting the successor beside the
+                  // one it replaces; Inline keeps navigating a single element.
+                  key={canvas ? document.documentId : 'artifact-iframe'}
+                  ref={iframeRef}
+                  className={`artifact-iframe${viewportChrome || canvas ? ' artifact-iframe--scroll-owner' : ''}${handoff.outgoing ? ' artifact-iframe--incoming' : ''}`}
+                  title={view.descriptor.title}
+                  src={document.documentUrl}
+                  sandbox="allow-scripts"
+                  referrerPolicy="no-referrer"
+                  data-frame-mode={appliedFrameMode}
+                  onLoad={() => {
+                    lease.markIframeLoaded();
+                    bridge.onIframeLoad();
+                    streamPublisher.onIframeLoad();
+                    handoff.onIncomingLoad();
+                    setPaintedDocumentKey(document.documentKey);
+                  }}
+                  style={
+                    canvas
+                      ? {
+                          minHeight: '100%',
+                          height: '100%',
+                          maxHeight: '100%',
+                          width: '100%',
+                          border: 0,
+                        }
+                      : {
+                          minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
+                          height: '100%',
+                          maxHeight: '100%',
+                          width: '100%',
+                          border: 0,
+                        }
+                  }
+                />
+              ) : null}
             </div>
           ) : null}
-          <div
-            className="artifact-iframe-stage"
-            style={
-              canvas
-                ? {
-                    minHeight: '100%',
-                    height: '100%',
-                    maxHeight: '100%',
-                    width: '100%',
-                    overflow: 'hidden',
-                    overscrollBehavior: 'contain',
-                  }
-                : inlineStageStyle(stageHeight, appliedFrameMode, bridge.overflowsInlineFlow)
-            }
-          >
-            {preparingStableSnapshot ? (
-              <div
-                className="artifact-iframe-placeholder"
-                data-testid="artifact-stream-preparing"
-                style={{ position: 'absolute', inset: 0, zIndex: 1 }}
-              >
-                <span className="artifact-preparing-sheen" aria-hidden="true" />
-                <div className="artifact-iframe-placeholder-body">
-                  <Spinner
-                    label={
-                      props.locale === 'zh-CN' ? '正在准备稳定画面' : 'Preparing a stable preview'
-                    }
-                  />
-                  <span className="artifact-iframe-placeholder-copy" aria-hidden="true">
-                    {props.locale === 'zh-CN' ? '正在准备稳定画面…' : 'Preparing a stable preview…'}
-                  </span>
-                  <span
-                    className="artifact-iframe-placeholder-meta"
-                    data-testid="artifact-stream-received"
-                    aria-hidden="true"
-                  >
-                    {formatReceivedSource(view.descriptor.source, props.locale)}
-                  </span>
-                </div>
-              </div>
-            ) : null}
-            {handoff.outgoing ? (
-              <iframe
-                key={handoff.outgoing.documentId}
-                ref={handoff.outgoingRef}
-                className="artifact-iframe artifact-iframe--scroll-owner artifact-iframe--outgoing"
-                title=""
-                aria-hidden="true"
-                tabIndex={-1}
-                src={handoff.outgoing.documentUrl}
-                sandbox="allow-scripts"
-                referrerPolicy="no-referrer"
-                data-testid="artifact-iframe-outgoing"
-              />
-            ) : null}
-            {lease.initGranted ? (
-              <iframe
-                // Canvas swaps documents by mounting the successor beside the
-                // one it replaces; Inline keeps navigating a single element.
-                key={canvas ? document.documentId : 'artifact-iframe'}
-                ref={iframeRef}
-                className={`artifact-iframe${viewportChrome || canvas ? ' artifact-iframe--scroll-owner' : ''}${handoff.outgoing ? ' artifact-iframe--incoming' : ''}`}
-                title={view.descriptor.title}
-                src={document.documentUrl}
-                sandbox="allow-scripts"
-                referrerPolicy="no-referrer"
-                data-frame-mode={appliedFrameMode}
-                onLoad={() => {
-                  lease.markIframeLoaded();
-                  bridge.onIframeLoad();
-                  streamPublisher.onIframeLoad();
-                  handoff.onIncomingLoad();
-                  setPaintedDocumentKey(document.documentKey);
-                }}
-                style={
-                  canvas
-                    ? {
-                        minHeight: '100%',
-                        height: '100%',
-                        maxHeight: '100%',
-                        width: '100%',
-                        border: 0,
-                      }
-                    : {
-                        minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
-                        height: '100%',
-                        maxHeight: '100%',
-                        width: '100%',
-                        border: 0,
-                      }
-                }
-              />
-            ) : null}
-          </div>
         </>
       )}
     </div>

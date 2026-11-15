@@ -283,6 +283,7 @@ export class HostRuntimeFields {
   commandRequestStore = new AsyncLocalStorage<{ idempotencyKey?: string }>();
   /** Lazy browser resources keyed by conversation; empty key is legacy-only. */
   browserSessions = new Map<string, Promise<import('@piwin/browser').BrowserSession>>();
+  browserResidencyPool: import('./browser-residency-pool.js').BrowserResidencyPool | undefined;
   /** Raw browser JPEG sinks (remote binary frame channel, spec §4.1.2). */
   browserFrameSinks: Set<BrowserFrameBytesSink> = new Set();
   folderRag: import('@piwin/doc-rag').FolderRag | null = null;

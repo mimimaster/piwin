@@ -26,12 +26,14 @@ function TestHarness(props: {
   projectTrusted: boolean;
   enabled: boolean;
   defaultCwd: string;
+  autoCreate?: boolean;
 }): null {
   const api = useTerminalSessions(
     props.projectPath,
     props.projectTrusted,
     props.enabled,
     props.defaultCwd,
+    props.autoCreate,
   );
   lastApi = api;
   return null;
@@ -42,6 +44,7 @@ function renderHarness(props: {
   projectTrusted: boolean;
   enabled: boolean;
   defaultCwd: string;
+  autoCreate?: boolean;
 }): { root: Root; container: HTMLDivElement } {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -82,6 +85,35 @@ describe('useTerminalSessions', () => {
     expect(lastApi?.activeSessionId).toBe(lastApi?.sessions[0]?.id ?? null);
     expect(lastApi?.sessions[0]?.name).toMatch(/^zsh\d+/);
     expect(lastApi?.sessions[0]?.cwd).toBe('/home');
+  });
+
+  it('waits for terminal demand and keeps a running session when demand is hidden again', () => {
+    const props = { projectPath: '/project', projectTrusted: true, enabled: true, defaultCwd: '/home' };
+    const rendered = renderHarness({ ...props, autoCreate: false });
+    root = rendered.root;
+    container = rendered.container;
+    expect(lastApi?.sessions).toHaveLength(0);
+    act(() => { root?.render(<TestHarness {...props} autoCreate />); });
+    const sessionId = lastApi?.sessions[0]?.id;
+    if (sessionId === undefined) throw new Error('missing requested terminal');
+    act(() => { lastApi?.onSessionStatus(sessionId, 'open', 'live-pty'); });
+    act(() => { root?.render(<TestHarness {...props} autoCreate={false} />); });
+    expect(lastApi?.sessions).toHaveLength(1);
+    expect(lastApi?.sessions[0]?.ptyId).toBe('live-pty');
+    expect(lastApi?.activeSessionId).toBe(sessionId);
+  });
+
+  it('keeps an explicitly created terminal when its panel is first selected', () => {
+    const props = { projectPath: '/project', projectTrusted: true, enabled: true, defaultCwd: '/home' };
+    const rendered = renderHarness({ ...props, autoCreate: false });
+    root = rendered.root;
+    container = rendered.container;
+    act(() => { lastApi?.addSession('/chosen'); });
+    const sessionId = lastApi?.activeSessionId;
+    act(() => { root?.render(<TestHarness {...props} autoCreate />); });
+    expect(lastApi?.sessions).toHaveLength(1);
+    expect(lastApi?.activeSessionId).toBe(sessionId);
+    expect(lastApi?.sessions[0]?.cwd).toBe('/chosen');
   });
 
   it('creates initial session even without project or trust', () => {

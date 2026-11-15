@@ -32,6 +32,7 @@ const CACHE_AGE_MS = 30_000;
 
 const WARM_CACHE_NAME = 'warmSessions';
 const PRESENTATION_KEY = 'presentation:non-visible';
+const PROTECTED_PRESENTATION_KEY = 'presentation:protected';
 
 /** Map a registered disposable cache to its reclaim kind. */
 function cacheKind(name: string): ReclaimCandidate['kind'] {
@@ -75,19 +76,26 @@ export function collectReclaimCandidates(nowMs: number = Date.now()): ReclaimCan
     });
   }
 
-  // Restoring keys are a protection reason (visible-adjacent): they must not
-  // count toward the batch-estimate either, or an episode would charge at a
-  // presentation the registry itself refuses to release mid-restore.
-  const presentations = Math.max(
-    0,
-    sessionRenderResources.count() - sessionRenderResources.restoringCount(),
-  );
-  if (presentations > 0) {
+  // Visibility and restoring can overlap, and each session can register more
+  // than one resource. Use the release owner's census rather than subtracting
+  // session-key counts from resource counts.
+  const presentations = sessionRenderResources.reclaimCensus();
+  if (presentations.eligible > 0) {
     candidates.push({
       kind: 'presentation',
       key: PRESENTATION_KEY,
-      estimatedBytes: presentations * PRESENTATION_ESTIMATE_BYTES,
+      estimatedBytes: presentations.eligible * PRESENTATION_ESTIMATE_BYTES,
       protectionScore: 0,
+      lastTouchedMs: CACHE_AGE_MS,
+      restoreCost: 0.7,
+    });
+  }
+  if (presentations.protected > 0) {
+    candidates.push({
+      kind: 'presentation',
+      key: PROTECTED_PRESENTATION_KEY,
+      estimatedBytes: presentations.protected * PRESENTATION_ESTIMATE_BYTES,
+      protectionScore: Number.POSITIVE_INFINITY,
       lastTouchedMs: CACHE_AGE_MS,
       restoreCost: 0.7,
     });

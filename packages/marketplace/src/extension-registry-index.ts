@@ -38,6 +38,31 @@ const DEFAULT_COMMUNITY_EXTENSION_SUMMARIES: Record<string, { en: string; zhCN: 
     en: 'Import and resume coding conversations from Claude Code, Cursor, Codex, and OpenCode into piwin with interactive UI.',
     zhCN: '提供交互式界面，支持从 Claude Code、Cursor、Codex 和 OpenCode 导入并恢复历史对话会话。',
   },
+  'mimimaster/piwin-surge': {
+    en: 'Session-scoped system prompt switcher and isolation lab. Run /surge to open the interactive setup menu, paste a custom prompt or pick a local .md file, and switch strict, replace, or append modes.',
+    zhCN: '会话级系统提示词切换与实验控制台。输入 /surge 打开交互菜单，支持免建文件直接粘贴人设或加载本地 .md 文件，并切换 strict / replace / append 模式（默认关闭，仅当前会话生效）。',
+  },
+};
+
+const DEFAULT_COMMUNITY_EXTENSION_EXAMPLES: Record<string, MarketplaceCatalogEntry['examples']> = {
+  'mimimaster/piwin-surge': [
+    {
+      title: { en: 'Open interactive setup menu', zhCN: '打开交互配置台' },
+      prompt: { en: '/surge', zhCN: '/surge' },
+      expectedResult: {
+        en: 'Opens the Piwin Surge setup menu to paste a custom persona, load a .md file, switch modes, or toggle the status widget.',
+        zhCN: '弹出 Piwin Surge 交互菜单，可直接粘贴人设文本、选择模式或开启面板。',
+      },
+    },
+    {
+      title: { en: 'Pin the 3-step quick guide', zhCN: '显示三步使用指南' },
+      prompt: { en: '/surge guide', zhCN: '/surge guide' },
+      expectedResult: {
+        en: 'Pins a quick-start guide and command cheat sheet above the composer.',
+        zhCN: '在输入框上方固定显示 3 步快速上手指南与全部命令说明。',
+      },
+    },
+  ],
 };
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -110,8 +135,15 @@ export function parseExtensionRegistryIndex(input: unknown): MarketplaceCatalogE
           ...(extension.subdir ? { subdir: extension.subdir } : {}) },
       },
       requirements: [],
-      examples: [{ title: { en: 'Use this extension', zhCN: '使用此扩展' },
-        prompt: { en: `Use ${extension.name} in this task.`, zhCN: `在当前任务中使用 ${extension.name}。` } }],
+      examples: DEFAULT_COMMUNITY_EXTENSION_EXAMPLES[extension.id] ?? [
+        {
+          title: { en: 'Use this extension', zhCN: '使用此扩展' },
+          prompt: {
+            en: `Use ${extension.name} in this task.`,
+            zhCN: `在当前任务中使用 ${extension.name}。`,
+          },
+        },
+      ],
       verification: [{ level: 'author-declared' }],
       featured: false,
     };

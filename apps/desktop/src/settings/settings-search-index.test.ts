@@ -10,6 +10,8 @@ describe('settings search index', () => {
     ['skills', 'extensions'],
     ['runtime', 'session'],
     ['image-generation', 'models'],
+    ['压缩委托', 'models'],
+    ['compaction', 'models'],
     ['编排', 'subagents'],
     ['orchestration', 'subagents'],
     ['渲染', 'artifact'],

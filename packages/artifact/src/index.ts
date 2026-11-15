@@ -87,8 +87,11 @@ export { materializeArtifact } from './materialize.js';
 export {
   bindArtifactSessionMedia,
   listArtifactSessionMediaIds,
+  countArtifactSessionMediaReferences,
   isBindableArtifactMediaId,
 } from './bind-session-media.js';
+export { createArtifactMediaBinding } from './media-budget.js';
+export type { ArtifactMediaBudget } from './media-budget.js';
 
 export {
   buildStableArtifactRevealFrames,

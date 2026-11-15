@@ -48,6 +48,8 @@ export type BrowserObserver = {
   queryConsole(limit?: number): BrowserConsoleEntry[];
   queryNetwork(limit?: number): BrowserNetworkEntry[];
   queryDownloads(limit?: number): BrowserDownloadRef[];
+  pendingDownloads(): number;
+  attachPageDownloads(page: Page): void;
   clear(): void;
 };
 
@@ -60,12 +62,25 @@ export function createBrowserObserver(
   const downloadEntries: BrowserDownloadRef[] = [];
   const attachedPages = new WeakSet<Page>();
   const attachedContexts = new WeakSet<BrowserContext>();
+  const downloadPages = new WeakSet<Page>();
+  let pendingDownloads = 0;
+
+  function attachPageDownloads(page: Page): void {
+    if (downloadPages.has(page)) return;
+    downloadPages.add(page);
+    page.on('download', (download) => {
+      pendingDownloads += 1;
+      void persistDownload(download, options.downloadDir, downloadEntries)
+        .catch((error: unknown) => console.warn('[browser] download persistence failed', error))
+        .finally(() => { pendingDownloads -= 1; });
+    });
+  }
 
   function attachPage(page: Page): void {
     if (attachedPages.has(page)) return;
     attachedPages.add(page);
     attachPageConsoleListeners(page, subscribers, consoleEntries);
-    attachPageDownloadListener(page, options.downloadDir, downloadEntries);
+    attachPageDownloads(page);
   }
 
   function attachContext(context: BrowserContext): void {
@@ -77,6 +92,8 @@ export function createBrowserObserver(
   return {
     attachPage,
     attachContext,
+    attachPageDownloads,
+    pendingDownloads: () => pendingDownloads,
     queryConsole: (limit) => takeTail(consoleEntries, limit),
     queryNetwork: (limit) => takeTail(networkEntries, limit),
     queryDownloads: (limit) => takeTail(downloadEntries, limit),
@@ -216,16 +233,6 @@ function attachContextNetworkListeners(
 
   context.on('requestfinished', (request) => {
     requestStartTimes.delete(request);
-  });
-}
-
-function attachPageDownloadListener(
-  page: Page,
-  downloadDir: string,
-  downloadEntries: BrowserDownloadRef[],
-): void {
-  page.on('download', (download) => {
-    void persistDownload(download, downloadDir, downloadEntries);
   });
 }
 

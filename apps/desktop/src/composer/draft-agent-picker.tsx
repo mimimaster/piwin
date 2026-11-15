@@ -10,6 +10,7 @@ import type { ReactElement } from 'react';
 import { SegmentedControl } from '@piwin/ui-kit';
 import type { ComposerDraftAgentOption } from './composer-dock-types';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
+import { agentBackendStatusCopy } from '../agents/agent-backend-status-copy.js';
 
 export type DraftAgentPickerProps = {
   value: string;
@@ -32,9 +33,7 @@ export function DraftAgentPicker(props: DraftAgentPickerProps): ReactElement {
         notReady.length > 0
           ? notReady
               .map((option) =>
-                isZh
-                  ? `${option.label}：请先在 设置 → Agents 完成配置`
-                  : `${option.label}: finish setup in Settings → Agents`,
+                `${option.label}: ${agentBackendStatusCopy(option, isZh).detail}`,
               )
               .join('\n')
           : undefined
@@ -61,9 +60,7 @@ export function DraftAgentPicker(props: DraftAgentPickerProps): ReactElement {
           value: option.agentId,
           label: option.ready
             ? option.label
-            : isZh
-              ? `${option.label} · 完成配置`
-              : `${option.label} · Setup`,
+            : `${option.label} · ${agentBackendStatusCopy(option, isZh).badge}`,
           // Keep the generic control safe in tests/embedded callers that do
           // not provide navigation, while the workbench makes setup actionable.
           disabled: !option.ready && props.onOpenSettings === undefined,

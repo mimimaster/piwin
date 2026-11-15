@@ -11,6 +11,8 @@ import {
   type ReclaimEpisode,
 } from './reclaim-coordinator';
 import type { ReclaimCandidate } from './reclaim-policy';
+import { sessionRenderResources } from '../session/session-render-resources.js';
+import { collectReclaimCandidates } from './reclaim-candidates.js';
 
 const MIB = 1024 * 1024;
 
@@ -131,6 +133,42 @@ function freshSamples(h: Harness): void {
 }
 
 describe('createReclaimCoordinator', () => {
+  it('ends the real visible-only census as protected-over-budget without a fake release or repeat purge', async () => {
+    sessionRenderResources.register('current', () => {});
+    sessionRenderResources.setVisible(['current']);
+    const h = makeHarness({ enumerateCandidates: collectReclaimCandidates });
+    try {
+      h.setLevel('critical');
+      freshSamples(h);
+      h.coordinator.onPressureSample({ bytes: 4_000 * MIB, level: 'critical' });
+      await h.flush();
+      for (const point of OBSERVATION_POINTS_MS) h.advance(point - h.nowMs);
+      expect(h.releasedKeys).toEqual([]);
+      expect(h.purgeCalls).toBe(0);
+      expect(h.recorded[0]).toMatchObject({
+        outcome: 'protected-over-budget', releasedBytesEstimate: 0,
+        eligibleCount: 0, protectedCount: 1, blockedCount: 0,
+      });
+    } finally {
+      h.coordinator.dispose();
+      sessionRenderResources.reset();
+    }
+  });
+
+  it.each([{ released: 0 }, { released: 0, error: 'release unavailable' }, { released: MIB / 4 }])(
+    'credits reported releases without inflating them to the candidate estimate: %j',
+    async (result) => {
+      const h = makeHarness();
+      h.setLevel('critical');
+      h.setCandidates([cand({ estimatedBytes: 8 * MIB })]);
+      h.setReleaseImpl(() => Promise.resolve(result));
+      h.coordinator.onPressureSample({ bytes: 4_000 * MIB, level: 'critical' });
+      await h.flush();
+      expect(h.coordinator.getCurrentEpisode()?.releasedBytesEstimate).toBe(result.released);
+      h.coordinator.dispose();
+    },
+  );
+
   it('starts an episode on a critical sample with admission-first ordering', async () => {
     const h = makeHarness();
     h.setLevel('critical');

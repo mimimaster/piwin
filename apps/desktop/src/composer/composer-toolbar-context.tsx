@@ -59,7 +59,11 @@ export function ComposerSessionStats(props: {
 }
 
 export function ComposerToolbarContext(props: ComposerStatsLineProps): ReactElement | null {
-  const runningElapsedMs = useRunningElapsed(props.isRunning === true);
+  const runningElapsedMs = useRunningElapsed(
+    props.isRunning === true,
+    props.runningSince,
+    props.sessionKey,
+  );
   const view = props.contextView;
   if (!view?.visible) return null;
   const bar = buildComposerStatusBar({ ...props, runningElapsedMs });

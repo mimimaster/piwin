@@ -12,7 +12,7 @@
  *   Inkstone parks project/branch chips in the stage header trailing slot
  *   (no separate session-context row) so the transcript keeps height.
  */
-import { useEffect, useRef, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactElement, type ReactNode, type Ref } from 'react';
 
 export type WorkspaceShellProps = {
   sidebar: ReactNode;
@@ -37,6 +37,10 @@ export type WorkspaceShellProps = {
   rightPanel: ReactNode;
   workspaceClassName?: string | undefined;
   chatColumnClassName?: string | undefined;
+  /** Stage element handle for width-driven gutters (session status dock). */
+  chatStageRef?: Ref<HTMLDivElement> | undefined;
+  /** Extra class on `.chat-stage` (for example `has-session-dock`). */
+  chatStageClassName?: string | undefined;
   /** Conversation-only shell wrapper (for example the device-local pane tree). */
   renderStage?: ((primaryChatColumn: ReactElement) => ReactNode) | undefined;
 };
@@ -53,6 +57,8 @@ type WorkspaceChatColumnProps = Pick<
   | 'conversationOverrideActive'
   | 'stageOverlay'
   | 'chatColumnClassName'
+  | 'chatStageRef'
+  | 'chatStageClassName'
 >;
 
 function WorkspaceChatColumn(props: WorkspaceChatColumnProps): ReactElement {
@@ -71,7 +77,10 @@ function WorkspaceChatColumn(props: WorkspaceChatColumnProps): ReactElement {
     >
       {props.stageHeader}
       {props.sessionContext}
-      <div className="chat-stage">
+      <div
+        ref={props.chatStageRef}
+        className={`chat-stage${props.chatStageClassName !== undefined ? ` ${props.chatStageClassName}` : ''}`}
+      >
         <div ref={desktop} className="conversation-desktop-surface" hidden={props.conversationOverrideActive === true}>
           {props.transcript}
           {props.activityDock !== undefined ? props.activityDock : null}
@@ -98,6 +107,8 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
       conversationOverrideActive={props.conversationOverrideActive}
       stageOverlay={props.stageOverlay}
       chatColumnClassName={props.chatColumnClassName}
+      chatStageRef={props.chatStageRef}
+      chatStageClassName={props.chatStageClassName}
     />
   );
   return (

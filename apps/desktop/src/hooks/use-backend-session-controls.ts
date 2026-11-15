@@ -7,12 +7,22 @@
  * resulting `SessionBackendOptions`, which is what keeps `modeConfirmed` honest.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch } from 'react';
-import type { ExternalAgentStatus, SessionBackendBinding, SessionBackendOptions } from '@piwin/contracts';
+import type {
+  ExtensionSessionBackendIcon,
+  ExternalAgentStatus,
+  SessionBackendBinding,
+  SessionBackendOptions,
+} from '@piwin/contracts';
 import type { HostClient } from '../host/host-client';
 import type { ChatUiAction } from '../conversation/chat-reducer';
-import { agentDisplayName, backendOptionsFor } from '../agents/agent-backend-state';
+import {
+  agentDisplayName,
+  backendOptionsFor,
+  resolveAgentBackendDisplay,
+} from '../agents/agent-backend-state';
 import { resolveDraftBackendOptions, type DraftBackendSelections } from '../agents/backend-draft-options';
 import type { ComposerDraftAgentOption } from '../composer/composer-dock-types';
+import { useSessionBackendCatalog } from './use-enabled-session-backends';
 
 export type BackendSessionControls = {
   /** Non-null only for a session bound to a non-Pi backend, or a draft targeting one. */
@@ -32,8 +42,13 @@ export type BackendSessionControls = {
  * labelled by its id rather than a hardcoded product name.
  */
 export function draftAgentOptionsFrom(
-  agents: readonly { agentId: string; state: string }[],
-  backends: readonly { agentId: string; name: string; description?: string }[] = [],
+  agents: readonly { agentId: string; state: string; reason?: string | undefined }[],
+  backends: readonly {
+    agentId: string;
+    name: string;
+    description?: string | undefined;
+    icon?: ExtensionSessionBackendIcon | undefined;
+  }[] = [],
 ): ComposerDraftAgentOption[] {
   const options: ComposerDraftAgentOption[] = [{ agentId: 'pi', label: 'Pi', ready: true }];
   const seen = new Set<string>(['pi']);
@@ -41,12 +56,15 @@ export function draftAgentOptionsFrom(
     if (seen.has(backend.agentId)) continue;
     seen.add(backend.agentId);
     const status = agents.find((agent) => agent.agentId === backend.agentId);
+    const icon = backend.icon ?? resolveAgentBackendDisplay(backend.agentId).icon;
     options.push({
       agentId: backend.agentId,
       label: backend.name,
       ready: status?.state === 'ready',
       ...(status?.state ? { state: status.state } : {}),
+      ...(status?.reason ? { reason: status.reason } : {}),
       ...(backend.description ? { description: backend.description } : {}),
+      ...(icon ? { icon } : {}),
     });
   }
   for (const agent of agents) {
@@ -55,11 +73,14 @@ export function draftAgentOptionsFrom(
       continue;
     }
     seen.add(agent.agentId);
+    const icon = resolveAgentBackendDisplay(agent.agentId).icon;
     options.push({
       agentId: agent.agentId,
       label: agentDisplayName(agent.agentId),
       ready: agent.state === 'ready',
       state: agent.state,
+      ...(agent.reason ? { reason: agent.reason } : {}),
+      ...(icon ? { icon } : {}),
     });
   }
   return options;
@@ -313,9 +334,10 @@ export function useBackendSessionControls(args: {
     [draftAgentId, send, sessionId],
   );
 
+  const backendCatalog = useSessionBackendCatalog();
   return {
     options,
-    agentLabel: options ? agentDisplayName(options.agentId) : null,
+    agentLabel: options ? resolveAgentBackendDisplay(options.agentId, backendCatalog).name : null,
     selectModel,
     selectEffort,
     selectMode,

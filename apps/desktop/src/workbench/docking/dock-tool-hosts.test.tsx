@@ -73,16 +73,18 @@ describe('docked Document surface', () => {
     });
     // The panel is a lazy surface behind Suspense: give the dynamic import
     // real ticks before reading the rendered text.
-    for (let attempt = 0; attempt < 40; attempt += 1) {
+    for (let attempt = 0; attempt < 400; attempt += 1) {
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 5));
       });
-      const text = container.textContent ?? '';
-      if (text.length > 0 && !container.querySelector('[data-testid="deferred-surface-fallback"]')) {
-        return text;
+      // The theme provider inserts non-empty CSS before the lazy panel loads.
+      // Only the actual panel proves that the tool has finished mounting.
+      const panel = container.querySelector('[data-testid="doc-preview-panel"]');
+      if (panel !== null && !container.querySelector('[data-testid="deferred-surface-fallback"]')) {
+        return panel.textContent ?? '';
       }
     }
-    return container.textContent ?? '';
+    throw new Error('docked document panel did not finish loading');
   }
 
   it('explains a symlink alias instead of a generic preview failure', async () => {

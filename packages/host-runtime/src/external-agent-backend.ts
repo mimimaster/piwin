@@ -14,6 +14,7 @@ import type {
   AgentPluginPermissionPrompt,
   AgentPluginRequestUsageQuery,
   BackendPermissionOption,
+  ExtensionUiSurfaceUpdate,
   ExternalAgentMcpServerStatus,
   ExternalAgentStatus,
   HostPush,
@@ -62,6 +63,10 @@ export type ExternalAgentBackendDeps = {
   getForegroundRunId: (sessionId: string) => string | undefined;
   /** The adapter reported a new title for a product session. */
   onSessionTitle: (sessionId: string, title: string) => void;
+  /** Optional status/widget/working-message surface updates from the adapter. */
+  onSessionUiSurface?: (sessionId: string, update: ExtensionUiSurfaceUpdate) => void;
+  /** Reset any adapter-published UI surface when a session is forgotten. */
+  onSessionUiReset?: (sessionId: string) => void;
   /** A resident adapter process exited on its own. */
   onSessionTransportClosed: (sessionId: string, reason: string) => void;
   /** Draft session/new became a real vendor id. */
@@ -175,6 +180,7 @@ export class ExternalAgentBackend {
     this.sessionOptions.delete(sessionId);
     this.sessionCapabilities.delete(sessionId);
     this.mcpStatuses.delete(sessionId);
+    this.deps.onSessionUiReset?.(sessionId);
   }
 
   async observeNativeSession(agentId: string, query: import('@piwin/contracts').AgentPluginNativeObservationQuery, productSessionId?: string): Promise<import('@piwin/contracts').AgentPluginNativeObservation | undefined> {
@@ -262,6 +268,13 @@ export class ExternalAgentBackend {
         onMcpStatus: (servers, observed) => {
           this.mcpStatuses.set(input.productSessionId, { agentId: input.agentId, servers: [...servers], observed });
         },
+        ...(this.deps.onSessionUiSurface !== undefined
+          ? {
+              onUiSurface: (update: ExtensionUiSurfaceUpdate) => {
+                this.deps.onSessionUiSurface?.(input.productSessionId, update);
+              },
+            }
+          : {}),
         onTransportClosed: (reason) => {
           this.settlePendingPermissions(input.productSessionId);
           this.deps.backendUserInput?.cancelSession(input.productSessionId);

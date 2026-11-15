@@ -17,6 +17,7 @@ import { SubAgentPanel } from '../agents/SubAgentPanel';
 import { MAX_RECENT_TASK_ITEMS } from '../agents/subagent-tasks-overview';
 import { writeSessionKeyedValue } from '../session/session-keyed-memory';
 import { RIGHT_PANEL_TABS_BY_SESSION_STORAGE_KEY } from '../hooks/use-right-panel-follows-session';
+import type { TerminalSessionsApi } from '../hooks/use-terminal-sessions';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -27,11 +28,13 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 function renderPanel(props: Partial<Parameters<typeof RightPanel>[0]> = {}): {
   container: HTMLDivElement;
   root: Root;
+  rerender: (props: Partial<Parameters<typeof RightPanel>[0]>) => void;
 } {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
-  act(() => {
+  const rerender = (nextProps: Partial<Parameters<typeof RightPanel>[0]>): void => {
+    act(() => {
     root.render(
       <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
         <RightPanel
@@ -47,12 +50,14 @@ function renderPanel(props: Partial<Parameters<typeof RightPanel>[0]> = {}): {
           filesContent={<div data-testid="files-body">files</div>}
           terminalContent={<div data-testid="terminal-body">terminal</div>}
           reviewContent={<div data-testid="review-body">review</div>}
-          {...props}
+          {...nextProps}
         />
       </PiwinUiProvider>,
     );
-  });
-  return { container, root };
+    });
+  };
+  rerender(props);
+  return { container, root, rerender };
 }
 
 function BrowserBodyWithPageTabs(props: { count: number }) {
@@ -66,6 +71,48 @@ function BrowserBodyWithPageTabs(props: { count: number }) {
 describe('RightPanel multi-tab', () => {
   let root: Root | undefined;
   let container: HTMLDivElement | undefined;
+
+  it('resolves a generic Terminal request when the first session arrives after another tab was restored', () => {
+    writeStoredRightPanelState({ openTabs: ['memory'], activeTab: 'memory' });
+    const onTabChange = vi.fn();
+    const terminalSessions: TerminalSessionsApi = {
+      sessions: [], activeSessionId: null, setActiveSessionId: vi.fn(),
+      addSession: vi.fn(() => null), closeSession: vi.fn(), restartSession: vi.fn(),
+      onSessionStatus: vi.fn(), onSessionTitle: vi.fn(),
+    };
+    const rendered = renderPanel({ activeTab: 'terminal', terminalSessions, onTabChange });
+    root = rendered.root;
+    container = rendered.container;
+    rendered.rerender({ activeTab: 'terminal', onTabChange, terminalSessions: {
+      ...terminalSessions,
+      activeSessionId: 'terminal-1',
+      sessions: [{ id: 'terminal-1', name: 'zsh1', cwd: '/home', projectPath: '',
+        status: 'idle', error: null, generation: 0, ptyId: null }],
+    } });
+    expect(onTabChange).toHaveBeenCalledWith('terminal-1');
+  });
+
+  it('reports whether the docked body is actually selected and expanded', () => {
+    for (const [open, activeTab, expected] of [
+      [false, 'canvas', false], [true, 'memory', false], [true, 'canvas', true],
+    ] as const) {
+      writeStoredRightPanelState({ openTabs: ['memory'], activeTab: 'memory' });
+      const onVisibilityChange = vi.fn();
+      const rendered = renderPanel({
+        open, activeTab,
+        dockedTools: {
+          tabs: ['canvas'], groupId: 'right', onClose: vi.fn(), slotRef: vi.fn(),
+          panelRef: vi.fn(), onTitlebarChange: vi.fn(), onVisibilityChange,
+        },
+      });
+      try {
+        expect(onVisibilityChange).toHaveBeenLastCalledWith(expected);
+      } finally {
+        act(() => { rendered.root.unmount(); });
+        rendered.container.remove();
+      }
+    }
+  });
 
   afterEach(() => {
     if (root && container) {

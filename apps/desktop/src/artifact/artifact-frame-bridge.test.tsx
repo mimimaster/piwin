@@ -11,7 +11,7 @@ import {
   type ArtifactActionMessage,
 } from '@piwin/artifact';
 import { useArtifactFrameBridge } from './artifact-frame-bridge.js';
-import type { ArtifactSandboxView } from './artifact-frame-stream.js';
+import type { ArtifactSandboxView } from './artifact-document.js';
 import { subscribeNativeArtifactBridge } from './artifact-native-bridge.js';
 
 vi.mock('./artifact-native-bridge.js', () => ({

@@ -13,6 +13,8 @@ import { listStageRects, listStageSeparatorRects } from './geometry.js';
 import { focusView, maximizeGroup, setDisplayMode } from './identity.js';
 import { moveViewToEdge } from './layout-commands.js';
 import { listStageGroupIds } from './topology.js';
+import { isStageGroupVisible, selectVisibleWorkspaceViews } from './visible-views.js';
+import { DeferredDockingSurface } from './deferred-docking-surface.js';
 import {
   isPrimaryDockingLayout,
   primaryLayoutSessionId,
@@ -63,6 +65,10 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
   const [stagePx, setStagePx] = useState({ width: 1200, height: 800 });
   const phoneSinglePane = props.phoneSinglePane === true;
   const state = controller.state;
+  const visibleViewIds = new Set(selectVisibleWorkspaceViews(state, {
+    phone: phoneSinglePane,
+    rightPanelOpen: controller.rightHost.open && controller.rightHost.bodyVisible,
+  }).map((view) => view.viewId));
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -79,13 +85,8 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
   const { onPromoteSession } = props;
 
   const isGroupVisible = useCallback(
-    (groupId: string): boolean => {
-      if (phoneSinglePane) return groupId === state.activeGroupId;
-      if (state.displayMode === 'focused') return groupId === state.activeGroupId;
-      if (state.displayMode === 'maximized') return groupId === state.maximizedGroupId;
-      return true;
-    },
-    [phoneSinglePane, state.activeGroupId, state.displayMode, state.maximizedGroupId],
+    (groupId: string): boolean => isStageGroupVisible(state, groupId, phoneSinglePane),
+    [phoneSinglePane, state],
   );
 
   useEffect(() => {
@@ -462,13 +463,15 @@ export function DockingWorkspace(props: DockingWorkspaceProps): ReactElement {
         }
         // Always wrap so entering/leaving the titlebar never remounts the view.
         return createPortal(
-          <SurfaceTitlebarProvider value={viewId === rightTitlebarViewId ? rightTitlebar : null}>
-            <DockViewContent
-              viewId={viewId}
-              view={view}
-              ctx={ctxRef.current}
-            />
-          </SurfaceTitlebarProvider>,
+          <DeferredDockingSurface visible={view.kind === 'session' || visibleViewIds.has(viewId)}>
+            <SurfaceTitlebarProvider value={viewId === rightTitlebarViewId ? rightTitlebar : null}>
+              <DockViewContent
+                viewId={viewId}
+                view={view}
+                ctx={ctxRef.current}
+              />
+            </SurfaceTitlebarProvider>
+          </DeferredDockingSurface>,
           host,
           viewId,
         );

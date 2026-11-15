@@ -1,7 +1,7 @@
 /**
  * Tiny presentational helpers for MemoryDiagnosticsPanel, kept out of the
  * panel file so the data/actions flow stays readable. Class hooks live in
- * inspector-panels.css (.memory-diag-*).
+ * memory-diagnostics.css (.memory-diag-*).
  */
 import type { ReactElement, ReactNode } from 'react';
 import { Button, Collapse } from '@piwin/ui-kit';
@@ -45,13 +45,22 @@ export function MemoryDiagExpandable(props: {
       <Button
         variant="ghost"
         size="compact"
+        className="memory-diag-toggle"
         data-testid={`${props.testId}-toggle`}
+        aria-expanded={props.open}
+        aria-controls={`${props.testId}-content`}
         onClick={props.onToggle}
       >
         {props.open ? '▾' : '▸'} {props.label}
       </Button>
-      <Collapse expanded={props.open} testId={props.testId}>
-        <div className="memory-diag-detail muted">{props.children}</div>
+      <Collapse
+        id={`${props.testId}-content`}
+        expanded={props.open}
+        transitionDuration={0}
+        animateOpacity={false}
+        testId={props.testId}
+      >
+        {props.open ? <div className="memory-diag-detail muted">{props.children}</div> : null}
       </Collapse>
     </div>
   );

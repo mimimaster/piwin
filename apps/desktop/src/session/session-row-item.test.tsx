@@ -6,6 +6,7 @@ import { SessionRowItem } from './session-row-item';
 import { getDesktopCopy } from '../i18n/desktop-locale';
 import type { SessionListItemUi } from '../conversation/chat-reducer';
 import type { DraftSessionItemUi } from '../composer/draft-session';
+import type { SessionBackendCatalogMap } from '../agents/agent-backend-state';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -21,6 +22,7 @@ function renderSessionRow(props: {
   activeSessionId?: string | null;
   isPinnedSection?: boolean;
   worktree?: { name: string; branch: string | null };
+  backendCatalog?: SessionBackendCatalogMap;
 }) {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -33,6 +35,7 @@ function renderSessionRow(props: {
         projectSubtitle={props.projectSubtitle}
         isPinnedSection={props.isPinnedSection}
         worktree={props.worktree}
+        {...(props.backendCatalog ? { backendCatalog: props.backendCatalog } : {})}
         activeSessionId={props.activeSessionId ?? null}
         onResumeSession={vi.fn()}
         onOpenSessionMenu={vi.fn()}
@@ -252,14 +255,66 @@ describe('SessionRowItem', () => {
     const session: SessionListItemUi = {
       id: 'sess-other-1',
       name: 'Other session',
-      backend: { agentId: 'codex' },
+      backend: { agentId: 'custom-cli' },
       updatedAt: new Date().toISOString(),
     };
     const { container } = renderSessionRow({ session });
     activeContainers.push(container);
     const badge = container.querySelector('[data-testid="session-backend-badge"]');
     expect(badge?.getAttribute('data-backend-logo')).toBeNull();
-    expect(badge?.textContent).not.toBe('');
+    expect(badge?.textContent).toBe('custom-cli');
+  });
+
+  it('renders Claude Code and Codex vendor logos in the lead slot and suppresses the text pill', async () => {
+    for (const [agentId, expectedLogo] of [
+      ['claude-code', 'claude'],
+      ['codex', 'codex'],
+    ] as const) {
+      const { container } = renderSessionRow({
+        session: {
+          id: `sess-${agentId}`,
+          name: `${agentId} session`,
+          backend: { agentId },
+          updatedAt: new Date().toISOString(),
+        },
+      });
+      activeContainers.push(container);
+      await act(async () => {
+        await vi.dynamicImportSettled();
+      });
+      const lead = container.querySelector('.session-lead');
+      expect(lead?.querySelector(`[data-backend-logo="${expectedLogo}"]`)).not.toBeNull();
+      expect(lead?.querySelector(`[data-provider-icon="${expectedLogo}"]`)).not.toBeNull();
+      expect(container.querySelector('[data-testid="session-native-mark"]')).toBeNull();
+      expect(container.querySelectorAll('[data-testid="session-backend-badge"]')).toHaveLength(1);
+    }
+  });
+
+  it('renders custom SVG glyph icons declared by third-party extensions in the lead slot', () => {
+    const { container } = renderSessionRow({
+      session: {
+        id: 'sess-third-party',
+        name: 'Third-party session',
+        backend: { agentId: 'acme-agent' },
+        updatedAt: new Date().toISOString(),
+      },
+      backendCatalog: {
+        'acme-agent': {
+          name: 'Acme Agent',
+          icon: {
+            kind: 'glyph',
+            viewBox: '0 0 24 24',
+            paths: ['M12 2 L22 20 L2 20 Z'],
+          },
+        },
+      },
+    });
+    activeContainers.push(container);
+    const lead = container.querySelector('.session-lead');
+    const badge = lead?.querySelector('[data-backend-logo="custom"]');
+    expect(badge?.getAttribute('aria-label')).toBe('Acme Agent');
+    expect(badge?.querySelector('[data-backend-icon="glyph"] svg path')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="session-backend-badge"]')).toHaveLength(1);
   });
 
   it('leaves a Pi session unlabelled', () => {
@@ -299,6 +354,24 @@ describe('SessionRowItem', () => {
     const lead = container.querySelector('.session-lead');
     expect(lead?.querySelector('[data-backend-logo="xai"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="session-native-mark"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="session-backend-badge"]')).toHaveLength(1);
+  });
+
+  it('puts the Antigravity logo in the lead slot aligning with the neutral ring', () => {
+    const { container } = renderSessionRow({
+      session: {
+        id: 'sess-antigravity-lead',
+        name: 'Antigravity session',
+        backend: { agentId: 'antigravity' },
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    activeContainers.push(container);
+    const lead = container.querySelector('.session-lead');
+    expect(lead?.querySelector('[data-backend-logo="antigravity"]')).not.toBeNull();
+    expect(lead?.querySelector('[data-provider-icon="antigravity"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="session-native-mark"]')).toBeNull();
+    // The text badge in the title is suppressed because the brand mark is shown in the lead slot.
     expect(container.querySelectorAll('[data-testid="session-backend-badge"]')).toHaveLength(1);
   });
 

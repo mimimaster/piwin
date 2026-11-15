@@ -53,6 +53,8 @@ export type BrowserSessionLeaseState = {
   viewport: BrowserViewportConfig | undefined;
   documentRevision: number | undefined;
   frameError: BrowserFrameErrorReason | null;
+  pageStateLost?: boolean;
+  recoveryCount?: number;
 };
 
 export const EMPTY_BROWSER_SESSION_LEASE: BrowserSessionLeaseState = {
@@ -120,6 +122,8 @@ export function reduceBrowserHostPush(
       generation,
       pageId,
       documentRevision,
+      pageStateLost: message.pageStateLost ?? state.pageStateLost ?? false,
+      recoveryCount: message.recoveryCount ?? state.recoveryCount ?? 0,
       tabs: message.tabs ?? (identityChanged ? [] : state.tabs),
       pendingDialog:
         message.pendingDialog === undefined
@@ -187,6 +191,7 @@ type BrowserSessionLeaseAction =
   | { type: 'pick-pending'; pickPending: boolean }
   | { type: 'pick-error'; pickError: string | null }
   | { type: 'frame-ready'; view: BrowserFrameView }
+  | { type: 'frame-released' }
   | { type: 'frame-error'; reason: BrowserFrameErrorReason };
 
 export function reduceBrowserSessionLease(
@@ -223,5 +228,8 @@ export function reduceBrowserSessionLease(
       };
     case 'frame-error':
       return { ...state, frameError: action.reason };
+    case 'frame-released':
+      return { ...state, frame: EMPTY_BROWSER_SESSION_LEASE.frame, frameError: null,
+        highlight: null, pickPending: false, pickError: null };
   }
 }

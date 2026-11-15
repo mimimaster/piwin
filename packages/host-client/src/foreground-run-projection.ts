@@ -13,6 +13,7 @@ export type ForegroundRunState =
       runId: string;
       status: ForegroundRunStatus;
       phase?: string;
+      startedAt?: number;
     };
 
 export type ForegroundRunEvent =
@@ -79,12 +80,18 @@ export function reduceForegroundRun(
         }
       }
       const generation = state.kind === 'unknown' ? 0 : state.generation;
+      const startedAt =
+        parseStartedAt(event.run.startedAt) ??
+        (state.kind === 'active' && state.runId === event.run.runId
+          ? state.startedAt
+          : undefined);
       return {
         kind: 'active',
         generation,
         runId: event.run.runId,
         status: event.run.status as ForegroundRunStatus,
         ...(event.run.phase === undefined ? {} : { phase: event.run.phase }),
+        ...(startedAt === undefined ? {} : { startedAt }),
       };
     }
     case 'run-terminal': {
@@ -145,16 +152,24 @@ export function readForegroundRunRecord(data: unknown): ExecutionRunRecord | nul
   return run as unknown as ExecutionRunRecord;
 }
 
+function parseStartedAt(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function projectRun(run: ExecutionRunRecord | null, generation: number): ForegroundRunState {
   if (run === null || !isActiveRun(run)) {
     return { kind: 'idle', generation };
   }
+  const startedAt = parseStartedAt(run.startedAt);
   return {
     kind: 'active',
     generation,
     runId: run.runId,
     status: run.status as ForegroundRunStatus,
     ...(run.phase === undefined ? {} : { phase: run.phase }),
+    ...(startedAt === undefined ? {} : { startedAt }),
   };
 }
 

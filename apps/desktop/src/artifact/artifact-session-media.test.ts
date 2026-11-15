@@ -13,7 +13,11 @@ const OTHER_MEDIA_ID = 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff';
 const DATA_URL = 'data:image/webp;base64,UklGRhYAAABXRUJQVlA4TAoAAAAvAAAAAA==';
 
 const { limitedDataUrlFromHref } = vi.hoisted(() => ({
-  limitedDataUrlFromHref: vi.fn<(href: string, maxEdgePx: number) => Promise<string | null>>(),
+    limitedDataUrlFromHref: vi.fn<(
+      href: string,
+      maxEdgePx: number,
+      options?: { maxCharacters?: number; isStale?: () => boolean },
+    ) => Promise<string | null>>(),
 }));
 
 const { localVaultUrl } = vi.hoisted(() => ({
@@ -173,13 +177,14 @@ describe('resolveArtifactSessionMediaDataUrls', () => {
     expect(urls.size).toBe(0);
   });
 
-  it('stops binding once the per-artifact inline budget is spent', async () => {
+  it('compresses instead of dropping later images when the initial previews exceed the budget', async () => {
     const prefix = 'data:image/webp;base64,';
-    // Exactly the whole budget, so the next image has nothing left to spend.
+    // Filling the raw buffer must trigger fitting, without omitting the next image.
     const huge = `${prefix}${'A'.repeat(ARTIFACT_MEDIA_TOTAL_BUDGET_CHARS - prefix.length)}`;
-    limitedDataUrlFromHref.mockImplementation(async (href) =>
-      href.endsWith('huge') ? huge : DATA_URL,
-    );
+    limitedDataUrlFromHref.mockImplementation(async (href, _maxEdge, options) => {
+      if (options?.maxCharacters !== undefined) return DATA_URL;
+      return href.endsWith('huge') ? huge : DATA_URL;
+    });
     const urls = await resolveArtifactSessionMediaDataUrls({
       source: `<img data-piwin-media="${MEDIA_ID}"><img data-piwin-media="${OTHER_MEDIA_ID}">`,
       sessionId: 'session-1',
@@ -187,7 +192,8 @@ describe('resolveArtifactSessionMediaDataUrls', () => {
         assetId === MEDIA_ID ? 'blob:http://localhost/huge' : 'blob:http://localhost/small',
     });
     expect(urls.has(MEDIA_ID)).toBe(true);
-    expect(urls.has(OTHER_MEDIA_ID)).toBe(false);
+    expect(urls.has(OTHER_MEDIA_ID)).toBe(true);
+    expect(urls.get(MEDIA_ID)).toBe(DATA_URL);
   });
 
   it('a stale completion is returned to the caller but never admitted to the cache', async () => {
@@ -212,6 +218,24 @@ describe('resolveArtifactSessionMediaDataUrls', () => {
       readMedia: async () => 'blob:http://localhost/icon',
     });
     expect(limitedDataUrlFromHref).toHaveBeenCalledTimes(1);
+  });
+
+  it('fits one artifact without degrading the shared preview used by a looser budget', async () => {
+    const prefix = 'data:image/jpeg;base64,';
+    const original = prefix + 'A'.repeat(10000);
+    limitedDataUrlFromHref.mockImplementation(async (_href, _edge, options) => options?.maxCharacters !== undefined
+      ? prefix + 'A'.repeat(options.maxCharacters - prefix.length)
+      : original);
+    const input = {
+      source: `<img data-piwin-media="${MEDIA_ID}">`,
+      sessionId: 'session-1',
+      readMedia: async () => 'blob:http://localhost/icon',
+    };
+    const tight = await resolveArtifactSessionMediaDataUrls({ ...input, budget: { maxCharacters: 1000, references: new Map([[MEDIA_ID, 1]]) } });
+    const loose = await resolveArtifactSessionMediaDataUrls({ ...input, budget: { maxCharacters: 20000, references: new Map([[MEDIA_ID, 1]]) } });
+    expect(tight.get(MEDIA_ID)?.length).toBeLessThanOrEqual(1000);
+    expect(loose.get(MEDIA_ID)).toBe(original);
+    expect(getArtifactMediaDataUrlCacheStats().encodedBytes).toBe(original.length);
   });
 
   it('a live completion populates the cache normally', async () => {

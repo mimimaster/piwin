@@ -42,6 +42,8 @@ export function useTerminalSessions(
   _projectTrusted: boolean,
   enabled: boolean,
   defaultCwd: string,
+  /** First-use demand only; turning this off never closes an existing session. */
+  autoCreate = true,
 ): TerminalSessionsApi {
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -90,6 +92,8 @@ export function useTerminalSessions(
       if (sessionsRef.current.length >= MAX_TERMINAL_SESSIONS) {
         return null;
       }
+      // An explicit + action already satisfied first-terminal demand.
+      seededRef.current = true;
       // General-scope: allow terminal even without project or trust.
       const session = createSession(cwd);
       setSessions((current) => {
@@ -187,6 +191,7 @@ export function useTerminalSessions(
     }
 
     if (!seededRef.current) {
+      if (!autoCreate) return;
       seededRef.current = true;
       const first = createSession();
       setSessions([first]);
@@ -214,7 +219,7 @@ export function useTerminalSessions(
       });
       return changed ? next : current;
     });
-  }, [createSession, defaultCwd, enabled, reset, sessions.length]);
+  }, [autoCreate, createSession, defaultCwd, enabled, reset, sessions.length]);
 
   // Cleanup on unmount.
   useEffect(() => {

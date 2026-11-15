@@ -192,6 +192,17 @@ describe('BrowserSessionPanel', () => {
     expect(queryByTestId('browser-session-frame')).toBeNull();
   });
 
+  it('explains page-state loss after restoring an idle browser, once per generation', async () => {
+    const client = createMockHostClient();
+    renderPanel({ hostClient: client });
+    await emitHostPush(client, { type: 'browser/state', ts: 1, generation: 2,
+      lifecycle: 'ready', pageStateLost: true, recoveryCount: 1 });
+    expect(queryByTestId('browser-session-notice')?.textContent).toMatch(/临时状态|temporary/);
+    await act(async () => { queryByTestId('browser-session-notice-dismiss')?.click(); });
+    await emitHostPush(client, { type: 'browser/state', ts: 2, generation: 2, pageStateLost: true });
+    expect(queryByTestId('browser-session-notice')).toBeNull();
+  });
+
   it('exposes history controls', async () => {
     const client = createMockHostClient();
     const requestSpy = vi.spyOn(client, 'request');

@@ -263,6 +263,14 @@
   gap: 8px;
 }
 
+.empty-stage-engine-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-1);
+  flex-shrink: 0;
+}
+
 .empty-stage-engine-name {
   font-size: 13.5px;
   font-weight: 600;

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "extensionId": "piwin-mimimaster-opencode-zen",
+  "contentRevision": "b3b5a33962507ad7f5104bd080ad72e150669012666956223ff1abd83c1fa25a",
+  "entryPath": "source",
+  "versionName": "0.3.1",
+  "sourceLocator": "bundled:github:mimimaster/piwin-opencode-zen#16a9c2654d53e03d3135c5bbf10082fd9e5fb293@0.3.1+0"
+}

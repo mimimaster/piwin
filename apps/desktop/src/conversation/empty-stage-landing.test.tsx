@@ -361,7 +361,7 @@ describe('EmptyStageLanding', () => {
 
     const grokCard = container.querySelector<HTMLButtonElement>('[data-testid="empty-stage-engine-grok"]');
     expect(grokCard?.classList.contains('is-not-ready')).toBe(true);
-    expect(grokCard?.textContent).toContain('未安装 CLI');
+    expect(grokCard?.textContent).toContain('待检测');
 
     const settingsLink = grokCard?.querySelector('.empty-stage-engine-settings-link');
     expect(settingsLink).not.toBeNull();

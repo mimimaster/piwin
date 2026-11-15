@@ -130,7 +130,7 @@ export function resolveResumePromptText(
   return `${text}\n\nAdditional user instruction:\n${userText.trim()}`;
 }
 
-function promptInputFromStoredUser(
+export function promptInputFromStoredUser(
   stored: SessionTranscriptMessage,
   commandInput: PromptInput,
 ): PromptInput {

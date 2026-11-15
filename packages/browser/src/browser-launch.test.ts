@@ -5,6 +5,7 @@ import {
   defaultDesktopUserAgent,
   hasSystemChrome,
   launchChromiumContext,
+  resolveDefaultBrowserLaunchTarget,
 } from './browser-launch.js';
 
 describe('browser-launch stealth configuration', () => {
@@ -83,5 +84,44 @@ describe('browser-launch stealth configuration', () => {
     expect(calledOptions.args).toEqual(
       expect.arrayContaining(['--custom-arg', '--disable-blink-features=AutomationControlled']),
     );
+  });
+
+  it('uses owned Playwright Chromium on macOS headless instead of hijacking com.google.Chrome', () => {
+    expect(
+      resolveDefaultBrowserLaunchTarget({
+        headless: true,
+        platform: 'darwin',
+        hasInstalledSystemChrome: true,
+        resolvePlaywrightExecutable: () => '/pw/Google Chrome for Testing',
+      }),
+    ).toEqual({ executablePath: '/pw/Google Chrome for Testing' });
+
+    expect(
+      resolveDefaultBrowserLaunchTarget({
+        headless: false,
+        platform: 'darwin',
+        hasInstalledSystemChrome: true,
+        resolvePlaywrightExecutable: () => '/pw/Google Chrome for Testing',
+      }),
+    ).toEqual({ channel: 'chrome' });
+
+    expect(
+      resolveDefaultBrowserLaunchTarget({
+        headless: true,
+        platform: 'win32',
+        hasInstalledSystemChrome: true,
+        resolvePlaywrightExecutable: () => '/pw/chrome.exe',
+      }),
+    ).toEqual({ channel: 'chrome' });
+
+    expect(
+      resolveDefaultBrowserLaunchTarget({
+        headless: true,
+        platform: 'darwin',
+        channel: 'chrome',
+        hasInstalledSystemChrome: true,
+        resolvePlaywrightExecutable: () => '/pw/Google Chrome for Testing',
+      }),
+    ).toEqual({ channel: 'chrome' });
   });
 });

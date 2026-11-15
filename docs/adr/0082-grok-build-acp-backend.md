@@ -619,6 +619,25 @@ spawn helper. node-pty is pinned to `1.2.0-beta.12` because the stable `1.1.0`
 macOS tarball ships that helper without execute permission (upstream #919).
 The bundled ESM/pruned-dependency smoke exercises a real PTY after packaging.
 
+### Native terminal startup recovery (2026-11-14)
+
+The release frontend resolves xterm 6 through its published main entry. Release
+syntax minification of its ESM entry generates an undeclared variable in
+`requestMode`; Antigravity's startup DECRQM query then throws and stalls all
+later terminal output. A production-build browser regression sends the captured
+startup probes and verifies both mode replies and subsequent painted content.
+Dependency versions, public imports and terminal protocols are unchanged.
+Pi's native TUI launch inputs also remain fixed while Desktop adopts its
+announced session, including when a Host client is supplied.
+
+An adapter may verify an empty native conversation through its own store when
+that vendor creates no transcript for zero turns. Antigravity checks the exact
+conversation database identity and zero steps in one read snapshot, then
+reports idle and an empty replay. Missing, unreadable, nonempty or mismatched
+data remains unknown; live/running history evidence takes precedence. Host
+writer admission and active-actor preservation remain unchanged. See the
+[startup repair record](../plans/2026-11-14-antigravity-cli-startup.md).
+
 ### Amendment: Generic native CLI + bounded user-input contracts (staged, additive)
 
 **Status: contracts only — not shipped Host runtime / Desktop UI.** This
@@ -786,3 +805,34 @@ Host defects caused this:
 3. **Continue is a continuation prompt.** A `source: 'continuation'` turn sends
    the Host continuation instruction to the agent. Like the Pi path, it writes
    no empty user row.
+
+### Amendment: Extension vendor icons and status-bar telemetry (2026-11-12, accepted)
+
+Session-backend extensions declare their own vendor identity and feed the shared
+composer status bar (`ComposerStatsLine`) without hardcoding vendor lists in the
+Desktop shell:
+
+1. **Vendor icon declaration (`sessionBackend.icon`)**: `piwin.json` accepts an
+   optional `icon` object under `sessionBackend` (`@piwin/contracts`):
+   - `{ "kind": "brand", "id": "<provider-brand-id>" }` reuses `@piwin/ui-kit`
+     monochrome brand marks (`claude`, `codex`, `xai`, `antigravity`, `gemini`,
+     `openai`, etc.).
+   - `{ "kind": "glyph", "viewBox": "0 0 24 24", "paths": ["M..."], "fillRule"?: "nonzero" | "evenodd" }`
+     renders bounded monochrome `<svg fill="currentColor"><path /></svg>` data
+     with strict coordinate/path validation and zero raw HTML injection.
+   - Desktop reads installed declarations (enabled first, then disabled so
+     historical rows stay branded) and renders the icon in `.session-lead`
+     aligned with `.session-native-mark`, suppressing the text pill.
+2. **Full status-bar & context occupancy telemetry**:
+   - `AssistantUsageMeasurement` and `UsageRecord` accept optional vendor-reported
+     `costUsd` as a fallback when reference-catalog pricing has no entry.
+   - `usage/get-session` merges native CLI `catalog/usage` records (`requestUsage: true`)
+     with Host-recorded `usage/finalized` turn timings (`durationMs`, `firstTokenMs`)
+     and prices every turn, lighting up `上轮 · 首字 · tok/s | ctx % used/limit · N 轮 · ↑input ↓output · 缓存 % · $cost`
+     on both live turns and cold/historical native CLI sessions.
+   - External sessions compute `ctx` occupancy from API-measured `latestRequest`
+     tokens (`promptTokens + cacheReadTokens + cacheWriteTokens + completionTokens`,
+     `quality: 'measured'`) before falling back to transcript character estimates.
+   - `AgentPluginEmission` supports `{ type: 'ui-surface', update }` so backend
+     extensions can publish status bar items and working indicators directly to
+     `ExtensionUiSurfaceStore`.

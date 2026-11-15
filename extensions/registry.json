@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "revision": "e25bf15c0f6a273553489192be06da5891475c77b1b903a0198cbefe7a301f47",
+  "extensions": {
+    "piwin-mimimaster-opencode-zen": {
+      "id": "piwin-mimimaster-opencode-zen",
+      "name": "piwin-mimimaster-opencode-zen",
+      "description": "OpenCode Zen built-in public model provider",
+      "configuredEnabled": true,
+      "selectedRevision": "b3b5a33962507ad7f5104bd080ad72e150669012666956223ff1abd83c1fa25a",
+      "revisions": [
+        {
+          "extensionId": "piwin-mimimaster-opencode-zen",
+          "contentRevision": "b3b5a33962507ad7f5104bd080ad72e150669012666956223ff1abd83c1fa25a",
+          "entryPath": "/Volumes/BigDisk/Developer/piwin/extensions/revisions/piwin-mimimaster-opencode-zen/b3b5a33962507ad7f5104bd080ad72e150669012666956223ff1abd83c1fa25a/source",
+          "packageRoot": "/Volumes/BigDisk/Developer/piwin/extensions/revisions/piwin-mimimaster-opencode-zen/b3b5a33962507ad7f5104bd080ad72e150669012666956223ff1abd83c1fa25a/source",
+          "state": "installed",
+          "installedAt": "2026-11-13T09:56:38.116Z",
+          "version": "0.3.1",
+          "sourceLocator": "bundled:github:mimimaster/piwin-opencode-zen#16a9c2654d53e03d3135c5bbf10082fd9e5fb293@0.3.1+0"
+        }
+      ]
+    }
+  }
+}

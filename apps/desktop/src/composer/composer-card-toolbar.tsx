@@ -4,7 +4,8 @@ import { ComposerModeControl } from './composer-mode-control';
 import { IconButton } from '@piwin/ui-kit';
 import { ComposerPlusMenu } from './composer-plus-menu';
 import { BackendComposerControls } from '../agents/backend-composer-controls';
-import { agentDisplayName } from '../agents/agent-backend-state';
+import { resolveAgentBackendDisplay } from '../agents/agent-backend-state';
+import { useSessionBackendCatalog } from '../hooks/use-enabled-session-backends';
 import { GoalModeChip } from '../goal';
 import { ThinkingEffortControl } from '../models/ThinkingEffortControl';
 import { usePhoneShell } from '../models/use-phone-shell';
@@ -98,9 +99,10 @@ export function ComposerCardToolbar({
     piAgentChrome && Boolean(props.onOrchestrationSchemeChange && props.orchestrationSchemeOptions);
   // A phone row has no room for both pills beside the model name.
   const mergedModes = phone && runModeOffered && schemesOffered;
+  const backendCatalog = useSessionBackendCatalog();
   const externalLabel =
     agentOptions.find((option) => option.agentId === currentAgentId)?.label ??
-    agentDisplayName(currentAgentId);
+    resolveAgentBackendDisplay(currentAgentId, backendCatalog).name;
   // Voice-call button. Desktop keeps it with the model controls; on phone the
   // run-mode/orchestration pills that used to fill the right group are gone,
   // so it sits right next to send ([+][model][思考] … [voice][send]) instead
@@ -170,7 +172,7 @@ export function ComposerCardToolbar({
           showBackendControls ? (
             <BackendComposerControls
               options={backendOptions}
-              agentLabel={agentDisplayName(backendOptions.agentId)}
+              agentLabel={resolveAgentBackendDisplay(backendOptions.agentId, backendCatalog).name}
               hideModes={true}
               disabled={!props.onBackendModelChange}
               onSelectModel={(modelId) => props.onBackendModelChange?.(modelId)}
@@ -313,6 +315,8 @@ export function ComposerCardToolbar({
             locale={locale === 'zh-CN' ? 'zh-CN' : 'en'}
             contextView={props.contextRingView}
             isRunning={isStreamingRun}
+            runningSince={props.runningSince}
+            sessionKey={props.activeSessionId}
             onOpenModelSettings={props.onOpenModelSettings}
           />
         ) : null}

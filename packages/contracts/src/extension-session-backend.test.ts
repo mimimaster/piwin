@@ -3,6 +3,7 @@ import {
   EXTENSION_SESSION_BACKEND_SCHEMA_VERSION,
   enabledExtensionSessionBackends,
   findDuplicateExtensionBackendIds,
+  installedExtensionSessionBackends,
   parseExtensionSessionBackend,
 } from './extension-session-backend.js';
 import { AGENT_PLUGIN_MAX_ARTIFACT_BYTES, parseExecutableAgentPluginManifest } from './agent-plugin-manifest.js';
@@ -160,6 +161,39 @@ describe('parseExtensionSessionBackend', () => {
       ],
     })).code).toBe('invalid-output-directory');
   });
+
+  it('accepts brand and monochrome glyph icons and rejects unsafe or malformed icons', () => {
+    const brandResult = parseExtensionSessionBackend(withPatch({
+      icon: { kind: 'brand', id: 'antigravity' },
+    }));
+    expect(brandResult?.ok).toBe(true);
+    if (brandResult === undefined || !brandResult.ok) throw new Error('expected brand icon ok');
+    expect(brandResult.declaration.icon).toEqual({ kind: 'brand', id: 'antigravity' });
+
+    const glyphResult = parseExtensionSessionBackend(withPatch({
+      icon: {
+        kind: 'glyph',
+        viewBox: '0 0 180 180',
+        paths: ['M10 10 L170 10 L90 170 Z'],
+        fillRule: 'evenodd',
+      },
+    }));
+    expect(glyphResult?.ok).toBe(true);
+    if (glyphResult === undefined || !glyphResult.ok) throw new Error('expected glyph icon ok');
+    expect(glyphResult.declaration.icon).toEqual({
+      kind: 'glyph',
+      viewBox: '0 0 180 180',
+      paths: ['M10 10 L170 10 L90 170 Z'],
+      fillRule: 'evenodd',
+    });
+
+    expect(failureOf(withPatch({ icon: 'claude' })).code).toBe('invalid-icon');
+    expect(failureOf(withPatch({ icon: { kind: 'brand', id: 'Claude!' } })).code).toBe('invalid-icon');
+    expect(failureOf(withPatch({ icon: { kind: 'brand', id: 'claude', extra: true } })).code).toBe('invalid-icon');
+    expect(failureOf(withPatch({ icon: { kind: 'glyph', viewBox: '0 0 0 24', paths: ['M0 0'] } })).code).toBe('invalid-icon');
+    expect(failureOf(withPatch({ icon: { kind: 'glyph', viewBox: '0 0 24 24', paths: ['<script>'] } })).code).toBe('invalid-icon');
+    expect(failureOf(withPatch({ icon: { kind: 'glyph', viewBox: '0 0 24 24', paths: [] } })).code).toBe('invalid-icon');
+  });
 });
 
 describe('findDuplicateExtensionBackendIds', () => {
@@ -256,13 +290,22 @@ describe('enabledExtensionSessionBackends', () => {
     ])).toEqual([{ extensionId: 'ext-a', agentId: 'example-build', name: 'Example Build' }]);
   });
 
-  it('preserves description from backend declaration or extension metadata', () => {
-    expect(enabledExtensionSessionBackends([
-      { id: 'ext-a', enabled: true, description: 'Extension desc', sessionBackend: { id: 'b-1', name: 'B1' } },
+  it('preserves description and icon across enabled and installed helpers', () => {
+    const icon = { kind: 'brand' as const, id: 'claude' };
+    const disabledIcon = { kind: 'brand' as const, id: 'codex' };
+    const input = [
+      { id: 'ext-a', enabled: true, description: 'Extension desc', sessionBackend: { id: 'b-1', name: 'B1', icon } },
       { id: 'ext-b', enabled: true, description: 'Extension desc', sessionBackend: { id: 'b-2', name: 'B2', description: 'Backend desc' } },
-    ])).toEqual([
-      { extensionId: 'ext-a', agentId: 'b-1', name: 'B1', description: 'Extension desc' },
+      { id: 'ext-off', enabled: false, sessionBackend: { id: 'b-3', name: 'B3', icon: disabledIcon } },
+    ];
+    expect(enabledExtensionSessionBackends(input)).toEqual([
+      { extensionId: 'ext-a', agentId: 'b-1', name: 'B1', description: 'Extension desc', icon },
       { extensionId: 'ext-b', agentId: 'b-2', name: 'B2', description: 'Backend desc' },
+    ]);
+    expect(installedExtensionSessionBackends(input)).toEqual([
+      { extensionId: 'ext-a', agentId: 'b-1', name: 'B1', enabled: true, description: 'Extension desc', icon },
+      { extensionId: 'ext-b', agentId: 'b-2', name: 'B2', enabled: true, description: 'Backend desc' },
+      { extensionId: 'ext-off', agentId: 'b-3', name: 'B3', enabled: false, icon: disabledIcon },
     ]);
   });
 });

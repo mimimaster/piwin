@@ -66,9 +66,6 @@ export type RunnerContext = {
   sampleAgeMs(s: EpisodeState, nowMs: number): number | undefined;
 };
 
-const releaseEstimateOf = (s: EpisodeState, key: string): number =>
-  s.lastCandidates.find((candidate) => candidate.key === key)?.estimatedBytes ?? 0;
-
 /**
  * Release the slice's keys sequentially within `deadlineMs`. Each
  * `deps.release` re-checks visibility/leases itself. Keys left over when the
@@ -107,7 +104,9 @@ export async function runReleaseSlice(
       cancelledStall = true;
       cancelStall();
       if (ctx.isDisposed() || !ctx.isCurrent(s)) return;
-      s.episode.releasedBytesEstimate += Math.max(result.released, releaseEstimateOf(s, key));
+      // A candidate estimate describes potential work. A lease/visibility
+      // recheck can refuse it, so only the executor can credit a release.
+      s.episode.releasedBytesEstimate += Math.max(0, result.released);
       if (result.error !== undefined) {
         // One release error is recorded but independent items keep going.
         ctx.pushRound(s, 'release-slice', `error on ${key}: ${result.error}`);

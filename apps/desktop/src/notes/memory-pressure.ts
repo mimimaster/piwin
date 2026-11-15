@@ -1,5 +1,5 @@
 import { globalMemoryGovernor, type MemoryPressureLevel } from './memory-governor';
-import { ackNativeMemorySample } from './memory-observability';
+import { ackNativeMemorySample, getMemoryObservabilitySnapshot } from './memory-observability';
 import { isNativeOsPressureLevel, mainFootprintBytes } from './memory-sample-contract';
 import type { MemoryPressureEventDetail, NativeOsPressureLevel } from './memory-sample-contract';
 import { globalReclaimCoordinator } from './reclaim-wiring';
@@ -223,15 +223,31 @@ async function bridgeTauriMemoryPressureEvents(): Promise<void> {
     return;
   }
   const { listen } = await import('@tauri-apps/api/event');
-  await listen<MemoryPressureEventDetail>('desktop:memory-pressure', (event) => {
+  let latestSampleId = -1;
+  const receiveSample = (detail: MemoryPressureEventDetail): void => {
     // Emissions are ack-gated: ack first so a slow governor turn never
     // stalls the next sample, then re-dispatch for the DOM listeners above.
-    const sampleId = event.payload?.sampleId;
+    const sampleId = detail?.sampleId;
     if (typeof sampleId === 'number' && Number.isInteger(sampleId) && sampleId >= 0) {
       void ackNativeMemorySample(sampleId);
+      if (sampleId <= latestSampleId) return;
+      latestSampleId = sampleId;
     }
-    window.dispatchEvent(new CustomEvent('desktop:memory-pressure', { detail: event.payload }));
+    window.dispatchEvent(new CustomEvent('desktop:memory-pressure', { detail }));
+  };
+  await listen<MemoryPressureEventDetail>('desktop:memory-pressure', (event) => {
+    receiveSample(event.payload);
   });
+
+  // Native setup can emit before this listener exists, or while the page is
+  // reloading. That lost event holds the ACK gate forever unless we recover
+  // it AFTER listening. The pending slot can precede insertion into the ring.
+  const snapshot = await getMemoryObservabilitySnapshot();
+  if (snapshot?.pendingSampleId !== undefined) {
+    void ackNativeMemorySample(snapshot.pendingSampleId);
+  }
+  const latestSample = snapshot?.samples.at(-1);
+  if (latestSample !== undefined) receiveSample(latestSample);
 }
 
 /**

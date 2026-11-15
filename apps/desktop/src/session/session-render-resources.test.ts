@@ -24,6 +24,20 @@ function fixture() {
 }
 
 describe('inactive session render resources', () => {
+  it('excludes already-reclaimed resources from the protected and eligible census', () => {
+    const { registry, flush } = fixture();
+    registry.register('current', vi.fn());
+    registry.register('restoring', vi.fn());
+    registry.register('old', vi.fn());
+    registry.setVisible(['current']);
+    registry.setRestoring('current', true);
+    registry.setRestoring('restoring', true);
+    registry.setRestoring('unregistered', true);
+    expect(registry.reclaimCensus()).toEqual({ eligible: 1, protected: 2 });
+    flush();
+    expect(registry.reclaimCensus()).toEqual({ eligible: 0, protected: 2 });
+  });
+
   it('protects every visible split pane and releases only an inactive session at idle', () => {
     const { registry, flush } = fixture();
     const current = vi.fn();

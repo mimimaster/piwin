@@ -95,6 +95,7 @@ export function BrowserSessionBody(props: BrowserSessionBodyProps): ReactElement
     viewport,
     documentRevision,
     frameError,
+    getCurrentFrameBlob,
   } = session;
   const [pickMode, setPickMode] = useState(false);
 
@@ -106,6 +107,7 @@ export function BrowserSessionBody(props: BrowserSessionBodyProps): ReactElement
   const [viewportPreference, setViewportPreference] = useState(loadBrowserViewportPreference);
   const [devDrawerOpen, setDevDrawerOpen] = useState(false);
   const [notice, setNotice] = useState<BrowserPanelNotice | null>(null);
+  const noticedRecoveryGeneration = useRef<number | undefined>(undefined);
   // Identical consecutive failures collapse into one bounded notice (§4.2).
   const pushNotice = useCallback((message: string) => {
     setNotice((current) =>
@@ -114,6 +116,12 @@ export function BrowserSessionBody(props: BrowserSessionBodyProps): ReactElement
         : { message, count: 1 },
     );
   }, []);
+  useEffect(() => {
+    if (session.pageStateLost !== true || generation === undefined ||
+        noticedRecoveryGeneration.current === generation) return;
+    noticedRecoveryGeneration.current = generation;
+    pushNotice(copy.pageRestored);
+  }, [session.pageStateLost, generation, pushNotice, copy.pageRestored]);
   const { refused: followRefused, claim: claimViewport } = useBrowserViewport({
     containerRef,
     enabled: viewportPreference.mode === 'follow',
@@ -236,7 +244,7 @@ export function BrowserSessionBody(props: BrowserSessionBodyProps): ReactElement
   const frameSrc = frame.src;
   const handleTakeScreenshot = useCallback((): void => {
     if (!onAddImageFile) return;
-    const blob = session.getCurrentFrameBlob();
+    const blob = getCurrentFrameBlob();
     if (!blob) return;
     const extension = blob.type === 'image/png' ? 'png' : 'jpg';
     onAddImageFile(
@@ -244,7 +252,7 @@ export function BrowserSessionBody(props: BrowserSessionBodyProps): ReactElement
         type: blob.type || 'image/jpeg',
       }),
     );
-  }, [onAddImageFile, session.getCurrentFrameBlob]);
+  }, [onAddImageFile, getCurrentFrameBlob]);
 
   const handleSelectViewport = useCallback(
     (selection: { id: BrowserViewportPresetId; width: number; height: number }): void => {

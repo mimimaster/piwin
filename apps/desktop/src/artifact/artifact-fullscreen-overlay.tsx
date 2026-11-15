@@ -12,6 +12,8 @@ import {
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
 import { ArtifactFrame } from './ArtifactFrame.js';
+import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
+import { createArtifactDocumentMediaBinding } from './artifact-document.js';
 import { ArtifactViewerStage, ArtifactViewerToolbar } from './artifact-viewer-controls.js';
 import {
   nextArtifactPreviewTheme,
@@ -60,19 +62,28 @@ export function ArtifactFullscreenOverlay(props: ArtifactFullscreenOverlayProps)
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const theme = resolveArtifactPreviewTheme(previewTheme, props.hostTheme);
+  const theme = useMemo(
+    () => resolveArtifactPreviewTheme(previewTheme, props.hostTheme),
+    [previewTheme, props.hostTheme],
+  );
   const intent = useMemo(() => withArtifactViewerChannel(props.intent, 'fullscreen'), [props.intent]);
-  const plan = useMemo(
+  const basePlan = useMemo(
     () =>
       materializeArtifact(intent, {
         mode: 'interactive',
         source: props.source,
         presentation: 'canvas',
-        ...(props.mediaDataUrls ? { mediaDataUrls: props.mediaDataUrls } : {}),
         ...(theme ? { theme } : {}),
       }),
-    [intent, props.source, props.mediaDataUrls, theme],
+    [intent, props.source, theme],
   );
+  const mediaBinding = useMemo(() => createArtifactDocumentMediaBinding(basePlan), [basePlan]);
+  const mediaDataUrls = useArtifactSessionMediaDataUrls({
+    source: props.source,
+    budget: mediaBinding.budget,
+    providedDataUrls: props.mediaDataUrls,
+  });
+  const plan = useMemo(() => mediaBinding.bind(mediaDataUrls), [mediaBinding, mediaDataUrls]);
 
   if (typeof document === 'undefined') return null;
   const descriptor = props.intent.descriptor;

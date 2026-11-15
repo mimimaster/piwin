@@ -839,6 +839,14 @@
   gap: var(--s-3);
 }
 
+.agent-backends-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-1);
+  flex-shrink: 0;
+}
+
 .agent-backends-name {
   font-weight: 600;
   color: var(--text-1);

@@ -82,7 +82,7 @@ describe('TuiPane', () => {
     locale: DesktopLocale,
     projectPath?: string,
     onSessionChange?: (sessionId: string) => void,
-    connection: Pick<TuiPaneProps, 'hostKey' | 'remoteTarget'> = {},
+    connection: Pick<TuiPaneProps, 'hostKey' | 'remoteTarget' | 'hostClient'> = {},
   ): void {
     act(() => {
       root.render(
@@ -132,6 +132,19 @@ describe('TuiPane', () => {
     renderPane('session-2', 'zh-CN');
     expect(surface()?.dataset.mount).not.toBe(before);
     expect(surface()?.dataset.session).toBe('session-2');
+  });
+
+  it('keeps native Pi launch inputs stable when the workbench also provides a Host client', () => {
+    const hostClient: NonNullable<TuiPaneProps['hostClient']> = {
+      request: async (command) => ({ type: 'response', command: command.type, success: true, data: {} }),
+      subscribe: () => () => undefined,
+    };
+    renderPane(null, 'zh-CN', '/work/app', undefined, { hostClient });
+    const before = surface()?.dataset.mount;
+    act(() => pty.announce?.('session-new'));
+    renderPane('session-new', 'zh-CN', '/work/app', undefined, { hostClient });
+    expect(surface()?.dataset.mount).toBe(before);
+    expect(surface()?.dataset.session).toBe('new');
   });
 
   it('starts a fresh process for a new conversation after the shell adopted one', () => {
@@ -288,5 +301,65 @@ describe('TuiPane on a shell without its own terminal', () => {
     expect(typed).toBe('\x03');
     act(() => { typed = pty.surface?.inputTransform?.('c') ?? ''; });
     expect(typed).toBe('c');
+  });
+
+  it('keeps the external agent CLI running when adopting a new session across rerenders', async () => {
+    (hostClient.request as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (command: { type: string }) => {
+      if (command.type === 'agents/cli-open') {
+        return { success: true, data: { ptyId: 'pty-antigravity', sessionId: 'session-antigravity-1' } };
+      }
+      return { success: true, data: {} };
+    });
+    const onSessionChange = vi.fn((sessionId: string) => {
+      // Simulate Desktop updating its active session
+      renderAgent(sessionId, '/work/app');
+    });
+
+    function renderAgent(sessionId: string | null, projectPath: string | null = null): void {
+      act(() => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <TuiPane
+              sessionId={sessionId}
+              locale="zh-CN"
+              agentId="antigravity"
+              hostClient={hostClient}
+              projectPath={projectPath}
+              onSessionChange={onSessionChange}
+            />
+          </PiwinUiProvider>,
+        );
+      });
+    }
+
+    renderAgent(null, '/work/app');
+    const before = container.querySelector<HTMLElement>('[data-testid="xterm-stub"]')?.dataset.mount;
+    expect(before).toBeDefined();
+
+    // Trigger adoption as if cli-open succeeded
+    await act(async () => {
+      // simulate open callback from agent-cli-pty
+      const ptyObj = pty.surface?.pty as { open: (size: { cols: number; rows: number }) => Promise<unknown> } | undefined;
+      await ptyObj?.open({ cols: 80, rows: 24 });
+    });
+
+    // The mount should stay stable through adoption
+    const afterAdopt = container.querySelector<HTMLElement>('[data-testid="xterm-stub"]')?.dataset.mount;
+    expect(afterAdopt).toBe(before);
+
+    // Subsequent rerender with same adopted session must never recreate or remount process
+    renderAgent('session-antigravity-1', '/work/app');
+    const afterRerender = container.querySelector<HTMLElement>('[data-testid="xterm-stub"]')?.dataset.mount;
+    expect(afterRerender).toBe(before);
+
+    // Switching to a totally different session starts a new process
+    renderAgent('session-antigravity-2', '/work/app');
+    const switched = container.querySelector<HTMLElement>('[data-testid="xterm-stub"]')?.dataset.mount;
+    expect(switched).not.toBe(before);
+
+    // Starting a new conversation (sessionId: null) starts a fresh process
+    renderAgent(null, '/work/app');
+    const freshNew = container.querySelector<HTMLElement>('[data-testid="xterm-stub"]')?.dataset.mount;
+    expect(freshNew).not.toBe(switched);
   });
 });

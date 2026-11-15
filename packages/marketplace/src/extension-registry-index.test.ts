@@ -52,4 +52,20 @@ describe('piwin extension registry index', () => {
     const [entry] = parseExtensionRegistryIndex(valid);
     expect(entry?.summary.zhCN).toContain('Command Code 登录');
   });
+
+  it('provides actionable slash-command usage examples for Piwin Surge', () => {
+    const [entry] = parseExtensionRegistryIndex({
+      schemaVersion: 1,
+      extensions: [{
+        id: 'mimimaster/piwin-surge',
+        name: 'Piwin Surge',
+        description: '会话级系统提示词切换控制台',
+        repository: 'https://github.com/mimimaster/piwin-surge',
+        owners: ['mimimaster'],
+        versions: [{ version: '0.1.1', commit: 'b'.repeat(40) }],
+      }],
+    });
+    expect(entry?.examples.map((ex) => ex.prompt.zhCN)).toEqual(['/surge', '/surge guide']);
+    expect(entry?.summary.en).toContain('/surge');
+  });
 });

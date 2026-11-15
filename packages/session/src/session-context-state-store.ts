@@ -16,7 +16,10 @@ import {
 import { rollback } from './sqlite-errors.js';
 import { stableSerialize } from './stable-serialize.js';
 import { withActivePath } from './transcript-store-path.js';
-import { readSessionUsageTotals } from './session-usage-totals.js';
+import {
+  readSessionUsageTotals,
+  type SessionMeasurementCostEstimator,
+} from './session-usage-totals.js';
 import type { SessionTranscriptStore, TranscriptStoreCore } from './transcript-store.js';
 
 const CONTEXT_SCHEMA_VERSION = CONTEXT_TELEMETRY_VERSION;
@@ -188,9 +191,9 @@ export function createSessionContextStateOps(
       }
     },
 
-    async readSessionUsageTotals() {
+    async readSessionUsageTotals(estimateCost?: SessionMeasurementCostEstimator) {
       ensureOpen();
-      return readSessionUsageTotals(db, options.sessionId);
+      return readSessionUsageTotals(db, options.sessionId, estimateCost);
     },
 
     async putAssistantUsageMeasurement(measurement) {

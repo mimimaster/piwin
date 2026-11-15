@@ -11,7 +11,7 @@ import {
   useArtifactDocumentHandoff,
   type ArtifactDocumentHandoff,
 } from './artifact-document-handoff.js';
-import type { ArtifactDocument } from './artifact-frame-stream.js';
+import type { ArtifactDocument } from './artifact-document.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;

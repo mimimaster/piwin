@@ -206,6 +206,8 @@ export {
 } from './provider-brands.js';
 export { ModelFallbackIcon } from './model-fallback-icon.js';
 export type { ModelFallbackIconProps } from './model-fallback-icon.js';
+export { SessionBackendIcon } from './session-backend-icon.js';
+export type { SessionBackendIconProps } from './session-backend-icon.js';
 
 export {
   BROWSER_MINI_DRAG_THRESHOLD_PX,

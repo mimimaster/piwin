@@ -32,6 +32,9 @@ export type StageBrowserDockProps = {
   /** Where the mini remembers its corner; one bucket per Host. */
   browserMiniPlacementKey?: string;
   phone?: boolean;
+  /** Workbench owns dismissal so the presentation lease follows it too. */
+  dismissed?: boolean;
+  onDismiss?: () => void;
 };
 
 type MiniPlacement = 'docked' | 'floating';
@@ -59,7 +62,7 @@ function StagePhoneChip({
 }
 
 export function StageBrowserDock(props: StageBrowserDockProps): ReactElement {
-  const { locale, onOpenTool } = props;
+  const { locale, onOpenTool, onDismiss } = props;
   const session = useSharedBrowserSession();
   const [miniDismissed, setMiniDismissed] = useState(false);
   const [placement, setPlacement] = useState<MiniPlacement>('docked');
@@ -72,7 +75,7 @@ export function StageBrowserDock(props: StageBrowserDockProps): ReactElement {
     rightBodyOpen: false,
     overlayOpen: props.overlayOpen,
     phone: props.phone === true,
-    dismissed: miniDismissed,
+    dismissed: props.dismissed ?? miniDismissed,
     activity,
   });
   const showMini = miniVisibility.visible;
@@ -83,9 +86,10 @@ export function StageBrowserDock(props: StageBrowserDockProps): ReactElement {
   });
 
   const closeMini = useCallback(() => {
-    setMiniDismissed(true);
+    if (onDismiss) onDismiss();
+    else setMiniDismissed(true);
     setPlacement('docked');
-  }, []);
+  }, [onDismiss]);
 
   if (props.phone === true) {
     if (!hasBrowserMiniActivity(activity) || props.overlayOpen) return <></>;

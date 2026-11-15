@@ -16,6 +16,7 @@ export type BrowserSessionCopy = BrowserSessionChromeCopy & {
   commandFailed: string;
   viewportFailed: string;
   panelActionFailed: string;
+  pageRestored: string;
   diagCss: string;
   diagEncoded: string;
   diagDpr: string;
@@ -51,6 +52,7 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
       closePanel: '关闭浏览器面板',
       restart: '重启浏览器会话',
       dismissNotice: '关闭提示',
+      pageRestored: '网页已重新打开，页面内的临时状态已重置。',
       noticeRepeat: '重复 {count} 次',
       agentUsing: 'Agent 正在操作这个页面，你也可以随时操作',
       viewportTitle: '视口',
@@ -113,6 +115,7 @@ export function browserSessionCopy(locale: DesktopLocale): BrowserSessionCopy {
     closePanel: 'Close browser panel',
     restart: 'Restart browser session',
     dismissNotice: 'Dismiss',
+    pageRestored: 'The page was reopened; temporary in-page state was reset.',
     noticeRepeat: 'Repeated {count} times',
     agentUsing: 'The agent is using this page; you can still interact',
     viewportTitle: 'Viewport',

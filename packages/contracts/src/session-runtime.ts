@@ -74,6 +74,7 @@ export const RUNTIME_STALE_DOMAINS: ReadonlySet<SettingsDomain> = new Set<Settin
   'providers',
   'defaultProviderId',
   'defaultModelId',
+  'compaction',
   'web',
   'codeSearch',
   'skills',

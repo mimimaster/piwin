@@ -32,7 +32,10 @@ import type {
   SessionCapabilitySnapshot,
   SessionToolFamily,
 } from '@piwin/contracts';
-import { DEFAULT_AGENT_MODE_SYSTEM_PROMPT } from '@piwin/contracts';
+import {
+  DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
+  resolveActiveCompactionDelegation,
+} from '@piwin/contracts';
 import { listEnabledServers, loadMcpConfig } from '@piwin/mcp';
 import { compileToolPolicy } from './blueprint-agent-tool-policy.js';
 import { compileConversationToolPolicy } from './blueprint-conversation-tool-policy.js';
@@ -463,12 +466,13 @@ async function assembleCompiledBlueprint(
       );
     }
   }
-  const requiredProviderIds =
+  const compactionDelegation = resolveActiveCompactionDelegation(config.compaction);
+  const baseRequiredProviderIds =
     options.requiredProviderIds ??
     (input.model ? [input.model.providerId] : defaultModel ? [defaultModel.providerId] : undefined);
-  if (requiredProviderIds && options.usableSubscriptionProviderIds) {
+  if (baseRequiredProviderIds && options.usableSubscriptionProviderIds) {
     const usable = new Set(options.usableSubscriptionProviderIds);
-    const blocked = requiredProviderIds.find(
+    const blocked = baseRequiredProviderIds.find(
       (providerId) =>
         isKnownSubscriptionProviderId(providerId, options.subscriptionAccounts) &&
         !config.providers.some((provider) => provider.id === providerId) &&
@@ -480,6 +484,20 @@ async function assembleCompiledBlueprint(
       });
     }
   }
+  const delegateProviderId = compactionDelegation?.model.providerId;
+  const delegateSubscriptionBlocked =
+    delegateProviderId !== undefined &&
+    options.usableSubscriptionProviderIds !== undefined &&
+    isKnownSubscriptionProviderId(delegateProviderId, options.subscriptionAccounts) &&
+    !config.providers.some((provider) => provider.id === delegateProviderId) &&
+    !options.usableSubscriptionProviderIds.includes(delegateProviderId);
+  const requiredProviderIds =
+    baseRequiredProviderIds &&
+    delegateProviderId &&
+    !delegateSubscriptionBlocked &&
+    !baseRequiredProviderIds.includes(delegateProviderId)
+      ? [...baseRequiredProviderIds, delegateProviderId]
+      : baseRequiredProviderIds;
   const providerEnvelope = await buildProviderEnvelope(config, {
     allowInlineProviderSecrets: options.allowInlineProviderSecrets === true,
     allowWorkerProviderSecretBootstrap: options.allowWorkerProviderSecretBootstrap === true,
@@ -504,6 +522,9 @@ async function assembleCompiledBlueprint(
     capabilitySnapshot: plan.snapshot,
     ...(model ? { model: input.model } : {}),
     ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
+    ...(compactionDelegation
+      ? { compactionDelegation: { model: { ...compactionDelegation.model } } }
+      : {}),
     ...(plan.appendSystemPrompt ? { appendSystemPrompt: plan.appendSystemPrompt } : {}),
   };
 

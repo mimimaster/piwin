@@ -205,7 +205,13 @@ export class AgentCliService {
       this.ownership.confirmNative(sessionId, ptyId);
       this.catalog.start(record);
       reserved = false;
-      return { ptyId, sessionId, ownership: this.ownership.get(sessionId) };
+      const replay = this.terminals.replay(ptyId);
+      return {
+        ptyId,
+        sessionId,
+        ownership: this.ownership.get(sessionId),
+        ...(replay === undefined ? {} : { initialOutput: replay.output, initialOutputThrough: replay.through }),
+      };
     } catch (error) {
       if (reserved && sessionId !== undefined) {
         this.ownership.abortNativeOpen(sessionId);

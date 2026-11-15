@@ -1,5 +1,6 @@
+import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 /**
  * Rejects id segments that could escape their intended directory via path
@@ -47,9 +48,29 @@ export function getPiwinRoot(override?: string): string {
   return getDefaultPiwinRoot();
 }
 
+function canonicalizeRoot(targetPath: string): string {
+  const resolved = resolve(targetPath);
+  try {
+    return realpathSync(resolved);
+  } catch {
+    const parent = dirname(resolved);
+    if (parent !== resolved) {
+      try {
+        return join(realpathSync(parent), basename(resolved));
+      } catch {
+        return resolved;
+      }
+    }
+    return resolved;
+  }
+}
+
 /** True when this Host uses the default product root, not test-host / custom PIWIN_ROOT. */
 export function isDefaultPiwinRoot(piwinRoot?: string, defaultProductRoot?: string): boolean {
-  return getPiwinRoot(piwinRoot) === (defaultProductRoot ?? getDefaultPiwinRoot());
+  return (
+    canonicalizeRoot(getPiwinRoot(piwinRoot)) ===
+    canonicalizeRoot(defaultProductRoot ?? getDefaultPiwinRoot())
+  );
 }
 
 /** Pi native agent dir (`~/.pi/agent`). Inventory is read-only from here. */

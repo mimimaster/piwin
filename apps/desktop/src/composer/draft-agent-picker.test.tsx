@@ -70,8 +70,8 @@ describe('DraftAgentPicker', () => {
 
     // Visible so the user knows it exists…
     expect(container.textContent).toContain('Grok Build');
-    // …but marked as needing setup (default locale is zh-CN) and not switchable.
-    expect(container.textContent).toContain('完成配置');
+    // An absent check result must not imply a missing CLI or account.
+    expect(container.textContent).toContain('待检测');
     const grok = radio('grok');
     expect(grok?.disabled).toBe(true);
     act(() => {
@@ -105,7 +105,7 @@ describe('DraftAgentPicker', () => {
         <DraftAgentPicker value="pi" options={GROK_NOT_READY} onChange={vi.fn()} />
       </DesktopLocaleProvider>,
     );
-    expect(container.textContent).toContain('Setup');
+    expect(container.textContent).toContain('Check Pending');
   });
 
   it('disables the whole control while a run is streaming', () => {

@@ -1,3 +1,4 @@
+import type { CompactionDelegationTarget } from './compaction.js';
 import type { ModelRef, ThinkingLevel } from './host.js';
 import type { SessionCapabilitySnapshot } from './session-capability.js';
 
@@ -9,6 +10,11 @@ export type BackendSessionBlueprint = {
   capabilitySnapshot: SessionCapabilitySnapshot;
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
+  /**
+   * Dedicated model override for context compaction summarization.
+   * When set, sdk/rpc workers route `session_before_compact` through this model.
+   */
+  compactionDelegation?: CompactionDelegationTarget;
   /**
    * Additional system prompt appended after all other system prompts.
    * Used for product-level contracts (artifact decision + runtime, ADR 0029).

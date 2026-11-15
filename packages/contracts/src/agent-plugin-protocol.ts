@@ -7,6 +7,7 @@ import type { BackendWorkflowSnapshot } from './backend-workflow.js';
 import type { BackendRunIntervention, BackendRunInterventionEvent, BackendRunInterventionEventResult } from './run-intervention.js';
 import type { AgentPluginCliLaunchResult } from './agent-plugin-cli-launch.js';
 import type { BackendUserInputRequest, BackendUserInputResult } from './backend-user-input.js';
+import type { ExtensionUiSurfaceUpdate } from './extension-ui.js';
 
 export const AGENT_PLUGIN_PROTOCOL_VERSION = 1;
 export const AGENT_PLUGIN_MAX_FRAME_BYTES = 2 * 1024 * 1024;
@@ -79,6 +80,7 @@ export type AgentPluginEmission =
   | { type: 'options'; options: SessionBackendOptions }
   | { type: 'title'; title: string }
   | { type: 'mcp-status'; servers: readonly ExternalAgentMcpServerStatus[]; observed: boolean }
+  | { type: 'ui-surface'; update: ExtensionUiSurfaceUpdate }
   | { type: 'closed'; reason: string };
 
 export type AgentPluginPermissionPrompt = {

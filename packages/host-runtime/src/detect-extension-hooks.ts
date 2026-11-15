@@ -27,7 +27,7 @@ const TUI_PATTERNS: readonly RegExp[] = [
   /\bsetEditorComponent\b/,
   /\baddAutocompleteProvider\b/,
   /\bonTerminalInput\b/,
-  /\b(?:ctx\.)?reload\s*\(/,
+  /\bctx\.reload\s*\(/,
   // Only component-factory widgets are TUI: `setWidget(key, (tui, theme) => …)`,
   // `function`, or `new Component(…)`. Text lines (`string[]`) are bridged
   // (ADR 0080), and so is `setStatus`.

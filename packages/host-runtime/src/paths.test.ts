@@ -1,3 +1,6 @@
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   getPiAgentDir,
@@ -7,6 +10,7 @@ import {
   getPiwinRoot,
   getPiwinSessionDir,
   getPiwinSessionMediaDir,
+  isDefaultPiwinRoot,
   resolveHostPiAgentDir,
   applyPiwinPlaywrightBrowsersPath,
   getPiwinPlaywrightDir,
@@ -46,6 +50,27 @@ describe('paths', () => {
       );
     },
   );
+
+  it('recognizes the canonical realpath of a symlinked default root', () => {
+    const base = mkdtempSync(join(tmpdir(), 'piwin-root-symlink-'));
+    try {
+      const target = join(base, 'real-piwin');
+      const link = join(base, 'dot-piwin');
+      const other = join(base, 'other-piwin');
+      mkdirSync(target, { recursive: true });
+      mkdirSync(other, { recursive: true });
+      symlinkSync(target, link);
+
+      expect(isDefaultPiwinRoot(target, link)).toBe(true);
+      expect(isDefaultPiwinRoot(`${link}/`, target)).toBe(true);
+      expect(isDefaultPiwinRoot(join(target, 'not-yet-created'), join(link, 'not-yet-created'))).toBe(
+        true,
+      );
+      expect(isDefaultPiwinRoot(other, link)).toBe(false);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('playwright browsers path', () => {

@@ -26,6 +26,7 @@ import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { artifactDownloadLabel, downloadArtifactSource } from './artifact-source-export.js';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { useArtifactSessionMediaDataUrls } from './artifact-session-media.js';
+import { createArtifactDocumentMediaBinding } from './artifact-document.js';
 import { useStableArtifactTheme } from './artifact-stable-theme.js';
 import {
   readArtifactReadingTypography,
@@ -96,11 +97,6 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
   const [hostViewTargetId, setHostViewTargetId] = useState<string | null>(null);
   const styleModes = useArtifactStyleModes();
   const presets = props.viewerPresets ?? !isMobileTauriRuntime();
-  const mediaDataUrls = useArtifactSessionMediaDataUrls({
-    source: activeTarget?.source ?? '',
-    ...(activeTarget ? { originSessionId: activeTarget.sessionId } : {}),
-  });
-
   const hostTheme = useStableArtifactTheme(props.artifactTheme);
   // The sandbox cannot inherit the reading size; measure it before the first
   // frame so the Canvas reads at the same size as the transcript.
@@ -118,18 +114,24 @@ function ArtifactCanvasPanelInner(props: ArtifactCanvasPanelProps): ReactElement
     [hostTheme, typography],
   );
   const hostView = activeTarget !== null && activeTarget !== undefined && hostViewTargetId === activeTarget.id;
-  const plan = useMemo(() => {
+  const basePlan = useMemo(() => {
     if (!activeTarget || typography === null) return null;
     return materializeArtifact(activeTarget.intent, {
       mode: activeTarget.streaming === true ? 'stream-preview' : 'interactive',
       source: activeTarget.source,
       presentation: 'canvas',
-      mediaDataUrls,
       styleModes,
       ...(hostView ? { forceHostStyle: true } : {}),
       ...(artifactTheme ? { theme: artifactTheme } : {}),
     });
-  }, [activeTarget, typography, artifactTheme, mediaDataUrls, styleModes, hostView]);
+  }, [activeTarget, typography, artifactTheme, styleModes, hostView]);
+  const mediaBinding = useMemo(() => basePlan ? createArtifactDocumentMediaBinding(basePlan) : null, [basePlan]);
+  const mediaDataUrls = useArtifactSessionMediaDataUrls({
+    source: basePlan ? activeTarget?.source ?? '' : '',
+    budget: mediaBinding?.budget,
+    ...(activeTarget ? { originSessionId: activeTarget.sessionId } : {}),
+  });
+  const plan = useMemo(() => mediaBinding?.bind(mediaDataUrls) ?? null, [mediaBinding, mediaDataUrls]);
 
   function handleInsert(): void {
     if (pendingProposal && props.onInsertProposal) {

@@ -29,7 +29,8 @@ export async function openExternalUrl(url: string): Promise<boolean> {
     }
     const opened = window.open(trimmed, '_blank', 'noopener,noreferrer');
     return opened !== null;
-  } catch {
+  } catch (error) {
+    console.warn('[piwin] openExternalUrl failed', trimmed, error);
     return false;
   }
 }

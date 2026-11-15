@@ -414,6 +414,35 @@ an automatic episode. The renderer-recovery action is user-initiated and
 gates on real durability checks (Run guard → draft persistence →
 `canReclaimComposerDrafts`) before dispatching `piwin:before-renderer-relaunch`.
 
+Native pressure observation also has a startup/reload handshake (2026-11-12).
+After registering the live listener, Desktop reads the existing bounded native
+snapshot, acknowledges its pending sample even if it has not entered the sample
+ring, and applies the newest retained sample. The native monitor starts before
+the page listener: an emitted-but-unheard first sample must not hold its ACK
+gate indefinitely. Live and snapshot delivery share a sample-ID high-water mark
+so delayed snapshots and duplicate events cannot replace a newer observation;
+duplicates still receive ACKs. This repairs observation, without changing the
+session-scoped reclamation policy or promising a process-memory ceiling.
+
+Reclaim accounting (2026-11-14) uses the presentation registry's exact per-resource
+visibility/restoring/already-reclaimed predicate for its candidate census.
+Protected presentations are recorded separately and never become release work;
+session-key counts are not subtracted from resource counts. A release attempt
+returning zero or an error receives no candidate-size credit. Only the executor's
+reported resource-byte estimate contributes to the ledger; actual process
+footprint remains the separate before/after sample evidence. Terminal no-progress
+is shown as ineffective reclamation, not as waiting for another sample. These
+diagnostic corrections preserve the Run/draft/visibility protections and do not
+add automatic main-renderer reload or claim a process-memory ceiling.
+
+The readable memory report (2026-11-14) presents main-window usage and ordinary
+language before native terminology, respects Desktop locale and treats unknown
+or stale samples as unavailable evidence rather than healthy zero usage. It
+separates measured before/after process-footprint change from resource release
+estimates, explains protected content and disabled recovery actions, and keeps
+native/episode/check codes in a collapsed technical section. The classifier,
+reclamation authority and task/draft/visibility protection remain unchanged.
+
 ## Disjoint transcript recovery addendum (2026-11-08)
 
 A bounded Host tail may have no resident message ids after a delivery gap.

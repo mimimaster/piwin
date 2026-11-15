@@ -16,6 +16,8 @@
  */
 import type { Terminal } from '@xterm/xterm';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { globalMemoryGovernor } from '../notes/memory-governor.js';
+import { createXtermGraphicsLease } from './xterm-graphics-resources.js';
 
 export type XtermRendererKind = 'webgl' | 'dom';
 
@@ -43,24 +45,53 @@ function clearAtlasOnceFontsLoad(): void {
 /** Call after `terminal.open()`; the addon needs the terminal's screen element. */
 export function attachXtermWebglRenderer(terminal: Terminal): XtermRenderer {
   let addon: WebglAddon | null = null;
-  const release = (): void => {
+  let graphics: ReturnType<typeof createXtermGraphicsLease> | null = null;
+  let disposed = false;
+  let recoverable = true;
+  const release = (repaint: boolean): void => {
     const current = addon;
+    if (current === null) return;
     addon = null;
-    if (current !== null) liveAddons.delete(current);
+    liveAddons.delete(current);
+    graphics?.capture();
     // Disposing the addon hands rendering back to the DOM renderer.
-    current?.dispose();
+    current.dispose();
+    graphics?.dispose();
+    graphics = null;
+    if (repaint) terminal.refresh(0, terminal.rows - 1);
   };
-  try {
-    addon = new WebglAddon();
-    // The browser may drop the context (GPU reset, too many contexts).
-    addon.onContextLoss(release);
-    terminal.loadAddon(addon);
-    liveAddons.add(addon);
-  } catch {
-    // No WebGL2 in this webview: the DOM renderer is already active.
-    release();
-    return { kind: 'dom', dispose: () => undefined };
-  }
-  clearAtlasOnceFontsLoad();
-  return { kind: 'webgl', dispose: release };
+  const activate = (): void => {
+    if (disposed || !recoverable || addon !== null || globalMemoryGovernor.getLevel() === 'critical') return;
+    try {
+      addon = new WebglAddon();
+      graphics = createXtermGraphicsLease(terminal, addon);
+      addon.onContextLoss(() => {
+        recoverable = false;
+        release(true);
+      });
+      terminal.loadAddon(addon);
+      graphics.capture();
+      liveAddons.add(addon);
+      clearAtlasOnceFontsLoad();
+    } catch (error) {
+      recoverable = false;
+      release(false);
+      console.warn('[terminal] WebGL unavailable; using the text renderer:', error);
+    }
+  };
+  const unsubscribe = globalMemoryGovernor.subscribe((level) => {
+    // The visible terminal, PTY and scrollback stay live; only rebuildable graphics go.
+    if (level === 'critical') release(true);
+    else if (level === 'normal') activate();
+  });
+  activate();
+  return {
+    get kind() { return addon === null ? 'dom' : 'webgl'; },
+    dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      unsubscribe();
+      release(false);
+    },
+  };
 }

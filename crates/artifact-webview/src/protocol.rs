@@ -30,6 +30,7 @@ pub const ARTIFACT_SCHEME: &str = "piwin-artifact";
 /// How long a scheme request waits for the IPC put racing the iframe mount.
 pub const ARTIFACT_DOCUMENT_WAIT: Duration = Duration::from_secs(3);
 
+// Keep aligned with MAX_ARTIFACT_DOCUMENT_BYTES in @piwin/contracts.
 const MAX_DOCUMENT_BYTES: usize = 2 * 1024 * 1024;
 const MAX_STORE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_STORE_DOCUMENTS: usize = 256;

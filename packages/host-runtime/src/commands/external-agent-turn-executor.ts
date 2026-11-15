@@ -12,7 +12,7 @@ import type { ExecutionRunRecord, PromptInput } from '@piwin/contracts';
 import { createUnknownAgentFailure, formatError } from '@piwin/contracts';
 import { randomUUID } from 'node:crypto';
 import type { SessionLiveContext } from './session-live-context.js';
-import { TURN_CONTINUATION_PROMPT, type PromptCommand } from './prompt-preparation.js';
+import { promptInputFromStoredUser, TURN_CONTINUATION_PROMPT, type PromptCommand } from './prompt-preparation.js';
 import { finalizeAbortedRun } from './run-control-commands.js';
 import { applyAgentPromptOutcome, persistHostRuntimeFailure } from './session-turn-outcome.js';
 
@@ -45,8 +45,20 @@ export async function executeExternalAgentTurn(input: {
     // Host queues turns (ADR 0051); queued-turn rows are already persisted.
     // A continuation has no user text: like the Pi path, it writes no row.
     const continuation = command.input.source === 'continuation';
+    const retryUserMessageId = command.input.retryUserMessageId?.trim();
+    let promptSource = command.input;
     let userMessageId: string | undefined;
-    if (command.input.source === 'queued-turn' || continuation) {
+
+    if (retryUserMessageId) {
+      const stored = await context
+        .getTranscriptStore(command.sessionId)
+        .then((store) => store.getMessage(retryUserMessageId));
+      if (stored === undefined || stored.role !== 'user') {
+        throw new Error(`retry-target-not-found: ${retryUserMessageId}`);
+      }
+      userMessageId = retryUserMessageId;
+      promptSource = promptInputFromStoredUser(stored, command.input);
+    } else if (command.input.source === 'queued-turn' || continuation) {
       userMessageId = command.input.clientMessageId?.trim() || undefined;
     } else {
       userMessageId = command.input.clientMessageId?.trim() || randomUUID();
@@ -73,7 +85,7 @@ export async function executeExternalAgentTurn(input: {
       return;
     }
     context.updateRunPhase(run.runId, 'connecting-model', 'Connecting to agent');
-    const outcome = await liveSession.prompt(buildExternalAgentPrompt(command.input));
+    const outcome = await liveSession.prompt(buildExternalAgentPrompt(promptSource));
     const applied = await applyAgentPromptOutcome({
       context,
       sessionId: command.sessionId,
@@ -84,7 +96,7 @@ export async function executeExternalAgentTurn(input: {
       return;
     }
     try {
-      await context.touchSession(command.sessionId, command.input.text);
+      await context.touchSession(command.sessionId, promptSource.text);
     } catch (error) {
       context.push({
         type: 'host/log',

@@ -1,0 +1,350 @@
+/* Report layout uses opaque theme surfaces; pressure UI adds no blur layers. */
+.memory-diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+  box-sizing: border-box;
+  padding: 12px 14px 16px;
+  overflow-y: auto;
+  container-type: inline-size;
+  color: var(--text);
+}
+
+.memory-diagnostics > * {
+  flex-shrink: 0;
+}
+
+.memory-diag-overview.piwin-card,
+.memory-diag-section.piwin-card {
+  border: 1px solid var(--border);
+  box-shadow: none;
+  padding: 13px 14px;
+}
+
+.memory-diagnostics[data-condition="critical"] .memory-diag-overview {
+  border-color: color-mix(in srgb, var(--state-danger) 36%, var(--border));
+}
+.memory-diagnostics[data-condition="moderate"] .memory-diag-overview,
+.memory-diagnostics[data-condition="stale"] .memory-diag-overview {
+  border-color: color-mix(in srgb, var(--state-warning) 36%, var(--border));
+}
+.memory-diagnostics[data-condition="normal"] .memory-diag-overview {
+  border-color: color-mix(in srgb, var(--state-success) 30%, var(--border));
+}
+
+.memory-diag-overview-top,
+.memory-diag-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.memory-diag-eyebrow,
+.memory-diag-card-head h3 {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.memory-diag-en {
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.memory-diag-overview .ui-status-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.memory-diag-overview .ui-status-badge.tone-danger { color: var(--state-danger); background: color-mix(in srgb, var(--state-danger) 12%, transparent); }
+.memory-diag-overview .ui-status-badge.tone-warning { color: var(--state-warning); background: color-mix(in srgb, var(--state-warning) 12%, transparent); }
+.memory-diag-overview .ui-status-badge.tone-success { color: var(--state-success); background: color-mix(in srgb, var(--state-success) 12%, transparent); }
+.memory-diag-overview .ui-status-badge.tone-neutral { color: var(--text-2); background: var(--panel2); }
+
+.memory-diag-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 8px 0 11px;
+}
+
+.memory-diag-number {
+  font-size: clamp(26px, 8.5cqi, 31px);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.memory-diag-aggregate {
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.memory-diag-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--panel2);
+}
+
+.memory-diag-meta-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.memory-diag-meta-cell + .memory-diag-meta-cell {
+  border-left: 1px solid var(--border);
+  padding-left: 10px;
+}
+
+.memory-diag-meta-cell > span {
+  font-size: 10.5px;
+  color: var(--text-3);
+  line-height: 1.3;
+}
+
+.memory-diag-meta-cell > strong {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.memory-diag-meta-cell > strong[data-freshness="stale"] { color: var(--state-warning); }
+.memory-diag-meta-cell > strong[data-freshness="missing"] { color: var(--text-3); }
+
+.memory-diag-gov {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.memory-diag-gov-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-3);
+}
+
+.memory-diag-gov.tone-danger { color: var(--state-danger); }
+.memory-diag-gov.tone-danger .memory-diag-gov-dot { background: var(--state-danger); }
+.memory-diag-gov.tone-warning { color: var(--state-warning); }
+.memory-diag-gov.tone-warning .memory-diag-gov-dot { background: var(--state-warning); }
+.memory-diag-gov.tone-success { color: var(--state-success); }
+.memory-diag-gov.tone-success .memory-diag-gov-dot { background: var(--state-success); }
+
+.memory-diag-explanation {
+  margin: 9px 0 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.memory-diag-technical h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.memory-diag-head-meta,
+.memory-diag-inline-empty {
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.memory-diag-code-tag {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--panel2);
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+.memory-diag-counters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0 0;
+}
+
+.memory-diag-counters > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: var(--panel2);
+  min-width: 0;
+}
+
+.memory-diag-counters dt {
+  color: var(--text-3);
+  font-size: 10.5px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.memory-diag-counters dd {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.memory-diag-caches {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.memory-diag-caches > .memory-diag-note:first-child { margin-top: 0; }
+
+.memory-diag-result {
+  margin-top: 7px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.memory-diagnostics .memory-diag-note {
+  margin-top: 5px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.memory-diagnostics .memory-diag-note:not(.muted) { color: var(--text-2); }
+
+.memory-diag-comparison {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: var(--panel2);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.memory-diag-comparison-arrow { color: var(--text-3); }
+.memory-diag-comparison strong { font-weight: 600; color: var(--text-2); }
+.memory-diag-comparison strong[data-delta="drop"] { color: var(--state-success); }
+.memory-diag-comparison strong[data-delta="rise"] { color: var(--state-warning); }
+
+.memory-diag-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.memory-diag-action-grid > button { width: 100%; }
+.memory-diag-action-grid > button:disabled {
+  --text-4: var(--text-2);
+  opacity: 0.72;
+  background: var(--panel2);
+  border-color: var(--border);
+}
+
+.memory-diag-action-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+}
+
+.memory-diag-action-notes .memory-diag-note {
+  margin-top: 0;
+  padding-left: 10px;
+  position: relative;
+}
+
+.memory-diag-action-notes .memory-diag-note::before {
+  content: '·';
+  position: absolute;
+  left: 1px;
+  color: var(--text-3);
+}
+
+.memory-diag-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2.5px 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.memory-diag-value {
+  min-width: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.memory-diag-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.memory-diagnostics .memory-diag-toggle.piwin-button {
+  color: var(--text-2);
+  padding-inline: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.memory-diagnostics .memory-diag-toggle.piwin-button:hover {
+  background: var(--panel2);
+  color: var(--text);
+}
+
+.memory-diag-detail { padding: 8px 0 4px; }
+.memory-diag-technical { display: flex; flex-direction: column; gap: 10px; }
+.memory-diag-technical section { padding: 10px 12px; background: var(--panel2); border-radius: 8px; }
+.memory-diag-scope { margin: 0; padding-inline: 2px; color: var(--text-3); font-size: 10.5px; line-height: 1.5; }
+
+@container (max-width: 280px) {
+  .memory-diag-overview-top { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .memory-diag-meta-grid,
+  .memory-diag-action-grid { grid-template-columns: 1fr; }
+  .memory-diag-meta-cell + .memory-diag-meta-cell { border-left: 0; border-top: 1px solid var(--border); padding-left: 0; padding-top: 6px; }
+  .memory-diag-counters { grid-template-columns: 1fr; }
+}

@@ -70,6 +70,11 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
   cannot suppress browser delivery. A stream height is retained during document
   replacement, but only the replacement document's report confirms readiness;
   a missing report enables the scrollable recovery viewport.
+- **Document publication (2026-11-13):** Tauri waits for publication ACK before
+  iframe navigation. Complete documents, including images and runtime/theme,
+  share the native 2 MiB limit; oversize/publication failures have their own
+  error and recovery path. Unsupported WebP encoders fall through to JPEG,
+  rather than accepting WebKit's larger PNG fallback (ADR 0005).
 - **Script diagnostics and incomplete source (2026-09-22):** the sandbox
   bootstrap reports bounded `error` and `unhandledrejection` diagnostics to
   Desktop before authored scripts run. Desktop accepts reports only from the
@@ -84,6 +89,12 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
   (`allow-scripts`, no `allow-same-origin`), so a host-origin blob URL errors
   instead of painting; `img-src data:` is already in the strict CSP. Decode is
   capped at 1024px and the inlined total is budgeted per artifact.
+- **Adaptive media fitting (2026-11-13):** budget against the actual unbound
+  Inline/Canvas/fullscreen template, including runtime/theme and repeated image
+  references. Overflow automatically reduces quality, then dimensions, without
+  modifying vault originals or skipping later readable images. Collection and
+  raw buffers are bounded/cancellable. Native documents target 2 MiB; browser
+  data URLs additionally reserve base64/address overhead (ADR 0005).
 - **Generated downloads (2026-11-05):** data-URL and frame-created Blob anchors
   send bounded local bytes through `artifact/download`. Desktop reuses Save As;
   the 8 MiB decoded cap is separate from the source-size cap. Blob references

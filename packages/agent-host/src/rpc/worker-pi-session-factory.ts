@@ -68,6 +68,13 @@ import {
   type PiCompactionSettingsManager,
 } from '../pi-compaction-settings.js';
 import { prioritizeCompactionHooks } from '../compaction-hook-priority.js';
+import {
+  COMPACTION_DELEGATION_EXTENSION_PATH,
+  createCompactionDelegationState,
+  installCompactionDelegationHook,
+  type CompactionDelegationFailureState,
+  type CompactionModelRuntime,
+} from '../compaction-delegation-hook.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import {
   activatePiBuiltinTools,
@@ -121,6 +128,12 @@ export type WorkerPiSessionFactoryOptions = {
   modelRuntime?: PiModelRuntime;
 };
 
+export type CreateBlueprintResourceLoaderOptions = {
+  getModelRuntime?: () => CompactionModelRuntime | undefined;
+  getRetrySettings?: () => unknown;
+  compactionDelegationState?: CompactionDelegationFailureState;
+};
+
 /**
  * Build a `DefaultResourceLoader` from the blueprint's exact path lists.
  * No discovery, no scanning — the worker loads only what the parent compiled.
@@ -129,6 +142,7 @@ export async function createBlueprintResourceLoader(
   blueprint: SerializableBlueprint,
   agentDir: string,
   piModule: Record<string, unknown>,
+  options: CreateBlueprintResourceLoaderOptions = {},
 ): Promise<unknown> {
   const DefaultResourceLoader = (piModule as { DefaultResourceLoader?: unknown })
     .DefaultResourceLoader;
@@ -184,11 +198,23 @@ export async function createBlueprintResourceLoader(
 
   const loader = new LoaderCtor(loaderOptions);
   await loader.reload();
+  const bundledPaths = blueprint.resourceManifest.extensions
+    .filter((instance) => instance.source === 'bundled')
+    .map((instance) => instance.path);
+  const delegationInstalled =
+    blueprint.compactionDelegation !== undefined &&
+    options.getModelRuntime !== undefined &&
+    installCompactionDelegationHook({
+      resourceLoader: loader,
+      delegation: blueprint.compactionDelegation,
+      getModelRuntime: options.getModelRuntime,
+      ...(options.getRetrySettings ? { getRetrySettings: options.getRetrySettings } : {}),
+      piModule,
+      state: options.compactionDelegationState ?? createCompactionDelegationState(),
+    });
   prioritizeCompactionHooks(
     loader,
-    blueprint.resourceManifest.extensions
-      .filter((instance) => instance.source === 'bundled')
-      .map((instance) => instance.path),
+    delegationInstalled ? [COMPACTION_DELEGATION_EXTENSION_PATH, ...bundledPaths] : bundledPaths,
   );
   return loader;
 }
@@ -445,15 +471,26 @@ export function createWorkerPiSessionFactory(
 
     const { blueprint, providers } = input;
 
+    let modelRuntimeRef: PiModelRuntime | undefined;
+    let settingsManagerRef: object | undefined;
+    const compactionDelegationState = createCompactionDelegationState();
     const resourceLoader = await createBlueprintResourceLoader(
       blueprint,
       agentDir,
       piModule as Record<string, unknown>,
+      {
+        getModelRuntime: () => modelRuntimeRef,
+        getRetrySettings: () =>
+          (settingsManagerRef as { getRetrySettings?: () => unknown } | undefined)
+            ?.getRetrySettings?.(),
+        compactionDelegationState,
+      },
     );
 
     const modelRuntime =
       options.modelRuntime ??
       (await createWorkerModelRuntime(piModule as Record<string, unknown>, agentDir));
+    modelRuntimeRef = modelRuntime;
     if (providers && providers.length > 0) {
       registerWorkerProviders(
         modelRuntime,
@@ -483,6 +520,7 @@ export function createWorkerPiSessionFactory(
       blueprint.workingDirectory,
       agentDir,
     );
+    settingsManagerRef = settingsManager;
     // Preserve the configured transport idle policy for compact snapshots;
     // the later in-memory manager intentionally contains only compact-only
     // overrides.
@@ -507,6 +545,7 @@ export function createWorkerPiSessionFactory(
         settingsManager = createSeededPiSettingsManager(
           piModule as Record<string, unknown>,
         ) as object;
+        settingsManagerRef = settingsManager;
         sessionOptions.settingsManager = settingsManager;
       }
     }
@@ -598,6 +637,7 @@ export function createWorkerPiSessionFactory(
           ? inferProtocolFromProviderId(providers, blueprint.model.providerId)
           : undefined),
       compactionSettingsManager,
+      compactionDelegationState,
     );
   };
 }
@@ -647,6 +687,7 @@ function adaptPiSessionForWorker(
   streamProgressTimeoutMs: number,
   initialProtocol?: string,
   compactionSettingsManager?: PiCompactionSettingsManager,
+  compactionDelegationState: CompactionDelegationFailureState = createCompactionDelegationState(),
 ): WorkerPiSessionLike {
   let activeRunId: string | undefined;
   let lastPromptStall: AgentFailure | undefined;
@@ -721,15 +762,16 @@ function adaptPiSessionForWorker(
     ...(piSession.abort ? { abort: () => piSession.abort!() } : {}),
     ...(piSession.compact
       ? {
-          compact: async (customInstructions?: string) => {
-            const result = customInstructions
-              ? await piSession.compact?.(customInstructions)
-              : await piSession.compact?.();
-            if (!result) {
-              throw new Error('Pi session compact returned no result');
-            }
-            return mapPiCompactionResult(result);
-          },
+          compact: (customInstructions?: string) =>
+            compactionDelegationState.runCompact(async () => {
+              const result = customInstructions
+                ? await piSession.compact?.(customInstructions)
+                : await piSession.compact?.();
+              if (!result) {
+                throw new Error('Pi session compact returned no result');
+              }
+              return mapPiCompactionResult(result);
+            }),
         }
       : {}),
     ...(piSession.abortCompaction ? { abortCompaction: () => piSession.abortCompaction?.() } : {}),
@@ -742,7 +784,8 @@ function adaptPiSessionForWorker(
             setPiAutoCompactionEnabled(piSession, compactionSettingsManager, enabled),
         }
       : {}),
-    subscribe: (listener) => piSession.subscribe(listener),
+    subscribe: (listener) =>
+      piSession.subscribe((raw) => listener(compactionDelegationState.transformEvent(raw))),
     ...(typeof piSession.getContextUsage === 'function'
       ? {
           getContextUsage: () => piSession.getContextUsage?.(),

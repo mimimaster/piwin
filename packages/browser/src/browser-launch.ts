@@ -88,15 +88,15 @@ export const DEFAULT_STEALTH_IGNORE_DEFAULT_ARGS = [
   '--enable-unsafe-swiftshader',
 ] as const;
 
-export function hasSystemChrome(): boolean {
-  if (process.platform === 'darwin') {
+export function hasSystemChrome(platform: NodeJS.Platform = process.platform): boolean {
+  if (platform === 'darwin') {
     const macPaths = [
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
       join(homedir(), 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome'),
     ];
     return macPaths.some((p) => existsSync(p));
   }
-  if (process.platform === 'win32') {
+  if (platform === 'win32') {
     const localAppData = process.env.LOCALAPPDATA ?? '';
     const winPaths = [
       localAppData ? join(localAppData, 'Google/Chrome/Application/chrome.exe') : '',
@@ -105,7 +105,7 @@ export function hasSystemChrome(): boolean {
     ].filter(Boolean);
     return winPaths.some((p) => existsSync(p));
   }
-  if (process.platform === 'linux') {
+  if (platform === 'linux') {
     const linuxPaths = [
       '/usr/bin/google-chrome',
       '/usr/bin/google-chrome-stable',
@@ -115,31 +115,73 @@ export function hasSystemChrome(): boolean {
   return false;
 }
 
+export type BrowserLaunchTarget = {
+  channel?: string;
+  executablePath?: string;
+};
+
+/**
+ * Selects the default browser binary when neither `channel` nor `executablePath`
+ * was explicitly configured.
+ *
+ * On macOS, headless `/Applications/Google Chrome.app` shares bundle identifier
+ * `com.google.Chrome` with the user's primary browser. LaunchServices can promote
+ * that headless process to Foreground and deliver system-wide `open https://...`
+ * events (OAuth verification links, external URLs) into the invisible headless
+ * session instead of the user's visible Chrome window. Headless macOS launches
+ * therefore use Playwright's owned Chromium (`com.google.chrome.for.testing`).
+ */
+export function resolveDefaultBrowserLaunchTarget(input: {
+  headless: boolean;
+  channel?: string;
+  executablePath?: string;
+  platform?: NodeJS.Platform;
+  hasInstalledSystemChrome?: boolean;
+  resolvePlaywrightExecutable?: () => string | undefined;
+}): BrowserLaunchTarget {
+  if (input.channel !== undefined || input.executablePath !== undefined) {
+    return {
+      ...(input.channel !== undefined ? { channel: input.channel } : {}),
+      ...(input.executablePath !== undefined ? { executablePath: input.executablePath } : {}),
+    };
+  }
+  const platform = input.platform ?? process.platform;
+  const allowSystemChrome = !(platform === 'darwin' && input.headless !== false);
+  const systemChromeAvailable = input.hasInstalledSystemChrome ?? hasSystemChrome(platform);
+  if (allowSystemChrome && systemChromeAvailable) {
+    return { channel: 'chrome' };
+  }
+  try {
+    const resolved = input.resolvePlaywrightExecutable?.();
+    if (resolved) {
+      return { executablePath: resolved };
+    }
+  } catch {
+    // Fall back to Playwright's default resolution
+  }
+  return {};
+}
+
 export function defaultLaunchPersistentContext(
   userDataDir: string,
   launchOptions: BrowserPersistentLaunchOptions,
 ): Promise<BrowserContext> {
   return import('playwright-core').then(({ chromium }) => {
-    let channel = launchOptions.channel;
-    let executablePath = launchOptions.executablePath;
-    if (channel === undefined && executablePath === undefined) {
-      if (hasSystemChrome()) {
-        channel = 'chrome';
-      } else {
-        try {
-          const resolved = chromium.executablePath();
-          if (resolved && existsSync(resolved)) {
-            executablePath = resolved;
-          }
-        } catch {
-          // Fall back to Playwright's default resolution
-        }
-      }
-    }
+    const target = resolveDefaultBrowserLaunchTarget({
+      headless: launchOptions.headless,
+      ...(launchOptions.channel !== undefined ? { channel: launchOptions.channel } : {}),
+      ...(launchOptions.executablePath !== undefined
+        ? { executablePath: launchOptions.executablePath }
+        : {}),
+      resolvePlaywrightExecutable: () => {
+        const resolved = chromium.executablePath();
+        return resolved && existsSync(resolved) ? resolved : undefined;
+      },
+    });
     return chromium.launchPersistentContext(userDataDir, {
       ...launchOptions,
-      ...(channel !== undefined ? { channel } : {}),
-      ...(executablePath !== undefined ? { executablePath } : {}),
+      ...(target.channel !== undefined ? { channel: target.channel } : {}),
+      ...(target.executablePath !== undefined ? { executablePath: target.executablePath } : {}),
     });
   });
 }

@@ -69,6 +69,20 @@ describe('draftAgentOptionsFrom', () => {
     const result = draftAgentOptionsFrom([{ agentId: 'pi', state: 'ready' }]);
     expect(result).toHaveLength(1);
   });
+
+  it.each([{ backends: [] }, { backends: [{ agentId: 'antigravity', name: 'Antigravity' }] }])(
+    'preserves the failure reason before and after the extension catalog loads ($backends)',
+    ({ backends }) => {
+      const options = draftAgentOptionsFrom([
+        { agentId: 'antigravity', state: 'unavailable', reason: 'agent-artifact-integrity' },
+      ], backends);
+      expect(options.find((option) => option.agentId === 'antigravity')).toMatchObject({
+        ready: false,
+        state: 'unavailable',
+        reason: 'agent-artifact-integrity',
+      });
+    },
+  );
 });
 
 describe('useBackendSessionControls', () => {

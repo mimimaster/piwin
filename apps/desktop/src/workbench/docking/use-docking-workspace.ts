@@ -5,7 +5,7 @@ import { shouldRevealBrowserInspector } from '../../browser/browser-inspector-re
 import type { RightPanelTab } from '../../right-panel/right-panel.js';
 import type { SurfaceTitlebar } from '../../conversation/surface-titlebar.js';
 import { PERSIST_DEBOUNCE_MS } from './constants.js';
-import { tryOpenDockingTool } from './docking-tool-bridge.js';
+import { inspectorTabToToolKind, tryOpenDockingTool } from './docking-tool-bridge.js';
 import { createWorkspaceIdFactory, type WorkspaceIdFactory } from './ids.js';
 import { selectLiveSessionIds } from './live-budget.js';
 import {
@@ -38,6 +38,7 @@ export type DockingWorkspaceController = {
   setRightSlot: (node: HTMLElement | null) => void;
   setRightPanelElement: (node: HTMLElement | null) => void;
   setRightTitlebar: (titlebar: SurfaceTitlebar | null) => void;
+  setRightBodyVisible: (visible: boolean) => void;
 };
 
 /**
@@ -47,6 +48,7 @@ export type DockingWorkspaceController = {
  */
 export type DockingRightHost = {
   open: boolean;
+  bodyVisible: boolean;
   slot: HTMLElement | null;
   panel: HTMLElement | null;
   titlebar: SurfaceTitlebar | null;
@@ -73,6 +75,7 @@ export function useDockingWorkspace(args: {
   const [hydrated, setHydrated] = useState(false);
   const persistTimer = useRef<number | null>(null);
   const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null);
+  const [rightBodyVisible, setRightBodyVisible] = useState(false);
   const [rightPanelElement, setRightPanelElement] = useState<HTMLElement | null>(null);
   const [rightTitlebar, setRightTitlebarState] = useState<SurfaceTitlebar | null>(null);
   const [revealTick, setRevealTick] = useState(0);
@@ -190,9 +193,10 @@ export function useDockingWorkspace(args: {
   }, []);
 
   const rightPanelOpen = args.rightPanelOpen === true;
+  const rightToolSelected = args.inspectorTab == null || inspectorTabToToolKind(args.inspectorTab) !== null;
   const rightHost = useMemo<DockingRightHost>(
-    () => ({ open: rightPanelOpen, slot: rightSlot, panel: rightPanelElement, titlebar: rightTitlebar }),
-    [rightPanelElement, rightPanelOpen, rightSlot, rightTitlebar],
+    () => ({ open: rightPanelOpen, bodyVisible: rightBodyVisible && rightToolSelected, slot: rightSlot, panel: rightPanelElement, titlebar: rightTitlebar }),
+    [rightBodyVisible, rightPanelElement, rightPanelOpen, rightSlot, rightTitlebar, rightToolSelected],
   );
 
   useEffect(() => {
@@ -231,6 +235,7 @@ export function useDockingWorkspace(args: {
       setRightSlot,
       setRightPanelElement,
       setRightTitlebar,
+      setRightBodyVisible,
     }),
     [
       apply,

@@ -10,6 +10,9 @@ const webgl = vi.hoisted(() => ({
 vi.mock('@xterm/addon-webgl', () => ({
   WebglAddon: class {
     onContextLoss(listener: () => void): void { webgl.contextLost = listener; }
+    onChangeTextureAtlas(): void { /* No canvases in this renderer lifecycle fixture. */ }
+    onAddTextureAtlasCanvas(): void { /* No canvases in this renderer lifecycle fixture. */ }
+    onRemoveTextureAtlasCanvas(): void { /* No canvases in this renderer lifecycle fixture. */ }
     clearTextureAtlas(): void { webgl.cleared += 1; }
     dispose(): void { webgl.disposed += 1; }
   },
@@ -20,6 +23,8 @@ import { attachXtermWebglRenderer } from './xterm-webgl-renderer.js';
 function terminal(): Terminal {
   return {
     loadAddon: () => { if (webgl.unsupported) throw new Error('WebGL2 not supported'); },
+    refresh: () => undefined,
+    rows: 24,
   } as unknown as Terminal;
 }
 

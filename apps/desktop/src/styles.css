@@ -100,6 +100,7 @@
 @import './styles/inspector-terminal.css';
 @import './styles/inspector-diff.css';
 @import './styles/inspector-panels.css';
+@import './styles/memory-diagnostics.css';
 @import './styles/inspector-preview.css';
 @import './styles/inspector-code-preview.css';
 @import './styles/inspector-markdown-doc.css';

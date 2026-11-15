@@ -3,6 +3,7 @@
  * parse every vendor SVG at startup.
  */
 import type { CSSProperties, ComponentType } from 'react';
+import { AntigravityIcon } from './antigravity-mark.js';
 import { KiroIcon } from './kiro-mark.js';
 import {
   AlibabaCloud,
@@ -64,6 +65,7 @@ export const BRANDS: Record<string, BrandEntry> = {
   gemini: { Icon: Gemini as BrandIcon, softBg: '#e8f0fe', softFg: '#4285f4' },
   'gemini-proxy': { Icon: Gemini as BrandIcon, softBg: '#e8f0fe', softFg: '#4285f4' },
   google: { Icon: Gemini as BrandIcon, softBg: '#e8f0fe', softFg: '#4285f4' },
+  antigravity: { Icon: AntigravityIcon, softBg: '#e8f0fe', softFg: '#4285f4' },
   deepseek: { Icon: DeepSeek as BrandIcon, softBg: '#e8ecff', softFg: '#4d6bfe' },
   moonshot: { Icon: Moonshot as BrandIcon, softBg: '#edf1f6', softFg: '#16191d' },
   kimi: { Icon: Kimi as BrandIcon, softBg: '#eef4ff', softFg: '#2563eb' },

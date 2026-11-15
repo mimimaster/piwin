@@ -2,10 +2,12 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const remoteDevHost = process.env.TAURI_DEV_HOST;
 const serverHost = remoteDevHost ?? '127.0.0.1';
 const desktopRoot = dirname(fileURLToPath(import.meta.url));
+const desktopRequire = createRequire(import.meta.url);
 
 export default defineConfig({
   test: {
@@ -36,14 +38,18 @@ export default defineConfig({
   plugins: [react()],
   // The mobile workbench is built from this app but runs in the mobile
   // shell, whose Tauri runtime can be on a different minor release.
-  resolve: process.env.VITE_PIWIN_SHELL_ONLY === '1'
-    ? {
-        alias: [{
+  resolve: {
+    alias: [
+      // xterm 6's ESM const-enum initializer loses its local in release syntax
+      // minification, crashing DECRQM parsing. Its published main entry is safe.
+      // Match the package only so CSS imports keep their normal resolution.
+      { find: /^@xterm\/xterm$/, replacement: desktopRequire.resolve('@xterm/xterm') },
+      ...(process.env.VITE_PIWIN_SHELL_ONLY === '1' ? [{
           find: /^@tauri-apps\/api(?=\/|$)/,
           replacement: resolve(desktopRoot, '../mobile/node_modules/@tauri-apps/api'),
-        }],
-      }
-    : undefined,
+        }] : []),
+    ],
+  },
   // Shiki loads grammars on demand inside the module worker.
   worker: { format: 'es' },
   clearScreen: false,

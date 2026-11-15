@@ -249,6 +249,8 @@ export type BrowserRecoveryStatus = 'none' | 'recovered' | 'failed';
 export type BrowserStatePush = {
   sessionId?: string;
   type: 'browser/state';
+  /** Reopened after runtime loss/suspension; arbitrary in-page state was not restored. */
+  pageStateLost?: boolean;
   ts: number;
   url?: string;
   title?: string;

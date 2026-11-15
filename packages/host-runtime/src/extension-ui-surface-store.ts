@@ -20,6 +20,7 @@ export const EXTENSION_UI_SURFACE_LIMITS = {
   maxWidgets: 8,
   maxKeyLength: 64,
   maxStatusLength: 240,
+  maxMetaStatusLength: 1024,
   maxWidgetLines: 24,
   maxWidgetLineLength: 400,
   maxNoticeLength: 1000,
@@ -92,7 +93,8 @@ export class ExtensionUiSurfaceStore {
     switch (update.kind) {
       case 'status': {
         const key = clip(update.key, limits.maxKeyLength);
-        const text = update.text === undefined ? undefined : clip(update.text, limits.maxStatusLength);
+        const valueLimit = key.startsWith('meta:') ? limits.maxMetaStatusLength : limits.maxStatusLength;
+        const text = update.text === undefined ? undefined : clip(update.text, valueLimit);
         if (text === undefined || !text.trim()) return surface.statuses.delete(key);
         if (!surface.statuses.has(key) && surface.statuses.size >= limits.maxStatuses) return false;
         if (surface.statuses.get(key) === text) return false;

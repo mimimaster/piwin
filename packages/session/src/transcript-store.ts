@@ -474,7 +474,9 @@ export type SessionTranscriptStore = {
   }): Promise<SessionContextSnapshot>;
   readLatestAssistantUsageForActivePath(): Promise<AssistantUsageMeasurement | null>;
   /** Cumulative usage of every finalized request, plus active-path user turns. */
-  readSessionUsageTotals(): Promise<SessionUsageTotals>;
+  readSessionUsageTotals(
+    estimateCost?: (measurement: AssistantUsageMeasurement) => number | undefined,
+  ): Promise<SessionUsageTotals>;
   putAssistantUsageMeasurement(measurement: AssistantUsageMeasurement): Promise<'inserted' | 'duplicate'>;
   /** Select this initialized Store as the product transcript authority. */
   markAuthoritative(): Promise<void>;

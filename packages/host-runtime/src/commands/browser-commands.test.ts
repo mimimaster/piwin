@@ -24,6 +24,8 @@ describe('conversation browser routing', () => {
 function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSession {
   const queue = createExclusiveQueue();
   return {
+    residencySnapshot: () => ({ resident: false, eligible: false, lastUsedAtMs: 0 }),
+    suspendIdle: async () => ({ suspended: false, reason: 'not-resident' }),
     start: async () => ({ url: 'http://localhost:3000', title: 'Test' }),
     stop: async () => {},
     navigate: async (url) => {},

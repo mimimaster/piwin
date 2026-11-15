@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ArtifactCapabilityReport, ArtifactRenderPlan } from '@piwin/artifact';
+import { MAX_ARTIFACT_DOCUMENT_BYTES } from '@piwin/contracts';
 import { resetArtifactInitQueueForTests } from './artifact-init-queue.js';
 import { resetArtifactLiveHostRegistryForTests } from './artifact-live-host-registry.js';
 import { Button, PiwinUiProvider } from '@piwin/ui-kit';
@@ -90,6 +91,13 @@ function makeStreamPlan(
   };
 }
 
+function installNativePublisher(invoke: (command: string, args: unknown) => Promise<unknown>): void {
+  Object.defineProperty(window, '__TAURI_INTERNALS__', {
+    configurable: true,
+    value: { invoke, convertFileSrc: (id: string) => `about:blank#${id}` },
+  });
+}
+
 type FramePlan = Extract<ArtifactRenderPlan, { kind: 'render' } | { kind: 'blocked' }>;
 
 function renderFrame(
@@ -144,9 +152,76 @@ describe('ArtifactFrame chrome', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
     resetArtifactInitQueueForTests();
     resetArtifactLiveHostRegistryForTests();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+  });
+
+  it('waits for native document publication before mounting its iframe', async () => {
+    let acknowledge = (): void => { throw new Error('publisher not installed'); };
+    const pending = new Promise<void>((resolve) => { acknowledge = resolve; });
+    const invoke = vi.fn(async () => pending);
+    installNativePublisher(invoke);
+    const { container, root } = renderFrame();
+    instances.push({ container, root });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(invoke).toHaveBeenCalledOnce();
+    expect(container.querySelector('iframe')).toBeNull();
+    await act(async () => { acknowledge(); });
+    expect(container.querySelector('iframe')).not.toBeNull();
+  });
+
+  it('shows publication failure and republishes before reloading on retry', async () => {
+    const invoke = vi.fn()
+      .mockRejectedValueOnce(new Error('private native stack'))
+      .mockResolvedValue(null);
+    installNativePublisher(invoke);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { container, root } = renderFrame();
+    instances.push({ container, root });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelector('iframe')).toBeNull();
+    const error = container.querySelector('[data-testid="artifact-document-error"]');
+    expect(error?.textContent).toContain('could not be loaded');
+    expect(error?.textContent).not.toContain('private native stack');
+    expect(container.querySelector('[data-testid="artifact-height-recovery"]')).toBeNull();
+    await act(async () => {
+      error?.querySelector('button')?.click();
+    });
+
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[data-testid="artifact-document-error"]')).toBeNull();
+    expect(container.querySelector('iframe')).not.toBeNull();
+  });
+
+  it('shows the complete-document size failure without navigating or invoking native publication', async () => {
+    const invoke = vi.fn(async () => null);
+    installNativePublisher(invoke);
+    const plan = makeRenderPlan();
+    plan.document = {
+      kind: 'sandbox',
+      srcdoc: '汉'.repeat(Math.ceil(MAX_ARTIFACT_DOCUMENT_BYTES / 3)),
+      csp: "default-src 'none'",
+    };
+    const { container, root } = renderFrame(plan, 'inline', undefined, 'zh-CN');
+    instances.push({ container, root });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(invoke).not.toHaveBeenCalled();
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-document-error"]')?.textContent).toContain('超过 2 MiB');
+    expect(container.querySelector('[data-testid="artifact-height-recovery"]')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-tool-status')).toBe('error');
   });
 
   it('omits Expand and raw-source disclosure on inline render frames', async () => {

@@ -71,6 +71,7 @@ import {
 import { TerminalJobMonitor, type TerminalJobMonitorProps } from '../terminal/terminal-job-monitor';
 import { isTauriPtyAvailable } from '../host/tauri-pty';
 import { useTerminalSessions } from '../hooks/use-terminal-sessions';
+import { isTerminalTab } from '../right-panel/right-panel-sections.js';
 import { requestBrowserNewTab } from '../host/host-client-browser';
 import { MemoryDiagnosticsPanel } from '../notes/MemoryDiagnosticsPanel';
 
@@ -244,6 +245,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     projectTrusted,
     isTauriPtyAvailable(),
     terminalSpawnCwd || terminalCwd,
+    rightPanelOpen && rightPanelTab !== null && isTerminalTab(rightPanelTab),
   );
   const terminalDock = (
     <DeferredTerminalDock
@@ -590,7 +592,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           }
           {...(tasksContent !== undefined ? { tasksContent } : {})}
           {...(tasksActiveCount !== undefined ? { tasksActiveCount } : {})}
-          memoryContent={<MemoryDiagnosticsPanel />}
+          memoryContent={<MemoryDiagnosticsPanel locale={locale} />}
         />
       </>
   );
@@ -626,5 +628,6 @@ function resolveDockedTools(
     slotRef: docking.setRightSlot,
     panelRef: docking.setRightPanelElement,
     onTitlebarChange: docking.setRightTitlebar,
+    onVisibilityChange: docking.setRightBodyVisible,
   };
 }

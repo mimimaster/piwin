@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
-import { Button } from '@piwin/ui-kit';
+import type { ExtensionSessionBackendIcon } from '@piwin/contracts';
+import { Button, SessionBackendIcon } from '@piwin/ui-kit';
 
 export function SessionEntryCard(props: {
   name: string;
@@ -8,6 +9,7 @@ export function SessionEntryCard(props: {
   ready: boolean;
   /** The built-in engine is always available: its badge is a label, not a readiness state. */
   builtin?: boolean;
+  icon?: ExtensionSessionBackendIcon | undefined;
   title: string;
   testId: string;
   onSelect: () => void;
@@ -24,6 +26,11 @@ export function SessionEntryCard(props: {
       onClick={props.onSelect}
     >
       <span className="empty-stage-engine-card-header">
+        {props.icon ? (
+          <span className="empty-stage-engine-icon" aria-hidden="true">
+            <SessionBackendIcon icon={props.icon} name={props.name} variant="glyph" size={14} />
+          </span>
+        ) : null}
         <span className="empty-stage-engine-name">{props.name}</span>
         <span className={`empty-stage-engine-badge${props.builtin === true ? ' is-builtin' : props.ready ? ' is-ready' : ' is-warning'}`}>
           {props.badge}

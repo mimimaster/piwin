@@ -16,21 +16,45 @@ import type { ContextRingViewModel } from '../context/context-telemetry-selector
 import { ContextUsageRing } from '../context/context-usage-ring';
 
 /** Seconds since the turn started, ticking once a second while it runs. */
-export function useRunningElapsed(isRunning: boolean): number | undefined {
-  const [startedAt, setStartedAt] = useState<number | undefined>(undefined);
+export function useRunningElapsed(
+  isRunning: boolean,
+  runningSince?: number | null,
+  sessionKey?: string | null,
+): number | undefined {
+  const authoritativeStartedAt =
+    typeof runningSince === 'number' && Number.isFinite(runningSince)
+      ? runningSince
+      : undefined;
+  const [fallback, setFallback] = useState<
+    | {
+        sessionKey: string | null | undefined;
+        startedAt: number;
+      }
+    | undefined
+  >(undefined);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!isRunning) {
-      setStartedAt(undefined);
-      return;
+    if (!isRunning || authoritativeStartedAt !== undefined) {
+      setFallback(undefined);
+    } else {
+      setFallback((prev) =>
+        prev && prev.sessionKey === sessionKey
+          ? prev
+          : { sessionKey, startedAt: Date.now() },
+      );
     }
-    const start = Date.now();
-    setStartedAt(start);
-    setNow(start);
+    if (!isRunning) return;
+    setNow(Date.now());
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [isRunning]);
-  return startedAt === undefined ? undefined : Math.max(0, now - startedAt);
+  }, [isRunning, authoritativeStartedAt, sessionKey]);
+  if (!isRunning) return undefined;
+  const effectiveStartedAt =
+    authoritativeStartedAt ??
+    (fallback !== undefined && fallback.sessionKey === sessionKey ? fallback.startedAt : undefined);
+  return effectiveStartedAt === undefined
+    ? undefined
+    : Math.max(0, Math.max(now, Date.now()) - effectiveStartedAt);
 }
 
 function StatusItems(props: { items: ComposerStatusItem[] }): ReactElement {
@@ -61,11 +85,17 @@ function StatusItems(props: { items: ComposerStatusItem[] }): ReactElement {
 export type ComposerStatsLineProps = Omit<ComposerStatsLineInput, 'runningElapsedMs'> & {
   contextView?: ContextRingViewModel | undefined;
   isRunning?: boolean | undefined;
+  runningSince?: number | null | undefined;
+  sessionKey?: string | null | undefined;
   onOpenModelSettings?: (() => void) | undefined;
 };
 
 export function ComposerStatsLine(props: ComposerStatsLineProps): ReactElement {
-  const runningElapsedMs = useRunningElapsed(props.isRunning === true);
+  const runningElapsedMs = useRunningElapsed(
+    props.isRunning === true,
+    props.runningSince,
+    props.sessionKey,
+  );
   const bar = buildComposerStatusBar({ ...props, runningElapsedMs });
   const context = props.contextView?.visible ? props.contextView : undefined;
   if (bar.extensions.length === 0 && bar.turn.length === 0 && bar.resources.length === 0 && !context) {

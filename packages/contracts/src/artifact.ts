@@ -138,6 +138,9 @@ export const NATIVE_SVG_ARTIFACT_LANGUAGES = ['svg'] as const;
 
 export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
 
+/** Complete sandbox document, including embedded media and runtime/theme. */
+export const MAX_ARTIFACT_DOCUMENT_BYTES = 2 * 1024 * 1024;
+
 /** Host tool that returns the decision policy + runtime contract on demand. */
 export const ARTIFACT_INSTRUCTIONS_TOOL_NAME = 'artifact_instructions' as const;
 

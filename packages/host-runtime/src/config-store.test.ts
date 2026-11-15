@@ -1088,3 +1088,37 @@ describe('artifact per-scope switches', () => {
     });
   });
 });
+
+describe('compaction delegation persistence', () => {
+  it('round-trips enabled compaction.delegation and preserves saved model when toggled off', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-compaction-delegation-'));
+    const delegateModel = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'third-party-summarizer',
+      modelId: 'gpt-4o-mini',
+    };
+    const config = createDefaultPiwinConfig();
+    config.compaction = {
+      autoEnabledDefault: true,
+      delegation: { enabled: true, model: delegateModel },
+    };
+
+    await savePiwinConfig(config, rootDir);
+    const loadedEnabled = await loadPiwinConfig(rootDir);
+    expect(loadedEnabled.compaction?.delegation).toEqual({
+      enabled: true,
+      model: delegateModel,
+    });
+
+    config.compaction = {
+      autoEnabledDefault: true,
+      delegation: { enabled: false, model: delegateModel },
+    };
+    await savePiwinConfig(config, rootDir);
+    const loadedDisabled = await loadPiwinConfig(rootDir);
+    expect(loadedDisabled.compaction?.delegation).toEqual({
+      enabled: false,
+      model: delegateModel,
+    });
+  });
+});

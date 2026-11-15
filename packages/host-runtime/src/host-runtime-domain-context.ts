@@ -19,7 +19,7 @@ import { findPersistedReview } from './subagent-review-service.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { cancelRunsForSubscriptionProvider } from './cancel-subscription-runs.js';
 import { readOpenaiCodexLiveAuth } from './voice/codex-live-token.js';
-import { readBackendRequestUsage } from './backend-request-usage.js';
+import { readBackendRequestUsage, readSessionUsageTotalsWithBackend } from './backend-request-usage.js';
 
 /**
  * Builds the WalkthroughCommandContext seam (spec §11.1) shared by the SDK
@@ -94,8 +94,7 @@ export async function buildDomainContext(
       ? { backendUserInputPending: deps.backendUserInputPending }
       : {}),
     getExtensionUiSurface: (sessionId) => deps.extensionUiSurfaces.snapshot(sessionId),
-    getSessionUsageTotals: async (sessionId) =>
-      (await deps.getTranscriptStore(sessionId)).readSessionUsageTotals(),
+    getSessionUsageTotals: (sessionId) => readSessionUsageTotalsWithBackend(deps, sessionId),
     getBackendRequestUsage: (from) => readBackendRequestUsage(deps, from),
     rememberProjectPermission: (sessionId, action, detail, scope, projectPath) =>
       deps.rememberProjectPermission(sessionId, action, detail, scope, projectPath),

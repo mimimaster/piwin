@@ -58,6 +58,8 @@ export type RightPanelDockedTools = {
   panelRef: (node: HTMLElement | null) => void;
   /** Titlebar slots a docked browser takes over while it is the active tab. */
   onTitlebarChange: (titlebar: SurfaceTitlebar | null) => void;
+  /** A selected docked body, not merely an expanded inspector column. */
+  onVisibilityChange?: (visible: boolean) => void;
 };
 
 export type RightPanelProps = {
@@ -302,6 +304,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   }, [handedOffKey, openTabs]);
 
   // Migrate legacy 'terminal' in openTabs to concrete active session id
+  const onTerminalTabResolved = props.onTabChange;
   useEffect(() => {
     if (!terminalSessions || terminalSessions.sessions.length === 0) return;
     const targetSessionId = terminalSessions.activeSessionId ?? terminalSessions.sessions[0]?.id;
@@ -312,7 +315,10 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       }
       return current;
     });
-  }, [terminalSessions]);
+    // A cold, on-demand terminal can arrive after the generic request was
+    // added. Resolve the controlled selection too, or an older tab wins.
+    if (props.activeTab === 'terminal') onTerminalTabResolved(targetSessionId as RightPanelTab);
+  }, [onTerminalTabResolved, props.activeTab, terminalSessions]);
 
   // Sessions opened outside the + menu (terminal sidebar) still need a tab.
   // The + menu inserts its own tab first, so an id already listed stays put
@@ -416,6 +422,11 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     requested != null && allTabs.includes(requested) ? requested : (allTabs[0] ?? null);
   const activeKind = active ? rightPanelTabKind(active) : null;
   const activeIsDocked = active !== null && !openTabs.includes(active) && dockedTabs.includes(active);
+  const onDockedVisibilityChange = dockedTools?.onVisibilityChange;
+  useEffect(() => {
+    onDockedVisibilityChange?.(props.open && activeIsDocked);
+    return () => onDockedVisibilityChange?.(false);
+  }, [activeIsDocked, onDockedVisibilityChange, props.open]);
   const mountedTabs = selectMountedRightPanelTabs(openTabs, active, props.open);
   // Tool tabs stay in the strip. Page tabs (side chats, browser pages) used to
   // replace them; a second Browser then had nothing to sit beside.

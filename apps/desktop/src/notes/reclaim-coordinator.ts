@@ -68,6 +68,8 @@ export type ReclaimEpisode = {
   level: 'moderate' | 'critical';
   admitted: boolean;
   rounds: Array<{ kind: ReclaimAction['type']; atMs: number; detail: string }>;
+  /** Executor-confirmed resource-byte estimate; never a pre-attempt candidate
+   * size or a claim that process footprint fell by the same amount. */
   releasedBytesEstimate: number;
   outcome?: EpisodeOutcome;
   endedAtMs?: number;

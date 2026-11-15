@@ -126,6 +126,8 @@ export type UsageRecord = {
   /** Reasoning tokens when the provider reports them; a subset of completionTokens. */
   reasoningTokens?: number;
   firstTokenKind?: UsageFirstTokenKind;
+  /** Direct USD charge reported by an external backend CLI when available. */
+  costUsd?: number;
   /** Turn outcome status. */
   success?: boolean;
   measurementId?: string;

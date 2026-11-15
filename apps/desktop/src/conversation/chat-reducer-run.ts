@@ -160,7 +160,9 @@ export function applyRunRecord(
       activeRunId: run.runId,
       activeRunPhase: run.phase ?? state.activeRunPhase,
       activeRunPhaseDetail: run.phaseDetail ?? null,
-      activeRunStartedAt: run.startedAt ? parseEventTime(run.startedAt) : state.activeRunStartedAt,
+      activeRunStartedAt: run.startedAt
+        ? parseEventTime(run.startedAt)
+        : (state.runRecordsById[run.runId]?.startedAt ?? state.activeRunStartedAt),
       activeRunPhaseUpdatedAt: run.phaseUpdatedAt
         ? parseEventTime(run.phaseUpdatedAt)
         : state.activeRunPhaseUpdatedAt,
@@ -503,8 +505,12 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
         return state;
       }
       {
-        const startedAt = action.acceptedAt ? parseAcceptedAt(action.acceptedAt) : Date.now();
+        const acceptedAt = action.acceptedAt ? parseAcceptedAt(action.acceptedAt) : Date.now();
         const previous = state.runRecordsById[action.runId];
+        const startedAt =
+          previous?.startedAt ??
+          (state.activeRunId === action.runId ? state.activeRunStartedAt : null) ??
+          acceptedAt;
         return {
           ...state,
           activeRunId: action.runId,

@@ -26,6 +26,7 @@ class FakeHostClient {
   readonly requests: HostCommand[] = [];
   private readonly listeners = new Set<(message: HostServerMessage) => void>();
   run: ExecutionRunRecord | null = null;
+  includeActiveRunOnResume = false;
   resumeMissing = false;
   resumeFail = false;
   advertiseContextTelemetry = false;
@@ -110,6 +111,7 @@ class FakeHostClient {
             message('user-1', 'user', 'Pane question'),
             message('assistant-1', 'assistant', this.resumeAssistantText),
           ],
+          ...(this.includeActiveRunOnResume && this.run ? { activeRun: this.run } : {}),
           ...(this.contextSnapshot ? { contextSnapshot: this.contextSnapshot } : {}),
         },
       });
@@ -858,5 +860,32 @@ describe('ConversationPaneSession', () => {
     act(() => root?.unmount());
     root = null;
     expect(withoutClaimedPermissionPrompts(mainQueue)).toHaveLength(1);
+  });
+
+  it('displays elapsed time from activeRun.startedAt when resuming a running pane session', async () => {
+    const fixedNow = 1_700_000_025_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(fixedNow);
+    try {
+      const host = new FakeHostClient();
+      host.includeActiveRunOnResume = true;
+      host.run = {
+        runId: 'run-live',
+        kind: 'session-turn',
+        status: 'running',
+        phase: 'streaming',
+        rootRunId: 'run-live',
+        sessionId: 'session-aux',
+        startedAt: new Date(fixedNow - 25_000).toISOString(),
+      };
+      ({ container, root } = renderSession(host));
+      await flushAsync();
+      await vi.waitFor(() => {
+        expect(
+          container?.querySelector('[data-testid="composer-stats-turn"]')?.textContent,
+        ).toContain('running25s');
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });

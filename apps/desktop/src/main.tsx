@@ -20,7 +20,7 @@ import { startLegacyChannelMigration } from './host/channel-legacy-migration';
 import { isDesktopTauriRuntime, isMobileTauriRuntime } from './tool-cards/shell-runtime';
 import { getAppUpdateStore } from './platform/app-update-store';
 import { configureArtifactKitDelivery } from '@piwin/artifact';
-import { resolveArtifactSchemeOrigin } from './artifact/artifact-frame-stream';
+import { resolveArtifactSchemeOrigin } from './artifact/artifact-document.js';
 import { applyWindowMaterialToDocument } from './platform/window-material-preferences';
 import { effectiveWindowMaterialOpacity } from './platform/wallpaper-preferences';
 import { applyWallpaperToDocument } from './platform/wallpaper-document';

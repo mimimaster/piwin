@@ -162,6 +162,9 @@ export function buildComposerStatusBar(input: ComposerStatsLineInput): ComposerS
     extensions.push({ key: '__working__', text: surface.workingMessage, working: true });
   }
   for (const status of surface?.statuses ?? []) {
+    if (status.key.startsWith('meta:')) {
+      continue;
+    }
     extensions.push({ key: status.key, text: status.text, working: false });
   }
   return { extensions, turn, resources };

@@ -53,6 +53,25 @@ describe('extension-scanner', () => {
     expect(paths.some((path) => path.endsWith('drop.ts'))).toBe(false);
   });
 
+  it('discovers a single .ts file path configured in extensionsConfig.extraPaths', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-ext-mapped-file-'));
+    const extraDir = await mkdtemp(join(tmpdir(), 'piwin-ext-single-'));
+    const filePath = join(extraDir, 'solo-ext.ts');
+    await writeFile(filePath, '/** Solo mapped extension. */\nexport default function () {}\n', 'utf8');
+
+    const listed = await scanExtensions({
+      piwinRoot: rootDir,
+      extensionsConfig: { extraPaths: [filePath], disabledIds: [] },
+    });
+    const hit = listed.find((item) => item.id === 'solo-ext');
+    expect(hit).toMatchObject({
+      id: 'solo-ext',
+      source: 'mapped',
+      enabled: true,
+      path: filePath,
+    });
+  });
+
   it('lists TUI-only extensions as incompatible and omits them from entry paths', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-ext-tui-'));
     const extensionsDir = join(rootDir, 'extensions');

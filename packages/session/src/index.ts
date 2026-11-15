@@ -140,6 +140,10 @@ export {
 } from './usage-ledger-store.js';
 export type { UsageRollupOptions } from './usage-ledger-store.js';
 export { computeUsageCallLog, type UsageCallLogOptions } from './usage-call-log.js';
+export {
+  summarizeMeasurementsIntoSessionTotals,
+  type SessionMeasurementCostEstimator,
+} from './session-usage-totals.js';
 
 export {
   exportTranscript,

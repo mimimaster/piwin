@@ -204,6 +204,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     ensureSession: session.ensureSession,
     liveSessionId,
     sidebarMode,
+    sessionUsageTotals,
   });
   useIosLiveActivity(dock.live, session.handleResumeSession);
   // Extension surface and commands are merged here so the large dock-props

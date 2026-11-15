@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import type { EmptyStageLandingProps } from './empty-stage-landing.js';
 import { SessionEntryCard } from '../session/session-entry-card.js';
+import { agentBackendStatusCopy } from '../agents/agent-backend-status-copy.js';
 
 export function resolveEngineLabel(
   agentId: string,
@@ -36,15 +37,10 @@ export function EmptyStageSessionChoices(props: Pick<EmptyStageLandingProps,
     >
       {options.map((option) => {
         const name = resolveEngineLabel(option.agentId, option.label, chinese);
+        const statusCopy = agentBackendStatusCopy(option.ready ? { state: 'ready' } : option, chinese);
         const badge = option.agentId === 'pi'
           ? chinese ? '内置' : 'Built-in'
-          : option.ready
-            ? chinese ? '已就绪' : 'Ready'
-            : option.state === 'unauthenticated'
-              ? chinese ? '未登录' : 'Sign-in Required'
-              : option.state === 'unavailable'
-                ? chinese ? '未就绪' : 'Not Ready'
-                : chinese ? '未安装 CLI' : 'CLI Missing';
+          : statusCopy.badge;
         return (
           <SessionEntryCard
             key={option.agentId}
@@ -53,8 +49,9 @@ export function EmptyStageSessionChoices(props: Pick<EmptyStageLandingProps,
             selected={(props.draftAgentId ?? 'pi') === option.agentId}
             ready={option.ready}
             builtin={option.agentId === 'pi'}
+            {...(option.icon ? { icon: option.icon } : {})}
             testId={`empty-stage-engine-${option.agentId}`}
-            title={option.description || name}
+            title={option.ready ? option.description || name : statusCopy.detail}
             onSelect={() => props.onSelectDraftAgent?.(option.agentId)}
           >
             {!option.ready && props.onOpenAgentSettings ? (
@@ -66,7 +63,7 @@ export function EmptyStageSessionChoices(props: Pick<EmptyStageLandingProps,
                     props.onOpenAgentSettings?.();
                   }}
                 >
-                  {chinese ? '配置环境 →' : 'Configure →'}
+                  {statusCopy.actionLabel} →
                 </span>
               </span>
             ) : null}

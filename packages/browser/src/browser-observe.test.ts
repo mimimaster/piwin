@@ -46,6 +46,22 @@ function createRequest(url: string, method = 'GET'): Request {
 }
 
 describe('createBrowserObserver', () => {
+  it('protects a pending download even when console capture is not attached', async () => {
+    const downloadDir = await mkdtemp(join(tmpdir(), 'piwin-observe-pending-'));
+    const observer = createBrowserObserver(new Set(), { downloadDir });
+    const page = createFakePage();
+    let finish: () => void = () => { throw new Error('not initialized'); };
+    const saving = new Promise<void>((resolve) => { finish = resolve; });
+    observer.attachPageDownloads(page as unknown as Page);
+    observer.attachPageDownloads(page as unknown as Page);
+    page.emit('download', { suggestedFilename: () => 'file.txt', url: () => 'https://fixture.invalid/file',
+      saveAs: () => saving });
+    expect(observer.pendingDownloads()).toBe(1);
+    observer.clear();
+    expect(observer.pendingDownloads()).toBe(1);
+    finish();
+    await vi.waitFor(() => expect(observer.pendingDownloads()).toBe(0));
+  });
   it('keys in-flight network requests by object identity, not URL+method', () => {
     const observer = createBrowserObserver(new Set(), { downloadDir: '/tmp/piwin-observe-test' });
     const context = createFakeContext();

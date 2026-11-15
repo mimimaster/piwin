@@ -45,6 +45,7 @@ export function resolveModelBrandKey(modelId: string): string | null {
   const is = (word: string): boolean => words.includes(word);
 
   if (has('grok')) return 'grok';
+  if (has('antigravity')) return 'antigravity';
   if (has('gemini') || has('google')) return 'gemini';
   if (has('claude') || has('anthropic')) return 'claude';
   if (has('deepseek')) return 'deepseek';
@@ -111,6 +112,7 @@ function resolveBrandFromMap(
   if (lower.includes('vertex')) return table.vertex ?? null;
   if (lower.includes('bedrock')) return table.bedrock ?? null;
   if (lower.includes('openrouter')) return table.openrouter ?? null;
+  if (lower.includes('antigravity')) return table.antigravity ?? null;
   if (lower.includes('gemini') || lower.includes('google')) return table.gemini ?? null;
   if (lower.includes('copilot')) return table['github-copilot'] ?? table.copilot ?? null;
   if (lower.includes('grok')) return table.grok ?? null;

@@ -29,8 +29,10 @@ import {
   isChatCompactPendingOccupancy,
   selectContextRingView,
 } from '../context/context-telemetry-selector.js';
+import { resolveExternalContextFallback } from '../context/external-context-fallback.js';
 import { ComposerCard } from '../composer/composer-card.js';
 import { ComposerStatsLine } from '../composer/composer-stats-line.js';
+import { useExtensionUiSurface } from '../hooks/use-extension-ui-surface.js';
 import { useSessionUsageTotals } from '../hooks/use-session-usage-totals.js';
 import type { ComposerPlusSubmenu } from '../composer/composer-plus-menu.js';
 import { buildPaneComposerProps } from '../composer/pane-composer-props.js';
@@ -135,6 +137,7 @@ function messageBelongsToSession(message: HostServerMessage, sessionId: string):
 
 export function ConversationPaneSession(props: ConversationPaneSessionProps): ReactElement {
   const sessionUsageTotals = useSessionUsageTotals(props.hostClient, props.sessionId);
+  const extensionSurface = useExtensionUiSurface(props.hostClient, props.sessionId);
   const [state, dispatch] = useReducer(chatUiReducer, props.sessionId, (sessionId) =>
     chatUiReducer(createInitialChatUiState(), {
       type: 'session/set',
@@ -290,6 +293,9 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
                 : 'Multi-pane can only open valid Chat or project conversations.',
           });
           return;
+        }
+        if (data.activeRun) {
+          dispatch({ type: 'run/updated', run: data.activeRun });
         }
         dispatch({
           type: 'session/load-messages',
@@ -554,7 +560,11 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
       if (promptRefs.length > 0) props.contextRefs?.clear();
       const run = readRun(response.data);
       const runId = run?.runId ?? (response.data as { runId?: string } | undefined)?.runId;
-      if (typeof runId === 'string') dispatch({ type: 'run/accepted', runId });
+      const acceptedAt =
+        (response.data as { acceptedAt?: string } | undefined)?.acceptedAt ?? run?.startedAt;
+      if (typeof runId === 'string') {
+        dispatch({ type: 'run/accepted', runId, ...(acceptedAt ? { acceptedAt } : {}) });
+      }
     } catch (error) {
       dispatch({ type: 'user/send-rollback', clientMessageId });
       dispatch({ type: 'error', message: formatError(error) });
@@ -624,6 +634,14 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     selectedBackendModel?.contextTokens ??
     (isExternalBackend ? 256_000 : undefined);
   const fallbackTokensUsed = estimateTranscriptTokens(state.messages);
+  const externalFallbackUsage = resolveExternalContextFallback({
+    isExternalBackend,
+    sessionUsageTotals,
+    contextUsage: state.contextUsage,
+    fallbackTokensUsed,
+    tokensLimit: effectiveModelContextWindow,
+    streaming: state.streaming,
+  });
 
   const contextRingView = selectContextRingView({
     telemetry: state.contextTelemetry,
@@ -633,18 +651,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
       : {}),
     ...(state.compacting ? { compacting: true } : {}),
     ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
-    ...(isExternalBackend && (fallbackTokensUsed > 0 || (state.contextUsage?.tokensUsed ?? 0) > 0)
-      ? {
-          fallbackUsage: {
-            tokensUsed: state.contextUsage?.tokensUsed ?? fallbackTokensUsed,
-            ...(typeof effectiveModelContextWindow === 'number'
-              ? { tokensLimit: effectiveModelContextWindow }
-              : {}),
-            quality: 'estimated' as const,
-            ...(state.streaming ? { phase: 'streaming' as const } : {}),
-          },
-        }
-      : {}),
+    ...(externalFallbackUsage ? { fallbackUsage: externalFallbackUsage } : {}),
   });
   const composerProps = buildPaneComposerProps({
     sessionId: props.sessionId,
@@ -652,6 +659,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     onComposerChange: setComposer,
     streaming: state.streaming,
     runPhase: state.runPhase,
+    runningSince: state.activeRunStartedAt,
     mutationsEnabled: state.hostReady && !busy,
     attachments,
     onRemoveAttachment: (id) =>
@@ -746,9 +754,17 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           <ComposerStatsLine
             totals={sessionUsageTotals}
             lastRequest={contextRingView.lastRequest}
+            extensionSurface={extensionSurface}
             locale={props.locale}
             contextView={contextRingView}
-            isRunning={state.streaming}
+            isRunning={
+              state.streaming ||
+              state.runPhase === 'streaming' ||
+              state.runPhase === 'pausing' ||
+              state.runPhase === 'aborting'
+            }
+            runningSince={state.activeRunStartedAt}
+            sessionKey={props.sessionId}
           />
         </div>
         {!state.hostReady ? (

@@ -175,6 +175,48 @@ describe('buildExtensionTools', () => {
     }
   });
 
+  it('extension_list includes pi-native extensions when followPiNativeInventory is enabled', async () => {
+    const agentDir = await mkdtemp(join(tmpdir(), 'pi-agent-ext-tool-'));
+    try {
+      const pkgDir = join(agentDir, 'npm', 'node_modules', 'pi-purge');
+      await mkdir(join(pkgDir, 'extensions'), { recursive: true });
+      await writeFile(
+        join(pkgDir, 'package.json'),
+        JSON.stringify({ name: 'pi-purge', pi: { extensions: ['./extensions/pi-purge.ts'] } }),
+        'utf8',
+      );
+      await writeFile(
+        join(pkgDir, 'extensions', 'pi-purge.ts'),
+        'export default function () {}\n',
+        'utf8',
+      );
+      await writeFile(
+        join(agentDir, 'settings.json'),
+        JSON.stringify({ packages: ['npm:pi-purge@0.2.3'] }),
+        'utf8',
+      );
+
+      const tools = buildExtensionTools({
+        enabled: true,
+        piwinRoot,
+        agentDir,
+        followPiNativeInventory: true,
+        sessionId: 's',
+        applyExtensions: applyOk,
+      });
+      const listed = await execute(toolNamed(tools, 'extension_list'), {});
+      expect(listed.ok).toBe(true);
+      if (listed.ok) {
+        const parsed = JSON.parse(listed.output) as Array<{ id: string; source: string; enabled: boolean }>;
+        expect(parsed.some((entry) => entry.id === 'pi-purge' && entry.source === 'pi-native' && entry.enabled)).toBe(
+          true,
+        );
+      }
+    } finally {
+      await rm(agentDir, { recursive: true, force: true });
+    }
+  });
+
   it('reports a scheduling failure without claiming activation', async () => {
     const repo = await makeGitRepo({ 'index.ts': 'export default function () {}\n' });
     const tools = buildExtensionTools({

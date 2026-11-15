@@ -1,0 +1,16 @@
+{
+  "name": "@gotgenes/pi-anthropic-auth",
+  "version": "2.0.8",
+  "description": "Pi extension package for Anthropic OAuth compatibility",
+  "type": "module",
+  "private": true,
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "piwin": {
+    "bundledFrom": "npm:@gotgenes/pi-anthropic-auth",
+    "npmVersion": "2.0.8"
+  }
+}

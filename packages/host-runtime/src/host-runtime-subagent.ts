@@ -9,6 +9,7 @@ import {
   formatError,
   DEFAULT_MAX_CONCURRENT_RUNS,
   createDefaultSubagentConfig,
+  resolveActiveCompactionDelegation,
 } from '@piwin/contracts';
 import { createSubagentWorkerAdmission } from './subagent-worker-admission.js';
 import {
@@ -700,11 +701,18 @@ export async function preflightSubagentTask(
     );
   }
   const model = resolved?.ref ?? resolveDefaultModelRef(config, accounts);
+  const resolvedProviderSecrets: Array<{
+    providerId: string;
+    apiKeyRef: string;
+    value: string;
+  }> = [];
   if (!model) {
-    return { config, resolvedProviderSecrets: [] };
+    await maybeCaptureCompactionDelegationSecret(config, resolvedProviderSecrets);
+    return { config, resolvedProviderSecrets };
   }
   if (resolved?.source === 'subscription' || model.source === 'subscription') {
-    return { config, effectiveModel: model, resolvedProviderSecrets: [] };
+    await maybeCaptureCompactionDelegationSecret(config, resolvedProviderSecrets);
+    return { config, effectiveModel: model, resolvedProviderSecrets };
   }
   const provider = findEnabledProvider(config, model.providerId);
   if (!provider) {
@@ -714,11 +722,6 @@ export async function preflightSubagentTask(
     );
   }
 
-  const resolvedProviderSecrets: Array<{
-    providerId: string;
-    apiKeyRef: string;
-    value: string;
-  }> = [];
   try {
     if (provider.apiKeyEnv?.trim()) {
       const value = process.env[provider.apiKeyEnv.trim()];
@@ -742,5 +745,40 @@ export async function preflightSubagentTask(
         'Complete this subtask in the main session.',
     );
   }
+  await maybeCaptureCompactionDelegationSecret(config, resolvedProviderSecrets);
   return { config, effectiveModel: model, resolvedProviderSecrets };
+}
+
+async function maybeCaptureCompactionDelegationSecret(
+  config: NonNullable<SubagentTaskPreflightContext['config']>,
+  resolvedProviderSecrets: Array<{ providerId: string; apiKeyRef: string; value: string }>,
+): Promise<void> {
+  const delegation = resolveActiveCompactionDelegation(config.compaction);
+  if (!delegation) {
+    return;
+  }
+  const provider = findEnabledProvider(config, delegation.model.providerId);
+  const apiKeyRef = provider?.apiKeyRef?.trim();
+  if (!provider || provider.source === 'subscription' || !apiKeyRef) {
+    return;
+  }
+  if (
+    resolvedProviderSecrets.some(
+      (entry) => entry.providerId === provider.id && entry.apiKeyRef === apiKeyRef,
+    )
+  ) {
+    return;
+  }
+  try {
+    const value = await createSecretResolver().resolveProviderSecret(provider);
+    if (value.trim()) {
+      resolvedProviderSecrets.push({
+        providerId: provider.id,
+        apiKeyRef,
+        value,
+      });
+    }
+  } catch {
+    // Missing optional secondary secret surfaces only if the child actually compacts.
+  }
 }

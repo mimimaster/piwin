@@ -15,10 +15,16 @@
  * flyout keeps the same surface/elevation language as the Pi picker it replaces.
  */
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { Popover } from '@piwin/ui-kit';
-import type { BackendModelOption, SessionBackendOptions } from '@piwin/contracts';
+import { Popover, ProviderIcon, resolveModelBrandKey, SessionBackendIcon } from '@piwin/ui-kit';
+import type {
+  BackendModelOption,
+  ExtensionSessionBackendIcon,
+  SessionBackendOptions,
+} from '@piwin/contracts';
 import { IconClose, IconSearch, IconSpark } from '../tool-cards/shell-icons';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
+import { resolveAgentBackendDisplay } from './agent-backend-state';
+import { useSessionBackendCatalog } from '../hooks/use-enabled-session-backends';
 
 export type BackendComposerControlsProps = {
   options: SessionBackendOptions;
@@ -42,6 +48,8 @@ export function BackendComposerControls({
 }: BackendComposerControlsProps): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
+  const backendCatalog = useSessionBackendCatalog();
+  const backendIcon = resolveAgentBackendDisplay(options.agentId, backendCatalog).icon;
   const [open, setOpen] = useState(false);
   const [modelQuery, setModelQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -242,6 +250,7 @@ export function BackendComposerControls({
                     <BackendModelRow
                       key={model.id}
                       model={model}
+                      backendIcon={backendIcon}
                       selected={model.id === options.currentModelId}
                       disabled={disabled}
                       onSelect={onSelectModel}
@@ -265,11 +274,13 @@ export function BackendComposerControls({
 
 function BackendModelRow(props: {
   model: BackendModelOption;
+  backendIcon: ExtensionSessionBackendIcon | null;
   selected: boolean;
   disabled: boolean;
   onSelect: (modelId: string) => void;
 }): ReactElement {
-  const { model, selected, disabled, onSelect } = props;
+  const { model, backendIcon, selected, disabled, onSelect } = props;
+  const hasModelBrand = resolveModelBrandKey(model.id) !== null;
   return (
     <button
       type="button"
@@ -293,7 +304,13 @@ function BackendModelRow(props: {
       data-testid={`backend-model-${model.id}`}
     >
       <span className="thinking-effort-model-icon" aria-hidden>
-        <IconSpark width={14} height={14} />
+        {hasModelBrand ? (
+          <ProviderIcon id={model.id} name={model.label} variant="glyph" size={14} />
+        ) : backendIcon ? (
+          <SessionBackendIcon icon={backendIcon} name={model.label} variant="glyph" size={14} />
+        ) : (
+          <IconSpark width={14} height={14} />
+        )}
       </span>
       <span className="thinking-effort-model-info">
         <span className="thinking-effort-model-option-label">{model.label}</span>
@@ -312,8 +329,12 @@ function BackendModelRow(props: {
   );
 }
 
-/** 200000 → "200K"; a locale-independent compact context-window label. */
+/** 200000 → "200K", 1000000 → "1M"; a locale-independent compact context-window label. */
 function formatContextTokens(tokens: number): string {
+  if (tokens >= 1_000_000) {
+    const m = tokens / 1_000_000;
+    return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+  }
   if (tokens >= 1000) {
     return `${Math.round(tokens / 1000)}K`;
   }

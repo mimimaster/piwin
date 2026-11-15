@@ -18,6 +18,7 @@ mod reveal_in_file_manager;
 mod save_user_file;
 mod screen_capture;
 mod tray_quota;
+mod webview_inspection;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -93,6 +94,7 @@ pub fn run() {
             memory_pressure::purge_webview_memory,
             memory_pressure::ack_memory_sample,
             memory_pressure::memory_observability_snapshot,
+            webview_inspection::webview_inspection,
             attention_notifications::attention_capabilities,
             attention_notifications::attention_authorization_status,
             attention_notifications::attention_request_authorization,

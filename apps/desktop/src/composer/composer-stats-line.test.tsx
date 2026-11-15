@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
+import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type {
   HostCommand,
@@ -117,6 +117,24 @@ describe('buildComposerStatusBar', () => {
       { key: '__working__', text: '⏸ waiting · 12s', working: true },
       { key: 'kiro', text: 'Kiro 42%', working: false },
     ]);
+  });
+
+  it('excludes meta:* panel-only statuses from the footer extensions line', () => {
+    const bar = buildComposerStatusBar({
+      totals: null,
+      extensionSurface: {
+        sessionId: 's1',
+        statuses: [
+          { key: 'pi-purge', text: 'PURGE · strict' },
+          { key: 'meta:pi-purge', text: '{"on":true}' },
+          { key: 'meta:pi-purge-path', text: '/Users/me/.pi/SYSTEM.md' },
+          { key: 'meta:context-prompt', text: '{"agents":1}' },
+        ],
+        widgets: [],
+      },
+      locale: 'en',
+    });
+    expect(bar.extensions).toEqual([{ key: 'pi-purge', text: 'PURGE · strict', working: false }]);
   });
 });
 
@@ -289,5 +307,71 @@ describe('useSessionUsageTotals', () => {
     await flushPromises();
     expect(view.textContent).toBe('none');
     expect(host.requests).toHaveLength(0);
+  });
+});
+
+function SessionSwitchClockProbe(props: { startedAt: number }): React.ReactElement {
+  const [session, setSession] = useState<'a' | 'b' | 'c-fallback'>('a');
+  return (
+    <div>
+      <button type="button" data-testid="to-b" onClick={() => setSession('b')} />
+      <button type="button" data-testid="to-a" onClick={() => setSession('a')} />
+      <button type="button" data-testid="to-c" onClick={() => setSession('c-fallback')} />
+      <ComposerStatsLine
+        totals={totals}
+        locale="zh-CN"
+        isRunning={session !== 'b'}
+        runningSince={session === 'a' ? props.startedAt : null}
+        sessionKey={session}
+      />
+    </div>
+  );
+}
+
+describe('useRunningElapsed across session switches', () => {
+  it('resumes at true elapsed seconds from runningSince after switching away and back', () => {
+    vi.useFakeTimers();
+    try {
+      const startedAt = 1_000_000;
+      vi.setSystemTime(startedAt + 8_000);
+      const view = render(<SessionSwitchClockProbe startedAt={startedAt} />);
+      expect(view.querySelector('[data-testid="composer-stats-turn"]')?.textContent).toContain(
+        '进行中8s',
+      );
+
+      // Switch to an idle session and spend 12 seconds there.
+      act(() => {
+        view.querySelector<HTMLButtonElement>('[data-testid="to-b"]')?.click();
+      });
+      expect(view.textContent).not.toContain('进行中');
+      act(() => {
+        vi.advanceTimersByTime(12_000);
+      });
+
+      // Switch back to the running session: immediately resumes at 20s, not 0s.
+      act(() => {
+        view.querySelector<HTMLButtonElement>('[data-testid="to-a"]')?.click();
+      });
+      expect(view.querySelector('[data-testid="composer-stats-turn"]')?.textContent).toContain(
+        '进行中20s',
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(3_000);
+      });
+      expect(view.querySelector('[data-testid="composer-stats-turn"]')?.textContent).toContain(
+        '进行中23s',
+      );
+
+      // Switching to another running session without runningSince starts fallback at 0s.
+      act(() => {
+        view.querySelector<HTMLButtonElement>('[data-testid="to-c"]')?.click();
+      });
+      expect(view.querySelector('[data-testid="composer-stats-turn"]')?.textContent).toContain(
+        '进行中0s',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

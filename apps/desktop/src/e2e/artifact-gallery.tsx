@@ -419,6 +419,7 @@ function MarkdownStreamCase(props: {
     document.documentElement.setAttribute('data-theme-mode', 'light');
   }, [props.paper]);
   const [chars, setChars] = useState(() => Math.min(props.from, source.length));
+  const [openedPath, setOpenedPath] = useState<string | null>(null);
   const done = chars >= source.length;
   useEffect(() => {
     if (done || props.chunk <= 0) return;
@@ -437,12 +438,13 @@ function MarkdownStreamCase(props: {
       >
         {chars}/{source.length} chars @ {props.tps} tps
       </h3>
-      <div data-testid="markdown-stream-body">
+      <div className="role-assistant" data-testid="markdown-stream-body" data-opened-path={openedPath}>
         <MarkdownView
           text={source.slice(0, chars)}
           renderingPhase={done ? 'completed' : 'streaming'}
           locale="zh-CN"
           artifactOrigin={{ sessionId: ARTIFACT_GALLERY_SESSION, messageId: 'markdown-stream' }}
+          onOpenDocument={(reference) => setOpenedPath(reference.path ?? null)}
         />
       </div>
     </section>

@@ -65,6 +65,8 @@ function LeaseProbe(): ReactElement {
       data-testid="probe"
       data-url={session?.committedUrl ?? ''}
       data-lease={session?.mirrorLeaseId ?? ''}
+      data-draft={session?.urlInput ?? ''}
+      onClick={() => session?.setUrlInput('https://unsent.invalid/')}
     />
   );
 }
@@ -136,7 +138,7 @@ describe('BrowserSessionProvider', () => {
     expect(host.stops).toEqual([host.starts[0]]);
   });
 
-  it('drops the last page when the lease is released so nothing lingers on a stale frame', async () => {
+  it('keeps page metadata when its presentation lease is released', async () => {
     const host = createFakeHost();
     const view = (enabled: boolean) => (
       <BrowserSessionProvider hostClient={host as unknown as HostClient} sessionId="a"
@@ -150,7 +152,48 @@ describe('BrowserSessionProvider', () => {
     expect(element.querySelector('[data-testid="probe"]')?.getAttribute('data-url')).toBe('about:blank');
     act(() => root?.render(view(false)));
     await act(async () => {});
+    expect(element.querySelector('[data-testid="probe"]')?.getAttribute('data-url')).toBe('about:blank');
+  });
+
+  it('keeps unsent address input and receives page closure while pictures are parked', async () => {
+    const host = createFakeHost();
+    const view = (enabled: boolean) => <BrowserSessionProvider hostClient={host as unknown as HostClient}
+      sessionId="a" locale="zh-CN" onAddWebElement={noPick} enabled={enabled}><LeaseProbe /></BrowserSessionProvider>;
+    const element = mount(view(true));
+    await act(async () => {});
+    act(() => host.emit({ type: 'browser/state', sessionId: 'a', url: 'https://fixture.invalid/', ts: 0 }));
+    act(() => element.querySelector<HTMLElement>('[data-testid="probe"]')?.click());
+    await act(async () => { root?.render(view(false)); });
+    act(() => host.emit({ type: 'browser/state', sessionId: 'a', url: '', ts: 1 }));
     expect(element.querySelector('[data-testid="probe"]')?.getAttribute('data-url')).toBe('');
+    expect(element.querySelector('[data-testid="probe"]')?.getAttribute('data-draft')).toBe('https://unsent.invalid/');
+  });
+
+  it('releases only the scoped picture lease while the native document is hidden', async () => {
+    const host = createFakeHost();
+    const original = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    try {
+      mount(<BrowserSessionProvider hostClient={host as unknown as HostClient} sessionId="a"
+        locale="zh-CN" onAddWebElement={noPick} enabled><LeaseProbe /></BrowserSessionProvider>);
+      await act(async () => {});
+      const first = host.commands.find((command) => command.type === 'browser/start');
+      expect(first?.type).toBe('browser/start');
+      await act(async () => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(host.commands.filter((command) => command.type === 'browser/stop')).toHaveLength(1);
+      await act(async () => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(host.commands.filter((command) => command.type === 'browser/start')).toHaveLength(2);
+    } finally {
+      if (original) Object.defineProperty(document, 'visibilityState', original);
+      else Reflect.deleteProperty(document, 'visibilityState');
+      document.dispatchEvent(new Event('visibilitychange'));
+    }
   });
 
   it('acquires exactly one lease for every surface and stops it on unmount', async () => {

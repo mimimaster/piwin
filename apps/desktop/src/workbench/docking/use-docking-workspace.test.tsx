@@ -44,6 +44,26 @@ describe('useDockingWorkspace right panel reveal', () => {
     window.localStorage.clear();
   });
 
+  it('does not treat a Memory selection as a visible docked tool while its previous visibility signal is stale', () => {
+    let controller: DockingWorkspaceController | null = null;
+    function Probe(props: { memory: boolean }): null {
+      controller = useDockingWorkspace({
+        enabled: true, rightPanelOpen: true, inspectorTab: props.memory ? 'memory' : 'canvas',
+      });
+      return null;
+    }
+    const current = (): DockingWorkspaceController => {
+      if (controller === null) throw new Error('workspace did not mount');
+      return controller;
+    };
+    root = createRoot(document.createElement('div'));
+    act(() => { root?.render(<Probe memory={false} />); });
+    act(() => { current().setRightBodyVisible(true); });
+    expect(current().rightHost.bodyVisible).toBe(true);
+    act(() => { root?.render(<Probe memory />); });
+    expect(current().rightHost.bodyVisible).toBe(false);
+  });
+
   it('reveals only the current conversation browser while the right panel is open', () => {
     const listeners = new Set<(message: HostServerMessage) => void>();
     const hostClient = { updateSubscriptions: async () => undefined, subscribe: (listener: (message: HostServerMessage) => void) => {

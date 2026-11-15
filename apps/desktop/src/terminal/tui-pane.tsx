@@ -81,9 +81,13 @@ export function TuiPane(props: TuiPaneProps): ReactElement {
   });
   const hostKey = props.hostKey ?? props.remoteTarget?.endpoint ?? 'local';
   const agentId = props.agentId ?? 'pi';
+  const nativePty = isTauriPtyAvailable();
+  const isNativeTui = agentId === 'pi' && nativePty;
   const desired = `${agentId}:${hostKey}:${props.sessionId ?? `new:${props.projectPath ?? ''}`}`;
   if (shown.current.desired !== desired) {
-    const followsTui = shown.current.hostKey === hostKey && props.sessionId !== null && props.sessionId === shown.current.reported;
+    const followsTui = shown.current.hostKey === hostKey &&
+      props.sessionId !== null &&
+      (props.sessionId === shown.current.reported || (!isNativeTui && props.sessionId === shown.current.sessionId));
     shown.current = {
       desired,
       hostKey,
@@ -91,8 +95,8 @@ export function TuiPane(props: TuiPaneProps): ReactElement {
       // A counter, not the session id: starting a new conversation after the
       // TUI adopted one must still replace the process.
       process: followsTui ? shown.current.process : shown.current.process + 1,
-      reported: null,
-      sessionId: followsTui ? shown.current.sessionId : props.sessionId,
+      reported: followsTui ? shown.current.reported : null,
+      sessionId: followsTui && isNativeTui ? shown.current.sessionId : props.sessionId,
       projectPath: followsTui ? shown.current.projectPath : props.projectPath ?? null,
     };
   }
@@ -100,7 +104,6 @@ export function TuiPane(props: TuiPaneProps): ReactElement {
   const onSessionRef = useRef(props.onSessionChange);
   onSessionRef.current = props.onSessionChange;
   const snapshot = shown.current;
-  const nativePty = isTauriPtyAvailable();
   const [touchFirst] = useState(() => usesOnScreenKeyboard());
   const [ctrlArmed, setCtrlArmed] = useState(false);
   const ctrlArmedRef = useRef(false);

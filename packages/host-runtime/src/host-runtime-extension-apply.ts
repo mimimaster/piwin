@@ -10,10 +10,8 @@ import type {
   ExtensionsApplyData,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import { scanExtensions } from './extension-scanner.js';
-
 import { getSessionRecord } from '@piwin/session';
-import { loadPiwinConfig } from './config-store.js';
+import { loadCatalogResources } from './commands/catalog-resources.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { fail, ok } from './response-helpers.js';
 
@@ -367,15 +365,11 @@ export async function activateExtensionApply(
     });
   }
   const registryAfterActivation = await deps.extensionRevisionStore.readRegistry();
-  const activeConfig = await loadPiwinConfig(deps.options.piwinRoot);
-  const catalog = await scanExtensions({
-    piwinRoot: getPiwinRoot(deps.options.piwinRoot),
-    ...(activeConfig.extensions ? { extensionsConfig: activeConfig.extensions } : {}),
-  });
+  const catalog = await loadCatalogResources(getPiwinRoot(deps.options.piwinRoot));
   deps.push({
     type: 'extension/catalog-updated',
     registryRevision: registryAfterActivation.revision,
-    extensions: catalog,
+    extensions: catalog.extensions,
   });
   let nextDeployment = await deps.updateExtensionDeployment(deployment, {
     phase: 'active',

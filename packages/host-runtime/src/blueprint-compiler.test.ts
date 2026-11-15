@@ -2115,3 +2115,108 @@ describe('code_search guidance injection', () => {
     expect(result.blueprint.appendSystemPrompt ?? '').not.toContain('code_search');
   });
 });
+
+describe('compaction delegation compilation', () => {
+  it('compiles compactionDelegation and includes the delegated provider even with requiredProviderIds', async () => {
+    const config = createConfig({
+      providers: [
+        {
+          id: 'main-provider',
+          protocol: 'openai-compatible',
+          name: 'Main',
+          baseUrl: 'https://main.example.test/v1',
+          models: [{ id: 'main-chat' }],
+        },
+        {
+          id: 'delegate-provider',
+          protocol: 'openai-compatible',
+          name: 'Delegate',
+          baseUrl: 'https://delegate.example.test/v1',
+          models: [{ id: 'compact-fast' }],
+        },
+      ],
+      compaction: {
+        autoEnabledDefault: true,
+        delegation: {
+          enabled: true,
+          model: {
+            protocol: 'openai-compatible',
+            providerId: 'delegate-provider',
+            modelId: 'compact-fast',
+          },
+        },
+      },
+    });
+
+    const result = await compileBlueprintForWorker(
+      { scope: agentProjectScope },
+      {
+        config,
+        mcpConfig: { mcpServers: {} },
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: [],
+        hostToolFamilyIndex: createFamilyIndex([], new Map()),
+        requiredProviderIds: ['main-provider'],
+      },
+    );
+
+    expect(result.backendBlueprint.compactionDelegation).toEqual({
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'delegate-provider',
+        modelId: 'compact-fast',
+      },
+    });
+    expect(result.providers.map((provider) => provider.providerId).sort()).toEqual([
+      'delegate-provider',
+      'main-provider',
+    ]);
+  });
+
+  it('skips unsigned subscription delegated providers without failing session compilation', async () => {
+    const config = createConfig({
+      providers: [
+        {
+          id: 'main-provider',
+          protocol: 'openai-compatible',
+          name: 'Main',
+          baseUrl: 'https://main.example.test/v1',
+          models: [{ id: 'main-chat' }],
+        },
+      ],
+      compaction: {
+        autoEnabledDefault: true,
+        delegation: {
+          enabled: true,
+          model: {
+            protocol: 'openai-compatible',
+            providerId: 'openai-codex',
+            modelId: 'gpt-5-codex',
+          },
+        },
+      },
+    });
+
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config,
+        mcpConfig: { mcpServers: {} },
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: [],
+        hostToolFamilyIndex: createFamilyIndex([], new Map()),
+        requiredProviderIds: ['main-provider'],
+        usableSubscriptionProviderIds: [],
+      },
+    );
+
+    expect(result.backendBlueprint.compactionDelegation).toEqual({
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'openai-codex',
+        modelId: 'gpt-5-codex',
+      },
+    });
+    expect(result.providers.map((provider) => provider.providerId)).toEqual(['main-provider']);
+  });
+});

@@ -88,4 +88,16 @@ describe('ExtensionUiSurfaceStore', () => {
       [{ type: 'extension/ui_surface', snapshot: { sessionId: 's1', statuses: [], widgets: [] } }],
     ]);
   });
+
+  it('allows longer payloads for meta: keys while keeping visible status chips at 240 chars', () => {
+    const store = new ExtensionUiSurfaceStore({ push: vi.fn() });
+    const longPath = `/Users/example/${'nested/'.repeat(40)}SYSTEM.md`;
+    store.apply('s1', { kind: 'status', key: 'meta:pi-purge-path', text: longPath });
+    store.apply('s1', { kind: 'status', key: 'visible', text: 'x'.repeat(300) });
+    const snapshot = store.snapshot('s1');
+    const metaItem = snapshot.statuses.find((s) => s.key === 'meta:pi-purge-path');
+    const visibleItem = snapshot.statuses.find((s) => s.key === 'visible');
+    expect(metaItem?.text).toBe(longPath);
+    expect(visibleItem?.text.length).toBe(EXTENSION_UI_SURFACE_LIMITS.maxStatusLength);
+  });
 });

@@ -1,5 +1,12 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MAX_ARTIFACT_DOCUMENT_BYTES } from '@piwin/contracts';
+import {
+  analyzeArtifactFence,
+  createArtifactFenceRecord,
+  materializeArtifact,
+} from '@piwin/artifact';
+import { publishArtifactDocument } from './artifact-document-publication.js';
 import {
   advanceArtifactDocumentPhase,
   artifactDocumentKey,
@@ -8,8 +15,9 @@ import {
   resolveArtifactSchemeOrigin,
   createArtifactDocumentId,
   initialArtifactDocumentPhase,
-  publishArtifactDocument,
-} from './artifact-frame-stream.js';
+  createArtifactDocumentMediaBinding,
+  resolveArtifactDocumentByteLimit,
+} from './artifact-document.js';
 
 function decodeDataUrl(url: string): string {
   const separator = url.indexOf(',');
@@ -87,17 +95,56 @@ describe('Artifact document transport in Tauri', () => {
     Object.defineProperty(window, '__TAURI_INTERNALS__', {
       configurable: true,
       value: {
-        convertFileSrc: (filePath: string, protocol?: string) => `http://${protocol}.localhost/${filePath}`,
+        convertFileSrc: (filePath: string, protocol?: string) =>
+          `http://${protocol}.localhost/${filePath}`,
         invoke: async () => null,
         transformCallback: () => 0,
       },
     });
     expect(resolveArtifactSchemeOrigin()).toBe('http://piwin-artifact.localhost');
   });
+  it('includes base64/address overhead in browser budgets and keeps the native 2 MiB budget', () => {
+    const mediaId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    const analysis = analyzeArtifactFence(
+      createArtifactFenceRecord({
+        info: 'artifact-html',
+        source: `<img data-piwin-media="${mediaId}"><a href="http://localhost/">Open</a>`,
+      }),
+    );
+    if (analysis.kind !== 'intent') throw new Error('expected render intent');
+    const base = materializeArtifact(analysis.intent, { mode: 'interactive' });
+    const binding = createArtifactDocumentMediaBinding(base);
+    const prefix = 'data:image/jpeg;base64,';
+    const plan = binding.bind(
+      new Map([[mediaId, prefix + 'A'.repeat(binding.budget.maxCharacters - prefix.length)]]),
+    );
+    if (plan.document.kind !== 'sandbox') throw new Error('expected sandbox');
+    expect(buildArtifactDocumentDataUrl(plan.document.srcdoc).length).toBeLessThanOrEqual(
+      2 * 1024 * 1024,
+    );
+    const browserLimit = resolveArtifactDocumentByteLimit();
+    Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} });
+    expect(resolveArtifactDocumentByteLimit()).toBe(MAX_ARTIFACT_DOCUMENT_BYTES);
+    expect(browserLimit).toBeLessThan(MAX_ARTIFACT_DOCUMENT_BYTES);
+  });
+  it('rejects the complete document by UTF-8 byte size before invoking native publication', async () => {
+    const invoke = vi.fn(async () => null);
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: { invoke },
+    });
+    const source = '汉'.repeat(Math.ceil(MAX_ARTIFACT_DOCUMENT_BYTES / 3));
+    expect(source.length).toBeLessThan(MAX_ARTIFACT_DOCUMENT_BYTES);
+
+    await expect(publishArtifactDocument(createArtifactDocumentId(), source)).rejects.toThrow();
+    expect(invoke).not.toHaveBeenCalled();
+  });
   it('uses the isolated scheme in the iOS shell too, not an inherited-CSP data: frame', () => {
     const userAgent = vi
       .spyOn(window.navigator, 'userAgent', 'get')
-      .mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 26_4 like Mac OS X) AppleWebKit/605.1.15');
+      .mockReturnValue(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 26_4 like Mac OS X) AppleWebKit/605.1.15',
+      );
     Object.defineProperty(window, '__TAURI_INTERNALS__', {
       configurable: true,
       value: {
@@ -131,9 +178,9 @@ describe('artifact document lifecycle', () => {
     expect(artifactDocumentKey(seeded, 'canvas-1', '<html>seeded</html>')).toBe(
       'stream:canvas-1:seeded',
     );
-    expect(
-      advanceArtifactDocumentPhase(seeded, 'stream-preview', '<div>more</div>'),
-    ).toBe('seeded-stream');
+    expect(advanceArtifactDocumentPhase(seeded, 'stream-preview', '<div>more</div>')).toBe(
+      'seeded-stream',
+    );
   });
 
   it('loads the final document on completion instead of freezing the stream shell', () => {

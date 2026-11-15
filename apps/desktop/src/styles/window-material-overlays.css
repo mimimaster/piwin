@@ -83,6 +83,13 @@ html[data-window-material] .jump-to-latest-btn {
   backdrop-filter: var(--overlay-glass-filter);
 }
 
+/* The session status sheet is the lightest overlay: flat rows sit directly
+   on the glass, so it takes the thin fill. backdrop-filter stays inherited
+   from the whitelisted .ui-popover-content rule above. */
+html[data-window-material] .ui-popover-content.session-status-popover {
+  background: var(--overlay-glass-fill-thin);
+}
+
 /* The solid hover fill (region-transcript.css) loses to the glass above;
    hover thickens the same glass instead of reverting to a slab. */
 html[data-window-material] .jump-to-latest-btn:hover {

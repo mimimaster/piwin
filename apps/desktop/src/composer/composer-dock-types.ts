@@ -52,7 +52,9 @@ export type ComposerDraftAgentOption = {
   /** False while the agent still needs install/login/dependency work. */
   ready: boolean;
   state?: string | undefined;
+  reason?: string | undefined;
   description?: string | undefined;
+  icon?: import('@piwin/contracts').ExtensionSessionBackendIcon | undefined;
 };
 
 export type ComposerDockProps = {
@@ -65,6 +67,8 @@ export type ComposerDockProps = {
   activeAgentId?: string;
   streaming: boolean;
   runPhase: 'idle' | 'streaming' | 'pausing' | 'aborting';
+  /** Authoritative epoch ms when the active run started, so session switches resume accurately. */
+  runningSince?: number | null | undefined;
   compacting: boolean;
   composer: string;
   onComposerChange: (value: string) => void;

@@ -156,18 +156,18 @@ async function scanExtensionRoot(
   source: ExtensionSource,
 ): Promise<ExtensionSummary[]> {
   const absoluteRoot = resolve(expandHome(rootPath));
-  let entries: string[] = [];
-  try {
-    entries = await readdir(absoluteRoot);
-  } catch {
-    return [];
-  }
-
   if (source === 'mapped') {
     const single = await tryReadExtensionEntry(absoluteRoot, source);
     if (single) {
       return [single];
     }
+  }
+
+  let entries: string[] = [];
+  try {
+    entries = await readdir(absoluteRoot);
+  } catch {
+    return [];
   }
 
   const extensions: ExtensionSummary[] = [];

@@ -12,6 +12,9 @@ import { WorkerSessionBackend } from './worker-rpc-session-backend.js';
 import { AgentWorkerSupervisor } from '../agent-worker-supervisor.js';
 import { buildWorkerProxyTools } from '../rpc/worker-proxy-tool-factory.js';
 import {
+  isValidBackendSessionBlueprint,
+} from './pi-session-backend.js';
+import {
   projectBackendBlueprintForWorker,
   type SerializableBlueprint,
 } from '../rpc/serializable-blueprint.js';
@@ -429,5 +432,34 @@ describe('backend input conformance', () => {
       message: 'unknown worker session: session-1',
     });
     expect(executionInputs).toEqual([]);
+  });
+
+  it('validates and projects compactionDelegation across the worker boundary', () => {
+    const validBlueprint: BackendSessionBlueprint = {
+      ...createBackendBlueprint([]),
+      compactionDelegation: {
+        model: {
+          protocol: 'openai-compatible',
+          providerId: 'delegate-provider',
+          modelId: 'summary-fast',
+        },
+      },
+    };
+    expect(isValidBackendSessionBlueprint(validBlueprint)).toBe(true);
+    const projected = projectBackendBlueprintForWorker(validBlueprint);
+    expect(projected.compactionDelegation).toEqual(validBlueprint.compactionDelegation);
+
+    expect(
+      isValidBackendSessionBlueprint({
+        ...createBackendBlueprint([]),
+        compactionDelegation: { model: { protocol: 'openai-compatible', providerId: 'only-id' } },
+      }),
+    ).toBe(false);
+    expect(
+      isValidBackendSessionBlueprint({
+        ...createBackendBlueprint([]),
+        compactionDelegation: 'invalid',
+      }),
+    ).toBe(false);
   });
 });

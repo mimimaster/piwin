@@ -2,6 +2,7 @@
 
 import type {
   BackendSessionBlueprint,
+  CompactionDelegationTarget,
   ModelCapability,
   ContextManifest,
   ResourceManifest,
@@ -52,6 +53,7 @@ export type SerializableBlueprint = {
   };
   model?: { providerId: string; modelId: string };
   thinkingLevel?: string;
+  compactionDelegation?: CompactionDelegationTarget;
   /**
    * Additional system prompt appended after all other system prompts.
    * Used for product-level contracts (artifact decision + runtime, ADR 0029).
@@ -134,6 +136,7 @@ export function projectBlueprintForWorker(
   options?: {
     model?: { providerId: string; modelId: string };
     thinkingLevel?: string;
+    compactionDelegation?: CompactionDelegationTarget;
     appendSystemPrompt?: string;
   },
 ): SerializableBlueprint {
@@ -170,6 +173,11 @@ export function projectBlueprintForWorker(
   if (options?.thinkingLevel) {
     blueprint.thinkingLevel = options.thinkingLevel;
   }
+  if (options?.compactionDelegation) {
+    blueprint.compactionDelegation = {
+      model: { ...options.compactionDelegation.model },
+    };
+  }
   if (options?.appendSystemPrompt) {
     blueprint.appendSystemPrompt = options.appendSystemPrompt;
   }
@@ -190,6 +198,13 @@ export function projectBackendBlueprintForWorker(
         }
       : {}),
     ...(backendBlueprint.thinkingLevel ? { thinkingLevel: backendBlueprint.thinkingLevel } : {}),
+    ...(backendBlueprint.compactionDelegation
+      ? {
+          compactionDelegation: {
+            model: { ...backendBlueprint.compactionDelegation.model },
+          },
+        }
+      : {}),
     ...(backendBlueprint.appendSystemPrompt
       ? { appendSystemPrompt: backendBlueprint.appendSystemPrompt }
       : {}),

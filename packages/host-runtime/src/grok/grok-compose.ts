@@ -42,6 +42,12 @@ export function composeExternalAgentBackend(deps: HostRuntimeKernel, options: Ho
         deps.push({ type: 'host/log', level: 'warn', message: `agent title update failed: ${formatError(error)}` });
       });
     },
+    onSessionUiSurface: (sessionId, update) => {
+      deps.extensionUiSurfaces.apply(sessionId, update);
+    },
+    onSessionUiReset: (sessionId) => {
+      deps.extensionUiSurfaces.reset(sessionId);
+    },
     onNativeSessionBound: (sessionId, backendSessionId) => {
       void persistNativeBackendSession(deps, sessionId, backendSessionId).catch((error: unknown) => {
         deps.push({ type: 'host/log', level: 'warn', message: `agent native id persist failed: ${formatError(error)}` });

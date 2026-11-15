@@ -1,5 +1,77 @@
+import {
+  isModelEnabled,
+  isProviderEnabled,
+  modelSupportsCapability,
+  type CompactionConfig,
+  type ModelProviderConfig,
+} from './config.js';
+import type { ModelRef } from './host.js';
+
 /** The harmless no-op outcome reported by Pi's manual compaction API. */
 export type CompactionNoOpKind = 'already-compacted' | 'too-small';
+
+/** Resolved compaction delegation target compiled into a backend session blueprint. */
+export type CompactionDelegationTarget = {
+  model: ModelRef;
+};
+
+/**
+ * Resolve active compaction delegation when enabled and backed by a complete ModelRef.
+ */
+export function resolveActiveCompactionDelegation(
+  compaction: CompactionConfig | undefined,
+): CompactionDelegationTarget | undefined {
+  const delegation = compaction?.delegation;
+  if (!delegation?.enabled || !delegation.model) {
+    return undefined;
+  }
+  const providerId = delegation.model.providerId.trim();
+  const modelId = delegation.model.modelId.trim();
+  if (!providerId || !modelId) {
+    return undefined;
+  }
+  return {
+    model: {
+      ...delegation.model,
+      providerId,
+      modelId,
+    },
+  };
+}
+
+/**
+ * Resolve active compaction delegation only when it targets a currently enabled
+ * provider and enabled chat-capable model.
+ */
+export function findReadyCompactionDelegate(input: {
+  compaction?: CompactionConfig;
+  providers: readonly ModelProviderConfig[];
+}): ModelRef | undefined {
+  const active = resolveActiveCompactionDelegation(input.compaction);
+  if (!active) {
+    return undefined;
+  }
+  const { model } = active;
+  const provider = input.providers.find(
+    (candidate) =>
+      candidate.id === model.providerId &&
+      candidate.protocol === model.protocol &&
+      isProviderEnabled(candidate),
+  );
+  if (!provider) {
+    return undefined;
+  }
+  const resolvedModel = provider.models.find(
+    (candidate) =>
+      candidate.id === model.modelId &&
+      isModelEnabled(candidate) &&
+      modelSupportsCapability(candidate, 'chat'),
+  );
+  if (!resolvedModel) {
+    return undefined;
+  }
+  return model;
+}
 
 /**
  * A durable compaction boundary used when a Pi runtime is rebuilt.

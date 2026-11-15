@@ -37,6 +37,14 @@ import type { DesktopMemorySettings } from './desktop-memory.js';
 export * from './config-providers.js';
 import type { ModelProviderConfig } from './config-providers.js';
 
+/** Configuration for routing context compaction to a dedicated delegated model. */
+export type CompactionDelegationConfig = {
+  /** Whether compaction delegation is active. */
+  enabled: boolean;
+  /** Target chat model used to generate compaction summaries when enabled. */
+  model?: ModelRef;
+};
+
 /** Product-level compaction defaults (applied when a live session is ready). */
 export type CompactionConfig = {
   /**
@@ -49,6 +57,8 @@ export type CompactionConfig = {
    * Default false (banner-only).
    */
   writeTranscriptNote?: boolean;
+  /** Optional dedicated model override for compaction summarization. */
+  delegation?: CompactionDelegationConfig;
 };
 
 /**

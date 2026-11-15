@@ -22,8 +22,9 @@ const SETTINGS_SEARCH_TERMS: Readonly<Record<SettingsSectionId, readonly string[
   ],
   permissions: ['permission', 'permissions', 'rules', 'allow', 'deny', '权限', '规则', '允许', '拒绝'],
   models: [
-    'model', 'models', 'provider', 'providers', 'vision', 'image generation', 'image-generation',
-    '模型', '提供商', '视觉', '图片生成', '图像生成',
+    'model', 'models', 'provider', 'providers', 'vision', 'compaction', 'compaction delegation',
+    'reply writer', 'image generation', 'image-generation',
+    '模型', '提供商', '视觉', '输出委托', '压缩', '压缩委托', '上下文压缩', '图片生成', '图像生成',
   ],
   oauth: ['oauth', 'login', 'account', 'subscription', '登录', '账户', '订阅'],
   hooks: ['hook', 'hooks', 'event', 'lifecycle', '钩子', '事件', '生命周期'],

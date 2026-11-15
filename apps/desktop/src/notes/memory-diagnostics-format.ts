@@ -5,15 +5,16 @@
  * renders. No React — unit-testable in isolation.
  */
 import type { MemoryPressureLevel } from './cache-budget.js';
-import type { EpisodeOutcome } from './reclaim-policy.js';
 import type { ReclaimLedgerEntry } from './reclaim-ledger.js';
 import type { ManualReclaimResult } from './reclaim-wiring.js';
 import type { DesktopObservabilitySnapshot } from '../run-activity/diagnostic-metrics.js';
 import type { NativeMemoryObservabilitySnapshot } from './memory-sample-contract.js';
+import type { DesktopLocale } from '../i18n/desktop-locale.js';
+import { memoryDiagnosticsCopy } from './memory-diagnostics-copy.js';
 
 export type SampleFreshness = 'fresh' | 'stale' | 'missing';
 
-/** Panel-grade freshness window (the sampler ticks once a minute). */
+/** Panel readings older than two minutes are treated as stale. */
 export const PANEL_STALE_SAMPLE_AGE_MS = 120_000;
 
 /**
@@ -25,7 +26,7 @@ export type MemoryDiagnosticsPanelData = {
   native: NativeMemoryObservabilitySnapshot | null;
   frontend: DesktopObservabilitySnapshot;
   level: MemoryPressureLevel;
-  /** Latest completed reclaim episode, when the ledger has any. */
+  /** Current reclaim episode, otherwise the latest completed one. */
   episode: ReclaimLedgerEntry | undefined;
   /** Registered presentation resources still live. */
   presentations: number;
@@ -72,52 +73,37 @@ export function governorLevelTone(level: MemoryPressureLevel): 'success' | 'warn
   return 'success';
 }
 
-const OUTCOME_TEXT: Record<EpisodeOutcome, string> = {
-  recovered: 'memory pressure returned to normal',
-  'protected-over-budget': 'only protected resources remain',
-  'no-progress': 'waiting for a fresh sample',
-  'sampler-unavailable': 'the native sampler stopped reporting',
-  'renderer-unresponsive': 'the renderer did not respond',
-};
-
 /**
- * One ordinary-language line for the latest ledger episode, e.g.
- * "released ~48.0 MB · memory pressure returned to normal".
+ * Localized resource estimate and episode state for technical details.
+ * This is separate from the before/after process-footprint evidence.
  */
-export function describeEpisodeOutcome(episode: ReclaimLedgerEntry): string {
+export function describeEpisodeOutcome(episode: ReclaimLedgerEntry, locale: DesktopLocale = 'en'): string {
+  const copy = memoryDiagnosticsCopy(locale);
   const outcome = episode.outcome;
-  const base = outcome === undefined ? 'episode still running' : OUTCOME_TEXT[outcome];
+  const base = outcome === undefined ? copy.running : copy.outcomes[outcome];
   if (episode.releasedBytesEstimate > 0) {
-    return `released ~${formatBytes(episode.releasedBytesEstimate)} · ${base}`;
+    return `${copy.estimate} ≈${formatBytes(episode.releasedBytesEstimate)} · ${base}`;
   }
   return base;
 }
 
 /** Plain-language summary of a manual-release result line. */
-export function describeManualReclaimResult(result: ManualReclaimResult): string {
+export function describeManualReclaimResult(result: ManualReclaimResult, locale: DesktopLocale = 'en'): string {
+  const copy = memoryDiagnosticsCopy(locale);
   if (result.reason === 'no-candidates') {
-    return 'Nothing idle to release — only protected or visible resources remain.';
+    return copy.manualNone;
   }
   if (result.releasedKeys.length === 0) {
-    return 'Nothing was released.';
+    return copy.manualNoRelease;
   }
-  const suffix =
-    result.releasedBytes > 0 ? ` (≈${formatBytes(result.releasedBytes)})` : '';
-  return `Released ${result.releasedKeys.length} resource(s)${suffix}.`;
+  return result.releasedBytes > 0
+    ? copy.manualReleased(result.releasedKeys.length, formatBytes(result.releasedBytes))
+    : copy.manualRequested(result.releasedKeys.length);
 }
 
 /** Ordinary-language renderer-recovery blockers for the restart button. */
-export function describeRecoveryReason(reason: string | undefined): string {
-  switch (reason) {
-    case 'run-active':
-      return 'A run is in progress — restart when it finishes.';
-    case 'draft-state-unavailable':
-      return 'Draft state is unavailable — restart is locked to protect unsent text.';
-    case 'drafts-not-durable':
-      return 'Some drafts are not saved yet — restart is locked to protect them.';
-    case 'cancelled-by-handler':
-      return 'A view vetoed the restart to protect its state.';
-    default:
-      return 'Restart is currently unavailable.';
-  }
+export function describeRecoveryReason(reason: string | undefined, locale: DesktopLocale = 'en'): string {
+  const copy = memoryDiagnosticsCopy(locale);
+  const reasons: Record<string, string> = copy.recoveryReasons;
+  return reason === undefined ? copy.restartUnavailable : reasons[reason] ?? copy.restartUnavailable;
 }

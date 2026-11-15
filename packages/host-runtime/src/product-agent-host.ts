@@ -1,6 +1,7 @@
 import type {
   AgentHost,
   AgentEvent,
+  ContextManifest,
   CreateSessionInput,
   CreateSessionOptions,
   HostToolExecutionPort,
@@ -39,6 +40,7 @@ import { createSettingsSnapshot } from './settings/settings-service.js';
 import type { HostRuntimeTestFixture } from './host-runtime-types.js';
 import { getPiwinPiAgentDir } from './paths.js';
 import type { LoadedExtensionRef } from './sessions/session-runtime-controller.js';
+import { buildContextPromptSurfaceUpdates } from './context-prompt-status.js';
 
 export type ProductAgentHostToolRegistrationMode = 'active' | 'pending';
 
@@ -51,6 +53,8 @@ export type PreparedProductSession = {
   registrationMode: ProductAgentHostToolRegistrationMode;
   /** Whether the backend already owns reconstructed native/product history. */
   historySeeded: boolean;
+  /** Compiled ContextManifest metadata projected onto SessionStatusPanel on commit. */
+  contextPromptUpdates?: readonly ExtensionUiSurfaceUpdate[];
 };
 
 type ProductAgentHostCommonOptions = {
@@ -266,6 +270,11 @@ export class ProductAgentHost implements AgentHost {
   /** Promote a prepared candidate into the ProductAgentHost session map. */
   commitPreparedSession(prepared: PreparedProductSession): SessionHandle {
     this.sessions.set(prepared.sessionId, prepared.session);
+    if (prepared.contextPromptUpdates) {
+      for (const update of prepared.contextPromptUpdates) {
+        this.options.publishExtensionUi?.(prepared.sessionId, update);
+      }
+    }
     if (prepared.registrationMode === 'active') {
       this.options.onGenerationCreated?.(
         prepared.sessionId,
@@ -514,6 +523,9 @@ export class ProductAgentHost implements AgentHost {
         ...(options.compactionSeed ? { compactionSeed: options.compactionSeed } : {}),
       });
       const session = createProductSessionHandle(backendHandle, this.options.getCurrentRunId);
+      const contextPromptUpdates = buildContextPromptSurfaceUpdates(
+        compiled.sessionBlueprint.contextManifest as ContextManifest,
+      );
       return {
         session,
         sessionId,
@@ -530,6 +542,7 @@ export class ProductAgentHost implements AgentHost {
         registrationMode,
         historySeeded:
           options.compactionSeed !== undefined || (options.seedMessages?.length ?? 0) > 0,
+        contextPromptUpdates,
       };
     } catch (error) {
       let cleanupError: unknown;

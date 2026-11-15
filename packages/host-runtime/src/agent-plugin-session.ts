@@ -30,6 +30,7 @@ import {
   type SavedMediaAsset,
   type AgentPluginCliLaunchResult,
   type BackendUserInputResult,
+  type ExtensionUiSurfaceUpdate,
   normalizeUsageTokenSplit,
   parseAgentPluginCliLaunchResult,
 } from '@piwin/contracts';
@@ -48,6 +49,7 @@ export type AgentPluginSessionPorts = {
   onOptionsChanged?: (options: SessionBackendOptions) => void;
   onTitle?: (title: string) => void;
   onMcpStatus?: (servers: readonly ExternalAgentMcpServerStatus[], observed: boolean) => void;
+  onUiSurface?: (update: ExtensionUiSurfaceUpdate) => void;
   onTransportClosed?: (reason: string) => void;
   /** First real vendor session id after a draft `session/new`. */
   onNativeSessionBound?: (backendSessionId: string) => void;
@@ -360,6 +362,10 @@ export class AgentPluginSession implements SessionHandle {
       this.ports.onMcpStatus?.(emission.servers, emission.observed);
       return;
     }
+    if (emission.type === 'ui-surface') {
+      this.ports.onUiSurface?.(emission.update);
+      return;
+    }
     if (emission.type === 'closed') {
       this.ports.onTransportClosed?.(emission.reason);
       return;
@@ -405,6 +411,7 @@ type AgentPluginEmissionLike =
   | { type: 'options'; options: SessionBackendOptions }
   | { type: 'title'; title: string }
   | { type: 'mcp-status'; servers: readonly ExternalAgentMcpServerStatus[]; observed: boolean }
+  | { type: 'ui-surface'; update: ExtensionUiSurfaceUpdate }
   | { type: 'closed'; reason: string };
 
 async function waitForCondition(predicate: () => boolean, timeoutMs: number): Promise<boolean> {

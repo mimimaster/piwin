@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   beginComposerImagePreview,
+  createLimitedDataUrl,
   createLimitedPreviewUrl,
   createLimitedPreviewUrlFromHref,
   scaleToMaxEdge,
@@ -92,6 +93,66 @@ describe('createLimitedPreviewUrl', () => {
     expect(result).toEqual({ url: 'blob:original', owned: true });
     expect(createObjectURL).toHaveBeenCalledWith(source);
     expect(warn).toHaveBeenCalled();
+  });
+});
+
+describe('unsupported canvas encoders', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function mockCanvas() {
+    const close = vi.fn();
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => (
+      { width: 96, height: 54, close } as unknown as ImageBitmap
+    )));
+    const toDataURL = vi.fn((type: string) =>
+      type === 'image/jpeg' ? 'data:image/jpeg;base64,AAAA' : 'data:image/png;base64,AAAA',
+    );
+    const toBlob = vi.fn((callback: (blob: Blob | null) => void, type: string) => {
+      callback(new Blob(['image'], { type: type === 'image/webp' ? 'image/png' : type }));
+    });
+    const nativeCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      if (tag === 'canvas') {
+        return {
+          width: 0, height: 0,
+          getContext: () => ({ drawImage: vi.fn() }),
+          toDataURL, toBlob,
+        } as unknown as HTMLCanvasElement;
+      }
+      return nativeCreateElement(tag);
+    });
+    return { close, toDataURL, toBlob };
+  }
+
+  it('tries JPEG when WebKit returns PNG for a WebP data-URL request', async () => {
+    const { close, toDataURL } = mockCanvas();
+    const result = await createLimitedDataUrl(new Blob(['image']), 96);
+
+    expect(result).toBe('data:image/jpeg;base64,AAAA');
+    expect(toDataURL.mock.calls.map(([type]) => type)).toEqual(['image/webp', 'image/jpeg']);
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('tries JPEG when WebKit returns a PNG Blob for a WebP request', async () => {
+    const { toBlob } = mockCanvas();
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:jpeg');
+
+    expect(await createLimitedPreviewUrl(new Blob(['image']), 96)).toEqual({
+      url: 'blob:jpeg', owned: true,
+    });
+    expect(createObjectURL.mock.calls[0]?.[0]).toMatchObject({ type: 'image/jpeg' });
+    expect(toBlob.mock.calls.map(([, type]) => type)).toEqual(['image/webp', 'image/jpeg']);
+  });
+
+  it('does not inline PNG when neither compressed encoder is available', async () => {
+    const { close, toDataURL } = mockCanvas();
+    toDataURL.mockReturnValue('data:image/png;base64,AAAA');
+
+    expect(await createLimitedDataUrl(new Blob(['image']), 96)).toBeNull();
+    expect(close).toHaveBeenCalledOnce();
   });
 });
 
