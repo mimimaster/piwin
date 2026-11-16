@@ -211,12 +211,12 @@ describe('useDockingWorkspace right tools follow the session', () => {
       .map((view) => view.kind)
       .sort();
 
-  it('restores each session tools and lets a new session inherit the last layout', () => {
+  it('keeps runtime owners without replaying per-session tool snapshots', () => {
     const mounted = mountFollowing();
     act(() => mounted.current().openToolView('browser'));
     expect(toolKinds(mounted.current())).toEqual(['browser']);
 
-    // Session b has no memory yet: it inherits a's browser, then diverges.
+    // Runtime owners remain available; the panel navigation starts on its launcher.
     mounted.setSession('b');
     expect(toolKinds(mounted.current())).toEqual(['browser']);
     const browserId = Object.values(mounted.current().state.views).find((view) => view.kind === 'browser')?.viewId;
@@ -225,7 +225,7 @@ describe('useDockingWorkspace right tools follow the session', () => {
     expect(toolKinds(mounted.current())).toEqual(['changes']);
 
     mounted.setSession('a');
-    expect(toolKinds(mounted.current())).toEqual(['browser']);
+    expect(toolKinds(mounted.current())).toEqual(['changes']);
 
     mounted.setSession('b');
     expect(toolKinds(mounted.current())).toEqual(['changes']);

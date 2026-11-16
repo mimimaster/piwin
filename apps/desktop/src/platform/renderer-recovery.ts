@@ -61,11 +61,12 @@ export function configureRendererRecovery(deps: RendererRecoveryDeps): void {
   configuredDeps = deps;
 }
 
-/** Draft-state reader backed by the persisted store for `partitionId`. */
+/** Resolve the current Host on each check; it may connect after this reader mounts. */
 export function persistedDraftStateReader(
-  partitionId: string | null,
+  readPartitionId: () => string | null,
 ): () => ComposerReclaimInput | undefined {
   return () => {
+    const partitionId = readPartitionId();
     if (partitionId === null) {
       return undefined;
     }

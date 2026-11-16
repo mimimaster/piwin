@@ -1,7 +1,7 @@
 /* Session status surface — the flat 2-layer activity sheet.
    Layer 1: one translucent panel (popover content or .session-status-dock).
-   Layer 2: flat interactive rows — transparent at rest, --hover on hover.
-   No nested cards, no colored badges. */
+   Layer 2: flat rows — transparent at rest, --hover on hover.
+   No nested boxes, no colored badges, no progress-bar cards. */
 
 .session-status-btn {
   position: relative;
@@ -46,7 +46,9 @@
    popover keeps its whitelisted backdrop-filter — never paint a solid slab
    over that here. */
 .ui-popover-content.session-status-popover {
-  width: min(280px, calc(100vw - 24px));
+  width: min(272px, calc(100vw - 24px));
+  max-height: min(72vh, 520px);
+  overflow-y: auto;
   padding: 5px;
   border-radius: var(--r-panel, 12px);
   border: 1px solid var(--line-1);
@@ -110,9 +112,9 @@ html:is([data-memory-pressure], [data-memory-parked]) .session-status-dock {
 
 .session-status-dock-close {
   position: absolute;
-  top: 5px;
-  right: 5px;
-  z-index: 1;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
   display: inline-grid;
   place-items: center;
   width: 20px;
@@ -130,12 +132,20 @@ html:is([data-memory-pressure], [data-memory-parked]) .session-status-dock {
   background: var(--hover);
 }
 
-/* Clear of the top-right dismiss affordance (Running's label row). */
+/* Keep the top-right dismiss button clear whether the first group starts with
+   a headerless row or a section label. */
 .session-status-dock
   > .session-status
   > .session-status-group:first-of-type
   > .session-status-label {
-  padding-right: 22px;
+  padding-right: 24px;
+}
+
+.session-status-dock
+  > .session-status
+  > .session-status-group.is-headerless:first-of-type
+  .session-status-row:first-child {
+  padding-right: 26px;
 }
 
 .session-status {
@@ -239,13 +249,7 @@ html:is([data-memory-pressure], [data-memory-parked]) .session-status-dock {
   text-align: left;
 }
 
-.session-status-row.is-interactive {
-  cursor: pointer;
-  width: 100%;
-}
-
-.session-status-row.is-interactive:hover,
-.session-status-row-main:hover {
+.session-status-row:has(> .session-status-row-main:hover) {
   background: var(--hover);
 }
 
@@ -310,6 +314,14 @@ html:is([data-memory-pressure], [data-memory-parked]) .session-status-dock {
   background: var(--mint, #5fad85);
 }
 
+.session-status-dot.is-override {
+  background: var(--zhu, var(--accent, #d4553d));
+}
+
+.session-status-dot.is-warn {
+  background: var(--amber, #c28538);
+}
+
 .session-status-dot.is-stopping {
   background: var(--text-3);
   opacity: 0.5;
@@ -321,7 +333,7 @@ html:is([data-memory-pressure], [data-memory-parked]) .session-status-dock {
 
 .session-status-dot.is-context {
   background: var(--text-4, var(--text-3));
-  opacity: 0.7;
+  opacity: 0.65;
 }
 
 @keyframes session-status-dot-pulse {
@@ -343,12 +355,15 @@ html:is([data-memory-pressure], [data-memory-parked]) .session-status-dock {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 450;
+}
+
+.session-status-row-title.is-session-name {
   font-weight: 500;
 }
 
 .session-status-row-title.is-muted {
   color: var(--text-3);
-  font-weight: 450;
 }
 
 .session-status-row-icon {
@@ -361,13 +376,34 @@ html:is([data-memory-pressure], [data-memory-parked]) .session-status-dock {
 
 .session-status-row-meta {
   flex-shrink: 0;
-  max-width: 42%;
+  max-width: 46%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-3);
   font-size: var(--fs-micro);
+}
+
+.session-status-row-meta.is-mono {
   font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+}
+
+.session-status-row-meta.is-warn {
+  color: var(--coral, #9c2e3d);
+}
+
+.session-status-copy-hint {
+  flex-shrink: 0;
+  color: var(--text-3);
+  font-size: 10.5px;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.session-status-copy-hint.is-copied,
+.session-status-row:hover .session-status-copy-hint,
+.session-status-row:focus-within .session-status-copy-hint {
+  opacity: 1;
 }
 
 /* Row stop buttons surface on hover/focus only; they stay clickable for
@@ -407,197 +443,4 @@ html:is([data-memory-pressure], [data-memory-parked]) .session-status-dock {
   cursor: default;
   opacity: 0.45;
   background: transparent;
-}
-
-.ui-popover-content.session-status-popover {
-  width: min(368px, calc(100vw - 24px));
-  max-height: min(76vh, 620px);
-  overflow-y: auto;
-}
-
-.session-status-kv-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 2px 2px 0;
-}
-
-.session-status-kv-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-width: 0;
-  font-size: var(--fs-ui-xs, 12px);
-}
-
-.session-status-kv-row.is-stack {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-}
-
-.session-status-kv-row.is-compact {
-  margin-top: 5px;
-}
-
-.session-status-kv-pair {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.session-status-kv-key {
-  flex: none;
-  color: var(--text-3);
-  font-size: var(--fs-micro, 11px);
-}
-
-.session-status-kv-val {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-1);
-  text-align: right;
-}
-
-.session-status-kv-val.is-warn {
-  color: var(--coral, #9c2e3d);
-}
-
-.is-mono {
-  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
-  font-size: var(--fs-micro, 11px);
-}
-
-.session-status-copy-btn {
-  border: none;
-  background: transparent;
-  padding: 1px 4px;
-  margin: 0 -4px;
-  border-radius: 4px;
-  color: var(--text-2);
-  font: inherit;
-  cursor: pointer;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.session-status-copy-btn:hover {
-  background: var(--hover);
-  color: var(--text-1);
-}
-
-.session-status-bar-track {
-  height: 3px;
-  width: 100%;
-  border-radius: 999px;
-  background: var(--line, rgba(128, 128, 128, 0.18));
-  overflow: hidden;
-}
-
-.session-status-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--azure, #3a7797);
-  transition: width 120ms ease;
-}
-
-.session-status-bar-fill.is-high {
-  background: var(--coral, #9c2e3d);
-}
-
-.session-status-pill {
-  font-size: 10.5px;
-  line-height: 1.2;
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--line, rgba(128, 128, 128, 0.2));
-  color: var(--text-2);
-  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
-}
-
-.session-status-pill.is-active {
-  color: var(--mint, #5fad85);
-  border-color: color-mix(in srgb, var(--mint, #5fad85) 38%, transparent);
-}
-
-.session-status-pill.is-override {
-  color: var(--azure, #3a7797);
-  border-color: color-mix(in srgb, var(--azure, #3a7797) 38%, transparent);
-}
-
-.session-status-pill.is-warning {
-  color: var(--coral, #9c2e3d);
-  border-color: color-mix(in srgb, var(--coral, #9c2e3d) 40%, transparent);
-}
-
-.session-status-path-box {
-  margin-top: 4px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--line, rgba(128, 128, 128, 0.18));
-  background: var(--surface-2, rgba(128, 128, 128, 0.06));
-}
-
-.session-status-path-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 3px;
-}
-
-.session-status-path-caption {
-  font-size: 10.5px;
-  color: var(--text-3);
-}
-
-.session-status-path-value {
-  display: block;
-  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--text-1);
-  word-break: break-all;
-  user-select: text;
-}
-
-.session-status-subnote {
-  margin-top: 4px;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--text-3);
-}
-
-.session-status-warning {
-  margin-top: 4px;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--coral, #9c2e3d);
-}
-
-.session-status-quota-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 2px;
-}
-
-.session-status-quota-item {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.session-status-quota-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-2);
 }

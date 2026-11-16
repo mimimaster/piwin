@@ -48,8 +48,8 @@ export function MemoryInspectionControls({ locale }: { locale: DesktopLocale }):
       </Button>
       <MemoryDiagNote>
         {status?.enabled
-          ? chinese ? '已启用。在 Safari 的「开发」菜单中选择 piwin 主窗口，即可查看页面内存、对象和图层。用完可在这里关闭。'
-            : 'Enabled. Choose the piwin main window in Safari’s Develop menu to inspect memory, objects and layers. Disable it here when finished.'
+          ? chinese ? '已启用。在 Safari 的「开发」菜单中选择 piwin 主窗口。拍内存快照可能暂时卡住界面，请在空闲时操作。用完可在这里关闭。'
+            : 'Enabled. Choose the piwin main window in Safari’s Develop menu. Heap snapshots can briefly pause the interface; capture them while idle. Disable inspection here when finished.'
           : chinese ? '用系统自带的 Safari 检查当前页面，无需重载，不会结束正在运行的任务。'
             : 'Inspect the current page with Safari. No reload or interruption of running tasks is required.'}
       </MemoryDiagNote>

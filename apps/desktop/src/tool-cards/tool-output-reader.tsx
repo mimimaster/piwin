@@ -9,6 +9,7 @@
  */
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { HostClient } from '../host/host-client';
+import { toolOutputCache } from './tool-output-cache.js';
 
 export type ToolOutputReadResult =
   | { status: 'ready'; output: string; truncated: boolean }
@@ -25,18 +26,20 @@ export type ToolOutputReader = (
 export const ToolOutputReaderContext = createContext<ToolOutputReader | null>(null);
 export const ToolOutputMessageContext = createContext<string | null>(null);
 
-/** Session-scoped reader with a per-tool cache so re-expanding is free. */
+/** Session-scoped reads share a bounded, reclaimable recent-output cache. */
 export function createHostToolOutputReader(
   request: HostClient['request'],
   sessionId: string,
 ): ToolOutputReader {
-  const cache = new Map<string, Promise<ToolOutputReadResult>>();
+  const readerId = toolOutputCache.allocateReaderId();
+  const inFlight = new Map<string, Promise<ToolOutputReadResult>>();
   return (messageId, toolCallId) => {
-    const key = `${messageId}\u0000${toolCallId}`;
-    const cached = cache.get(key);
-    if (cached) {
-      return cached;
-    }
+    const key = `${readerId}\u0000${messageId}\u0000${toolCallId}`;
+    const cached = toolOutputCache.get(key);
+    if (cached !== undefined) return Promise.resolve(cached);
+    const existing = inFlight.get(key);
+    if (existing !== undefined) return existing;
+    const generation = toolOutputCache.getGeneration();
     const pending = request({ type: 'session/tool-output', sessionId, messageId, toolCallId })
       .then((response): ToolOutputReadResult => {
         if (!response.success || !response.data) {
@@ -54,12 +57,10 @@ export function createHostToolOutputReader(
         return data.reason === 'snapshot-unavailable' ? { status: 'empty' } : { status: 'unavailable' };
       })
       .catch((): ToolOutputReadResult => ({ status: 'unavailable' }));
-    cache.set(key, pending);
-    // A transient failure should not stick for the whole session.
+    inFlight.set(key, pending);
     void pending.then((result) => {
-      if (result.status === 'unavailable') {
-        cache.delete(key);
-      }
+      inFlight.delete(key);
+      if (result.status !== 'unavailable') toolOutputCache.remember(key, result, generation);
     });
     return pending;
   };

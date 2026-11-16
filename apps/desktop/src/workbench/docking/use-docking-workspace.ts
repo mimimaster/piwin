@@ -14,7 +14,6 @@ import {
   saveWorkspaceState,
 } from './persist.js';
 import { findViewGroupId, isRightGroupId } from './topology.js';
-import { useRightLayoutFollowsSession } from './use-right-layout-follows-session.js';
 import type { WorkspaceState } from './types.js';
 import { createWorkspaceState, openSessionView, openToolView as applyOpenToolView } from './view-commands.js';
 import { isMovableToolKind, type MovableToolKind } from './types.js';
@@ -111,16 +110,7 @@ export function useDockingWorkspace(args: {
     };
   }, [args.enabled, args.scopeKey, hydrated, loadedScopeKey, state]);
 
-  useRightLayoutFollowsSession({
-    ready: args.enabled && hydrated && loadedScopeKey === args.scopeKey,
-    scopeKey: args.scopeKey,
-    // The primary conversation, not a focused split pane: clicking between
-    // panes must not reshuffle the right panel under the user.
-    sessionId: args.followSessionId ?? null,
-    state,
-    setState,
-    createId,
-  });
+  // Tool tabs are opened explicitly; saved per-session right layouts are not replayed.
 
   const liveSessionIds = useMemo(
     () => selectLiveSessionIds(state, args.hiddenMruSessionIds ?? []),

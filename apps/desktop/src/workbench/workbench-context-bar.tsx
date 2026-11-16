@@ -91,7 +91,6 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
     appearanceMode,
     sessionsExpanded,
     workPanelOpen,
-    rightPanelTab,
     shell,
     onStop,
     onCancelCompact,
@@ -217,7 +216,7 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
       onOpenSettings={() => openSettingsSection('general')}
       workPanelOpen={workPanelOpen}
       {...(props.statusControl ? { statusControl: props.statusControl } : {})}
-      onToggleWorkPanel={props.onToggleWorkPanel ?? (() => shell.toggleInspector(rightPanelTab))}
+      onToggleWorkPanel={props.onToggleWorkPanel ?? (() => shell.toggleInspector())}
       {...(activeSessionOrigin ? { origin: activeSessionOrigin } : {})}
       {...(activeSessionOrigin?.kind === 'fork'
         ? {

@@ -1,5 +1,6 @@
 /**
- * Persist right-panel multi-tab state across collapses (sessionStorage).
+ * Legacy right-panel storage format. Current navigation does not replay it.
+ * The parsers remain for compatibility fixtures and old-profile migration.
  *
  * A tab is an instance id: `browser` (the first) or `browser-2` (another).
  * Terminal session ids (`terminal-1`) are instances too.

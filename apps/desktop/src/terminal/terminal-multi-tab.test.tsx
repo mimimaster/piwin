@@ -127,14 +127,14 @@ describe('Terminal Multi-Tab & Cursor-Style Coexistence', () => {
     document.body.appendChild(container);
     root = createRoot(container);
 
-    act(() => {
+    const renderTab = (activeTab: RightPanelTab): void => {
       root?.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <RightPanel
             open
             onOpen={() => {}}
             onClose={() => {}}
-            activeTab="terminal-1"
+            activeTab={activeTab}
             onTabChange={() => {}}
             panelWidthPx={400}
             isResizing={false}
@@ -148,7 +148,12 @@ describe('Terminal Multi-Tab & Cursor-Style Coexistence', () => {
           />
         </PiwinUiProvider>,
       );
-    });
+    };
+
+    // Navigation is explicit; the legacy record above must not seed the strip.
+    for (const tab of ['files', 'terminal-1', 'terminal-2', 'terminal-1'] as const) {
+      act(() => { renderTab(tab); });
+    }
 
     // Verify tabs exist together
     const filesTab = container.querySelector('[data-testid="right-panel-open-tab-files"]');
@@ -347,7 +352,7 @@ describe('Terminal Multi-Tab & Cursor-Style Coexistence', () => {
       activeTab: 'review',
     });
     const mockSessions = createMockTerminalSessions();
-    let currentActiveTab: RightPanelTab | null = 'review';
+    let currentActiveTab: RightPanelTab | null = 'terminal-1';
 
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -377,9 +382,11 @@ describe('Terminal Multi-Tab & Cursor-Style Coexistence', () => {
       );
     };
 
-    act(() => {
-      render();
-    });
+    act(() => { render(); });
+    for (const tab of ['files', 'review'] as const) {
+      currentActiveTab = tab;
+      act(() => { render(); });
+    }
 
     const plusButton = container.querySelector<HTMLButtonElement>('[data-testid="right-panel-tab-add"]');
     act(() => {

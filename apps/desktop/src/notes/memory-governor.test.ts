@@ -4,6 +4,7 @@ import { globalMemoryGovernor } from './memory-governor';
 import { hasDisposableCache, registerDisposableCache } from './cache-budget';
 import { globalHighlightCache } from '../syntax/highlight-cache';
 import { shouldHighlightCode } from '../markdown/syntax-highlight';
+import '../tool-cards/tool-output-cache.js';
 import {
   clearMermaidDiagramCacheForTests,
   getMermaidDiagramCacheStats,
@@ -144,6 +145,7 @@ describe('MemoryGovernor cache budgets (S05)', () => {
     for (const name of [
       'warmSessions',
       'highlightCache',
+      'historicalToolOutputs',
       'mermaidDiagrams',
       'mediaPreviewUrls',
       'artifactMediaDataUrls',

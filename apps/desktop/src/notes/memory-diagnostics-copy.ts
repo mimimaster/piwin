@@ -37,6 +37,7 @@ const ENGLISH = {
   cacheNames: {
     warmSessions: 'Warm sessions',
     highlightCache: 'Code highlight',
+    historicalToolOutputs: 'Recent tool output',
     mermaidDiagrams: 'Mermaid diagrams',
     mediaPreviewUrls: 'Media URLs',
     artifactMediaDataUrls: 'Artifact media',
@@ -136,6 +137,7 @@ const CHINESE: typeof ENGLISH = {
   cacheNames: {
     warmSessions: '会话热备 · Warm',
     highlightCache: '代码高亮 · Highlight',
+    historicalToolOutputs: '近期工具输出 · Output',
     mermaidDiagrams: '图表预览 · Mermaid',
     mediaPreviewUrls: '媒体预览 · Media',
     artifactMediaDataUrls: '画布资源 · Artifact',

@@ -1,37 +1,55 @@
 import { describe, expect, it } from 'vitest';
-import { deriveSessionStatusInsights, formatCompactTokenCount } from './session-status-model';
+import { deriveSessionStatusInsights, shortenPathMiddle } from './session-status-model';
 
 describe('deriveSessionStatusInsights', () => {
-  it('returns null sections when no runtime metadata is supplied', () => {
-    const empty = deriveSessionStatusInsights(undefined, false);
-    expect(empty.hasDetails).toBe(false);
-    expect(empty.overview).toBeNull();
+  it('returns empty insights when no runtime metadata is supplied', () => {
+    const empty = deriveSessionStatusInsights(undefined, true);
+    expect(empty.hasTopGroup).toBe(false);
+    expect(empty.hasAutoDockSignal).toBe(false);
+    expect(empty.session).toBeNull();
     expect(empty.prompt).toBeNull();
-    expect(empty.antigravity).toBeNull();
+    expect(empty.plugins).toEqual([]);
   });
 
-  it('extracts active pi-purge prompt path, mode, and Host ContextManifest paths', () => {
+  it('prefers human session title and hides machine session ids behind copyId', () => {
+    const withTitle = deriveSessionStatusInsights(
+      {
+        agentId: 'pi',
+        sessionId: 'session-mwho0d',
+        sessionTitle: '重设计顶栏状态面板',
+      },
+      true,
+    );
+    expect(withTitle.session).toEqual({
+      title: '重设计顶栏状态面板',
+      copyId: 'session-mwho0d',
+    });
+    // Default prompt alone does not force auto-dock on empty conversations.
+    expect(withTitle.prompt?.meta).toBe('默认');
+    expect(withTitle.hasAutoDockSignal).toBe(false);
+
+    const machineNameFallback = deriveSessionStatusInsights(
+      {
+        agentId: 'pi',
+        sessionId: 'session-mwho0d',
+        sessionTitle: 'session-mwho0d',
+        sessionPreview: '<context_ref id="1">x</context_ref> 去掉“会话概述”标题',
+      },
+      true,
+    );
+    expect(machineNameFallback.session).toEqual({
+      title: '去掉“会话概述”标题',
+      copyId: 'session-mwho0d',
+    });
+  });
+
+  it('derives flat active pi-purge prompt row and external plugin rows', () => {
+    const promptPath = '/Users/dev/project/.pi/lean-system.md';
     const insights = deriveSessionStatusInsights(
       {
         agentId: 'pi',
-        modelLabel: 'Claude Sonnet 4.6',
-        effortLabel: 'high',
-        permissionMode: 'auto',
         sessionId: 'sess-123',
-        workspacePath: '/Users/dev/project',
-        contextTokensUsed: 42_000,
-        contextTokensLimit: 200_000,
-        usageTotals: {
-          sessionId: 'sess-123',
-          userTurnCount: 3,
-          promptTokens: 10_000,
-          completionTokens: 2_000,
-          cacheReadTokens: 30_000,
-          cacheWriteTokens: 0,
-          totalTokens: 42_000,
-          entryCount: 4,
-          estimatedCostUsd: 0.18,
-        },
+        sessionTitle: '性能优化',
         extensionSurface: {
           sessionId: 'sess-123',
           statuses: [
@@ -40,10 +58,9 @@ describe('deriveSessionStatusInsights', () => {
               key: 'meta:pi-purge',
               text: JSON.stringify({ on: true, mode: 'strict', source: 'custom', chars: 512 }),
             },
-            { key: 'meta:pi-purge-path', text: '/Users/dev/project/.pi/lean-system.md' },
-            { key: 'meta:context-prompt', text: JSON.stringify({ appSrc: 'project', agents: 2 }) },
-            { key: 'meta:context-app-path', text: '/Users/dev/project/APPEND_SYSTEM.md' },
-            { key: 'deepseek-cache', text: 'Cache 88%' },
+            { key: 'meta:pi-purge-path', text: promptPath },
+            { key: 'piwin-surge', text: '规则生效' },
+            { key: 'deepseek-cache', text: '命中 88%' },
           ],
           widgets: [],
         },
@@ -51,26 +68,32 @@ describe('deriveSessionStatusInsights', () => {
       true,
     );
 
-    expect(insights.overview).toMatchObject({
-      agentLabel: 'Pi',
-      modelLabel: 'Claude Sonnet 4.6',
-      effortLabel: 'high',
-      contextSummary: '21% · 42k / 200k',
-      cacheSummary: '缓存 75%',
-      costSummary: '$0.18',
-    });
+    expect(insights.hasAutoDockSignal).toBe(true);
     expect(insights.prompt).toMatchObject({
       engine: 'pi-purge',
-      badge: 'PURGE ON · strict (custom)',
-      activePath: '/Users/dev/project/.pi/lean-system.md',
-      appendPath: '/Users/dev/project/APPEND_SYSTEM.md',
-      agentsCount: 2,
-      charsLabel: '512 chars',
+      tone: 'override',
+      activePath: promptPath,
+      meta: shortenPathMiddle(promptPath),
+      isMonoMeta: true,
     });
-    expect(insights.extraStatuses).toEqual([{ key: 'deepseek-cache', text: 'Cache 88%' }]);
+    expect(insights.plugins).toEqual([
+      {
+        id: 'piwin-surge',
+        title: '网络代理 (Surge)',
+        meta: '规则生效',
+        tone: 'ready',
+      },
+      {
+        id: 'deepseek-cache',
+        title: 'DeepSeek 缓存',
+        meta: '命中 88%',
+        isMonoMeta: true,
+        tone: 'ready',
+      },
+    ]);
   });
 
-  it('shows ContextManifest SYSTEM.md when pi-purge is OFF and parses Antigravity metadata', () => {
+  it('summarizes ContextManifest SYSTEM.md and Antigravity plugin row cleanly', () => {
     const piInsights = deriveSessionStatusInsights(
       {
         agentId: 'pi',
@@ -84,11 +107,11 @@ describe('deriveSessionStatusInsights', () => {
           widgets: [],
         },
       },
-      false,
+      true,
     );
     expect(piInsights.prompt).toMatchObject({
       engine: 'context-system',
-      badge: 'SYSTEM.md (global)',
+      tone: 'override',
       activePath: '/Users/dev/.pi/agent/SYSTEM.md',
     });
 
@@ -99,11 +122,19 @@ describe('deriveSessionStatusInsights', () => {
         extensionSurface: {
           sessionId: 's3',
           statuses: [
-            { key: 'meta:agy-purge', text: JSON.stringify({ on: true, mode: 'replace', source: 'custom', chars: 320 }) },
-            { key: 'meta:agy-purge-path', text: '/Users/dev/.piwin/antigravity-acp/staged-homes/h1/GEMINI.md' },
-            { key: 'meta:agy-account', text: JSON.stringify({ id: 'work', label: 'work', isSystem: false, proxy: 'socks5://127.0.0.1:7890' }) },
-            { key: 'meta:agy-rebuild', text: JSON.stringify({ auto: true, count: 1 }) },
-            { key: 'agy-route', text: '⚠ Degraded route (3pt: fast_ttft)' },
+            {
+              key: 'meta:agy-purge',
+              text: JSON.stringify({ on: true, mode: 'replace', source: 'custom', chars: 320 }),
+            },
+            {
+              key: 'meta:agy-purge-path',
+              text: '/Users/dev/.piwin/antigravity-acp/staged-homes/h1/GEMINI.md',
+            },
+            {
+              key: 'meta:agy-account',
+              text: JSON.stringify({ id: 'work', label: 'work', isSystem: false, proxy: 'socks5://127.0.0.1:7890' }),
+            },
+            { key: 'agy-route', text: 'normal' },
             {
               key: 'meta:agy-quota',
               text: JSON.stringify({
@@ -118,23 +149,16 @@ describe('deriveSessionStatusInsights', () => {
       true,
     );
 
-    expect(agyInsights.prompt?.activePath).toBe('/Users/dev/.piwin/antigravity-acp/staged-homes/h1/GEMINI.md');
-    expect(agyInsights.antigravity).toMatchObject({
-      accountLabel: 'work',
-      isSystemAccount: false,
-      proxyLabel: 'socks5://127.0.0.1:7890',
-      routeDegraded: true,
-      autoRebuildLabel: '自动重建 ON (本会话 1 次)',
-      quotaAccountId: 'work',
-    });
-    expect(agyInsights.antigravity?.quotaBuckets).toEqual([
-      { id: 'gemini-5h', label: 'Gem 5h', remainingPct: 72, resetLabel: '2h' },
+    expect(agyInsights.prompt?.activePath).toBe(
+      '/Users/dev/.piwin/antigravity-acp/staged-homes/h1/GEMINI.md',
+    );
+    expect(agyInsights.plugins).toEqual([
+      expect.objectContaining({
+        id: 'antigravity',
+        title: 'Antigravity 通道',
+        meta: 'work · 正常 · 余量 72%',
+        tone: 'ready',
+      }),
     ]);
-  });
-
-  it('formats compact token numbers cleanly', () => {
-    expect(formatCompactTokenCount(950)).toBe('950');
-    expect(formatCompactTokenCount(42_400)).toBe('42k');
-    expect(formatCompactTokenCount(1_500_000)).toBe('1.5M');
   });
 });

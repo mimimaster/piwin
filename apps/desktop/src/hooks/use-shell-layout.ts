@@ -186,11 +186,11 @@ export function useShellLayout() {
           return 'none';
         }
         rememberTrigger();
-        setInspectorTab(tab ?? inspectorTab ?? null);
+        setInspectorTab(tab);
         return 'inspector';
       });
     },
-    [rememberTrigger, restoreFocus, inspectorTab],
+    [rememberTrigger, restoreFocus],
   );
 
   const openLibrary = useCallback(() => {

@@ -283,6 +283,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           }}
           activeTab={rightPanelTab}
           layoutSessionId={activeSessionId}
+          layoutScopeKey={projectPath ?? 'general'}
           {...(dockedTools ? { handedOffTabs: DOCKING_OWNED_INSPECTOR_TABS, dockedTools } : {})}
           onOpenInstance={(tab) => {
             if (docking && inspectorTabToToolKind(tab) === 'browser') {
@@ -304,7 +305,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               shell.openInspector(tab);
             }
           }}
-          onTabRestore={shell.setInspectorTab}
+          onNavigationReset={shell.setInspectorTab}
           panelWidthPx={rightPanelResize.widthPx}
           isResizing={rightPanelResize.isResizing}
           onResizePointerDown={rightPanelResize.onResizePointerDown}

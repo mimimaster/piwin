@@ -38,8 +38,8 @@ import {
   SessionStatusPopover,
   type SessionStatusArtifact,
   type SessionStatusRuntimeInfo,
-  type SessionStatusSource,
 } from '../run-activity/session-status-popover';
+import { deriveSessionStatusInsights } from '../run-activity/session-status-model';
 import { useSessionStageDock } from '../run-activity/use-session-stage-dock';
 import { useSessionResources } from '../right-panel/use-session-resources';
 
@@ -234,45 +234,34 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
     });
   }
 
-  // Context rows: the read side of the same projection — files, skills,
-  // search hits and knowledge the session pulled in. Deduped by
-  // kind + target and capped; no attach action lives here.
-  const statusSources: SessionStatusSource[] = [];
-  const seenSourceKeys = new Set<string>();
-  for (const resource of sessionResources) {
-    if (resource.role !== 'input' || resource.availability === 'missing') continue;
-    if (statusSources.length >= 10) break;
-    const key = `${resource.kind}:${resource.target ?? resource.id}`;
-    if (seenSourceKeys.has(key)) continue;
-    seenSourceKeys.add(key);
-    statusSources.push({
-      id: `src-${resource.id}`,
-      title: resource.title,
-      meta: resource.target ?? resource.kind,
-      kind: resource.kind,
-      ...(resource.kind === 'media'
-        ? { onOpen: openLibrary }
-        : resource.kind === 'file' && resource.target !== undefined
-          ? {
-              onOpen: () => {
-                const target = resource.target;
-                if (target === undefined) return;
-                model.handleOpenDocument(
-                  { title: resource.title, path: target },
-                  'inspector',
-                );
-              },
-            }
-          : {}),
-    });
-  }
+  const activeSessionEntity = state.activeSessionId
+    ? (state.sessionEntitiesById[state.activeSessionId] ??
+        state.sessions.find((item) => item.id === state.activeSessionId) ??
+        state.generalSessions.find((item) => item.id === state.activeSessionId))
+    : undefined;
+  const activeAgentId = composerCard.activeAgentId ?? activeSessionEntity?.backend?.agentId ?? 'pi';
+  const statusRuntimeInfo: SessionStatusRuntimeInfo = {
+    agentId: activeAgentId,
+    sessionId: state.activeSessionId,
+    ...(activeSessionEntity?.name ? { sessionTitle: activeSessionEntity.name } : {}),
+    ...(activeSessionEntity?.lastPreview
+      ? { sessionPreview: activeSessionEntity.lastPreview }
+      : {}),
+    ...(composerCard.extensionSurface
+      ? { extensionSurface: composerCard.extensionSurface }
+      : {}),
+  };
+  const statusInsights = deriveSessionStatusInsights(
+    statusRuntimeInfo,
+    desktopLocale === 'zh-CN',
+  );
 
   const hasStatusContent =
     sessionPlan !== null ||
     (model.sessionActivity?.orchestrationView.items.length ?? 0) > 0 ||
     (model.sessionActivity?.activeJobs.length ?? 0) > 0 ||
     statusArtifacts.length > 0 ||
-    statusSources.length > 0;
+    statusInsights.hasAutoDockSignal;
 
   // The gutter measures the stage's border box, so the ref must live on
   // `.chat-stage` itself (not the padded desktop surface).
@@ -302,61 +291,12 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
       (rightPanelOpen && inspectorPlacement === 'column' && rightPanelResize.isFullWidth),
   });
 
-  const activeSessionEntity = state.activeSessionId
-    ? (state.sessionEntitiesById[state.activeSessionId] ??
-        state.sessions.find((item) => item.id === state.activeSessionId) ??
-        state.generalSessions.find((item) => item.id === state.activeSessionId))
-    : undefined;
-  const activeBackendOptions = composerCard.backendOptions;
-  const activeBackendModel = activeBackendOptions?.models.find(
-    (item) => item.id === activeBackendOptions.currentModelId,
-  );
-  const activeAgentId = composerCard.activeAgentId ?? activeSessionEntity?.backend?.agentId ?? 'pi';
-  const backendOptionLabel = draftAgentOptions.find((opt) => opt.agentId === activeAgentId)?.label;
-  const statusRuntimeInfo: SessionStatusRuntimeInfo = {
-    agentId: activeAgentId,
-    ...(backendOptionLabel !== undefined ? { backendLabel: backendOptionLabel } : {}),
-    modelLabel: activeBackendModel?.label ?? composerCard.selectedModelLabel,
-    ...(activeBackendOptions?.currentEffortId
-      ? { effortLabel: activeBackendOptions.currentEffortId }
-      : composerCard.thinkingLevel && composerCard.thinkingLevel !== 'off'
-        ? { effortLabel: composerCard.thinkingLevel }
-        : {}),
-    ...(activeBackendOptions?.currentModeId
-      ? {
-          modeLabel:
-            activeBackendOptions.modes?.find((m) => m.id === activeBackendOptions.currentModeId)
-              ?.label ?? activeBackendOptions.currentModeId,
-        }
-      : { modeLabel: composerCard.agentMode }),
-    ...(effectiveRunMode ? { permissionMode: effectiveRunMode } : {}),
-    sessionId: state.activeSessionId,
-    workspacePath: state.projectPath,
-    ...(composerCard.contextRingView?.percentText !== undefined
-      ? { contextPercent: composerCard.contextRingView.percentText }
-      : {}),
-    ...(composerCard.contextRingView?.tokensUsed !== undefined
-      ? { contextTokensUsed: composerCard.contextRingView.tokensUsed }
-      : {}),
-    ...(composerCard.contextRingView?.tokensLimit !== undefined
-      ? { contextTokensLimit: composerCard.contextRingView.tokensLimit }
-      : {}),
-    ...(composerCard.contextRingView?.quality !== undefined
-      ? { contextQuality: composerCard.contextRingView.quality }
-      : {}),
-    usageTotals: composerCard.sessionUsageTotals,
-    ...(composerCard.extensionSurface
-      ? { extensionSurface: composerCard.extensionSurface }
-      : {}),
-  };
-
   const statusPanelProps = {
     locale: desktopLocale,
     plan: sessionPlan,
     orchestrationView: model.sessionActivity?.orchestrationView,
     jobs: model.sessionActivity?.activeJobs ?? [],
     artifacts: statusArtifacts,
-    sources: statusSources,
     runtimeInfo: statusRuntimeInfo,
     onOpenTool: openRightTab,
     onViewJobLogs: model.sessionActivity?.onViewJobLogs,

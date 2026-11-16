@@ -6,6 +6,7 @@ import {
   requestRendererRecovery,
 } from './renderer-recovery.js';
 import type { ComposerReclaimInput } from '../composer/composer-draft-reclaim.js';
+import { composerDraftPersistenceKey } from '../composer/composer-draft-persistence.js';
 
 const EMPTY_INPUT: ComposerReclaimInput = {
   drafts: [],
@@ -125,6 +126,37 @@ describe('requestRendererRecovery', () => {
 
 describe('persistedDraftStateReader', () => {
   it('returns undefined for an unknown partition (fail closed)', () => {
-    expect(persistedDraftStateReader(null)()).toBeUndefined();
+    expect(persistedDraftStateReader(() => null)()).toBeUndefined();
+  });
+
+  it('rechecks a Host identity that becomes available after startup', () => {
+    let partition: string | null = null;
+    const readDrafts = persistedDraftStateReader(() => partition);
+    expect(readDrafts()).toBeUndefined();
+
+    partition = 'host-ready';
+    expect(readDrafts()).toEqual(EMPTY_INPUT);
+
+    partition = null;
+    expect(readDrafts()).toBeUndefined();
+  });
+
+  it('reads the current Host partition after reconnecting', () => {
+    const getItem = vi.fn(() => null);
+    vi.stubGlobal('window', { localStorage: { getItem } });
+    try {
+      let partition = 'host-before-reconnect';
+      const readDrafts = persistedDraftStateReader(() => partition);
+      expect(readDrafts()).toEqual(EMPTY_INPUT);
+
+      partition = 'host-after-reconnect';
+      expect(readDrafts()).toEqual(EMPTY_INPUT);
+      expect(getItem.mock.calls).toEqual([
+        [composerDraftPersistenceKey('host-before-reconnect')],
+        [composerDraftPersistenceKey('host-after-reconnect')],
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

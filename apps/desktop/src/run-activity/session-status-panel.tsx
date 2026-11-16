@@ -1,13 +1,14 @@
 /**
- * Session status panel — the flat 2-layer activity surface shared by the
- * titlebar popover and the stage right-gutter dock.
+ * Session status panel — the flat 2-layer surface shared by the titlebar
+ * popover and the stage right-gutter dock.
  *
  * Layer 1 is the translucent sheet owned by the caller (popover content or
- * `.session-status-dock`); layer 2 is this flat row list. Three sections, each
- * omitted when empty and separated by a hairline: Running (plan steps, live
- * subagents, jobs), Deliverables (verified session artifacts), and Context
- * (read-side session resources). No nested cards, no colored badges, no
- * attach button.
+ * `.session-status-dock`); layer 2 is this flat row list:
+ *   1. Headerless top group (human session title, system prompt, external plugins)
+ *   2. Running (plan steps, subagents, background jobs)
+ *   3. Deliverables (verified session artifacts — never workspace-write spam)
+ * No nested cards, no colored badges, no Composer-duplicated metrics, no
+ * input-reference list.
  */
 import { useMemo, type ReactElement } from 'react';
 import type { JobRecord, SessionPlan } from '@piwin/contracts';
@@ -39,30 +40,16 @@ import {
   type SessionStatusInsights,
   type SessionStatusRuntimeInfo,
 } from './session-status-model.js';
-import {
-  SessionStatusAntigravitySection,
-  SessionStatusExtraStatusesSection,
-  SessionStatusOverviewSection,
-  SessionStatusPromptSection,
-} from './session-status-sections';
+import { SessionStatusTopGroup } from './session-status-sections';
 
 export type { SessionStatusRuntimeInfo } from './session-status-model.js';
 
 export type SessionStatusArtifact = {
   id: string;
   title: string;
-  /** Quiet provenance/path detail rendered as muted mono (画布, report path). */
+  /** Quiet provenance/path detail rendered as muted text (画布, 报告, path). */
   meta?: string | undefined;
   icon?: ReactElement | undefined;
-  onOpen?: (() => void) | undefined;
-};
-
-export type SessionStatusSource = {
-  id: string;
-  title: string;
-  /** Kind or shortened target, rendered as muted mono. */
-  meta?: string | undefined;
-  kind?: string | undefined;
   onOpen?: (() => void) | undefined;
 };
 
@@ -72,7 +59,6 @@ export type SessionStatusPanelProps = {
   orchestrationView?: SubagentOrchestrationView | undefined;
   jobs?: readonly JobRecord[] | undefined;
   artifacts?: readonly SessionStatusArtifact[] | undefined;
-  sources?: readonly SessionStatusSource[] | undefined;
   runtimeInfo?: SessionStatusRuntimeInfo | undefined;
   onOpenTool: (tab: RightPanelTab) => void;
   onViewJobLogs?: ((jobId: string) => void) | undefined;
@@ -91,7 +77,6 @@ export function sessionStatusCopy(zh: boolean) {
     progress: zh ? '进度' : 'Progress',
     running: zh ? '运行中' : 'Running',
     deliverables: zh ? '交付物' : 'Deliverables',
-    context: zh ? '上下文' : 'Context',
     stopAll: zh ? '全部停止' : 'Stop all',
     stop: zh ? '停止' : 'Stop',
     stopping: zh ? '停止中…' : 'Stopping…',
@@ -131,6 +116,43 @@ function subagentDotClass(item: SubagentOrchestrationItem): string {
   return 'is-ready';
 }
 
+/**
+ * Clean human status word — never dump raw child summary markdown (`done - **...`)
+ * into the narrow right-hand meta column.
+ */
+function subagentStatusLabel(item: SubagentOrchestrationItem, zh: boolean): string {
+  switch (item.executionStatus) {
+    case 'queued':
+      return zh ? '排队中' : 'Queued';
+    case 'starting':
+      return zh ? '启动中' : 'Starting';
+    case 'running':
+      return zh ? '运行中' : 'Running';
+    case 'failed':
+      return zh ? '失败' : 'Failed';
+    case 'cancelled':
+      return zh ? '已停止' : 'Stopped';
+    case 'completed':
+      return zh ? '已完成' : 'Done';
+  }
+}
+
+const MACHINE_SUBAGENT_ID_RE = /^(?:session|sess|subagent|child|inv)[-_][a-z0-9_-]{4,}$/i;
+
+function subagentDisplayTitle(item: SubagentOrchestrationItem, zh: boolean): string {
+  const raw = item.title.trim();
+  if (!raw || MACHINE_SUBAGENT_ID_RE.test(raw)) {
+    if (item.role === 'scout' || item.role === 'explorer') {
+      return zh ? '代码调研' : 'Explore';
+    }
+    if (item.role === 'reviewer') {
+      return zh ? '变更审查' : 'Review';
+    }
+    return zh ? '子代理任务' : 'Subagent';
+  }
+  return raw;
+}
+
 const EMPTY_ORCHESTRATION = EMPTY_SUBAGENT_ORCHESTRATION_VIEW;
 
 /**
@@ -144,7 +166,6 @@ export function useSessionStatusView(props: {
   orchestrationView?: SubagentOrchestrationView | undefined;
   jobs?: readonly JobRecord[] | undefined;
   artifacts?: readonly SessionStatusArtifact[] | undefined;
-  sources?: readonly SessionStatusSource[] | undefined;
   runtimeInfo?: SessionStatusRuntimeInfo | undefined;
 }): {
   zh: boolean;
@@ -158,7 +179,6 @@ export function useSessionStatusView(props: {
   stopRunIds: readonly string[];
   stopJobIds: readonly string[];
   artifacts: readonly SessionStatusArtifact[];
-  sources: readonly SessionStatusSource[];
   insights: SessionStatusInsights;
   hasAnyContent: boolean;
   /** Subagents + jobs + live plan — the breathing-capsule counter. */
@@ -187,14 +207,12 @@ export function useSessionStatusView(props: {
   const planDone = plan === null ? 0 : plan.steps.filter((step) => step.status === 'done').length;
   const planActive = plan?.steps.some((step) => step.status === 'active') === true;
   const artifacts = props.artifacts ?? [];
-  const sources = props.sources ?? [];
   const hasAnyContent =
+    insights.hasTopGroup ||
     plan !== null ||
     activityModel.items.length > 0 ||
     activityModel.jobs.length > 0 ||
-    artifacts.length > 0 ||
-    sources.length > 0 ||
-    insights.hasDetails;
+    artifacts.length > 0;
 
   const activeSubagentCount = activityModel.items.filter((item) =>
     isOrchestrationExecutionActive(item.executionStatus),
@@ -216,7 +234,6 @@ export function useSessionStatusView(props: {
     stopRunIds: activityModel.stopRunIds,
     stopJobIds: activityModel.stopJobIds,
     artifacts,
-    sources,
     insights,
     hasAnyContent,
     activeProcessCount,
@@ -236,17 +253,12 @@ export function SessionStatusPanel(props: SessionStatusPanelProps): ReactElement
         </div>
       ) : null}
 
-      {view.insights.overview ? (
-        <SessionStatusOverviewSection overview={view.insights.overview} zh={view.zh} />
-      ) : null}
-
-      {view.insights.prompt ? (
-        <SessionStatusPromptSection prompt={view.insights.prompt} zh={view.zh} />
-      ) : null}
-
-      {view.insights.antigravity ? (
-        <SessionStatusAntigravitySection antigravity={view.insights.antigravity} zh={view.zh} />
-      ) : null}
+      <SessionStatusTopGroup
+        session={view.insights.session}
+        prompt={view.insights.prompt}
+        plugins={view.insights.plugins}
+        zh={view.zh}
+      />
 
       {showRunning ? (
         <div className="session-status-group" data-testid="session-status-running">
@@ -311,6 +323,7 @@ export function SessionStatusPanel(props: SessionStatusPanelProps): ReactElement
               const stoppable =
                 runId !== undefined && isOrchestrationExecutionActive(item.executionStatus);
               const stopping = runId !== undefined && props.isSubagentStopping?.(runId) === true;
+              const doneLike = !isOrchestrationExecutionActive(item.executionStatus) && item.executionStatus !== 'failed';
               return (
                 <li key={item.anchorId} className="session-status-row" role="listitem">
                   <button
@@ -323,8 +336,12 @@ export function SessionStatusPanel(props: SessionStatusPanelProps): ReactElement
                     }}
                   >
                     <i className={`session-status-dot ${subagentDotClass(item)}`} aria-hidden="true" />
-                    <span className="session-status-row-title">{item.title}</span>
-                    <span className="session-status-row-meta">{item.activity}</span>
+                    <span className={`session-status-row-title${doneLike ? ' is-muted' : ''}`}>
+                      {subagentDisplayTitle(item, view.zh)}
+                    </span>
+                    <span className="session-status-row-meta">
+                      {subagentStatusLabel(item, view.zh)}
+                    </span>
                   </button>
                   {stoppable ? (
                     <button
@@ -362,7 +379,7 @@ export function SessionStatusPanel(props: SessionStatusPanelProps): ReactElement
                   >
                     <i className={`session-status-dot ${jobStatusDotClass(job.status)}`} aria-hidden="true" />
                     <span className="session-status-row-title">{jobDisplayLabel(job)}</span>
-                    {meta ? <span className="session-status-row-meta">{meta}</span> : null}
+                    {meta ? <span className="session-status-row-meta is-mono">{meta}</span> : null}
                   </button>
                   {props.onStopJob ? (
                     <button
@@ -432,49 +449,6 @@ export function SessionStatusPanel(props: SessionStatusPanelProps): ReactElement
             ))}
           </ul>
         </div>
-      ) : null}
-
-      {view.sources.length > 0 ? (
-        <div className="session-status-group" data-testid="session-status-sources">
-          <div className="session-status-label">
-            <span>{copy.context}</span>
-          </div>
-          <ul className="session-status-list">
-            {view.sources.map((source) => (
-              <li key={source.id} className="session-status-row" role="listitem">
-                {source.onOpen ? (
-                  <button
-                    type="button"
-                    className="session-status-row-main"
-                    data-testid={`session-status-source-${source.id}`}
-                    onClick={() => {
-                      source.onOpen?.();
-                      props.onNavigate?.();
-                    }}
-                  >
-                    <i className="session-status-dot is-context" aria-hidden="true" />
-                    <span className="session-status-row-title">{source.title}</span>
-                    {source.meta ? (
-                      <span className="session-status-row-meta">{source.meta}</span>
-                    ) : null}
-                  </button>
-                ) : (
-                  <span className="session-status-row-static">
-                    <i className="session-status-dot is-context" aria-hidden="true" />
-                    <span className="session-status-row-title">{source.title}</span>
-                    {source.meta ? (
-                      <span className="session-status-row-meta">{source.meta}</span>
-                    ) : null}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {view.insights.extraStatuses.length > 0 ? (
-        <SessionStatusExtraStatusesSection items={view.insights.extraStatuses} zh={view.zh} />
       ) : null}
     </div>
   );

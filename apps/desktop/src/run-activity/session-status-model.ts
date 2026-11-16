@@ -1,85 +1,59 @@
 /**
- * Pure derivation for `SessionStatusPanel` — aggregates runtime metadata,
- * token/context stats, system-prompt / Purge state + exact active prompt path,
- * and Antigravity ACP controls from `ExtensionUiSurfaceSnapshot`.
+ * Pure derivation for `SessionStatusPanel` — headerless session identity,
+ * system-prompt / Purge state, and external plugin status rows.
+ *
+ * Metrics already permanent in the composer bar (model, effort, mode, context
+ * ring, token/turn/cost totals, workspace path) are intentionally excluded so
+ * the status sheet never duplicates chrome below the stage.
  */
-import type { ExtensionUiSurfaceSnapshot, SessionUsageTotals } from '@piwin/contracts';
+import type { ExtensionUiSurfaceSnapshot } from '@piwin/contracts';
+import { sanitizePreviewSnippet } from '../session/session-row-item.js';
 
 export type SessionStatusRuntimeInfo = {
   agentId?: string | undefined;
-  backendLabel?: string | undefined;
-  modelLabel?: string | undefined;
-  effortLabel?: string | undefined;
-  modeLabel?: string | undefined;
-  permissionMode?: string | undefined;
   sessionId?: string | null | undefined;
   nativeSessionId?: string | undefined;
-  workspacePath?: string | null | undefined;
-  contextPercent?: number | undefined;
-  contextTokensUsed?: number | undefined;
-  contextTokensLimit?: number | undefined;
-  contextQuality?: 'measured' | 'estimated' | undefined;
-  usageTotals?: SessionUsageTotals | null | undefined;
+  /** Human-readable session name from the sidebar list when available. */
+  sessionTitle?: string | undefined;
+  /** Fallback snippet when `sessionTitle` is unset or a machine id. */
+  sessionPreview?: string | undefined;
   extensionSurface?: ExtensionUiSurfaceSnapshot | undefined;
 };
 
-export type PromptStatusView = {
+export type SessionHeaderRowView = {
+  title: string;
+  /** Underlying session id copied on click, never shown as raw label text. */
+  copyId?: string | undefined;
+};
+
+export type PromptRowView = {
   engine: 'pi-purge' | 'agy-purge' | 'context-system' | 'default';
-  badge: string;
-  tone: 'active' | 'override' | 'muted' | 'warning';
+  tone: 'override' | 'muted' | 'warning';
+  /** Shortened right-hand meta (`默认 · AGENTS ×1` or `…/.pi/SYSTEM.md`). */
+  meta: string;
+  isMonoMeta: boolean;
+  /** Full path copied on click when an external prompt file is active. */
   activePath?: string | undefined;
-  candidatePath?: string | undefined;
-  appendPath?: string | undefined;
-  agentsCount?: number | undefined;
-  charsLabel?: string | undefined;
-  surgeLabel?: string | undefined;
-  hint?: string | undefined;
-  error?: string | undefined;
+  tooltip: string;
 };
 
-export type AntigravityQuotaBucketView = {
+export type PluginStatusRowView = {
   id: string;
-  label: string;
-  remainingPct: number;
-  resetLabel?: string | undefined;
-};
-
-export type AntigravityPanelView = {
-  accountLabel: string;
-  isSystemAccount: boolean;
-  proxyLabel?: string | undefined;
-  cooldownCount?: number | undefined;
-  routeText?: string | undefined;
-  routeDegraded: boolean;
-  autoRebuildLabel?: string | undefined;
-  quotaHeadline?: string | undefined;
-  quotaAccountId?: string | undefined;
-  quotaBuckets: readonly AntigravityQuotaBucketView[];
-  quotaError?: string | undefined;
-};
-
-export type SessionOverviewView = {
-  agentLabel: string;
-  modelLabel?: string | undefined;
-  effortLabel?: string | undefined;
-  modeLabel?: string | undefined;
-  permissionMode?: string | undefined;
-  sessionId?: string | undefined;
-  nativeSessionId?: string | undefined;
-  workspacePath?: string | undefined;
-  contextPercent?: number | undefined;
-  contextSummary?: string | undefined;
-  usageSummary?: string | undefined;
-  cacheSummary?: string | undefined;
-  costSummary?: string | undefined;
+  title: string;
+  meta: string;
+  isMonoMeta?: boolean | undefined;
+  tone: 'ready' | 'warning' | 'muted';
+  tooltip?: string | undefined;
 };
 
 export type SessionStatusInsights = {
-  overview: SessionOverviewView | null;
-  prompt: PromptStatusView | null;
-  antigravity: AntigravityPanelView | null;
-  extraStatuses: readonly { key: string; text: string }[];
-  hasDetails: boolean;
+  session: SessionHeaderRowView | null;
+  prompt: PromptRowView | null;
+  plugins: readonly PluginStatusRowView[];
+  /** Any row exists for the headerless top group. */
+  hasTopGroup: boolean;
+  /** Non-default prompt or live plugin signal worth auto-docking on wide stage. */
+  hasAutoDockSignal: boolean;
 };
 
 const DEDICATED_STATUS_KEYS = new Set([
@@ -91,6 +65,9 @@ const DEDICATED_STATUS_KEYS = new Set([
   'agy-rebuild',
   'piwin-surge',
 ]);
+
+const MACHINE_SESSION_NAME_RE =
+  /^(?:session|sess|conv|chat|draft|untitled|new[-_ ]?session|new[-_ ]?chat)(?:[-_][a-z0-9_-]{3,})?$/i;
 
 function tryParseJsonRecord(raw: string | undefined): Record<string, unknown> | undefined {
   if (!raw) return undefined;
@@ -106,104 +83,68 @@ function tryParseJsonRecord(raw: string | undefined): Record<string, unknown> | 
   }
 }
 
-export function formatCompactTokenCount(value: number): string {
-  if (!Number.isFinite(value) || value < 0) return '0';
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
-  if (value >= 1_000) return `${Math.round(value / 1_000)}k`;
-  return String(Math.round(value));
+export function shortenPathMiddle(path: string, max = 26): string {
+  if (path.length <= max) return path;
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length <= 2) return `…${path.slice(-(max - 1))}`;
+  const tail = parts.slice(-2).join('/');
+  if (tail.length + 2 <= max) return `…/${tail}`;
+  const base = parts.at(-1) ?? tail;
+  return base.length + 2 <= max ? `…/${base}` : `…${base.slice(-(max - 1))}`;
 }
 
-function deriveOverview(
+function firstCleanLine(text: string | undefined): string | undefined {
+  if (!text) return undefined;
+  const cleaned = sanitizePreviewSnippet(text)
+    .replace(/\r?\n+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
+function isHumanSessionTitle(
+  candidate: string | undefined,
+  sessionId: string | null | undefined,
+  nativeSessionId: string | undefined,
+): candidate is string {
+  if (!candidate) return false;
+  const trimmed = candidate.trim();
+  if (!trimmed) return false;
+  if (trimmed === sessionId || trimmed === nativeSessionId) return false;
+  if (MACHINE_SESSION_NAME_RE.test(trimmed)) return false;
+  return true;
+}
+
+function deriveSessionRow(
   runtime: SessionStatusRuntimeInfo,
   zh: boolean,
-): SessionOverviewView | null {
-  const hasAnySignal =
-    Boolean(runtime.agentId) ||
-    Boolean(runtime.backendLabel) ||
-    Boolean(runtime.modelLabel) ||
-    Boolean(runtime.sessionId) ||
-    Boolean(runtime.workspacePath) ||
-    runtime.contextPercent !== undefined ||
-    (runtime.usageTotals?.entryCount ?? 0) > 0;
-  if (!hasAnySignal) return null;
+): SessionHeaderRowView | null {
+  const copyId = runtime.nativeSessionId ?? runtime.sessionId ?? undefined;
+  const humanTitle = isHumanSessionTitle(
+    runtime.sessionTitle,
+    runtime.sessionId,
+    runtime.nativeSessionId,
+  )
+    ? runtime.sessionTitle.trim()
+    : firstCleanLine(runtime.sessionPreview);
 
-  const agentLabel =
-    runtime.backendLabel ??
-    (runtime.agentId === 'antigravity'
-      ? 'Antigravity ACP'
-      : runtime.agentId === 'pi' || !runtime.agentId
-        ? 'Pi'
-        : runtime.agentId);
-
-  let contextSummary: string | undefined;
-  if (runtime.contextTokensUsed !== undefined && runtime.contextTokensLimit !== undefined) {
-    const pct =
-      runtime.contextPercent ??
-      Math.min(100, Math.round((runtime.contextTokensUsed / Math.max(1, runtime.contextTokensLimit)) * 100));
-    const est = runtime.contextQuality === 'estimated' ? (zh ? '约 ' : '~') : '';
-    contextSummary = `${est}${pct}% · ${formatCompactTokenCount(runtime.contextTokensUsed)} / ${formatCompactTokenCount(runtime.contextTokensLimit)}`;
-  } else if (runtime.contextPercent !== undefined) {
-    contextSummary = `${runtime.contextPercent}%`;
-  } else if (runtime.contextTokensLimit !== undefined) {
-    contextSummary = `/${formatCompactTokenCount(runtime.contextTokensLimit)}`;
-  }
-
-  let usageSummary: string | undefined;
-  let cacheSummary: string | undefined;
-  let costSummary: string | undefined;
-  const totals = runtime.usageTotals;
-  if (totals && totals.entryCount > 0) {
-    const turns =
-      totals.userTurnCount > 0
-        ? zh
-          ? `${totals.userTurnCount} 轮`
-          : `${totals.userTurnCount}t`
-        : undefined;
-    const uncachedIn = totals.promptTokens + totals.cacheWriteTokens;
-    const out = totals.completionTokens;
-    const parts = [
-      turns,
-      `↑${formatCompactTokenCount(uncachedIn)} ↓${formatCompactTokenCount(out)}`,
-    ].filter(Boolean);
-    usageSummary = parts.join(' · ');
-
-    const req = totals.latestRequest;
-    const cacheIn = (req?.promptTokens ?? totals.promptTokens) + (req?.cacheReadTokens ?? totals.cacheReadTokens) + (req?.cacheWriteTokens ?? totals.cacheWriteTokens);
-    const cacheHit = req?.cacheReadTokens ?? totals.cacheReadTokens;
-    if (cacheIn > 0 && cacheHit > 0) {
-      const pct = Math.round((cacheHit / cacheIn) * 100);
-      cacheSummary = zh ? `缓存 ${pct}%` : `Cache ${pct}%`;
-    }
-    if (typeof totals.estimatedCostUsd === 'number' && totals.estimatedCostUsd > 0) {
-      costSummary =
-        totals.estimatedCostUsd >= 0.01
-          ? `$${totals.estimatedCostUsd.toFixed(2)}`
-          : `$${totals.estimatedCostUsd.toFixed(4)}`;
-    }
-  }
+  if (!humanTitle && !copyId) return null;
 
   return {
-    agentLabel,
-    ...(runtime.modelLabel ? { modelLabel: runtime.modelLabel } : {}),
-    ...(runtime.effortLabel && runtime.effortLabel !== 'off' ? { effortLabel: runtime.effortLabel } : {}),
-    ...(runtime.modeLabel ? { modeLabel: runtime.modeLabel } : {}),
-    ...(runtime.permissionMode ? { permissionMode: runtime.permissionMode } : {}),
-    ...(runtime.sessionId ? { sessionId: runtime.sessionId } : {}),
-    ...(runtime.nativeSessionId ? { nativeSessionId: runtime.nativeSessionId } : {}),
-    ...(runtime.workspacePath ? { workspacePath: runtime.workspacePath } : {}),
-    ...(runtime.contextPercent !== undefined ? { contextPercent: runtime.contextPercent } : {}),
-    ...(contextSummary ? { contextSummary } : {}),
-    ...(usageSummary ? { usageSummary } : {}),
-    ...(cacheSummary ? { cacheSummary } : {}),
-    ...(costSummary ? { costSummary } : {}),
+    title: humanTitle ?? (zh ? '当前会话' : 'Current session'),
+    ...(copyId ? { copyId } : {}),
   };
 }
 
-function derivePromptView(
+function formatAgentsSuffix(agentsCount: number | undefined): string {
+  return agentsCount !== undefined && agentsCount > 0 ? ` · AGENTS ×${agentsCount}` : '';
+}
+
+function derivePromptRow(
   runtime: SessionStatusRuntimeInfo,
   statuses: ReadonlyMap<string, string>,
   zh: boolean,
-): PromptStatusView | null {
+): PromptRowView | null {
   const piMeta = tryParseJsonRecord(statuses.get('meta:pi-purge'));
   const piStatus = statuses.get('pi-purge');
   const piPath = statuses.get('meta:pi-purge-path');
@@ -215,108 +156,135 @@ function derivePromptView(
   const ctxMeta = tryParseJsonRecord(statuses.get('meta:context-prompt'));
   const ctxSysPath = statuses.get('meta:context-sys-path');
   const ctxAppPath = statuses.get('meta:context-app-path');
-  const surgeText = statuses.get('piwin-surge');
 
   const agentsCount = typeof ctxMeta?.agents === 'number' ? ctxMeta.agents : undefined;
-  const isAntigravity = runtime.agentId === 'antigravity' || agyMeta !== undefined || agyStatus !== undefined;
+  const isAntigravity =
+    runtime.agentId === 'antigravity' || agyMeta !== undefined || agyStatus !== undefined;
 
   const piPurgeOn = piMeta ? piMeta.on === true : Boolean(piStatus);
   const agyPurgeOn = agyMeta ? agyMeta.on === true : Boolean(agyStatus);
 
   if (agyPurgeOn) {
-    const mode = typeof agyMeta?.mode === 'string' ? agyMeta.mode : 'replace';
-    const source = typeof agyMeta?.source === 'string' ? agyMeta.source : '';
-    const chars = typeof agyMeta?.chars === 'number' && agyMeta.chars > 0 ? agyMeta.chars : undefined;
     const error = typeof agyMeta?.err === 'string' ? agyMeta.err : undefined;
+    const meta = error
+      ? zh
+        ? '加载异常'
+        : 'Error'
+      : agyPath
+        ? shortenPathMiddle(agyPath)
+        : zh
+          ? '自定义生效'
+          : 'Custom active';
+    const tooltipParts = [
+      error
+        ? error
+        : zh
+          ? '自定义提示词生效中（点击复制完整路径）'
+          : 'Custom prompt active (click to copy path)',
+      agyPath,
+    ].filter(Boolean);
     return {
       engine: 'agy-purge',
-      badge: `AGY PURGE ON · ${mode}${source ? ` (${source})` : ''}`,
-      tone: error ? 'warning' : 'active',
+      tone: error ? 'warning' : 'override',
+      meta,
+      isMonoMeta: Boolean(agyPath) && !error,
       ...(agyPath ? { activePath: agyPath } : {}),
-      ...(chars !== undefined ? { charsLabel: `${chars} chars` } : {}),
-      ...(surgeText ? { surgeLabel: surgeText } : {}),
-      ...(error ? { error } : {}),
+      tooltip: tooltipParts.join('\n'),
     };
   }
 
   if (piPurgeOn) {
-    const mode = typeof piMeta?.mode === 'string' ? piMeta.mode : 'strict';
     const source = typeof piMeta?.source === 'string' ? piMeta.source : '';
-    const chars = typeof piMeta?.chars === 'number' && piMeta.chars > 0 ? piMeta.chars : undefined;
     const error = typeof piMeta?.err === 'string' ? piMeta.err : undefined;
-    const fallbackPath = piPath ?? (source === 'builtin-strict' ? 'builtin:strict' : ctxSysPath);
+    const resolvedPath =
+      piPath ?? (source === 'builtin-strict' ? undefined : ctxSysPath);
+    const meta = error
+      ? zh
+        ? '加载异常'
+        : 'Error'
+      : resolvedPath
+        ? shortenPathMiddle(resolvedPath)
+        : source === 'builtin-strict'
+          ? zh
+            ? '内置精简'
+            : 'Built-in strict'
+          : zh
+            ? '自定义生效'
+            : 'Custom active';
+    const tooltipParts = [
+      error
+        ? error
+        : resolvedPath
+          ? zh
+            ? '自定义提示词生效中（点击复制完整路径）'
+            : 'Custom prompt active (click to copy path)'
+          : zh
+            ? '内置精简系统提示词生效中'
+            : 'Built-in strict system prompt active',
+      resolvedPath,
+      ctxAppPath ? `${zh ? '追加' : 'Append'}: ${ctxAppPath}` : undefined,
+    ].filter(Boolean);
     return {
       engine: 'pi-purge',
-      badge: `PURGE ON · ${mode}${source ? ` (${source})` : ''}`,
-      tone: error ? 'warning' : 'active',
-      ...(fallbackPath ? { activePath: fallbackPath } : {}),
-      ...(ctxAppPath ? { appendPath: ctxAppPath } : {}),
-      ...(agentsCount !== undefined ? { agentsCount } : {}),
-      ...(chars !== undefined ? { charsLabel: `${chars} chars` } : {}),
-      ...(surgeText ? { surgeLabel: surgeText } : {}),
-      ...(error ? { error } : {}),
+      tone: error ? 'warning' : 'override',
+      meta,
+      isMonoMeta: Boolean(resolvedPath) && !error,
+      ...(resolvedPath ? { activePath: resolvedPath } : {}),
+      tooltip: tooltipParts.join('\n'),
     };
   }
 
   if (ctxSysPath) {
-    const sysSrc = ctxMeta?.sysSrc === 'project' ? (zh ? '项目级' : 'project') : (zh ? '全局' : 'global');
     return {
       engine: 'context-system',
-      badge: `SYSTEM.md (${sysSrc})`,
       tone: 'override',
+      meta: shortenPathMiddle(ctxSysPath),
+      isMonoMeta: true,
       activePath: ctxSysPath,
-      ...(piPath && piPath !== ctxSysPath ? { candidatePath: piPath } : {}),
-      ...(ctxAppPath ? { appendPath: ctxAppPath } : {}),
-      ...(agentsCount !== undefined ? { agentsCount } : {}),
-      ...(surgeText ? { surgeLabel: surgeText } : {}),
-      hint: piMeta ? (zh ? 'pi-purge OFF · /purge on 可精简或替换' : 'pi-purge OFF · run /purge on') : undefined,
+      tooltip: [
+        zh ? '外部系统提示词生效中（点击复制完整路径）' : 'System prompt file active (click to copy path)',
+        ctxSysPath,
+        ctxAppPath ? `${zh ? '追加' : 'Append'}: ${ctxAppPath}` : undefined,
+      ]
+        .filter(Boolean)
+        .join('\n'),
     };
   }
 
-  const hasContextOrPurgePresence =
+  const hasPromptPresence =
     piMeta !== undefined ||
     agyMeta !== undefined ||
     ctxMeta !== undefined ||
-    surgeText !== undefined ||
     Boolean(runtime.agentId) ||
-    Boolean(runtime.modelLabel);
-  if (!hasContextOrPurgePresence) return null;
+    Boolean(runtime.sessionId) ||
+    Boolean(runtime.nativeSessionId);
+  if (!hasPromptPresence) return null;
 
-  const commandHint = isAntigravity
+  const baseMeta = zh ? '默认' : 'Default';
+  const tooltip = isAntigravity
     ? zh
-      ? 'Antigravity 原生提示词 · `/agy <文件路径>` 可替换'
-      : 'Native prompt · `/agy <filepath>` to replace'
-    : piMeta
-      ? zh
-        ? 'Pi 默认系统提示词 · `/purge <文件路径>` 或 `/purge on`'
-        : 'Pi default prompt · `/purge <filepath>` or `/purge on`'
-      : zh
-        ? 'Pi 默认系统提示词 · `/purge <文件路径>` 可指定替换文件'
-        : 'Pi default prompt · `/purge <filepath>` to override';
+      ? '当前使用默认提示词（可通过 /agy 指定外部提示词文件）'
+      : 'Using default prompt (/agy <filepath> to override)'
+    : zh
+      ? '当前使用默认提示词（可通过 /purge 指定外部提示词文件）'
+      : 'Using default prompt (/purge <filepath> to override)';
 
   return {
     engine: 'default',
-    badge: isAntigravity
-      ? zh
-        ? 'Antigravity 原生 (PURGE OFF)'
-        : 'Antigravity Native (PURGE OFF)'
-      : zh
-        ? 'Pi 默认 (PURGE OFF)'
-        : 'Pi Default (PURGE OFF)',
     tone: 'muted',
-    ...(piPath ? { candidatePath: piPath } : agyPath ? { candidatePath: agyPath } : {}),
-    ...(ctxAppPath ? { appendPath: ctxAppPath } : {}),
-    ...(agentsCount !== undefined ? { agentsCount } : {}),
-    ...(surgeText ? { surgeLabel: surgeText } : {}),
-    hint: commandHint,
+    meta: `${baseMeta}${formatAgentsSuffix(agentsCount)}`,
+    isMonoMeta: false,
+    tooltip: ctxAppPath
+      ? `${tooltip}\n${zh ? '追加' : 'Append'}: ${ctxAppPath}`
+      : tooltip,
   };
 }
 
-function deriveAntigravityView(
+function deriveAntigravityPluginRow(
   runtime: SessionStatusRuntimeInfo,
   statuses: ReadonlyMap<string, string>,
   zh: boolean,
-): AntigravityPanelView | null {
+): PluginStatusRowView | null {
   const accMeta = tryParseJsonRecord(statuses.get('meta:agy-account'));
   const rebuildMeta = tryParseJsonRecord(statuses.get('meta:agy-rebuild'));
   const quotaMeta = tryParseJsonRecord(statuses.get('meta:agy-quota'));
@@ -335,59 +303,109 @@ function deriveAntigravityView(
   if (!isAntigravity) return null;
 
   const accountLabel =
-    typeof accMeta?.label === 'string'
+    typeof accMeta?.label === 'string' && accMeta.label
       ? accMeta.label
-      : typeof accMeta?.id === 'string'
+      : typeof accMeta?.id === 'string' && accMeta.id
         ? accMeta.id
-        : accStatus ?? (zh ? 'default (系统账号)' : 'default (system)');
-  const isSystemAccount = accMeta?.isSystem !== false && (accMeta?.id === undefined || accMeta?.id === 'default');
-  const proxyLabel = typeof accMeta?.proxy === 'string' && accMeta.proxy ? accMeta.proxy : undefined;
-  const cooldownCount = typeof accMeta?.cooldown === 'number' ? accMeta.cooldown : undefined;
+        : accStatus;
+  const isCustomAccount =
+    Boolean(accountLabel) && accountLabel !== 'default' && accMeta?.isSystem === false;
+  const proxyLabel =
+    typeof accMeta?.proxy === 'string' && accMeta.proxy ? accMeta.proxy : undefined;
+  const cooldownCount =
+    typeof accMeta?.cooldown === 'number' && accMeta.cooldown > 0
+      ? accMeta.cooldown
+      : undefined;
 
-  let autoRebuildLabel: string | undefined;
-  if (rebuildMeta) {
-    const autoOn = rebuildMeta.auto === true;
-    const count = typeof rebuildMeta.count === 'number' ? rebuildMeta.count : 0;
-    autoRebuildLabel = autoOn
-      ? zh
-        ? `自动重建 ON (本会话 ${count} 次)`
-        : `Auto-rebuild ON (${count}x)`
-      : zh
-        ? `自动重建 OFF${count > 0 ? ` (已重建 ${count} 次)` : ''}`
-        : `Auto-rebuild OFF${count > 0 ? ` (${count}x)` : ''}`;
-  }
+  const routeDegraded = Boolean(
+    routeText && (routeText.includes('⚠') || routeText.toLowerCase().includes('degrad')),
+  );
+  const quotaError =
+    typeof quotaMeta?.err === 'string' && quotaMeta.err ? quotaMeta.err : undefined;
 
-  const quotaBuckets: AntigravityQuotaBucketView[] = [];
+  let lowestPct: number | undefined;
+  const bucketNotes: string[] = [];
   if (Array.isArray(quotaMeta?.buckets)) {
     for (const raw of quotaMeta.buckets) {
       if (typeof raw !== 'object' || raw === null) continue;
-      const b = raw as Record<string, unknown>;
-      const id = typeof b.id === 'string' ? b.id : '';
-      const label = typeof b.label === 'string' ? b.label : id;
-      const rem = typeof b.remainingPct === 'number' ? b.remainingPct : Number.NaN;
+      const bucket = raw as Record<string, unknown>;
+      const label =
+        typeof bucket.label === 'string'
+          ? bucket.label
+          : typeof bucket.id === 'string'
+            ? bucket.id
+            : '';
+      const rem = typeof bucket.remainingPct === 'number' ? bucket.remainingPct : Number.NaN;
       if (!label || !Number.isFinite(rem)) continue;
-      quotaBuckets.push({
-        id: id || label,
-        label,
-        remainingPct: Math.max(0, Math.min(100, Math.round(rem))),
-        ...(typeof b.reset === 'string' && b.reset ? { resetLabel: b.reset } : {}),
-      });
+      const pct = Math.max(0, Math.min(100, Math.round(rem)));
+      lowestPct = lowestPct === undefined ? pct : Math.min(lowestPct, pct);
+      const reset = typeof bucket.reset === 'string' && bucket.reset ? ` (${bucket.reset})` : '';
+      bucketNotes.push(`${label}: ${pct}%${reset}`);
     }
   }
 
+  const stateWord = routeDegraded
+    ? zh
+      ? '路由降级'
+      : 'Degraded'
+    : quotaError
+      ? zh
+        ? '配额异常'
+        : 'Quota error'
+      : zh
+        ? '正常'
+        : 'Normal';
+
+  const quotaWord =
+    lowestPct !== undefined
+      ? zh
+        ? `余量 ${lowestPct}%`
+        : `${lowestPct}% left`
+      : quotaStatus;
+
+  const metaParts = [
+    isCustomAccount ? accountLabel : undefined,
+    stateWord,
+    !routeDegraded && quotaWord ? quotaWord : undefined,
+  ].filter(Boolean);
+
+  const rebuildNote = rebuildMeta
+    ? rebuildMeta.auto === true
+      ? zh
+        ? `自动重建开启 (${typeof rebuildMeta.count === 'number' ? rebuildMeta.count : 0} 次)`
+        : `Auto-rebuild ON (${typeof rebuildMeta.count === 'number' ? rebuildMeta.count : 0}x)`
+      : undefined
+    : undefined;
+
+  const tooltipLines = [
+    accountLabel ? `${zh ? '账号' : 'Account'}: ${accountLabel}` : undefined,
+    proxyLabel ? `${zh ? '代理' : 'Proxy'}: ${proxyLabel}` : undefined,
+    cooldownCount ? `${zh ? '冷却池' : 'Cooldown'}: ${cooldownCount}` : undefined,
+    routeText ? `${zh ? '路由' : 'Route'}: ${routeText}` : undefined,
+    rebuildNote,
+    ...bucketNotes,
+    quotaError,
+  ].filter(Boolean);
+
+  const isWarn = routeDegraded || Boolean(quotaError) || (lowestPct !== undefined && lowestPct <= 15);
+
   return {
-    accountLabel,
-    isSystemAccount,
-    ...(proxyLabel ? { proxyLabel } : {}),
-    ...(cooldownCount !== undefined && cooldownCount > 0 ? { cooldownCount } : {}),
-    ...(routeText ? { routeText } : {}),
-    routeDegraded: Boolean(routeText && (routeText.includes('⚠') || routeText.toLowerCase().includes('degrad'))),
-    ...(autoRebuildLabel ? { autoRebuildLabel } : {}),
-    ...(quotaStatus ? { quotaHeadline: quotaStatus } : {}),
-    ...(typeof quotaMeta?.accountId === 'string' ? { quotaAccountId: quotaMeta.accountId } : {}),
-    quotaBuckets,
-    ...(typeof quotaMeta?.err === 'string' && quotaMeta.err ? { quotaError: quotaMeta.err } : {}),
+    id: 'antigravity',
+    title: zh ? 'Antigravity 通道' : 'Antigravity',
+    meta: metaParts.join(' · '),
+    isMonoMeta: lowestPct !== undefined || Boolean(isCustomAccount),
+    tone: isWarn ? 'warning' : 'ready',
+    ...(tooltipLines.length > 0 ? { tooltip: tooltipLines.join('\n') } : {}),
   };
+}
+
+function humanizePluginKey(key: string, zh: boolean): string {
+  if (key === 'piwin-surge') return zh ? '网络代理 (Surge)' : 'Surge';
+  if (key === 'deepseek-cache') return zh ? 'DeepSeek 缓存' : 'DeepSeek cache';
+  return key
+    .replace(/^piwin[-_]/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b[a-z]/g, (ch) => ch.toUpperCase());
 }
 
 export function deriveSessionStatusInsights(
@@ -395,31 +413,61 @@ export function deriveSessionStatusInsights(
   zh: boolean,
 ): SessionStatusInsights {
   if (!runtime) {
-    return { overview: null, prompt: null, antigravity: null, extraStatuses: [], hasDetails: false };
+    return {
+      session: null,
+      prompt: null,
+      plugins: [],
+      hasTopGroup: false,
+      hasAutoDockSignal: false,
+    };
   }
+
   const statuses = new Map<string, string>();
   for (const item of runtime.extensionSurface?.statuses ?? []) {
     statuses.set(item.key, item.text);
   }
 
-  const overview = deriveOverview(runtime, zh);
-  const prompt = derivePromptView(runtime, statuses, zh);
-  const antigravity = deriveAntigravityView(runtime, statuses, zh);
-  const extraStatuses: { key: string; text: string }[] = [];
-  for (const item of runtime.extensionSurface?.statuses ?? []) {
-    if (item.key.startsWith('meta:') || DEDICATED_STATUS_KEYS.has(item.key)) continue;
-    extraStatuses.push({ key: item.key, text: item.text });
+  const session = deriveSessionRow(runtime, zh);
+  const prompt = derivePromptRow(runtime, statuses, zh);
+  const plugins: PluginStatusRowView[] = [];
+
+  const surgeText = statuses.get('piwin-surge')?.trim();
+  if (surgeText) {
+    plugins.push({
+      id: 'piwin-surge',
+      title: humanizePluginKey('piwin-surge', zh),
+      meta: surgeText,
+      tone: surgeText.includes('⚠') ? 'warning' : 'ready',
+    });
   }
 
+  const antigravityRow = deriveAntigravityPluginRow(runtime, statuses, zh);
+  if (antigravityRow) {
+    plugins.push(antigravityRow);
+  }
+
+  for (const item of runtime.extensionSurface?.statuses ?? []) {
+    if (item.key.startsWith('meta:') || DEDICATED_STATUS_KEYS.has(item.key)) continue;
+    const text = item.text.trim();
+    if (!text) continue;
+    plugins.push({
+      id: item.key,
+      title: humanizePluginKey(item.key, zh),
+      meta: text,
+      isMonoMeta: /[0-9%/:]/.test(text),
+      tone: text.includes('⚠') || /err|fail/i.test(text) ? 'warning' : 'ready',
+    });
+  }
+
+  const hasTopGroup = session !== null || prompt !== null || plugins.length > 0;
+  const hasAutoDockSignal =
+    (prompt !== null && prompt.engine !== 'default') || plugins.length > 0;
+
   return {
-    overview,
+    session,
     prompt,
-    antigravity,
-    extraStatuses,
-    hasDetails:
-      overview !== null ||
-      prompt !== null ||
-      antigravity !== null ||
-      extraStatuses.length > 0,
+    plugins,
+    hasTopGroup,
+    hasAutoDockSignal,
   };
 }

@@ -384,6 +384,10 @@
   flex-direction: column;
 }
 
+.right-panel-bodies[hidden] {
+  display: none;
+}
+
 .right-panel-bodies > .right-panel-body {
   flex: 1;
   min-height: 0;

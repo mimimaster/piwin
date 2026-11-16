@@ -413,6 +413,20 @@ release is a bounded one-shot that obeys the same lease/visibility checks as
 an automatic episode. The renderer-recovery action is user-initiated and
 gates on real durability checks (Run guard → draft persistence →
 `canReclaimComposerDrafts`) before dispatching `piwin:before-renderer-relaunch`.
+The persisted draft reader resolves the current Host partition on every check
+(2026-11-16), rather than capturing an unavailable startup identity forever.
+Unknown identity still blocks recovery; a connected or reconnected Host uses
+its current partition, and the Run and live-draft vetoes remain authoritative.
+
+Historical tool-output reads join the same budget registry (2026-11-16).
+Resolved outputs are bounded across readers to 64 entries/8 MiB estimated string
+and key storage at normal pressure, cleared and capped at 16 entries/2 MiB at
+moderate, and cleared with admission disabled at critical. Reader namespaces
+isolate equal message/tool ids across Hosts without retaining Host clients.
+Inflight reads still coalesce, and a trim generation prevents late results
+from refilling an evicted cache. Dropping this cache releases references only:
+visible output remains readable and an evicted tool can be read again from Host.
+Its estimate is reported under `historicalToolOutputs`, including manual reclaim.
 
 Native pressure observation also has a startup/reload handshake (2026-11-12).
 After registering the live listener, Desktop reads the existing bounded native

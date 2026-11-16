@@ -22,6 +22,10 @@ timelines and JavaScript heap snapshots to identify retaining objects, and inspe
 rendering layers to investigate graphics allocations. Record the high-usage
 memory timeline before reloading or taking heap snapshots: a heap snapshot
 performs garbage collection and then shows the remaining live object graph.
+Snapshot collection and processing can temporarily stall the interface; capture
+them while the owner is idle. Bringing the inspector to the front also takes
+keyboard focus. Do not repeatedly automate inspector activation while the owner
+is using piwin. The inspection opt-in itself does not collect a snapshot.
 See [WebKit's memory debugging guide](https://webkit.org/blog/6425/memory-debugging-with-web-inspector/).
 Snapshots may contain page content: keep them local and share only the necessary
 findings. The diagnostic opt-in is supported in release builds without enabling
@@ -32,11 +36,49 @@ The action exists only in packages containing this source change. It cannot be
 added to an already running older package without replacing/restarting that app.
 Source delivery does not change the owner's installed application.
 
-## Restored right-panel tabs
+The reload action reads the current Host identity on each durability check.
+An identity that was unavailable during startup does not keep the action locked
+after the Host connects. Unknown identity, an active Run, and unsafe live drafts
+still block recovery. This source correction does not reload a running app.
 
-The right panel remembers tool tabs, and a new conversation can inherit its
-project's last tool layout. An empty layout has no default tool tabs. Restored
-labels are metadata; they must not initialize every tool in the background.
+## Historical tool output retention
+
+The report includes **Recent tool output**: Host output read by expanding
+historical shell cards. Previously each session reader held every fulfilled
+read promise for its whole lifetime, outside the cache census and pressure
+budget. Closing a card or evicting its transcript row did not release that
+reader's copy.
+
+Resolved outputs now share a window-wide LRU budget: at most 64 entries and
+8 MiB estimated strings/keys normally, 16 entries/2 MiB after a moderate-pressure
+clear, and no retained entries under critical pressure. Pending requests still
+coalesce. A pressure/manual clear invalidates pending cache admissions, so late
+responses cannot refill the cleared generation. Clearing references does not
+erase output that an open card currently displays. Reopening an evicted card
+can fetch it from Host again; stored sessions and tool output are not deleted.
+
+An isolated Node reproduction of the production reader, using 2,048 unique
+64 KiB synthetic outputs and explicit GC at measurement points, increased heap
+from 3.33 to 132.17 MiB before the fix and stayed at 132.18 MiB after critical
+pressure. The same workload after the fix stayed at 7.71 MiB and measured
+4.31 MiB after pressure. These values demonstrate this retaining path; they do
+not establish that all of the owner's main WebContent footprint came from it.
+
+## Right panel starts on the tool launcher
+
+Generic expansion starts on the tool launcher, including reopening after a
+collapse. Remembered tab lists and per-session tool snapshots are not restored
+or inherited into the strip. Choosing a tool lists that tool; explicit tool
+commands still reveal their target. The plus picker remains available on the
+launcher for secondary tools, including Memory. Conversation/project changes
+also return to the launcher without expanding a collapsed panel.
+
+Listed tabs and retained runtime owners have separate lifetimes. Reopening the
+launcher does not close a running terminal; selecting Terminal resumes it.
+Previously shown docked tool surfaces can retain their state without being
+listed or visible. Per-project stage/workspace persistence remains available,
+and old profile records need no manual cleanup. No installed app/profile is
+changed by source delivery.
 
 Terminal availability alone no longer seeds an unsolicited `zsh` tab. The first
 terminal is created when its expanded panel is selected or the user explicitly

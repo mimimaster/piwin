@@ -19,10 +19,9 @@ import {
   useSessionStatusView,
   type SessionStatusArtifact,
   type SessionStatusRuntimeInfo,
-  type SessionStatusSource,
 } from './session-status-panel';
 
-export type { SessionStatusArtifact, SessionStatusRuntimeInfo, SessionStatusSource };
+export type { SessionStatusArtifact, SessionStatusRuntimeInfo };
 export { SessionStatusDock, SessionStatusPanel } from './session-status-panel';
 
 export type SessionStatusPopoverProps = {
@@ -31,7 +30,6 @@ export type SessionStatusPopoverProps = {
   orchestrationView?: SubagentOrchestrationView | undefined;
   jobs?: readonly JobRecord[] | undefined;
   artifacts?: readonly SessionStatusArtifact[] | undefined;
-  sources?: readonly SessionStatusSource[] | undefined;
   runtimeInfo?: SessionStatusRuntimeInfo | undefined;
   onOpenTool: (tab: RightPanelTab) => void;
   onViewJobLogs?: ((jobId: string) => void) | undefined;

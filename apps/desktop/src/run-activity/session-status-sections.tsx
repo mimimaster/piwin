@@ -1,16 +1,16 @@
 /**
- * Structured Inkstone detail sections rendered inside `SessionStatusPanel`:
- * runtime overview, system prompt / Purge path card, Antigravity status,
- * and extra plugin statuses.
+ * Headerless top group of `SessionStatusPanel`: human session title (with
+ * hover copy-ID affordance), flat system-prompt / Purge row, and flat external
+ * plugin status rows. Zero nested boxes, zero pill borders.
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import type {
-  AntigravityPanelView,
-  PromptStatusView,
-  SessionOverviewView,
+  PluginStatusRowView,
+  PromptRowView,
+  SessionHeaderRowView,
 } from './session-status-model.js';
 
-function useCopyText(): {
+function useCopyFeedback(): {
   copiedKey: string | null;
   copy: (key: string, value: string) => void;
 } {
@@ -18,7 +18,7 @@ function useCopyText(): {
 
   useEffect(() => {
     if (copiedKey === null) return;
-    const timer = window.setTimeout(() => setCopiedKey(null), 1500);
+    const timer = window.setTimeout(() => setCopiedKey(null), 1400);
     return () => window.clearTimeout(timer);
   }, [copiedKey]);
 
@@ -36,293 +36,162 @@ function useCopyText(): {
   return { copiedKey, copy };
 }
 
-function shortenPathMiddle(path: string, max = 44): string {
-  if (path.length <= max) return path;
-  const parts = path.split('/').filter(Boolean);
-  if (parts.length <= 2) return `…${path.slice(-(max - 1))}`;
-  const tail = parts.slice(-2).join('/');
-  if (tail.length + 4 >= max) return `…/${parts.at(-1) ?? tail}`;
-  return `…/${tail}`;
+function promptDotClass(tone: PromptRowView['tone']): string {
+  if (tone === 'warning') return 'is-failed';
+  if (tone === 'override') return 'is-override';
+  return 'is-context';
 }
 
-export function SessionStatusOverviewSection(props: {
-  overview: SessionOverviewView;
+function pluginDotClass(tone: PluginStatusRowView['tone']): string {
+  if (tone === 'warning') return 'is-warn';
+  if (tone === 'ready') return 'is-ready';
+  return 'is-context';
+}
+
+export function SessionStatusTopGroup(props: {
+  session: SessionHeaderRowView | null;
+  prompt: PromptRowView | null;
+  plugins: readonly PluginStatusRowView[];
   zh: boolean;
-}): ReactElement {
-  const { overview, zh } = props;
-  const { copiedKey, copy } = useCopyText();
-  const contextBarPct =
-    overview.contextPercent !== undefined
-      ? Math.max(0, Math.min(100, Math.round(overview.contextPercent)))
-      : undefined;
+}): ReactElement | null {
+  const { session, prompt, plugins, zh } = props;
+  const { copiedKey, copy } = useCopyFeedback();
+
+  if (session === null && prompt === null && plugins.length === 0) {
+    return null;
+  }
+
+  const promptLabel = zh ? '系统提示词' : 'System prompt';
+  const copiedLabel = zh ? '已复制 ✓' : 'Copied ✓';
 
   return (
-    <div className="session-status-group" data-testid="session-status-runtime">
-      <div className="session-status-label">
-        <span>{zh ? '会话概况' : 'Session'}</span>
-        <span className="session-status-label-meta">
-          {[overview.agentLabel, overview.modeLabel, overview.permissionMode]
-            .filter(Boolean)
-            .join(' · ')}
-        </span>
-      </div>
-
-      <div className="session-status-kv-list">
-        {overview.modelLabel ? (
-          <div className="session-status-kv-row">
-            <span className="session-status-kv-key">{zh ? '模型' : 'Model'}</span>
-            <span className="session-status-kv-val" title={overview.modelLabel}>
-              {overview.modelLabel}
-              {overview.effortLabel ? ` · ${overview.effortLabel}` : ''}
-            </span>
-          </div>
-        ) : null}
-
-        {overview.contextSummary ? (
-          <div className="session-status-kv-row is-stack">
-            <div className="session-status-kv-pair">
-              <span className="session-status-kv-key">{zh ? '上下文' : 'Context'}</span>
-              <span className="session-status-kv-val is-mono">{overview.contextSummary}</span>
-            </div>
-            {contextBarPct !== undefined ? (
-              <div className="session-status-bar-track" aria-hidden="true">
-                <div
-                  className={`session-status-bar-fill${contextBarPct >= 85 ? ' is-high' : ''}`}
-                  style={{ width: `${contextBarPct}%` }}
-                />
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {overview.usageSummary || overview.cacheSummary || overview.costSummary ? (
-          <div className="session-status-kv-row">
-            <span className="session-status-kv-key">{zh ? '用量' : 'Usage'}</span>
-            <span className="session-status-kv-val is-mono">
-              {[overview.usageSummary, overview.cacheSummary, overview.costSummary]
-                .filter(Boolean)
-                .join(' · ')}
-            </span>
-          </div>
-        ) : null}
-
-        {overview.workspacePath ? (
-          <div className="session-status-kv-row">
-            <span className="session-status-kv-key">{zh ? '工作区' : 'Workspace'}</span>
-            <button
-              type="button"
-              className="session-status-copy-btn"
-              title={overview.workspacePath}
-              onClick={() => copy('workspace', overview.workspacePath ?? '')}
-            >
-              <span>{copiedKey === 'workspace' ? (zh ? '已复制' : 'Copied') : shortenPathMiddle(overview.workspacePath)}</span>
-            </button>
-          </div>
-        ) : null}
-
-        {overview.sessionId || overview.nativeSessionId ? (
-          <div className="session-status-kv-row">
-            <span className="session-status-kv-key">{zh ? '会话 ID' : 'Session ID'}</span>
-            <button
-              type="button"
-              className="session-status-copy-btn is-mono"
-              title={[overview.sessionId, overview.nativeSessionId].filter(Boolean).join(' / ')}
-              onClick={() =>
-                copy('sessionId', overview.nativeSessionId ?? overview.sessionId ?? '')
-              }
-            >
-              <span>
-                {copiedKey === 'sessionId'
-                  ? zh
-                    ? '已复制'
-                    : 'Copied'
-                  : (overview.nativeSessionId ?? overview.sessionId ?? '').slice(0, 14)}
+    <div
+      className="session-status-group is-headerless"
+      data-testid="session-status-overview"
+    >
+      <ul className="session-status-list">
+        {session !== null ? (
+          <li className="session-status-row" role="listitem">
+            {session.copyId ? (
+              <button
+                type="button"
+                className="session-status-row-main"
+                data-testid="session-status-session-row"
+                title={
+                  zh
+                    ? `${session.title}\n点击复制会话 ID 供排障使用`
+                    : `${session.title}\nClick to copy session ID`
+                }
+                onClick={() => copy('session', session.copyId ?? '')}
+              >
+                <span className="session-status-row-icon" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" width="13" height="13" fill="none">
+                    <path
+                      d="M3 4.5C3 3.67 3.67 3 4.5 3h7c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5H7l-3 2.5V11h-.5C2.67 11 2 10.33 2 9.5v-5z"
+                      stroke="currentColor"
+                      strokeWidth="1.3"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span className="session-status-row-title is-session-name">
+                  {session.title}
+                </span>
+                <span
+                  className={`session-status-copy-hint${copiedKey === 'session' ? ' is-copied' : ''}`}
+                >
+                  {copiedKey === 'session'
+                    ? copiedLabel
+                    : zh
+                      ? '复制 ID'
+                      : 'Copy ID'}
+                </span>
+              </button>
+            ) : (
+              <span className="session-status-row-static" data-testid="session-status-session-row">
+                <span className="session-status-row-icon" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" width="13" height="13" fill="none">
+                    <path
+                      d="M3 4.5C3 3.67 3.67 3 4.5 3h7c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5H7l-3 2.5V11h-.5C2.67 11 2 10.33 2 9.5v-5z"
+                      stroke="currentColor"
+                      strokeWidth="1.3"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span className="session-status-row-title is-session-name">
+                  {session.title}
+                </span>
               </span>
-            </button>
-          </div>
+            )}
+          </li>
         ) : null}
-      </div>
-    </div>
-  );
-}
 
-export function SessionStatusPromptSection(props: {
-  prompt: PromptStatusView;
-  zh: boolean;
-}): ReactElement {
-  const { prompt, zh } = props;
-  const { copiedKey, copy } = useCopyText();
+        {prompt !== null ? (
+          <li className="session-status-row" role="listitem">
+            {prompt.activePath ? (
+              <button
+                type="button"
+                className="session-status-row-main"
+                data-testid="session-status-prompt-row"
+                data-active-prompt-path={prompt.activePath}
+                title={prompt.tooltip}
+                onClick={() => copy('prompt', prompt.activePath ?? '')}
+              >
+                <i
+                  className={`session-status-dot ${promptDotClass(prompt.tone)}`}
+                  aria-hidden="true"
+                />
+                <span className="session-status-row-title">{promptLabel}</span>
+                <span
+                  className={`session-status-row-meta${prompt.isMonoMeta && copiedKey !== 'prompt' ? ' is-mono' : ''}`}
+                  data-testid="session-status-active-prompt-path"
+                >
+                  {copiedKey === 'prompt' ? copiedLabel : prompt.meta}
+                </span>
+              </button>
+            ) : (
+              <span
+                className="session-status-row-static"
+                data-testid="session-status-prompt-row"
+                title={prompt.tooltip}
+              >
+                <i
+                  className={`session-status-dot ${promptDotClass(prompt.tone)}`}
+                  aria-hidden="true"
+                />
+                <span className="session-status-row-title">{promptLabel}</span>
+                <span
+                  className={`session-status-row-meta${prompt.isMonoMeta ? ' is-mono' : ''}`}
+                >
+                  {prompt.meta}
+                </span>
+              </span>
+            )}
+          </li>
+        ) : null}
 
-  return (
-    <div className="session-status-group" data-testid="session-status-prompt">
-      <div className="session-status-label">
-        <span>{zh ? '系统提示词 · Purge' : 'System Prompt · Purge'}</span>
-        <span className={`session-status-pill is-${prompt.tone}`} data-testid="session-status-prompt-badge">
-          {prompt.badge}
-        </span>
-      </div>
-
-      {prompt.activePath ? (
-        <div className="session-status-path-box">
-          <div className="session-status-path-head">
-            <span className="session-status-path-caption">
-              {zh ? '正在生效的提示词路径' : 'Active prompt path'}
-            </span>
-            <button
-              type="button"
-              className="session-status-copy-btn"
-              data-testid="session-status-copy-prompt-path"
-              onClick={() => copy('activePath', prompt.activePath ?? '')}
+        {plugins.map((plugin) => (
+          <li key={plugin.id} className="session-status-row" role="listitem">
+            <span
+              className="session-status-row-static"
+              data-testid={`session-status-plugin-${plugin.id}`}
+              title={plugin.tooltip}
             >
-              {copiedKey === 'activePath' ? (zh ? '已复制' : 'Copied') : zh ? '复制' : 'Copy'}
-            </button>
-          </div>
-          <code className="session-status-path-value" data-testid="session-status-active-prompt-path">
-            {prompt.activePath}
-          </code>
-        </div>
-      ) : (
-        <div className="session-status-subnote" data-testid="session-status-active-prompt-path">
-          {prompt.hint ??
-            (zh
-              ? '未覆盖外部文件（当前使用引擎内置默认提示词）'
-              : 'No external prompt file (engine built-in default active)')}
-        </div>
-      )}
-
-      {prompt.candidatePath ? (
-        <div className="session-status-kv-row is-compact">
-          <span className="session-status-kv-key">{zh ? '候选路径' : 'Candidate'}</span>
-          <button
-            type="button"
-            className="session-status-copy-btn is-mono"
-            title={prompt.candidatePath}
-            onClick={() => copy('candidatePath', prompt.candidatePath ?? '')}
-          >
-            {copiedKey === 'candidatePath'
-              ? zh
-                ? '已复制'
-                : 'Copied'
-              : shortenPathMiddle(prompt.candidatePath, 34)}
-          </button>
-        </div>
-      ) : null}
-
-      {prompt.appendPath ? (
-        <div className="session-status-kv-row is-compact">
-          <span className="session-status-kv-key">{zh ? '追加文件' : 'Append'}</span>
-          <span className="session-status-kv-val is-mono" title={prompt.appendPath}>
-            {shortenPathMiddle(prompt.appendPath, 34)}
-          </span>
-        </div>
-      ) : null}
-
-      {prompt.charsLabel || prompt.agentsCount !== undefined || prompt.surgeLabel ? (
-        <div className="session-status-subnote">
-          {[
-            prompt.charsLabel,
-            prompt.agentsCount !== undefined && prompt.agentsCount > 0
-              ? `AGENTS ×${prompt.agentsCount}`
-              : undefined,
-            prompt.surgeLabel ? `Surge: ${prompt.surgeLabel}` : undefined,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </div>
-      ) : null}
-
-      {prompt.error ? (
-        <div className="session-status-warning" role="alert">
-          {prompt.error}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-export function SessionStatusAntigravitySection(props: {
-  antigravity: AntigravityPanelView;
-  zh: boolean;
-}): ReactElement {
-  const { antigravity, zh } = props;
-  return (
-    <div className="session-status-group" data-testid="session-status-antigravity">
-      <div className="session-status-label">
-        <span>Antigravity ACP</span>
-        {antigravity.autoRebuildLabel ? (
-          <span className="session-status-label-meta">{antigravity.autoRebuildLabel}</span>
-        ) : null}
-      </div>
-
-      <div className="session-status-kv-list">
-        <div className="session-status-kv-row">
-          <span className="session-status-kv-key">{zh ? '账号' : 'Account'}</span>
-          <span className="session-status-kv-val is-mono">
-            {antigravity.accountLabel}
-            {antigravity.proxyLabel ? ` · ${antigravity.proxyLabel}` : ''}
-            {antigravity.cooldownCount ? (zh ? ` · 冷却 ${antigravity.cooldownCount}` : ` · ${antigravity.cooldownCount} cool`) : ''}
-          </span>
-        </div>
-
-        <div className="session-status-kv-row">
-          <span className="session-status-kv-key">{zh ? '路由健康' : 'Route'}</span>
-          <span className={`session-status-kv-val${antigravity.routeDegraded ? ' is-warn' : ''}`}>
-            {antigravity.routeText ?? (zh ? '正常' : 'Normal')}
-          </span>
-        </div>
-
-        {antigravity.quotaBuckets.length > 0 ? (
-          <div className="session-status-quota-grid">
-            {antigravity.quotaBuckets.map((bucket) => (
-              <div key={bucket.id} className="session-status-quota-item">
-                <div className="session-status-quota-head">
-                  <span>{bucket.label}</span>
-                  <span className="is-mono">
-                    {bucket.remainingPct}%
-                    {bucket.resetLabel ? ` (${bucket.resetLabel})` : ''}
-                  </span>
-                </div>
-                <div className="session-status-bar-track" aria-hidden="true">
-                  <div
-                    className={`session-status-bar-fill${bucket.remainingPct <= 15 ? ' is-high' : ''}`}
-                    style={{ width: `${bucket.remainingPct}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : antigravity.quotaHeadline ? (
-          <div className="session-status-kv-row">
-            <span className="session-status-kv-key">{zh ? '配额' : 'Quota'}</span>
-            <span className="session-status-kv-val is-mono">{antigravity.quotaHeadline}</span>
-          </div>
-        ) : null}
-
-        {antigravity.quotaError ? (
-          <div className="session-status-subnote">{antigravity.quotaError}</div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-export function SessionStatusExtraStatusesSection(props: {
-  items: readonly { key: string; text: string }[];
-  zh: boolean;
-}): ReactElement {
-  return (
-    <div className="session-status-group" data-testid="session-status-extensions">
-      <div className="session-status-label">
-        <span>{props.zh ? '扩展状态' : 'Extensions'}</span>
-      </div>
-      <div className="session-status-kv-list">
-        {props.items.map((item) => (
-          <div key={item.key} className="session-status-kv-row">
-            <span className="session-status-kv-key">{item.key}</span>
-            <span className="session-status-kv-val is-mono">{item.text}</span>
-          </div>
+              <i
+                className={`session-status-dot ${pluginDotClass(plugin.tone)}`}
+                aria-hidden="true"
+              />
+              <span className="session-status-row-title">{plugin.title}</span>
+              <span
+                className={`session-status-row-meta${plugin.isMonoMeta ? ' is-mono' : ''}${plugin.tone === 'warning' ? ' is-warn' : ''}`}
+              >
+                {plugin.meta}
+              </span>
+            </span>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }

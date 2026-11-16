@@ -97,7 +97,7 @@ function HostWorkbench({
   runActiveRef.current = state.streaming || state.activeRunId !== null;
   useEffect(() => {
     configureRendererRecovery({
-      getDraftState: persistedDraftStateReader(readComposerDraftPartitionId(hostClient)),
+      getDraftState: persistedDraftStateReader(() => readComposerDraftPartitionId(hostClient)),
       isRunActive: () => runActiveRef.current,
     });
   }, [hostClient]);

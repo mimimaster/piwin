@@ -2,6 +2,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { HostClient } from '../host/host-client.js';
+import { globalMemoryGovernor } from '../notes/memory-governor.js';
 import {
   ShellToolBody,
   classifyShellOutputLine,
@@ -11,6 +13,7 @@ import {
 import {
   ToolOutputMessageContext,
   ToolOutputReaderContext,
+  createHostToolOutputReader,
   type ToolOutputReader,
 } from './tool-output-reader';
 
@@ -187,6 +190,29 @@ describe('ShellToolBody', () => {
     expect(container.querySelector('[data-testid="tool-call-shell-empty"]')?.textContent).toBe(
       '无输出',
     );
+  });
+
+  it('keeps visible output during reclaim and refetches it after reopening', async () => {
+    globalMemoryGovernor.reset();
+    const request = vi.fn<HostClient['request']>(async () => ({
+      type: 'response', command: 'session/tool-output', success: true,
+      data: { status: 'ready', output: 'visible command output', truncated: false },
+    }));
+    const reader = createHostToolOutputReader(request, 'session');
+    try {
+      renderWithReader(reader);
+      await act(async () => {});
+      expect(container.querySelector('.shell-trail-out')?.textContent).toContain('visible command output');
+      act(() => { globalMemoryGovernor.setLevel('critical'); });
+      expect(container.querySelector('.shell-trail-out')?.textContent).toContain('visible command output');
+      act(() => { root.render(null); });
+      renderWithReader(reader);
+      await act(async () => {});
+      expect(container.querySelector('.shell-trail-out')?.textContent).toContain('visible command output');
+      expect(request).toHaveBeenCalledTimes(2);
+    } finally {
+      act(() => { globalMemoryGovernor.reset(); });
+    }
   });
 
   it('says nothing about output it could not read', async () => {

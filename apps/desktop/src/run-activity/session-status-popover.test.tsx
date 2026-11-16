@@ -7,7 +7,11 @@ import type { JobRecord, SessionPlan } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens';
 import { applyComposerStopAll, focusComposerSubagentItem } from '../composer/composer-activity-actions';
 import { subagentInvocationDomId } from '../agents/subagent-orchestration-view';
-import { SessionStatusPopover, type SessionStatusPopoverProps } from './session-status-popover';
+import {
+  SessionStatusDock,
+  SessionStatusPopover,
+  type SessionStatusPopoverProps,
+} from './session-status-popover';
 import { EMPTY_SUBAGENT_ORCHESTRATION_VIEW } from '../composer/composer-activity-model';
 import { DesktopLocaleProvider } from '../i18n/desktop-locale-context';
 import type { SubagentOrchestrationItem, SubagentOrchestrationView } from '../agents/subagent-orchestration-view';
@@ -21,7 +25,7 @@ function makeItem(
 ): SubagentOrchestrationItem {
   return {
     title: overrides.title ?? overrides.anchorId,
-    activity: 'Running tool',
+    activity: 'done - **Summary** raw markdown noise',
     executionStatus: 'running',
     updatedAt: '2026-09-13T00:00:00.000Z',
     ...overrides,
@@ -80,7 +84,7 @@ function viewFromItems(items: SubagentOrchestrationItem[]): SubagentOrchestratio
 
 function Harness(props: SessionStatusPopoverProps): ReactElement {
   return (
-    <DesktopLocaleProvider locale="en" onLocaleChange={() => undefined}>
+    <DesktopLocaleProvider locale={props.locale ?? 'en'} onLocaleChange={() => undefined}>
       <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
         <SessionStatusPopover {...props} />
       </PiwinUiProvider>
@@ -133,11 +137,7 @@ describe('SessionStatusPopover', () => {
   });
 
   it('shows an empty state when nothing is going on', () => {
-    act(() =>
-      root.render(
-        <Harness onOpenTool={vi.fn()} />,
-      ),
-    );
+    act(() => root.render(<Harness onOpenTool={vi.fn()} />));
     openPopover();
     expect(document.querySelector('[data-testid="session-status-empty"]')?.textContent).toBe(
       'No session activity',
@@ -147,11 +147,7 @@ describe('SessionStatusPopover', () => {
   });
 
   it('lists plan steps with a progress counter and flags live state on the button', () => {
-    act(() =>
-      root.render(
-        <Harness plan={makePlan()} onOpenTool={vi.fn()} />,
-      ),
-    );
+    act(() => root.render(<Harness plan={makePlan()} onOpenTool={vi.fn()} />));
     openPopover();
     const group = document.querySelector('[data-testid="session-status-progress"]');
     expect(group?.textContent).toContain('1/3');
@@ -161,14 +157,21 @@ describe('SessionStatusPopover', () => {
     expect(document.querySelector('[data-testid="session-status-live-dot"]')).not.toBeNull();
   });
 
-  it('shows running subagents and routes a row click to its card or Tasks', () => {
+  it('shows running subagents with clean status words (no raw markdown) and humanizes machine ids', () => {
     const onOpenTool = vi.fn();
     act(() =>
       root.render(
         <Harness
+          locale="zh-CN"
           orchestrationView={viewFromItems([
-            makeItem({ anchorId: 'inv-a', invocationId: 'inv-a', title: 'Scout auth', runId: 'run-1' }),
-            makeItem({ anchorId: 'inv-b', title: 'Write contracts', runId: 'run-2' }),
+            makeItem({ anchorId: 'inv-a', invocationId: 'inv-a', title: '排查构建路径', runId: 'run-1' }),
+            makeItem({
+              anchorId: 'inv-b',
+              title: 'session-status-dock',
+              role: 'scout',
+              executionStatus: 'completed',
+              runId: 'run-2',
+            }),
           ])}
           onOpenTool={onOpenTool}
         />,
@@ -176,11 +179,12 @@ describe('SessionStatusPopover', () => {
     );
     openPopover();
     const rows = [...document.querySelectorAll('[data-testid="session-status-subagent-row"]')];
-    expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringContaining('Scout auth'),
-      expect.stringContaining('Write contracts'),
-    ]);
-    // Second row has no invocation card in the DOM → falls back to Tasks.
+    expect(rows[0]?.textContent).toContain('排查构建路径');
+    expect(rows[0]?.textContent).toContain('运行中');
+    expect(rows[0]?.textContent).not.toContain('**Summary**');
+    expect(rows[1]?.textContent).toContain('代码调研');
+    expect(rows[1]?.textContent).toContain('已完成');
+
     act(() => {
       rows[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
@@ -285,7 +289,7 @@ describe('SessionStatusPopover', () => {
     expect(onCancelSubagentBatch).not.toHaveBeenCalled();
   });
 
-  it('shows deliverable rows and routes a click to its handler', () => {
+  it('shows deliverable rows without diff or input-source sections', () => {
     const onOpenArtifact = vi.fn();
     act(() =>
       root.render(
@@ -299,6 +303,8 @@ describe('SessionStatusPopover', () => {
     const group = document.querySelector('[data-testid="session-status-artifacts"]');
     expect(group?.textContent).toContain('架构图');
     expect(group?.textContent).toContain('Canvas');
+    expect(document.querySelector('[data-testid="session-status-changes"]')).toBeNull();
+    expect(document.querySelector('[data-testid="session-status-sources"]')).toBeNull();
 
     act(() => {
       document
@@ -306,30 +312,6 @@ describe('SessionStatusPopover', () => {
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onOpenArtifact).toHaveBeenCalledTimes(1);
-  });
-
-  it('lists context sources without diff rows or colored tags', () => {
-    const onOpen = vi.fn();
-    act(() =>
-      root.render(
-        <Harness
-          sources={[{ id: 'spec', title: 'ARCHITECTURE.md', meta: 'docs/ARCHITECTURE.md', kind: 'file', onOpen }]}
-          onOpenTool={vi.fn()}
-        />,
-      ),
-    );
-    openPopover();
-    const group = document.querySelector('[data-testid="session-status-sources"]');
-    expect(group?.textContent).toContain('ARCHITECTURE.md');
-    expect(document.querySelector('[data-testid="session-status-changes"]')).toBeNull();
-    expect(document.querySelector('[data-testid="session-status-diff"]')).toBeNull();
-
-    act(() => {
-      document
-        .querySelector('[data-testid="session-status-source-spec"]')
-        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
   it('collapses the trigger into a breathing capsule counting live processes', () => {
@@ -349,7 +331,6 @@ describe('SessionStatusPopover', () => {
     const trigger = queryTrigger();
     expect(trigger?.className).toContain('is-active-capsule');
     expect(document.querySelector('[data-testid="session-status-live-dot"]')).not.toBeNull();
-    // 1 running subagent + 1 job + 1 active plan; the completed item does not count.
     expect(document.querySelector('[data-testid="session-status-count"]')?.textContent).toBe('3');
   });
 
@@ -373,29 +354,10 @@ describe('SessionStatusPopover', () => {
       trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onToggleDock).toHaveBeenCalledTimes(1);
-    // The popover must not duplicate the docked sheet.
     expect(document.querySelector('[data-testid="session-status"]')).toBeNull();
   });
 
-  it('keeps the popover path while auto-dock is unavailable', () => {
-    const onToggleDock = vi.fn();
-    act(() =>
-      root.render(
-        <Harness
-          plan={makePlan()}
-          canAutoDock={false}
-          hasContent={true}
-          onToggleDock={onToggleDock}
-          onOpenTool={vi.fn()}
-        />,
-      ),
-    );
-    openPopover();
-    expect(onToggleDock).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-testid="session-status"]')).not.toBeNull();
-  });
-
-  it('shows runtime overview, active prompt path with copy button when pi-purge is on', () => {
+  it('renders headerless session title, flat prompt copy row, and plugin rows without composer duplicates', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -405,89 +367,27 @@ describe('SessionStatusPopover', () => {
     act(() =>
       root.render(
         <Harness
-          onOpenTool={vi.fn()}
-          runtimeInfo={{
-            agentId: 'pi',
-            backendLabel: 'Pi',
-            modelLabel: 'Claude Opus',
-            effortLabel: 'high',
-            modeLabel: 'agent',
-            permissionMode: 'auto',
-            sessionId: 'sess-123456789',
-            workspacePath: '/Users/me/project',
-            contextPercent: 42,
-            contextTokensUsed: 84_000,
-            contextTokensLimit: 200_000,
-            extensionSurface: {
-              sessionId: 'sess-123456789',
-              widgets: [],
-              statuses: [
-                {
-                  key: 'meta:pi-purge',
-                  text: JSON.stringify({ on: true, mode: 'replace', source: 'custom', chars: 512 }),
-                },
-                { key: 'meta:pi-purge-path', text: promptPath },
-              ],
-            },
-          }}
-        />,
-      ),
-    );
-    openPopover();
-    expect(document.querySelector('[data-testid="session-status-runtime"]')?.textContent).toContain('42% · 84k / 200k');
-    expect(document.querySelector('[data-testid="session-status-prompt-badge"]')?.textContent).toContain(
-      'PURGE ON · replace (custom)',
-    );
-    expect(
-      document.querySelector('[data-testid="session-status-active-prompt-path"]')?.textContent,
-    ).toBe(promptPath);
-    const copyBtn = document.querySelector('[data-testid="session-status-copy-prompt-path"]');
-    expect(copyBtn).not.toBeNull();
-    act(() => {
-      copyBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    expect(writeText).toHaveBeenCalledWith(promptPath);
-    expect(copyBtn?.textContent).toBe('Copied');
-  });
-
-  it('renders Antigravity account, route, quota buckets and staged prompt path', () => {
-    const agyPromptPath = '/Users/me/.piwin/antigravity-acp/staged-homes/abc123/GEMINI.md';
-    act(() =>
-      root.render(
-        <Harness
+          locale="zh-CN"
           onOpenTool={vi.fn()}
           runtimeInfo={{
             agentId: 'antigravity',
-            backendLabel: 'Antigravity',
-            modelLabel: 'Gemini 4 Carbon',
+            sessionId: 'session-mwho0d',
+            sessionTitle: '重设计顶栏状态面板',
             extensionSurface: {
-              sessionId: 'sess-agy',
+              sessionId: 'session-mwho0d',
               widgets: [],
               statuses: [
                 {
                   key: 'meta:agy-purge',
                   text: JSON.stringify({ on: true, mode: 'replace', source: 'custom', chars: 256 }),
                 },
-                { key: 'meta:agy-purge-path', text: agyPromptPath },
-                {
-                  key: 'meta:agy-account',
-                  text: JSON.stringify({
-                    id: 'work',
-                    label: 'work',
-                    isSystem: false,
-                    proxy: 'http://127.0.0.1:7890',
-                    cooldown: 1,
-                  }),
-                },
-                { key: 'meta:agy-rebuild', text: JSON.stringify({ auto: true, count: 2 }) },
-                { key: 'agy-route', text: 'normal' },
+                { key: 'meta:agy-purge-path', text: promptPath },
+                { key: 'piwin-surge', text: '规则生效' },
                 {
                   key: 'meta:agy-quota',
                   text: JSON.stringify({
-                    accountId: 'work',
-                    buckets: [
-                      { id: 'gemini-5h', label: 'Gemini 5h', remainingPct: 85, reset: '2h 10m' },
-                    ],
+                    accountId: 'default',
+                    buckets: [{ id: 'gemini-5h', label: 'Gemini 5h', remainingPct: 68 }],
                   }),
                 },
               ],
@@ -497,15 +397,60 @@ describe('SessionStatusPopover', () => {
       ),
     );
     openPopover();
-    const agySection = document.querySelector('[data-testid="session-status-antigravity"]');
-    expect(agySection).not.toBeNull();
-    expect(agySection?.textContent).toContain('work · http://127.0.0.1:7890 · 1 cool');
-    expect(agySection?.textContent).toContain('Auto-rebuild ON (2x)');
-    expect(agySection?.textContent).toContain('Gemini 5h');
-    expect(agySection?.textContent).toContain('85% (2h 10m)');
-    expect(
-      document.querySelector('[data-testid="session-status-active-prompt-path"]')?.textContent,
-    ).toBe(agyPromptPath);
+
+    const overview = document.querySelector('[data-testid="session-status-overview"]');
+    expect(overview).not.toBeNull();
+    // Headerless: no "会话概述" or "会话概况" label inside the top group.
+    expect(overview?.querySelector('.session-status-label')).toBeNull();
+    expect(overview?.textContent).toContain('重设计顶栏状态面板');
+    expect(overview?.textContent).not.toContain('session-mwho0d');
+
+    // Clicking session row copies the underlying ID.
+    const sessionRow = document.querySelector('[data-testid="session-status-session-row"]');
+    act(() => {
+      sessionRow?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(writeText).toHaveBeenCalledWith('session-mwho0d');
+
+    // Clicking active prompt row copies full path.
+    const promptRow = document.querySelector('[data-testid="session-status-prompt-row"]');
+    expect(promptRow?.getAttribute('data-active-prompt-path')).toBe(promptPath);
+    act(() => {
+      promptRow?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(writeText).toHaveBeenCalledWith(promptPath);
+
+    // External plugins render as flat rows.
+    expect(document.querySelector('[data-testid="session-status-plugin-piwin-surge"]')?.textContent).toContain(
+      '网络代理 (Surge)',
+    );
+    expect(document.querySelector('[data-testid="session-status-plugin-antigravity"]')?.textContent).toContain(
+      '余量 68%',
+    );
+  });
+
+  it('dismisses the docked sheet via its top-right close button', () => {
+    const onDismiss = vi.fn();
+    act(() =>
+      root.render(
+        <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <SessionStatusDock
+              locale="zh-CN"
+              plan={makePlan()}
+              onOpenTool={vi.fn()}
+              onDismiss={onDismiss}
+            />
+          </PiwinUiProvider>
+        </DesktopLocaleProvider>,
+      ),
+    );
+    const closeBtn = document.querySelector('[data-testid="session-status-dock-close"]');
+    expect(closeBtn).not.toBeNull();
+    act(() => {
+      closeBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });
 

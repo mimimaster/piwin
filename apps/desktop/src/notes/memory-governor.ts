@@ -89,6 +89,7 @@ export const DISPOSABLE_CACHE_BUDGETS: Record<MemoryPressureLevel, Record<string
       maxEntries: HIGHLIGHT_NORMAL_MAX_ENTRIES,
       maxBytes: HIGHLIGHT_NORMAL_MAX_BYTES,
     },
+    historicalToolOutputs: { maxEntries: 64, maxBytes: 8 * MIB },
     mermaidDiagrams: {
       maxEntries: MERMAID_NORMAL_MAX_ENTRIES,
       maxBytes: MERMAID_NORMAL_MAX_BYTES,
@@ -110,6 +111,7 @@ export const DISPOSABLE_CACHE_BUDGETS: Record<MemoryPressureLevel, Record<string
       maxEntries: HIGHLIGHT_NORMAL_MAX_ENTRIES,
       maxBytes: HIGHLIGHT_RECLAIM_MAX_BYTES,
     },
+    historicalToolOutputs: { evictAll: true, maxEntries: 16, maxBytes: 2 * MIB },
     mermaidDiagrams: {
       evictAll: true,
       maxEntries: MERMAID_NORMAL_MAX_ENTRIES,
@@ -125,6 +127,7 @@ export const DISPOSABLE_CACHE_BUDGETS: Record<MemoryPressureLevel, Record<string
   critical: {
     warmSessions: { maxEntries: 0, maxBytes: 0 },
     highlightCache: { evictAll: true, maxEntries: 0, maxBytes: 0 },
+    historicalToolOutputs: { evictAll: true, maxEntries: 0, maxBytes: 0 },
     mermaidDiagrams: { evictAll: true, maxEntries: 0, maxBytes: 0 },
     mediaPreviewUrls: { evictAll: true, maxEntries: 0 },
     artifactMediaDataUrls: { evictAll: true, maxEntries: 0, maxBytes: 0 },

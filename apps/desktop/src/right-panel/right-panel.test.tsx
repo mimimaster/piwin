@@ -16,7 +16,6 @@ import { DesktopLocaleProvider } from '../i18n/desktop-locale-context';
 import { SubAgentPanel } from '../agents/SubAgentPanel';
 import { MAX_RECENT_TASK_ITEMS } from '../agents/subagent-tasks-overview';
 import { writeSessionKeyedValue } from '../session/session-keyed-memory';
-import { RIGHT_PANEL_TABS_BY_SESSION_STORAGE_KEY } from '../hooks/use-right-panel-follows-session';
 import type { TerminalSessionsApi } from '../hooks/use-terminal-sessions';
 
 declare global {
@@ -24,6 +23,7 @@ declare global {
 }
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+const RIGHT_PANEL_TABS_BY_SESSION_STORAGE_KEY = 'piwin.desktop.rightPanelTabs.bySession.v1';
 
 function renderPanel(props: Partial<Parameters<typeof RightPanel>[0]> = {}): {
   container: HTMLDivElement;
@@ -33,7 +33,9 @@ function renderPanel(props: Partial<Parameters<typeof RightPanel>[0]> = {}): {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
+  let currentProps = props;
   const rerender = (nextProps: Partial<Parameters<typeof RightPanel>[0]>): void => {
+    currentProps = { ...currentProps, ...nextProps };
     act(() => {
     root.render(
       <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -50,7 +52,7 @@ function renderPanel(props: Partial<Parameters<typeof RightPanel>[0]> = {}): {
           filesContent={<div data-testid="files-body">files</div>}
           terminalContent={<div data-testid="terminal-body">terminal</div>}
           reviewContent={<div data-testid="review-body">review</div>}
-          {...nextProps}
+          {...currentProps}
         />
       </PiwinUiProvider>,
     );
@@ -140,7 +142,7 @@ describe('RightPanel multi-tab', () => {
 
     expect(container.querySelector('[data-testid="right-panel-resize-handle"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="right-panel-tabstrip"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).not.toBeNull();
   });
 
   it('shows the home launcher when the panel first expands without a requested tab', () => {
@@ -189,10 +191,10 @@ describe('RightPanel multi-tab', () => {
     expect(hints).toEqual(['⌘3', '⌘4', '⌘1', '⌘J']);
     // Nothing to expand over the conversation yet.
     expect(container.querySelector('[data-testid="right-panel-expand-btn"]')).toBeNull();
-    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).not.toBeNull();
   });
 
-  it('shows the + picker only after a tool tab is open', () => {
+  it('keeps the + picker available on the tool launcher', () => {
     writeStoredRightPanelState({ openTabs: [], activeTab: null });
     let activeTab: RightPanelTab | null = null;
     const rendered = renderPanel({
@@ -203,7 +205,7 @@ describe('RightPanel multi-tab', () => {
     });
     root = rendered.root;
     container = rendered.container;
-    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).not.toBeNull();
 
     act(() => {
       container?.querySelector<HTMLButtonElement>('[data-testid="right-panel-home-files"]')?.click();
@@ -298,7 +300,7 @@ describe('RightPanel multi-tab', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="right-panel-open-tab-terminal"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-terminal"]')).toBeNull();
     expect(container.querySelector('[data-testid="right-panel-open-tab-canvas"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="canvas-body"]')).not.toBeNull();
   });
@@ -367,14 +369,109 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('[data-testid="files-body"]')).not.toBeNull();
   });
 
-  it('restores open tabs from sessionStorage on mount', () => {
+  it('ignores the remembered tab pile and starts on the tool launcher', () => {
     writeStoredRightPanelState({ openTabs: ['terminal', 'files'], activeTab: 'terminal' });
-    const rendered = renderPanel({ activeTab: 'terminal' });
+    const rendered = renderPanel({ activeTab: null });
     root = rendered.root;
     container = rendered.container;
 
-    expect(container.querySelector('[data-testid="right-panel-open-tab-terminal"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-home"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-terminal"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).toBeNull();
+  });
+
+  it('lists only the chosen docked tool even when the workspace remembers several tools', () => {
+    const dockedTools = {
+      tabs: ['canvas', 'browser', 'docPreview'] as const, groupId: 'right', onClose: vi.fn(),
+      slotRef: vi.fn(), panelRef: vi.fn(), onTitlebarChange: vi.fn(),
+    };
+    const rendered = renderPanel({ activeTab: null, dockedTools });
+    root = rendered.root;
+    container = rendered.container;
+    expect(container.querySelector('[data-testid="right-panel-home"]')).not.toBeNull();
+    rendered.rerender({ activeTab: 'canvas', dockedTools });
+    expect(container.querySelector('[data-testid="right-panel-open-tab-canvas"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-docPreview"]')).toBeNull();
+  });
+
+  it('returns to the launcher when project scope changes without replaying its tools', () => {
+    const onNavigationReset = vi.fn();
+    const rendered = renderPanel({ activeTab: 'files', layoutScopeKey: 'project-a', onNavigationReset });
+    root = rendered.root;
+    container = rendered.container;
+    expect(container.querySelector('[data-testid="files-body"]')).not.toBeNull();
+    rendered.rerender({ layoutScopeKey: 'project-b' });
+    expect(onNavigationReset).toHaveBeenCalledWith(null);
+    expect(container.querySelector('[data-testid="right-panel-home"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).toBeNull();
+  });
+
+  it('allows leaving full width when the panel is showing its launcher', () => {
+    const onResizeReset = vi.fn();
+    const rendered = renderPanel({ activeTab: null, isExpanded: true, onResizeReset });
+    root = rendered.root;
+    container = rendered.container;
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="right-panel-expand-btn"]');
+    expect(button?.getAttribute('aria-pressed')).toBe('true');
+    act(() => { button?.click(); });
+    expect(onResizeReset).toHaveBeenCalled();
+  });
+
+  it('returns to the launcher on generic reopen without destroying a running terminal owner', () => {
+    const mounted = vi.fn();
+    const disposed = vi.fn();
+    function TerminalOwner() {
+      useEffect(() => { mounted(); return disposed; }, []);
+      return <div data-testid="running-terminal-owner" />;
+    }
+    writeStoredRightPanelState({ openTabs: ['terminal'], activeTab: 'terminal' });
+    const terminalContent = <TerminalOwner />;
+    const rendered = renderPanel({ activeTab: 'terminal', terminalContent });
+    root = rendered.root;
+    container = rendered.container;
+    rendered.rerender({ open: false, activeTab: null, terminalContent });
+    rendered.rerender({ open: true, activeTab: null, terminalContent });
+    expect(container.querySelector('[data-testid="right-panel-home"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-terminal"]')).toBeNull();
+    expect(container.querySelector('[data-testid="running-terminal-owner"]')).not.toBeNull();
+    expect(mounted).toHaveBeenCalledOnce();
+    expect(disposed).not.toHaveBeenCalled();
+  });
+
+  it('keeps terminal ownership stable when another terminal is chosen beside a file tab', () => {
+    const mounted = vi.fn();
+    const disposed = vi.fn();
+    function TerminalOwner() {
+      useEffect(() => { mounted(); return disposed; }, []);
+      return <div />;
+    }
+    const first = { id: 'terminal-1', name: 'zsh1', cwd: '/home', projectPath: '',
+      status: 'open' as const, error: null, generation: 0, ptyId: 'existing-pty' };
+    const second = { ...first, id: 'terminal-2', name: 'zsh2', ptyId: null };
+    const onTabChange = vi.fn();
+    const terminalSessions: TerminalSessionsApi = {
+      sessions: [first], activeSessionId: first.id, setActiveSessionId: vi.fn(),
+      addSession: vi.fn(() => second), closeSession: vi.fn(), restartSession: vi.fn(),
+      onSessionStatus: vi.fn(), onSessionTitle: vi.fn(),
+    };
+    const rendered = renderPanel({ activeTab: 'files', terminalContent: <TerminalOwner />,
+      terminalSessions, onTabChange });
+    root = rendered.root;
+    container = rendered.container;
+    expect(container.querySelector('[data-testid="right-panel-open-tab-terminal-1"]')).toBeNull();
+    const button = container.querySelector('[data-testid="right-panel-tab-add"]');
+    act(() => {
+      button?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      button?.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+      button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const choice = document.querySelector<HTMLElement>('[data-testid="right-panel-plus-terminal"]');
+    if (choice === null) throw new Error('missing terminal entry');
+    act(() => { choice.click(); });
+    expect(onTabChange).toHaveBeenCalledWith(second.id);
+    expect(mounted).toHaveBeenCalledOnce();
+    expect(disposed).not.toHaveBeenCalled();
   });
 
   it('selects the active surface plus the explicit terminal keep-alive', () => {
@@ -401,11 +498,11 @@ describe('RightPanel multi-tab', () => {
     container = rendered.container;
 
     expect(container.querySelector('[data-testid="browser-body"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="terminal-body"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="terminal-body"]')).toBeNull();
     expect(container.querySelector('[data-testid="files-body"]')).toBeNull();
   });
 
-  it('unmounts collapsed non-terminal bodies while preserving an open terminal owner', () => {
+  it('does not initialize stored tools while the panel is collapsed', () => {
     writeStoredRightPanelState({
       openTabs: ['terminal', 'browser'],
       activeTab: 'browser',
@@ -419,7 +516,7 @@ describe('RightPanel multi-tab', () => {
     container = rendered.container;
 
     expect(container.querySelector('[data-testid="browser-body"]')).toBeNull();
-    expect(container.querySelector('[data-testid="terminal-body"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="terminal-body"]')).toBeNull();
   });
 
   it('marks the canvas tab body so CSS can hide a competing scrollport', () => {
@@ -559,6 +656,9 @@ describe('RightPanel multi-tab', () => {
     });
     root = rendered.root;
     container = rendered.container;
+    rendered.rerender({ activeTab: 'files' });
+    rendered.rerender({ activeTab: 'sideChat' });
+
 
     expect(container.querySelector('[data-testid="right-panel-open-tab-sideChat"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).not.toBeNull();
@@ -684,6 +784,9 @@ describe('RightPanel multi-tab', () => {
     });
     root = rendered.root;
     container = rendered.container;
+    rendered.rerender({ activeTab: 'files' });
+    rendered.rerender({ activeTab: 'browser' });
+
 
     expect(container.querySelector('[data-testid="right-panel-open-tab-browser"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).not.toBeNull();
@@ -713,6 +816,9 @@ describe('RightPanel multi-tab', () => {
     });
     root = rendered.root;
     container = rendered.container;
+    rendered.rerender({ activeTab: 'files' });
+    rendered.rerender({ activeTab: 'canvas' });
+
 
     expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).not.toBeNull();
     const canvasTab = container.querySelector('[data-testid="right-panel-open-tab-canvas"]');
@@ -1012,13 +1118,13 @@ describe('RightPanel multi-tab', () => {
     expect(container.textContent).toContain('Still working');
   });
 
-  it('restores a session tab through onTabRestore so a collapsed panel stays collapsed', () => {
+  it('selects the launcher on session switch without replaying remembered tabs', () => {
     writeSessionKeyedValue(RIGHT_PANEL_TABS_BY_SESSION_STORAGE_KEY, 'session-b', {
       openTabs: ['files'],
       activeTab: 'files',
     });
     const onTabChange = vi.fn();
-    const onTabRestore = vi.fn();
+    const onNavigationReset = vi.fn();
     const panel = (sessionId: string) => (
       <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
         <RightPanel
@@ -1027,7 +1133,7 @@ describe('RightPanel multi-tab', () => {
           onClose={() => {}}
           activeTab={null}
           onTabChange={onTabChange}
-          onTabRestore={onTabRestore}
+          onNavigationReset={onNavigationReset}
           layoutSessionId={sessionId}
           panelWidthPx={320}
           isResizing={false}
@@ -1046,7 +1152,7 @@ describe('RightPanel multi-tab', () => {
     act(() => mountedRoot.render(panel('session-a')));
     act(() => mountedRoot.render(panel('session-b')));
 
-    expect(onTabRestore).toHaveBeenCalledWith('files');
+    expect(onNavigationReset).toHaveBeenCalledWith(null);
     expect(onTabChange).not.toHaveBeenCalled();
     window.localStorage.removeItem(RIGHT_PANEL_TABS_BY_SESSION_STORAGE_KEY);
   });

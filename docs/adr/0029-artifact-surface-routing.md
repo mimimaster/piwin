@@ -69,8 +69,9 @@ export type ArtifactSurface = 'inline' | 'canvas';
   sandbox iframe (ADR 0005). Completion commits that iframe to interactive.
 - Hydrated history and session switches do not reveal a Canvas. A session
   switch clears the Canvas target, exits right-panel full width, and folds the
-  right panel away when it was showing the (now empty) Canvas tab; other tabs
-  stay open at normal width.
+  right panel away when it was showing the (now empty) Canvas tab. By owner
+  revision on 2026-11-15, other panel navigation returns to the tool launcher
+  at normal width; retained runtime owners are not closed merely to show it.
   Subsequent tokens on the same target id update source only and do not steal
   the inspector tab. Code-first is Inline-only and does not suppress Canvas
   reveal. The transcript launcher reopens the same stable target id without
