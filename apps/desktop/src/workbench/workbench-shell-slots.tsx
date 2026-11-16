@@ -5,7 +5,7 @@
  * orchestration plus thin assembly. The region props and their sources are
  * unchanged — the same hook results the root assembled are passed through.
  */
-import { useRef, useState, type Dispatch, type ReactNode } from 'react';
+import { useState, type Dispatch, type ReactNode } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import { artifactFenceSecurityProps } from '../artifact/artifact-fence-security';
 import { artifactSurfaceProps, resolveArtifactSurfacesForScope } from '../artifact/artifact-surfaces';
@@ -263,10 +263,6 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
     statusArtifacts.length > 0 ||
     statusInsights.hasAutoDockSignal;
 
-  // The gutter measures the stage's border box, so the ref must live on
-  // `.chat-stage` itself (not the padded desktop surface).
-  const chatStageRef = useRef<HTMLDivElement | null>(null);
-
   const cli = useWorkbenchCli({
     state, hostClient, studioOpen, subpageOpen: activeSubPage !== null,
     locale: desktopLocale, appearanceMode: activeTheme.mode === 'light' ? 'light' : 'dark',
@@ -277,7 +273,6 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
   });
 
   const sessionStageDock = useSessionStageDock({
-    stageRef: chatStageRef,
     conversationWidth: preferences.conversationWidth,
     hasAnyContent: hasStatusContent,
     suppressed:
@@ -467,8 +462,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
           />
         }
         chatColumnClassName={composerLayoutMode === 'centered' ? 'chat-column-empty' : undefined}
-        chatStageRef={chatStageRef}
-        chatStageClassName={sessionStageDock.isDocked ? 'has-session-dock' : undefined}
+        chatStageRef={sessionStageDock.stageRef}
         renderStage={(primaryPane) => (
           <WorkbenchStageLayer
             primaryPane={primaryPane}

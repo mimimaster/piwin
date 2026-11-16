@@ -123,3 +123,151 @@ html[data-memory-parked] .fc-quiet-rate-btn {
   transition: none !important;
   transform: none !important;
 }
+
+/* Strip decorative stage blend texture (feTurbulence + mix-blend-mode) and
+   the running ember-wash overlap trigger under pressure or parking. */
+html[data-memory-pressure='moderate'] .app-shell > .workspace::after,
+html[data-memory-pressure='critical'] .app-shell > .workspace::after,
+html[data-memory-parked] .app-shell > .workspace::after,
+html[data-memory-pressure='moderate'] .chat-stage::after,
+html[data-memory-pressure='critical'] .chat-stage::after,
+html[data-memory-parked] .chat-stage::after {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+  mix-blend-mode: normal !important;
+}
+
+/* Remove the empty edge-blur strip once backdrop-filter is stripped. */
+html[data-memory-pressure='moderate'] .transcript-edge-blur,
+html[data-memory-pressure='critical'] .transcript-edge-blur,
+html[data-memory-parked] .transcript-edge-blur {
+  display: none !important;
+}
+
+/* Strip CSS gradient masks and per-glyph SVG/color filters that force extra
+   offscreen IOSurface allocations across the scroller and collapsed cards. */
+html[data-memory-pressure='moderate'] .chat-stream,
+html[data-memory-pressure='critical'] .chat-stream,
+html[data-memory-parked] .chat-stream,
+html[data-memory-pressure='moderate'] .shell-trail-cmd.is-folded .shell-trail-code,
+html[data-memory-pressure='critical'] .shell-trail-cmd.is-folded .shell-trail-code,
+html[data-memory-parked] .shell-trail-cmd.is-folded .shell-trail-code,
+html[data-memory-pressure='moderate'] .shell-trail-code,
+html[data-memory-pressure='critical'] .shell-trail-code,
+html[data-memory-parked] .shell-trail-code,
+html[data-memory-pressure='moderate'] .user-message-collapsible.is-collapsed,
+html[data-memory-pressure='critical'] .user-message-collapsible.is-collapsed,
+html[data-memory-parked] .user-message-collapsible.is-collapsed,
+html[data-memory-pressure='moderate'] .collapsible-content-block.has-overflow.is-collapsed,
+html[data-memory-pressure='critical'] .collapsible-content-block.has-overflow.is-collapsed,
+html[data-memory-parked] .collapsible-content-block.has-overflow.is-collapsed,
+html[data-memory-pressure='moderate'] .sidebar-folder-tree,
+html[data-memory-pressure='critical'] .sidebar-folder-tree,
+html[data-memory-parked] .sidebar-folder-tree {
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}
+
+html[data-memory-pressure='moderate'] .turn-model-icon.is-glyph,
+html[data-memory-pressure='critical'] .turn-model-icon.is-glyph,
+html[data-memory-parked] .turn-model-icon.is-glyph {
+  filter: none !important;
+}
+
+/* Stop main-thread wb-shimmer (background-clip: text -> paintMaskForTextFillBox
+   + DrawPatternImageBuffer) so active runs stop forcing 60fps commits. */
+html[data-memory-pressure='moderate'] .action-marquee-text,
+html[data-memory-pressure='critical'] .action-marquee-text,
+html[data-memory-parked] .action-marquee-text,
+html[data-memory-pressure='moderate'] .turn-thinking pre.turn-shimmer-text,
+html[data-memory-pressure='critical'] .turn-thinking pre.turn-shimmer-text,
+html[data-memory-parked] .turn-thinking pre.turn-shimmer-text,
+html[data-memory-pressure='moderate'] .agent-locator-copy--shimmer,
+html[data-memory-pressure='critical'] .agent-locator-copy--shimmer,
+html[data-memory-parked] .agent-locator-copy--shimmer,
+html[data-memory-pressure='moderate'] .behavior-text-bloom,
+html[data-memory-pressure='critical'] .behavior-text-bloom,
+html[data-memory-parked] .behavior-text-bloom,
+html[data-memory-pressure='moderate'] .behavior-explore-active,
+html[data-memory-pressure='critical'] .behavior-explore-active,
+html[data-memory-parked] .behavior-explore-active,
+html[data-memory-pressure='moderate'] .behavior-search-active,
+html[data-memory-pressure='critical'] .behavior-search-active,
+html[data-memory-parked] .behavior-search-active,
+html[data-memory-pressure='moderate'] .behavior-read-active,
+html[data-memory-pressure='critical'] .behavior-read-active,
+html[data-memory-parked] .behavior-read-active,
+html[data-memory-pressure='moderate'] .behavior-edit-active,
+html[data-memory-pressure='critical'] .behavior-edit-active,
+html[data-memory-parked] .behavior-edit-active,
+html[data-memory-pressure='moderate'] .behavior-command-active,
+html[data-memory-pressure='critical'] .behavior-command-active,
+html[data-memory-parked] .behavior-command-active,
+html[data-memory-pressure='moderate'] .behavior-test-active,
+html[data-memory-pressure='critical'] .behavior-test-active,
+html[data-memory-parked] .behavior-test-active,
+html[data-memory-pressure='moderate'] .behavior-build-active,
+html[data-memory-pressure='critical'] .behavior-build-active,
+html[data-memory-parked] .behavior-build-active,
+html[data-memory-pressure='moderate'] .behavior-web-active,
+html[data-memory-pressure='critical'] .behavior-web-active,
+html[data-memory-parked] .behavior-web-active,
+html[data-memory-pressure='moderate'] .behavior-subagent-active,
+html[data-memory-pressure='critical'] .behavior-subagent-active,
+html[data-memory-parked] .behavior-subagent-active,
+html[data-memory-pressure='moderate'] .behavior-subagent-inspector-active,
+html[data-memory-pressure='critical'] .behavior-subagent-inspector-active,
+html[data-memory-parked] .behavior-subagent-inspector-active,
+html[data-memory-pressure='moderate'] .behavior-mcp-active,
+html[data-memory-pressure='critical'] .behavior-mcp-active,
+html[data-memory-parked] .behavior-mcp-active,
+html[data-memory-pressure='moderate'] .behavior-mcp-discovery-active,
+html[data-memory-pressure='critical'] .behavior-mcp-discovery-active,
+html[data-memory-parked] .behavior-mcp-discovery-active,
+html[data-memory-pressure='moderate'] .behavior-git-active,
+html[data-memory-pressure='critical'] .behavior-git-active,
+html[data-memory-parked] .behavior-git-active,
+html[data-memory-pressure='moderate'] .behavior-process-active,
+html[data-memory-pressure='critical'] .behavior-process-active,
+html[data-memory-parked] .behavior-process-active,
+html[data-memory-pressure='moderate'] .behavior-artifact-active,
+html[data-memory-pressure='critical'] .behavior-artifact-active,
+html[data-memory-parked] .behavior-artifact-active,
+html[data-memory-pressure='moderate'] .behavior-generic-active,
+html[data-memory-pressure='critical'] .behavior-generic-active,
+html[data-memory-parked] .behavior-generic-active {
+  animation: none !important;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: var(--text-2) !important;
+  filter: none !important;
+}
+
+/* Stop unaccelerated KeyframeEffect / status infinite animations so WebKit lets
+   back/secondary backing-store buffers age into volatile reclaimable memory. */
+html[data-memory-pressure='moderate'] .behavior-thinking-active,
+html[data-memory-pressure='critical'] .behavior-thinking-active,
+html[data-memory-parked] .behavior-thinking-active,
+html[data-memory-pressure='moderate'] .behavior-context-active,
+html[data-memory-pressure='critical'] .behavior-context-active,
+html[data-memory-parked] .behavior-context-active,
+html[data-memory-pressure='moderate'] .behavior-gate-active,
+html[data-memory-pressure='critical'] .behavior-gate-active,
+html[data-memory-parked] .behavior-gate-active,
+html[data-memory-pressure='moderate'] [class*='ui-anim-'],
+html[data-memory-pressure='critical'] [class*='ui-anim-'],
+html[data-memory-parked] [class*='ui-anim-'],
+html[data-memory-pressure='moderate'] [class*='ui-anim-'] *,
+html[data-memory-pressure='critical'] [class*='ui-anim-'] *,
+html[data-memory-parked] [class*='ui-anim-'] * {
+  animation: none !important;
+}
+
+html[data-memory-pressure='moderate'] .ui-anim-radial-bellow__vane,
+html[data-memory-pressure='critical'] .ui-anim-radial-bellow__vane,
+html[data-memory-parked] .ui-anim-radial-bellow__vane {
+  opacity: 0.55 !important;
+}

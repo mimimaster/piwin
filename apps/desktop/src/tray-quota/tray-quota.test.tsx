@@ -18,19 +18,21 @@ import {
 import { TrayQuotaView } from './TrayQuotaApp.js';
 import { useTrayQuotaSync } from './use-tray-quota-sync.js';
 
-const invokeMock = vi.fn<(...args: unknown[]) => Promise<unknown>>(() => Promise.resolve());
-const emitMock = vi.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve());
-const listenMock = vi.fn<(...args: unknown[]) => Promise<() => void>>(() =>
-  Promise.resolve(() => {}),
-);
+const { invokeMock, emitMock, listenMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(() => Promise.resolve()),
+  emitMock: vi.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve()),
+  listenMock: vi.fn<(...args: unknown[]) => Promise<() => void>>(() =>
+    Promise.resolve(() => {}),
+  ),
+}));
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: (...args: unknown[]) => invokeMock(...args),
+  invoke: invokeMock,
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({
-  emit: (...args: unknown[]) => emitMock(...args),
-  listen: (...args: unknown[]) => listenMock(...args),
+  emit: emitMock,
+  listen: listenMock,
 }));
 
 declare global {
@@ -127,18 +129,22 @@ describe('TrayQuotaView & useTrayQuotaSync', () => {
   beforeEach(() => {
     previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-    invokeMock.mockClear();
-    emitMock.mockClear();
-    listenMock.mockClear();
+    invokeMock.mockReset();
+    invokeMock.mockImplementation(() => Promise.resolve());
+    emitMock.mockReset();
+    emitMock.mockImplementation(() => Promise.resolve());
+    listenMock.mockReset();
+    listenMock.mockImplementation(() => Promise.resolve(() => {}));
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     act(() => {
       root.unmount();
     });
+    await vi.dynamicImportSettled();
     container.remove();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
@@ -330,5 +336,122 @@ describe('TrayQuotaView & useTrayQuotaSync', () => {
     });
 
     expect(invokeMock).toHaveBeenCalledWith('tray_quota_set_visible', { visible: false });
+  });
+
+  it('registers Tauri listeners once across rapid re-renders and invokes latest navigation callback', async () => {
+    const listeners = new Map<string, (event: { payload?: unknown }) => void>();
+    const unlistenSpies: Array<ReturnType<typeof vi.fn>> = [];
+    listenMock.mockImplementation(async (eventName, cb) => {
+      listeners.set(eventName as string, cb as (event: { payload?: unknown }) => void);
+      const spy = vi.fn();
+      unlistenSpies.push(spy);
+      return spy;
+    });
+
+    const mockHostClient = {
+      request: vi.fn(async () => ({ success: true, data: { accounts: [] } })),
+      subscribe: () => () => {},
+      supportsCommand: () => true,
+    } as unknown as HostClient;
+
+    function Harness({
+      renderVersion,
+      onNavigate,
+    }: {
+      renderVersion: number;
+      onNavigate: (version: number, section: string) => void;
+    }) {
+      useTrayQuotaSync({
+        hostClient: mockHostClient,
+        hostReady: false,
+        locale: 'zh-CN',
+        themeMode: 'dark',
+        openSettingsSection: (section) => onNavigate(renderVersion, section),
+      });
+      return null;
+    }
+
+    const onNavigate = vi.fn();
+    act(() => {
+      root.render(<Harness renderVersion={0} onNavigate={onNavigate} />);
+    });
+    await vi.waitFor(() => {
+      expect(listenMock).toHaveBeenCalledTimes(3);
+    });
+
+    for (let version = 1; version <= 20; version += 1) {
+      act(() => {
+        root.render(<Harness renderVersion={version} onNavigate={onNavigate} />);
+      });
+    }
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    expect(listenMock).toHaveBeenCalledTimes(3);
+    for (const spy of unlistenSpies) {
+      expect(spy).not.toHaveBeenCalled();
+    }
+
+    act(() => {
+      listeners.get('tray-quota-navigate')?.({ payload: { section: 'oauth' } });
+    });
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    expect(onNavigate).toHaveBeenCalledWith(20, 'oauth');
+  });
+
+  it('disposes late-resolving Tauri listeners immediately when unmounted before listen settles', async () => {
+    const deferredResolvers: Array<(unlisten: () => void) => void> = [];
+    const lateUnlistenSpies: Array<ReturnType<typeof vi.fn>> = [];
+
+    listenMock.mockImplementation(
+      () =>
+        new Promise<() => void>((resolve) => {
+          deferredResolvers.push(resolve);
+        }),
+    );
+
+    const mockHostClient = {
+      request: vi.fn(async () => ({ success: true, data: { accounts: [] } })),
+      subscribe: () => () => {},
+      supportsCommand: () => true,
+    } as unknown as HostClient;
+
+    function Harness() {
+      useTrayQuotaSync({
+        hostClient: mockHostClient,
+        hostReady: false,
+        locale: 'zh-CN',
+        themeMode: 'dark',
+        openSettingsSection: vi.fn(),
+      });
+      return null;
+    }
+
+    act(() => {
+      root.render(<Harness />);
+    });
+    await vi.waitFor(() => {
+      expect(deferredResolvers).toHaveLength(3);
+    });
+
+    // Unmount before any listen() promise resolves.
+    act(() => {
+      root.render(null);
+    });
+
+    await act(async () => {
+      for (const resolve of deferredResolvers) {
+        const unlisten = vi.fn();
+        lateUnlistenSpies.push(unlisten);
+        resolve(unlisten);
+      }
+      await flushMicrotasks();
+    });
+
+    expect(lateUnlistenSpies).toHaveLength(3);
+    for (const spy of lateUnlistenSpies) {
+      expect(spy).toHaveBeenCalledTimes(1);
+    }
   });
 });

@@ -292,12 +292,22 @@ export function TrayQuotaApp(): ReactElement {
         setState(nextState);
       }
     }).then((dispose) => {
+      if (!active) {
+        dispose();
+        return;
+      }
       unlistenState = dispose;
     });
 
     void listenTrayQuotaOpened(() => {
-      void requestTrayQuotaState({ forceRefresh: false });
+      if (active) {
+        void requestTrayQuotaState({ forceRefresh: false });
+      }
     }).then((dispose) => {
+      if (!active) {
+        dispose();
+        return;
+      }
       unlistenOpened = dispose;
     });
 

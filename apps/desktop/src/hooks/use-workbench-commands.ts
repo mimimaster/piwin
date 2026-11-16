@@ -59,6 +59,15 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
     captureScreenshot,
   } = args;
 
+  const {
+    openInspector: shellOpenInspector,
+    openSettings: shellOpenSettings,
+    toggleSessions: shellToggleSessions,
+    toggleInspector: shellToggleInspector,
+    rememberTrigger: shellRememberTrigger,
+    setCommandPaletteOpen: shellSetCommandPaletteOpen,
+  } = shell;
+
   const handleToggleAppearance = useCallback((): void => {
     const plan = planAppearanceToggle({
       themeId: activeTheme.id,
@@ -92,16 +101,16 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
 
   const openRightTab = useCallback(
     (tab: RightPanelTab): void => {
-      shell.openInspector(tab);
+      shellOpenInspector(tab);
     },
-    [shell],
+    [shellOpenInspector],
   );
 
   const openSettingsSection = useCallback(
     (section: ShellSettingsSection): void => {
-      shell.openSettings(section);
+      shellOpenSettings(section);
     },
-    [shell],
+    [shellOpenSettings],
   );
 
   const handleDesktopCommand = useCallback(
@@ -115,13 +124,13 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
           document.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]')?.focus();
         },
         openSettings: () => {
-          shell.openSettings('general');
+          shellOpenSettings('general');
         },
         toggleSessions: () => {
-          shell.toggleSessions();
+          shellToggleSessions();
         },
         toggleInspector: (tab) => {
-          shell.toggleInspector(tab);
+          shellToggleInspector(tab);
         },
         openInspector: openRightTab,
         captureScreenshot,
@@ -134,14 +143,16 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
       handleStartNewSession,
       openRightTab,
       openSessionSearch,
-      shell,
+      shellOpenSettings,
+      shellToggleInspector,
+      shellToggleSessions,
     ],
   );
 
   useDesktopShortcuts({
     onOpenPalette: () => {
-      shell.rememberTrigger();
-      shell.setCommandPaletteOpen(true);
+      shellRememberTrigger();
+      shellSetCommandPaletteOpen(true);
     },
     onCommand: handleDesktopCommand,
   });

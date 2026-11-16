@@ -213,6 +213,31 @@ describe('Desktop renderer resource boundaries', () => {
     expect(ruleDeclarations(degradation, 'html[data-memory-parked] *')).toContain(
       'backdrop-filter: none !important',
     );
+
+    const states = [
+      "html[data-memory-pressure='moderate']",
+      "html[data-memory-pressure='critical']",
+      'html[data-memory-parked]',
+    ];
+    for (const prefix of states) {
+      const stageAfter = ruleDeclarations(degradation, `${prefix} .app-shell > .workspace::after`);
+      expect(stageAfter).toContain('display: none !important');
+      expect(ruleDeclarations(degradation, `${prefix} .chat-stage::after`)).toContain(
+        'display: none !important',
+      );
+      expect(ruleDeclarations(degradation, `${prefix} .chat-stream`)).toContain(
+        'mask-image: none !important',
+      );
+      expect(ruleDeclarations(degradation, `${prefix} .shell-trail-code`)).toContain(
+        'mask-image: none !important',
+      );
+      expect(ruleDeclarations(degradation, `${prefix} .action-marquee-text`)).toContain(
+        'animation: none !important',
+      );
+      expect(ruleDeclarations(degradation, `${prefix} [class*='ui-anim-']`)).toContain(
+        'animation: none !important',
+      );
+    }
   });
 
   it('keeps settings CSS and feature modules out of the cold main entries', () => {

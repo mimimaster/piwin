@@ -3,44 +3,6 @@
    Layer 2: flat rows — transparent at rest, --hover on hover.
    No nested boxes, no colored badges, no progress-bar cards. */
 
-.session-status-btn {
-  position: relative;
-}
-
-/* Idle: a plain icon button. With live processes it becomes a breathing
-   capsule — dot + measure icon + count in one pill. */
-.session-status-btn.is-active-capsule {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  width: auto;
-  min-width: 0;
-  padding-inline: 9px;
-  border-radius: 999px;
-}
-
-.session-status-btn .session-status-live-dot {
-  width: 6px;
-  height: 6px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--zhu, var(--accent, #d4553d));
-  animation: session-status-dot-pulse 1.8s ease-in-out infinite;
-}
-
-.session-status-btn .session-status-count {
-  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
-  font-size: var(--fs-micro);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .session-status-btn .session-status-live-dot {
-    animation: none;
-  }
-}
-
 /* Layer 1 for the floating variant: thin glass fill. Under [data-window-material]
    window-material-overlays.css swaps in --overlay-glass-fill-thin while the
    popover keeps its whitelisted backdrop-filter — never paint a solid slab
@@ -61,24 +23,12 @@ html:is([data-memory-pressure], [data-memory-parked]) .ui-popover-content.sessio
   background: var(--s4, var(--surface-4, var(--surface-3)));
 }
 
-/* The dock owns a 296px slice of the stage; the conversation measure
-   re-centers inside what remains. */
-.chat-stage.has-session-dock {
-  box-sizing: border-box;
-  padding-right: 296px;
-  transition: padding-right 180ms var(--ease-out, ease);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chat-stage.has-session-dock {
-    transition: none;
-  }
-}
-
 /* `.chat-stage > *` pins children relative at z-index 1 — outrank it. The dock
-   is absolute so it never competes with the flex column for width. No
-   backdrop-filter: the sheet stays up for the session, so it must not pay
-   per-frame IOSurface cost; a solid fallback covers memory pressure. */
+   is absolute and only mounts once the centered conversation leaves enough
+   right gutter (`SESSION_DOCK_GUTTER_PX`), so it never shifts text, scrollbar,
+   or `@container transcript-stage`. No backdrop-filter: the sheet stays up for
+   the session, so it must not pay per-frame IOSurface cost; a solid fallback
+   covers memory pressure. */
 .chat-stage > .session-status-dock {
   position: absolute;
   top: 12px;

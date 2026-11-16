@@ -1,15 +1,16 @@
 /**
  * Stage right-gutter auto-docking for the session status sheet.
  *
- * When the chat stage is wide enough for the conversation measure plus a
- * 296px gutter — and something is worth showing — the sheet pins itself to
- * the stage's right edge and the conversation re-centers. The user can
- * dismiss it; narrowing below the threshold and widening back past it resets
- * the dismissal so the sheet docks again on its own.
+ * The conversation column stays centered in `.chat-stage` without shrinking or
+ * pushing the stage left (`no padding-right`). When the stage widens enough
+ * that the empty right gutter `(stageWidth - measure) / 2` can comfortably
+ * fit the 272px floating sheet plus insets and clearance — and something is
+ * worth showing — the sheet slots into that right gutter automatically.
  *
- * Width is measured off the ResizeObserver entry's border-box (never
- * `clientWidth`: `.has-session-dock` adds `padding-right: 296px`, which would
- * shrink `clientWidth` the moment we dock and oscillate the layout).
+ * The user can dismiss it; narrowing a live stage below the width threshold
+ * and widening back past it resets the dismissal so it docks again. Toggling
+ * overlays (`suppressed`) or transient element remounts never resurrect a
+ * dismissed sheet.
  */
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import {
@@ -17,22 +18,28 @@ import {
   type ConversationWidth,
 } from '../platform/ui-preferences.js';
 
-/** Breathing room kept beside the measure before the gutter is allowed. */
-export const SESSION_DOCK_MARGIN_PX = 56;
-/** Width the docked sheet + its insets reserve on the stage's right edge. */
-export const SESSION_DOCK_GUTTER_PX = 296;
+/** Width of `.session-status-dock` (matches `session-status.css`). */
+export const SESSION_DOCK_PANEL_WIDTH_PX = 272;
+/** Distance from `.session-status-dock` to the stage's right border. */
+export const SESSION_DOCK_RIGHT_INSET_PX = 12;
+/** Minimum breathing room kept between the centered conversation and the dock. */
+export const SESSION_DOCK_GAP_PX = 16;
+/** Total right-gutter space required to seat the dock beside centered text. */
+export const SESSION_DOCK_GUTTER_PX =
+  SESSION_DOCK_PANEL_WIDTH_PX + SESSION_DOCK_RIGHT_INSET_PX + SESSION_DOCK_GAP_PX;
 
 const FALLBACK_CONVERSATION_PX = 720;
 
 export function sessionDockThresholdPx(conversationWidth: ConversationWidth): number {
   const measure = Number.parseInt(resolveConversationWidth(conversationWidth), 10);
   const px = Number.isFinite(measure) && measure > 0 ? measure : FALLBACK_CONVERSATION_PX;
-  return px + SESSION_DOCK_MARGIN_PX + SESSION_DOCK_GUTTER_PX;
+  // Centered measure leaves `(stageWidth - measure) / 2` on each side.
+  return px + 2 * SESSION_DOCK_GUTTER_PX;
 }
 
 export type UseSessionStageDockInput = {
-  /** The `.chat-stage` element (border-box width drives the threshold). */
-  stageRef: RefObject<HTMLDivElement | null>;
+  /** Optional ref fallback; prefer wiring the returned `stageRef` callback to `.chat-stage`. */
+  stageRef?: RefObject<HTMLDivElement | null> | undefined;
   conversationWidth: ConversationWidth;
   /** Running rows, deliverables or context — anything worth a gutter. */
   hasAnyContent: boolean;
@@ -45,6 +52,8 @@ export type UseSessionStageDockInput = {
 };
 
 export type SessionStageDock = {
+  /** Callback ref to pass to `.chat-stage` so remounts re-attach ResizeObserver. */
+  stageRef: (node: HTMLDivElement | null) => void;
   /** The stage can host the gutter right now (threshold met, not suppressed). */
   canAutoDock: boolean;
   /** The sheet is actually docked: allowed, not dismissed, has content. */
@@ -56,16 +65,43 @@ export type SessionStageDock = {
 };
 
 export function useSessionStageDock(input: UseSessionStageDockInput): SessionStageDock {
-  const { stageRef, conversationWidth, hasAnyContent, suppressed } = input;
+  const { stageRef: externalRef, conversationWidth, hasAnyContent, suppressed } = input;
+  const [stageElement, setStageElement] = useState<HTMLDivElement | null>(
+    () => externalRef?.current ?? null,
+  );
   const [stageWidth, setStageWidth] = useState(0);
   const [userDismissed, setUserDismissed] = useState(false);
 
+  const stageRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (externalRef) {
+        externalRef.current = node;
+      }
+      setStageElement(node);
+    },
+    [externalRef],
+  );
+
   useEffect(() => {
-    const element = stageRef.current;
-    if (element === null) return;
-    if (typeof ResizeObserver === 'undefined') {
-      setStageWidth(element.getBoundingClientRect().width);
+    if (externalRef && externalRef.current !== stageElement) {
+      setStageElement(externalRef.current);
+    }
+  }, [externalRef, stageElement]);
+
+  useEffect(() => {
+    const element = stageElement ?? externalRef?.current ?? null;
+    if (element === null) {
+      setStageWidth(0);
       return;
+    }
+    const readWidth = (): number => element.getBoundingClientRect().width;
+    if (typeof ResizeObserver === 'undefined') {
+      setStageWidth(readWidth());
+      return;
+    }
+    const initialWidth = readWidth();
+    if (initialWidth > 0) {
+      setStageWidth(initialWidth);
     }
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -76,24 +112,27 @@ export function useSessionStageDock(input: UseSessionStageDockInput): SessionSta
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [stageRef]);
+  }, [stageElement, externalRef]);
 
-  const canAutoDock = !suppressed && stageWidth >= sessionDockThresholdPx(conversationWidth);
+  const fitsWidth = stageWidth >= sessionDockThresholdPx(conversationWidth);
+  const canAutoDock = !suppressed && fitsWidth;
 
-  // Widening back over the threshold forgives the dismissal — the sheet was
-  // asked away for a stage that no longer looks like this one.
-  const previousCanAutoDock = useRef(canAutoDock);
+  // Narrowing a live stage below the threshold and widening back past it
+  // forgives the dismissal. Toggling `suppressed` (settings, inspector) or
+  // transient `0`-width unmounts must not revive a dismissed sheet.
+  const previousFitsWidth = useRef(fitsWidth);
   useEffect(() => {
-    if (!previousCanAutoDock.current && canAutoDock) {
+    if (stageWidth <= 0) return;
+    if (!previousFitsWidth.current && fitsWidth) {
       setUserDismissed(false);
     }
-    previousCanAutoDock.current = canAutoDock;
-  }, [canAutoDock]);
+    previousFitsWidth.current = fitsWidth;
+  }, [fitsWidth, stageWidth]);
 
   const isDocked = canAutoDock && !userDismissed && hasAnyContent;
 
   const dismiss = useCallback(() => setUserDismissed(true), []);
   const toggle = useCallback(() => setUserDismissed((dismissed) => !dismissed), []);
 
-  return { canAutoDock, isDocked, userDismissed, dismiss, toggle };
+  return { stageRef, canAutoDock, isDocked, userDismissed, dismiss, toggle };
 }

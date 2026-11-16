@@ -30,7 +30,7 @@ class TestResizeObserver {
     resizeCallbacks.delete(this.callback as ResizeCallback);
   }
 
-  public observe(): void {}
+  public observe(_target?: Element): void {}
 
   public unobserve(): void {}
 }
@@ -63,10 +63,10 @@ function Probe(props: Omit<UseSessionStageDockInput, 'stageRef'>): ReactElement 
 }
 
 describe('sessionDockThresholdPx', () => {
-  it('resolves thresholds per conversation width', () => {
-    expect(sessionDockThresholdPx('narrow')).toBe(640 + 56 + 296);
-    expect(sessionDockThresholdPx('default')).toBe(720 + 56 + 296);
-    expect(sessionDockThresholdPx('wide')).toBe(840 + 56 + 296);
+  it('resolves thresholds so the right half of a centered stage fits the dock', () => {
+    expect(sessionDockThresholdPx('narrow')).toBe(640 + 2 * 300);
+    expect(sessionDockThresholdPx('default')).toBe(720 + 2 * 300);
+    expect(sessionDockThresholdPx('wide')).toBe(840 + 2 * 300);
   });
 });
 
@@ -115,48 +115,56 @@ describe('useSessionStageDock', () => {
     expect(latest?.canAutoDock).toBe(false);
     expect(latest?.isDocked).toBe(false);
 
-    emitStageWidth(1071);
+    emitStageWidth(1319);
     expect(latest?.canAutoDock).toBe(false);
     expect(latest?.isDocked).toBe(false);
 
-    emitStageWidth(1072);
+    emitStageWidth(1320);
     expect(latest?.canAutoDock).toBe(true);
     expect(latest?.isDocked).toBe(true);
   });
 
   it('honours the narrow and wide measures', () => {
     renderDock({ conversationWidth: 'narrow' });
-    emitStageWidth(992);
+    emitStageWidth(1240);
     expect(latest?.isDocked).toBe(true);
 
     act(() => root.render(<Probe conversationWidth="wide" hasAnyContent suppressed={false} />));
-    emitStageWidth(1191);
+    emitStageWidth(1439);
     expect(latest?.isDocked).toBe(false);
-    emitStageWidth(1192);
+    emitStageWidth(1440);
     expect(latest?.isDocked).toBe(true);
   });
 
   it('stays closed without content or while suppressed', () => {
     renderDock({ hasAnyContent: false });
-    emitStageWidth(1400);
+    emitStageWidth(1500);
     expect(latest?.canAutoDock).toBe(true);
     expect(latest?.isDocked).toBe(false);
 
     act(() => root.render(<Probe conversationWidth="default" hasAnyContent suppressed />));
-    emitStageWidth(1400);
+    emitStageWidth(1500);
     expect(latest?.canAutoDock).toBe(false);
     expect(latest?.isDocked).toBe(false);
   });
 
-  it('dismisses, toggles back, and forgives the dismissal on re-widening', () => {
+  it('dismisses, keeps dismissal across suppressed toggles, and forgives on re-widening', () => {
     renderDock({});
-    emitStageWidth(1400);
+    emitStageWidth(1500);
     expect(latest?.isDocked).toBe(true);
 
     act(() => latest?.dismiss());
     expect(latest?.userDismissed).toBe(true);
     expect(latest?.isDocked).toBe(false);
     expect(latest?.canAutoDock).toBe(true);
+
+    // Opening and closing an overlay (`suppressed`) must not revive a dismissed sheet.
+    renderDock({ suppressed: true });
+    expect(latest?.canAutoDock).toBe(false);
+    expect(latest?.isDocked).toBe(false);
+    renderDock({ suppressed: false });
+    expect(latest?.userDismissed).toBe(true);
+    expect(latest?.isDocked).toBe(false);
 
     act(() => latest?.toggle());
     expect(latest?.isDocked).toBe(true);
@@ -167,9 +175,50 @@ describe('useSessionStageDock', () => {
     // Narrow below the threshold, then widen again: dismissal resets.
     emitStageWidth(800);
     expect(latest?.canAutoDock).toBe(false);
-    emitStageWidth(1400);
+    emitStageWidth(1500);
     expect(latest?.canAutoDock).toBe(true);
     expect(latest?.userDismissed).toBe(false);
     expect(latest?.isDocked).toBe(true);
+  });
+
+  it('re-attaches ResizeObserver when stageRef mounts on a new element', () => {
+    const observed: Element[] = [];
+    class TrackingRO extends TestResizeObserver {
+      public override observe(target?: Element): void {
+        if (target) observed.push(target);
+        super.observe(target);
+      }
+    }
+    globalThis.ResizeObserver = TrackingRO as unknown as typeof ResizeObserver;
+
+    function CallbackProbe(props: { stageKey: string }): ReactElement {
+      const dock = useSessionStageDock({
+        conversationWidth: 'default',
+        hasAnyContent: true,
+        suppressed: false,
+      });
+      latest = dock;
+      return <div key={props.stageKey} ref={dock.stageRef} data-testid={props.stageKey} />;
+    }
+
+    act(() => root.render(<CallbackProbe stageKey="stage-a" />));
+    const firstNode = container.querySelector('[data-testid="stage-a"]');
+    expect(firstNode).not.toBeNull();
+    emitStageWidth(1500);
+    expect(latest?.isDocked).toBe(true);
+
+    act(() => latest?.dismiss());
+    expect(latest?.userDismissed).toBe(true);
+
+    // Portal remount replaces the DOM element; observer moves and dismissal stays.
+    act(() => root.render(<CallbackProbe stageKey="stage-b" />));
+    const secondNode = container.querySelector('[data-testid="stage-b"]');
+    expect(secondNode).not.toBeNull();
+    expect(secondNode).not.toBe(firstNode);
+    expect(observed).toContain(firstNode);
+    expect(observed).toContain(secondNode);
+    emitStageWidth(1500);
+    expect(latest?.userDismissed).toBe(true);
+    expect(latest?.isDocked).toBe(false);
   });
 });

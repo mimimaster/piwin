@@ -156,9 +156,7 @@ function subagentDisplayTitle(item: SubagentOrchestrationItem, zh: boolean): str
 const EMPTY_ORCHESTRATION = EMPTY_SUBAGENT_ORCHESTRATION_VIEW;
 
 /**
- * Locale + derived activity model shared by the popover (trigger capsule
- * count) and the panel (rows). One derivation keeps the trigger count and the
- * row list from disagreeing.
+ * Locale + derived activity model for the session status panel rows.
  */
 export function useSessionStatusView(props: {
   locale?: DesktopLocale | undefined;
@@ -172,7 +170,6 @@ export function useSessionStatusView(props: {
   copy: ReturnType<typeof sessionStatusCopy>;
   plan: SessionPlan | null;
   planDone: number;
-  planActive: boolean;
   items: readonly SubagentOrchestrationItem[];
   jobs: readonly JobRecord[];
   canStopAll: boolean;
@@ -181,8 +178,6 @@ export function useSessionStatusView(props: {
   artifacts: readonly SessionStatusArtifact[];
   insights: SessionStatusInsights;
   hasAnyContent: boolean;
-  /** Subagents + jobs + live plan — the breathing-capsule counter. */
-  activeProcessCount: number;
 } {
   const { locale: contextLocale } = useDesktopLocale();
   const zh = (props.locale ?? contextLocale) === 'zh-CN';
@@ -205,7 +200,6 @@ export function useSessionStatusView(props: {
 
   const plan = props.plan ?? null;
   const planDone = plan === null ? 0 : plan.steps.filter((step) => step.status === 'done').length;
-  const planActive = plan?.steps.some((step) => step.status === 'active') === true;
   const artifacts = props.artifacts ?? [];
   const hasAnyContent =
     insights.hasTopGroup ||
@@ -213,11 +207,6 @@ export function useSessionStatusView(props: {
     activityModel.items.length > 0 ||
     activityModel.jobs.length > 0 ||
     artifacts.length > 0;
-
-  const activeSubagentCount = activityModel.items.filter((item) =>
-    isOrchestrationExecutionActive(item.executionStatus),
-  ).length;
-  const activeProcessCount = activeSubagentCount + activityModel.jobs.length + (planActive ? 1 : 0);
 
   const canStopAll =
     activityModel.stopRunIds.length > 0 || activityModel.stopJobIds.length > 0;
@@ -227,7 +216,6 @@ export function useSessionStatusView(props: {
     copy,
     plan,
     planDone,
-    planActive,
     items: activityModel.items,
     jobs: activityModel.jobs,
     canStopAll,
@@ -236,7 +224,6 @@ export function useSessionStatusView(props: {
     artifacts,
     insights,
     hasAnyContent,
-    activeProcessCount,
   };
 }
 

@@ -1,4 +1,5 @@
 import { defaultRangeExtractor, type Range, type VirtualItem } from '@tanstack/react-virtual';
+import type { MemoryPressureLevel } from '../notes/memory-governor.js';
 import type { TranscriptTurn } from './transcript-turns.js';
 
 /** Virtualize any non-empty transcript. Off-screen history must not mount. */
@@ -9,8 +10,23 @@ export const TRANSCRIPT_TURN_GAP_PX = 20;
  * happens above the fold. Overscan 2 let rows appear, remasure, then jump.
  */
 export const TRANSCRIPT_TURN_OVERSCAN = 8;
+export const TRANSCRIPT_TURN_MODERATE_OVERSCAN = 4;
+export const TRANSCRIPT_TURN_CRITICAL_OVERSCAN = 2;
 /** Always keep the newest N items/turns mounted so the live call chain never unmounts. */
 export const TRANSCRIPT_LIVE_TAIL_PIN_COUNT = 3;
+
+export function resolveTranscriptTurnOverscan(
+  pressureLevel: MemoryPressureLevel = 'normal',
+): number {
+  switch (pressureLevel) {
+    case 'critical':
+      return TRANSCRIPT_TURN_CRITICAL_OVERSCAN;
+    case 'moderate':
+      return TRANSCRIPT_TURN_MODERATE_OVERSCAN;
+    default:
+      return TRANSCRIPT_TURN_OVERSCAN;
+  }
+}
 
 /**
  * WKWebView starves `requestAnimationFrame` under a steady Host stream — the

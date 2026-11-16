@@ -55,6 +55,8 @@ export function useTrayQuotaSync({
   accountsRef.current = accounts;
   const quotasRef = useRef<Record<string, SubscriptionAccountQuota>>(quotas);
   quotasRef.current = quotas;
+  const openSettingsSectionRef = useRef(openSettingsSection);
+  openSettingsSectionRef.current = openSettingsSection;
   const inFlightRef = useRef<Set<string>>(new Set());
 
   const fetchProviderQuota = useCallback(
@@ -143,6 +145,9 @@ export function useTrayQuotaSync({
     [fetchProviderQuota],
   );
 
+  const refreshConnectedQuotasRef = useRef(refreshConnectedQuotas);
+  refreshConnectedQuotasRef.current = refreshConnectedQuotas;
+
   const refreshAuthStatus = useCallback(async () => {
     if (!hostClient?.request) {
       return;
@@ -228,43 +233,67 @@ export function useTrayQuotaSync({
     });
   }, [accounts, quotas, loadingIds, locale, themeMode]);
 
-  // 4. Answer popover requests, refresh on popover open, and navigate on click
+  // 4. Answer popover requests, refresh on popover open, and navigate on click.
+  // Keep global Tauri listeners mounted once and dispose late promises if unmounted.
   useEffect(() => {
+    let disposed = false;
     let unlistenRelay: (() => void) | undefined;
     let unlistenOpened: (() => void) | undefined;
     let unlistenNavigate: (() => void) | undefined;
 
     void installTrayQuotaStateRelay((payload) => {
+      if (disposed) {
+        return;
+      }
       if (payload.forceRefresh || payload.providerId) {
-        refreshConnectedQuotas({
+        refreshConnectedQuotasRef.current({
           forceRefresh: payload.forceRefresh ?? true,
           ...(payload.providerId ? { providerId: payload.providerId } : {}),
         });
       } else {
-        refreshConnectedQuotas({ onlyStale: true });
+        refreshConnectedQuotasRef.current({ onlyStale: true });
       }
     }).then((dispose) => {
+      if (disposed) {
+        dispose();
+        return;
+      }
       unlistenRelay = dispose;
     });
 
     void listenTrayQuotaOpened(() => {
-      refreshConnectedQuotas({ onlyStale: true });
+      if (disposed) {
+        return;
+      }
+      refreshConnectedQuotasRef.current({ onlyStale: true });
     }).then((dispose) => {
+      if (disposed) {
+        dispose();
+        return;
+      }
       unlistenOpened = dispose;
     });
 
     void listenTrayQuotaNavigate((payload) => {
+      if (disposed) {
+        return;
+      }
       if (payload.section === 'oauth') {
-        openSettingsSection('oauth');
+        openSettingsSectionRef.current('oauth');
       }
     }).then((dispose) => {
+      if (disposed) {
+        dispose();
+        return;
+      }
       unlistenNavigate = dispose;
     });
 
     return () => {
+      disposed = true;
       unlistenRelay?.();
       unlistenOpened?.();
       unlistenNavigate?.();
     };
-  }, [openSettingsSection, refreshConnectedQuotas]);
+  }, []);
 }

@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactElement,
 } from 'react';
 import { elementScroll, useVirtualizer } from '@tanstack/react-virtual';
@@ -15,14 +16,15 @@ import {
   buildTranscriptTurnsStructureKey,
   createTranscriptRangeExtractor,
   adoptUserScrollBeforeTurnMeasure,
+  resolveTranscriptTurnOverscan,
   shouldAdjustTranscriptScrollOnItemSizeChange,
   shouldIgnoreTailRestick,
   shouldVirtualizeTranscript,
   transcriptVirtualizerMeasurePolicy,
   TRANSCRIPT_LIVE_TAIL_PIN_COUNT,
   TRANSCRIPT_TURN_GAP_PX,
-  TRANSCRIPT_TURN_OVERSCAN,
 } from './transcript-turn-policy.js';
+import { globalMemoryGovernor } from '../notes/memory-governor.js';
 import { useTranscriptScrollPort, type TranscriptScrollPort } from './transcript-scroll-port';
 import { scrollTranscriptToMessage } from '../session/history-anchor-jump';
 import { readTranscriptTurnHeight, rememberTranscriptTurnHeight } from './transcript-scroll-memory';
@@ -306,6 +308,12 @@ function VirtualizedTranscriptTurns(
     [props.scrollPort.isFollowingTail, props.scrollPort.sessionId],
   );
 
+  const memoryPressureLevel = useSyncExternalStore(
+    globalMemoryGovernor.subscribe,
+    globalMemoryGovernor.getLevel,
+    () => 'normal' as const,
+  );
+  const overscan = resolveTranscriptTurnOverscan(memoryPressureLevel);
   const measurePolicy = transcriptVirtualizerMeasurePolicy();
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLElement>({
     count: props.turns.length,
@@ -316,7 +324,7 @@ function VirtualizedTranscriptTurns(
     followOnAppend: false,
     gap: TRANSCRIPT_TURN_GAP_PX,
     measureElement,
-    overscan: TRANSCRIPT_TURN_OVERSCAN,
+    overscan,
     rangeExtractor,
     scrollMargin,
     scrollToFn: (offset, options, instance) => {
@@ -507,7 +515,7 @@ function VirtualizedTranscriptTurns(
             data-height-cached={cachedSizeByTurnIdRef.current.has(turn.id) ? 'true' : undefined}
             style={{
               height: `${virtualItem.size}px`,
-              transform: `translateY(${virtualItem.start - scrollMargin}px)`,
+              top: `${virtualItem.start - scrollMargin}px`,
             }}
           >
             {/*

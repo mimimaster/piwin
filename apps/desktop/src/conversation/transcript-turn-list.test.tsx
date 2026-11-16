@@ -6,9 +6,13 @@ import { TranscriptScrollProvider } from './transcript-scroll-port';
 import {
   adoptUserScrollBeforeTurnMeasure,
   createTranscriptRangeExtractor,
+  resolveTranscriptTurnOverscan,
   shouldAdjustTranscriptScrollOnItemSizeChange,
   shouldIgnoreTailRestick,
   shouldVirtualizeTranscript,
+  TRANSCRIPT_TURN_CRITICAL_OVERSCAN,
+  TRANSCRIPT_TURN_MODERATE_OVERSCAN,
+  TRANSCRIPT_TURN_OVERSCAN,
   TRANSCRIPT_VIRTUALIZATION_THRESHOLD,
   TRANSCRIPT_TURN_GAP_PX,
   buildTranscriptTurnsStructureKey,
@@ -16,6 +20,7 @@ import {
   transcriptVirtualizerMeasurePolicy,
 } from './transcript-turn-policy.js';
 import { TranscriptTurnList } from './transcript-turn-list.js';
+import { globalMemoryGovernor } from '../notes/memory-governor.js';
 import { groupTranscriptTurns, type TranscriptTurn } from './transcript-turns';
 import type { ChatMessageUi } from './chat-reducer';
 import { rememberTranscriptTurnHeight } from './transcript-scroll-memory';
@@ -324,7 +329,8 @@ describe('transcript turn window', () => {
       const viewportHasContent = Array.from(
         container.querySelectorAll<HTMLElement>('.transcript-turn-window-item'),
       ).some((slot) => {
-        const start = Number.parseFloat(slot.style.transform.slice('translateY('.length));
+        expect(slot.style.transform).toBe('');
+        const start = Number.parseFloat(slot.style.top || '0');
         const end = start + Number.parseFloat(slot.style.height);
         return end > container.scrollTop && start < container.scrollTop + container.clientHeight;
       });
@@ -453,9 +459,9 @@ describe('transcript turn window', () => {
     ];
     expect(slots.length).toBeGreaterThan(1);
     const placed = slots.map((slot) => {
+      expect(slot.style.transform).toBe('');
       const height = Number.parseFloat(slot.style.height || '0');
-      const match = /translateY\((-?\d+(?:\.\d+)?)px\)/.exec(slot.style.transform);
-      const start = match ? Number.parseFloat(match[1] ?? '0') : Number.NaN;
+      const start = Number.parseFloat(slot.style.top || '0');
       return { height, start, end: start + height };
     });
     for (const slot of placed) {
@@ -692,6 +698,57 @@ describe('transcript turn window', () => {
 
     expect(grew).toBe(grewAfterMount);
   });
+
+  it('shrinks mounted offscreen turns when memory pressure enters critical', async () => {
+    const turns = createTurns(30);
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, writable: true, value: 200 },
+      offsetWidth: { configurable: true, writable: true, value: 900 },
+      clientHeight: { configurable: true, writable: true, value: 200 },
+      scrollHeight: { configurable: true, writable: true, value: 5_000 },
+      scrollTop: { configurable: true, writable: true, value: 1_000 },
+    });
+
+    try {
+      await act(async () => {
+        root.render(
+          <TranscriptScrollProvider
+            sessionId="session-pressure-overscan"
+            scrollElementRef={scrollElementRef}
+            isFollowingTail={() => false}
+          >
+            <TranscriptTurnList turns={turns} pinnedMessageId={null} renderTurn={renderTurn} />
+          </TranscriptScrollProvider>,
+        );
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      });
+
+      const normalSlots = container.querySelectorAll('[data-testid="transcript-turn-window-item"]').length;
+      expect(normalSlots).toBeGreaterThan(10);
+
+      await act(async () => {
+        globalMemoryGovernor.setLevel('critical');
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      });
+
+      const criticalSlotNodes = Array.from(
+        container.querySelectorAll<HTMLElement>('[data-testid="transcript-turn-window-item"]'),
+      );
+      expect(criticalSlotNodes.length).toBeLessThan(normalSlots);
+      const hasViewportTurn = criticalSlotNodes.some((slot) => {
+        const start = Number.parseFloat(slot.style.top || '0');
+        const end = start + Number.parseFloat(slot.style.height || '0');
+        return end > container.scrollTop && start < container.scrollTop + container.clientHeight;
+      });
+      expect(hasViewportTurn).toBe(true);
+      expect(container.querySelector('#msg-user-29')).not.toBeNull();
+    } finally {
+      act(() => {
+        globalMemoryGovernor.reset();
+      });
+    }
+  });
 });
 
 describe('shouldAdjustTranscriptScrollOnItemSizeChange', () => {
@@ -881,6 +938,9 @@ describe('transcript virtualization policy', () => {
     expect(shouldVirtualizeTranscript(21)).toBe(true);
     expect(shouldVirtualizeTranscript(200)).toBe(true);
     expect(TRANSCRIPT_VIRTUALIZATION_THRESHOLD).toBe(0);
+    expect(resolveTranscriptTurnOverscan('normal')).toBe(TRANSCRIPT_TURN_OVERSCAN);
+    expect(resolveTranscriptTurnOverscan('moderate')).toBe(TRANSCRIPT_TURN_MODERATE_OVERSCAN);
+    expect(resolveTranscriptTurnOverscan('critical')).toBe(TRANSCRIPT_TURN_CRITICAL_OVERSCAN);
   });
 
   it('range extractor still pins edit + live tail when virtualizer is re-enabled later', () => {

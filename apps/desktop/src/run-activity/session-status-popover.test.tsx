@@ -144,9 +144,10 @@ describe('SessionStatusPopover', () => {
     );
     expect(queryTrigger()).not.toBeNull();
     expect(document.querySelector('[data-testid="session-status-live-dot"]')).toBeNull();
+    expect(document.querySelector('[data-testid="session-status-count"]')).toBeNull();
   });
 
-  it('lists plan steps with a progress counter and flags live state on the button', () => {
+  it('lists plan steps with a progress counter without turning the trigger dynamic', () => {
     act(() => root.render(<Harness plan={makePlan()} onOpenTool={vi.fn()} />));
     openPopover();
     const group = document.querySelector('[data-testid="session-status-progress"]');
@@ -154,7 +155,9 @@ describe('SessionStatusPopover', () => {
     expect(group?.textContent).toContain('Rewrite the mini');
     expect(group?.textContent).toContain('Wire the status popover');
     expect(group?.textContent).toContain('Verify');
-    expect(document.querySelector('[data-testid="session-status-live-dot"]')).not.toBeNull();
+    expect(queryTrigger()?.className).not.toContain('is-active-capsule');
+    expect(document.querySelector('[data-testid="session-status-live-dot"]')).toBeNull();
+    expect(document.querySelector('[data-testid="session-status-count"]')).toBeNull();
   });
 
   it('shows running subagents with clean status words (no raw markdown) and humanizes machine ids', () => {
@@ -314,7 +317,7 @@ describe('SessionStatusPopover', () => {
     expect(onOpenArtifact).toHaveBeenCalledTimes(1);
   });
 
-  it('collapses the trigger into a breathing capsule counting live processes', () => {
+  it('keeps the trigger as a static icon button even when processes are live', () => {
     act(() =>
       root.render(
         <Harness
@@ -329,9 +332,10 @@ describe('SessionStatusPopover', () => {
       ),
     );
     const trigger = queryTrigger();
-    expect(trigger?.className).toContain('is-active-capsule');
-    expect(document.querySelector('[data-testid="session-status-live-dot"]')).not.toBeNull();
-    expect(document.querySelector('[data-testid="session-status-count"]')?.textContent).toBe('3');
+    expect(trigger?.className).not.toContain('is-active-capsule');
+    expect(trigger?.querySelector('svg')).not.toBeNull();
+    expect(document.querySelector('[data-testid="session-status-live-dot"]')).toBeNull();
+    expect(document.querySelector('[data-testid="session-status-count"]')).toBeNull();
   });
 
   it('toggles the stage dock instead of opening the popover when auto-dock is live', () => {

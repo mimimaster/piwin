@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from 'react';
+import { act, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it } from 'vitest';
 import { useShellLayout } from './use-shell-layout.js';
@@ -27,5 +27,38 @@ it('opens the launcher through a generic toggle while retaining explicit tool re
     expect(current().inspectorTab).toBe('files');
   } finally {
     act(() => { root.unmount(); });
+  }
+});
+
+it('keeps shell object identity stable across unrelated parent re-renders', () => {
+  const snapshots: Array<ReturnType<typeof useShellLayout>> = [];
+  let triggerParentRerender: (() => void) | null = null;
+
+  function Probe() {
+    const [, setTick] = useState(0);
+    triggerParentRerender = () => setTick((value) => value + 1);
+    const shell = useShellLayout();
+    snapshots.push(shell);
+    return null;
+  }
+
+  const root = createRoot(document.createElement('div'));
+  try {
+    act(() => {
+      root.render(<Probe />);
+    });
+    act(() => {
+      triggerParentRerender?.();
+    });
+    act(() => {
+      triggerParentRerender?.();
+    });
+    expect(snapshots).toHaveLength(3);
+    expect(snapshots[1]).toBe(snapshots[0]);
+    expect(snapshots[2]).toBe(snapshots[0]);
+  } finally {
+    act(() => {
+      root.unmount();
+    });
   }
 });

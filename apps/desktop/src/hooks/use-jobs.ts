@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { JobRecord } from '@piwin/contracts';
 import type { HostClient } from '../host/host-client';
 import { MAX_JOB_LOGS_BY_ID, putRecordLru, retainRecordKeys } from '../platform/record-budget';
@@ -9,18 +9,47 @@ export function useJobs(
 ) {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [jobLogsById, setJobLogsById] = useState<Record<string, string>>({});
+  const clientRef = useRef(hostClient);
+  const inFlightRefreshRef = useRef<Promise<void> | null>(null);
+  const queuedRefreshRef = useRef(false);
+
+  if (clientRef.current !== hostClient) {
+    clientRef.current = hostClient;
+    inFlightRefreshRef.current = null;
+    queuedRefreshRef.current = false;
+  }
 
   const refreshJobs = useCallback(async (): Promise<void> => {
     if (hostClient.supportsCommand?.('job/list') === false) {
       return;
     }
-    const response = await hostClient.request({ type: 'job/list' });
-    if (!response.success) {
-      return;
+    if (inFlightRefreshRef.current !== null) {
+      queuedRefreshRef.current = true;
+      return inFlightRefreshRef.current;
     }
-    const listedJobs = (response.data as { jobs?: JobRecord[] } | undefined)?.jobs ?? [];
-    setJobs(listedJobs);
-    setJobLogsById((current) => retainListedJobLogs(current, listedJobs));
+
+    const requestPromise = (async () => {
+      do {
+        queuedRefreshRef.current = false;
+        const response = await hostClient.request({ type: 'job/list' });
+        if (clientRef.current !== hostClient) {
+          return;
+        }
+        if (response.success) {
+          const listedJobs = (response.data as { jobs?: JobRecord[] } | undefined)?.jobs ?? [];
+          setJobs(listedJobs);
+          setJobLogsById((current) => retainListedJobLogs(current, listedJobs));
+        }
+      } while (queuedRefreshRef.current && clientRef.current === hostClient);
+    })().finally(() => {
+      if (clientRef.current === hostClient && inFlightRefreshRef.current === requestPromise) {
+        inFlightRefreshRef.current = null;
+        queuedRefreshRef.current = false;
+      }
+    });
+
+    inFlightRefreshRef.current = requestPromise;
+    return requestPromise;
   }, [hostClient]);
 
   const loadJobLogs = useCallback(

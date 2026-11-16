@@ -219,9 +219,29 @@ export function createTrayQuotaStateRelay(options: {
   };
 }
 
+let tauriEventModulePromise: Promise<typeof import('@tauri-apps/api/event')> | null = null;
+let tauriCoreModulePromise: Promise<typeof import('@tauri-apps/api/core')> | null = null;
+
+// Coalesce concurrent dynamic imports so multiple startup listeners share a single module load.
+function loadTauriEventModule(): Promise<typeof import('@tauri-apps/api/event')> {
+  tauriEventModulePromise ??= import('@tauri-apps/api/event').catch((error: unknown) => {
+    tauriEventModulePromise = null;
+    throw error;
+  });
+  return tauriEventModulePromise;
+}
+
+function loadTauriCoreModule(): Promise<typeof import('@tauri-apps/api/core')> {
+  tauriCoreModulePromise ??= import('@tauri-apps/api/core').catch((error: unknown) => {
+    tauriCoreModulePromise = null;
+    throw error;
+  });
+  return tauriCoreModulePromise;
+}
+
 export async function emitTrayQuotaState(state: TrayQuotaStatePayload): Promise<void> {
   try {
-    const { emit } = await import('@tauri-apps/api/event');
+    const { emit } = await loadTauriEventModule();
     await emit(TRAY_QUOTA_STATE_EVENT, state);
   } catch {
     // Not in Tauri runtime or popover not listening yet.
@@ -230,7 +250,7 @@ export async function emitTrayQuotaState(state: TrayQuotaStatePayload): Promise<
 
 export async function requestTrayQuotaState(payload?: TrayQuotaRequestPayload): Promise<void> {
   try {
-    const { emit } = await import('@tauri-apps/api/event');
+    const { emit } = await loadTauriEventModule();
     await emit(TRAY_QUOTA_REQUEST_EVENT, payload ?? {});
   } catch {
     // Not in Tauri runtime.
@@ -241,7 +261,7 @@ export async function listenTrayQuotaState(
   onState: (state: TrayQuotaStatePayload) => void,
 ): Promise<() => void> {
   try {
-    const { listen } = await import('@tauri-apps/api/event');
+    const { listen } = await loadTauriEventModule();
     return await listen<TrayQuotaStatePayload>(TRAY_QUOTA_STATE_EVENT, (event) => {
       if (event.payload) {
         onState(event.payload);
@@ -256,7 +276,7 @@ export async function listenTrayQuotaRequest(
   onRequest: (payload: TrayQuotaRequestPayload) => void,
 ): Promise<() => void> {
   try {
-    const { listen } = await import('@tauri-apps/api/event');
+    const { listen } = await loadTauriEventModule();
     return await listen<TrayQuotaRequestPayload>(TRAY_QUOTA_REQUEST_EVENT, (event) => {
       onRequest(event.payload ?? {});
     });
@@ -267,7 +287,7 @@ export async function listenTrayQuotaRequest(
 
 export async function listenTrayQuotaOpened(onOpened: () => void): Promise<() => void> {
   try {
-    const { listen } = await import('@tauri-apps/api/event');
+    const { listen } = await loadTauriEventModule();
     return await listen(TRAY_QUOTA_OPENED_EVENT, () => {
       onOpened();
     });
@@ -280,7 +300,7 @@ export async function listenTrayQuotaNavigate(
   onNavigate: (payload: TrayQuotaNavigatePayload) => void,
 ): Promise<() => void> {
   try {
-    const { listen } = await import('@tauri-apps/api/event');
+    const { listen } = await loadTauriEventModule();
     return await listen<TrayQuotaNavigatePayload>(TRAY_QUOTA_NAVIGATE_EVENT, (event) => {
       onNavigate(event.payload ?? {});
     });
@@ -314,7 +334,7 @@ export async function installTrayQuotaStateRelay(
 
 export async function setTrayQuotaVisible(visible: boolean): Promise<void> {
   try {
-    const { invoke } = await import('@tauri-apps/api/core');
+    const { invoke } = await loadTauriCoreModule();
     await invoke('tray_quota_set_visible', { visible });
   } catch {
     // Non-Tauri or non-macOS environment.
@@ -323,7 +343,7 @@ export async function setTrayQuotaVisible(visible: boolean): Promise<void> {
 
 export async function hideTrayQuotaPopover(): Promise<void> {
   try {
-    const { invoke } = await import('@tauri-apps/api/core');
+    const { invoke } = await loadTauriCoreModule();
     await invoke('tray_quota_hide');
   } catch {
     // Non-Tauri environment.
@@ -332,7 +352,7 @@ export async function hideTrayQuotaPopover(): Promise<void> {
 
 export async function resizeTrayQuotaPopover(height: number): Promise<void> {
   try {
-    const { invoke } = await import('@tauri-apps/api/core');
+    const { invoke } = await loadTauriCoreModule();
     await invoke('tray_quota_resize', { height });
   } catch {
     // Non-Tauri environment.
@@ -341,7 +361,7 @@ export async function resizeTrayQuotaPopover(height: number): Promise<void> {
 
 export async function openPiwinFromTray(section?: string): Promise<void> {
   try {
-    const { invoke } = await import('@tauri-apps/api/core');
+    const { invoke } = await loadTauriCoreModule();
     await invoke('tray_quota_open_piwin', {
       ...(section !== undefined ? { section } : {}),
     });
